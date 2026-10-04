@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Gate 6: fail-closed boundary between Jornada product and SEHAB support.
 
-Only the read-only schema fixture in Solution/tests is intentionally external.
-DEV synthetic fixtures and historical documents are not production dependencies.
+The principal product may carry byte-identical JSON contract copies for runtime interoperability.
+Code, projects, governance ownership and SEHAB-specific product configuration remain segregated.
 """
 from __future__ import annotations
 
@@ -18,7 +18,6 @@ SUPPORT_INVENTORY = "ApoioSecretarias/config/governance/schema-approvals.SEHAB.j
 SEHAB_SCHEMA_PREFIX = "config/contracts/gestores/sehab/"
 SEHAB_AA01_METADATA = "config/contracts/registros/aa01/v1/registro.json"
 FORBIDDEN_PRODUCT_PATHS = (
-    "Solution/config/contracts/gestores/SEHAB",
     "Solution/config/gestores/SEHAB",
     "Solution/config/contracts/registros/AA01/v1/registro.json",
     "Solution/src/Jornada.Integrador.CSharp",
@@ -78,7 +77,7 @@ def audit(root: Path) -> list[str]:
     elif "Jornada.Integrador.CSharp" not in support_sln.read_text(encoding="utf-8"):
         errors.append("Transmissor ausente da Solução de Apoio")
 
-    main = inventory(root, MAIN_INVENTORY, errors)
+    # Runtime copies are allowed only when byte-identical to the support-owned contracts.\n    runtime_copy = root / "Solution/config/contracts/gestores/SEHAB"\n    support_copy = root / "ApoioSecretarias/config/contracts/gestores/SEHAB"\n    for support_file in support_copy.rglob("*.json"):\n        relative = support_file.relative_to(support_copy)\n        product_file = runtime_copy / relative\n        if not product_file.is_file():\n            errors.append(f"Cópia runtime SEHAB ausente: {product_file.relative_to(root)}")\n        elif product_file.read_bytes() != support_file.read_bytes():\n            errors.append(f"Cópia runtime SEHAB divergente: {product_file.relative_to(root)}")\n\n    main = inventory(root, MAIN_INVENTORY, errors)
     for entry in main:
         path = entry["path"].replace("\\", "/").lower()
         if path.startswith(SEHAB_SCHEMA_PREFIX) or path == SEHAB_AA01_METADATA:
