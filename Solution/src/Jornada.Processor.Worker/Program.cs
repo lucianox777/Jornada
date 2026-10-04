@@ -101,6 +101,27 @@ builder.Services.AddSingleton<IngestionProcessor>();
 builder.Services.AddHostedService<ProcessorWorker>();
 
 var host = builder.Build();
+
+if (string.Equals(processorOperation, "PROCESS_UNTIL_IDLE", StringComparison.Ordinal))
+{
+    if (!builder.Environment.IsDevelopment())
+        throw new InvalidOperationException("PROCESS_UNTIL_IDLE só pode executar em Development/Test.");
+
+    var repository = host.Services.GetRequiredService<IProcessorRepository>();
+    var processor = host.Services.GetRequiredService<IngestionProcessor>();
+    var recovered = await repository.RecoverExpiredLeasesAsync(options.MaxProcessingAttempts, CancellationToken.None);
+    var processed = 0;
+    while (await processor.ProcessNextAsync(CancellationToken.None))
+    {
+        processed++;
+        if (processed >= 10_000)
+            throw new InvalidOperationException("PROCESS_UNTIL_IDLE excedeu 10.000 ciclos; execução interrompida por segurança.");
+    }
+
+    Console.WriteLine($"Processor one-shot concluído: lotes_processados={processed}; leases_recuperados={recovered}.");
+    return;
+}
+
 if (runtimeHeartbeat is not null)
     _ = runtimeHeartbeat.RunAsync(host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
 await host.RunAsync();
