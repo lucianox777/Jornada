@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('reference-check','bronze-verify','ingest-latest','pipeline-status','replay-latest')]
+    [ValidateSet('reference-check','bronze-verify','ingest-latest','pipeline-status','blocking','calibrate','linkage','replay-latest','report')]
     [string]$Action
 )
 
@@ -47,6 +47,32 @@ function Invoke-SqlScalar([string]$Query){
     }
 }
 
+function Ensure-ClusterRunning {
+    $required=@('sqlserver','jornada-nas','jornada-node1','jornada-node2')
+    $running=@()
+    try {
+        Push-Location $Root
+        $running=@(& docker compose --env-file $EnvFile ps --status running --services 2>$null)
+        Pop-Location
+    } catch {
+        try { Pop-Location } catch {}
+        $running=@()
+    }
+    $missing=@($required | Where-Object { $_ -notin $running })
+    if($missing.Count -eq 0){ return }
+
+    Write-Host "Infraestrutura incompleta ($($missing -join ', ')); subindo automaticamente..."
+    & (Join-Path $PSScriptRoot 'dev-console-infrastructure.ps1') -Action up
+    if($LASTEXITCODE -ne 0){throw "Subida automática da infraestrutura falhou ($LASTEXITCODE)."}
+}
+
+function Invoke-ClusterAction([string]$ClusterAction){
+    Ensure-ClusterRunning
+    Write-Host "# pwsh -NoProfile -File scripts/local-cluster.ps1 -Action $ClusterAction"
+    & (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action $ClusterAction
+    if($LASTEXITCODE -ne 0){throw "local-cluster.ps1 $ClusterAction falhou ($LASTEXITCODE)."}
+}
+
 function Get-DevCredential([string]$Gestor,[string]$RequiredScope){
     if(-not(Test-Path $KeysFile)){throw "Credenciais DEV não encontradas: $KeysFile"}
     $keys=Get-Content $KeysFile -Raw | ConvertFrom-Json
@@ -59,16 +85,19 @@ function Get-DevCredential([string]$Gestor,[string]$RequiredScope){
 
 switch($Action){
     'reference-check' {
+        Ensure-ClusterRunning
         Write-Host '# pwsh -NoProfile -File scripts/local-check-ibge-reference.ps1 -NoStart'
         & (Join-Path $PSScriptRoot 'local-check-ibge-reference.ps1') -NoStart
         if($LASTEXITCODE -ne 0){throw "Quick check IBGE falhou ($LASTEXITCODE)."}
     }
 
     'bronze-verify' {
+        Ensure-ClusterRunning
         Invoke-Compose @('exec','-T','jornada-node2','dotnet','/opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll','--minimum-count','0')
     }
 
     'ingest-latest' {
+        Ensure-ClusterRunning
         $manualRoot=Join-Path $OutDir 'manual-zip'
         if(-not(Test-Path $manualRoot)){throw 'Nenhum ZIP manual foi gerado ainda.'}
         $zip=Get-ChildItem $manualRoot -Recurse -File -Filter '*.zip' | Sort-Object LastWriteTimeUtc -Descending | Select-Object -First 1
@@ -103,6 +132,7 @@ switch($Action){
     }
 
     'pipeline-status' {
+        Ensure-ClusterRunning
         $result=Join-Path $OutDir 'last-ingestion.json'
         if(-not(Test-Path $result)){throw 'Nenhuma ingestão registrada pela Console DEV.'}
         $saved=Get-Content $result -Raw | ConvertFrom-Json
@@ -125,10 +155,19 @@ switch($Action){
         Write-Host "Resultado salvo em: $statusPath"
     }
 
+    'blocking' { Invoke-ClusterAction 'blocking' }
+
+    'calibrate' { Invoke-ClusterAction 'calibrate' }
+
+    'linkage' { Invoke-ClusterAction 'linkage' }
+
     'replay-latest' {
+        Ensure-ClusterRunning
         $sourceRun=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE status=N'PUBLICADO' AND tipo_run<>N'REPLAY' ORDER BY publicado_em DESC,iniciado_em DESC;"
         if([string]::IsNullOrWhiteSpace($sourceRun)){throw 'Nenhum linkage PUBLICADO elegível para replay.'}
         Write-Host "Replay histórico do último run publicado: $sourceRun"
         Invoke-Compose @('exec','-T','jornada-node2','dotnet','/opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll','--mode','REPLAY','--replay-source-run-id',$sourceRun,'--requested-by','DEV_CONSOLE','--reason','manual-dev-console-replay','--publish','false')
     }
+
+    'report' { Invoke-ClusterAction 'linkage-diagnose' }
 }
