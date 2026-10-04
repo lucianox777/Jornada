@@ -19,6 +19,7 @@ x-jornada-node-common: &jornada-node-common
     ConnectionStrings__Jornada: "Server=sqlserver,1433;Database=${JORNADA_SQL_DATABASE:-JornadaLocal};User Id=sa;Password=${JORNADA_SQL_SA_PASSWORD:?Set JORNADA_SQL_SA_PASSWORD in the local .env file};TrustServerCertificate=true;Encrypt=false"
     DOTNET_ENVIRONMENT: Development
     ASPNETCORE_ENVIRONMENT: Development
+    SemiblindIdentitySearch__Enabled: "${JORNADA_SEMIBLIND_ENABLED:-false}"
 
 services:
   sqlserver:
