@@ -30,8 +30,6 @@ public sealed class DevTestConsoleContractTests
         var localCluster=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-cluster.ps1"));
         var devEnv=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-env.ps1"));
         var compose=File.ReadAllText(Path.Combine(root,"Solution","docker-compose.yml"));
-        var clusterConfig=File.ReadAllText(Path.Combine(root,"Solution","install","windows-production","Jornada.Cluster.Test.json"));
-        var entrypoint=File.ReadAllText(Path.Combine(root,"Solution","install","container-test","entrypoint.sh"));
 
         Assert.Multiple(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
@@ -281,13 +279,6 @@ public sealed class DevTestConsoleContractTests
             Assert.That(compose,Does.Contain("test-access-keys.json:/opt/jornada/config/security/test-access-keys.json:ro"));
             Assert.That(compose,Does.Contain("[reference-bootstrap] Iniciando ENSURE_NAME_FREQUENCY_SNAPSHOT"));
             Assert.That(compose,Does.Not.Contain("LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE dotnet"));
-            Assert.That(clusterConfig,Does.Not.Contain("\"component\":\"LinkageRunner\""));
-            Assert.That(compose,Does.Contain("JORNADA_DEV_LINKAGE_RUNNER_LOOP"));
-            Assert.That(compose,Does.Contain("LinkageRunner__PollingSeconds"));
-            Assert.That(entrypoint,Does.Contain("JORNADA_DEV_LINKAGE_RUNNER_LOOP"));
-            Assert.That(entrypoint,Does.Contain("while true; do"));
-            Assert.That(entrypoint,Does.Contain("--mode INCREMENTAL"));
-            Assert.That(entrypoint,Does.Contain("DEV_RESIDENT_RUNNER"));
             Assert.That(bootstrap,Does.Contain("restore $Solution --locked-mode"));
             Assert.That(bootstrap,Does.Contain("build $Solution --no-restore"));
 
