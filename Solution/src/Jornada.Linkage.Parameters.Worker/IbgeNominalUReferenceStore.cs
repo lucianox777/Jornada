@@ -56,14 +56,42 @@ public static class IbgeNominalUReferenceStore
         var input = await IbgeNominalUReferenceReader.ReadBrazilPublishedMarginalsAsync(
             connection, source.Id, firstNameSex, cancellationToken);
         var raw = IbgeNominalUBootstrapEstimator.Estimate(input, options, ComparisonContract);
-        var normalized = Normalize(raw);
-        var fingerprint = ComputeFingerprint(source, firstNameSex, normalized);
+        return await PersistAsync(
+            connection, source, firstNameSex, Normalize(raw), cancellationToken);
+    }
 
+    public static async Task<IbgeNominalUStoredReference> ImportAsync(
+        SqlConnection connection,
+        IbgeNominalUReferenceInfo source,
+        string firstNameSex,
+        IbgeNominalUBootstrapEstimate estimate,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(estimate);
+        ValidateKey(firstNameSex, new IbgeNominalUBootstrapOptions(estimate.Seed, estimate.PairCount));
+        ValidateEstimateContract(estimate);
+        return await PersistAsync(
+            connection, source, firstNameSex, Normalize(estimate), cancellationToken);
+    }
+
+    private static async Task<IbgeNominalUStoredReference> PersistAsync(
+        SqlConnection connection,
+        IbgeNominalUReferenceInfo source,
+        string firstNameSex,
+        IbgeNominalUBootstrapEstimate normalized,
+        CancellationToken cancellationToken)
+    {
+        var options = new IbgeNominalUBootstrapOptions(normalized.Seed, normalized.PairCount);
+        var already = await ReadAsync(connection, null, source, firstNameSex, options, cancellationToken);
+        if (already is not null)
+            return already;
+
+        var fingerprint = ComputeFingerprint(source, firstNameSex, normalized);
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
         try
         {
-            // Dois ENSURE concorrentes podem computar em paralelo, mas so um publica.
+            // Dois ENSURE/import concorrentes podem preparar em paralelo, mas so um publica.
             var another = await ReadAsync(
                 connection, transaction, source, firstNameSex, options, cancellationToken);
             if (another is not null)
@@ -89,17 +117,17 @@ public static class IbgeNominalUReferenceStore
             insert.Parameters.Add("@ref", SqlDbType.BigInt).Value = source.Id;
             insert.Parameters.Add("@source_sha", SqlDbType.Binary, 32).Value =
                 Convert.FromHexString(source.ContentSha256);
-            insert.Parameters.Add("@method", SqlDbType.NVarChar, 80).Value = raw.MethodVersion;
-            insert.Parameters.Add("@joint", SqlDbType.NVarChar, 100).Value = raw.JointConstructionVersion;
-            insert.Parameters.Add("@channel", SqlDbType.NVarChar, 100).Value = raw.ObservationChannelVersion;
+            insert.Parameters.Add("@method", SqlDbType.NVarChar, 80).Value = normalized.MethodVersion;
+            insert.Parameters.Add("@joint", SqlDbType.NVarChar, 100).Value = normalized.JointConstructionVersion;
+            insert.Parameters.Add("@channel", SqlDbType.NVarChar, 100).Value = normalized.ObservationChannelVersion;
             insert.Parameters.Add("@contract", SqlDbType.NVarChar, 60).Value = ComparisonContract.ToString();
             insert.Parameters.Add("@sex", SqlDbType.NVarChar, 12).Value = firstNameSex;
-            insert.Parameters.Add("@seed", SqlDbType.Int).Value = raw.Seed;
-            insert.Parameters.Add("@pairs", SqlDbType.Int).Value = raw.PairCount;
-            insert.Parameters.Add("@first_vocab", SqlDbType.Int).Value = raw.FirstNameVocabularySize;
-            insert.Parameters.Add("@surname_vocab", SqlDbType.Int).Value = raw.SurnameVocabularySize;
-            insert.Parameters.Add("@first_occ", SqlDbType.BigInt).Value = raw.FirstNamePublishedOccurrences;
-            insert.Parameters.Add("@surname_occ", SqlDbType.BigInt).Value = raw.SurnamePublishedOccurrences;
+            insert.Parameters.Add("@seed", SqlDbType.Int).Value = normalized.Seed;
+            insert.Parameters.Add("@pairs", SqlDbType.Int).Value = normalized.PairCount;
+            insert.Parameters.Add("@first_vocab", SqlDbType.Int).Value = normalized.FirstNameVocabularySize;
+            insert.Parameters.Add("@surname_vocab", SqlDbType.Int).Value = normalized.SurnameVocabularySize;
+            insert.Parameters.Add("@first_occ", SqlDbType.BigInt).Value = normalized.FirstNamePublishedOccurrences;
+            insert.Parameters.Add("@surname_occ", SqlDbType.BigInt).Value = normalized.SurnamePublishedOccurrences;
             AddDecimal(insert, "@first_collision", normalized.AnalyticExactFirstNameProbability);
             AddDecimal(insert, "@surname_collision", normalized.AnalyticExactSurnameProbability);
             AddDecimal(insert, "@full_collision", normalized.AnalyticExactSyntheticFullNameProbability);
@@ -242,7 +270,7 @@ public static class IbgeNominalUReferenceStore
         return new(id, Convert.ToHexString(hash).ToLowerInvariant(), estimate);
     }
 
-    private static byte[] ComputeFingerprint(
+    internal static byte[] ComputeFingerprint(
         IbgeNominalUReferenceInfo source,
         string sex,
         IbgeNominalUBootstrapEstimate estimate)
@@ -269,7 +297,7 @@ public static class IbgeNominalUReferenceStore
         return SHA256.HashData(Encoding.UTF8.GetBytes(canonical));
     }
 
-    private static IbgeNominalUBootstrapEstimate Normalize(IbgeNominalUBootstrapEstimate raw) =>
+    internal static IbgeNominalUBootstrapEstimate Normalize(IbgeNominalUBootstrapEstimate raw) =>
         raw with
         {
             AnalyticExactFirstNameProbability = Round12(raw.AnalyticExactFirstNameProbability),
@@ -281,6 +309,36 @@ public static class IbgeNominalUReferenceStore
                 StandardError = Round12(x.StandardError)
             }).ToArray()
         };
+
+    internal static void ValidateEstimateContract(IbgeNominalUBootstrapEstimate estimate)
+    {
+        if (!string.Equals(estimate.MethodVersion, IbgeNominalUBootstrapOptions.MethodVersion, StringComparison.Ordinal)
+            || !string.Equals(estimate.JointConstructionVersion, IbgeNominalUBootstrapOptions.JointConstructionVersion, StringComparison.Ordinal)
+            || !string.Equals(estimate.ObservationChannelVersion, IbgeNominalUBootstrapOptions.ObservationChannelVersion, StringComparison.Ordinal))
+            throw new InvalidDataException("Artefato IBGE nominal u usa versao de metodo/construcao/canal incompatível.");
+        if (estimate.PairCount <= 0 || estimate.FirstNameVocabularySize <= 0 || estimate.SurnameVocabularySize <= 0
+            || estimate.FirstNamePublishedOccurrences <= 0 || estimate.SurnamePublishedOccurrences <= 0)
+            throw new InvalidDataException("Artefato IBGE nominal u contém contagens inválidas.");
+
+        var normalized = Normalize(estimate);
+        var expected = Enum.GetNames<NameComparisonState>().Order(StringComparer.Ordinal).ToArray();
+        var states = normalized.States.OrderBy(x => x.State, StringComparer.Ordinal).ToArray();
+        if (!states.Select(x => x.State).SequenceEqual(expected, StringComparer.Ordinal)
+            || states.Sum(x => x.Support) != normalized.PairCount)
+            throw new InvalidDataException("Artefato IBGE nominal u contém estados/suportes incompletos.");
+
+        foreach (var state in states)
+        {
+            if (state.Support < 0 || state.Probability < 0m || state.Probability > 1m
+                || state.StandardError < 0m || state.StandardError > 1m)
+                throw new InvalidDataException("Artefato IBGE nominal u contém probabilidade/suporte inválido.");
+            var expectedProbability = Round12((decimal)state.Support / normalized.PairCount);
+            if (state.Probability != expectedProbability)
+                throw new InvalidDataException($"Artefato IBGE nominal u diverge suporte/probabilidade em {state.State}.");
+        }
+        if (states.Sum(x => x.Probability) != 1m)
+            throw new InvalidDataException("Artefato IBGE nominal u não soma probabilidade 1.");
+    }
 
     private static string Num(decimal x) =>
         x.ToString("G29", CultureInfo.InvariantCulture);
