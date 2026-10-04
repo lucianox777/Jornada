@@ -53,7 +53,8 @@
   },
   "runtime": {
     "environment": {
-      "Processor__PollingMilliseconds": "1000"
+      "Processor__PollingMilliseconds": "1000",
+      "LinkageRunner__PollingMilliseconds": "5000"
     }
   },
   "taskAccount": {"user": "SYSTEM", "passwordEnvironmentVariable": ""},
@@ -62,6 +63,7 @@
     {"name":"Jornada-ResultadoApi","enabled":true,"component":"ResultadoApi","trigger":{"type":"AtStartup"},"arguments":[],"environment":{}},
     {"name":"Jornada-Processor","enabled":true,"component":"Processor","trigger":{"type":"AtStartup"},"arguments":[],"environment":{}},
     {"name":"Jornada-OperationsMaintenance","enabled":true,"component":"OperationsMaintenance","trigger":{"type":"AtStartup"},"arguments":[],"environment":{}},
-    {"name":"Jornada-BronzeMaintenance","enabled":true,"component":"BronzeMaintenance","trigger":{"type":"AtStartup"},"arguments":[],"environment":{}}
+    {"name":"Jornada-BronzeMaintenance","enabled":true,"component":"BronzeMaintenance","trigger":{"type":"AtStartup"},"arguments":[],"environment":{}},
+    {"name":"Jornada-LinkageRunner","enabled":true,"component":"LinkageRunner","nodes":["NODE2"],"trigger":{"type":"AtStartup"},"arguments":["--mode","INCREMENTAL","--publish","true","--requested-by","DEV_RESIDENT_RUNNER","--reason","resident-loop"],"environment":{}}
   ]
 }
