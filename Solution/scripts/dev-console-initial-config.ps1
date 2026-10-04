@@ -90,15 +90,67 @@ $manifestPath=Join-Path $OutDir 'files.json'
 $json=$config | ConvertTo-Json -Depth 20
 [IO.File]::WriteAllText($jsonPath,$json,[Text.UTF8Encoding]::new($false))
 
-$escaped=[System.Net.WebUtility]::HtmlEncode($json)
+function H([object]$Value){[System.Net.WebUtility]::HtmlEncode([string]$Value)}
+$modelHtml=if($null -ne $modelState){
+@"
+<div class="grid">
+  <div class="field"><span>ID do modelo</span><code>$(H $modelState.modelId)</code></div>
+  <div class="field"><span>Versão</span><b>$(H $modelState.version)</b></div>
+  <div class="field"><span>Status</span><b>$(H $modelState.status)</b></div>
+  <div class="field"><span>Papel</span>$(H $modelState.modelRole)</div>
+  <div class="field"><span>Referência bootstrap</span>$(H $modelState.bootstrapReference)</div>
+  <div class="field"><span>Pessoas Gold</span>$(H $modelState.goldPeople)</div>
+  <div class="field wide"><span>Método da amostra</span>$(H $modelState.sampleMethod)</div>
+</div>
+"@
+}else{'<p class="muted">Modelo ativo não disponível neste snapshot.</p>'}
+
+$healthRows=if($health.Count -gt 0){
+  ($health | ForEach-Object {
+    $healthText=if([string]::IsNullOrWhiteSpace($_.health)){'n/a'}else{[string]$_.health}
+    "<tr><td>$(H $_.service)</td><td>$(H $_.state)</td><td>$(H $healthText)</td><td>$(H $_.status)</td><td>$(H $_.exitCode)</td></tr>"
+  }) -join ''
+}else{'<tr><td colspan="5" class="muted">Nenhum serviço Docker encontrado no momento da geração.</td></tr>'}
+
 $html=@"
 <!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><title>Jornada DEV - Configuração inicial</title>
-<style>body{font-family:system-ui;margin:24px;color:#17202a}pre{background:#0b0f14;color:#d7e0ea;padding:16px;border-radius:8px;white-space:pre-wrap}code{font-family:ui-monospace,Consolas,monospace}</style></head>
-<body><h1>Jornada DEV - Configuração inicial</h1>
-<p>Gerado em $($config.generatedAt)</p>
-<p><b>JSON:</b> <code>$jsonPath</code></p>
-<pre>$escaped</pre></body></html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Jornada DEV - Configuração inicial</title>
+<style>
+:root{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#17202a;background:#f4f6f8}*{box-sizing:border-box}
+body{margin:0}.page{max-width:1300px;margin:0 auto;padding:28px}h1{margin:0 0 5px;font-size:1.6rem}h2{font-size:1.08rem;margin:0 0 14px}
+.header,.section{background:white;border:1px solid #dce2e8;border-radius:12px;padding:20px 22px;margin-bottom:16px}.muted{color:#697581}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}.field{border:1px solid #e1e6eb;border-radius:9px;padding:12px 14px;overflow-wrap:anywhere}
+.field span{display:block;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;color:#697581;font-weight:700;margin-bottom:5px}.wide{grid-column:1/-1}
+code{font-family:ui-monospace,Consolas,monospace;font-size:.88em}table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{text-align:left;padding:9px 10px;border-bottom:1px solid #e7ebef}th{background:#f2f5f7}
+@media(max-width:700px){.page{padding:14px}.grid{grid-template-columns:1fr}}
+</style></head>
+<body><main class="page">
+<section class="header"><h1>Jornada DEV - Configuração inicial</h1><div class="muted">Gerado em $(H $config.generatedAt)</div></section>
+<section class="section"><h2>Identificação</h2><div class="grid">
+  <div class="field"><span>Ambiente</span>$(H $config.environment)</div>
+  <div class="field"><span>Schema da solução</span>$(H $config.solutionSchema)</div>
+  <div class="field"><span>Versão do bundle</span>$(H $config.clusterConfiguration.configurationBundleVersion)</div>
+  <div class="field"><span>Schema do documento</span>$(H $config.schemaVersion)</div>
+</div></section>
+<section class="section"><h2>Serviços</h2><div class="grid">
+  <div class="field"><span>NODE1</span><code>$(H $config.runtime.node1)</code></div>
+  <div class="field"><span>NODE2</span><code>$(H $config.runtime.node2)</code></div>
+  <div class="field"><span>SQL Server</span><code>$(H $config.runtime.sql)</code></div>
+  <div class="field"><span>NAS</span><code>$(H $config.runtime.nas)</code></div>
+</div></section>
+<section class="section"><h2>Modelo de linkage ativo</h2>$modelHtml</section>
+<section class="section"><h2>Status dos serviços no momento da geração</h2><div style="overflow:auto"><table><thead><tr><th>Serviço</th><th>Estado</th><th>Health</th><th>Status</th><th>Exit code</th></tr></thead><tbody>$healthRows</tbody></table></div></section>
+<section class="section"><h2>Fontes de configuração</h2><div class="grid">
+  <div class="field wide"><span>Cluster</span><code>$(H $config.clusterConfiguration.source)</code></div>
+  <div class="field wide"><span>OpenAPI</span><code>$(H $config.contracts.openApi)</code></div>
+  <div class="field wide"><span>JSON Schemas</span><code>$(H $config.contracts.jsonSchemas)</code></div>
+  <div class="field"><span>Governança</span><code>$(H $config.governedConfiguration.governance)</code></div>
+  <div class="field"><span>Linkage</span><code>$(H $config.governedConfiguration.linkage)</code></div>
+  <div class="field"><span>Operações</span><code>$(H $config.governedConfiguration.operations)</code></div>
+  <div class="field"><span>Possibilidades</span><code>$(H $config.governedConfiguration.possibilities)</code></div>
+</div></section>
+<section class="section"><h2>Observação</h2><p>$(H $config.note)</p><p class="muted">Arquivo JSON correspondente: <code>$(H $jsonPath)</code></p></section>
+</main></body></html>
 "@
 [IO.File]::WriteAllText($htmlPath,$html,[Text.UTF8Encoding]::new($false))
 
