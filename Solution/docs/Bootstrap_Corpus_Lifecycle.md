@@ -1,6 +1,6 @@
 # Lifecycle do corpus sintético de bootstrap
 
-O corpus sintético usado para obter o primeiro modelo de linkage é **efêmero**. Ele não é dado operacional e não deve permanecer em Silver/Gold depois que o modelo calibrado é ativado.
+O corpus sintético é entrada transitória da calibração. Nenhum ambiente pode ficar pronto com registros de bootstrap pendentes. Em Development, depois de processado e calibrado, o domínio é publicado/preservado na Gold; em Homologation/Production ele é descartado integralmente, preservando somente o resultado aprendido.
 
 ## Estados
 
@@ -14,15 +14,15 @@ A transição `PENDING_DISCARD → DISCARDED` é executada por `scripts/bootstra
 
 | Ambiente | Corpus de bootstrap | Após ativar modelo | Massa sintética funcional |
 |---|---|---|---|
-| Development / Console DEV | temporário | descartado automaticamente | opcional e deliberada, criada depois do bootstrap |
-| Homologation | temporário | descarte obrigatório antes de liberar tráfego/testes operacionais | somente se houver cenário de teste explicitamente isolado |
-| Production | temporário | descarte obrigatório antes de liberar ingestão operacional | proibida como dado operacional |
+| Development / Console DEV | processa integralmente | preserva/publica o domínio na Gold; zero pendências | a própria Gold inicial pode ser expandida |
+| Homologation | processa integralmente para calibrar | descarte obrigatório do domínio antes de liberar o ambiente | não permanece como domínio operacional |
+| Production | processa integralmente para calibrar | descarte obrigatório do domínio antes de liberar ingestão | proibida como dado operacional |
 
 Em Homologation e Production o wrapper exige `-EnvFile` explícito. Ele nunca assume credenciais ou banco a partir do DEV.
 
 ## Invariantes de segurança
 
-O descarte somente começa quando:
+O descarte é exclusivo de Homologation/Production e somente começa quando:
 
 - `Jornada.EnvironmentProfile` coincide com o perfil explicitamente informado;
 - `Jornada.BootstrapCorpusLifecycle=PENDING_DISCARD`;
@@ -34,6 +34,4 @@ Antes e depois são conferidos o ID/versão do modelo ativo, a quantidade de `id
 
 ## Console DEV
 
-A subida da Console usa a massa de 30 mil apenas para criar o modelo BOOTSTRAP. Ao terminar a calibração, marca e descarta esse corpus. Assim, os registros pendentes sintéticos não entram no linkage das cargas enviadas pelo desenvolvedor.
-
-A ação **Adicionar 5.000 registros sintéticos** é um lifecycle diferente: cria massa funcional depois do bootstrap para testes de busca, semicega, blocking e escala. Essa massa não recebe `PENDING_DISCARD` e portanto não é removida pela rotina de bootstrap.
+A subida da Console materializa/processa o corpus, publica a Gold DEV, calibra/ativa o modelo e verifica zero pendências. Em Development o corpus processado não é descartado. A ação **Adicionar mais 5.000 registros** expande essa Gold preservada (30k → 35k → 40k). HML/PROD, ao contrário, eliminam o domínio sintético após a calibração e deixam somente modelo/parâmetros/configuração necessários ao linkage.
