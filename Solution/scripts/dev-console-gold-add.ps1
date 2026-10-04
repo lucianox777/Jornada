@@ -49,10 +49,11 @@ function Invoke-SqlScalar([string]$Query){
 }
 
 $before=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-SEHAB-%';")
+if($before -lt 30000){throw "Gold sintética DEV base incompleta: encontrados=$before; esperado pelo menos 30000. Execute Subir infraestrutura, referências e bootstrap."}
 $target=$before+$AdditionalPeople
 if($target -gt 5000000){throw "Total solicitado excede o limite sintético de 5.000.000: $target."}
 
-Write-Host "=== Jornada DEV :: Adicionar massa sintética funcional à Gold ==="
+Write-Host "=== Jornada DEV :: Adicionar Gold sintética ==="
 Write-Host "Antes: $before pessoas"
 Write-Host "Adicionar: $AdditionalPeople pessoas"
 Write-Host "Alvo: $target pessoas"
