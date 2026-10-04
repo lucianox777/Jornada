@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('reference-check','bronze-verify','ingest-latest','pipeline-status','blocking','calibrate-initial','calibrate','linkage','replay-latest','report')]
+    [ValidateSet('system-status','reference-check','bronze-verify','ingest-latest','pipeline-status','blocking','calibrate-initial','calibrate','linkage','replay-latest','report')]
     [string]$Action,
     [string]$ZipPath
 )
@@ -93,6 +93,36 @@ function Get-DevCredential([string]$Gestor,[string]$RequiredScope){
 }
 
 switch($Action){
+    'system-status' {
+        Write-Host '=== ESTADO GERAL DO SISTEMA ==='
+        Write-Host '[1/5] Containers e health/readiness'
+        & (Join-Path $PSScriptRoot 'dev-console-infrastructure.ps1') -Action status
+        if($LASTEXITCODE -ne 0){throw "Status da infraestrutura falhou ($LASTEXITCODE)."}
+
+        Write-Host '[2/5] SQL/schema'
+        $schemaCount=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM sys.schemas WHERE name IN (N'ingestao',N'bronze',N'silver',N'gold',N'identidade',N'ref');")
+        Write-Host "Schemas essenciais presentes: $schemaCount/6"
+        if($schemaCount -ne 6){throw "Schema incompleto: $schemaCount/6."}
+
+        Write-Host '[3/5] Referência IBGE'
+        & (Join-Path $PSScriptRoot 'local-check-ibge-reference.ps1') -NoStart
+        if($LASTEXITCODE -ne 0){throw "Quick check IBGE falhou ($LASTEXITCODE)."}
+
+        Write-Host '[4/5] Modelo de linkage'
+        $active=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO';")
+        Write-Host "Modelos calibrados ATIVOS: $active"
+
+        Write-Host '[5/5] Processos e runners'
+        Invoke-Compose @('exec','-T','jornada-node1','sh','-lc',"pgrep -af '[J]ornada.Processor.Worker.dll' >/dev/null")
+        Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"pgrep -af '[J]ornada.Processor.Worker.dll' >/dev/null")
+        Invoke-Compose @('exec','-T','jornada-node2','sh','-lc',"test -f /opt/jornada/apps/Jornada.Linkage.Runner/Jornada.Linkage.Runner.dll && test -f /opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll")
+        $residentRunner=(& docker compose --env-file $EnvFile exec -T jornada-node2 sh -lc "pgrep -af '[J]ornada.Linkage.Runner.dll' || true" | Out-String).Trim()
+        Write-Host 'Processor: residente em NODE1/NODE2'
+        Write-Host 'Runners de calibração/linkage: disponíveis no NODE2 (execução one-shot)'
+        if([string]::IsNullOrWhiteSpace($residentRunner)){Write-Host 'Linkage Runner residente: não (esperado)'}else{Write-Host "Linkage Runner em execução neste instante: $residentRunner"}
+        Write-Host 'ESTADO GERAL: OK'
+    }
+
     'reference-check' {
         Ensure-ClusterRunning
         Write-Host '# pwsh -NoProfile -File scripts/local-check-ibge-reference.ps1 -NoStart'
