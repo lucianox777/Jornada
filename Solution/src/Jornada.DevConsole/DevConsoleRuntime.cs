@@ -342,10 +342,10 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             if(generated.ExitCode!=0||zip is null)
             {
                 sw.Stop();
-                var summary=$"Falha ao gerar ZIP (exit {generated.ExitCode}).";
+                var generationFailureSummary=$"Falha ao gerar ZIP (exit {generated.ExitCode}).";
                 live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
                 var failedStep=new StepResult(command,root,generated.ExitCode,sw.ElapsedMilliseconds,generated.Output,generated.Error,null);
-                await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA",summary,failedStep,Array.Empty<Dictionary<string,string?>>()),live);
+                await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA",generationFailureSummary,failedStep,Array.Empty<Dictionary<string,string?>>()),live);
                 return;
             }
 
@@ -374,13 +374,13 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             artifacts.AddRange(ParseArtifacts(sent.Output,root));
             var distinctArtifacts=artifacts.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             var status=sent.ExitCode==0&&receipt is not null?"SUCESSO":"FALHA";
-            var summary=status=="SUCESSO"
+            var sendSummary=status=="SUCESSO"
                 ?$"ZIP gerado e enviado. Recibo: {receipt}"
                 :$"ZIP gerado, mas o envio falhou (exit {sent.ExitCode}). O ZIP foi preservado para diagnóstico/reenvio.";
             var resultPath=status=="SUCESSO"?receipt:zip;
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             var step=new StepResult(command,root,sent.ExitCode,sw.ElapsedMilliseconds,combinedOutput,combinedError,resultPath,distinctArtifacts);
-            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,summary,step,Array.Empty<Dictionary<string,string?>>()),live);
+            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,sendSummary,step,Array.Empty<Dictionary<string,string?>>()),live);
         }
         catch(Exception ex)
         {
