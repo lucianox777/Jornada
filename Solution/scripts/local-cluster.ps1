@@ -83,9 +83,10 @@ function Invoke-Compose {
     try {
         Write-CommandLine 'docker' (@('compose','--env-file',$EnvFile) + $ComposeArgs)
         & docker compose --env-file $EnvFile @ComposeArgs
-        if ($LASTEXITCODE -ne 0) {
+        $composeExitCode=$LASTEXITCODE
+        if ($composeExitCode -ne 0) {
             Show-ComposeFailureDiagnostics -Context $Context
-            throw "docker compose falhou ($LASTEXITCODE)."
+            throw "docker compose falhou ($composeExitCode)."
         }
     }
     finally { Pop-Location }
@@ -331,7 +332,52 @@ function Invoke-Calibration {
         '--model-id',$modelId,
         '--tolerance-config',$conferenceContainer,
         '--source-revision','LOCAL_CLUSTER_TEST')
+
+    # Paridade com local-cluster.sh: o harness local registra um dossiê/decisão
+    # explicitamente técnico e limitado ao DEV antes de atravessar os gates DT-15.
+    # Isso não representa aprovação institucional HML/PROD.
+    $validateApprovalSql=@"
+DECLARE @dossie uniqueidentifier,
+        @aprovacao uniqueidentifier,
+        @validade datetimeoffset(7)=DATEADD(hour,1,SYSDATETIMEOFFSET()),
+        @sha binary(32)=HASHBYTES('SHA2_256',CONVERT(varbinary(max),'LOCAL_CLUSTER_TEST_DOSSIER'));
+EXEC auditoria.sp_registrar_dossie_decisao_modelo_linkage
+     @modelo_id='$modelId',
+     @dossie_sha256=@sha,
+     @contrato_versao=N'DT15_TEST_V1',
+     @estado=N'COMPLETO',
+     @origem_evidencia=N'SINTETICA_DEV',
+     @valido_ate=@validade,
+     @referencia_artefato=N'LOCAL_CLUSTER_TEST_DOSSIER',
+     @registrado_por=N'LOCAL_CLUSTER_HARNESS',
+     @dossie_id=@dossie OUTPUT;
+EXEC auditoria.sp_registrar_aprovacao_modelo_linkage
+     @modelo_id='$modelId',
+     @acao=N'VALIDATE',
+     @dossie_sha256=@sha,
+     @decisor=N'LOCAL_CLUSTER_HARNESS',
+     @motivo=N'Aprovação técnica explícita do harness local para VALIDATE',
+     @aprovacao_id=@aprovacao OUTPUT;
+SELECT CONVERT(varchar(36),@aprovacao);
+"@
+    $validateApproval=Get-SqlScalar $validateApprovalSql
+    Write-Host "Gate DT-15 DEV preparado para VALIDATE: aprovação técnica $validateApproval."
     Invoke-Node2 -Command @('env',"LinkageParameters__ConferenceToleranceConfigPath=$conferenceContainer",'LinkageParameters__Operation=VALIDATE',"LinkageParameters__TargetVersion=$version",'LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
+
+    $activateApprovalSql=@"
+DECLARE @aprovacao uniqueidentifier,
+        @sha binary(32)=HASHBYTES('SHA2_256',CONVERT(varbinary(max),'LOCAL_CLUSTER_TEST_DOSSIER'));
+EXEC auditoria.sp_registrar_aprovacao_modelo_linkage
+     @modelo_id='$modelId',
+     @acao=N'ACTIVATE',
+     @dossie_sha256=@sha,
+     @decisor=N'LOCAL_CLUSTER_HARNESS',
+     @motivo=N'Aprovação técnica explícita do harness local para ACTIVATE',
+     @aprovacao_id=@aprovacao OUTPUT;
+SELECT CONVERT(varchar(36),@aprovacao);
+"@
+    $activateApproval=Get-SqlScalar $activateApprovalSql
+    Write-Host "Gate DT-15 DEV preparado para ACTIVATE: aprovação técnica $activateApproval."
     Invoke-Node2 -Command @('env',"LinkageParameters__ConferenceToleranceConfigPath=$conferenceContainer",'LinkageParameters__Operation=ACTIVATE',"LinkageParameters__TargetVersion=$version",'LinkageParameters__RunOnce=true','dotnet','/opt/jornada/apps/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.dll')
     $active = [int](Get-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE versao=$version AND status='ATIVO' AND ISNULL(amostra_metodo,'') <> 'SEED_DEV_FIXO_NAO_TREINADO';")
     if ($active -ne 1) { throw "Modelo v$version não ficou ATIVO como modelo calibrado." }

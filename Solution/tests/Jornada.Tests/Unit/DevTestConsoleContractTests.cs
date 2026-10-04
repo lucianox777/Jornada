@@ -116,8 +116,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action linkage"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action replay-latest"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action report"));
-            Assert.That(runtime,Does.Contain("Garantir modelo bootstrap inicial (IBGE)"));
-            Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action calibrate-initial"));
+            Assert.That(runtime,Does.Not.Contain("Garantir modelo bootstrap inicial (IBGE)"));
+            Assert.That(runtime,Does.Not.Contain("dev-console-operations.ps1 -Action calibrate-initial"));
             Assert.That(runtime,Does.Contain("Gerar bundle de contratos e configurações"));
             Assert.That(runtime,Does.Contain("dev-console-contract-bundle.ps1"));
             Assert.That(runtime,Does.Contain("Dependencies"));
@@ -162,6 +162,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("NAO_ENCONTRADA_NO_AMBIENTE_ATUAL"));
             Assert.That(opsScript,Does.Contain("staleReceipt=$true"));
             Assert.That(opsScript,Does.Contain("O seed fixo não libera linkage"));
+            Assert.That(opsScript,Does.Contain("Subir infraestrutura, referências e bootstrap"));
+            Assert.That(opsScript,Does.Not.Contain("Execute 'Garantir modelo bootstrap inicial (IBGE)'"));
             Assert.That(opsScript,Does.Contain("[string]$ZipPath"));
             Assert.That(opsScript,Does.Contain("ZipPath deve apontar para um ZIP gerado pela Console DEV"));
             Assert.That(opsScript,Does.Contain("CREATED_AND_ACTIVATED_BOOTSTRAP"));
@@ -171,7 +173,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(bundleScript,Does.Contain("openapi/jornada-v1.openapi.json"));
             Assert.That(bundleScript,Does.Contain("MANIFEST.sha256"));
             Assert.That(bundleScript,Does.Contain("Nenhum modelo ATIVO"));
-            Assert.That(bundleScript,Does.Contain("Garantir modelo bootstrap inicial (IBGE)"));
+            Assert.That(bundleScript,Does.Contain("Subir infraestrutura, referências e bootstrap"));
+            Assert.That(bundleScript,Does.Not.Contain("Garantir modelo bootstrap inicial (IBGE)"));
             Assert.That(bundleScript,Does.Contain("SEED_DEV_FIXO_NAO_TREINADO"));
             Assert.That(bundleScript,Does.Contain("BUNDLE_INFO.html"));
             Assert.That(bundleScript,Does.Contain("Conteúdo incluído"));
@@ -197,6 +200,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
             Assert.That(localCluster,Does.Contain("Etapa cluster 1/6"));
             Assert.That(localCluster,Does.Contain("Show-ComposeFailureDiagnostics"));
+            Assert.That(localCluster,Does.Contain("$composeExitCode=$LASTEXITCODE"));
+            Assert.That(localCluster,Does.Contain("LOCAL_CLUSTER_TEST_DOSSIER"));
+            Assert.That(localCluster,Does.Contain("sp_registrar_dossie_decisao_modelo_linkage"));
+            Assert.That(localCluster,Does.Contain("@acao=N'VALIDATE'"));
+            Assert.That(localCluster,Does.Contain("@acao=N'ACTIVATE'"));
+            Assert.That(localCluster,Does.Contain("Gate DT-15 DEV preparado para VALIDATE"));
+            Assert.That(localCluster,Does.Contain("Gate DT-15 DEV preparado para ACTIVATE"));
             Assert.That(localCluster,Does.Contain("Logs do jornada-reference-bootstrap"));
             Assert.That(localCluster,Does.Contain("Ensure-SyntheticIbgeIdentityText"));
             Assert.That(localCluster,Does.Contain("Pessoa Teste %"));
