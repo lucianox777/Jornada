@@ -14,7 +14,7 @@ app.MapGet("/",()=>Results.Text(Page.Html,"text/html; charset=utf-8"));
 
 app.MapGet("/api/commands",async(RunStore store,CancellationToken ct)=>{
     var counts=await store.CountByCommandAsync(ct);
-    return Results.Ok(CommandCatalog.All.Select(x=>new{
+    return Results.Ok(CommandCatalog.All.Where(x=>x.Visible).Select(x=>new{
         x.Id,x.Title,x.Description,x.Implemented,x.CommandLine,x.DisplayCommand,x.Dependencies,x.DependencyNote,
         RunCount=counts.GetValueOrDefault(x.Id)
     }));
