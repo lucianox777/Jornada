@@ -254,10 +254,37 @@ function Start-Nodes([switch]$Build) {
     $bootstrapArgs+='jornada-reference-bootstrap'
     & docker compose --env-file $EnvFile @bootstrapArgs
     $composeExitCode=$LASTEXITCODE
+
+    # O serviço de referência é um init one-shot. Algumas versões do Docker
+    # Compose/Desktop podem devolver exit 1 para o comando `compose up` mesmo
+    # quando o container do init terminou corretamente com exit 0. O gate real
+    # desta etapa é o estado do container, não o código do wrapper Compose.
     $bootstrapId=(& docker compose --env-file $EnvFile ps -aq jornada-reference-bootstrap | Out-String).Trim()
-    $bootstrapInfo=@(& docker inspect $bootstrapId | ConvertFrom-Json)[0]
-    if($null -eq $bootstrapInfo -or [int]$bootstrapInfo.State.ExitCode -ne 0){throw "Bootstrap da referência IBGE falhou (compose=$composeExitCode)."}
-    if($composeExitCode -ne 0){Write-Host "docker compose retornou $composeExitCode, mas o init terminou com exit 0; bootstrap concluído." -ForegroundColor Yellow}
+    if([string]::IsNullOrWhiteSpace($bootstrapId)){
+        Show-ComposeFailureDiagnostics -Context 'bootstrap da referência IBGE sem container'
+        throw "Bootstrap da referência IBGE não criou/encontrou o container one-shot (compose=$composeExitCode)."
+    }
+
+    $bootstrapStateRaw=(& docker inspect --format '{{json .State}}' $bootstrapId 2>$null | Out-String).Trim()
+    $inspectExitCode=$LASTEXITCODE
+    if($inspectExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($bootstrapStateRaw)){
+        Show-ComposeFailureDiagnostics -Context 'bootstrap da referência IBGE sem estado inspecionável'
+        throw "Não foi possível inspecionar o estado real do bootstrap IBGE (inspect=$inspectExitCode; compose=$composeExitCode)."
+    }
+
+    try { $bootstrapState=$bootstrapStateRaw | ConvertFrom-Json }
+    catch {
+        Show-ComposeFailureDiagnostics -Context 'bootstrap da referência IBGE com estado inválido'
+        throw "Estado inválido retornado por docker inspect para o bootstrap IBGE."
+    }
+
+    $bootstrapExitCode=[int]$bootstrapState.ExitCode
+    $bootstrapStatus=[string]$bootstrapState.Status
+    if($bootstrapStatus -ne 'exited' -or $bootstrapExitCode -ne 0){
+        Show-ComposeFailureDiagnostics -Context "bootstrap da referência IBGE status=$bootstrapStatus exit=$bootstrapExitCode"
+        throw "Bootstrap da referência IBGE falhou (status=$bootstrapStatus; container=$bootstrapExitCode; compose=$composeExitCode)."
+    }
+    if($composeExitCode -ne 0){Write-Host "docker compose retornou $composeExitCode, mas o init one-shot terminou com exit 0; retorno do wrapper ignorado." -ForegroundColor Yellow}
     Write-Host 'Referência IBGE concluída (jornada-reference-bootstrap = exit 0).' -ForegroundColor Green
 
     Write-Host ''

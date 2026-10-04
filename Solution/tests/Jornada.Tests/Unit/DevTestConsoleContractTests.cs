@@ -280,9 +280,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localCluster,Does.Contain("Etapa cluster 1/6"));
             Assert.That(localCluster,Does.Contain("Show-ComposeFailureDiagnostics"));
             Assert.That(localCluster,Does.Contain("$composeExitCode=$LASTEXITCODE"));
-            Assert.That(localCluster,Does.Contain("docker inspect $bootstrapId | ConvertFrom-Json"));
-            Assert.That(localCluster,Does.Contain("init terminou com exit 0"));
-            Assert.That(localCluster,Does.Contain("Bootstrap da referência IBGE falhou (compose="));
+            Assert.That(localCluster,Does.Contain("[string]::IsNullOrWhiteSpace($bootstrapId)"));
+            Assert.That(localCluster,Does.Contain("docker inspect --format '{{json .State}}' $bootstrapId"));
+            Assert.That(localCluster,Does.Contain("$bootstrapExitCode=[int]$bootstrapState.ExitCode"));
+            Assert.That(localCluster,Does.Contain("$bootstrapStatus=[string]$bootstrapState.Status"));
+            Assert.That(localCluster,Does.Contain("init one-shot terminou com exit 0"));
+            Assert.That(localCluster,Does.Contain("retorno do wrapper ignorado"));
+            Assert.That(localCluster,Does.Contain("Bootstrap da referência IBGE falhou (status="));
             Assert.That(localCluster,Does.Contain("LOCAL_CLUSTER_TEST_DOSSIER"));
             Assert.That(localCluster,Does.Contain("sp_registrar_dossie_decisao_modelo_linkage"));
             Assert.That(localCluster,Does.Contain("@acao=N'VALIDATE'"));
