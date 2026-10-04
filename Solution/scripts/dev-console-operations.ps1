@@ -198,6 +198,12 @@ switch($Action){
         $response.Content | Set-Content -Encoding UTF8 $statusPath
         Write-Host "Resultado salvo em: $statusPath"
         Write-Host "ARTEFATO: $statusPath"
+        $pipeline=$response.Content | ConvertFrom-Json
+        $pipelineStatus=[string]$pipeline.status
+        if($pipelineStatus -in @('QUARENTENA','REJEITADA','POISON','FALHA')){
+            $pipelineError=[string]$pipeline.erro
+            throw "Ingestão terminou em $pipelineStatus$(if($pipelineError){": $pipelineError"}). Consulte $statusPath."
+        }
     }
 
     'blocking' { Invoke-ClusterAction 'blocking' }
