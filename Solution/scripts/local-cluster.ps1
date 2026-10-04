@@ -49,13 +49,44 @@ function Get-EnvValue([string]$Name) {
     return $null
 }
 
+function Show-ComposeFailureDiagnostics {
+    param([string]$Context)
+    Write-Host ''
+    Write-Host "=== Diagnóstico automático do Docker: $Context ===" -ForegroundColor Yellow
+    try {
+        Write-Host '# docker compose ps -a'
+        & docker compose --env-file $EnvFile ps -a
+    } catch { Write-Host "Falha ao obter docker compose ps: $($_.Exception.Message)" -ForegroundColor DarkYellow }
+
+    foreach($service in @('jornada-reference-bootstrap','sqlserver','jornada-nas','jornada-node1','jornada-node2')){
+        try {
+            $cid=(& docker compose --env-file $EnvFile ps -aq $service 2>$null | Out-String).Trim()
+            if([string]::IsNullOrWhiteSpace($cid)){continue}
+            $state=(& docker inspect --format 'exit={{.State.ExitCode}} oom={{.State.OOMKilled}} error={{.State.Error}} started={{.State.StartedAt}} finished={{.State.FinishedAt}}' $cid 2>$null | Out-String).Trim()
+            Write-Host "$service: $state"
+        } catch {}
+    }
+
+    Write-Host ''
+    Write-Host '--- Logs do jornada-reference-bootstrap (últimas 200 linhas) ---'
+    try { & docker compose --env-file $EnvFile logs --no-color --tail 200 jornada-reference-bootstrap } catch {}
+    Write-Host '=== Fim do diagnóstico automático ==='
+    Write-Host ''
+}
+
 function Invoke-Compose {
-    param([Parameter(Mandatory=$true)][string[]]$ComposeArgs)
+    param(
+        [Parameter(Mandatory=$true)][string[]]$ComposeArgs,
+        [string]$Context = 'docker compose'
+    )
     Push-Location $Root
     try {
         Write-CommandLine 'docker' (@('compose','--env-file',$EnvFile) + $ComposeArgs)
         & docker compose --env-file $EnvFile @ComposeArgs
-        if ($LASTEXITCODE -ne 0) { throw "docker compose falhou ($LASTEXITCODE)." }
+        if ($LASTEXITCODE -ne 0) {
+            Show-ComposeFailureDiagnostics -Context $Context
+            throw "docker compose falhou ($LASTEXITCODE)."
+        }
     }
     finally { Pop-Location }
 }
@@ -126,6 +157,7 @@ function Wait-NodeReady([string]$Name, [string]$Url) {
             if ([int]$response.StatusCode -eq 200) { Write-Host "$Name ready: $Url"; return }
         }
         catch { }
+        if($i -eq 0 -or (($i+1)%10 -eq 0)){Write-Host "Aguardando $Name ficar ready... $($i+1)/120 s"}
         Start-Sleep -Seconds 1
     }
     Invoke-Compose -ComposeArgs @('logs','--tail','120',$Name)
@@ -162,13 +194,33 @@ function Show-Endpoints {
 }
 
 function Start-Nodes([switch]$Build) {
+    Write-Host ''
+    Write-Host 'Etapa cluster 1/5: materializando/validando a referência IBGE...' -ForegroundColor Cyan
+    Write-Host 'Esta é a etapa mais longa na primeira execução. A Console continuará emitindo sinais de atividade enquanto ela roda.'
+    $bootstrapArgs=@('up')
+    if($Build){$bootstrapArgs+='--build'}else{$bootstrapArgs+='--no-build'}
+    $bootstrapArgs+='jornada-reference-bootstrap'
+    Invoke-Compose -ComposeArgs $bootstrapArgs -Context 'bootstrap da referência IBGE'
+    Write-Host 'Referência IBGE concluída (jornada-reference-bootstrap = exit 0).' -ForegroundColor Green
+
+    Write-Host ''
+    Write-Host 'Etapa cluster 2/5: iniciando NODE1/NODE2 e NAS...' -ForegroundColor Cyan
     $args = @('up','-d')
-    if ($Build) { $args += '--build' }
+    if ($Build) { $args += '--build' } else { $args += '--no-build' }
     $args += @('jornada-node1','jornada-node2')
-    Invoke-Compose -ComposeArgs $args
+    Invoke-Compose -ComposeArgs $args -Context 'subida de NODE1/NODE2'
+
+    Write-Host ''
+    Write-Host 'Etapa cluster 3/5: aguardando readiness dos nós...' -ForegroundColor Cyan
     Wait-NodeReady 'jornada-node1' 'http://127.0.0.1:5080/health/ready'
     Wait-NodeReady 'jornada-node2' 'http://127.0.0.1:5180/health/ready'
+
+    Write-Host ''
+    Write-Host 'Etapa cluster 4/5: reconstruindo/verificando blocking local...' -ForegroundColor Cyan
     Ensure-LocalBlockingProjection
+
+    Write-Host ''
+    Write-Host 'Etapa cluster 5/5: publicando endpoints e resumo do ambiente...' -ForegroundColor Cyan
     Show-Endpoints
 }
 
