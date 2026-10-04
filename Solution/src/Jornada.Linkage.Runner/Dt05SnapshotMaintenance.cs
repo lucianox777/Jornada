@@ -240,6 +240,11 @@ public sealed class Dt05SnapshotMaintenance(string bronzeRoot)
 
 public static class Dt05SnapshotMaintenanceCommand
 {
+    private static readonly JsonSerializerOptions ReportJson = new(JsonSerializerDefaults.Web)
+    {
+        WriteIndented = true
+    };
+
     public static bool IsRequested(string[] args) =>
         args.Any(x => string.Equals(x, "--dt05-snapshot-maintenance-report", StringComparison.OrdinalIgnoreCase));
 
@@ -267,7 +272,7 @@ public static class Dt05SnapshotMaintenanceCommand
         var fullReport = Path.GetFullPath(reportPath);
         Directory.CreateDirectory(Path.GetDirectoryName(fullReport)!);
         await File.WriteAllTextAsync(fullReport,
-            JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine, ct);
+            JsonSerializer.Serialize(report, ReportJson) + Environment.NewLine, ct);
 
         Console.WriteLine($"DT-05 snapshot maintenance: manifests={report.ManifestCount}; objects={report.PhysicalObjectCount}; " +
                           $"referenced={report.UniqueReferencedObjectCount}; orphans={report.OrphanObjectCount}; " +
