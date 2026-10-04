@@ -43,8 +43,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("/api/semiblind/template"));
             Assert.That(program,Does.Contain("/api/semiblind/search"));
             Assert.That(program,Does.Contain("FriendlyJsonHtml.Render"));
-            Assert.That(friendlyHtml,Does.Contain("class=\"grid\""));
-            Assert.That(friendlyHtml,Does.Contain("class=\"table-wrap\""));
+            Assert.That(friendlyHtml,Does.Contain(".grid{display:grid"));
+            Assert.That(friendlyHtml,Does.Contain(".table-wrap{overflow:auto"));
             Assert.That(friendlyHtml,Does.Contain("Exibindo "));
             Assert.That(friendlyHtml,Does.Contain("ID do modelo"));
             Assert.That(friendlyHtml,Does.Contain("UUID da pessoa"));
