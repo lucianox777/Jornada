@@ -32,6 +32,8 @@ public sealed class DevTestConsoleContractTests
         var htmlHelperTest=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-test-dev-console-html-encoding.ps1"));
         var localCluster=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-cluster.ps1"));
         var devEnv=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-env.ps1"));
+        var lifecycleScript=File.ReadAllText(Path.Combine(root,"Solution","scripts","bootstrap-corpus-lifecycle.ps1"));
+        var lifecycleSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_BootstrapCorpus_Discard.sql"));
         var compose=File.ReadAllText(Path.Combine(root,"Solution","docker-compose.yml"));
 
         Assert.Multiple(()=>{
@@ -67,8 +69,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Not.Contain("update-build"));
             Assert.That(runtime,Does.Not.Contain("Comando real ainda não mapeado."));
             Assert.That(runtime,Does.Contain("dev-console-gold-add.ps1 -AdditionalPeople 5000"));
-            Assert.That(runtime,Does.Contain("Adicionar mais 5.000 registros"));
-            Assert.That(runtime,Does.Contain("30k → 35k → 40k"));
+            Assert.That(runtime,Does.Contain("Adicionar 5.000 registros sintéticos"));
+            Assert.That(runtime,Does.Contain("0 → 5k → 10k"));
             Assert.That(runtime,Does.Contain("build-ingestion-fixture.py"));
             Assert.That(runtime,Does.Contain("new(\"zip\",\"Ingestão\""));
             Assert.That(runtime,Does.Contain("new(\"configuration\",\"Contratos e configurações\""));
@@ -166,8 +168,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localDb,Does.Contain("Aguardando Docker Engine"));
             Assert.That(localDb,Does.Contain("Docker Engine pronto"));
             Assert.That(runtime,Does.Contain("modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações"));
-            Assert.That(runtime,Does.Contain("a preparação já garante a Gold inicial e o modelo BOOTSTRAP ATIVO."));
-            Assert.That(runtime,Does.Contain("gerar deliberadamente uma nova versão após alterar massa/parâmetros"));
+            Assert.That(runtime,Does.Contain("A preparação garante o modelo BOOTSTRAP ATIVO e descarta o corpus usado exclusivamente na calibração."));
+            Assert.That(runtime,Does.Contain("Adicione massa funcional antes de recalibrar deliberadamente."));
             Assert.That(runtime,Does.Contain("Environment.SpecialFolder.LocalApplicationData"));
             Assert.That(runtime,Does.Contain("Path.Combine(local,\"Jornada\",\"DevConsole\")"));
             Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action system-status"));
@@ -231,6 +233,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("local-cluster.ps1"));
             Assert.That(opsScript,Does.Contain("calibrate-initial"));
             Assert.That(opsScript,Does.Contain("Gold sintética completa de 30.000 pessoas"));
+            Assert.That(opsScript,Does.Contain("Jornada.BootstrapCorpusLifecycle"));
+            Assert.That(opsScript,Does.Contain("PENDING_DISCARD"));
+            Assert.That(opsScript,Does.Contain("bootstrap-corpus-lifecycle.ps1"));
+            Assert.That(opsScript,Does.Contain("operationalScalePeopleAfterBootstrap"));
             Assert.That(opsScript,Does.Contain("contract-config-bundle.zip"));
             Assert.That(opsScript,Does.Contain("NAO_ENCONTRADA_NO_AMBIENTE_ATUAL"));
             Assert.That(opsScript,Does.Contain("staleReceipt=$true"));
@@ -350,6 +356,18 @@ public sealed class DevTestConsoleContractTests
             Assert.That(devEnv,Does.Contain("JornadaSyntheticDev"));
             Assert.That(devEnv,Does.Contain("JORNADA_LOCAL_SYNTHETIC_PEOPLE"));
             Assert.That(devEnv,Does.Contain("30000"));
+            Assert.That(lifecycleScript,Does.Contain("Development','Homologation','Production"));
+            Assert.That(lifecycleScript,Does.Contain("Homologation/Production exigem -EnvFile explícito"));
+            Assert.That(lifecycleScript,Does.Contain("Jornada_BootstrapCorpus_Discard.sql"));
+            Assert.That(lifecycleSql,Does.Contain("Jornada.BootstrapCorpusLifecycle"));
+            Assert.That(lifecycleSql,Does.Contain("PENDING_DISCARD"));
+            Assert.That(lifecycleSql,Does.Contain("codigo_pessoa_origem LIKE N'SCALE-%'"));
+            Assert.That(lifecycleSql,Does.Contain("modelo calibrado ATIVO"));
+            Assert.That(lifecycleSql,Does.Contain("identidade.parametro_linkage"));
+            Assert.That(lifecycleSql,Does.Contain("identidade.linkage_ruleset"));
+            Assert.That(lifecycleSql,Does.Contain("WITH CHECK CHECK CONSTRAINT"));
+            Assert.That(lifecycleSql,Does.Contain("também está vinculada a observação não-bootstrap"));
+            Assert.That(lifecycleSql,Does.Contain("N'DISCARDED'"));
             Assert.That(compose,Does.Contain("SemiblindIdentitySearch__Enabled"));
             Assert.That(compose,Does.Contain("test-access-keys.json:/opt/jornada/config/security/test-access-keys.json:ro"));
             Assert.That(compose,Does.Contain("[reference-bootstrap] Iniciando ENSURE_NAME_FREQUENCY_SNAPSHOT"));

@@ -269,6 +269,8 @@ switch($Action){
             }
             if($goldCount -ne 30000){throw "Modelo BOOTSTRAP exige a Gold sintética completa de 30.000 pessoas; atual=$goldCount."}
 
+            Write-Host "Marcando o corpus SCALE atual como efêmero e exclusivo do bootstrap..."
+            [void](Invoke-SqlScalar "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BootstrapCorpusLifecycle') EXEC sys.sp_updateextendedproperty @name=N'Jornada.BootstrapCorpusLifecycle',@value=N'PENDING_DISCARD'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.BootstrapCorpusLifecycle',@value=N'PENDING_DISCARD'; SELECT N'PENDING_DISCARD';")
             Write-Host "Gerando o modelo BOOTSTRAP inicial a partir da referência IBGE + Gold sintética DEV ($goldCount pessoas)..."
             Invoke-ClusterAction 'calibrate'
             $activeCount=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE $eligible;")
@@ -278,6 +280,16 @@ switch($Action){
         }
 
         $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
+        $bootstrapGoldCount=$goldCount
+        $lifecycle=Invoke-SqlScalar "SELECT ISNULL(CONVERT(nvarchar(40),(SELECT value FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.BootstrapCorpusLifecycle')),N'');"
+        if($lifecycle -eq 'PENDING_DISCARD'){
+            Write-Host "Modelo inicial garantido. Encerrando lifecycle do corpus sintético de bootstrap ($bootstrapGoldCount pessoas Gold antes do descarte)..."
+            & (Join-Path $PSScriptRoot 'bootstrap-corpus-lifecycle.ps1') -EnvironmentProfile Development -EnvFile $EnvFile
+            if($LASTEXITCODE -ne 0){throw "Descarte do corpus sintético de bootstrap falhou ($LASTEXITCODE)."}
+        } else {
+            Write-Host "Corpus de bootstrap já encerrado; massas sintéticas funcionais posteriores não serão removidas (lifecycle=$lifecycle)."
+        }
+        $remainingScale=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")
         $modelId=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
         $version=[int](Invoke-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;")
         $bundleVersion=Invoke-SqlScalar "SELECT TOP(1) ISNULL(model_config_bundle_version,N'') FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
@@ -288,7 +300,9 @@ switch($Action){
             mode=if($reused){'REUSED_ACTIVE'}else{'CREATED_AND_ACTIVATED_BOOTSTRAP'}
             modelRole=if($reused){'ACTIVE_CURRENT'}else{'BOOTSTRAP'}
             bootstrapReference='IBGE_CENSO_2022'
-            goldPeople=$goldCount
+            bootstrapGoldPeople=$bootstrapGoldCount
+            operationalScalePeopleAfterBootstrap=$remainingScale
+            bootstrapCorpusLifecycle='EPHEMERAL_DISCARDED'
             modelId=$modelId
             version=$version
             status='ATIVO'
