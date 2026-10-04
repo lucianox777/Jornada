@@ -12,7 +12,7 @@ sealed record CommandDefinition(string Id,string Title,string Description,string
         :CommandLine??"Operação parametrizada pela interface.";
 }
 
-sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,long DurationMs,string Output,string Error,string? ResultPath);
+sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,long DurationMs,string Output,string Error,string? ResultPath,IReadOnlyList<string>? Artifacts=null);
 sealed record ManualZipRequest(string Gestor,string ManifestJson,string PessoasJsonl,string RegistrosJsonl);
 sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records);
 sealed record ConsoleEvent(long Seq,DateTimeOffset At,string Stream,string Text);
@@ -21,7 +21,8 @@ static class CommandCatalog
 {
     // Cada ação é independente. Quando necessário, o próprio comando garante suas dependências locais.
     public static readonly CommandDefinition[] All=[
-        new("infrastructure","Subir infraestrutura e referências","Sobe o ambiente DEV completo: Docker, SQL Server, schema, NAS, bootstrap IBGE e NODE1/NODE2. Reusa a imagem jornada-node:test sem recompilar quando ela já existe.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
+        new("infrastructure","Subir infraestrutura e referências","Sobe o ambiente DEV completo: Docker, SQL Server, schema, NAS, bootstrap IBGE e NODE1/NODE2. Também gera a configuração inicial em JSON e HTML.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null),
+        new("initial-config","Gerar/ver configuração inicial","Regenera a configuração inicial da Console DEV em JSON e HTML e mostra os caminhos dos arquivos produzidos.","pwsh","-NoProfile -File scripts/dev-console-initial-config.ps1",".local/dev-console/initial-config/configuration.json",["infrastructure"],"A subida da infraestrutura já gera estes arquivos automaticamente; use este item para regenerar ou visualizar."),
         new("reference-check","Validar referência IBGE","Executa o quick check read-only da referência IBGE já materializada. O bootstrap/carga faz parte da infraestrutura básica.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action reference-check",null,["infrastructure"],"A infraestrutura é subida automaticamente se necessário."),
         new("gold-synthetic","Carregar Gold sintética","Carrega uma Gold sintética de bootstrap para permitir a primeira calibração antes do recebimento de arquivos externos.","pwsh","-NoProfile -File scripts/dev-console-gold-synthetic.ps1",".local/dev-console/gold-synthetic-records.json",["infrastructure"],"Bootstrap DEV: pode ser substituída por Gold real quando ela já existir."),
         new("initial-calibration","Calibração inicial a partir da Gold","Gera e ativa o primeiro modelo de linkage a partir da Gold existente. Recusa execução se a Gold estiver vazia ou se já houver modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate-initial",".local/dev-console/initial-calibration.json",["infrastructure","gold-synthetic"],"A dependência de Gold é semântica: serve Gold sintética ou Gold real. Blocking e referência IBGE são garantidos pelo fluxo de calibração."),
@@ -142,13 +143,14 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             var candidatePath=definition.ResultPath is null?null:Path.GetFullPath(Path.Combine(root,definition.ResultPath));
             var resultPath=result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)?candidatePath:null;
             var records=resultPath is null?Array.Empty<Dictionary<string,string?>>():await LoadRecordsAsync(definition.ResultPath,root);
+            var artifacts=ParseArtifacts(result.Output,root);
             if(resultPath is not null)live.Add("result",$"Resultado: {resultPath}");
             var summary=records.Count>0
                 ?$"{records.Count} registro(s) no resultado. Resultado: {resultPath}"
                 :result.ExitCode==0
                     ?(resultPath is null?"Comando concluído.":$"Comando concluído. Resultado: {resultPath}")
                     :$"Comando falhou (exit {result.ExitCode}).";
-            var step=new StepResult(definition.CommandLine!,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,resultPath);
+            var step=new StepResult(definition.CommandLine!,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,resultPath,artifacts);
             var status=result.ExitCode==0?"SUCESSO":"FALHA";
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,status,summary,step,records),live);
@@ -206,7 +208,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             var status=result.ExitCode==0?"SUCESSO":"FALHA";
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             var summary=result.ExitCode==0?$"ZIP gerado. Resultado: {zip}":$"Falha ao gerar ZIP (exit {result.ExitCode}).";
-            var step=new StepResult(command,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,zip);
+            var step=new StepResult(command,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,zip,zip is null?Array.Empty<string>():new[]{zip});
             await FinishAsync(new RunRecord(id,"zip","Gerar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,summary,step,Array.Empty<Dictionary<string,string?>>()),live);
         }
         catch(Exception ex)
@@ -264,6 +266,22 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         var errTask=PumpAsync(process.StandardError,stderr,"stderr");
         await Task.WhenAll(outTask,errTask,process.WaitForExitAsync());
         return new ProcessCapture(process.ExitCode,stdout.ToString(),stderr.ToString());
+    }
+
+    static IReadOnlyList<string> ParseArtifacts(string output,string root)
+    {
+        var items=new List<string>();
+        foreach(var line in output.Replace("\r","").Split('\n',StringSplitOptions.RemoveEmptyEntries))
+        {
+            const string marker="ARTEFATO:";
+            var index=line.IndexOf(marker,StringComparison.OrdinalIgnoreCase);
+            if(index<0)continue;
+            var raw=line[(index+marker.Length)..].Trim().Trim('"');
+            if(string.IsNullOrWhiteSpace(raw))continue;
+            var full=Path.IsPathRooted(raw)?Path.GetFullPath(raw):Path.GetFullPath(Path.Combine(root,raw));
+            if(File.Exists(full)&&!items.Contains(full,StringComparer.OrdinalIgnoreCase))items.Add(full);
+        }
+        return items;
     }
 
     static IEnumerable<string> SplitJsonl(string text)=>text.Replace("\r","").Split('\n',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
