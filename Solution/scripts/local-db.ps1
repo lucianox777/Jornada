@@ -321,8 +321,28 @@ function Ensure-SyntheticScale {
         $counts = Get-SyntheticScaleCounts
     }
     $actualPeople=[long]$counts['Sehab']
-    if ($actualPeople -lt $expectedPeople -or [long]$counts['Smads'] -ne $expectedPaired -or [long]$counts['Pending'] -ne $expectedPending) {
-        throw "Massa sintética local inconsistente: mínimo SCALE-SEHAB=$expectedPeople, SCALE-SMADS=$expectedPaired, SCALE-PEND=$expectedPending; encontrado SEHAB=$actualPeople SMADS=$($counts['Smads']) PEND=$($counts['Pending']) extras=$($counts['ExtraFixtures']). Revise o ambiente sintético da Console DEV antes de continuar."
+    $actualPaired=[long]$counts['Smads']
+    $actualPending=[long]$counts['Pending']
+
+    # Trocar HML -> DEV no mesmo banco é aditivo: somente o opt-in DEV materializa
+    # os 6.000 SCALE-PEND. Não há reset implícito nem troca de banco.
+    if($actualPeople -ge $expectedPeople -and $actualPaired -eq $expectedPaired -and $actualPending -lt $expectedPending){
+        if($RuntimeMode -ne 'DEV'){
+            throw "Somente DEV pode expandir SCALE-PEND; modo atual=$RuntimeMode."
+        }
+        Write-Host "DEV: expandindo corpus adicional SCALE-PEND de $actualPending para $expectedPending sem reset..."
+        Invoke-SqlCmd -SqlCmdArgs @('-d',$db,'-v',"SCALE_PENDING=$expectedPending",'-i','database/Jornada_Dev_SyntheticPending.sql')
+        $counts=Get-SyntheticScaleCounts
+        $actualPeople=[long]$counts['Sehab']
+        $actualPaired=[long]$counts['Smads']
+        $actualPending=[long]$counts['Pending']
+    }
+
+    if($actualPending -gt $expectedPending){
+        throw "O banco contém SCALE-PEND=$actualPending, mas o modo $RuntimeMode espera $expectedPending. Para reduzir a massa, use Reset explícito; o startup nunca apaga dados implicitamente."
+    }
+    if ($actualPeople -lt $expectedPeople -or $actualPaired -ne $expectedPaired -or $actualPending -ne $expectedPending) {
+        throw "Massa sintética local inconsistente: mínimo SCALE-SEHAB=$expectedPeople, SCALE-SMADS=$expectedPaired, SCALE-PEND=$expectedPending; encontrado SEHAB=$actualPeople SMADS=$actualPaired PEND=$actualPending extras=$($counts['ExtraFixtures']). Revise o ambiente configurado antes de continuar."
     }
     Assert-SyntheticScaleExpansion -BasePeople $expectedPeople -ActualPeople $actualPeople
     if ([long]$counts['ExtraFixtures'] -gt 0) {
