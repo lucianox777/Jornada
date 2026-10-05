@@ -1,7 +1,8 @@
 ﻿param(
     [ValidateSet('up','reset','down','clean','status','logs','blocking','calibrate','linkage','linkage-diagnose')]
     [string]$Action = 'up',
-    [switch]$NoBuild
+    [switch]$NoBuild,
+    [string]$EnvFile
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,10 +12,28 @@ $OutputEncoding=[Text.UTF8Encoding]::new($false)
 if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $DefaultEnvFile = Join-Path $Root '.env'
-$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
+$ExplicitEnvFile = -not [string]::IsNullOrWhiteSpace($EnvFile)
+$EnvFile = if ($ExplicitEnvFile) {
+    [IO.Path]::GetFullPath($EnvFile)
+} elseif (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) {
+    [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE)
+} else {
+    $DefaultEnvFile
+}
 $Example = Join-Path $Root '.env.example'
 $LocalDb = Join-Path $PSScriptRoot 'local-db.ps1'
 $ClusterConfig = Join-Path $Root 'install\windows-production\Jornada.Cluster.Test.json'
+
+# A revisão vai para o label da imagem local. Isso permite à Console DEV reutilizar
+# uma imagem já atual sem manter silenciosamente binários de um commit anterior.
+if ([string]::IsNullOrWhiteSpace($env:JORNADA_BUILD_REVISION)) {
+    try {
+        $revision = (& git -C $Root rev-parse HEAD 2>$null | Out-String).Trim()
+        if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($revision)) {
+            $env:JORNADA_BUILD_REVISION = $revision
+        }
+    } catch { }
+}
 
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) { throw 'Docker não encontrado no PATH.' }
 
@@ -27,6 +46,7 @@ function Assert-DockerEngineAvailable {
 }
 Assert-DockerEngineAvailable
 if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+    if ($ExplicitEnvFile) { throw "EnvFile aponta para arquivo inexistente: $EnvFile" }
     if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
     if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Python 3 é necessário para gerar a credencial local.' }
     & python (Join-Path $PSScriptRoot 'local_env_bootstrap.py') --check-docker-volume
@@ -277,17 +297,24 @@ function Ensure-SyntheticIbgeIdentityText {
 }
 
 function Wait-NodeReady([string]$Name, [string]$Url) {
+    $lastFailure = 'sem resposta HTTP'
     for ($i = 0; $i -lt 120; $i++) {
         try {
             $response = Invoke-WebRequest -UseBasicParsing -Uri $Url -TimeoutSec 2
             if ([int]$response.StatusCode -eq 200) { Write-Host "$Name ready: $Url"; return }
+            $lastFailure = "HTTP $([int]$response.StatusCode)"
         }
-        catch { }
-        if($i -eq 0 -or (($i+1)%10 -eq 0)){Write-Host "Aguardando $Name ficar ready... $($i+1)/120 s"}
+        catch {
+            $lastFailure = $_.Exception.Message
+        }
+        if($i -eq 0 -or (($i+1)%10 -eq 0)){
+            Write-Host "Aguardando $Name ficar ready... $($i+1)/120 s; último resultado: $lastFailure"
+        }
         Start-Sleep -Seconds 1
     }
+    $state = Get-ComposeServiceRuntimeState $Name
     Invoke-Compose -ComposeArgs @('logs','--tail','120',$Name)
-    throw "$Name não ficou ready: $Url"
+    throw "$Name não ficou ready: $Url; container=$($state.Status)/running=$($state.Running)/exit=$($state.ExitCode); último resultado=$lastFailure"
 }
 
 function Show-Endpoints {
