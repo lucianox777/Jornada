@@ -14,6 +14,7 @@ $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'dev-console-env.ps1')
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $EnvFile=$DevConsoleEnvFile
+$RuntimeMode=$DevConsoleRuntimeMode
 $KeysFile=Join-Path $Root 'config/security/test-access-keys.json'
 $OutDir=Join-Path $Root '.local/dev-console'
 New-Item -ItemType Directory -Force $OutDir | Out-Null
@@ -88,7 +89,7 @@ function Ensure-ClusterRunning {
     if($missing.Count -eq 0 -and $drift.Count -eq 0){ return }
 
     if($drift.Count -gt 0){
-        Write-Host "Perfil dos nós divergente do ambiente DEV esperado ($profile/$db): $($drift -join '; '). Reconciliando automaticamente..."
+        Write-Host "Perfil dos nós divergente do ambiente esperado ($RuntimeMode/$profile/$db): $($drift -join '; '). Reconciliando automaticamente..."
     }else{
         Write-Host "Infraestrutura incompleta ($($missing -join ', ')); subindo automaticamente..."
     }
@@ -102,7 +103,7 @@ function Ensure-ClusterRunning {
         $drift=@(Get-NodeProfileDrift)
     } finally { Pop-Location }
     if($missing.Count -gt 0 -or $drift.Count -gt 0){
-        throw "Infraestrutura DEV não convergiu para o perfil esperado $profile/$db; ausentes=$($missing -join ','); divergentes=$($drift -join ';')."
+        throw "Infraestrutura $RuntimeMode não convergiu para o perfil esperado $profile/$db; ausentes=$($missing -join ','); divergentes=$($drift -join ';')."
     }
 }
 
@@ -359,7 +360,6 @@ switch($Action){
 
     'calibrate-initial' {
         Ensure-ClusterRunning
-        if($db -ne 'JornadaSyntheticDev'){throw "Console DEV exige JornadaSyntheticDev; banco atual=$db."}
         $eligible="status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO'"
         $activeCount=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE $eligible;")
         if($activeCount -gt 1){throw "Estado inválido: encontrados $activeCount modelos calibrados ATIVOS."}
@@ -368,15 +368,15 @@ switch($Action){
         if(-not $reused){
             $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
             $goldProfile=Join-Path $OutDir 'gold-synthetic-profile.json'
-            if($goldCount -ne 30000 -or -not(Test-Path $goldProfile)){
-                Write-Host "Modelo BOOTSTRAP ainda não existe. Materializando a Gold sintética canônica de 30.000 pessoas antes da calibração..."
+            if($RuntimeMode -eq 'DEV' -and ($goldCount -ne 30000 -or -not(Test-Path $goldProfile))){
+                Write-Host "Modo DEV: materializando a Gold sintética canônica de 30.000 pessoas antes da calibração..."
                 & (Join-Path $PSScriptRoot 'dev-console-gold-synthetic.ps1')
                 if($LASTEXITCODE -ne 0){throw "Carga da Gold sintética falhou ($LASTEXITCODE)."}
                 $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
             }
             if($goldCount -ne 30000){throw "Modelo BOOTSTRAP exige a Gold sintética completa de 30.000 pessoas; atual=$goldCount."}
 
-            Write-Host "Gerando o modelo BOOTSTRAP inicial a partir da referência IBGE + Gold sintética DEV ($goldCount pessoas)..."
+            Write-Host "Gerando o modelo BOOTSTRAP inicial a partir da referência IBGE + Gold sintética ($goldCount pessoas; modo=$RuntimeMode)..."
             Invoke-ClusterAction 'calibrate'
             $activeCount=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE $eligible;")
             if($activeCount -ne 1){throw "Calibração inicial deveria deixar exatamente 1 modelo BOOTSTRAP ATIVO; atual=$activeCount."}
@@ -386,10 +386,31 @@ switch($Action){
 
         $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
         $bootstrapGoldCount=$goldCount
-        $pendingBootstrap=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-%' AND NOT EXISTS(SELECT 1 FROM identidade.v_vinculo_corrente vc WHERE vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO');")
-        if($pendingBootstrap -ne 0){throw "Infraestrutura DEV não pode ficar pronta com corpus de bootstrap pendente; atual=$pendingBootstrap."}
+        $expectedPending=if($vars['JORNADA_LOCAL_SYNTHETIC_PENDING']){[int64]$vars['JORNADA_LOCAL_SYNTHETIC_PENDING']}else{0}
+        $pendingSilver=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao WHERE codigo_pessoa_origem LIKE N'SCALE-PEND-%';")
+        $processedPending=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT o.pessoa_observacao_id) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND EXISTS(SELECT 1 FROM identidade.linkage_resultado r JOIN identidade.linkage_run lr ON lr.linkage_run_id=r.linkage_run_id WHERE r.pessoa_observacao_id=o.pessoa_observacao_id AND lr.status=N'PUBLICADO');")
+
+        if($RuntimeMode -eq 'DEV'){
+            if($expectedPending -ne 6000 -or $pendingSilver -ne 6000){
+                throw "Modo --dev exige exatamente 6.000 observações sintéticas adicionais na Silver; configurado=$expectedPending; encontrado=$pendingSilver."
+            }
+            if($processedPending -lt $expectedPending){
+                Write-Host "Modo DEV: processando as $expectedPending observações adicionais da Silver pelo Linkage para publicação operacional..."
+                Invoke-ClusterAction 'linkage'
+                $processedPending=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT o.pessoa_observacao_id) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND EXISTS(SELECT 1 FROM identidade.linkage_resultado r JOIN identidade.linkage_run lr ON lr.linkage_run_id=r.linkage_run_id WHERE r.pessoa_observacao_id=o.pessoa_observacao_id AND lr.status=N'PUBLICADO');")
+            }
+            if($processedPending -ne $expectedPending){
+                throw "Modo DEV deve processar as 6.000 observações adicionais; processadas=$processedPending."
+            }
+            Write-Host "DEV preserva as 6.000 observações adicionais na Silver e publica seus resultados pelo pipeline normal de Linkage."
+            $bootstrapLifecycle='DEV_PUBLISHED_PRESERVED'
+        }else{
+            Write-Host "Modo $RuntimeMode: nenhuma publicação automática do corpus adicional foi executada."
+            $bootstrapLifecycle="${RuntimeMode}_STANDARD_NO_DEV_EXTRA_PUBLICATION"
+        }
+
+        $resolvedPendingGold=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT o.pessoa_observacao_id) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id JOIN gold.pessoa g ON g.pessoa_uuid=vc.pessoa_uuid WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND vc.status=N'RESOLVIDO';")
         $remainingScale=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")
-        Write-Host "DEV preserva e publica o domínio sintético processado na Gold; descarte pós-calibração é exclusivo de Homologation/Production."
         $modelId=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
         $version=[int](Invoke-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;")
         $bundleVersion=Invoke-SqlScalar "SELECT TOP(1) ISNULL(model_config_bundle_version,N'') FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
@@ -397,12 +418,16 @@ switch($Action){
         $sampleMethod=Invoke-SqlScalar "SELECT TOP(1) ISNULL(amostra_metodo,N'') FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
         $result=[ordered]@{
             generatedAt=(Get-Date).ToUniversalTime().ToString('o')
+            runtimeMode=$RuntimeMode
             mode=if($reused){'REUSED_ACTIVE'}else{'CREATED_AND_ACTIVATED_BOOTSTRAP'}
             modelRole=if($reused){'ACTIVE_CURRENT'}else{'BOOTSTRAP'}
             bootstrapReference='IBGE_CENSO_2022'
             bootstrapGoldPeople=$bootstrapGoldCount
             operationalScalePeopleAfterBootstrap=$remainingScale
-            bootstrapCorpusLifecycle='DEV_PUBLISHED_PRESERVED'
+            syntheticPendingSilver=$pendingSilver
+            syntheticPendingProcessed=$processedPending
+            syntheticPendingResolvedToGold=$resolvedPendingGold
+            bootstrapCorpusLifecycle=$bootstrapLifecycle
             modelId=$modelId
             version=$version
             status='ATIVO'
