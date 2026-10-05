@@ -24,10 +24,12 @@ public sealed class LocalBlockingRefreshContractTests
         Assert.Multiple(() =>
         {
             Assert.That(bootstrap, Does.Contain("LocalBlockingCommandTimeoutSeconds = 900"));
-            Assert.That(bootstrap, Does.Contain("commandTimeoutSeconds: LocalBlockingCommandTimeoutSeconds"));
+            Assert.That(bootstrap, Does.Contain("LocalBlockingCommandTimeoutSeconds, ct"));
             Assert.That(bootstrap, Does.Contain("RollbackPreservingOriginalAsync(transaction)"));
             Assert.That(bootstrap, Does.Contain("catch (Exception) { /* Preserva a exceção da operação original. */ }"));
-            Assert.That(persistence, Does.Contain("int commandTimeoutSeconds = 30"));
+            Assert.That(persistence, Does.Contain("=> RefreshSqlServerBatchAsync(connection, tx, pessoaUuids, 30, ct)"));
+            Assert.That(persistence, Does.Contain("int commandTimeoutSeconds,"));
+            Assert.That(persistence, Does.Contain("CancellationToken ct)"));
             Assert.That(persistence, Does.Contain("ArgumentOutOfRangeException.ThrowIfNegativeOrZero(commandTimeoutSeconds)"));
             Assert.That(
                 persistence.Split("CommandTimeout = commandTimeoutSeconds", StringSplitOptions.None).Length - 1,
