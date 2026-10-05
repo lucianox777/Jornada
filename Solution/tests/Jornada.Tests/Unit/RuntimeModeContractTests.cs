@@ -35,8 +35,10 @@ public sealed class RuntimeModeContractTests
             Assert.That(env,Does.Contain("$map['JORNADA_LOCAL_SYNTHETIC_PENDING']=if($RuntimeMode -eq 'DEV'){'6000'}else{'0'}"));
             Assert.That(env,Does.Contain("$script:DevConsoleRuntimeMode=$RuntimeMode"));
 
-            Assert.That(ops,Does.Contain("DEV: publicando o corpus adicional pela execução real do Linkage Runner"));
-            Assert.That(ops,Does.Contain("DEV preserva os 6.000 registros adicionais na Silver e exige sua publicação na Gold"));
+            Assert.That(ops,Does.Contain("DEV: avaliando o corpus adicional pela execução real do Linkage Runner"));
+            Assert.That(ops,Does.Contain("Get-DevBootstrapLinkageReadiness"));
+            Assert.That(ops,Does.Contain("ZERO_UNEVALUATED_AND_ZERO_FALSE_POSITIVE"));
+            Assert.That(ops,Does.Contain("DEV preserva os 6.000 registros adicionais na Silver: resoluções seguras entram na Gold; resultados inconclusivos permanecem auditáveis sem forçar vínculo"));
             Assert.That(ops,Does.Contain("STANDARD_NO_EXTRA_PENDING"));
 
             Assert.That(localDb,Does.Contain("'DEV'{'Development'}'PROD'{'Production'}default{'Homologation'}"));
