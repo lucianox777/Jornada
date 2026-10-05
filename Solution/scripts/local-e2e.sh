@@ -43,7 +43,7 @@ trap cleanup EXIT INT TERM
 
 # DEV sintético: o receptor lê contratos da fonte separada sem versionar cópias
 # específicas da Secretaria dentro da solução principal.
-support_contracts="$ROOT/../ApoioSecretarias/config/contracts/gestores/SEHAB"
+support_contracts="$ROOT/ApoioSecretarias/config/contracts/gestores/SEHAB"
 sehab_contracts="$ROOT/config/contracts/gestores/SEHAB"
 [[ -d "$support_contracts" ]] || { echo 'ERRO: contratos externos de teste não disponíveis.' >&2; exit 12; }
 if [[ -e "$sehab_contracts" ]]; then
@@ -129,7 +129,7 @@ compose_sql(){
 scalar(){ compose_sql "SET NOCOUNT ON; $1" | tail -1 | tr -d '[:space:]'; }
 # Importa o contrato SEHAB v5 RASCUNHO fornecido exclusivamente pela solução
 # independente no banco JornadaE2E. Nunca altera o banco DEV compartilhado.
-support_registry="$ROOT/../ApoioSecretarias/database/migrations/Registrar_SEHAB_Pessoa_v5.sql"
+support_registry="$ROOT/ApoioSecretarias/database/migrations/Registrar_SEHAB_Pessoa_v5.sql"
 [[ -f "$support_registry" ]] || { echo 'ERRO: script externo SEHAB v5 ausente.' >&2; exit 12; }
 if ! (cd "$ROOT" && SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker compose --env-file "$ENV_FILE" exec -T -e SQLCMDPASSWORD sqlserver \
   /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -d "$DB" -Q "$(cat "$support_registry")") > "$OUT/support-v5-registration.log" 2>&1; then
@@ -282,7 +282,7 @@ cat "$OUT/evidence.json"
 
 # Gate 6: pacote PREPARADO pela Solução de Apoio, ENVIADO pelo transmissor C#,
 # RECEBIDO no HTTP e PROCESSADO pelo mesmo receptor/Processor local.
-support="$ROOT/../ApoioSecretarias"
+support="$ROOT/ApoioSecretarias"
 test -f "$support/preparador/preparador.py"
 support_dir="$OUT/packages/apoio"
 mkdir -p "$support_dir"

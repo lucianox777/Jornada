@@ -1,12 +1,12 @@
 # Integração externa — envelope, transmissor e serviço de resultado
 
-A Jornada receptora mantém a API e o contrato canônico. O preparador, o transmissor C# e os contratos específicos migrados da SEHAB estão na solução **independente** `ApoioSecretarias/SolucaoApoioSecretarias.sln`, no mesmo repositório Git. O produto `Solution/Jornada.sln` não compila nem distribui o transmissor; um eventual repositório Git remoto separado é uma etapa distinta da separação de solução.
+A Jornada receptora mantém a API e o contrato canônico. O preparador, o transmissor C# e os contratos específicos migrados da SEHAB estão na solução **independente** `Solution/ApoioSecretarias/SolucaoApoioSecretarias.sln`, no mesmo repositório Git. O produto `Solution/Jornada.sln` não compila nem distribui o transmissor; um eventual repositório Git remoto separado é uma etapa distinta da separação de solução.
 
 ## Preparação e envio
 
 O preparador recebe um CSV da fonte, mapeamento **explícito e versionado**, manifesto, schema Pessoa e, opcionalmente, `registros.jsonl` já normalizado. Valida SHA-256 do schema, JSON Schema, versão, CPF/ausência declarada e gera um ZIP determinístico contendo exatamente `manifest.json`, `pessoas.jsonl` e `registros.jsonl`. O ZIP é nomeado `ENTREGA_<GESTOR>_<SISTEMA>_v<FORMATO>_<sha256>.zip`. Mapeamento e autorização de **dados reais** são responsabilidade da origem; o exemplo versionado é exclusivamente sintético.
 
-A partir de `ApoioSecretarias/`:
+A partir de `Solution/ApoioSecretarias/`:
 
 ```bash
 python -m pip install -r preparador/requirements.txt

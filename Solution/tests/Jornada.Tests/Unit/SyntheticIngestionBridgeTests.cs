@@ -288,9 +288,12 @@ public sealed class SyntheticIngestionBridgeTests
     private static void ValidatePeopleAgainstGestorV4(string gestor, string jsonl)
     {
         var root = FindRepositoryRoot();
+        var solutionRoot = Path.Combine(root, "Solution");
+        var schemaRoot = gestor == "SEHAB"
+            ? Path.Combine(solutionRoot, "ApoioSecretarias")
+            : solutionRoot;
         var schema = Path.Combine(
-            root,
-            gestor == "SEHAB" ? "ApoioSecretarias" : "Solution",
+            schemaRoot,
             "config",
             "contracts",
             "gestores",

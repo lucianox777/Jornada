@@ -19,7 +19,7 @@ def actual_refs(p:Path):
 def check(solution:Path, policy:Path):
     cfg=json.loads(policy.read_text(encoding='utf-8'))
     allowed=cfg.get('projects') or {}
-    csprojs=sorted(solution.rglob('*.csproj'))
+    csprojs=sorted(p for p in solution.rglob('*.csproj') if 'ApoioSecretarias' not in p.parts)
     actual={project_name(p):actual_refs(p) for p in csprojs}
     errs=[]
     missing=sorted(set(actual)-set(allowed)); stale=sorted(set(allowed)-set(actual))

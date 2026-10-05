@@ -5,7 +5,7 @@ from pathlib import Path
 
 root = Path(__file__).resolve().parents[1]
 support = json.loads((root / "config/governance/schema-approvals.SEHAB.json").read_text())
-main = json.loads((root.parent / "Solution/config/governance/schema-approvals.json").read_text())
+main = json.loads((root.parent / "config/governance/schema-approvals.json").read_text())
 sehab = support["contracts"]
 pessoa = [item for item in sehab if "/gestores/SEHAB/pessoa/" in item["path"]]
 extra = [item for item in sehab if item["path"] == "config/contracts/registros/AA01/v1/registro.json"]

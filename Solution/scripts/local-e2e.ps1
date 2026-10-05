@@ -122,7 +122,7 @@ try {
     # arquivos originais temporariamente, verificar seus hashes e removê-los.
     # Isso NÃO os devolve ao build/deploy da Jornada.
     $supportContracts = [IO.Path]::GetFullPath(
-        (Join-Path (Join-Path $Root '..') 'ApoioSecretarias/config/contracts/gestores/SEHAB'))
+        (Join-Path $Root 'ApoioSecretarias/config/contracts/gestores/SEHAB'))
     $targetContracts = Join-Path $Root 'config/contracts/gestores/SEHAB'
     if (-not (Test-Path -LiteralPath $supportContracts -PathType Container)) {
         throw "E2E: contratos externos SEHAB não encontrados na Solução de Apoio: $supportContracts"
