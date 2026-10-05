@@ -36,6 +36,7 @@ public sealed class DevTestConsoleContractTests
         var lifecycleSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_BootstrapCorpus_Discard.sql"));
         var compose=File.ReadAllText(Path.Combine(root,"Solution","docker-compose.yml"));
         var processorProgram=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.Processor.Worker","Program.cs"));
+        var blockingBootstrap=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.Processor.Worker","LocalBlockingProjectionBootstrap.cs"));
         var containerEntrypoint=File.ReadAllText(Path.Combine(root,"Solution","install","container-test","entrypoint.sh"));
         var containerDockerfile=File.ReadAllText(Path.Combine(root,"Solution","install","container-test","Dockerfile"));
 
@@ -373,6 +374,11 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localCluster,Does.Contain("Gate DT-15 DEV preparado para ACTIVATE"));
             Assert.That(localCluster,Does.Contain("Logs do jornada-reference-bootstrap"));
             Assert.That(localCluster,Does.Contain("Ensure-SyntheticIbgeIdentityText"));
+            Assert.That(localCluster,Does.Not.Contain("somente JornadaSyntheticDev"));
+            Assert.That(localCluster,Does.Contain("function Refresh-LocalBlockingProjection"));
+            Assert.That(localCluster,Does.Contain("Processor__Operation=REFRESH_LOCAL_BLOCKING"));
+            Assert.That(localCluster,Does.Contain("function Invoke-Calibration"));
+            Assert.That(localCluster,Does.Contain("Refresh-LocalBlockingProjection"));
             Assert.That(localCluster,Does.Contain("Pessoa Teste %"));
             Assert.That(localCluster,Does.Contain("Jornada_Dev_SyntheticScale_Diversify.sql"));
             Assert.That(localCluster,Does.Contain("nomes/nome da mãe amostrados pela frequência IBGE"));
@@ -430,6 +436,11 @@ public sealed class DevTestConsoleContractTests
             Assert.That(containerEntrypoint,Does.Contain("SKIP $name (Processor): modo didático manual da Console DEV"));
             Assert.That(containerEntrypoint,Does.Contain("JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR"));
             Assert.That(processorProgram,Does.Contain("PROCESS_UNTIL_IDLE"));
+            Assert.That(processorProgram,Does.Contain("REFRESH_LOCAL_BLOCKING"));
+            Assert.That(processorProgram,Does.Contain("RefreshAllSqlServerAsync"));
+            Assert.That(blockingBootstrap,Does.Contain("BlockingProjectionPersistence.RefreshSqlServerBatchAsync"));
+            Assert.That(blockingBootstrap,Does.Contain("ReadSyntheticPersonIdsAsync"));
+            Assert.That(blockingBootstrap,Does.Contain("CountProjectedKeysAsync"));
             Assert.That(processorProgram,Does.Contain("Processor one-shot concluído"));
             Assert.That(processorProgram,Does.Contain("processed >= 10_000"));
             Assert.That(opsScript,Does.Contain("'bronze-verify-latest'"));
