@@ -1,5 +1,5 @@
 ﻿param(
-    [ValidateSet('up','reset','down','clean','status','logs','blocking','calibrate','linkage','linkage-diagnose')]
+    [ValidateSet('up','reset','down','clean','status','logs','blocking','blocking-refresh','calibrate','linkage','linkage-diagnose')]
     [string]$Action = 'up',
     [switch]$NoBuild,
     [string]$EnvFile,
@@ -267,13 +267,14 @@ function Ensure-LocalBlockingProjection {
     Invoke-Node2 -Command @('env','Processor__Operation=REBUILD_LOCAL_BLOCKING','dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
 }
 
+function Refresh-LocalBlockingProjection {
+    Write-Host 'Reconciliando integralmente a projeção de blocking da massa sintética com Gold/Silver atuais...'
+    Invoke-Node2 -Command @('env','Processor__Operation=REFRESH_LOCAL_BLOCKING','dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
+}
+
 function Ensure-SyntheticIbgeIdentityText {
     $database = Get-EnvValue 'JORNADA_SQL_DATABASE'
     if([string]::IsNullOrWhiteSpace($database)){$database='JornadaLocal'}
-    if($database -ne 'JornadaSyntheticDev'){
-        Write-Host "Diversificação IBGE automática ignorada: banco atual=$database (somente JornadaSyntheticDev)." -ForegroundColor DarkGray
-        return
-    }
 
     $expectedRaw=Get-EnvValue 'JORNADA_LOCAL_SYNTHETIC_PEOPLE'
     $expected=if([string]::IsNullOrWhiteSpace($expectedRaw)){30000}else{[int]$expectedRaw}
@@ -458,7 +459,9 @@ function Start-Nodes([switch]$Build) {
 }
 
 function Invoke-Calibration {
-    Ensure-LocalBlockingProjection
+    # A Gold sintética pode ter nomes/datas ajustados depois do bootstrap inicial.
+    # Calibração exige blocking materializado a partir do estado atual, não apenas chaves existentes.
+    Refresh-LocalBlockingProjection
     $beforeText = Get-SqlScalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;"
     $before = [int]$beforeText
     Write-Host "Calibração iniciando após modelo v$before."
@@ -720,6 +723,7 @@ switch ($Action) {
     'status' { Invoke-Compose -ComposeArgs @('ps') }
     'logs' { Invoke-Compose -ComposeArgs @('logs','-f','jornada-node1','jornada-node2','jornada-nas') }
     'blocking' { Ensure-LocalBlockingProjection }
+    'blocking-refresh' { Refresh-LocalBlockingProjection }
     'calibrate' { Invoke-Calibration }
     'linkage' { Invoke-Linkage }
     'linkage-diagnose' { Show-LinkageDiagnosis }
