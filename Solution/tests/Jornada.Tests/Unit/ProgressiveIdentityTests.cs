@@ -120,6 +120,35 @@ public sealed class ProgressiveIdentityTests
     }
 
     [Test]
+    public void Snapshot_invariant_failures_expose_stable_non_sensitive_codes()
+    {
+        var initial = ProgressiveIdentityLifecycle.Create(Initial, Created);
+        var referenced = ProgressiveIdentityLifecycle.Conclude(
+            initial,
+            Decision(initial, ProgressiveResolutionOutcome.NOVA_IDENTIDADE));
+
+        string Code(ProgressiveIdentitySnapshot snapshot)
+        {
+            var exception = Assert.Throws<InvalidOperationException>(() =>
+                ProgressiveIdentityLifecycle.Conclude(
+                    snapshot,
+                    Decision(snapshot, ProgressiveResolutionOutcome.INDEFINIDA)));
+            Assert.That(exception!.Message, Does.Not.Contain(Initial.ToString()));
+            return exception.Message;
+        }
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(Code(initial with { InitialUuid = Guid.Empty }),
+                Is.EqualTo("PI_SNAPSHOT_INITIAL_UUID_EMPTY"));
+            Assert.That(Code(referenced with { CanonicalUuid = null }),
+                Is.EqualTo("PI_SNAPSHOT_REFERENCE_WITHOUT_CANONICAL"));
+            Assert.That(Code(referenced with { LastDecision = null }),
+                Is.EqualTo("PI_SNAPSHOT_VERSION_WITHOUT_RECEIPT"));
+        });
+    }
+
+    [Test]
     public void OptimisticVersionAndDecisionIdPreventStaleOrConflictingReplay()
     {
         var state = ProgressiveIdentityLifecycle.Create(Initial, Created);
