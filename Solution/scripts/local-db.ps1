@@ -258,10 +258,10 @@ valid AS (
      AND vf.motivo=N'SCALE_INCREMENTAL'
     JOIN gold.pessoa g
       ON g.pessoa_uuid=vf.pessoa_uuid
-     AND g.cpf=o.cpf
+     AND g.cpf COLLATE Latin1_General_100_BIN2=o.cpf COLLATE Latin1_General_100_BIN2
     JOIN identidade.cpf_ancora a
       ON a.pessoa_uuid=vf.pessoa_uuid
-     AND a.cpf=o.cpf
+     AND a.cpf=o.cpf COLLATE Latin1_General_100_BIN2
 )
 SELECT CONCAT(
     (SELECT COUNT_BIG(*) FROM extra),'|',

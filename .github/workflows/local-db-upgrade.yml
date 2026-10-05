@@ -70,6 +70,61 @@ jobs:
           bash scripts/local-db.sh up
           echo 'LOCAL DB REPEATED UP / PROGRESSIVE BACKFILL: OK'
 
+      - name: Prove PowerShell preserves a controlled SCALE-SEHAB expansion
+        shell: pwsh
+        run: |
+          $envFile = Join-Path $PWD '.env'
+          $vars = @{}
+          Get-Content $envFile | ForEach-Object {
+            $line=$_.Trim()
+            if($line -and -not $line.StartsWith('#') -and $line.Contains('=')){
+              $parts=$line.Split('=',2)
+              $vars[$parts[0].Trim()]=$parts[1]
+            }
+          }
+          $password=$vars['JORNADA_SQL_SA_PASSWORD']
+          if([string]::IsNullOrWhiteSpace($password)){throw 'Senha sintética local ausente.'}
+          $sql=@"
+          SET NOCOUNT ON;
+          SET XACT_ABORT ON;
+          DECLARE @uuid uniqueidentifier='50010000-0000-4000-8000-000000000001';
+          DECLARE @cpf char(11)='79999999972';
+          DECLARE @g bigint=(SELECT gestor_id FROM ref.gestor WHERE codigo=N'SEHAB');
+          DECLARE @so bigint=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@g AND codigo=N'SEHAB');
+          DECLARE @bp bigint=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@so AND padrao=1 AND ativo=1);
+          DECLARE @lot uniqueidentifier=(
+            SELECT TOP(1) l.lote_id FROM ingestao.lote l
+            JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id
+            WHERE e.idempotency_key=N'scale-sehab' ORDER BY l.criado_em
+          );
+          IF @g IS NULL OR @so IS NULL OR @bp IS NULL OR @lot IS NULL THROW 51970,'Fixture SCALE base ausente.',1;
+          IF EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE codigo_pessoa_origem=N'SCALE-SEHAB-0000005001') THROW 51971,'Fixture incremental já existe.',1;
+          BEGIN TRAN;
+          INSERT identidade.pessoa(pessoa_uuid,status) VALUES(@uuid,N'ATIVO');
+          INSERT identidade.cpf_ancora(cpf,pessoa_uuid) VALUES(@cpf,@uuid);
+          INSERT gold.pessoa(pessoa_uuid,cpf,status_cpf,nome_completo,data_nascimento,nome_mae,fontes_distintas,estado_concordancia,atualizado_em)
+          VALUES(@uuid,@cpf,N'PRESENTE',N'Pessoa Incremental 5001','1980-01-02',N'Mae Incremental 5001',1,N'CORROBORADO',SYSUTCDATETIME());
+          INSERT silver.pessoa_origem(sistema_origem_id,codigo_pessoa_origem,base_pessoa_origem_id,ultima_recepcao_em,ultima_referencia_recebida)
+          VALUES(@so,N'SCALE-SEHAB-0000005001',@bp,SYSUTCDATETIME(),SYSUTCDATETIME());
+          DECLARE @po bigint=SCOPE_IDENTITY();
+          INSERT silver.pessoa_observacao(pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,versao_interna,conteudo_hash,cpf,cpf_ausente_motivo,nome_completo,nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
+          VALUES(@po,@lot,@g,N'SCALE-SEHAB-0000005001',1,REPLICATE('d',64),@cpf,NULL,N'Pessoa Incremental 5001',N'PESSOA INCREMENTAL 5001','1980-01-02',N'Mae Incremental 5001',N'MAE INCREMENTAL 5001',SYSUTCDATETIME());
+          DECLARE @obs bigint=SCOPE_IDENTITY();
+          INSERT identidade.vinculo_fonte(pessoa_observacao_id,pessoa_uuid,metodo_resolucao,score,status,modelo_id,ativo,resolvido_em,motivo)
+          VALUES(@obs,@uuid,N'CPF_DETERMINISTICO',NULL,N'RESOLVIDO',NULL,1,SYSUTCDATETIME(),N'SCALE_INCREMENTAL');
+          COMMIT;
+          "@
+          $previous=$env:SQLCMDPASSWORD
+          try{
+            $env:SQLCMDPASSWORD=$password
+            $sql | docker compose --env-file $envFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d JornadaLocal
+            if($LASTEXITCODE -ne 0){throw "Falha ao criar expansão SCALE controlada ($LASTEXITCODE)."}
+          } finally {
+            if($null -eq $previous){Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue}else{$env:SQLCMDPASSWORD=$previous}
+          }
+          ./scripts/local-db.ps1 -Action up
+          Write-Host 'LOCAL DB POWERSHELL CONTROLLED EXPANSION: OK'
+
       - name: Cleanup
         if: always()
         shell: bash
