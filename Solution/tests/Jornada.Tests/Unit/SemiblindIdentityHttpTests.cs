@@ -56,7 +56,7 @@ public sealed class SemiblindIdentityHttpTests
                     services.RemoveAll<ISemiblindIdentitySearchService>();
                     services.AddSingleton<ISemiblindIdentitySearchService>(service);
                     // Serviço simulado mantém os testes HTTP independentes do SQL de DEV.
-                    // O teste do gate concreto abaixo cobre ambiente, flag, banco e marcador.
+                    // O teste do gate concreto abaixo cobre ambiente, flag, banco configurado e marcador residente.
                     services.RemoveAll<ISemiblindSearchActivationGate>();
                     services.AddSingleton<ISemiblindSearchActivationGate>(
                         new FakeActivationGate(scenario != "feature_disabled"
@@ -122,14 +122,15 @@ public sealed class SemiblindIdentityHttpTests
         }
     }
 
+    [TestCase("Development", true, "JornadaLocal", "Development", true)]
     [TestCase("Development", true, "JornadaSyntheticDev", "Development", true)]
-    [TestCase("Development", false, "JornadaSyntheticDev", "Development", false)]
-    [TestCase("Development", true, "JornadaDev", "Development", false)]
-    [TestCase("Development", true, "JornadaSyntheticDev", null, false)]
-    [TestCase("Development", true, "JornadaSyntheticDev", "Production", false)]
-    [TestCase("Production", true, "JornadaSyntheticDev", "Development", false)]
-    [TestCase("HML", true, "JornadaSyntheticDev", "Development", false)]
-    public void Activation_gate_requires_synthetic_database_and_resident_profile(
+    [TestCase("Development", false, "JornadaLocal", "Development", false)]
+    [TestCase("Development", true, "", "Development", false)]
+    [TestCase("Development", true, "JornadaLocal", null, false)]
+    [TestCase("Development", true, "JornadaLocal", "Production", false)]
+    [TestCase("Production", true, "JornadaLocal", "Development", false)]
+    [TestCase("HML", true, "JornadaLocal", "Development", false)]
+    public void Activation_gate_requires_development_runtime_and_resident_profile(
         string environment, bool enabled, string database, string? profile, bool expected)
     {
         Assert.That(SqlSyntheticDevelopmentSemiblindSearchActivationGate.IsEligible(
