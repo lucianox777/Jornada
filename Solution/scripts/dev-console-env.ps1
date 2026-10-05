@@ -19,7 +19,7 @@ foreach($line in $lines){
 if([string]::IsNullOrWhiteSpace([string]$map['JORNADA_SQL_DATABASE'])){$map['JORNADA_SQL_DATABASE']='JornadaLocal'}
 
 $map['JORNADA_RUNTIME_MODE']=$RuntimeMode
-$map['JORNADA_LOCAL_PROFILE']="console-$($RuntimeMode.ToLowerInvariant())"
+$map['JORNADA_LOCAL_PROFILE']="dev-console-$($RuntimeMode.ToLowerInvariant())"
 $map['JORNADA_SEMIBLIND_ENABLED']=if($RuntimeMode -eq 'DEV'){'true'}else{'false'}
 $map['JORNADA_LOCAL_SYNTHETIC_PEOPLE']='30000'
 $map['JORNADA_LOCAL_SYNTHETIC_PAIRED']='30000'
