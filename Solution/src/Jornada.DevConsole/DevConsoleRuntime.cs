@@ -14,7 +14,7 @@ sealed record CommandDefinition(string Id,string Title,string Description,string
     public bool Implemented=>IsComposite||File is not null||Id is "zip" or "semiblind" or "configuration" or "bronze" or "silver" or "linkage" or "gold";
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
     public string DisplayCommand=>Id switch{
-        "zip"=>"Entrada manual → build-ingestion-fixture.py → POST /api/v1/ingestao/entregas",
+        "zip"=>"Entrada manual → build-ingestion-fixture.py → ZIP local",
         "semiblind"=>"POST /api/v1/identidade/candidatos (DEV sintético)",
         "configuration"=>"config/contracts/**/*.json + config/**/*.json + install/windows-production/Jornada.Cluster.Test.json",
         "bronze"=>"bronze.entrega_arquivo · objeto físico + metadados + Jornada.Bronze.Verify",
@@ -81,9 +81,9 @@ static class CommandCatalog
             {Stage="1.6 · Modelo inicial"},
         new("infra-finalize","Finalização","Gera configuração inicial, bundle de contratos/configurações e registra o resumo final do ambiente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action finalize",null,["infra-model"],"Conclui os artefatos exigidos pela ingestão.")
             {Stage="1.7 · Finalização"},
-        new("zip","Ingestão","Cria e envia uma nova Entrega pela API. No modo didático da Console DEV, o Processor residente fica suspenso: o ZIP permanece na Bronze até a etapa Silver ser executada explicitamente.",null,null,null,["infra-finalize"],"A finalização gera o bundle exigido pela ingestão. Depois de enviar, confira a Bronze antes de processar.")
+        new("zip","Ingestão","Gera um novo arquivo ZIP de Entrega a partir da entrada manual. O envio para a API é uma ação separada, para permitir conferir e preservar o arquivo antes da transmissão. No modo didático da Console DEV, o Processor residente fica suspenso até a etapa Silver ser executada explicitamente.",null,null,null,["infra-finalize"],"A finalização gera o bundle exigido pela ingestão. Gere o arquivo e depois use Enviar arquivo para transmiti-lo à API.")
             {Stage="2 · Ingestão"},
-        new("bronze","Bronze","Mostra os metadados e a localização lógica do objeto recebido e permite verificar a integridade física da última Entrega com Jornada.Bronze.Verify.",null,null,null,["zip"],"A verificação confere objeto, SHA-256 e tamanho. Ela não processa nem altera a Entrega.")
+        new("bronze","Bronze","Mostra os metadados e a localização lógica do objeto recebido e permite verificar a integridade física da última Entrega com Jornada.Bronze.Verify.",null,null,null,["ingestion"],"A verificação confere objeto, SHA-256 e tamanho. Ela não processa nem altera a Entrega.")
             {Stage="3 · Bronze"},
         new("silver","Silver · processar Bronze","Executa explicitamente o Jornada.Processor.Worker em modo one-shot para drenar somente a Entrega pendente da Console DEV e depois permite inspecionar silver.pessoa_observacao.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action process-latest",null,["bronze"],"A Console DEV desabilita o Processor residente para que esta transição seja visível e acionada pelo operador.")
             {Stage="4 · Silver"},
@@ -112,9 +112,9 @@ static class CommandCatalog
             {Surface="tools",Stage="Modelo e massa"},
 
         new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["infra-model"],"Ação auxiliar de Contratos e configurações."){Visible=false},
-        new("ingestion","Reenviar último ZIP para ingestão","Reenvia manualmente o último ZIP já gerado para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Ação auxiliar do cartão Ingestão."){Visible=false},
-        new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega sem acionar processamento.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json",["zip"],"Ação auxiliar da Ingestão."){Visible=false},
-        new("bronze-verify-latest","Verificar integridade da última Entrega","Executa Jornada.Bronze.Verify filtrado pelo entrega_id registrado pela Console DEV.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action bronze-verify-latest",".local/dev-console/last-bronze-verify.json",["zip"],"Ação auxiliar do cartão Bronze."){Visible=false},
+        new("ingestion","Enviar arquivo para ingestão","Envia manualmente o último ZIP gerado pela Console DEV para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Ação auxiliar do cartão Ingestão."){Visible=false},
+        new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega sem acionar processamento.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json",["ingestion"],"Ação auxiliar da Ingestão."){Visible=false},
+        new("bronze-verify-latest","Verificar integridade da última Entrega","Executa Jornada.Bronze.Verify filtrado pelo entrega_id registrado pela Console DEV.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action bronze-verify-latest",".local/dev-console/last-bronze-verify.json",["ingestion"],"Ação auxiliar do cartão Bronze."){Visible=false},
         new("blocking","Reconstruir blocking","Executa manualmente a reconstrução one-shot da projeção local de blocking.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["infra-corpus"],"Ferramenta técnica."){Visible=false},
         new("replay","Executar replay do último run","Executa REPLAY real do último linkage PUBLICADO elegível, sem publicar o resultado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action replay-latest",null,["linkage"],"Ação auxiliar do cartão Linkage."){Visible=false}
     ];
@@ -513,42 +513,16 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
                 var generationFailureSummary=$"Falha ao gerar ZIP (exit {generated.ExitCode}).";
                 live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
                 var failedStep=new StepResult(command,root,generated.ExitCode,sw.ElapsedMilliseconds,generated.Output,generated.Error,null);
-                await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA",generationFailureSummary,failedStep,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
+                await FinishAsync(new RunRecord(id,"zip","Gerar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA",generationFailureSummary,failedStep,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
                 return;
             }
 
             live.Add("result",$"ZIP gerado: {zip}");
-            live.Add("stdout","ZIP validado. Enviando o mesmo arquivo para a API real de ingestão...");
-
-            var sendPsi=new ProcessStartInfo("pwsh"){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8,UseShellExecute=false,CreateNoWindow=true};
-            sendPsi.ArgumentList.Add("-NoProfile");
-            sendPsi.ArgumentList.Add("-File");
-            sendPsi.ArgumentList.Add(Path.Combine(root,"scripts","dev-console-operations.ps1"));
-            sendPsi.ArgumentList.Add("-Action");
-            sendPsi.ArgumentList.Add("ingest-latest");
-            sendPsi.ArgumentList.Add("-ZipPath");
-            sendPsi.ArgumentList.Add(zip);
-            var sendCommand=$"pwsh -NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest -ZipPath \"{zip}\"";
-            command=zipCommand+" && "+sendCommand;
-            live.Add("command",$"> {sendCommand}");
-            var sent=await RunProcessAsync(sendPsi,live);
             sw.Stop();
-
-            var receiptCandidate=Path.Combine(root,".local","dev-console","last-ingestion.json");
-            var receipt=sent.ExitCode==0&&File.Exists(receiptCandidate)?Path.GetFullPath(receiptCandidate):null;
-            var combinedOutput=generated.Output+(generated.Output.EndsWith(Environment.NewLine,StringComparison.Ordinal)?"":Environment.NewLine)+sent.Output;
-            var combinedError=generated.Error+sent.Error;
-            var artifacts=new List<string>{zip!};
-            artifacts.AddRange(ParseArtifacts(sent.Output,root));
-            var distinctArtifacts=artifacts.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-            var status=sent.ExitCode==0&&receipt is not null?"SUCESSO":"FALHA";
-            var sendSummary=status=="SUCESSO"
-                ?$"ZIP gerado e enviado. Recibo: {receipt}"
-                :$"ZIP gerado, mas o envio falhou (exit {sent.ExitCode}). O ZIP foi preservado para diagnóstico/reenvio.";
-            var resultPath=status=="SUCESSO"?receipt:zip;
-            live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
-            var step=new StepResult(command,root,sent.ExitCode,sw.ElapsedMilliseconds,combinedOutput,combinedError,resultPath,distinctArtifacts);
-            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,sendSummary,step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
+            var artifacts=new[]{zip};
+            live.Add("status",$"SUCESSO · {(sw.ElapsedMilliseconds/1000d):0.00}s");
+            var step=new StepResult(command,root,0,sw.ElapsedMilliseconds,generated.Output,generated.Error,zip,artifacts);
+            await FinishAsync(new RunRecord(id,"zip","Gerar ZIP de ingestão",started,DateTimeOffset.UtcNow,"SUCESSO",$"ZIP gerado e preservado para envio posterior: {zip}",step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
         }
         catch(Exception ex)
         {
@@ -556,7 +530,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             live.Add("stderr",ex.ToString());
             live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             var step=new StepResult(command,root,-1,sw.ElapsedMilliseconds,"",ex.ToString(),null);
-            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA","Falha ao gerar/enviar ZIP; veja o console.",step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
+            await FinishAsync(new RunRecord(id,"zip","Gerar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA","Falha ao gerar ZIP; veja o console.",step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
         }
     }
 

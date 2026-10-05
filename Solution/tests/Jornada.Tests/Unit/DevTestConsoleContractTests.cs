@@ -106,7 +106,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime.IndexOf("new(\"gold\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"finish\"",StringComparison.Ordinal)));
             Assert.That(runtime,Does.Contain("Surface=\"tools\""));
             Assert.That(runtime,Does.Contain("Stage=\"Verificações\""));
-            Assert.That(runtime,Does.Contain("-ZipPath"));
+            Assert.That(runtime,Does.Not.Contain("-ZipPath"));
             Assert.That(runtime,Does.Contain("manual-zip"));
             Assert.That(runtime,Does.Contain("sessionStartedAt=DateTimeOffset.UtcNow"));
             Assert.That(runtime,Does.Contain("Where(x=>x.StartedAt>=sessionStartedAt)"));
@@ -164,9 +164,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("A lista começa vazia a cada inicialização da Console DEV"));
             Assert.That(page,Does.Not.Contain("O histórico é persistido entre reinicializações da Console DEV."));
             Assert.That(page,Does.Contain("Entrada manual para o ZIP"));
-            Assert.That(page,Does.Contain("Gerar e enviar"));
-            Assert.That(page,Does.Contain("Nova ingestão"));
-            Assert.That(page,Does.Contain("Reenviar último"));
+            Assert.That(page,Does.Contain("Gerar arquivo"));
+            Assert.That(page,Does.Contain("Enviar arquivo"));
+            Assert.That(page,Does.Not.Contain("Nova ingestão"));
+            Assert.That(page,Does.Not.Contain("Reenviar último"));
+            Assert.That(runtime,Does.Contain("\"Gerar ZIP de ingestão\""));
+            Assert.That(runtime,Does.Contain("ZIP gerado e preservado para envio posterior"));
+            Assert.That(runtime,Does.Not.Contain("\"Gerar e enviar ZIP de ingestão\""));
             Assert.That(page,Does.Contain("pipeline-status"));
             Assert.That(page,Does.Contain("Ver status da última ingestão"));
             Assert.That(page,Does.Contain("Processar Bronze → Silver"));

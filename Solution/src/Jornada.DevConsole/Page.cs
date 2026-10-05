@@ -201,7 +201,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   </div>
   <div class="dialog-actions">
     <button class="secondary" type="button" onclick="zipDialog.close()">Cancelar</button>
-    <button class="primary" type="button" onclick="startZip()">Gerar e enviar</button>
+    <button class="primary" type="button" onclick="startZip()">Gerar arquivo</button>
   </div>
 </dialog>
 
@@ -316,7 +316,7 @@ async function showHistory(){
 
 async function loadCommands(surface='flow'){
   commandsCache=await api('/api/commands');
-  const titleById=Object.fromEntries(commandsCache.map(x=>[x.id,x.title]));
+  const titleById=Object.assign({ingestion:'Enviar arquivo para ingestão'},Object.fromEntries(commandsCache.map(x=>[x.id,x.title])));
   const target=surface==='tools'?toolsCommands:commands;
   const selected=commandsCache.filter(c=>(c.surface||'flow')===surface);
   const groups=[];
@@ -343,9 +343,9 @@ async function loadCommands(surface='flow'){
 
     let actions='';
     if(c.id==='zip'){
-      actions='<button class="primary" type="button" onclick="openZipDialog()">Nova ingestão</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Status</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'ingestion\',\'Reenviar último ZIP para ingestão\')">Reenviar último</button>';
+      actions='<button class="primary" type="button" onclick="openZipDialog()">Gerar arquivo</button>'
+        +'<button class="primary" type="button" onclick="startCommand(\'ingestion\',\'Enviar arquivo para ingestão\')">Enviar arquivo</button>'
+        +'<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Status</button>';
     }else if(c.id==='bronze'){
       actions='<button class="primary" type="button" onclick="openLayerDialog(\'bronze\')">Visualizar Bronze</button>'
         +'<button class="secondary" type="button" onclick="startCommand(\'bronze-verify-latest\',\'Verificar integridade da última Entrega\')">Verificar integridade</button>';
@@ -690,7 +690,7 @@ async function startZip(){
   zipDialog.close();
   const payload={gestor:zipGestor.value,manifestJson:zipManifest.value,pessoasJsonl:zipPessoas.value,registrosJsonl:zipRegistros.value};
   const response=await api('/api/zip/manual/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  openLiveRun(response.id,'Gerar e enviar ZIP de ingestão #'+response.executionNumber,'zip');
+  openLiveRun(response.id,'Gerar ZIP de ingestão #'+response.executionNumber,'zip');
 }
 
 function resetConsole(title){
