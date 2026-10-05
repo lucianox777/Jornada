@@ -2,6 +2,7 @@ using System.Text.Json;
 using Microsoft.AspNetCore.Mvc;
 
 var builder=WebApplication.CreateBuilder(args);
+builder.Services.AddSingleton<ConsoleRuntimeMode>();
 builder.Services.AddSingleton<RunStore>();
 builder.Services.AddSingleton<LiveExecutionService>();
 builder.Services.AddSingleton<GoldZipTemplateService>();
@@ -19,19 +20,23 @@ app.MapGet("/",(HttpResponse response)=>{
     return Results.Text(Page.Html,"text/html; charset=utf-8");
 });
 
-app.MapGet("/api/version",(HttpResponse response)=>{
+app.MapGet("/api/version",(HttpResponse response,ConsoleRuntimeMode runtime)=>{
     response.Headers.CacheControl="no-store";
     var revision=Environment.GetEnvironmentVariable("JORNADA_DEV_CONSOLE_SOURCE_SHA");
     return Results.Ok(new{
         revision=string.IsNullOrWhiteSpace(revision)?"desconhecida":revision,
-        processId=Environment.ProcessId
+        processId=Environment.ProcessId,
+        mode=runtime.Mode
     });
 });
 
-app.MapGet("/api/commands",(HttpResponse response)=>{
+app.MapGet("/api/commands",(HttpResponse response,ConsoleRuntimeMode runtime)=>{
     response.Headers.CacheControl="no-store";
     return Results.Ok(CommandCatalog.All.Where(x=>x.Visible).Select(x=>new{
-        x.Id,x.Title,x.Description,x.Implemented,x.CommandLine,x.DisplayCommand,x.Dependencies,x.DependencyNote,x.Surface,x.Stage
+        x.Id,x.Title,x.Description,x.Implemented,x.CommandLine,x.DisplayCommand,x.Dependencies,x.DependencyNote,x.Surface,x.Stage,
+        destructive=x.Destructive,
+        disabled=runtime.IsDisabled(x),
+        disabledReason=runtime.DisabledReason(x)
     }));
 });
 
@@ -41,9 +46,11 @@ app.MapGet("/api/runs",async(RunStore store,CancellationToken ct)=>
 app.MapGet("/api/runs/{id:guid}",async(Guid id,RunStore store,CancellationToken ct)=>
     await store.GetAsync(id,ct) is { } run?Results.Ok(run):Results.NotFound());
 
-app.MapPost("/api/commands/{command}/start",static(string command,[FromServices] LiveExecutionService live)=>{
+app.MapPost("/api/commands/{command}/start",static(string command,[FromServices] LiveExecutionService live,[FromServices] ConsoleRuntimeMode runtime)=>{
     var definition=CommandCatalog.All.FirstOrDefault(x=>x.Id.Equals(command,StringComparison.OrdinalIgnoreCase));
     if(definition is null)return Results.NotFound();
+    if(runtime.IsDisabled(definition))
+        return Results.Conflict(new{error=runtime.DisabledReason(definition),mode=runtime.Mode});
     var id=live.StartCommand(definition);
     return Results.Accepted($"/api/runs/{id}",new{id});
 });
