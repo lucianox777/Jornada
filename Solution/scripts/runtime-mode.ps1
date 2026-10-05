@@ -46,7 +46,8 @@ function Assert-JornadaDestructiveAllowed {
         [Parameter(Mandatory=$true)][string]$Operation,
         [switch]$ConfirmProductionReset
     )
-    if ($Mode -eq 'PROD' -and -not $ConfirmProductionReset) {
-        throw "Operacao destrutiva '$Operation' bloqueada em PROD. Repita explicitamente com -ConfirmProductionReset fora da interface."
+    $confirmed = $ConfirmProductionReset -or ([string]$env:JORNADA_CONFIRM_PRODUCTION_RESET -eq '1')
+    if ($Mode -eq 'PROD' -and -not $confirmed) {
+        throw "Operacao destrutiva '$Operation' bloqueada em PROD. Repita explicitamente com -ConfirmProductionReset/--confirm-production-reset fora da interface."
     }
 }
