@@ -18,11 +18,12 @@ $EnvFile=$DevConsoleEnvFile
 $RuntimeMode=$DevConsoleRuntimeMode
 
 function Invoke-Cluster([string]$ClusterAction,[switch]$NoBuild,[switch]$ConfirmDestructive){
-    $args=@('-Action',$ClusterAction,'-EnvFile',$EnvFile,'-RuntimeMode',$RuntimeMode)
-    if($NoBuild){$args+='-NoBuild'}
-    if($ConfirmDestructive){$args+='-ConfirmProductionReset'}
-    Write-Host ("# pwsh -NoProfile -File scripts/local-cluster.ps1 "+($args -join ' '))
-    & $Cluster @args
+    $displayArgs=@('-Action',$ClusterAction,'-EnvFile',$EnvFile,'-RuntimeMode',$RuntimeMode)
+    $invokeParams=@{Action=$ClusterAction;EnvFile=$EnvFile;RuntimeMode=$RuntimeMode}
+    if($NoBuild){$displayArgs+='-NoBuild';$invokeParams['NoBuild']=$true}
+    if($ConfirmDestructive){$displayArgs+='-ConfirmProductionReset';$invokeParams['ConfirmProductionReset']=$true}
+    Write-Host ("# pwsh -NoProfile -File scripts/local-cluster.ps1 "+($displayArgs -join ' '))
+    & $Cluster @invokeParams
     if($LASTEXITCODE -ne 0){ throw "local-cluster.ps1 $ClusterAction falhou ($LASTEXITCODE)." }
 }
 
