@@ -54,6 +54,8 @@ class TestSafeRunner(unittest.TestCase):
             payload = json.loads(output.call_args.args[0])
             self.assertEqual(payload["database"], "JornadaE2E")
             self.assertFalse(payload["authorized"])
+            self.assertEqual(payload["runtimeMode"], "HML")
+            self.assertFalse(payload["productionResetConfirmed"])
 
     def test_bash_delegation_uses_explicit_profile(self):
         for profile, db in runner.DBS.items():
@@ -61,6 +63,7 @@ class TestSafeRunner(unittest.TestCase):
             with patch.object(runner.shutil, "which", return_value="/usr/bin/bash"):
                 def fake_run(argv, cwd, env, check):
                     self.assertEqual(env["JORNADA_SQL_DATABASE_OVERRIDE"], db)
+                    self.assertEqual(env["JORNADA_RUNTIME_MODE"], "HML")
                     self.assertEqual(cwd, runner.ROOT)
                     self.assertTrue(argv[1].endswith("local-db.sh"))
                     return type("Result", (), {"returncode": 0})()
@@ -95,6 +98,45 @@ class TestSafeRunner(unittest.TestCase):
         self.assertIn('DB="JornadaSyntheticDev"', synthetic)
         self.assertIn('JORNADA_SQL_DATABASE_OVERRIDE="$DB" "$ROOT/scripts/local-db.sh" up --no-synthetic-corpus', synthetic)
         self.assertIn('DATABASE_OVERRIDE=', local_db)
+
+    def test_prod_destructive_operation_requires_second_confirmation(self):
+        job = runner.plan("local", "db", "reset")
+        with patch.object(runner.subprocess, "run") as sub:
+            with self.assertRaises(ValueError):
+                runner.execute(job, allow_reset=True, runtime_mode="PROD")
+            sub.assert_not_called()
+
+    def test_explicit_dev_mode_is_propagated_to_child_process(self):
+        job = runner.plan("local", "db", "status")
+        with patch.object(runner.shutil, "which", return_value="/usr/bin/bash"):
+            def fake_run(argv, cwd, env, check):
+                self.assertEqual(env["JORNADA_RUNTIME_MODE"], "DEV")
+                self.assertNotIn("JORNADA_CONFIRM_PRODUCTION_RESET", env)
+                return type("Result", (), {"returncode": 0})()
+            with patch.object(runner.subprocess, "run", side_effect=fake_run):
+                self.assertEqual(runner.execute(job, runtime_mode="DEV"), 0)
+
+    def test_prod_confirmation_is_propagated_only_after_explicit_cli_intent(self):
+        job = runner.plan("local", "db", "reset")
+        with patch.object(runner.shutil, "which", return_value="/usr/bin/bash"):
+            with patch.object(runner.subprocess, "run", return_value=type("R", (), {"returncode": 0})()) as sub:
+                self.assertEqual(
+                    runner.execute(job, allow_reset=True, runtime_mode="PROD",
+                                   confirm_production_reset=True),
+                    0)
+                env = sub.call_args.kwargs["env"]
+                self.assertEqual(env["JORNADA_RUNTIME_MODE"], "PROD")
+                self.assertEqual(env["JORNADA_CONFIRM_PRODUCTION_RESET"], "1")
+
+    def test_cli_defaults_to_hml_and_rejects_prod_confirmation_without_prod(self):
+        with patch.object(runner.subprocess, "run") as sub:
+            self.assertEqual(
+                runner.main(["--profile", "local", "--dry-run", "db", "status"]),
+                0)
+            sub.assert_not_called()
+        self.assertEqual(
+            runner.main(["--profile", "local", "--confirm-production-reset", "db", "status"]),
+            2)
 
     def test_cli_refuses_implicit_e2e_reset(self):
         self.assertEqual(runner.main(["--profile", "e2e", "e2e"]), 2)
