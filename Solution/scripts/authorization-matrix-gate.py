@@ -16,6 +16,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PATHS = {
     "program": ROOT / "src/Jornada.Api/Program.cs",
+    "identity": ROOT / "src/Jornada.Api/IdentityApi.cs",
+    "ingestion": ROOT / "src/Jornada.Api/IngestionApi.cs",
+    "person": ROOT / "src/Jornada.Api/PersonApi.cs",
+    "registros": ROOT / "src/Jornada.Api/RegistrosApi.cs",
+    "possibilidades": ROOT / "src/Jornada.Api/PossibilidadesApi.cs",
     "origin": ROOT / "src/Jornada.Api/ProgressiveOriginApi.cs",
     "monitor": ROOT / "src/Jornada.Api/OperationalMonitorApi.cs",
     "governance": ROOT / "src/Jornada.Api/ModelGovernanceReadOnlyApi.cs",
@@ -69,8 +74,17 @@ def validate(data: dict, sources: dict[str, str]) -> int:
     expected = {(r["method"].upper(), r["path"]): r for r in routes}
     require(len(expected) == len(routes), "rota duplicada na matriz")
 
-    program, origin, monitor, security, verifier, governance = (
-        sources[name] for name in ("program", "origin", "monitor", "security", "verifier", "governance"))
+    program = sources["program"]
+    identity = sources["identity"]
+    ingestion = sources["ingestion"]
+    person = sources["person"]
+    registros = sources["registros"]
+    possibilidades = sources["possibilidades"]
+    origin = sources["origin"]
+    monitor = sources["monitor"]
+    security = sources["security"]
+    verifier = sources["verifier"]
+    governance = sources["governance"]
     for token in (
         "builder.Services.AddJornadaAccessSecurity()",
         "AddSingleton<IJornadaAccessVerifier, JornadaApiAccessVerifier>()",
@@ -131,23 +145,42 @@ def validate(data: dict, sources: dict[str, str]) -> int:
     require(set(policy_types) == set(declared_permissions),
             "políticas centrais divergem da matriz de permissões")
 
-    matches = list(re.finditer(r'app\.Map(Get|Post|Put|Delete)\("([^"]+)"', program))
     actual: dict[tuple[str, str], str] = {}
-    for i, match in enumerate(matches):
-        method, path = match.group(1).upper(), norm_path(match.group(2))
-        if not path.startswith("/api/"):
-            continue
-        end = matches[i + 1].start() if i + 1 < len(matches) else program.find("app.Run()", match.start())
-        require(end > match.start(), f"{method} {path}: delimitador de endpoint não encontrado")
-        block = program[match.start():end]
-        permissions = re.findall(r'IsAllowedAsync\(\s*context\s*,\s*"([^"]+)"', block)
-        require(bool(permissions) and len(set(permissions)) == 1,
-                f"{method} {path}: política de recurso ausente ou divergente")
-        permission = permissions[0]
-        check_endpoint(block, permission, f"{method} {path}")
-        require((method, path) not in actual, f"rota duplicada: {method} {path}")
-        actual[(method, path)] = permission
 
+    def collect_literal_endpoints(source: str, label: str) -> None:
+        matches = list(re.finditer(r'app\.Map(Get|Post|Put|Delete)\("([^"]+)"', source))
+        for i, match in enumerate(matches):
+            method, path = match.group(1).upper(), norm_path(match.group(2))
+            if not path.startswith("/api/"):
+                continue
+            end = matches[i + 1].start() if i + 1 < len(matches) else len(source)
+            block = source[match.start():end]
+            permissions = re.findall(r'IsAllowedAsync\(\s*context\s*,\s*"([^"]+)"', block)
+            require(bool(permissions) and len(set(permissions)) == 1,
+                    f"{label}: {method} {path}: política de recurso ausente ou divergente")
+            permission = permissions[0]
+            check_endpoint(block, permission, f"{method} {path}")
+            require((method, path) not in actual, f"rota duplicada: {method} {path}")
+            actual[(method, path)] = permission
+
+    for label, source in (
+        ("host", program),
+        ("identity", identity),
+        ("ingestion", ingestion),
+        ("person", person),
+        ("registros", registros),
+        ("possibilidades", possibilidades),
+    ):
+        collect_literal_endpoints(source, label)
+
+    for registration in (
+        "app.MapIdentityApi();",
+        "app.MapIngestionApi();",
+        "app.MapPersonApi();",
+        "app.MapRegistrosApi();",
+        "app.MapPossibilidadesApi();",
+    ):
+        require(registration in program, "módulo de endpoint não registrado no host: " + registration)
     require("app.MapProgressiveOriginApi();" in program,
             "módulo progressivo não registrado no host")
     require("app.MapOperationalMonitorApi();" in origin,
@@ -219,7 +252,7 @@ def validate(data: dict, sources: dict[str, str]) -> int:
 
 def self_test(matrix: dict, sources: dict[str, str]) -> None:
     scenarios = [
-        ("scope removido", "program",
+        ("scope removido", "identity",
          '.RequireAuthorization("jornada.identidade.resolve")',
          '.RequireAuthorization("jornada.ingestao.write")'),
         ("contexto não autenticado", "origin", "RequireJornadaAccessContext()", "HttpContext.User"),
