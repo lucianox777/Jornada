@@ -5,6 +5,8 @@ $OutputEncoding=[Text.UTF8Encoding]::new($false)
 if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
 
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$runtimeMode=if([string]::IsNullOrWhiteSpace($env:JORNADA_RUNTIME_MODE)){'HML'}else{$env:JORNADA_RUNTIME_MODE.Trim().ToUpperInvariant()}
+$residentProfile=switch($runtimeMode){'DEV'{'Development'}'PROD'{'Production'}default{'Homologation'}}
 . (Join-Path $PSScriptRoot 'dev-console-html.ps1')
 $OutDir=Join-Path $Root '.local/dev-console/initial-config'
 New-Item -ItemType Directory -Force $OutDir | Out-Null
@@ -58,7 +60,8 @@ $config=[ordered]@{
   kind='JORNADA_DEV_INITIAL_CONFIGURATION'
   generatedAt=(Get-Date).ToUniversalTime().ToString('o')
   solutionSchema=[string]$cluster.solutionSchema
-  environment='Development'
+  environment=$residentProfile
+  runtimeMode=$runtimeMode
   clusterConfiguration=[ordered]@{
     source=$clusterPath
     configurationBundleVersion=[string]$cluster.configurationBundleVersion
