@@ -14,9 +14,7 @@ done
 RUNTIME_MODE="${JORNADA_RUNTIME_MODE:-HML}"
 RUNTIME_MODE="$(printf '%s' "$RUNTIME_MODE" | tr '[:lower:]' '[:upper:]')"
 case "$RUNTIME_MODE" in
-  DEV) ENVIRONMENT_PROFILE=Development ;;
-  HML) ENVIRONMENT_PROFILE=Homologation ;;
-  PROD) ENVIRONMENT_PROFILE=Production ;;
+  DEV|HML|PROD) ;;
   *) echo "ERRO: JORNADA_RUNTIME_MODE invalido: $RUNTIME_MODE (use DEV, HML ou PROD)." >&2; exit 2 ;;
 esac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -140,9 +138,9 @@ bootstrap() {
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260910_Schema_Consolidation_370.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260922_Processor_Lease_Heartbeat_Isolation.sql
 
-  # O nome do banco nao define mais o modo; o marcador residente reflete a
-  # escolha explicita DEV/HML/PROD.
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -Q "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'$ENVIRONMENT_PROFILE'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'$ENVIRONMENT_PROFILE';"
+  # O provisionador local continua Development; o modo funcional e independente
+  # e fica registrado separadamente em Jornada.RuntimeMode.
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -Q "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.RuntimeMode') EXEC sys.sp_updateextendedproperty @name=N'Jornada.RuntimeMode',@value=N'$RUNTIME_MODE'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.RuntimeMode',@value=N'$RUNTIME_MODE';"
 
   # Por padrão o ambiente local carrega o corpus canônico de 5k. Harnesses que são
   # donos da própria massa usam --no-synthetic-corpus e a carregam depois do reset.
