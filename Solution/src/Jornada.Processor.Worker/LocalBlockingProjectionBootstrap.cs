@@ -1,6 +1,7 @@
 using System.Data;
 using System.Globalization;
 using Jornada.Contracts;
+using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Processor.Worker;
@@ -14,6 +15,35 @@ namespace Jornada.Processor.Worker;
 internal static class LocalBlockingProjectionBootstrap
 {
     internal sealed record Result(int SyntheticPersons, int RebuiltPersons, int ProjectedKeys);
+
+    internal static async Task<Result> RefreshAllSqlServerAsync(
+        string connectionString,
+        CancellationToken ct)
+    {
+        await using var connection = new SqlConnection(connectionString);
+        await connection.OpenAsync(ct);
+
+        var personIds = await ReadSyntheticPersonIdsAsync(connection, ct);
+        if (personIds.Count == 0)
+            return new Result(0, 0, 0);
+
+        await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
+            IsolationLevel.ReadCommitted, ct);
+        try
+        {
+            await BlockingProjectionPersistence.RefreshSqlServerBatchAsync(
+                connection, transaction, personIds, ct);
+            await transaction.CommitAsync(ct);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+
+        var projectedKeys = await CountProjectedKeysAsync(connection, ct);
+        return new Result(personIds.Count, personIds.Count, projectedKeys);
+    }
 
     internal static async Task<Result> RebuildMissingSqlServerAsync(
         string connectionString,
@@ -87,6 +117,64 @@ internal static class LocalBlockingProjectionBootstrap
                 $"Reconstrução local de blocking incompleta: ainda existem {remaining} Pessoas SCALE sem projeção corrente.");
 
         return new Result(syntheticPersons, missing.Count, table.Rows.Count);
+    }
+
+    private static async Task<List<Guid>> ReadSyntheticPersonIdsAsync(
+        SqlConnection connection,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT DISTINCT vc.pessoa_uuid
+            FROM silver.pessoa_observacao po
+            JOIN identidade.v_vinculo_corrente vc
+              ON vc.pessoa_observacao_id=po.pessoa_observacao_id
+            JOIN gold.pessoa g
+              ON g.pessoa_uuid=vc.pessoa_uuid
+             AND g.estado_identidade='REFERENCIA'
+            WHERE po.codigo_pessoa_origem LIKE N'SCALE-%'
+              AND vc.status='RESOLVIDO'
+              AND vc.pessoa_uuid IS NOT NULL
+            ORDER BY vc.pessoa_uuid;
+            """;
+        command.CommandTimeout = 900;
+
+        var result = new List<Guid>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            result.Add(reader.GetGuid(0));
+        return result;
+    }
+
+    private static async Task<int> CountProjectedKeysAsync(
+        SqlConnection connection,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateCommand();
+        command.CommandText = """
+            SELECT COUNT_BIG(*)
+            FROM identidade.blocking_chave bc
+            WHERE bc.normalizacao_versao=@normalizacao
+              AND bc.projection_schema_version=@projection_schema
+              AND bc.projection_fingerprint_sha256=@projection_fingerprint
+              AND EXISTS (
+                SELECT 1
+                FROM identidade.v_vinculo_corrente vc
+                JOIN silver.pessoa_observacao po
+                  ON po.pessoa_observacao_id=vc.pessoa_observacao_id
+                WHERE vc.pessoa_uuid=bc.pessoa_uuid
+                  AND vc.status='RESOLVIDO'
+                  AND po.codigo_pessoa_origem LIKE N'SCALE-%'
+              );
+            """;
+        command.Parameters.Add(new SqlParameter("@normalizacao", SqlDbType.NVarChar, 80)
+            { Value = IdentityComparison.NormalizationVersion });
+        command.Parameters.Add(new SqlParameter("@projection_schema", SqlDbType.NVarChar, 120)
+            { Value = PersonResolutionProjectionContract.SchemaVersion });
+        command.Parameters.Add(new SqlParameter("@projection_fingerprint", SqlDbType.Char, 64)
+            { Value = PersonResolutionProjectionContract.FingerprintSha256 });
+        command.CommandTimeout = 900;
+        return checked((int)Convert.ToInt64(await command.ExecuteScalarAsync(ct), CultureInfo.InvariantCulture));
     }
 
     private static async Task<int> CountSyntheticPersonsAsync(SqlConnection connection, CancellationToken ct)
