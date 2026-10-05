@@ -37,6 +37,7 @@ public sealed class DevTestConsoleContractTests
         var compose=File.ReadAllText(Path.Combine(root,"Solution","docker-compose.yml"));
         var processorProgram=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.Processor.Worker","Program.cs"));
         var containerEntrypoint=File.ReadAllText(Path.Combine(root,"Solution","install","container-test","entrypoint.sh"));
+        var containerDockerfile=File.ReadAllText(Path.Combine(root,"Solution","install","container-test","Dockerfile"));
 
         Assert.Multiple(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
@@ -243,6 +244,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(goldAddScript,Does.Contain("SCALE_INCREMENTAL"));
             Assert.That(goldAddScript,Does.Contain("Jornada_Dev_SyntheticScale_Diversify.sql"));
             Assert.That(goldAddScript,Does.Contain("-Action blocking"));
+            Assert.That(goldAddScript,Does.Contain("-Action blocking -EnvFile $EnvFile"));
             Assert.That(goldAddScript,Does.Contain("Gold sintética expandida de $before para $after"));
             Assert.That(goldSql,Does.Contain("SET QUOTED_IDENTIFIER ON;"));
             Assert.That(goldSql,Does.Contain("SET ANSI_NULLS ON;"));
@@ -252,11 +254,19 @@ public sealed class DevTestConsoleContractTests
             Assert.That(goldSql,Does.Contain("SET NUMERIC_ROUNDABORT OFF;"));
             Assert.That(infraScript,Does.Contain("local-cluster.ps1"));
             Assert.That(infraScript,Does.Contain("-NoBuild"));
+            Assert.That(infraScript,Does.Contain("-EnvFile $EnvFile"));
+            Assert.That(infraScript,Does.Contain("Get-LocalRuntimeImageRevision"));
+            Assert.That(infraScript,Does.Contain("org.opencontainers.image.revision"));
+            Assert.That(infraScript,Does.Contain("Test-RuntimeInputsDirty"));
             Assert.That(infraScript,Does.Contain("jornada-reference-bootstrap"));
             Assert.That(opsScript,Does.Contain("local-check-ibge-reference.ps1"));
             Assert.That(opsScript,Does.Contain("Jornada.Bronze.Verify"));
             Assert.That(opsScript,Does.Contain("jornada.ingestao.write"));
             Assert.That(opsScript,Does.Contain("Ensure-ClusterRunning"));
+            Assert.That(opsScript,Does.Contain("Get-NodeProfileDrift"));
+            Assert.That(opsScript,Does.Contain("com.jornada.local.profile"));
+            Assert.That(opsScript,Does.Contain("com.jornada.local.database"));
+            Assert.That(opsScript,Does.Contain("-EnvFile $EnvFile"));
             Assert.That(opsScript,Does.Contain("local-cluster.ps1"));
             Assert.That(opsScript,Does.Contain("calibrate-initial"));
             Assert.That(opsScript,Does.Contain("Gold sintética completa de 30.000 pessoas"));
@@ -322,6 +332,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(infraScript,Does.Contain("Histórico de execuções foi preservado"));
             Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
             Assert.That(localCluster,Does.Contain("Assert-DockerEngineAvailable"));
+            Assert.That(localCluster,Does.Contain("[string]$EnvFile"));
+            Assert.That(localCluster,Does.Contain("JORNADA_BUILD_REVISION"));
+            Assert.That(localCluster,Does.Contain("último resultado: $lastFailure"));
+            Assert.That(localCluster,Does.Contain("container=$($state.Status)/running=$($state.Running)/exit=$($state.ExitCode)"));
             Assert.That(localCluster,Does.Contain("Docker Desktop/Engine não está em execução"));
             Assert.That(localCluster,Does.Contain("Etapa cluster 1/6"));
             Assert.That(localCluster,Does.Contain("Show-ComposeFailureDiagnostics"));
@@ -388,10 +402,17 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("openActiveConfigDialog()"));
             Assert.That(page,Does.Contain("Usar exemplo da Gold sintética"));
             Assert.That(devEnv,Does.Contain("JornadaSyntheticDev"));
+            Assert.That(devEnv,Does.Contain("JORNADA_LOCAL_PROFILE"));
+            Assert.That(devEnv,Does.Contain("dev-console"));
             Assert.That(devEnv,Does.Contain("JORNADA_LOCAL_SYNTHETIC_PEOPLE"));
             Assert.That(devEnv,Does.Contain("30000"));
             Assert.That(devEnv,Does.Contain("JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR"));
             Assert.That(compose,Does.Contain("JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR"));
+            Assert.That(compose,Does.Contain("com.jornada.local.profile"));
+            Assert.That(compose,Does.Contain("com.jornada.local.database"));
+            Assert.That(compose,Does.Contain("JORNADA_BUILD_REVISION"));
+            Assert.That(containerDockerfile,Does.Contain("ARG JORNADA_BUILD_REVISION=unknown"));
+            Assert.That(containerDockerfile,Does.Contain("LABEL org.opencontainers.image.revision=$JORNADA_BUILD_REVISION"));
             Assert.That(containerEntrypoint,Does.Contain("SKIP $name (Processor): modo didático manual da Console DEV"));
             Assert.That(containerEntrypoint,Does.Contain("JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR"));
             Assert.That(processorProgram,Does.Contain("PROCESS_UNTIL_IDLE"));
