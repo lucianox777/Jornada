@@ -373,7 +373,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
                 var resultPath=result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)?candidatePath:null;
                 var records=resultPath is null?Array.Empty<Dictionary<string,string?>>():await LoadRecordsAsync(child.ResultPath,root);
                 var artifacts=ParseArtifacts(result.Output,root);
-                combinedOutput.AppendLine($"=== {child.Title} #{childNumber} ===").Append(result.Output);
+                combinedOutput.Append("=== ").Append(child.Title).Append(" #").Append(childNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)).AppendLine(" ===").Append(result.Output);
                 combinedError.Append(result.Error);
                 combinedArtifacts.AddRange(artifacts);
                 if(resultPath is not null)live.Add("result",$"{child.Title} #{childNumber}: {resultPath}");
@@ -731,8 +731,9 @@ sealed class RunStore(IWebHostEnvironment env)
         lock(counterGate)
         {
             EnsureCountersLoaded();
-            var next=counters!.GetValueOrDefault(command)+1;
-            counters[command]=next;
+            var loadedCounters=counters!;
+            var next=loadedCounters.GetValueOrDefault(command)+1;
+            loadedCounters[command]=next;
             PersistCounters();
             return next;
         }
