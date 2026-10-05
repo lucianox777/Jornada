@@ -462,7 +462,7 @@ switch($Action){
         Ensure-ClusterRunning
         $eligibleActive=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO';")
         if($eligibleActive -ne 1){
-            throw "Executar linkage exige exatamente 1 modelo ATIVO; atual=$eligibleActive. A subida da infraestrutura deve garantir o BOOTSTRAP inicial (IBGE + corpus sintético). Execute novamente 'Subir infraestrutura, referências e bootstrap' para reparar/confirmar o estado. O seed fixo não libera linkage."
+            throw "Executar linkage exige exatamente 1 modelo ATIVO; atual=$eligibleActive. A subida da infraestrutura deve garantir o BOOTSTRAP inicial (IBGE + corpus sintético). Execute novamente 'Preparar ambiente completo' para reparar/confirmar o estado. O seed fixo não libera linkage."
         }
 
         $lastIngestion=Join-Path $OutDir 'last-ingestion.json'
