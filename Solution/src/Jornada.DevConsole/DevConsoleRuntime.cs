@@ -434,7 +434,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         {
             live.Add("stderr","SEM EXECUTOR: operação sem executor configurado.");
             var step=new StepResult(definition.DisplayCommand,root,-1,0,"","Operação sem executor configurado.",null);
-            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"SEM EXECUTOR","Opção disponível; comando real ainda não mapeado.",step,Array.Empty<Dictionary<string,string?>>()),live);
+            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"SEM EXECUTOR","Opção disponível; comando real ainda não mapeado.",step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
             return;
         }
 
@@ -456,7 +456,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             var step=new StepResult(definition.CommandLine!,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,resultPath,artifacts);
             var status=result.ExitCode==0?"SUCESSO":"FALHA";
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
-            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,status,summary,step,records),live);
+            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,status,summary,step,records,executionNumber),live);
         }
         catch(Exception ex)
         {
@@ -464,7 +464,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             live.Add("stderr",ex.ToString());
             live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             var step=new StepResult(definition.CommandLine!,root,-1,sw.ElapsedMilliseconds,"",ex.ToString(),null);
-            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"FALHA","Falha inesperada; veja o console.",step,Array.Empty<Dictionary<string,string?>>()),live);
+            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"FALHA","Falha inesperada; veja o console.",step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
         }
     }
 
@@ -513,7 +513,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
                 var generationFailureSummary=$"Falha ao gerar ZIP (exit {generated.ExitCode}).";
                 live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
                 var failedStep=new StepResult(command,root,generated.ExitCode,sw.ElapsedMilliseconds,generated.Output,generated.Error,null);
-                await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA",generationFailureSummary,failedStep,Array.Empty<Dictionary<string,string?>>()),live);
+                await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA",generationFailureSummary,failedStep,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
                 return;
             }
 
@@ -548,7 +548,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             var resultPath=status=="SUCESSO"?receipt:zip;
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             var step=new StepResult(command,root,sent.ExitCode,sw.ElapsedMilliseconds,combinedOutput,combinedError,resultPath,distinctArtifacts);
-            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,sendSummary,step,Array.Empty<Dictionary<string,string?>>()),live);
+            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,sendSummary,step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
         }
         catch(Exception ex)
         {
@@ -556,7 +556,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             live.Add("stderr",ex.ToString());
             live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             var step=new StepResult(command,root,-1,sw.ElapsedMilliseconds,"",ex.ToString(),null);
-            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA","Falha ao gerar/enviar ZIP; veja o console.",step,Array.Empty<Dictionary<string,string?>>()),live);
+            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA","Falha ao gerar/enviar ZIP; veja o console.",step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
         }
     }
 
