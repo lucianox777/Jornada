@@ -1,6 +1,6 @@
 # Lifecycle do corpus sintético de bootstrap
 
-O corpus sintético é entrada transitória da calibração. Nenhum ambiente pode ficar pronto com registros de bootstrap pendentes. Em Development, depois de processado e calibrado, o domínio é publicado/preservado na Gold; em Homologation/Production ele é descartado integralmente, preservando somente o resultado aprendido.
+O corpus sintético é entrada transitória da calibração. Nenhum ambiente pode ficar pronto com observações de bootstrap sem avaliação pelo modelo ativo. Em Development, depois de processado e calibrado, as resoluções seguras são publicadas/preservadas na Gold; casos probabilísticos inconclusivos permanecem auditáveis na Silver e não são convertidos artificialmente em vínculo. Em Homologation/Production o corpus é descartado integralmente, preservando somente o resultado aprendido.
 
 ## Estados
 
@@ -14,7 +14,7 @@ A transição `PENDING_DISCARD → DISCARDED` é executada por `scripts/bootstra
 
 | Ambiente | Corpus de bootstrap | Após ativar modelo | Massa sintética funcional |
 |---|---|---|---|
-| Development / Console DEV | processa integralmente | preserva/publica o domínio na Gold; zero pendências | a própria Gold inicial pode ser expandida |
+| Development / Console DEV | processa integralmente | exige zero observações sem avaliação e zero falsos vínculos; preserva inconclusivos auditáveis na Silver | a própria Gold inicial pode ser expandida |
 | Homologation | processa integralmente para calibrar | descarte obrigatório do domínio antes de liberar o ambiente | não permanece como domínio operacional |
 | Production | processa integralmente para calibrar | descarte obrigatório do domínio antes de liberar ingestão | proibida como dado operacional |
 
@@ -34,4 +34,6 @@ Antes e depois são conferidos o ID/versão do modelo ativo, a quantidade de `id
 
 ## Console DEV
 
-A subida da Console materializa/processa o corpus, publica a Gold DEV, calibra/ativa o modelo e verifica zero pendências. Em Development o corpus processado não é descartado. A ação **Adicionar mais 5.000 registros** expande essa Gold preservada (30k → 35k → 40k). HML/PROD, ao contrário, eliminam o domínio sintético após a calibração e deixam somente modelo/parâmetros/configuração necessários ao linkage.
+A subida da Console materializa/processa o corpus, publica a Gold DEV, calibra/ativa o modelo e executa o Linkage Runner real sobre o conjunto adicional. O gate de readiness distingue **backlog** de **decisão conservadora**: toda observação adicional que continue não resolvida precisa ter resultado `PUBLICADO` do modelo ativo, e qualquer falso vínculo contra o ground truth sintético bloqueia a preparação. Um `NAO_RESOLVIDO` legítimo (por exemplo `ABAIXO_T_LINKAGE`) já avaliado não é backlog e não autoriza baixar o threshold nem fabricar identidade.
+
+A Console grava `.local/dev-console/bootstrap-linkage-readiness.json` com o modelo, run publicado, `T_LINKAGE`, maior score observado, motivo inconclusivo dominante, quantidade resolvida/inconclusiva, itens sem avaliação e falsos vínculos. Em Development o corpus processado não é descartado. A ação **Adicionar mais 5.000 registros** expande a Gold preservada (30k → 35k → 40k). HML/PROD, ao contrário, eliminam o domínio sintético após a calibração e deixam somente modelo/parâmetros/configuração necessários ao linkage.
