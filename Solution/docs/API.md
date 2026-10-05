@@ -7,7 +7,7 @@
 - `GET /health/ready`: readiness de SQL, diretório Bronze e staging; retorna `503` quando uma dependência essencial não está pronta. O SQL só fica `READY` quando o banco declara `Jornada.BaseNormativa=3.62` e `Jornada.SolutionSchema=3.69` e contém os objetos essenciais; banco vazio, antigo ou incompatível retorna `SQL_SCHEMA_INCOMPATIVEL`.
 - O teto contratual do ZIP continua 250 MiB. A implementação ajusta `IHttpMaxRequestBodySizeFeature` somente em `POST /api/v1/ingestao/entregas`, antes da leitura do corpo. Proxy/ingress corporativo continua responsável por permitir ao menos o mesmo tamanho.
 - Rate limits de aplicação são configuráveis na seção `ApiRateLimiting`; mudança de HML não exige recompilar.
-- O contrato máquina está em `openapi/jornada-v1.openapi.json` e `scripts/openapi-contract-gate.py` falha se método+rota divergirem do `Program.cs`.
+- O contrato máquina está em `openapi/jornada-v1.openapi.json` e `scripts/openapi-contract-gate.py` falha se método+rota divergirem do `Program.cs` ou dos módulos de endpoint registrados.
 
 
 ## Fato finalístico e atribuição de identidade (v3.45)
