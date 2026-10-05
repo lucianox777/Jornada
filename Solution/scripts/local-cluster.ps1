@@ -702,7 +702,11 @@ switch ($Action) {
         $resetArgs=@('-Action','reset','-EnvFile',$EnvFile,'-RuntimeMode',$RuntimeMode)
         if($ConfirmProductionReset){$resetArgs+='-ConfirmProductionReset'}
         Write-CommandLine $LocalDb $resetArgs
-        & $LocalDb @resetArgs
+        if($ConfirmProductionReset){
+            & $LocalDb -Action reset -EnvFile $EnvFile -RuntimeMode $RuntimeMode -ConfirmProductionReset
+        }else{
+            & $LocalDb -Action reset -EnvFile $EnvFile -RuntimeMode $RuntimeMode
+        }
         if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 reset falhou ($LASTEXITCODE)." }
         Start-Nodes
     }
