@@ -316,7 +316,7 @@ async function showHistory(){
 
 async function loadCommands(surface='flow'){
   commandsCache=await api('/api/commands');
-  const titleById=Object.fromEntries(commandsCache.map(x=>[x.id,x.title]));
+  const titleById=Object.assign({ingestion:'Enviar arquivo para ingestão'},Object.fromEntries(commandsCache.map(x=>[x.id,x.title])));
   const target=surface==='tools'?toolsCommands:commands;
   const selected=commandsCache.filter(c=>(c.surface||'flow')===surface);
   const groups=[];
