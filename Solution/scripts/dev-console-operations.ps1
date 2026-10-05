@@ -164,7 +164,10 @@ function Get-DevBootstrapLinkageReadiness([string]$ModelId,[int]$ModelVersion){
     $total=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao WHERE codigo_pessoa_origem LIKE N'SCALE-PEND-%';")
     $unresolved=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND NOT EXISTS(SELECT 1 FROM identidade.v_vinculo_corrente vc WHERE vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO');")
     $unevaluated=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND NOT EXISTS(SELECT 1 FROM identidade.v_vinculo_corrente vc WHERE vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO') AND NOT EXISTS(SELECT 1 FROM identidade.linkage_resultado r JOIN identidade.linkage_run lr ON lr.linkage_run_id=r.linkage_run_id WHERE r.pessoa_observacao_id=o.pessoa_observacao_id AND r.modelo_id='$ModelId' AND lr.status=N'PUBLICADO');")
-    $falsePositive=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO' JOIN silver.pessoa_observacao truth_o ON truth_o.codigo_pessoa_origem=REPLACE(o.codigo_pessoa_origem,N'SCALE-PEND-',N'SCALE-SEHAB-') JOIN identidade.v_vinculo_corrente truth_vc ON truth_vc.pessoa_observacao_id=truth_o.pessoa_observacao_id AND truth_vc.status=N'RESOLVIDO' WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND vc.pessoa_uuid<>truth_vc.pessoa_uuid;")
+    $associatedExisting=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO' JOIN identidade.linkage_resultado r ON r.linkage_run_id=vc.linkage_run_id AND r.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND r.resultado_publicacao=N'ASSOCIACAO_EXISTENTE' AND r.status_publicacao=N'RESOLVIDO';")
+    $newIdentity=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO' JOIN identidade.linkage_resultado r ON r.linkage_run_id=vc.linkage_run_id AND r.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND r.resultado_publicacao=N'NOVA_IDENTIDADE' AND r.status_publicacao=N'RESOLVIDO';")
+    $unexpectedNewIdentity=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO' JOIN identidade.linkage_resultado r ON r.linkage_run_id=vc.linkage_run_id AND r.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND r.resultado_publicacao=N'NOVA_IDENTIDADE' AND r.status_publicacao=N'RESOLVIDO' AND TRY_CONVERT(bigint,RIGHT(o.codigo_pessoa_origem,10))%10<>0;")
+    $falsePositiveAssociation=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO' JOIN identidade.linkage_resultado r ON r.linkage_run_id=vc.linkage_run_id AND r.pessoa_observacao_id=o.pessoa_observacao_id JOIN silver.pessoa_observacao truth_o ON truth_o.codigo_pessoa_origem=REPLACE(o.codigo_pessoa_origem,N'SCALE-PEND-',N'SCALE-SEHAB-') JOIN ref.gestor truth_g ON truth_g.gestor_id=truth_o.gestor_id AND truth_g.codigo=N'SEHAB' JOIN identidade.v_vinculo_corrente truth_vc ON truth_vc.pessoa_observacao_id=truth_o.pessoa_observacao_id AND truth_vc.status=N'RESOLVIDO' WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND r.resultado_publicacao=N'ASSOCIACAO_EXISTENTE' AND r.status_publicacao=N'RESOLVIDO' AND r.pessoa_uuid_publicado<>truth_vc.pessoa_uuid;")
     $latestRunId=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE status=N'PUBLICADO' AND tipo_run=N'ON_DEMAND' AND modelo_id='$ModelId' ORDER BY publicado_em DESC,iniciado_em DESC,linkage_run_id DESC;"
     $threshold=Invoke-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$ModelId' AND nome=N'T_LINKAGE';"
     $maxScore=$null
@@ -182,16 +185,19 @@ function Get-DevBootstrapLinkageReadiness([string]$ModelId,[int]$ModelVersion){
         resolvedAdditional=($total-$unresolved)
         inconclusiveAdditional=$unresolved
         unevaluatedByActiveModel=$unevaluated
-        falsePositiveResolved=$falsePositive
+        associatedExistingAdditional=$associatedExisting
+        newIdentityAdditional=$newIdentity
+        unexpectedNewIdentityAdditional=$unexpectedNewIdentity
+        falsePositiveAssociation=$falsePositiveAssociation
         latestPublishedOnDemandRunId=$latestRunId
         tLinkage=$threshold
         maxScoreLatestRun=$maxScore
         dominantInconclusiveReason=$dominantReason
-        readinessDefinition='ZERO_UNEVALUATED_AND_ZERO_FALSE_POSITIVE; INCONCLUSIVE_IS_VALID_CONSERVATIVE_OUTCOME'
+        readinessDefinition='ZERO_UNEVALUATED_ZERO_FALSE_ASSOCIATION_ZERO_UNEXPECTED_NEW_IDENTITY; INCONCLUSIVE_AND_EXPECTED_NEW_IDENTITY_ARE_VALID_OUTCOMES'
     }
     $path=Join-Path $OutDir 'bootstrap-linkage-readiness.json'
     [IO.File]::WriteAllText($path,($state|ConvertTo-Json -Depth 6),[Text.UTF8Encoding]::new($false))
-    Write-Host "Readiness probabilístico DEV: total=$total; resolvidos=$($total-$unresolved); inconclusivos=$unresolved; sem avaliação do modelo ativo=$unevaluated; falsos vínculos=$falsePositive."
+    Write-Host "Readiness probabilístico DEV: total=$total; associações existentes=$associatedExisting; novas identidades=$newIdentity; inconclusivos=$unresolved; sem avaliação do modelo ativo=$unevaluated; falsas associações=$falsePositiveAssociation; novas identidades fora da coorte esperada=$unexpectedNewIdentity."
     if(-not [string]::IsNullOrWhiteSpace($threshold)){Write-Host "Fronteira observada: T_LINKAGE=$threshold; max_score_ultimo_run=$maxScore; motivo_inconclusivo_dominante=$dominantReason."}
     Write-Host "ARTEFATO: $path"
     return [pscustomobject]$state
@@ -466,8 +472,11 @@ switch($Action){
             if([int64]$bootstrapReadiness.unevaluatedByActiveModel -ne 0){
                 throw "Infraestrutura DEV não pode ficar pronta com observações bootstrap sem avaliação pelo modelo ATIVO; atual=$($bootstrapReadiness.unevaluatedByActiveModel)."
             }
-            if([int64]$bootstrapReadiness.falsePositiveResolved -ne 0){
-                throw "Infraestrutura DEV recusada: corpus bootstrap produziu $($bootstrapReadiness.falsePositiveResolved) falso(s) vínculo(s) resolvido(s) contra o ground truth sintético."
+            if([int64]$bootstrapReadiness.falsePositiveAssociation -ne 0){
+                throw "Infraestrutura DEV recusada: corpus bootstrap produziu $($bootstrapReadiness.falsePositiveAssociation) associação(ões) probabilística(s) incorreta(s) contra o ground truth sintético."
+            }
+            if([int64]$bootstrapReadiness.unexpectedNewIdentityAdditional -ne 0){
+                throw "Infraestrutura DEV recusada: corpus bootstrap publicou $($bootstrapReadiness.unexpectedNewIdentityAdditional) NOVA_IDENTIDADE fora da coorte sintética deliberadamente sem candidato."
             }
             if([int64]$bootstrapReadiness.inconclusiveAdditional -gt 0){
                 Write-Host "DEV: $($bootstrapReadiness.inconclusiveAdditional) observação(ões) SCALE-PEND permanecem inconclusivas por política estatística. Elas já foram avaliadas pelo modelo ATIVO e não constituem backlog de processamento."

@@ -302,9 +302,14 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("bootstrap-corpus.json"));
             Assert.That(opsScript,Does.Contain("Get-DevBootstrapLinkageReadiness"));
             Assert.That(opsScript,Does.Contain("bootstrap-linkage-readiness.json"));
-            Assert.That(opsScript,Does.Contain("ZERO_UNEVALUATED_AND_ZERO_FALSE_POSITIVE"));
+            Assert.That(opsScript,Does.Contain("ZERO_UNEVALUATED_ZERO_FALSE_ASSOCIATION_ZERO_UNEXPECTED_NEW_IDENTITY"));
             Assert.That(opsScript,Does.Contain("observações bootstrap sem avaliação pelo modelo ATIVO"));
-            Assert.That(opsScript,Does.Contain("falso(s) vínculo(s) resolvido(s) contra o ground truth sintético"));
+            Assert.That(opsScript,Does.Contain("resultado_publicacao=N'ASSOCIACAO_EXISTENTE'"));
+            Assert.That(opsScript,Does.Contain("resultado_publicacao=N'NOVA_IDENTIDADE'"));
+            Assert.That(opsScript,Does.Contain("falsePositiveAssociation"));
+            Assert.That(opsScript,Does.Contain("unexpectedNewIdentityAdditional"));
+            Assert.That(opsScript,Does.Contain("associação(ões) probabilística(s) incorreta(s) contra o ground truth sintético"));
+            Assert.That(opsScript,Does.Contain("NOVA_IDENTIDADE fora da coorte sintética deliberadamente sem candidato"));
             Assert.That(opsScript,Does.Contain("não constituem backlog de processamento"));
             Assert.That(opsScript,Does.Contain("DEV preserva os 6.000 registros adicionais na Silver: resoluções seguras entram na Gold; resultados inconclusivos permanecem auditáveis sem forçar vínculo"));
             Assert.That(opsScript,Does.Contain("DEV_EVALUATED_PRESERVED"));
