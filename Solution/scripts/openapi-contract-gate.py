@@ -13,10 +13,18 @@ SUPPORTED_MAP_CALLS = {"mapget", "mappost", "mapput", "mapdelete", "mappatch"}
 CONSTRAINT_RE = re.compile(r'\{([^}:]+):[^}]+\}')
 HTTP_METHODS = {"get", "post", "put", "delete", "patch", "options", "head", "trace"}
 # Explicit registration is required. A new Map* extension cannot silently bypass the gate.
+SIMPLE_REGISTERED_MODULES = {
+    "mapidentityapi": ("IdentityApi.cs", "MapIdentityApi"),
+    "mapingestionapi": ("IngestionApi.cs", "MapIngestionApi"),
+    "mappersonapi": ("PersonApi.cs", "MapPersonApi"),
+    "mapregistrosapi": ("RegistrosApi.cs", "MapRegistrosApi"),
+    "mappossibilidadesapi": ("PossibilidadesApi.cs", "MapPossibilidadesApi"),
+}
 REGISTERED_MODULES = {
     "mapprogressiveoriginapi": "ProgressiveOriginApi.cs",
     "mapoperationalmonitorapi": "OperationalMonitorApi.cs",
     "mapmodelgovernancereadonlyapi": "ModelGovernanceReadOnlyApi.cs",
+    **{name: filename for name, (filename, _) in SIMPLE_REGISTERED_MODULES.items()},
 }
 
 
@@ -32,6 +40,26 @@ def module_operations(program: Path, name: str) -> tuple[set[tuple[str, str]], l
     text = path.read_text(encoding="utf-8-sig")
     errors: list[str] = []
     calls = [call.lower() for call in APP_MAP_RE.findall(text)]
+
+    if name in SIMPLE_REGISTERED_MODULES:
+        _, method_name = SIMPLE_REGISTERED_MODULES[name]
+        definition = re.search(
+            r'public\s+static\s+IEndpointRouteBuilder\s+' + re.escape(method_name)
+            + r'\s*\(\s*this\s+IEndpointRouteBuilder\s+app\s*\)', text)
+        literal_maps = MAP_RE.findall(text)
+        if (not definition or not literal_maps
+                or any(call not in SUPPORTED_MAP_CALLS for call in calls)
+                or len(calls) != len(literal_maps)):
+            errors.append(f"módulo literal contém mapeamento ausente, ambíguo ou não inventariado: {filename}")
+            return set(), errors
+        operations = {
+            (http_method.lower(), normalize_path(route))
+            for http_method, route in literal_maps
+        }
+        if any(not route.startswith("/api/v1/") for _, route in operations):
+            errors.append(f"módulo literal contém rota fora do namespace V1: {filename}")
+            return set(), errors
+        return operations, errors
 
     if name == "mapprogressiveoriginapi":
         route = re.search(r'public\s+const\s+string\s+Route\s*=\s*"([^"]+)"', text)

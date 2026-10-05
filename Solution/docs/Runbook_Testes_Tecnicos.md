@@ -166,7 +166,7 @@ ou:
 python3 ./scripts/openapi-contract-gate.py
 ```
 
-O gate extrai as declarações `MapGet/MapPost/...` do `Jornada.Api/Program.cs`, normaliza constraints de rota e exige igualdade exata de método+path com `openapi/jornada-v1.openapi.json`. Também valida `responses` e unicidade de `operationId`. O `local-test` e o job `unit` do CI executam esse gate antes do build.
+O gate extrai as declarações `MapGet/MapPost/...` do `Jornada.Api/Program.cs` e dos módulos explicitamente registrados, normaliza constraints de rota e exige igualdade exata de método+path com `openapi/jornada-v1.openapi.json`. Também valida `responses` e unicidade de `operationId`. O `local-test` e o job `unit` do CI executam esse gate antes do build.
 
 ## 5. Upgrade DDL + fingerprint estável
 

@@ -31,6 +31,28 @@ public sealed class TelemetryContractTests
     }
 
     [Test]
+    public void Processor_loop_metric_uses_only_low_cardinality_result_dimension()
+    {
+        var observed = new List<(string Name, string[] Tags)>();
+        using var listener = new MeterListener();
+        listener.InstrumentPublished = (instrument, l) =>
+        {
+            if (instrument.Meter.Name == "Jornada") l.EnableMeasurementEvents(instrument);
+        };
+        listener.SetMeasurementEventCallback<double>((instrument, measurement, tags, state) =>
+            observed.Add((instrument.Name, tags.ToArray().Select(x => x.Key).OrderBy(x => x).ToArray())));
+        listener.Start();
+
+        JornadaTelemetry.RecordProcessorLoopCycle(5, "IDLE_NO_BATCH");
+        JornadaTelemetry.RecordProcessorLoopCycle(7, "IDLE_PIPELINE_BUSY");
+        JornadaTelemetry.RecordProcessorLoopCycle(9, "LOOP_FAILURE");
+
+        var metrics = observed.Where(x => x.Name == "jornada.processor.loop.cycle.duration").ToArray();
+        Assert.That(metrics, Has.Length.EqualTo(3));
+        Assert.That(metrics.SelectMany(x => x.Tags).Distinct(), Is.EquivalentTo(new[] { "result" }));
+    }
+
+    [Test]
     public void Every_metric_declared_in_catalog_exists_in_Jornada_meter()
     {
         using var doc = JsonDocument.Parse(File.ReadAllText(Path.Combine(TestContext.CurrentContext.TestDirectory, "config", "observability", "metrics-slo-catalog.json")));

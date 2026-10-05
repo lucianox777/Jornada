@@ -16,6 +16,7 @@ public static class JornadaTelemetry
     private static readonly Counter<long> BronzeMaintenanceLockMiss = Meter.CreateCounter<long>("jornada.bronze.maintenance.lock_miss", "objects");
     private static readonly Counter<long> BronzeMaintenanceStorageError = Meter.CreateCounter<long>("jornada.bronze.maintenance.storage_error", "errors");
     private static readonly Histogram<double> ProcessorDeliveryDuration = Meter.CreateHistogram<double>("jornada.processor.delivery.duration", "ms");
+    private static readonly Histogram<double> ProcessorLoopCycleDuration = Meter.CreateHistogram<double>("jornada.processor.loop.cycle.duration", "ms");
     private static readonly Counter<long> PipelineLostToken = Meter.CreateCounter<long>("jornada.pipeline.lost_token", "events");
     private static readonly Histogram<double> LinkageRunDuration = Meter.CreateHistogram<double>("jornada.linkage.run.duration", "ms");
     private static readonly Histogram<double> IdentityPendingAge = Meter.CreateHistogram<double>("jornada.identity.pending.age", "minutes");
@@ -38,6 +39,9 @@ public static class JornadaTelemetry
 
     public static void RecordProcessorDelivery(double milliseconds, string result) =>
         ProcessorDeliveryDuration.Record(milliseconds, new KeyValuePair<string, object?>("result", result));
+
+    public static void RecordProcessorLoopCycle(double milliseconds, string result) =>
+        ProcessorLoopCycleDuration.Record(milliseconds, new KeyValuePair<string, object?>("result", result));
 
     public static void RecordPipelineLostToken(string operation) =>
         PipelineLostToken.Add(1, new KeyValuePair<string, object?>("operation", operation));

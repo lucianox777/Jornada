@@ -23,6 +23,7 @@ public sealed class TechnicalDebtEvidenceDocumentationTests
         var dt05 = Read(root, "Solution", "docs", "DT05_Snapshots_Parquet_NAS.md");
         var auth = Read(root, "Solution", "src", "Jornada.Access.Security", "JornadaAccessSecurity.cs");
         var api = Read(root, "Solution", "src", "Jornada.Api", "Program.cs");
+        var identityApi = Read(root, "Solution", "src", "Jornada.Api", "IdentityApi.cs");
         var results = Read(root, "Solution", "src", "Jornada.Resultado.Api", "Program.cs");
         var runner = Read(root, "Solution", "src", "Jornada.Linkage.Runner",
             "ProbabilisticLinkageBatchRunner.cs");
@@ -64,7 +65,7 @@ public sealed class TechnicalDebtEvidenceDocumentationTests
             Assert.That(results, Does.Contain("AddJornadaAccessSecurity()"));
             Assert.That(api, Does.Contain("UseAuthentication()"));
             Assert.That(results, Does.Contain("UseAuthentication()"));
-            Assert.That(api, Does.Contain("/api/v1/identidade/candidatos"));
+            Assert.That(identityApi, Does.Contain("/api/v1/identidade/candidatos"));
             Assert.That(runner, Does.Contain("sp_publicar_resolucao_progressiva_linkage_lote"));
             Assert.That(runner, Does.Not.Contain("DECLARE progressiva_linkage CURSOR"));
             Assert.That(guard, Does.Contain("N'PREPARANDO'"));
