@@ -1,4 +1,11 @@
+param(
+    [ValidateSet('HML','DEV','PROD')]
+    [string]$RuntimeMode='HML'
+)
+
 $ErrorActionPreference = "Stop"
+$env:JORNADA_RUNTIME_MODE=$RuntimeMode.ToUpperInvariant()
+Write-Host "Modo runtime da Console: $($env:JORNADA_RUNTIME_MODE)$(if($RuntimeMode -eq 'DEV'){' (corpus adicional habilitado)'}elseif($RuntimeMode -eq 'PROD'){' (operações destrutivas protegidas)'}else{' (padrão)'} )"
 $SolutionRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $SolutionRoot
 
