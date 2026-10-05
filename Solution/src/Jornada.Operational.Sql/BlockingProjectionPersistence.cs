@@ -27,12 +27,19 @@ public static class BlockingProjectionPersistence
     /// substituição em lote. Mantém a mesma projeção de RefreshSqlServerAsync, mas
     /// elimina o padrão N+1 durante a publicação de um linkage.
     /// </summary>
+    public static Task RefreshSqlServerBatchAsync(
+        SqlConnection connection,
+        SqlTransaction tx,
+        IReadOnlyCollection<Guid> pessoaUuids,
+        CancellationToken ct)
+        => RefreshSqlServerBatchAsync(connection, tx, pessoaUuids, 30, ct);
+
     public static async Task RefreshSqlServerBatchAsync(
         SqlConnection connection,
         SqlTransaction tx,
         IReadOnlyCollection<Guid> pessoaUuids,
-        CancellationToken ct,
-        int commandTimeoutSeconds = 30)
+        int commandTimeoutSeconds,
+        CancellationToken ct)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(commandTimeoutSeconds);
 
@@ -43,7 +50,7 @@ public static class BlockingProjectionPersistence
         await using (var create = connection.CreateCommand())
         {
             create.Transaction = tx;
-create.CommandTimeout = commandTimeoutSeconds;
+            create.CommandTimeout = commandTimeoutSeconds;
             create.CommandText = """
                 CREATE TABLE #jornada_blocking_refresh_uuid(
                     pessoa_uuid UNIQUEIDENTIFIER NOT NULL PRIMARY KEY);
@@ -69,7 +76,7 @@ create.CommandTimeout = commandTimeoutSeconds;
         await using (var command = connection.CreateCommand())
         {
             command.Transaction = tx;
-command.CommandTimeout = commandTimeoutSeconds;
+            command.CommandTimeout = commandTimeoutSeconds;
             command.CommandText = """
                 SELECT u.pessoa_uuid,g.nome_completo,g.nome_mae,g.data_nascimento,
                        g.atualizado_em,g.estado_identidade
@@ -97,7 +104,7 @@ command.CommandTimeout = commandTimeoutSeconds;
         await using (var history = connection.CreateCommand())
         {
             history.Transaction = tx;
-history.CommandTimeout = commandTimeoutSeconds;
+            history.CommandTimeout = commandTimeoutSeconds;
             history.CommandText = """
                 SELECT vc.pessoa_uuid,po.nome_completo,po.nome_mae,po.source_as_of
                 FROM #jornada_blocking_refresh_uuid u
@@ -131,7 +138,7 @@ history.CommandTimeout = commandTimeoutSeconds;
             await using (var attributes = connection.CreateCommand())
             {
                 attributes.Transaction = tx;
-attributes.CommandTimeout = commandTimeoutSeconds;
+                attributes.CommandTimeout = commandTimeoutSeconds;
                 attributes.CommandText = $"""
                     SELECT pa.pessoa_uuid,pa.atributo_codigo,pa.valor,pa.vigencia_inicio,pa.vigencia_fim
                     FROM #jornada_blocking_refresh_uuid u
@@ -157,7 +164,7 @@ attributes.CommandTimeout = commandTimeoutSeconds;
             await using (var pending = connection.CreateCommand())
             {
                 pending.Transaction = tx;
-pending.CommandTimeout = commandTimeoutSeconds;
+                pending.CommandTimeout = commandTimeoutSeconds;
                 pending.CommandText = $"""
                     ;WITH candidatos AS(
                         SELECT vc.pessoa_uuid,pa.atributo_codigo,pa.valor,
@@ -230,7 +237,7 @@ pending.CommandTimeout = commandTimeoutSeconds;
         await using (var delete = connection.CreateCommand())
         {
             delete.Transaction = tx;
-delete.CommandTimeout = commandTimeoutSeconds;
+            delete.CommandTimeout = commandTimeoutSeconds;
             delete.CommandText = """
                 DELETE bc
                 FROM identidade.blocking_chave bc
@@ -258,7 +265,7 @@ delete.CommandTimeout = commandTimeoutSeconds;
         await using (var drop = connection.CreateCommand())
         {
             drop.Transaction = tx;
-drop.CommandTimeout = commandTimeoutSeconds;
+            drop.CommandTimeout = commandTimeoutSeconds;
             drop.CommandText = "DROP TABLE #jornada_blocking_refresh_uuid;";
             await drop.ExecuteNonQueryAsync(ct);
         }
