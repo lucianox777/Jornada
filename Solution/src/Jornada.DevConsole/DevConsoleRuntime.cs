@@ -6,6 +6,7 @@ using System.Text.Json;
 sealed record CommandDefinition(string Id,string Title,string Description,string? File,string? Arguments,string? ResultPath,string[] Dependencies,string? DependencyNote)
 {
     public bool Visible{get;init;}=true;
+    public bool Destructive{get;init;}
     public string Surface{get;init;}="flow";
     public string Stage{get;init;}="";
     public bool Implemented=>File is not null||Id is "zip" or "semiblind" or "configuration" or "bronze" or "silver" or "linkage" or "gold";
@@ -34,13 +35,33 @@ static class DevConsoleJson
     public static readonly JsonSerializerOptions Compact=new(JsonSerializerDefaults.Web);
 }
 
+sealed class ConsoleRuntimeMode
+{
+    public string Mode{get;}
+    public bool IsDev=>Mode=="DEV";
+    public bool IsProduction=>Mode=="PROD";
+
+    public ConsoleRuntimeMode()
+    {
+        var configured=Environment.GetEnvironmentVariable("JORNADA_RUNTIME_MODE");
+        Mode=string.IsNullOrWhiteSpace(configured)?"HML":configured.Trim().ToUpperInvariant();
+        if(Mode is not ("HML" or "DEV" or "PROD"))
+            throw new InvalidOperationException($"JORNADA_RUNTIME_MODE inválido: {Mode}. Use HML, DEV ou PROD.");
+    }
+
+    public bool IsDisabled(CommandDefinition command)=>IsProduction&&command.Destructive;
+    public string? DisabledReason(CommandDefinition command)=>IsDisabled(command)
+        ?"Operação destrutiva indisponível na interface em PROD. Use o comando explícito com confirmação de produção."
+        :null;
+}
+
 static class CommandCatalog
 {
     // A navegação principal segue a jornada real do dado. Ferramentas administrativas,
     // diagnósticos e ensaios ficam em uma superfície separada para não esconder as
     // transições Bronze → Silver → Identidade/Linkage → Gold.
     public static readonly CommandDefinition[] All=[
-        new("infrastructure","Subir infraestrutura, referências e bootstrap","Prepara o ambiente DEV completo: Docker, SQL Server, schema, NAS, referência IBGE, NODE1/NODE2, modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null)
+        new("infrastructure","Subir infraestrutura, referências e bootstrap","Prepara o ambiente configurado: Docker, SQL Server, schema, NAS, referência IBGE, NODE1/NODE2, modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null)
             {Stage="1 · Infraestrutura"},
         new("zip","Ingestão","Cria e envia uma nova Entrega pela API. No modo didático da Console DEV, o Processor residente fica suspenso: o ZIP permanece na Bronze até a etapa Silver ser executada explicitamente.",null,null,null,["infrastructure"],"A infraestrutura gera o bundle exigido pela ingestão. Depois de enviar, confira a Bronze antes de processar.")
             {Stage="2 · Ingestão"},
@@ -52,8 +73,8 @@ static class CommandCatalog
             {Stage="5 · Identidade / Linkage"},
         new("gold","Gold / Serving","Inspeciona o estado canônico publicado em gold.pessoa após as etapas de Processor e, quando necessário, Linkage. A visualização é somente leitura.",null,null,null,["silver"],"Para entregas SEM_CPF que dependem de resolução probabilística, execute Linkage antes de interpretar o estado final.")
             {Stage="6 · Gold / Serving"},
-        new("finish","Finalizar e destruir ambiente","Encerra o cluster DEV e remove containers, volumes e órfãos locais. Na próxima subida, toda a infraestrutura é recriada automaticamente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action clean",null,[],null)
-            {Stage="7 · Encerramento"},
+        new("finish","Finalizar e destruir ambiente","Encerra o cluster e remove containers, volumes e órfãos locais. Em PROD a ação é bloqueada na interface.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action clean",null,[],null)
+            {Stage="7 · Encerramento",Destructive=true},
 
         new("system-status","Estado geral do sistema","Diagnóstico read-only consolidado de infraestrutura, SQL/schema, referência IBGE, modelo, componentes, Bronze e último linkage.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action system-status",null,["infrastructure"],"No modo didático, Processor residente ausente é esperado; o binário one-shot deve estar disponível.")
             {Surface="tools",Stage="Verificações"},
@@ -63,8 +84,10 @@ static class CommandCatalog
             {Surface="tools",Stage="Verificações"},
         new("semiblind","Consulta semicega","Consulta até cinco candidatos pela API real sem expor CPF, UUID ou score. O formulário usa uma pessoa sintética da Gold DEV como exemplo.",null,null,null,["infrastructure"],null)
             {Surface="tools",Stage="Consultas"},
-        new("configuration","Contratos e configurações","Administra contratos de ingestão e configurações ativas, preservando suas validações e persistências próprias.",null,null,null,[], "Alterações são locais ao checkout DEV; configurações que exigem reinício continuam sinalizadas.")
+        new("configuration","Contratos e configurações","Administra contratos de ingestão e configurações ativas, preservando suas validações e persistências próprias.",null,null,null,[], "Configurações que exigem reinício continuam sinalizadas.")
             {Surface="tools",Stage="Administração"},
+        new("reset-environment","Resetar ambiente","Recria o banco e o bootstrap do ambiente. Permitido em HML/DEV; em PROD fica desabilitado na interface e exige confirmação explícita na CLI.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action reset",null,[],null)
+            {Surface="tools",Stage="Administração",Destructive=true},
         new("calibration","Recalibrar e ativar","Executa novo ciclo GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE sobre a Gold DEV corrente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null,["infrastructure"],"Use apenas para criar deliberadamente uma nova versão de modelo.")
             {Surface="tools",Stage="Modelo e massa"},
         new("gold-synthetic","Adicionar mais 5.000 registros","Expande a Gold sintética DEV em blocos de 5.000 e reconstrói blocking automaticamente.","pwsh","-NoProfile -File scripts/dev-console-gold-add.ps1 -AdditionalPeople 5000",".local/dev-console/gold-synthetic-add.json",["infrastructure"],null)
@@ -149,8 +172,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
             .Where(x=>x.Length>0&&!x.StartsWith('#')&&x.Contains('='))
             .Select(x=>x.Split('=',2))
             .ToDictionary(x=>x[0].Trim(),x=>x[1].Trim(),StringComparer.OrdinalIgnoreCase);
-        var db=vars.TryGetValue("JORNADA_SQL_DATABASE",out var dbValue)&&!string.IsNullOrWhiteSpace(dbValue)?dbValue:"JornadaSyntheticDev";
-        if(!string.Equals(db,"JornadaSyntheticDev",StringComparison.Ordinal))throw new InvalidOperationException($"Console DEV exige JornadaSyntheticDev; banco atual={db}.");
+        var db=vars.TryGetValue("JORNADA_SQL_DATABASE",out var dbValue)&&!string.IsNullOrWhiteSpace(dbValue)?dbValue:"JornadaLocal";
         if(!vars.TryGetValue("JORNADA_SQL_SA_PASSWORD",out var password)||string.IsNullOrWhiteSpace(password))
             throw new InvalidOperationException("JORNADA_SQL_SA_PASSWORD ausente.");
 
