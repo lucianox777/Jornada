@@ -21,6 +21,7 @@ public sealed class RuntimeModeContractTests
         var ops=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-operations.ps1"));
         var localDb=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-db.ps1"));
         var scaleSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Dev_SyntheticScale.sql"));
+        var pendingSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Dev_SyntheticPending.sql"));
 
         Assert.Multiple(()=>{
             Assert.That(cmd,Does.Contain("JORNADA_MODE_ARG=-RuntimeMode HML"));
@@ -40,6 +41,10 @@ public sealed class RuntimeModeContractTests
             Assert.That(localDb,Does.Contain("'DEV'{'Development'}'PROD'{'Production'}default{'Homologation'}"));
             Assert.That(localDb,Does.Contain("Operação destrutiva '$Action' bloqueada em PROD"));
             Assert.That(scaleSql,Does.Contain("SCALE_PENDING deve estar entre 0 e 2.000.000."));
+            Assert.That(localDb,Does.Contain("Jornada_Dev_SyntheticPending.sql"));
+            Assert.That(localDb,Does.Contain("startup nunca apaga dados implicitamente"));
+            Assert.That(pendingSql,Does.Contain("Não cria vínculo: a publicação deve acontecer pelo"));
+            Assert.That(pendingSql,Does.Contain("SCALE-PEND-"));
         });
     }
 
