@@ -31,6 +31,13 @@ if(Test-Path $modelStatePath){
   try{$modelState=Get-Content $modelStatePath -Raw -Encoding UTF8 | ConvertFrom-Json}
   catch{$modelState=$null}
 }
+$modelGoldPeople=$null
+if($null -ne $modelState){
+  $bootstrapGoldProperty=$modelState.PSObject.Properties['bootstrapGoldPeople']
+  $legacyGoldProperty=$modelState.PSObject.Properties['goldPeople']
+  if($null -ne $bootstrapGoldProperty){$modelGoldPeople=$bootstrapGoldProperty.Value}
+  elseif($null -ne $legacyGoldProperty){$modelGoldPeople=$legacyGoldProperty.Value}
+}
 
 $health=@()
 $envFile=Join-Path $Root '.env.devconsole'
@@ -102,7 +109,7 @@ $modelHtml=if($null -ne $modelState){
   <div class="field"><span>Status</span><b>$(ConvertTo-DevConsoleHtmlText $modelState.status)</b></div>
   <div class="field"><span>Papel</span>$(ConvertTo-DevConsoleHtmlText $modelState.modelRole)</div>
   <div class="field"><span>Referência bootstrap</span>$(ConvertTo-DevConsoleHtmlText $modelState.bootstrapReference)</div>
-  <div class="field"><span>Pessoas Gold</span>$(ConvertTo-DevConsoleHtmlText $modelState.bootstrapGoldPeople)</div>
+  <div class="field"><span>Pessoas Gold</span>$(ConvertTo-DevConsoleHtmlText $modelGoldPeople)</div>
   <div class="field wide"><span>Método da amostra</span>$(ConvertTo-DevConsoleHtmlText $modelState.sampleMethod)</div>
 </div>
 "@
