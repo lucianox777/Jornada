@@ -81,10 +81,12 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("Visible=false"));
             Assert.That(program,Does.Contain("CommandCatalog.All.Where(x=>x.Visible)"));
             Assert.That(program,Does.Contain("x.Surface,x.Stage"));
-            Assert.That(program,Does.Contain("\"zip\"=>counts.GetValueOrDefault(\"zip\")+counts.GetValueOrDefault(\"ingestion\")+counts.GetValueOrDefault(\"pipeline-status\")"));
-            Assert.That(program,Does.Contain("\"linkage\"=>counts.GetValueOrDefault(\"linkage\")+counts.GetValueOrDefault(\"replay\")"));
-            Assert.That(program,Does.Contain("\"gold-synthetic\"=>counts.GetValueOrDefault(\"gold-synthetic\")+counts.GetValueOrDefault(\"blocking\")"));
-            Assert.That(program,Does.Contain("\"configuration\"=>counts.GetValueOrDefault(\"contract-bundle\")"));
+            Assert.That(program,Does.Not.Contain("RunCount="));
+            Assert.That(program,Does.Not.Contain("CountByCommandAsync(ct)"));
+            Assert.That(program,Does.Contain("[FromServices] LiveExecutionService live"));
+            Assert.That(program,Does.Contain("[FromBody] ManualZipRequest request"));
+            Assert.That(program,Does.Contain("CacheControl=\"no-store, no-cache, must-revalidate\""));
+            Assert.That(program,Does.Contain("/api/version"));
             Assert.That(runtime.IndexOf("new(\"infrastructure\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"zip\"",StringComparison.Ordinal)));
             Assert.That(runtime.IndexOf("new(\"zip\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"bronze\"",StringComparison.Ordinal)));
             Assert.That(runtime.IndexOf("new(\"bronze\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"silver\"",StringComparison.Ordinal)));
@@ -125,6 +127,10 @@ public sealed class DevTestConsoleContractTests
 
             Assert.That(page,Does.Contain("🧰 Ferramentas"));
             Assert.That(page,Does.Contain("🕘 Execuções"));
+            Assert.That(page,Does.Contain("id=\"consoleRevision\""));
+            Assert.That(page,Does.Contain("loadConsoleRevision()"));
+            Assert.That(page,Does.Not.Contain("execução(ões)"));
+            Assert.That(page,Does.Not.Contain("c.runCount"));
             Assert.That(page,Does.Contain("Console DEV / Fluxo do dado"));
             Assert.That(page,Does.Contain("Ferramentas de verificação e administração"));
             Assert.That(page,Does.Contain("Execução / "));
@@ -401,6 +407,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(compose,Does.Not.Contain("LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE dotnet"));
             Assert.That(bootstrap,Does.Contain("restore $Solution --locked-mode"));
             Assert.That(bootstrap,Does.Contain("build $Solution --no-restore"));
+            Assert.That(bootstrap,Does.Contain("Get-NetTCPConnection -LocalPort 5000"));
+            Assert.That(bootstrap,Does.Contain("Jornada\\.DevConsole"));
+            Assert.That(bootstrap,Does.Contain("Stop-Process -Id $listenerPid"));
+            Assert.That(bootstrap,Does.Contain("JORNADA_DEV_CONSOLE_SOURCE_SHA"));
 
             var launch=File.ReadAllText(Path.Combine(root,"Solution","Jornada.slnLaunch"));
             Assert.That(launch,Does.Contain("Jornada.DevConsole.csproj"));
