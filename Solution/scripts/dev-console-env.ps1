@@ -2,7 +2,7 @@ $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $BaseEnv=Join-Path $Root '.env'
 $ConsoleEnv=Join-Path $Root '.env.devconsole'
 
-if(-not(Test-Path $BaseEnv)){throw '.env ausente. Execute teste.cmd uma vez para preparar o ambiente local.'}
+if(-not(Test-Path $BaseEnv)){throw '.env ausente. Execute console.cmd uma vez para preparar o ambiente local.'}
 
 $RuntimeMode=if([string]::IsNullOrWhiteSpace($env:JORNADA_RUNTIME_MODE)){'HML'}else{$env:JORNADA_RUNTIME_MODE.Trim().ToUpperInvariant()}
 if($RuntimeMode -notin @('HML','DEV','PROD')){throw "JORNADA_RUNTIME_MODE inválido: $RuntimeMode. Use HML, DEV ou PROD."}
