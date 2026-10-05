@@ -28,12 +28,13 @@ Get-Content $EnvFile | ForEach-Object {
     }
 }
 $db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
+$profile=if($vars['JORNADA_LOCAL_PROFILE']){$vars['JORNADA_LOCAL_PROFILE']}else{'dev-console'}
 $password=$vars['JORNADA_SQL_SA_PASSWORD']
 if([string]::IsNullOrWhiteSpace($password)){throw 'JORNADA_SQL_SA_PASSWORD ausente.'}
 
 function Invoke-Compose([Parameter(ValueFromRemainingArguments=$true)][string[]]$ComposeArgs){
     if($ComposeArgs.Count -eq 0){throw "Invoke-Compose exige um subcomando do Docker Compose."}
-    Write-Host ('# docker compose --env-file .env '+($ComposeArgs -join ' '))
+    Write-Host ("# docker compose --env-file $(Split-Path -Leaf $EnvFile) "+($ComposeArgs -join ' '))
     Push-Location $Root
     try {
         & docker compose --env-file $EnvFile @ComposeArgs
@@ -56,29 +57,60 @@ function Invoke-SqlScalar([string]$Query){
     }
 }
 
+function Get-NodeProfileDrift {
+    $drift=@()
+    foreach($service in @('jornada-node1','jornada-node2')){
+        $cid=(& docker compose --env-file $EnvFile ps -q $service 2>$null | Out-String).Trim()
+        if([string]::IsNullOrWhiteSpace($cid)){continue}
+        $actualProfile=(& docker inspect --format '{{ index .Config.Labels "com.jornada.local.profile" }}' $cid 2>$null | Out-String).Trim()
+        $actualDatabase=(& docker inspect --format '{{ index .Config.Labels "com.jornada.local.database" }}' $cid 2>$null | Out-String).Trim()
+        if($actualProfile -ne $profile -or $actualDatabase -ne $db){
+            $drift+=("$service(profile=$actualProfile,database=$actualDatabase)")
+        }
+    }
+    return @($drift)
+}
+
 function Ensure-ClusterRunning {
     $required=@('sqlserver','jornada-nas','jornada-node1','jornada-node2')
     $running=@()
     try {
         Push-Location $Root
         $running=@(& docker compose --env-file $EnvFile ps --status running --services 2>$null)
+        $drift=@(Get-NodeProfileDrift)
         Pop-Location
     } catch {
         try { Pop-Location } catch {}
         $running=@()
+        $drift=@()
     }
     $missing=@($required | Where-Object { $_ -notin $running })
-    if($missing.Count -eq 0){ return }
+    if($missing.Count -eq 0 -and $drift.Count -eq 0){ return }
 
-    Write-Host "Infraestrutura incompleta ($($missing -join ', ')); subindo automaticamente..."
+    if($drift.Count -gt 0){
+        Write-Host "Perfil dos nós divergente do ambiente DEV esperado ($profile/$db): $($drift -join '; '). Reconciliando automaticamente..."
+    }else{
+        Write-Host "Infraestrutura incompleta ($($missing -join ', ')); subindo automaticamente..."
+    }
     & (Join-Path $PSScriptRoot 'dev-console-infrastructure.ps1') -Action up
     if($LASTEXITCODE -ne 0){throw "Subida automática da infraestrutura falhou ($LASTEXITCODE)."}
+
+    Push-Location $Root
+    try {
+        $running=@(& docker compose --env-file $EnvFile ps --status running --services 2>$null)
+        $missing=@($required | Where-Object { $_ -notin $running })
+        $drift=@(Get-NodeProfileDrift)
+    } finally { Pop-Location }
+    if($missing.Count -gt 0 -or $drift.Count -gt 0){
+        throw "Infraestrutura DEV não convergiu para o perfil esperado $profile/$db; ausentes=$($missing -join ','); divergentes=$($drift -join ';')."
+    }
 }
 
 function Invoke-ClusterAction([string]$ClusterAction){
     Ensure-ClusterRunning
-    Write-Host "# pwsh -NoProfile -File scripts/local-cluster.ps1 -Action $ClusterAction"
-    & (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action $ClusterAction
+    $envName=Split-Path -Leaf $EnvFile
+    Write-Host "# pwsh -NoProfile -File scripts/local-cluster.ps1 -Action $ClusterAction -EnvFile $envName"
+    & (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action $ClusterAction -EnvFile $EnvFile
     if($LASTEXITCODE -ne 0){throw "local-cluster.ps1 $ClusterAction falhou ($LASTEXITCODE)."}
 }
 
