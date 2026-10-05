@@ -31,15 +31,6 @@ function Set-JornadaRuntimeMode {
     return $mode
 }
 
-function Get-JornadaEnvironmentProfile {
-    param([Parameter(Mandatory=$true)][ValidateSet('DEV','HML','PROD')][string]$Mode)
-    switch ($Mode) {
-        'DEV' { return 'Development' }
-        'HML' { return 'Homologation' }
-        'PROD' { return 'Production' }
-    }
-}
-
 function Assert-JornadaDestructiveAllowed {
     param(
         [Parameter(Mandatory=$true)][ValidateSet('DEV','HML','PROD')][string]$Mode,
