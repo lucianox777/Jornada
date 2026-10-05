@@ -329,6 +329,99 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         }
     }
 
+    async Task RunCompositeCommandAsync(Guid id,CommandDefinition definition,LiveExecution live,int executionNumber)
+    {
+        var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
+        var started=DateTimeOffset.UtcNow;
+        var sw=Stopwatch.StartNew();
+        var combinedOutput=new StringBuilder();
+        var combinedError=new StringBuilder();
+        var combinedArtifacts=new List<string>();
+
+        live.Add("system",$"Execução {definition.Title} #{executionNumber} · {id:N}");
+        live.Add("system",$"Diretório: {root}");
+        live.Add("command",$"> {definition.DisplayCommand}");
+        live.Add("system",$"Plano: {definition.CompositeSteps.Length} etapa(s) independente(s).");
+
+        foreach(var stepId in definition.CompositeSteps)
+        {
+            var child=CommandCatalog.All.FirstOrDefault(x=>x.Id.Equals(stepId,StringComparison.OrdinalIgnoreCase));
+            if(child is null||child.File is null)
+            {
+                sw.Stop();
+                var message=$"Etapa composta inválida ou sem executor: {stepId}.";
+                live.Add("stderr",message);
+                live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
+                var failedStep=new StepResult(definition.DisplayCommand,root,-1,sw.ElapsedMilliseconds,combinedOutput.ToString(),message,null,combinedArtifacts);
+                await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"FALHA",message,failedStep,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
+                return;
+            }
+
+            var childId=Guid.NewGuid();
+            var childNumber=store.ReserveExecutionNumber(child.Id);
+            var childStarted=DateTimeOffset.UtcNow;
+            var childSw=Stopwatch.StartNew();
+            live.Add("system","");
+            live.Add("system",$"=== {child.Stage} · {child.Title} #{childNumber} ===");
+            live.Add("command",$"> {child.DisplayCommand}");
+
+            try
+            {
+                var result=await RunProcessAsync(child.File,child.Arguments!,root,live);
+                childSw.Stop();
+                var candidatePath=child.ResultPath is null?null:Path.GetFullPath(Path.Combine(root,child.ResultPath));
+                var resultPath=result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)?candidatePath:null;
+                var records=resultPath is null?Array.Empty<Dictionary<string,string?>>():await LoadRecordsAsync(child.ResultPath,root);
+                var artifacts=ParseArtifacts(result.Output,root);
+                combinedOutput.AppendLine($"=== {child.Title} #{childNumber} ===").Append(result.Output);
+                combinedError.Append(result.Error);
+                combinedArtifacts.AddRange(artifacts);
+                if(resultPath is not null)live.Add("result",$"{child.Title} #{childNumber}: {resultPath}");
+
+                var summary=records.Count>0
+                    ?$"{records.Count} registro(s) no resultado. Resultado: {resultPath}"
+                    :result.ExitCode==0
+                        ?(resultPath is null?"Etapa concluída.":$"Etapa concluída. Resultado: {resultPath}")
+                        :$"Etapa falhou (exit {result.ExitCode}).";
+                var childStatus=result.ExitCode==0?"SUCESSO":"FALHA";
+                var childStep=new StepResult(child.CommandLine!,root,result.ExitCode,childSw.ElapsedMilliseconds,result.Output,result.Error,resultPath,artifacts);
+                var childRun=new RunRecord(childId,child.Id,child.Title,childStarted,DateTimeOffset.UtcNow,childStatus,summary,childStep,records,childNumber,id);
+                await store.SaveAsync(childRun,CancellationToken.None);
+
+                if(result.ExitCode!=0)
+                {
+                    sw.Stop();
+                    live.Add("system",$"{child.Title} #{childNumber}: FALHA · {(childSw.ElapsedMilliseconds/1000d):0.00}s");
+                    live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
+                    var parentStep=new StepResult(definition.DisplayCommand,root,result.ExitCode,sw.ElapsedMilliseconds,combinedOutput.ToString(),combinedError.ToString(),null,combinedArtifacts.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+                    await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"FALHA",$"Falha em {child.Title} #{childNumber}.",parentStep,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
+                    return;
+                }
+
+                live.Add("system",$"{child.Title} #{childNumber}: SUCESSO · {(childSw.ElapsedMilliseconds/1000d):0.00}s");
+            }
+            catch(Exception ex)
+            {
+                childSw.Stop();
+                sw.Stop();
+                var error=ex.ToString();
+                combinedError.AppendLine(error);
+                live.Add("stderr",error);
+                var childStep=new StepResult(child.CommandLine!,root,-1,childSw.ElapsedMilliseconds,"",error,null);
+                await store.SaveAsync(new RunRecord(childId,child.Id,child.Title,childStarted,DateTimeOffset.UtcNow,"FALHA","Falha inesperada; veja o console.",childStep,Array.Empty<Dictionary<string,string?>>(),childNumber,id),CancellationToken.None);
+                live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
+                var parentStep=new StepResult(definition.DisplayCommand,root,-1,sw.ElapsedMilliseconds,combinedOutput.ToString(),combinedError.ToString(),null,combinedArtifacts.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+                await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"FALHA",$"Falha em {child.Title} #{childNumber}.",parentStep,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
+                return;
+            }
+        }
+
+        sw.Stop();
+        live.Add("status",$"SUCESSO · {(sw.ElapsedMilliseconds/1000d):0.00}s");
+        var step=new StepResult(definition.DisplayCommand,root,0,sw.ElapsedMilliseconds,combinedOutput.ToString(),combinedError.ToString(),null,combinedArtifacts.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"SUCESSO",$"{definition.CompositeSteps.Length}/{definition.CompositeSteps.Length} etapas concluídas.",step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
+    }
+
     async Task RunCommandAsync(Guid id,CommandDefinition definition,LiveExecution live,int executionNumber)
     {
         var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
