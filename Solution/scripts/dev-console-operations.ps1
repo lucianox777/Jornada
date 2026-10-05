@@ -158,6 +158,45 @@ function Ensure-BootstrapCorpus {
     return $goldCount
 }
 
+function Get-DevBootstrapLinkageReadiness([string]$ModelId,[int]$ModelVersion){
+    if([string]::IsNullOrWhiteSpace($ModelId)){throw 'Modelo ativo ausente ao avaliar readiness do bootstrap DEV.'}
+
+    $total=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao WHERE codigo_pessoa_origem LIKE N'SCALE-PEND-%';")
+    $unresolved=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND NOT EXISTS(SELECT 1 FROM identidade.v_vinculo_corrente vc WHERE vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO');")
+    $unevaluated=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND NOT EXISTS(SELECT 1 FROM identidade.v_vinculo_corrente vc WHERE vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO') AND NOT EXISTS(SELECT 1 FROM identidade.linkage_resultado r JOIN identidade.linkage_run lr ON lr.linkage_run_id=r.linkage_run_id WHERE r.pessoa_observacao_id=o.pessoa_observacao_id AND r.modelo_id='$ModelId' AND lr.status=N'PUBLICADO');")
+    $falsePositive=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO' JOIN silver.pessoa_observacao truth_o ON truth_o.codigo_pessoa_origem=REPLACE(o.codigo_pessoa_origem,N'SCALE-PEND-',N'SCALE-SEHAB-') JOIN identidade.v_vinculo_corrente truth_vc ON truth_vc.pessoa_observacao_id=truth_o.pessoa_observacao_id AND truth_vc.status=N'RESOLVIDO' WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND vc.pessoa_uuid<>truth_vc.pessoa_uuid;")
+    $latestRunId=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE status=N'PUBLICADO' AND tipo_run=N'ON_DEMAND' AND modelo_id='$ModelId' ORDER BY publicado_em DESC,iniciado_em DESC,linkage_run_id DESC;"
+    $threshold=Invoke-SqlScalar "SELECT CONVERT(varchar(40),valor) FROM identidade.parametro_linkage WHERE modelo_id='$ModelId' AND nome=N'T_LINKAGE';"
+    $maxScore=$null
+    $dominantReason=$null
+    if(-not [string]::IsNullOrWhiteSpace($latestRunId)){
+        $maxScore=Invoke-SqlScalar "SELECT CONVERT(varchar(40),MAX(r.score_melhor)) FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao o ON o.pessoa_observacao_id=r.pessoa_observacao_id WHERE r.linkage_run_id='$latestRunId' AND o.codigo_pessoa_origem LIKE N'SCALE-PEND-%';"
+        $dominantReason=Invoke-SqlScalar "SELECT TOP(1) CONCAT(COALESCE(r.motivo,N'SEM_MOTIVO'),N'|',COUNT_BIG(*)) FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao o ON o.pessoa_observacao_id=r.pessoa_observacao_id WHERE r.linkage_run_id='$latestRunId' AND o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND r.status<>N'RESOLVIDO' GROUP BY r.motivo ORDER BY COUNT_BIG(*) DESC,COALESCE(r.motivo,N'SEM_MOTIVO');"
+    }
+
+    $state=[ordered]@{
+        generatedAt=(Get-Date).ToUniversalTime().ToString('o')
+        modelId=$ModelId
+        modelVersion=$ModelVersion
+        totalAdditional=$total
+        resolvedAdditional=($total-$unresolved)
+        inconclusiveAdditional=$unresolved
+        unevaluatedByActiveModel=$unevaluated
+        falsePositiveResolved=$falsePositive
+        latestPublishedOnDemandRunId=$latestRunId
+        tLinkage=$threshold
+        maxScoreLatestRun=$maxScore
+        dominantInconclusiveReason=$dominantReason
+        readinessDefinition='ZERO_UNEVALUATED_AND_ZERO_FALSE_POSITIVE; INCONCLUSIVE_IS_VALID_CONSERVATIVE_OUTCOME'
+    }
+    $path=Join-Path $OutDir 'bootstrap-linkage-readiness.json'
+    [IO.File]::WriteAllText($path,($state|ConvertTo-Json -Depth 6),[Text.UTF8Encoding]::new($false))
+    Write-Host "Readiness probabilístico DEV: total=$total; resolvidos=$($total-$unresolved); inconclusivos=$unresolved; sem avaliação do modelo ativo=$unevaluated; falsos vínculos=$falsePositive."
+    if(-not [string]::IsNullOrWhiteSpace($threshold)){Write-Host "Fronteira observada: T_LINKAGE=$threshold; max_score_ultimo_run=$maxScore; motivo_inconclusivo_dominante=$dominantReason."}
+    Write-Host "ARTEFATO: $path"
+    return [pscustomobject]$state
+}
+
 switch($Action){
     'system-status' {
         Write-Host '=== ESTADO GERAL DO SISTEMA ==='
@@ -414,22 +453,35 @@ switch($Action){
 
         $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
         $bootstrapGoldCount=$goldCount
-        $pendingBootstrap=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-%' AND NOT EXISTS(SELECT 1 FROM identidade.v_vinculo_corrente vc WHERE vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO');")
-        if($RuntimeMode -eq 'DEV' -and $pendingBootstrap -gt 0){
-            Write-Host "DEV: publicando o corpus adicional pela execução real do Linkage Runner; pendentes=$pendingBootstrap..."
-            Invoke-ClusterAction 'linkage'
-            $pendingBootstrap=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-%' AND NOT EXISTS(SELECT 1 FROM identidade.v_vinculo_corrente vc WHERE vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO');")
-        }
-        if($pendingBootstrap -ne 0){throw "Infraestrutura $RuntimeMode não pode ficar pronta com corpus de bootstrap pendente; atual=$pendingBootstrap."}
-        $remainingScale=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")
-        $bootstrapLifecycle=if($RuntimeMode -eq 'DEV'){'DEV_EXTRA_PUBLISHED_PRESERVED'}else{'STANDARD_NO_EXTRA_PENDING'}
+        $modelId=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
+        $version=[int](Invoke-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;")
+        $unresolvedBootstrap=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND NOT EXISTS(SELECT 1 FROM identidade.v_vinculo_corrente vc WHERE vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO');")
+        $bootstrapReadiness=$null
         if($RuntimeMode -eq 'DEV'){
-            Write-Host "DEV preserva os 6.000 registros adicionais na Silver e exige sua publicação na Gold."
+            if($unresolvedBootstrap -gt 0){
+                Write-Host "DEV: avaliando o corpus adicional pela execução real do Linkage Runner; ainda inconclusivos/sem avaliação=$unresolvedBootstrap..."
+                Invoke-ClusterAction 'linkage'
+            }
+            $bootstrapReadiness=Get-DevBootstrapLinkageReadiness -ModelId $modelId -ModelVersion $version
+            if([int64]$bootstrapReadiness.unevaluatedByActiveModel -ne 0){
+                throw "Infraestrutura DEV não pode ficar pronta com observações bootstrap sem avaliação pelo modelo ATIVO; atual=$($bootstrapReadiness.unevaluatedByActiveModel)."
+            }
+            if([int64]$bootstrapReadiness.falsePositiveResolved -ne 0){
+                throw "Infraestrutura DEV recusada: corpus bootstrap produziu $($bootstrapReadiness.falsePositiveResolved) falso(s) vínculo(s) resolvido(s) contra o ground truth sintético."
+            }
+            if([int64]$bootstrapReadiness.inconclusiveAdditional -gt 0){
+                Write-Host "DEV: $($bootstrapReadiness.inconclusiveAdditional) observação(ões) SCALE-PEND permanecem inconclusivas por política estatística. Elas já foram avaliadas pelo modelo ATIVO e não constituem backlog de processamento."
+            }
+        }elseif($unresolvedBootstrap -ne 0){
+            throw "Infraestrutura $RuntimeMode não pode ficar pronta com corpus adicional pendente; atual=$unresolvedBootstrap."
+        }
+        $remainingScale=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")
+        $bootstrapLifecycle=if($RuntimeMode -eq 'DEV'){'DEV_EVALUATED_PRESERVED'}else{'STANDARD_NO_EXTRA_PENDING'}
+        if($RuntimeMode -eq 'DEV'){
+            Write-Host "DEV preserva os 6.000 registros adicionais na Silver: resoluções seguras entram na Gold; resultados inconclusivos permanecem auditáveis sem forçar vínculo."
         }else{
             Write-Host "$RuntimeMode usa o comportamento padrão: nenhum corpus adicional de 6.000 registros é criado."
         }
-        $modelId=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
-        $version=[int](Invoke-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;")
         $bundleVersion=Invoke-SqlScalar "SELECT TOP(1) ISNULL(model_config_bundle_version,N'') FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
         $fingerprint=Invoke-SqlScalar "SELECT TOP(1) ISNULL(model_config_bundle_fingerprint_sha256,N'') FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
         $sampleMethod=Invoke-SqlScalar "SELECT TOP(1) ISNULL(amostra_metodo,N'') FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
@@ -441,6 +493,7 @@ switch($Action){
             bootstrapGoldPeople=$bootstrapGoldCount
             operationalScalePeopleAfterBootstrap=$remainingScale
             bootstrapCorpusLifecycle=$bootstrapLifecycle
+            bootstrapLinkageReadiness=$bootstrapReadiness
             modelId=$modelId
             version=$version
             status='ATIVO'
