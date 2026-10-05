@@ -30,6 +30,7 @@ main{max-width:1180px;margin:0 auto;padding:22px}
 .primary{background:#1463d7;color:#fff;border:1px solid #1463d7;border-radius:7px;padding:8px 13px}
 .secondary{background:#fff;border:1px solid #cfd6df;border-radius:7px;padding:8px 13px}
 .danger{background:#fff2f0;color:#9b241c;border:1px solid #e8b3ad;border-radius:7px;padding:8px 13px}
+button:disabled{opacity:.5;cursor:not-allowed}
 .hidden{display:none!important}
 .console-shell{background:#0b0f14;border-radius:10px;border:1px solid #202834;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,.13)}
 .console-top{background:#151b23;color:#eef4fb;padding:10px 14px;display:flex;align-items:center;justify-content:space-between;gap:12px}
@@ -85,7 +86,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
     <div class="hero">
       <h2>Fluxo do dado</h2>
       <p>A Console acompanha a mesma jornada da aplicação: infraestrutura → ingestão → Bronze → Silver → identidade/Linkage → Gold/Serving → encerramento.</p>
-      <div class="flow-note">No perfil DEV didático, o Processor residente é suspenso. A Entrega permanece na Bronze até você acionar explicitamente <b>Processar Bronze → Silver</b>.</div>
+      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. A Entrega permanece na Bronze até você acionar explicitamente <b>Processar Bronze → Silver</b>. HML é o modo padrão; use <code>teste.cmd --dev</code> apenas para habilitar o corpus adicional.</div>
     </div>
     <div id="commands">Carregando...</div>
   </section>
@@ -357,8 +358,9 @@ async function loadCommands(surface='flow'){
         +'<button class="secondary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>'
         +'<button class="secondary" type="button" onclick="startCommand(\'blocking\',\'Reconstruir blocking\')">Reconstruir blocking</button>';
     }else{
-      const buttonClass=c.id==='finish'?'danger':'primary';
-      actions='<button class="'+buttonClass+'" type="button" onclick="startCommand(\''+c.id+'\')">Executar</button>';
+      const buttonClass=c.id==='finish'||c.destructive?'danger':'primary';
+      const disabled=c.disabled?' disabled aria-disabled="true" title="'+esc(c.disabledReason||'Operação indisponível')+'"':'';
+      actions='<button class="'+buttonClass+'" type="button"'+disabled+' onclick="startCommand(\''+c.id+'\')">Executar</button>';
     }
     return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions">'+actions+'</div></div></div>';
   };
@@ -373,6 +375,10 @@ async function loadCommands(surface='flow'){
 
 async function startCommand(id,titleOverride){
   const command=commandsCache.find(x=>x.id===id);
+  if(command?.disabled){
+    alert(command.disabledReason||'Operação indisponível neste modo.');
+    return;
+  }
   const response=await api('/api/commands/'+encodeURIComponent(id)+'/start',{method:'POST'});
   openLiveRun(response.id,titleOverride||command?.title||id,id);
 }
@@ -779,7 +785,7 @@ async function openHistoryRun(id){
 async function loadConsoleRevision(){
   try{
     const version=await api('/api/version');
-    consoleRevision.textContent='revisão: '+(version.revision||'desconhecida')+' · processo '+(version.processId||'?');
+    consoleRevision.textContent='revisão: '+(version.revision||'desconhecida')+' · modo '+(version.mode||'HML')+' · processo '+(version.processId||'?');
   }catch{
     consoleRevision.textContent='revisão: indisponível';
   }
