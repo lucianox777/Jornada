@@ -183,6 +183,12 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localDb,Does.Contain("Start-Process -FilePath $dockerDesktopPath"));
             Assert.That(localDb,Does.Contain("Aguardando Docker Engine"));
             Assert.That(localDb,Does.Contain("Docker Engine pronto"));
+            Assert.That(localDb,Does.Contain("function Assert-SyntheticScaleExpansion"));
+            Assert.That(localDb,Does.Contain("SCALE_INCREMENTAL"));
+            Assert.That(localDb,Does.Contain("$actualPeople -lt $expectedPeople"));
+            Assert.That(localDb,Does.Not.Contain("[long]$counts['Sehab'] -ne $expectedPeople"));
+            Assert.That(localDb,Does.Contain("Expansão SCALE-SEHAB controlada preservada"));
+            Assert.That(localDb,Does.Contain("Somente expansões geradas pela Console DEV podem ser preservadas"));
             Assert.That(runtime,Does.Contain("modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações"));
             Assert.That(runtime,Does.Contain("o Processor residente fica suspenso"));
             Assert.That(runtime,Does.Contain("A Console DEV desabilita o Processor residente"));
