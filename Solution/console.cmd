@@ -19,13 +19,13 @@ if /I "%~1"=="--prod" (
   shift
   goto validate
 )
-echo Uso: teste.cmd [--hml^|--dev^|--prod]
+echo Uso: console.cmd [--hml^|--dev^|--prod]
 exit /b 2
 
 :validate
 if not "%~1"=="" (
   echo Argumento inesperado: %~1
-  echo Uso: teste.cmd [--hml^|--dev^|--prod]
+  echo Uso: console.cmd [--hml^|--dev^|--prod]
   exit /b 2
 )
 
