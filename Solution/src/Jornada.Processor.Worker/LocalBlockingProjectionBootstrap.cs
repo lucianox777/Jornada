@@ -34,8 +34,8 @@ internal static class LocalBlockingProjectionBootstrap
         try
         {
             await BlockingProjectionPersistence.RefreshSqlServerBatchAsync(
-                connection, transaction, personIds, ct,
-                commandTimeoutSeconds: LocalBlockingCommandTimeoutSeconds);
+                connection, transaction, personIds,
+                LocalBlockingCommandTimeoutSeconds, ct);
             await transaction.CommitAsync(ct);
         }
         catch
