@@ -2,11 +2,19 @@
     [ValidateSet('up','reset','down','clean','status','logs','blocking','calibrate','linkage','linkage-diagnose')]
     [string]$Action = 'up',
     [switch]$NoBuild,
-    [string]$EnvFile
+    [string]$EnvFile,
+    [ValidateSet('HML','DEV','PROD')]
+    [string]$RuntimeMode,
+    [switch]$ConfirmProductionReset
 )
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference='SilentlyContinue'
+if([string]::IsNullOrWhiteSpace($RuntimeMode)){
+    $RuntimeMode=if([string]::IsNullOrWhiteSpace($env:JORNADA_RUNTIME_MODE)){'HML'}else{$env:JORNADA_RUNTIME_MODE.Trim().ToUpperInvariant()}
+}
+$RuntimeMode=$RuntimeMode.ToUpperInvariant()
+if($RuntimeMode -notin @('HML','DEV','PROD')){throw "RuntimeMode inválido: $RuntimeMode."}
 [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
 $OutputEncoding=[Text.UTF8Encoding]::new($false)
 if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
@@ -681,20 +689,30 @@ FROM truth;
 
 switch ($Action) {
     'up' {
-        Write-CommandLine $LocalDb @('-Action','up','-EnvFile',$EnvFile)
-        & $LocalDb -Action up -EnvFile $EnvFile
+        Write-CommandLine $LocalDb @('-Action','up','-EnvFile',$EnvFile,'-RuntimeMode',$RuntimeMode)
+        & $LocalDb -Action up -EnvFile $EnvFile -RuntimeMode $RuntimeMode
         if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }
         Start-Nodes -Build:(-not $NoBuild)
     }
     'reset' {
+        if($RuntimeMode -eq 'PROD' -and -not $ConfirmProductionReset){
+            throw "Reset bloqueado em PROD. Use -ConfirmProductionReset no comando explícito."
+        }
         Invoke-Compose -ComposeArgs @('stop','jornada-node1','jornada-node2')
-        Write-CommandLine $LocalDb @('-Action','reset','-EnvFile',$EnvFile)
-        & $LocalDb -Action reset -EnvFile $EnvFile
+        $resetArgs=@('-Action','reset','-EnvFile',$EnvFile,'-RuntimeMode',$RuntimeMode)
+        if($ConfirmProductionReset){$resetArgs+='-ConfirmProductionReset'}
+        Write-CommandLine $LocalDb $resetArgs
+        & $LocalDb @resetArgs
         if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 reset falhou ($LASTEXITCODE)." }
         Start-Nodes
     }
     'down' { Invoke-Compose -ComposeArgs @('down') }
-    'clean' { Invoke-Compose -ComposeArgs @('down','-v','--remove-orphans') }
+    'clean' {
+        if($RuntimeMode -eq 'PROD' -and -not $ConfirmProductionReset){
+            throw "Clean destrutivo bloqueado em PROD. Use -ConfirmProductionReset no comando explícito."
+        }
+        Invoke-Compose -ComposeArgs @('down','-v','--remove-orphans')
+    }
     'status' { Invoke-Compose -ComposeArgs @('ps') }
     'logs' { Invoke-Compose -ComposeArgs @('logs','-f','jornada-node1','jornada-node2','jornada-nas') }
     'blocking' { Ensure-LocalBlockingProjection }
