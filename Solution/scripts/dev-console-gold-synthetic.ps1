@@ -13,6 +13,8 @@ $dotnetExe=if($localDotnet -and (Test-Path $localDotnet)){$localDotnet}else{(Get
 . (Join-Path $PSScriptRoot 'dev-console-env.ps1')
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $envFile=$DevConsoleEnvFile
+$RuntimeMode=$DevConsoleRuntimeMode
+if($RuntimeMode -ne 'DEV'){throw 'Carga Gold sintética demográfica é exclusiva do modo --dev.'}
 Write-Host ('Solution: '+$Root)
 Write-Host ('Arquivo de ambiente: '+$envFile)
 if(-not(Test-Path $envFile)){throw '.env ausente; suba a infraestrutura DEV antes de carregar a Gold sintética.'}
@@ -25,8 +27,7 @@ Get-Content $envFile | ForEach-Object {
     $vars[$p[0].Trim()]=$p[1].Trim()
   }
 }
-$db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaSyntheticDev'}
-if($db -ne 'JornadaSyntheticDev'){throw "Console DEV aceita somente JornadaSyntheticDev; banco atual=$db."}
+$db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
 $password=$vars['JORNADA_SQL_SA_PASSWORD']
 if([string]::IsNullOrWhiteSpace($password)){throw 'JORNADA_SQL_SA_PASSWORD ausente.'}
 Write-Host ('Banco alvo: '+$db)
