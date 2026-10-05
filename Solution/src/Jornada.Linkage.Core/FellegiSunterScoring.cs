@@ -125,10 +125,15 @@ public static class FellegiSunterScoring
         bool captureBreakdown)
     {
         ArgumentNullException.ThrowIfNull(parameters);
+        if (blockCandidateCount is <= 0)
+            throw new ArgumentOutOfRangeException(
+                nameof(blockCandidateCount),
+                blockCandidateCount,
+                "A cardinalidade do bloco deve ser maior que zero quando informada.");
 
         var decisionV6 = parameters.TryGetValue(LinkageParameterCatalog.DecisionEvidenceScoring, out var decisionFlag) && decisionFlag >= 1d;
         var neutralMissing = parameters.TryGetValue(LinkageParameterCatalog.NeutralMissingEvidenceScoring, out var neutralFlag) && neutralFlag >= 1d;
-        var usesBlockPrior = !decisionV6 && blockCandidateCount is > 0;
+        var usesBlockPrior = !decisionV6 && blockCandidateCount.HasValue;
         var prior = usesBlockPrior
             ? CalculateBlockPrior(parameters, blockCandidateCount!.Value)
             : Get(parameters, LinkageParameterCatalog.PriorMatchProbability);
