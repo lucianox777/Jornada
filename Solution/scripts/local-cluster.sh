@@ -44,6 +44,11 @@ ensure_local_blocking_projection() {
   compose exec -T jornada-node2 env Processor__Operation=REBUILD_LOCAL_BLOCKING dotnet /opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll
 }
 
+refresh_local_blocking_projection() {
+  echo "Reconciliando integralmente a projeção de blocking da massa sintética com Gold/Silver atuais..."
+  compose exec -T jornada-node2 env Processor__Operation=REFRESH_LOCAL_BLOCKING dotnet /opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll
+}
+
 show_endpoints() {
   local bundle schema
   bundle="$(jq -r '.configurationBundleVersion' "$CONFIG")"
@@ -86,7 +91,7 @@ start_nodes() {
 
 calibrate() {
   local before count version active model_id
-  ensure_local_blocking_projection
+  refresh_local_blocking_projection
   before="$(sql_scalar "SELECT ISNULL(MAX(versao),0) FROM identidade.modelo_linkage;")"
   echo "Calibração iniciando após modelo v$before."
   echo 'IBGE ativo e previamente validado é bootstrap nominal obrigatório, sem fonte substituta; GENERATE_DRAFT converge para u nominal condicionado ao blocking quando união e todos os passes atingem suporte suficiente.'
