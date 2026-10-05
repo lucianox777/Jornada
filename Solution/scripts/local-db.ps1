@@ -2,12 +2,20 @@
     [ValidateSet('up','reset','down','clean','status','backfill')]
     [string]$Action = 'up',
     [switch]$NoSyntheticCorpus,
-    [string]$DatabaseName
+    [string]$DatabaseName,
+    [string]$EnvFile
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $DefaultEnvFile = Join-Path $Root '.env'
-$EnvFile = if ([string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { $DefaultEnvFile } else { [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE) }
+$ExplicitEnvFile = -not [string]::IsNullOrWhiteSpace($EnvFile)
+$EnvFile = if ($ExplicitEnvFile) {
+    [IO.Path]::GetFullPath($EnvFile)
+} elseif (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) {
+    [IO.Path]::GetFullPath($env:JORNADA_LOCAL_ENV_FILE)
+} else {
+    $DefaultEnvFile
+}
 $Example = Join-Path $Root '.env.example'
 New-Item -ItemType Directory -Force (Join-Path $Root '.local/sql-backup') | Out-Null
 
@@ -82,6 +90,7 @@ function Ensure-DockerEngine {
 
 Ensure-DockerEngine
 if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
+    if ($ExplicitEnvFile) { throw "EnvFile aponta para arquivo inexistente: $EnvFile" }
     if (-not [string]::IsNullOrWhiteSpace($env:JORNADA_LOCAL_ENV_FILE)) { throw "JORNADA_LOCAL_ENV_FILE aponta para arquivo inexistente: $EnvFile" }
     if (-not (Get-Command python -ErrorAction SilentlyContinue)) { throw 'Python 3 é necessário para gerar a credencial local.' }
     & python (Join-Path $PSScriptRoot 'local_env_bootstrap.py') --check-docker-volume
