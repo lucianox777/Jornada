@@ -348,6 +348,11 @@ public sealed class DevTestConsoleContractTests
             Assert.That(initialConfigScript,Does.Contain("ARTEFATO: $jsonPath"));
             Assert.That(initialConfigScript,Does.Contain("runtimeHealth=$health"));
             Assert.That(initialConfigScript,Does.Contain("activeLinkageModel=$modelState"));
+            Assert.That(initialConfigScript,Does.Contain("$modelState.PSObject.Properties['bootstrapGoldPeople']"));
+            Assert.That(initialConfigScript,Does.Contain("$modelState.PSObject.Properties['goldPeople']"));
+            Assert.That(initialConfigScript,Does.Contain("$modelGoldPeople"));
+            Assert.That(initialConfigScript,Does.Not.Contain("ConvertTo-DevConsoleHtmlText $modelState.goldPeople"));
+            Assert.That(opsScript,Does.Contain("bootstrapGoldPeople=$bootstrapGoldCount"));
             Assert.That(initialConfigScript,Does.Contain("modelo BOOTSTRAP inicial ATIVO"));
             Assert.That(initialConfigScript,Does.Contain("Resumo de status/health"));
             Assert.That(initialConfigScript,Does.Contain("Modelo de linkage ativo"));
