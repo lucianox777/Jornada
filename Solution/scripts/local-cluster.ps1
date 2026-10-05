@@ -120,12 +120,13 @@ function Invoke-Compose {
     )
     Push-Location $Root
     try {
+        $commandPreview = 'docker compose --env-file ' + (Split-Path -Leaf $EnvFile) + ' ' + ($ComposeArgs -join ' ')
         Write-CommandLine 'docker' (@('compose','--env-file',$EnvFile) + $ComposeArgs)
         & docker compose --env-file $EnvFile @ComposeArgs
         $composeExitCode=$LASTEXITCODE
         if ($composeExitCode -ne 0) {
             Show-ComposeFailureDiagnostics -Context $Context
-            throw "docker compose falhou ($composeExitCode)."
+            throw "docker compose falhou (exit=$composeExitCode; contexto=$Context; comando=$commandPreview)."
         }
     }
     finally { Pop-Location }
@@ -676,15 +677,15 @@ FROM truth;
 
 switch ($Action) {
     'up' {
-        Write-CommandLine $LocalDb @('-Action','up')
-        & $LocalDb -Action up
+        Write-CommandLine $LocalDb @('-Action','up','-EnvFile',$EnvFile)
+        & $LocalDb -Action up -EnvFile $EnvFile
         if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }
         Start-Nodes -Build:(-not $NoBuild)
     }
     'reset' {
         Invoke-Compose -ComposeArgs @('stop','jornada-node1','jornada-node2')
-        Write-CommandLine $LocalDb @('-Action','reset')
-        & $LocalDb -Action reset
+        Write-CommandLine $LocalDb @('-Action','reset','-EnvFile',$EnvFile)
+        & $LocalDb -Action reset -EnvFile $EnvFile
         if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 reset falhou ($LASTEXITCODE)." }
         Start-Nodes
     }
