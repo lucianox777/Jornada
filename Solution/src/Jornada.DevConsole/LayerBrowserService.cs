@@ -64,9 +64,9 @@ sealed class LayerBrowserService(IWebHostEnvironment env)
 
         var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
         var envFile=Path.Combine(root,".env.devconsole");
-        if(!File.Exists(envFile))throw new InvalidOperationException(".env.devconsole ausente. Suba a infraestrutura DEV primeiro.");
+        if(!File.Exists(envFile))throw new InvalidOperationException(".env.devconsole ausente. Suba a infraestrutura primeiro.");
         var vars=LoadEnv(envFile);
-        var db=vars.TryGetValue("JORNADA_SQL_DATABASE",out var dbValue)&&!string.IsNullOrWhiteSpace(dbValue)?dbValue:"JornadaSyntheticDev";
+        var db=vars.TryGetValue("JORNADA_SQL_DATABASE",out var dbValue)&&!string.IsNullOrWhiteSpace(dbValue)?dbValue:"JornadaLocal";
         if(!vars.TryGetValue("JORNADA_SQL_SA_PASSWORD",out var password)||string.IsNullOrWhiteSpace(password))
             throw new InvalidOperationException("JORNADA_SQL_SA_PASSWORD ausente.");
 
