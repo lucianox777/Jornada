@@ -703,11 +703,13 @@ FROM truth;
 
 switch ($Action) {
     'up' {
-        Write-CommandLine $LocalDb @('-Action','up','-EnvFile',$EnvFile,'-RuntimeMode',$RuntimeMode)
-        & $LocalDb -Action up -EnvFile $EnvFile -RuntimeMode $RuntimeMode
-        if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }
+        Ensure-BaseInfrastructure -Build:(-not $NoBuild)
         Start-Nodes -Build:(-not $NoBuild)
     }
+    'base' { Ensure-BaseInfrastructure -Build:(-not $NoBuild) }
+    'reference' { Ensure-ReferenceBootstrap -Build:(-not $NoBuild) }
+    'synthetic-identities' { Ensure-SyntheticIbgeIdentityText }
+    'nodes' { Start-ApplicationNodes -Build:(-not $NoBuild) }
     'reset' {
         if($RuntimeMode -eq 'PROD' -and -not $ConfirmProductionReset){
             throw "Reset bloqueado em PROD. Use -ConfirmProductionReset no comando explícito."
