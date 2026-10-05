@@ -3,7 +3,7 @@ set -euo pipefail
 
 ACTION="${1:-up}"
 NO_SYNTHETIC=""
-CONFIRM_PRODUCTION_RESET=0
+CONFIRM_PRODUCTION_RESET="${JORNADA_CONFIRM_PRODUCTION_RESET:-0}"
 for arg in "${@:2}"; do
   case "$arg" in
     --no-synthetic-corpus) NO_SYNTHETIC="--no-synthetic-corpus" ;;
