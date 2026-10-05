@@ -332,6 +332,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localCluster,Does.Contain("$bootstrapStatus=[string]$bootstrapState.Status"));
             Assert.That(localCluster,Does.Contain("init one-shot terminou com exit 0"));
             Assert.That(localCluster,Does.Contain("retorno do wrapper ignorado"));
+            Assert.That(localCluster,Does.Contain("function Get-ComposeServiceRuntimeState"));
+            Assert.That(localCluster,Does.Contain("Get-ComposeServiceRuntimeState 'jornada-nas'"));
+            Assert.That(localCluster,Does.Contain("Get-ComposeServiceRuntimeState 'jornada-node1'"));
+            Assert.That(localCluster,Does.Contain("Get-ComposeServiceRuntimeState 'jornada-node2'"));
+            Assert.That(localCluster,Does.Contain("continuando para o gate de readiness HTTP"));
+            Assert.That(localCluster,Does.Contain("Subida de NODE1/NODE2 falhou (compose="));
+            Assert.That(localCluster,Does.Contain("Logs do jornada-node1"));
             Assert.That(localCluster,Does.Contain("Bootstrap da referência IBGE falhou (status="));
             Assert.That(localCluster,Does.Contain("LOCAL_CLUSTER_TEST_DOSSIER"));
             Assert.That(localCluster,Does.Contain("sp_registrar_dossie_decisao_modelo_linkage"));

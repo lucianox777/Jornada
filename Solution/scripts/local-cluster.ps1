@@ -80,6 +80,11 @@ function Show-ComposeFailureDiagnostics {
     if($Context -match '(?i)bootstrap|referência|reference'){
         Write-Host '--- Logs do jornada-reference-bootstrap (últimas 200 linhas) ---'
         try { & docker compose --env-file $EnvFile logs --no-color --tail 200 jornada-reference-bootstrap } catch {}
+    }elseif($Context -match '(?i)NODE1|NODE2|nós|nodes'){
+        Write-Host '--- Logs do jornada-node1 (últimas 120 linhas) ---'
+        try { & docker compose --env-file $EnvFile logs --no-color --tail 120 jornada-node1 } catch {}
+        Write-Host '--- Logs do jornada-node2 (últimas 120 linhas) ---'
+        try { & docker compose --env-file $EnvFile logs --no-color --tail 120 jornada-node2 } catch {}
     }else{
         Write-Host '--- Logs do jornada-node2 (últimas 200 linhas) ---'
         try { & docker compose --env-file $EnvFile logs --no-color --tail 200 jornada-node2 } catch {}
@@ -104,6 +109,35 @@ function Invoke-Compose {
         }
     }
     finally { Pop-Location }
+}
+
+function Get-ComposeServiceRuntimeState {
+    param([Parameter(Mandatory=$true)][string]$Service)
+
+    $cid=(& docker compose --env-file $EnvFile ps -aq $Service 2>$null | Out-String).Trim()
+    if([string]::IsNullOrWhiteSpace($cid)){
+        return [pscustomobject]@{Service=$Service;Exists=$false;Inspectable=$false;Running=$false;Status='missing';ExitCode=$null}
+    }
+
+    $stateRaw=(& docker inspect --format '{{json .State}}' $cid 2>$null | Out-String).Trim()
+    $inspectExitCode=$LASTEXITCODE
+    if($inspectExitCode -ne 0 -or [string]::IsNullOrWhiteSpace($stateRaw)){
+        return [pscustomobject]@{Service=$Service;Exists=$true;Inspectable=$false;Running=$false;Status='uninspectable';ExitCode=$null}
+    }
+
+    try{$state=$stateRaw | ConvertFrom-Json}
+    catch{
+        return [pscustomobject]@{Service=$Service;Exists=$true;Inspectable=$false;Running=$false;Status='invalid-state';ExitCode=$null}
+    }
+
+    return [pscustomobject]@{
+        Service=$Service
+        Exists=$true
+        Inspectable=$true
+        Running=[bool]$state.Running
+        Status=[string]$state.Status
+        ExitCode=[int]$state.ExitCode
+    }
 }
 
 function Get-SqlScalar([string]$Query) {
@@ -336,7 +370,34 @@ function Start-Nodes([switch]$Build) {
     $args = @('up','-d')
     if ($Build) { $args += '--build' } else { $args += '--no-build' }
     $args += @('jornada-node1','jornada-node2')
-    Invoke-Compose -ComposeArgs $args -Context 'subida de NODE1/NODE2'
+    Push-Location $Root
+    try{
+        Write-CommandLine 'docker' (@('compose','--env-file',$EnvFile) + $args)
+        & docker compose --env-file $EnvFile @args
+        $nodeComposeExitCode=$LASTEXITCODE
+    }
+    finally{Pop-Location}
+
+    if($nodeComposeExitCode -ne 0){
+        # Docker Desktop/Compose no Windows pode devolver um exit code não-zero depois
+        # de já ter iniciado os serviços dependentes e os dois nós. Nessa situação o
+        # estado real dos containers + readiness HTTP são gates mais fortes que o
+        # código do wrapper. Não ignorar falha real: todos os serviços abaixo precisam
+        # existir, ser inspecionáveis e estar Running antes de continuar.
+        $requiredStates=@(
+            Get-ComposeServiceRuntimeState 'jornada-nas'
+            Get-ComposeServiceRuntimeState 'jornada-node1'
+            Get-ComposeServiceRuntimeState 'jornada-node2'
+        )
+        $invalid=@($requiredStates | Where-Object { -not $_.Exists -or -not $_.Inspectable -or -not $_.Running -or $_.Status -ne 'running' })
+        if($invalid.Count -gt 0){
+            Show-ComposeFailureDiagnostics -Context 'subida de NODE1/NODE2'
+            $stateSummary=($requiredStates | ForEach-Object { "$($_.Service)=$($_.Status)/running=$($_.Running)/exit=$($_.ExitCode)" }) -join '; '
+            throw "Subida de NODE1/NODE2 falhou (compose=$nodeComposeExitCode; $stateSummary)."
+        }
+        $stateSummary=($requiredStates | ForEach-Object { "$($_.Service)=$($_.Status)" }) -join '; '
+        Write-Host "docker compose retornou $nodeComposeExitCode após iniciar os serviços ($stateSummary); continuando para o gate de readiness HTTP." -ForegroundColor Yellow
+    }
 
     Write-Host ''
     Write-Host 'Etapa cluster 4/6: aguardando readiness dos nós...' -ForegroundColor Cyan
