@@ -57,15 +57,28 @@ def declared_db(path):
     return values[-1] if values else "JornadaLocal"
 
 
-def execute(job, allow_reset=False, dry_run=False):
+def execute(job, allow_reset=False, dry_run=False, runtime_mode="HML",
+            confirm_production_reset=False):
+    runtime_mode = str(runtime_mode).upper()
+    if runtime_mode not in ("DEV", "HML", "PROD"):
+        raise ValueError("Modo invalido; use DEV, HML ou PROD.")
     if dry_run:
         safe = {k: v for k, v in job.items() if k not in ("bash_args", "ps_args")}
         safe["authorized"] = allow_reset
+        safe["runtimeMode"] = runtime_mode
+        safe["productionResetConfirmed"] = confirm_production_reset
         print(json.dumps(safe, ensure_ascii=False))
         return 0
     if job["destructive"] and not allow_reset:
         raise ValueError("Exige --allow-reset; nenhum banco foi alterado.")
+    if job["destructive"] and runtime_mode == "PROD" and not confirm_production_reset:
+        raise ValueError("PROD exige --confirm-production-reset alem de --allow-reset.")
     env = dict(os.environ)
+    env["JORNADA_RUNTIME_MODE"] = runtime_mode
+    if confirm_production_reset:
+        env["JORNADA_CONFIRM_PRODUCTION_RESET"] = "1"
+    else:
+        env.pop("JORNADA_CONFIRM_PRODUCTION_RESET", None)
     db = job["database"]
     if job["shell"] == "bash":
         binary = shutil.which("bash")
@@ -88,7 +101,7 @@ def execute(job, allow_reset=False, dry_run=False):
     target_script = Path(argv[1] if job["shell"] == "bash" else argv[5])
     if not target_script.is_file():
         raise ValueError("Script especializado ausente: " + target_script.name)
-    print(f"DT11: {job['profile']} -> {db}; {job['operation']}; sem reset de outros perfis.", flush=True)
+    print(f"DT11: modo={runtime_mode}; {job['profile']} -> {db}; {job['operation']}; sem reset de outros perfis.", flush=True)
     return subprocess.run(argv, cwd=ROOT, env=env, check=False).returncode
 
 
@@ -96,14 +109,22 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", required=True, choices=tuple(DBS))
     parser.add_argument("--shell", choices=("auto", "bash", "powershell"), default="auto")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--dev", action="store_true", help="modo DEV; habilita capacidades sinteticas adicionais")
+    mode.add_argument("--prod", action="store_true", help="modo PROD; aplica guardas adicionais")
     parser.add_argument("--allow-reset", action="store_true")
+    parser.add_argument("--confirm-production-reset", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("operation", choices=("db", *OPERATIONS))
     parser.add_argument("action", nargs="?")
     args = parser.parse_args(argv)
     try:
+        runtime_mode = "DEV" if args.dev else "PROD" if args.prod else "HML"
+        if args.confirm_production_reset and runtime_mode != "PROD":
+            raise ValueError("--confirm-production-reset so e valido com --prod.")
         return execute(plan(args.profile, args.operation, args.action, args.shell),
-                       args.allow_reset, args.dry_run)
+                       args.allow_reset, args.dry_run, runtime_mode,
+                       args.confirm_production_reset)
     except ValueError as exc:
         print("DT11: ERRO:", exc, file=sys.stderr)
         return 2
