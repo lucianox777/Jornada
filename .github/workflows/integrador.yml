@@ -3,25 +3,25 @@ name: apoio-secretarias
 on:
   push:
     paths:
-      - 'ApoioSecretarias/**'
+      - 'Solution/ApoioSecretarias/**'
       - 'Solution/config/governance/schema-approvals.json'
       - 'Solution/config/contracts/**'
       - 'Solution/config/gestores/**'
       - 'Solution/Jornada.sln'
       - 'Solution/src/**/*.csproj'
-      - 'Solution/tests/Jornada.Integrador.Tests/**'
+      - 'Solution/ApoioSecretarias/tests/Jornada.Integrador.Tests/**'
       - 'Solution/database/migrations/20260921_Pessoa_V5_Contrato_371.sql'
       - 'Solution/install/windows-production/**'
       - '.github/workflows/integrador.yml'
   pull_request:
     paths:
-      - 'ApoioSecretarias/**'
+      - 'Solution/ApoioSecretarias/**'
       - 'Solution/config/governance/schema-approvals.json'
       - 'Solution/config/contracts/**'
       - 'Solution/config/gestores/**'
       - 'Solution/Jornada.sln'
       - 'Solution/src/**/*.csproj'
-      - 'Solution/tests/Jornada.Integrador.Tests/**'
+      - 'Solution/ApoioSecretarias/tests/Jornada.Integrador.Tests/**'
       - 'Solution/database/migrations/20260921_Pessoa_V5_Contrato_371.sql'
       - 'Solution/install/windows-production/**'
       - '.github/workflows/integrador.yml'
@@ -36,7 +36,7 @@ jobs:
     timeout-minutes: 15
     defaults:
       run:
-        working-directory: ApoioSecretarias
+        working-directory: Solution/ApoioSecretarias
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
