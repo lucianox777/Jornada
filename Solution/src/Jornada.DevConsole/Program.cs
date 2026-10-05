@@ -30,13 +30,37 @@ app.MapGet("/api/version",(HttpResponse response,ConsoleRuntimeMode runtime)=>{
     });
 });
 
-app.MapGet("/api/commands",(HttpResponse response,ConsoleRuntimeMode runtime)=>{
+app.MapGet("/api/commands",async(HttpResponse response,ConsoleRuntimeMode runtime,RunStore store,CancellationToken ct)=>{
     response.Headers.CacheControl="no-store";
-    return Results.Ok(CommandCatalog.All.Where(x=>x.Visible).Select(x=>new{
-        x.Id,x.Title,x.Description,x.Implemented,x.CommandLine,x.DisplayCommand,x.Dependencies,x.DependencyNote,x.Surface,x.Stage,
-        destructive=x.Destructive,
-        disabled=runtime.IsDisabled(x),
-        disabledReason=runtime.DisabledReason(x)
+    var counts=await store.CountByCommandAsync(ct);
+    var latest=await store.LatestByCommandAsync(ct);
+
+    string ExecutionState(CommandDefinition command)
+    {
+        if(!latest.TryGetValue(command.Id,out var last))return "PENDENTE";
+        if(!string.Equals(last.Status,"SUCESSO",StringComparison.Ordinal))return "FALHA";
+        foreach(var dependency in command.Dependencies)
+            if(latest.TryGetValue(dependency,out var dependencyRun)
+               &&string.Equals(dependencyRun.Status,"SUCESSO",StringComparison.Ordinal)
+               &&dependencyRun.FinishedAt>last.FinishedAt)
+                return "DESATUALIZADO";
+        return "PRONTO";
+    }
+
+    return Results.Ok(CommandCatalog.All.Where(x=>x.Visible).Select(x=>{
+        latest.TryGetValue(x.Id,out var last);
+        return new{
+            x.Id,x.Title,x.Description,x.Implemented,x.CommandLine,x.DisplayCommand,x.Dependencies,x.DependencyNote,x.Surface,x.Stage,
+            destructive=x.Destructive,
+            disabled=runtime.IsDisabled(x),
+            disabledReason=runtime.DisabledReason(x),
+            executionCount=counts.GetValueOrDefault(x.Id),
+            executionState=ExecutionState(x),
+            lastStatus=last?.Status,
+            lastStartedAt=last?.StartedAt,
+            lastFinishedAt=last?.FinishedAt,
+            lastExecutionNumber=last?.ExecutionNumber??0
+        };
     }));
 });
 
@@ -51,8 +75,8 @@ app.MapPost("/api/commands/{command}/start",static(string command,[FromServices]
     if(definition is null)return Results.NotFound();
     if(runtime.IsDisabled(definition))
         return Results.Conflict(new{error=runtime.DisabledReason(definition),mode=runtime.Mode});
-    var id=live.StartCommand(definition);
-    return Results.Accepted($"/api/runs/{id}",new{id});
+    var started=live.StartCommand(definition);
+    return Results.Accepted($"/api/runs/{started.Id}",started);
 });
 
 app.MapGet("/api/zip/template",async(GoldZipTemplateService service,CancellationToken ct)=>{
@@ -98,8 +122,8 @@ app.MapPut("/api/config/active/file",async(ActiveConfigSaveRequest request,Activ
 });
 
 app.MapPost("/api/zip/manual/start",static([FromBody] ManualZipRequest request,[FromServices] LiveExecutionService live)=>{
-    var id=live.StartManualZip(request);
-    return Results.Accepted($"/api/runs/{id}",new{id});
+    var started=live.StartManualZip(request);
+    return Results.Accepted($"/api/runs/{started.Id}",started);
 });
 
 app.MapGet("/api/runs/{id:guid}/stream",async(Guid id,HttpResponse response,LiveExecutionService live,CancellationToken ct)=>{

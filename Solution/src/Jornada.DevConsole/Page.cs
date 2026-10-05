@@ -25,6 +25,7 @@ main{max-width:1180px;margin:0 auto;padding:22px}
 .command-head{display:flex;justify-content:space-between;gap:16px;align-items:center}
 .command-title{font-weight:700;font-size:16px}
 .command-desc{margin:6px 0;color:#45515e}
+.run-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}.exec-badge,.state-badge{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:999px;padding:3px 8px}.exec-badge{background:#edf2f7;color:#425466}.state-badge{font-weight:700}.state-badge.PRONTO{background:#e7f6ec;color:#1f6b3b}.state-badge.PENDENTE{background:#eef1f4;color:#66717d}.state-badge.DESATUALIZADO{background:#fff4d6;color:#795900}.state-badge.FALHA{background:#fde9e7;color:#9b241c}
 .command-line{display:block;color:#6b7580;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.dependency{margin-top:8px;padding:8px 10px;border-left:3px solid #d69b22;background:#fff8e6;color:#5f4a15;font-size:13px}.dependency code{font-size:12px}.dep-note{display:block;margin-top:3px;color:#746434}
 .command-actions{display:flex;gap:10px;align-items:center;white-space:nowrap}
 .primary{background:#1463d7;color:#fff;border:1px solid #1463d7;border-radius:7px;padding:8px 13px}
@@ -85,8 +86,8 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   <section id="homeView">
     <div class="hero">
       <h2>Fluxo do dado</h2>
-      <p>A Console acompanha a mesma jornada da aplicação: infraestrutura → ingestão → Bronze → Silver → identidade/Linkage → Gold/Serving → encerramento.</p>
-      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. A Entrega permanece na Bronze até você acionar explicitamente <b>Processar Bronze → Silver</b>. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional.</div>
+      <p>A Console acompanha a mesma jornada da aplicação: preparação do ambiente em etapas independentes → ingestão → Bronze → Silver → identidade/Linkage → Gold/Serving → encerramento.</p>
+      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. A Entrega permanece na Bronze até você acionar explicitamente <b>Processar Bronze → Silver</b>. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional. Cada etapa mantém sua própria sequência de execução e pode ser repetida sem reiniciar as anteriores.</div>
     </div>
     <div id="commands">Carregando...</div>
   </section>
@@ -301,7 +302,9 @@ async function showHistory(){
     historyList.innerHTML=runs.length?runs.map(r=>{
       const statusClass=String(r.status).replaceAll(' ','-');
       const started=r.startedAt?new Date(r.startedAt).toLocaleString():'data indisponível';
-      return '<div class="history-item"><div><a href="#" onclick="openHistoryRun(\''+r.id+'\');return false"><span class="history-title">'+esc(r.title||r.command||'Execução')+'</span></a><div class="history-meta">'+esc(started)+' · '+esc(r.summary||'')+'</div></div><div class="history-status '+esc(statusClass)+'">'+esc(r.status||'')+'</div></div>'
+      const number=Number(r.executionNumber||0)>0?' #'+r.executionNumber:'';
+      const child=r.parentRunId?'↳ ':'';
+      return '<div class="history-item"><div><a href="#" onclick="openHistoryRun(\''+r.id+'\');return false"><span class="history-title">'+child+esc(r.title||r.command||'Execução')+esc(number)+'</span></a><div class="history-meta">'+esc(started)+' · '+esc(r.summary||'')+'</div></div><div class="history-status '+esc(statusClass)+'">'+esc(r.status||'')+'</div></div>'
     }).join(''):'Nenhuma execução registrada.';
   }catch(e){
     const detail=e.name==='AbortError'?'A API de histórico excedeu 7 segundos. Reinicie a Console DEV e tente novamente.':e.message;
@@ -326,6 +329,14 @@ async function loadCommands(surface='flow'){
 
   const renderCard=c=>{
     const deps=(c.dependencies||[]).map(id=>titleById[id]||id);
+    const executionCount=Number(c.executionCount||0);
+    const lastNumber=Number(c.lastExecutionNumber||0);
+    const executionLabel=executionCount>0
+      ?'execução #'+(lastNumber||executionCount)+' · próxima #'+(executionCount+1)
+      :'próxima execução #1';
+    const state=String(c.executionState||'PENDENTE').toUpperCase();
+    const lastTime=c.lastFinishedAt?new Date(c.lastFinishedAt).toLocaleString():'';
+    const runMeta='<div class="run-meta"><span class="exec-badge">'+esc(executionLabel)+'</span><span class="state-badge '+esc(state)+'">'+esc(state)+'</span>'+(lastTime?'<span class="small">última conclusão: '+esc(lastTime)+'</span>':'')+'</div>';
     const dependency=deps.length||c.dependencyNote
       ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
       :'';
@@ -360,9 +371,10 @@ async function loadCommands(surface='flow'){
     }else{
       const buttonClass=c.id==='finish'||c.destructive?'danger':'primary';
       const disabled=c.disabled?' disabled aria-disabled="true" title="'+esc(c.disabledReason||'Operação indisponível')+'"':'';
-      actions='<button class="'+buttonClass+'" type="button"'+disabled+' onclick="startCommand(\''+c.id+'\')">Executar</button>';
+      const label=c.id==='infrastructure'?'Executar sequência completa':'Executar';
+      actions='<button class="'+buttonClass+'" type="button"'+disabled+' onclick="startCommand(\''+c.id+'\')">'+label+'</button>';
     }
-    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions">'+actions+'</div></div></div>';
+    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div>'+runMeta+'<small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions">'+actions+'</div></div></div>';
   };
 
   target.innerHTML=groups.map(g=>{
@@ -380,7 +392,8 @@ async function startCommand(id,titleOverride){
     return;
   }
   const response=await api('/api/commands/'+encodeURIComponent(id)+'/start',{method:'POST'});
-  openLiveRun(response.id,titleOverride||command?.title||id,id);
+  const title=titleOverride||command?.title||id;
+  openLiveRun(response.id,title+' #'+response.executionNumber,id);
 }
 
 async function openLayerDialog(kind){
@@ -677,7 +690,7 @@ async function startZip(){
   zipDialog.close();
   const payload={gestor:zipGestor.value,manifestJson:zipManifest.value,pessoasJsonl:zipPessoas.value,registrosJsonl:zipRegistros.value};
   const response=await api('/api/zip/manual/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  openLiveRun(response.id,'Gerar e enviar ZIP de ingestão','zip');
+  openLiveRun(response.id,'Gerar e enviar ZIP de ingestão #'+response.executionNumber,'zip');
 }
 
 function resetConsole(title){
@@ -739,7 +752,7 @@ async function finishConsole(id){
 function renderFinal(run){
   currentRunId=run.id;
   currentCommandId=run.command;
-  consoleTitle.textContent=run.title;
+  consoleTitle.textContent=run.title+(Number(run.executionNumber||0)>0?' #'+run.executionNumber:'');
   const cls=run.status==='SUCESSO'?'success':run.status==='FALHA'?'failure':'running';
   consoleStatus.textContent=run.status;
   consoleStatus.className='status '+cls;
@@ -773,8 +786,9 @@ async function rerun(){
 async function openHistoryRun(id){
   const run=await api('/api/runs/'+id);
   if(eventSource){eventSource.close();eventSource=null}
-  resetConsole(run.title);
-  switchView(consoleView,'Execução / '+run.title);
+  const historyTitle=run.title+(Number(run.executionNumber||0)>0?' #'+run.executionNumber:'');
+  resetConsole(historyTitle);
+  switchView(consoleView,'Execução / '+historyTitle);
   appendConsole({at:run.startedAt,stream:'command',text:'> '+run.step.command});
   for(const line of String(run.step.output||'').split(/\r?\n/))if(line)appendConsole({at:run.startedAt,stream:'stdout',text:line});
   for(const line of String(run.step.error||'').split(/\r?\n/))if(line)appendConsole({at:run.finishedAt,stream:'stderr',text:line});

@@ -1,5 +1,5 @@
 ﻿param(
-    [ValidateSet('up','reset','down','clean','status','logs','blocking','blocking-refresh','calibrate','linkage','linkage-diagnose')]
+    [ValidateSet('up','base','reference','synthetic-identities','nodes','reset','down','clean','status','logs','blocking','blocking-refresh','calibrate','linkage','linkage-diagnose')]
     [string]$Action = 'up',
     [switch]$NoBuild,
     [string]$EnvFile,
@@ -360,9 +360,27 @@ function Show-Endpoints {
     Write-Host '    docker compose --env-file .env exec -T jornada-node2 dotnet /opt/jornada/clients/Jornada.Integrador/Jornada.Integrador.CSharp.dll --help'
 }
 
-function Start-Nodes([switch]$Build) {
+function Ensure-BaseInfrastructure([switch]$Build) {
     Write-Host ''
-    Write-Host 'Etapa cluster 1/6: materializando/validando a referência IBGE...' -ForegroundColor Cyan
+    Write-Host 'Preparando banco, schema e NAS...' -ForegroundColor Cyan
+    Write-CommandLine $LocalDb @('-Action','up','-EnvFile',$EnvFile,'-RuntimeMode',$RuntimeMode)
+    & $LocalDb -Action up -EnvFile $EnvFile -RuntimeMode $RuntimeMode
+    if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }
+
+    $nasArgs=@('up','-d')
+    if($Build){$nasArgs+='--build'}else{$nasArgs+='--no-build'}
+    $nasArgs+='jornada-nas'
+    Invoke-Compose -ComposeArgs $nasArgs -Context 'subida do NAS local'
+    $nasState=Get-ComposeServiceRuntimeState 'jornada-nas'
+    if(-not $nasState.Exists -or -not $nasState.Running){
+        throw "NAS local não ficou em execução após o bootstrap base (status=$($nasState.Status))."
+    }
+    Write-Host "Banco/schema e NAS prontos para o modo $RuntimeMode." -ForegroundColor Green
+}
+
+function Ensure-ReferenceBootstrap([switch]$Build) {
+    Write-Host ''
+    Write-Host 'Materializando/validando a referência IBGE...' -ForegroundColor Cyan
     Write-Host 'Esta é a etapa mais longa na primeira execução. A Console continuará emitindo sinais de atividade enquanto ela roda.'
     $bootstrapArgs=@('up')
     if($Build){$bootstrapArgs+='--build'}else{$bootstrapArgs+='--no-build'}
@@ -371,9 +389,8 @@ function Start-Nodes([switch]$Build) {
     $composeExitCode=$LASTEXITCODE
 
     # O serviço de referência é um init one-shot. Algumas versões do Docker
-    # Compose/Desktop podem devolver exit 1 para o comando `compose up` mesmo
-    # quando o container do init terminou corretamente com exit 0. O gate real
-    # desta etapa é o estado do container, não o código do wrapper Compose.
+    # Compose/Desktop podem devolver exit 1 para o comando compose up mesmo
+    # quando o container do init terminou corretamente com exit 0.
     $bootstrapId=(& docker compose --env-file $EnvFile ps -aq jornada-reference-bootstrap | Out-String).Trim()
     if([string]::IsNullOrWhiteSpace($bootstrapId)){
         Show-ComposeFailureDiagnostics -Context 'bootstrap da referência IBGE sem container'
@@ -401,13 +418,11 @@ function Start-Nodes([switch]$Build) {
     }
     if($composeExitCode -ne 0){Write-Host "docker compose retornou $composeExitCode, mas o init one-shot terminou com exit 0; retorno do wrapper ignorado." -ForegroundColor Yellow}
     Write-Host 'Referência IBGE concluída (jornada-reference-bootstrap = exit 0).' -ForegroundColor Green
+}
 
+function Start-ApplicationNodes([switch]$Build) {
     Write-Host ''
-    Write-Host 'Etapa cluster 2/6: substituindo nomes-placeholder por identidades sintéticas plausíveis...' -ForegroundColor Cyan
-    Ensure-SyntheticIbgeIdentityText
-
-    Write-Host ''
-    Write-Host 'Etapa cluster 3/6: iniciando NODE1/NODE2 e NAS...' -ForegroundColor Cyan
+    Write-Host 'Iniciando NODE1/NODE2 e validando readiness...' -ForegroundColor Cyan
     $args = @('up','-d')
     if ($Build) { $args += '--build' } else { $args += '--no-build' }
     $args += @('jornada-node1','jornada-node2')
@@ -420,11 +435,6 @@ function Start-Nodes([switch]$Build) {
     finally{Pop-Location}
 
     if($nodeComposeExitCode -ne 0){
-        # Docker Desktop/Compose no Windows pode devolver um exit code não-zero depois
-        # de já ter iniciado os serviços dependentes e os dois nós. Nessa situação o
-        # estado real dos containers + readiness HTTP são gates mais fortes que o
-        # código do wrapper. Não ignorar falha real: todos os serviços abaixo precisam
-        # existir, ser inspecionáveis e estar Running antes de continuar.
         $requiredStates=@(
             Get-ComposeServiceRuntimeState 'jornada-nas'
             Get-ComposeServiceRuntimeState 'jornada-node1'
@@ -440,8 +450,6 @@ function Start-Nodes([switch]$Build) {
         Write-Host "docker compose retornou $nodeComposeExitCode após iniciar os serviços ($stateSummary); continuando para o gate de readiness HTTP." -ForegroundColor Yellow
     }
 
-    Write-Host ''
-    Write-Host 'Etapa cluster 4/6: aguardando readiness dos nós...' -ForegroundColor Cyan
     Wait-NodeReady 'jornada-node1' 'http://127.0.0.1:5080/health/ready'
     Wait-NodeReady 'jornada-node2' 'http://127.0.0.1:5180/health/ready'
 
@@ -449,13 +457,16 @@ function Start-Nodes([switch]$Build) {
     Write-Host 'Garantindo fixtures Bronze físicas referenciadas pelo seed SQL...' -ForegroundColor Cyan
     Ensure-CanonicalSeedBronzeObjects
 
-    Write-Host ''
-    Write-Host 'Etapa cluster 5/6: reconstruindo/verificando blocking local...' -ForegroundColor Cyan
-    Ensure-LocalBlockingProjection
-
-    Write-Host ''
-    Write-Host 'Etapa cluster 6/6: publicando endpoints e resumo do ambiente...' -ForegroundColor Cyan
     Show-Endpoints
+}
+
+function Start-Nodes([switch]$Build) {
+    # Compatibilidade do comando local-cluster up: preserva o bootstrap histórico,
+    # agora composto pelas mesmas partes que a Console pode executar isoladamente.
+    Ensure-ReferenceBootstrap -Build:$Build
+    Ensure-SyntheticIbgeIdentityText
+    Start-ApplicationNodes
+    Ensure-LocalBlockingProjection
 }
 
 function Invoke-Calibration {
@@ -692,11 +703,13 @@ FROM truth;
 
 switch ($Action) {
     'up' {
-        Write-CommandLine $LocalDb @('-Action','up','-EnvFile',$EnvFile,'-RuntimeMode',$RuntimeMode)
-        & $LocalDb -Action up -EnvFile $EnvFile -RuntimeMode $RuntimeMode
-        if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }
+        Ensure-BaseInfrastructure -Build:(-not $NoBuild)
         Start-Nodes -Build:(-not $NoBuild)
     }
+    'base' { Ensure-BaseInfrastructure -Build:(-not $NoBuild) }
+    'reference' { Ensure-ReferenceBootstrap -Build:(-not $NoBuild) }
+    'synthetic-identities' { Ensure-SyntheticIbgeIdentityText }
+    'nodes' { Start-ApplicationNodes -Build:(-not $NoBuild) }
     'reset' {
         if($RuntimeMode -eq 'PROD' -and -not $ConfirmProductionReset){
             throw "Reset bloqueado em PROD. Use -ConfirmProductionReset no comando explícito."

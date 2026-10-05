@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('system-status','reference-check','bronze-verify','bronze-verify-latest','ingest-latest','pipeline-status','process-latest','blocking','calibrate-initial','calibrate','linkage','replay-latest','report')]
+    [ValidateSet('system-status','reference-check','bronze-verify','bronze-verify-latest','ingest-latest','pipeline-status','process-latest','blocking','bootstrap-corpus','calibrate-initial','calibrate','linkage','replay-latest','report')]
     [string]$Action,
     [string]$ZipPath
 )
@@ -123,6 +123,39 @@ function Get-DevCredential([string]$Gestor,[string]$RequiredScope){
     } | Select-Object -First 1)
     if($credential.Count -ne 1){throw "Credencial DEV GESTOR $Gestor sem scope $RequiredScope."}
     return $credential[0]
+}
+
+function Ensure-BootstrapCorpus {
+    Ensure-ClusterRunning
+    $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
+    $placeholderCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM gold.pessoa g WHERE g.nome_completo LIKE N'Pessoa Teste %' AND EXISTS(SELECT 1 FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.pessoa_uuid=g.pessoa_uuid AND vc.status=N'RESOLVIDO');")
+    $goldProfile=Join-Path $OutDir 'gold-synthetic-profile.json'
+    if($goldCount -ne 30000 -or $placeholderCount -gt 0 -or -not(Test-Path $goldProfile)){
+        Write-Host "Materializando a Gold sintética canônica de 30.000 pessoas; gold=$goldCount placeholders=$placeholderCount perfil=$([bool](Test-Path $goldProfile))..."
+        & (Join-Path $PSScriptRoot 'dev-console-gold-synthetic.ps1')
+        if($LASTEXITCODE -ne 0){throw "Carga da Gold sintética falhou ($LASTEXITCODE)."}
+        $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
+        $placeholderCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM gold.pessoa g WHERE g.nome_completo LIKE N'Pessoa Teste %' AND EXISTS(SELECT 1 FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.pessoa_uuid=g.pessoa_uuid AND vc.status=N'RESOLVIDO');")
+    }else{
+        Write-Host 'Corpus sintético canônico já está materializado; preservando a Gold corrente.'
+    }
+    if($goldCount -ne 30000){throw "Corpus de calibração exige 30.000 pessoas Gold sintéticas; atual=$goldCount."}
+    if($placeholderCount -ne 0){throw "Corpus de calibração ainda contém $placeholderCount nomes-placeholder após materialização."}
+
+    $pending=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-PEND-%' AND NOT EXISTS(SELECT 1 FROM identidade.v_vinculo_corrente vc WHERE vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO');")
+    $result=[ordered]@{
+        generatedAt=(Get-Date).ToUniversalTime().ToString('o')
+        runtimeMode=$RuntimeMode
+        database=$db
+        goldPeople=$goldCount
+        pendingAdditional=$pending
+        profile=$goldProfile
+    }
+    $resultPath=Join-Path $OutDir 'bootstrap-corpus.json'
+    [IO.File]::WriteAllText($resultPath,($result|ConvertTo-Json -Depth 6),[Text.UTF8Encoding]::new($false))
+    Write-Host "Corpus de calibração pronto: Gold=$goldCount; adicionais pendentes=$pending."
+    Write-Host "ARTEFATO: $resultPath"
+    return $goldCount
 }
 
 switch($Action){
@@ -358,6 +391,10 @@ switch($Action){
 
     'blocking' { Invoke-ClusterAction 'blocking' }
 
+    'bootstrap-corpus' {
+        $null=Ensure-BootstrapCorpus
+    }
+
     'calibrate-initial' {
         Ensure-ClusterRunning
         $eligible="status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO'"
@@ -366,17 +403,8 @@ switch($Action){
         $reused=($activeCount -eq 1)
 
         if(-not $reused){
-            $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
-            $goldProfile=Join-Path $OutDir 'gold-synthetic-profile.json'
-            if($goldCount -ne 30000 -or -not(Test-Path $goldProfile)){
-                Write-Host "Modelo BOOTSTRAP ainda não existe. Materializando a Gold sintética canônica de 30.000 pessoas antes da calibração..."
-                & (Join-Path $PSScriptRoot 'dev-console-gold-synthetic.ps1')
-                if($LASTEXITCODE -ne 0){throw "Carga da Gold sintética falhou ($LASTEXITCODE)."}
-                $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
-            }
-            if($goldCount -ne 30000){throw "Modelo BOOTSTRAP exige a Gold sintética completa de 30.000 pessoas; atual=$goldCount."}
-
-            Write-Host "Gerando o modelo BOOTSTRAP inicial a partir da referência IBGE + Gold sintética DEV ($goldCount pessoas)..."
+            $goldCount=[int64](Ensure-BootstrapCorpus)
+            Write-Host "Gerando o modelo BOOTSTRAP inicial a partir da referência IBGE + Gold sintética ($goldCount pessoas)..."
             Invoke-ClusterAction 'calibrate'
             $activeCount=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE $eligible;")
             if($activeCount -ne 1){throw "Calibração inicial deveria deixar exatamente 1 modelo BOOTSTRAP ATIVO; atual=$activeCount."}
@@ -434,7 +462,7 @@ switch($Action){
         Ensure-ClusterRunning
         $eligibleActive=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO';")
         if($eligibleActive -ne 1){
-            throw "Executar linkage exige exatamente 1 modelo ATIVO; atual=$eligibleActive. A subida da infraestrutura deve garantir o BOOTSTRAP inicial (IBGE + corpus sintético). Execute novamente 'Subir infraestrutura, referências e bootstrap' para reparar/confirmar o estado. O seed fixo não libera linkage."
+            throw "Executar linkage exige exatamente 1 modelo ATIVO; atual=$eligibleActive. A subida da infraestrutura deve garantir o BOOTSTRAP inicial (IBGE + corpus sintético). Execute novamente 'Preparar ambiente completo' para reparar/confirmar o estado. O seed fixo não libera linkage."
         }
 
         $lastIngestion=Join-Path $OutDir 'last-ingestion.json'

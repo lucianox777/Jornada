@@ -7,9 +7,11 @@ sealed record CommandDefinition(string Id,string Title,string Description,string
 {
     public bool Visible{get;init;}=true;
     public bool Destructive{get;init;}
+    public string[] CompositeSteps{get;init;}=[];
     public string Surface{get;init;}="flow";
     public string Stage{get;init;}="";
-    public bool Implemented=>File is not null||Id is "zip" or "semiblind" or "configuration" or "bronze" or "silver" or "linkage" or "gold";
+    public bool IsComposite=>CompositeSteps.Length>0;
+    public bool Implemented=>IsComposite||File is not null||Id is "zip" or "semiblind" or "configuration" or "bronze" or "silver" or "linkage" or "gold";
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
     public string DisplayCommand=>Id switch{
         "zip"=>"Entrada manual → build-ingestion-fixture.py → POST /api/v1/ingestao/entregas",
@@ -19,14 +21,16 @@ sealed record CommandDefinition(string Id,string Title,string Description,string
         "silver"=>"Jornada.Processor.Worker · Bronze → Silver em execução one-shot controlada pela Console DEV",
         "linkage"=>"Jornada.Linkage.Runner · resolução probabilística one-shot da última entrega",
         "gold"=>"gold.pessoa · estado publicado após Processor/Linkage",
+        "infrastructure"=>"Orquestra 7 etapas independentes e reentrantes de preparação do ambiente",
         _=>CommandLine??"Operação parametrizada pela interface."
     };
 }
 
 sealed record StepResult(string Command,string WorkingDirectory,int ExitCode,long DurationMs,string Output,string Error,string? ResultPath,IReadOnlyList<string>? Artifacts=null);
 sealed record ManualZipRequest(string Gestor,string ManifestJson,string PessoasJsonl,string RegistrosJsonl);
-sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records);
-sealed record RunSummary(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary);
+sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,StepResult Step,IReadOnlyList<Dictionary<string,string?>> Records,int ExecutionNumber=0,Guid? ParentRunId=null);
+sealed record RunSummary(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,int ExecutionNumber=0,Guid? ParentRunId=null);
+sealed record StartedExecution(Guid Id,int ExecutionNumber);
 sealed record ConsoleEvent(long Seq,DateTimeOffset At,string Stream,string Text);
 
 static class DevConsoleJson
@@ -61,9 +65,23 @@ static class CommandCatalog
     // diagnósticos e ensaios ficam em uma superfície separada para não esconder as
     // transições Bronze → Silver → Identidade/Linkage → Gold.
     public static readonly CommandDefinition[] All=[
-        new("infrastructure","Subir infraestrutura, referências e bootstrap","Prepara o ambiente configurado: Docker, SQL Server, schema, NAS, referência IBGE, NODE1/NODE2, modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action up",null,[],null)
-            {Stage="1 · Infraestrutura"},
-        new("zip","Ingestão","Cria e envia uma nova Entrega pela API. No modo didático da Console DEV, o Processor residente fica suspenso: o ZIP permanece na Bronze até a etapa Silver ser executada explicitamente.",null,null,null,["infrastructure"],"A infraestrutura gera o bundle exigido pela ingestão. Depois de enviar, confira a Bronze antes de processar.")
+        new("infrastructure","Preparar ambiente completo","Executa em sequência as sete etapas reentrantes: banco/serviços, referência IBGE, nós, corpus de calibração, blocking, modelo inicial e finalização.",null,null,null,[],null)
+            {Stage="1 · Preparação do ambiente",CompositeSteps=["infra-base","infra-reference","infra-nodes","infra-corpus","infra-blocking","infra-model","infra-finalize"]},
+        new("infra-base","Banco e serviços básicos","Prepara Docker, SQL Server, schema canônico e NAS sem executar referência, nós, blocking ou calibração.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action base",null,[],null)
+            {Stage="1.1 · Banco e serviços básicos"},
+        new("infra-reference","Referência IBGE","Materializa ou valida o snapshot nominal IBGE canônico. Na primeira execução esta costuma ser a etapa mais longa.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action reference",null,["infra-base"],"Requer SQL/schema e NAS prontos.")
+            {Stage="1.2 · Referência IBGE"},
+        new("infra-nodes","NODE1 / NODE2","Inicia NODE1/NODE2, valida readiness e garante os objetos Bronze canônicos usados pelo ambiente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action nodes",null,["infra-reference"],"Requer a referência IBGE materializada.")
+            {Stage="1.3 · NODE1 / NODE2"},
+        new("infra-corpus","Corpus de calibração","Materializa/valida a Gold sintética canônica de 30.000 pessoas. Em DEV preserva o corpus adicional configurado para publicação posterior.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action corpus",null,["infra-nodes"],"Requer os nós prontos e a referência nominal disponível.")
+            {Stage="1.4 · Corpus de calibração"},
+        new("infra-blocking","Blocking","Reconcilia integralmente a projeção física de blocking com o estado atual de Gold/Silver.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action blocking",null,["infra-corpus"],"Mudanças no corpus tornam esta etapa desatualizada.")
+            {Stage="1.5 · Blocking"},
+        new("infra-model","Modelo inicial","Garante um modelo BOOTSTRAP calibrado e ATIVO; em DEV também publica os registros adicionais pelo Linkage Runner real.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action model",null,["infra-blocking"],"A calibração revalida o blocking antes de publicar o modelo.")
+            {Stage="1.6 · Modelo inicial"},
+        new("infra-finalize","Finalização","Gera configuração inicial, bundle de contratos/configurações e registra o resumo final do ambiente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action finalize",null,["infra-model"],"Conclui os artefatos exigidos pela ingestão.")
+            {Stage="1.7 · Finalização"},
+        new("zip","Ingestão","Cria e envia uma nova Entrega pela API. No modo didático da Console DEV, o Processor residente fica suspenso: o ZIP permanece na Bronze até a etapa Silver ser executada explicitamente.",null,null,null,["infra-finalize"],"A finalização gera o bundle exigido pela ingestão. Depois de enviar, confira a Bronze antes de processar.")
             {Stage="2 · Ingestão"},
         new("bronze","Bronze","Mostra os metadados e a localização lógica do objeto recebido e permite verificar a integridade física da última Entrega com Jornada.Bronze.Verify.",null,null,null,["zip"],"A verificação confere objeto, SHA-256 e tamanho. Ela não processa nem altera a Entrega.")
             {Stage="3 · Bronze"},
@@ -76,28 +94,28 @@ static class CommandCatalog
         new("finish","Finalizar e destruir ambiente","Encerra o cluster e remove containers, volumes e órfãos locais. Em PROD a ação é bloqueada na interface.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action clean",null,[],null)
             {Stage="7 · Encerramento",Destructive=true},
 
-        new("system-status","Estado geral do sistema","Diagnóstico read-only consolidado de infraestrutura, SQL/schema, referência IBGE, modelo, componentes, Bronze e último linkage.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action system-status",null,["infrastructure"],"No modo didático, Processor residente ausente é esperado; o binário one-shot deve estar disponível.")
+        new("system-status","Estado geral do sistema","Diagnóstico read-only consolidado de infraestrutura, SQL/schema, referência IBGE, modelo, componentes, Bronze e último linkage.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action system-status",null,["infra-nodes"],"No modo didático, Processor residente ausente é esperado; o binário one-shot deve estar disponível.")
             {Surface="tools",Stage="Verificações"},
-        new("reference-check","Verificar referência IBGE","Executa o quick check da referência nominal IBGE sem recriar a infraestrutura.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action reference-check",null,["infrastructure"],null)
+        new("reference-check","Verificar referência IBGE","Executa o quick check da referência nominal IBGE sem recriar a infraestrutura.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action reference-check",null,["infra-reference"],null)
             {Surface="tools",Stage="Verificações"},
-        new("bronze-verify-all","Verificar Bronze completa","Executa Jornada.Bronze.Verify sobre todas as referências Bronze DISPONÍVEIS do ambiente atual.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action bronze-verify",null,["infrastructure"],"Para a Entrega corrente, use o botão Verificar integridade no cartão Bronze.")
+        new("bronze-verify-all","Verificar Bronze completa","Executa Jornada.Bronze.Verify sobre todas as referências Bronze DISPONÍVEIS do ambiente atual.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action bronze-verify",null,["infra-nodes"],"Para a Entrega corrente, use o botão Verificar integridade no cartão Bronze.")
             {Surface="tools",Stage="Verificações"},
-        new("semiblind","Consulta semicega","Consulta até cinco candidatos pela API real sem expor CPF, UUID ou score. O formulário usa uma pessoa sintética da Gold DEV como exemplo.",null,null,null,["infrastructure"],null)
+        new("semiblind","Consulta semicega","Consulta até cinco candidatos pela API real sem expor CPF, UUID ou score. O formulário usa uma pessoa sintética da Gold DEV como exemplo.",null,null,null,["infra-model"],null)
             {Surface="tools",Stage="Consultas"},
         new("configuration","Contratos e configurações","Administra contratos de ingestão e configurações ativas, preservando suas validações e persistências próprias.",null,null,null,[], "Configurações que exigem reinício continuam sinalizadas.")
             {Surface="tools",Stage="Administração"},
         new("reset-environment","Resetar ambiente","Recria o banco e o bootstrap do ambiente. Permitido em HML/DEV; em PROD fica desabilitado na interface e exige confirmação explícita na CLI.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action reset",null,[],null)
             {Surface="tools",Stage="Administração",Destructive=true},
-        new("calibration","Recalibrar e ativar","Executa novo ciclo GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE sobre a Gold DEV corrente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null,["infrastructure"],"Use apenas para criar deliberadamente uma nova versão de modelo.")
+        new("calibration","Recalibrar e ativar","Executa novo ciclo GENERATE_DRAFT → conferência → VALIDATE → ACTIVATE sobre a Gold DEV corrente.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action calibrate",null,["infra-corpus"],"Use apenas para criar deliberadamente uma nova versão de modelo.")
             {Surface="tools",Stage="Modelo e massa"},
-        new("gold-synthetic","Adicionar mais 5.000 registros","Expande a Gold sintética DEV em blocos de 5.000 e reconstrói blocking automaticamente.","pwsh","-NoProfile -File scripts/dev-console-gold-add.ps1 -AdditionalPeople 5000",".local/dev-console/gold-synthetic-add.json",["infrastructure"],null)
+        new("gold-synthetic","Adicionar mais 5.000 registros","Expande a Gold sintética DEV em blocos de 5.000 e reconstrói blocking automaticamente.","pwsh","-NoProfile -File scripts/dev-console-gold-add.ps1 -AdditionalPeople 5000",".local/dev-console/gold-synthetic-add.json",["infra-model"],null)
             {Surface="tools",Stage="Modelo e massa"},
 
-        new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["infrastructure"],"Ação auxiliar de Contratos e configurações."){Visible=false},
+        new("contract-bundle","Gerar bundle de contratos e configurações","Gera um ZIP operacional sem binários com OpenAPI, contratos JSON, configurações governadas e metadados do modelo ATIVO.","pwsh","-NoProfile -File scripts/dev-console-contract-bundle.ps1",".local/dev-console/contract-config-bundle.zip",["infra-model"],"Ação auxiliar de Contratos e configurações."){Visible=false},
         new("ingestion","Reenviar último ZIP para ingestão","Reenvia manualmente o último ZIP já gerado para a API real em NODE1 usando a credencial sintética DEV correspondente ao Gestor.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action ingest-latest",".local/dev-console/last-ingestion.json",["contract-bundle","zip"],"Ação auxiliar do cartão Ingestão."){Visible=false},
         new("pipeline-status","Ver status da última ingestão","Consulta o recibo da última Entrega sem acionar processamento.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action pipeline-status",".local/dev-console/last-ingestion-status.json",["zip"],"Ação auxiliar da Ingestão."){Visible=false},
         new("bronze-verify-latest","Verificar integridade da última Entrega","Executa Jornada.Bronze.Verify filtrado pelo entrega_id registrado pela Console DEV.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action bronze-verify-latest",".local/dev-console/last-bronze-verify.json",["zip"],"Ação auxiliar do cartão Bronze."){Visible=false},
-        new("blocking","Reconstruir blocking","Executa manualmente a reconstrução one-shot da projeção local de blocking.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["infrastructure"],"Ferramenta técnica."){Visible=false},
+        new("blocking","Reconstruir blocking","Executa manualmente a reconstrução one-shot da projeção local de blocking.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action blocking",null,["infra-corpus"],"Ferramenta técnica."){Visible=false},
         new("replay","Executar replay do último run","Executa REPLAY real do último linkage PUBLICADO elegível, sem publicar o resultado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action replay-latest",null,["linkage"],"Ação auxiliar do cartão Linkage."){Visible=false}
     ];
 }
@@ -270,22 +288,26 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
 
     public bool Contains(Guid id)=>active.ContainsKey(id);
 
-    public Guid StartCommand(CommandDefinition definition)
+    public StartedExecution StartCommand(CommandDefinition definition)
     {
         var id=Guid.NewGuid();
+        var executionNumber=store.ReserveExecutionNumber(definition.Id);
         var live=new LiveExecution(id);
         if(!active.TryAdd(id,live))throw new InvalidOperationException("Não foi possível registrar a execução.");
-        _=Task.Run(()=>RunCommandAsync(id,definition,live));
-        return id;
+        _=definition.IsComposite
+            ?Task.Run(()=>RunCompositeCommandAsync(id,definition,live,executionNumber))
+            :Task.Run(()=>RunCommandAsync(id,definition,live,executionNumber));
+        return new StartedExecution(id,executionNumber);
     }
 
-    public Guid StartManualZip(ManualZipRequest request)
+    public StartedExecution StartManualZip(ManualZipRequest request)
     {
         var id=Guid.NewGuid();
+        var executionNumber=store.ReserveExecutionNumber("zip");
         var live=new LiveExecution(id);
         if(!active.TryAdd(id,live))throw new InvalidOperationException("Não foi possível registrar a execução.");
-        _=Task.Run(()=>RunManualZipAsync(id,request,live));
-        return id;
+        _=Task.Run(()=>RunManualZipAsync(id,request,live,executionNumber));
+        return new StartedExecution(id,executionNumber);
     }
 
     public async Task StreamAsync(Guid id,HttpResponse response,CancellationToken ct)
@@ -307,11 +329,104 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         }
     }
 
-    async Task RunCommandAsync(Guid id,CommandDefinition definition,LiveExecution live)
+    async Task RunCompositeCommandAsync(Guid id,CommandDefinition definition,LiveExecution live,int executionNumber)
     {
         var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
         var started=DateTimeOffset.UtcNow;
-        live.Add("system",$"Execução {id:N}");
+        var sw=Stopwatch.StartNew();
+        var combinedOutput=new StringBuilder();
+        var combinedError=new StringBuilder();
+        var combinedArtifacts=new List<string>();
+
+        live.Add("system",$"Execução {definition.Title} #{executionNumber} · {id:N}");
+        live.Add("system",$"Diretório: {root}");
+        live.Add("command",$"> {definition.DisplayCommand}");
+        live.Add("system",$"Plano: {definition.CompositeSteps.Length} etapa(s) independente(s).");
+
+        foreach(var stepId in definition.CompositeSteps)
+        {
+            var child=CommandCatalog.All.FirstOrDefault(x=>x.Id.Equals(stepId,StringComparison.OrdinalIgnoreCase));
+            if(child is null||child.File is null)
+            {
+                sw.Stop();
+                var message=$"Etapa composta inválida ou sem executor: {stepId}.";
+                live.Add("stderr",message);
+                live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
+                var failedStep=new StepResult(definition.DisplayCommand,root,-1,sw.ElapsedMilliseconds,combinedOutput.ToString(),message,null,combinedArtifacts);
+                await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"FALHA",message,failedStep,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
+                return;
+            }
+
+            var childId=Guid.NewGuid();
+            var childNumber=store.ReserveExecutionNumber(child.Id);
+            var childStarted=DateTimeOffset.UtcNow;
+            var childSw=Stopwatch.StartNew();
+            live.Add("system","");
+            live.Add("system",$"=== {child.Stage} · {child.Title} #{childNumber} ===");
+            live.Add("command",$"> {child.DisplayCommand}");
+
+            try
+            {
+                var result=await RunProcessAsync(child.File,child.Arguments!,root,live);
+                childSw.Stop();
+                var candidatePath=child.ResultPath is null?null:Path.GetFullPath(Path.Combine(root,child.ResultPath));
+                var resultPath=result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)?candidatePath:null;
+                var records=resultPath is null?Array.Empty<Dictionary<string,string?>>():await LoadRecordsAsync(child.ResultPath,root);
+                var artifacts=ParseArtifacts(result.Output,root);
+                combinedOutput.Append("=== ").Append(child.Title).Append(" #").Append(childNumber.ToString(System.Globalization.CultureInfo.InvariantCulture)).AppendLine(" ===").Append(result.Output);
+                combinedError.Append(result.Error);
+                combinedArtifacts.AddRange(artifacts);
+                if(resultPath is not null)live.Add("result",$"{child.Title} #{childNumber}: {resultPath}");
+
+                var summary=records.Count>0
+                    ?$"{records.Count} registro(s) no resultado. Resultado: {resultPath}"
+                    :result.ExitCode==0
+                        ?(resultPath is null?"Etapa concluída.":$"Etapa concluída. Resultado: {resultPath}")
+                        :$"Etapa falhou (exit {result.ExitCode}).";
+                var childStatus=result.ExitCode==0?"SUCESSO":"FALHA";
+                var childStep=new StepResult(child.CommandLine!,root,result.ExitCode,childSw.ElapsedMilliseconds,result.Output,result.Error,resultPath,artifacts);
+                var childRun=new RunRecord(childId,child.Id,child.Title,childStarted,DateTimeOffset.UtcNow,childStatus,summary,childStep,records,childNumber,id);
+                await store.SaveAsync(childRun,CancellationToken.None);
+
+                if(result.ExitCode!=0)
+                {
+                    sw.Stop();
+                    live.Add("system",$"{child.Title} #{childNumber}: FALHA · {(childSw.ElapsedMilliseconds/1000d):0.00}s");
+                    live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
+                    var parentStep=new StepResult(definition.DisplayCommand,root,result.ExitCode,sw.ElapsedMilliseconds,combinedOutput.ToString(),combinedError.ToString(),null,combinedArtifacts.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+                    await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"FALHA",$"Falha em {child.Title} #{childNumber}.",parentStep,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
+                    return;
+                }
+
+                live.Add("system",$"{child.Title} #{childNumber}: SUCESSO · {(childSw.ElapsedMilliseconds/1000d):0.00}s");
+            }
+            catch(Exception ex)
+            {
+                childSw.Stop();
+                sw.Stop();
+                var error=ex.ToString();
+                combinedError.AppendLine(error);
+                live.Add("stderr",error);
+                var childStep=new StepResult(child.CommandLine!,root,-1,childSw.ElapsedMilliseconds,"",error,null);
+                await store.SaveAsync(new RunRecord(childId,child.Id,child.Title,childStarted,DateTimeOffset.UtcNow,"FALHA","Falha inesperada; veja o console.",childStep,Array.Empty<Dictionary<string,string?>>(),childNumber,id),CancellationToken.None);
+                live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
+                var parentStep=new StepResult(definition.DisplayCommand,root,-1,sw.ElapsedMilliseconds,combinedOutput.ToString(),combinedError.ToString(),null,combinedArtifacts.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+                await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"FALHA",$"Falha em {child.Title} #{childNumber}.",parentStep,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
+                return;
+            }
+        }
+
+        sw.Stop();
+        live.Add("status",$"SUCESSO · {(sw.ElapsedMilliseconds/1000d):0.00}s");
+        var step=new StepResult(definition.DisplayCommand,root,0,sw.ElapsedMilliseconds,combinedOutput.ToString(),combinedError.ToString(),null,combinedArtifacts.Distinct(StringComparer.OrdinalIgnoreCase).ToArray());
+        await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"SUCESSO",$"{definition.CompositeSteps.Length}/{definition.CompositeSteps.Length} etapas concluídas.",step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
+    }
+
+    async Task RunCommandAsync(Guid id,CommandDefinition definition,LiveExecution live,int executionNumber)
+    {
+        var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
+        var started=DateTimeOffset.UtcNow;
+        live.Add("system",$"Execução {definition.Title} #{executionNumber} · {id:N}");
         live.Add("system",$"Diretório: {root}");
         live.Add("command",$"> {definition.DisplayCommand}");
 
@@ -319,7 +434,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         {
             live.Add("stderr","SEM EXECUTOR: operação sem executor configurado.");
             var step=new StepResult(definition.DisplayCommand,root,-1,0,"","Operação sem executor configurado.",null);
-            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"SEM EXECUTOR","Opção disponível; comando real ainda não mapeado.",step,Array.Empty<Dictionary<string,string?>>()),live);
+            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"SEM EXECUTOR","Opção disponível; comando real ainda não mapeado.",step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
             return;
         }
 
@@ -341,7 +456,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             var step=new StepResult(definition.CommandLine!,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,resultPath,artifacts);
             var status=result.ExitCode==0?"SUCESSO":"FALHA";
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
-            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,status,summary,step,records),live);
+            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,status,summary,step,records,executionNumber),live);
         }
         catch(Exception ex)
         {
@@ -349,17 +464,17 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             live.Add("stderr",ex.ToString());
             live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             var step=new StepResult(definition.CommandLine!,root,-1,sw.ElapsedMilliseconds,"",ex.ToString(),null);
-            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"FALHA","Falha inesperada; veja o console.",step,Array.Empty<Dictionary<string,string?>>()),live);
+            await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,"FALHA","Falha inesperada; veja o console.",step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
         }
     }
 
-    async Task RunManualZipAsync(Guid id,ManualZipRequest request,LiveExecution live)
+    async Task RunManualZipAsync(Guid id,ManualZipRequest request,LiveExecution live,int executionNumber)
     {
         var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
         var started=DateTimeOffset.UtcNow;
         var sw=Stopwatch.StartNew();
         var command="python scripts/build-ingestion-fixture.py";
-        live.Add("system",$"Execução {id:N}");
+        live.Add("system",$"Execução Ingestão #{executionNumber} · {id:N}");
         live.Add("system",$"Diretório: {root}");
         try
         {
@@ -398,7 +513,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
                 var generationFailureSummary=$"Falha ao gerar ZIP (exit {generated.ExitCode}).";
                 live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
                 var failedStep=new StepResult(command,root,generated.ExitCode,sw.ElapsedMilliseconds,generated.Output,generated.Error,null);
-                await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA",generationFailureSummary,failedStep,Array.Empty<Dictionary<string,string?>>()),live);
+                await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA",generationFailureSummary,failedStep,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
                 return;
             }
 
@@ -433,7 +548,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             var resultPath=status=="SUCESSO"?receipt:zip;
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             var step=new StepResult(command,root,sent.ExitCode,sw.ElapsedMilliseconds,combinedOutput,combinedError,resultPath,distinctArtifacts);
-            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,sendSummary,step,Array.Empty<Dictionary<string,string?>>()),live);
+            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,status,sendSummary,step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
         }
         catch(Exception ex)
         {
@@ -441,7 +556,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             live.Add("stderr",ex.ToString());
             live.Add("status",$"FALHA · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             var step=new StepResult(command,root,-1,sw.ElapsedMilliseconds,"",ex.ToString(),null);
-            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA","Falha ao gerar/enviar ZIP; veja o console.",step,Array.Empty<Dictionary<string,string?>>()),live);
+            await FinishAsync(new RunRecord(id,"zip","Gerar e enviar ZIP de ingestão",started,DateTimeOffset.UtcNow,"FALHA","Falha ao gerar/enviar ZIP; veja o console.",step,Array.Empty<Dictionary<string,string?>>(),executionNumber),live);
         }
     }
 
@@ -544,8 +659,11 @@ sealed class RunStore(IWebHostEnvironment env)
 {
     readonly string root=Path.Combine(DevConsolePaths.ApplicationDataRoot(),"runs");
     readonly string summariesRoot=Path.Combine(DevConsolePaths.ApplicationDataRoot(),"runs","summaries");
+    readonly string countersPath=Path.Combine(DevConsolePaths.ApplicationDataRoot(),"runs","execution-counters.json");
     readonly string legacyRoot=Path.Combine(env.ContentRootPath,".runs");
     readonly DateTimeOffset sessionStartedAt=DateTimeOffset.UtcNow;
+    readonly object counterGate=new();
+    Dictionary<string,int>? counters;
     static readonly JsonSerializerOptions Opt=new(JsonSerializerDefaults.Web){WriteIndented=true};
 
     IEnumerable<string> RunRoots()
@@ -553,6 +671,81 @@ sealed class RunStore(IWebHostEnvironment env)
         yield return root;
         if(!string.Equals(Path.GetFullPath(legacyRoot),Path.GetFullPath(root),StringComparison.OrdinalIgnoreCase))
             yield return legacyRoot;
+    }
+
+    void EnsureCountersLoaded()
+    {
+        if(counters is not null)return;
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(summariesRoot);
+        try
+        {
+            if(File.Exists(countersPath))
+            {
+                var loaded=JsonSerializer.Deserialize<Dictionary<string,int>>(File.ReadAllText(countersPath),Opt);
+                if(loaded is not null)
+                {
+                    counters=new Dictionary<string,int>(loaded,StringComparer.OrdinalIgnoreCase);
+                    return;
+                }
+            }
+        }
+        catch(JsonException){}
+        catch(IOException){}
+
+        counters=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
+        var seen=new HashSet<Guid>();
+        foreach(var runRoot in RunRoots())
+        {
+            var summaryDir=Path.Combine(runRoot,"summaries");
+            if(!Directory.Exists(summaryDir))continue;
+            foreach(var path in Directory.EnumerateFiles(summaryDir,"*.json",SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    var summary=JsonSerializer.Deserialize<RunSummary>(File.ReadAllText(path),Opt);
+                    if(summary is null||!seen.Add(summary.Id)||string.IsNullOrWhiteSpace(summary.Command))continue;
+                    var current=counters.GetValueOrDefault(summary.Command);
+                    counters[summary.Command]=summary.ExecutionNumber>0
+                        ?Math.Max(current,summary.ExecutionNumber)
+                        :current+1;
+                }
+                catch(JsonException){}
+                catch(IOException){}
+                catch(UnauthorizedAccessException){}
+            }
+        }
+    }
+
+    void PersistCounters()
+    {
+        Directory.CreateDirectory(root);
+        var temp=countersPath+".tmp";
+        File.WriteAllText(temp,JsonSerializer.Serialize(counters,Opt));
+        File.Move(temp,countersPath,true);
+    }
+
+    public int ReserveExecutionNumber(string command)
+    {
+        if(string.IsNullOrWhiteSpace(command))throw new ArgumentException("Comando obrigatório para numerar a execução.",nameof(command));
+        lock(counterGate)
+        {
+            EnsureCountersLoaded();
+            var loadedCounters=counters!;
+            var next=loadedCounters.GetValueOrDefault(command)+1;
+            loadedCounters[command]=next;
+            PersistCounters();
+            return next;
+        }
+    }
+
+    public int GetLastExecutionNumber(string command)
+    {
+        lock(counterGate)
+        {
+            EnsureCountersLoaded();
+            return counters!.GetValueOrDefault(command);
+        }
     }
 
     public async Task SaveAsync(RunRecord run,CancellationToken ct)
@@ -564,7 +757,7 @@ sealed class RunStore(IWebHostEnvironment env)
         await File.WriteAllTextAsync(temp,JsonSerializer.Serialize(run,Opt),ct);
         File.Move(temp,target,true);
 
-        var summary=new RunSummary(run.Id,run.Command,run.Title,run.StartedAt,run.FinishedAt,run.Status,run.Summary);
+        var summary=new RunSummary(run.Id,run.Command,run.Title,run.StartedAt,run.FinishedAt,run.Status,run.Summary,run.ExecutionNumber,run.ParentRunId);
         var summaryTarget=Path.Combine(summariesRoot,$"{run.Id:N}.json");
         var summaryTemp=summaryTarget+".tmp";
         await File.WriteAllTextAsync(summaryTemp,JsonSerializer.Serialize(summary,Opt),ct);
@@ -660,8 +853,19 @@ sealed class RunStore(IWebHostEnvironment env)
             .OrderByDescending(x=>x.StartedAt)
             .ToArray();
 
-    public async Task<IReadOnlyDictionary<string,int>> CountByCommandAsync(CancellationToken ct)=>
-        (await ListSessionSummariesAsync(ct))
+    public Task<IReadOnlyDictionary<string,int>> CountByCommandAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        lock(counterGate)
+        {
+            EnsureCountersLoaded();
+            IReadOnlyDictionary<string,int> snapshot=new Dictionary<string,int>(counters!,StringComparer.OrdinalIgnoreCase);
+            return Task.FromResult(snapshot);
+        }
+    }
+
+    public async Task<IReadOnlyDictionary<string,RunSummary>> LatestByCommandAsync(CancellationToken ct)=>
+        (await ListSummariesAsync(ct))
             .GroupBy(x=>x.Command,StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x=>x.Key,x=>x.Count(),StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(x=>x.Key,x=>x.OrderByDescending(y=>y.StartedAt).First(),StringComparer.OrdinalIgnoreCase);
 }
