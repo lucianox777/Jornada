@@ -3046,8 +3046,14 @@
     "scope": "method+normalized-path",
     "source": "src/Jornada.Api/Program.cs",
     "registeredModules": [
+      "src/Jornada.Api/IdentityApi.cs",
+      "src/Jornada.Api/IngestionApi.cs",
+      "src/Jornada.Api/PersonApi.cs",
+      "src/Jornada.Api/RegistrosApi.cs",
+      "src/Jornada.Api/PossibilidadesApi.cs",
       "src/Jornada.Api/ProgressiveOriginApi.cs",
-      "src/Jornada.Api/OperationalMonitorApi.cs"
+      "src/Jornada.Api/OperationalMonitorApi.cs",
+      "src/Jornada.Api/ModelGovernanceReadOnlyApi.cs"
     ]
   }
 }
