@@ -316,8 +316,9 @@ function Ensure-SyntheticScale {
         if ([long]$counts['ExtraFixtures'] -gt 0) {
             throw "Fixtures SCALE adicionais existem sem a massa canônica (extras=$($counts['ExtraFixtures'])). Revise o ambiente sintético da Console DEV antes de continuar."
         }
-        Write-Host "Carregando corpus sintético local para calibração/linkage: Gold=$expectedPeople, pares=$expectedPaired, pendentes=$expectedPending..."
-        Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-v', "SCALE_PEOPLE=$expectedPeople", "SCALE_PAIRED=$expectedPaired", "SCALE_PENDING=$expectedPending", 'SCALE_SEED=355', 'SCALE_COLLISION_MODULO=37', 'SCALE_BIRTH_SHIFT_MODULO=29', '-i', 'database/Jornada_Dev_SyntheticScale.sql')
+        $initialPending=if($RuntimeMode -eq 'DEV'){0}else{$expectedPending}
+        Write-Host "Carregando corpus sintético base para calibração/linkage: Gold=$expectedPeople, pares=$expectedPaired, pendentes_iniciais=$initialPending..."
+        Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-v', "SCALE_PEOPLE=$expectedPeople", "SCALE_PAIRED=$expectedPaired", "SCALE_PENDING=$initialPending", 'SCALE_SEED=355', 'SCALE_COLLISION_MODULO=37', 'SCALE_BIRTH_SHIFT_MODULO=29', '-i', 'database/Jornada_Dev_SyntheticScale.sql')
         $counts = Get-SyntheticScaleCounts
     }
     $actualPeople=[long]$counts['Sehab']
