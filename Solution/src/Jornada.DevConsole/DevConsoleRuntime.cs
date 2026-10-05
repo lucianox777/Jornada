@@ -81,7 +81,7 @@ static class CommandCatalog
             {Stage="1.6 · Modelo inicial"},
         new("infra-finalize","Finalização","Gera configuração inicial, bundle de contratos/configurações e registra o resumo final do ambiente.","pwsh","-NoProfile -File scripts/dev-console-infrastructure.ps1 -Action finalize",null,["infra-model"],"Conclui os artefatos exigidos pela ingestão.")
             {Stage="1.7 · Finalização"},
-        new("zip","Ingestão","Gera um novo arquivo ZIP de Entrega a partir da entrada manual. O envio para a API é uma ação separada, para permitir conferir e preservar o arquivo antes da transmissão.",null,null,null,["infra-finalize"],"A finalização gera o bundle exigido pela ingestão. Gere o arquivo e depois use Enviar arquivo para transmiti-lo à API.")
+        new("zip","Ingestão","Gera um novo arquivo ZIP de Entrega a partir da entrada manual. O envio para a API é uma ação separada, para permitir conferir e preservar o arquivo antes da transmissão. No modo didático da Console DEV, o Processor residente fica suspenso até a etapa Silver ser executada explicitamente.",null,null,null,["infra-finalize"],"A finalização gera o bundle exigido pela ingestão. Gere o arquivo e depois use Enviar arquivo para transmiti-lo à API.")
             {Stage="2 · Ingestão"},
         new("bronze","Bronze","Mostra os metadados e a localização lógica do objeto recebido e permite verificar a integridade física da última Entrega com Jornada.Bronze.Verify.",null,null,null,["ingestion"],"A verificação confere objeto, SHA-256 e tamanho. Ela não processa nem altera a Entrega.")
             {Stage="3 · Bronze"},
