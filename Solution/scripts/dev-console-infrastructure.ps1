@@ -1,7 +1,10 @@
 param(
     [Parameter(Mandatory=$true)]
     [ValidateSet('up','clean','status')]
-    [string]$Action
+    [string]$Action,
+    [switch]$Dev,
+    [switch]$Prod,
+    [switch]$ConfirmProductionReset
 )
 
 $ErrorActionPreference='Stop'
@@ -10,6 +13,9 @@ $ProgressPreference='SilentlyContinue'
 $OutputEncoding=[Text.UTF8Encoding]::new($false)
 if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'runtime-mode.ps1')
+$RuntimeMode=Set-JornadaRuntimeMode -Dev:$Dev -Prod:$Prod
+if($ConfirmProductionReset){$env:JORNADA_CONFIRM_PRODUCTION_RESET='1'}
 . (Join-Path $PSScriptRoot 'dev-console-env.ps1')
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Cluster=Join-Path $PSScriptRoot 'local-cluster.ps1'
@@ -71,13 +77,13 @@ switch($Action){
         }
 
         Write-Host ''
-        Write-Host 'Infraestrutura básica pronta: SQL Server + schema DEV + NAS + referência IBGE + NODE1/NODE2.'
+        Write-Host "Infraestrutura básica pronta: SQL Server + schema + NAS + referência IBGE + NODE1/NODE2 (modo=$RuntimeMode)."
         Write-Host ''
-        Write-Host 'Garantindo modelo BOOTSTRAP inicial ATIVO (IBGE + corpus sintético DEV)...'
+        Write-Host "Garantindo modelo BOOTSTRAP inicial ATIVO (IBGE + corpus sintético; modo=$RuntimeMode)..."
         & (Join-Path $PSScriptRoot 'dev-console-operations.ps1') -Action calibrate-initial
         if($LASTEXITCODE -ne 0){throw "Garantia do modelo BOOTSTRAP inicial falhou ($LASTEXITCODE)."}
         Write-Host ''
-        Write-Host 'Gerando configuração inicial da Console DEV (JSON + HTML)...'
+        Write-Host "Gerando configuração inicial da Console (modo=$RuntimeMode; JSON + HTML)..."
         & (Join-Path $PSScriptRoot 'dev-console-initial-config.ps1')
         if($LASTEXITCODE -ne 0){throw "Geração da configuração inicial falhou ($LASTEXITCODE)."}
 
@@ -95,6 +101,7 @@ switch($Action){
         } finally { Pop-Location }
     }
     'clean' {
+        Assert-JornadaDestructiveAllowed -Mode $RuntimeMode -Operation 'Console clean' -ConfirmProductionReset:$ConfirmProductionReset
         Invoke-Cluster 'clean'
         $stateDir=Join-Path $Root '.local/dev-console'
         if(Test-Path $stateDir){
@@ -102,7 +109,7 @@ switch($Action){
             Write-Host "Estado transitório da Console removido: $stateDir"
         }
         Write-Host 'Histórico de execuções foi preservado; recibos, bundles, ZIPs e artefatos ligados ao ambiente foram limpos.'
-        Write-Host 'Ambiente DEV destruído: containers, volumes e órfãos locais removidos.'
+        Write-Host "Ambiente $RuntimeMode destruído: containers, volumes e órfãos locais removidos."
         Write-Host 'Na próxima subida, a infraestrutura será recriada automaticamente.'
     }
     'status' {
