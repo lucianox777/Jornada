@@ -2,7 +2,10 @@
     [ValidateSet('up','reset','down','clean','status','logs','blocking','calibrate','linkage','linkage-diagnose')]
     [string]$Action = 'up',
     [switch]$NoBuild,
-    [string]$EnvFile
+    [string]$EnvFile,
+    [switch]$Dev,
+    [switch]$Prod,
+    [switch]$ConfirmProductionReset
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,6 +14,11 @@ $ProgressPreference='SilentlyContinue'
 $OutputEncoding=[Text.UTF8Encoding]::new($false)
 if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'runtime-mode.ps1')
+$RuntimeMode = Set-JornadaRuntimeMode -Dev:$Dev -Prod:$Prod
+$ModeArgs = @()
+if($RuntimeMode -eq 'DEV'){$ModeArgs += '-Dev'}
+elseif($RuntimeMode -eq 'PROD'){$ModeArgs += '-Prod'}
 $DefaultEnvFile = Join-Path $Root '.env'
 $ExplicitEnvFile = -not [string]::IsNullOrWhiteSpace($EnvFile)
 $EnvFile = if ($ExplicitEnvFile) {
@@ -681,20 +689,27 @@ FROM truth;
 
 switch ($Action) {
     'up' {
-        Write-CommandLine $LocalDb @('-Action','up','-EnvFile',$EnvFile)
-        & $LocalDb -Action up -EnvFile $EnvFile
+        $dbArgs=@('-Action','up','-EnvFile',$EnvFile)+$ModeArgs
+        Write-CommandLine $LocalDb $dbArgs
+        & $LocalDb @dbArgs
         if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }
         Start-Nodes -Build:(-not $NoBuild)
     }
     'reset' {
+        Assert-JornadaDestructiveAllowed -Mode $RuntimeMode -Operation 'cluster reset' -ConfirmProductionReset:$ConfirmProductionReset
         Invoke-Compose -ComposeArgs @('stop','jornada-node1','jornada-node2')
-        Write-CommandLine $LocalDb @('-Action','reset','-EnvFile',$EnvFile)
-        & $LocalDb -Action reset -EnvFile $EnvFile
+        $dbArgs=@('-Action','reset','-EnvFile',$EnvFile)+$ModeArgs
+        if($ConfirmProductionReset){$dbArgs+='-ConfirmProductionReset'}
+        Write-CommandLine $LocalDb $dbArgs
+        & $LocalDb @dbArgs
         if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 reset falhou ($LASTEXITCODE)." }
         Start-Nodes
     }
     'down' { Invoke-Compose -ComposeArgs @('down') }
-    'clean' { Invoke-Compose -ComposeArgs @('down','-v','--remove-orphans') }
+    'clean' {
+        Assert-JornadaDestructiveAllowed -Mode $RuntimeMode -Operation 'cluster clean' -ConfirmProductionReset:$ConfirmProductionReset
+        Invoke-Compose -ComposeArgs @('down','-v','--remove-orphans')
+    }
     'status' { Invoke-Compose -ComposeArgs @('ps') }
     'logs' { Invoke-Compose -ComposeArgs @('logs','-f','jornada-node1','jornada-node2','jornada-nas') }
     'blocking' { Ensure-LocalBlockingProjection }
