@@ -138,7 +138,7 @@ try{
 }
 
 Write-Host 'Reconstruindo blocking para incluir a nova Gold...'
-& (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action blocking -EnvFile $EnvFile
+& (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action blocking -EnvFile $EnvFile -RuntimeMode $DevConsoleRuntimeMode
 if($LASTEXITCODE -ne 0){throw "Rebuild de blocking falhou ($LASTEXITCODE)."}
 
 $after=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-SEHAB-%';")
