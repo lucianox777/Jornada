@@ -181,6 +181,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("excedeu 7 segundos"));
 
             Assert.That(localDb,Does.Contain("iniciando Docker Desktop"));
+            Assert.That(localDb,Does.Contain("[string]$EnvFile"));
+            Assert.That(localDb,Does.Contain("$ExplicitEnvFile"));
+            Assert.That(localDb,Does.Contain("EnvFile aponta para arquivo inexistente"));
             Assert.That(localDb,Does.Contain("Start-Process -FilePath $dockerDesktopPath"));
             Assert.That(localDb,Does.Contain("Aguardando Docker Engine"));
             Assert.That(localDb,Does.Contain("Docker Engine pronto"));
@@ -333,6 +336,11 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
             Assert.That(localCluster,Does.Contain("Assert-DockerEngineAvailable"));
             Assert.That(localCluster,Does.Contain("[string]$EnvFile"));
+            Assert.That(localCluster,Does.Contain("& $LocalDb -Action up -EnvFile $EnvFile"));
+            Assert.That(localCluster,Does.Contain("& $LocalDb -Action reset -EnvFile $EnvFile"));
+            Assert.That(localCluster,Does.Contain("contexto=$Context; comando=$commandPreview"));
+            Assert.That(localCluster,Does.Contain("$seedScript=$seedScript.Replace("));
+            Assert.That(localCluster,Does.Contain("set: Illegal option -"));
             Assert.That(localCluster,Does.Contain("JORNADA_BUILD_REVISION"));
             Assert.That(localCluster,Does.Contain("último resultado: $lastFailure"));
             Assert.That(localCluster,Does.Contain("container=$($state.Status)/running=$($state.Running)/exit=$($state.ExitCode)"));
