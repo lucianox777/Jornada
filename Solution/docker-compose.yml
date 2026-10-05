@@ -75,6 +75,8 @@ services:
     build:
       context: .
       dockerfile: install/container-test/Dockerfile
+      args:
+        JORNADA_BUILD_REVISION: "${JORNADA_BUILD_REVISION:-unknown}"
     depends_on:
       sqlserver:
         condition: service_healthy
