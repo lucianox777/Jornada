@@ -5,7 +5,12 @@ param(
 
 $ErrorActionPreference = "Stop"
 $env:JORNADA_RUNTIME_MODE=$RuntimeMode.ToUpperInvariant()
-Write-Host "Modo runtime da Console: $($env:JORNADA_RUNTIME_MODE)$(if($RuntimeMode -eq 'DEV'){' (corpus adicional habilitado)'}elseif($RuntimeMode -eq 'PROD'){' (operações destrutivas protegidas)'}else{' (padrão)'} )"
+$modeDetail=switch($env:JORNADA_RUNTIME_MODE){
+    'DEV' {'corpus adicional habilitado'}
+    'PROD' {'operações destrutivas protegidas'}
+    default {'padrão HML'}
+}
+Write-Host "Modo runtime da Console: $($env:JORNADA_RUNTIME_MODE) ($modeDetail)"
 $SolutionRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent $SolutionRoot
 
