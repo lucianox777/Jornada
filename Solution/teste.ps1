@@ -1,5 +1,13 @@
+param(
+    [switch]$Dev,
+    [switch]$Prod
+)
+
 $ErrorActionPreference = "Stop"
 $SolutionRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
+. (Join-Path $SolutionRoot "scripts\runtime-mode.ps1")
+$RuntimeMode = Set-JornadaRuntimeMode -Dev:$Dev -Prod:$Prod
+Remove-Item Env:\JORNADA_CONFIRM_PRODUCTION_RESET -ErrorAction SilentlyContinue
 $RepoRoot = Split-Path -Parent $SolutionRoot
 
 $Solution = Join-Path $SolutionRoot "Jornada.sln"
@@ -70,6 +78,13 @@ Write-Host "Compilando Jornada.sln uma unica vez..."
 & $DotnetExe build $Solution --no-restore
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-Write-Host "Iniciando Jornada.DevConsole..."
-& $DotnetExe run --no-build --project $Project
+Write-Host "Iniciando Jornada.DevConsole em modo $RuntimeMode..."
+$appArgs=@()
+if($RuntimeMode -eq 'DEV'){$appArgs+='--dev'}
+elseif($RuntimeMode -eq 'PROD'){$appArgs+='--prod'}
+if($appArgs.Count -gt 0){
+    & $DotnetExe run --no-build --project $Project -- @appArgs
+}else{
+    & $DotnetExe run --no-build --project $Project
+}
 exit $LASTEXITCODE
