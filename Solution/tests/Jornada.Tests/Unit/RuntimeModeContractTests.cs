@@ -15,7 +15,7 @@ public sealed class RuntimeModeContractTests
     public void Console_defaults_to_hml_and_dev_is_the_only_mode_with_extra_six_thousand()
     {
         var root=Root();
-        var cmd=File.ReadAllText(Path.Combine(root,"Solution","teste.cmd"));
+        var cmd=File.ReadAllText(Path.Combine(root,"Solution","console.cmd"));
         var launcher=File.ReadAllText(Path.Combine(root,"Solution","teste.ps1"));
         var env=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-env.ps1"));
         var ops=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-operations.ps1"));
@@ -25,6 +25,7 @@ public sealed class RuntimeModeContractTests
 
         Assert.Multiple(()=>{
             Assert.That(cmd,Does.Contain("JORNADA_MODE_ARG=-RuntimeMode HML"));
+            Assert.That(File.Exists(Path.Combine(root,"Solution","teste.cmd")),Is.False);
             Assert.That(cmd,Does.Contain("--dev"));
             Assert.That(cmd,Does.Contain("--prod"));
             Assert.That(launcher,Does.Contain("[string]$RuntimeMode='HML'"));
