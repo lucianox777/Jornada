@@ -3,9 +3,18 @@
     [string]$Action = 'up',
     [switch]$NoSyntheticCorpus,
     [string]$DatabaseName,
-    [string]$EnvFile
+    [string]$EnvFile,
+    [ValidateSet('HML','DEV','PROD')]
+    [string]$RuntimeMode,
+    [switch]$ConfirmProductionReset
 )
 $ErrorActionPreference = 'Stop'
+if([string]::IsNullOrWhiteSpace($RuntimeMode)){
+    $RuntimeMode=if([string]::IsNullOrWhiteSpace($env:JORNADA_RUNTIME_MODE)){'HML'}else{$env:JORNADA_RUNTIME_MODE.Trim().ToUpperInvariant()}
+}
+$RuntimeMode=$RuntimeMode.ToUpperInvariant()
+if($RuntimeMode -notin @('HML','DEV','PROD')){throw "RuntimeMode inválido: $RuntimeMode."}
+$ResidentEnvironmentProfile=switch($RuntimeMode){'DEV'{'Development'}'PROD'{'Production'}default{'Homologation'}}
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $DefaultEnvFile = Join-Path $Root '.env'
 $ExplicitEnvFile = -not [string]::IsNullOrWhiteSpace($EnvFile)
@@ -299,7 +308,7 @@ function Ensure-SyntheticScale {
     $expectedPending = if ($vars['JORNADA_LOCAL_SYNTHETIC_PENDING']) { [long]$vars['JORNADA_LOCAL_SYNTHETIC_PENDING'] } else { 1000 }
     if($expectedPeople -lt 1000 -or $expectedPeople -gt 5000000){throw 'JORNADA_LOCAL_SYNTHETIC_PEOPLE fora do intervalo suportado.'}
     if($expectedPaired -lt 2 -or $expectedPaired -gt $expectedPeople){throw 'JORNADA_LOCAL_SYNTHETIC_PAIRED inválido.'}
-    if($expectedPending -lt 1 -or $expectedPending -gt 2000000){throw 'JORNADA_LOCAL_SYNTHETIC_PENDING inválido.'}
+    if($expectedPending -lt 0 -or $expectedPending -gt 2000000){throw 'JORNADA_LOCAL_SYNTHETIC_PENDING inválido.'}
 
     $counts = Get-SyntheticScaleCounts
     $canonicalTotal = [long]$counts['Sehab'] + [long]$counts['Smads'] + [long]$counts['Pending']
@@ -341,9 +350,9 @@ function Bootstrap {
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260910_Schema_Consolidation_370.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260922_Processor_Lease_Heartbeat_Isolation.sql')
 
-    # Perfil residente é autoridade de ambiente para superfícies DEV. O DDL canônico
-    # permanece neutro; somente o provisionador local grava Development.
-    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-Q', "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development';")
+    # O perfil residente descreve a configuração efetiva. A semântica do pipeline
+    # não depende do nome do banco: HML é o padrão, DEV é opt-in e PROD é explícito.
+    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-Q', "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'$ResidentEnvironmentProfile'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'$ResidentEnvironmentProfile';")
 
     # O banco local canônico carrega a massa sintética configurada; o padrão histórico continua 5k. Harnesses que controlam
     # sua própria massa (por exemplo, escala) usam -NoSyntheticCorpus e carregam o corpus
@@ -354,6 +363,10 @@ function Bootstrap {
 
     # Seed e eventual massa SCALE são inserções DEV diretas e não passam pelo Processor.
     Ensure-ProgressiveIdentityBackfill
+}
+
+if($RuntimeMode -eq 'PROD' -and $Action -in @('reset','clean') -and -not $ConfirmProductionReset){
+    throw "Operação destrutiva '$Action' bloqueada em PROD. Execute novamente com -ConfirmProductionReset no comando explícito."
 }
 
 switch ($Action) {
