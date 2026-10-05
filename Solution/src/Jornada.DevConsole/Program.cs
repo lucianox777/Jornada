@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.AspNetCore.Mvc;
 
 var builder=WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton<RunStore>();
@@ -11,21 +12,26 @@ builder.Services.AddSingleton<LayerBrowserService>();
 
 var app=builder.Build();
 
-app.MapGet("/",()=>Results.Text(Page.Html,"text/html; charset=utf-8"));
+app.MapGet("/",(HttpResponse response)=>{
+    response.Headers.CacheControl="no-store, no-cache, must-revalidate";
+    response.Headers.Pragma="no-cache";
+    response.Headers.Expires="0";
+    return Results.Text(Page.Html,"text/html; charset=utf-8");
+});
 
-app.MapGet("/api/commands",async(RunStore store,CancellationToken ct)=>{
-    var counts=await store.CountByCommandAsync(ct);
+app.MapGet("/api/version",(HttpResponse response)=>{
+    response.Headers.CacheControl="no-store";
+    var revision=Environment.GetEnvironmentVariable("JORNADA_DEV_CONSOLE_SOURCE_SHA");
+    return Results.Ok(new{
+        revision=string.IsNullOrWhiteSpace(revision)?"desconhecida":revision,
+        processId=Environment.ProcessId
+    });
+});
+
+app.MapGet("/api/commands",(HttpResponse response)=>{
+    response.Headers.CacheControl="no-store";
     return Results.Ok(CommandCatalog.All.Where(x=>x.Visible).Select(x=>new{
-        x.Id,x.Title,x.Description,x.Implemented,x.CommandLine,x.DisplayCommand,x.Dependencies,x.DependencyNote,x.Surface,x.Stage,
-        RunCount=x.Id switch{
-            "zip"=>counts.GetValueOrDefault("zip")+counts.GetValueOrDefault("ingestion")+counts.GetValueOrDefault("pipeline-status"),
-            "bronze"=>counts.GetValueOrDefault("bronze-verify-latest"),
-            "silver"=>counts.GetValueOrDefault("silver"),
-            "linkage"=>counts.GetValueOrDefault("linkage")+counts.GetValueOrDefault("replay"),
-            "gold-synthetic"=>counts.GetValueOrDefault("gold-synthetic")+counts.GetValueOrDefault("blocking"),
-            "configuration"=>counts.GetValueOrDefault("contract-bundle"),
-            _=>counts.GetValueOrDefault(x.Id)
-        }
+        x.Id,x.Title,x.Description,x.Implemented,x.CommandLine,x.DisplayCommand,x.Dependencies,x.DependencyNote,x.Surface,x.Stage
     }));
 });
 
@@ -35,7 +41,7 @@ app.MapGet("/api/runs",async(RunStore store,CancellationToken ct)=>
 app.MapGet("/api/runs/{id:guid}",async(Guid id,RunStore store,CancellationToken ct)=>
     await store.GetAsync(id,ct) is { } run?Results.Ok(run):Results.NotFound());
 
-app.MapPost("/api/commands/{command}/start",(string command,LiveExecutionService live)=>{
+app.MapPost("/api/commands/{command}/start",static(string command,[FromServices] LiveExecutionService live)=>{
     var definition=CommandCatalog.All.FirstOrDefault(x=>x.Id.Equals(command,StringComparison.OrdinalIgnoreCase));
     if(definition is null)return Results.NotFound();
     var id=live.StartCommand(definition);
@@ -84,7 +90,7 @@ app.MapPut("/api/config/active/file",async(ActiveConfigSaveRequest request,Activ
     try{return Results.Ok(await service.SaveAsync(request,ct));}catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
 });
 
-app.MapPost("/api/zip/manual/start",(ManualZipRequest request,LiveExecutionService live)=>{
+app.MapPost("/api/zip/manual/start",static([FromBody] ManualZipRequest request,[FromServices] LiveExecutionService live)=>{
     var id=live.StartManualZip(request);
     return Results.Accepted($"/api/runs/{id}",new{id});
 });
