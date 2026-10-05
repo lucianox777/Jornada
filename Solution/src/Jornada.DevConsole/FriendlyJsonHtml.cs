@@ -20,6 +20,7 @@ static class FriendlyJsonHtml
         ["modelRole"]="Papel do modelo",
         ["bootstrapReference"]="Referência bootstrap",
         ["goldPeople"]="Pessoas Gold",
+        ["bootstrapGoldPeople"]="Pessoas Gold do bootstrap",
         ["modelId"]="ID do modelo",
         ["pessoaUuid"]="UUID da pessoa",
         ["version"]="Versão",
