@@ -691,7 +691,7 @@ switch ($Action) {
     'up' {
         $dbArgs=@('-Action','up','-EnvFile',$EnvFile)+$ModeArgs
         Write-CommandLine $LocalDb $dbArgs
-        & $LocalDb @dbArgs
+        & $LocalDb -Action up -EnvFile $EnvFile -Dev:($RuntimeMode -eq 'DEV') -Prod:($RuntimeMode -eq 'PROD')
         if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 up falhou ($LASTEXITCODE)." }
         Start-Nodes -Build:(-not $NoBuild)
     }
@@ -701,7 +701,7 @@ switch ($Action) {
         $dbArgs=@('-Action','reset','-EnvFile',$EnvFile)+$ModeArgs
         if($ConfirmProductionReset){$dbArgs+='-ConfirmProductionReset'}
         Write-CommandLine $LocalDb $dbArgs
-        & $LocalDb @dbArgs
+        & $LocalDb -Action reset -EnvFile $EnvFile -Dev:($RuntimeMode -eq 'DEV') -Prod:($RuntimeMode -eq 'PROD') -ConfirmProductionReset:$ConfirmProductionReset
         if ($LASTEXITCODE -ne 0) { throw "local-db.ps1 reset falhou ($LASTEXITCODE)." }
         Start-Nodes
     }
