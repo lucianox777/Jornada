@@ -17,29 +17,56 @@ $EnvFile=$DevConsoleEnvFile
 
 function Invoke-Cluster([string]$ClusterAction,[switch]$NoBuild){
     $suffix=if($NoBuild){' -NoBuild'}else{''}
-    Write-Host "# pwsh -NoProfile -File scripts/local-cluster.ps1 -Action $ClusterAction$suffix"
-    if($NoBuild){ & $Cluster -Action $ClusterAction -NoBuild }
-    else { & $Cluster -Action $ClusterAction }
+    $envName=Split-Path -Leaf $EnvFile
+    Write-Host "# pwsh -NoProfile -File scripts/local-cluster.ps1 -Action $ClusterAction$suffix -EnvFile $envName"
+    if($NoBuild){ & $Cluster -Action $ClusterAction -NoBuild -EnvFile $EnvFile }
+    else { & $Cluster -Action $ClusterAction -EnvFile $EnvFile }
     if($LASTEXITCODE -ne 0){ throw "local-cluster.ps1 $ClusterAction falhou ($LASTEXITCODE)." }
+}
+
+function Get-CurrentSourceRevision {
+    try {
+        $value=(& git -C $Root rev-parse HEAD 2>$null | Out-String).Trim()
+        if($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($value)){return $value}
+    } catch {}
+    return $null
+}
+
+function Test-RuntimeInputsDirty {
+    try {
+        $changes=@(& git -C $Root status --porcelain -- src config database install/container-test docker-compose.yml Directory.Build.props global.json 2>$null)
+        return $LASTEXITCODE -ne 0 -or $changes.Count -gt 0
+    } catch { return $true }
+}
+
+function Get-LocalRuntimeImageRevision {
+    try {
+        $value=(& docker image inspect --format '{{ index .Config.Labels "org.opencontainers.image.revision" }}' jornada-node:test 2>$null | Out-String).Trim()
+        if($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($value)){return $value}
+    } catch {}
+    return $null
 }
 
 switch($Action){
     'up' {
-        Write-Host 'Subindo infraestrutura DEV completa sem recompilar a imagem quando ela já existe...'
-        try {
+        $sourceRevision=Get-CurrentSourceRevision
+        $imageRevision=Get-LocalRuntimeImageRevision
+        $runtimeInputsDirty=Test-RuntimeInputsDirty
+        $imageFresh=(-not [string]::IsNullOrWhiteSpace($sourceRevision)) -and
+            ($imageRevision -eq $sourceRevision) -and
+            (-not $runtimeInputsDirty)
+
+        if($imageFresh){
+            Write-Host "Imagem jornada-node:test já corresponde à revisão $sourceRevision; reutilizando sem rebuild."
             Invoke-Cluster 'up' -NoBuild
-        }
-        catch {
-            $imageExists=$false
-            try {
-                & docker image inspect jornada-node:test *> $null
-                $imageExists=($LASTEXITCODE -eq 0)
-            } catch { $imageExists=$false }
-
-            if($imageExists){ throw }
-
-            Write-Host ''
-            Write-Host 'Imagem jornada-node:test ainda não existe. Fazendo build único da imagem para esta máquina...'
+        }else{
+            if($runtimeInputsDirty){
+                Write-Host 'Há alterações locais em entradas de runtime; reconstruindo a imagem para evitar binários obsoletos.'
+            }elseif([string]::IsNullOrWhiteSpace($imageRevision)){
+                Write-Host 'Imagem local sem revisão rastreável; fazendo build único para sincronizar com o código atual.'
+            }else{
+                Write-Host "Imagem local está na revisão $imageRevision e o código está em $sourceRevision; reconstruindo uma vez."
+            }
             Invoke-Cluster 'up'
         }
 
@@ -60,7 +87,7 @@ switch($Action){
         if($LASTEXITCODE -ne 0){throw "Geração do bundle inicial falhou ($LASTEXITCODE)."}
 
         Write-Host 'O serviço jornada-reference-bootstrap é um init one-shot: Exited (0) significa CONCLUÍDO com sucesso, não falha.'
-        Write-Host '# docker compose --env-file .env ps -a'
+        Write-Host "# docker compose --env-file $(Split-Path -Leaf $EnvFile) ps -a"
         Push-Location $Root
         try {
             & docker compose --env-file $EnvFile ps -a
