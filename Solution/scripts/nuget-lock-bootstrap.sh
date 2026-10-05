@@ -23,5 +23,5 @@ fi
 python3 scripts/nuget-lock-gate.py --root . --summary "$OUT/summary.json"
 python3 scripts/nuget-lock-provenance-gate.py --root . --summary "$OUT/provenance-summary.json"
 dotnet restore Jornada.sln --locked-mode
-find . -name packages.lock.json -not -path './.local/*' -print0 | sort -z | tar --null -T - -czf "$OUT/packages-locks.tar.gz"
+find . -name packages.lock.json -not -path './.local/*' -not -path './ApoioSecretarias/*' -print0 | sort -z | tar --null -T - -czf "$OUT/packages-locks.tar.gz"
 echo "NuGet lock bootstrap OK: $OUT/packages-locks.tar.gz"
