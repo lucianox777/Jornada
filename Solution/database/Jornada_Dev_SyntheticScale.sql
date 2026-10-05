@@ -19,8 +19,8 @@ IF @people < 1000 OR @people > 5000000
     THROW 51550, 'SCALE_PEOPLE deve estar entre 1.000 e 5.000.000.', 1;
 IF @paired < 2 OR @paired > @people
     THROW 51551, 'SCALE_PAIRED deve estar entre 2 e SCALE_PEOPLE.', 1;
-IF @pending < 1 OR @pending > 2000000
-    THROW 51552, 'SCALE_PENDING deve estar entre 1 e 2.000.000.', 1;
+IF @pending < 0 OR @pending > 2000000
+    THROW 51552, 'SCALE_PENDING deve estar entre 0 e 2.000.000.', 1;
 IF @collisionModulo < 0 OR @birthShiftModulo < 0
     THROW 51555, 'Modulos de colisao/deslocamento devem ser >= 0 (0 desabilita).', 1;
 IF EXISTS(SELECT 1 FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%')
