@@ -12,7 +12,6 @@ $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'runtime-mode.ps1')
 $RuntimeMode = Set-JornadaRuntimeMode -Dev:$Dev -Prod:$Prod
-$EnvironmentProfile = Get-JornadaEnvironmentProfile -Mode $RuntimeMode
 $DefaultEnvFile = Join-Path $Root '.env'
 $ExplicitEnvFile = -not [string]::IsNullOrWhiteSpace($EnvFile)
 $EnvFile = if ($ExplicitEnvFile) {
@@ -347,9 +346,9 @@ function Bootstrap {
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260910_Schema_Consolidation_370.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260922_Processor_Lease_Heartbeat_Isolation.sql')
 
-    # O perfil residente registra o modo explicitamente escolhido. O nome do banco
-    # não determina mais a semântica DEV/HML/PROD.
-    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-Q', "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'$EnvironmentProfile'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'$EnvironmentProfile';")
+    # O perfil residente de infraestrutura continua Development no provisionador local.
+    # O modo funcional DEV/HML/PROD é ortogonal e fica em Jornada.RuntimeMode.
+    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-Q', "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.RuntimeMode') EXEC sys.sp_updateextendedproperty @name=N'Jornada.RuntimeMode',@value=N'$RuntimeMode'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.RuntimeMode',@value=N'$RuntimeMode';")
 
     # O banco local canônico carrega a massa sintética configurada; o padrão histórico continua 5k. Harnesses que controlam
     # sua própria massa (por exemplo, escala) usam -NoSyntheticCorpus e carregam o corpus
