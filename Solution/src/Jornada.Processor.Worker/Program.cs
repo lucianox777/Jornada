@@ -24,19 +24,28 @@ var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada
 var databaseProvider = builder.Configuration["Database:Provider"] ?? OperationalDatabaseProviders.SqlServer;
 var processorOperation = builder.Configuration["Processor:Operation"]?.Trim().ToUpperInvariant();
 
-if (string.Equals(processorOperation, "REBUILD_LOCAL_BLOCKING", StringComparison.Ordinal))
+if (string.Equals(processorOperation, "REBUILD_LOCAL_BLOCKING", StringComparison.Ordinal)
+    || string.Equals(processorOperation, "REFRESH_LOCAL_BLOCKING", StringComparison.Ordinal))
 {
     if (!builder.Environment.IsDevelopment())
-        throw new InvalidOperationException("REBUILD_LOCAL_BLOCKING só pode executar em Development/Test.");
+        throw new InvalidOperationException($"{processorOperation} só pode executar em Development/Test.");
     if (!string.Equals(databaseProvider, OperationalDatabaseProviders.SqlServer, StringComparison.OrdinalIgnoreCase))
-        throw new InvalidOperationException("REBUILD_LOCAL_BLOCKING requer o provider SQL Server.");
+        throw new InvalidOperationException($"{processorOperation} requer o provider SQL Server.");
 
-    var result = await LocalBlockingProjectionBootstrap.RebuildMissingSqlServerAsync(
-        jornadaConnectionString,
-        CancellationToken.None);
+    var refreshAll = string.Equals(processorOperation, "REFRESH_LOCAL_BLOCKING", StringComparison.Ordinal);
+    var result = refreshAll
+        ? await LocalBlockingProjectionBootstrap.RefreshAllSqlServerAsync(
+            jornadaConnectionString,
+            CancellationToken.None)
+        : await LocalBlockingProjectionBootstrap.RebuildMissingSqlServerAsync(
+            jornadaConnectionString,
+            CancellationToken.None);
     Console.WriteLine(
-        $"Blocking local pronto: {result.SyntheticPersons} Pessoas SCALE; " +
-        $"{result.RebuiltPersons} reconstruídas; {result.ProjectedKeys} chaves materializadas.");
+        refreshAll
+            ? $"Blocking local reconciliado: {result.SyntheticPersons} Pessoas SCALE; " +
+              $"{result.RebuiltPersons} atualizadas; {result.ProjectedKeys} chaves correntes."
+            : $"Blocking local pronto: {result.SyntheticPersons} Pessoas SCALE; " +
+              $"{result.RebuiltPersons} reconstruídas; {result.ProjectedKeys} chaves materializadas.");
     return;
 }
 
