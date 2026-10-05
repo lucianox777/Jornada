@@ -3,10 +3,16 @@
     [string]$Action = 'up',
     [switch]$NoSyntheticCorpus,
     [string]$DatabaseName,
-    [string]$EnvFile
+    [string]$EnvFile,
+    [switch]$Dev,
+    [switch]$Prod,
+    [switch]$ConfirmProductionReset
 )
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+. (Join-Path $PSScriptRoot 'runtime-mode.ps1')
+$RuntimeMode = Set-JornadaRuntimeMode -Dev:$Dev -Prod:$Prod
+$EnvironmentProfile = Get-JornadaEnvironmentProfile -Mode $RuntimeMode
 $DefaultEnvFile = Join-Path $Root '.env'
 $ExplicitEnvFile = -not [string]::IsNullOrWhiteSpace($EnvFile)
 $EnvFile = if ($ExplicitEnvFile) {
@@ -341,9 +347,9 @@ function Bootstrap {
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260910_Schema_Consolidation_370.sql')
     Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-i', 'database/migrations/20260922_Processor_Lease_Heartbeat_Isolation.sql')
 
-    # Perfil residente é autoridade de ambiente para superfícies DEV. O DDL canônico
-    # permanece neutro; somente o provisionador local grava Development.
-    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-Q', "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development';")
+    # O perfil residente registra o modo explicitamente escolhido. O nome do banco
+    # não determina mais a semântica DEV/HML/PROD.
+    Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-Q', "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'$EnvironmentProfile'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'$EnvironmentProfile';")
 
     # O banco local canônico carrega a massa sintética configurada; o padrão histórico continua 5k. Harnesses que controlam
     # sua própria massa (por exemplo, escala) usam -NoSyntheticCorpus e carregam o corpus
@@ -356,10 +362,14 @@ function Bootstrap {
     Ensure-ProgressiveIdentityBackfill
 }
 
+if ($Action -in @('reset','clean')) {
+    Assert-JornadaDestructiveAllowed -Mode $RuntimeMode -Operation $Action -ConfirmProductionReset:$ConfirmProductionReset
+}
+
 switch ($Action) {
     'up' {
         Invoke-Compose -ComposeArgs @('up','-d','sqlserver'); Wait-Healthy; Bootstrap
-        Write-Host "SQL Server Developer local pronto: localhost:$port / $db (schema 3.70)"
+        Write-Host "SQL Server local pronto: localhost:$port / $db (schema 3.70; modo=$RuntimeMode)"
     }
     'reset' {
         Invoke-Compose -ComposeArgs @('up','-d','sqlserver'); Wait-Healthy
