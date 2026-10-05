@@ -88,7 +88,7 @@ jobs:
           SET NOCOUNT ON;
           SET XACT_ABORT ON;
           DECLARE @uuid uniqueidentifier='50010000-0000-4000-8000-000000000001';
-          DECLARE @cpf char(11)='52998224725';
+          DECLARE @cpf char(11)='79999999972';
           DECLARE @g bigint=(SELECT gestor_id FROM ref.gestor WHERE codigo=N'SEHAB');
           DECLARE @so bigint=(SELECT sistema_origem_id FROM ref.sistema_origem WHERE gestor_id=@g AND codigo=N'SEHAB');
           DECLARE @bp bigint=(SELECT base_pessoa_origem_id FROM ref.sistema_origem_base_pessoa WHERE sistema_origem_id=@so AND padrao=1 AND ativo=1);
