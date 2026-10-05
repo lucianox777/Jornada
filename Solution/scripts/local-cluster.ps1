@@ -246,6 +246,10 @@ write_seed '/data/bronze/sha256/8d/cc/8dcc7e601606217f3b754766511182a916b17e9a26
 write_seed '/data/bronze/sha256/08/be/08befc1b72bbe89348739d0d994b031aa28db85ffc817ab2a2598a0af3583084.zip' '08befc1b72bbe89348739d0d994b031aa28db85ffc817ab2a2598a0af3583084' 'PK\003\004SEHAB' '9'
 write_seed '/data/bronze/sha256/52/ef/52efeb293d001f170549c0bdf4196cf94af375858b96a98a0d486a2ae2f81923.zip' '52efeb293d001f170549c0bdf4196cf94af375858b96a98a0d486a2ae2f81923' 'PK\003\004SMADS' '9'
 '@
+    # Em checkout Windows, o here-string preserva CRLF. O /bin/sh dentro do
+    # container recebe o CR como parte de "set -eu\r" e falha com
+    # "set: Illegal option -". Normalize para LF antes de atravessar o boundary.
+    $seedScript=$seedScript.Replace("`r",'')
     Invoke-Compose -ComposeArgs @('exec','-T','-u','0','jornada-node2','sh','-lc',$seedScript) -Context 'materialização dos objetos Bronze canônicos do seed DEV'
     Write-Host 'Objetos Bronze canônicos do seed DEV presentes e íntegros.' -ForegroundColor Green
 }
