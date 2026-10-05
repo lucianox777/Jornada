@@ -27,7 +27,6 @@ main{max-width:1180px;margin:0 auto;padding:22px}
 .command-desc{margin:6px 0;color:#45515e}
 .command-line{display:block;color:#6b7580;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.dependency{margin-top:8px;padding:8px 10px;border-left:3px solid #d69b22;background:#fff8e6;color:#5f4a15;font-size:13px}.dependency code{font-size:12px}.dep-note{display:block;margin-top:3px;color:#746434}
 .command-actions{display:flex;gap:10px;align-items:center;white-space:nowrap}
-.count{color:#66717d;font-size:13px}
 .primary{background:#1463d7;color:#fff;border:1px solid #1463d7;border-radius:7px;padding:8px 13px}
 .secondary{background:#fff;border:1px solid #cfd6df;border-radius:7px;padding:8px 13px}
 .danger{background:#fff2f0;color:#9b241c;border:1px solid #e8b3ad;border-radius:7px;padding:8px 13px}
@@ -74,7 +73,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
 </head>
 <body>
 <header>
-  <div class="brand"><h1>Jornada · Console DEV</h1><div id="breadcrumb" class="breadcrumb">Console DEV / Fluxo do dado</div></div>
+  <div class="brand"><h1>Jornada · Console DEV</h1><div id="breadcrumb" class="breadcrumb">Console DEV / Fluxo do dado</div><div id="consoleRevision" class="small">revisão: carregando...</div></div>
   <div class="toolbar">
     <button class="iconbtn" type="button" onclick="showHome()">⌂ Fluxo</button>
     <button class="iconbtn" type="button" onclick="showTools()">🧰 Ferramentas</button>
@@ -266,7 +265,7 @@ let layerPage=1;
 const layerPageSize=50;
 
 async function api(url,options){
-  const response=await fetch(url,options);
+  const response=await fetch(url,{cache:'no-store',...(options||{})});
   if(!response.ok)throw new Error(await response.text());
   const type=response.headers.get('content-type')||'';
   return type.includes('application/json')?response.json():response.text();
@@ -361,7 +360,7 @@ async function loadCommands(surface='flow'){
       const buttonClass=c.id==='finish'?'danger':'primary';
       actions='<button class="'+buttonClass+'" type="button" onclick="startCommand(\''+c.id+'\')">Executar</button>';
     }
-    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions"><span class="count">'+c.runCount+' execução(ões)</span>'+actions+'</div></div></div>';
+    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div><small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions">'+actions+'</div></div></div>';
   };
 
   target.innerHTML=groups.map(g=>{
@@ -777,6 +776,16 @@ async function openHistoryRun(id){
   renderFinal(run);
 }
 
+async function loadConsoleRevision(){
+  try{
+    const version=await api('/api/version');
+    consoleRevision.textContent='revisão: '+(version.revision||'desconhecida')+' · processo '+(version.processId||'?');
+  }catch{
+    consoleRevision.textContent='revisão: indisponível';
+  }
+}
+
+loadConsoleRevision();
 loadCommands('flow').catch(e=>commands.textContent='Falha ao carregar o fluxo: '+e.message);
 </script>
 </body>
