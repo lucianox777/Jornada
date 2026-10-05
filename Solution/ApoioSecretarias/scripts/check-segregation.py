@@ -14,7 +14,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 MAIN_INVENTORY = "Solution/config/governance/schema-approvals.json"
-SUPPORT_INVENTORY = "ApoioSecretarias/config/governance/schema-approvals.SEHAB.json"
+SUPPORT_INVENTORY = "Solution/ApoioSecretarias/config/governance/schema-approvals.SEHAB.json"
 SEHAB_SCHEMA_PREFIX = "config/contracts/gestores/sehab/"
 SEHAB_AA01_METADATA = "config/contracts/registros/aa01/v1/registro.json"
 FORBIDDEN_PRODUCT_PATHS = (
@@ -67,7 +67,7 @@ def audit(root: Path) -> list[str]:
             errors.append(f"Artefato externo reintroduzido no produto: {rel}")
 
     main_sln = root / "Solution/Jornada.sln"
-    support_sln = root / "ApoioSecretarias/SolucaoApoioSecretarias.sln"
+    support_sln = root / "Solution/ApoioSecretarias/SolucaoApoioSecretarias.sln"
     if not main_sln.is_file():
         errors.append("Solution/Jornada.sln ausente")
     elif re.search(r"Jornada[.]Integrador|ApoioSecretarias", main_sln.read_text(encoding="utf-8"), re.I):
@@ -79,7 +79,7 @@ def audit(root: Path) -> list[str]:
 
     # Runtime copies are allowed only when byte-identical to the support-owned contracts.
     runtime_copy = root / "Solution/config/contracts/gestores/SEHAB"
-    support_copy = root / "ApoioSecretarias/config/contracts/gestores/SEHAB"
+    support_copy = root / "Solution/ApoioSecretarias/config/contracts/gestores/SEHAB"
     for support_file in support_copy.rglob("*.json"):
         relative = support_file.relative_to(support_copy)
         product_file = runtime_copy / relative
@@ -100,7 +100,7 @@ def audit(root: Path) -> list[str]:
 
     # Contrato factual de apoio é cópia derivada byte a byte do schema canônico.
     # O hash pinado não representa aprovação; detectar drift em ambos os lados.
-    index_path = root / "ApoioSecretarias/config/governance/factual-schema-sources.json"
+    index_path = root / "Solution/ApoioSecretarias/config/governance/factual-schema-sources.json"
     try:
         derived = json.loads(index_path.read_text(encoding="utf-8"))
         entries = derived["contracts"]
@@ -110,7 +110,7 @@ def audit(root: Path) -> list[str]:
             errors.append("Inventário factual do apoio tem tipo/versão inesperado")
         for entry in entries:
             expected = entry["sha256"]
-            for rel in ("ApoioSecretarias/" + entry["path"], entry["canonicalSource"]):
+            for rel in ("Solution/ApoioSecretarias/" + entry["path"], entry["canonicalSource"]):
                 actual = hashlib.sha256((root / rel).read_bytes()).hexdigest()
                 if actual != expected:
                     errors.append(f"Schema factual divergente: {rel}")
@@ -150,7 +150,7 @@ def audit(root: Path) -> list[str]:
 
 
 if __name__ == "__main__":
-    repository = Path(__file__).resolve().parents[2]
+    repository = Path(__file__).resolve().parents[3]
     findings = audit(repository)
     for finding in findings:
         print("FALHA SEGREGAÇÃO: " + finding, file=sys.stderr)

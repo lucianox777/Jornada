@@ -32,7 +32,7 @@ dotnet run --project clients/Jornada.Integrador.CSharp -- --resultado ENTREGA_SE
 
 Copie `config/gestores/SEHAB/integrador.config.example.json` para arquivo não versionado e insira a credencial do ambiente. Nunca commitar a configuração efetiva. O arquivo de exemplo usa endereços ilustrativos.
 
-A regressão estática pode ser executada localmente com `python scripts/check-segregation.py` e `python -m unittest discover -s scripts/tests -v`, a partir de `ApoioSecretarias/`. O guard verifica inventários, composição das duas soluções, referências dos projetos C# de produção, caminhos físicos proibidos e ausência de registro SEHAB na migração principal Pessoa v5. Não exige banco, rede, credenciais ou dados reais.
+A regressão estática pode ser executada localmente com `python scripts/check-segregation.py` e `python -m unittest discover -s scripts/tests -v`, a partir de `Solution/ApoioSecretarias/`. O guard verifica inventários, composição das duas soluções, referências dos projetos C# de produção, caminhos físicos proibidos e ausência de registro SEHAB na migração principal Pessoa v5. Não exige banco, rede, credenciais ou dados reais.
 
 ## Fonte contratual e fronteira de execução
 

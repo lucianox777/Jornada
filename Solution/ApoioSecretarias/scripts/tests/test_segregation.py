@@ -18,14 +18,14 @@ class SegregationTests(unittest.TestCase):
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.write("Solution/Jornada.sln", 'Project = "Jornada.Contracts"')
-        self.write("ApoioSecretarias/SolucaoApoioSecretarias.sln",
+        self.write("Solution/ApoioSecretarias/SolucaoApoioSecretarias.sln",
                    'Project = "Jornada.Integrador.CSharp"')
         self.write("Solution/src/Jornada.Contracts/Jornada.Contracts.csproj",
                    '<Project Sdk="Microsoft.NET.Sdk"><ItemGroup /></Project>')
         self.write("Solution/config/governance/schema-approvals.json",
                    json.dumps({"contracts": [{"path":
                        "config/contracts/gestores/SMADS/pessoa/v5/pessoa.schema.json"}]}))
-        self.write("ApoioSecretarias/config/governance/schema-approvals.SEHAB.json",
+        self.write("Solution/ApoioSecretarias/config/governance/schema-approvals.SEHAB.json",
                    json.dumps({"contracts": [{"path": path}
                        for path in sorted(guard.EXPECTED_SUPPORT)]}))
         self.write("Solution/database/migrations/20260921_Pessoa_V5_Contrato_371.sql",
@@ -33,8 +33,8 @@ class SegregationTests(unittest.TestCase):
         schema = '{"type":"object"}\n'
         digest = hashlib.sha256(schema.encode("utf-8")).hexdigest()
         self.write("Solution/config/contracts/registros/AA01/v1/registro.schema.json", schema)
-        self.write("ApoioSecretarias/config/contracts/registros/AA01/v1/registro.schema.json", schema)
-        self.write("ApoioSecretarias/config/governance/factual-schema-sources.json",
+        self.write("Solution/ApoioSecretarias/config/contracts/registros/AA01/v1/registro.schema.json", schema)
+        self.write("Solution/ApoioSecretarias/config/governance/factual-schema-sources.json",
                    json.dumps({"contracts": [{
                        "natureza": "BENEFICIO", "codigoTipo": "AA01", "tipoVersao": 1,
                        "path": "config/contracts/registros/AA01/v1/registro.schema.json",
@@ -55,12 +55,12 @@ class SegregationTests(unittest.TestCase):
         self.assertEqual([], guard.audit(self.root))
 
     def test_runtime_sehab_copy_must_match_support(self):
-        self.write("ApoioSecretarias/config/contracts/gestores/SEHAB/pessoa/v5/pessoa.schema.json", "{}")
+        self.write("Solution/ApoioSecretarias/config/contracts/gestores/SEHAB/pessoa/v5/pessoa.schema.json", "{}")
         self.write("Solution/config/contracts/gestores/SEHAB/pessoa/v5/pessoa.schema.json", "{\"different\":true}")
         self.assert_rejects("Cópia runtime SEHAB divergente")
 
     def test_runtime_sehab_copy_is_allowed_when_identical(self):
-        self.write("ApoioSecretarias/config/contracts/gestores/SEHAB/pessoa/v5/pessoa.schema.json", "{}")
+        self.write("Solution/ApoioSecretarias/config/contracts/gestores/SEHAB/pessoa/v5/pessoa.schema.json", "{}")
         self.write("Solution/config/contracts/gestores/SEHAB/pessoa/v5/pessoa.schema.json", "{}")
         self.assertEqual([], guard.audit(self.root))
 
@@ -71,7 +71,7 @@ class SegregationTests(unittest.TestCase):
         self.assert_rejects("Inventário principal")
 
     def test_support_inventory_omission_fails(self):
-        self.write("ApoioSecretarias/config/governance/schema-approvals.SEHAB.json",
+        self.write("Solution/ApoioSecretarias/config/governance/schema-approvals.SEHAB.json",
                    json.dumps({"contracts": []}))
         self.assert_rejects("titularidade exata")
 
@@ -82,7 +82,7 @@ class SegregationTests(unittest.TestCase):
     def test_product_project_reference_fails(self):
         self.write("Solution/src/Jornada.Contracts/Jornada.Contracts.csproj",
                    '<Project><ItemGroup><ProjectReference '
-                   'Include="../../../ApoioSecretarias/clients/Jornada.Integrador.CSharp/a.csproj" />'
+                   'Include="../../ApoioSecretarias/clients/Jornada.Integrador.CSharp/a.csproj" />'
                    '</ItemGroup></Project>')
         self.assert_rejects("referência externa proibida")
 
@@ -98,13 +98,13 @@ class SegregationTests(unittest.TestCase):
     def test_test_only_external_schema_link_does_not_break_boundary(self):
         self.write("Solution/tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj",
                    '<Project><ItemGroup><None '
-                   'Include="../../../ApoioSecretarias/config/contracts/gestores/SEHAB/v5.json" />'
+                   'Include="../../ApoioSecretarias/config/contracts/gestores/SEHAB/v5.json" />'
                    '</ItemGroup></Project>')
         self.assertEqual([], guard.audit(self.root))
 
 
     def test_factual_schema_drift_in_support_is_rejected(self):
-        self.write("ApoioSecretarias/config/contracts/registros/AA01/v1/registro.schema.json",
+        self.write("Solution/ApoioSecretarias/config/contracts/registros/AA01/v1/registro.schema.json",
                    '{"type":"array"}\n')
         self.assert_rejects("Schema factual divergente")
 

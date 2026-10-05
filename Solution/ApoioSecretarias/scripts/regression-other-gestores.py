@@ -11,7 +11,7 @@ from pathlib import Path
 
 from jsonschema import Draft202012Validator, FormatChecker
 
-MAIN = Path(__file__).resolve().parents[2] / "Solution"
+MAIN = Path(__file__).resolve().parents[2]
 GESTORES = ("SMADS", "SMDET", "SMS")
 
 
