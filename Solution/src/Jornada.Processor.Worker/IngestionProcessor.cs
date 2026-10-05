@@ -16,16 +16,24 @@ internal sealed class IngestionProcessor(
 {
     public async Task<bool> ProcessNextAsync(CancellationToken ct)
     {
+        var cycleSw = Stopwatch.StartNew();
         await using var pipelineLease = await pipelineCoordinator.TryAcquireProcessorBatchAsync(ct);
         if (pipelineLease is null)
         {
+            cycleSw.Stop();
+            JornadaTelemetry.RecordProcessorLoopCycle(cycleSw.Elapsed.TotalMilliseconds, "IDLE_PIPELINE_BUSY");
             logger.LogDebug("Processor aguardando janela exclusiva do pipeline; nenhum lote foi reservado.");
             return false;
         }
 
         var batch = await repository.ReserveNextAsync(
             runtime.WorkerId, TimeSpan.FromSeconds(Math.Max(30, options.LeaseDurationSeconds)), ct);
-        if (batch is null) return false;
+        if (batch is null)
+        {
+            cycleSw.Stop();
+            JornadaTelemetry.RecordProcessorLoopCycle(cycleSw.Elapsed.TotalMilliseconds, "IDLE_NO_BATCH");
+            return false;
+        }
         var deliverySw = Stopwatch.StartNew();
         var telemetryResult = "UNKNOWN";
         var validationPhase = "RESERVA";
