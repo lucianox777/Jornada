@@ -56,6 +56,8 @@ RUN dotnet publish src/Jornada.Api/Jornada.Api.csproj -c Release --no-restore -o
  && dotnet publish src/Jornada.Linkage.Conference/Jornada.Linkage.Conference.csproj -c Release --no-restore -o /out/tools/Jornada.Linkage.Conference
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
+ARG JORNADA_BUILD_REVISION=unknown
+LABEL org.opencontainers.image.revision=$JORNADA_BUILD_REVISION
 RUN apt-get update \
  && apt-get install -y --no-install-recommends jq curl procps \
  && rm -rf /var/lib/apt/lists/*

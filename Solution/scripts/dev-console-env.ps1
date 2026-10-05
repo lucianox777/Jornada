@@ -14,6 +14,7 @@ foreach($line in $lines){
   }
 }
 $map['JORNADA_SQL_DATABASE']='JornadaSyntheticDev'
+$map['JORNADA_LOCAL_PROFILE']='dev-console'
 $map['JORNADA_SEMIBLIND_ENABLED']='true'
 $map['JORNADA_LOCAL_SYNTHETIC_PEOPLE']='30000'
 $map['JORNADA_LOCAL_SYNTHETIC_PAIRED']='30000'

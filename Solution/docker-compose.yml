@@ -5,6 +5,8 @@ x-jornada-node-common: &jornada-node-common
   build:
     context: .
     dockerfile: install/container-test/Dockerfile
+    args:
+      JORNADA_BUILD_REVISION: "${JORNADA_BUILD_REVISION:-unknown}"
   depends_on:
     sqlserver:
       condition: service_healthy
@@ -13,6 +15,9 @@ x-jornada-node-common: &jornada-node-common
     jornada-reference-bootstrap:
       condition: service_completed_successfully
   restart: unless-stopped
+  labels:
+    com.jornada.local.profile: "${JORNADA_LOCAL_PROFILE:-local}"
+    com.jornada.local.database: "${JORNADA_SQL_DATABASE:-JornadaLocal}"
   environment: &jornada-node-environment
     JORNADA_CLUSTER_CONFIG: /etc/jornada/Jornada.Cluster.Test.json
     JORNADA_SQL_CONNECTION_STRING: "Server=sqlserver,1433;Database=${JORNADA_SQL_DATABASE:-JornadaLocal};User Id=sa;Password=${JORNADA_SQL_SA_PASSWORD:?Set JORNADA_SQL_SA_PASSWORD in the local .env file};TrustServerCertificate=true;Encrypt=false"
@@ -70,6 +75,8 @@ services:
     build:
       context: .
       dockerfile: install/container-test/Dockerfile
+      args:
+        JORNADA_BUILD_REVISION: "${JORNADA_BUILD_REVISION:-unknown}"
     depends_on:
       sqlserver:
         condition: service_healthy
