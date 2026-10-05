@@ -229,6 +229,61 @@ FROM silver.pessoa_origem;
         ExtraFixtures = [long]$parts[3]
     }
 }
+function Assert-SyntheticScaleExpansion {
+    param(
+        [Parameter(Mandatory=$true)][long]$BasePeople,
+        [Parameter(Mandatory=$true)][long]$ActualPeople
+    )
+    if ($ActualPeople -le $BasePeople) { return }
+
+    $expectedExtra = $ActualPeople - $BasePeople
+    $line = Invoke-SqlScalar -Query @"
+DECLARE @base bigint=$BasePeople, @actual bigint=$ActualPeople;
+WITH extra AS (
+    SELECT po.pessoa_origem_id,
+           TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10)) AS n
+    FROM silver.pessoa_origem po
+    WHERE po.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%'
+      AND TRY_CONVERT(bigint,RIGHT(po.codigo_pessoa_origem,10))>@base
+),
+valid AS (
+    SELECT DISTINCT e.pessoa_origem_id,e.n
+    FROM extra e
+    JOIN silver.pessoa_observacao o
+      ON o.pessoa_origem_id=e.pessoa_origem_id
+    JOIN identidade.vinculo_fonte vf
+      ON vf.pessoa_observacao_id=o.pessoa_observacao_id
+     AND vf.ativo=1
+     AND vf.metodo_resolucao=N'CPF_DETERMINISTICO'
+     AND vf.motivo=N'SCALE_INCREMENTAL'
+    JOIN gold.pessoa g
+      ON g.pessoa_uuid=vf.pessoa_uuid
+     AND g.cpf=o.cpf
+    JOIN identidade.cpf_ancora a
+      ON a.pessoa_uuid=vf.pessoa_uuid
+     AND a.cpf=o.cpf
+)
+SELECT CONCAT(
+    (SELECT COUNT_BIG(*) FROM extra),'|',
+    COALESCE((SELECT MIN(n) FROM extra),0),'|',
+    COALESCE((SELECT MAX(n) FROM extra),0),'|',
+    (SELECT COUNT_BIG(DISTINCT n) FROM extra),'|',
+    (SELECT COUNT_BIG(*) FROM valid)
+);
+"@
+    $parts=$line.Split('|')
+    if($parts.Count -ne 5){throw "Validação da expansão SCALE inválida: $line"}
+    $extraCount=[long]$parts[0]
+    $minN=[long]$parts[1]
+    $maxN=[long]$parts[2]
+    $distinctN=[long]$parts[3]
+    $validCount=[long]$parts[4]
+    if($extraCount -ne $expectedExtra -or $distinctN -ne $expectedExtra -or
+       $minN -ne ($BasePeople+1) -or $maxN -ne $ActualPeople -or $validCount -ne $expectedExtra){
+        throw "Expansão SCALE-SEHAB inconsistente: base=$BasePeople atual=$ActualPeople extras=$extraCount distintos=$distinctN faixa=$minN..$maxN válidos=$validCount. Somente expansões geradas pela Console DEV podem ser preservadas."
+    }
+    Write-Host "Expansão SCALE-SEHAB controlada preservada: base=$BasePeople; atual=$ActualPeople; adicionais=$expectedExtra." -ForegroundColor Green
+}
 function Ensure-SyntheticScale {
     $expectedPeople = if ($vars['JORNADA_LOCAL_SYNTHETIC_PEOPLE']) { [long]$vars['JORNADA_LOCAL_SYNTHETIC_PEOPLE'] } else { 5000 }
     $expectedPaired = if ($vars['JORNADA_LOCAL_SYNTHETIC_PAIRED']) { [long]$vars['JORNADA_LOCAL_SYNTHETIC_PAIRED'] } else { 5000 }
@@ -241,19 +296,21 @@ function Ensure-SyntheticScale {
     $canonicalTotal = [long]$counts['Sehab'] + [long]$counts['Smads'] + [long]$counts['Pending']
     if ($canonicalTotal -eq 0) {
         if ([long]$counts['ExtraFixtures'] -gt 0) {
-            throw "Fixtures SCALE adicionais existem sem a massa canônica (extras=$($counts['ExtraFixtures'])). Execute .\scripts\local-db.ps1 reset."
+            throw "Fixtures SCALE adicionais existem sem a massa canônica (extras=$($counts['ExtraFixtures'])). Revise o ambiente sintético da Console DEV antes de continuar."
         }
         Write-Host "Carregando corpus sintético local para calibração/linkage: Gold=$expectedPeople, pares=$expectedPaired, pendentes=$expectedPending..."
         Invoke-SqlCmd -SqlCmdArgs @('-d', $db, '-v', "SCALE_PEOPLE=$expectedPeople", "SCALE_PAIRED=$expectedPaired", "SCALE_PENDING=$expectedPending", 'SCALE_SEED=355', 'SCALE_COLLISION_MODULO=37', 'SCALE_BIRTH_SHIFT_MODULO=29', '-i', 'database/Jornada_Dev_SyntheticScale.sql')
         $counts = Get-SyntheticScaleCounts
     }
-    if ([long]$counts['Sehab'] -ne $expectedPeople -or [long]$counts['Smads'] -ne $expectedPaired -or [long]$counts['Pending'] -ne $expectedPending) {
-        throw "Massa sintética local inconsistente: esperado SCALE-SEHAB=$expectedPeople, SCALE-SMADS=$expectedPaired, SCALE-PEND=$expectedPending; encontrado SEHAB=$($counts['Sehab']) SMADS=$($counts['Smads']) PEND=$($counts['Pending']) extras=$($counts['ExtraFixtures']). Execute .\scripts\local-db.ps1 reset."
+    $actualPeople=[long]$counts['Sehab']
+    if ($actualPeople -lt $expectedPeople -or [long]$counts['Smads'] -ne $expectedPaired -or [long]$counts['Pending'] -ne $expectedPending) {
+        throw "Massa sintética local inconsistente: mínimo SCALE-SEHAB=$expectedPeople, SCALE-SMADS=$expectedPaired, SCALE-PEND=$expectedPending; encontrado SEHAB=$actualPeople SMADS=$($counts['Smads']) PEND=$($counts['Pending']) extras=$($counts['ExtraFixtures']). Revise o ambiente sintético da Console DEV antes de continuar."
     }
+    Assert-SyntheticScaleExpansion -BasePeople $expectedPeople -ActualPeople $actualPeople
     if ([long]$counts['ExtraFixtures'] -gt 0) {
         Write-Host "Fixtures SCALE adicionais preservados fora da massa canônica: $($counts['ExtraFixtures'])."
     }
-    Write-Host "Corpus sintético local pronto: $expectedPeople pessoas Gold, $expectedPaired pares corroborados e $expectedPending pendentes."
+    Write-Host "Corpus sintético local pronto: $actualPeople pessoas Gold, $expectedPaired pares corroborados e $expectedPending pendentes."
 }
 function Bootstrap {
     # Operações de criação/estado do próprio banco devem partir explicitamente de master.
