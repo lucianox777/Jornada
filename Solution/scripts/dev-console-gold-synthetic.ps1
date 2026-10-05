@@ -25,8 +25,7 @@ Get-Content $envFile | ForEach-Object {
     $vars[$p[0].Trim()]=$p[1].Trim()
   }
 }
-$db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaSyntheticDev'}
-if($db -ne 'JornadaSyntheticDev'){throw "Console DEV aceita somente JornadaSyntheticDev; banco atual=$db."}
+$db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
 $password=$vars['JORNADA_SQL_SA_PASSWORD']
 if([string]::IsNullOrWhiteSpace($password)){throw 'JORNADA_SQL_SA_PASSWORD ausente.'}
 Write-Host ('Banco alvo: '+$db)

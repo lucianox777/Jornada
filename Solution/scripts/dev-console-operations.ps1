@@ -14,6 +14,7 @@ $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'dev-console-env.ps1')
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $EnvFile=$DevConsoleEnvFile
+$RuntimeMode=$DevConsoleRuntimeMode
 $KeysFile=Join-Path $Root 'config/security/test-access-keys.json'
 $OutDir=Join-Path $Root '.local/dev-console'
 New-Item -ItemType Directory -Force $OutDir | Out-Null
@@ -88,7 +89,7 @@ function Ensure-ClusterRunning {
     if($missing.Count -eq 0 -and $drift.Count -eq 0){ return }
 
     if($drift.Count -gt 0){
-        Write-Host "Perfil dos nós divergente do ambiente DEV esperado ($profile/$db): $($drift -join '; '). Reconciliando automaticamente..."
+        Write-Host "Perfil dos nós divergente do ambiente $RuntimeMode esperado ($profile/$db): $($drift -join '; '). Reconciliando automaticamente..."
     }else{
         Write-Host "Infraestrutura incompleta ($($missing -join ', ')); subindo automaticamente..."
     }
@@ -102,15 +103,15 @@ function Ensure-ClusterRunning {
         $drift=@(Get-NodeProfileDrift)
     } finally { Pop-Location }
     if($missing.Count -gt 0 -or $drift.Count -gt 0){
-        throw "Infraestrutura DEV não convergiu para o perfil esperado $profile/$db; ausentes=$($missing -join ','); divergentes=$($drift -join ';')."
+        throw "Infraestrutura $RuntimeMode não convergiu para o perfil esperado $profile/$db; ausentes=$($missing -join ','); divergentes=$($drift -join ';')."
     }
 }
 
 function Invoke-ClusterAction([string]$ClusterAction){
     Ensure-ClusterRunning
     $envName=Split-Path -Leaf $EnvFile
-    Write-Host "# pwsh -NoProfile -File scripts/local-cluster.ps1 -Action $ClusterAction -EnvFile $envName"
-    & (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action $ClusterAction -EnvFile $EnvFile
+    Write-Host "# pwsh -NoProfile -File scripts/local-cluster.ps1 -Action $ClusterAction -EnvFile $envName -RuntimeMode $RuntimeMode"
+    & (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action $ClusterAction -EnvFile $EnvFile -RuntimeMode $RuntimeMode
     if($LASTEXITCODE -ne 0){throw "local-cluster.ps1 $ClusterAction falhou ($LASTEXITCODE)."}
 }
 
@@ -359,7 +360,6 @@ switch($Action){
 
     'calibrate-initial' {
         Ensure-ClusterRunning
-        if($db -ne 'JornadaSyntheticDev'){throw "Console DEV exige JornadaSyntheticDev; banco atual=$db."}
         $eligible="status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO'"
         $activeCount=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE $eligible;")
         if($activeCount -gt 1){throw "Estado inválido: encontrados $activeCount modelos calibrados ATIVOS."}
@@ -387,9 +387,19 @@ switch($Action){
         $goldCount=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(DISTINCT vc.pessoa_uuid) FROM silver.pessoa_observacao o JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=o.pessoa_observacao_id WHERE o.codigo_pessoa_origem LIKE N'SCALE-SEHAB-%' AND vc.status=N'RESOLVIDO';")
         $bootstrapGoldCount=$goldCount
         $pendingBootstrap=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-%' AND NOT EXISTS(SELECT 1 FROM identidade.v_vinculo_corrente vc WHERE vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO');")
-        if($pendingBootstrap -ne 0){throw "Infraestrutura DEV não pode ficar pronta com corpus de bootstrap pendente; atual=$pendingBootstrap."}
+        if($RuntimeMode -eq 'DEV' -and $pendingBootstrap -gt 0){
+            Write-Host "DEV: publicando o corpus adicional pela execução real do Linkage Runner; pendentes=$pendingBootstrap..."
+            Invoke-ClusterAction 'linkage'
+            $pendingBootstrap=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao o WHERE o.codigo_pessoa_origem LIKE N'SCALE-%' AND NOT EXISTS(SELECT 1 FROM identidade.v_vinculo_corrente vc WHERE vc.pessoa_observacao_id=o.pessoa_observacao_id AND vc.status=N'RESOLVIDO');")
+        }
+        if($pendingBootstrap -ne 0){throw "Infraestrutura $RuntimeMode não pode ficar pronta com corpus de bootstrap pendente; atual=$pendingBootstrap."}
         $remainingScale=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';")
-        Write-Host "DEV preserva e publica o domínio sintético processado na Gold; descarte pós-calibração é exclusivo de Homologation/Production."
+        $bootstrapLifecycle=if($RuntimeMode -eq 'DEV'){'DEV_EXTRA_PUBLISHED_PRESERVED'}else{'STANDARD_NO_EXTRA_PENDING'}
+        if($RuntimeMode -eq 'DEV'){
+            Write-Host "DEV preserva os 6.000 registros adicionais na Silver e exige sua publicação na Gold."
+        }else{
+            Write-Host "$RuntimeMode usa o comportamento padrão: nenhum corpus adicional de 6.000 registros é criado."
+        }
         $modelId=Invoke-SqlScalar "SELECT TOP(1) CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
         $version=[int](Invoke-SqlScalar "SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;")
         $bundleVersion=Invoke-SqlScalar "SELECT TOP(1) ISNULL(model_config_bundle_version,N'') FROM identidade.modelo_linkage WHERE $eligible ORDER BY versao DESC;"
@@ -402,7 +412,7 @@ switch($Action){
             bootstrapReference='IBGE_CENSO_2022'
             bootstrapGoldPeople=$bootstrapGoldCount
             operationalScalePeopleAfterBootstrap=$remainingScale
-            bootstrapCorpusLifecycle='DEV_PUBLISHED_PRESERVED'
+            bootstrapCorpusLifecycle=$bootstrapLifecycle
             modelId=$modelId
             version=$version
             status='ATIVO'

@@ -1,7 +1,8 @@
 param(
     [Parameter(Mandatory=$true)]
-    [ValidateSet('up','clean','status')]
-    [string]$Action
+    [ValidateSet('up','reset','clean','status')]
+    [string]$Action,
+    [switch]$ConfirmProductionReset
 )
 
 $ErrorActionPreference='Stop'
@@ -14,13 +15,15 @@ $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $Cluster=Join-Path $PSScriptRoot 'local-cluster.ps1'
 $EnvFile=$DevConsoleEnvFile
+$RuntimeMode=$DevConsoleRuntimeMode
 
-function Invoke-Cluster([string]$ClusterAction,[switch]$NoBuild){
-    $suffix=if($NoBuild){' -NoBuild'}else{''}
-    $envName=Split-Path -Leaf $EnvFile
-    Write-Host "# pwsh -NoProfile -File scripts/local-cluster.ps1 -Action $ClusterAction$suffix -EnvFile $envName"
-    if($NoBuild){ & $Cluster -Action $ClusterAction -NoBuild -EnvFile $EnvFile }
-    else { & $Cluster -Action $ClusterAction -EnvFile $EnvFile }
+function Invoke-Cluster([string]$ClusterAction,[switch]$NoBuild,[switch]$ConfirmDestructive){
+    $displayArgs=@('-Action',$ClusterAction,'-EnvFile',$EnvFile,'-RuntimeMode',$RuntimeMode)
+    $invokeParams=@{Action=$ClusterAction;EnvFile=$EnvFile;RuntimeMode=$RuntimeMode}
+    if($NoBuild){$displayArgs+='-NoBuild';$invokeParams['NoBuild']=$true}
+    if($ConfirmDestructive){$displayArgs+='-ConfirmProductionReset';$invokeParams['ConfirmProductionReset']=$true}
+    Write-Host ("# pwsh -NoProfile -File scripts/local-cluster.ps1 "+($displayArgs -join ' '))
+    & $Cluster @invokeParams
     if($LASTEXITCODE -ne 0){ throw "local-cluster.ps1 $ClusterAction falhou ($LASTEXITCODE)." }
 }
 
@@ -47,6 +50,32 @@ function Get-LocalRuntimeImageRevision {
     return $null
 }
 
+function Complete-ConsoleBootstrap {
+    Write-Host ''
+    Write-Host "Infraestrutura básica pronta: modo=$RuntimeMode; SQL Server + schema + NAS + referência IBGE + NODE1/NODE2."
+    Write-Host ''
+    Write-Host 'Garantindo modelo BOOTSTRAP inicial ATIVO (IBGE + corpus sintético de calibração)...'
+    & (Join-Path $PSScriptRoot 'dev-console-operations.ps1') -Action calibrate-initial
+    if($LASTEXITCODE -ne 0){throw "Garantia do modelo BOOTSTRAP inicial falhou ($LASTEXITCODE)."}
+    Write-Host ''
+    Write-Host 'Gerando configuração inicial da Console (JSON + HTML)...'
+    & (Join-Path $PSScriptRoot 'dev-console-initial-config.ps1')
+    if($LASTEXITCODE -ne 0){throw "Geração da configuração inicial falhou ($LASTEXITCODE)."}
+
+    Write-Host ''
+    Write-Host 'Gerando bundle inicial de contratos e configurações exigido pela ingestão...'
+    & (Join-Path $PSScriptRoot 'dev-console-contract-bundle.ps1')
+    if($LASTEXITCODE -ne 0){throw "Geração do bundle inicial falhou ($LASTEXITCODE)."}
+
+    Write-Host 'O serviço jornada-reference-bootstrap é um init one-shot: Exited (0) significa CONCLUÍDO com sucesso, não falha.'
+    Write-Host "# docker compose --env-file $(Split-Path -Leaf $EnvFile) ps -a"
+    Push-Location $Root
+    try {
+        & docker compose --env-file $EnvFile ps -a
+        if($LASTEXITCODE -ne 0){ throw "docker compose ps -a falhou ($LASTEXITCODE)." }
+    } finally { Pop-Location }
+}
+
 switch($Action){
     'up' {
         $sourceRevision=Get-CurrentSourceRevision
@@ -69,45 +98,33 @@ switch($Action){
             }
             Invoke-Cluster 'up'
         }
-
-        Write-Host ''
-        Write-Host 'Infraestrutura básica pronta: SQL Server + schema DEV + NAS + referência IBGE + NODE1/NODE2.'
-        Write-Host ''
-        Write-Host 'Garantindo modelo BOOTSTRAP inicial ATIVO (IBGE + corpus sintético DEV)...'
-        & (Join-Path $PSScriptRoot 'dev-console-operations.ps1') -Action calibrate-initial
-        if($LASTEXITCODE -ne 0){throw "Garantia do modelo BOOTSTRAP inicial falhou ($LASTEXITCODE)."}
-        Write-Host ''
-        Write-Host 'Gerando configuração inicial da Console DEV (JSON + HTML)...'
-        & (Join-Path $PSScriptRoot 'dev-console-initial-config.ps1')
-        if($LASTEXITCODE -ne 0){throw "Geração da configuração inicial falhou ($LASTEXITCODE)."}
-
-        Write-Host ''
-        Write-Host 'Gerando bundle inicial de contratos e configurações exigido pela ingestão...'
-        & (Join-Path $PSScriptRoot 'dev-console-contract-bundle.ps1')
-        if($LASTEXITCODE -ne 0){throw "Geração do bundle inicial falhou ($LASTEXITCODE)."}
-
-        Write-Host 'O serviço jornada-reference-bootstrap é um init one-shot: Exited (0) significa CONCLUÍDO com sucesso, não falha.'
-        Write-Host "# docker compose --env-file $(Split-Path -Leaf $EnvFile) ps -a"
-        Push-Location $Root
-        try {
-            & docker compose --env-file $EnvFile ps -a
-            if($LASTEXITCODE -ne 0){ throw "docker compose ps -a falhou ($LASTEXITCODE)." }
-        } finally { Pop-Location }
+        Complete-ConsoleBootstrap
+    }
+    'reset' {
+        if($RuntimeMode -eq 'PROD' -and -not $ConfirmProductionReset){
+            throw 'Reset bloqueado em PROD. Execute o comando explicitamente com -ConfirmProductionReset; a interface não oferece essa confirmação.'
+        }
+        Invoke-Cluster 'reset' -ConfirmDestructive:$ConfirmProductionReset
+        Complete-ConsoleBootstrap
     }
     'clean' {
-        Invoke-Cluster 'clean'
+        if($RuntimeMode -eq 'PROD' -and -not $ConfirmProductionReset){
+            throw 'Clean destrutivo bloqueado em PROD. Execute o comando explicitamente com -ConfirmProductionReset; a interface não oferece essa confirmação.'
+        }
+        Invoke-Cluster 'clean' -ConfirmDestructive:$ConfirmProductionReset
         $stateDir=Join-Path $Root '.local/dev-console'
         if(Test-Path $stateDir){
             Remove-Item -Recurse -Force $stateDir
             Write-Host "Estado transitório da Console removido: $stateDir"
         }
         Write-Host 'Histórico de execuções foi preservado; recibos, bundles, ZIPs e artefatos ligados ao ambiente foram limpos.'
-        Write-Host 'Ambiente DEV destruído: containers, volumes e órfãos locais removidos.'
+        Write-Host "Ambiente $RuntimeMode destruído: containers, volumes e órfãos locais removidos."
         Write-Host 'Na próxima subida, a infraestrutura será recriada automaticamente.'
     }
     'status' {
         Invoke-Cluster 'status'
         Write-Host ''
+        Write-Host "Modo runtime: $RuntimeMode."
         Write-Host 'Nota: jornada-reference-bootstrap deve aparecer como processo concluído (Exited 0) após materializar/validar a referência.'
     }
 }

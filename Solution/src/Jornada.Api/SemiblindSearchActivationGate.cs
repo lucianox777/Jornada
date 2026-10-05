@@ -5,9 +5,9 @@ namespace Jornada.Api;
 
 /// <summary>
 /// Gate técnico independente de credencial/escopo: enquanto #539 e #378 estiverem
-/// pendentes, a busca só pode executar no corpus isolado JornadaSyntheticDev,
-/// com flag explicitamente ligada e marcador residente de Development.
-/// Uma configuração de HML/Produção não contorna esta condição.
+/// pendentes, a busca só pode executar com flag explicitamente ligada e
+/// marcador residente de Development. O nome físico do banco não concede
+/// capacidade: HML/Produção permanecem fail-closed pelo perfil residente.
 /// </summary>
 internal interface ISemiblindSearchActivationGate
 {
@@ -19,7 +19,6 @@ internal sealed class SqlSyntheticDevelopmentSemiblindSearchActivationGate(
     IConfiguration configuration,
     IOperationalSqlAdapter sql) : ISemiblindSearchActivationGate
 {
-    internal const string SyntheticDatabase = "JornadaSyntheticDev";
     internal const string EnabledSetting = "SemiblindIdentitySearch:Enabled";
 
     public async Task<bool> IsEnabledAsync(CancellationToken ct)
@@ -58,6 +57,6 @@ internal sealed class SqlSyntheticDevelopmentSemiblindSearchActivationGate(
         string environmentName, bool enabled, string? databaseName, string? profile) =>
         enabled
         && string.Equals(environmentName, "Development", StringComparison.Ordinal)
-        && string.Equals(databaseName, SyntheticDatabase, StringComparison.OrdinalIgnoreCase)
+        && !string.IsNullOrWhiteSpace(databaseName)
         && string.Equals(profile, "Development", StringComparison.Ordinal);
 }

@@ -45,8 +45,8 @@ public static class IdentityApi
             ApiAuditContext.SetResourceCode(http.HttpContext, context.TipoCodigo);
             if (!await policy.IsAllowedAsync(context, "jornada.identidade.busca.read", context.TipoCodigo, null, ct))
                 return Results.Forbid();
-            // Issue #539: a flag de Development não basta; verificar nome e perfil residente
-            // do banco isolado JornadaSyntheticDev ANTES de recuperar qualquer candidato.
+            // Issue #539: a flag de Development não basta; verificar o perfil residente
+            // Development no banco configurado ANTES de recuperar qualquer candidato.
             if (!await activation.IsEnabledAsync(ct))
                 return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
             var correlation = http.HttpContext.Items.TryGetValue(ApiContextItems.CorrelationId, out var value)

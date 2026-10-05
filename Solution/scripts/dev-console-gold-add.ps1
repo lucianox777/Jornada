@@ -23,9 +23,8 @@ Get-Content $EnvFile | ForEach-Object {
         $vars[$p[0].Trim()]=$p[1].Trim()
     }
 }
-$db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaSyntheticDev'}
+$db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
 $password=$vars['JORNADA_SQL_SA_PASSWORD']
-if($db -ne 'JornadaSyntheticDev'){throw "Console DEV aceita somente JornadaSyntheticDev; banco atual=$db."}
 if([string]::IsNullOrWhiteSpace($password)){throw 'JORNADA_SQL_SA_PASSWORD ausente.'}
 
 $dockerProbe=@(& docker info --format '{{.ServerVersion}}' 2>&1)
@@ -139,7 +138,7 @@ try{
 }
 
 Write-Host 'Reconstruindo blocking para incluir a nova Gold...'
-& (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action blocking -EnvFile $EnvFile
+& (Join-Path $PSScriptRoot 'local-cluster.ps1') -Action blocking -EnvFile $EnvFile -RuntimeMode $DevConsoleRuntimeMode
 if($LASTEXITCODE -ne 0){throw "Rebuild de blocking falhou ($LASTEXITCODE)."}
 
 $after=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-SEHAB-%';")
