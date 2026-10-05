@@ -37,7 +37,8 @@ def main():
     usage = {
         "src/Jornada.Api/ApiAuditMiddleware.cs": ["RecordApiRequest", "RecordApiAuditPersistence"],
         "src/Jornada.Bronze.Maintenance.Worker/BronzeMaintenance.cs": ["RecordBronzeMaintenance"],
-        "src/Jornada.Processor.Worker/IngestionProcessor.cs": ["RecordProcessorDelivery"],
+        "src/Jornada.Processor.Worker/IngestionProcessor.cs": ["RecordProcessorDelivery", "RecordProcessorLoopCycle"],
+        "src/Jornada.Processor.Worker/ProcessorWorker.cs": ["RecordProcessorLoopCycle"],
         "src/Jornada.Pipeline.Coordination/SqlPipelineCoordinator.cs": ["RecordPipelineLostToken"],
         "src/Jornada.Linkage.Runner/LinkageRunnerWorker.cs": ["RecordLinkageRun"],
         "src/Jornada.Operations.Maintenance.Worker/PipelineWatchdog.cs": ["RecordIdentityPendingAge"],
