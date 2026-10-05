@@ -474,7 +474,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         var started=DateTimeOffset.UtcNow;
         var sw=Stopwatch.StartNew();
         var command="python scripts/build-ingestion-fixture.py";
-        live.Add("system",$"Execução Ingestão #${executionNumber} · {id:N}");
+        live.Add("system",$"Execução Ingestão #{executionNumber} · {id:N}");
         live.Add("system",$"Diretório: {root}");
         try
         {
