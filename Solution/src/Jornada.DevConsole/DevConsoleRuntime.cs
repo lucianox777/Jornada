@@ -288,22 +288,26 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
 
     public bool Contains(Guid id)=>active.ContainsKey(id);
 
-    public Guid StartCommand(CommandDefinition definition)
+    public StartedExecution StartCommand(CommandDefinition definition)
     {
         var id=Guid.NewGuid();
+        var executionNumber=store.ReserveExecutionNumber(definition.Id);
         var live=new LiveExecution(id);
         if(!active.TryAdd(id,live))throw new InvalidOperationException("Não foi possível registrar a execução.");
-        _=Task.Run(()=>RunCommandAsync(id,definition,live));
-        return id;
+        _=definition.IsComposite
+            ?Task.Run(()=>RunCompositeCommandAsync(id,definition,live,executionNumber))
+            :Task.Run(()=>RunCommandAsync(id,definition,live,executionNumber));
+        return new StartedExecution(id,executionNumber);
     }
 
-    public Guid StartManualZip(ManualZipRequest request)
+    public StartedExecution StartManualZip(ManualZipRequest request)
     {
         var id=Guid.NewGuid();
+        var executionNumber=store.ReserveExecutionNumber("zip");
         var live=new LiveExecution(id);
         if(!active.TryAdd(id,live))throw new InvalidOperationException("Não foi possível registrar a execução.");
-        _=Task.Run(()=>RunManualZipAsync(id,request,live));
-        return id;
+        _=Task.Run(()=>RunManualZipAsync(id,request,live,executionNumber));
+        return new StartedExecution(id,executionNumber);
     }
 
     public async Task StreamAsync(Guid id,HttpResponse response,CancellationToken ct)
@@ -325,11 +329,11 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         }
     }
 
-    async Task RunCommandAsync(Guid id,CommandDefinition definition,LiveExecution live)
+    async Task RunCommandAsync(Guid id,CommandDefinition definition,LiveExecution live,int executionNumber)
     {
         var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
         var started=DateTimeOffset.UtcNow;
-        live.Add("system",$"Execução {id:N}");
+        live.Add("system",$"Execução {definition.Title} #{executionNumber} · {id:N}");
         live.Add("system",$"Diretório: {root}");
         live.Add("command",$"> {definition.DisplayCommand}");
 
@@ -371,13 +375,13 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         }
     }
 
-    async Task RunManualZipAsync(Guid id,ManualZipRequest request,LiveExecution live)
+    async Task RunManualZipAsync(Guid id,ManualZipRequest request,LiveExecution live,int executionNumber)
     {
         var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
         var started=DateTimeOffset.UtcNow;
         var sw=Stopwatch.StartNew();
         var command="python scripts/build-ingestion-fixture.py";
-        live.Add("system",$"Execução {id:N}");
+        live.Add("system",$"Execução Ingestão #${executionNumber} · {id:N}");
         live.Add("system",$"Diretório: {root}");
         try
         {
