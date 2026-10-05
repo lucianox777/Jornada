@@ -23,25 +23,52 @@ function Invoke-Cluster([string]$ClusterAction,[switch]$NoBuild){
     if($LASTEXITCODE -ne 0){ throw "local-cluster.ps1 $ClusterAction falhou ($LASTEXITCODE)." }
 }
 
-switch($Action){
-    'up' {
-        Write-Host 'Subindo infraestrutura DEV completa sem recompilar a imagem quando ela já existe...'
+function Invoke-ClusterUp {
+    Write-Host 'Subindo infraestrutura DEV completa sem recompilar a imagem quando ela já existe...'
+    try {
+        Invoke-Cluster 'up' -NoBuild
+        return
+    }
+    catch {
+        $firstFailure=$_.Exception.Message
+        $imageExists=$false
         try {
-            Invoke-Cluster 'up' -NoBuild
-        }
-        catch {
-            $imageExists=$false
-            try {
-                & docker image inspect jornada-node:test *> $null
-                $imageExists=($LASTEXITCODE -eq 0)
-            } catch { $imageExists=$false }
+            & docker image inspect jornada-node:test *> $null
+            $imageExists=($LASTEXITCODE -eq 0)
+        } catch { $imageExists=$false }
 
-            if($imageExists){ throw }
-
+        if(-not $imageExists){
             Write-Host ''
             Write-Host 'Imagem jornada-node:test ainda não existe. Fazendo build único da imagem para esta máquina...'
             Invoke-Cluster 'up'
+            return
         }
+
+        # A subida é idempotente. Em máquinas Windows/Docker Desktop frias, a
+        # primeira tentativa pode deixar SQL/NAS/nós corretamente aquecidos e
+        # ainda falhar em uma janela transitória. Antes o operador precisava
+        # clicar uma segunda vez. Faça exatamente uma repetição automática,
+        # sem reset, clean ou remoção de volumes.
+        Write-Host ''
+        Write-Host "Primeira tentativa de subida falhou após preparar parcialmente o ambiente: $firstFailure" -ForegroundColor Yellow
+        Write-Host 'Aguardando 3 segundos e repetindo a mesma subida idempotente uma única vez (sem reset/clean)...' -ForegroundColor Yellow
+        Start-Sleep -Seconds 3
+
+        try {
+            Invoke-Cluster 'up' -NoBuild
+            Write-Host 'Segunda tentativa automática concluiu a subida DEV.' -ForegroundColor Green
+            return
+        }
+        catch {
+            $secondFailure=$_.Exception.Message
+            throw "Subida DEV falhou em duas tentativas idempotentes. Primeira: $firstFailure Segunda: $secondFailure"
+        }
+    }
+}
+
+switch($Action){
+    'up' {
+        Invoke-ClusterUp
 
         Write-Host ''
         Write-Host 'Infraestrutura básica pronta: SQL Server + schema DEV + NAS + referência IBGE + NODE1/NODE2.'
