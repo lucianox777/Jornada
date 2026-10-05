@@ -248,7 +248,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(goldAddScript,Does.Contain("SCALE_INCREMENTAL"));
             Assert.That(goldAddScript,Does.Contain("Jornada_Dev_SyntheticScale_Diversify.sql"));
             Assert.That(goldAddScript,Does.Contain("-Action blocking"));
-            Assert.That(goldAddScript,Does.Contain("-Action blocking -EnvFile $EnvFile"));
+            Assert.That(goldAddScript,Does.Contain("-Action blocking -EnvFile $EnvFile -RuntimeMode $DevConsoleRuntimeMode"));
             Assert.That(goldAddScript,Does.Contain("Gold sintética expandida de $before para $after"));
             Assert.That(goldSql,Does.Contain("SET QUOTED_IDENTIFIER ON;"));
             Assert.That(goldSql,Does.Contain("SET ANSI_NULLS ON;"));
@@ -258,7 +258,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(goldSql,Does.Contain("SET NUMERIC_ROUNDABORT OFF;"));
             Assert.That(infraScript,Does.Contain("local-cluster.ps1"));
             Assert.That(infraScript,Does.Contain("-NoBuild"));
-            Assert.That(infraScript,Does.Contain("-EnvFile $EnvFile"));
+            Assert.That(infraScript,Does.Contain("EnvFile=$EnvFile"));
             Assert.That(infraScript,Does.Contain("Get-LocalRuntimeImageRevision"));
             Assert.That(infraScript,Does.Contain("org.opencontainers.image.revision"));
             Assert.That(infraScript,Does.Contain("Test-RuntimeInputsDirty"));
