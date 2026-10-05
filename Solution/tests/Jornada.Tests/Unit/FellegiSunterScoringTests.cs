@@ -135,6 +135,64 @@ public sealed class FellegiSunterScoringTests
         Assert.That(legacy.Score.Posterior, Is.LessThan(neutral.Score.Posterior));
     }
 
+    [TestCase(0)]
+    [TestCase(-1)]
+    public void Explicit_non_positive_block_candidate_count_is_invalid(int candidateCount)
+    {
+        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+            FellegiSunterScoring.Calculate(
+                Parameters,
+                NameComparisonState.EXACT,
+                NameComparisonState.EXACT,
+                candidateCount));
+        Assert.That(exception!.ParamName, Is.EqualTo("blockCandidateCount"));
+    }
+
+    [Test]
+    public void Decision_model_does_not_silently_accept_invalid_block_candidate_count()
+    {
+        var parameters = new Dictionary<string, decimal>(Parameters)
+        {
+            [LinkageParameterCatalog.DecisionEvidenceScoring] = 1m
+        };
+        Assert.That(() => FellegiSunterScoring.Calculate(
+                parameters,
+                NameComparisonState.EXACT,
+                NameComparisonState.EXACT,
+                blockCandidateCount: 0),
+            Throws.TypeOf<ArgumentOutOfRangeException>());
+    }
+
+    [Test]
+    public void Missing_required_prior_parameter_fails_closed()
+    {
+        var parameters = new Dictionary<string, decimal>(Parameters);
+        parameters.Remove(LinkageParameterCatalog.PriorMatchProbability);
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            FellegiSunterScoring.Calculate(
+                parameters,
+                NameComparisonState.EXACT,
+                NameComparisonState.EXACT));
+
+        Assert.That(exception!.Message, Does.Contain(LinkageParameterCatalog.PriorMatchProbability));
+    }
+
+    [Test]
+    public void Missing_required_likelihood_parameter_fails_closed()
+    {
+        var parameters = new Dictionary<string, decimal>(Parameters);
+        parameters.Remove("M_NOME_EXACT");
+
+        var exception = Assert.Throws<InvalidOperationException>(() =>
+            FellegiSunterScoring.Calculate(
+                parameters,
+                NameComparisonState.EXACT,
+                NameComparisonState.EXACT));
+
+        Assert.That(exception!.Message, Does.Contain("M_NOME_EXACT"));
+    }
+
     [Test]
     public void Exact_name_and_mother_name_produce_high_posterior()
     {
