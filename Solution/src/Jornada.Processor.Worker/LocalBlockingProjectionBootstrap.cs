@@ -16,6 +16,8 @@ internal static class LocalBlockingProjectionBootstrap
 {
     internal sealed record Result(int SyntheticPersons, int RebuiltPersons, int ProjectedKeys);
 
+    private const int LocalBlockingCommandTimeoutSeconds = 900;
+
     internal static async Task<Result> RefreshAllSqlServerAsync(
         string connectionString,
         CancellationToken ct)
@@ -32,12 +34,13 @@ internal static class LocalBlockingProjectionBootstrap
         try
         {
             await BlockingProjectionPersistence.RefreshSqlServerBatchAsync(
-                connection, transaction, personIds, ct);
+                connection, transaction, personIds,
+                LocalBlockingCommandTimeoutSeconds, ct);
             await transaction.CommitAsync(ct);
         }
         catch
         {
-            await transaction.RollbackAsync(CancellationToken.None);
+            await RollbackPreservingOriginalAsync(transaction);
             throw;
         }
 
@@ -106,7 +109,7 @@ internal static class LocalBlockingProjectionBootstrap
             }
             catch
             {
-                await transaction.RollbackAsync(CancellationToken.None);
+                await RollbackPreservingOriginalAsync(transaction);
                 throw;
             }
         }
@@ -117,6 +120,13 @@ internal static class LocalBlockingProjectionBootstrap
                 $"Reconstrução local de blocking incompleta: ainda existem {remaining} Pessoas SCALE sem projeção corrente.");
 
         return new Result(syntheticPersons, missing.Count, table.Rows.Count);
+    }
+
+    private static async Task RollbackPreservingOriginalAsync(SqlTransaction transaction)
+    {
+        // Não mascarar a causa original caso o provider já tenha abortado a transação.
+        try { await transaction.RollbackAsync(CancellationToken.None); }
+        catch (Exception) { /* Preserva a exceção da operação original. */ }
     }
 
     private static async Task<List<Guid>> ReadSyntheticPersonIdsAsync(
