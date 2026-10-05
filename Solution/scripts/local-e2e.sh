@@ -282,7 +282,7 @@ cat "$OUT/evidence.json"
 
 # Gate 6: pacote PREPARADO pela Solução de Apoio, ENVIADO pelo transmissor C#,
 # RECEBIDO no HTTP e PROCESSADO pelo mesmo receptor/Processor local.
-support="$ROOT/../ApoioSecretarias"
+support="$ROOT/ApoioSecretarias"
 test -f "$support/preparador/preparador.py"
 support_dir="$OUT/packages/apoio"
 mkdir -p "$support_dir"
