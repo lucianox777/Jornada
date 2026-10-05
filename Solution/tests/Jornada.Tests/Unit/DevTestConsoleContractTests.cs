@@ -106,7 +106,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime.IndexOf("new(\"gold\"",StringComparison.Ordinal),Is.LessThan(runtime.IndexOf("new(\"finish\"",StringComparison.Ordinal)));
             Assert.That(runtime,Does.Contain("Surface=\"tools\""));
             Assert.That(runtime,Does.Contain("Stage=\"Verificações\""));
-            Assert.That(runtime,Does.Contain("-ZipPath"));
+            Assert.That(runtime,Does.Not.Contain("-ZipPath"));
             Assert.That(runtime,Does.Contain("manual-zip"));
             Assert.That(runtime,Does.Contain("sessionStartedAt=DateTimeOffset.UtcNow"));
             Assert.That(runtime,Does.Contain("Where(x=>x.StartedAt>=sessionStartedAt)"));
