@@ -2,7 +2,23 @@
 set -euo pipefail
 
 ACTION="${1:-up}"
-NO_SYNTHETIC="${2:-}"
+NO_SYNTHETIC=""
+CONFIRM_PRODUCTION_RESET=0
+for arg in "${@:2}"; do
+  case "$arg" in
+    --no-synthetic-corpus) NO_SYNTHETIC="--no-synthetic-corpus" ;;
+    --confirm-production-reset) CONFIRM_PRODUCTION_RESET=1 ;;
+    *) echo "Uso: $0 {up|reset|down|clean|status|backfill} [--no-synthetic-corpus] [--confirm-production-reset]" >&2; exit 2 ;;
+  esac
+done
+RUNTIME_MODE="${JORNADA_RUNTIME_MODE:-HML}"
+RUNTIME_MODE="$(printf '%s' "$RUNTIME_MODE" | tr '[:lower:]' '[:upper:]')"
+case "$RUNTIME_MODE" in
+  DEV) ENVIRONMENT_PROFILE=Development ;;
+  HML) ENVIRONMENT_PROFILE=Homologation ;;
+  PROD) ENVIRONMENT_PROFILE=Production ;;
+  *) echo "ERRO: JORNADA_RUNTIME_MODE invalido: $RUNTIME_MODE (use DEV, HML ou PROD)." >&2; exit 2 ;;
+esac
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${JORNADA_LOCAL_ENV_FILE:-$ROOT/.env}"
 DATABASE_OVERRIDE="${JORNADA_SQL_DATABASE_OVERRIDE:-}"
@@ -25,8 +41,6 @@ JORNADA_SQL_DATABASE="${DATABASE_OVERRIDE:-${JORNADA_SQL_DATABASE:-JornadaLocal}
 mkdir -p "$ROOT/.local/sql-backup"
 chmod 0777 "$ROOT/.local/sql-backup"
 [[ "$JORNADA_SQL_DATABASE" =~ ^[A-Za-z0-9_]+$ ]] || { echo "ERRO: JORNADA_SQL_DATABASE inválido." >&2; exit 2; }
-[[ -z "$NO_SYNTHETIC" || "$NO_SYNTHETIC" == "--no-synthetic-corpus" ]] || { echo "Uso: $0 {up|reset|down|clean|status|backfill} [--no-synthetic-corpus]" >&2; exit 2; }
-
 compose() { (cd "$ROOT" && docker compose --env-file "$ENV_FILE" "$@"); }
 sqlcmd() {
   # O baseline v3.70 usa diretivas :r relativas ao diretório /workspace.
@@ -126,9 +140,9 @@ bootstrap() {
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260910_Schema_Consolidation_370.sql
   sqlcmd -d "$JORNADA_SQL_DATABASE" -i database/migrations/20260922_Processor_Lease_Heartbeat_Isolation.sql
 
-  # Perfil residente é autoridade de ambiente para superfícies DEV. O DDL canônico
-  # permanece neutro; somente o provisionador local grava Development.
-  sqlcmd -d "$JORNADA_SQL_DATABASE" -Q "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'Development';"
+  # O nome do banco nao define mais o modo; o marcador residente reflete a
+  # escolha explicita DEV/HML/PROD.
+  sqlcmd -d "$JORNADA_SQL_DATABASE" -Q "IF EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile') EXEC sys.sp_updateextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'$ENVIRONMENT_PROFILE'; ELSE EXEC sys.sp_addextendedproperty @name=N'Jornada.EnvironmentProfile',@value=N'$ENVIRONMENT_PROFILE';"
 
   # Por padrão o ambiente local carrega o corpus canônico de 5k. Harnesses que são
   # donos da própria massa usam --no-synthetic-corpus e a carregam depois do reset.
@@ -140,12 +154,17 @@ bootstrap() {
   ensure_progressive_identity_backfill
 }
 
+if [[ "$RUNTIME_MODE" == "PROD" && ( "$ACTION" == "reset" || "$ACTION" == "clean" ) && "$CONFIRM_PRODUCTION_RESET" != "1" ]]; then
+  echo "ERRO: operacao destrutiva '$ACTION' bloqueada em PROD. Use --confirm-production-reset fora da interface." >&2
+  exit 2
+fi
+
 case "$ACTION" in
   up)
     compose up -d sqlserver
     wait_healthy
     bootstrap
-    echo "SQL Server Developer local pronto: localhost:$JORNADA_SQL_PORT / $JORNADA_SQL_DATABASE (schema 3.70)"
+    echo "SQL Server local pronto: localhost:$JORNADA_SQL_PORT / $JORNADA_SQL_DATABASE (schema 3.70; modo=$RUNTIME_MODE)"
     ;;
   reset)
     compose up -d sqlserver
@@ -172,5 +191,5 @@ case "$ACTION" in
   status)
     compose ps
     ;;
-  *) echo "Uso: $0 {up|reset|down|clean|status|backfill} [--no-synthetic-corpus]" >&2; exit 2 ;;
+  *) echo "Uso: $0 {up|reset|down|clean|status|backfill} [--no-synthetic-corpus] [--confirm-production-reset]" >&2; exit 2 ;;
 esac
