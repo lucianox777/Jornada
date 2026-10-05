@@ -339,7 +339,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localCluster,Does.Contain("Assert-DockerEngineAvailable"));
             Assert.That(localCluster,Does.Contain("[string]$EnvFile"));
             Assert.That(localCluster,Does.Contain("& $LocalDb -Action up -EnvFile $EnvFile -RuntimeMode $RuntimeMode"));
-            Assert.That(localCluster,Does.Contain("& $LocalDb @resetArgs"));
+            Assert.That(localCluster,Does.Contain("& $LocalDb -Action reset -EnvFile $EnvFile -RuntimeMode $RuntimeMode"));
             Assert.That(localCluster,Does.Contain("ConfirmProductionReset"));
             Assert.That(localCluster,Does.Contain("contexto=$Context; comando=$commandPreview"));
             Assert.That(localCluster,Does.Contain("$seedScript=$seedScript.Replace("));
