@@ -140,43 +140,87 @@ public static class ProgressiveIdentityLifecycle
 
     private static void ValidateSnapshot(ProgressiveIdentitySnapshot current)
     {
-        if (current.InitialUuid == Guid.Empty || current.CanonicalUuid == Guid.Empty ||
-            current.LastExternalAssociationUuid == Guid.Empty ||
-            !Enum.IsDefined(current.Status) || current.Version < 0 ||
-            (current.Version == 0 && current.Status != ProgressiveIdentityStatus.PROVISORIA) ||
-            (current.Status == ProgressiveIdentityStatus.PROVISORIA &&
-                (current.Version != 0 || current.CanonicalUuid is not null ||
-                 current.LastResolutionAt is not null || current.LastDecision is not null ||
-                 current.LastExternalAssociationUuid is not null)) ||
-            (current.Status == ProgressiveIdentityStatus.REFERENCIA && current.CanonicalUuid is null) ||
-            (current.Status == ProgressiveIdentityStatus.INDEFINIDA && current.CanonicalUuid is not null) ||
-            (current.Version > 0 && (current.LastResolutionAt is null || current.LastDecision is null)) ||
-            (current.LastExternalAssociationUuid is { } prior &&
-                (prior == current.InitialUuid ||
-                 (current.CanonicalUuid is { } canonical && canonical != prior))))
-            throw new InvalidOperationException("Estado de identidade inconsistente.");
-        RequireUtc(current.CreatedAt, nameof(current));
-        if (current.LastDecision is { } receipt &&
-            (receipt.InitialUuid != current.InitialUuid ||
-             receipt.ExpectedVersion != current.Version - 1 ||
-             receipt.DecidedAt != current.LastResolutionAt ||
-             !receipt.Complete ||
-             (receipt.Outcome == ProgressiveResolutionOutcome.INDEFINIDA) !=
-                 (current.Status == ProgressiveIdentityStatus.INDEFINIDA) ||
-             (current.Status == ProgressiveIdentityStatus.REFERENCIA &&
-                 receipt.Outcome == ProgressiveResolutionOutcome.ASSOCIACAO_EXISTENTE &&
-                 receipt.TargetUuid != current.CanonicalUuid) ||
-             (current.Status == ProgressiveIdentityStatus.REFERENCIA &&
-                 receipt.Outcome == ProgressiveResolutionOutcome.NOVA_IDENTIDADE &&
-                 current.CanonicalUuid != current.InitialUuid)))
-            throw new InvalidOperationException("Último recibo não corresponde à versão corrente.");
+        if (current.InitialUuid == Guid.Empty)
+            InvalidSnapshot("PI_SNAPSHOT_INITIAL_UUID_EMPTY");
+        if (current.CanonicalUuid == Guid.Empty)
+            InvalidSnapshot("PI_SNAPSHOT_CANONICAL_UUID_EMPTY");
+        if (current.LastExternalAssociationUuid == Guid.Empty)
+            InvalidSnapshot("PI_SNAPSHOT_EXTERNAL_UUID_EMPTY");
+        if (!Enum.IsDefined(current.Status))
+            InvalidSnapshot("PI_SNAPSHOT_STATUS_INVALID");
+        if (current.Version < 0)
+            InvalidSnapshot("PI_SNAPSHOT_VERSION_NEGATIVE");
+        if (current.Version == 0 && current.Status != ProgressiveIdentityStatus.PROVISORIA)
+            InvalidSnapshot("PI_SNAPSHOT_VERSION_ZERO_NOT_PROVISIONAL");
+
+        if (current.Status == ProgressiveIdentityStatus.PROVISORIA)
+        {
+            if (current.Version != 0)
+                InvalidSnapshot("PI_SNAPSHOT_PROVISIONAL_VERSION_NONZERO");
+            if (current.CanonicalUuid is not null)
+                InvalidSnapshot("PI_SNAPSHOT_PROVISIONAL_WITH_CANONICAL");
+            if (current.LastResolutionAt is not null)
+                InvalidSnapshot("PI_SNAPSHOT_PROVISIONAL_WITH_RESOLUTION");
+            if (current.LastDecision is not null)
+                InvalidSnapshot("PI_SNAPSHOT_PROVISIONAL_WITH_RECEIPT");
+            if (current.LastExternalAssociationUuid is not null)
+                InvalidSnapshot("PI_SNAPSHOT_PROVISIONAL_WITH_EXTERNAL_ASSOCIATION");
+        }
+
+        if (current.Status == ProgressiveIdentityStatus.REFERENCIA && current.CanonicalUuid is null)
+            InvalidSnapshot("PI_SNAPSHOT_REFERENCE_WITHOUT_CANONICAL");
+        if (current.Status == ProgressiveIdentityStatus.INDEFINIDA && current.CanonicalUuid is not null)
+            InvalidSnapshot("PI_SNAPSHOT_UNDEFINED_WITH_CANONICAL");
+        if (current.Version > 0 && current.LastResolutionAt is null)
+            InvalidSnapshot("PI_SNAPSHOT_VERSION_WITHOUT_RESOLUTION");
+        if (current.Version > 0 && current.LastDecision is null)
+            InvalidSnapshot("PI_SNAPSHOT_VERSION_WITHOUT_RECEIPT");
+
+        if (current.LastExternalAssociationUuid is { } prior)
+        {
+            if (prior == current.InitialUuid)
+                InvalidSnapshot("PI_SNAPSHOT_EXTERNAL_EQUALS_INITIAL");
+            if (current.CanonicalUuid is { } canonical && canonical != prior)
+                InvalidSnapshot("PI_SNAPSHOT_EXTERNAL_CANONICAL_MISMATCH");
+        }
+
+        if (current.CreatedAt == default || current.CreatedAt.Offset != TimeSpan.Zero)
+            InvalidSnapshot("PI_SNAPSHOT_CREATED_AT_NOT_UTC");
+
+        if (current.LastDecision is { } receipt)
+        {
+            if (receipt.InitialUuid != current.InitialUuid)
+                InvalidSnapshot("PI_SNAPSHOT_RECEIPT_INITIAL_UUID_MISMATCH");
+            if (receipt.ExpectedVersion != current.Version - 1)
+                InvalidSnapshot("PI_SNAPSHOT_RECEIPT_VERSION_MISMATCH");
+            if (receipt.DecidedAt != current.LastResolutionAt)
+                InvalidSnapshot("PI_SNAPSHOT_RECEIPT_TIMESTAMP_MISMATCH");
+            if (!receipt.Complete)
+                InvalidSnapshot("PI_SNAPSHOT_RECEIPT_INCOMPLETE");
+            if ((receipt.Outcome == ProgressiveResolutionOutcome.INDEFINIDA) !=
+                (current.Status == ProgressiveIdentityStatus.INDEFINIDA))
+                InvalidSnapshot("PI_SNAPSHOT_RECEIPT_OUTCOME_STATUS_MISMATCH");
+            if (current.Status == ProgressiveIdentityStatus.REFERENCIA &&
+                receipt.Outcome == ProgressiveResolutionOutcome.ASSOCIACAO_EXISTENTE &&
+                receipt.TargetUuid != current.CanonicalUuid)
+                InvalidSnapshot("PI_SNAPSHOT_RECEIPT_TARGET_CANONICAL_MISMATCH");
+            if (current.Status == ProgressiveIdentityStatus.REFERENCIA &&
+                receipt.Outcome == ProgressiveResolutionOutcome.NOVA_IDENTIDADE &&
+                current.CanonicalUuid != current.InitialUuid)
+                InvalidSnapshot("PI_SNAPSHOT_RECEIPT_NEW_IDENTITY_CANONICAL_MISMATCH");
+        }
+
         if (current.LastResolutionAt is { } last)
         {
-            RequireUtc(last, nameof(current));
+            if (last == default || last.Offset != TimeSpan.Zero)
+                InvalidSnapshot("PI_SNAPSHOT_RESOLUTION_AT_NOT_UTC");
             if (last < current.CreatedAt)
-                throw new InvalidOperationException("Data de resolução anterior à criação.");
+                InvalidSnapshot("PI_SNAPSHOT_RESOLUTION_BEFORE_CREATION");
         }
     }
+
+    private static void InvalidSnapshot(string code) =>
+        throw new InvalidOperationException(code);
 
     private static void RequireUtc(DateTimeOffset value, string parameter)
     {
