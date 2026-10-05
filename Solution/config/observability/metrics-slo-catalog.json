@@ -12,6 +12,7 @@
     {"id":"jornada.bronze.maintenance.lock_miss","component":"BronzeMaintenance","kind":"counter","unit":"objects","requiredDimensions":[],"thresholdStatus":"PENDENTE"},
     {"id":"jornada.bronze.maintenance.storage_error","component":"BronzeMaintenance","kind":"counter","unit":"errors","requiredDimensions":[],"thresholdStatus":"PENDENTE"},
     {"id":"jornada.processor.delivery.duration","component":"Processor","kind":"histogram","unit":"ms","requiredDimensions":["result"],"thresholdStatus":"PENDENTE"},
+    {"id":"jornada.processor.loop.cycle.duration","component":"Processor","kind":"histogram","unit":"ms","requiredDimensions":["result"],"thresholdStatus":"PENDENTE"},
     {"id":"jornada.pipeline.lost_token","component":"PipelineCoordination","kind":"counter","unit":"events","requiredDimensions":["operation"],"thresholdStatus":"PENDENTE"},
     {"id":"jornada.linkage.run.duration","component":"LinkageRunner","kind":"histogram","unit":"ms","requiredDimensions":["mode"],"thresholdStatus":"PENDENTE"},
     {"id":"jornada.identity.pending.age","component":"Identity","kind":"histogram","unit":"minutes","requiredDimensions":["state"],"thresholdStatus":"PENDENTE"}
