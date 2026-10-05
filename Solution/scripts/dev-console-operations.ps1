@@ -205,7 +205,7 @@ switch($Action){
         Invoke-Compose @('exec','-T','jornada-node2','rm','-f',$containerReport)
         $report=Join-Path $Root $hostReport
         if(-not(Test-Path $report)){throw "Relatório Bronze não foi copiado para $report."}
-        Write-Host "Integridade Bronze da Entrega $entregaId: PASS"
+        Write-Host "Integridade Bronze da Entrega ${entregaId}: PASS"
         Write-Host "ARTEFATO: $report"
     }
 

@@ -21,9 +21,14 @@ on:
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-cluster.sh'
-      - 'Solution/scripts/dev-console-initial-config.ps1'
       - 'Solution/scripts/dev-console-contract-bundle.ps1'
+      - 'Solution/scripts/dev-console-env.ps1'
+      - 'Solution/scripts/dev-console-gold-add.ps1'
+      - 'Solution/scripts/dev-console-gold-synthetic.ps1'
       - 'Solution/scripts/dev-console-html.ps1'
+      - 'Solution/scripts/dev-console-infrastructure.ps1'
+      - 'Solution/scripts/dev-console-initial-config.ps1'
+      - 'Solution/scripts/dev-console-operations.ps1'
       - 'Solution/scripts/local-test-dev-console-html-encoding.ps1'
       - 'Solution/scripts/test-cluster-sqlcmd-secret-transport.py'
       - 'Solution/scripts/local-cluster-readiness.ps1'
@@ -77,9 +82,14 @@ on:
       - 'Solution/scripts/local-test-round.ps1'
       - 'Solution/scripts/local-cluster.ps1'
       - 'Solution/scripts/local-cluster.sh'
-      - 'Solution/scripts/dev-console-initial-config.ps1'
       - 'Solution/scripts/dev-console-contract-bundle.ps1'
+      - 'Solution/scripts/dev-console-env.ps1'
+      - 'Solution/scripts/dev-console-gold-add.ps1'
+      - 'Solution/scripts/dev-console-gold-synthetic.ps1'
       - 'Solution/scripts/dev-console-html.ps1'
+      - 'Solution/scripts/dev-console-infrastructure.ps1'
+      - 'Solution/scripts/dev-console-initial-config.ps1'
+      - 'Solution/scripts/dev-console-operations.ps1'
       - 'Solution/scripts/local-test-dev-console-html-encoding.ps1'
       - 'Solution/scripts/test-cluster-sqlcmd-secret-transport.py'
       - 'Solution/scripts/local-cluster-readiness.ps1'
@@ -285,6 +295,20 @@ jobs:
             }
             $null = [scriptblock]::Create((Get-Content -Raw -Encoding UTF8 $file))
             Write-Host "POWERSHELL UTF-8 BOM/PARSE OK: $file"
+          }
+
+          $devConsoleParseOnly = @(
+            'scripts/dev-console-contract-bundle.ps1',
+            'scripts/dev-console-env.ps1',
+            'scripts/dev-console-gold-add.ps1',
+            'scripts/dev-console-gold-synthetic.ps1',
+            'scripts/dev-console-infrastructure.ps1',
+            'scripts/dev-console-initial-config.ps1',
+            'scripts/dev-console-operations.ps1'
+          )
+          foreach ($file in $devConsoleParseOnly) {
+            $null = [scriptblock]::Create((Get-Content -Raw -Encoding UTF8 $file))
+            Write-Host "DEV CONSOLE POWERSHELL PARSE OK: $file"
           }
 
       - name: Validate local-test-all preservation and from-zero guard
