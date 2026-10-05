@@ -659,8 +659,11 @@ sealed class RunStore(IWebHostEnvironment env)
 {
     readonly string root=Path.Combine(DevConsolePaths.ApplicationDataRoot(),"runs");
     readonly string summariesRoot=Path.Combine(DevConsolePaths.ApplicationDataRoot(),"runs","summaries");
+    readonly string countersPath=Path.Combine(DevConsolePaths.ApplicationDataRoot(),"runs","execution-counters.json");
     readonly string legacyRoot=Path.Combine(env.ContentRootPath,".runs");
     readonly DateTimeOffset sessionStartedAt=DateTimeOffset.UtcNow;
+    readonly object counterGate=new();
+    Dictionary<string,int>? counters;
     static readonly JsonSerializerOptions Opt=new(JsonSerializerDefaults.Web){WriteIndented=true};
 
     IEnumerable<string> RunRoots()
@@ -668,6 +671,80 @@ sealed class RunStore(IWebHostEnvironment env)
         yield return root;
         if(!string.Equals(Path.GetFullPath(legacyRoot),Path.GetFullPath(root),StringComparison.OrdinalIgnoreCase))
             yield return legacyRoot;
+    }
+
+    void EnsureCountersLoaded()
+    {
+        if(counters is not null)return;
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(summariesRoot);
+        try
+        {
+            if(File.Exists(countersPath))
+            {
+                var loaded=JsonSerializer.Deserialize<Dictionary<string,int>>(File.ReadAllText(countersPath),Opt);
+                if(loaded is not null)
+                {
+                    counters=new Dictionary<string,int>(loaded,StringComparer.OrdinalIgnoreCase);
+                    return;
+                }
+            }
+        }
+        catch(JsonException){}
+        catch(IOException){}
+
+        counters=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
+        var seen=new HashSet<Guid>();
+        foreach(var runRoot in RunRoots())
+        {
+            var summaryDir=Path.Combine(runRoot,"summaries");
+            if(!Directory.Exists(summaryDir))continue;
+            foreach(var path in Directory.EnumerateFiles(summaryDir,"*.json",SearchOption.TopDirectoryOnly))
+            {
+                try
+                {
+                    var summary=JsonSerializer.Deserialize<RunSummary>(File.ReadAllText(path),Opt);
+                    if(summary is null||!seen.Add(summary.Id)||string.IsNullOrWhiteSpace(summary.Command))continue;
+                    var current=counters.GetValueOrDefault(summary.Command);
+                    counters[summary.Command]=summary.ExecutionNumber>0
+                        ?Math.Max(current,summary.ExecutionNumber)
+                        :current+1;
+                }
+                catch(JsonException){}
+                catch(IOException){}
+                catch(UnauthorizedAccessException){}
+            }
+        }
+    }
+
+    void PersistCounters()
+    {
+        Directory.CreateDirectory(root);
+        var temp=countersPath+".tmp";
+        File.WriteAllText(temp,JsonSerializer.Serialize(counters,Opt));
+        File.Move(temp,countersPath,true);
+    }
+
+    public int ReserveExecutionNumber(string command)
+    {
+        if(string.IsNullOrWhiteSpace(command))throw new ArgumentException("Comando obrigatório para numerar a execução.",nameof(command));
+        lock(counterGate)
+        {
+            EnsureCountersLoaded();
+            var next=counters!.GetValueOrDefault(command)+1;
+            counters[command]=next;
+            PersistCounters();
+            return next;
+        }
+    }
+
+    public int GetLastExecutionNumber(string command)
+    {
+        lock(counterGate)
+        {
+            EnsureCountersLoaded();
+            return counters!.GetValueOrDefault(command);
+        }
     }
 
     public async Task SaveAsync(RunRecord run,CancellationToken ct)
@@ -679,7 +756,7 @@ sealed class RunStore(IWebHostEnvironment env)
         await File.WriteAllTextAsync(temp,JsonSerializer.Serialize(run,Opt),ct);
         File.Move(temp,target,true);
 
-        var summary=new RunSummary(run.Id,run.Command,run.Title,run.StartedAt,run.FinishedAt,run.Status,run.Summary);
+        var summary=new RunSummary(run.Id,run.Command,run.Title,run.StartedAt,run.FinishedAt,run.Status,run.Summary,run.ExecutionNumber,run.ParentRunId);
         var summaryTarget=Path.Combine(summariesRoot,$"{run.Id:N}.json");
         var summaryTemp=summaryTarget+".tmp";
         await File.WriteAllTextAsync(summaryTemp,JsonSerializer.Serialize(summary,Opt),ct);
@@ -775,8 +852,19 @@ sealed class RunStore(IWebHostEnvironment env)
             .OrderByDescending(x=>x.StartedAt)
             .ToArray();
 
-    public async Task<IReadOnlyDictionary<string,int>> CountByCommandAsync(CancellationToken ct)=>
-        (await ListSessionSummariesAsync(ct))
+    public Task<IReadOnlyDictionary<string,int>> CountByCommandAsync(CancellationToken ct)
+    {
+        ct.ThrowIfCancellationRequested();
+        lock(counterGate)
+        {
+            EnsureCountersLoaded();
+            IReadOnlyDictionary<string,int> snapshot=new Dictionary<string,int>(counters!,StringComparer.OrdinalIgnoreCase);
+            return Task.FromResult(snapshot);
+        }
+    }
+
+    public async Task<IReadOnlyDictionary<string,RunSummary>> LatestByCommandAsync(CancellationToken ct)=>
+        (await ListSummariesAsync(ct))
             .GroupBy(x=>x.Command,StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(x=>x.Key,x=>x.Count(),StringComparer.OrdinalIgnoreCase);
+            .ToDictionary(x=>x.Key,x=>x.OrderByDescending(y=>y.StartedAt).First(),StringComparer.OrdinalIgnoreCase);
 }
