@@ -189,6 +189,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localDb,Does.Not.Contain("[long]$counts['Sehab'] -ne $expectedPeople"));
             Assert.That(localDb,Does.Contain("Expansão SCALE-SEHAB controlada preservada"));
             Assert.That(localDb,Does.Contain("Somente expansões geradas pela Console DEV podem ser preservadas"));
+            Assert.That(localDb,Does.Contain("g.cpf COLLATE Latin1_General_100_BIN2=o.cpf COLLATE Latin1_General_100_BIN2"));
+            Assert.That(localDb,Does.Contain("a.cpf=o.cpf COLLATE Latin1_General_100_BIN2"));
             Assert.That(runtime,Does.Contain("modelo BOOTSTRAP inicial ATIVO, configuração inicial e bundle de contratos/configurações"));
             Assert.That(runtime,Does.Contain("o Processor residente fica suspenso"));
             Assert.That(runtime,Does.Contain("A Console DEV desabilita o Processor residente"));
