@@ -300,9 +300,14 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("'bootstrap-corpus'"));
             Assert.That(opsScript,Does.Contain("Ensure-BootstrapCorpus"));
             Assert.That(opsScript,Does.Contain("bootstrap-corpus.json"));
-            Assert.That(opsScript,Does.Contain("Infraestrutura $RuntimeMode não pode ficar pronta com corpus de bootstrap pendente"));
-            Assert.That(opsScript,Does.Contain("DEV preserva os 6.000 registros adicionais na Silver e exige sua publicação na Gold"));
-            Assert.That(opsScript,Does.Contain("DEV_EXTRA_PUBLISHED_PRESERVED"));
+            Assert.That(opsScript,Does.Contain("Get-DevBootstrapLinkageReadiness"));
+            Assert.That(opsScript,Does.Contain("bootstrap-linkage-readiness.json"));
+            Assert.That(opsScript,Does.Contain("ZERO_UNEVALUATED_AND_ZERO_FALSE_POSITIVE"));
+            Assert.That(opsScript,Does.Contain("observações bootstrap sem avaliação pelo modelo ATIVO"));
+            Assert.That(opsScript,Does.Contain("falso(s) vínculo(s) resolvido(s) contra o ground truth sintético"));
+            Assert.That(opsScript,Does.Contain("não constituem backlog de processamento"));
+            Assert.That(opsScript,Does.Contain("DEV preserva os 6.000 registros adicionais na Silver: resoluções seguras entram na Gold; resultados inconclusivos permanecem auditáveis sem forçar vínculo"));
+            Assert.That(opsScript,Does.Contain("DEV_EVALUATED_PRESERVED"));
             Assert.That(opsScript,Does.Contain("STANDARD_NO_EXTRA_PENDING"));
             Assert.That(opsScript,Does.Not.Contain("-EnvironmentProfile Development -EnvFile $EnvFile"));
             Assert.That(opsScript,Does.Contain("contract-config-bundle.zip"));
