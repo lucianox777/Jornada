@@ -13,7 +13,9 @@ $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 . (Join-Path $PSScriptRoot 'dev-console-env.ps1')
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $EnvFile=$DevConsoleEnvFile
-if(-not(Test-Path $EnvFile)){throw '.env.devconsole ausente. Suba a infraestrutura DEV primeiro.'}
+$RuntimeMode=$DevConsoleRuntimeMode
+if($RuntimeMode -ne 'DEV'){throw 'Expansão de Gold sintética é exclusiva do modo --dev.'}
+if(-not(Test-Path $EnvFile)){throw 'Arquivo de ambiente da Console ausente. Suba a infraestrutura primeiro.'}
 
 $vars=@{}
 Get-Content $EnvFile | ForEach-Object {
@@ -23,9 +25,8 @@ Get-Content $EnvFile | ForEach-Object {
         $vars[$p[0].Trim()]=$p[1].Trim()
     }
 }
-$db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaSyntheticDev'}
+$db=if($vars['JORNADA_SQL_DATABASE']){$vars['JORNADA_SQL_DATABASE']}else{'JornadaLocal'}
 $password=$vars['JORNADA_SQL_SA_PASSWORD']
-if($db -ne 'JornadaSyntheticDev'){throw "Console DEV aceita somente JornadaSyntheticDev; banco atual=$db."}
 if([string]::IsNullOrWhiteSpace($password)){throw 'JORNADA_SQL_SA_PASSWORD ausente.'}
 
 $dockerProbe=@(& docker info --format '{{.ServerVersion}}' 2>&1)
