@@ -28,6 +28,14 @@ public sealed class RetiredInitialLoadModeScriptTests
             Assert.That(localE2e, Does.Contain("cópia runtime SEHAB diverge da fonte de apoio"));
         });
 
+        var localE2eBash = File.ReadAllText(Path.Combine(
+            root, "Solution", "scripts", "local-e2e.sh"));
+        Assert.Multiple(() =>
+        {
+            Assert.That(localE2eBash, Does.Contain("support=\"$ROOT/ApoioSecretarias\""));
+            Assert.That(localE2eBash, Does.Not.Contain("$ROOT/../ApoioSecretarias"));
+        });
+
         foreach (var name in new[]
         {
             "local-e2e.ps1",
