@@ -228,7 +228,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("ARTEFATO:"));
             Assert.That(runtime,Does.Contain("Consulta semicega"));
             Assert.That(runtime,Does.Contain("SemiblindDevService"));
-            Assert.That(runtime,Does.Contain("JornadaSyntheticDev"));
+            Assert.That(runtime,Does.Contain("ConsoleRuntimeMode"));
+            Assert.That(runtime,Does.Not.Contain("Console DEV exige JornadaSyntheticDev"));
             Assert.That(runtime,Does.Contain("reconstrói blocking automaticamente"));
 
             Assert.That(goldScript,Does.Contain("gold-synthetic-records.json"));
@@ -273,9 +274,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("local-cluster.ps1"));
             Assert.That(opsScript,Does.Contain("calibrate-initial"));
             Assert.That(opsScript,Does.Contain("Gold sintética completa de 30.000 pessoas"));
-            Assert.That(opsScript,Does.Contain("Infraestrutura DEV não pode ficar pronta com corpus de bootstrap pendente"));
-            Assert.That(opsScript,Does.Contain("DEV preserva e publica o domínio sintético processado na Gold"));
-            Assert.That(opsScript,Does.Contain("DEV_PUBLISHED_PRESERVED"));
+            Assert.That(opsScript,Does.Contain("Infraestrutura $RuntimeMode não pode ficar pronta com corpus de bootstrap pendente"));
+            Assert.That(opsScript,Does.Contain("DEV preserva os 6.000 registros adicionais na Silver e exige sua publicação na Gold"));
+            Assert.That(opsScript,Does.Contain("DEV_EXTRA_PUBLISHED_PRESERVED"));
+            Assert.That(opsScript,Does.Contain("STANDARD_NO_EXTRA_PENDING"));
             Assert.That(opsScript,Does.Not.Contain("-EnvironmentProfile Development -EnvFile $EnvFile"));
             Assert.That(opsScript,Does.Contain("contract-config-bundle.zip"));
             Assert.That(opsScript,Does.Contain("NAO_ENCONTRADA_NO_AMBIENTE_ATUAL"));
@@ -336,8 +338,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
             Assert.That(localCluster,Does.Contain("Assert-DockerEngineAvailable"));
             Assert.That(localCluster,Does.Contain("[string]$EnvFile"));
-            Assert.That(localCluster,Does.Contain("& $LocalDb -Action up -EnvFile $EnvFile"));
-            Assert.That(localCluster,Does.Contain("& $LocalDb -Action reset -EnvFile $EnvFile"));
+            Assert.That(localCluster,Does.Contain("& $LocalDb -Action up -EnvFile $EnvFile -RuntimeMode $RuntimeMode"));
+            Assert.That(localCluster,Does.Contain("& $LocalDb @resetArgs"));
+            Assert.That(localCluster,Does.Contain("ConfirmProductionReset"));
             Assert.That(localCluster,Does.Contain("contexto=$Context; comando=$commandPreview"));
             Assert.That(localCluster,Does.Contain("$seedScript=$seedScript.Replace("));
             Assert.That(localCluster,Does.Contain("set: Illegal option -"));
@@ -409,7 +412,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Runtime:"));
             Assert.That(page,Does.Contain("openActiveConfigDialog()"));
             Assert.That(page,Does.Contain("Usar exemplo da Gold sintética"));
-            Assert.That(devEnv,Does.Contain("JornadaSyntheticDev"));
+            Assert.That(devEnv,Does.Not.Contain("JornadaSyntheticDev"));
+            Assert.That(devEnv,Does.Contain("JORNADA_RUNTIME_MODE"));
+            Assert.That(devEnv,Does.Contain("JORNADA_LOCAL_SYNTHETIC_PENDING"));
+            Assert.That(devEnv,Does.Contain("if($RuntimeMode -eq 'DEV'){'6000'}else{'0'}"));
             Assert.That(devEnv,Does.Contain("JORNADA_LOCAL_PROFILE"));
             Assert.That(devEnv,Does.Contain("dev-console"));
             Assert.That(devEnv,Does.Contain("JORNADA_LOCAL_SYNTHETIC_PEOPLE"));
