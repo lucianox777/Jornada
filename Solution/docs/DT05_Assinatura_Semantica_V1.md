@@ -1,5 +1,7 @@
 # DT-05 — Contrato da assinatura semântica V1
 
+
+> **Organização do monorepo (06/10/2026):** a antiga solução embarcada `Solution/ApoioSecretarias/` foi removida do repositório principal. Referências abaixo a esse caminho descrevem evidência/histórico anterior à remoção. O produto não compila nem distribui esse transmissor/preparador; apenas schemas SEHAB estritamente sintéticos necessários à regressão permanecem em `Solution/tests/fixtures/external-contracts/gestores/SEHAB/`.
 **Estado:** contrato técnico V1 congelado; **aceite estreito de CPF tardio ponta a ponta CONCLUÍDO** no PR [#540](https://github.com/lucianox777/Jornada/pull/540), CI [#36301124197](https://github.com/lucianox777/Jornada/actions/runs/36301124197) (PASS), HEAD validado [`c687f63f7287fda2f6eefa6470035fdef39aef70`](https://github.com/lucianox777/Jornada/commit/c687f63f7287fda2f6eefa6470035fdef39aef70). Isso **não** constitui aceite de replay histórico/NAS ampliado. **Implementação canônica:** `database/migrations/20260927_Linkage_Transicao_Semantica_DT05.sql`, procedure `identidade.sp_registrar_transicoes_linkage_run`. Mudança nos campos, ordem, sentinelas ou codificação exige nova versão de assinatura e migração/ensaio explícitos; não alterar silenciosamente V1.
 
 ## Identidade e conteúdo
