@@ -34,6 +34,10 @@ public sealed class RuntimeModeContractTests
             Assert.That(env,Does.Not.Contain("$map['JORNADA_SQL_DATABASE']='JornadaSyntheticDev'"));
             Assert.That(env,Does.Contain("$map['JORNADA_LOCAL_SYNTHETIC_PENDING']=if($RuntimeMode -eq 'DEV'){'6000'}else{'0'}"));
             Assert.That(env,Does.Contain("$script:DevConsoleRuntimeMode=$RuntimeMode"));
+            Assert.That(ops,Does.Contain("$existingConsoleEnv=Join-Path $Root '.env.devconsole'"));
+            Assert.That(ops,Does.Contain("if([string]::IsNullOrWhiteSpace($env:JORNADA_RUNTIME_MODE) -and (Test-Path $existingConsoleEnv))"));
+            Assert.That(ops,Does.Contain("RuntimeMode não informado; preservando modo ativo da Console"));
+            Assert.That(ops,Does.Contain("$env:JORNADA_RUNTIME_MODE=$existingMode"));
 
             Assert.That(ops,Does.Contain("DEV: avaliando o corpus adicional pela execução real do Linkage Runner"));
             Assert.That(ops,Does.Contain("Get-DevBootstrapLinkageReadiness"));
