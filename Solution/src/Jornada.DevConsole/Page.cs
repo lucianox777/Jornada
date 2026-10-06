@@ -637,6 +637,7 @@ async function runSemiblindSearch(){
 }
 
 let zipMode='form';
+let zipContracts=[];
 
 function setZipMode(mode){
   zipMode=mode;
@@ -646,19 +647,41 @@ function setZipMode(mode){
   zipJsonMode.classList.toggle('hidden',mode!=='json');
 }
 
+function setZipNatureFields(){
+  const service=String(zipNatureza.value||'').toUpperCase()==='SERVICO';
+  document.querySelectorAll('.zip-benefit-field').forEach(x=>x.classList.toggle('hidden',service));
+  document.querySelectorAll('.zip-service-field').forEach(x=>x.classList.toggle('hidden',!service));
+}
+
 async function openZipDialog(){
   zipDialog.showModal();
+  await loadZipContracts();
   await loadGoldTemplate();
   setZipMode('form');
 }
 
+async function loadZipContracts(){
+  zipTemplateSource.textContent='Carregando contratos utilizáveis...';
+  const previous=zipContract.value;
+  zipContracts=await api('/api/zip/contracts');
+  zipContract.innerHTML=zipContracts.map(c=>'<option value="'+esc(c.key)+'">'+esc(c.label)+'</option>').join('');
+  if(previous&&zipContracts.some(c=>c.key===previous))zipContract.value=previous;
+  if(!zipContract.value&&zipContracts.length)zipContract.value=zipContracts[0].key;
+}
+
 async function loadGoldTemplate(){
-  zipTemplateSource.textContent='Carregando exemplo da Gold...';
+  if(!zipContracts.length){
+    try{await loadZipContracts()}catch(e){zipTemplateSource.textContent='Não foi possível carregar contratos: '+e.message;return}
+  }
+  if(!zipContract.value){zipTemplateSource.textContent='Nenhum contrato utilizável disponível.';return}
+  zipTemplateSource.textContent='Carregando exemplo da Gold para o contrato selecionado...';
   try{
-    const t=await api('/api/zip/template');
+    const t=await api('/api/zip/template?contract='+encodeURIComponent(zipContract.value));
     zipGestor.value=t.gestor;
     zipSistema.value=t.codigoSistemaOrigem;
+    zipNatureza.value=t.natureza;
     zipTipo.value=t.codigoTipo;
+    zipTipoVersao.value=t.tipoVersao;
     zipPessoaSchemaVersao.value=t.pessoaSchemaVersao;
     zipPessoaId.value=t.idPessoaEntrega;
     zipNome.value=t.nomeCompleto;
@@ -666,32 +689,47 @@ async function loadGoldTemplate(){
     zipMae.value=t.nomeMae;
     zipRegistroId.value=t.codigoRegistroOrigem;
     zipDataEvento.value=new Date().toISOString().slice(0,10);
+    const now=new Date();
+    zipDataHoraServico.value=new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
     zipManifest.value=t.manifestJson;
     zipPessoas.value=t.pessoasJsonl;
     zipRegistros.value=t.registrosJsonl;
-    zipTemplateSource.textContent='Exemplo obtido de '+t.source+' · pessoa '+t.pessoaUuid+' · contrato Pessoa v'+t.pessoaSchemaVersao+' utilizável';
+    setZipNatureFields();
+    zipTemplateSource.textContent='Contrato: '+t.contractLabel+' · exemplo: '+t.source+' · pessoa '+t.pessoaUuid;
   }catch(e){
-    zipTemplateSource.textContent='Não foi possível carregar exemplo da Gold: '+e.message;
+    zipTemplateSource.textContent='Não foi possível carregar exemplo/contrato: '+e.message;
   }
 }
 
 function syncFormToJson(){
   const now=new Date();
   const ref=now.toISOString();
+  const natureza=String(zipNatureza.value||'BENEFICIO').toUpperCase();
   const manifest={
-    formatoVersao:2,pessoaSchemaVersao:Number(zipPessoaSchemaVersao.value),codigoSistemaOrigem:zipSistema.value||zipGestor.value,
-    natureza:'BENEFICIO',codigoTipo:zipTipo.value||'AA01',tipoVersao:1,dataReferencia:ref
+    formatoVersao:2,
+    pessoaSchemaVersao:Number(zipPessoaSchemaVersao.value),
+    codigoSistemaOrigem:zipSistema.value,
+    natureza,
+    codigoTipo:zipTipo.value,
+    tipoVersao:Number(zipTipoVersao.value),
+    dataReferencia:ref
   };
   const pessoa={
     idPessoaEntrega:zipPessoaId.value,cpf:null,cpfAusenteMotivo:'NAO_INFORMADO_ORIGEM',
     nomeCompleto:zipNome.value,dataNascimento:zipNascimento.value,nomeMae:zipMae.value,
     sourceTransactionId:'DEV-'+(zipPessoaId.value||'MANUAL'),atributosTransversais:[]
   };
-  const registro={
-    idPessoaEntrega:zipPessoaId.value,codigoRegistroOrigem:zipRegistroId.value,operacao:'INCLUSAO',
-    dataInicioConcessao:zipDataEvento.value,valorConcedido:Number(zipValor.value||0),
-    dataEventoConcessao:zipDataEvento.value,situacaoVigencia:zipSituacao.value
-  };
+  const registro=natureza==='SERVICO'
+    ?{
+      idPessoaEntrega:zipPessoaId.value,codigoRegistroOrigem:zipRegistroId.value,operacao:'INCLUSAO',
+      dataHoraServico:zipDataHoraServico.value?new Date(zipDataHoraServico.value).toISOString():ref,
+      unidadeServico:zipUnidadeServico.value||null,situacao:zipSituacaoServico.value||null
+    }
+    :{
+      idPessoaEntrega:zipPessoaId.value,codigoRegistroOrigem:zipRegistroId.value,operacao:'INCLUSAO',
+      dataInicioConcessao:zipDataEvento.value,valorConcedido:Number(zipValor.value||0),
+      dataEventoConcessao:zipDataEvento.value,situacaoVigencia:zipSituacao.value
+    };
   zipManifest.value=JSON.stringify(manifest,null,2);
   zipPessoas.value=JSON.stringify(pessoa);
   zipRegistros.value=JSON.stringify(registro);
@@ -702,9 +740,18 @@ function syncJsonToForm(){
     const m=JSON.parse(zipManifest.value||'{}');
     const p=JSON.parse((zipPessoas.value||'{}').split(/\r?\n/).filter(Boolean)[0]||'{}');
     const r=JSON.parse((zipRegistros.value||'{}').split(/\r?\n/).filter(Boolean)[0]||'{}');
-    zipGestor.value=zipGestor.value||m.codigoSistemaOrigem||'SEHAB';
+    const match=zipContracts.find(c=>
+      c.gestor===zipGestor.value
+      &&c.codigoSistemaOrigem===(m.codigoSistemaOrigem||zipSistema.value)
+      &&Number(c.pessoaSchemaVersao)===Number(m.pessoaSchemaVersao)
+      &&c.natureza===(m.natureza||zipNatureza.value)
+      &&c.codigoTipo===(m.codigoTipo||zipTipo.value)
+      &&Number(c.tipoVersao)===Number(m.tipoVersao));
+    if(match)zipContract.value=match.key;
     zipSistema.value=m.codigoSistemaOrigem||zipSistema.value;
+    zipNatureza.value=m.natureza||zipNatureza.value;
     zipTipo.value=m.codigoTipo||zipTipo.value;
+    zipTipoVersao.value=m.tipoVersao||zipTipoVersao.value;
     zipPessoaSchemaVersao.value=m.pessoaSchemaVersao||zipPessoaSchemaVersao.value;
     zipPessoaId.value=p.idPessoaEntrega||zipPessoaId.value;
     zipNome.value=p.nomeCompleto||zipNome.value;
@@ -712,8 +759,15 @@ function syncJsonToForm(){
     zipMae.value=p.nomeMae||zipMae.value;
     zipRegistroId.value=r.codigoRegistroOrigem||zipRegistroId.value;
     zipValor.value=r.valorConcedido??zipValor.value;
-    zipDataEvento.value=r.dataEventoConcessao||zipDataEvento.value;
+    zipDataEvento.value=r.dataEventoConcessao||r.dataInicioConcessao||zipDataEvento.value;
     zipSituacao.value=r.situacaoVigencia||zipSituacao.value;
+    if(r.dataHoraServico){
+      const d=new Date(r.dataHoraServico);
+      if(!Number.isNaN(d.getTime()))zipDataHoraServico.value=new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+    }
+    zipUnidadeServico.value=r.unidadeServico??zipUnidadeServico.value;
+    zipSituacaoServico.value=r.situacao??zipSituacaoServico.value;
+    setZipNatureFields();
   }catch{}
 }
 
