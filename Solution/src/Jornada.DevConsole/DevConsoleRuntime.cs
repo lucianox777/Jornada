@@ -223,7 +223,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
             """;
         var output=await QueryAsync(query,ct);
         var options=new List<ZipContractOption>();
-        foreach(var line in output.Split(['\r','\n'],StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries))
+        foreach(var line in output.Split(new[]{'\r','\n'},StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries))
         {
             var parts=line.Split('|',StringSplitOptions.TrimEntries);
             if(parts.Length<7||!int.TryParse(parts[2],out var pessoaVersao)||!int.TryParse(parts[5],out var tipoVersao))continue;
