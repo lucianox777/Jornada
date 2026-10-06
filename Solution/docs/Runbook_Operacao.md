@@ -53,7 +53,7 @@ O `Jornada.Operations.Maintenance.Worker` inclui, na v3.53, um **watchdog soment
 A ferramenta **standalone continua disponível**; DT-14 retira a conferência C# `decimal` × C# `float64` do **ciclo normal de calibração**, não remove a ferramenta nem desativa os gates atualmente implementados. Executar uma nova conferência da implementação quando ocorrer qualquer um dos eventos abaixo:
 
 1. Qualquer alteração em `FellegiSunterScoring.cs` **ou nos comparadores**. A conferência corrente recebe estados de comparação pré-computados e **não** valida a formação desses estados; mudanças nos comparadores exigem também evidências/testes próprios do comparador.
-2. Migração da versão do runtime **.NET**, inclusive **DT-02 (migração para .NET 10)**, a próxima execução obrigatória.
+2. Migração da versão do runtime **.NET**. A **DT-02 (migração para .NET 10)** já foi executada e reconferida; qualquer migração futura de runtime volta a exigir esta conferência.
 3. Um **threshold mudar de faixa significativa** entre modelos consecutivos, conforme a política de decisão vigente; registrar no processo de revisão qual faixa e qual mudança motivaram a reconferência, sem inventar um limite numérico novo.
 
 A evidência `CONFORME` dirigida do [PR #514](https://github.com/lucianox777/Jornada/pull/514) (casos artesanais de fronteira) continua válida **somente em seu escopo** enquanto scorer, thresholds e runtime permanecerem inalterados. Não é necessário repetir esses testes a cada `GENERATE_DRAFT`; também não constituem conferência de comparadores, evidência SQL para um novo modelo nem validação estatística representativa (#31). Ver `Linkage_Implementation_Conference.md`.
