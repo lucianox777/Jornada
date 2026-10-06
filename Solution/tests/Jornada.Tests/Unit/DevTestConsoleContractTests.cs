@@ -164,6 +164,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("executionCount"));
             Assert.That(page,Does.Contain("Sessão '+count+'x"));
             Assert.That(page,Does.Contain("action-row"));
+            Assert.That(page,Does.Contain("data-action-key"));
+            Assert.That(page,Does.Contain("captureActionOrigin()"));
+            Assert.That(page,Does.Contain("returnFromConsole()"));
+            Assert.That(page,Does.Contain("restoreActionOrigin(origin)"));
+            Assert.That(page,Does.Contain("scrollIntoView({block:\'center\',behavior:\'auto\'})"));
+            Assert.That(page,Does.Contain("button.focus({preventScroll:true})"));
+            Assert.That(page,Does.Contain("onclick=\"returnFromConsole()\">← Voltar</button>"));
             Assert.That(page,Does.Contain("action-index"));
             Assert.That(page,Does.Contain("action-count"));
             Assert.That(page,Does.Contain("action-control\">'+count+control"));

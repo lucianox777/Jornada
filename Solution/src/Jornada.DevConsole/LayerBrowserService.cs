@@ -71,21 +71,28 @@ sealed class LayerBrowserService(IWebHostEnvironment env)
             throw new InvalidOperationException("JORNADA_SQL_SA_PASSWORD ausente.");
 
         var predicate=BuildPredicate(definition,term);
-        var countSql=$"SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM {definition.FromClause}{predicate};";
-        var countLines=await RunSqlAsync(root,envFile,db,password,countSql,ct);
-        var countText=countLines.LastOrDefault(x=>!string.IsNullOrWhiteSpace(x))?.Trim();
-        if(!long.TryParse(countText,System.Globalization.NumberStyles.Integer,System.Globalization.CultureInfo.InvariantCulture,out var total))
-            throw new InvalidOperationException($"Contagem da camada {definition.Id} inválida: {countText??"(vazia)"}.");
+        var offset=(page-1)*pageSize;
+        var select=string.Join(",",definition.Expressions.Select(Clean));
+        var dataSql=$"SET NOCOUNT ON; SET LOCK_TIMEOUT 5000; SELECT CONVERT(nvarchar(30),COUNT_BIG(*) OVER()),{select} FROM {definition.FromClause}{predicate} ORDER BY {definition.OrderBy} OFFSET {offset} ROWS FETCH NEXT {pageSize} ROWS ONLY;";
+        var dataLines=await RunSqlAsync(root,envFile,db,password,dataSql,ct);
+        if(dataLines.Length==0)
+        {
+            if(page>1)return await BrowseAsync(definition.Id,1,pageSize,term,ct);
+            return new LayerPage(definition.Id,1,pageSize,0,1,term,definition.Columns,Array.Empty<string?[]>());
+        }
+
+        var parsed=dataLines
+            .Where(x=>!string.IsNullOrWhiteSpace(x))
+            .Select(x=>x.Split('|',StringSplitOptions.None))
+            .ToArray();
+        var totalText=parsed[0][0].Trim();
+        if(!long.TryParse(totalText,System.Globalization.NumberStyles.Integer,System.Globalization.CultureInfo.InvariantCulture,out var total))
+            throw new InvalidOperationException($"Contagem da camada {definition.Id} inválida: {totalText}.");
 
         var totalPages=Math.Max(1,(int)Math.Ceiling(total/(double)pageSize));
         page=Math.Min(page,totalPages);
-        var offset=(page-1)*pageSize;
-        var select=string.Join(",",definition.Expressions.Select(Clean));
-        var dataSql=$"SET NOCOUNT ON; SELECT {select} FROM {definition.FromClause}{predicate} ORDER BY {definition.OrderBy} OFFSET {offset} ROWS FETCH NEXT {pageSize} ROWS ONLY;";
-        var dataLines=await RunSqlAsync(root,envFile,db,password,dataSql,ct);
-        var rows=dataLines
-            .Where(x=>!string.IsNullOrWhiteSpace(x))
-            .Select(x=>x.Split('|',StringSplitOptions.None).Select(v=>string.IsNullOrEmpty(v)?null:v).ToArray())
+        var rows=parsed
+            .Select(x=>x.Skip(1).Select(v=>string.IsNullOrEmpty(v)?null:v).ToArray())
             .ToArray();
 
         if(rows.Any(x=>x.Length!=definition.Columns.Length))
@@ -144,7 +151,18 @@ sealed class LayerBrowserService(IWebHostEnvironment env)
         process.Start();
         var stdoutTask=process.StandardOutput.ReadToEndAsync(ct);
         var stderrTask=process.StandardError.ReadToEndAsync(ct);
-        await process.WaitForExitAsync(ct);
+        try
+        {
+            await process.WaitForExitAsync(ct);
+        }
+        catch(OperationCanceledException)
+        {
+            if(!process.HasExited)
+            {
+                try{process.Kill(entireProcessTree:true);}catch(InvalidOperationException){}
+            }
+            throw;
+        }
         var stdout=await stdoutTask;
         var stderr=await stderrTask;
         if(process.ExitCode!=0)throw new InvalidOperationException($"Falha ao consultar camada DEV: {stderr.Trim()}");
