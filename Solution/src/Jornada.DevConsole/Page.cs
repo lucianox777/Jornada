@@ -274,6 +274,7 @@ let currentRunId=null;
 let currentCommandId=null;
 let eventSource=null;
 let consoleOrigin=null;
+let lastActionOrigin=null;
 let layerKind='gold';
 let layerPage=1;
 let layerAbortController=null;
@@ -293,13 +294,23 @@ function switchView(view,label,scrollTop=true){
   if(scrollTop)window.scrollTo({top:0,behavior:'smooth'});
 }
 
-function captureActionOrigin(){
-  const active=document.activeElement;
-  const row=active instanceof Element?active.closest('.action-row'):null;
-  if(!row)return null;
+function actionOriginFromRow(row){
+  if(!(row instanceof Element))return null;
   const surface=row.closest('#toolsCommands')?'tools':row.closest('#commands')?'flow':null;
   if(!surface)return null;
   return {surface,actionKey:row.dataset.actionKey||'',scrollY:window.scrollY,rowTop:row.getBoundingClientRect().top};
+}
+
+function rememberActionOrigin(event){
+  const row=event?.target instanceof Element?event.target.closest('.action-row'):null;
+  const origin=actionOriginFromRow(row);
+  if(origin)lastActionOrigin=origin;
+}
+
+function captureActionOrigin(){
+  const active=document.activeElement;
+  const row=active instanceof Element?active.closest('.action-row'):null;
+  return actionOriginFromRow(row)||lastActionOrigin;
 }
 
 function restoreActionOrigin(origin){
@@ -418,7 +429,7 @@ async function loadCommands(surface='flow'){
     const meta=executionMeta(commandId,readOnly);
     const count='<span class="action-count'+(meta.readOnly?' readonly':'')+'" title="'+esc(meta.title)+'">'+esc(meta.text)+'</span>';
     const actionKey=[number||'',commandId||'',title].join('|');
-    return '<div class="action-row" data-action-key="'+esc(actionKey)+'"><div class="action-copy"><div class="action-heading">'+index+'<span class="action-title">'+esc(title)+'</span></div>'
+    return '<div class="action-row" data-action-key="'+esc(actionKey)+'" onpointerdown="rememberActionOrigin(event)"><div class="action-copy"><div class="action-heading">'+index+'<span class="action-title">'+esc(title)+'</span></div>'
       +'<div class="action-desc">'+esc(description)+'</div></div>'
       +'<div class="action-control">'+count+control+'</div></div>';
   };
