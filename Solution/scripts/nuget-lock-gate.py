@@ -34,7 +34,7 @@ def main() -> int:
     ap.add_argument('--summary', help='JSON de evidência a gravar')
     args = ap.parse_args()
     root = Path(args.root).resolve()
-    projects = sorted(p for p in root.rglob('*.csproj') if not {'obj','bin','ApoioSecretarias'} & set(p.parts))
+    projects = sorted(p for p in root.rglob('*.csproj') if not {'obj','bin'} & set(p.parts))
     if not projects:
         raise SystemExit('ERRO: nenhum .csproj encontrado')
     rows=[]
