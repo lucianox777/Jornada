@@ -104,7 +104,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   </section>
 
   <section id="consoleView" class="hidden">
-    <button class="secondary back" type="button" onclick="showHome()">← Voltar ao fluxo</button>
+    <button class="secondary back" type="button" onclick="returnFromConsole()">← Voltar</button>
     <div class="console-shell">
       <div class="console-top">
         <span id="consoleTitle" class="console-title">Execução</span>
@@ -271,9 +271,12 @@ let commandsCache=[];
 let currentRunId=null;
 let currentCommandId=null;
 let eventSource=null;
+let consoleOrigin=null;
 let layerKind='gold';
 let layerPage=1;
+let layerAbortController=null;
 const layerPageSize=50;
+const layerRequestTimeoutMs=15000;
 
 async function api(url,options){
   const response=await fetch(url,{cache:'no-store',...(options||{})});
@@ -282,10 +285,50 @@ async function api(url,options){
   return type.includes('application/json')?response.json():response.text();
 }
 
-function switchView(view,label){
+function switchView(view,label,scrollTop=true){
   for(const item of views)item.classList.toggle('hidden',item!==view);
   breadcrumb.textContent='Console DEV / '+label;
-  window.scrollTo({top:0,behavior:'smooth'});
+  if(scrollTop)window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function captureActionOrigin(){
+  const active=document.activeElement;
+  const row=active instanceof Element?active.closest('.action-row'):null;
+  if(!row)return null;
+  const surface=row.closest('#toolsCommands')?'tools':row.closest('#commands')?'flow':null;
+  if(!surface)return null;
+  return {surface,actionKey:row.dataset.actionKey||'',scrollY:window.scrollY};
+}
+
+function restoreActionOrigin(origin){
+  requestAnimationFrame(()=>{
+    const row=origin?.actionKey
+      ?Array.from(document.querySelectorAll('.action-row')).find(x=>x.dataset.actionKey===origin.actionKey)
+      :null;
+    if(row){
+      row.scrollIntoView({block:'center',behavior:'auto'});
+      const button=row.querySelector('button');
+      if(button)button.focus({preventScroll:true});
+      return;
+    }
+    window.scrollTo({top:Number(origin?.scrollY||0),behavior:'auto'});
+  });
+}
+
+async function returnFromConsole(){
+  if(eventSource){eventSource.close();eventSource=null}
+  const origin=consoleOrigin;
+  if(origin?.surface==='tools'){
+    switchView(toolsView,'Ferramentas',false);
+    await loadCommands('tools');
+  }else if(origin?.surface==='history'){
+    await showHistory();
+    return;
+  }else{
+    switchView(homeView,'Fluxo do dado',false);
+    await loadCommands('flow');
+  }
+  restoreActionOrigin(origin);
 }
 
 async function showHome(){
@@ -367,7 +410,8 @@ async function loadCommands(surface='flow'){
     const index=number?'<span class="action-index">'+esc(number)+'</span>':'';
     const meta=executionMeta(commandId,readOnly);
     const count='<span class="action-count'+(meta.readOnly?' readonly':'')+'" title="'+esc(meta.title)+'">'+esc(meta.text)+'</span>';
-    return '<div class="action-row"><div class="action-copy"><div class="action-heading">'+index+'<span class="action-title">'+esc(title)+'</span></div>'
+    const actionKey=[number||'',commandId||'',title].join('|');
+    return '<div class="action-row" data-action-key="'+esc(actionKey)+'"><div class="action-copy"><div class="action-heading">'+index+'<span class="action-title">'+esc(title)+'</span></div>'
       +'<div class="action-desc">'+esc(description)+'</div></div>'
       +'<div class="action-control">'+count+control+'</div></div>';
   };
@@ -456,9 +500,10 @@ async function startCommand(id,titleOverride){
     alert(command.disabledReason||'Operação indisponível neste modo.');
     return;
   }
+  const origin=captureActionOrigin()||consoleOrigin;
   const response=await api('/api/commands/'+encodeURIComponent(id)+'/start',{method:'POST'});
   const title=titleOverride||command?.title||id;
-  openLiveRun(response.id,title+' #'+response.executionNumber,id);
+  openLiveRun(response.id,title+' #'+response.executionNumber,id,origin);
 }
 
 async function openLayerDialog(kind){
@@ -477,6 +522,13 @@ async function openLayerDialog(kind){
   await loadLayerPage(1);
 }
 
+layerDialog.addEventListener('close',()=>{
+  if(layerAbortController){
+    layerAbortController.abort();
+    layerAbortController=null;
+  }
+});
+
 async function applyLayerSearch(){
   await loadLayerPage(1);
 }
@@ -487,10 +539,15 @@ async function clearLayerSearch(){
 }
 
 async function loadLayerPage(page){
+  if(layerAbortController)layerAbortController.abort();
+  const controller=new AbortController();
+  layerAbortController=controller;
+  const timeout=setTimeout(()=>controller.abort(),layerRequestTimeoutMs);
   layerPage=Math.max(1,page);
   layerMeta.textContent='Carregando...';
   layerHead.innerHTML='';
   layerBody.innerHTML='<tr><td>Carregando...</td></tr>';
+  layerPageLabel.textContent='';
   layerPrev.disabled=true;
   layerNext.disabled=true;
   try{
@@ -499,7 +556,8 @@ async function loadLayerPage(page){
       pageSize:String(layerPageSize),
       search:layerSearch.value.trim()
     });
-    const data=await api('/api/layers/'+encodeURIComponent(layerKind)+'?'+params.toString());
+    const data=await api('/api/layers/'+encodeURIComponent(layerKind)+'?'+params.toString(),{signal:controller.signal});
+    if(layerAbortController!==controller)return;
     layerPage=data.page;
     layerHead.innerHTML='<tr>'+data.columns.map(x=>'<th>'+esc(x)+'</th>').join('')+'</tr>';
     layerBody.innerHTML=data.rows.length
@@ -510,9 +568,16 @@ async function loadLayerPage(page){
     layerPrev.disabled=data.page<=1;
     layerNext.disabled=data.page>=data.totalPages;
   }catch(e){
-    layerMeta.textContent='Falha: '+e.message;
+    if(layerAbortController!==controller)return;
+    const detail=e.name==='AbortError'
+      ?'A consulta excedeu 15 segundos e foi cancelada. Feche operações em andamento e tente novamente.'
+      :e.message;
+    layerMeta.textContent='Falha: '+detail;
     layerBody.innerHTML='<tr><td>Não foi possível carregar a camada.</td></tr>';
     layerPageLabel.textContent='';
+  }finally{
+    clearTimeout(timeout);
+    if(layerAbortController===controller)layerAbortController=null;
   }
 }
 
@@ -837,10 +902,11 @@ function appendConsole(item){
   terminal.scrollTop=terminal.scrollHeight;
 }
 
-function openLiveRun(id,title,commandId){
+function openLiveRun(id,title,commandId,origin=null){
   if(eventSource)eventSource.close();
   currentRunId=id;
   currentCommandId=commandId;
+  consoleOrigin=origin||consoleOrigin;
   resetConsole(title);
   switchView(consoleView,'Execução / '+title);
   eventSource=new EventSource('/api/runs/'+id+'/stream');
@@ -903,6 +969,7 @@ async function rerun(){
 }
 
 async function openHistoryRun(id){
+  consoleOrigin={surface:'history',actionKey:'',scrollY:window.scrollY};
   const run=await api('/api/runs/'+id);
   if(eventSource){eventSource.close();eventSource=null}
   const historyTitle=run.title+(Number(run.executionNumber||0)>0?' #'+run.executionNumber:'');
