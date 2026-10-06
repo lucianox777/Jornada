@@ -1,4 +1,4 @@
-> **Decisões candidatas posteriores (29/09/2026):** [fonte única de identidade/linkage](../Solution/docs/Decisoes_Canonicas_Identidade_Linkage_20260929.md) e [catálogo de vigência documental](../Solution/docs/Catalogo_Vigencia_Documental_20260929.md). A candidata v5.00 e requisitos v1.1 serão reconciliados com estas decisões; a especificação v3.62 publicada, releases e evidências históricas são preservadas sem alteração retroativa.
+> **NAVEGAÇÃO CORRENTE (06/10/2026):** use o [índice vivo do acervo](../Solution/docs/Indice_Acervo_Documental.md) para precedência e leitura mínima. As [decisões canônicas de identidade/linkage](../Solution/docs/Decisoes_Canonicas_Identidade_Linkage_20260929.md) continuam sendo a fonte decisória daquele domínio; o [catálogo de vigência de 29/09](../Solution/docs/Catalogo_Vigencia_Documental_20260929.md) é snapshot do corte que declara e não cobre automaticamente documentos posteriores.
 
 # Documentos da Jornada do Cidadão
 
