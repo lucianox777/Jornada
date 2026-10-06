@@ -20,7 +20,7 @@ main{max-width:1180px;margin:0 auto;padding:22px}
 .iconbtn{border:1px solid #cfd6df;background:#fff;border-radius:8px;padding:8px 12px}
 .hero{margin-bottom:16px}
 .hero p{color:#5d6875}
-.stage{margin:18px 0 26px}.stage-head{display:flex;align-items:center;gap:10px;margin:0 0 8px}.stage-head h3{margin:0;font-size:17px}.stage-index{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:#66717d;background:#e9edf2;border-radius:999px;padding:4px 8px}.flow-note{padding:10px 12px;border:1px solid #cfdceb;background:#f6f9fd;border-radius:8px;color:#44515f;font-size:13px;margin-bottom:14px}
+.stage{margin:18px 0 26px}.stage-head{display:flex;align-items:center;gap:10px;margin:0 0 8px}.stage-head h3{margin:0;font-size:17px}.stage-reset{margin-left:auto;white-space:nowrap}.stage-index{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:#66717d;background:#e9edf2;border-radius:999px;padding:4px 8px}.flow-note{padding:10px 12px;border:1px solid #cfdceb;background:#f6f9fd;border-radius:8px;color:#44515f;font-size:13px;margin-bottom:14px}
 .card{background:#fff;border:1px solid #d9dee5;border-radius:10px;padding:15px;margin:10px 0}
 .command-head{display:block}
 .command-title{font-weight:700;font-size:16px}
@@ -90,7 +90,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
     <div class="hero">
       <h2>Fluxo do dado</h2>
       <p>A Console acompanha a mesma jornada da aplicação: preparação do ambiente em etapas independentes → ingestão → Bronze → Silver → identidade/Linkage → Gold/Serving → encerramento.</p>
-      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. Em <b>4.1 · Processar um lote</b>, cada clique é <b>One shot</b> e executa no máximo uma iteração do Processor para a Entrega atual. Repita 4.1 até concluir Silver. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional. Cada botão mostra, imediatamente à esquerda, quantas vezes sua ação foi executada.</div>
+      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. Em <b>4.1 · Processar um lote</b>, cada clique é <b>One shot</b> e executa no máximo uma iteração do Processor para a Entrega atual. Repita 4.1 até concluir Silver. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional. Cada botão mostra, imediatamente à esquerda, quantas vezes sua ação foi executada nesta sessão. As contagens reiniciam ao abrir a Console e podem ser zeradas por seção.</div>
     </div>
     <div id="commands">Carregando...</div>
   </section>
@@ -323,6 +323,20 @@ async function showHistory(){
   }
 }
 
+async function resetSectionCounts(button){
+  const ids=JSON.parse(button.dataset.commandIds||'[]');
+  if(!ids.length)return;
+  const surface=button.closest('#toolsCommands')?'tools':'flow';
+  button.disabled=true;
+  try{
+    await api('/api/session-counts/reset',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(ids)});
+    await loadCommands(surface);
+  }catch(e){
+    button.disabled=false;
+    alert('Falha ao zerar as contagens da seção: '+e.message);
+  }
+}
+
 async function loadCommands(surface='flow'){
   commandsCache=await api('/api/commands');
   const commandById=Object.fromEntries(commandsCache.map(x=>[x.id,x]));
@@ -343,8 +357,8 @@ async function loadCommands(surface='flow'){
     const count=Number(item?.executionCount||0);
     const last=Number(item?.lastExecutionNumber||0);
     return {
-      text:'Rodou '+count+'x',
-      title:count===0?'Nenhuma execução ainda. Próxima execução: #1.':'Execuções: '+count+' · última #'+(last||count)+' · próxima #'+(count+1)+'.',
+      text:'Sessão '+count+'x',
+      title:count===0?'Nenhuma execução nesta sessão. Próxima execução da sessão: #1.':'Nesta sessão: '+count+' · última #'+(last||count)+' · próxima #'+(count+1)+'.',
       readOnly:false
     };
   };
@@ -356,6 +370,17 @@ async function loadCommands(surface='flow'){
     return '<div class="action-row"><div class="action-copy"><div class="action-heading">'+index+'<span class="action-title">'+esc(title)+'</span></div>'
       +'<div class="action-desc">'+esc(description)+'</div></div>'
       +'<div class="action-control">'+count+control+'</div></div>';
+  };
+
+  const countableCommandIds=c=>{
+    if(c.id==='zip')return ['zip','ingestion','pipeline-status'];
+    if(c.id==='bronze')return ['bronze-verify-latest'];
+    if(c.id==='silver')return ['silver','pipeline-status'];
+    if(c.id==='linkage')return ['linkage','replay'];
+    if(c.id==='gold'||c.id==='semiblind')return [];
+    if(c.id==='configuration')return ['contract-bundle'];
+    if(c.id==='gold-synthetic')return ['gold-synthetic','blocking'];
+    return [c.id];
   };
 
   const renderCard=c=>{
@@ -417,7 +442,11 @@ async function loadCommands(surface='flow'){
     const split=g.stage.split(' · ');
     const badge=split.length>1?'<span class="stage-index">'+esc(split[0])+'</span>':'';
     const title=split.length>1?split.slice(1).join(' · '):g.stage;
-    return '<section class="stage"><div class="stage-head">'+badge+'<h3>'+esc(title)+'</h3></div>'+g.items.map(renderCard).join('')+'</section>';
+    const ids=[...new Set(g.items.flatMap(countableCommandIds))];
+    const reset=ids.length
+      ?'<button class="secondary stage-reset" type="button" data-command-ids="'+esc(JSON.stringify(ids))+'" onclick="resetSectionCounts(this)">Zerar contagens da seção</button>'
+      :'';
+    return '<section class="stage"><div class="stage-head">'+badge+'<h3>'+esc(title)+'</h3>'+reset+'</div>'+g.items.map(renderCard).join('')+'</section>';
   }).join('');
 }
 

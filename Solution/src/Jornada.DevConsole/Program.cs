@@ -85,13 +85,16 @@ app.MapGet("/api/commands",async(HttpResponse response,ConsoleRuntimeMode runtim
             lastStatus=last?.Status,
             lastStartedAt=last?.StartedAt,
             lastFinishedAt=last?.FinishedAt,
-            lastExecutionNumber=last?.ExecutionNumber??0
+            lastExecutionNumber=counts.GetValueOrDefault(x.Id)
         };
     }));
 });
 
 app.MapGet("/api/runs",async(RunStore store,CancellationToken ct)=>
     Results.Ok(await store.ListSessionSummariesAsync(ct)));
+
+app.MapPost("/api/session-counts/reset",([FromBody] string[] commands,RunStore store)=>
+    Results.Ok(new{reset=store.ResetExecutionCounts(commands)}));
 
 app.MapGet("/api/runs/{id:guid}",async(Guid id,RunStore store,CancellationToken ct)=>
     await store.GetAsync(id,ct) is { } run?Results.Ok(run):Results.NotFound());

@@ -752,11 +752,10 @@ sealed class RunStore(IWebHostEnvironment env)
 {
     readonly string root=Path.Combine(DevConsolePaths.ApplicationDataRoot(),"runs");
     readonly string summariesRoot=Path.Combine(DevConsolePaths.ApplicationDataRoot(),"runs","summaries");
-    readonly string countersPath=Path.Combine(DevConsolePaths.ApplicationDataRoot(),"runs","execution-counters.json");
     readonly string legacyRoot=Path.Combine(env.ContentRootPath,".runs");
     readonly DateTimeOffset sessionStartedAt=DateTimeOffset.UtcNow;
     readonly object counterGate=new();
-    Dictionary<string,int>? counters;
+    readonly Dictionary<string,int> sessionCounters=new(StringComparer.OrdinalIgnoreCase);
     static readonly JsonSerializerOptions Opt=new(JsonSerializerDefaults.Web){WriteIndented=true};
 
     IEnumerable<string> RunRoots()
@@ -766,78 +765,32 @@ sealed class RunStore(IWebHostEnvironment env)
             yield return legacyRoot;
     }
 
-    void EnsureCountersLoaded()
-    {
-        if(counters is not null)return;
-        Directory.CreateDirectory(root);
-        Directory.CreateDirectory(summariesRoot);
-        try
-        {
-            if(File.Exists(countersPath))
-            {
-                var loaded=JsonSerializer.Deserialize<Dictionary<string,int>>(File.ReadAllText(countersPath),Opt);
-                if(loaded is not null)
-                {
-                    counters=new Dictionary<string,int>(loaded,StringComparer.OrdinalIgnoreCase);
-                    return;
-                }
-            }
-        }
-        catch(JsonException){}
-        catch(IOException){}
-
-        counters=new Dictionary<string,int>(StringComparer.OrdinalIgnoreCase);
-        var seen=new HashSet<Guid>();
-        foreach(var runRoot in RunRoots())
-        {
-            var summaryDir=Path.Combine(runRoot,"summaries");
-            if(!Directory.Exists(summaryDir))continue;
-            foreach(var path in Directory.EnumerateFiles(summaryDir,"*.json",SearchOption.TopDirectoryOnly))
-            {
-                try
-                {
-                    var summary=JsonSerializer.Deserialize<RunSummary>(File.ReadAllText(path),Opt);
-                    if(summary is null||!seen.Add(summary.Id)||string.IsNullOrWhiteSpace(summary.Command))continue;
-                    var current=counters.GetValueOrDefault(summary.Command);
-                    counters[summary.Command]=summary.ExecutionNumber>0
-                        ?Math.Max(current,summary.ExecutionNumber)
-                        :current+1;
-                }
-                catch(JsonException){}
-                catch(IOException){}
-                catch(UnauthorizedAccessException){}
-            }
-        }
-    }
-
-    void PersistCounters()
-    {
-        Directory.CreateDirectory(root);
-        var temp=countersPath+".tmp";
-        File.WriteAllText(temp,JsonSerializer.Serialize(counters,Opt));
-        File.Move(temp,countersPath,true);
-    }
-
     public int ReserveExecutionNumber(string command)
     {
         if(string.IsNullOrWhiteSpace(command))throw new ArgumentException("Comando obrigatório para numerar a execução.",nameof(command));
         lock(counterGate)
         {
-            EnsureCountersLoaded();
-            var loadedCounters=counters!;
-            var next=loadedCounters.GetValueOrDefault(command)+1;
-            loadedCounters[command]=next;
-            PersistCounters();
+            var next=sessionCounters.GetValueOrDefault(command)+1;
+            sessionCounters[command]=next;
             return next;
         }
     }
 
     public int GetLastExecutionNumber(string command)
     {
+        lock(counterGate)return sessionCounters.GetValueOrDefault(command);
+    }
+
+    public int ResetExecutionCounts(IEnumerable<string> commands)
+    {
+        var selected=commands
+            .Where(x=>!string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         lock(counterGate)
         {
-            EnsureCountersLoaded();
-            return counters!.GetValueOrDefault(command);
+            foreach(var command in selected)sessionCounters.Remove(command);
+            return selected.Length;
         }
     }
 
@@ -951,8 +904,7 @@ sealed class RunStore(IWebHostEnvironment env)
         ct.ThrowIfCancellationRequested();
         lock(counterGate)
         {
-            EnsureCountersLoaded();
-            IReadOnlyDictionary<string,int> snapshot=new Dictionary<string,int>(counters!,StringComparer.OrdinalIgnoreCase);
+            IReadOnlyDictionary<string,int> snapshot=new Dictionary<string,int>(sessionCounters,StringComparer.OrdinalIgnoreCase);
             return Task.FromResult(snapshot);
         }
     }
