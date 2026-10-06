@@ -198,7 +198,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("<b>Bloqueado:</b>"));
             Assert.That(page,Does.Contain("c.disabledReason"));
             Assert.That(page,Does.Contain("Visualizar identidade"));
-            Assert.That(page,Does.Contain("Executar replay do último run"));
+            Assert.That(page,Does.Contain("Replay do último run"));
+            Assert.That(page,Does.Contain("5.3 · Replay do último run"));
             Assert.That(page,Does.Contain("Reconstruir blocking"));
             Assert.That(page,Does.Contain("Contratos e configurações"));
             Assert.That(page,Does.Contain("openConfigurationDialog()"));
