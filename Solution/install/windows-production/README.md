@@ -1,5 +1,7 @@
 # Jornada — Instalador de Produção Windows
 
+> **DRIFT CONHECIDO (06/10/2026):** a Solution corrente compila para .NET 10, mas `Install-JornadaProduction.ps1` ainda verifica/instala runtimes .NET 8. A issue #790 rastreia a correção técnica. Até esse PR ser implementado e validado, este diretório não deve ser usado como evidência de alinhamento do runtime de produção com o build corrente.
+
 Este diretório contém o instalador versionado da Jornada para Windows Server.
 
 ## Topologia canônica
