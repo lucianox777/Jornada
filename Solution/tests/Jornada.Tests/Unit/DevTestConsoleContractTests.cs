@@ -200,6 +200,17 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("A lista começa vazia a cada inicialização da Console DEV"));
             Assert.That(page,Does.Not.Contain("O histórico é persistido entre reinicializações da Console DEV."));
             Assert.That(page,Does.Contain("Entrada manual para o ZIP"));
+            Assert.That(page,Does.Contain("ID temporário nesta entrega"));
+            Assert.That(page,Does.Contain("não identifica a Pessoa entre entregas"));
+            Assert.That(page,Does.Contain("Código da pessoa na origem (opcional)"));
+            Assert.That(page,Does.Contain("CPF (opcional)"));
+            Assert.That(page,Does.Contain("zipPessoaOrigem.value=t.codigoPessoaOrigem||''"));
+            Assert.That(page,Does.Contain("zipCpf.value=t.cpf||''"));
+            Assert.That(page,Does.Contain("codigoPessoaOrigem:codigoPessoaOrigem||null"));
+            Assert.That(page,Does.Contain("cpf:cpf||null"));
+            Assert.That(page,Does.Contain("cpfAusenteMotivo:cpf?null:'NAO_INFORMADO_ORIGEM'"));
+            Assert.That(runtime,Does.Contain("var pessoaOriginCode=$\"DEV-PESSOA-{suffix}\""));
+            Assert.That(runtime,Does.Contain("[\"codigoPessoaOrigem\"]=pessoaOriginCode"));
             Assert.That(page,Does.Contain("Contrato para gerar o ZIP"));
             Assert.That(page,Does.Contain("id=\"zipContract\""));
             Assert.That(page,Does.Contain("loadZipContracts()"));

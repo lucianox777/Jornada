@@ -185,7 +185,9 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
         <label>Tipo<input id="zipTipo" readonly></label>
         <label>Versão do tipo<input id="zipTipoVersao" type="number" readonly></label>
         <label>Versão Pessoa utilizável<input id="zipPessoaSchemaVersao" type="number" readonly></label>
-        <label>ID pessoa na entrega<input id="zipPessoaId"></label>
+        <label>ID temporário nesta entrega<input id="zipPessoaId"><span class="small">Liga a Pessoa aos registros deste ZIP; não identifica a Pessoa entre entregas.</span></label>
+        <label>Código da pessoa na origem (opcional)<input id="zipPessoaOrigem"><span class="small">Chave estável do sistema de origem. Use o mesmo valor em novas entregas da mesma Pessoa.</span></label>
+        <label>CPF (opcional)<input id="zipCpf" inputmode="numeric" autocomplete="off"><span class="small">Quando informado, segue a rota determinística de CPF; vazio mantém o teste sem CPF.</span></label>
         <label>Nome completo<input id="zipNome"></label>
         <label>Data de nascimento<input id="zipNascimento" type="date"></label>
         <label>Nome da mãe<input id="zipMae"></label>
@@ -782,6 +784,8 @@ async function loadGoldTemplate(){
     zipTipoVersao.value=t.tipoVersao;
     zipPessoaSchemaVersao.value=t.pessoaSchemaVersao;
     zipPessoaId.value=t.idPessoaEntrega;
+    zipPessoaOrigem.value=t.codigoPessoaOrigem||'';
+    zipCpf.value=t.cpf||'';
     zipNome.value=t.nomeCompleto;
     zipNascimento.value=t.dataNascimento;
     zipMae.value=t.nomeMae;
@@ -812,8 +816,13 @@ function syncFormToJson(){
     tipoVersao:Number(zipTipoVersao.value),
     dataReferencia:ref
   };
+  const cpf=zipCpf.value.replace(/\D/g,'').trim();
+  const codigoPessoaOrigem=zipPessoaOrigem.value.trim();
   const pessoa={
-    idPessoaEntrega:zipPessoaId.value,cpf:null,cpfAusenteMotivo:'NAO_INFORMADO_ORIGEM',
+    idPessoaEntrega:zipPessoaId.value,
+    codigoPessoaOrigem:codigoPessoaOrigem||null,
+    cpf:cpf||null,
+    cpfAusenteMotivo:cpf?null:'NAO_INFORMADO_ORIGEM',
     nomeCompleto:zipNome.value,dataNascimento:zipNascimento.value,nomeMae:zipMae.value,
     sourceTransactionId:'DEV-'+(zipPessoaId.value||'MANUAL'),atributosTransversais:[]
   };
@@ -852,6 +861,8 @@ function syncJsonToForm(){
     zipTipoVersao.value=m.tipoVersao||zipTipoVersao.value;
     zipPessoaSchemaVersao.value=m.pessoaSchemaVersao||zipPessoaSchemaVersao.value;
     zipPessoaId.value=p.idPessoaEntrega||zipPessoaId.value;
+    zipPessoaOrigem.value=p.codigoPessoaOrigem??'';
+    zipCpf.value=p.cpf??'';
     zipNome.value=p.nomeCompleto||zipNome.value;
     zipNascimento.value=p.dataNascimento||zipNascimento.value;
     zipMae.value=p.nomeMae||zipMae.value;
