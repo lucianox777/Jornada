@@ -754,10 +754,10 @@ function setZipNatureFields(){
 }
 
 async function openZipDialog(){
-  zipDialog.showModal();
   await loadZipContracts();
   await loadGoldTemplate();
   setZipMode('form');
+  zipDialog.showModal();
 }
 
 async function loadZipContracts(){
