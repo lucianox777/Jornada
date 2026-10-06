@@ -413,7 +413,7 @@ switch($Action){
         if($status -in @('REJEITADA','QUARENTENA')){throw "Entrega $entregaId está em estado terminal $status."}
 
         $otherPending=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM ingestao.lote WHERE entrega_id<>'$entregaId' AND status IN(N'PENDENTE',N'VALIDANDO',N'PROCESSANDO');")
-        if($otherPending -ne 0){throw "Existem $otherPending lote(s) pendentes de outras Entregas. A execução one-shot foi recusada para não processar carga fora do fluxo atual."}
+        if($otherPending -ne 0){Write-Host "Existem $otherPending lote(s) pendentes de outras Entregas; serão preservados porque o Processor one-shot será filtrado pela Entrega atual."}
         $targetPending=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM ingestao.lote WHERE entrega_id='$entregaId' AND status IN(N'PENDENTE',N'VALIDANDO',N'PROCESSANDO');")
         if($targetPending -eq 0){throw "Entrega $entregaId não possui lote pendente para o Processor (status=$status)."}
 
@@ -425,7 +425,7 @@ switch($Action){
         if($resident.Count -gt 0){throw "Processor residente detectado em modo manual: $($resident -join '; ')."}
 
         Write-Host "Executando Jornada.Processor.Worker one-shot para a Entrega $entregaId..."
-        Invoke-Compose @('exec','-T','jornada-node2','env','Processor__Operation=PROCESS_UNTIL_IDLE','dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
+        Invoke-Compose @('exec','-T','jornada-node2','env','Processor__Operation=PROCESS_UNTIL_IDLE',"Processor__TargetEntregaId=$entregaId",'dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
 
         $final=Invoke-SqlScalar "SELECT status FROM ingestao.entrega WHERE entrega_id='$entregaId';"
         $silverPeople=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$entregaId';")

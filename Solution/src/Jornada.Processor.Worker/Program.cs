@@ -116,11 +116,21 @@ if (string.Equals(processorOperation, "PROCESS_UNTIL_IDLE", StringComparison.Ord
     if (!builder.Environment.IsDevelopment())
         throw new InvalidOperationException("PROCESS_UNTIL_IDLE só pode executar em Development/Test.");
 
+    Guid? targetEntregaId = null;
+    var configuredTarget = builder.Configuration["Processor:TargetEntregaId"]?.Trim();
+    if (!string.IsNullOrWhiteSpace(configuredTarget))
+    {
+        if (!Guid.TryParse(configuredTarget, out var parsedTarget))
+            throw new InvalidOperationException("Processor:TargetEntregaId deve ser um GUID válido.");
+        targetEntregaId = parsedTarget;
+        Console.WriteLine($"Processor one-shot restrito à Entrega {targetEntregaId}.");
+    }
+
     var repository = host.Services.GetRequiredService<IProcessorRepository>();
     var processor = host.Services.GetRequiredService<IngestionProcessor>();
     var recovered = await repository.RecoverExpiredLeasesAsync(options.MaxProcessingAttempts, CancellationToken.None);
     var processed = 0;
-    while (await processor.ProcessNextAsync(CancellationToken.None))
+    while (await processor.ProcessNextAsync(targetEntregaId, CancellationToken.None))
     {
         processed++;
         if (processed >= 10_000)

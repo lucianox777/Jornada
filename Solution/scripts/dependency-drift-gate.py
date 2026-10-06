@@ -21,7 +21,7 @@ def parse_xml(text):
 def main():
  ap=argparse.ArgumentParser(); ap.add_argument('--repo',default='.'); ap.add_argument('--release-info',default='RELEASE_INFO.txt'); ap.add_argument('--policy',default='Solution/config/release/dependency-drift-policy.json'); ap.add_argument('--summary'); a=ap.parse_args()
  repo=Path(a.repo).resolve(); pred=info(repo/a.release_info).get('source_git_predecessor_tag'); pol=json.loads((repo/a.policy).read_text(encoding='utf-8'))
- files=[rel for rel in subprocess.check_output(['git','-C',str(repo),'ls-files','Solution/**/*.csproj'],text=True).splitlines() if not rel.startswith('Solution/ApoioSecretarias/')]; changes=[]
+ files=[rel for rel in subprocess.check_output(['git','-C',str(repo),'ls-files','Solution/**/*.csproj'],text=True).splitlines()]; changes=[]
  for rel in files:
   cur=parse_xml((repo/rel).read_text(encoding='utf-8'))
   try: old=parse_xml(subprocess.check_output(['git','-C',str(repo),'show',f'{pred}:{rel}'],text=True))

@@ -13,6 +13,12 @@ internal interface IProcessorLeaseRepository
         TimeSpan leaseDuration,
         CancellationToken ct);
 
+    Task<ReservedBatch?> ReserveNextAsync(
+        string leaseOwner,
+        TimeSpan leaseDuration,
+        Guid? targetEntregaId,
+        CancellationToken ct);
+
     Task<bool> HeartbeatAsync(
         ReservedBatch batch,
         TimeSpan leaseDuration,

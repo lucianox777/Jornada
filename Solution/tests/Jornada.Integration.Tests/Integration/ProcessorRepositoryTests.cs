@@ -67,6 +67,75 @@ public sealed class ProcessorRepositoryTests
     }
 
     [Test]
+    public async Task Targeted_reservation_does_not_consume_other_pending_delivery()
+    {
+        var connectionString = RequireIntegrationConnection();
+        await PrepareDatabaseAsync(connectionString);
+
+        var candidates = new List<(Guid LoteId, Guid EntregaId)>();
+        await using (var connection = new SqlConnection(connectionString))
+        {
+            await connection.OpenAsync();
+            using var select = connection.CreateCommand();
+            select.CommandText = """
+                SELECT TOP(2) l.lote_id,l.entrega_id
+                FROM ingestao.lote l
+                ORDER BY l.criado_em,l.lote_id;
+                """;
+            using (var reader = await select.ExecuteReaderAsync())
+                while (await reader.ReadAsync())
+                    candidates.Add((reader.GetGuid(0), reader.GetGuid(1)));
+
+            Assert.That(candidates, Has.Count.EqualTo(2));
+
+            using var prepare = connection.CreateCommand();
+            prepare.CommandText = """
+                UPDATE ingestao.lote
+                   SET status='PENDENTE',erro_codigo=NULL,proxima_tentativa_em=NULL,
+                       lease_id=NULL,lease_owner=NULL,lease_adquirido_em=NULL,lease_expira_em=NULL,heartbeat_em=NULL,
+                       atualizado_em=SYSDATETIMEOFFSET()
+                 WHERE lote_id IN(@lote1,@lote2);
+                DELETE FROM ingestao.lote_heartbeat WHERE lote_id IN(@lote1,@lote2);
+                UPDATE ingestao.entrega
+                   SET status='RECEBIDA',ultima_atualizacao=SYSDATETIMEOFFSET()
+                 WHERE entrega_id IN(@entrega1,@entrega2);
+                """;
+            prepare.Parameters.AddWithValue("@lote1", candidates[0].LoteId);
+            prepare.Parameters.AddWithValue("@lote2", candidates[1].LoteId);
+            prepare.Parameters.AddWithValue("@entrega1", candidates[0].EntregaId);
+            prepare.Parameters.AddWithValue("@entrega2", candidates[1].EntregaId);
+            await prepare.ExecuteNonQueryAsync();
+        }
+
+        var repository = CreateRepository(connectionString);
+        var target = candidates[1];
+        var reserved = await repository.ReserveNextAsync(
+            "worker-targeted", TimeSpan.FromMinutes(2), target.EntregaId, CancellationToken.None);
+
+        Assert.That(reserved, Is.Not.Null);
+        Assert.That(reserved!.EntregaId, Is.EqualTo(target.EntregaId));
+        Assert.That(reserved.LoteId, Is.EqualTo(target.LoteId));
+
+        await using var verify = new SqlConnection(connectionString);
+        await verify.OpenAsync();
+        using var query = verify.CreateCommand();
+        query.CommandText = """
+            SELECT
+              (SELECT status FROM ingestao.lote WHERE lote_id=@other),
+              (SELECT status FROM ingestao.lote WHERE lote_id=@target);
+            """;
+        query.Parameters.AddWithValue("@other", candidates[0].LoteId);
+        query.Parameters.AddWithValue("@target", target.LoteId);
+        using var state = await query.ExecuteReaderAsync();
+        Assert.That(await state.ReadAsync(), Is.True);
+        Assert.Multiple(() =>
+        {
+            Assert.That(state.GetString(0), Is.EqualTo("PENDENTE"), "Carga alheia ao fluxo atual deve permanecer intacta.");
+            Assert.That(state.GetString(1), Is.EqualTo("VALIDANDO"));
+        });
+    }
+
+    [Test]
     public async Task Rejected_batch_marks_lote_and_entrega_without_publishing_completeness()
     {
         var connectionString = RequireIntegrationConnection();

@@ -1,5 +1,7 @@
 # Gate 6 — segregação do integrador e contratos da SEHAB
 
+> **Organização do monorepo (06/10/2026):** a antiga solução embarcada `Solution/ApoioSecretarias/` foi removida do repositório principal. Referências abaixo a esse caminho descrevem evidência/histórico anterior à remoção. O produto não compila nem distribui esse transmissor/preparador; apenas schemas SEHAB estritamente sintéticos necessários à regressão permanecem em `Solution/tests/fixtures/external-contracts/gestores/SEHAB/`.
+
 **Data:** 27/09/2026. **Resultado técnico:** SEGREGAÇÃO E E2E SINTÉTICO CONCLUÍDOS; [PR #541](https://github.com/lucianox777/Jornada/pull/541) mergeado (`90d24f9`) com os seis workflows pós-merge verdes. **Não equivale a aprovação HML, homologação do mapeamento real da Secretaria nem liberação automática do Ensaio.**
 
 ## Inventário e fronteira

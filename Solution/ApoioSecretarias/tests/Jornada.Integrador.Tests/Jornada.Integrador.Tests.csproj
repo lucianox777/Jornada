@@ -1,8 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <OutputType>Exe</OutputType>
-  </PropertyGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\..\clients\Jornada.Integrador.CSharp\Jornada.Integrador.CSharp.csproj" />
-  </ItemGroup>
-</Project>

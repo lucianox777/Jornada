@@ -30,7 +30,7 @@ def fail(message: str) -> None:
 
 def locks() -> dict[str, bytes]:
     files = sorted(p for p in ROOT.rglob('packages.lock.json')
-                   if not {'bin', 'obj', '.local', 'ApoioSecretarias'} & set(p.parts))
+                   if not {'bin', 'obj', '.local'} & set(p.parts))
     if len(files) != EXPECTED_COUNT:
         fail(f'Expected {EXPECTED_COUNT} locks, found {len(files)}.')
     return {p.relative_to(ROOT).as_posix(): p.read_bytes() for p in files}
@@ -40,7 +40,7 @@ def project_targets(lock_paths: Iterable[str]) -> list[str]:
     """Every versioned project must have exactly one sibling lock, and vice versa."""
     lock_paths = set(lock_paths)
     projects = sorted(p for p in ROOT.rglob('*.csproj')
-                      if not {'bin', 'obj', '.local', 'ApoioSecretarias'} & set(p.parts))
+                      if not {'bin', 'obj', '.local'} & set(p.parts))
     targets = []
     expected_locks = set()
     for project in projects:
