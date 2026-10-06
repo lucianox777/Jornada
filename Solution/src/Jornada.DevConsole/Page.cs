@@ -299,7 +299,7 @@ function captureActionOrigin(){
   if(!row)return null;
   const surface=row.closest('#toolsCommands')?'tools':row.closest('#commands')?'flow':null;
   if(!surface)return null;
-  return {surface,actionKey:row.dataset.actionKey||'',scrollY:window.scrollY};
+  return {surface,actionKey:row.dataset.actionKey||'',scrollY:window.scrollY,rowTop:row.getBoundingClientRect().top};
 }
 
 function restoreActionOrigin(origin){
@@ -308,7 +308,12 @@ function restoreActionOrigin(origin){
       ?Array.from(document.querySelectorAll('.action-row')).find(x=>x.dataset.actionKey===origin.actionKey)
       :null;
     if(row){
-      row.scrollIntoView({block:'center',behavior:'auto'});
+      const rowTop=Number(origin?.rowTop);
+      if(Number.isFinite(rowTop)){
+        window.scrollBy({top:row.getBoundingClientRect().top-rowTop,behavior:'auto'});
+      }else{
+        window.scrollTo({top:Number(origin?.scrollY||0),behavior:'auto'});
+      }
       const button=row.querySelector('button');
       if(button)button.focus({preventScroll:true});
       return;
