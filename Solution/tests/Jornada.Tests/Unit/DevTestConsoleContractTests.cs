@@ -96,7 +96,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("executionState=ExecutionState(x)"));
             Assert.That(program,Does.Contain("LatestSuccess(\"infra-blocking\",\"blocking\",\"infra-model\",\"calibration\",\"gold-synthetic\",\"infrastructure\")"));
             Assert.That(program,Does.Contain("corpus.FinishedAt>evidence.FinishedAt"));
-            Assert.That(program,Does.Contain("lastExecutionNumber=last?.ExecutionNumber??0"));
+            Assert.That(program,Does.Contain("lastExecutionNumber=counts.GetValueOrDefault(x.Id)"));
             Assert.That(program,Does.Contain("FlowBlockedReason"));
             Assert.That(program,Does.Contain("latest.TryGetValue(\"ingestion\""));
             Assert.That(program,Does.Contain("latest.TryGetValue(\"silver\""));
@@ -130,7 +130,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("catch(JsonException)"));
             Assert.That(runtime,Does.Contain("ListSummariesAsync"));
             Assert.That(runtime,Does.Contain("ListSessionSummariesAsync"));
-            Assert.That(runtime,Does.Contain("execution-counters.json"));
+            Assert.That(runtime,Does.Not.Contain("execution-counters.json"));
+            Assert.That(runtime,Does.Contain("sessionCounters"));
+            Assert.That(runtime,Does.Contain("ResetExecutionCounts"));
             Assert.That(runtime,Does.Contain("ReserveExecutionNumber"));
             Assert.That(runtime,Does.Contain("GetLastExecutionNumber"));
             Assert.That(runtime,Does.Contain("LatestByCommandAsync"));
@@ -160,7 +162,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("id=\"consoleRevision\""));
             Assert.That(page,Does.Contain("loadConsoleRevision()"));
             Assert.That(page,Does.Contain("executionCount"));
-            Assert.That(page,Does.Contain("Rodou '+count+'x"));
+            Assert.That(page,Does.Contain("Sessão '+count+'x"));
             Assert.That(page,Does.Contain("action-row"));
             Assert.That(page,Does.Contain("action-index"));
             Assert.That(page,Does.Contain("action-count"));
@@ -168,7 +170,12 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("child(1)"));
             Assert.That(page,Does.Contain("somente leitura"));
             Assert.That(page,Does.Not.Contain("class=\"action-meta\""));
-            Assert.That(page,Does.Contain("Cada botão mostra, imediatamente à esquerda, quantas vezes sua ação foi executada."));
+            Assert.That(page,Does.Contain("Cada botão mostra, imediatamente à esquerda, quantas vezes sua ação foi executada nesta sessão."));
+            Assert.That(page,Does.Contain("Zerar contagens da seção"));
+            Assert.That(page,Does.Contain("resetSectionCounts(this)"));
+            Assert.That(page,Does.Contain("/api/session-counts/reset"));
+            Assert.That(program,Does.Contain("/api/session-counts/reset"));
+            Assert.That(program,Does.Contain("ResetExecutionCounts(commands)"));
             Assert.That(page,Does.Contain("state-badge"));
             Assert.That(page,Does.Contain("DESATUALIZADO"));
             Assert.That(page,Does.Contain("Console DEV / Fluxo do dado"));
