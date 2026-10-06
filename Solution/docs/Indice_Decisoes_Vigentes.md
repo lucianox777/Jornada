@@ -1,6 +1,6 @@
 # Índice de decisões vigentes — Jornada
 
-**Atualização:** 29/09/2026. **Fonte de precedência para a candidata v5.00:** [Decisões canônicas de identidade e linkage](Decisoes_Canonicas_Identidade_Linkage_20260929.md). A decisão nova prevalece sobre texto histórico contraditório, mas não torna o código automaticamente conforme, não reescreve a última release formal nem substitui aprovação institucional. Consulte o [catálogo de vigência de todo o acervo](Catalogo_Vigencia_Documental_20260929.md).
+**Atualização:** 29/09/2026. **Fonte de precedência para a candidata v5.00:** [Decisões canônicas de identidade e linkage](Decisoes_Canonicas_Identidade_Linkage_20260929.md). A decisão nova prevalece sobre texto histórico contraditório, mas não torna o código automaticamente conforme, não reescreve a última release formal nem substitui aprovação institucional. Consulte o [catálogo de vigência de 29/09](Catalogo_Vigencia_Documental_20260929.md) como snapshot datado; para estado corrente, confronte [Estado atual](Estado_Atual_Projeto.md) com `master`, CI e issues.
 
 | Domínio | Fonte de decisão | Detalhamento; estado |
 |---|---|---|
