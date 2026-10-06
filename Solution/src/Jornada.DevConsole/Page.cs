@@ -168,7 +168,8 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
 <dialog id="zipDialog">
   <div class="dialog-head"><strong>Entrada manual para o ZIP</strong><button class="secondary" type="button" onclick="zipDialog.close()">Fechar</button></div>
   <div class="dialog-body">
-    <p>Você pode preencher por formulário HTML ou editar diretamente JSON/JSONL. O exemplo é carregado da <code>gold.pessoa</code> para não distorcer nomes, nascimento e nome da mãe.</p>
+    <p>Escolha primeiro o <b>contrato de ingestão</b>. A Console carrega do catálogo <code>ref.*</code> somente combinações utilizáveis de Gestor, sistema, contrato Pessoa e tipo/versão. Depois você pode preencher pelo formulário ou editar JSON/JSONL diretamente.</p>
+    <label>Contrato para gerar o ZIP<select id="zipContract" onchange="loadGoldTemplate()"></select></label>
     <div class="tabs">
       <button class="secondary" type="button" onclick="setZipMode('form')">Formulário HTML</button>
       <button class="secondary" type="button" onclick="setZipMode('json')">JSON / JSONL</button>
@@ -178,18 +179,23 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
 
     <div id="zipFormMode">
       <div class="form-grid">
-        <label>Gestor<input id="zipGestor" value="SEHAB"></label>
-        <label>Sistema de origem<input id="zipSistema" value="SEHAB"></label>
-        <label>Tipo<input id="zipTipo" value="AA01"></label>
+        <label>Gestor<input id="zipGestor" readonly></label>
+        <label>Sistema de origem<input id="zipSistema" readonly></label>
+        <label>Natureza<input id="zipNatureza" readonly></label>
+        <label>Tipo<input id="zipTipo" readonly></label>
+        <label>Versão do tipo<input id="zipTipoVersao" type="number" readonly></label>
         <label>Versão Pessoa utilizável<input id="zipPessoaSchemaVersao" type="number" readonly></label>
         <label>ID pessoa na entrega<input id="zipPessoaId"></label>
         <label>Nome completo<input id="zipNome"></label>
         <label>Data de nascimento<input id="zipNascimento" type="date"></label>
         <label>Nome da mãe<input id="zipMae"></label>
         <label>Código do registro<input id="zipRegistroId"></label>
-        <label>Valor concedido<input id="zipValor" type="number" step="0.01" value="600"></label>
-        <label>Data do evento<input id="zipDataEvento" type="date"></label>
-        <label>Situação<select id="zipSituacao"><option>VIGENTE</option><option>ENCERRADO</option></select></label>
+        <label class="zip-benefit-field">Valor concedido<input id="zipValor" type="number" step="0.01" value="600"></label>
+        <label class="zip-benefit-field">Data do evento<input id="zipDataEvento" type="date"></label>
+        <label class="zip-benefit-field">Situação<select id="zipSituacao"><option>VIGENTE</option><option>ENCERRADO</option></select></label>
+        <label class="zip-service-field hidden">Data/hora do serviço<input id="zipDataHoraServico" type="datetime-local"></label>
+        <label class="zip-service-field hidden">Unidade do serviço<input id="zipUnidadeServico" value="UNIDADE DEV"></label>
+        <label class="zip-service-field hidden">Situação do serviço<input id="zipSituacaoServico" value="REALIZADO"></label>
       </div>
     </div>
 
@@ -365,7 +371,7 @@ async function loadCommands(surface='flow'){
 
     let actions='';
     if(c.id==='zip'){
-      actions=actionRow(child(1),'Gerar arquivo','Monta e valida o ZIP local. Esta ação não envia dados para a API.','<button class="primary" type="button" onclick="openZipDialog()">Gerar arquivo</button>','zip')
+      actions=actionRow(child(1),'Gerar arquivo','Escolha o contrato de ingestão (Gestor, Pessoa e tipo/versão), preencha os dados e gere o ZIP local. Esta ação não envia dados para a API.','<button class="primary" type="button" onclick="openZipDialog()">Gerar arquivo</button>','zip')
         +actionRow(child(2),'Enviar arquivo','Envia explicitamente o último ZIP gerado para a API de ingestão em NODE1.','<button class="primary" type="button" onclick="startCommand(\'ingestion\',\'Enviar arquivo para ingestão\')">Enviar arquivo</button>','ingestion')
         +actionRow(child(3),'Consultar status','Consulta o recibo e o estado da última Entrega sem acionar processamento.','<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Consultar status</button>','pipeline-status');
     }else if(c.id==='bronze'){
