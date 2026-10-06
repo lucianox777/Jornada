@@ -29,7 +29,7 @@ main{max-width:1180px;margin:0 auto;padding:22px}
 .command-line{display:block;color:#6b7580;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.dependency{margin-top:8px;padding:8px 10px;border-left:3px solid #d69b22;background:#fff8e6;color:#5f4a15;font-size:13px}.dependency code{font-size:12px}.dep-note{display:block;margin-top:3px;color:#746434}
 .command-actions{display:grid;gap:0;margin-top:12px;white-space:normal;border-top:1px solid #e4e8ed}
 .action-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid #e4e8ed}
-.action-copy{min-width:0}.action-heading{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.action-index{font:700 12px ui-monospace,SFMono-Regular,Consolas,monospace;color:#405166;background:#edf2f7;border-radius:999px;padding:3px 7px}.action-title{font-weight:700}.action-desc{margin-top:3px;color:#56616e;font-size:13px}.action-meta{margin-top:5px;color:#697481;font:12px ui-monospace,SFMono-Regular,Consolas,monospace}.action-control{display:flex;align-items:center;justify-content:flex-end}.action-control button{min-width:190px}
+.action-copy{min-width:0}.action-heading{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.action-index{font:700 12px ui-monospace,SFMono-Regular,Consolas,monospace;color:#405166;background:#edf2f7;border-radius:999px;padding:3px 7px}.action-title{font-weight:700}.action-desc{margin-top:3px;color:#56616e;font-size:13px}.action-control{display:flex;align-items:center;justify-content:flex-end;gap:9px}.action-count{flex:0 0 auto;min-width:78px;text-align:right;color:#536170;font:700 12px ui-monospace,SFMono-Regular,Consolas,monospace;white-space:nowrap}.action-count.readonly{font-weight:600;color:#7a8490}.action-control button{min-width:190px}
 .primary{background:#1463d7;color:#fff;border:1px solid #1463d7;border-radius:7px;padding:8px 13px}
 .secondary{background:#fff;border:1px solid #cfd6df;border-radius:7px;padding:8px 13px}
 .danger{background:#fff2f0;color:#9b241c;border:1px solid #e8b3ad;border-radius:7px;padding:8px 13px}
@@ -73,7 +73,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
 .back{margin-bottom:12px}
 .small{font-size:12px;color:#697481}
-@media(max-width:700px){main{padding:12px}.action-row{grid-template-columns:1fr}.action-control{justify-content:stretch}.action-control button{width:100%;min-width:0}.terminal{height:55vh}}
+@media(max-width:700px){main{padding:12px}.action-row{grid-template-columns:1fr}.action-control{display:grid;grid-template-columns:auto minmax(0,1fr);justify-content:stretch}.action-count{text-align:left}.action-control button{width:100%;min-width:0}.terminal{height:55vh}}
 </style>
 </head>
 <body>
@@ -90,7 +90,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
     <div class="hero">
       <h2>Fluxo do dado</h2>
       <p>A Console acompanha a mesma jornada da aplicação: preparação do ambiente em etapas independentes → ingestão → Bronze → Silver → identidade/Linkage → Gold/Serving → encerramento.</p>
-      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. Em <b>4.1 · Processar um lote</b>, cada clique é <b>One shot</b> e executa no máximo uma iteração do Processor para a Entrega atual. Repita 4.1 até concluir Silver. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional. Cada ação mantém seu próprio contador de execuções.</div>
+      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. Em <b>4.1 · Processar um lote</b>, cada clique é <b>One shot</b> e executa no máximo uma iteração do Processor para a Entrega atual. Repita 4.1 até concluir Silver. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional. Cada botão mostra, imediatamente à esquerda, quantas vezes sua ação foi executada.</div>
     </div>
     <div id="commands">Carregando...</div>
   </section>
@@ -338,20 +338,24 @@ async function loadCommands(surface='flow'){
   }
 
   const executionMeta=(commandId,readOnly=false)=>{
-    if(readOnly)return 'Somente leitura · não cria execução';
+    if(readOnly)return {text:'somente leitura',title:'Esta ação não cria uma execução contabilizada.',readOnly:true};
     const item=commandById[commandId];
     const count=Number(item?.executionCount||0);
     const last=Number(item?.lastExecutionNumber||0);
-    if(count===0)return 'Execuções: 0 · próxima #1';
-    return 'Execuções: '+count+' · última #'+(last||count)+' · próxima #'+(count+1);
+    return {
+      text:'Rodou '+count+'x',
+      title:count===0?'Nenhuma execução ainda. Próxima execução: #1.':'Execuções: '+count+' · última #'+(last||count)+' · próxima #'+(count+1)+'.',
+      readOnly:false
+    };
   };
 
   const actionRow=(number,title,description,control,commandId,readOnly=false)=>{
     const index=number?'<span class="action-index">'+esc(number)+'</span>':'';
+    const meta=executionMeta(commandId,readOnly);
+    const count='<span class="action-count'+(meta.readOnly?' readonly':'')+'" title="'+esc(meta.title)+'">'+esc(meta.text)+'</span>';
     return '<div class="action-row"><div class="action-copy"><div class="action-heading">'+index+'<span class="action-title">'+esc(title)+'</span></div>'
-      +'<div class="action-desc">'+esc(description)+'</div>'
-      +'<div class="action-meta">'+esc(executionMeta(commandId,readOnly))+'</div></div>'
-      +'<div class="action-control">'+control+'</div></div>';
+      +'<div class="action-desc">'+esc(description)+'</div></div>'
+      +'<div class="action-control">'+count+control+'</div></div>';
   };
 
   const renderCard=c=>{
