@@ -17,6 +17,13 @@ internal sealed class SqlProcessorRepositoryAdapter(SqlProcessorRepository inner
         CancellationToken ct) =>
         inner.ReserveNextAsync(leaseOwner, leaseDuration, ct);
 
+    public Task<ReservedBatch?> ReserveNextAsync(
+        string leaseOwner,
+        TimeSpan leaseDuration,
+        Guid? targetEntregaId,
+        CancellationToken ct) =>
+        inner.ReserveNextAsync(leaseOwner, leaseDuration, targetEntregaId, ct);
+
     public Task<bool> HeartbeatAsync(
         ReservedBatch batch,
         TimeSpan leaseDuration,
