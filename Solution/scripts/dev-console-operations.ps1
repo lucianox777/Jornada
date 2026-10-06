@@ -11,6 +11,17 @@ $ProgressPreference='SilentlyContinue'
 $OutputEncoding=[Text.UTF8Encoding]::new($false)
 if($PSVersionTable.PSVersion.Major -ge 7){$PSStyle.OutputRendering='PlainText'}
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
+$existingConsoleEnv=Join-Path $Root '.env.devconsole'
+if([string]::IsNullOrWhiteSpace($env:JORNADA_RUNTIME_MODE) -and (Test-Path $existingConsoleEnv)){
+    $existingModeLine=Get-Content $existingConsoleEnv -Encoding UTF8 | Where-Object { $_ -match '^JORNADA_RUNTIME_MODE=' } | Select-Object -First 1
+    if($existingModeLine){
+        $existingMode=$existingModeLine.Split('=',2)[1].Trim().ToUpperInvariant()
+        if($existingMode -in @('HML','DEV','PROD')){
+            $env:JORNADA_RUNTIME_MODE=$existingMode
+            Write-Host "RuntimeMode não informado; preservando modo ativo da Console: $existingMode."
+        }
+    }
+}
 . (Join-Path $PSScriptRoot 'dev-console-env.ps1')
 $Root=(Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $EnvFile=$DevConsoleEnvFile

@@ -740,9 +740,9 @@ let zipMode='form';
 let zipContracts=[];
 
 function setZipMode(mode){
+  if(mode==='json'&&!syncFormToJson())return;
   zipMode=mode;
-  if(mode==='json')syncFormToJson();
-  else syncJsonToForm();
+  if(mode!=='json')syncJsonToForm();
   zipFormMode.classList.toggle('hidden',mode!=='form');
   zipJsonMode.classList.toggle('hidden',mode!=='json');
 }
@@ -816,16 +816,19 @@ function syncFormToJson(){
     tipoVersao:Number(zipTipoVersao.value),
     dataReferencia:ref
   };
+  const idPessoaEntrega=zipPessoaId.value.trim();
   const cpf=zipCpf.value.replace(/\D/g,'').trim();
   const codigoPessoaOrigem=zipPessoaOrigem.value.trim();
+  if(!idPessoaEntrega){alert('ID temporário nesta entrega é obrigatório.');zipPessoaId.focus();return false}
+  if(cpf&&!/^\d{11}$/.test(cpf)){alert('CPF deve conter exatamente 11 dígitos.');zipCpf.focus();return false}
   const pessoa={
-    idPessoaEntrega:zipPessoaId.value,
-    codigoPessoaOrigem:codigoPessoaOrigem||null,
+    idPessoaEntrega,
     cpf:cpf||null,
     cpfAusenteMotivo:cpf?null:'NAO_INFORMADO_ORIGEM',
-    nomeCompleto:zipNome.value,dataNascimento:zipNascimento.value,nomeMae:zipMae.value,
-    sourceTransactionId:'DEV-'+(zipPessoaId.value||'MANUAL'),atributosTransversais:[]
+    nomeCompleto:zipNome.value.trim(),dataNascimento:zipNascimento.value,nomeMae:zipMae.value.trim()||null,
+    sourceTransactionId:'DEV-'+idPessoaEntrega,atributosTransversais:[]
   };
+  if(codigoPessoaOrigem)pessoa.codigoPessoaOrigem=codigoPessoaOrigem;
   const registro=natureza==='SERVICO'
     ?{
       idPessoaEntrega:zipPessoaId.value,codigoRegistroOrigem:zipRegistroId.value,operacao:'INCLUSAO',
@@ -840,6 +843,7 @@ function syncFormToJson(){
   zipManifest.value=JSON.stringify(manifest,null,2);
   zipPessoas.value=JSON.stringify(pessoa);
   zipRegistros.value=JSON.stringify(registro);
+  return true;
 }
 
 function syncJsonToForm(){
@@ -881,7 +885,7 @@ function syncJsonToForm(){
 }
 
 async function startZip(){
-  if(zipMode==='form')syncFormToJson();
+  if(zipMode==='form'&&!syncFormToJson())return;
   zipDialog.close();
   const payload={gestor:zipGestor.value,manifestJson:zipManifest.value,pessoasJsonl:zipPessoas.value,registrosJsonl:zipRegistros.value};
   const response=await api('/api/zip/manual/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});

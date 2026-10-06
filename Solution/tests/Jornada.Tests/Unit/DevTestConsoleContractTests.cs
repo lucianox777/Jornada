@@ -206,9 +206,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("CPF (opcional)"));
             Assert.That(page,Does.Contain("zipPessoaOrigem.value=t.codigoPessoaOrigem||''"));
             Assert.That(page,Does.Contain("zipCpf.value=t.cpf||''"));
-            Assert.That(page,Does.Contain("codigoPessoaOrigem:codigoPessoaOrigem||null"));
+            Assert.That(page,Does.Contain("if(codigoPessoaOrigem)pessoa.codigoPessoaOrigem=codigoPessoaOrigem"));
+            Assert.That(page,Does.Not.Contain("codigoPessoaOrigem:codigoPessoaOrigem||null"));
             Assert.That(page,Does.Contain("cpf:cpf||null"));
             Assert.That(page,Does.Contain("cpfAusenteMotivo:cpf?null:'NAO_INFORMADO_ORIGEM'"));
+            Assert.That(page,Does.Contain("CPF deve conter exatamente 11 dígitos."));
+            Assert.That(page,Does.Contain("nomeMae:zipMae.value.trim()||null"));
+            Assert.That(page,Does.Contain("if(zipMode==='form'&&!syncFormToJson())return"));
             Assert.That(runtime,Does.Contain("var pessoaOriginCode=$\"DEV-PESSOA-{suffix}\""));
             Assert.That(runtime,Does.Contain("[\"codigoPessoaOrigem\"]=pessoaOriginCode"));
             Assert.That(page,Does.Contain("Contrato para gerar o ZIP"));
