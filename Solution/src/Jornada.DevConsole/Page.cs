@@ -22,12 +22,14 @@ main{max-width:1180px;margin:0 auto;padding:22px}
 .hero p{color:#5d6875}
 .stage{margin:18px 0 26px}.stage-head{display:flex;align-items:center;gap:10px;margin:0 0 8px}.stage-head h3{margin:0;font-size:17px}.stage-index{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:#66717d;background:#e9edf2;border-radius:999px;padding:4px 8px}.flow-note{padding:10px 12px;border:1px solid #cfdceb;background:#f6f9fd;border-radius:8px;color:#44515f;font-size:13px;margin-bottom:14px}
 .card{background:#fff;border:1px solid #d9dee5;border-radius:10px;padding:15px;margin:10px 0}
-.command-head{display:flex;justify-content:space-between;gap:16px;align-items:center}
+.command-head{display:block}
 .command-title{font-weight:700;font-size:16px}
 .command-desc{margin:6px 0;color:#45515e}
 .run-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}.exec-badge,.state-badge{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:999px;padding:3px 8px}.exec-badge{background:#edf2f7;color:#425466}.state-badge{font-weight:700}.state-badge.PRONTO{background:#e7f6ec;color:#1f6b3b}.state-badge.PENDENTE{background:#eef1f4;color:#66717d}.state-badge.DESATUALIZADO{background:#fff4d6;color:#795900}.state-badge.FALHA{background:#fde9e7;color:#9b241c}
 .command-line{display:block;color:#6b7580;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.dependency{margin-top:8px;padding:8px 10px;border-left:3px solid #d69b22;background:#fff8e6;color:#5f4a15;font-size:13px}.dependency code{font-size:12px}.dep-note{display:block;margin-top:3px;color:#746434}
-.command-actions{display:flex;gap:10px;align-items:center;white-space:nowrap}
+.command-actions{display:grid;gap:0;margin-top:12px;white-space:normal;border-top:1px solid #e4e8ed}
+.action-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid #e4e8ed}
+.action-copy{min-width:0}.action-heading{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.action-index{font:700 12px ui-monospace,SFMono-Regular,Consolas,monospace;color:#405166;background:#edf2f7;border-radius:999px;padding:3px 7px}.action-title{font-weight:700}.action-desc{margin-top:3px;color:#56616e;font-size:13px}.action-meta{margin-top:5px;color:#697481;font:12px ui-monospace,SFMono-Regular,Consolas,monospace}.action-control{display:flex;align-items:center;justify-content:flex-end}.action-control button{min-width:190px}
 .primary{background:#1463d7;color:#fff;border:1px solid #1463d7;border-radius:7px;padding:8px 13px}
 .secondary{background:#fff;border:1px solid #cfd6df;border-radius:7px;padding:8px 13px}
 .danger{background:#fff2f0;color:#9b241c;border:1px solid #e8b3ad;border-radius:7px;padding:8px 13px}
@@ -56,6 +58,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .history-status{font-weight:700}
 .history-status.SUCESSO{color:#1f7a43}
 .history-status.FALHA{color:#a2332b}
+.history-status.PARCIAL{color:#9a6a00}
 .history-status.SEM-EXECUTOR{color:#9a6a00}
 dialog{width:min(900px,94vw);border:1px solid #cad2dc;border-radius:10px;padding:0;box-shadow:0 18px 60px rgba(0,0,0,.28)}
 dialog::backdrop{background:rgba(0,0,0,.45)}
@@ -70,7 +73,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
 .back{margin-bottom:12px}
 .small{font-size:12px;color:#697481}
-@media(max-width:700px){main{padding:12px}.command-head{align-items:flex-start;flex-direction:column}.command-actions{width:100%;justify-content:space-between}.terminal{height:55vh}}
+@media(max-width:700px){main{padding:12px}.action-row{grid-template-columns:1fr}.action-control{justify-content:stretch}.action-control button{width:100%;min-width:0}.terminal{height:55vh}}
 </style>
 </head>
 <body>
