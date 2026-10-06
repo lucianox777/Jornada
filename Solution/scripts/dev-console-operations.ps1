@@ -424,7 +424,7 @@ switch($Action){
         }
         if($resident.Count -gt 0){throw "Processor residente detectado em modo manual: $($resident -join '; ')."}
 
-        Write-Host "Executando Jornada.Processor.Worker one-shot para a Entrega $entregaId: no máximo um lote será processado neste clique."
+        Write-Host "Executando Jornada.Processor.Worker one-shot para a Entrega ${entregaId}: no máximo um lote será processado neste clique."
         Invoke-Compose @('exec','-T','jornada-node2','env','Processor__Operation=PROCESS_ONE',"Processor__TargetEntregaId=$entregaId",'dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
 
         $final=Invoke-SqlScalar "SELECT status FROM ingestao.entrega WHERE entrega_id='$entregaId';"
