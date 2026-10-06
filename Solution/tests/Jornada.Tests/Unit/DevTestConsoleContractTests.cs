@@ -166,6 +166,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("action-row"));
             Assert.That(page,Does.Contain("data-action-key"));
             Assert.That(page,Does.Contain("captureActionOrigin()"));
+            Assert.That(page,Does.Contain("rememberActionOrigin(event)"));
+            Assert.That(page,Does.Contain("return actionOriginFromRow(row)||lastActionOrigin"));
+            Assert.That(page,Does.Contain("onpointerdown=\"rememberActionOrigin(event)\""));
             Assert.That(page,Does.Contain("returnFromConsole()"));
             Assert.That(page,Does.Contain("restoreActionOrigin(origin)"));
             Assert.That(page,Does.Not.Contain("scrollIntoView({block:\'center\',behavior:\'auto\'})"));
