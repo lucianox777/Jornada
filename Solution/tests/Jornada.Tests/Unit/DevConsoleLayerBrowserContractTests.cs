@@ -40,6 +40,11 @@ public sealed class DevConsoleLayerBrowserContractTests
             Assert.That(page,Does.Contain("Visualizar Gold"));
             Assert.That(page,Does.Contain("Buscar em qualquer coluna"));
             Assert.That(page,Does.Contain("const layerPageSize=50"));
+            Assert.That(page,Does.Contain("const layerRequestTimeoutMs=15000"));
+            Assert.That(page,Does.Contain("new AbortController()"));
+            Assert.That(page,Does.Contain("if(layerAbortController)layerAbortController.abort()"));
+            Assert.That(page,Does.Contain("{signal:controller.signal}"));
+            Assert.That(page,Does.Contain("A consulta excedeu 15 segundos e foi cancelada"));
             Assert.That(page,Does.Contain("new URLSearchParams"));
             Assert.That(page,Does.Contain("Página '+data.page+' de '+data.totalPages"));
             Assert.That(page,Does.Contain("openLayerDialog(\\'gold\\')"));
@@ -53,7 +58,11 @@ public sealed class DevConsoleLayerBrowserContractTests
             Assert.That(browser,Does.Contain("\"identidade.v_vinculo_corrente vc JOIN silver.pessoa_observacao po"));
             Assert.That(browser,Does.Contain("\"silver\"=>Silver"));
             Assert.That(browser,Does.Contain("\"identity\"=>Identity"));
+            Assert.That(browser,Does.Contain("COUNT_BIG(*) OVER()"));
+            Assert.That(browser,Does.Contain("SET LOCK_TIMEOUT 5000"));
+            Assert.That(browser,Does.Not.Contain("var countSql="));
             Assert.That(browser,Does.Contain("OFFSET {offset} ROWS FETCH NEXT {pageSize} ROWS ONLY"));
+            Assert.That(browser,Does.Contain("process.Kill(entireProcessTree:true)"));
             Assert.That(browser,Does.Contain("CONCAT_WS(N'|'"));
             Assert.That(browser,Does.Contain("Latin1_General_100_CI_AI"));
             Assert.That(browser,Does.Contain("Math.Clamp(pageSize,10,MaxPageSize)"));
