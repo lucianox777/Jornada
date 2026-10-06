@@ -117,15 +117,14 @@ try {
 
 $api = $null; $worker = $null; $stagedSehab = $null
 try {
-    # Apenas E2E DEV: o contrato SEHAB foi separado da solução principal e
-    # continua referenciado pelo catálogo do seed sintético. Disponibilizar os
-    # arquivos originais temporariamente, verificar seus hashes e removê-los.
-    # Isso NÃO os devolve ao build/deploy da Jornada.
+    # Apenas E2E DEV: os schemas SEHAB permanecem como fixtures externas de teste,
+    # fora da configuração operacional da Jornada. Disponibilizá-los temporariamente,
+    # verificar seus hashes e removê-los após o ensaio.
     $supportContracts = [IO.Path]::GetFullPath(
-        (Join-Path $Root 'ApoioSecretarias/config/contracts/gestores/SEHAB'))
+        (Join-Path $Root 'tests/fixtures/external-contracts/gestores/SEHAB'))
     $targetContracts = Join-Path $Root 'config/contracts/gestores/SEHAB'
     if (-not (Test-Path -LiteralPath $supportContracts -PathType Container)) {
-        throw "E2E: contratos externos SEHAB não encontrados na Solução de Apoio: $supportContracts"
+        throw "E2E: contratos externos SEHAB não encontrados na fixture externa de teste: $supportContracts"
     }
     if (Test-Path -LiteralPath $targetContracts) {
         $supportFiles = Get-ChildItem -LiteralPath $supportContracts -File -Recurse
@@ -135,7 +134,7 @@ try {
             if (-not (Test-Path -LiteralPath $target -PathType Leaf) -or
                 (Get-FileHash -LiteralPath $source.FullName -Algorithm SHA256).Hash -ne
                 (Get-FileHash -LiteralPath $target -Algorithm SHA256).Hash) {
-                throw "E2E: cópia runtime SEHAB diverge da fonte de apoio: $relative"
+                throw "E2E: cópia runtime SEHAB diverge da fixture externa: $relative"
             }
         }
     } else {
