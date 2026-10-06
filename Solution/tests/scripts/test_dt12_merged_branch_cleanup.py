@@ -42,6 +42,9 @@ class Dt12MergedBranchCleanupTests(unittest.TestCase):
         self.assertEqual([x["branch"] for x in selected], ["merged"])
         self.assertEqual(selected[0]["pr_number"], 10)
 
+    def test_historical_branch_inventory_is_not_an_active_reference(self):
+        self.assertIn("Solution/docs/DT12_Branches_20260926.csv", mod.EXCLUDED_REFERENCE_FILES)
+
     def test_authorization_is_explicit_and_timezone_aware(self):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "auth.json"
