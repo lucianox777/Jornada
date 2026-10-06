@@ -94,6 +94,13 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("executionCount=counts.GetValueOrDefault(x.Id)"));
             Assert.That(program,Does.Contain("executionState=ExecutionState(x)"));
             Assert.That(program,Does.Contain("lastExecutionNumber=last?.ExecutionNumber??0"));
+            Assert.That(program,Does.Contain("FlowBlockedReason"));
+            Assert.That(program,Does.Contain("latest.TryGetValue(\"ingestion\""));
+            Assert.That(program,Does.Contain("latest.TryGetValue(\"silver\""));
+            Assert.That(program,Does.Contain("silver.FinishedAt<ingestion.FinishedAt"));
+            Assert.That(program,Does.Contain("A última Entrega ainda não concluiu Bronze → Silver"));
+            Assert.That(program,Does.Contain("Results.Conflict(new{error=flowBlockedReason"));
+            Assert.That(program,Does.Contain("[FromServices] RunStore store"));
             Assert.That(program,Does.Contain("[FromServices] LiveExecutionService live"));
             Assert.That(program,Does.Contain("[FromBody] ManualZipRequest request"));
             Assert.That(program,Does.Contain("CacheControl=\"no-store, no-cache, must-revalidate\""));
@@ -177,6 +184,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Visualizar Silver"));
             Assert.That(page,Does.Contain("Verificar integridade"));
             Assert.That(page,Does.Contain("Executar Linkage Runner"));
+            Assert.That(page,Does.Contain("c.id==='linkage'"));
+            Assert.That(page,Does.Contain("c.disabled?' disabled aria-disabled=\"true\""));
+            Assert.That(page,Does.Contain("<b>Bloqueado:</b>"));
+            Assert.That(page,Does.Contain("c.disabledReason"));
             Assert.That(page,Does.Contain("Visualizar identidade"));
             Assert.That(page,Does.Contain("Executar replay do último run"));
             Assert.That(page,Does.Contain("Reconstruir blocking"));
