@@ -340,6 +340,9 @@ async function loadCommands(surface='flow'){
     const dependency=deps.length||c.dependencyNote
       ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
       :'';
+    const blocker=c.disabled&&c.disabledReason
+      ?'<div class="dependency"><b>Bloqueado:</b> '+esc(c.disabledReason)+'</div>'
+      :'';
 
     let actions='';
     if(c.id==='zip'){
@@ -354,7 +357,8 @@ async function loadCommands(surface='flow'){
         +'<button class="secondary" type="button" onclick="openLayerDialog(\'silver\')">Visualizar Silver</button>'
         +'<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Status</button>';
     }else if(c.id==='linkage'){
-      actions='<button class="primary" type="button" onclick="startCommand(\'linkage\',\'Executar Linkage Runner\')">Executar Linkage Runner</button>'
+      const disabled=c.disabled?' disabled aria-disabled="true" title="'+esc(c.disabledReason||'Execute primeiro Processar Bronze → Silver')+'"':'';
+      actions='<button class="primary" type="button"'+disabled+' onclick="startCommand(\'linkage\',\'Executar Linkage Runner\')">Executar Linkage Runner</button>'
         +'<button class="secondary" type="button" onclick="openLayerDialog(\'identity\')">Visualizar identidade</button>'
         +'<button class="secondary" type="button" onclick="startCommand(\'replay\',\'Executar replay do último run\')">Replay</button>';
     }else if(c.id==='gold'){
@@ -374,7 +378,7 @@ async function loadCommands(surface='flow'){
       const label=c.id==='infrastructure'?'Executar sequência completa':'Executar';
       actions='<button class="'+buttonClass+'" type="button"'+disabled+' onclick="startCommand(\''+c.id+'\')">'+label+'</button>';
     }
-    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div>'+runMeta+'<small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+'</div><div class="command-actions">'+actions+'</div></div></div>';
+    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div>'+runMeta+'<small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+blocker+'</div><div class="command-actions">'+actions+'</div></div></div>';
   };
 
   target.innerHTML=groups.map(g=>{
