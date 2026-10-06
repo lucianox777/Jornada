@@ -1,27 +1,50 @@
-> **ATUALIZAÇÃO 29/09/2026:** para decisão de identidade/linkage, começar pelo [índice vigente](Indice_Decisoes_Vigentes.md) e [decisões canônicas](Decisoes_Canonicas_Identidade_Linkage_20260929.md). O inventário anterior de 28/09 é fotografia histórica; o [catálogo de vigência](Catalogo_Vigencia_Documental_20260929.md) evita aplicar snapshots como norma.
+# Índice vivo do acervo — precedência e leitura mínima
 
-# Índice do acervo — precedência e leitura mínima
+**Revisão editorial:** 06/10/2026. Este arquivo é a porta de entrada **corrente** para o acervo e deve ser mantido sem tentar reclassificar, a cada mudança, todos os documentos históricos. O [Catálogo de vigência de 29/09](Catalogo_Vigencia_Documental_20260929.md) é um snapshot datado do HEAD `fc43cd3e...`; não representa arquivos criados ou alterados depois daquele corte.
 
-**Conferência:** 28/09/2026 (`master` até o PR #587). Nenhum documento histórico foi apagado ou declarado revogado por sua versão. Para mudanças posteriores, o HEAD, o CI e as issues prevalecem sobre esta fotografia; este índice organiza a consulta, não substitui auditoria individual dos arquivos.
+O estado técnico real não é deduzido apenas da documentação: para afirmar implementação, confrontar este índice com `master`, Actions e issues/PRs. Documentos históricos, evidências e contratos selados são preservados por rastreabilidade e não ganham vigência só por permanecerem no repositório.
 
-| Pergunta | Começar por | Consultar depois, se necessário |
+| Pergunta | Fonte primária | Como interpretar |
 |---|---|---|
-| O que foi publicado? | `../../RELEASE_INFO.txt` e `../../Documentos/README.md` | Estados de engenharia e evidências históricas |
-| O que existe e falta? | [Estado atual](Estado_Atual_Projeto.md) **e código/Actions** | PRs e issues |
-| Quais decisões de produto? | [Diretrizes consolidadas](Diretrizes_Identidade_Progressiva_Apoio_Decisao.md) | [Núcleo](Nucleo_Linkage_Identidade_Progressiva.md), [Gold](Gold_Pessoa_Universo_CPF.md) |
-| O que desenvolver? | [Plano de desenvolvimento](Plano_Desenvolvimento.md) — prioridades e dependências | [Dívidas técnicas](Dividas_Tecnicas.md) — critérios verificáveis; issues/PRs — execução e evidências |
-| Como separar as ferramentas das Secretarias? | [Gate 6 — segregação SEHAB](Gate_06_Segregacao_SEHAB_Evidencias.md), [Plano](Plano_Desenvolvimento.md) | Separação técnica concluída e solução independente `Solution/ApoioSecretarias/SolucaoApoioSecretarias.sln`; aceite institucional, credenciais e prontidão HML permanecem pendentes |
-| Como executar Ensaio e HML? | [Ensaio único](Ensaio_Unico_Paridade_HML.md), [testes](Testes_Operacao_Indice.md) | `Ensaio_Progressivo.md`, `Ensaio_Secretarias_Paridade_HML.md`, runbooks |
-| Quais normas institucionais? | `../../Documentos/README.md` | Especificação v3.62 publicada, v5.00 candidata e requisitos v1.1 |
+| Qual foi a última release selada? | `../../RELEASE_INFO.txt` + `../../Documentos/README.md` | Fato histórico de release; não é o estado candidato atual. |
+| Qual é a última Especificação Técnica publicada? | `../../Documentos/Especificacao_Tecnica_Jornada_v3.62.docx/.pdf` | Último texto normativo materializado; não inventar uma v3.64 ausente. |
+| Qual é a candidata normativa seguinte? | `../../Documentos/Especificacao_Tecnica_Jornada_v5.00_Candidata.md` + Requisitos v1.1 | Candidata, sem efeito de publicação até aprovação/corte formal. |
+| Qual é o estado técnico corrente? | [Estado atual](Estado_Atual_Projeto.md) + `master` + Actions | O documento é fotografia; HEAD e CI confirmam a execução. |
+| Quais decisões de identidade/linkage prevalecem? | [Decisões canônicas 29/09](Decisoes_Canonicas_Identidade_Linkage_20260929.md) + [índice de decisões](Indice_Decisoes_Vigentes.md) | Data da decisão não significa que o código daquele dia seja o estado atual. |
+| O que desenvolver? | [Plano](Plano_Desenvolvimento.md) + [Dívidas técnicas](Dividas_Tecnicas.md) + issues abertas | Plano define prioridade; issues/PRs e CI comprovam execução/fechamento. |
+| Como operar/testar? | `Runbook_*.md`, [Testes e operação](Testes_Operacao_Indice.md), workflows e scripts versionados | Procedimento deve ser compatível com o código corrente; divergência vira achado, não é resolvida por inferência. |
+| Como executar Ensaio/HML? | [Ensaio único](Ensaio_Unico_Paridade_HML.md) + runbooks HML | CI/DEV sintético não equivale a homologação HML/Produção. |
+| Onde está o histórico? | `archive/releases/`, `Documentos/Estado_Engenharia_v*.md`, `Evidencia_Runtime_*`, snapshots datados | Evidência e contexto; não usar como instrução corrente quando houver fonte posterior. |
+
+## Classes de documento
+
+- **Normativo publicado:** release selada e Especificação Técnica efetivamente publicada. Preservar bytes e proveniência.
+- **Candidato normativo:** v5.00 candidata e Requisitos v1.1; podem consolidar o estado comprovável, mas não se promovem sozinhos a norma.
+- **Decisão canônica:** decisões explícitas que governam novas mudanças. Quando houver descompasso, a decisão não autoriza afirmar que o código já foi adequado.
+- **Estado/plano corrente:** Estado atual, Plano, Dívidas e este índice. São mantidos editorialmente e precisam ser confrontados com HEAD/CI/issues.
+- **Operação e implementação:** runbooks, arquitetura, contratos, gates e documentos especializados. Podem conter seções cronológicas; ler o marcador de estado antes de reutilizar uma afirmação.
+- **Evidência/histórico:** snapshots, notas de engenharia, releases antigas, relatórios de execução e documentos datados. Preservam auditoria sem autoridade decisória futura.
+
+## Pontos de atenção confirmados em 06/10/2026
+
+1. **Runtime .NET:** a Solution corrente está em `net10.0`/SDK 10.0.112, mas o instalador Windows de produção ainda verifica/instala .NET 8. O drift está rastreado na issue #790; até correção técnica e regressão do instalador, documentação de produção não deve ser usada para declarar o runtime alinhado.
+2. **SEHAB:** `Solution/ApoioSecretarias/` é a fronteira de titularidade/solução. As cópias JSON em `Solution/config/contracts/gestores/SEHAB/` são cópias runtime deliberadas e devem permanecer byte-idênticas às fontes do apoio conforme o Gate 6; duplicação aqui não é, por si só, lixo.
+3. **V6/V7 e guard histórico:** testes/documentos legados continuam úteis para replay e regressão histórica. As decisões DC-LK tornam V8 o destino e retiram o guard demográfico fixo para novos V8 com TF; não usar provas V6/V7 como aceite de uma V8 nova.
+4. **Catálogo de 29/09:** permanece válido somente para o corte que declara. Não usar a expressão “catálogo de todo o acervo” para inferir cobertura de documentos posteriores.
+5. **Arquivos sem referência automática:** ausência de chamada em workflow/código identifica candidato de revisão, não prova ausência de uso operacional/manual. Scripts e runbooks precisam ser avaliados no fluxo real antes de exclusão.
 
 ## Catálogo por assunto
 
 - **Identidade e Gold:** `Identidade_*.md`, `Identity_*.md`, `Gold_Pessoa_Universo_CPF.md`, `Arquitetura_Identidade_Linkage.md`.
-- **Linkage, calibração e diagnósticos:** `Linkage_*.md`, `Calibrador_*.md`, `Estudo_Comparativo_Linkage_Identidade_Progressiva.md`, `Diagnostico_Linkage_Isolamento_DEV.md`.
-- **Ensaios e testes:** `Ensaio_*.md`, `Runbook_Testes_Tecnicos.md`, `Aceite_OpenAPI_BlackBox.md`.
+- **Linkage, calibração e diagnósticos:** `Linkage_*.md`, `Calibrador_*.md`, `DT05_*.md`, `DT15_*.md`, `DT17_*.md`.
+- **Ensaios e testes:** `Ensaio_*.md`, `Runbook_Testes_Tecnicos.md`, `Aceite_OpenAPI_BlackBox.md`, `evidence/`.
 - **Operação, HML, segurança e release:** `Runbook_*.md`, `HML_*.md`, `Governanca_*.md`, `Release_Evidence.md`.
 - **Norma e histórico institucional:** `../../Documentos/README.md`, `../../Documentos/Requisitos/`, `../../Documentos/Estado_Engenharia_v*.md`.
 
-**Regra de precedência:** `Estado_Atual_Projeto.md` é fotografia datada, não status em tempo real; confrontar com `master`, Actions e issues. Notas `NOTA_ENGENHARIA_v*`, estados de engenharia e releases anteriores permanecem históricas, sem autoridade sobre o código candidato corrente. Não copiar conclusões de CI sintética para HML/Produção.
+## Regra de precedência e manutenção
 
-**Regra de manutenção:** decisão nova nas Diretrizes; estado comprovado no Estado atual; prioridade e dependência no Plano; critério técnico na tabela de Dívidas, com ID estável; execução nas issues/PRs; procedimentos nos runbooks; evidências junto à execução. Não duplicar decisões em cada documento técnico. **Existe um único Ensaio**, técnico e operacional, completo antes de HML; HML muda a massa para a preparada pelas Secretarias, preservando características reais relevantes, não os contratos. Não tratar `Ensaio_Progressivo.md` nem `Ensaio_Secretarias_Paridade_HML.md` como fases separadas.
+Quando duas fontes divergirem, não “fundir” silenciosamente os textos. Identificar primeiro a classe de cada documento. Release selada e evidência histórica preservam o que ocorreu; decisões canônicas orientam mudanças futuras; o estado corrente precisa ser comprovado no HEAD; plano/backlog não prova entrega.
+
+Decisão nova deve entrar na fonte canônica adequada; estado comprovado no Estado atual; prioridade no Plano; critério técnico em Dívidas; execução em issues/PRs; procedimento em runbook; evidência junto à execução. O histórico deve ser arquivado/classificado, não reescrito para parecer atual.
+
+**Existe um único Ensaio** técnico e operacional antes de HML; HML muda a massa para a preparada pelas Secretarias, preservando contratos e controles. Não transformar documentos auxiliares de ensaio em fases concorrentes.
