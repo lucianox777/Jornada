@@ -24,7 +24,7 @@ def check_object(bronze_root, entry):
     key = entry["objeto_chave"]
     sha = entry["payload_sha256"].lower()
     match = KEY.fullmatch(key)
-    if not SHA.fullmatch(sha) or not match or match[1:3] != (sha[:2], sha[2:4]) or match[3] != sha:
+    if not SHA.fullmatch(sha) or not match or match.group(1) != sha[:2] or match.group(2) != sha[2:4] or match.group(3) != sha:
         raise ValueError("invalid content-addressed Bronze key")
     path = (bronze_root / key).resolve()
     if not path.is_relative_to(bronze_root.resolve()):
