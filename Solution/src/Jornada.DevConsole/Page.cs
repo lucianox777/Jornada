@@ -323,6 +323,20 @@ async function showHistory(){
   }
 }
 
+async function resetSectionCounts(button){
+  const ids=JSON.parse(button.dataset.commandIds||'[]');
+  if(!ids.length)return;
+  const surface=button.closest('#toolsCommands')?'tools':'flow';
+  button.disabled=true;
+  try{
+    await api('/api/session-counts/reset',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(ids)});
+    await loadCommands(surface);
+  }catch(e){
+    button.disabled=false;
+    alert('Falha ao zerar as contagens da seção: '+e.message);
+  }
+}
+
 async function loadCommands(surface='flow'){
   commandsCache=await api('/api/commands');
   const commandById=Object.fromEntries(commandsCache.map(x=>[x.id,x]));
@@ -368,19 +382,6 @@ async function loadCommands(surface='flow'){
     if(c.id==='gold-synthetic')return ['gold-synthetic','blocking'];
     return [c.id];
   };
-
-  async function resetSectionCounts(button){
-    const ids=JSON.parse(button.dataset.commandIds||'[]');
-    if(!ids.length)return;
-    button.disabled=true;
-    try{
-      await api('/api/session-counts/reset',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(ids)});
-      await loadCommands(button.closest('#toolsCommands')?'tools':'flow');
-    }catch(e){
-      button.disabled=false;
-      alert('Falha ao zerar as contagens da seção: '+e.message);
-    }
-  }
 
   const renderCard=c=>{
     const deps=(c.dependencies||[]).map(id=>titleById[id]||id);
