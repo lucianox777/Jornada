@@ -23,6 +23,7 @@ DEFAULT_AUTHORIZATION = "Solution/docs/evidence/DT12_Merged_Branch_Delete_Author
 MAX_SCAN_BYTES = 2_000_000
 EXCLUDED_REFERENCE_FILES = {
     DEFAULT_AUTHORIZATION,
+    "Solution/docs/DT12_Branches_20260926.csv",
     "Solution/docs/DT12_Branch_Delete_Candidates_20261001.csv",
     "Solution/docs/DT12_Branch_DryRun_20261001.csv",
     "Solution/docs/DT12_DryRun_20261001.md",
