@@ -1,5 +1,7 @@
 # Índice vivo do acervo — precedência e leitura mínima
 
+> **Organização do monorepo (06/10/2026):** a antiga solução embarcada `Solution/ApoioSecretarias/` foi removida do repositório principal. Referências abaixo a esse caminho descrevem evidência/histórico anterior à remoção. O produto não compila nem distribui esse transmissor/preparador; apenas schemas SEHAB estritamente sintéticos necessários à regressão permanecem em `Solution/tests/fixtures/external-contracts/gestores/SEHAB/`.
+
 **Revisão editorial:** 06/10/2026. Este arquivo é a porta de entrada **corrente** para o acervo e deve ser mantido sem tentar reclassificar, a cada mudança, todos os documentos históricos. O [Catálogo de vigência de 29/09](Catalogo_Vigencia_Documental_20260929.md) é um snapshot datado do HEAD `fc43cd3e...`; não representa arquivos criados ou alterados depois daquele corte.
 
 O estado técnico real não é deduzido apenas da documentação: para afirmar implementação, confrontar este índice com `master`, Actions e issues/PRs. Documentos históricos, evidências e contratos selados são preservados por rastreabilidade e não ganham vigência só por permanecerem no repositório.

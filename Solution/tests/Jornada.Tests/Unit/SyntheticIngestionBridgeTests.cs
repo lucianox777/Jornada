@@ -289,18 +289,9 @@ public sealed class SyntheticIngestionBridgeTests
     {
         var root = FindRepositoryRoot();
         var solutionRoot = Path.Combine(root, "Solution");
-        var schemaRoot = gestor == "SEHAB"
-            ? Path.Combine(solutionRoot, "ApoioSecretarias")
-            : solutionRoot;
-        var schema = Path.Combine(
-            schemaRoot,
-            "config",
-            "contracts",
-            "gestores",
-            gestor,
-            "pessoa",
-            "v4",
-            "pessoa.schema.json");
+        var schema = gestor == "SEHAB"
+            ? Path.Combine(solutionRoot, "tests", "fixtures", "external-contracts", "gestores", "SEHAB", "pessoa", "v4", "pessoa.schema.json")
+            : Path.Combine(solutionRoot, "config", "contracts", "gestores", gestor, "pessoa", "v4", "pessoa.schema.json");
         var validator = JsonSchemaSubsetValidator.Load(schema);
         var lines = jsonl.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         for (var i = 0; i < lines.Length; i++)

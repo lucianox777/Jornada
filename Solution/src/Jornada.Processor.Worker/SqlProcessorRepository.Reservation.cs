@@ -66,7 +66,10 @@ internal sealed partial class SqlProcessorRepository
     public Task<ReservedBatch?> ReserveNextAsync(CancellationToken ct) =>
         ReserveNextAsync($"compat:{Environment.ProcessId}:{Guid.NewGuid():N}", TimeSpan.FromMinutes(2), ct);
 
-    public async Task<ReservedBatch?> ReserveNextAsync(string leaseOwner, TimeSpan leaseDuration, CancellationToken ct)
+    public Task<ReservedBatch?> ReserveNextAsync(string leaseOwner, TimeSpan leaseDuration, CancellationToken ct) =>
+        ReserveNextAsync(leaseOwner, leaseDuration, null, ct);
+
+    public async Task<ReservedBatch?> ReserveNextAsync(string leaseOwner, TimeSpan leaseDuration, Guid? targetEntregaId, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(leaseOwner)) throw new ArgumentException("leaseOwner obrigatório.", nameof(leaseOwner));
         var leaseId = Guid.NewGuid();
@@ -89,6 +92,7 @@ internal sealed partial class SqlProcessorRepository
                         FROM ingestao.lote l WITH (UPDLOCK,READPAST,ROWLOCK)
                         JOIN ingestao.entrega e ON e.entrega_id=l.entrega_id
                         WHERE l.status='PENDENTE'
+                          AND (@target_entrega_id IS NULL OR l.entrega_id=@target_entrega_id)
                           AND (l.proxima_tentativa_em IS NULL OR l.proxima_tentativa_em<=@agora)
                           AND e.status IN('RECEBIDA','VALIDANDO','PROCESSANDO')
                         ORDER BY l.proxima_tentativa_em,l.criado_em,l.lote_seq,l.lote_id
@@ -122,6 +126,7 @@ internal sealed partial class SqlProcessorRepository
                     SELECT lote_id,tentativa_count FROM @reservado;
                     """;
                 command.Parameters.AddWithValue("@lease_id", leaseId);
+                command.Parameters.Add(new SqlParameter("@target_entrega_id", SqlDbType.UniqueIdentifier) { Value = targetEntregaId.HasValue ? targetEntregaId.Value : DBNull.Value });
                 command.Parameters.Add(new SqlParameter("@lease_owner", SqlDbType.NVarChar, 200) { Value = leaseOwner[..Math.Min(200, leaseOwner.Length)] });
                 command.Parameters.AddWithValue("@lease_seconds", leaseSeconds);
                 await using var reader = await command.ExecuteReaderAsync(ct);

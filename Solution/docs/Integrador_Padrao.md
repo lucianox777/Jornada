@@ -1,5 +1,7 @@
 # Integração externa — envelope, transmissor e serviço de resultado
 
+> **Organização do monorepo (06/10/2026):** a antiga solução embarcada `Solution/ApoioSecretarias/` foi removida do repositório principal. Referências abaixo a esse caminho descrevem evidência/histórico anterior à remoção. O produto não compila nem distribui esse transmissor/preparador; apenas schemas SEHAB estritamente sintéticos necessários à regressão permanecem em `Solution/tests/fixtures/external-contracts/gestores/SEHAB/`.
+
 A Jornada receptora mantém a API e o contrato canônico. O preparador, o transmissor C# e os contratos específicos migrados da SEHAB estão na solução **independente** `Solution/ApoioSecretarias/SolucaoApoioSecretarias.sln`, no mesmo repositório Git. O produto `Solution/Jornada.sln` não compila nem distribui o transmissor; um eventual repositório Git remoto separado é uma etapa distinta da separação de solução.
 
 ## Preparação e envio

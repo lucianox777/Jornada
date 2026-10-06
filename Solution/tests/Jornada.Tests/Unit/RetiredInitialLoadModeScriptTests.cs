@@ -15,25 +15,25 @@ public sealed class RetiredInitialLoadModeScriptTests
         Assert.That(migration, Does.Contain(
             "DROP TABLE IF EXISTS controle.modo_carga_inicial"));
 
-        // The synthetic E2E may use the committed runtime copy only when it is
-        // byte-identical to the externally owned SEHAB schemas; temporary staging
-        // remains supported when the copy is absent.
+        // O E2E sintético pode montar temporariamente as fixtures externas SEHAB,
+        // sem manter uma Solução de Apoio dentro do monorepo.
         var localE2e = File.ReadAllText(Path.Combine(
             root, "Solution", "scripts", "local-e2e.ps1"));
         Assert.Multiple(() =>
         {
-            Assert.That(localE2e, Does.Contain("ApoioSecretarias/config/contracts/gestores/SEHAB"));
+            Assert.That(localE2e, Does.Contain("tests/fixtures/external-contracts/gestores/SEHAB"));
             Assert.That(localE2e, Does.Contain("Get-FileHash"));
             Assert.That(localE2e, Does.Contain("Remove-Item -LiteralPath $stagedSehab"));
-            Assert.That(localE2e, Does.Contain("cópia runtime SEHAB diverge da fonte de apoio"));
+            Assert.That(localE2e, Does.Contain("cópia runtime SEHAB diverge da fixture externa"));
         });
 
         var localE2eBash = File.ReadAllText(Path.Combine(
             root, "Solution", "scripts", "local-e2e.sh"));
         Assert.Multiple(() =>
         {
-            Assert.That(localE2eBash, Does.Contain("support=\"$ROOT/ApoioSecretarias\""));
-            Assert.That(localE2eBash, Does.Not.Contain("$ROOT/../ApoioSecretarias"));
+            Assert.That(localE2eBash, Does.Contain("tests/fixtures/external-contracts/gestores/SEHAB"));
+            Assert.That(localE2eBash, Does.Not.Contain("ApoioSecretarias"));
+            Assert.That(localE2eBash, Does.Not.Contain("SolucaoApoioSecretarias.sln"));
         });
 
         foreach (var name in new[]
