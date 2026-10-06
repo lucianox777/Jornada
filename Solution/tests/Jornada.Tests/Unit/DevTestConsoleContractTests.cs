@@ -491,6 +491,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(containerEntrypoint,Does.Contain("SKIP $name (Processor): modo didático manual da Console DEV"));
             Assert.That(containerEntrypoint,Does.Contain("JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR"));
             Assert.That(processorProgram,Does.Contain("PROCESS_UNTIL_IDLE"));
+            Assert.That(processorProgram,Does.Contain("Processor:TargetEntregaId"));
+            Assert.That(processorProgram,Does.Contain("ProcessNextAsync(targetEntregaId"));
             Assert.That(processorProgram,Does.Contain("REFRESH_LOCAL_BLOCKING"));
             Assert.That(processorProgram,Does.Contain("RefreshAllSqlServerAsync"));
             Assert.That(blockingBootstrap,Does.Contain("BlockingProjectionPersistence.RefreshSqlServerBatchAsync"));
@@ -503,7 +505,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("last-bronze-verify.json"));
             Assert.That(opsScript,Does.Contain("'process-latest'"));
             Assert.That(opsScript,Does.Contain("Processor__Operation=PROCESS_UNTIL_IDLE"));
-            Assert.That(opsScript,Does.Contain("Existem $otherPending lote(s) pendentes de outras Entregas"));
+            Assert.That(opsScript,Does.Contain("Processor__TargetEntregaId=$entregaId"));
+            Assert.That(opsScript,Does.Contain("serão preservados porque o Processor one-shot será filtrado pela Entrega atual"));
+            Assert.That(opsScript,Does.Not.Contain("A execução one-shot foi recusada para não processar carga fora do fluxo atual"));
             Assert.That(opsScript,Does.Contain("Execute primeiro 'Processar Bronze → Silver'"));
             Assert.That(lifecycleScript,Does.Contain("Development','Homologation','Production"));
             Assert.That(lifecycleScript,Does.Contain("Homologation/Production exigem -EnvFile explícito"));
