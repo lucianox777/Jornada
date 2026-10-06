@@ -90,7 +90,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
     <div class="hero">
       <h2>Fluxo do dado</h2>
       <p>A Console acompanha a mesma jornada da aplicação: preparação do ambiente em etapas independentes → ingestão → Bronze → Silver → identidade/Linkage → Gold/Serving → encerramento.</p>
-      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. A Entrega permanece na Bronze até você acionar explicitamente <b>Processar Bronze → Silver</b>. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional. Cada etapa mantém sua própria sequência de execução e pode ser repetida sem reiniciar as anteriores.</div>
+      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. Em <b>4.1 · Processar um lote</b>, cada clique é <b>One shot</b> e executa no máximo uma iteração do Processor para a Entrega atual. Repita 4.1 até concluir Silver. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional. Cada ação mantém seu próprio contador de execuções.</div>
     </div>
     <div id="commands">Carregando...</div>
   </section>
