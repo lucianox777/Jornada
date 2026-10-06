@@ -537,7 +537,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("dependencyNote"));
             Assert.That(page,Does.Contain("Formulário HTML"));
             Assert.That(page,Does.Contain("JSON / JSONL"));
-            Assert.That(page,Does.Contain("Atualizar exemplo da Gold"));
+            Assert.That(page,Does.Contain("Substituir pelos dados da Gold"));
             Assert.That(page,Does.Contain("Visualização amigável"));
             Assert.That(page,Does.Not.Contain("Visualizar JSON em HTML"));
             Assert.That(page,Does.Contain("Arquivos gerados:"));
