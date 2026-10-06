@@ -1,0 +1,7 @@
+{
+  "authorized": true,
+  "phrase": "DELETE_MERGED_BRANCHES_20261006",
+  "authorized_at": "2026-10-06T14:38:00Z",
+  "authorized_by": "lucianox777",
+  "scope": "Branches whose current HEAD exactly matches the head SHA of a PR merged into master no later than the authorization cutoff. Protected branches, open PR heads, direct tag heads and active textual references are preserved."
+}
