@@ -77,7 +77,7 @@ sealed class LayerBrowserService(IWebHostEnvironment env)
         var dataLines=await RunSqlAsync(root,envFile,db,password,dataSql,ct);
         if(dataLines.Length==0)
         {
-            if(page>1)return await BrowseAsync(layer,1,pageSize,term,ct);
+            if(page>1)return await BrowseAsync(definition.Id,1,pageSize,term,ct);
             return new LayerPage(definition.Id,1,pageSize,0,1,term,definition.Columns,Array.Empty<string?[]>());
         }
 
