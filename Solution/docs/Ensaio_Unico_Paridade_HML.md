@@ -1,5 +1,7 @@
 # Ensaio único — paridade com HML
 
+
+> **Organização do monorepo (06/10/2026):** a antiga solução embarcada `Solution/ApoioSecretarias/` foi removida do repositório principal. Referências abaixo a esse caminho descrevem evidência/histórico anterior à remoção. O produto não compila nem distribui esse transmissor/preparador; apenas schemas SEHAB estritamente sintéticos necessários à regressão permanecem em `Solution/tests/fixtures/external-contracts/gestores/SEHAB/`.
 A Jornada possui um único Ensaio, técnico e operacional. Sequência: DEV → Ensaio → HML → Produção. Antes do Ensaio, todos os contratos, funcionalidades, APIs, segurança, auditoria e observabilidade previstos para HML devem estar implementados. A única diferença planejada na passagem para HML é a massa de testes preparada pelas Secretarias, preservando as características relevantes das bases reais. O Ensaio testa o produto completo, inclusive ondas de identidade, reprocessamento, Gold, segurança, falhas, carga e busca semicega de até cinco candidatos com “Nenhum destes”. A fidelidade estatística e a segurança da massa precisam ser verificadas. Esta decisão documental não comprova implementação ou testes executados.
 
 ## Ferramentas de apoio às Secretarias — requisito de entrada
