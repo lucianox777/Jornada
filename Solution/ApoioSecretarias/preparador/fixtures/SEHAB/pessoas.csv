@@ -1,3 +1,0 @@
-id;codigo;nome;nascimento;cpf;cpf_ausente_motivo;mae
-P-001;S-001;Pessoa Sintetica Um;1980-01-02;11144477735;;Nome Sintetico da Mae
-P-002;S-002;Pessoa Sintetica Dois;1981-03-04;;NAO_INFORMADO_ORIGEM;
