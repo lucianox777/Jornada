@@ -43,7 +43,7 @@ Em caso de dúvida sobre versão ou vigência:
 
 1. use `RELEASE_INFO.txt` para identificar a última release/tag efetivamente selada e a Base Normativa que ela declara;
 2. use `Especificacao_Tecnica_Jornada_v3.62.docx/.pdf` para o último texto de Especificação Técnica efetivamente publicado nesta árvore; não presuma a existência ou o conteúdo de uma v3.64 ausente;
-3. use `Especificacao_Tecnica_Jornada_Candidata.md` apenas para revisão da próxima consolidação normativa; ela não substitui a v3.62 antes da publicação formal;
+3. use `Especificacao_Tecnica_Jornada_v5.00_Candidata.md` apenas para revisão da próxima consolidação normativa; ela não substitui a v3.62 antes da publicação formal;
 4. use `CANDIDATE_INFO.json` somente como representação legível por máquina do estado candidato; ele não é metadado de release selada e não tem precedência sobre `RELEASE_INFO.txt`;
 5. use o índice mestre de requisitos v1.1 para a leitura institucional consolidada candidata;
 6. use `Anexo_Modelo_Fisico_Jornada_v1.40.md` e `Solution/database/Jornada_Fase1_v3.70.sql` para o estado físico candidato 3.70; para publicação de entrega, regenere os derivados DOCX/PDF a partir da fonte corrente;
