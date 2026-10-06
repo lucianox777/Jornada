@@ -24,7 +24,7 @@ def main():
     if gen.get('sdk')!=HISTORICAL_SDK or gen.get('command')!='dotnet restore Jornada.sln --use-lock-file --force-evaluate': fail('geração histórica de locks não fixa SDK/comando canônicos')
     if gen.get('nugetLockGate')!='PASS' or gen.get('lockCount')!=ATTESTED_LOCK_COUNT: fail('evidência histórica v4.05 incompleta')
 
-    actual=sorted(p.relative_to(root).as_posix() for p in root.rglob('packages.lock.json') if '.local' not in p.parts and 'obj' not in p.parts and 'bin' not in p.parts and 'ApoioSecretarias' not in p.parts)
+    actual=sorted(p.relative_to(root).as_posix() for p in root.rglob('packages.lock.json') if '.local' not in p.parts and 'obj' not in p.parts and 'bin' not in p.parts)
     listed={r.get('path'):r for r in (data.get('locks') or []) if r.get('path')}
 
     current_sdk=json.loads((root/'global.json').read_text(encoding='utf-8-sig')).get('sdk',{}).get('version')
@@ -73,7 +73,7 @@ def main():
         if current_combined!=candidate.get('combinedSha256'):
             fail(f'combinedSha256 candidato divergente: manifesto={candidate.get("combinedSha256")} atual={current_combined}')
 
-    projects={p.stem.lower():p for p in root.rglob('*.csproj') if 'ApoioSecretarias' not in p.parts}
+    projects={p.stem.lower():p for p in root.rglob('*.csproj')}
     def deps(project_path):
         xml=ET.parse(project_path).getroot();out={}
         for node in xml.findall('.//ProjectReference'):
