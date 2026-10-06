@@ -38,6 +38,7 @@ app.MapGet("/api/commands",async(HttpResponse response,ConsoleRuntimeMode runtim
     string ExecutionState(CommandDefinition command)
     {
         if(!latest.TryGetValue(command.Id,out var last))return "PENDENTE";
+        if(string.Equals(last.Status,"PARCIAL",StringComparison.Ordinal))return "PENDENTE";
         if(!string.Equals(last.Status,"SUCESSO",StringComparison.Ordinal))return "FALHA";
         foreach(var dependency in command.Dependencies)
             if(latest.TryGetValue(dependency,out var dependencyRun)
