@@ -160,11 +160,15 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("id=\"consoleRevision\""));
             Assert.That(page,Does.Contain("loadConsoleRevision()"));
             Assert.That(page,Does.Contain("executionCount"));
-            Assert.That(page,Does.Contain("Execuções: 0 · próxima #1"));
+            Assert.That(page,Does.Contain("Rodou '+count+'x"));
             Assert.That(page,Does.Contain("action-row"));
             Assert.That(page,Does.Contain("action-index"));
+            Assert.That(page,Does.Contain("action-count"));
+            Assert.That(page,Does.Contain("action-control\">'+count+control"));
             Assert.That(page,Does.Contain("child(1)"));
-            Assert.That(page,Does.Contain("Somente leitura · não cria execução"));
+            Assert.That(page,Does.Contain("somente leitura"));
+            Assert.That(page,Does.Not.Contain("class=\"action-meta\""));
+            Assert.That(page,Does.Contain("Cada botão mostra, imediatamente à esquerda, quantas vezes sua ação foi executada."));
             Assert.That(page,Does.Contain("state-badge"));
             Assert.That(page,Does.Contain("DESATUALIZADO"));
             Assert.That(page,Does.Contain("Console DEV / Fluxo do dado"));
