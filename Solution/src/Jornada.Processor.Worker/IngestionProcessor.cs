@@ -14,7 +14,9 @@ internal sealed class IngestionProcessor(
     ProcessorOptions options,
     ILogger<IngestionProcessor> logger)
 {
-    public async Task<bool> ProcessNextAsync(CancellationToken ct)
+    public Task<bool> ProcessNextAsync(CancellationToken ct) => ProcessNextAsync(null, ct);
+
+    public async Task<bool> ProcessNextAsync(Guid? targetEntregaId, CancellationToken ct)
     {
         var cycleSw = Stopwatch.StartNew();
         await using var pipelineLease = await pipelineCoordinator.TryAcquireProcessorBatchAsync(ct);
@@ -27,7 +29,7 @@ internal sealed class IngestionProcessor(
         }
 
         var batch = await repository.ReserveNextAsync(
-            runtime.WorkerId, TimeSpan.FromSeconds(Math.Max(30, options.LeaseDurationSeconds)), ct);
+            runtime.WorkerId, TimeSpan.FromSeconds(Math.Max(30, options.LeaseDurationSeconds)), targetEntregaId, ct);
         if (batch is null)
         {
             cycleSw.Stop();
