@@ -111,10 +111,10 @@ builder.Services.AddHostedService<ProcessorWorker>();
 
 var host = builder.Build();
 
-if (string.Equals(processorOperation, "PROCESS_UNTIL_IDLE", StringComparison.Ordinal))
+if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal))
 {
     if (!builder.Environment.IsDevelopment())
-        throw new InvalidOperationException("PROCESS_UNTIL_IDLE só pode executar em Development/Test.");
+        throw new InvalidOperationException("PROCESS_ONE só pode executar em Development/Test.");
 
     Guid? targetEntregaId = null;
     var configuredTarget = builder.Configuration["Processor:TargetEntregaId"]?.Trim();
@@ -129,13 +129,7 @@ if (string.Equals(processorOperation, "PROCESS_UNTIL_IDLE", StringComparison.Ord
     var repository = host.Services.GetRequiredService<IProcessorRepository>();
     var processor = host.Services.GetRequiredService<IngestionProcessor>();
     var recovered = await repository.RecoverExpiredLeasesAsync(options.MaxProcessingAttempts, CancellationToken.None);
-    var processed = 0;
-    while (await processor.ProcessNextAsync(targetEntregaId, CancellationToken.None))
-    {
-        processed++;
-        if (processed >= 10_000)
-            throw new InvalidOperationException("PROCESS_UNTIL_IDLE excedeu 10.000 ciclos; execução interrompida por segurança.");
-    }
+    var processed = await processor.ProcessNextAsync(targetEntregaId, CancellationToken.None) ? 1 : 0;
 
     Console.WriteLine($"Processor one-shot concluído: lotes_processados={processed}; leases_recuperados={recovered}.");
     return;

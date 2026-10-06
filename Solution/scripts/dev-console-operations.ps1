@@ -424,14 +424,24 @@ switch($Action){
         }
         if($resident.Count -gt 0){throw "Processor residente detectado em modo manual: $($resident -join '; ')."}
 
-        Write-Host "Executando Jornada.Processor.Worker one-shot para a Entrega $entregaId..."
-        Invoke-Compose @('exec','-T','jornada-node2','env','Processor__Operation=PROCESS_UNTIL_IDLE',"Processor__TargetEntregaId=$entregaId",'dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
+        Write-Host "Executando Jornada.Processor.Worker one-shot para a Entrega ${entregaId}: no máximo um lote será processado neste clique."
+        Invoke-Compose @('exec','-T','jornada-node2','env','Processor__Operation=PROCESS_ONE',"Processor__TargetEntregaId=$entregaId",'dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
 
         $final=Invoke-SqlScalar "SELECT status FROM ingestao.entrega WHERE entrega_id='$entregaId';"
+        $remainingTarget=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM ingestao.lote WHERE entrega_id='$entregaId' AND status IN(N'PENDENTE',N'VALIDANDO',N'PROCESSANDO');")
         $silverPeople=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$entregaId';")
         $silverFacts=[int64](Invoke-SqlScalar "SELECT COUNT_BIG(*) FROM silver.registro_observacao ro JOIN ingestao.lote l ON l.lote_id=ro.lote_id WHERE l.entrega_id='$entregaId';")
-        Write-Host "Processor concluiu: entrega=$entregaId; status=$final; pessoas_silver=$silverPeople; registros_silver=$silverFacts."
-        if($final -ne 'PROCESSADA'){throw "Processor one-shot terminou sem publicar PROCESSADA; estado final=$final."}
+        Write-Host "Processor one-shot concluiu: entrega=$entregaId; status=$final; lotes_restantes=$remainingTarget; pessoas_silver=$silverPeople; registros_silver=$silverFacts."
+        if($final -eq 'PROCESSADA'){
+            Write-Host "JORNADA_ONE_SHOT_COMPLETE=1"
+            return
+        }
+        if($remainingTarget -gt 0){
+            Write-Host "JORNADA_ONE_SHOT_PENDING=$remainingTarget"
+            Write-Host "A Entrega ainda possui $remainingTarget lote(s) pendente(s). Execute novamente 4.1 · Processar um lote para avançar mais uma iteração."
+            return
+        }
+        throw "Processor one-shot terminou sem lotes pendentes, mas a Entrega não está PROCESSADA; estado final=$final."
     }
 
     'blocking' { Invoke-ClusterAction 'blocking' }

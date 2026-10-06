@@ -38,6 +38,7 @@ app.MapGet("/api/commands",async(HttpResponse response,ConsoleRuntimeMode runtim
     string ExecutionState(CommandDefinition command)
     {
         if(!latest.TryGetValue(command.Id,out var last))return "PENDENTE";
+        if(string.Equals(last.Status,"PARCIAL",StringComparison.Ordinal))return "PENDENTE";
         if(!string.Equals(last.Status,"SUCESSO",StringComparison.Ordinal))return "FALHA";
         foreach(var dependency in command.Dependencies)
             if(latest.TryGetValue(dependency,out var dependencyRun)
@@ -47,12 +48,13 @@ app.MapGet("/api/commands",async(HttpResponse response,ConsoleRuntimeMode runtim
         return "PRONTO";
     }
 
-    return Results.Ok(CommandCatalog.All.Where(x=>x.Visible).Select(x=>{
+    return Results.Ok(CommandCatalog.All.Select(x=>{
         latest.TryGetValue(x.Id,out var last);
         var flowBlockedReason=FlowBlockedReason(x,latest);
         var runtimeDisabledReason=runtime.DisabledReason(x);
         return new{
             x.Id,x.Title,x.Description,x.Implemented,x.CommandLine,x.DisplayCommand,x.Dependencies,x.DependencyNote,x.Surface,x.Stage,
+            visible=x.Visible,
             destructive=x.Destructive,
             disabled=runtime.IsDisabled(x)||flowBlockedReason is not null,
             disabledReason=runtimeDisabledReason??flowBlockedReason,

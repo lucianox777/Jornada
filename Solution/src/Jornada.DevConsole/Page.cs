@@ -22,12 +22,14 @@ main{max-width:1180px;margin:0 auto;padding:22px}
 .hero p{color:#5d6875}
 .stage{margin:18px 0 26px}.stage-head{display:flex;align-items:center;gap:10px;margin:0 0 8px}.stage-head h3{margin:0;font-size:17px}.stage-index{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;color:#66717d;background:#e9edf2;border-radius:999px;padding:4px 8px}.flow-note{padding:10px 12px;border:1px solid #cfdceb;background:#f6f9fd;border-radius:8px;color:#44515f;font-size:13px;margin-bottom:14px}
 .card{background:#fff;border:1px solid #d9dee5;border-radius:10px;padding:15px;margin:10px 0}
-.command-head{display:flex;justify-content:space-between;gap:16px;align-items:center}
+.command-head{display:block}
 .command-title{font-weight:700;font-size:16px}
 .command-desc{margin:6px 0;color:#45515e}
 .run-meta{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0}.exec-badge,.state-badge{font:12px ui-monospace,SFMono-Regular,Consolas,monospace;border-radius:999px;padding:3px 8px}.exec-badge{background:#edf2f7;color:#425466}.state-badge{font-weight:700}.state-badge.PRONTO{background:#e7f6ec;color:#1f6b3b}.state-badge.PENDENTE{background:#eef1f4;color:#66717d}.state-badge.DESATUALIZADO{background:#fff4d6;color:#795900}.state-badge.FALHA{background:#fde9e7;color:#9b241c}
 .command-line{display:block;color:#6b7580;font:12px ui-monospace,SFMono-Regular,Consolas,monospace;overflow-wrap:anywhere}.dependency{margin-top:8px;padding:8px 10px;border-left:3px solid #d69b22;background:#fff8e6;color:#5f4a15;font-size:13px}.dependency code{font-size:12px}.dep-note{display:block;margin-top:3px;color:#746434}
-.command-actions{display:flex;gap:10px;align-items:center;white-space:nowrap}
+.command-actions{display:grid;gap:0;margin-top:12px;white-space:normal;border-top:1px solid #e4e8ed}
+.action-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:16px;align-items:center;padding:12px 0;border-bottom:1px solid #e4e8ed}
+.action-copy{min-width:0}.action-heading{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}.action-index{font:700 12px ui-monospace,SFMono-Regular,Consolas,monospace;color:#405166;background:#edf2f7;border-radius:999px;padding:3px 7px}.action-title{font-weight:700}.action-desc{margin-top:3px;color:#56616e;font-size:13px}.action-meta{margin-top:5px;color:#697481;font:12px ui-monospace,SFMono-Regular,Consolas,monospace}.action-control{display:flex;align-items:center;justify-content:flex-end}.action-control button{min-width:190px}
 .primary{background:#1463d7;color:#fff;border:1px solid #1463d7;border-radius:7px;padding:8px 13px}
 .secondary{background:#fff;border:1px solid #cfd6df;border-radius:7px;padding:8px 13px}
 .danger{background:#fff2f0;color:#9b241c;border:1px solid #e8b3ad;border-radius:7px;padding:8px 13px}
@@ -56,6 +58,7 @@ button:disabled{opacity:.5;cursor:not-allowed}
 .history-status{font-weight:700}
 .history-status.SUCESSO{color:#1f7a43}
 .history-status.FALHA{color:#a2332b}
+.history-status.PARCIAL{color:#9a6a00}
 .history-status.SEM-EXECUTOR{color:#9a6a00}
 dialog{width:min(900px,94vw);border:1px solid #cad2dc;border-radius:10px;padding:0;box-shadow:0 18px 60px rgba(0,0,0,.28)}
 dialog::backdrop{background:rgba(0,0,0,.45)}
@@ -70,7 +73,7 @@ table{border-collapse:collapse;width:100%;font-size:13px}
 th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:top}
 .back{margin-bottom:12px}
 .small{font-size:12px;color:#697481}
-@media(max-width:700px){main{padding:12px}.command-head{align-items:flex-start;flex-direction:column}.command-actions{width:100%;justify-content:space-between}.terminal{height:55vh}}
+@media(max-width:700px){main{padding:12px}.action-row{grid-template-columns:1fr}.action-control{justify-content:stretch}.action-control button{width:100%;min-width:0}.terminal{height:55vh}}
 </style>
 </head>
 <body>
@@ -87,7 +90,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
     <div class="hero">
       <h2>Fluxo do dado</h2>
       <p>A Console acompanha a mesma jornada da aplicação: preparação do ambiente em etapas independentes → ingestão → Bronze → Silver → identidade/Linkage → Gold/Serving → encerramento.</p>
-      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. A Entrega permanece na Bronze até você acionar explicitamente <b>Processar Bronze → Silver</b>. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional. Cada etapa mantém sua própria sequência de execução e pode ser repetida sem reiniciar as anteriores.</div>
+      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. Em <b>4.1 · Processar um lote</b>, cada clique é <b>One shot</b> e executa no máximo uma iteração do Processor para a Entrega atual. Repita 4.1 até concluir Silver. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional. Cada ação mantém seu próprio contador de execuções.</div>
     </div>
     <div id="commands">Carregando...</div>
   </section>
@@ -316,9 +319,10 @@ async function showHistory(){
 
 async function loadCommands(surface='flow'){
   commandsCache=await api('/api/commands');
-  const titleById=Object.assign({ingestion:'Enviar arquivo para ingestão'},Object.fromEntries(commandsCache.map(x=>[x.id,x.title])));
+  const commandById=Object.fromEntries(commandsCache.map(x=>[x.id,x]));
+  const titleById=Object.fromEntries(commandsCache.map(x=>[x.id,x.title]));
   const target=surface==='tools'?toolsCommands:commands;
-  const selected=commandsCache.filter(c=>(c.surface||'flow')===surface);
+  const selected=commandsCache.filter(c=>c.visible!==false&&(c.surface||'flow')===surface);
   const groups=[];
   for(const c of selected){
     const stage=c.stage||'Outros';
@@ -327,58 +331,76 @@ async function loadCommands(surface='flow'){
     group.items.push(c);
   }
 
+  const executionMeta=(commandId,readOnly=false)=>{
+    if(readOnly)return 'Somente leitura · não cria execução';
+    const item=commandById[commandId];
+    const count=Number(item?.executionCount||0);
+    const last=Number(item?.lastExecutionNumber||0);
+    if(count===0)return 'Execuções: 0 · próxima #1';
+    return 'Execuções: '+count+' · última #'+(last||count)+' · próxima #'+(count+1);
+  };
+
+  const actionRow=(number,title,description,control,commandId,readOnly=false)=>{
+    const index=number?'<span class="action-index">'+esc(number)+'</span>':'';
+    return '<div class="action-row"><div class="action-copy"><div class="action-heading">'+index+'<span class="action-title">'+esc(title)+'</span></div>'
+      +'<div class="action-desc">'+esc(description)+'</div>'
+      +'<div class="action-meta">'+esc(executionMeta(commandId,readOnly))+'</div></div>'
+      +'<div class="action-control">'+control+'</div></div>';
+  };
+
   const renderCard=c=>{
     const deps=(c.dependencies||[]).map(id=>titleById[id]||id);
-    const executionCount=Number(c.executionCount||0);
-    const lastNumber=Number(c.lastExecutionNumber||0);
-    const executionLabel=executionCount>0
-      ?'execução #'+(lastNumber||executionCount)+' · próxima #'+(executionCount+1)
-      :'próxima execução #1';
     const state=String(c.executionState||'PENDENTE').toUpperCase();
     const lastTime=c.lastFinishedAt?new Date(c.lastFinishedAt).toLocaleString():'';
-    const runMeta='<div class="run-meta"><span class="exec-badge">'+esc(executionLabel)+'</span><span class="state-badge '+esc(state)+'">'+esc(state)+'</span>'+(lastTime?'<span class="small">última conclusão: '+esc(lastTime)+'</span>':'')+'</div>';
+    const runMeta='<div class="run-meta"><span class="state-badge '+esc(state)+'">'+esc(state)+'</span>'+(lastTime?'<span class="small">última conclusão: '+esc(lastTime)+'</span>':'')+'</div>';
     const dependency=deps.length||c.dependencyNote
       ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
       :'';
     const blocker=c.disabled&&c.disabledReason
       ?'<div class="dependency"><b>Bloqueado:</b> '+esc(c.disabledReason)+'</div>'
       :'';
+    const rawStage=String(c.stage||'').split(' · ')[0];
+    const stageNumber=/^\d+(?:\.\d+)*$/.test(rawStage)?rawStage:'';
+    const child=i=>stageNumber?stageNumber+'.'+i:'';
 
     let actions='';
     if(c.id==='zip'){
-      actions='<button class="primary" type="button" onclick="openZipDialog()">Gerar arquivo</button>'
-        +'<button class="primary" type="button" onclick="startCommand(\'ingestion\',\'Enviar arquivo para ingestão\')">Enviar arquivo</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Status</button>';
+      actions=actionRow(child(1),'Gerar arquivo','Monta e valida o ZIP local. Esta ação não envia dados para a API.','<button class="primary" type="button" onclick="openZipDialog()">Gerar arquivo</button>','zip')
+        +actionRow(child(2),'Enviar arquivo','Envia explicitamente o último ZIP gerado para a API de ingestão em NODE1.','<button class="primary" type="button" onclick="startCommand(\'ingestion\',\'Enviar arquivo para ingestão\')">Enviar arquivo</button>','ingestion')
+        +actionRow(child(3),'Consultar status','Consulta o recibo e o estado da última Entrega sem acionar processamento.','<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Consultar status</button>','pipeline-status');
     }else if(c.id==='bronze'){
-      actions='<button class="primary" type="button" onclick="openLayerDialog(\'bronze\')">Visualizar Bronze</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'bronze-verify-latest\',\'Verificar integridade da última Entrega\')">Verificar integridade</button>';
+      actions=actionRow(child(1),'Visualizar Bronze','Abre metadados e localização lógica dos objetos recebidos.','<button class="primary" type="button" onclick="openLayerDialog(\'bronze\')">Visualizar Bronze</button>',null,true)
+        +actionRow(child(2),'Verificar integridade','Valida objeto, SHA-256 e tamanho físico da última Entrega sem processá-la.','<button class="secondary" type="button" onclick="startCommand(\'bronze-verify-latest\',\'Verificar integridade da última Entrega\')">Verificar integridade</button>','bronze-verify-latest');
     }else if(c.id==='silver'){
-      actions='<button class="primary" type="button" onclick="startCommand(\'silver\',\'Processar Bronze → Silver\')">Processar Bronze → Silver</button>'
-        +'<button class="secondary" type="button" onclick="openLayerDialog(\'silver\')">Visualizar Silver</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Status</button>';
+      actions=actionRow(child(1),'Processar um lote','One shot · executa uma única iteração do Processor e processa no máximo um lote da Entrega atual. Repita enquanto houver lotes pendentes.','<button class="primary" type="button" onclick="startCommand(\'silver\',\'4.1 · Processar um lote Bronze → Silver\')">Executar one shot</button>','silver')
+        +actionRow(child(2),'Visualizar Silver','Inspeciona as observações já materializadas na Silver; não executa o Processor.','<button class="secondary" type="button" onclick="openLayerDialog(\'silver\')">Visualizar Silver</button>',null,true)
+        +actionRow(child(3),'Consultar status','Consulta o estado da Entrega para confirmar se ainda há processamento pendente.','<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Consultar status</button>','pipeline-status');
     }else if(c.id==='linkage'){
-      const disabled=c.disabled?' disabled aria-disabled="true" title="'+esc(c.disabledReason||'Execute primeiro Processar Bronze → Silver')+'"':'';
-      actions='<button class="primary" type="button"'+disabled+' onclick="startCommand(\'linkage\',\'Executar Linkage Runner\')">Executar Linkage Runner</button>'
-        +'<button class="secondary" type="button" onclick="openLayerDialog(\'identity\')">Visualizar identidade</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'replay\',\'Executar replay do último run\')">Replay</button>';
+      const disabled=c.disabled?' disabled aria-disabled="true" title="'+esc(c.disabledReason||'Execute 4.1 até concluir Silver')+'"':'';
+      actions=actionRow(child(1),'Executar Linkage Runner','One shot · dispara uma única invocação do Runner para o universo elegível da última Entrega.','<button class="primary" type="button"'+disabled+' onclick="startCommand(\'linkage\',\'5.1 · Executar Linkage Runner\')">Executar one shot</button>','linkage')
+        +actionRow(child(2),'Visualizar identidade','Abre os vínculos correntes e seus métodos de resolução sem executar novo linkage.','<button class="secondary" type="button" onclick="openLayerDialog(\'identity\')">Visualizar identidade</button>',null,true)
+        +actionRow(child(3),'Replay do último run','One shot · repete a avaliação do último run publicado sem publicar um novo resultado.','<button class="secondary" type="button" onclick="startCommand(\'replay\',\'5.3 · Replay do último run\')">Executar replay</button>','replay');
     }else if(c.id==='gold'){
-      actions='<button class="primary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>';
+      actions=actionRow(child(1),'Visualizar Gold','Inspeciona o estado canônico publicado das Pessoas.','<button class="primary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>',null,true);
     }else if(c.id==='semiblind'){
-      actions='<button class="primary" type="button" onclick="openSemiblindDialog()">Consultar</button>';
+      actions=actionRow('','Consultar candidatos','Executa a consulta semicega interativa; a consulta não é registrada como execução de comando.','<button class="primary" type="button" onclick="openSemiblindDialog()">Consultar</button>',null,true);
     }else if(c.id==='configuration'){
-      actions='<button class="primary" type="button" onclick="openConfigurationDialog()">Abrir</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'contract-bundle\',\'Gerar bundle de contratos e configurações\')">Gerar bundle</button>';
+      actions=actionRow('','Abrir contratos/configurações','Abre a administração dos JSONs governados; a abertura é somente interface.','<button class="primary" type="button" onclick="openConfigurationDialog()">Abrir</button>',null,true)
+        +actionRow('','Gerar bundle','Gera o ZIP operacional de contratos e configurações.','<button class="secondary" type="button" onclick="startCommand(\'contract-bundle\',\'Gerar bundle de contratos e configurações\')">Gerar bundle</button>','contract-bundle');
     }else if(c.id==='gold-synthetic'){
-      actions='<button class="primary" type="button" onclick="startCommand(\'gold-synthetic\')">Adicionar 5.000</button>'
-        +'<button class="secondary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'blocking\',\'Reconstruir blocking\')">Reconstruir blocking</button>';
+      actions=actionRow('','Adicionar 5.000','Expande a massa sintética DEV em um bloco controlado.','<button class="primary" type="button" onclick="startCommand(\'gold-synthetic\')">Adicionar 5.000</button>','gold-synthetic')
+        +actionRow('','Visualizar Gold','Inspeciona a Gold corrente sem executar alteração.','<button class="secondary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>',null,true)
+        +actionRow('','Reconstruir blocking','One shot · reconcilia uma vez a projeção local de blocking.','<button class="secondary" type="button" onclick="startCommand(\'blocking\',\'Reconstruir blocking\')">Reconstruir blocking</button>','blocking');
     }else{
       const buttonClass=c.id==='finish'||c.destructive?'danger':'primary';
       const disabled=c.disabled?' disabled aria-disabled="true" title="'+esc(c.disabledReason||'Operação indisponível')+'"':'';
       const label=c.id==='infrastructure'?'Executar sequência completa':'Executar';
-      actions='<button class="'+buttonClass+'" type="button"'+disabled+' onclick="startCommand(\''+c.id+'\')">'+label+'</button>';
+      const description=c.id==='infrastructure'
+        ?'Executa uma vez a sequência completa das etapas 1.1 a 1.7.'
+        :'Executa esta ação uma vez por clique.';
+      actions=actionRow(stageNumber,c.title,description,'<button class="'+buttonClass+'" type="button"'+disabled+' onclick="startCommand(\''+c.id+'\')">'+label+'</button>',c.id);
     }
-    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div>'+runMeta+'<small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+blocker+'</div><div class="command-actions">'+actions+'</div></div></div>';
+    return '<div class="card"><div class="command-head"><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div>'+runMeta+'<small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+blocker+'<div class="command-actions">'+actions+'</div></div></div>';
   };
 
   target.innerHTML=groups.map(g=>{
