@@ -319,9 +319,10 @@ async function showHistory(){
 
 async function loadCommands(surface='flow'){
   commandsCache=await api('/api/commands');
-  const titleById=Object.assign({ingestion:'Enviar arquivo para ingestão'},Object.fromEntries(commandsCache.map(x=>[x.id,x.title])));
+  const commandById=Object.fromEntries(commandsCache.map(x=>[x.id,x]));
+  const titleById=Object.fromEntries(commandsCache.map(x=>[x.id,x.title]));
   const target=surface==='tools'?toolsCommands:commands;
-  const selected=commandsCache.filter(c=>(c.surface||'flow')===surface);
+  const selected=commandsCache.filter(c=>c.visible!==false&&(c.surface||'flow')===surface);
   const groups=[];
   for(const c of selected){
     const stage=c.stage||'Outros';
@@ -330,58 +331,76 @@ async function loadCommands(surface='flow'){
     group.items.push(c);
   }
 
+  const executionMeta=(commandId,readOnly=false)=>{
+    if(readOnly)return 'Somente leitura · não cria execução';
+    const item=commandById[commandId];
+    const count=Number(item?.executionCount||0);
+    const last=Number(item?.lastExecutionNumber||0);
+    if(count===0)return 'Execuções: 0 · próxima #1';
+    return 'Execuções: '+count+' · última #'+(last||count)+' · próxima #'+(count+1);
+  };
+
+  const actionRow=(number,title,description,control,commandId,readOnly=false)=>{
+    const index=number?'<span class="action-index">'+esc(number)+'</span>':'';
+    return '<div class="action-row"><div class="action-copy"><div class="action-heading">'+index+'<span class="action-title">'+esc(title)+'</span></div>'
+      +'<div class="action-desc">'+esc(description)+'</div>'
+      +'<div class="action-meta">'+esc(executionMeta(commandId,readOnly))+'</div></div>'
+      +'<div class="action-control">'+control+'</div></div>';
+  };
+
   const renderCard=c=>{
     const deps=(c.dependencies||[]).map(id=>titleById[id]||id);
-    const executionCount=Number(c.executionCount||0);
-    const lastNumber=Number(c.lastExecutionNumber||0);
-    const executionLabel=executionCount>0
-      ?'execução #'+(lastNumber||executionCount)+' · próxima #'+(executionCount+1)
-      :'próxima execução #1';
     const state=String(c.executionState||'PENDENTE').toUpperCase();
     const lastTime=c.lastFinishedAt?new Date(c.lastFinishedAt).toLocaleString():'';
-    const runMeta='<div class="run-meta"><span class="exec-badge">'+esc(executionLabel)+'</span><span class="state-badge '+esc(state)+'">'+esc(state)+'</span>'+(lastTime?'<span class="small">última conclusão: '+esc(lastTime)+'</span>':'')+'</div>';
+    const runMeta='<div class="run-meta"><span class="state-badge '+esc(state)+'">'+esc(state)+'</span>'+(lastTime?'<span class="small">última conclusão: '+esc(lastTime)+'</span>':'')+'</div>';
     const dependency=deps.length||c.dependencyNote
       ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
       :'';
     const blocker=c.disabled&&c.disabledReason
       ?'<div class="dependency"><b>Bloqueado:</b> '+esc(c.disabledReason)+'</div>'
       :'';
+    const rawStage=String(c.stage||'').split(' · ')[0];
+    const stageNumber=/^\d+(?:\.\d+)*$/.test(rawStage)?rawStage:'';
+    const child=i=>stageNumber?stageNumber+'.'+i:'';
 
     let actions='';
     if(c.id==='zip'){
-      actions='<button class="primary" type="button" onclick="openZipDialog()">Gerar arquivo</button>'
-        +'<button class="primary" type="button" onclick="startCommand(\'ingestion\',\'Enviar arquivo para ingestão\')">Enviar arquivo</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Status</button>';
+      actions=actionRow(child(1),'Gerar arquivo','Monta e valida o ZIP local. Esta ação não envia dados para a API.','<button class="primary" type="button" onclick="openZipDialog()">Gerar arquivo</button>','zip')
+        +actionRow(child(2),'Enviar arquivo','Envia explicitamente o último ZIP gerado para a API de ingestão em NODE1.','<button class="primary" type="button" onclick="startCommand(\'ingestion\',\'Enviar arquivo para ingestão\')">Enviar arquivo</button>','ingestion')
+        +actionRow(child(3),'Consultar status','Consulta o recibo e o estado da última Entrega sem acionar processamento.','<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Consultar status</button>','pipeline-status');
     }else if(c.id==='bronze'){
-      actions='<button class="primary" type="button" onclick="openLayerDialog(\'bronze\')">Visualizar Bronze</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'bronze-verify-latest\',\'Verificar integridade da última Entrega\')">Verificar integridade</button>';
+      actions=actionRow(child(1),'Visualizar Bronze','Abre metadados e localização lógica dos objetos recebidos.','<button class="primary" type="button" onclick="openLayerDialog(\'bronze\')">Visualizar Bronze</button>',null,true)
+        +actionRow(child(2),'Verificar integridade','Valida objeto, SHA-256 e tamanho físico da última Entrega sem processá-la.','<button class="secondary" type="button" onclick="startCommand(\'bronze-verify-latest\',\'Verificar integridade da última Entrega\')">Verificar integridade</button>','bronze-verify-latest');
     }else if(c.id==='silver'){
-      actions='<button class="primary" type="button" onclick="startCommand(\'silver\',\'Processar Bronze → Silver\')">Processar Bronze → Silver</button>'
-        +'<button class="secondary" type="button" onclick="openLayerDialog(\'silver\')">Visualizar Silver</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Status</button>';
+      actions=actionRow(child(1),'Processar um lote','One shot · executa uma única iteração do Processor e processa no máximo um lote da Entrega atual. Repita enquanto houver lotes pendentes.','<button class="primary" type="button" onclick="startCommand(\'silver\',\'4.1 · Processar um lote Bronze → Silver\')">Executar one shot</button>','silver')
+        +actionRow(child(2),'Visualizar Silver','Inspeciona as observações já materializadas na Silver; não executa o Processor.','<button class="secondary" type="button" onclick="openLayerDialog(\'silver\')">Visualizar Silver</button>',null,true)
+        +actionRow(child(3),'Consultar status','Consulta o estado da Entrega para confirmar se ainda há processamento pendente.','<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Consultar status</button>','pipeline-status');
     }else if(c.id==='linkage'){
-      const disabled=c.disabled?' disabled aria-disabled="true" title="'+esc(c.disabledReason||'Execute primeiro Processar Bronze → Silver')+'"':'';
-      actions='<button class="primary" type="button"'+disabled+' onclick="startCommand(\'linkage\',\'Executar Linkage Runner\')">Executar Linkage Runner</button>'
-        +'<button class="secondary" type="button" onclick="openLayerDialog(\'identity\')">Visualizar identidade</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'replay\',\'Executar replay do último run\')">Replay</button>';
+      const disabled=c.disabled?' disabled aria-disabled="true" title="'+esc(c.disabledReason||'Execute 4.1 até concluir Silver')+'"':'';
+      actions=actionRow(child(1),'Executar Linkage Runner','One shot · dispara uma única invocação do Runner para o universo elegível da última Entrega.','<button class="primary" type="button"'+disabled+' onclick="startCommand(\'linkage\',\'5.1 · Executar Linkage Runner\')">Executar one shot</button>','linkage')
+        +actionRow(child(2),'Visualizar identidade','Abre os vínculos correntes e seus métodos de resolução sem executar novo linkage.','<button class="secondary" type="button" onclick="openLayerDialog(\'identity\')">Visualizar identidade</button>',null,true)
+        +actionRow(child(3),'Replay do último run','One shot · repete a avaliação do último run publicado sem publicar um novo resultado.','<button class="secondary" type="button" onclick="startCommand(\'replay\',\'5.3 · Replay do último run\')">Executar replay</button>','replay');
     }else if(c.id==='gold'){
-      actions='<button class="primary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>';
+      actions=actionRow(child(1),'Visualizar Gold','Inspeciona o estado canônico publicado das Pessoas.','<button class="primary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>',null,true);
     }else if(c.id==='semiblind'){
-      actions='<button class="primary" type="button" onclick="openSemiblindDialog()">Consultar</button>';
+      actions=actionRow('','Consultar candidatos','Executa a consulta semicega interativa; a consulta não é registrada como execução de comando.','<button class="primary" type="button" onclick="openSemiblindDialog()">Consultar</button>',null,true);
     }else if(c.id==='configuration'){
-      actions='<button class="primary" type="button" onclick="openConfigurationDialog()">Abrir</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'contract-bundle\',\'Gerar bundle de contratos e configurações\')">Gerar bundle</button>';
+      actions=actionRow('','Abrir contratos/configurações','Abre a administração dos JSONs governados; a abertura é somente interface.','<button class="primary" type="button" onclick="openConfigurationDialog()">Abrir</button>',null,true)
+        +actionRow('','Gerar bundle','Gera o ZIP operacional de contratos e configurações.','<button class="secondary" type="button" onclick="startCommand(\'contract-bundle\',\'Gerar bundle de contratos e configurações\')">Gerar bundle</button>','contract-bundle');
     }else if(c.id==='gold-synthetic'){
-      actions='<button class="primary" type="button" onclick="startCommand(\'gold-synthetic\')">Adicionar 5.000</button>'
-        +'<button class="secondary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>'
-        +'<button class="secondary" type="button" onclick="startCommand(\'blocking\',\'Reconstruir blocking\')">Reconstruir blocking</button>';
+      actions=actionRow('','Adicionar 5.000','Expande a massa sintética DEV em um bloco controlado.','<button class="primary" type="button" onclick="startCommand(\'gold-synthetic\')">Adicionar 5.000</button>','gold-synthetic')
+        +actionRow('','Visualizar Gold','Inspeciona a Gold corrente sem executar alteração.','<button class="secondary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>',null,true)
+        +actionRow('','Reconstruir blocking','One shot · reconcilia uma vez a projeção local de blocking.','<button class="secondary" type="button" onclick="startCommand(\'blocking\',\'Reconstruir blocking\')">Reconstruir blocking</button>','blocking');
     }else{
       const buttonClass=c.id==='finish'||c.destructive?'danger':'primary';
       const disabled=c.disabled?' disabled aria-disabled="true" title="'+esc(c.disabledReason||'Operação indisponível')+'"':'';
       const label=c.id==='infrastructure'?'Executar sequência completa':'Executar';
-      actions='<button class="'+buttonClass+'" type="button"'+disabled+' onclick="startCommand(\''+c.id+'\')">'+label+'</button>';
+      const description=c.id==='infrastructure'
+        ?'Executa uma vez a sequência completa das etapas 1.1 a 1.7.'
+        :'Executa esta ação uma vez por clique.';
+      actions=actionRow(stageNumber,c.title,description,'<button class="'+buttonClass+'" type="button"'+disabled+' onclick="startCommand(\''+c.id+'\')">'+label+'</button>',c.id);
     }
-    return '<div class="card"><div class="command-head"><div><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div>'+runMeta+'<small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+blocker+'</div><div class="command-actions">'+actions+'</div></div></div>';
+    return '<div class="card"><div class="command-head"><div class="command-title">'+esc(c.title)+'</div><div class="command-desc">'+esc(c.description)+'</div>'+runMeta+'<small class="command-line">'+esc(c.displayCommand)+'</small>'+dependency+blocker+'<div class="command-actions">'+actions+'</div></div></div>';
   };
 
   target.innerHTML=groups.map(g=>{
