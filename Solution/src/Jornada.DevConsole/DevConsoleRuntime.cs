@@ -187,6 +187,8 @@ sealed record ZipTemplate(
     string DataNascimento,
     string NomeMae,
     string IdPessoaEntrega,
+    string CodigoPessoaOrigem,
+    string? Cpf,
     string CodigoRegistroOrigem,
     string ManifestJson,
     string PessoasJsonl,
@@ -274,6 +276,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
 
         var suffix=uuid.Replace("-","",StringComparison.Ordinal).ToUpperInvariant()[..8];
         var pessoaId=$"DEV-GOLD-{suffix}";
+        var pessoaOriginCode=$"DEV-PESSOA-{suffix}";
         var registroId=$"DEV-{contract.CodigoTipo}-{suffix}";
         var now=DateTimeOffset.Now;
         var today=DateTime.Today;
@@ -288,6 +291,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
         };
         var pessoa=new Dictionary<string,object?>{
             ["idPessoaEntrega"]=pessoaId,
+            ["codigoPessoaOrigem"]=pessoaOriginCode,
             ["cpf"]=null,
             ["cpfAusenteMotivo"]="NAO_INFORMADO_ORIGEM",
             ["nomeCompleto"]=nome,
@@ -322,7 +326,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
         }
         return new ZipTemplate(
             "gold.pessoa",uuid,contract.Key,contract.Label,contract.Gestor,contract.CodigoSistemaOrigem,contract.Natureza,contract.CodigoTipo,contract.TipoVersao,contract.PessoaSchemaVersao,
-            nome,nascimento,mae,pessoaId,registroId,
+            nome,nascimento,mae,pessoaId,pessoaOriginCode,null,registroId,
             JsonSerializer.Serialize(manifest,DevConsoleJson.Pretty),
             JsonSerializer.Serialize(pessoa,DevConsoleJson.Compact),
             JsonSerializer.Serialize(registro,DevConsoleJson.Compact));
