@@ -11,6 +11,7 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 
+# Pure regression coverage: no network or destructive operation is exercised here.
 class Dt12MergedBranchCleanupTests(unittest.TestCase):
     def test_selects_only_exact_current_head_of_merged_master_pr(self):
         repository = "owner/repo"
