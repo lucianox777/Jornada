@@ -162,12 +162,26 @@ sealed class LiveExecution
     }
 }
 
+sealed record ZipContractOption(
+    string Key,
+    string Label,
+    string Gestor,
+    string CodigoSistemaOrigem,
+    int PessoaSchemaVersao,
+    string Natureza,
+    string CodigoTipo,
+    int TipoVersao);
+
 sealed record ZipTemplate(
     string Source,
     string PessoaUuid,
+    string ContractKey,
+    string ContractLabel,
     string Gestor,
     string CodigoSistemaOrigem,
+    string Natureza,
     string CodigoTipo,
+    int TipoVersao,
     int PessoaSchemaVersao,
     string NomeCompleto,
     string DataNascimento,
@@ -180,7 +194,141 @@ sealed record ZipTemplate(
 
 sealed class GoldZipTemplateService(IWebHostEnvironment env)
 {
-    public async Task<ZipTemplate> GetAsync(CancellationToken ct)
+    public async Task<IReadOnlyList<ZipContractOption>> ListContractsAsync(CancellationToken ct)
+    {
+        const string query="""
+            SET NOCOUNT ON;
+            SELECT
+              g.codigo,
+              so.codigo,
+              CONVERT(varchar(10),gpv.versao),
+              tr.natureza,
+              tr.codigo,
+              CONVERT(varchar(10),trv.versao),
+              REPLACE(REPLACE(tr.nome,'|',' '),CHAR(10),' ')
+            FROM ref.gestor g
+            JOIN ref.sistema_origem so ON so.gestor_id=g.gestor_id AND so.ativo=1
+            JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id AND gpv.status IN('ATIVA','ENCERRADA')
+            JOIN ref.tipo_registro tr ON tr.gestor_id=g.gestor_id AND tr.ativo=1
+            JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id AND trv.status IN('ATIVA','ENCERRADA')
+            WHERE g.ativo=1
+            ORDER BY
+              g.codigo,
+              tr.codigo,
+              CASE gpv.status WHEN 'ATIVA' THEN 0 ELSE 1 END,
+              gpv.versao DESC,
+              CASE trv.status WHEN 'ATIVA' THEN 0 ELSE 1 END,
+              trv.versao DESC,
+              so.codigo;
+            """;
+        var output=await QueryAsync(query,ct);
+        var options=new List<ZipContractOption>();
+        foreach(var line in output.Split(new[]{'\r','\n'},StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries))
+        {
+            var parts=line.Split('|',StringSplitOptions.TrimEntries);
+            if(parts.Length<7||!int.TryParse(parts[2],out var pessoaVersao)||!int.TryParse(parts[5],out var tipoVersao))continue;
+            var gestor=parts[0];
+            var sistema=parts[1];
+            var natureza=parts[3];
+            var tipo=parts[4];
+            var key=$"{gestor}:{sistema}:P{pessoaVersao}:{natureza}:{tipo}:V{tipoVersao}";
+            var label=$"{gestor} · {tipo} v{tipoVersao} · Pessoa v{pessoaVersao} · {natureza} · {parts[6]}";
+            options.Add(new ZipContractOption(key,label,gestor,sistema,pessoaVersao,natureza,tipo,tipoVersao));
+        }
+        if(options.Count==0)throw new InvalidOperationException("Nenhum contrato de ingestão utilizável foi encontrado no catálogo ref.*.");
+        return options;
+    }
+
+    public Task<ZipTemplate> GetAsync(CancellationToken ct)=>GetAsync(null,ct);
+
+    public async Task<ZipTemplate> GetAsync(string? contractKey,CancellationToken ct)
+    {
+        var contracts=await ListContractsAsync(ct);
+        var contract=string.IsNullOrWhiteSpace(contractKey)
+            ?contracts.FirstOrDefault(x=>x.Gestor=="SEHAB"&&x.CodigoTipo=="AA01")??contracts[0]
+            :contracts.FirstOrDefault(x=>string.Equals(x.Key,contractKey,StringComparison.Ordinal));
+        if(contract is null)throw new InvalidOperationException($"Contrato de ingestão não encontrado ou não utilizável: {contractKey}.");
+
+        const string personQuery="""
+            SET NOCOUNT ON;
+            SELECT TOP(1)
+              CONVERT(varchar(36),p.pessoa_uuid),
+              REPLACE(REPLACE(p.nome_completo,'|',' '),CHAR(10),' '),
+              CONVERT(varchar(10),p.data_nascimento,23),
+              REPLACE(REPLACE(p.nome_mae,'|',' '),CHAR(10),' ')
+            FROM gold.pessoa p
+            WHERE p.nome_completo IS NOT NULL
+              AND p.data_nascimento IS NOT NULL
+              AND p.nome_mae IS NOT NULL
+            ORDER BY p.atualizado_em DESC,p.pessoa_uuid;
+            """;
+        var stdout=await QueryAsync(personQuery,ct);
+        var parts=stdout.Split('|',StringSplitOptions.TrimEntries);
+        if(parts.Length<4)throw new InvalidOperationException("Gold sintética não disponível para montar o exemplo do ZIP.");
+        var uuid=parts[0];
+        var nome=parts[1];
+        var nascimento=parts[2];
+        var mae=parts[3];
+        if(string.IsNullOrWhiteSpace(uuid)||string.IsNullOrWhiteSpace(nome)||string.IsNullOrWhiteSpace(nascimento)||string.IsNullOrWhiteSpace(mae))
+            throw new InvalidOperationException("Gold retornou Pessoa incompleta para o exemplo.");
+
+        var suffix=uuid.Replace("-","",StringComparison.Ordinal).ToUpperInvariant()[..8];
+        var pessoaId=$"DEV-GOLD-{suffix}";
+        var registroId=$"DEV-{contract.CodigoTipo}-{suffix}";
+        var now=DateTimeOffset.Now;
+        var today=DateTime.Today;
+        var manifest=new Dictionary<string,object?>{
+            ["formatoVersao"]=2,
+            ["pessoaSchemaVersao"]=contract.PessoaSchemaVersao,
+            ["codigoSistemaOrigem"]=contract.CodigoSistemaOrigem,
+            ["natureza"]=contract.Natureza,
+            ["codigoTipo"]=contract.CodigoTipo,
+            ["tipoVersao"]=contract.TipoVersao,
+            ["dataReferencia"]=now.ToString("yyyy-MM-ddTHH:mm:sszzz",System.Globalization.CultureInfo.InvariantCulture)
+        };
+        var pessoa=new Dictionary<string,object?>{
+            ["idPessoaEntrega"]=pessoaId,
+            ["cpf"]=null,
+            ["cpfAusenteMotivo"]="NAO_INFORMADO_ORIGEM",
+            ["nomeCompleto"]=nome,
+            ["dataNascimento"]=nascimento,
+            ["nomeMae"]=mae,
+            ["sourceTransactionId"]=$"DEV-GOLD-TX-{suffix}",
+            ["atributosTransversais"]=Array.Empty<object>()
+        };
+        Dictionary<string,object?> registro;
+        if(string.Equals(contract.Natureza,"SERVICO",StringComparison.Ordinal))
+        {
+            registro=new Dictionary<string,object?>{
+                ["idPessoaEntrega"]=pessoaId,
+                ["codigoRegistroOrigem"]=registroId,
+                ["operacao"]="INCLUSAO",
+                ["dataHoraServico"]=now.ToString("yyyy-MM-ddTHH:mm:sszzz",System.Globalization.CultureInfo.InvariantCulture),
+                ["unidadeServico"]="UNIDADE DEV",
+                ["situacao"]="REALIZADO"
+            };
+        }
+        else
+        {
+            registro=new Dictionary<string,object?>{
+                ["idPessoaEntrega"]=pessoaId,
+                ["codigoRegistroOrigem"]=registroId,
+                ["operacao"]="INCLUSAO",
+                ["dataInicioConcessao"]=today.AddDays(-30).ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture),
+                ["valorConcedido"]=600.0m,
+                ["dataEventoConcessao"]=today.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture),
+                ["situacaoVigencia"]="VIGENTE"
+            };
+        }
+        return new ZipTemplate(
+            "gold.pessoa",uuid,contract.Key,contract.Label,contract.Gestor,contract.CodigoSistemaOrigem,contract.Natureza,contract.CodigoTipo,contract.TipoVersao,contract.PessoaSchemaVersao,
+            nome,nascimento,mae,pessoaId,registroId,
+            JsonSerializer.Serialize(manifest,DevConsoleJson.Pretty),
+            JsonSerializer.Serialize(pessoa,DevConsoleJson.Compact),
+            JsonSerializer.Serialize(registro,DevConsoleJson.Compact));
+    }
+
+    async Task<string> QueryAsync(string query,CancellationToken ct)
     {
         var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
         var envFile=Path.Combine(root,".env.devconsole");
@@ -194,7 +342,6 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
         if(!vars.TryGetValue("JORNADA_SQL_SA_PASSWORD",out var password)||string.IsNullOrWhiteSpace(password))
             throw new InvalidOperationException("JORNADA_SQL_SA_PASSWORD ausente.");
 
-        var query="SET NOCOUNT ON; SELECT TOP(1) CONVERT(varchar(36),p.pessoa_uuid),REPLACE(REPLACE(p.nome_completo,'|',' '),CHAR(10),' '),CONVERT(varchar(10),p.data_nascimento,23),REPLACE(REPLACE(p.nome_mae,'|',' '),CHAR(10),' '),CONVERT(varchar(10),v.versao) FROM gold.pessoa p CROSS JOIN (SELECT TOP(1) gpv.versao FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='SEHAB' AND g.ativo=1 AND gpv.status IN('ATIVA','ENCERRADA') ORDER BY CASE gpv.status WHEN 'ATIVA' THEN 0 ELSE 1 END,gpv.versao DESC) v WHERE p.nome_completo IS NOT NULL AND p.data_nascimento IS NOT NULL AND p.nome_mae IS NOT NULL ORDER BY p.atualizado_em DESC,p.pessoa_uuid;";
         var psi=new ProcessStartInfo("docker"){WorkingDirectory=root,RedirectStandardOutput=true,RedirectStandardError=true,StandardOutputEncoding=Encoding.UTF8,StandardErrorEncoding=Encoding.UTF8,UseShellExecute=false,CreateNoWindow=true};
         psi.Environment["SQLCMDPASSWORD"]=password;
         foreach(var arg in new[]{"compose","--env-file",envFile,"exec","-T","-e","SQLCMDPASSWORD","sqlserver","/opt/mssql-tools18/bin/sqlcmd","-S","localhost","-U","sa","-C","-b","-I","-d",db,"-W","-h","-1","-s","|","-w","65535","-Q",query})psi.ArgumentList.Add(arg);
@@ -205,41 +352,8 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
         await process.WaitForExitAsync(ct);
         var stdout=(await stdoutTask).Trim();
         var stderr=await stderrTask;
-        if(process.ExitCode!=0)throw new InvalidOperationException($"Falha ao consultar Gold para exemplo do ZIP: {stderr.Trim()}");
-        var parts=stdout.Split('|',StringSplitOptions.TrimEntries);
-        if(parts.Length<5)throw new InvalidOperationException("Gold sintética ou contrato cadastral utilizável SEHAB não disponível para montar o exemplo.");
-        var uuid=parts[0];
-        var nome=parts[1];
-        var nascimento=parts[2];
-        var mae=parts[3];
-        if(!int.TryParse(parts[4],out var pessoaSchemaVersao)||pessoaSchemaVersao<1)throw new InvalidOperationException("Versão cadastral SEHAB utilizável inválida.");
-        if(string.IsNullOrWhiteSpace(uuid)||string.IsNullOrWhiteSpace(nome)||string.IsNullOrWhiteSpace(nascimento)||string.IsNullOrWhiteSpace(mae))
-            throw new InvalidOperationException("Gold retornou Pessoa incompleta para o exemplo.");
-
-        var suffix=uuid.Replace("-","",StringComparison.Ordinal).ToUpperInvariant()[..8];
-        var pessoaId=$"DEV-GOLD-{suffix}";
-        var registroId=$"DEV-GOLD-REG-{suffix}";
-        var gestor="SEHAB";
-        var sistema="SEHAB";
-        var tipo="AA01";
-        var today=DateTime.Today;
-        var manifest=new Dictionary<string,object?>{
-            ["formatoVersao"]=2,["pessoaSchemaVersao"]=pessoaSchemaVersao,["codigoSistemaOrigem"]=sistema,["natureza"]="BENEFICIO",["codigoTipo"]=tipo,["tipoVersao"]=1,
-            ["dataReferencia"]=DateTimeOffset.Now.ToString("yyyy-MM-ddTHH:mm:sszzz",System.Globalization.CultureInfo.InvariantCulture)
-        };
-        var pessoa=new Dictionary<string,object?>{
-            ["idPessoaEntrega"]=pessoaId,["cpf"]=null,["cpfAusenteMotivo"]="NAO_INFORMADO_ORIGEM",["nomeCompleto"]=nome,["dataNascimento"]=nascimento,["nomeMae"]=mae,
-            ["sourceTransactionId"]=$"DEV-GOLD-TX-{suffix}",["atributosTransversais"]=Array.Empty<object>()
-        };
-        var registro=new Dictionary<string,object?>{
-            ["idPessoaEntrega"]=pessoaId,["codigoRegistroOrigem"]=registroId,["operacao"]="INCLUSAO",["dataInicioConcessao"]=today.AddDays(-30).ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture),
-            ["valorConcedido"]=600.0m,["dataEventoConcessao"]=today.ToString("yyyy-MM-dd",System.Globalization.CultureInfo.InvariantCulture),["situacaoVigencia"]="VIGENTE"
-        };
-        return new ZipTemplate(
-            "gold.pessoa",uuid,gestor,sistema,tipo,pessoaSchemaVersao,nome,nascimento,mae,pessoaId,registroId,
-            JsonSerializer.Serialize(manifest,DevConsoleJson.Pretty),
-            JsonSerializer.Serialize(pessoa,DevConsoleJson.Compact),
-            JsonSerializer.Serialize(registro,DevConsoleJson.Compact));
+        if(process.ExitCode!=0)throw new InvalidOperationException($"Falha ao consultar catálogo/Gold para o ZIP: {stderr.Trim()}");
+        return stdout;
     }
 }
 

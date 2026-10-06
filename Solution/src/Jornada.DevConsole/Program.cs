@@ -35,8 +35,30 @@ app.MapGet("/api/commands",async(HttpResponse response,ConsoleRuntimeMode runtim
     var counts=await store.CountByCommandAsync(ct);
     var latest=await store.LatestByCommandAsync(ct);
 
+    RunSummary? LatestSuccess(params string[] ids)=>ids
+        .Select(id=>latest.TryGetValue(id,out var run)&&string.Equals(run.Status,"SUCESSO",StringComparison.Ordinal)?run:null)
+        .Where(run=>run is not null)
+        .OrderByDescending(run=>run!.FinishedAt)
+        .FirstOrDefault();
+
     string ExecutionState(CommandDefinition command)
     {
+        if(string.Equals(command.Id,"infra-blocking",StringComparison.Ordinal))
+        {
+            latest.TryGetValue(command.Id,out var direct);
+            var evidence=LatestSuccess("infra-blocking","blocking","infra-model","calibration","gold-synthetic","infrastructure");
+            if(direct is not null
+               &&!string.Equals(direct.Status,"SUCESSO",StringComparison.Ordinal)
+               &&(evidence is null||direct.FinishedAt>evidence.FinishedAt))
+                return "FALHA";
+            if(evidence is null)return "PENDENTE";
+            if(latest.TryGetValue("infra-corpus",out var corpus)
+               &&string.Equals(corpus.Status,"SUCESSO",StringComparison.Ordinal)
+               &&corpus.FinishedAt>evidence.FinishedAt)
+                return "DESATUALIZADO";
+            return "PRONTO";
+        }
+
         if(!latest.TryGetValue(command.Id,out var last))return "PENDENTE";
         if(string.Equals(last.Status,"PARCIAL",StringComparison.Ordinal))return "PENDENTE";
         if(!string.Equals(last.Status,"SUCESSO",StringComparison.Ordinal))return "FALHA";
@@ -87,8 +109,13 @@ app.MapPost("/api/commands/{command}/start",async(string command,[FromServices] 
     return Results.Accepted($"/api/runs/{started.Id}",started);
 });
 
-app.MapGet("/api/zip/template",async(GoldZipTemplateService service,CancellationToken ct)=>{
-    try{return Results.Ok(await service.GetAsync(ct));}
+app.MapGet("/api/zip/contracts",async(GoldZipTemplateService service,CancellationToken ct)=>{
+    try{return Results.Ok(await service.ListContractsAsync(ct));}
+    catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
+});
+
+app.MapGet("/api/zip/template",async(string? contract,GoldZipTemplateService service,CancellationToken ct)=>{
+    try{return Results.Ok(await service.GetAsync(contract,ct));}
     catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
 });
 
