@@ -188,9 +188,9 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
         <label>ID temporário nesta entrega<input id="zipPessoaId"><span class="small">Liga a Pessoa aos registros deste ZIP; não identifica a Pessoa entre entregas.</span></label>
         <label>Código da pessoa na origem (opcional)<input id="zipPessoaOrigem"><span class="small">Chave estável do sistema de origem. Use o mesmo valor em novas entregas da mesma Pessoa.</span></label>
         <label>CPF (opcional)<input id="zipCpf" inputmode="numeric" autocomplete="off"><span class="small">Quando informado, segue a rota determinística de CPF; vazio mantém o teste sem CPF.</span></label>
-        <label>Nome completo<input id="zipNome"></label>
-        <label>Data de nascimento<input id="zipNascimento" type="date"></label>
-        <label>Nome da mãe<input id="zipMae"></label>
+        <label>Nome completo (opcional)<input id="zipNome"></label>
+        <label>Data de nascimento (opcional)<input id="zipNascimento" type="date"></label>
+        <label>Nome da mãe (opcional)<input id="zipMae"></label>
         <label>Código do registro<input id="zipRegistroId"></label>
         <label class="zip-benefit-field">Valor concedido<input id="zipValor" type="number" step="0.01" value="600"></label>
         <label class="zip-benefit-field">Data do evento<input id="zipDataEvento" type="date"></label>
@@ -865,13 +865,12 @@ function syncFormToJson(){
   const dataNascimento=zipNascimento.value.trim();
   if(!idPessoaEntrega){alert('ID temporário nesta entrega é obrigatório.');zipPessoaId.focus();return false}
   if(cpf&&!/^\d{11}$/.test(cpf)){alert('CPF deve conter exatamente 11 dígitos.');zipCpf.focus();return false}
-  if(!nomeCompleto){alert('Nome completo é obrigatório.');zipNome.focus();return false}
-  if(!/^\d{4}-\d{2}-\d{2}$/.test(dataNascimento)){alert('Data de nascimento é obrigatória e deve ser uma data válida.');zipNascimento.focus();return false}
+  if(dataNascimento&&!/^\d{4}-\d{2}-\d{2}$/.test(dataNascimento)){alert('Quando informada, a data de nascimento deve ser válida.');zipNascimento.focus();return false}
   const pessoa={
     idPessoaEntrega,
     cpf:cpf||null,
     cpfAusenteMotivo:cpf?null:'NAO_INFORMADO_ORIGEM',
-    nomeCompleto,dataNascimento,nomeMae:zipMae.value.trim()||null,
+    nomeCompleto:nomeCompleto||null,dataNascimento:dataNascimento||null,nomeMae:zipMae.value.trim()||null,
     sourceTransactionId:'DEV-'+idPessoaEntrega,atributosTransversais:[]
   };
   if(codigoPessoaOrigem)pessoa.codigoPessoaOrigem=codigoPessoaOrigem;
@@ -913,9 +912,9 @@ function syncJsonToForm(){
     zipPessoaId.value=p.idPessoaEntrega||zipPessoaId.value;
     zipPessoaOrigem.value=p.codigoPessoaOrigem??'';
     zipCpf.value=p.cpf??'';
-    zipNome.value=p.nomeCompleto||zipNome.value;
-    zipNascimento.value=p.dataNascimento||zipNascimento.value;
-    zipMae.value=p.nomeMae||zipMae.value;
+    zipNome.value=p.nomeCompleto??'';
+    zipNascimento.value=p.dataNascimento??'';
+    zipMae.value=p.nomeMae??'';
     zipRegistroId.value=r.codigoRegistroOrigem||zipRegistroId.value;
     zipValor.value=r.valorConcedido??zipValor.value;
     zipDataEvento.value=r.dataEventoConcessao||r.dataInicioConcessao||zipDataEvento.value;
