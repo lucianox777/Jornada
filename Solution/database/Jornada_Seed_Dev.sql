@@ -130,67 +130,9 @@ ON t.atributo_codigo=s.atributo_codigo
 WHEN MATCHED THEN UPDATE SET nome=s.nome,formato_codigo=s.formato_codigo,regra_temporal_codigo=s.regra_temporal_codigo,cardinalidade=s.cardinalidade,chave_instancia_codigo=s.chave_instancia_codigo
 WHEN NOT MATCHED THEN INSERT(atributo_codigo,nome,formato_codigo,regra_temporal_codigo,cardinalidade,chave_instancia_codigo) VALUES(s.atributo_codigo,s.nome,s.formato_codigo,s.regra_temporal_codigo,s.cardinalidade,s.chave_instancia_codigo);
 
--- Contratos cadastrais versionados por Gestor.
--- v1/v2 permanecem aceitos para Entregas históricas; v3 torna nomeMae opcional/anulável sem reescrever contratos anteriores.
-INSERT ref.gestor_pessoa_versao(gestor_id,versao,vigencia_inicio,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
-SELECT g.gestor_id,1,'2026-01-01',CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v1/pessoa.schema.json'),
-       CASE g.codigo WHEN 'SEHAB' THEN 0x5de6ddecfe95db8575ed321b83fb0eb1801cf3f6767406701f3146d0f474fd44 WHEN 'SMADS' THEN 0xa382a796a9b08b68bad09854b59fad6d64e6f0280812bfc604266bf6845f41f1 WHEN 'SMDET' THEN 0xdae81766352934486e1d1ef319261911d549fe987817e10f38fd5e0aa6bf4743 WHEN 'SMS' THEN 0xa3eee657504e51e0d54960b1e87dd24450b1a3d70f4b6ae9a5647c104b39e9a0 END,
-       'ENCERRADA','2026-08-27'
-FROM ref.gestor g WHERE g.codigo IN('SMS','SEHAB','SMADS','SMDET')
-AND NOT EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v WHERE v.gestor_id=g.gestor_id AND v.versao=1);
-UPDATE v SET pessoa_schema_sha256=CASE g.codigo WHEN 'SEHAB' THEN 0x5de6ddecfe95db8575ed321b83fb0eb1801cf3f6767406701f3146d0f474fd44 WHEN 'SMADS' THEN 0xa382a796a9b08b68bad09854b59fad6d64e6f0280812bfc604266bf6845f41f1 WHEN 'SMDET' THEN 0xdae81766352934486e1d1ef319261911d549fe987817e10f38fd5e0aa6bf4743 WHEN 'SMS' THEN 0xa3eee657504e51e0d54960b1e87dd24450b1a3d70f4b6ae9a5647c104b39e9a0 END,
-             status='ENCERRADA',vigencia_fim=COALESCE(v.vigencia_fim,'2026-09-05')
-FROM ref.gestor_pessoa_versao v JOIN ref.gestor g ON g.gestor_id=v.gestor_id
-WHERE v.versao=1 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
-
-INSERT ref.gestor_pessoa_versao(gestor_id,versao,vigencia_inicio,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
-SELECT g.gestor_id,2,'2026-09-05',CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v2/pessoa.schema.json'),
-       CASE g.codigo WHEN 'SEHAB' THEN 0xcf6033756c0409469e1defc76ac46650921b8e6c4bf5a76d8b0bc2087efb2e89 WHEN 'SMADS' THEN 0xfa1c70cb21eee04606a169c661c168edb83882f4812c0c6ce4656d551dce38a6 WHEN 'SMDET' THEN 0x2ff50ee5a53d095b4da625ab0d2014e1dd2aef91a12011ebea2e52d60da143ed WHEN 'SMS' THEN 0xa68da8985cbb709a5c7cd9225192b1ccb2300c7aaf184cfcd26ebf41e9570ec4 END,
-       'ATIVA','2026-09-05'
-FROM ref.gestor g WHERE g.codigo IN('SMS','SEHAB','SMADS','SMDET')
-AND NOT EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v WHERE v.gestor_id=g.gestor_id AND v.versao=2);
-UPDATE v SET pessoa_schema_ref=CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v2/pessoa.schema.json'),
-             pessoa_schema_sha256=CASE g.codigo WHEN 'SEHAB' THEN 0xcf6033756c0409469e1defc76ac46650921b8e6c4bf5a76d8b0bc2087efb2e89 WHEN 'SMADS' THEN 0xfa1c70cb21eee04606a169c661c168edb83882f4812c0c6ce4656d551dce38a6 WHEN 'SMDET' THEN 0x2ff50ee5a53d095b4da625ab0d2014e1dd2aef91a12011ebea2e52d60da143ed WHEN 'SMS' THEN 0xa68da8985cbb709a5c7cd9225192b1ccb2300c7aaf184cfcd26ebf41e9570ec4 END,
-             status='ENCERRADA',vigencia_inicio='2026-09-05',vigencia_fim=COALESCE(v.vigencia_fim,'2026-09-12'),ativado_em=COALESCE(v.ativado_em,'2026-09-05')
-FROM ref.gestor_pessoa_versao v JOIN ref.gestor g ON g.gestor_id=v.gestor_id
-WHERE v.versao=2 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
-
-INSERT ref.gestor_pessoa_versao(gestor_id,versao,vigencia_inicio,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
-SELECT g.gestor_id,3,'2026-09-12',CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v3/pessoa.schema.json'),
-       CASE g.codigo WHEN 'SEHAB' THEN 0xa4ea4f9c337f781e352877e03394f4d0e0db9eab6b9cb348439fe57a067b9752 WHEN 'SMADS' THEN 0x8b0b9709dc8afe420aa8a4693ce461b73d91cde84561702285e4fb48475cb656 WHEN 'SMDET' THEN 0x083937b02cdb31bcdd1265f34dacea80523ad08e1439f9ee6c44705f4433ed75 WHEN 'SMS' THEN 0x2fd8376496f33a422124dab61238498588ddfd99dfba944963787d9c26ea3550 END,
-       'ATIVA','2026-09-12'
-FROM ref.gestor g WHERE g.codigo IN('SMS','SEHAB','SMADS','SMDET')
-AND NOT EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v WHERE v.gestor_id=g.gestor_id AND v.versao=3);
-UPDATE v SET pessoa_schema_ref=CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v3/pessoa.schema.json'),
-             pessoa_schema_sha256=CASE g.codigo WHEN 'SEHAB' THEN 0xa4ea4f9c337f781e352877e03394f4d0e0db9eab6b9cb348439fe57a067b9752 WHEN 'SMADS' THEN 0x8b0b9709dc8afe420aa8a4693ce461b73d91cde84561702285e4fb48475cb656 WHEN 'SMDET' THEN 0x083937b02cdb31bcdd1265f34dacea80523ad08e1439f9ee6c44705f4433ed75 WHEN 'SMS' THEN 0x2fd8376496f33a422124dab61238498588ddfd99dfba944963787d9c26ea3550 END,
-             status='ENCERRADA',vigencia_inicio='2026-09-12',vigencia_fim=COALESCE(v.vigencia_fim,'2026-09-19'),ativado_em=COALESCE(v.ativado_em,'2026-09-12')
-FROM ref.gestor_pessoa_versao v JOIN ref.gestor g ON g.gestor_id=v.gestor_id
-WHERE v.versao=3 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
-
-INSERT ref.gestor_pessoa_versao(gestor_id,versao,vigencia_inicio,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
-SELECT g.gestor_id,4,'2026-09-19',CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v4/pessoa.schema.json'),
-       CASE g.codigo WHEN 'SEHAB' THEN 0x4441b5f43d1e25a672d52c31b5f85794123e0cca99044620c1c9616f9f5cad43 WHEN 'SMADS' THEN 0x20cf0ce86ddd1fac0f8a894ae8509035ca94a97dc488e1efa395c7d1864f47e9 WHEN 'SMDET' THEN 0x94bc5ad8a128dddb0a0d9f32cd7fd649338e5e3209b0015053c7493f262a8719 WHEN 'SMS' THEN 0x93fc2b62b56c0d817f36de77fe6f5953296404938e41e66f8c734b72bc585413 END,
-       'ATIVA','2026-09-19'
-FROM ref.gestor g WHERE g.codigo IN('SMS','SEHAB','SMADS','SMDET')
-AND NOT EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v WHERE v.gestor_id=g.gestor_id AND v.versao=4);
-UPDATE v SET pessoa_schema_ref=CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v4/pessoa.schema.json'),
-             pessoa_schema_sha256=CASE g.codigo WHEN 'SEHAB' THEN 0x4441b5f43d1e25a672d52c31b5f85794123e0cca99044620c1c9616f9f5cad43 WHEN 'SMADS' THEN 0x20cf0ce86ddd1fac0f8a894ae8509035ca94a97dc488e1efa395c7d1864f47e9 WHEN 'SMDET' THEN 0x94bc5ad8a128dddb0a0d9f32cd7fd649338e5e3209b0015053c7493f262a8719 WHEN 'SMS' THEN 0x93fc2b62b56c0d817f36de77fe6f5953296404938e41e66f8c734b72bc585413 END,
-             status=CASE WHEN EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v6 WHERE v6.gestor_id=v.gestor_id AND v6.versao=6) THEN 'ENCERRADA' ELSE 'ATIVA' END,
-             vigencia_inicio='2026-09-19',
-             vigencia_fim=CASE WHEN EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v6 WHERE v6.gestor_id=v.gestor_id AND v6.versao=6) THEN COALESCE(v.vigencia_fim,'2026-10-06') ELSE NULL END,
-             ativado_em=COALESCE(v.ativado_em,'2026-09-19')
-FROM ref.gestor_pessoa_versao v JOIN ref.gestor g ON g.gestor_id=v.gestor_id
-WHERE v.versao=4 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
-
--- Pessoa v6 é a única versão ativa para novas Entregas DEV.
--- As versões anteriores permanecem catalogadas apenas para leitura/replay histórico.
-UPDATE v
-   SET status='ENCERRADA',
-       vigencia_fim=COALESCE(v.vigencia_fim,'2026-10-06')
-FROM ref.gestor_pessoa_versao v
-JOIN ref.gestor g ON g.gestor_id=v.gestor_id
-WHERE v.versao<6 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
-
+-- Contrato cadastral corrente por Gestor.
+-- O ambiente ainda está em desenvolvimento: somente Pessoa v6 é publicado no seed atual.
+-- Versões anteriores não são recriadas nem usadas por novas Entregas.
 DECLARE @PessoaV6 TABLE(codigo NVARCHAR(20) PRIMARY KEY, schema_hash BINARY(32));
 INSERT @PessoaV6(codigo,schema_hash) VALUES
  (N'SEHAB',0x930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4),
@@ -231,11 +173,20 @@ JOIN ref.gestor g ON g.gestor_id=v.gestor_id
 JOIN @PessoaV6 x ON x.codigo=g.codigo
 WHERE v.versao=6;
 
--- Fixtures abaixo são históricas e preservam a versão Pessoa original para replay.
--- Novas Entregas continuam resolvendo a única versão ATIVA (v6).
-DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=4),
-        @gpvSmads BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND versao=4),
-        @gpvSms BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSms AND versao=4);
+-- Em bancos DEV reaproveitados, remove metadados antigos somente quando não há
+-- Entrega referenciando-os. Um reset do ambiente elimina integralmente o legado.
+DELETE v
+FROM ref.gestor_pessoa_versao v
+JOIN ref.gestor g ON g.gestor_id=v.gestor_id
+WHERE v.versao<>6
+  AND g.codigo IN('SMS','SEHAB','SMADS','SMDET')
+  AND NOT EXISTS(
+      SELECT 1 FROM ingestao.entrega e
+      WHERE e.gestor_pessoa_versao_id=v.gestor_pessoa_versao_id);
+
+DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=6 AND status='ATIVA'),
+        @gpvSmads BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND versao=6 AND status='ATIVA'),
+        @gpvSms BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSms AND versao=6 AND status='ATIVA');
 
 -- Credenciais no banco guardam somente secret_ref. Os IDs abaixo são os mesmos da fixture
 -- config/security/test-access-keys.json para que toda chamada DEV possa ser auditada por FK.
