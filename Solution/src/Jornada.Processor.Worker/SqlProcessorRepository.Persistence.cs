@@ -105,7 +105,7 @@ internal sealed partial class SqlProcessorRepository
         }
 
         var identifiers = person.Identificadores ?? Array.Empty<ParsedPersonIdentifier>();
-        var origin = await ResolvePersonOriginV4Async(
+        var origin = await ResolvePersonOriginAsync(
             connection, tx, batch.SistemaOrigemId, person.CodigoPessoaOrigem,
             manifest.CodigoBasePessoaOrigem, identifiers, ct);
         long? pessoaOrigemId = origin?.PessoaOrigemId;
