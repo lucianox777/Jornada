@@ -338,7 +338,7 @@ internal sealed class SqlIngestionService(IOperationalSqlAdapter connections, IB
             SELECT g.gestor_id,gpv.gestor_pessoa_versao_id
             FROM ref.gestor g
             JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id AND gpv.versao=@pessoa_versao
-            WHERE g.codigo=@gestor AND g.ativo=1 AND gpv.status IN('ATIVA','ENCERRADA');
+            WHERE g.codigo=@gestor AND g.ativo=1 AND gpv.status='ATIVA';
             """;
         command.Parameters.Add(new SqlParameter("@gestor", SqlDbType.NVarChar, 30) { Value = context.GestorCodigo });
         command.Parameters.AddWithValue("@pessoa_versao", manifest.PessoaSchemaVersao);
