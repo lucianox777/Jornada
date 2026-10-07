@@ -18,7 +18,7 @@ sealed record CommandDefinition(string Id,string Title,string Description,string
         "semiblind"=>"POST /api/v1/identidade/candidatos (DEV sintético)",
         "configuration"=>"config/contracts/**/*.json + config/**/*.json + install/windows-production/Jornada.Cluster.Test.json",
         "bronze"=>"bronze.entrega_arquivo · objeto físico + metadados + Jornada.Bronze.Verify",
-        "silver"=>"Jornada.Processor.Worker · Bronze → Silver · One shot: no máximo um lote por clique",
+        "silver"=>"Jornada.Processor.Worker · Bronze → Silver · PROCESS_UNTIL_IDLE restrito à Entrega atual",
         "linkage"=>"Jornada.Linkage.Runner · resolução probabilística one-shot da última entrega",
         "gold"=>"gold.pessoa · estado publicado após Processor/Linkage",
         "infrastructure"=>"Orquestra 7 etapas independentes e reentrantes de preparação do ambiente",
