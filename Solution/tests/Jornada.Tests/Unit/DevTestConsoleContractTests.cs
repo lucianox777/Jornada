@@ -535,8 +535,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("--pessoa-observacao-id"));
             Assert.That(opsScript,Does.Contain("dev-console-entrega:$entregaId"));
             Assert.That(opsScript,Does.Contain("Backlog pendente de outras cargas não foi selecionado."));
-            Assert.That(runtime,Does.Contain("uma única invocação do Jornada.Linkage.Runner"));
-            Assert.That(runtime,Does.Contain("Jornada.Linkage.Runner no NODE2"));
+            Assert.That(runtime,Does.Contain("Jornada.Linkage.Runner no NODE2 somente para observações probabilísticas elegíveis"));
+            Assert.That(runtime,Does.Contain("no-op de sucesso, sem chamar o Runner"));
             Assert.That(runtime,Does.Contain("[\"silver\"]"));
             Assert.That(page,Does.Contain("Fluxo do dado"));
             Assert.That(page,Does.Contain("Pré-requisitos:"));
