@@ -639,9 +639,11 @@ public sealed class DevTestConsoleContractTests
         var nomeTypes=properties.GetProperty("nomeCompleto").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
         var nascimentoTypes=properties.GetProperty("dataNascimento").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
         var seed=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Seed_Dev.sql"));
+        var schemaHash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(schemaPath)));
 
         Assert.Multiple(()=>{
             Assert.That(required,Is.EqualTo(new[]{"idPessoaEntrega"}));
+            Assert.That(schemaHash,Is.EqualTo("930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4"));
             Assert.That(nomeTypes,Does.Contain("null"));
             Assert.That(nascimentoTypes,Does.Contain("null"));
             Assert.That(seed,Does.Contain("config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json"));
