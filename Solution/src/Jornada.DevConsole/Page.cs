@@ -90,7 +90,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
     <div class="hero">
       <h2>Fluxo do dado</h2>
       <p>A Console acompanha a mesma jornada da aplicação: preparação do ambiente em etapas independentes → ingestão → Bronze → Silver → identidade/Linkage → Gold/Serving → encerramento.</p>
-      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. Em <b>4.1 · Processar um lote</b>, cada clique é <b>One shot</b> e executa no máximo uma iteração do Processor para a Entrega atual. Repita 4.1 até concluir Silver. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional. Cada botão mostra, imediatamente à esquerda, quantas vezes sua ação foi executada nesta sessão. As contagens reiniciam ao abrir a Console e podem ser zeradas por seção.</div>
+      <div class="flow-note">No modo didático da Console, o Processor residente é suspenso. Em <b>4.1 · Processar Bronze → Silver</b>, a Console executa <b>PROCESS_UNTIL_IDLE</b> somente para a Entrega atual, até não restarem lotes ou atingir o limite entre lotes; outras Entregas não são consumidas. HML é o modo padrão; use <code>console.cmd --dev</code> apenas para habilitar o corpus adicional. Cada botão mostra, imediatamente à esquerda, quantas vezes sua ação foi executada nesta sessão. As contagens reiniciam ao abrir a Console e podem ser zeradas por seção.</div>
     </div>
     <div id="commands">Carregando...</div>
   </section>
@@ -469,7 +469,7 @@ async function loadCommands(surface='flow'){
       actions=actionRow(child(1),'Visualizar Bronze','Abre metadados e localização lógica dos objetos recebidos.','<button class="primary" type="button" onclick="openLayerDialog(\'bronze\')">Visualizar Bronze</button>',null,true)
         +actionRow(child(2),'Verificar integridade','Valida objeto, SHA-256 e tamanho físico da última Entrega sem processá-la.','<button class="secondary" type="button" onclick="startCommand(\'bronze-verify-latest\',\'Verificar integridade da última Entrega\')">Verificar integridade</button>','bronze-verify-latest');
     }else if(c.id==='silver'){
-      actions=actionRow(child(1),'Processar um lote','One shot · executa uma única iteração do Processor e processa no máximo um lote da Entrega atual. Repita enquanto houver lotes pendentes.','<button class="primary" type="button" onclick="startCommand(\'silver\',\'4.1 · Processar um lote Bronze → Silver\')">Executar one shot</button>','silver')
+      actions=actionRow(child(1),'Processar Bronze → Silver','Execução finita · processa somente a Entrega atual até ficar sem lotes ou atingir o limite entre lotes. Outras Entregas permanecem intocadas.','<button class="primary" type="button" onclick="startCommand(\'silver\',\'4.1 · Processar Bronze → Silver\')">Processar até concluir</button>','silver')
         +actionRow(child(2),'Visualizar Silver','Inspeciona as observações já materializadas na Silver; não executa o Processor.','<button class="secondary" type="button" onclick="openLayerDialog(\'silver\')">Visualizar Silver</button>',null,true)
         +actionRow(child(3),'Consultar status','Consulta o estado da Entrega para confirmar se ainda há processamento pendente.','<button class="secondary" type="button" onclick="startCommand(\'pipeline-status\',\'Ver status da última ingestão\')">Consultar status</button>','pipeline-status');
     }else if(c.id==='linkage'){
