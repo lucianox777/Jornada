@@ -13,7 +13,7 @@ public sealed class IngestionContractTests
     [Test]
     public void Manifest_uses_single_delivery_envelope_without_external_version_or_family()
     {
-        var manifest = new IngestionPackageManifest(2, 1, "SEHAB", IntegrationNature.BENEFICIO, "AA01", 1, DateTimeOffset.UtcNow);
+        var manifest = new IngestionPackageManifest(2, ContractVersions.CurrentPersonSchemaVersion, "SEHAB", IntegrationNature.BENEFICIO, "AA01", 1, DateTimeOffset.UtcNow);
         var names = typeof(IngestionPackageManifest).GetProperties().Select(p => p.Name).ToArray();
         Assert.Multiple(() =>
         {
@@ -78,7 +78,7 @@ public sealed class IngestionContractTests
     [Test]
     public void Partial_fact_context_is_rejected_even_when_registros_is_empty()
     {
-        var manifest = "{\"formatoVersao\":2,\"pessoaSchemaVersao\":1,\"codigoSistemaOrigem\":\"SAUDE\",\"natureza\":\"SERVICO\",\"codigoTipo\":null,\"tipoVersao\":null,\"dataReferencia\":\"2026-08-28T00:00:00-03:00\"}";
+        var manifest = "{\"formatoVersao\":2,\"pessoaSchemaVersao\":6,\"codigoSistemaOrigem\":\"SAUDE\",\"natureza\":\"SERVICO\",\"codigoTipo\":null,\"tipoVersao\":null,\"dataReferencia\":\"2026-08-28T00:00:00-03:00\"}";
         var bytes = BuildZip(new Dictionary<string,string>
         {
             ["manifest.json"] = manifest,
@@ -172,7 +172,7 @@ public sealed class IngestionContractTests
     [Test]
     public void Canonical_filename_rejects_path_traversal()
     {
-        var manifest = new IngestionPackageManifest(2, 1, "SAUDE", null, null, null, DateTimeOffset.UtcNow);
+        var manifest = new IngestionPackageManifest(2, ContractVersions.CurrentPersonSchemaVersion, "SAUDE", null, null, null, DateTimeOffset.UtcNow);
         var context = new AccessContext(Guid.NewGuid(), AccessCredentialType.GESTOR, "SMS", "SMS", null, [], []);
         var hash = new string('a', 64);
         Assert.That(() => IngestionPackageInspector.ValidateCanonicalFileName($"../ENTREGA_SMS_SAUDE_v2_{hash}.zip", manifest, context, hash), Throws.TypeOf<InvalidDataException>());
@@ -259,12 +259,12 @@ public sealed class IngestionContractTests
     }
 
     private static string CadastroManifest() =>
-        "{\"formatoVersao\":2,\"pessoaSchemaVersao\":1,\"codigoSistemaOrigem\":\"SAUDE\",\"natureza\":null,\"codigoTipo\":null,\"tipoVersao\":null,\"dataReferencia\":\"2026-08-28T00:00:00-03:00\"}";
+        "{\"formatoVersao\":2,\"pessoaSchemaVersao\":6,\"codigoSistemaOrigem\":\"SAUDE\",\"natureza\":null,\"codigoTipo\":null,\"tipoVersao\":null,\"dataReferencia\":\"2026-08-28T00:00:00-03:00\"}";
 
     private static string FactualManifest(string natureza, string codigo)
     {
         var sistema = natureza == "SERVICO" ? "ASSISTENCIA" : "SEHAB";
-        return $"{{\"formatoVersao\":2,\"pessoaSchemaVersao\":1,\"codigoSistemaOrigem\":\"{sistema}\",\"natureza\":\"{natureza}\",\"codigoTipo\":\"{codigo}\",\"tipoVersao\":1,\"dataReferencia\":\"2026-08-28T00:00:00-03:00\"}}";
+        return $"{{\"formatoVersao\":2,\"pessoaSchemaVersao\":6,\"codigoSistemaOrigem\":\"{sistema}\",\"natureza\":\"{natureza}\",\"codigoTipo\":\"{codigo}\",\"tipoVersao\":1,\"dataReferencia\":\"2026-08-28T00:00:00-03:00\"}}";
     }
 
     private static byte[] BuildZip(IReadOnlyDictionary<string,string> files)
