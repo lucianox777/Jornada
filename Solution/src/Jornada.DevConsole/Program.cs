@@ -10,8 +10,41 @@ builder.Services.AddSingleton<SemiblindDevService>();
 builder.Services.AddSingleton<ContractFileService>();
 builder.Services.AddSingleton<ActiveConfigFileService>();
 builder.Services.AddSingleton<LayerBrowserService>();
+builder.Services.AddSingleton<ConsoleActivityLog>();
 
 var app=builder.Build();
+
+app.Use(async(context,next)=>{
+    if(!context.Request.Path.StartsWithSegments("/api")||context.Request.Path.StartsWithSegments("/api/activity"))
+    {
+        await next();
+        return;
+    }
+
+    var activity=context.RequestServices.GetRequiredService<ConsoleActivityLog>();
+    var sw=System.Diagnostics.Stopwatch.StartNew();
+    var action=$"{context.Request.Method} {context.Request.Path}{context.Request.QueryString}";
+    var exceptionLogged=false;
+    try
+    {
+        await next();
+    }
+    catch(Exception ex)
+    {
+        exceptionLogged=true;
+        sw.Stop();
+        activity.Add("HTTP",action,"EXCEPTION",ex.Message,sw.ElapsedMilliseconds);
+        throw;
+    }
+    finally
+    {
+        if(!exceptionLogged)
+        {
+            sw.Stop();
+            activity.Add("HTTP",action,context.Response.StatusCode.ToString(System.Globalization.CultureInfo.InvariantCulture),durationMs:sw.ElapsedMilliseconds);
+        }
+    }
+});
 
 app.MapGet("/",(HttpResponse response)=>{
     response.Headers.CacheControl="no-store, no-cache, must-revalidate";
@@ -93,13 +126,15 @@ app.MapGet("/api/commands",async(HttpResponse response,ConsoleRuntimeMode runtim
 app.MapGet("/api/runs",async(RunStore store,CancellationToken ct)=>
     Results.Ok(await store.ListSessionSummariesAsync(ct)));
 
+app.MapGet("/api/activity",(ConsoleActivityLog activity)=>Results.Ok(activity.Snapshot()));
+
 app.MapPost("/api/session-counts/reset",([FromBody] string[] commands,RunStore store)=>
     Results.Ok(new{reset=store.ResetExecutionCounts(commands)}));
 
 app.MapGet("/api/runs/{id:guid}",async(Guid id,RunStore store,CancellationToken ct)=>
     await store.GetAsync(id,ct) is { } run?Results.Ok(run):Results.NotFound());
 
-app.MapPost("/api/commands/{command}/start",async(string command,[FromServices] LiveExecutionService live,[FromServices] ConsoleRuntimeMode runtime,[FromServices] RunStore store,CancellationToken ct)=>{
+app.MapPost("/api/commands/{command}/start",async(string command,[FromServices] LiveExecutionService live,[FromServices] ConsoleRuntimeMode runtime,[FromServices] RunStore store,[FromServices] ConsoleActivityLog activity,CancellationToken ct)=>{
     var definition=CommandCatalog.All.FirstOrDefault(x=>x.Id.Equals(command,StringComparison.OrdinalIgnoreCase));
     if(definition is null)return Results.NotFound();
     if(runtime.IsDisabled(definition))
@@ -109,17 +144,36 @@ app.MapPost("/api/commands/{command}/start",async(string command,[FromServices] 
     if(flowBlockedReason is not null)
         return Results.Conflict(new{error=flowBlockedReason,mode=runtime.Mode});
     var started=live.StartCommand(definition);
+    activity.Add("EXECUCAO",definition.Id,"INICIADA",$"{definition.Title} #{started.ExecutionNumber}");
     return Results.Accepted($"/api/runs/{started.Id}",started);
 });
 
-app.MapGet("/api/zip/contracts",async(GoldZipTemplateService service,CancellationToken ct)=>{
-    try{return Results.Ok(await service.ListContractsAsync(ct));}
-    catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
+app.MapGet("/api/zip/contracts",async(GoldZipTemplateService service,ConsoleActivityLog activity,CancellationToken ct)=>{
+    try
+    {
+        var contracts=await service.ListContractsAsync(ct);
+        activity.Add("ZIP","carregar-contratos","SUCESSO",$"{contracts.Count} combinação(ões) utilizável(is).");
+        return Results.Ok(contracts);
+    }
+    catch(Exception ex)
+    {
+        activity.Add("ZIP","carregar-contratos","FALHA",ex.Message);
+        return Results.BadRequest(new{error=ex.Message});
+    }
 });
 
-app.MapGet("/api/zip/template",async(string? contract,GoldZipTemplateService service,CancellationToken ct)=>{
-    try{return Results.Ok(await service.GetAsync(contract,ct));}
-    catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
+app.MapGet("/api/zip/template",async(string? contract,GoldZipTemplateService service,ConsoleActivityLog activity,CancellationToken ct)=>{
+    try
+    {
+        var template=await service.GetAsync(contract,ct);
+        activity.Add("ZIP","carregar-template","SUCESSO",template.ContractLabel);
+        return Results.Ok(template);
+    }
+    catch(Exception ex)
+    {
+        activity.Add("ZIP","carregar-template","FALHA",ex.Message);
+        return Results.BadRequest(new{error=ex.Message});
+    }
 });
 
 app.MapGet("/api/semiblind/template",async(SemiblindDevService service,CancellationToken ct)=>{
@@ -159,8 +213,9 @@ app.MapPut("/api/config/active/file",async(ActiveConfigSaveRequest request,Activ
     try{return Results.Ok(await service.SaveAsync(request,ct));}catch(Exception ex){return Results.BadRequest(new{error=ex.Message});}
 });
 
-app.MapPost("/api/zip/manual/start",static([FromBody] ManualZipRequest request,[FromServices] LiveExecutionService live)=>{
+app.MapPost("/api/zip/manual/start",static([FromBody] ManualZipRequest request,[FromServices] LiveExecutionService live,[FromServices] ConsoleActivityLog activity)=>{
     var started=live.StartManualZip(request);
+    activity.Add("EXECUCAO","zip","INICIADA",$"Gerar ZIP de ingestão #{started.ExecutionNumber}");
     return Results.Accepted($"/api/runs/{started.Id}",started);
 });
 

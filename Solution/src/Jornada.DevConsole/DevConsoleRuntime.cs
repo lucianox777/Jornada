@@ -18,7 +18,7 @@ sealed record CommandDefinition(string Id,string Title,string Description,string
         "semiblind"=>"POST /api/v1/identidade/candidatos (DEV sintético)",
         "configuration"=>"config/contracts/**/*.json + config/**/*.json + install/windows-production/Jornada.Cluster.Test.json",
         "bronze"=>"bronze.entrega_arquivo · objeto físico + metadados + Jornada.Bronze.Verify",
-        "silver"=>"Jornada.Processor.Worker · Bronze → Silver · One shot: no máximo um lote por clique",
+        "silver"=>"Jornada.Processor.Worker · Bronze → Silver · PROCESS_UNTIL_IDLE restrito à Entrega atual",
         "linkage"=>"Jornada.Linkage.Runner · resolução probabilística one-shot da última entrega",
         "gold"=>"gold.pessoa · estado publicado após Processor/Linkage",
         "infrastructure"=>"Orquestra 7 etapas independentes e reentrantes de preparação do ambiente",
@@ -32,6 +32,31 @@ sealed record RunRecord(Guid Id,string Command,string Title,DateTimeOffset Start
 sealed record RunSummary(Guid Id,string Command,string Title,DateTimeOffset StartedAt,DateTimeOffset FinishedAt,string Status,string Summary,int ExecutionNumber=0,Guid? ParentRunId=null);
 sealed record StartedExecution(Guid Id,int ExecutionNumber);
 sealed record ConsoleEvent(long Seq,DateTimeOffset At,string Stream,string Text);
+sealed record ConsoleActivityEntry(long Seq,DateTimeOffset At,string Category,string Action,string Status,string Detail,long? DurationMs);
+
+sealed class ConsoleActivityLog
+{
+    readonly ConcurrentQueue<ConsoleActivityEntry> entries=new();
+    long seq;
+    const int MaxEntries=1000;
+
+    public void Add(string category,string action,string status,string detail="",long? durationMs=null)
+    {
+        entries.Enqueue(new ConsoleActivityEntry(
+            Interlocked.Increment(ref seq),
+            DateTimeOffset.UtcNow,
+            category,
+            action,
+            status,
+            detail,
+            durationMs));
+        while(entries.Count>MaxEntries&&entries.TryDequeue(out _)){}
+    }
+
+    public IReadOnlyList<ConsoleActivityEntry> Snapshot()=>entries
+        .OrderByDescending(x=>x.Seq)
+        .ToArray();
+}
 
 static class DevConsoleJson
 {
@@ -200,6 +225,18 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
     {
         const string query="""
             SET NOCOUNT ON;
+            ;WITH pessoa_mais_recente AS(
+                SELECT
+                  gpv.*,
+                  ROW_NUMBER() OVER(
+                    PARTITION BY gpv.gestor_id
+                    ORDER BY gpv.versao DESC,
+                             CASE gpv.status WHEN 'ATIVA' THEN 0 WHEN 'ENCERRADA' THEN 1 ELSE 2 END,
+                             gpv.gestor_pessoa_versao_id DESC
+                  ) AS rn
+                FROM ref.gestor_pessoa_versao gpv
+                WHERE gpv.status IN('ATIVA','ENCERRADA','RASCUNHO')
+            )
             SELECT
               g.codigo,
               so.codigo,
@@ -210,14 +247,13 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
               REPLACE(REPLACE(tr.nome,'|',' '),CHAR(10),' ')
             FROM ref.gestor g
             JOIN ref.sistema_origem so ON so.gestor_id=g.gestor_id AND so.ativo=1
-            JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id AND gpv.status='ATIVA'
+            JOIN pessoa_mais_recente gpv ON gpv.gestor_id=g.gestor_id AND gpv.rn=1
             JOIN ref.tipo_registro tr ON tr.gestor_id=g.gestor_id AND tr.ativo=1
             JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id AND trv.status IN('ATIVA','ENCERRADA')
             WHERE g.ativo=1
             ORDER BY
               g.codigo,
               tr.codigo,
-              gpv.versao DESC,
               CASE trv.status WHEN 'ATIVA' THEN 0 ELSE 1 END,
               trv.versao DESC,
               so.codigo;

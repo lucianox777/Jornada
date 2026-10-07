@@ -83,6 +83,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
     <button class="iconbtn" type="button" onclick="showHome()">⌂ Fluxo</button>
     <button class="iconbtn" type="button" onclick="showTools()">🧰 Ferramentas</button>
     <button class="iconbtn" type="button" onclick="showHistory()">🕘 Execuções</button>
+    <button class="iconbtn" type="button" onclick="openActivityLog()">📋 Log da sessão</button>
   </div>
 </header>
 <main>
@@ -127,6 +128,22 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
     <div id="history">Carregando...</div>
   </section>
 </main>
+
+<dialog id="activityDialog">
+  <div class="dialog-head"><strong>Log da sessão</strong><button class="secondary" type="button" onclick="activityDialog.close()">Fechar</button></div>
+  <div class="dialog-body">
+    <p class="small">Reúne as execuções persistidas desta sessão e as chamadas da própria Console, inclusive falhas ao carregar contratos ou abrir operações.</p>
+    <div class="tabs"><button class="secondary" type="button" onclick="loadActivityLog()">Atualizar</button></div>
+    <div id="activityRuns"></div>
+    <h3>Atividade HTTP / UI</h3>
+    <div id="activityRequests"></div>
+    <div id="activityRunDetail" class="hidden">
+      <h3>Saída da execução</h3>
+      <pre id="activityRunOutput" style="background:#0b0f14;color:#d7e0ea;padding:12px;border-radius:7px;white-space:pre-wrap;overflow:auto;max-height:38vh"></pre>
+    </div>
+  </div>
+  <div class="dialog-actions"><button class="secondary" type="button" onclick="activityDialog.close()">Fechar</button></div>
+</dialog>
 
 <dialog id="contractDialog">
   <div class="dialog-head"><strong>Contratos de ingestão</strong><button class="secondary" type="button" onclick="contractDialog.close()">Fechar</button></div>
@@ -283,9 +300,63 @@ const layerRequestTimeoutMs=15000;
 
 async function api(url,options){
   const response=await fetch(url,{cache:'no-store',...(options||{})});
-  if(!response.ok)throw new Error(await response.text());
+  if(!response.ok){
+    const raw=await response.text();
+    let detail=raw;
+    try{
+      const parsed=JSON.parse(raw);
+      detail=parsed?.error||raw;
+    }catch{}
+    throw new Error(detail||('HTTP '+response.status));
+  }
   const type=response.headers.get('content-type')||'';
   return type.includes('application/json')?response.json():response.text();
+}
+
+async function openActivityLog(){
+  activityDialog.showModal();
+  await loadActivityLog();
+}
+
+async function loadActivityLog(){
+  activityRuns.innerHTML='Carregando execuções...';
+  activityRequests.innerHTML='Carregando atividade...';
+  activityRunDetail.classList.add('hidden');
+  try{
+    const [runs,activity]=await Promise.all([api('/api/runs'),api('/api/activity')]);
+    activityRuns.innerHTML=runs.length?runs.map(r=>{
+      const number=Number(r.executionNumber||0)>0?' #'+r.executionNumber:'';
+      const when=r.startedAt?new Date(r.startedAt).toLocaleString():'';
+      return '<div class="history-item"><div><button class="secondary" type="button" onclick="showActivityRun(\''+r.id+'\')">Ver saída</button> <b>'+esc(r.title||r.command||'Execução')+esc(number)+'</b><div class="history-meta">'+esc(when)+' · '+esc(r.summary||'')+'</div></div><div class="history-status '+esc(String(r.status||'').replaceAll(' ','-'))+'">'+esc(r.status||'')+'</div></div>';
+    }).join(''):'Nenhuma execução registrada nesta sessão.';
+    activityRequests.innerHTML=activity.length?activity.map(a=>{
+      const when=a.at?new Date(a.at).toLocaleTimeString():'';
+      const duration=a.durationMs==null?'':(' · '+a.durationMs+' ms');
+      return '<div class="history-item"><div><b>'+esc(a.category)+' · '+esc(a.action)+'</b><div class="history-meta">'+esc(when)+duration+(a.detail?' · '+esc(a.detail):'')+'</div></div><div class="history-status">'+esc(a.status||'')+'</div></div>';
+    }).join(''):'Nenhuma atividade registrada.';
+  }catch(e){
+    activityRuns.innerHTML='<div class="card"><b>Falha ao carregar o log.</b><div class="small">'+esc(e.message)+'</div></div>';
+    activityRequests.innerHTML='';
+  }
+}
+
+async function showActivityRun(id){
+  activityRunDetail.classList.remove('hidden');
+  activityRunOutput.textContent='Carregando...';
+  try{
+    const run=await api('/api/runs/'+id);
+    const step=run.step||{};
+    const parts=[
+      '['+(run.status||'')+'] '+(run.title||run.command||'Execução'),
+      run.summary||'',
+      step.command?('\n> '+step.command):'',
+      step.output?('\nSTDOUT\n'+step.output):'',
+      step.error?('\nSTDERR\n'+step.error):''
+    ];
+    activityRunOutput.textContent=parts.join('\n').trim();
+  }catch(e){
+    activityRunOutput.textContent='Falha ao carregar execução: '+e.message;
+  }
 }
 
 function switchView(view,label,scrollTop=true){
@@ -775,16 +846,26 @@ function setZipNatureFields(){
 async function openZipDialog(){
   zipOrigin=captureActionOrigin()||consoleOrigin;
   zipFormDirty=false;
-  await loadZipContracts();
-  await loadGoldTemplate();
-  setZipMode('form');
-  zipDialog.showModal();
+  zipTemplateSource.textContent='Carregando contratos utilizáveis...';
+  try{
+    await loadZipContracts();
+    await loadGoldTemplate();
+    setZipMode('form');
+    zipDialog.showModal();
+  }catch(e){
+    zipContracts=[];
+    zipContract.innerHTML='';
+    setZipMode('form');
+    zipTemplateSource.textContent='Falha ao carregar contratos para gerar o arquivo: '+e.message;
+    zipDialog.showModal();
+  }
 }
 
 async function loadZipContracts(){
   zipTemplateSource.textContent='Carregando contratos utilizáveis...';
   const previous=zipContract.value;
   zipContracts=await api('/api/zip/contracts');
+  if(!Array.isArray(zipContracts)||!zipContracts.length)throw new Error('Nenhum contrato utilizável foi retornado pelo catálogo ref.*.');
   zipContract.innerHTML=zipContracts.map(c=>'<option value="'+esc(c.key)+'">'+esc(c.label)+'</option>').join('');
   if(previous&&zipContracts.some(c=>c.key===previous)){
     zipContract.value=previous;
