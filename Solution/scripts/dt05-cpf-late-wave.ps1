@@ -84,7 +84,7 @@ function New-Dt05DeliveryPackage([int]$wave, [string]$cpf) {
     $dir = Join-Path $fixtureRoot "wave$wave"
     New-Item -ItemType Directory -Force $dir | Out-Null
     $manifest = [ordered]@{
-        formatoVersao = 2; pessoaSchemaVersao = 4
+        formatoVersao = 2; pessoaSchemaVersao = 6
         codigoSistemaOrigem = 'SEHAB'; natureza = 'BENEFICIO'
         codigoTipo = 'AA01'; tipoVersao = 1
         dataReferencia = if ($wave -eq 1) { '2026-08-27T00:00:00-03:00' } else { '2026-08-28T00:00:00-03:00' }
