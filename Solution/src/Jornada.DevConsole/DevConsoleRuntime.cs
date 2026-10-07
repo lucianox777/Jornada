@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Jornada.Contracts;
 
 sealed record CommandDefinition(string Id,string Title,string Description,string? File,string? Arguments,string? ResultPath,string[] Dependencies,string? DependencyNote)
 {
@@ -237,7 +238,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
             JOIN ref.sistema_origem so ON so.gestor_id=g.gestor_id AND so.ativo=1
             JOIN ref.gestor_pessoa_versao gpv
               ON gpv.gestor_id=g.gestor_id
-             AND gpv.versao={PersonContractRules.CurrentSchemaVersion}
+             AND gpv.versao={ContractVersions.CurrentPersonSchemaVersion}
              AND gpv.status='ATIVA'
             JOIN ref.tipo_registro tr ON tr.gestor_id=g.gestor_id AND tr.ativo=1
             JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id AND trv.status IN('ATIVA','ENCERRADA')
@@ -263,7 +264,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
             var label=$"{gestor} · {tipo} v{tipoVersao} · Pessoa v{pessoaVersao} · {natureza} · {parts[6]}";
             options.Add(new ZipContractOption(key,label,gestor,sistema,pessoaVersao,natureza,tipo,tipoVersao));
         }
-        if(options.Count==0)throw new InvalidOperationException($"Nenhum contrato Pessoa v{PersonContractRules.CurrentSchemaVersion} ATIVO foi encontrado no catálogo ref.*. Recrie/prepare o ambiente DEV com o contrato corrente.");
+        if(options.Count==0)throw new InvalidOperationException($"Nenhum contrato Pessoa v{ContractVersions.CurrentPersonSchemaVersion} ATIVO foi encontrado no catálogo ref.*. Recrie/prepare o ambiente DEV com o contrato corrente.");
         return options;
     }
 
