@@ -529,6 +529,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
             Assert.That(opsScript,Does.Contain("JOIN ingestao.lote l ON l.lote_id=po.lote_id"));
             Assert.That(opsScript,Does.Contain("WHERE l.entrega_id='$entregaId' AND po.cpf IS NULL"));
+            Assert.That(opsScript,Does.Contain("if($value -eq 'NULL'){return ''}"));
             Assert.That(opsScript,Does.Contain("As observações com CPF já estão resolvidas deterministicamente e publicadas na Gold."));
             Assert.That(opsScript,Does.Contain("não estão materializadas em gold.pessoa"));
             Assert.That(opsScript.IndexOf("if($observationIds.Count -eq 0)",StringComparison.Ordinal),Is.LessThan(opsScript.IndexOf("$eligibleActive=[int]",StringComparison.Ordinal)));
