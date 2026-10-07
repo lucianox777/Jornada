@@ -305,12 +305,12 @@ PY
     echo "ERRO: $gestor Bronze=$manager_bronze Silver=$manager_silver Registros=$manager_registros" >&2
     exit 24
   }
-  # Confirma o hash exato do schema v4 carregado para cada gestor na configuração canônica.
-  manager_schema="$ROOT/config/contracts/gestores/$gestor/pessoa/v4/pessoa.schema.json"
+  # Confirma o hash exato do schema v6 carregado para cada gestor na configuração canônica.
+  manager_schema="$ROOT/config/contracts/gestores/$gestor/pessoa/v6/pessoa.schema.json"
   manager_source_hash="$(sha256sum "$manager_schema" | awk '{print $1}')"
-  manager_db_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='$gestor' AND gpv.versao=4;")"
+  manager_db_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='$gestor' AND gpv.versao=6;")"
   [[ "$manager_source_hash" == "$manager_db_hash" ]] || {
-    echo "ERRO: $gestor schema v4 divergiu do catálogo" >&2; exit 25;
+    echo "ERRO: $gestor schema v6 divergiu do catálogo" >&2; exit 25;
   }
   python3 - "$OUT/other-contracts-e2e-evidence.json" "$gestor" "$manager_sha" "$manager_id" "$manager_bronze" "$manager_silver" "$manager_registros" "$manager_source_hash" <<'PY'
 import datetime,json,pathlib,sys
