@@ -336,7 +336,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("ZipContractOption"));
             Assert.That(runtime,Does.Contain("ListContractsAsync"));
             Assert.That(runtime,Does.Contain("FROM gold.pessoa"));
-            Assert.That(runtime,Does.Contain("gpv.status IN('ATIVA','ENCERRADA')"));
+            Assert.That(runtime,Does.Contain("gpv.status='ATIVA'"));
             Assert.That(runtime,Does.Contain("trv.status IN('ATIVA','ENCERRADA')"));
             Assert.That(runtime,Does.Contain("[\"pessoaSchemaVersao\"]=contract.PessoaSchemaVersao"));
             Assert.That(runtime,Does.Contain("[\"tipoVersao\"]=contract.TipoVersao"));
