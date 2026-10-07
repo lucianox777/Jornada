@@ -28,7 +28,7 @@ public sealed class DeterministicIngestionZipTests
     [Test]
     public void Canonical_zip_has_fixed_entry_order_and_timestamp()
     {
-        var manifest = Encoding.UTF8.GetBytes("{\"formatoVersao\":2,\"codigoSistemaOrigem\":\"TESTE\",\"pessoaSchemaVersao\":${ContractVersions.CurrentPersonSchemaVersion},\"dataReferencia\":\"2026-08-29\"}");
+        var manifest = Encoding.UTF8.GetBytes($"{{\"formatoVersao\":2,\"codigoSistemaOrigem\":\"TESTE\",\"pessoaSchemaVersao\":{ContractVersions.CurrentPersonSchemaVersion},\"dataReferencia\":\"2026-08-29\"}}");
         var pessoas = Encoding.UTF8.GetBytes("{\"codigoPessoaOrigem\":\"P1\",\"atributos\":[]}\n");
         var zipBytes = DeterministicIngestionZipWriter.Create(manifest, pessoas, Array.Empty<byte>());
 
