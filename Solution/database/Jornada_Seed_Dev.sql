@@ -179,7 +179,36 @@ UPDATE v SET pessoa_schema_ref=CONCAT('config/contracts/gestores/',g.codigo,'/pe
 FROM ref.gestor_pessoa_versao v JOIN ref.gestor g ON g.gestor_id=v.gestor_id
 WHERE v.versao=4 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
 
-DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=4),
+-- DEV Console: contrato cadastral permissivo para exercitar identidade progressiva.
+-- Somente a chave técnica idPessoaEntrega é obrigatória; CPF/nome/nascimento/nome da mãe
+-- podem estar ausentes. O contrato v4 permanece no catálogo como ENCERRADA e continua
+-- aceito para replay/fixtures históricos.
+UPDATE ref.gestor_pessoa_versao
+   SET status='ENCERRADA',vigencia_fim=COALESCE(vigencia_fim,'2026-10-06')
+ WHERE gestor_id=@gSehab AND versao=4 AND status='ATIVA';
+
+IF EXISTS(
+    SELECT 1 FROM ref.gestor_pessoa_versao
+    WHERE gestor_id=@gSehab AND versao=6
+      AND (pessoa_schema_ref<>N'config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json'
+           OR pessoa_schema_sha256<>0x930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4))
+    THROW 51593,'Pessoa v6 DEV SEHAB já cadastrada com referência/hash divergente.',1;
+
+IF NOT EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=6)
+ INSERT ref.gestor_pessoa_versao(
+    gestor_id,versao,vigencia_inicio,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
+ VALUES(
+    @gSehab,6,'2026-10-06',N'config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json',
+    0x930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4,N'ATIVA','2026-10-06');
+ELSE
+ UPDATE ref.gestor_pessoa_versao
+    SET status='ATIVA',vigencia_inicio='2026-10-06',vigencia_fim=NULL,
+        pessoa_schema_ref=N'config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json',
+        pessoa_schema_sha256=0x930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4,
+        ativado_em=COALESCE(ativado_em,'2026-10-06')
+  WHERE gestor_id=@gSehab AND versao=6;
+
+DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND status='ATIVA'),
         @gpvSmads BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND versao=4),
         @gpvSms BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSms AND versao=4);
 
