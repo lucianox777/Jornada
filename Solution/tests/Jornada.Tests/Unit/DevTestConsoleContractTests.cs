@@ -218,9 +218,12 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("cpf:cpf||null"));
             Assert.That(page,Does.Contain("cpfAusenteMotivo:cpf?null:'NAO_INFORMADO_ORIGEM'"));
             Assert.That(page,Does.Contain("CPF deve conter exatamente 11 dígitos."));
-            Assert.That(page,Does.Contain("Nome completo é obrigatório."));
-            Assert.That(page,Does.Contain("Data de nascimento é obrigatória e deve ser uma data válida."));
-            Assert.That(page,Does.Contain("nomeCompleto,dataNascimento,nomeMae:zipMae.value.trim()||null"));
+            Assert.That(page,Does.Not.Contain("Nome completo é obrigatório."));
+            Assert.That(page,Does.Not.Contain("Data de nascimento é obrigatória"));
+            Assert.That(page,Does.Contain("Nome completo (opcional)"));
+            Assert.That(page,Does.Contain("Data de nascimento (opcional)"));
+            Assert.That(page,Does.Contain("Nome da mãe (opcional)"));
+            Assert.That(page,Does.Contain("nomeCompleto:nomeCompleto||null,dataNascimento:dataNascimento||null,nomeMae:zipMae.value.trim()||null"));
             Assert.That(page,Does.Contain("if(zipMode==='form'&&!syncFormToJson())return"));
             Assert.That(page,Does.Contain("zipOrigin=captureActionOrigin()||consoleOrigin"));
             Assert.That(page,Does.Contain("openLiveRun(response.id,'Gerar ZIP de ingestão #'+response.executionNumber,'zip',zipOrigin||consoleOrigin)"));
@@ -526,11 +529,14 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("--mode','REPLAY"));
             Assert.That(opsScript,Does.Contain("JOIN ingestao.lote l ON l.lote_id=po.lote_id"));
             Assert.That(opsScript,Does.Contain("WHERE l.entrega_id='$entregaId' AND po.cpf IS NULL"));
+            Assert.That(opsScript,Does.Contain("As observações com CPF já estão resolvidas deterministicamente e publicadas na Gold."));
+            Assert.That(opsScript,Does.Contain("não estão materializadas em gold.pessoa"));
+            Assert.That(opsScript.IndexOf("if($observationIds.Count -eq 0)",StringComparison.Ordinal),Is.LessThan(opsScript.IndexOf("$eligibleActive=[int]",StringComparison.Ordinal)));
             Assert.That(opsScript,Does.Contain("--pessoa-observacao-id"));
             Assert.That(opsScript,Does.Contain("dev-console-entrega:$entregaId"));
             Assert.That(opsScript,Does.Contain("Backlog pendente de outras cargas não foi selecionado."));
-            Assert.That(runtime,Does.Contain("uma única invocação do Jornada.Linkage.Runner"));
-            Assert.That(runtime,Does.Contain("Jornada.Linkage.Runner no NODE2"));
+            Assert.That(runtime,Does.Contain("Jornada.Linkage.Runner no NODE2 somente para observações probabilísticas elegíveis"));
+            Assert.That(runtime,Does.Contain("no-op de sucesso, sem chamar o Runner"));
             Assert.That(runtime,Does.Contain("[\"silver\"]"));
             Assert.That(page,Does.Contain("Fluxo do dado"));
             Assert.That(page,Does.Contain("Pré-requisitos:"));
@@ -622,4 +628,30 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Not.Contain("Jornada.Api"));
         });
     }
+    [Test]
+    public void Dev_sehab_person_v6_keeps_only_delivery_key_required_and_core_nullable()
+    {
+        var root=Root();
+        var schemaPath=Path.Combine(root,"Solution","config","contracts","gestores","SEHAB","pessoa","v6","pessoa.schema.json");
+        using var schema=System.Text.Json.JsonDocument.Parse(File.ReadAllText(schemaPath));
+        var required=schema.RootElement.GetProperty("required").EnumerateArray().Select(x=>x.GetString()).ToArray();
+        var properties=schema.RootElement.GetProperty("properties");
+        var nomeTypes=properties.GetProperty("nomeCompleto").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
+        var nascimentoTypes=properties.GetProperty("dataNascimento").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
+        var seed=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Seed_Dev.sql"));
+        var schemaHash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(schemaPath)));
+
+        Assert.Multiple(()=>{
+            Assert.That(required,Is.EqualTo(new[]{"idPessoaEntrega"}));
+            Assert.That(schemaHash,Is.EqualTo("930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4"));
+            Assert.That(nomeTypes,Does.Contain("null"));
+            Assert.That(nascimentoTypes,Does.Contain("null"));
+            Assert.That(seed,Does.Contain("config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json"));
+            Assert.That(seed,Does.Contain("930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4"));
+            Assert.That(seed,Does.Contain("status='ATIVA',vigencia_inicio='2026-09-19',vigencia_fim=NULL"));
+            Assert.That(seed,Does.Contain("@gSehab,6,'2026-10-06','2026-10-06'"));
+            Assert.That(seed,Does.Contain("N'ENCERRADA',NULL"));
+        });
+    }
+
 }
