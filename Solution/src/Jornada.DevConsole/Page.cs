@@ -846,16 +846,18 @@ function setZipNatureFields(){
 async function openZipDialog(){
   zipOrigin=captureActionOrigin()||consoleOrigin;
   zipFormDirty=false;
-  setZipMode('form');
-  zipDialog.showModal();
   zipTemplateSource.textContent='Carregando contratos utilizáveis...';
   try{
     await loadZipContracts();
     await loadGoldTemplate();
+    setZipMode('form');
+    zipDialog.showModal();
   }catch(e){
     zipContracts=[];
     zipContract.innerHTML='';
+    setZipMode('form');
     zipTemplateSource.textContent='Falha ao carregar contratos para gerar o arquivo: '+e.message;
+    zipDialog.showModal();
   }
 }
 
