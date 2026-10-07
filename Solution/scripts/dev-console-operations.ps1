@@ -62,7 +62,9 @@ function Invoke-SqlScalar([string]$Query){
     try {
         $raw=@(& docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $db -W -h -1 -Q "SET NOCOUNT ON; $Query")
         if($LASTEXITCODE -ne 0){throw "sqlcmd falhou ($LASTEXITCODE)."}
-        return [string](@($raw | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ }) | Select-Object -Last 1)
+        $value=[string](@($raw | ForEach-Object { ([string]$_).Trim() } | Where-Object { $_ }) | Select-Object -Last 1)
+        if($value -eq 'NULL'){return ''}
+        return $value
     } finally {
         if($null -eq $old){Remove-Item Env:SQLCMDPASSWORD -ErrorAction SilentlyContinue}else{$env:SQLCMDPASSWORD=$old}
         Pop-Location
