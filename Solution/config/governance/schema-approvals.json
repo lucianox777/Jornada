@@ -7,19 +7,19 @@
   "contracts": [
     {
       "path": "config/contracts/gestores/SMADS/pessoa/v6/pessoa.schema.json",
-      "sha256": "a3efce0a70a2bf90387663d7f570b98d3c0184498652ae8fd22c024a6d6305f5",
+      "sha256": "2e17e5ae713a50a74b54130c49ca674806da7f4fb1dc67054e685a5cecbaf6b4",
       "status": "PENDENTE",
       "approval": null
     },
     {
       "path": "config/contracts/gestores/SMDET/pessoa/v6/pessoa.schema.json",
-      "sha256": "56b18cce992bc9c32fdfcb61c825bd96339d37f74c94db8efc6198c02849917f",
+      "sha256": "07a09e62f58235256a38fe0c312aafda0d3773ebcd34703a34edb1df62b58d1e",
       "status": "PENDENTE",
       "approval": null
     },
     {
       "path": "config/contracts/gestores/SMS/pessoa/v6/pessoa.schema.json",
-      "sha256": "fed22b60283bb03d26fb6acc0c1f6c78b55069c0d4b269fe566fe45f140c696e",
+      "sha256": "0a7ac27cdd88de6e11303e6a1729627ec3e78008c2c4f88f10eafa6114bf42a6",
       "status": "PENDENTE",
       "approval": null
     },
