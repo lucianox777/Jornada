@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using Jornada.Ingestion;
+using Jornada.Contracts;
 using Jornada.Linkage.SyntheticCorpus;
 using Jornada.Processor.Worker;
 
@@ -38,7 +39,7 @@ public sealed class SyntheticIngestionBridgeTests
         foreach (var package in result.Packages)
         {
             var manifest = IngestionPackageInspector.ParseAndValidate(package.Bytes);
-            Assert.That(manifest.PessoaSchemaVersao, Is.EqualTo(4));
+            Assert.That(manifest.PessoaSchemaVersao, Is.EqualTo(ContractVersions.CurrentPersonSchemaVersion));
             Assert.That(manifest.DataReferencia, Is.EqualTo(ReferenceDate));
 
             using var stream = new MemoryStream(package.Bytes, writable: false);
@@ -109,7 +110,7 @@ public sealed class SyntheticIngestionBridgeTests
                     ReferenceDate,
                     "unit-test-pseudonymization-key-32-bytes")));
 
-        Assert.That(error!.Message, Does.Contain("somente Pessoa v4"));
+        Assert.That(error!.Message, Does.Contain("contrato Pessoa corrente"));
     }
 
     [Test]
@@ -290,8 +291,8 @@ public sealed class SyntheticIngestionBridgeTests
         var root = FindRepositoryRoot();
         var solutionRoot = Path.Combine(root, "Solution");
         var schema = gestor == "SEHAB"
-            ? Path.Combine(solutionRoot, "tests", "fixtures", "external-contracts", "gestores", "SEHAB", "pessoa", "v4", "pessoa.schema.json")
-            : Path.Combine(solutionRoot, "config", "contracts", "gestores", gestor, "pessoa", "v4", "pessoa.schema.json");
+            ? Path.Combine(solutionRoot, "tests", "fixtures", "external-contracts", "gestores", "SEHAB", "pessoa", $"v{ContractVersions.CurrentPersonSchemaVersion}", "pessoa.schema.json")
+            : Path.Combine(solutionRoot, "config", "contracts", "gestores", gestor, "pessoa", $"v{ContractVersions.CurrentPersonSchemaVersion}", "pessoa.schema.json");
         var validator = JsonSchemaSubsetValidator.Load(schema);
         var lines = jsonl.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         for (var i = 0; i < lines.Length; i++)
