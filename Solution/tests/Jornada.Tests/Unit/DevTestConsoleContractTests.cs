@@ -628,4 +628,27 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Not.Contain("Jornada.Api"));
         });
     }
+    [Test]
+    public void Dev_sehab_person_v6_keeps_only_delivery_key_required_and_core_nullable()
+    {
+        var root=Root();
+        var schemaPath=Path.Combine(root,"Solution","config","contracts","gestores","SEHAB","pessoa","v6","pessoa.schema.json");
+        using var schema=System.Text.Json.JsonDocument.Parse(File.ReadAllText(schemaPath));
+        var required=schema.RootElement.GetProperty("required").EnumerateArray().Select(x=>x.GetString()).ToArray();
+        var properties=schema.RootElement.GetProperty("properties");
+        var nomeTypes=properties.GetProperty("nomeCompleto").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
+        var nascimentoTypes=properties.GetProperty("dataNascimento").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
+        var seed=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Seed_Dev.sql"));
+
+        Assert.Multiple(()=>{
+            Assert.That(required,Is.EqualTo(new[]{"idPessoaEntrega"}));
+            Assert.That(nomeTypes,Does.Contain("null"));
+            Assert.That(nascimentoTypes,Does.Contain("null"));
+            Assert.That(seed,Does.Contain("config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json"));
+            Assert.That(seed,Does.Contain("930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4"));
+            Assert.That(seed,Does.Contain("versao=4 AND status='ATIVA'"));
+            Assert.That(seed,Does.Contain("@gSehab,6,'2026-10-06'"));
+        });
+    }
+
 }
