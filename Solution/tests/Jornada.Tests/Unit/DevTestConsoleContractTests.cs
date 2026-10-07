@@ -215,7 +215,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("não identifica a Pessoa entre entregas"));
             Assert.That(page,Does.Contain("Código da pessoa na origem (opcional)"));
             Assert.That(page,Does.Contain("CPF (opcional)"));
-            Assert.That(page,Does.Contain("await loadGoldTemplate();\n  setZipMode('form');\n  zipDialog.showModal();"));
+            Assert.That(page,Does.Contain("await loadGoldTemplate();\n    setZipMode('form');\n    zipDialog.showModal();"));
+            Assert.That(page,Does.Contain("Falha ao carregar contratos para gerar o arquivo:"));
+            Assert.That(page.IndexOf("await loadZipContracts();",StringComparison.Ordinal),Is.LessThan(page.IndexOf("await loadGoldTemplate();",StringComparison.Ordinal)));
             Assert.That(page,Does.Not.Contain("zipDialog.showModal();\n  await loadZipContracts();"));
             Assert.That(page,Does.Contain("zipPessoaOrigem.value=t.codigoPessoaOrigem||''"));
             Assert.That(page,Does.Contain("zipCpf.value=t.cpf||''"));
