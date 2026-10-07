@@ -2,6 +2,11 @@ using System.Text.Json;
 
 namespace Jornada.Contracts;
 
+public static class IngestionContractVersions
+{
+    public const int CurrentPessoaSchemaVersion = 6;
+}
+
 public enum ResolutionStatus { RESOLVIDO, NAO_RESOLVIDO, CONFLITO }
 public enum ResolutionMethod { CPF_DETERMINISTICO, UUID_JORNADA_RETROALIMENTACAO, PENDENTE_PROBABILISTICO, LINKAGE_PROBABILISTICO, CORRECAO_GOVERNADA }
 public enum IntegrationNature { BENEFICIO, SERVICO }
