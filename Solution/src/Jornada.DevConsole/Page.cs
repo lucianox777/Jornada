@@ -786,8 +786,15 @@ async function loadZipContracts(){
   const previous=zipContract.value;
   zipContracts=await api('/api/zip/contracts');
   zipContract.innerHTML=zipContracts.map(c=>'<option value="'+esc(c.key)+'">'+esc(c.label)+'</option>').join('');
-  if(previous&&zipContracts.some(c=>c.key===previous))zipContract.value=previous;
-  if(!zipContract.value&&zipContracts.length)zipContract.value=zipContracts[0].key;
+  if(previous&&zipContracts.some(c=>c.key===previous)){
+    zipContract.value=previous;
+  }else if(zipContracts.length){
+    const preferred=zipContracts
+      .filter(c=>c.gestor==='SEHAB'&&c.codigoTipo==='AA01')
+      .sort((a,b)=>Number(b.pessoaSchemaVersao)-Number(a.pessoaSchemaVersao)||Number(b.tipoVersao)-Number(a.tipoVersao))[0]
+      ||zipContracts[0];
+    zipContract.value=preferred.key;
+  }
 }
 
 async function changeZipContract(){
@@ -866,6 +873,12 @@ function syncFormToJson(){
   if(!idPessoaEntrega){alert('ID temporário nesta entrega é obrigatório.');zipPessoaId.focus();return false}
   if(cpf&&!/^\d{11}$/.test(cpf)){alert('CPF deve conter exatamente 11 dígitos.');zipCpf.focus();return false}
   if(dataNascimento&&!/^\d{4}-\d{2}-\d{2}$/.test(dataNascimento)){alert('Quando informada, a data de nascimento deve ser válida.');zipNascimento.focus();return false}
+  const pessoaSchemaVersao=Number(zipPessoaSchemaVersao.value);
+  if(pessoaSchemaVersao<6&&(!nomeCompleto||!dataNascimento)){
+    alert('O contrato Pessoa v'+pessoaSchemaVersao+' é histórico e exige nome completo e data de nascimento. Para testar núcleo de identidade opcional, selecione Pessoa v6.');
+    (!nomeCompleto?zipNome:zipNascimento).focus();
+    return false;
+  }
   const pessoa={
     idPessoaEntrega,
     cpf:cpf||null,

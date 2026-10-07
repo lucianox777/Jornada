@@ -235,6 +235,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Contrato para gerar o ZIP"));
             Assert.That(page,Does.Contain("id=\"zipContract\""));
             Assert.That(page,Does.Contain("loadZipContracts()"));
+            Assert.That(page,Does.Contain(".filter(c=>c.gestor==='SEHAB'&&c.codigoTipo==='AA01')"));
+            Assert.That(page,Does.Contain("Number(b.pessoaSchemaVersao)-Number(a.pessoaSchemaVersao)"));
+            Assert.That(page,Does.Contain("Para testar núcleo de identidade opcional, selecione Pessoa v6."));
+            Assert.That(runtime,Does.Contain(".OrderByDescending(x=>x.PessoaSchemaVersao)"));
             Assert.That(page,Does.Contain("/api/zip/contracts"));
             Assert.That(page,Does.Contain("/api/zip/template?contract="));
             Assert.That(page,Does.Contain("Escolha o contrato de ingestão"));
