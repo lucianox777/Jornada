@@ -61,7 +61,7 @@ public sealed class DeterministicPropertyTests
         for (var i = 0; i < 100; i++)
         {
             var suffix = Convert.ToHexString(RandomBytes(random, random.Next(1, 128))).ToLowerInvariant();
-            var manifest = Encoding.UTF8.GetBytes($"{{\"formatoVersao\":2,\"codigoSistemaOrigem\":\"P{i}\",\"pessoaSchemaVersao\":1,\"dataReferencia\":\"2026-09-01\"}}");
+            var manifest = Encoding.UTF8.GetBytes($"{{\"formatoVersao\":2,\"codigoSistemaOrigem\":\"P{i}\",\"pessoaSchemaVersao\":6,\"dataReferencia\":\"2026-09-01\"}}");
             var pessoas = Encoding.UTF8.GetBytes($"{{\"codigoPessoaOrigem\":\"{suffix}\",\"atributos\":[]}}\n");
             var registros = RandomBytes(random, random.Next(0, 256));
             var a = DeterministicIngestionZipWriter.Create(manifest, pessoas, registros);
