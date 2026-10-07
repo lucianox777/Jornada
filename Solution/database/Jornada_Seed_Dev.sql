@@ -173,8 +173,17 @@ JOIN ref.gestor g ON g.gestor_id=v.gestor_id
 JOIN @PessoaV6 x ON x.codigo=g.codigo
 WHERE v.versao=6;
 
--- Em bancos DEV reaproveitados, remove metadados antigos somente quando não há
--- Entrega referenciando-os. Um reset do ambiente elimina integralmente o legado.
+-- Em bancos DEV reaproveitados, versões anteriores ficam sempre fora do contrato corrente.
+UPDATE v
+   SET status='ENCERRADA',
+       vigencia_fim=COALESCE(v.vigencia_fim,'2026-10-07')
+FROM ref.gestor_pessoa_versao v
+JOIN ref.gestor g ON g.gestor_id=v.gestor_id
+WHERE v.versao<>6
+  AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
+
+-- Remove metadados antigos somente quando não há Entrega referenciando-os.
+-- Um reset do ambiente elimina integralmente o legado.
 DELETE v
 FROM ref.gestor_pessoa_versao v
 JOIN ref.gestor g ON g.gestor_id=v.gestor_id
