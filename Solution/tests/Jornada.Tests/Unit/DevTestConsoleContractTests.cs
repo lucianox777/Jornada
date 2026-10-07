@@ -139,9 +139,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("ParentRunId"));
             Assert.That(runtime,Does.Contain("HeartbeatAsync"));
             Assert.That(runtime,Does.Contain("Processo ativo há"));
-            Assert.That(runtime,Does.Contain("JORNADA_ONE_SHOT_PENDING="));
-            Assert.That(runtime,Does.Contain("\"PARCIAL\""));
-            Assert.That(runtime,Does.Contain("One shot: executa no máximo uma iteração"));
+            Assert.That(runtime,Does.Not.Contain("JORNADA_ONE_SHOT_PENDING="));
+            Assert.That(runtime,Does.Not.Contain("\"PARCIAL\""));
+            Assert.That(runtime,Does.Contain("PROCESS_UNTIL_IDLE"));
             Assert.That(runtime,Does.Not.Contain("\"environment-status\""));
             Assert.That(runtime,Does.Contain("Diagnóstico read-only consolidado de infraestrutura, SQL/schema"));
             Assert.That(opsScript,Does.Contain("[1/7] Status/health da infraestrutura"));
@@ -251,9 +251,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Not.Contain("\"Gerar e enviar ZIP de ingestão\""));
             Assert.That(page,Does.Contain("pipeline-status"));
             Assert.That(page,Does.Contain("Ver status da última ingestão"));
-            Assert.That(page,Does.Contain("Processar um lote"));
-            Assert.That(page,Does.Contain("Executar one shot"));
-            Assert.That(page,Does.Contain("uma única iteração do Processor"));
+            Assert.That(page,Does.Contain("Processar Bronze → Silver"));
+            Assert.That(page,Does.Contain("Processar até concluir"));
+            Assert.That(page,Does.Contain("PROCESS_UNTIL_IDLE"));
+            Assert.That(page,Does.Not.Contain("uma única iteração do Processor"));
             Assert.That(page,Does.Contain("Visualizar Silver"));
             Assert.That(page,Does.Contain("Verificar integridade"));
             Assert.That(page,Does.Contain("Executar Linkage Runner"));
