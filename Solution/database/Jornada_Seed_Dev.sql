@@ -175,7 +175,10 @@ FROM ref.gestor g WHERE g.codigo IN('SMS','SEHAB','SMADS','SMDET')
 AND NOT EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v WHERE v.gestor_id=g.gestor_id AND v.versao=4);
 UPDATE v SET pessoa_schema_ref=CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v4/pessoa.schema.json'),
              pessoa_schema_sha256=CASE g.codigo WHEN 'SEHAB' THEN 0x4441b5f43d1e25a672d52c31b5f85794123e0cca99044620c1c9616f9f5cad43 WHEN 'SMADS' THEN 0x20cf0ce86ddd1fac0f8a894ae8509035ca94a97dc488e1efa395c7d1864f47e9 WHEN 'SMDET' THEN 0x94bc5ad8a128dddb0a0d9f32cd7fd649338e5e3209b0015053c7493f262a8719 WHEN 'SMS' THEN 0x93fc2b62b56c0d817f36de77fe6f5953296404938e41e66f8c734b72bc585413 END,
-             status='ATIVA',vigencia_inicio='2026-09-19',vigencia_fim=NULL,ativado_em=COALESCE(v.ativado_em,'2026-09-19')
+             status=CASE WHEN EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v6 WHERE v6.gestor_id=v.gestor_id AND v6.versao=6) THEN 'ENCERRADA' ELSE 'ATIVA' END,
+             vigencia_inicio='2026-09-19',
+             vigencia_fim=CASE WHEN EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v6 WHERE v6.gestor_id=v.gestor_id AND v6.versao=6) THEN COALESCE(v.vigencia_fim,'2026-10-06') ELSE NULL END,
+             ativado_em=COALESCE(v.ativado_em,'2026-09-19')
 FROM ref.gestor_pessoa_versao v JOIN ref.gestor g ON g.gestor_id=v.gestor_id
 WHERE v.versao=4 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
 
