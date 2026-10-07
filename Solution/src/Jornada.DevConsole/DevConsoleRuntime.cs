@@ -217,6 +217,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
             ORDER BY
               g.codigo,
               tr.codigo,
+              CASE WHEN g.codigo='SEHAB' AND gpv.versao=6 THEN 0 ELSE 1 END,
               CASE gpv.status WHEN 'ATIVA' THEN 0 ELSE 1 END,
               gpv.versao DESC,
               CASE trv.status WHEN 'ATIVA' THEN 0 ELSE 1 END,
