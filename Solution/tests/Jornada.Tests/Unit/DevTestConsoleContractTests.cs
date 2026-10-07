@@ -218,9 +218,12 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("cpf:cpf||null"));
             Assert.That(page,Does.Contain("cpfAusenteMotivo:cpf?null:'NAO_INFORMADO_ORIGEM'"));
             Assert.That(page,Does.Contain("CPF deve conter exatamente 11 dígitos."));
-            Assert.That(page,Does.Contain("Nome completo é obrigatório."));
-            Assert.That(page,Does.Contain("Data de nascimento é obrigatória e deve ser uma data válida."));
-            Assert.That(page,Does.Contain("nomeCompleto,dataNascimento,nomeMae:zipMae.value.trim()||null"));
+            Assert.That(page,Does.Not.Contain("Nome completo é obrigatório."));
+            Assert.That(page,Does.Not.Contain("Data de nascimento é obrigatória"));
+            Assert.That(page,Does.Contain("Nome completo (opcional)"));
+            Assert.That(page,Does.Contain("Data de nascimento (opcional)"));
+            Assert.That(page,Does.Contain("Nome da mãe (opcional)"));
+            Assert.That(page,Does.Contain("nomeCompleto:nomeCompleto||null,dataNascimento:dataNascimento||null,nomeMae:zipMae.value.trim()||null"));
             Assert.That(page,Does.Contain("if(zipMode==='form'&&!syncFormToJson())return"));
             Assert.That(page,Does.Contain("zipOrigin=captureActionOrigin()||consoleOrigin"));
             Assert.That(page,Does.Contain("openLiveRun(response.id,'Gerar ZIP de ingestão #'+response.executionNumber,'zip',zipOrigin||consoleOrigin)"));
