@@ -113,7 +113,7 @@ public static partial class IngestionPackageInspector
         }
 
         if (manifest.FormatoVersao != CurrentFormatVersion) throw new InvalidDataException($"formatoVersao deve ser {CurrentFormatVersion}.");
-        if (manifest.PessoaSchemaVersao < 1) throw new InvalidDataException("pessoaSchemaVersao deve ser >= 1.");
+        if (manifest.PessoaSchemaVersao != ContractVersions.CurrentPersonSchemaVersion) throw new InvalidDataException($"pessoaSchemaVersao deve ser {ContractVersions.CurrentPersonSchemaVersion}.");
         if (string.IsNullOrWhiteSpace(manifest.CodigoSistemaOrigem) || !SistemaOrigemCodeRegex().IsMatch(manifest.CodigoSistemaOrigem))
             throw new InvalidDataException("codigoSistemaOrigem é obrigatório e deve conter 1 a 80 caracteres A-Z/0-9/_/-.");
         if (manifest.CodigoBasePessoaOrigem is not null)
