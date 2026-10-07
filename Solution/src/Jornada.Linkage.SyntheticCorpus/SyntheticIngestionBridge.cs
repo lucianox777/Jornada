@@ -135,26 +135,6 @@ public static class SyntheticIngestionBridge
             if (!routeBySynthetic.TryGetValue(observation.Gestor, out var route))
                 throw new InvalidDataException($"Sem rota de ingestão para gestor sintético {observation.Gestor}.");
 
-            if (observation.BirthDate is null)
-            {
-                truth.Add(new SyntheticIngestionTruthRow(
-                    "EXCLUIDA_CONTRATO_ATIVO",
-                    observation.ObservationId,
-                    observation.BasePersonId,
-                    observation.Partition,
-                    observation.Gestor,
-                    route.GestorCodigo,
-                    route.CodigoSistemaOrigem,
-                    null,
-                    null,
-                    MissingBirthDateReason));
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(observation.Name))
-                throw new InvalidDataException(
-                    $"Observação {observation.ObservationId} sem nome não é representável no contrato Pessoa ativo.");
-
             var opaque = options.StableSourceIdentity
                 ? ComputeStableSourceId(hmac, generation.Options.Seed, route, observation.BasePersonId)
                 : ComputeOpaquePersonId(hmac, generation.Options.Seed, observation.ObservationId);
