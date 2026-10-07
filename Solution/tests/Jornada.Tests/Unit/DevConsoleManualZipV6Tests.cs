@@ -48,7 +48,7 @@ public sealed class DevConsoleManualZipV6Tests
         Assert.Multiple(()=>
         {
             Assert.DoesNotThrow(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1),scenario);
-            Assert.DoesNotThrow(()=>PersonV5ContractRules.ValidateCpfAbsence(6,cpf,reason),scenario);
+            Assert.DoesNotThrow(()=>PersonContractRules.ValidateCpfAbsence(6,cpf,reason),scenario);
         });
     }
 
