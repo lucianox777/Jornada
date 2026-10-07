@@ -543,10 +543,6 @@ switch($Action){
 
     'linkage' {
         Ensure-ClusterRunning
-        $eligibleActive=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO';")
-        if($eligibleActive -ne 1){
-            throw "Executar linkage exige exatamente 1 modelo ATIVO; atual=$eligibleActive. A subida da infraestrutura deve garantir o BOOTSTRAP inicial (IBGE + corpus sintético). Execute novamente 'Preparar ambiente completo' para reparar/confirmar o estado. O seed fixo não libera linkage."
-        }
 
         $lastIngestion=Join-Path $OutDir 'last-ingestion.json'
         if(-not(Test-Path $lastIngestion)){throw 'Nenhuma ingestão registrada pela Console DEV. Envie um ZIP antes de executar o linkage incremental.'}
@@ -572,8 +568,21 @@ switch($Action){
         Write-Host "Linkage incremental da última entrega: $entregaId"
         Write-Host "Observações sem CPF elegíveis nesta entrega: $($observationIds.Count)"
         if($observationIds.Count -eq 0){
-            Write-Host 'Nenhuma observação desta entrega exige linkage probabilístico; backlog sintético global preservado.'
+            $cpfUnresolved=Invoke-SqlScalar "SELECT STRING_AGG(CONCAT(CONVERT(varchar(max),po.pessoa_observacao_id),N':',ISNULL(vc.status,N'SEM_VINCULO'),N':',ISNULL(vc.motivo,N'SEM_MOTIVO')),N', ') WITHIN GROUP (ORDER BY po.pessoa_observacao_id) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id LEFT JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id WHERE l.entrega_id='$entregaId' AND po.cpf IS NOT NULL AND (vc.pessoa_observacao_id IS NULL OR vc.status<>N'RESOLVIDO' OR vc.pessoa_uuid IS NULL);"
+            if(-not [string]::IsNullOrWhiteSpace($cpfUnresolved)){
+                throw "A Entrega não exige linkage probabilístico, mas há observação(ões) com CPF sem resolução determinística: $cpfUnresolved. Verifique o vínculo de identidade; não execute Linkage para corrigir CPF."
+            }
+            $cpfMissingGold=Invoke-SqlScalar "SELECT STRING_AGG(CONVERT(varchar(max),po.pessoa_observacao_id),N',') WITHIN GROUP (ORDER BY po.pessoa_observacao_id) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id JOIN identidade.v_vinculo_corrente vc ON vc.pessoa_observacao_id=po.pessoa_observacao_id LEFT JOIN gold.pessoa g ON g.pessoa_uuid=vc.pessoa_uuid WHERE l.entrega_id='$entregaId' AND po.cpf IS NOT NULL AND vc.status=N'RESOLVIDO' AND vc.pessoa_uuid IS NOT NULL AND g.pessoa_uuid IS NULL;"
+            if(-not [string]::IsNullOrWhiteSpace($cpfMissingGold)){
+                throw "Inconsistência: observação(ões) com CPF foram resolvidas deterministicamente, mas não estão materializadas em gold.pessoa: $cpfMissingGold."
+            }
+            Write-Host 'Nenhuma observação desta entrega exige linkage probabilístico. As observações com CPF já estão resolvidas deterministicamente e publicadas na Gold.'
             return
+        }
+
+        $eligibleActive=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO' AND ISNULL(amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO';")
+        if($eligibleActive -ne 1){
+            throw "Executar linkage exige exatamente 1 modelo ATIVO; atual=$eligibleActive. A subida da infraestrutura deve garantir o BOOTSTRAP inicial (IBGE + corpus sintético). Execute novamente 'Preparar ambiente completo' para reparar/confirmar o estado. O seed fixo não libera linkage."
         }
 
         foreach($observationId in $observationIds){
