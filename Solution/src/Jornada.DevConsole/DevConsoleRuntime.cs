@@ -569,18 +569,13 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             var records=resultPath is null?Array.Empty<Dictionary<string,string?>>():await LoadRecordsAsync(definition.ResultPath,root);
             var artifacts=ParseArtifacts(result.Output,root);
             if(resultPath is not null)live.Add("result",$"Resultado: {resultPath}");
-            var isPartialOneShot=definition.Id=="silver"
-                &&result.ExitCode==0
-                &&result.Output.Contains("JORNADA_ONE_SHOT_PENDING=",StringComparison.Ordinal);
-            var summary=isPartialOneShot
-                ?"One shot concluído; a Entrega ainda possui lote(s) pendente(s). Execute 4.1 novamente para processar mais uma iteração."
-                :records.Count>0
-                    ?$"{records.Count} registro(s) no resultado. Resultado: {resultPath}"
-                    :result.ExitCode==0
-                        ?(resultPath is null?"Comando concluído.":$"Comando concluído. Resultado: {resultPath}")
-                        :$"Comando falhou (exit {result.ExitCode}).";
+            var summary=records.Count>0
+                ?$"{records.Count} registro(s) no resultado. Resultado: {resultPath}"
+                :result.ExitCode==0
+                    ?(resultPath is null?"Comando concluído.":$"Comando concluído. Resultado: {resultPath}")
+                    :$"Comando falhou (exit {result.ExitCode}).";
             var step=new StepResult(definition.CommandLine!,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,resultPath,artifacts);
-            var status=isPartialOneShot?"PARCIAL":result.ExitCode==0?"SUCESSO":"FALHA";
+            var status=result.ExitCode==0?"SUCESSO":"FALHA";
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,status,summary,step,records,executionNumber),live);
         }
