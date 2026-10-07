@@ -201,7 +201,7 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
         <label>Natureza<input id="zipNatureza" readonly></label>
         <label>Tipo<input id="zipTipo" readonly></label>
         <label>Versão do tipo<input id="zipTipoVersao" type="number" readonly></label>
-        <label>Versão Pessoa utilizável<input id="zipPessoaSchemaVersao" type="number" readonly></label>
+        <label>Versão Pessoa corrente<input id="zipPessoaSchemaVersao" type="number" readonly></label>
         <label>ID temporário nesta entrega<input id="zipPessoaId"><span class="small">Liga a Pessoa aos registros deste ZIP; não identifica a Pessoa entre entregas.</span></label>
         <label>Código da pessoa na origem (opcional)<input id="zipPessoaOrigem"><span class="small">Chave estável do sistema de origem. Use o mesmo valor em novas entregas da mesma Pessoa.</span></label>
         <label>CPF (opcional)<input id="zipCpf" inputmode="numeric" autocomplete="off"><span class="small">Quando informado, segue a rota determinística de CPF; vazio mantém o teste sem CPF.</span></label>
@@ -955,11 +955,6 @@ function syncFormToJson(){
   if(cpf&&!/^\d{11}$/.test(cpf)){alert('CPF deve conter exatamente 11 dígitos.');zipCpf.focus();return false}
   if(dataNascimento&&!/^\d{4}-\d{2}-\d{2}$/.test(dataNascimento)){alert('Quando informada, a data de nascimento deve ser válida.');zipNascimento.focus();return false}
   const pessoaSchemaVersao=Number(zipPessoaSchemaVersao.value);
-  if(pessoaSchemaVersao<6&&(!nomeCompleto||!dataNascimento)){
-    alert('O contrato Pessoa v'+pessoaSchemaVersao+' é histórico e exige nome completo e data de nascimento. Para testar núcleo de identidade opcional, selecione Pessoa v6.');
-    (!nomeCompleto?zipNome:zipNascimento).focus();
-    return false;
-  }
   const pessoa={
     idPessoaEntrega,
     cpf:cpf||null,
