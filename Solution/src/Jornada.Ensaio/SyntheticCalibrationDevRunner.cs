@@ -403,7 +403,7 @@ public sealed partial class SyntheticCalibrationDevRunner(
                 "--seed", settings.Seed.ToString(CultureInfo.InvariantCulture),
                 "--error-profile", settings.ErrorProfile,
                 "--gestores", "4",
-                "--pessoa-schema-versao", "4",
+                "--pessoa-schema-versao", Jornada.Contracts.IngestionContractVersions.CurrentPessoaSchemaVersion.ToString(CultureInfo.InvariantCulture),
                 "--data-referencia", settings.DataReferencia.ToString("O", CultureInfo.InvariantCulture),
                 "--pseudonymization-key-env", settings.PseudonymizationKeyEnvironment
             ],
@@ -440,9 +440,9 @@ public sealed partial class SyntheticCalibrationDevRunner(
             throw new InvalidDataException("Proveniência incompleta no bridge-manifest.");
         }
 
-        if (manifest.PessoaSchemaVersao != 4)
+        if (manifest.PessoaSchemaVersao != Jornada.Contracts.IngestionContractVersions.CurrentPessoaSchemaVersion)
             throw new InvalidDataException(
-                $"bridge-manifest deve materializar Pessoa v4; atual={manifest.PessoaSchemaVersao}.");
+                $"bridge-manifest deve materializar Pessoa v{Jornada.Contracts.IngestionContractVersions.CurrentPessoaSchemaVersion}; atual={manifest.PessoaSchemaVersao}.");
         if (manifest.DataReferencia != settings.DataReferencia)
             throw new InvalidDataException(
                 $"dataReferencia do bridge diverge da configuração: manifest={manifest.DataReferencia:O}, " +
