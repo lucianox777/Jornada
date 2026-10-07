@@ -231,9 +231,11 @@ JOIN ref.gestor g ON g.gestor_id=v.gestor_id
 JOIN @PessoaV6 x ON x.codigo=g.codigo
 WHERE v.versao=6;
 
-DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=6 AND status='ATIVA'),
-        @gpvSmads BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND versao=6 AND status='ATIVA'),
-        @gpvSms BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSms AND versao=6 AND status='ATIVA');
+-- Fixtures abaixo são históricas e preservam a versão Pessoa original para replay.
+-- Novas Entregas continuam resolvendo a única versão ATIVA (v6).
+DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=4),
+        @gpvSmads BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND versao=4),
+        @gpvSms BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSms AND versao=4);
 
 -- Credenciais no banco guardam somente secret_ref. Os IDs abaixo são os mesmos da fixture
 -- config/security/test-access-keys.json para que toda chamada DEV possa ser auditada por FK.
