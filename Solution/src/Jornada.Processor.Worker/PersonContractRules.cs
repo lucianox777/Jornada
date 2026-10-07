@@ -1,3 +1,5 @@
+using Jornada.Contracts;
+
 namespace Jornada.Processor.Worker;
 
 /// <summary>
@@ -7,7 +9,7 @@ namespace Jornada.Processor.Worker;
 /// </summary>
 internal static class PersonContractRules
 {
-    public const int CurrentSchemaVersion = 6;
+    public const int CurrentSchemaVersion = ContractVersions.CurrentPersonSchemaVersion;
 
     private static readonly HashSet<string> CpfAbsenceReasons = new(StringComparer.Ordinal)
     {
