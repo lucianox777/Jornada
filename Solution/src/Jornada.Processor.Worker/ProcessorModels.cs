@@ -196,7 +196,7 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
             var cpf = legacyCpf
                 ?? identifiers.FirstOrDefault(i => i.Tipo == "CPF")?.ValorNormalizado;
             var cpfAbsenceReason = OptionalString(json, "cpfAusenteMotivo");
-            PersonV5ContractRules.ValidateCpfAbsence(batch.PessoaSchemaVersao, cpf, cpfAbsenceReason);
+            PersonContractRules.ValidateCpfAbsence(cpf, cpfAbsenceReason);
 
             var attributes = new List<ParsedTransversalAttribute>();
             if (json.TryGetProperty("atributosTransversais", out var attrs) && attrs.ValueKind == JsonValueKind.Array)
@@ -216,35 +216,22 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
 
                     if (isReference)
                     {
-                        if (batch.PessoaSchemaVersao >= 5)
-                        {
-                            if (string.IsNullOrWhiteSpace(referenceStateRaw)
-                                || !Enum.TryParse<TerritorialReferenceState>(referenceStateRaw, ignoreCase: false, out var parsedState))
-                                throw new InvalidDataException("pessoas.jsonl: REFERENCIA_TERRITORIAL v5 exige estadoReferenciaTerritorial válido.");
-                            referenceState = parsedState;
+                        if (string.IsNullOrWhiteSpace(referenceStateRaw)
+                            || !Enum.TryParse<TerritorialReferenceState>(referenceStateRaw, ignoreCase: false, out var parsedState))
+                            throw new InvalidDataException("pessoas.jsonl: REFERENCIA_TERRITORIAL exige estadoReferenciaTerritorial válido.");
+                        referenceState = parsedState;
 
-                            if (referenceState == TerritorialReferenceState.INFORMADA)
-                            {
-                                if (string.IsNullOrWhiteSpace(referenceNatureRaw)
-                                    || !Enum.TryParse<TerritorialReferenceNature>(referenceNatureRaw, ignoreCase: false, out var parsedNature)
-                                    || parsedNature == TerritorialReferenceNature.REFERENCIA_TERRITORIAL_DECLARADA)
-                                    throw new InvalidDataException("pessoas.jsonl: REFERENCIA_TERRITORIAL INFORMADA v5 exige natureza tipada válida.");
-                                referenceNature = parsedNature;
-                            }
-                            else if (!string.IsNullOrWhiteSpace(referenceNatureRaw))
-                            {
-                                throw new InvalidDataException("pessoas.jsonl: SEM_ENDERECO_FIXO_DECLARADO não admite naturezaReferenciaTerritorial.");
-                            }
-                        }
-                        else
+                        if (referenceState == TerritorialReferenceState.INFORMADA)
                         {
-                            referenceState = TerritorialReferenceState.INFORMADA;
-                            if (!string.IsNullOrWhiteSpace(referenceStateRaw))
-                                throw new InvalidDataException("pessoas.jsonl: estadoReferenciaTerritorial pertence ao contrato Pessoa v5.");
                             if (string.IsNullOrWhiteSpace(referenceNatureRaw)
-                                || !Enum.TryParse<TerritorialReferenceNature>(referenceNatureRaw, true, out var parsedNature))
-                                throw new InvalidDataException("pessoas.jsonl: REFERENCIA_TERRITORIAL exige naturezaReferenciaTerritorial válida.");
+                                || !Enum.TryParse<TerritorialReferenceNature>(referenceNatureRaw, ignoreCase: false, out var parsedNature)
+                                || parsedNature == TerritorialReferenceNature.REFERENCIA_TERRITORIAL_DECLARADA)
+                                throw new InvalidDataException("pessoas.jsonl: REFERENCIA_TERRITORIAL INFORMADA exige natureza tipada válida.");
                             referenceNature = parsedNature;
+                        }
+                        else if (!string.IsNullOrWhiteSpace(referenceNatureRaw))
+                        {
+                            throw new InvalidDataException("pessoas.jsonl: SEM_ENDERECO_FIXO_DECLARADO não admite naturezaReferenciaTerritorial.");
                         }
                     }
                     else
