@@ -234,6 +234,34 @@ public sealed class PersonV5ContractTests
         }
     }
 
+    [Test]
+    public void Pessoa_v6_schema_hashes_match_governance_inventory_and_keep_core_optional()
+    {
+        var root = FindRepositoryRoot();
+        using var governance = JsonDocument.Parse(File.ReadAllText(Path.Combine(
+            root, "Solution", "config", "governance", "schema-approvals.json")));
+
+        foreach (var gestor in new[] { "SMADS", "SMDET", "SMS" })
+        {
+            var relative = $"config/contracts/gestores/{gestor}/pessoa/v6/pessoa.schema.json";
+            var expected = governance.RootElement.GetProperty("contracts").EnumerateArray()
+                .Single(x => x.GetProperty("path").GetString() == relative)
+                .GetProperty("sha256").GetString();
+
+            var path = Path.Combine(root, "Solution", relative.Replace('/', Path.DirectorySeparatorChar));
+            var bytes = File.ReadAllBytes(path);
+            var actual = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+            using var schema = JsonDocument.Parse(bytes);
+            var required = schema.RootElement.GetProperty("required").EnumerateArray().Select(x => x.GetString()).ToArray();
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(actual, Is.EqualTo(expected), $"{gestor} v6 hash divergiu do inventário.");
+                Assert.That(required, Is.EqualTo(new[] { "idPessoaEntrega" }), $"{gestor} v6 não deve exigir campos do núcleo.");
+            });
+        }
+    }
+
     private static JsonSchemaSubsetValidator LoadV5Validator()
     {
         var path = Path.Combine(

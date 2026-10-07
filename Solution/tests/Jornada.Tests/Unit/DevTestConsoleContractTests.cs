@@ -139,9 +139,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("ParentRunId"));
             Assert.That(runtime,Does.Contain("HeartbeatAsync"));
             Assert.That(runtime,Does.Contain("Processo ativo há"));
-            Assert.That(runtime,Does.Contain("JORNADA_ONE_SHOT_PENDING="));
-            Assert.That(runtime,Does.Contain("\"PARCIAL\""));
-            Assert.That(runtime,Does.Contain("One shot: executa no máximo uma iteração"));
+            Assert.That(runtime,Does.Not.Contain("JORNADA_ONE_SHOT_PENDING="));
+            Assert.That(runtime,Does.Not.Contain("\"PARCIAL\""));
+            Assert.That(runtime,Does.Contain("PROCESS_UNTIL_IDLE"));
             Assert.That(runtime,Does.Not.Contain("\"environment-status\""));
             Assert.That(runtime,Does.Contain("Diagnóstico read-only consolidado de infraestrutura, SQL/schema"));
             Assert.That(opsScript,Does.Contain("[1/7] Status/health da infraestrutura"));
@@ -251,9 +251,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Not.Contain("\"Gerar e enviar ZIP de ingestão\""));
             Assert.That(page,Does.Contain("pipeline-status"));
             Assert.That(page,Does.Contain("Ver status da última ingestão"));
-            Assert.That(page,Does.Contain("Processar um lote"));
-            Assert.That(page,Does.Contain("Executar one shot"));
-            Assert.That(page,Does.Contain("uma única iteração do Processor"));
+            Assert.That(page,Does.Contain("Processar Bronze → Silver"));
+            Assert.That(page,Does.Contain("Processar até concluir"));
+            Assert.That(page,Does.Contain("PROCESS_UNTIL_IDLE"));
+            Assert.That(page,Does.Not.Contain("uma única iteração do Processor"));
             Assert.That(page,Does.Contain("Visualizar Silver"));
             Assert.That(page,Does.Contain("Verificar integridade"));
             Assert.That(page,Does.Contain("Executar Linkage Runner"));
@@ -336,7 +337,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("ZipContractOption"));
             Assert.That(runtime,Does.Contain("ListContractsAsync"));
             Assert.That(runtime,Does.Contain("FROM gold.pessoa"));
-            Assert.That(runtime,Does.Contain("gpv.status IN('ATIVA','ENCERRADA')"));
+            Assert.That(runtime,Does.Contain("gpv.status='ATIVA'"));
             Assert.That(runtime,Does.Contain("trv.status IN('ATIVA','ENCERRADA')"));
             Assert.That(runtime,Does.Contain("[\"pessoaSchemaVersao\"]=contract.PessoaSchemaVersao"));
             Assert.That(runtime,Does.Contain("[\"tipoVersao\"]=contract.TipoVersao"));
@@ -580,10 +581,11 @@ public sealed class DevTestConsoleContractTests
             Assert.That(containerEntrypoint,Does.Contain("SKIP $name (Processor): modo didático manual da Console DEV"));
             Assert.That(containerEntrypoint,Does.Contain("JORNADA_DEV_CONSOLE_MANUAL_PROCESSOR"));
             Assert.That(processorProgram,Does.Contain("PROCESS_ONE"));
-            Assert.That(processorProgram,Does.Not.Contain("PROCESS_UNTIL_IDLE"));
+            Assert.That(processorProgram,Does.Contain("PROCESS_UNTIL_IDLE"));
             Assert.That(processorProgram,Does.Contain("Processor:TargetEntregaId"));
+            Assert.That(processorProgram,Does.Contain("Processor:RunOnceMaxSeconds"));
+            Assert.That(processorProgram,Does.Contain("while (DateTimeOffset.UtcNow < deadline)"));
             Assert.That(processorProgram,Does.Contain("ProcessNextAsync(targetEntregaId"));
-            Assert.That(processorProgram,Does.Not.Contain("while (await processor.ProcessNextAsync"));
             Assert.That(processorProgram,Does.Contain("REFRESH_LOCAL_BLOCKING"));
             Assert.That(processorProgram,Does.Contain("RefreshAllSqlServerAsync"));
             Assert.That(blockingBootstrap,Does.Contain("BlockingProjectionPersistence.RefreshSqlServerBatchAsync"));
@@ -595,12 +597,12 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("--entrega-id"));
             Assert.That(opsScript,Does.Contain("last-bronze-verify.json"));
             Assert.That(opsScript,Does.Contain("'process-latest'"));
-            Assert.That(opsScript,Does.Contain("Processor__Operation=PROCESS_ONE"));
-            Assert.That(opsScript,Does.Not.Contain("Processor__Operation=PROCESS_UNTIL_IDLE"));
+            Assert.That(opsScript,Does.Contain("Processor__Operation=PROCESS_UNTIL_IDLE"));
+            Assert.That(opsScript,Does.Contain("Processor__RunOnceMaxSeconds=300"));
             Assert.That(opsScript,Does.Contain("Processor__TargetEntregaId=$entregaId"));
             Assert.That(opsScript,Does.Contain("JORNADA_ONE_SHOT_PENDING="));
-            Assert.That(opsScript,Does.Contain("Execute novamente 4.1 · Processar um lote"));
-            Assert.That(opsScript,Does.Contain("serão preservados porque o Processor one-shot será filtrado pela Entrega atual"));
+            Assert.That(opsScript,Does.Not.Contain("Execute novamente 4.1 · Processar um lote"));
+            Assert.That(opsScript,Does.Contain("serão preservados porque a execução finita do Processor será filtrada pela Entrega atual"));
             Assert.That(opsScript,Does.Not.Contain("A execução one-shot foi recusada para não processar carga fora do fluxo atual"));
             Assert.That(opsScript,Does.Contain("Execute primeiro 'Processar Bronze → Silver'"));
             Assert.That(lifecycleScript,Does.Contain("Development','Homologation','Production"));
@@ -634,28 +636,39 @@ public sealed class DevTestConsoleContractTests
         });
     }
     [Test]
-    public void Dev_sehab_person_v6_keeps_only_delivery_key_required_and_core_nullable()
+    public void Dev_person_v6_is_latest_for_all_gestores_and_core_fields_are_nullable()
     {
         var root=Root();
-        var schemaPath=Path.Combine(root,"Solution","config","contracts","gestores","SEHAB","pessoa","v6","pessoa.schema.json");
-        using var schema=System.Text.Json.JsonDocument.Parse(File.ReadAllText(schemaPath));
-        var required=schema.RootElement.GetProperty("required").EnumerateArray().Select(x=>x.GetString()).ToArray();
-        var properties=schema.RootElement.GetProperty("properties");
-        var nomeTypes=properties.GetProperty("nomeCompleto").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
-        var nascimentoTypes=properties.GetProperty("dataNascimento").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
         var seed=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Seed_Dev.sql"));
-        var schemaHash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(schemaPath)));
+        var expectedHashes=new Dictionary<string,string>{
+            ["SEHAB"]="930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4",
+            ["SMADS"]="A3EFCE0A70A2BF90387663D7F570B98D3C0184498652AE8FD22C024A6D6305F5",
+            ["SMDET"]="56B18CCE992BC9C32FDFCB61C825BD96339D37F74C94DB8EFC6198C02849917F",
+            ["SMS"]="FED22B60283BB03D26FB6ACC0C1F6C78B55069C0D4B269FE566FE45F140C696E"
+        };
+
+        foreach(var gestor in expectedHashes.Keys)
+        {
+            var schemaPath=Path.Combine(root,"Solution","config","contracts","gestores",gestor,"pessoa","v6","pessoa.schema.json");
+            using var schema=System.Text.Json.JsonDocument.Parse(File.ReadAllText(schemaPath));
+            var required=schema.RootElement.GetProperty("required").EnumerateArray().Select(x=>x.GetString()).ToArray();
+            var properties=schema.RootElement.GetProperty("properties");
+            var nomeTypes=properties.GetProperty("nomeCompleto").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
+            var nascimentoTypes=properties.GetProperty("dataNascimento").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
+            var schemaHash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(schemaPath)));
+
+            Assert.Multiple(()=>{
+                Assert.That(required,Is.EqualTo(new[]{"idPessoaEntrega"}),gestor);
+                Assert.That(schemaHash,Is.EqualTo(expectedHashes[gestor]),gestor);
+                Assert.That(nomeTypes,Does.Contain("null"),gestor);
+                Assert.That(nascimentoTypes,Does.Contain("null"),gestor);
+            });
+        }
 
         Assert.Multiple(()=>{
-            Assert.That(required,Is.EqualTo(new[]{"idPessoaEntrega"}));
-            Assert.That(schemaHash,Is.EqualTo("930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4"));
-            Assert.That(nomeTypes,Does.Contain("null"));
-            Assert.That(nascimentoTypes,Does.Contain("null"));
-            Assert.That(seed,Does.Contain("config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json"));
-            Assert.That(seed,Does.Contain("930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4"));
-            Assert.That(seed,Does.Contain("status='ATIVA',vigencia_inicio='2026-09-19',vigencia_fim=NULL"));
-            Assert.That(seed,Does.Contain("@gSehab,6,'2026-10-06','2026-10-06'"));
-            Assert.That(seed,Does.Contain("N'ENCERRADA',NULL"));
+            Assert.That(seed,Does.Contain("WHERE v.versao<6 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET')"));
+            Assert.That(seed,Does.Contain("WHERE v.versao=6"));
+            Assert.That(seed,Does.Contain("N'ATIVA','2026-10-06'"));
         });
     }
 

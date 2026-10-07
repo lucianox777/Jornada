@@ -175,36 +175,65 @@ FROM ref.gestor g WHERE g.codigo IN('SMS','SEHAB','SMADS','SMDET')
 AND NOT EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v WHERE v.gestor_id=g.gestor_id AND v.versao=4);
 UPDATE v SET pessoa_schema_ref=CONCAT('config/contracts/gestores/',g.codigo,'/pessoa/v4/pessoa.schema.json'),
              pessoa_schema_sha256=CASE g.codigo WHEN 'SEHAB' THEN 0x4441b5f43d1e25a672d52c31b5f85794123e0cca99044620c1c9616f9f5cad43 WHEN 'SMADS' THEN 0x20cf0ce86ddd1fac0f8a894ae8509035ca94a97dc488e1efa395c7d1864f47e9 WHEN 'SMDET' THEN 0x94bc5ad8a128dddb0a0d9f32cd7fd649338e5e3209b0015053c7493f262a8719 WHEN 'SMS' THEN 0x93fc2b62b56c0d817f36de77fe6f5953296404938e41e66f8c734b72bc585413 END,
-             status='ATIVA',vigencia_inicio='2026-09-19',vigencia_fim=NULL,ativado_em=COALESCE(v.ativado_em,'2026-09-19')
+             status=CASE WHEN EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v6 WHERE v6.gestor_id=v.gestor_id AND v6.versao=6) THEN 'ENCERRADA' ELSE 'ATIVA' END,
+             vigencia_inicio='2026-09-19',
+             vigencia_fim=CASE WHEN EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao v6 WHERE v6.gestor_id=v.gestor_id AND v6.versao=6) THEN COALESCE(v.vigencia_fim,'2026-10-06') ELSE NULL END,
+             ativado_em=COALESCE(v.ativado_em,'2026-09-19')
 FROM ref.gestor_pessoa_versao v JOIN ref.gestor g ON g.gestor_id=v.gestor_id
 WHERE v.versao=4 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
 
--- DEV Console: contrato cadastral permissivo para exercitar identidade progressiva.
--- Somente a chave técnica idPessoaEntrega é obrigatória; CPF/nome/nascimento/nome da mãe
--- podem estar ausentes. O v4 permanece ATIVO para preservar a semântica histórica/operacional;
--- a v6 fica ENCERRADA, porém utilizável pela ingestão DEV explícita (o receptor aceita ATIVA/ENCERRADA).
+-- Pessoa v6 é a única versão ativa para novas Entregas DEV.
+-- As versões anteriores permanecem catalogadas apenas para leitura/replay histórico.
+UPDATE v
+   SET status='ENCERRADA',
+       vigencia_fim=COALESCE(v.vigencia_fim,'2026-10-06')
+FROM ref.gestor_pessoa_versao v
+JOIN ref.gestor g ON g.gestor_id=v.gestor_id
+WHERE v.versao<6 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
+
+DECLARE @PessoaV6 TABLE(codigo NVARCHAR(20) PRIMARY KEY, schema_hash BINARY(32));
+INSERT @PessoaV6(codigo,schema_hash) VALUES
+ (N'SEHAB',0x930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4),
+ (N'SMADS',0xA3EFCE0A70A2BF90387663D7F570B98D3C0184498652AE8FD22C024A6D6305F5),
+ (N'SMDET',0x56B18CCE992BC9C32FDFCB61C825BD96339D37F74C94DB8EFC6198C02849917F),
+ (N'SMS',  0xFED22B60283BB03D26FB6ACC0C1F6C78B55069C0D4B269FE566FE45F140C696E);
+
 IF EXISTS(
-    SELECT 1 FROM ref.gestor_pessoa_versao
-    WHERE gestor_id=@gSehab AND versao=6
-      AND (pessoa_schema_ref<>N'config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json'
-           OR pessoa_schema_sha256<>0x930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4))
-    THROW 51593,'Pessoa v6 DEV SEHAB já cadastrada com referência/hash divergente.',1;
+    SELECT 1
+    FROM ref.gestor_pessoa_versao v
+    JOIN ref.gestor g ON g.gestor_id=v.gestor_id
+    JOIN @PessoaV6 x ON x.codigo=g.codigo
+    WHERE v.versao=6
+      AND (v.pessoa_schema_ref<>CONCAT(N'config/contracts/gestores/',g.codigo,N'/pessoa/v6/pessoa.schema.json')
+           OR v.pessoa_schema_sha256<>x.schema_hash))
+    THROW 51593,'Pessoa v6 já cadastrada com referência/hash divergente.',1;
 
-IF NOT EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=6)
- INSERT ref.gestor_pessoa_versao(
-    gestor_id,versao,vigencia_inicio,vigencia_fim,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
- VALUES(
-    @gSehab,6,'2026-10-06','2026-10-06',N'config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json',
-    0x930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4,N'ENCERRADA',NULL);
-ELSE
- UPDATE ref.gestor_pessoa_versao
-    SET status='ENCERRADA',vigencia_inicio='2026-10-06',vigencia_fim='2026-10-06',
-        pessoa_schema_ref=N'config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json',
-        pessoa_schema_sha256=0x930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4,
-        ativado_em=NULL
-  WHERE gestor_id=@gSehab AND versao=6;
+INSERT ref.gestor_pessoa_versao(
+    gestor_id,versao,vigencia_inicio,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
+SELECT g.gestor_id,6,'2026-10-06',
+       CONCAT(N'config/contracts/gestores/',g.codigo,N'/pessoa/v6/pessoa.schema.json'),
+       x.schema_hash,N'ATIVA','2026-10-06'
+FROM ref.gestor g
+JOIN @PessoaV6 x ON x.codigo=g.codigo
+WHERE NOT EXISTS(
+    SELECT 1 FROM ref.gestor_pessoa_versao v
+    WHERE v.gestor_id=g.gestor_id AND v.versao=6);
 
-DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND status='ATIVA'),
+UPDATE v
+   SET status='ATIVA',
+       vigencia_inicio='2026-10-06',
+       vigencia_fim=NULL,
+       pessoa_schema_ref=CONCAT(N'config/contracts/gestores/',g.codigo,N'/pessoa/v6/pessoa.schema.json'),
+       pessoa_schema_sha256=x.schema_hash,
+       ativado_em=COALESCE(v.ativado_em,'2026-10-06')
+FROM ref.gestor_pessoa_versao v
+JOIN ref.gestor g ON g.gestor_id=v.gestor_id
+JOIN @PessoaV6 x ON x.codigo=g.codigo
+WHERE v.versao=6;
+
+-- Fixtures abaixo são históricas e preservam a versão Pessoa original para replay.
+-- Novas Entregas continuam resolvendo a única versão ATIVA (v6).
+DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=4),
         @gpvSmads BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND versao=4),
         @gpvSms BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSms AND versao=4);
 

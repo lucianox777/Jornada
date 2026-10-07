@@ -85,7 +85,7 @@ static class CommandCatalog
             {Stage="2 · Ingestão"},
         new("bronze","Bronze","Mostra os metadados e a localização lógica do objeto recebido e permite verificar a integridade física da última Entrega com Jornada.Bronze.Verify.",null,null,null,["ingestion"],"A verificação confere objeto, SHA-256 e tamanho. Ela não processa nem altera a Entrega.")
             {Stage="3 · Bronze"},
-        new("silver","Silver · processar Bronze","One shot: executa no máximo uma iteração do Jornada.Processor.Worker e processa no máximo um lote da Entrega atual por clique. Repita 4.1 enquanto houver lotes pendentes; só então o Linkage é liberado.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action process-latest",null,["bronze"],"A Console DEV desabilita o Processor residente para tornar cada iteração explícita e auditável.")
+        new("silver","Silver · processar Bronze","Execução finita: usa PROCESS_UNTIL_IDLE para processar somente a Entrega atual até não restarem lotes ou atingir o limite entre lotes. Outras Entregas permanecem intocadas e o processo encerra com código de saída.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action process-latest",null,["bronze"],"A Console DEV desabilita o Processor residente e executa a transição Bronze → Silver como comando finito e auditável.")
             {Stage="4 · Silver"},
         new("linkage","Identidade e Linkage","One shot: executa o Jornada.Linkage.Runner no NODE2 somente para observações probabilísticas elegíveis da última Entrega. Entregas já resolvidas por CPF determinístico terminam como no-op de sucesso, sem chamar o Runner.","pwsh","-NoProfile -File scripts/dev-console-operations.ps1 -Action linkage",null,["silver"],"Execute 4.1 até a Entrega estar PROCESSADA. Se a identidade determinística já resolveu tudo, a Console confirma a publicação na Gold e não exige modelo probabilístico.")
             {Stage="5 · Identidade / Linkage"},
@@ -210,15 +210,13 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
               REPLACE(REPLACE(tr.nome,'|',' '),CHAR(10),' ')
             FROM ref.gestor g
             JOIN ref.sistema_origem so ON so.gestor_id=g.gestor_id AND so.ativo=1
-            JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id AND gpv.status IN('ATIVA','ENCERRADA')
+            JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id AND gpv.status='ATIVA'
             JOIN ref.tipo_registro tr ON tr.gestor_id=g.gestor_id AND tr.ativo=1
             JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id AND trv.status IN('ATIVA','ENCERRADA')
             WHERE g.ativo=1
             ORDER BY
               g.codigo,
               tr.codigo,
-              CASE WHEN g.codigo='SEHAB' AND gpv.versao=6 THEN 0 ELSE 1 END,
-              CASE gpv.status WHEN 'ATIVA' THEN 0 ELSE 1 END,
               gpv.versao DESC,
               CASE trv.status WHEN 'ATIVA' THEN 0 ELSE 1 END,
               trv.versao DESC,
@@ -571,18 +569,13 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
             var records=resultPath is null?Array.Empty<Dictionary<string,string?>>():await LoadRecordsAsync(definition.ResultPath,root);
             var artifacts=ParseArtifacts(result.Output,root);
             if(resultPath is not null)live.Add("result",$"Resultado: {resultPath}");
-            var isPartialOneShot=definition.Id=="silver"
-                &&result.ExitCode==0
-                &&result.Output.Contains("JORNADA_ONE_SHOT_PENDING=",StringComparison.Ordinal);
-            var summary=isPartialOneShot
-                ?"One shot concluído; a Entrega ainda possui lote(s) pendente(s). Execute 4.1 novamente para processar mais uma iteração."
-                :records.Count>0
-                    ?$"{records.Count} registro(s) no resultado. Resultado: {resultPath}"
-                    :result.ExitCode==0
-                        ?(resultPath is null?"Comando concluído.":$"Comando concluído. Resultado: {resultPath}")
-                        :$"Comando falhou (exit {result.ExitCode}).";
+            var summary=records.Count>0
+                ?$"{records.Count} registro(s) no resultado. Resultado: {resultPath}"
+                :result.ExitCode==0
+                    ?(resultPath is null?"Comando concluído.":$"Comando concluído. Resultado: {resultPath}")
+                    :$"Comando falhou (exit {result.ExitCode}).";
             var step=new StepResult(definition.CommandLine!,root,result.ExitCode,sw.ElapsedMilliseconds,result.Output,result.Error,resultPath,artifacts);
-            var status=isPartialOneShot?"PARCIAL":result.ExitCode==0?"SUCESSO":"FALHA";
+            var status=result.ExitCode==0?"SUCESSO":"FALHA";
             live.Add("status",$"{status} · {(sw.ElapsedMilliseconds/1000d):0.00}s");
             await FinishAsync(new RunRecord(id,definition.Id,definition.Title,started,DateTimeOffset.UtcNow,status,summary,step,records,executionNumber),live);
         }

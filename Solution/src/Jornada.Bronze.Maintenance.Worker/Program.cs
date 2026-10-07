@@ -6,6 +6,7 @@ var builder = Host.CreateApplicationBuilder(args);
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
+var runOnce = builder.Configuration.GetValue("BronzeMaintenance:RunOnce", false);
 builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 builder.Services.Configure<BronzeMaintenanceOptions>(builder.Configuration.GetSection("BronzeMaintenance"));
 
@@ -26,9 +27,22 @@ builder.Services.AddSingleton<IBronzeObjectStore>(_ =>
 });
 builder.Services.AddSingleton<IBronzeObjectMaintenanceStore>(sp => (IBronzeObjectMaintenanceStore)sp.GetRequiredService<IBronzeObjectStore>());
 builder.Services.AddSingleton<BronzeMaintenanceRepository>();
-builder.Services.AddHostedService<BronzeMaintenanceWorker>();
+if (runOnce)
+    builder.Services.AddSingleton<BronzeMaintenanceWorker>();
+else
+    builder.Services.AddHostedService<BronzeMaintenanceWorker>();
 
 var host = builder.Build();
+
+if (runOnce)
+{
+    var options = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<BronzeMaintenanceOptions>>().Value;
+    if (options.Enabled)
+        await host.Services.GetRequiredService<BronzeMaintenanceWorker>().RunCycleAsync(CancellationToken.None);
+    Console.WriteLine($"Bronze Maintenance RunOnce concluído: enabled={options.Enabled}.");
+    return;
+}
+
 var heartbeat = new OperationalRuntimeHeartbeat(
     operationalSql,
     builder.Configuration["JORNADA_NODE_ID"] ?? Environment.MachineName,
