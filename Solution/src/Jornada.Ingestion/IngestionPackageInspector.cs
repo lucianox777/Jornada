@@ -10,6 +10,7 @@ namespace Jornada.Ingestion;
 public static partial class IngestionPackageInspector
 {
     public const int CurrentFormatVersion = 2;
+    public const int CurrentPessoaSchemaVersion = 6;
     public const long MaxCompressedBytes = 250L * 1024 * 1024;
     public const long MaxUncompressedBytes = 2L * 1024 * 1024 * 1024;
     public const long MaxManifestBytes = 64L * 1024;
@@ -113,16 +114,13 @@ public static partial class IngestionPackageInspector
         }
 
         if (manifest.FormatoVersao != CurrentFormatVersion) throw new InvalidDataException($"formatoVersao deve ser {CurrentFormatVersion}.");
-        if (manifest.PessoaSchemaVersao < 1) throw new InvalidDataException("pessoaSchemaVersao deve ser >= 1.");
+        if (manifest.PessoaSchemaVersao != CurrentPessoaSchemaVersion)
+            throw new InvalidDataException($"pessoaSchemaVersao deve ser a versão corrente {CurrentPessoaSchemaVersion}.");
         if (string.IsNullOrWhiteSpace(manifest.CodigoSistemaOrigem) || !SistemaOrigemCodeRegex().IsMatch(manifest.CodigoSistemaOrigem))
             throw new InvalidDataException("codigoSistemaOrigem é obrigatório e deve conter 1 a 80 caracteres A-Z/0-9/_/-.");
-        if (manifest.CodigoBasePessoaOrigem is not null)
-        {
-            if (manifest.PessoaSchemaVersao < 4)
-                throw new InvalidDataException("codigoBasePessoaOrigem só é permitido com pessoaSchemaVersao >= 4.");
-            if (!PersonBaseCodeRegex().IsMatch(manifest.CodigoBasePessoaOrigem))
-                throw new InvalidDataException("codigoBasePessoaOrigem deve conter 1 a 120 caracteres A-Z/0-9/_/-.");
-        }
+        if (manifest.CodigoBasePessoaOrigem is not null
+            && !PersonBaseCodeRegex().IsMatch(manifest.CodigoBasePessoaOrigem))
+            throw new InvalidDataException("codigoBasePessoaOrigem deve conter 1 a 120 caracteres A-Z/0-9/_/-.");
         if (validatePayloadPresence && pessoasEntry.Length == 0) throw new InvalidDataException("pessoas.jsonl não pode estar vazio.");
 
         var factualFields = new object?[] { manifest.Natureza, manifest.CodigoTipo, manifest.TipoVersao };
