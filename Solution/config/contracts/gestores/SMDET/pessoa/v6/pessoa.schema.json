@@ -10,7 +10,7 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 255,
-      "description": "Compatibilidade legada. Quando informado, é materializado como identificador CODIGO_BASE_ORIGEM; não é obrigatório e não substitui a coleção identificadores."
+      "description": "Código persistente opcional da Pessoa no sistema de origem. Quando informado, é materializado como identificador CODIGO_BASE_ORIGEM e não substitui a coleção identificadores."
     },
     "cpf": {
       "type": [
@@ -18,7 +18,7 @@
         "null"
       ],
       "pattern": "^[0-9]{11}$",
-      "description": "Compatibilidade legada. CPF também pode ser informado em identificadores[]. Se ambos existirem, devem convergir para o mesmo CPF normalizado."
+      "description": "CPF opcional. Também pode ser informado em identificadores[]; se aparecer nos dois locais, ambos devem convergir para o mesmo CPF normalizado."
     },
     "cpfAusenteMotivo": {
       "type": [
@@ -32,7 +32,7 @@
         "EM_REGULARIZACAO",
         null
       ],
-      "description": "Pessoa v5: quando o CPF final estiver ausente, o Processor exige exatamente um estado explícito. NAO_INFORMADO_ORIGEM é desconhecido; os demais estados documentais só existem por declaração da origem. SEM_CPF permanece apenas no histórico v4."
+      "description": "Quando o CPF final estiver ausente, o Processor exige exatamente um estado explícito da taxonomia corrente. NAO_INFORMADO_ORIGEM representa ausência de informação na origem; os demais estados documentais só existem por declaração da origem."
     },
     "identificadores": {
       "type": [
@@ -418,7 +418,7 @@
               "SEM_ENDERECO_FIXO_DECLARADO",
               null
             ],
-            "description": "Pessoa v5: estado explícito da REFERENCIA_TERRITORIAL. SEM_ENDERECO_FIXO_DECLARADO é declaração da origem e não equivale a ausência de dado nem a SEM_ENDERECO_APTO."
+            "description": "Estado explícito da REFERENCIA_TERRITORIAL. SEM_ENDERECO_FIXO_DECLARADO é declaração da origem e não equivale a ausência de dado nem a SEM_ENDERECO_APTO."
           }
         },
         "additionalProperties": false,
