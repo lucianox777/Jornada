@@ -244,9 +244,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("id=\"zipContract\""));
             Assert.That(page,Does.Contain("loadZipContracts()"));
             Assert.That(page,Does.Contain(".filter(c=>c.gestor==='SEHAB'&&c.codigoTipo==='AA01')"));
-            Assert.That(page,Does.Contain("Number(b.pessoaSchemaVersao)-Number(a.pessoaSchemaVersao)"));
-            Assert.That(page,Does.Contain("Para testar núcleo de identidade opcional, selecione Pessoa v6."));
-            Assert.That(runtime,Does.Contain(".OrderByDescending(x=>x.PessoaSchemaVersao)"));
+            Assert.That(page,Does.Not.Contain("Number(b.pessoaSchemaVersao)-Number(a.pessoaSchemaVersao)"));
+            Assert.That(page,Does.Not.Contain("é histórico e exige nome completo"));
+            Assert.That(runtime,Does.Contain("ContractVersions.CurrentPersonSchemaVersion"));
             Assert.That(page,Does.Contain("/api/zip/contracts"));
             Assert.That(page,Does.Contain("/api/zip/template?contract="));
             Assert.That(page,Does.Contain("Escolha o contrato de ingestão"));
@@ -345,9 +345,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("ZipContractOption"));
             Assert.That(runtime,Does.Contain("ListContractsAsync"));
             Assert.That(runtime,Does.Contain("FROM gold.pessoa"));
-            Assert.That(runtime,Does.Contain("ROW_NUMBER() OVER("));
-            Assert.That(runtime,Does.Contain("ORDER BY gpv.versao DESC"));
-            Assert.That(runtime,Does.Contain("gpv.status IN('ATIVA','ENCERRADA','RASCUNHO')"));
+            Assert.That(runtime,Does.Not.Contain("ROW_NUMBER() OVER("));
+            Assert.That(runtime,Does.Contain("gpv.versao={ContractVersions.CurrentPersonSchemaVersion}"));
+            Assert.That(runtime,Does.Contain("gpv.status='ATIVA'"));
             Assert.That(runtime,Does.Contain("trv.status IN('ATIVA','ENCERRADA')"));
             Assert.That(runtime,Does.Contain("[\"pessoaSchemaVersao\"]=contract.PessoaSchemaVersao"));
             Assert.That(runtime,Does.Contain("[\"tipoVersao\"]=contract.TipoVersao"));
@@ -646,15 +646,15 @@ public sealed class DevTestConsoleContractTests
         });
     }
     [Test]
-    public void Dev_person_v6_is_latest_for_all_gestores_and_core_fields_are_nullable()
+    public void Dev_person_contract_keeps_only_current_v6_for_all_gestores_and_core_fields_are_nullable()
     {
         var root=Root();
         var seed=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Seed_Dev.sql"));
         var expectedHashes=new Dictionary<string,string>{
-            ["SEHAB"]="930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4",
-            ["SMADS"]="A3EFCE0A70A2BF90387663D7F570B98D3C0184498652AE8FD22C024A6D6305F5",
-            ["SMDET"]="56B18CCE992BC9C32FDFCB61C825BD96339D37F74C94DB8EFC6198C02849917F",
-            ["SMS"]="FED22B60283BB03D26FB6ACC0C1F6C78B55069C0D4B269FE566FE45F140C696E"
+            ["SEHAB"]="9CC603CD41791E3AAB8CFB79333A03E2C0FA04CC37BC87D83DB3FA4D52B44209",
+            ["SMADS"]="2E17E5AE713A50A74B54130C49CA674806DA7F4FB1DC67054E685A5CECBAF6B4",
+            ["SMDET"]="07A09E62F58235256A38FE0C312AAFDA0D3773EBCD34703A34EDB1DF62B58D1E",
+            ["SMS"]="0A7AC27CDD88DE6E11303E6A1729627EC3E78008C2C4F88F10EAFA6114BF42A6"
         };
 
         foreach(var gestor in expectedHashes.Keys)
@@ -676,9 +676,11 @@ public sealed class DevTestConsoleContractTests
         }
 
         Assert.Multiple(()=>{
-            Assert.That(seed,Does.Contain("WHERE v.versao<6 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET')"));
+            Assert.That(seed,Does.Contain("WHERE v.versao<>6"));
             Assert.That(seed,Does.Contain("WHERE v.versao=6"));
             Assert.That(seed,Does.Contain("N'ATIVA','2026-10-06'"));
+            Assert.That(seed,Does.Not.Contain("/pessoa/v4/"));
+            Assert.That(seed,Does.Not.Contain("/pessoa/v5/"));
         });
     }
 
