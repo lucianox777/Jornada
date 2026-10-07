@@ -6,6 +6,7 @@ var builder = Host.CreateApplicationBuilder(args);
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
+var runOnce = builder.Configuration.GetValue("MaintenanceExecution:RunOnce", false);
 builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 builder.Services.AddOptions<ItemProcessedRetentionOptions>()
     .Bind(builder.Configuration.GetSection("ItemProcessedRetention"))
@@ -48,11 +49,50 @@ builder.Services.AddSingleton<IBronzeObjectStore>(_ =>
 });
 builder.Services.AddSingleton<IBronzeObjectMaintenanceStore>(sp => (IBronzeObjectMaintenanceStore)sp.GetRequiredService<IBronzeObjectStore>());
 
-builder.Services.AddHostedService<ItemProcessedRetentionWorker>();
-builder.Services.AddHostedService<DeliveryBronzeRetentionWorker>();
-builder.Services.AddHostedService<PipelineWatchdogWorker>();
+if (runOnce)
+{
+    builder.Services.AddSingleton<ItemProcessedRetentionWorker>();
+    builder.Services.AddSingleton<DeliveryBronzeRetentionWorker>();
+    builder.Services.AddSingleton<PipelineWatchdogWorker>();
+}
+else
+{
+    builder.Services.AddHostedService<ItemProcessedRetentionWorker>();
+    builder.Services.AddHostedService<DeliveryBronzeRetentionWorker>();
+    builder.Services.AddHostedService<PipelineWatchdogWorker>();
+}
 
 var host = builder.Build();
+
+if (runOnce)
+{
+    var failures = new List<string>();
+    var itemOptions = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ItemProcessedRetentionOptions>>().Value;
+    var deliveryOptions = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<DeliveryBronzeRetentionOptions>>().Value;
+    var watchdogOptions = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PipelineWatchdogOptions>>().Value;
+
+    if (itemOptions.Enabled)
+        await RunOnceStepAsync("ITEM_PROCESSED_RETENTION",
+            () => host.Services.GetRequiredService<ItemProcessedRetentionWorker>().RunCycleAsync(itemOptions, CancellationToken.None),
+            failures);
+    if (deliveryOptions.Enabled)
+        await RunOnceStepAsync("DELIVERY_BRONZE_RETENTION",
+            () => host.Services.GetRequiredService<DeliveryBronzeRetentionWorker>().RunCycleAsync(deliveryOptions, CancellationToken.None),
+            failures);
+    if (watchdogOptions.Enabled)
+        await RunOnceStepAsync("PIPELINE_WATCHDOG",
+            async () => { _ = await host.Services.GetRequiredService<PipelineWatchdogWorker>().RunCycleAsync(watchdogOptions, CancellationToken.None); },
+            failures);
+
+    Console.WriteLine($"Operations Maintenance RunOnce concluído: falhas={failures.Count}.");
+    if (failures.Count > 0)
+    {
+        Console.Error.WriteLine("Falhas: " + string.Join("; ", failures));
+        Environment.ExitCode = 1;
+    }
+    return;
+}
+
 var heartbeat = new OperationalRuntimeHeartbeat(
     operationalSql,
     builder.Configuration["JORNADA_NODE_ID"] ?? Environment.MachineName,
@@ -60,3 +100,16 @@ var heartbeat = new OperationalRuntimeHeartbeat(
     TimeSpan.FromSeconds(Math.Max(5, builder.Configuration.GetValue("Monitoring:HeartbeatSeconds", 10))));
 _ = heartbeat.RunAsync(host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
 await host.RunAsync();
+
+static async Task RunOnceStepAsync(string name, Func<Task> action, ICollection<string> failures)
+{
+    try
+    {
+        await action();
+        Console.WriteLine($"{name}: OK");
+    }
+    catch (Exception ex)
+    {
+        failures.Add($"{name}={ex.GetType().Name}:{ex.Message}");
+    }
+}
