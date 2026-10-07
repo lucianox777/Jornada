@@ -248,7 +248,11 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
     {
         var contracts=await ListContractsAsync(ct);
         var contract=string.IsNullOrWhiteSpace(contractKey)
-            ?contracts.FirstOrDefault(x=>x.Gestor=="SEHAB"&&x.CodigoTipo=="AA01")??contracts[0]
+            ?contracts
+                .Where(x=>x.Gestor=="SEHAB"&&x.CodigoTipo=="AA01")
+                .OrderByDescending(x=>x.PessoaSchemaVersao)
+                .ThenByDescending(x=>x.TipoVersao)
+                .FirstOrDefault()??contracts[0]
             :contracts.FirstOrDefault(x=>string.Equals(x.Key,contractKey,StringComparison.Ordinal));
         if(contract is null)throw new InvalidOperationException($"Contrato de ingestão não encontrado ou não utilizável: {contractKey}.");
 
