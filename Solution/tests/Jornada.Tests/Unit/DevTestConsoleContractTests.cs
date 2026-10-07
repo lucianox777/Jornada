@@ -648,8 +648,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(nascimentoTypes,Does.Contain("null"));
             Assert.That(seed,Does.Contain("config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json"));
             Assert.That(seed,Does.Contain("930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4"));
-            Assert.That(seed,Does.Contain("versao=4 AND status='ATIVA'"));
-            Assert.That(seed,Does.Contain("@gSehab,6,'2026-10-06'"));
+            Assert.That(seed,Does.Contain("status='ATIVA',vigencia_inicio='2026-09-19',vigencia_fim=NULL"));
+            Assert.That(seed,Does.Contain("@gSehab,6,'2026-10-06','2026-10-06'"));
+            Assert.That(seed,Does.Contain("N'ENCERRADA',NULL"));
         });
     }
 
