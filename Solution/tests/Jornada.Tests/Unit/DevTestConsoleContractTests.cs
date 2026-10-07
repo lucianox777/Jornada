@@ -43,6 +43,8 @@ public sealed class DevTestConsoleContractTests
         Assert.Multiple(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
             Assert.That(program,Does.Contain("/api/runs/{id:guid}/stream"));
+            Assert.That(program,Does.Contain("/api/activity"));
+            Assert.That(program,Does.Contain("ConsoleActivityLog"));
             Assert.That(program,Does.Contain("ListSessionSummariesAsync(ct)"));
             Assert.That(program,Does.Contain("text/event-stream"));
             Assert.That(program,Does.Contain("/api/runs/{id:guid}/result"));
@@ -159,6 +161,10 @@ public sealed class DevTestConsoleContractTests
 
             Assert.That(page,Does.Contain("🧰 Ferramentas"));
             Assert.That(page,Does.Contain("🕘 Execuções"));
+            Assert.That(page,Does.Contain("📋 Log da sessão"));
+            Assert.That(page,Does.Contain("openActivityLog()"));
+            Assert.That(page,Does.Contain("showActivityRun("));
+            Assert.That(page,Does.Contain("Falha ao carregar contratos para gerar o arquivo:"));
             Assert.That(page,Does.Contain("id=\"consoleRevision\""));
             Assert.That(page,Does.Contain("loadConsoleRevision()"));
             Assert.That(page,Does.Contain("executionCount"));
@@ -337,7 +343,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("ZipContractOption"));
             Assert.That(runtime,Does.Contain("ListContractsAsync"));
             Assert.That(runtime,Does.Contain("FROM gold.pessoa"));
-            Assert.That(runtime,Does.Contain("gpv.status='ATIVA'"));
+            Assert.That(runtime,Does.Contain("ROW_NUMBER() OVER("));
+            Assert.That(runtime,Does.Contain("ORDER BY gpv.versao DESC"));
+            Assert.That(runtime,Does.Contain("gpv.status IN('ATIVA','ENCERRADA','RASCUNHO')"));
             Assert.That(runtime,Does.Contain("trv.status IN('ATIVA','ENCERRADA')"));
             Assert.That(runtime,Does.Contain("[\"pessoaSchemaVersao\"]=contract.PessoaSchemaVersao"));
             Assert.That(runtime,Does.Contain("[\"tipoVersao\"]=contract.TipoVersao"));
