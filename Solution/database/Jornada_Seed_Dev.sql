@@ -184,12 +184,8 @@ WHERE v.versao=4 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
 
 -- DEV Console: contrato cadastral permissivo para exercitar identidade progressiva.
 -- Somente a chave técnica idPessoaEntrega é obrigatória; CPF/nome/nascimento/nome da mãe
--- podem estar ausentes. O contrato v4 permanece no catálogo como ENCERRADA e continua
--- aceito para replay/fixtures históricos.
-UPDATE ref.gestor_pessoa_versao
-   SET status='ENCERRADA',vigencia_fim=COALESCE(vigencia_fim,'2026-10-06')
- WHERE gestor_id=@gSehab AND versao=4 AND status='ATIVA';
-
+-- podem estar ausentes. O v4 permanece ATIVO para preservar a semântica histórica/operacional;
+-- a v6 fica ENCERRADA, porém utilizável pela ingestão DEV explícita (o receptor aceita ATIVA/ENCERRADA).
 IF EXISTS(
     SELECT 1 FROM ref.gestor_pessoa_versao
     WHERE gestor_id=@gSehab AND versao=6
@@ -199,16 +195,16 @@ IF EXISTS(
 
 IF NOT EXISTS(SELECT 1 FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=6)
  INSERT ref.gestor_pessoa_versao(
-    gestor_id,versao,vigencia_inicio,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
+    gestor_id,versao,vigencia_inicio,vigencia_fim,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
  VALUES(
-    @gSehab,6,'2026-10-06',N'config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json',
-    0x930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4,N'ATIVA','2026-10-06');
+    @gSehab,6,'2026-10-06','2026-10-06',N'config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json',
+    0x930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4,N'ENCERRADA',NULL);
 ELSE
  UPDATE ref.gestor_pessoa_versao
-    SET status='ATIVA',vigencia_inicio='2026-10-06',vigencia_fim=NULL,
+    SET status='ENCERRADA',vigencia_inicio='2026-10-06',vigencia_fim='2026-10-06',
         pessoa_schema_ref=N'config/contracts/gestores/SEHAB/pessoa/v6/pessoa.schema.json',
         pessoa_schema_sha256=0x930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4,
-        ativado_em=COALESCE(ativado_em,'2026-10-06')
+        ativado_em=NULL
   WHERE gestor_id=@gSehab AND versao=6;
 
 DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND status='ATIVA'),
