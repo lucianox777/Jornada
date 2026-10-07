@@ -100,7 +100,6 @@ public static class SyntheticIngestionBridge
 {
     public const string BridgeVersion = "SYNTHETIC_INGESTION_BRIDGE_V1";
     public const string WaveBridgeVersion = "SYNTHETIC_INGESTION_BRIDGE_WAVES_V1";
-    public const string MissingBirthDateReason = "EXCLUIDA_CONTRATO_ATIVO_DATA_NASCIMENTO_AUSENTE";
 
     public static readonly IReadOnlyList<SyntheticIngestionRoute> DefaultRoutes =
     [
