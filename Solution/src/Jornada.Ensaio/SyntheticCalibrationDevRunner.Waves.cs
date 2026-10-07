@@ -263,7 +263,7 @@ public sealed partial class SyntheticCalibrationDevRunner
             "--people", settings.People.ToString(CultureInfo.InvariantCulture),
             "--seed", settings.Seed.ToString(CultureInfo.InvariantCulture),
             "--error-profile", settings.ErrorProfile,
-            "--gestores", "4", "--pessoa-schema-versao", "4",
+            "--gestores", "4", "--pessoa-schema-versao", Jornada.Contracts.IngestionContractVersions.CurrentPessoaSchemaVersion.ToString(CultureInfo.InvariantCulture),
             "--data-referencia", settings.DataReferencia.ToString("O", CultureInfo.InvariantCulture),
             "--wave-count", count.ToString(CultureInfo.InvariantCulture),
             "--pseudonymization-key-env", settings.PseudonymizationKeyEnvironment
@@ -310,7 +310,7 @@ public sealed partial class SyntheticCalibrationDevRunner
         int wave, string? fingerprint, string expectedKeyHash)
     {
         if (manifest.BridgeVersion != "SYNTHETIC_INGESTION_BRIDGE_WAVES_V1"
-            || manifest.PessoaSchemaVersao != 4
+            || manifest.PessoaSchemaVersao != Jornada.Contracts.IngestionContractVersions.CurrentPessoaSchemaVersion
             || manifest.DataReferencia != settings.DataReferencia.AddDays(wave)
             || !IsSha256(manifest.CorpusInputFingerprintSha256)
             || !string.Equals(manifest.PseudonymizationKeySha256, expectedKeyHash,
