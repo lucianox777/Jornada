@@ -169,11 +169,11 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   <div class="dialog-head"><strong>Entrada manual para o ZIP</strong><button class="secondary" type="button" onclick="zipDialog.close()">Fechar</button></div>
   <div class="dialog-body">
     <p>Escolha primeiro o <b>contrato de ingestão</b>. A Console carrega do catálogo <code>ref.*</code> somente combinações utilizáveis de Gestor, sistema, contrato Pessoa e tipo/versão. Depois você pode preencher pelo formulário ou editar JSON/JSONL diretamente.</p>
-    <label>Contrato para gerar o ZIP<select id="zipContract" onchange="loadGoldTemplate()"></select></label>
+    <label>Contrato para gerar o ZIP<select id="zipContract" onchange="changeZipContract()"></select></label>
     <div class="tabs">
       <button class="secondary" type="button" onclick="setZipMode('form')">Formulário HTML</button>
       <button class="secondary" type="button" onclick="setZipMode('json')">JSON / JSONL</button>
-      <button class="secondary" type="button" onclick="loadGoldTemplate()">Atualizar exemplo da Gold</button>
+      <button class="secondary" type="button" onclick="refreshZipExample()">Substituir pelos dados da Gold</button>
     </div>
     <div id="zipTemplateSource" class="small"></div>
 
@@ -274,6 +274,7 @@ let currentRunId=null;
 let currentCommandId=null;
 let eventSource=null;
 let consoleOrigin=null;
+let lastActionOrigin=null;
 let layerKind='gold';
 let layerPage=1;
 let layerAbortController=null;
@@ -293,13 +294,23 @@ function switchView(view,label,scrollTop=true){
   if(scrollTop)window.scrollTo({top:0,behavior:'smooth'});
 }
 
+function actionOriginFromRow(row){
+  if(!(row instanceof Element))return null;
+  const surface=row.closest('#toolsCommands')?'tools':row.closest('#commands')?'flow':null;
+  if(!surface)return null;
+  return {surface,actionKey:row.dataset.actionKey||'',scrollY:window.scrollY,rowTop:row.getBoundingClientRect().top};
+}
+
+function rememberActionOrigin(event){
+  const row=event?.target instanceof Element?event.target.closest('.action-row'):null;
+  const origin=actionOriginFromRow(row);
+  if(origin)lastActionOrigin=origin;
+}
+
 function captureActionOrigin(){
   const active=document.activeElement;
   const row=active instanceof Element?active.closest('.action-row'):null;
-  if(!row)return null;
-  const surface=row.closest('#toolsCommands')?'tools':row.closest('#commands')?'flow':null;
-  if(!surface)return null;
-  return {surface,actionKey:row.dataset.actionKey||'',scrollY:window.scrollY};
+  return actionOriginFromRow(row)||lastActionOrigin;
 }
 
 function restoreActionOrigin(origin){
@@ -308,7 +319,12 @@ function restoreActionOrigin(origin){
       ?Array.from(document.querySelectorAll('.action-row')).find(x=>x.dataset.actionKey===origin.actionKey)
       :null;
     if(row){
-      row.scrollIntoView({block:'center',behavior:'auto'});
+      const rowTop=Number(origin?.rowTop);
+      if(Number.isFinite(rowTop)){
+        window.scrollBy({top:row.getBoundingClientRect().top-rowTop,behavior:'auto'});
+      }else{
+        window.scrollTo({top:Number(origin?.scrollY||0),behavior:'auto'});
+      }
       const button=row.querySelector('button');
       if(button)button.focus({preventScroll:true});
       return;
@@ -413,7 +429,7 @@ async function loadCommands(surface='flow'){
     const meta=executionMeta(commandId,readOnly);
     const count='<span class="action-count'+(meta.readOnly?' readonly':'')+'" title="'+esc(meta.title)+'">'+esc(meta.text)+'</span>';
     const actionKey=[number||'',commandId||'',title].join('|');
-    return '<div class="action-row" data-action-key="'+esc(actionKey)+'"><div class="action-copy"><div class="action-heading">'+index+'<span class="action-title">'+esc(title)+'</span></div>'
+    return '<div class="action-row" data-action-key="'+esc(actionKey)+'" onpointerdown="rememberActionOrigin(event)"><div class="action-copy"><div class="action-heading">'+index+'<span class="action-title">'+esc(title)+'</span></div>'
       +'<div class="action-desc">'+esc(description)+'</div></div>'
       +'<div class="action-control">'+count+control+'</div></div>';
   };
@@ -738,6 +754,9 @@ async function runSemiblindSearch(){
 
 let zipMode='form';
 let zipContracts=[];
+let zipOrigin=null;
+let zipFormDirty=false;
+let zipLoadedContract='';
 
 function setZipMode(mode){
   if(mode==='json'&&!syncFormToJson())return;
@@ -754,6 +773,8 @@ function setZipNatureFields(){
 }
 
 async function openZipDialog(){
+  zipOrigin=captureActionOrigin()||consoleOrigin;
+  zipFormDirty=false;
   await loadZipContracts();
   await loadGoldTemplate();
   setZipMode('form');
@@ -767,6 +788,20 @@ async function loadZipContracts(){
   zipContract.innerHTML=zipContracts.map(c=>'<option value="'+esc(c.key)+'">'+esc(c.label)+'</option>').join('');
   if(previous&&zipContracts.some(c=>c.key===previous))zipContract.value=previous;
   if(!zipContract.value&&zipContracts.length)zipContract.value=zipContracts[0].key;
+}
+
+async function changeZipContract(){
+  const next=zipContract.value;
+  if(zipFormDirty&&zipLoadedContract&&next!==zipLoadedContract&&!confirm('Trocar o contrato substituirá os dados preenchidos neste formulário. Continuar?')){
+    zipContract.value=zipLoadedContract;
+    return;
+  }
+  await loadGoldTemplate();
+}
+
+async function refreshZipExample(){
+  if(zipFormDirty&&!confirm('Substituir os dados preenchidos pelos dados do exemplo da Gold?'))return;
+  await loadGoldTemplate();
 }
 
 async function loadGoldTemplate(){
@@ -796,11 +831,18 @@ async function loadGoldTemplate(){
     zipManifest.value=t.manifestJson;
     zipPessoas.value=t.pessoasJsonl;
     zipRegistros.value=t.registrosJsonl;
+    zipLoadedContract=zipContract.value;
+    zipFormDirty=false;
     setZipNatureFields();
     zipTemplateSource.textContent='Contrato: '+t.contractLabel+' · exemplo: '+t.source+' · pessoa '+t.pessoaUuid;
   }catch(e){
     zipTemplateSource.textContent='Não foi possível carregar exemplo/contrato: '+e.message;
   }
+}
+
+for(const id of ['zipPessoaId','zipPessoaOrigem','zipCpf','zipNome','zipNascimento','zipMae','zipRegistroId','zipValor','zipDataEvento','zipSituacao','zipDataHoraServico','zipUnidadeServico','zipSituacaoServico']){
+  document.getElementById(id)?.addEventListener('input',()=>{zipFormDirty=true});
+  document.getElementById(id)?.addEventListener('change',()=>{zipFormDirty=true});
 }
 
 function syncFormToJson(){
@@ -819,13 +861,17 @@ function syncFormToJson(){
   const idPessoaEntrega=zipPessoaId.value.trim();
   const cpf=zipCpf.value.replace(/\D/g,'').trim();
   const codigoPessoaOrigem=zipPessoaOrigem.value.trim();
+  const nomeCompleto=zipNome.value.trim();
+  const dataNascimento=zipNascimento.value.trim();
   if(!idPessoaEntrega){alert('ID temporário nesta entrega é obrigatório.');zipPessoaId.focus();return false}
   if(cpf&&!/^\d{11}$/.test(cpf)){alert('CPF deve conter exatamente 11 dígitos.');zipCpf.focus();return false}
+  if(!nomeCompleto){alert('Nome completo é obrigatório.');zipNome.focus();return false}
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(dataNascimento)){alert('Data de nascimento é obrigatória e deve ser uma data válida.');zipNascimento.focus();return false}
   const pessoa={
     idPessoaEntrega,
     cpf:cpf||null,
     cpfAusenteMotivo:cpf?null:'NAO_INFORMADO_ORIGEM',
-    nomeCompleto:zipNome.value.trim(),dataNascimento:zipNascimento.value,nomeMae:zipMae.value.trim()||null,
+    nomeCompleto,dataNascimento,nomeMae:zipMae.value.trim()||null,
     sourceTransactionId:'DEV-'+idPessoaEntrega,atributosTransversais:[]
   };
   if(codigoPessoaOrigem)pessoa.codigoPessoaOrigem=codigoPessoaOrigem;
@@ -889,7 +935,8 @@ async function startZip(){
   zipDialog.close();
   const payload={gestor:zipGestor.value,manifestJson:zipManifest.value,pessoasJsonl:zipPessoas.value,registrosJsonl:zipRegistros.value};
   const response=await api('/api/zip/manual/start',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  openLiveRun(response.id,'Gerar ZIP de ingestão #'+response.executionNumber,'zip');
+  openLiveRun(response.id,'Gerar ZIP de ingestão #'+response.executionNumber,'zip',zipOrigin||consoleOrigin);
+  zipOrigin=null;
 }
 
 function resetConsole(title){
