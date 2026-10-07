@@ -253,8 +253,8 @@ public static class SyntheticIngestionBridge
                 row.Observation.Cpf,
                 row.Observation.Cpf is null ? "NAO_INFORMADO_ORIGEM" : null,
                 identifiers,
-                row.Observation.Name!,
-                row.Observation.BirthDate!.Value.ToString(
+                string.IsNullOrWhiteSpace(row.Observation.Name) ? null : row.Observation.Name,
+                row.Observation.BirthDate?.ToString(
                     "yyyy-MM-dd",
                     System.Globalization.CultureInfo.InvariantCulture),
                 row.Observation.MotherName);
@@ -311,7 +311,7 @@ public static class SyntheticIngestionBridge
         string? Cpf,
         string? CpfAusenteMotivo,
         IReadOnlyList<SyntheticIngestionIdentifier>? Identificadores,
-        string NomeCompleto,
-        string DataNascimento,
+        string? NomeCompleto,
+        string? DataNascimento,
         string? NomeMae);
 }
