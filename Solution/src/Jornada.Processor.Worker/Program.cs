@@ -18,6 +18,7 @@ var options = new ProcessorOptions
     RetryBaseSeconds = builder.Configuration.GetValue<int?>("Processor:RetryBaseSeconds") ?? 10,
     RetryMaxSeconds = builder.Configuration.GetValue<int?>("Processor:RetryMaxSeconds") ?? 300
 };
+var runOnceMaxSeconds = Math.Max(1, builder.Configuration.GetValue<int?>("Processor:RunOnceMaxSeconds") ?? 300);
 
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
@@ -111,9 +112,11 @@ builder.Services.AddHostedService<ProcessorWorker>();
 
 var host = builder.Build();
 
-if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal))
+if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal)
+    || string.Equals(processorOperation, "PROCESS_UNTIL_IDLE", StringComparison.Ordinal))
 {
-    if (!builder.Environment.IsDevelopment())
+    if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal)
+        && !builder.Environment.IsDevelopment())
         throw new InvalidOperationException("PROCESS_ONE só pode executar em Development/Test.");
 
     Guid? targetEntregaId = null;
@@ -123,15 +126,38 @@ if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal))
         if (!Guid.TryParse(configuredTarget, out var parsedTarget))
             throw new InvalidOperationException("Processor:TargetEntregaId deve ser um GUID válido.");
         targetEntregaId = parsedTarget;
-        Console.WriteLine($"Processor one-shot restrito à Entrega {targetEntregaId}.");
+        Console.WriteLine($"Processor execução finita restrita à Entrega {targetEntregaId}.");
     }
 
     var repository = host.Services.GetRequiredService<IProcessorRepository>();
     var processor = host.Services.GetRequiredService<IngestionProcessor>();
     var recovered = await repository.RecoverExpiredLeasesAsync(options.MaxProcessingAttempts, CancellationToken.None);
-    var processed = await processor.ProcessNextAsync(targetEntregaId, CancellationToken.None) ? 1 : 0;
+    var processed = 0;
 
-    Console.WriteLine($"Processor one-shot concluído: lotes_processados={processed}; leases_recuperados={recovered}.");
+    if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal))
+    {
+        processed = await processor.ProcessNextAsync(targetEntregaId, CancellationToken.None) ? 1 : 0;
+        Console.WriteLine($"Processor one-shot concluído: lotes_processados={processed}; leases_recuperados={recovered}.");
+        return;
+    }
+
+    var deadline = DateTimeOffset.UtcNow.AddSeconds(runOnceMaxSeconds);
+    var idle = false;
+    while (DateTimeOffset.UtcNow < deadline)
+    {
+        if (!await processor.ProcessNextAsync(targetEntregaId, CancellationToken.None))
+        {
+            idle = true;
+            break;
+        }
+        processed++;
+    }
+
+    Console.WriteLine(
+        $"Processor PROCESS_UNTIL_IDLE concluído: lotes_processados={processed}; leases_recuperados={recovered}; " +
+        $"idle={idle}; limite_segundos={runOnceMaxSeconds}.");
+    if (!idle)
+        Environment.ExitCode = 3;
     return;
 }
 
