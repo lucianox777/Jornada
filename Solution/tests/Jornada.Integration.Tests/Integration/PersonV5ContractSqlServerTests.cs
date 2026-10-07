@@ -140,6 +140,50 @@ public sealed class PersonV5ContractSqlServerTests
         }
     }
 
+    [Test]
+    public async Task Dev_console_zip_catalog_returns_latest_person_v6_contracts()
+    {
+        var connectionString=RequireIntegrationConnection();
+        await using var connection=new SqlConnection(connectionString);
+        await connection.OpenAsync();
+
+        var databaseDir=Path.Combine(AppContext.BaseDirectory,"database");
+        await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection,databaseDir);
+        await SqlBatchRunner.ExecuteFileAsync(connection,Path.Combine(databaseDir,"Jornada_Seed_Dev.sql"));
+
+        await using var command=connection.CreateCommand();
+        command.CommandText="""
+            ;WITH pessoa_mais_recente AS(
+                SELECT
+                  gpv.*,
+                  ROW_NUMBER() OVER(
+                    PARTITION BY gpv.gestor_id
+                    ORDER BY gpv.versao DESC,
+                             CASE gpv.status WHEN 'ATIVA' THEN 0 WHEN 'ENCERRADA' THEN 1 ELSE 2 END,
+                             gpv.gestor_pessoa_versao_id DESC
+                  ) AS rn
+                FROM ref.gestor_pessoa_versao gpv
+                WHERE gpv.status IN('ATIVA','ENCERRADA','RASCUNHO')
+            )
+            SELECT COUNT_BIG(*),MIN(gpv.versao),MAX(gpv.versao)
+            FROM ref.gestor g
+            JOIN ref.sistema_origem so ON so.gestor_id=g.gestor_id AND so.ativo=1
+            JOIN pessoa_mais_recente gpv ON gpv.gestor_id=g.gestor_id AND gpv.rn=1
+            JOIN ref.tipo_registro tr ON tr.gestor_id=g.gestor_id AND tr.ativo=1
+            JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id AND trv.status IN('ATIVA','ENCERRADA')
+            WHERE g.ativo=1;
+            """;
+
+        await using var reader=await command.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(),Is.True);
+        Assert.Multiple(()=>
+        {
+            Assert.That(reader.GetInt64(0),Is.GreaterThan(0),"A Console deve encontrar contratos no catálogo ref.*.");
+            Assert.That(reader.GetInt32(1),Is.EqualTo(6),"Novas opções da Console devem usar somente a versão Pessoa mais recente.");
+            Assert.That(reader.GetInt32(2),Is.EqualTo(6));
+        });
+    }
+
     private static string RequireIntegrationConnection()
     {
         var connectionString = Environment.GetEnvironmentVariable("JORNADA_TEST_SQL_CONNECTION");
