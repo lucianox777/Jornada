@@ -10,7 +10,7 @@ namespace Jornada.Ingestion;
 public static partial class IngestionPackageInspector
 {
     public const int CurrentFormatVersion = 2;
-    public const int CurrentPessoaSchemaVersion = 6;
+    public const int CurrentPessoaSchemaVersion = IngestionContractVersions.CurrentPessoaSchemaVersion;
     public const long MaxCompressedBytes = 250L * 1024 * 1024;
     public const long MaxUncompressedBytes = 2L * 1024 * 1024 * 1024;
     public const long MaxManifestBytes = 64L * 1024;
