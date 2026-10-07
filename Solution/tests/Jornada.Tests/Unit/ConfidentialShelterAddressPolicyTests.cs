@@ -24,6 +24,6 @@ public sealed class ConfidentialShelterAddressPolicyTests
     private static ReservedBatch Batch(IntegrationNature? nature, bool allowed) => new(
         Guid.NewGuid(), Guid.NewGuid(), Guid.NewGuid(), "test", 1, "SMADS", 1, 1, "ASSISTENCIA", 1, nature,
         nature is null ? null : 10, nature is null ? null : 20, nature is null ? null : "CAS1", nature is null ? null : 1,
-        1, DateTimeOffset.Parse("2026-08-31T12:00:00-03:00", System.Globalization.CultureInfo.InvariantCulture), new string('a',64), "x.zip", "sha256/x", 1,
-        "config/contracts/gestores/SMADS/pessoa/v1/pessoa.schema.json", new byte[32], null, null, null, allowed, null, null, null);
+        IngestionContractVersions.CurrentPessoaSchemaVersion, DateTimeOffset.Parse("2026-08-31T12:00:00-03:00", System.Globalization.CultureInfo.InvariantCulture), new string('a',64), "x.zip", "sha256/x", 1,
+        "config/contracts/gestores/SMADS/pessoa/v6/pessoa.schema.json", new byte[32], null, null, null, allowed, null, null, null);
 }
