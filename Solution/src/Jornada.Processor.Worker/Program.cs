@@ -18,12 +18,19 @@ var options = new ProcessorOptions
     RetryBaseSeconds = builder.Configuration.GetValue<int?>("Processor:RetryBaseSeconds") ?? 10,
     RetryMaxSeconds = builder.Configuration.GetValue<int?>("Processor:RetryMaxSeconds") ?? 300
 };
-var runOnceMaxSeconds = Math.Max(1, builder.Configuration.GetValue<int?>("Processor:RunOnceMaxSeconds") ?? 300);
+var runOnce = builder.Configuration.GetValue("Processor:RunOnce", false);
+var runOnceMaxSeconds = builder.Configuration.GetValue<int?>("Processor:RunOnceMaxSeconds") ?? 300;
+if (runOnceMaxSeconds <= 0)
+    throw new InvalidOperationException("Processor:RunOnceMaxSeconds deve ser > 0.");
 
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 var databaseProvider = builder.Configuration["Database:Provider"] ?? OperationalDatabaseProviders.SqlServer;
 var processorOperation = builder.Configuration["Processor:Operation"]?.Trim().ToUpperInvariant();
+// Compatibilidade temporária: modo de execução não deve ser codificado como Operation.
+var legacyFiniteMode = processorOperation is "PROCESS_ONE" or "PROCESS_UNTIL_IDLE";
+if (legacyFiniteMode)
+    Console.Error.WriteLine("AVISO: Processor:Operation=PROCESS_ONE/PROCESS_UNTIL_IDLE é legado; use Processor:RunOnce=true (Operation define somente a ação).");
 
 if (string.Equals(processorOperation, "REBUILD_LOCAL_BLOCKING", StringComparison.Ordinal)
     || string.Equals(processorOperation, "REFRESH_LOCAL_BLOCKING", StringComparison.Ordinal))
@@ -112,8 +119,7 @@ builder.Services.AddHostedService<ProcessorWorker>();
 
 var host = builder.Build();
 
-if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal)
-    || string.Equals(processorOperation, "PROCESS_UNTIL_IDLE", StringComparison.Ordinal))
+if (runOnce || legacyFiniteMode)
 {
     if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal)
         && !builder.Environment.IsDevelopment())
@@ -131,30 +137,37 @@ if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal)
 
     var repository = host.Services.GetRequiredService<IProcessorRepository>();
     var processor = host.Services.GetRequiredService<IngestionProcessor>();
-    var recovered = await repository.RecoverExpiredLeasesAsync(options.MaxProcessingAttempts, CancellationToken.None);
+    using var finiteTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(runOnceMaxSeconds));
     var processed = 0;
-
-    if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal))
-    {
-        processed = await processor.ProcessNextAsync(targetEntregaId, CancellationToken.None) ? 1 : 0;
-        Console.WriteLine($"Processor one-shot concluído: lotes_processados={processed}; leases_recuperados={recovered}.");
-        return;
-    }
-
-    var deadline = DateTimeOffset.UtcNow.AddSeconds(runOnceMaxSeconds);
     var idle = false;
-    while (DateTimeOffset.UtcNow < deadline)
+    var recovered = 0;
+    try
     {
-        if (!await processor.ProcessNextAsync(targetEntregaId, CancellationToken.None))
+        recovered = await repository.RecoverExpiredLeasesAsync(options.MaxProcessingAttempts, finiteTimeout.Token);
+        if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal))
         {
-            idle = true;
-            break;
+            processed = await processor.ProcessNextAsync(targetEntregaId, finiteTimeout.Token) ? 1 : 0;
+            Console.WriteLine($"Processor one-shot concluído: lotes_processados={processed}; leases_recuperados={recovered}.");
+            return;
         }
-        processed++;
+
+        while (!finiteTimeout.IsCancellationRequested)
+        {
+            if (!await processor.ProcessNextAsync(targetEntregaId, finiteTimeout.Token))
+            {
+                idle = true;
+                break;
+            }
+            processed++;
+        }
+    }
+    catch (OperationCanceledException) when (finiteTimeout.IsCancellationRequested)
+    {
+        // Tempo esgotado durante um lote: não informar OK nem iniciar novo lote.
     }
 
     Console.WriteLine(
-        $"Processor PROCESS_UNTIL_IDLE concluído: lotes_processados={processed}; leases_recuperados={recovered}; " +
+        $"Processor RunOnce concluído: lotes_processados={processed}; leases_recuperados={recovered}; " +
         $"idle={idle}; limite_segundos={runOnceMaxSeconds}.");
     if (!idle)
         Environment.ExitCode = JornadaExitCodes.INCOMPLETE;
