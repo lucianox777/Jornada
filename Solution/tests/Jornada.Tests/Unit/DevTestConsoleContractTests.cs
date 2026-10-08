@@ -12,6 +12,35 @@ public sealed class DevTestConsoleContractTests
     }
 
     [Test]
+    public void Console_blocking_and_bronze_verification_have_distinct_explicit_effects()
+    {
+        var root=Root();
+        var runtime=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.DevConsole","DevConsoleRuntime.cs"));
+        var operations=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-operations.ps1"));
+        var cluster=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-cluster.ps1"));
+        var infrastructure=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-infrastructure.ps1"));
+
+        var statusStart=operations.IndexOf("    'system-status' {",StringComparison.Ordinal);
+        var statusEnd=operations.IndexOf("    'reference-check' {",StringComparison.Ordinal);
+        Assert.That(statusStart,Is.GreaterThanOrEqualTo(0));
+        Assert.That(statusEnd,Is.GreaterThan(statusStart));
+        var systemStatus=operations[statusStart..statusEnd];
+        Assert.Multiple(()=>{
+            Assert.That(cluster,Does.Contain("'blocking' { Ensure-LocalBlockingProjection }"));
+            Assert.That(cluster,Does.Contain("'blocking-refresh' { Refresh-LocalBlockingProjection }"));
+            Assert.That(cluster,Does.Contain("Processor__Operation=REBUILD_LOCAL_BLOCKING"));
+            Assert.That(cluster,Does.Contain("Processor__Operation=REFRESH_LOCAL_BLOCKING"));
+            Assert.That(infrastructure,Does.Contain("Invoke-Cluster 'blocking-refresh' -NoBuild"));
+            Assert.That(runtime,Does.Contain("dev-console-operations.ps1 -Action blocking"));
+            Assert.That(runtime,Does.Contain("dev-console-infrastructure.ps1 -Action blocking"));
+            Assert.That(operations,Does.Contain("'bronze-verify' {"));
+            Assert.That(operations,Does.Contain("'bronze-verify-latest' {"));
+            Assert.That(systemStatus,Does.Contain("SELECT COUNT(*) FROM bronze.entrega_arquivo;"));
+            Assert.That(systemStatus,Does.Not.Contain("Jornada.Bronze.Verify.dll"));
+        });
+    }
+
+    [Test]
     public void Console_has_live_terminal_session_history_manual_zip_and_real_local_infrastructure()
     {
         var root=Root();
@@ -283,7 +312,10 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("Visualizar identidade"));
             Assert.That(page,Does.Contain("Replay do último run"));
             Assert.That(page,Does.Contain("5.3 · Replay do último run"));
-            Assert.That(page,Does.Contain("Reconstruir blocking"));
+            Assert.That(runtime,Does.Contain("Blocking integral · reconciliar"));
+            Assert.That(runtime,Does.Contain("Blocking incremental · completar ausentes"));
+            Assert.That(page,Does.Not.Contain("Reconstruir blocking"));
+            Assert.That(page,Does.Contain("if(c.id==='gold-synthetic')return ['gold-synthetic'];"));
             Assert.That(page,Does.Contain("Contratos e configurações"));
             Assert.That(page,Does.Contain("openConfigurationDialog()"));
             Assert.That(page,Does.Contain("Gerar bundle"));
