@@ -1001,8 +1001,9 @@ def main() -> None:
         if not config_path.is_file():
             fail(f"contrato v3.76 ausente: {config_path}")
         data = json.loads(config_path.read_text(encoding="utf-8"))
-        if data.get("schemaVersion") != 1:
-            fail(f"schemaVersion inválido em {config_path.name}")
+        expected_schema = 2 if config_path == SCHEDULER_JOBS else 1
+        if data.get("schemaVersion") != expected_schema:
+            fail(f"schemaVersion inválido em {config_path.name}: esperado {expected_schema}")
 
     schema_inventory = json.loads(SCHEMA_APPROVALS.read_text(encoding="utf-8"))
     actual_contracts = sorted(p.relative_to(ROOT).as_posix() for p in (ROOT / "config" / "contracts").rglob("*.json"))

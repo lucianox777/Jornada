@@ -160,7 +160,9 @@ jobs:
           python3 scripts/governance-readiness-gate.py --root . --summary .local/governance-summary.json
           python3 scripts/governance-readiness-gate.py --root . --self-test
       - name: Gate scheduler contract without inventing corporate cadence
-        run: python3 scripts/scheduler-contract-gate.py --root . --summary .local/scheduler-summary.json
+        run: |
+          python3 scripts/scheduler-contract-gate.py --root . --summary .local/scheduler-summary.json
+          python3 scripts/scheduler-contract-gate.py --root . --self-test
       - name: Self-test HML SQL/API evidence gates
         run: |
           python3 scripts/sql-performance-evidence-gate.py --self-test
