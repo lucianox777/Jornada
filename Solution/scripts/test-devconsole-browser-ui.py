@@ -242,6 +242,17 @@ def main() -> int:
                         require(contract_select.input_value() == CONTRACT_KEY,
                                 "Dynamic contract selector failed to restore selection")
                         checked.append("dynamic synthetic catalog renders two selectable contracts")
+                        # Contract-bound manual editor: switching to JSON must
+                        # preserve edits made in the friendly form.
+                        page.locator("#zipPessoaId").fill("UI-SYNTH-EDITED-FORM")
+                        page.locator('#zipDialog button[onclick="setZipMode(\'json\')"]').click()
+                        edited_person = json.loads(page.locator("#zipPessoas").input_value())
+                        require(edited_person["idPessoaEntrega"] == "UI-SYNTH-EDITED-FORM",
+                                "Friendly editor lost edits during JSON serialization")
+                        require(page.locator("#zipContract").input_value() == CONTRACT_KEY,
+                                "JSON editor changed the active contract")
+                        checked.append("friendly contract-bound form → JSON preserves edits and contract")
+                        page.locator("#zipDialog button[onclick=\"setZipMode('form')\"]").click()
                         page.locator("#zipPessoaId").fill("UI-SYNTH-PERSON-ONLY")
                         page.locator('#zipDialog button[onclick="setZipMode(\'json\')"]').click()
                         require(json.loads(page.locator("#zipPessoas").input_value())[
