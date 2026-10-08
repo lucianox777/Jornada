@@ -214,6 +214,10 @@ jobs:
       - name: Self-test IBGE nominal u multi-seed diagnostic
         run: pwsh -NoLogo -NoProfile -File scripts/local-ibge-u-multiseed.ps1 -SelfTest
       - run: dotnet build Jornada.sln --configuration Release --no-restore
+      - name: T0.1a DevConsole HTTP behavioral acceptance (isolated, no SQL)
+        env:
+          JORNADA_CONSOLE_ACCEPTANCE_ISOLATED: 'true'
+        run: python3 scripts/test-devconsole-http-acceptance.py
       - name: Prove Python-to-CSharp synthetic corpus rule equivalence
         run: |
           mkdir -p .local/test-evidence/unit
