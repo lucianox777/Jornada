@@ -910,9 +910,10 @@ jobs:
         run: python -m unittest discover -s tools/tests -p 'test_dt05*.py' -v
       - name: Install locked NuGet graph
         run: tar -xzf .local/nuget-lock-input/packages-locks.tar.gz -C .
-      - name: Run HTTP-to-Gold end-to-end gate via DT-11 runner
+      - name: Run Console ZIP HTTP-to-Gold end-to-end gate via DT-11 runner
         env:
           JORNADA_E2E_LOCKED_RESTORE: 'true'
+          JORNADA_E2E_CONSOLE_ZIP: 'true'
         run: python3 scripts/jornada-runner.py --profile e2e --allow-reset e2e
       - name: Upload E2E evidence and logs
         if: always()

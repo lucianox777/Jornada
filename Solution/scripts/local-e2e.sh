@@ -69,7 +69,17 @@ for _ in $(seq 1 120); do
 done
 [[ "${code:-}" == 200 ]] || { echo 'ERRO: API não ficou ready.' >&2; tail -100 "$OUT/api.log" >&2 || true; exit 3; }
 
-package="$(python3 "$ROOT/scripts/build-ingestion-fixture.py" --fixture "$ROOT/tests/fixtures/ingestao/AA01_v2" --gestor SEHAB --output-dir "$OUT/packages")"
+# CI may use the actual Console HTTP ZIP path as E2E input, without changing
+# legacy local harness behavior when the explicit flag is absent.
+if [[ "${JORNADA_E2E_CONSOLE_ZIP:-false}" == "true" ]]; then
+  package="$(python3 "$ROOT/scripts/console-zip-e2e-source.py" \
+    --fixture "$ROOT/tests/fixtures/ingestao/AA01_v2" \
+    --output-dir "$OUT/packages" \
+    --summary "$OUT/console-zip-source.json")"
+  [[ -f "$OUT/console-zip-source.json" ]] || { echo 'ERRO: evidência de ZIP HTTP da Console ausente.' >&2; exit 13; }
+else
+  package="$(python3 "$ROOT/scripts/build-ingestion-fixture.py" --fixture "$ROOT/tests/fixtures/ingestao/AA01_v2" --gestor SEHAB --output-dir "$OUT/packages")"
+fi
 filename="$(basename "$package")"
 access_key="$(python3 - "$ROOT/config/security/test-access-keys.json" SEHAB <<'PY'
 import json,sys
