@@ -7,7 +7,7 @@ namespace Jornada.Tests.Unit;
 
 [TestFixture]
 [Category("Unit")]
-public sealed class DevConsoleManualZipV6Tests
+public sealed class DevConsoleManualZipV1Tests
 {
     private static string Root()
     {
@@ -20,7 +20,7 @@ public sealed class DevConsoleManualZipV6Tests
     [TestCase("Nome+data",null,"Pessoa Data","1990-02-03",null)]
     [TestCase("Nome+mae",null,"Pessoa Mae",null,"Mae da Pessoa")]
     [TestCase("Nome+mae+data",null,"Pessoa Completa","1990-02-03","Mae da Pessoa")]
-    public void Pessoa_v6_accepts_manual_console_identity_combinations(
+    public void Pessoa_v1_accepts_manual_console_identity_combinations(
         string scenario,
         string? cpf,
         string nome,
@@ -28,7 +28,7 @@ public sealed class DevConsoleManualZipV6Tests
         string? mae)
     {
         var root=Root();
-        var schema=Path.Combine(root,"Solution","config","contracts","gestores","SEHAB","pessoa","v6","pessoa.schema.json");
+        var schema=Path.Combine(root,"Solution","config","contracts","gestores","SEHAB","pessoa","v1","pessoa.schema.json");
         var validator=JsonSchemaSubsetValidator.Load(schema);
         var reason=cpf is null?"NAO_INFORMADO_ORIGEM":null;
 
@@ -48,15 +48,15 @@ public sealed class DevConsoleManualZipV6Tests
         Assert.Multiple(()=>
         {
             Assert.DoesNotThrow(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1),scenario);
-            Assert.DoesNotThrow(()=>PersonContractRules.ValidateCpfAbsence(6,cpf,reason),scenario);
+            Assert.DoesNotThrow(()=>PersonContractRules.ValidateCpfAbsence(1,cpf,reason),scenario);
         });
     }
 
     [Test]
-    public void Pessoa_v6_keeps_identity_core_optional_for_manual_console()
+    public void Pessoa_v1_keeps_identity_core_optional_for_manual_console()
     {
         var root=Root();
-        var schema=Path.Combine(root,"Solution","config","contracts","gestores","SEHAB","pessoa","v6","pessoa.schema.json");
+        var schema=Path.Combine(root,"Solution","config","contracts","gestores","SEHAB","pessoa","v1","pessoa.schema.json");
         var validator=JsonSchemaSubsetValidator.Load(schema);
         const string json="""{"idPessoaEntrega":"DEV-ONLY-ID","cpf":null,"cpfAusenteMotivo":"NAO_INFORMADO_ORIGEM","nomeCompleto":null,"dataNascimento":null,"nomeMae":null}""";
 
