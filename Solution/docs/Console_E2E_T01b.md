@@ -46,3 +46,27 @@ Ainda são necessários testes browser, credencial, rollback e cenários multi-E
 dados reais, HML/PROD, alteração de IBGE histórico e qualquer trabalho da
 **Trilha 4**. O script `local-e2e.sh` é destrutivo **somente para o banco
 descartável `JornadaE2E`**; não executar manualmente contra ambiente compartilhado.
+
+
+## T0.1c — remessa somente Pessoa via Console (gate adicional)
+
+No mesmo job `jornada-ci/e2e` com `JORNADA_E2E_CONSOLE_ZIP=true`,
+`local-e2e.sh` gera um **segundo ZIP real da Console** a partir da fixture
+`AA01_SEM_FATOS_v2`. O helper exige três entradas no ZIP; o membro
+`registros.jsonl` deve ter **tamanho físico zero**. O harness confirma
+o SHA-256 nominal, envia à API DEV sintética, espera a Entrega terminar
+em `PROCESSADA` e consulta o mesmo banco descartável para exigir:
+
+- uma referência em `bronze.entrega_arquivo` para a Entrega;
+- uma observação de Pessoa na Silver;
+- **zero** registros factuais na Silver para a Entrega;
+- uma Pessoa correspondente ao CPF sintético na Gold.
+
+A evidência `.local/e2e/console-person-only-evidence.json` guarda apenas ID
+da Entrega, hash do ZIP, contagens e nomes das camadas, sem nome/CPF. O teste
+não é executado no harness local sem a flag explícita. A aprovação depende
+do job E2E passar, não deste texto nem de teste HTTP isolado.
+
+Ainda faltam a reprodução pelo navegador, o caso sem CPF com Linkage governado,
+o fluxo de clique “Enviar arquivo” da própria UI e regras de JSON Schema
+no gerador manual. A Trilha 4 permanece proibida.
