@@ -351,3 +351,29 @@ T0.1b/T0.1c. A interação browser com botão **Enviar arquivo** e
 Linkage sem CPF não são declarados aprovados.
 
 **Trilha 4 proibida até autorização explícita; não tocar JornadaLocal nem IBGE**.
+
+
+## T0.1f — CPF opcional, ZIP real e reset de contagem no navegador
+
+Amplia **a mesma execução Chromium** de T0.1e (não cria outro
+build/job) para verificar que o formulário permite `CPF` vazio
+com `cpfAusenteMotivo=NAO_INFORMADO_ORIGEM` sem fabricar CPF, e
+mantém `registros.jsonl` vazio após o usuário limpar a área JSONL.
+
+Para as duas execuções válidas (Pessoa com CPF e Pessoa sem CPF),
+o teste usa o contexto HTTP do próprio navegador para baixar de fato
+`/api/runs/{id}/result`, conferir SHA-256 no nome da resposta,
+ZIP canônico com três membros, CRC, uma Pessoa com o
+`idPessoaEntrega` editado e **zero bytes** em `registros.jsonl`.
+Isto comprova serialização pelo formulário e conteúdo final do ZIP,
+não apenas presença de botão de download.
+
+Após as duas execuções, a UI deve mostrar **Sessão 2x**;
+o botão de zerar contagens deve voltar a **Sessão 0x**, preservando
+o histórico. O reset é somente de contadores em memória da Console,
+nunca de ambiente ou SQL. Nova captura
+`devconsole-browser/desktop-person-no-cpf.png` contém dados sintéticos.
+
+Não testa Linkage probabilístico, persistência de CPF ausente
+na Silver ou qualquer trabalho da Trilha 4. Tudo continua em
+processo de Console local sem SQL e sem tocar `JornadaLocal`.
