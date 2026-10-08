@@ -216,10 +216,10 @@
     "sourceCommit": "437b8d3c58e6be571395f53903d57be9e10bff06",
     "githubRunId": "37138273004",
     "sdk": "10.0.112",
-    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole foi adicionada como host DEV independente, sem PackageReference; o lock vazio foi force-evaluated no mesmo gate. Atualização 2026-10-04: dependências de teste compatíveis e ações GitHub consolidadas; NUnit 4.6.1 foi descartado após ambiguidade de overloads em Assert.* e mantido em 4.2.2; locks regenerados pelo grafo corrente.",
+    "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole permanece host DEV independente e passou a referenciar Jornada.Contracts para consumir a versão corrente de contrato; o lock foi force-evaluated no mesmo gate. Atualização 2026-10-04: dependências de teste compatíveis e ações GitHub consolidadas; NUnit 4.6.1 foi descartado após ambiguidade de overloads em Assert.* e mantido em 4.2.2; locks regenerados pelo grafo corrente.",
     "lockCount": 22,
     "changedLockCount": 22,
-    "combinedSha256": "8a54e3e8dadab6899882cc9bbf6bf6115a5ee021c6d90e3a5d9c85c4eec3f979",
+    "combinedSha256": "1611c996ea19d019b5f1974f5843a04491e6827f42bd673719017eb2ca30f088",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -231,7 +231,7 @@
       },
       {
         "path": "src/Jornada.DevConsole/packages.lock.json",
-        "sha256": "a29c6aa8cfb81874ff8bb78dc369d7416f28c9b8cc47e99592bfc019b20c41eb"
+        "sha256": "9e1b1ba8e689d3c0ce15a62d13dfbb7007eb18cf15fbb9d2567efd68adf29358"
       },
       {
         "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
