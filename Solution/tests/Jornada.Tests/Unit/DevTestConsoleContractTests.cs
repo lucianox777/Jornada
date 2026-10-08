@@ -605,7 +605,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(opsScript,Does.Contain("--entrega-id"));
             Assert.That(opsScript,Does.Contain("last-bronze-verify.json"));
             Assert.That(opsScript,Does.Contain("'process-latest'"));
-            Assert.That(opsScript,Does.Contain("Processor__Operation=PROCESS_UNTIL_IDLE"));
+            Assert.That(opsScript,Does.Contain("Processor__RunOnce=true"));
             Assert.That(opsScript,Does.Contain("Processor__RunOnceMaxSeconds=300"));
             Assert.That(opsScript,Does.Contain("Processor__TargetEntregaId=$entregaId"));
             Assert.That(opsScript,Does.Contain("JORNADA_ONE_SHOT_PENDING="));
