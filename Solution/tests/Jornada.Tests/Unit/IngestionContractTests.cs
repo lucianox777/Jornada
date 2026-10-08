@@ -304,7 +304,7 @@ public sealed class IngestionContractTests
     {
         var bytes = BuildZip(new Dictionary<string,string>
         {
-            ["manifest.json"] = $"""{"formatoVersao":2,"pessoaSchemaVersao":{{ContractVersions.CurrentPersonSchemaVersion}},"codigoSistemaOrigem":"ASSISTENCIA","natureza":"BENEFICIO","codigoTipo":"AA01","tipoVersao":1,"dataReferencia":"2026-08-29T00:00:00-03:00"}""",
+            ["manifest.json"] = "{\"formatoVersao\":2,\"pessoaSchemaVersao\":" + ContractVersions.CurrentPersonSchemaVersion + ",\"codigoSistemaOrigem\":\"ASSISTENCIA\",\"natureza\":\"BENEFICIO\",\"codigoTipo\":\"AA01\",\"tipoVersao\":1,\"dataReferencia\":\"2026-08-29T00:00:00-03:00\"}",
             ["pessoas.jsonl"] = "{}\n",
             ["registros.jsonl"] = "{}\n"
         });
