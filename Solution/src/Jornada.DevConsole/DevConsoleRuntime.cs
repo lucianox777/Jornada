@@ -10,6 +10,14 @@ sealed record CommandDefinition(string Id,string Title,string Description,string
     public string[] CompositeSteps{get;init;}=[];
     public string Surface{get;init;}="flow";
     public string Stage{get;init;}="";
+    // Modo exibido pela Console; operações de Linkage já são finitas por natureza.
+    // Apenas "silver" usa o switch Processor:RunOnce do worker.
+    public string ExecutionMode=>Id switch{
+        "silver"=>"RUN_ONCE",
+        "linkage" or "replay" or "blocking" or "bronze-verify-all" or "bronze-verify-latest"=>"ONE_SHOT",
+        "infrastructure"=>"SEQUENCE",
+        _=>"INTERACTIVE"
+    };
     public bool IsComposite=>CompositeSteps.Length>0;
     public bool Implemented=>IsComposite||File is not null||Id is "zip" or "semiblind" or "configuration" or "bronze" or "silver" or "linkage" or "gold";
     public string? CommandLine=>File is null?null:$"{File} {Arguments}";
