@@ -208,6 +208,25 @@ def main() -> int:
                                 "Linkage browser button enabled before ingest/Silver")
                         checked.append("desktop navigation and precondition rendering")
 
+                        # Verify the actual click dispatches the ingestion command.
+                        # Intercept the POST before it can reach a real API or SQL.
+                        send_requests = []
+                        def block_ingestion(route):
+                            send_requests.append(route.request.method)
+                            route.fulfill(status=409, content_type="application/json",
+                                          body='{"error":"SYNTHETIC_BLOCKED"}')
+                        page.route("**/api/commands/ingestion/start", block_ingestion)
+                        send_button = page.get_by_role("button", name="Enviar arquivo", exact=True)
+                        require(send_button.count() == 1,
+                                "Browser did not render explicit Enviar arquivo button")
+                        send_button.click()
+                        page.wait_for_timeout(250)
+                        require(send_requests == ["POST"],
+                                "Enviar arquivo did not dispatch exactly one ingestion POST")
+                        page.unroute("**/api/commands/ingestion/start", block_ingestion)
+                        checked.append("Enviar arquivo click dispatches one intercepted ingestion POST")
+
+
                         # Keyboard-only activation and native dialog focus semantics.
                         zip_trigger = page.locator('#commands button[onclick="openZipDialog()"]')
                         zip_trigger.focus()
