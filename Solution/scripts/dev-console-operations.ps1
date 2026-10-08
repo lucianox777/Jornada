@@ -251,8 +251,9 @@ switch($Action){
         Write-Host 'Runners de calibração/linkage: disponíveis no NODE2 (execução one-shot)'
         if([string]::IsNullOrWhiteSpace($residentRunner)){Write-Host 'Linkage Runner residente: não (esperado)'}else{Write-Host "Linkage Runner em execução neste instante: $residentRunner"}
 
-        Write-Host '[6/7] Bronze'
-        Invoke-Compose @('exec','-T','jornada-node2','dotnet','/opt/jornada/tools/Jornada.Bronze.Verify/Jornada.Bronze.Verify.dll','--minimum-count','0')
+        Write-Host '[6/7] Bronze (metadados; sem repetir Bronze.Verify)'
+        $bronzeReferences=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM bronze.entrega_arquivo;")
+        Write-Host "Referências Bronze cadastradas: $bronzeReferences. Integridade física não verificada neste diagnóstico; execute 'Verificar integridade' na Entrega ou 'Verificar Bronze completa' nas ferramentas."
 
         Write-Host '[7/7] Último linkage'
         $publishedOnDemand=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM identidade.linkage_run lr JOIN identidade.modelo_linkage m ON m.modelo_id=lr.modelo_id WHERE lr.status=N'PUBLICADO' AND lr.tipo_run=N'ON_DEMAND' AND m.status=N'ATIVO' AND ISNULL(m.amostra_metodo,N'')<>N'SEED_DEV_FIXO_NAO_TREINADO';")
