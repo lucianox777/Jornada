@@ -438,7 +438,7 @@ switch($Action){
         if($resident.Count -gt 0){throw "Processor residente detectado em modo manual: $($resident -join '; ')."}
 
         Write-Host "Executando Jornada.Processor.Worker em PROCESS_UNTIL_IDLE para a Entrega ${entregaId}: processará somente esta Entrega até ficar sem lotes ou atingir o limite entre lotes."
-        Invoke-Compose @('exec','-T','jornada-node2','env','Processor__Operation=PROCESS_UNTIL_IDLE',"Processor__TargetEntregaId=$entregaId",'Processor__RunOnceMaxSeconds=300','dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
+        Invoke-Compose @('exec','-T','jornada-node2','env','Processor__RunOnce=true',"Processor__TargetEntregaId=$entregaId",'Processor__RunOnceMaxSeconds=300','dotnet','/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll')
 
         $final=Invoke-SqlScalar "SELECT status FROM ingestao.entrega WHERE entrega_id='$entregaId';"
         $remainingTarget=[int](Invoke-SqlScalar "SELECT COUNT(*) FROM ingestao.lote WHERE entrega_id='$entregaId' AND status IN(N'PENDENTE',N'VALIDANDO',N'PROCESSANDO');")

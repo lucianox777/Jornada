@@ -24,6 +24,20 @@ O `Jornada.Operations.Maintenance.Worker` inclui, na v3.53, um **watchdog soment
 | `Jornada.Linkage.Runner` | run-once | disparar `INCREMENTAL`, `REPLAY`, `FULL` ou `MODEL_VALIDATION` conforme procedimento |
 | `Jornada.Bronze.Verify` | run-once | executar após restore/drill ou verificação operacional programada |
 
+### 2.1 Execução finita explícita dos workers (F1.2, DEV)
+
+Os três workers residentes mantêm o modo **contínuo por padrão**. Quando for necessário executar um ciclo finito, o scheduler/operador fornece o parâmetro de configuração indicado abaixo; `Operation` especifica uma ação, não o modo de hospedagem.
+
+| Worker | Modo finito | Duração máxima configurável | Resultado |
+|---|---|---|---|
+| Processor | `Processor__RunOnce=true` | `Processor__RunOnceMaxSeconds=300` | processa lotes até ficar ocioso, respeitando `Processor__TargetEntregaId` opcional |
+| Operations Maintenance | `MaintenanceExecution__RunOnce=true` | `MaintenanceExecution__RunOnceMaxSeconds=300` | executa somente ciclos habilitados de retenção/watchdog |
+| Bronze Maintenance | `BronzeMaintenance__RunOnce=true` | `BronzeMaintenance__RunOnceMaxSeconds=300` | executa somente o ciclo Bronze habilitado |
+
+O retorno **0 (OK)** pressupõe ciclo concluído. Quando o limite é atingido antes da conclusão, retorna **3 (INCOMPLETE)**; falhas não devem virar sucesso. Todos os limites precisam ser positivos. O Processor conserva temporariamente os aliases `Processor__Operation=PROCESS_ONE` (restrito a Development) e `Processor__Operation=PROCESS_UNTIL_IDLE`, emitindo aviso de depreciação; novos scripts devem usar `Processor__RunOnce=true`. Um timeout não implica que transações SQL/infraestrutura externas foram forçadas a abortar: conferir logs/estado e reexecutar por critérios de idempotência, nunca reiniciar ou resetar `JornadaLocal` por conta própria.
+
+A configuração de `scheduler-jobs.json` para descoberta dos modos suportados pertence à F1.3 e ainda não é parte deste aceite F1.2. Nada nesta seção autoriza HML/PROD sem governança institucional e parametrização operacional.
+
 ## 3. Ordem e precondições
 
 ### 3.1 Carga inicial
