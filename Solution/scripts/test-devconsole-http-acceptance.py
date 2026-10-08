@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """T0.1a: black-box HTTP acceptance for the real DevConsole process.
 
-The check intentionally calls only read-only or proven-blocked endpoints.
-It neither starts an operational command nor connects to SQL or Bronze.
+This test uses only read-only, proven-blocked and local ZIP generation endpoints.
+It never sends a ZIP to the API or connects to SQL, Bronze or linkage.
 Run after a Release build, and only on an isolated CI/temporary host.
 """
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 import os
+import re
 from pathlib import Path
 import socket
 import subprocess
@@ -17,6 +20,7 @@ import tempfile
 import time
 from urllib import error, request
 import uuid
+import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
 ASSEMBLY = ROOT / "src/Jornada.DevConsole/bin/Release/net10.0/Jornada.DevConsole.dll"
@@ -50,6 +54,81 @@ def http(base: str, method: str, path: str, body: object = None) -> tuple[int, o
         mime = response.headers.get("Content-Type", "")
         result = json.loads(content) if "application/json" in mime and content else content
         return response.status, result
+
+
+def zip_download(base: str, execution_id: str) -> tuple[bytes, str]:
+    with request.urlopen(base + f"/api/runs/{execution_id}/result", timeout=10) as response:
+        assert_true(response.status == 200, "ZIP download did not return 200")
+        assert_true("application/zip" in response.headers.get("Content-Type", ""),
+                    "ZIP download has incorrect media type")
+        return response.read(), response.headers.get("Content-Disposition", "")
+
+
+def await_zip_result(base: str, execution_id: str) -> dict:
+    deadline = time.monotonic() + 45
+    while time.monotonic() < deadline:
+        status, result = http(base, "GET", f"/api/runs/{execution_id}")
+        if status == 200 and isinstance(result, dict):
+            return result
+        assert_true(status == 404, f"Unknown run status: {status}")
+        time.sleep(0.15)
+    raise TimeoutError("ZIP generation did not complete within 45 seconds")
+
+
+def test_manual_zip(base: str, fixture_name: str, *, expect_facts: bool) -> None:
+    fixture = ROOT / "tests/fixtures/ingestao" / fixture_name
+    manifest = (fixture / "manifest.json").read_text(encoding="utf-8")
+    people = (fixture / "pessoas.jsonl").read_text(encoding="utf-8")
+    facts = (fixture / "registros.jsonl").read_text(encoding="utf-8")
+    status, started = http(base, "POST", "/api/zip/manual/start", {
+        "gestor": "SEHAB", "manifestJson": manifest,
+        "pessoasJsonl": people, "registrosJsonl": facts
+    })
+    assert_true(status == 202 and isinstance(started, dict)
+                and started.get("id") and started.get("executionNumber"),
+                f"{fixture_name}: ZIP start did not return an accepted execution")
+    run = await_zip_result(base, started["id"])
+    assert_true(run.get("status") == "SUCESSO", f"{fixture_name}: ZIP failed: {run.get('summary')}")
+    assert_true(run.get("command") == "zip"
+                and run.get("step", {}).get("exitCode") == 0,
+                f"{fixture_name}: ZIP lacks successful execution receipt")
+    data, disposition = zip_download(base, started["id"])
+    archive_sha = hashlib.sha256(data).hexdigest()
+    assert_true(bool(re.search(r"_[a-f0-9]{64}\.zip", disposition))
+                and archive_sha in disposition,
+                f"{fixture_name}: file name does not contain real ZIP checksum")
+    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+        assert_true(archive.namelist() == ["manifest.json", "pessoas.jsonl", "registros.jsonl"],
+                    f"{fixture_name}: ZIP file layout mismatch")
+        assert_true(archive.testzip() is None, f"{fixture_name}: corrupted ZIP member")
+        assert_true(json.loads(archive.read("manifest.json")) == json.loads(manifest),
+                    f"{fixture_name}: manifest not preserved")
+        actual_people = archive.read("pessoas.jsonl").decode("utf-8").strip()
+        assert_true(actual_people == people.strip(), f"{fixture_name}: person data changed")
+        actual_facts = archive.read("registros.jsonl").decode("utf-8").strip()
+        assert_true(actual_facts == facts.strip(), f"{fixture_name}: facts changed")
+        assert_true(bool(actual_facts) == expect_facts,
+                    f"{fixture_name}: expected {'facts' if expect_facts else 'empty facts file'}")
+    status, records = http(base, "GET", "/api/runs")
+    assert_true(status == 200 and any(r.get("id") == started["id"] for r in records),
+                f"{fixture_name}: ZIP is missing from session history")
+
+
+def test_invalid_manual_zip(base: str) -> None:
+    fixture = ROOT / "tests/fixtures/ingestao/AA01_SEM_FATOS_v2"
+    valid_manifest = (fixture / "manifest.json").read_text(encoding="utf-8")
+    status, started = http(base, "POST", "/api/zip/manual/start", {
+        "gestor": "SEHAB", "manifestJson": valid_manifest,
+        "pessoasJsonl": '{"idPessoaEntrega":', "registrosJsonl": ""
+    })
+    assert_true(status == 202 and isinstance(started, dict),
+                "Malformed JSONL should produce an observable async run")
+    run = await_zip_result(base, started["id"])
+    assert_true(run.get("status") == "FALHA"
+                and run.get("step", {}).get("resultPath") is None,
+                "Malformed JSONL was not rejected before ZIP creation")
+    status, _ = http(base, "GET", f"/api/runs/{started['id']}/result")
+    assert_true(status == 404, "Failed ZIP created a downloadable artifact")
 
 
 def run_mode(mode: str) -> dict:
@@ -143,6 +222,14 @@ def run_mode(mode: str) -> dict:
                     status, _ = http(base, "POST", "/api/session-counts/reset", ["silver"])
                     assert_true(status == 200, "session counter reset failed")
                     checks.append("precondition enforcement + in-memory counter reset")
+                    # Exercise the real Console -> local ZIP -> HTTP download chain,
+                    # without invoking the ingest API or touching shared SQL/IBGE.
+                    test_manual_zip(base, "AA01_SEM_FATOS_v2", expect_facts=False)
+                    checks.append("manual ZIP: Pessoa-only + empty registros.jsonl")
+                    test_manual_zip(base, "AA01_v2", expect_facts=True)
+                    checks.append("manual ZIP: Pessoa + fato + SHA-256")
+                    test_invalid_manual_zip(base)
+                    checks.append("malformed JSONL: fail closed and no artifact")
                 else:
                     for command in ("finish", "reset-environment"):
                         assert_true(by_id[command]["disabled"] is True,
