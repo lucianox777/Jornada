@@ -300,3 +300,20 @@ O gate já existente `test-devconsole-http-acceptance.py` agora executa `POST /a
 O fluxo usa o executável da Console em localhost e Python do CI, sem API de ingestão, sem banco e sem acesso à referência IBGE. Os arquivos são gravados em `.local/dev-console/manual-zip/<guid>` no checkout **descartável do runner CI**, e a sessão fica em diretório HOME/XDG temporário. O teste não pode ser considerado prova de Processor, Silver, Linkage ou Gold: esses cenários exigem T0.1b/T0.1c em banco SQL descartável.
 
 A geração atual de ZIP só valida **sintaxe JSON**, não toda a semântica do schema; portanto, um pacote sintaticamente válido mas contratualmente inválido ainda precisa ser rejeitado pelo Processor. Esta lacuna permanece visível para a frente C3.1, não deve ser classificada como teste aprovado de contrato.
+
+
+## T0.1d — Streaming SSE e histórico de execuções da Console
+
+O smoke HTTP real `scripts/test-devconsole-http-acceptance.py` agora verifica,
+para ZIP válido e inválido, o percurso **`/api/zip/manual/start` →
+`/api/runs/{id}/stream` → `/api/runs/{id}` → histórico**, com SSE JSON,
+IDs de evento estritamente crescentes e `status` terminal coerente. Também
+compara o ZIP do botão `/result` com o mesmo artefato em `/artifacts/0`.
+
+Um ZIP inválido precisa aparecer em histórico como `FALHA`, com `/result`
+e `/artifacts/0` devolvendo HTTP 404. O stream de um GUID inexistente
+também deve devolver HTTP 404. Tudo roda em loopback, sem invocar operações
+de infraestrutura, SQL, Bronze ou HML/PROD.
+
+A cobertura é **do contrato HTTP usado pela interface**, não substitui
+teste visual e de cliques de navegador; a Trilha 4 permanece suspensa.
