@@ -118,8 +118,6 @@ public static partial class IngestionPackageInspector
             throw new InvalidDataException("codigoSistemaOrigem é obrigatório e deve conter 1 a 80 caracteres A-Z/0-9/_/-.");
         if (manifest.CodigoBasePessoaOrigem is not null)
         {
-            if (manifest.PessoaSchemaVersao < 4)
-                throw new InvalidDataException("codigoBasePessoaOrigem só é permitido com pessoaSchemaVersao >= 4.");
             if (!PersonBaseCodeRegex().IsMatch(manifest.CodigoBasePessoaOrigem))
                 throw new InvalidDataException("codigoBasePessoaOrigem deve conter 1 a 120 caracteres A-Z/0-9/_/-.");
         }
