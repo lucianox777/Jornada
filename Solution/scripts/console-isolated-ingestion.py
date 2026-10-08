@@ -31,7 +31,7 @@ def main():
         raise RuntimeError("ZIP SHA-256 mismatch")
     credentials = json.loads((ROOT / "config/security/test-access-keys.json").read_text(encoding="utf-8"))["credentials"]
     keys = [c["accessKey"] for c in credentials if c.get("type") == "GESTOR"
-            and c.get("gestorCodigo") == "SEHAB" and "jornada.ingestao.write" in c.get("scopes", [])]
+            and c.get("publicCode") == "SEHAB" and "jornada.ingestao.write" in c.get("scopes", [])]
     if len(keys) != 1:
         raise RuntimeError("Missing unique synthetic SEHAB ingestion credential")
     req = request.Request(url + "/api/v1/ingestao/entregas", data=data, method="POST", headers={
