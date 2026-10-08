@@ -592,7 +592,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(processorProgram,Does.Contain("PROCESS_UNTIL_IDLE"));
             Assert.That(processorProgram,Does.Contain("Processor:TargetEntregaId"));
             Assert.That(processorProgram,Does.Contain("Processor:RunOnceMaxSeconds"));
-            Assert.That(processorProgram,Does.Contain("while (DateTimeOffset.UtcNow < deadline)"));
+            Assert.That(processorProgram,Does.Contain("while (!finiteTimeout.IsCancellationRequested)"));
+            Assert.That(processorProgram,Does.Contain("finiteTimeout.Token"));
+            Assert.That(processorProgram,Does.Contain("Environment.ExitCode = JornadaExitCodes.INCOMPLETE"));
             Assert.That(processorProgram,Does.Contain("ProcessNextAsync(targetEntregaId"));
             Assert.That(processorProgram,Does.Contain("REFRESH_LOCAL_BLOCKING"));
             Assert.That(processorProgram,Does.Contain("RefreshAllSqlServerAsync"));
