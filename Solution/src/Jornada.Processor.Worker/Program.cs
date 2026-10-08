@@ -157,7 +157,7 @@ if (string.Equals(processorOperation, "PROCESS_ONE", StringComparison.Ordinal)
         $"Processor PROCESS_UNTIL_IDLE concluído: lotes_processados={processed}; leases_recuperados={recovered}; " +
         $"idle={idle}; limite_segundos={runOnceMaxSeconds}.");
     if (!idle)
-        Environment.ExitCode = 3;
+        Environment.ExitCode = JornadaExitCodes.INCOMPLETE;
     return;
 }
 
