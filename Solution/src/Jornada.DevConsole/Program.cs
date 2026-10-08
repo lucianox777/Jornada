@@ -109,6 +109,8 @@ app.MapGet("/api/commands",async(HttpResponse response,ConsoleRuntimeMode runtim
         var runtimeDisabledReason=runtime.DisabledReason(x);
         return new{
             x.Id,x.Title,x.Description,x.Implemented,x.CommandLine,x.DisplayCommand,x.Dependencies,x.DependencyNote,x.Surface,x.Stage,
+            executionMode=x.ExecutionMode,
+            order=Array.IndexOf(CommandCatalog.All,x),
             visible=x.Visible,
             destructive=x.Destructive,
             disabled=runtime.IsDisabled(x)||flowBlockedReason is not null,

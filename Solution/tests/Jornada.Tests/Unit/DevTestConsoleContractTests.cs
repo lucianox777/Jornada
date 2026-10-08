@@ -96,6 +96,17 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("CountByCommandAsync(ct)"));
             Assert.That(program,Does.Contain("executionCount=counts.GetValueOrDefault(x.Id)"));
             Assert.That(program,Does.Contain("executionState=ExecutionState(x)"));
+            // C2.2: modos finitos não são confundidos com o default residente de workers.
+            Assert.That(runtime,Does.Contain("\"silver\"=>\"RUN_ONCE\""));
+            Assert.That(runtime,Does.Contain("\"linkage\" or \"replay\""));
+            Assert.That(runtime,Does.Contain("\"ONE_SHOT\""));
+            Assert.That(program,Does.Contain("executionMode=x.ExecutionMode"));
+            Assert.That(program,Does.Contain("order=Array.IndexOf(CommandCatalog.All,x)"));
+            Assert.That(page,Does.Contain("Number(a.order??0)-Number(b.order??0)"));
+            Assert.That(page,Does.Contain("modeLabel={RUN_ONCE:'RunOnce'"));
+            Assert.That(page,Does.Contain("function readableExitCode(code)"));
+            Assert.That(page,Does.Contain("130:'CANCELLED'"));
+            Assert.That(page,Does.Contain("Código de saída: "));
             Assert.That(program,Does.Contain("LatestSuccess(\"infra-blocking\",\"blocking\",\"infra-model\",\"calibration\",\"gold-synthetic\",\"infrastructure\")"));
             Assert.That(program,Does.Contain("corpus.FinishedAt>evidence.FinishedAt"));
             Assert.That(program,Does.Contain("lastExecutionNumber=counts.GetValueOrDefault(x.Id)"));
