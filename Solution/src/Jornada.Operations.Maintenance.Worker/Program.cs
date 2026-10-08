@@ -1,3 +1,4 @@
+using Jornada.Contracts;
 using Jornada.Operational.Sql;
 using Jornada.Bronze.Storage;
 using Jornada.Operations.Maintenance.Worker;
@@ -88,7 +89,7 @@ if (runOnce)
     if (failures.Count > 0)
     {
         Console.Error.WriteLine("Falhas: " + string.Join("; ", failures));
-        Environment.ExitCode = 1;
+        Environment.ExitCode = JornadaExitCodes.FAILURE;
     }
     return;
 }

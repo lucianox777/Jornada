@@ -25,7 +25,7 @@ public sealed class WorkerRunOnceContractTests
         Assert.Multiple(()=>{
             Assert.That(processor,Does.Contain("PROCESS_UNTIL_IDLE"));
             Assert.That(processor,Does.Contain("Processor:RunOnceMaxSeconds"));
-            Assert.That(processor,Does.Contain("Environment.ExitCode = 3"));
+            Assert.That(processor,Does.Contain("Environment.ExitCode = JornadaExitCodes.INCOMPLETE"));
             Assert.That(processorSettings,Does.Contain("\"RunOnceMaxSeconds\": 300"));
 
             Assert.That(operations,Does.Contain("MaintenanceExecution:RunOnce"));
@@ -33,7 +33,7 @@ public sealed class WorkerRunOnceContractTests
             Assert.That(operations,Does.Contain("ITEM_PROCESSED_RETENTION"));
             Assert.That(operations,Does.Contain("DELIVERY_BRONZE_RETENTION"));
             Assert.That(operations,Does.Contain("PIPELINE_WATCHDOG"));
-            Assert.That(operations,Does.Contain("Environment.ExitCode = 1"));
+            Assert.That(operations,Does.Contain("Environment.ExitCode = JornadaExitCodes.FAILURE"));
             Assert.That(operationsSettings,Does.Contain("\"RunOnce\": false"));
 
             Assert.That(bronze,Does.Contain("BronzeMaintenance:RunOnce"));

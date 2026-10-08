@@ -97,7 +97,23 @@ class TestSafeRunner(unittest.TestCase):
         self.assertIn('DATABASE_OVERRIDE=', local_db)
 
     def test_cli_refuses_implicit_e2e_reset(self):
-        self.assertEqual(runner.main(["--profile", "e2e", "e2e"]), 2)
+        self.assertEqual(runner.main(["--profile", "e2e", "e2e"]), runner.EXIT_INVALID_PRECONDITION)
+
+    def test_invalid_command_line_returns_64(self):
+        self.assertEqual(runner.main(["--profile", "unknown", "db", "status"]), runner.EXIT_INVALID_ARGS)
+        self.assertEqual(runner.main(["--profile", "local"]), runner.EXIT_INVALID_ARGS)
+        self.assertEqual(runner.main(["--help"]), runner.EXIT_OK)
+
+    def test_interruption_returns_130_without_executing_reset(self):
+        with patch.object(runner.shutil, "which", return_value="/usr/bin/bash"):
+            with patch.object(runner.subprocess, "run", side_effect=KeyboardInterrupt):
+                self.assertEqual(runner.main(["--profile", "local", "db", "status"]), runner.EXIT_CANCELLED)
+
+    def test_child_failure_exit_status_is_not_hidden(self):
+        result = type("R", (), {"returncode": 17})()
+        with patch.object(runner.shutil, "which", return_value="/usr/bin/bash"):
+            with patch.object(runner.subprocess, "run", return_value=result):
+                self.assertEqual(runner.main(["--profile", "local", "db", "status"]), 17)
 
 
 if __name__ == "__main__":
