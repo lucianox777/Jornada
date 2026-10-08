@@ -80,7 +80,7 @@ public static class SyntheticIngestionBridgeMaterializer
             },
             exclusionPolicy = new
             {
-                activeContractMissingBirthDate = SyntheticIngestionBridge.MissingBirthDateReason,
+                currentContractAllowsMissingIdentityCore = true,
                 fabricationForbidden = true
             },
             routes = options.EffectiveRoutes
