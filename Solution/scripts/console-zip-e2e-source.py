@@ -73,7 +73,10 @@ def generate(fixture: Path, output: Path, summary_path: Path) -> None:
             "DOTNET_ENVIRONMENT": "Development",
             "JORNADA_RUNTIME_MODE": "DEV",
             "XDG_DATA_HOME": str(tmp / "appdata"),
-            "HOME": str(tmp / "home")
+            "HOME": str(tmp / "home"),
+            "JORNADA_E2E_SQL_DATABASE": "JornadaE2E",
+            "JORNADA_E2E_API_URL": "http://127.0.0.1:5088",
+            "JORNADA_E2E_IDEMPOTENCY_KEY": "local-e2e-001"
         })
         logpath = tmp / "console.log"
         with logpath.open("wb") as log:
@@ -154,6 +157,8 @@ def generate(fixture: Path, output: Path, summary_path: Path) -> None:
                 # The Console process inherits only the explicitly scoped E2E
                 # transport variables; the legacy NODE1 command is never used.
                 if os.environ.get("JORNADA_E2E_BROWSER_INGESTION") == "true":
+                    pointer = ROOT / ".local/e2e/browser-ingestion-zip-path.txt"
+                    pointer.write_text(str(target) + "\n", encoding="utf-8")
                     from playwright.sync_api import sync_playwright
                     with sync_playwright() as playwright:
                         browser = playwright.chromium.launch(headless=True, args=["--no-sandbox"])
