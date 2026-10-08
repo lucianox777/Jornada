@@ -17,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from urllib import error, request
 
 from playwright.sync_api import sync_playwright
 
@@ -127,6 +128,19 @@ def main() -> int:
                 stdout=log, stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL
             )
             try:
+                # Avoid a flaky browser navigation while Kestrel binds its port.
+                deadline = time.monotonic() + 35
+                while True:
+                    require(proc.poll() is None, "DevConsole exited during startup")
+                    try:
+                        with request.urlopen(base + "/api/version", timeout=2) as ready:
+                            if ready.status == 200:
+                                break
+                    except (error.URLError, TimeoutError, ConnectionError):
+                        pass
+                    require(time.monotonic() < deadline,
+                            "Console did not become ready within 35 seconds")
+                    time.sleep(0.2)
                 with sync_playwright() as pw:
                     browser = pw.chromium.launch(headless=True, args=["--no-sandbox"])
                     try:
