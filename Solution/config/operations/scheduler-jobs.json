@@ -1,7 +1,7 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "status": "PENDENTE_HML",
-  "note": "Contrato do scheduler corporativo. A Solution não contém scheduler; cadências, owner e retry reais devem ser aprovados no ambiente.",
+  "note": "Contrato técnico v2 do scheduler corporativo: modos de execução e limites de RunOnce declarados; maxExecutionSeconds, cadências, owner e retry reais exigem aprovação HML. Nenhum agendamento é implantado pela Solution.",
   "mutualExclusionGroups": [
     [
       "LINKAGE_GENERATE_DRAFT",
@@ -21,7 +21,11 @@
       "cadence": null,
       "owner": null,
       "retryPolicy": null,
-      "dependsOn": []
+      "dependsOn": [],
+      "supportsRunOnce": true,
+      "defaultMode": "RESIDENT",
+      "runOnceMaxSeconds": 300,
+      "maxExecutionSeconds": null
     },
     {
       "id": "OPERATIONS_MAINTENANCE",
@@ -32,7 +36,11 @@
       "cadence": null,
       "owner": null,
       "retryPolicy": null,
-      "dependsOn": []
+      "dependsOn": [],
+      "supportsRunOnce": true,
+      "defaultMode": "RESIDENT",
+      "runOnceMaxSeconds": 300,
+      "maxExecutionSeconds": null
     },
     {
       "id": "BRONZE_MAINTENANCE",
@@ -43,7 +51,11 @@
       "cadence": null,
       "owner": null,
       "retryPolicy": null,
-      "dependsOn": []
+      "dependsOn": [],
+      "supportsRunOnce": true,
+      "defaultMode": "RESIDENT",
+      "runOnceMaxSeconds": 300,
+      "maxExecutionSeconds": null
     },
     {
       "id": "LINKAGE_GENERATE_DRAFT",
@@ -54,7 +66,11 @@
       "cadence": null,
       "owner": null,
       "retryPolicy": null,
-      "dependsOn": []
+      "dependsOn": [],
+      "supportsRunOnce": true,
+      "defaultMode": "RUN_ONCE",
+      "runOnceMaxSeconds": null,
+      "maxExecutionSeconds": null
     },
     {
       "id": "LINKAGE_VALIDATE",
@@ -67,7 +83,11 @@
       "retryPolicy": null,
       "dependsOn": [
         "LINKAGE_GENERATE_DRAFT"
-      ]
+      ],
+      "supportsRunOnce": true,
+      "defaultMode": "RUN_ONCE",
+      "runOnceMaxSeconds": null,
+      "maxExecutionSeconds": null
     },
     {
       "id": "LINKAGE_ACTIVATE",
@@ -80,7 +100,11 @@
       "retryPolicy": null,
       "dependsOn": [
         "LINKAGE_VALIDATE"
-      ]
+      ],
+      "supportsRunOnce": true,
+      "defaultMode": "RUN_ONCE",
+      "runOnceMaxSeconds": null,
+      "maxExecutionSeconds": null
     },
     {
       "id": "LINKAGE_INCREMENTAL",
@@ -91,7 +115,11 @@
       "cadence": null,
       "owner": null,
       "retryPolicy": null,
-      "dependsOn": []
+      "dependsOn": [],
+      "supportsRunOnce": true,
+      "defaultMode": "RUN_ONCE",
+      "runOnceMaxSeconds": null,
+      "maxExecutionSeconds": null
     },
     {
       "id": "LINKAGE_REPLAY",
@@ -102,7 +130,11 @@
       "cadence": null,
       "owner": null,
       "retryPolicy": null,
-      "dependsOn": []
+      "dependsOn": [],
+      "supportsRunOnce": true,
+      "defaultMode": "RUN_ONCE",
+      "runOnceMaxSeconds": null,
+      "maxExecutionSeconds": null
     },
     {
       "id": "LINKAGE_FULL",
@@ -113,7 +145,11 @@
       "cadence": null,
       "owner": null,
       "retryPolicy": null,
-      "dependsOn": []
+      "dependsOn": [],
+      "supportsRunOnce": true,
+      "defaultMode": "RUN_ONCE",
+      "runOnceMaxSeconds": null,
+      "maxExecutionSeconds": null
     },
     {
       "id": "LINKAGE_MODEL_VALIDATION",
@@ -124,7 +160,11 @@
       "cadence": null,
       "owner": null,
       "retryPolicy": null,
-      "dependsOn": []
+      "dependsOn": [],
+      "supportsRunOnce": true,
+      "defaultMode": "RUN_ONCE",
+      "runOnceMaxSeconds": null,
+      "maxExecutionSeconds": null
     }
   ],
   "approval": null
