@@ -274,3 +274,16 @@ A execução externa da v3.94 chegou a 57 PASS / 1 FAIL. O único cenário resta
 ## Fechamento runtime v3.95 / release v3.96
 
 A execução externa da v3.95 encerrou a suíte dedicada em **58 PASS / 0 FAIL / 0 SKIP / 58 total**, com Unit **153/153 PASS**, restore `--locked-mode` e build Release 0 warnings / 0 errors. A v3.96 apenas incorpora essa evidência e documentação; não altera os testes funcionais nem a produção.
+
+
+## T0.1a — Aceite HTTP real da Console DEV (parcial)
+
+Após `dotnet build Jornada.sln --configuration Release --no-restore`, executar **somente em host de testes isolado**:
+
+```bash
+JORNADA_CONSOLE_ACCEPTANCE_ISOLATED=true python3 scripts/test-devconsole-http-acceptance.py
+```
+
+O gate do job `unit` inicia o binário real `Jornada.DevConsole.dll` em loopback e em diretórios temporários (`XDG_DATA_HOME`/HOME). Ele consulta as rotas `/`, `/api/version`, `/api/commands`, `/api/runs`, `/api/activity`, prova 404 para ID/comando inexistente, exige 409 para Linkage antes da ingestão em DEV e 409 para comandos destrutivos em PROD. Verifica ordem, modo RunOnce/one-shot e reinicialização de contadores **somente da sessão**. Não dispara trabalho operacional, não acessa SQL, não chama ZIP, não cria nem apaga bancos ou volumes.
+
+A evidência `.local/test-evidence/unit/devconsole-http-acceptance.json` registra os grupos efetivamente exercitados. **Não equivale ao T0.1b nível 2 nem ao E2E nível 3** (Console → ZIP → API → Silver → Linkage → Gold). Eles continuam exigindo banco descartável e evidência de execução ponta a ponta.
