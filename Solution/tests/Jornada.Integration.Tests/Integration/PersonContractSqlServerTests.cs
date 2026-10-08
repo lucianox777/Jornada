@@ -9,7 +9,7 @@ namespace Jornada.Integration.Tests.Integration;
 public sealed class PersonContractSqlServerTests
 {
     [Test]
-    public async Task Current_person_contract_seed_keeps_only_v6_and_current_semantics()
+    public async Task Current_person_contract_seed_keeps_only_v1_and_current_semantics()
     {
         var connectionString = RequireIntegrationConnection();
         await using var connection = new SqlConnection(connectionString);
@@ -84,7 +84,7 @@ public sealed class PersonContractSqlServerTests
                 DECLARE @obs BIGINT=(SELECT pessoa_observacao_id FROM silver.pessoa_observacao WHERE id_pessoa_entrega=N'CURRENT-CONTRACT-SQL');
 
                 SELECT
-                    (SELECT COUNT(*) FROM ref.gestor_pessoa_versao WHERE versao=6 AND status=N'ATIVA'),
+                    (SELECT COUNT(*) FROM ref.gestor_pessoa_versao WHERE versao=1 AND status=N'ATIVA'),
                     (SELECT COUNT(*) FROM ref.gestor_pessoa_versao WHERE versao<>6),
                     (SELECT COUNT(*) FROM silver.pessoa_identificador_observacao
                       WHERE pessoa_observacao_id=@obs AND tipo_identificador_codigo=N'RG'
@@ -111,7 +111,7 @@ public sealed class PersonContractSqlServerTests
             Assert.That(await reader.ReadAsync(), Is.True);
             Assert.Multiple(() =>
             {
-                Assert.That(reader.GetInt32(0), Is.EqualTo(4), "Os quatro Gestores DEV devem usar somente Pessoa v6.");
+                Assert.That(reader.GetInt32(0), Is.EqualTo(4), "Os quatro Gestores DEV devem usar somente Pessoa v1.");
                 Assert.That(reader.GetInt32(1), Is.Zero, "O catálogo DEV não deve manter versões Pessoa anteriores.");
                 Assert.That(reader.GetInt32(2), Is.EqualTo(1), "RG parcial deve persistir sem emissor/UF.");
                 Assert.That(reader.GetInt32(3), Is.EqualTo(1), "CNH deve persistir como identificador secundário.");
@@ -145,7 +145,7 @@ public sealed class PersonContractSqlServerTests
             JOIN ref.sistema_origem so ON so.gestor_id=g.gestor_id AND so.ativo=1
             JOIN ref.gestor_pessoa_versao gpv
               ON gpv.gestor_id=g.gestor_id
-             AND gpv.versao=6
+             AND gpv.versao=1
              AND gpv.status=N'ATIVA'
             JOIN ref.tipo_registro tr ON tr.gestor_id=g.gestor_id AND tr.ativo=1
             JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id AND trv.status IN(N'ATIVA',N'ENCERRADA')
