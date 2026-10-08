@@ -64,6 +64,39 @@ def zip_download(base: str, execution_id: str) -> tuple[bytes, str]:
         return response.read(), response.headers.get("Content-Disposition", "")
 
 
+def assert_stream_receipt(base: str, execution_id: str, status_expected: str) -> None:
+    """Read the real SSE stream after completion, as a history/stream reconnect.
+
+    A completed run remains readable from the live in-process stream.
+    The UI depends on a terminal status event and strictly monotonic IDs.
+    """
+    with request.urlopen(base + f"/api/runs/{execution_id}/stream", timeout=12) as response:
+        assert_true(response.status == 200
+                    and "text/event-stream" in response.headers.get("Content-Type", ""),
+                    "Run SSE endpoint did not return event-stream")
+        frames = response.read().decode("utf-8").replace("\r\n", "\n").strip().split("\n\n")
+    entries: list[tuple[int, dict]] = []
+    for frame in frames:
+        fields = dict(line.split(": ", 1) for line in frame.split("\n") if ": " in line)
+        assert_true("id" in fields and "data" in fields,
+                    "SSE frame is missing event ID or payload")
+        seq = int(fields["id"])
+        item = json.loads(fields["data"])
+        assert_true(item.get("seq") == seq and isinstance(item.get("at"), str)
+                    and isinstance(item.get("text"), str),
+                    "SSE event serialization does not match the Console contract")
+        entries.append((seq, item))
+    assert_true(len(entries) >= 3, "SSE has too few events for a real ZIP run")
+    seqs = [seq for seq, _ in entries]
+    assert_true(seqs == sorted(set(seqs)) and seqs[0] == 1,
+                "SSE IDs must start at 1, be strictly increasing and have no duplicates")
+    assert_true(entries[-1][1].get("stream") == "status"
+                and status_expected in entries[-1][1].get("text", ""),
+                "Run SSE never produced the expected terminal status")
+    assert_true(sum(item.get("stream") == "status" for _, item in entries) == 1,
+                "Run SSE must terminate with exactly one status event")
+
+
 def await_zip_result(base: str, execution_id: str) -> dict:
     deadline = time.monotonic() + 45
     while time.monotonic() < deadline:
@@ -92,7 +125,11 @@ def test_manual_zip(base: str, fixture_name: str, *, expect_facts: bool) -> None
     assert_true(run.get("command") == "zip"
                 and run.get("step", {}).get("exitCode") == 0,
                 f"{fixture_name}: ZIP lacks successful execution receipt")
+    assert_stream_receipt(base, started["id"], "SUCESSO")
     data, disposition = zip_download(base, started["id"])
+    with request.urlopen(base + f"/api/runs/{started['id']}/artifacts/0", timeout=10) as artifact:
+        assert_true(artifact.status == 200 and artifact.read() == data,
+                    f"{fixture_name}: history artifact differs from result download")
     archive_sha = hashlib.sha256(data).hexdigest()
     assert_true(bool(re.search(r"_[a-f0-9]{64}\.zip", disposition))
                 and archive_sha in disposition,
@@ -127,8 +164,15 @@ def test_invalid_manual_zip(base: str) -> None:
     assert_true(run.get("status") == "FALHA"
                 and run.get("step", {}).get("resultPath") is None,
                 "Malformed JSONL was not rejected before ZIP creation")
+    assert_stream_receipt(base, started["id"], "FALHA")
     status, _ = http(base, "GET", f"/api/runs/{started['id']}/result")
     assert_true(status == 404, "Failed ZIP created a downloadable artifact")
+    status, _ = http(base, "GET", f"/api/runs/{started['id']}/artifacts/0")
+    assert_true(status == 404, "Failed ZIP leaked a historical artifact")
+    status, history = http(base, "GET", "/api/runs")
+    assert_true(status == 200 and any(
+        item.get("id") == started["id"] and item.get("status") == "FALHA"
+        for item in history), "Failed ZIP execution missing from session history")
 
 
 def run_mode(mode: str) -> dict:
@@ -206,8 +250,11 @@ def run_mode(mode: str) -> dict:
                             f"{mode}: activity endpoint failed")
                 checks.append("isolated activity and runs")
 
-                status, _ = http(base, "GET", "/api/runs/" + str(uuid.uuid4()) + "/result")
+                missing_id = str(uuid.uuid4())
+                status, _ = http(base, "GET", "/api/runs/" + missing_id + "/result")
                 assert_true(status == 404, f"{mode}: unknown run returned {status}")
+                status, _ = http(base, "GET", "/api/runs/" + missing_id + "/stream")
+                assert_true(status == 404, f"{mode}: unknown SSE stream returned {status}")
                 status, _ = http(base, "POST", "/api/commands/absent-command/start")
                 assert_true(status == 404, f"{mode}: missing command returned {status}")
                 checks.append("missing run/command fail closed")
@@ -230,6 +277,7 @@ def run_mode(mode: str) -> dict:
                     checks.append("manual ZIP: Pessoa + fato + SHA-256")
                     test_invalid_manual_zip(base)
                     checks.append("malformed JSONL: fail closed and no artifact")
+                    checks.append("SSE replay + monotonic event IDs + terminal status + history artifacts")
                 else:
                     for command in ("finish", "reset-environment"):
                         assert_true(by_id[command]["disabled"] is True,
