@@ -79,16 +79,17 @@ def install_synthetic_catalog(page) -> None:
         route.fulfill(status=200, content_type="application/json",
                       body=json.dumps(payload, ensure_ascii=False))
     page.route("**/api/zip/contracts", lambda route: respond(route, [CONTRACT]))
-    page.route(re.compile(r"/api/zip/template(?:\\?.*)?$"),
+    page.route(re.compile(r"/api/zip/template(?:\?.*)?$"),
                lambda route: respond(route, TEMPLATE))
 
 
 def start_zip_dialog(page) -> None:
     page.locator('#commands button[onclick="openZipDialog()"]').click()
     page.locator("#zipDialog").wait_for(state="visible", timeout=15000)
-    page.locator("#zipTemplateSource").get_by_text(
-        "SYNTHETIC_BROWSER_FIXTURE", exact=False
-    ).wait_for(timeout=15000)
+    page.wait_for_function(
+        "() => document.getElementById('zipTemplateSource').textContent.includes('SYNTHETIC_BROWSER_FIXTURE')",
+        timeout=15000
+    )
 
 
 def wait_for_result(page, expected: str) -> None:
@@ -138,7 +139,7 @@ def main() -> int:
                         # the two catalog/example GETs which would access Gold/SQL.
                         page.goto(base, wait_until="domcontentloaded", timeout=30000)
                         page.locator("#commands .stage").first.wait_for()
-                        require("Console DEV" in page.title(), "Wrong Console HTML title")
+                        require("Jornada DEV Console" in page.title(), "Wrong Console HTML title")
                         require(page.locator("#commands .exec-badge").filter(
                             has_text="RunOnce").count() > 0,
                             "Browser did not render RunOnce badge")
