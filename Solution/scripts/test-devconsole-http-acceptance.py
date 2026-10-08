@@ -361,14 +361,90 @@ def run_mode(mode: str) -> dict:
                         process.wait(timeout=6)
 
 
+
+def test_isolated_contract_roundtrip() -> dict:
+    """Save and reread a disposable contract in a separate content root."""
+    with tempfile.TemporaryDirectory(prefix="jornada-contract-roundtrip-") as folder:
+        root = Path(folder)
+        (root / "Jornada.sln").write_text("", encoding="utf-8")
+        contracts = root / "config" / "contracts"
+        contracts.mkdir(parents=True)
+        contract = contracts / "acceptance.json"
+        contract.write_text('{"fixture":"before"}', encoding="utf-8")
+        port = spare_local_port()
+        base = f"http://127.0.0.1:{port}"
+        env = dict(os.environ)
+        env.update({
+            "ASPNETCORE_URLS": base,
+            "ASPNETCORE_ENVIRONMENT": "Development",
+            "DOTNET_ENVIRONMENT": "Development",
+            "JORNADA_RUNTIME_MODE": "DEV",
+            "HOME": str(root),
+            "XDG_DATA_HOME": str(root / "appdata"),
+        })
+        log_path = root / "console.log"
+        with log_path.open("wb") as log:
+            process = subprocess.Popen(
+                ["dotnet", str(ASSEMBLY), "--contentRoot", str(root)],
+                cwd=root, env=env, stdout=log, stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+            )
+            try:
+                deadline = time.monotonic() + 35
+                while True:
+                    if process.poll() is not None:
+                        raise RuntimeError("isolated Console exited during startup")
+                    try:
+                        status, _ = http(base, "GET", "/api/version")
+                        if status == 200:
+                            break
+                    except (error.URLError, TimeoutError, ConnectionError):
+                        pass
+                    if time.monotonic() >= deadline:
+                        raise TimeoutError("isolated Console did not start")
+                    time.sleep(0.2)
+                status, catalog = http(base, "GET", "/api/contracts")
+                assert_true(status == 200 and catalog == ["config/contracts/acceptance.json"],
+                            "isolated contract catalog escaped the disposable root")
+                path = "config/contracts/acceptance.json"
+                updated = '{"fixture":"after","revision":2}'
+                status, saved = http(base, "PUT", "/api/contracts/file",
+                                     {"path": path, "content": updated})
+                assert_true(status == 200 and saved.get("content") == updated,
+                            "disposable contract save failed")
+                status, loaded = http(base, "GET",
+                                      "/api/contracts/file?path=config%2Fcontracts%2Facceptance.json")
+                assert_true(status == 200 and loaded.get("content") == updated,
+                            "disposable contract reread did not persist edits")
+                assert_true(contract.read_text(encoding="utf-8") == updated,
+                            "disposable contract on-disk contents differ")
+                return {"status": "PASS", "checks": [
+                    "disposable content root only",
+                    "real HTTP contract PUT + GET + disk persistence",
+                ]}
+            except BaseException as exc:
+                log.flush()
+                transcript = log_path.read_text(encoding="utf-8", errors="replace")[-3500:]
+                raise RuntimeError(f"isolated contract roundtrip: {exc}\\n{transcript}") from exc
+            finally:
+                if process.poll() is None:
+                    process.terminate()
+                    try:
+                        process.wait(timeout=6)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=6)
+
+
 def main() -> int:
     if os.environ.get("JORNADA_CONSOLE_ACCEPTANCE_ISOLATED") != "true":
         raise SystemExit("REFUSED: set JORNADA_CONSOLE_ACCEPTANCE_ISOLATED=true for an isolated test host")
     if not ASSEMBLY.is_file():
         raise SystemExit(f"Missing Release build: {ASSEMBLY}")
     results = [run_mode("DEV"), run_mode("PROD")]
+    isolated_contract = test_isolated_contract_roundtrip()
     summary = {"status": "PASS", "scope": "T0.1a DevConsole HTTP isolated",
-               "levels": ["Console HTTP"], "modes": results,
+               "levels": ["Console HTTP"], "modes": results, "isolated_contract": isolated_contract,
                "note": "Not a full ZIP/SQL/Silver/Linkage/Gold end-to-end test."}
     EVIDENCE.parent.mkdir(parents=True, exist_ok=True)
     EVIDENCE.write_text(json.dumps(summary, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
