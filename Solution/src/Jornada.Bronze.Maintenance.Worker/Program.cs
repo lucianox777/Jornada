@@ -7,6 +7,9 @@ var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
 var runOnce = builder.Configuration.GetValue("BronzeMaintenance:RunOnce", false);
+var runOnceMaxSeconds = builder.Configuration.GetValue<int?>("BronzeMaintenance:RunOnceMaxSeconds") ?? 300;
+if (runOnceMaxSeconds <= 0)
+    throw new InvalidOperationException("BronzeMaintenance:RunOnceMaxSeconds deve ser > 0.");
 builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 builder.Services.Configure<BronzeMaintenanceOptions>(builder.Configuration.GetSection("BronzeMaintenance"));
 
@@ -37,8 +40,24 @@ var host = builder.Build();
 if (runOnce)
 {
     var options = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<BronzeMaintenanceOptions>>().Value;
-    if (options.Enabled)
-        await host.Services.GetRequiredService<BronzeMaintenanceWorker>().RunCycleAsync(CancellationToken.None);
+    using var finiteTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(runOnceMaxSeconds));
+    try
+    {
+        if (options.Enabled)
+            await host.Services.GetRequiredService<BronzeMaintenanceWorker>().RunCycleAsync(finiteTimeout.Token);
+    }
+    catch (OperationCanceledException) when (finiteTimeout.IsCancellationRequested)
+    {
+        Console.Error.WriteLine("Bronze Maintenance RunOnce: tempo limite excedido; execução incompleta.");
+        Environment.ExitCode = Jornada.Contracts.JornadaExitCodes.INCOMPLETE;
+        return;
+    }
+    if (finiteTimeout.IsCancellationRequested)
+    {
+        Console.Error.WriteLine("Bronze Maintenance RunOnce: tempo limite excedido; execução incompleta.");
+        Environment.ExitCode = Jornada.Contracts.JornadaExitCodes.INCOMPLETE;
+        return;
+    }
     Console.WriteLine($"Bronze Maintenance RunOnce concluído: enabled={options.Enabled}.");
     return;
 }
