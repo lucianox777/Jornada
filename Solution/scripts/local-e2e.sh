@@ -272,6 +272,56 @@ json.dump({
 PY
 cat "$OUT/evidence.json"
 
+# T0.1c: a Console não deve exigir fatos para aceitar uma Pessoa.
+# Este teste somente roda no E2E de CI descartável explicitamente habilitado;
+# a execução local tradicional continua sem este estágio adicional.
+if [[ "${JORNADA_E2E_CONSOLE_ZIP:-false}" == "true" ]]; then
+  only_fixture="$ROOT/tests/fixtures/ingestao/AA01_SEM_FATOS_v2"
+  only_package="$(python3 "$ROOT/scripts/console-zip-e2e-source.py" \
+    --fixture "$only_fixture" \
+    --output-dir "$OUT/packages" \
+    --summary "$OUT/console-person-only-zip-source.json")"
+  only_name="$(basename "$only_package")"
+  only_sha="$(sha256sum "$only_package" | awk '{print $1}')"
+  [[ "$only_name" == *"_${only_sha}.zip" ]] || { echo 'ERRO: ZIP Pessoa-only sem SHA-256 de conteúdo.' >&2; exit 26; }
+  only_http="$(curl -sS -o "$OUT/console-person-only-post.json" -w '%{http_code}' \
+    -X POST "$API_URL/api/v1/ingestao/entregas" \
+    -H 'X-Jornada-Gestor: SEHAB' -H "X-Jornada-Access-Key: $access_key" \
+    -H 'Idempotency-Key: local-e2e-console-person-only' \
+    -H 'Content-Type: application/zip' \
+    -H "Content-Disposition: attachment; filename=$only_name" \
+    --data-binary "@$only_package")"
+  [[ "$only_http" == 202 ]] || {
+    echo "ERRO: API recusou ZIP Pessoa-only da Console: HTTP $only_http" >&2
+    cat "$OUT/console-person-only-post.json" >&2
+    exit 26
+  }
+  only_id="$(json_get "$OUT/console-person-only-post.json" entregaId)"
+  wait_processed "$only_id" "$OUT/console-person-only-status.json"
+  only_bronze="$(scalar "SELECT COUNT(*) FROM bronze.entrega_arquivo WHERE entrega_id='$only_id';")"
+  only_silver="$(scalar "SELECT COUNT(*) FROM silver.pessoa_observacao po JOIN ingestao.lote l ON l.lote_id=po.lote_id WHERE l.entrega_id='$only_id';")"
+  only_facts="$(scalar "SELECT COUNT(*) FROM silver.registro_observacao ro JOIN ingestao.lote l ON l.lote_id=ro.lote_id WHERE l.entrega_id='$only_id';")"
+  only_gold="$(scalar "SELECT COUNT(*) FROM gold.pessoa WHERE cpf='11144477735';")"
+  [[ "$only_bronze" == 1 && "$only_silver" == 1 && "$only_facts" == 0 && "$only_gold" == 1 ]] || {
+    echo "ERRO: Pessoa-only Bronze=$only_bronze Silver=$only_silver Fatos=$only_facts Gold=$only_gold" >&2
+    exit 27
+  }
+  python3 - "$OUT/console-person-only-evidence.json" "$only_id" "$only_sha" "$only_bronze" "$only_silver" "$only_facts" "$only_gold" <<'PY'
+import json,sys
+with open(sys.argv[1],'w',encoding='utf-8') as stream:
+    json.dump({
+        'status':'PASS','testData':'SYNTHETIC','fixture':'AA01_SEM_FATOS_v2',
+        'source':'Console HTTP ZIP','receiptEntregaId':sys.argv[2],
+        'zipSha256':sys.argv[3],'zipEntries':['manifest.json','pessoas.jsonl','registros.jsonl'],
+        'lastZipEntryBytes':0,'bronzeFiles':int(sys.argv[4]),
+        'silverPersons':int(sys.argv[5]),'silverRecords':int(sys.argv[6]),
+        'goldPersonsForSyntheticCpf':int(sys.argv[7]),
+        'path':['Console HTTP','ZIP','API','Bronze','Processor','Silver','Gold']
+    },stream,ensure_ascii=False,indent=2)
+PY
+  echo 'CONSOLE PESSOA-ONLY E2E: PASS (Bronze=1, Silver=1, fatos=0, Gold=1).'
+fi
+
 # Gate 6: ensaio HTTP/SQL isolado dos demais Gestores, com o contrato Pessoa corrente
 # preservado no receptor e chaves exclusivamente DEV.
 for gestor in SMADS SMDET SMS; do
