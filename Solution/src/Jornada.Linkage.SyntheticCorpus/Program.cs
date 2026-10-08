@@ -101,7 +101,7 @@ if (string.Equals(args[0], "generate-ingestion", StringComparison.Ordinal)
         loaded.InputFingerprint);
 
     var bridgeOptions = new SyntheticIngestionBridgeOptions(
-        GetInt(values, "pessoa-schema-versao", 4),
+        GetInt(values, "pessoa-schema-versao", ContractVersions.CurrentPersonSchemaVersion),
         dataReferencia,
         pseudonymizationKey);
     if (string.Equals(args[0], "generate-ingestion-waves", StringComparison.Ordinal))
