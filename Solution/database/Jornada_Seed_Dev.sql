@@ -173,16 +173,54 @@ JOIN ref.gestor g ON g.gestor_id=v.gestor_id
 JOIN @PessoaAtual x ON x.codigo=g.codigo
 WHERE v.versao=1;
 
--- Contratos de desenvolvimento anteriores nao sao migrados implicitamente.
--- Falhar fechado para proteger JornadaLocal: validar instalacao limpa em banco descartavel.
+-- Contrato Pessoa v1 substitui os checkpoints v2-v6 de desenvolvimento.
+-- Somente as tres Entregas artificiais do seed podem ser convertidas automaticamente.
+-- Qualquer outra Entrega vinculada a esquema legado bloqueia o seed (fail-closed).
+-- Nao alterar historico real nem executar DROP/RESET em JornadaLocal.
 IF EXISTS (
     SELECT 1
-    FROM ref.gestor_pessoa_versao v
-    JOIN ref.gestor g ON g.gestor_id = v.gestor_id
-    WHERE v.versao <> 1
-      AND g.codigo IN ('SMS','SEHAB','SMADS','SMDET')
+    FROM ingestao.entrega e
+    JOIN ref.gestor_pessoa_versao antiga ON antiga.gestor_pessoa_versao_id=e.gestor_pessoa_versao_id
+    JOIN ref.gestor g ON g.gestor_id=e.gestor_id
+    WHERE antiga.versao<>1 AND g.codigo IN ('SMS','SEHAB','SMADS','SMDET')
+      AND NOT (
+           (e.entrega_id='10000000-0000-4000-8000-000000000001' AND e.idempotency_key='dev-entrega-pessoa-sms-1' AND g.codigo='SMS')
+        OR (e.entrega_id='20000000-0000-4000-8000-000000000001' AND e.idempotency_key='dev-entrega-aa01-1' AND g.codigo='SEHAB')
+        OR (e.entrega_id='30000000-0000-4000-8000-000000000001' AND e.idempotency_key='dev-entrega-cra1-1' AND g.codigo='SMADS')
+      )
 )
-    THROW 51594, 'Banco contem Pessoa v2-v6: use um banco descartavel para a consolidacao ou migracao autorizada; o seed nao altera Entregas historicas.', 1;
+    THROW 51594,'Contrato Pessoa antigo em Entrega nao-seed. Preservar JornadaLocal e planejar migracao autorizada.',1;
+
+-- Atualiza apenas as tres Entregas de demonstração com IDs e chaves canônicas
+-- que pertencem ao seed DEV; a integridade do restante do histórico é preservada.
+UPDATE e
+   SET gestor_pessoa_versao_id=atual.gestor_pessoa_versao_id
+FROM ingestao.entrega e
+JOIN ref.gestor_pessoa_versao antiga ON antiga.gestor_pessoa_versao_id=e.gestor_pessoa_versao_id
+JOIN ref.gestor_pessoa_versao atual ON atual.gestor_id=e.gestor_id AND atual.versao=1
+JOIN ref.gestor g ON g.gestor_id=e.gestor_id
+WHERE antiga.versao<>1
+  AND (
+       (e.entrega_id='10000000-0000-4000-8000-000000000001' AND e.idempotency_key='dev-entrega-pessoa-sms-1' AND g.codigo='SMS')
+    OR (e.entrega_id='20000000-0000-4000-8000-000000000001' AND e.idempotency_key='dev-entrega-aa01-1' AND g.codigo='SEHAB')
+    OR (e.entrega_id='30000000-0000-4000-8000-000000000001' AND e.idempotency_key='dev-entrega-cra1-1' AND g.codigo='SMADS')
+  );
+
+-- Remover linhas do catalogo somente depois de comprovar que nenhum dado
+-- ainda referencia as versoes anteriores. Em caso de referencia, falha fechado.
+IF EXISTS (
+    SELECT 1
+    FROM ingestao.entrega e
+    JOIN ref.gestor_pessoa_versao v ON v.gestor_pessoa_versao_id=e.gestor_pessoa_versao_id
+    JOIN ref.gestor g ON g.gestor_id=e.gestor_id
+    WHERE v.versao<>1 AND g.codigo IN ('SMS','SEHAB','SMADS','SMDET')
+)
+    THROW 51595,'Entregas ainda referenciam contratos Pessoa legados; limpeza bloqueada.',1;
+
+DELETE v
+FROM ref.gestor_pessoa_versao v
+JOIN ref.gestor g ON g.gestor_id=v.gestor_id
+WHERE v.versao<>1 AND g.codigo IN ('SMS','SEHAB','SMADS','SMDET');
 
 DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=1),
         @gpvSmads BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND versao=1),
