@@ -26,4 +26,15 @@ python3 Solution/scripts/jornada-runner.py --profile local --allow-reset ddl-upg
 
 **Escopo e concorrência:** os três bancos compartilham o mesmo SQL Server/container, mas não são apagados um pelo outro. Não execute simultaneamente dois harnesses destrutivos **sobre o mesmo perfil**; o runner não implanta locks distribuídos. `ddl-upgrade` usa seu banco descartável `JornadaDdlUpgrade`. A suíte preservadora mais ampla `local-test-all.ps1` e o `from-zero` destrutivo continuam especialistas explícitos, fora das ações automáticas deste runner.
 
+**F1.1 — códigos de saída:** o contrato compartilhado `Jornada.Contracts.JornadaExitCodes`
+define `OK=0`, `FAILURE=1`, `VERIFICATION_FAILED=2`, `INCOMPLETE=3`,
+`INVALID_PRECONDITION=4`, `INVALID_ARGS=64` e `CANCELLED=130`.
+O runner devolve `64` para sintaxe inválida, `4` quando uma pré-condição
+de segurança/isolamento é recusada, `130` para Ctrl+C e propaga o código
+de saída real do script especializado. O modo finito do Processor retorna
+`INCOMPLETE` ao atingir o prazo sem ficar ocioso; falhas capturadas pelo
+Operations Maintenance retornam `FAILURE`. Esses códigos não autorizam
+reset, substituem as convenções antigas do runner sem retrocompatibilidade
+silenciosa e não alteram o comportamento residente dos workers.
+
 **Teste sem Docker/SQL:** `python3 -m unittest discover -s Solution/scripts/tests -p test_jornada_runner.py -v`. Para executar E2E ou calibração reais, usar os respectivos bancos isolados e aprovação explícita de reset.
