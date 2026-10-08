@@ -5,6 +5,8 @@
 **Precedência:** substitui a instrução v4 quanto à ordem, dependências e salvaguardas. Preserva suas decisões de negócio.  
 **Estado:** planejamento técnico, não aprovação institucional, homologação nem autorização para reset.
 
+> **Atualização de execução pós-PR #812 (08/10/2026):** K0.1 foi mesclada no `master` pelo [PR #812](https://github.com/lucianox777/Jornada/pull/812), commit `17073374570e2b87075adc0152a1def976ea7382`. O runtime, schemas e metadados Pessoa dos quatro Gestores consolidam toda a evolução funcional somente em **v1**; versões de tipos de Registro continuam independentes. O arquivo `config/governance/schema-approvals.json` agora contém **as oito entradas** v1 Pessoa (schema + metadados por Gestor) com SHA-256, todas `status=PENDENTE` e `approval=null`: inventário existente **não é aprovação institucional**. As descrições de estado anterior em §2 e P0.1 documentam a base `ad9bfe6`, **não** a situação atual. Os demais itens da tabela continuam requisitos a verificar individualmente por PR e CI. O banco `JornadaLocal` não foi resetado para esta consolidação. A **Trilha 4 será executada por último** na continuidade técnica, antes de considerar encerrado o conjunto de lacunas.
+
 ## 1. Decisões preservadas
 
 - Antes da primeira Entrega real em HML, consolidar versões históricas dos contratos Pessoa em **v1**. A primeira Entrega em HML congela o v1; alterações posteriores exigem nova versão, migração, seed, hash e aprovação.
