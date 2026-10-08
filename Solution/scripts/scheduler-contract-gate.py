@@ -158,7 +158,7 @@ def self_test(source: dict, root: Path) -> None:
         lambda d: d["jobs"][0].update(runOnceMaxSeconds=0),
         lambda d: d["jobs"][0].update(maxExecutionSeconds=-1),
         lambda d: d["jobs"][0].update(project="../../outside.csproj"),
-        lambda d: d["jobs"][0].update(dependsOn=["LINKAGE_VALIDATE"]),
+        lambda d: d["jobs"][3].update(dependsOn=["LINKAGE_VALIDATE"]),
         lambda d: d["jobs"][0].update(id="LINKAGE_VALIDATE"),
         lambda d: d["jobs"].pop(),
         lambda d: d.update(status="APROVADO"),
