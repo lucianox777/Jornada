@@ -292,6 +292,31 @@ def run_mode(mode: str) -> dict:
                 assert_true(status >= 400,
                             f"{mode}: contract path traversal was accepted")
                 checks.append("contract catalog, read-only inspection, invalid JSON and traversal rejection")
+                # The editor must never create a missing contract or accept
+                # a JSON file outside the allowlisted contract directory.
+                missing_contract = "config/contracts/__console_acceptance_missing__.json"
+                status, _ = http(base, "PUT", "/api/contracts/file", {
+                    "path": missing_contract, "content": "{}"
+                })
+                assert_true(status >= 400,
+                            f"{mode}: editor created an unapproved contract file")
+                status, _ = http(base, "GET",
+                                 "/api/contracts/file?path=config%2Fcontracts%2F__console_acceptance_missing__.json")
+                assert_true(status >= 400,
+                            f"{mode}: missing contract was unexpectedly readable")
+                status, _ = http(base, "PUT", "/api/contracts/file", {
+                    "path": "config/contracts/../../config/active.json",
+                    "content": "{}"
+                })
+                assert_true(status >= 400,
+                            f"{mode}: nested traversal escaped the contract root")
+                status, _ = http(base, "PUT", "/api/contracts/file", {
+                    "path": "config/contracts/invalid.txt", "content": "{}"
+                })
+                assert_true(status >= 400,
+                            f"{mode}: non-JSON extension was accepted")
+                checks.append("contract editor rejects missing files, nested traversal and non-JSON extensions")
+
 
                 if mode == "DEV":
                     assert_true(by_id["linkage"]["disabled"] is True,
