@@ -194,8 +194,10 @@ def main() -> int:
 
                         page.locator('header button[onclick="openActivityLog()"]').click()
                         page.locator("#activityDialog").wait_for(state="visible")
-                        require("Gerar ZIP de ingestão" in page.locator("#activityRuns").inner_text(),
-                                "Activity log omitted the completed ZIP")
+                        page.wait_for_function(
+                            "() => document.getElementById('activityRuns')?.textContent?.includes('Gerar ZIP de ingestão')",
+                            timeout=15000
+                        )
                         page.locator('#activityDialog button[onclick="activityDialog.close()"]').first.click()
                         checked.append("browser activity modal exposes persisted execution")
 
@@ -228,6 +230,11 @@ def main() -> int:
                         phone.locator("#historyView").wait_for(state="visible")
                         phone.locator('header button[onclick="showHome()"]').click()
                         phone.locator("#homeView").wait_for(state="visible")
+                        dimensions = phone.evaluate(
+                            "() => [document.documentElement.clientWidth, document.documentElement.scrollWidth]"
+                        )
+                        require(dimensions[1] <= dimensions[0] + 1,
+                                f"Mobile Console has horizontal overflow: {dimensions}")
                         phone.screenshot(path=str(OUT / "mobile-flow.png"),
                                          full_page=True)
                         checked.append("mobile 390px viewport: tools/history/home navigation")
