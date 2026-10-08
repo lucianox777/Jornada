@@ -6,6 +6,13 @@ param(
 )
 
 $ErrorActionPreference='Stop'
+# The disposable SQL E2E runs its own API and database. Never let the
+# Console's cluster-bound ingestion action silently target NODE1 in that job.
+# A dedicated isolated transport is required before browser TC-05 can use it.
+if($Action -eq 'ingest-latest' -and $env:JORNADA_E2E_CONSOLE_ZIP -eq 'true'){
+    throw 'Envio pela Console bloqueado no E2E descartável: ingest-latest usa NODE1 fixo. Use transporte isolado específico para TC-05.'
+}
+
 $ProgressPreference='SilentlyContinue'
 [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)
 $OutputEncoding=[Text.UTF8Encoding]::new($false)
