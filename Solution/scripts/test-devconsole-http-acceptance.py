@@ -259,6 +259,40 @@ def run_mode(mode: str) -> dict:
                 assert_true(status == 404, f"{mode}: missing command returned {status}")
                 checks.append("missing run/command fail closed")
 
+                # Contract file API: read-only catalog and fail-closed writes.
+                # Never mutate the repository's active contract fixtures.
+                status, contract_paths = http(base, "GET", "/api/contracts")
+                assert_true(status == 200 and isinstance(contract_paths, list),
+                            f"{mode}: contract file catalog is unavailable")
+                if contract_paths:
+                    selected = contract_paths[0]
+                    from urllib.parse import quote
+                    status, contract_file = http(
+                        base, "GET", "/api/contracts/file?path=" + quote(selected, safe="")
+                    )
+                    assert_true(status == 200 and isinstance(contract_file, dict)
+                                and contract_file.get("path") == selected,
+                                f"{mode}: contract file cannot be read")
+                    original = contract_file.get("content")
+                    assert_true(isinstance(original, str),
+                                f"{mode}: contract file response has no content")
+                    status, _ = http(base, "PUT", "/api/contracts/file", {
+                        "path": selected, "content": '{"invalid":'
+                    })
+                    assert_true(status >= 400,
+                                f"{mode}: invalid JSON contract write was accepted")
+                    status, reread = http(
+                        base, "GET", "/api/contracts/file?path=" + quote(selected, safe="")
+                    )
+                    assert_true(status == 200 and reread.get("content") == original,
+                                f"{mode}: rejected JSON modified the contract")
+                status, _ = http(base, "PUT", "/api/contracts/file", {
+                    "path": "../outside.json", "content": "{}"
+                })
+                assert_true(status >= 400,
+                            f"{mode}: contract path traversal was accepted")
+                checks.append("contract catalog, read-only inspection, invalid JSON and traversal rejection")
+
                 if mode == "DEV":
                     assert_true(by_id["linkage"]["disabled"] is True,
                                 "Linkage without Silver is not blocked in catalog")
