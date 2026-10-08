@@ -57,7 +57,7 @@ python scripts/tests/test_contract_v1_preflight.py -v
 python scripts/contract-v1-preflight.py --root .
 ```
 
-O preflight compara SHA-256 em bytes com `config/governance/schema-approvals.json`. Verifica `v1/pessoa.json` mais `v6/pessoa.schema.json` antes da migração; depois aceita somente o estado atômico consolidado v1. Rejeita mistura de estados entre gestores, metadados inválidos e divergência de hashes. É **somente leitura**: não executa Git, Docker ou SQL; `OK_READ_ONLY` não aprova reset nem E2E. Os testes verificam inventário, preservação de bytes, ausência de metadados, drift de hash, estado misto e estado final.
+O preflight compara SHA-256 em bytes com `config/governance/schema-approvals.json` **quando a entrada existe**; em `ad9bfe6`, as entradas Pessoa da SEHAB não estão no inventário, portanto são reportadas como `missingApprovalEntries` e precisam ser cadastradas na K0.1. Em estado final consolidado, ausência de aprovação é erro. Verifica `v1/pessoa.json` mais `v6/pessoa.schema.json` antes da migração; depois aceita somente o estado atômico consolidado v1. Rejeita mistura de estados entre gestores, metadados inválidos e divergência de hashes. É **somente leitura**: não executa Git, Docker ou SQL; `OK_READ_ONLY` não aprova reset nem E2E. Os testes verificam inventário, preservação de bytes, ausência de metadados, drift de hash, estado misto e estado final.
 
 ### T0.1 — Testes em três níveis
 
