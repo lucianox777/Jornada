@@ -128,6 +128,9 @@ def generate(fixture: Path, output: Path, summary_path: Path) -> None:
                 with zipfile.ZipFile(io.BytesIO(content)) as archive:
                     require(archive.namelist() == list(expected), "Console ZIP layout invalid")
                     require(archive.testzip() is None, "Console ZIP CRC check failed")
+                    if not facts.strip():
+                        require(archive.getinfo("registros.jsonl").file_size == 0,
+                                "Pessoa-only ZIP must carry an empty registros.jsonl entry")
                     for name, value in expected.items():
                         require(archive.read(name).decode("utf-8").strip() == value.strip(),
                                 f"Console changed {name}")
