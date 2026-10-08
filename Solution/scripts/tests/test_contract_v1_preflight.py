@@ -98,6 +98,17 @@ class PreflightTests(unittest.TestCase):
         self.assertEqual(result["mode"], "CONSOLIDADO_V1")
         self.assertEqual(len(result["gestores"]), 4)
 
+    def test_unregistered_sehab_source_is_reported_not_silently_approved(self):
+        self.approvals = [
+            entry for entry in self.approvals
+            if "/gestores/SEHAB/pessoa/" not in entry["path"]
+        ]
+        self._approvals()
+        result = preflight.audit(self.root)
+        self.assertEqual(result["status"], "OK_READ_ONLY_WITH_APPROVAL_GAPS")
+        self.assertEqual(len(result["missingApprovalEntries"]), 2)
+        self.assertTrue(all("/SEHAB/" in path for path in result["missingApprovalEntries"]))
+
     def test_cli_exits_nonzero_on_invalid_input(self):
         path = self.root / "config/contracts/gestores/SMS/pessoa/v1/pessoa.json"
         path.write_text('{"gestor":"OUTRO","versao":1}', encoding="utf-8")
