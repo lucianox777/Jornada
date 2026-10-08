@@ -4,7 +4,7 @@ namespace Jornada.Contracts;
 
 public static class ContractVersions
 {
-    public const int CurrentPersonSchemaVersion = 6;
+    public const int CurrentPersonSchemaVersion = 1;
 }
 
 public enum ResolutionStatus { RESOLVIDO, NAO_RESOLVIDO, CONFLITO }
