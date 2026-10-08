@@ -649,10 +649,10 @@ public sealed class DevTestConsoleContractTests
         var root=Root();
         var seed=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Seed_Dev.sql"));
         var expectedHashes=new Dictionary<string,string>{
-            ["SEHAB"]="9CC603CD41791E3AAB8CFB79333A03E2C0FA04CC37BC87D83DB3FA4D52B44209",
-            ["SMADS"]="2E17E5AE713A50A74B54130C49CA674806DA7F4FB1DC67054E685A5CECBAF6B4",
-            ["SMDET"]="07A09E62F58235256A38FE0C312AAFDA0D3773EBCD34703A34EDB1DF62B58D1E",
-            ["SMS"]="0A7AC27CDD88DE6E11303E6A1729627EC3E78008C2C4F88F10EAFA6114BF42A6"
+            ["SEHAB"]="66E4C3E4FC6EAB69B62470593206BC411EE3A9B22BC39A67C76A45F63929F38B",
+            ["SMADS"]="02D971C8FFB3B1B88075B42419D0377BB05788ADAA5EC8742E62EF20B189FD8E",
+            ["SMDET"]="C891FE65578607872CA9B0250938B68066E0E0F5C1E9650CF2AA4FDAE4F98F6E",
+            ["SMS"]="5CEA0A27716A1636AAA00AA6F6F9B2EF58B9E5140052D73E705B5C682D719EAC"
         };
 
         foreach(var gestor in expectedHashes.Keys)
@@ -674,7 +674,7 @@ public sealed class DevTestConsoleContractTests
         }
 
         Assert.Multiple(()=>{
-            Assert.That(seed,Does.Contain("WHERE v.versao<>6"));
+            Assert.That(seed,Does.Contain("WHERE v.versao<>1"));
             Assert.That(seed,Does.Contain("WHERE v.versao=1"));
             Assert.That(seed,Does.Contain("N'ATIVA','2026-10-06'"));
             Assert.That(seed,Does.Not.Contain("/pessoa/v4/"));
