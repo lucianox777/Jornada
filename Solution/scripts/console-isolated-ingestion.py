@@ -34,9 +34,12 @@ def main():
             and c.get("publicCode") == "SEHAB" and "jornada.ingestao.write" in c.get("scopes", [])]
     if len(keys) != 1:
         raise RuntimeError("Missing unique synthetic SEHAB ingestion credential")
+    idem = os.environ.get("JORNADA_E2E_IDEMPOTENCY_KEY", "sha256:" + sha)
+    if not re.fullmatch(r"[A-Za-z0-9:_-]{1,100}", idem):
+        raise RuntimeError("Invalid isolated idempotency key")
     req = request.Request(url + "/api/v1/ingestao/entregas", data=data, method="POST", headers={
         "X-Jornada-Gestor": "SEHAB", "X-Jornada-Access-Key": keys[0],
-        "Idempotency-Key": "sha256:" + sha, "Content-Type": "application/zip",
+        "Idempotency-Key": idem, "Content-Type": "application/zip",
         "Content-Disposition": "attachment; filename=" + zip_path.name,
     })
     with request.urlopen(req, timeout=30) as response:
