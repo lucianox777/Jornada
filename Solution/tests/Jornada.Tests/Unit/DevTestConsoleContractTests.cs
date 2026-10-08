@@ -644,7 +644,7 @@ public sealed class DevTestConsoleContractTests
         });
     }
     [Test]
-    public void Dev_person_contract_keeps_only_current_v6_for_all_gestores_and_core_fields_are_nullable()
+    public void Dev_person_contract_keeps_only_current_v1_for_all_gestores_and_core_fields_are_nullable()
     {
         var root=Root();
         var seed=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Seed_Dev.sql"));
@@ -657,7 +657,7 @@ public sealed class DevTestConsoleContractTests
 
         foreach(var gestor in expectedHashes.Keys)
         {
-            var schemaPath=Path.Combine(root,"Solution","config","contracts","gestores",gestor,"pessoa","v6","pessoa.schema.json");
+            var schemaPath=Path.Combine(root,"Solution","config","contracts","gestores",gestor,"pessoa","v1","pessoa.schema.json");
             using var schema=System.Text.Json.JsonDocument.Parse(File.ReadAllText(schemaPath));
             var required=schema.RootElement.GetProperty("required").EnumerateArray().Select(x=>x.GetString()).ToArray();
             var properties=schema.RootElement.GetProperty("properties");
@@ -675,7 +675,7 @@ public sealed class DevTestConsoleContractTests
 
         Assert.Multiple(()=>{
             Assert.That(seed,Does.Contain("WHERE v.versao<>6"));
-            Assert.That(seed,Does.Contain("WHERE v.versao=6"));
+            Assert.That(seed,Does.Contain("WHERE v.versao=1"));
             Assert.That(seed,Does.Contain("N'ATIVA','2026-10-06'"));
             Assert.That(seed,Does.Not.Contain("/pessoa/v4/"));
             Assert.That(seed,Does.Not.Contain("/pessoa/v5/"));
