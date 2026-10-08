@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using Jornada.Contracts;
 using Jornada.Linkage.SyntheticCorpus;
 
 if (args.Length == 0)
