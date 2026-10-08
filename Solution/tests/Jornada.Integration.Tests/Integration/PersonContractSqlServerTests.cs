@@ -85,7 +85,7 @@ public sealed class PersonContractSqlServerTests
 
                 SELECT
                     (SELECT COUNT(*) FROM ref.gestor_pessoa_versao WHERE versao=1 AND status=N'ATIVA'),
-                    (SELECT COUNT(*) FROM ref.gestor_pessoa_versao WHERE versao<>6),
+                    (SELECT COUNT(*) FROM ref.gestor_pessoa_versao WHERE versao<>1),
                     (SELECT COUNT(*) FROM silver.pessoa_identificador_observacao
                       WHERE pessoa_observacao_id=@obs AND tipo_identificador_codigo=N'RG'
                         AND emissor_codigo IS NULL AND uf_emissor IS NULL),
