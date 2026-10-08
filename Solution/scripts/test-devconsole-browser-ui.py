@@ -245,7 +245,7 @@ def main() -> int:
                         # Contract-bound manual editor: switching to JSON must
                         # preserve edits made in the friendly form.
                         page.locator("#zipPessoaId").fill("UI-SYNTH-EDITED-FORM")
-                        page.locator('#zipDialog button[onclick="setZipMode(\\'json\\')"]').click()
+                        page.locator('#zipDialog button[onclick="setZipMode(\'json\')"]').click()
                         edited_person = json.loads(page.locator("#zipPessoas").input_value())
                         require(edited_person["idPessoaEntrega"] == "UI-SYNTH-EDITED-FORM",
                                 "Friendly editor lost edits during JSON serialization")
