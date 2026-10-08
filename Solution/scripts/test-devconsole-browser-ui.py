@@ -29,12 +29,15 @@ APP = ROOT / "src/Jornada.DevConsole/bin/Release/net10.0/Jornada.DevConsole.dll"
 OUT = ROOT / ".local/test-evidence/unit/devconsole-browser"
 
 CONTRACT_KEY = "SEHAB:SEHAB:P1:BENEFICIO:AA01:V1"
+ALT_CONTRACT_KEY = "SEHAB:SEHAB:P1:BENEFICIO:BB02:V1"
 CONTRACT = {
     "key": CONTRACT_KEY, "label": "SEHAB AA01 v1 — fixture sintética",
     "gestor": "SEHAB", "codigoSistemaOrigem": "SEHAB",
     "pessoaSchemaVersao": 1, "natureza": "BENEFICIO",
     "codigoTipo": "AA01", "tipoVersao": 1,
 }
+ALT_CONTRACT = {**CONTRACT, "key": ALT_CONTRACT_KEY,
+                "label": "SEHAB BB02 v1 — fixture sintética", "codigoTipo": "BB02"}
 MANIFEST = {
     "formatoVersao": 2, "pessoaSchemaVersao": 1, "codigoSistemaOrigem": "SEHAB",
     "natureza": "BENEFICIO", "codigoTipo": "AA01", "tipoVersao": 1,
@@ -82,7 +85,7 @@ def install_synthetic_catalog(page) -> None:
     def respond(route, payload):
         route.fulfill(status=200, content_type="application/json",
                       body=json.dumps(payload, ensure_ascii=False))
-    page.route("**/api/zip/contracts", lambda route: respond(route, [CONTRACT]))
+    page.route("**/api/zip/contracts", lambda route: respond(route, [CONTRACT, ALT_CONTRACT]))
     page.route(re.compile(r"/api/zip/template(?:\?.*)?$"),
                lambda route: respond(route, TEMPLATE))
 
@@ -227,6 +230,18 @@ def main() -> int:
                         start_zip_dialog(page)
                         require(page.locator("#zipContract").input_value() == CONTRACT_KEY,
                                 "Contract selector lost the provided synthetic catalog")
+                        # Two synthetic contracts must remain selectable without
+                        # confusing the currently active template or losing selection.
+                        contract_select = page.locator("#zipContract")
+                        require(contract_select.locator("option").count() == 2,
+                                "Dynamic contract catalog did not render both fixtures")
+                        contract_select.select_option(ALT_CONTRACT_KEY)
+                        require(contract_select.input_value() == ALT_CONTRACT_KEY,
+                                "Dynamic contract selector failed to change selection")
+                        contract_select.select_option(CONTRACT_KEY)
+                        require(contract_select.input_value() == CONTRACT_KEY,
+                                "Dynamic contract selector failed to restore selection")
+                        checked.append("dynamic synthetic catalog renders two selectable contracts")
                         page.locator("#zipPessoaId").fill("UI-SYNTH-PERSON-ONLY")
                         page.locator('#zipDialog button[onclick="setZipMode(\'json\')"]').click()
                         require(json.loads(page.locator("#zipPessoas").input_value())[
