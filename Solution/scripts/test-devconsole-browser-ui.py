@@ -8,6 +8,8 @@ run against the real DevConsole process on loopback.
 """
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -17,6 +19,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import zipfile
 from urllib import error, request
 
 from playwright.sync_api import sync_playwright
@@ -103,6 +106,47 @@ def wait_for_result(page, expected: str) -> None:
             "Result summary does not match terminal status")
 
 
+def verify_browser_zip(page, browser_context, base: str, *,
+                       expected_person_id: str, expected_no_cpf: bool) -> None:
+    """Fetch the result from the same browser context and inspect its real bytes.
+
+    Nothing is mocked on /api/runs, /result or /artifacts.
+    The snapshot must match the payload edited through the HTML form.
+    """
+    execution_id = page.evaluate("currentRunId")
+    require(isinstance(execution_id, str) and execution_id,
+            "Browser did not retain the active ZIP execution ID")
+    response = browser_context.request.get(
+        base + f"/api/runs/{execution_id}/result", timeout=10000
+    )
+    require(response.status == 200, "Browser-context ZIP download failed")
+    require("application/zip" in response.headers.get("content-type", ""),
+            "Browser-context result is not a ZIP")
+    raw = response.body()
+    digest = hashlib.sha256(raw).hexdigest()
+    require(digest in response.headers.get("content-disposition", ""),
+            "Browser-context ZIP Content-Disposition SHA-256 differs from actual bytes")
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        require(archive.namelist() == ["manifest.json", "pessoas.jsonl", "registros.jsonl"],
+                "Browser-generated ZIP is missing canonical members")
+        require(archive.testzip() is None, "Browser ZIP CRC validation failed")
+        person_lines = archive.read("pessoas.jsonl").decode("utf-8").splitlines()
+        require(len(person_lines) == 1, "Expected one synthetic browser person")
+        person = json.loads(person_lines[0])
+        require(person.get("idPessoaEntrega") == expected_person_id,
+                "The Browser ZIP was not generated from the edited HTML form")
+        if expected_no_cpf:
+            require(person.get("cpf") is None
+                    and person.get("cpfAusenteMotivo") == "NAO_INFORMADO_ORIGEM",
+                    "Browser form serialized absence of CPF incorrectly")
+        else:
+            require(person.get("cpf") == PERSON["cpf"]
+                    and person.get("cpfAusenteMotivo") is None,
+                    "Browser form corrupted the supplied synthetic CPF")
+        require(archive.getinfo("registros.jsonl").file_size == 0,
+                "Person-only generated ZIP has nonempty factual content")
+
+
 def main() -> int:
     require(os.environ.get("JORNADA_CONSOLE_BROWSER_ISOLATED") == "true",
             "Refusing browser acceptance without isolated CI opt-in")
@@ -177,6 +221,10 @@ def main() -> int:
                             "Completed ZIP is missing the result download button")
                         require("ZIP gerado" in page.locator("#runSummary").inner_text(),
                                 "Completed ZIP summary missing")
+                        verify_browser_zip(
+                            page, context, base,
+                            expected_person_id="UI-SYNTH-PERSON-ONLY", expected_no_cpf=False
+                        )
                         page.screenshot(path=str(OUT / "desktop-zip-person-only.png"),
                                         full_page=True)
                         checked.append("clicked HTML form → JSONL without facts → real ZIP + SSE")
@@ -201,7 +249,43 @@ def main() -> int:
                         page.locator('#activityDialog button[onclick="activityDialog.close()"]').first.click()
                         checked.append("browser activity modal exposes persisted execution")
 
+                        # CPF can be omitted while keeping a valid Pessoa-only ZIP.
+                        # Check HTML serialization, as well as physical ZIP contents.
                         page.locator('header button[onclick="showHome()"]').click()
+                        start_zip_dialog(page)
+                        page.locator("#zipCpf").fill("")
+                        page.locator("#zipPessoaId").fill("UI-SYNTH-NO-CPF")
+                        page.locator('#zipDialog button[onclick="setZipMode(\'json\')"]').click()
+                        serialized = json.loads(page.locator("#zipPessoas").input_value())
+                        require(serialized.get("cpf") is None
+                                and serialized.get("cpfAusenteMotivo") == "NAO_INFORMADO_ORIGEM",
+                                "Browser HTML form did not represent optional missing CPF")
+                        page.locator("#zipRegistros").fill("")
+                        page.locator('#zipDialog button[onclick="startZip()"]').click()
+                        wait_for_result(page, "SUCESSO")
+                        verify_browser_zip(
+                            page, context, base,
+                            expected_person_id="UI-SYNTH-NO-CPF", expected_no_cpf=True
+                        )
+                        page.screenshot(path=str(OUT / "desktop-person-no-cpf.png"),
+                                        full_page=True)
+                        checked.append("HTML form without CPF → typed absence in physical Pessoa-only ZIP")
+
+                        page.locator('header button[onclick="showHome()"]').click()
+                        zip_stage = page.locator("#commands .stage").filter(
+                            has=page.locator('button[onclick="openZipDialog()"]')
+                        )
+                        zip_stage.locator(".action-count").first.wait_for()
+                        zip_stage.locator(".action-count").first.get_by_text("Sessão 2x").wait_for(timeout=15000)
+                        zip_stage.locator("button.stage-reset").click()
+                        page.wait_for_function(
+                            "() => [...document.querySelectorAll('#commands .stage')].find("
+                            "stage => stage.querySelector('button[onclick=\\\"openZipDialog()\\\"]'))"
+                            "?.querySelector('.action-count')?.textContent?.includes('Sessão 0x')",
+                            timeout=12000,
+                        )
+                        checked.append("browser session counters reset without destructive operations")
+
                         start_zip_dialog(page)
                         page.locator('#zipDialog button[onclick="setZipMode(\'json\')"]').click()
                         page.locator("#zipPessoas").fill('{"idPessoaEntrega":')
@@ -246,8 +330,8 @@ def main() -> int:
                     "status": "PASS", "testData": "SYNTHETIC",
                     "scope": "real Chromium UI+SSE+ZIP, mocked catalog/Gold template reads",
                     "checks": checked, "screenshots": [
-                        "desktop-zip-person-only.png", "desktop-invalid-jsonl.png",
-                        "mobile-flow.png"
+                        "desktop-zip-person-only.png", "desktop-person-no-cpf.png",
+                        "desktop-invalid-jsonl.png", "mobile-flow.png"
                     ],
                     "notCovered": [
                         "Real SQL-backed contract/Gold catalog lookup",
