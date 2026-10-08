@@ -317,3 +317,37 @@ de infraestrutura, SQL, Bronze ou HML/PROD.
 
 A cobertura é **do contrato HTTP usado pela interface**, não substitui
 teste visual e de cliques de navegador; a Trilha 4 permanece suspensa.
+
+
+## T0.1e — Teste Chromium real de navegação/geração/histórico da Console
+
+O job `jornada-ci/unit` reaproveita o build Release já produzido pelo job
+e executa `scripts/test-devconsole-browser-ui.py` com Playwright Python
+**fixado em 1.56.0** e Chromium instalado no runner descartável.
+O script exige `JORNADA_CONSOLE_BROWSER_ISOLATED=true`, inicia uma Console
+real em loopback com HOME/XDG temporários e não acessa SQL, Bronze ou IBGE.
+
+Somente os dois endpoints de leitura
+`GET /api/zip/contracts` e `GET /api/zip/template` são respondidos
+pela fixture **sintética** dentro do navegador; esses endpoints dependem
+do catálogo ref.* e de `gold.pessoa` no banco. O teste **não simula**
+`POST /api/zip/manual/start`, o streaming SSE nem o histórico.
+Os cliques e o fluxo da aplicação são reais.
+
+O navegador testa: renderização dos estágios e selo RunOnce; bloqueio
+de Linkage antes de ingestão/Silver; abrir o formulário; escolher o
+contrato; editar o ID; alternar de HTML para JSONL; deixar
+`registros.jsonl` vazio; clicar **Gerar arquivo**; acompanhar o status
+`SUCESSO` no terminal; reabrir o run pelo histórico e conferir a presença
+do botão de download; visualizar o log da sessão; tentar JSONL inválido
+e comprovar status `FALHA` sem botão de download; além de navegação
+Ferramentas → Execuções → Fluxo em viewport móvel de 390 px.
+
+Evidência: `.local/test-evidence/unit/devconsole-browser/summary.json` e
+três screenshots sintéticos (sucesso desktop, falha desktop, fluxo mobile).
+As imagens não são comprovação de contrato real aprovado. O E2E SQL de
+Console → ZIP → API → Silver → Gold permanece separado nos testes
+T0.1b/T0.1c. A interação browser com botão **Enviar arquivo** e
+Linkage sem CPF não são declarados aprovados.
+
+**Trilha 4 proibida até autorização explícita; não tocar JornadaLocal nem IBGE**.
