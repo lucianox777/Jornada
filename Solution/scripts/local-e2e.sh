@@ -72,7 +72,7 @@ done
 # CI may use the actual Console HTTP ZIP path as E2E input, without changing
 # legacy local harness behavior when the explicit flag is absent.
 if [[ "${JORNADA_E2E_CONSOLE_ZIP:-false}" == "true" ]]; then
-  package="$(python3 "$ROOT/scripts/console-zip-e2e-source.py" \
+  package="$(JORNADA_E2E_BROWSER_INGESTION=true "$ROOT/.local/console-browser-venv/bin/python" "$ROOT/scripts/console-zip-e2e-source.py" \
     --fixture "$ROOT/tests/fixtures/ingestao/AA01_v2" \
     --output-dir "$OUT/packages" \
     --summary "$OUT/console-zip-source.json")"
@@ -215,7 +215,17 @@ with open(sys.argv[1],'w',encoding='utf-8') as output:
 PY
 echo 'GATE06 NEGATIVE HTTP/AUDIT: PASS (401, 403, 400; no delivery or staging residue).'
 
-post_delivery 'local-e2e-001' "$OUT/post1.json" "$OUT/post1.code"
+if [[ "${JORNADA_E2E_CONSOLE_ZIP:-false}" == "true" ]]; then
+  python3 - "$OUT/console-zip-source.json" "$OUT/post1.json" <<'PY'
+import json,sys
+evidence=json.load(open(sys.argv[1],encoding='utf-8'))
+assert evidence.get('browserIngestion',{}).get('status')=='PASS', 'Chromium ingestion not proven'
+json.dump({'entregaId':evidence['browserIngestion']['entregaId']},open(sys.argv[2],'w',encoding='utf-8'))
+PY
+  echo 202 > "$OUT/post1.code"
+else
+  post_delivery 'local-e2e-001' "$OUT/post1.json" "$OUT/post1.code"
+fi
 [[ "$(cat "$OUT/post1.code")" == 202 ]] || { echo "ERRO: POST inicial não retornou 202" >&2; cat "$OUT/post1.json" >&2; exit 4; }
 id1="$(json_get "$OUT/post1.json" entregaId)"
 wait_processed "$id1" "$OUT/status1.json"

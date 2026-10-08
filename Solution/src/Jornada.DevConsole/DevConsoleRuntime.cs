@@ -596,7 +596,14 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         var sw=Stopwatch.StartNew();
         try
         {
-            var result=await RunProcessAsync(definition.File,definition.Arguments!,root,live);
+            // The E2E must not launch the cluster-bound PowerShell command.
+            // Route the browser command to a dedicated isolated transport only
+            // when the disposable test explicitly enables it.
+            var isolatedIngestion=definition.Id=="ingestion" && Environment.GetEnvironmentVariable("JORNADA_E2E_CONSOLE_ZIP")=="true";
+            var result=isolatedIngestion
+                ?await RunProcessAsync(OperatingSystem.IsWindows()?"python":"python3",
+                    "scripts/console-isolated-ingestion.py",root,live)
+                :await RunProcessAsync(definition.File,definition.Arguments!,root,live);
             sw.Stop();
             var candidatePath=definition.ResultPath is null?null:Path.GetFullPath(Path.Combine(root,definition.ResultPath));
             var resultPath=result.ExitCode==0&&candidatePath is not null&&File.Exists(candidatePath)?candidatePath:null;

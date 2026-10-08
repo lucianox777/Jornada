@@ -73,7 +73,10 @@ def generate(fixture: Path, output: Path, summary_path: Path) -> None:
             "DOTNET_ENVIRONMENT": "Development",
             "JORNADA_RUNTIME_MODE": "DEV",
             "XDG_DATA_HOME": str(tmp / "appdata"),
-            "HOME": str(tmp / "home")
+            "HOME": str(tmp / "home"),
+            "JORNADA_E2E_SQL_DATABASE": "JornadaE2E",
+            "JORNADA_E2E_API_URL": "http://127.0.0.1:5088",
+            "JORNADA_E2E_IDEMPOTENCY_KEY": "local-e2e-001"
         })
         logpath = tmp / "console.log"
         with logpath.open("wb") as log:
@@ -150,6 +153,45 @@ def generate(fixture: Path, output: Path, summary_path: Path) -> None:
                 }
                 summary_path.parent.mkdir(parents=True, exist_ok=True)
                 summary_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+                # Exercise the real Chromium button against the disposable API.
+                # The Console process inherits only the explicitly scoped E2E
+                # transport variables; the legacy NODE1 command is never used.
+                if os.environ.get("JORNADA_E2E_BROWSER_INGESTION") == "true":
+                    pointer = ROOT / ".local/e2e/browser-ingestion-zip-path.txt"
+                    pointer.write_text(str(target) + "\n", encoding="utf-8")
+                    from playwright.sync_api import sync_playwright
+                    with sync_playwright() as playwright:
+                        browser = playwright.chromium.launch(headless=True, args=["--no-sandbox"])
+                        try:
+                            page = browser.new_page()
+                            page.goto(base, wait_until="domcontentloaded", timeout=30000)
+                            button = page.get_by_role("button", name="Enviar arquivo", exact=True)
+                            require(button.count() == 1, "Missing ingestion button in Chromium")
+                            with page.expect_response(lambda r: "/api/commands/ingestion/start" in r.url and r.request.method == "POST", timeout=15000) as started_response:
+                                button.click()
+                            response = started_response.value
+                            require(response.status == 202, f"Browser ingestion command returned HTTP {response.status}")
+                            command_id = response.json().get("id")
+                            require(command_id, "Browser ingestion command did not return run id")
+                            deadline = time.monotonic() + 45
+                            while True:
+                                status, command_run = call_json(base, "GET", f"/api/runs/{command_id}")
+                                if status == 200:
+                                    break
+                                require(status == 404, f"Unexpected browser command run status: {status}")
+                                require(time.monotonic() < deadline, "Browser ingestion command timed out")
+                                time.sleep(0.25)
+                            require(command_run.get("status") == "SUCESSO", f"Browser ingestion failed: {command_run}")
+                            receipt_path = ROOT / ".local/dev-console/last-ingestion.json"
+                            require(receipt_path.is_file(), "Browser ingestion receipt missing")
+                            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                            require(receipt.get("database") == "JornadaE2E" and receipt.get("receipt", {}).get("entregaId"),
+                                    "Browser ingestion did not persist disposable API receipt")
+                            report["browserIngestion"] = {"status": "PASS", "runId": command_id,
+                                                           "entregaId": receipt["receipt"]["entregaId"]}
+                            summary_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+                        finally:
+                            browser.close()
                 # Stdout contains only the path consumed by local-e2e.sh.
                 print(str(target))
             except BaseException as exc:

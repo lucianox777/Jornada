@@ -919,6 +919,11 @@ jobs:
         run: python -m unittest discover -s tools/tests -p 'test_dt05*.py' -v
       - name: Install locked NuGet graph
         run: tar -xzf .local/nuget-lock-input/packages-locks.tar.gz -C .
+      - name: Install Chromium for disposable SQL E2E browser ingestion
+        run: |
+          python3 -m venv .local/console-browser-venv
+          .local/console-browser-venv/bin/python -m pip install --disable-pip-version-check playwright==1.56.0
+          .local/console-browser-venv/bin/python -m playwright install --with-deps chromium
       - name: Run Console ZIP HTTP-to-Gold end-to-end gate via DT-11 runner
         env:
           JORNADA_E2E_LOCKED_RESTORE: 'true'
