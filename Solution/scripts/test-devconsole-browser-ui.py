@@ -276,8 +276,7 @@ def main() -> int:
                             has=page.locator('button[onclick="openZipDialog()"]')
                         )
                         zip_stage.locator(".action-count").first.wait_for()
-                        require("Sessão 2x" in zip_stage.locator(".action-count").first.inner_text(),
-                                "Browser did not count two successful ZIP runs")
+                        zip_stage.locator(".action-count").first.get_by_text("Sessão 2x").wait_for(timeout=15000)
                         zip_stage.locator("button.stage-reset").click()
                         page.wait_for_function(
                             "() => [...document.querySelectorAll('#commands .stage')].find("
