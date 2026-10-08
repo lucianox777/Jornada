@@ -519,7 +519,7 @@ async function loadCommands(surface='flow'){
     if(c.id==='linkage')return ['linkage','replay'];
     if(c.id==='gold'||c.id==='semiblind')return [];
     if(c.id==='configuration')return ['contract-bundle'];
-    if(c.id==='gold-synthetic')return ['gold-synthetic','blocking'];
+    if(c.id==='gold-synthetic')return ['gold-synthetic'];
     return [c.id];
   };
 
@@ -567,8 +567,7 @@ async function loadCommands(surface='flow'){
         +actionRow('','Gerar bundle','Gera o ZIP operacional de contratos e configurações.','<button class="secondary" type="button" onclick="startCommand(\'contract-bundle\',\'Gerar bundle de contratos e configurações\')">Gerar bundle</button>','contract-bundle');
     }else if(c.id==='gold-synthetic'){
       actions=actionRow('','Adicionar 5.000','Expande a massa sintética DEV em um bloco controlado.','<button class="primary" type="button" onclick="startCommand(\'gold-synthetic\')">Adicionar 5.000</button>','gold-synthetic')
-        +actionRow('','Visualizar Gold','Inspeciona a Gold corrente sem executar alteração.','<button class="secondary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>',null,true)
-        +actionRow('','Reconstruir blocking','One shot · reconcilia uma vez a projeção local de blocking.','<button class="secondary" type="button" onclick="startCommand(\'blocking\',\'Reconstruir blocking\')">Reconstruir blocking</button>','blocking');
+        +actionRow('','Visualizar Gold','Inspeciona a Gold corrente sem executar alteração.','<button class="secondary" type="button" onclick="openLayerDialog(\'gold\')">Visualizar Gold</button>',null,true);
     }else{
       const buttonClass=c.id==='finish'||c.destructive?'danger':'primary';
       const disabled=c.disabled?' disabled aria-disabled="true" title="'+esc(c.disabledReason||'Operação indisponível')+'"':'';
