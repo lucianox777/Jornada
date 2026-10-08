@@ -88,3 +88,9 @@ A partir da release de engenharia v3.75, decisões externas que antes apareciam 
 - `config/hml/linkage-statistical-readiness.json`: completude/proveniência das evidências estatísticas e institucionais da issue #31, sem autorização automática de Produção.
 
 Os arquivos distribuídos permanecem `PENDENTE`/`PENDENTE_HML`. O modo estrito de `hml-readiness-gate` falha até que as aprovações e evidências reais existam.
+
+### Scheduler corporativo — contrato v2 (F1.3)
+
+O catálogo `config/operations/scheduler-jobs.json` distingue `kind` (contínuo, finito ou excepcional), `supportsRunOnce` e `defaultMode` (`RESIDENT` ou `RUN_ONCE`). Os três serviços residentes continuam `RESIDENT` por padrão e aceitam `RunOnce` com `runOnceMaxSeconds=300` como limite técnico. Operações de Linkage já são finitas por natureza: usam `defaultMode=RUN_ONCE` e não recebem artificialmente uma opção de configuração `RunOnceMaxSeconds` inexistente. `maxExecutionSeconds=null` indica orçamento do agendador corporativo **ainda não aprovado**, nunca execução sem limites presumida como segura para HML.
+
+O gate `python3 scripts/scheduler-contract-gate.py --root . --self-test` rejeita modos contraditórios, duração inválida, dependências cíclicas, jobs ausentes e pseudoaprovações. O modo `--require-scheduled` permanece bloqueado enquanto status, owner, cadence, retry, orçamento operacional e evidência institucional estiverem pendentes. Essa mudança **não implanta scheduler** nem habilita HML/PROD.
