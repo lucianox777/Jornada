@@ -252,6 +252,7 @@ def main() -> int:
                         require(page.locator("#zipContract").input_value() == CONTRACT_KEY,
                                 "JSON editor changed the active contract")
                         checked.append("friendly contract-bound form → JSON preserves edits and contract")
+                        page.locator("#zipDialog button[onclick=\"setZipMode('form')\"]").click()
                         page.locator("#zipPessoaId").fill("UI-SYNTH-PERSON-ONLY")
                         page.locator('#zipDialog button[onclick="setZipMode(\'json\')"]').click()
                         require(json.loads(page.locator("#zipPessoas").input_value())[
