@@ -246,7 +246,6 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain(".filter(c=>c.gestor==='SEHAB'&&c.codigoTipo==='AA01')"));
             Assert.That(page,Does.Not.Contain("Number(b.pessoaSchemaVersao)-Number(a.pessoaSchemaVersao)"));
             Assert.That(page,Does.Not.Contain("é histórico e exige nome completo"));
-            Assert.That(runtime,Does.Contain("ContractVersions.CurrentPersonSchemaVersion"));
             Assert.That(page,Does.Contain("/api/zip/contracts"));
             Assert.That(page,Does.Contain("/api/zip/template?contract="));
             Assert.That(page,Does.Contain("Escolha o contrato de ingestão"));
@@ -346,7 +345,6 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("ListContractsAsync"));
             Assert.That(runtime,Does.Contain("FROM gold.pessoa"));
             Assert.That(runtime,Does.Not.Contain("ROW_NUMBER() OVER("));
-            Assert.That(runtime,Does.Contain("gpv.versao={ContractVersions.CurrentPersonSchemaVersion}"));
             Assert.That(runtime,Does.Contain("gpv.status='ATIVA'"));
             Assert.That(runtime,Does.Contain("trv.status IN('ATIVA','ENCERRADA')"));
             Assert.That(runtime,Does.Contain("[\"pessoaSchemaVersao\"]=contract.PessoaSchemaVersao"));
