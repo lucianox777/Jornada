@@ -24,10 +24,10 @@ public sealed record SyntheticIngestionBridgeOptions(
 
     public void Validate()
     {
-        if (PessoaSchemaVersao != 4)
+        if (PessoaSchemaVersao != ContractVersions.CurrentPersonSchemaVersion)
             throw new ArgumentOutOfRangeException(
                 nameof(PessoaSchemaVersao),
-                "Nesta etapa a ponte materializa somente Pessoa v4, que é a versão ativa. Versões RASCUNHO não são ingeríveis.");
+                "A ponte materializa somente o contrato Pessoa corrente.");
         if (DataReferencia == default)
             throw new ArgumentException("dataReferencia deve ser explícita.", nameof(DataReferencia));
         if (string.IsNullOrWhiteSpace(PseudonymizationKey)
@@ -100,7 +100,6 @@ public static class SyntheticIngestionBridge
 {
     public const string BridgeVersion = "SYNTHETIC_INGESTION_BRIDGE_V1";
     public const string WaveBridgeVersion = "SYNTHETIC_INGESTION_BRIDGE_WAVES_V1";
-    public const string MissingBirthDateReason = "EXCLUIDA_CONTRATO_ATIVO_DATA_NASCIMENTO_AUSENTE";
 
     public static readonly IReadOnlyList<SyntheticIngestionRoute> DefaultRoutes =
     [
@@ -134,26 +133,6 @@ public static class SyntheticIngestionBridge
         {
             if (!routeBySynthetic.TryGetValue(observation.Gestor, out var route))
                 throw new InvalidDataException($"Sem rota de ingestão para gestor sintético {observation.Gestor}.");
-
-            if (observation.BirthDate is null)
-            {
-                truth.Add(new SyntheticIngestionTruthRow(
-                    "EXCLUIDA_CONTRATO_ATIVO",
-                    observation.ObservationId,
-                    observation.BasePersonId,
-                    observation.Partition,
-                    observation.Gestor,
-                    route.GestorCodigo,
-                    route.CodigoSistemaOrigem,
-                    null,
-                    null,
-                    MissingBirthDateReason));
-                continue;
-            }
-
-            if (string.IsNullOrWhiteSpace(observation.Name))
-                throw new InvalidDataException(
-                    $"Observação {observation.ObservationId} sem nome não é representável no contrato Pessoa ativo.");
 
             var opaque = options.StableSourceIdentity
                 ? ComputeStableSourceId(hmac, generation.Options.Seed, route, observation.BasePersonId)
@@ -273,8 +252,8 @@ public static class SyntheticIngestionBridge
                 row.Observation.Cpf,
                 row.Observation.Cpf is null ? "NAO_INFORMADO_ORIGEM" : null,
                 identifiers,
-                row.Observation.Name!,
-                row.Observation.BirthDate!.Value.ToString(
+                string.IsNullOrWhiteSpace(row.Observation.Name) ? null : row.Observation.Name,
+                row.Observation.BirthDate?.ToString(
                     "yyyy-MM-dd",
                     System.Globalization.CultureInfo.InvariantCulture),
                 row.Observation.MotherName);
@@ -331,7 +310,7 @@ public static class SyntheticIngestionBridge
         string? Cpf,
         string? CpfAusenteMotivo,
         IReadOnlyList<SyntheticIngestionIdentifier>? Identificadores,
-        string NomeCompleto,
-        string DataNascimento,
+        string? NomeCompleto,
+        string? DataNascimento,
         string? NomeMae);
 }

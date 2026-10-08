@@ -1,6 +1,7 @@
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
+using Jornada.Contracts;
 using Jornada.Linkage.SyntheticCorpus;
 
 namespace Jornada.Tests.Unit;
@@ -88,7 +89,7 @@ public sealed class SyntheticIngestionWaveTests
             Assert.That(waves[1].CpfRevealedCount, Is.EqualTo(2));
             Assert.That(waves[1].BirthDateRecoveredCount, Is.EqualTo(1));
             Assert.That(waves[2].Generation.Observations, Is.Empty);
-            Assert.That(first.ExcludedObservationCount, Is.EqualTo(1));
+            Assert.That(first.ExcludedObservationCount, Is.Zero);
             Assert.That(second.ExcludedObservationCount, Is.Zero);
         });
 
@@ -164,7 +165,7 @@ public sealed class SyntheticIngestionWaveTests
                 var result = Build(wave);
                 var dir = Path.Combine(root, "wave-" + (i + 1).ToString("D2",
                     System.Globalization.CultureInfo.InvariantCulture));
-                var options = new SyntheticIngestionBridgeOptions(4, DayOne.AddDays(i),
+                var options = new SyntheticIngestionBridgeOptions(ContractVersions.CurrentPersonSchemaVersion, DayOne.AddDays(i),
                     "unit-test-pseudonymization-key-32-bytes",
                     StableSourceIdentity: true, WaveNumber: i);
                 var materialized = await SyntheticIngestionBridgeMaterializer.WriteAsync(
@@ -208,7 +209,7 @@ public sealed class SyntheticIngestionWaveTests
         };
         var error = Assert.Throws<InvalidDataException>(() =>
             SyntheticIngestionBridge.Build(duplicate,
-                new SyntheticIngestionBridgeOptions(4, DayOne,
+                new SyntheticIngestionBridgeOptions(ContractVersions.CurrentPersonSchemaVersion, DayOne,
                     "unit-test-pseudonymization-key-32-bytes",
                     StableSourceIdentity: true, WaveNumber: 0)));
         Assert.That(error!.Message, Does.Contain("Identificador-fonte repetido"));
@@ -218,7 +219,7 @@ public sealed class SyntheticIngestionWaveTests
     public void Wave_number_and_rates_must_be_valid()
     {
         Assert.Throws<ArgumentException>(() =>
-            new SyntheticIngestionBridgeOptions(4, DayOne,
+            new SyntheticIngestionBridgeOptions(ContractVersions.CurrentPersonSchemaVersion, DayOne,
                 "unit-test-pseudonymization-key-32-bytes",
                 StableSourceIdentity: true).Validate());
         Assert.Throws<ArgumentOutOfRangeException>(() =>
@@ -229,7 +230,7 @@ public sealed class SyntheticIngestionWaveTests
 
     private static SyntheticIngestionBridgeResult Build(SyntheticIngestionWave wave)
         => SyntheticIngestionBridge.Build(wave.Generation,
-            new SyntheticIngestionBridgeOptions(4, DayOne.AddDays(wave.WaveNumber),
+            new SyntheticIngestionBridgeOptions(ContractVersions.CurrentPersonSchemaVersion, DayOne.AddDays(wave.WaveNumber),
                 "unit-test-pseudonymization-key-32-bytes",
                 StableSourceIdentity: true, WaveNumber: wave.WaveNumber));
 

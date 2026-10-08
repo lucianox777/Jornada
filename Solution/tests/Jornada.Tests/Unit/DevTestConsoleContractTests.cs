@@ -244,9 +244,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(page,Does.Contain("id=\"zipContract\""));
             Assert.That(page,Does.Contain("loadZipContracts()"));
             Assert.That(page,Does.Contain(".filter(c=>c.gestor==='SEHAB'&&c.codigoTipo==='AA01')"));
-            Assert.That(page,Does.Contain("Number(b.pessoaSchemaVersao)-Number(a.pessoaSchemaVersao)"));
-            Assert.That(page,Does.Contain("Para testar núcleo de identidade opcional, selecione Pessoa v6."));
-            Assert.That(runtime,Does.Contain(".OrderByDescending(x=>x.PessoaSchemaVersao)"));
+            Assert.That(page,Does.Not.Contain("Number(b.pessoaSchemaVersao)-Number(a.pessoaSchemaVersao)"));
+            Assert.That(page,Does.Not.Contain("é histórico e exige nome completo"));
             Assert.That(page,Does.Contain("/api/zip/contracts"));
             Assert.That(page,Does.Contain("/api/zip/template?contract="));
             Assert.That(page,Does.Contain("Escolha o contrato de ingestão"));
@@ -345,9 +344,8 @@ public sealed class DevTestConsoleContractTests
             Assert.That(runtime,Does.Contain("ZipContractOption"));
             Assert.That(runtime,Does.Contain("ListContractsAsync"));
             Assert.That(runtime,Does.Contain("FROM gold.pessoa"));
-            Assert.That(runtime,Does.Contain("ROW_NUMBER() OVER("));
-            Assert.That(runtime,Does.Contain("ORDER BY gpv.versao DESC"));
-            Assert.That(runtime,Does.Contain("gpv.status IN('ATIVA','ENCERRADA','RASCUNHO')"));
+            Assert.That(runtime,Does.Not.Contain("ROW_NUMBER() OVER("));
+            Assert.That(runtime,Does.Contain("gpv.status='ATIVA'"));
             Assert.That(runtime,Does.Contain("trv.status IN('ATIVA','ENCERRADA')"));
             Assert.That(runtime,Does.Contain("[\"pessoaSchemaVersao\"]=contract.PessoaSchemaVersao"));
             Assert.That(runtime,Does.Contain("[\"tipoVersao\"]=contract.TipoVersao"));
@@ -646,20 +644,20 @@ public sealed class DevTestConsoleContractTests
         });
     }
     [Test]
-    public void Dev_person_v6_is_latest_for_all_gestores_and_core_fields_are_nullable()
+    public void Dev_person_contract_keeps_only_current_v1_for_all_gestores_and_core_fields_are_nullable()
     {
         var root=Root();
         var seed=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Seed_Dev.sql"));
         var expectedHashes=new Dictionary<string,string>{
-            ["SEHAB"]="930A99519DD263A3D7450ABD6C2C55F3ED2785FBA3A877BA87609A4D4A2067B4",
-            ["SMADS"]="A3EFCE0A70A2BF90387663D7F570B98D3C0184498652AE8FD22C024A6D6305F5",
-            ["SMDET"]="56B18CCE992BC9C32FDFCB61C825BD96339D37F74C94DB8EFC6198C02849917F",
-            ["SMS"]="FED22B60283BB03D26FB6ACC0C1F6C78B55069C0D4B269FE566FE45F140C696E"
+            ["SEHAB"]="66E4C3E4FC6EAB69B62470593206BC411EE3A9B22BC39A67C76A45F63929F38B",
+            ["SMADS"]="02D971C8FFB3B1B88075B42419D0377BB05788ADAA5EC8742E62EF20B189FD8E",
+            ["SMDET"]="C891FE65578607872CA9B0250938B68066E0E0F5C1E9650CF2AA4FDAE4F98F6E",
+            ["SMS"]="5CEA0A27716A1636AAA00AA6F6F9B2EF58B9E5140052D73E705B5C682D719EAC"
         };
 
         foreach(var gestor in expectedHashes.Keys)
         {
-            var schemaPath=Path.Combine(root,"Solution","config","contracts","gestores",gestor,"pessoa","v6","pessoa.schema.json");
+            var schemaPath=Path.Combine(root,"Solution","config","contracts","gestores",gestor,"pessoa","v1","pessoa.schema.json");
             using var schema=System.Text.Json.JsonDocument.Parse(File.ReadAllText(schemaPath));
             var required=schema.RootElement.GetProperty("required").EnumerateArray().Select(x=>x.GetString()).ToArray();
             var properties=schema.RootElement.GetProperty("properties");
@@ -676,9 +674,11 @@ public sealed class DevTestConsoleContractTests
         }
 
         Assert.Multiple(()=>{
-            Assert.That(seed,Does.Contain("WHERE v.versao<6 AND g.codigo IN('SMS','SEHAB','SMADS','SMDET')"));
-            Assert.That(seed,Does.Contain("WHERE v.versao=6"));
+            Assert.That(seed,Does.Contain("WHERE v.versao<>1"));
+            Assert.That(seed,Does.Contain("WHERE v.versao=1"));
             Assert.That(seed,Does.Contain("N'ATIVA','2026-10-06'"));
+            Assert.That(seed,Does.Not.Contain("/pessoa/v4/"));
+            Assert.That(seed,Does.Not.Contain("/pessoa/v5/"));
         });
     }
 

@@ -48,20 +48,12 @@ public sealed class JsonSchemaSubsetValidatorTests
     }
 
     [Test]
-    public void Person_contract_accepts_documentary_conference_without_document_payload()
+    public void Current_person_contract_accepts_documentary_conference_without_document_payload()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        string? schema = null;
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "config", "contracts", "gestores", "SMS", "pessoa", "v1", "pessoa.schema.json");
-            if (File.Exists(candidate)) { schema = candidate; break; }
-            dir = dir.Parent;
-        }
-        Assert.That(schema, Is.Not.Null, "Contrato de Pessoa deve ser copiado para o diretório de teste; ausência é regressão da fixture.");
-        var validator = JsonSchemaSubsetValidator.Load(schema!);
+        var validator = LoadPersonValidator();
         const string json = """
         {
+          "idPessoaEntrega":"CURRENT-DOC-1",
           "codigoPessoaOrigem":"SMS001",
           "sourceTransactionId":"SMS-TX-1",
           "cpf":"11144477735",
@@ -80,40 +72,54 @@ public sealed class JsonSchemaSubsetValidatorTests
         Assert.DoesNotThrow(() => validator.ParseAndValidate(json, "pessoas.jsonl", 1));
     }
 
-
     [Test]
-    public void Person_contract_allows_geography_only_on_residential_address()
+    public void Current_person_contract_allows_geography_only_on_territorial_attributes()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        string? schema = null;
-        while (dir is not null)
-        {
-            var candidate = Path.Combine(dir.FullName, "config", "contracts", "gestores", "SMS", "pessoa", "v1", "pessoa.schema.json");
-            if (File.Exists(candidate)) { schema = candidate; break; }
-            dir = dir.Parent;
-        }
-        Assert.That(schema, Is.Not.Null, "Contrato de Pessoa deve ser copiado para o diretório de teste; ausência é regressão da fixture.");
-        var validator = JsonSchemaSubsetValidator.Load(schema!);
+        var validator = LoadPersonValidator();
         const string valid = """
         {
-          "codigoPessoaOrigem":"SMS-GEO-1","cpf":"11144477735","cpfAusenteMotivo":null,
-          "nomeCompleto":"Maria da Silva","dataNascimento":"1982-04-10","nomeMae":"Ana de Souza",
+          "idPessoaEntrega":"CURRENT-GEO-1",
+          "codigoPessoaOrigem":"SMS-GEO-1",
+          "cpf":"11144477735",
+          "cpfAusenteMotivo":null,
+          "nomeCompleto":"Maria da Silva",
+          "dataNascimento":"1982-04-10",
+          "nomeMae":"Ana de Souza",
           "atributosTransversais":[{
-            "atributoCodigo":"ENDERECO_RESIDENCIAL","valor":"CEP=01001000|NUMERO=100",
-            "statusEvidencia":"DECLARADO","situacaoGeografia":"RESOLVIDA","geografia":{
-              "distritoCodigo":"SE","distritoNome":"Sé",
-              "subprefeituraCodigo":"SE","subprefeituraNome":"Sé","referenciaMalha":"ORIGEM-2026"
+            "atributoCodigo":"ENDERECO_RESIDENCIAL",
+            "valor":"CEP=01001000|NUMERO=100",
+            "statusEvidencia":"DECLARADO",
+            "situacaoGeografia":"RESOLVIDA",
+            "geografia":{
+              "distritoCodigo":"SE",
+              "distritoNome":"Sé",
+              "subprefeituraCodigo":"SE",
+              "subprefeituraNome":"Sé",
+              "referenciaMalha":"ORIGEM-2026"
             }
           }]
         }
         """;
         const string invalid = """
         {
-          "codigoPessoaOrigem":"SMS-GEO-2","cpf":"52998224725","cpfAusenteMotivo":null,
-          "nomeCompleto":"João da Silva","dataNascimento":"1980-01-01","nomeMae":"Ana da Silva",
+          "idPessoaEntrega":"CURRENT-GEO-2",
+          "codigoPessoaOrigem":"SMS-GEO-2",
+          "cpf":"52998224725",
+          "cpfAusenteMotivo":null,
+          "nomeCompleto":"João da Silva",
+          "dataNascimento":"1980-01-01",
+          "nomeMae":"Ana da Silva",
           "atributosTransversais":[{
-            "atributoCodigo":"TELEFONE","valor":"11999999999","statusEvidencia":"DECLARADO",
-            "geografia":{"distritoCodigo":"SE","distritoNome":"Sé","subprefeituraCodigo":"SE","subprefeituraNome":"Sé"}
+            "atributoCodigo":"TELEFONE_CONTATO",
+            "valor":"11999999999",
+            "statusEvidencia":"DECLARADO",
+            "geografia":{
+              "distritoCodigo":"SE",
+              "distritoNome":"Sé",
+              "subprefeituraCodigo":"SE",
+              "subprefeituraNome":"Sé",
+              "referenciaMalha":"ORIGEM-2026"
+            }
           }]
         }
         """;
@@ -122,32 +128,26 @@ public sealed class JsonSchemaSubsetValidatorTests
     }
 
     [Test]
-    public void Person_v2_allows_cpf_as_source_code_fallback_but_rejects_missing_code_without_cpf()
+    public void Current_person_contract_accepts_declared_no_fixed_address_without_postal_address()
     {
-        var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        string? schema = null;
-        while (dir is not null)
+        var validator = LoadPersonValidator();
+        const string json = """
         {
-            var candidate = Path.Combine(dir.FullName, "config", "contracts", "gestores", "SMADS", "pessoa", "v2", "pessoa.schema.json");
-            if (File.Exists(candidate)) { schema = candidate; break; }
-            dir = dir.Parent;
-        }
-        Assert.That(schema, Is.Not.Null, "Contrato Pessoa v2 da SMADS deve integrar a fixture de testes.");
-        var validator = JsonSchemaSubsetValidator.Load(schema!);
-        const string valid = """
-        {
-          "cpf":"70819234532","cpfAusenteMotivo":null,"nomeCompleto":"Maria da Silva",
-          "dataNascimento":"1982-04-10","nomeMae":"Ana de Souza"
-        }
-        """;
-        const string invalid = """
-        {
-          "cpf":null,"cpfAusenteMotivo":"SEM_CPF","nomeCompleto":"Pessoa sem código",
-          "dataNascimento":"1982-04-10","nomeMae":"Ana de Souza"
+          "idPessoaEntrega":"CURRENT-RT-1",
+          "codigoPessoaOrigem":"RT-1",
+          "cpf":null,
+          "cpfAusenteMotivo":"NAO_INFORMADO_ORIGEM",
+          "nomeCompleto":"Pessoa sem domicílio",
+          "dataNascimento":null,
+          "nomeMae":null,
+          "atributosTransversais":[{
+            "atributoCodigo":"REFERENCIA_TERRITORIAL",
+            "statusEvidencia":"DECLARADO",
+            "estadoReferenciaTerritorial":"SEM_ENDERECO_FIXO_DECLARADO"
+          }]
         }
         """;
-        Assert.DoesNotThrow(() => validator.ParseAndValidate(valid, "pessoas.jsonl", 1));
-        Assert.That(() => validator.ParseAndValidate(invalid, "pessoas.jsonl", 2), Throws.TypeOf<InvalidDataException>());
+        Assert.DoesNotThrow(() => validator.ParseAndValidate(json, "pessoas.jsonl", 1));
     }
 
     private static string WriteSchema(string text)
@@ -155,25 +155,6 @@ public sealed class JsonSchemaSubsetValidatorTests
         var path = Path.Combine(Path.GetTempPath(), $"jornada-schema-{Guid.NewGuid():N}.json");
         File.WriteAllText(path, text);
         return path;
-    }
-
-    [Test]
-    public void Person_schema_accepts_declared_territorial_reference_without_postal_address()
-    {
-        var validator = LoadPersonValidator();
-        const string json = """
-        {
-          "codigoPessoaOrigem":"RT-1","cpf":null,"cpfAusenteMotivo":"SEM_CPF","nomeCompleto":"Pessoa sem domicílio",
-          "dataNascimento":"1990-01-01","nomeMae":"Maria",
-          "atributosTransversais":[{
-            "atributoCodigo":"REFERENCIA_TERRITORIAL","statusEvidencia":"DECLARADO",
-            "naturezaReferenciaTerritorial":"REFERENCIA_TERRITORIAL_DECLARADA",
-            "situacaoGeografia":"RESOLVIDA",
-            "geografia":{"distritoCodigo":"SE","distritoNome":"Sé","subprefeituraCodigo":"SE","subprefeituraNome":"Sé","referenciaMalha":"ORIGEM-2026"}
-          }]
-        }
-        """;
-        Assert.DoesNotThrow(() => validator.ParseAndValidate(json, "pessoas.jsonl", 1));
     }
 
     private static JsonSchemaSubsetValidator LoadPersonValidator()
@@ -185,6 +166,6 @@ public sealed class JsonSchemaSubsetValidatorTests
             if (File.Exists(candidate)) return JsonSchemaSubsetValidator.Load(candidate);
             dir = dir.Parent;
         }
-        throw new InvalidOperationException("Contrato de Pessoa não localizado a partir do diretório de teste.");
+        throw new InvalidOperationException("Contrato Pessoa corrente v1 não localizado a partir do diretório de teste.");
     }
 }

@@ -223,20 +223,8 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
 {
     public async Task<IReadOnlyList<ZipContractOption>> ListContractsAsync(CancellationToken ct)
     {
-        const string query="""
+        var query=$"""
             SET NOCOUNT ON;
-            ;WITH pessoa_mais_recente AS(
-                SELECT
-                  gpv.*,
-                  ROW_NUMBER() OVER(
-                    PARTITION BY gpv.gestor_id
-                    ORDER BY gpv.versao DESC,
-                             CASE gpv.status WHEN 'ATIVA' THEN 0 WHEN 'ENCERRADA' THEN 1 ELSE 2 END,
-                             gpv.gestor_pessoa_versao_id DESC
-                  ) AS rn
-                FROM ref.gestor_pessoa_versao gpv
-                WHERE gpv.status IN('ATIVA','ENCERRADA','RASCUNHO')
-            )
             SELECT
               g.codigo,
               so.codigo,
@@ -247,7 +235,9 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
               REPLACE(REPLACE(tr.nome,'|',' '),CHAR(10),' ')
             FROM ref.gestor g
             JOIN ref.sistema_origem so ON so.gestor_id=g.gestor_id AND so.ativo=1
-            JOIN pessoa_mais_recente gpv ON gpv.gestor_id=g.gestor_id AND gpv.rn=1
+            JOIN ref.gestor_pessoa_versao gpv
+              ON gpv.gestor_id=g.gestor_id
+             AND gpv.status='ATIVA'
             JOIN ref.tipo_registro tr ON tr.gestor_id=g.gestor_id AND tr.ativo=1
             JOIN ref.tipo_registro_versao trv ON trv.tipo_registro_id=tr.tipo_registro_id AND trv.status IN('ATIVA','ENCERRADA')
             WHERE g.ativo=1
@@ -272,7 +262,7 @@ sealed class GoldZipTemplateService(IWebHostEnvironment env)
             var label=$"{gestor} · {tipo} v{tipoVersao} · Pessoa v{pessoaVersao} · {natureza} · {parts[6]}";
             options.Add(new ZipContractOption(key,label,gestor,sistema,pessoaVersao,natureza,tipo,tipoVersao));
         }
-        if(options.Count==0)throw new InvalidOperationException("Nenhum contrato de ingestão utilizável foi encontrado no catálogo ref.*.");
+        if(options.Count==0)throw new InvalidOperationException("Nenhum contrato Pessoa corrente ATIVO foi encontrado no catálogo ref.*. Recrie/prepare o ambiente DEV.");
         return options;
     }
 

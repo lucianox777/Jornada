@@ -2,6 +2,7 @@ using System.IO.Compression;
 using System.Text;
 using System.Text.Json;
 using Jornada.Ingestion;
+using Jornada.Contracts;
 using Jornada.Linkage.SyntheticCorpus;
 using Jornada.Processor.Worker;
 
@@ -18,7 +19,7 @@ public sealed class SyntheticIngestionBridgeTests
     {
         var generation = FixtureGeneration();
         var options = new SyntheticIngestionBridgeOptions(
-            4,
+            ContractVersions.CurrentPersonSchemaVersion,
             ReferenceDate,
             "unit-test-pseudonymization-key-32-bytes");
 
@@ -27,18 +28,16 @@ public sealed class SyntheticIngestionBridgeTests
         Assert.Multiple(() =>
         {
             Assert.That(result.SourceObservationCount, Is.EqualTo(3));
-            Assert.That(result.MaterializedObservationCount, Is.EqualTo(2));
-            Assert.That(result.ExcludedObservationCount, Is.EqualTo(1));
+            Assert.That(result.MaterializedObservationCount, Is.EqualTo(3));
+            Assert.That(result.ExcludedObservationCount, Is.Zero);
             Assert.That(result.Packages, Has.Count.EqualTo(2));
-            Assert.That(
-                result.TruthRows.Single(x => x.Status == "EXCLUIDA_CONTRATO_ATIVO").ExclusionReason,
-                Is.EqualTo(SyntheticIngestionBridge.MissingBirthDateReason));
+            Assert.That(result.TruthRows, Has.All.Matches<SyntheticIngestionTruthRow>(x => x.Status == "MATERIALIZADA"));
         });
 
         foreach (var package in result.Packages)
         {
             var manifest = IngestionPackageInspector.ParseAndValidate(package.Bytes);
-            Assert.That(manifest.PessoaSchemaVersao, Is.EqualTo(4));
+            Assert.That(manifest.PessoaSchemaVersao, Is.EqualTo(ContractVersions.CurrentPersonSchemaVersion));
             Assert.That(manifest.DataReferencia, Is.EqualTo(ReferenceDate));
 
             using var stream = new MemoryStream(package.Bytes, writable: false);
@@ -56,7 +55,7 @@ public sealed class SyntheticIngestionBridgeTests
                 Assert.That(pessoas, Does.Contain("SYNTH-"));
             });
 
-            ValidatePeopleAgainstGestorV4(package.GestorCodigo, pessoas);
+            ValidatePeopleAgainstCurrentContract(package.GestorCodigo, pessoas);
         }
     }
 
@@ -65,7 +64,7 @@ public sealed class SyntheticIngestionBridgeTests
     {
         var generation = FixtureGeneration();
         var options = new SyntheticIngestionBridgeOptions(
-            4,
+            ContractVersions.CurrentPersonSchemaVersion,
             ReferenceDate,
             "unit-test-pseudonymization-key-32-bytes");
 
@@ -109,7 +108,7 @@ public sealed class SyntheticIngestionBridgeTests
                     ReferenceDate,
                     "unit-test-pseudonymization-key-32-bytes")));
 
-        Assert.That(error!.Message, Does.Contain("somente Pessoa v4"));
+        Assert.That(error!.Message, Does.Contain("contrato Pessoa corrente"));
     }
 
     [Test]
@@ -132,7 +131,7 @@ public sealed class SyntheticIngestionBridgeTests
     {
         var generation = FixtureGeneration();
         var options = new SyntheticIngestionBridgeOptions(
-            4,
+            ContractVersions.CurrentPersonSchemaVersion,
             ReferenceDate,
             "unit-test-pseudonymization-key-32-bytes");
         var result = SyntheticIngestionBridge.Build(generation, options);
@@ -171,7 +170,7 @@ public sealed class SyntheticIngestionBridgeTests
                 Assert.That(truthText, Does.Contain("P-TRUTH-001"));
                 Assert.That(manifestText, Does.Not.Contain("P-TRUTH-001"));
                 Assert.That(manifestText, Does.Contain("\"allowedForScoring\": false"));
-                Assert.That(manifestText, Does.Contain(SyntheticIngestionBridge.MissingBirthDateReason));
+                Assert.That(manifestText, Does.Contain("\"currentContractAllowsMissingIdentityCore\": true"));
             });
 
             foreach (var packagePath in left.PackagePaths)
@@ -219,7 +218,7 @@ public sealed class SyntheticIngestionBridgeTests
             SyntheticIngestionBridge.Build(
                 generation,
                 new SyntheticIngestionBridgeOptions(
-                    4,
+                    ContractVersions.CurrentPersonSchemaVersion,
                     ReferenceDate,
                     "unit-test-pseudonymization-key-32-bytes")));
 
@@ -285,13 +284,13 @@ public sealed class SyntheticIngestionBridgeTests
             options);
     }
 
-    private static void ValidatePeopleAgainstGestorV4(string gestor, string jsonl)
+    private static void ValidatePeopleAgainstCurrentContract(string gestor, string jsonl)
     {
         var root = FindRepositoryRoot();
         var solutionRoot = Path.Combine(root, "Solution");
         var schema = gestor == "SEHAB"
-            ? Path.Combine(solutionRoot, "tests", "fixtures", "external-contracts", "gestores", "SEHAB", "pessoa", "v4", "pessoa.schema.json")
-            : Path.Combine(solutionRoot, "config", "contracts", "gestores", gestor, "pessoa", "v4", "pessoa.schema.json");
+            ? Path.Combine(solutionRoot, "tests", "fixtures", "external-contracts", "gestores", "SEHAB", "pessoa", $"v{ContractVersions.CurrentPersonSchemaVersion}", "pessoa.schema.json")
+            : Path.Combine(solutionRoot, "config", "contracts", "gestores", gestor, "pessoa", $"v{ContractVersions.CurrentPersonSchemaVersion}", "pessoa.schema.json");
         var validator = JsonSchemaSubsetValidator.Load(schema);
         var lines = jsonl.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         for (var i = 0; i < lines.Length; i++)

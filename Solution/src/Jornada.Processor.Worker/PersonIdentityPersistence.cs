@@ -16,7 +16,7 @@ internal sealed partial class SqlProcessorRepository
         Guid Recebido,
         Guid? Canonico);
 
-    private static async Task<PersonOriginState?> ResolvePersonOriginV4Async(
+    private static async Task<PersonOriginState?> ResolvePersonOriginAsync(
         SqlConnection connection,
         SqlTransaction tx,
         long sistemaOrigemId,

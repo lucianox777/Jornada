@@ -13,7 +13,7 @@ public sealed class IngestionContractTests
     [Test]
     public void Manifest_uses_single_delivery_envelope_without_external_version_or_family()
     {
-        var manifest = new IngestionPackageManifest(2, 1, "SEHAB", IntegrationNature.BENEFICIO, "AA01", 1, DateTimeOffset.UtcNow);
+        var manifest = new IngestionPackageManifest(2, ContractVersions.CurrentPersonSchemaVersion, "SEHAB", IntegrationNature.BENEFICIO, "AA01", 1, DateTimeOffset.UtcNow);
         var names = typeof(IngestionPackageManifest).GetProperties().Select(p => p.Name).ToArray();
         Assert.Multiple(() =>
         {
@@ -172,7 +172,7 @@ public sealed class IngestionContractTests
     [Test]
     public void Canonical_filename_rejects_path_traversal()
     {
-        var manifest = new IngestionPackageManifest(2, 1, "SAUDE", null, null, null, DateTimeOffset.UtcNow);
+        var manifest = new IngestionPackageManifest(2, ContractVersions.CurrentPersonSchemaVersion, "SAUDE", null, null, null, DateTimeOffset.UtcNow);
         var context = new AccessContext(Guid.NewGuid(), AccessCredentialType.GESTOR, "SMS", "SMS", null, [], []);
         var hash = new string('a', 64);
         Assert.That(() => IngestionPackageInspector.ValidateCanonicalFileName($"../ENTREGA_SMS_SAUDE_v2_{hash}.zip", manifest, context, hash), Throws.TypeOf<InvalidDataException>());
@@ -304,7 +304,7 @@ public sealed class IngestionContractTests
     {
         var bytes = BuildZip(new Dictionary<string,string>
         {
-            ["manifest.json"] = """{"formatoVersao":2,"pessoaSchemaVersao":1,"codigoSistemaOrigem":"ASSISTENCIA","natureza":"BENEFICIO","codigoTipo":"AA01","tipoVersao":1,"dataReferencia":"2026-08-29T00:00:00-03:00"}""",
+            ["manifest.json"] = "{\"formatoVersao\":2,\"pessoaSchemaVersao\":" + ContractVersions.CurrentPersonSchemaVersion + ",\"codigoSistemaOrigem\":\"ASSISTENCIA\",\"natureza\":\"BENEFICIO\",\"codigoTipo\":\"AA01\",\"tipoVersao\":1,\"dataReferencia\":\"2026-08-29T00:00:00-03:00\"}",
             ["pessoas.jsonl"] = "{}\n",
             ["registros.jsonl"] = "{}\n"
         });

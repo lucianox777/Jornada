@@ -3,8 +3,20 @@
   "status": "PENDENTE",
   "baseNormativa": "3.62",
   "solutionSchema": "3.70",
-  "note": "Inventário criptográfico dos schemas contratuais. APROVADO exige aprovação individual e evidência real; hashes não equivalem a assinatura institucional. Pessoa v5 integra o trem estrutural 3.71 em andamento; o rebind de SolutionSchema permanece para o fechamento do trem.",
+  "note": "Inventario criptografico de schemas contratuais: somente Pessoa v1 durante o desenvolvimento. Hashes nao equivalem a assinatura institucional; primeiro congelamento ocorre na primeira Entrega real em HML.",
   "contracts": [
+    {
+      "path": "config/contracts/gestores/SEHAB/pessoa/v1/pessoa.json",
+      "sha256": "578abdaf4072e69c51c980b507ce61853df08ff3888b27ee9723896740a81911",
+      "status": "PENDENTE",
+      "approval": null
+    },
+    {
+      "path": "config/contracts/gestores/SEHAB/pessoa/v1/pessoa.schema.json",
+      "sha256": "66e4c3e4fc6eab69b62470593206bc411ee3a9b22bc39a67c76a45f63929f38b",
+      "status": "PENDENTE",
+      "approval": null
+    },
     {
       "path": "config/contracts/gestores/SMADS/pessoa/v1/pessoa.json",
       "sha256": "4679f5424f673eea88fec3800eff510661aa62ea92aca054fbb874e1eb0de229",
@@ -13,43 +25,7 @@
     },
     {
       "path": "config/contracts/gestores/SMADS/pessoa/v1/pessoa.schema.json",
-      "sha256": "a382a796a9b08b68bad09854b59fad6d64e6f0280812bfc604266bf6845f41f1",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v2/pessoa.json",
-      "sha256": "3de6da5ac8b71c3609c56a32d2587f08b392c7101fc764b81cdd5110acf70d99",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v2/pessoa.schema.json",
-      "sha256": "fa1c70cb21eee04606a169c661c168edb83882f4812c0c6ce4656d551dce38a6",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v3/pessoa.schema.json",
-      "sha256": "8b0b9709dc8afe420aa8a4693ce461b73d91cde84561702285e4fb48475cb656",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v4/pessoa.schema.json",
-      "sha256": "20cf0ce86ddd1fac0f8a894ae8509035ca94a97dc488e1efa395c7d1864f47e9",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v5/pessoa.schema.json",
-      "sha256": "16340d6415dddff96e1ce18b4a9af13fafb993db3d00488b187a900b1ecc2595",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMADS/pessoa/v6/pessoa.schema.json",
-      "sha256": "a3efce0a70a2bf90387663d7f570b98d3c0184498652ae8fd22c024a6d6305f5",
+      "sha256": "02d971c8ffb3b1b88075b42419d0377bb05788adaa5ec8742e62ef20b189fd8e",
       "status": "PENDENTE",
       "approval": null
     },
@@ -61,43 +37,7 @@
     },
     {
       "path": "config/contracts/gestores/SMDET/pessoa/v1/pessoa.schema.json",
-      "sha256": "dae81766352934486e1d1ef319261911d549fe987817e10f38fd5e0aa6bf4743",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMDET/pessoa/v2/pessoa.json",
-      "sha256": "34adc4d7237768972023f946f7e8e1f16f14a8b1a710614a80b34e2454355a88",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMDET/pessoa/v2/pessoa.schema.json",
-      "sha256": "2ff50ee5a53d095b4da625ab0d2014e1dd2aef91a12011ebea2e52d60da143ed",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMDET/pessoa/v3/pessoa.schema.json",
-      "sha256": "083937b02cdb31bcdd1265f34dacea80523ad08e1439f9ee6c44705f4433ed75",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMDET/pessoa/v4/pessoa.schema.json",
-      "sha256": "94bc5ad8a128dddb0a0d9f32cd7fd649338e5e3209b0015053c7493f262a8719",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMDET/pessoa/v5/pessoa.schema.json",
-      "sha256": "a08f45708d552cbf8801f1689c5229d886eb8ad0a85eb814fb0be8ec405918d3",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMDET/pessoa/v6/pessoa.schema.json",
-      "sha256": "56b18cce992bc9c32fdfcb61c825bd96339d37f74c94db8efc6198c02849917f",
+      "sha256": "c891fe65578607872ca9b0250938b68066e0e0f5c1e9650cf2aa4fdae4f98f6e",
       "status": "PENDENTE",
       "approval": null
     },
@@ -109,43 +49,7 @@
     },
     {
       "path": "config/contracts/gestores/SMS/pessoa/v1/pessoa.schema.json",
-      "sha256": "a3eee657504e51e0d54960b1e87dd24450b1a3d70f4b6ae9a5647c104b39e9a0",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMS/pessoa/v2/pessoa.json",
-      "sha256": "473b0909bc48c34ef7c052b52875c95e2bab08499a24c988820939968c8749c9",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMS/pessoa/v2/pessoa.schema.json",
-      "sha256": "a68da8985cbb709a5c7cd9225192b1ccb2300c7aaf184cfcd26ebf41e9570ec4",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMS/pessoa/v3/pessoa.schema.json",
-      "sha256": "2fd8376496f33a422124dab61238498588ddfd99dfba944963787d9c26ea3550",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMS/pessoa/v4/pessoa.schema.json",
-      "sha256": "93fc2b62b56c0d817f36de77fe6f5953296404938e41e66f8c734b72bc585413",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMS/pessoa/v5/pessoa.schema.json",
-      "sha256": "d79907fd11db6d1d8c9ce0260d8786432449cd7baf4fb3bb27bec0fc54727511",
-      "status": "PENDENTE",
-      "approval": null
-    },
-    {
-      "path": "config/contracts/gestores/SMS/pessoa/v6/pessoa.schema.json",
-      "sha256": "fed22b60283bb03d26fb6acc0c1f6c78b55069c0d4b269fe566fe45f140c696e",
+      "sha256": "5cea0a27716a1636aaa00aa6f6f9b2ef58b9e5140052d73e705b5c682d719eac",
       "status": "PENDENTE",
       "approval": null
     },

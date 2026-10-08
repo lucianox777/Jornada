@@ -262,8 +262,8 @@ json.dump({
 PY
 cat "$OUT/evidence.json"
 
-# Gate 6: regressão HTTP/SQL isolada dos demais Gestores, com contratos v4
-# canônicos preservados no receptor e chaves exclusivamente DEV.
+# Gate 6: ensaio HTTP/SQL isolado dos demais Gestores, com o contrato Pessoa corrente
+# preservado no receptor e chaves exclusivamente DEV.
 for gestor in SMADS SMDET SMS; do
   case "$gestor" in
     SMADS) fixture="CRA1_v2"; expected_registros=1 ;;
@@ -305,12 +305,12 @@ PY
     echo "ERRO: $gestor Bronze=$manager_bronze Silver=$manager_silver Registros=$manager_registros" >&2
     exit 24
   }
-  # Confirma o hash exato do schema v4 carregado para cada gestor na configuração canônica.
-  manager_schema="$ROOT/config/contracts/gestores/$gestor/pessoa/v4/pessoa.schema.json"
+  # Confirma o hash exato do schema Pessoa corrente carregado para cada gestor.
+  manager_schema="$ROOT/config/contracts/gestores/$gestor/pessoa/v1/pessoa.schema.json"
   manager_source_hash="$(sha256sum "$manager_schema" | awk '{print $1}')"
-  manager_db_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='$gestor' AND gpv.versao=4;")"
+  manager_db_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='$gestor' AND gpv.versao=1;")"
   [[ "$manager_source_hash" == "$manager_db_hash" ]] || {
-    echo "ERRO: $gestor schema v4 divergiu do catálogo" >&2; exit 25;
+    echo "ERRO: $gestor schema Pessoa corrente divergiu do catálogo" >&2; exit 25;
   }
   python3 - "$OUT/other-contracts-e2e-evidence.json" "$gestor" "$manager_sha" "$manager_id" "$manager_bronze" "$manager_silver" "$manager_registros" "$manager_source_hash" <<'PY'
 import datetime,json,pathlib,sys
@@ -319,7 +319,7 @@ data=json.loads(path.read_text()) if path.exists() else {"status":"PASS","testDa
 data["results"].append({"gestor":sys.argv[2],"zipSha256":sys.argv[3],
                         "receiptEntregaId":sys.argv[4],"finalStatus":"PROCESSADA",
                         "bronzeFiles":int(sys.argv[5]),"silverObservations":int(sys.argv[6]),
-                        "silverRecords":int(sys.argv[7]),"personSchemaV4Sha256":sys.argv[8],
+                        "silverRecords":int(sys.argv[7]),"personSchemaSha256":sys.argv[8],
                         "verifiedAtUtc":datetime.datetime.now(datetime.timezone.utc).isoformat()})
 path.write_text(json.dumps(data,indent=2)+"\n")
 PY

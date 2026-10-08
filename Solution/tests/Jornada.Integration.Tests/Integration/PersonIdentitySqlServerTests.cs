@@ -7,7 +7,7 @@ namespace Jornada.Tests.Integration;
 [TestFixture]
 [Category("Integration")]
 [NonParallelizable]
-public sealed class PersonV4IdentitySqlServerTests
+public sealed class PersonIdentitySqlServerTests
 {
     [Test]
     public async Task Observation_without_origin_accepts_zero_or_many_typed_identifiers()
@@ -15,7 +15,7 @@ public sealed class PersonV4IdentitySqlServerTests
         var connectionString = RequireIntegrationConnection();
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
-        await EnsureV4IdentitySchemaAsync(connection);
+        await EnsureCurrentIdentitySchemaAsync(connection);
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
         try
@@ -29,7 +29,7 @@ public sealed class PersonV4IdentitySqlServerTests
                 zero.CommandText = "SELECT COUNT(*) FROM silver.pessoa_identificador_observacao WHERE pessoa_observacao_id=@obs;";
                 zero.Parameters.AddWithValue("@obs", zeroObservationId);
                 Assert.That(Convert.ToInt32(await zero.ExecuteScalarAsync(), CultureInfo.InvariantCulture), Is.Zero,
-                    "Pessoa v4 deve aceitar observação sem origem e sem identificadores.");
+                    "Contrato Pessoa corrente deve aceitar observação sem origem e sem identificadores.");
             }
 
             var manyHash = UniqueHash('b');
@@ -76,7 +76,7 @@ public sealed class PersonV4IdentitySqlServerTests
         var connectionString = RequireIntegrationConnection();
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
-        await EnsureV4IdentitySchemaAsync(connection);
+        await EnsureCurrentIdentitySchemaAsync(connection);
 
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
         try
@@ -182,7 +182,7 @@ public sealed class PersonV4IdentitySqlServerTests
         var connectionString = RequireIntegrationConnection();
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
-        await EnsureV4IdentitySchemaAsync(connection);
+        await EnsureCurrentIdentitySchemaAsync(connection);
 
         var hash = UniqueHash('c');
         long observationId;
@@ -211,15 +211,12 @@ public sealed class PersonV4IdentitySqlServerTests
         });
     }
 
-    private static async Task EnsureV4IdentitySchemaAsync(SqlConnection connection)
+    private static async Task EnsureCurrentIdentitySchemaAsync(SqlConnection connection)
     {
         var repositoryRoot = FindRepositoryRoot();
         var database = Path.Combine(repositoryRoot, "Solution", "database");
         await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, database);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(database, "Jornada_Seed_Dev.sql"));
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(database, "migrations", "20260913_Base_Pessoa_Origem.sql"));
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(database, "migrations", "20260913_Pessoa_Identificadores_Multiplos.sql"));
-        await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(database, "migrations", "20260913_Pessoa_Observacao_Sem_Identificador.sql"));
     }
 
     private static async Task<long> InsertObservationWithoutOriginAsync(
