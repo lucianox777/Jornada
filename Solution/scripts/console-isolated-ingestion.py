@@ -22,7 +22,7 @@ def main():
     expected_root = (ROOT / ".local" / "e2e" / "packages").resolve()
     if not zip_path.is_relative_to(expected_root) or not zip_path.is_file():
         raise RuntimeError("ZIP must reside inside disposable E2E packages directory")
-    match = re.fullmatch(r"ENTREGA_SEHAB_[A-Za-z0-9_-]+_v2_([0-9a-f]{64})\\.zip", zip_path.name)
+    match = re.fullmatch(r"ENTREGA_SEHAB_[A-Za-z0-9_-]+_v2_([0-9a-f]{64})\.zip", zip_path.name)
     if not match:
         raise RuntimeError("Invalid synthetic ZIP filename")
     data = zip_path.read_bytes()
