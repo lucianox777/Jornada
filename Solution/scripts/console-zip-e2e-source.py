@@ -189,7 +189,7 @@ def generate(fixture: Path, output: Path, summary_path: Path) -> None:
                                     "Browser ingestion did not persist disposable API receipt")
                             report["browserIngestion"] = {"status": "PASS", "runId": command_id,
                                                            "entregaId": receipt["receipt"]["entregaId"]}
-                            summary_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\\n", encoding="utf-8")
+                            summary_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
                         finally:
                             browser.close()
                 # Stdout contains only the path consumed by local-e2e.sh.
