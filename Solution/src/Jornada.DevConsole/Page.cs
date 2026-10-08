@@ -340,6 +340,11 @@ async function loadActivityLog(){
   }
 }
 
+function readableExitCode(code){
+  const labels={0:'OK',1:'FAILURE',2:'VERIFICATION_FAILED',3:'INCOMPLETE',4:'INVALID_PRECONDITION',64:'INVALID_ARGS',130:'CANCELLED'};
+  return Object.prototype.hasOwnProperty.call(labels,code)?labels[code]:'DESCONHECIDO';
+}
+
 async function showActivityRun(id){
   activityRunDetail.classList.remove('hidden');
   activityRunOutput.textContent='Carregando...';
@@ -349,6 +354,7 @@ async function showActivityRun(id){
     const parts=[
       '['+(run.status||'')+'] '+(run.title||run.command||'Execução'),
       run.summary||'',
+      step.exitCode==null?'':('Código de saída: '+step.exitCode+' ('+readableExitCode(step.exitCode)+')'),
       step.command?('\n> '+step.command):'',
       step.output?('\nSTDOUT\n'+step.output):'',
       step.error?('\nSTDERR\n'+step.error):''
@@ -474,7 +480,8 @@ async function loadCommands(surface='flow'){
   const commandById=Object.fromEntries(commandsCache.map(x=>[x.id,x]));
   const titleById=Object.fromEntries(commandsCache.map(x=>[x.id,x.title]));
   const target=surface==='tools'?toolsCommands:commands;
-  const selected=commandsCache.filter(c=>c.visible!==false&&(c.surface||'flow')===surface);
+  const selected=commandsCache.filter(c=>c.visible!==false&&(c.surface||'flow')===surface)
+    .sort((a,b)=>Number(a.order??0)-Number(b.order??0));
   const groups=[];
   for(const c of selected){
     const stage=c.stage||'Outros';
@@ -520,7 +527,10 @@ async function loadCommands(surface='flow'){
     const deps=(c.dependencies||[]).map(id=>titleById[id]||id);
     const state=String(c.executionState||'PENDENTE').toUpperCase();
     const lastTime=c.lastFinishedAt?new Date(c.lastFinishedAt).toLocaleString():'';
-    const runMeta='<div class="run-meta"><span class="state-badge '+esc(state)+'">'+esc(state)+'</span>'+(lastTime?'<span class="small">última conclusão: '+esc(lastTime)+'</span>':'')+'</div>';
+    const modeLabel={RUN_ONCE:'RunOnce',ONE_SHOT:'One shot',SEQUENCE:'Sequência'}[c.executionMode]||'';
+    const modeLegend='Saídas: 0 OK · 1 FAILURE · 2 VERIFICATION_FAILED · 3 INCOMPLETE · 4 INVALID_PRECONDITION · 64 INVALID_ARGS · 130 CANCELLED';
+    const modeBadge=modeLabel?'<span class="exec-badge" title="'+esc(modeLegend)+'">'+esc(modeLabel)+'</span>':'';
+    const runMeta='<div class="run-meta"><span class="state-badge '+esc(state)+'">'+esc(state)+'</span>'+modeBadge+(lastTime?'<span class="small">última conclusão: '+esc(lastTime)+'</span>':'')+'</div>';
     const dependency=deps.length||c.dependencyNote
       ?'<div class="dependency"><b>Pré-requisitos:</b> '+(deps.length?deps.map(esc).join(' → '):'nenhum obrigatório')+(c.dependencyNote?'<span class="dep-note">'+esc(c.dependencyNote)+'</span>':'')+'</div>'
       :'';
