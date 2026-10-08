@@ -8,6 +8,9 @@ var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 var operationalSql = new OperationalSqlAdapter(jornadaConnectionString);
 var runOnce = builder.Configuration.GetValue("MaintenanceExecution:RunOnce", false);
+var runOnceMaxSeconds = builder.Configuration.GetValue<int?>("MaintenanceExecution:RunOnceMaxSeconds") ?? 300;
+if (runOnceMaxSeconds <= 0)
+    throw new InvalidOperationException("MaintenanceExecution:RunOnceMaxSeconds deve ser > 0.");
 builder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
 builder.Services.AddOptions<ItemProcessedRetentionOptions>()
     .Bind(builder.Configuration.GetSection("ItemProcessedRetention"))
@@ -67,24 +70,39 @@ var host = builder.Build();
 
 if (runOnce)
 {
+    using var finiteTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(runOnceMaxSeconds));
     var failures = new List<string>();
     var itemOptions = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<ItemProcessedRetentionOptions>>().Value;
     var deliveryOptions = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<DeliveryBronzeRetentionOptions>>().Value;
     var watchdogOptions = host.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<PipelineWatchdogOptions>>().Value;
 
-    if (itemOptions.Enabled)
-        await RunOnceStepAsync("ITEM_PROCESSED_RETENTION",
-            () => host.Services.GetRequiredService<ItemProcessedRetentionWorker>().RunCycleAsync(itemOptions, CancellationToken.None),
-            failures);
-    if (deliveryOptions.Enabled)
-        await RunOnceStepAsync("DELIVERY_BRONZE_RETENTION",
-            () => host.Services.GetRequiredService<DeliveryBronzeRetentionWorker>().RunCycleAsync(deliveryOptions, CancellationToken.None),
-            failures);
-    if (watchdogOptions.Enabled)
-        await RunOnceStepAsync("PIPELINE_WATCHDOG",
-            async () => { _ = await host.Services.GetRequiredService<PipelineWatchdogWorker>().RunCycleAsync(watchdogOptions, CancellationToken.None); },
-            failures);
-
+    try
+    {
+        if (itemOptions.Enabled)
+            await RunOnceStepAsync("ITEM_PROCESSED_RETENTION",
+                () => host.Services.GetRequiredService<ItemProcessedRetentionWorker>().RunCycleAsync(itemOptions, finiteTimeout.Token),
+                failures, finiteTimeout.Token);
+        if (deliveryOptions.Enabled)
+            await RunOnceStepAsync("DELIVERY_BRONZE_RETENTION",
+                () => host.Services.GetRequiredService<DeliveryBronzeRetentionWorker>().RunCycleAsync(deliveryOptions, finiteTimeout.Token),
+                failures, finiteTimeout.Token);
+        if (watchdogOptions.Enabled)
+            await RunOnceStepAsync("PIPELINE_WATCHDOG",
+                async () => { _ = await host.Services.GetRequiredService<PipelineWatchdogWorker>().RunCycleAsync(watchdogOptions, finiteTimeout.Token); },
+                failures, finiteTimeout.Token);
+    }
+    catch (OperationCanceledException) when (finiteTimeout.IsCancellationRequested)
+    {
+        Console.Error.WriteLine("Operations Maintenance RunOnce: tempo limite excedido; execução incompleta.");
+        Environment.ExitCode = JornadaExitCodes.INCOMPLETE;
+        return;
+    }
+    if (finiteTimeout.IsCancellationRequested)
+    {
+        Console.Error.WriteLine("Operations Maintenance RunOnce: tempo limite excedido; execução incompleta.");
+        Environment.ExitCode = JornadaExitCodes.INCOMPLETE;
+        return;
+    }
     Console.WriteLine($"Operations Maintenance RunOnce concluído: falhas={failures.Count}.");
     if (failures.Count > 0)
     {
@@ -102,12 +120,17 @@ var heartbeat = new OperationalRuntimeHeartbeat(
 _ = heartbeat.RunAsync(host.Services.GetRequiredService<IHostApplicationLifetime>().ApplicationStopping);
 await host.RunAsync();
 
-static async Task RunOnceStepAsync(string name, Func<Task> action, ICollection<string> failures)
+static async Task RunOnceStepAsync(string name, Func<Task> action, ICollection<string> failures, CancellationToken cancellationToken)
 {
+    cancellationToken.ThrowIfCancellationRequested();
     try
     {
         await action();
         Console.WriteLine($"{name}: OK");
+    }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+        throw;
     }
     catch (Exception ex)
     {
