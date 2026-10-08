@@ -9,6 +9,21 @@ import shutil
 import subprocess
 import sys
 
+EXIT_OK = 0
+EXIT_FAILURE = 1
+EXIT_VERIFICATION_FAILED = 2
+EXIT_INCOMPLETE = 3
+EXIT_INVALID_PRECONDITION = 4
+EXIT_INVALID_ARGS = 64
+EXIT_CANCELLED = 130
+
+
+class JornadaArgumentParser(argparse.ArgumentParser):
+    def error(self, message):
+        self.print_usage(sys.stderr)
+        self.exit(EXIT_INVALID_ARGS, f"{self.prog}: error: {message}\n")
+
+
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parent
 DBS = {"local": "JornadaLocal", "e2e": "JornadaE2E", "synthetic": "JornadaSyntheticDev"}
@@ -62,7 +77,7 @@ def execute(job, allow_reset=False, dry_run=False):
         safe = {k: v for k, v in job.items() if k not in ("bash_args", "ps_args")}
         safe["authorized"] = allow_reset
         print(json.dumps(safe, ensure_ascii=False))
-        return 0
+        return EXIT_OK
     if job["destructive"] and not allow_reset:
         raise ValueError("Exige --allow-reset; nenhum banco foi alterado.")
     env = dict(os.environ)
@@ -93,20 +108,27 @@ def execute(job, allow_reset=False, dry_run=False):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = JornadaArgumentParser(description=__doc__)
     parser.add_argument("--profile", required=True, choices=tuple(DBS))
     parser.add_argument("--shell", choices=("auto", "bash", "powershell"), default="auto")
     parser.add_argument("--allow-reset", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     parser.add_argument("operation", choices=("db", *OPERATIONS))
     parser.add_argument("action", nargs="?")
-    args = parser.parse_args(argv)
+    try:
+        args = parser.parse_args(argv)
+    except SystemExit as exc:
+        # --help remains OK; syntactically invalid arguments are INVALID_ARGS.
+        return int(exc.code)
     try:
         return execute(plan(args.profile, args.operation, args.action, args.shell),
                        args.allow_reset, args.dry_run)
+    except KeyboardInterrupt:
+        print("DT11: execução cancelada pelo operador.", file=sys.stderr)
+        return EXIT_CANCELLED
     except ValueError as exc:
-        print("DT11: ERRO:", exc, file=sys.stderr)
-        return 2
+        print("DT11: pré-condição recusada:", exc, file=sys.stderr)
+        return EXIT_INVALID_PRECONDITION
 
 
 if __name__ == "__main__":
