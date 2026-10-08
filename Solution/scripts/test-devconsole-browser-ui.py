@@ -219,12 +219,20 @@ def main() -> int:
                         send_button = page.get_by_role("button", name="Enviar arquivo", exact=True)
                         require(send_button.count() == 1,
                                 "Browser did not render explicit Enviar arquivo button")
-                        send_button.click()
-                        page.wait_for_timeout(250)
+                        with page.expect_event("dialog") as rejected_dialog:
+                            send_button.click()
+                        dialog = rejected_dialog.value
+                        require(dialog.type == "alert" and "SYNTHETIC_BLOCKED" in dialog.message,
+                                "HTTP 409 was not shown as a recoverable command error")
+                        dialog.accept()
                         require(send_requests == ["POST"],
                                 "Enviar arquivo did not dispatch exactly one ingestion POST")
+                        require(page.locator("#liveDialog").is_hidden(),
+                                "Rejected command opened a phantom execution dialog")
+                        require(send_button.is_enabled(),
+                                "Rejected command disabled subsequent retry")
                         page.unroute("**/api/commands/ingestion/start", block_ingestion)
-                        checked.append("Enviar arquivo click dispatches one intercepted ingestion POST")
+                        checked.append("Enviar arquivo HTTP 409 is visible, no phantom run, retry enabled")
 
 
                         # Keyboard-only activation and native dialog focus semantics.
