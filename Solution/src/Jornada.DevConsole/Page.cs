@@ -599,9 +599,15 @@ async function startCommand(id,titleOverride){
     return;
   }
   const origin=captureActionOrigin()||consoleOrigin;
-  const response=await api('/api/commands/'+encodeURIComponent(id)+'/start',{method:'POST'});
-  const title=titleOverride||command?.title||id;
-  openLiveRun(response.id,title+' #'+response.executionNumber,id,origin);
+  try{
+    const response=await api('/api/commands/'+encodeURIComponent(id)+'/start',{method:'POST'});
+    const title=titleOverride||command?.title||id;
+    openLiveRun(response.id,title+' #'+response.executionNumber,id,origin);
+  }catch(error){
+    // An HTTP rejection is not an execution: do not open a phantom run.
+    // Surface the failure and leave the command available for a later retry.
+    alert('Não foi possível iniciar '+(titleOverride||command?.title||id)+': '+(error?.message||String(error)));
+  }
 }
 
 async function openLayerDialog(kind){
