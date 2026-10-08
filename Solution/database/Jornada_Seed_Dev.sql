@@ -131,68 +131,62 @@ WHEN MATCHED THEN UPDATE SET nome=s.nome,formato_codigo=s.formato_codigo,regra_t
 WHEN NOT MATCHED THEN INSERT(atributo_codigo,nome,formato_codigo,regra_temporal_codigo,cardinalidade,chave_instancia_codigo) VALUES(s.atributo_codigo,s.nome,s.formato_codigo,s.regra_temporal_codigo,s.cardinalidade,s.chave_instancia_codigo);
 
 -- Contrato cadastral corrente por Gestor.
--- O sistema ainda está em desenvolvimento: somente Pessoa v6 participa da execução atual.
+-- O sistema ainda esta em desenvolvimento: somente Pessoa v1 participa da execucao atual.
 -- Ao evoluir o contrato, substitua este bloco pela nova versão corrente; o Git preserva o histórico.
 DECLARE @PessoaAtual TABLE(codigo NVARCHAR(20) PRIMARY KEY, schema_hash BINARY(32));
 INSERT @PessoaAtual(codigo,schema_hash) VALUES
- (N'SEHAB',0x9CC603CD41791E3AAB8CFB79333A03E2C0FA04CC37BC87D83DB3FA4D52B44209),
- (N'SMADS',0x2E17E5AE713A50A74B54130C49CA674806DA7F4FB1DC67054E685A5CECBAF6B4),
- (N'SMDET',0x07A09E62F58235256A38FE0C312AAFDA0D3773EBCD34703A34EDB1DF62B58D1E),
- (N'SMS',  0x0A7AC27CDD88DE6E11303E6A1729627EC3E78008C2C4F88F10EAFA6114BF42A6);
+ (N'SEHAB',0x66E4C3E4FC6EAB69B62470593206BC411EE3A9B22BC39A67C76A45F63929F38B),
+ (N'SMADS',0x02D971C8FFB3B1B88075B42419D0377BB05788ADAA5EC8742E62EF20B189FD8E),
+ (N'SMDET',0xC891FE65578607872CA9B0250938B68066E0E0F5C1E9650CF2AA4FDAE4F98F6E),
+ (N'SMS',  0x5CEA0A27716A1636AAA00AA6F6F9B2EF58B9E5140052D73E705B5C682D719EAC);
 
 IF EXISTS(
     SELECT 1
     FROM ref.gestor_pessoa_versao v
     JOIN ref.gestor g ON g.gestor_id=v.gestor_id
     JOIN @PessoaAtual x ON x.codigo=g.codigo
-    WHERE v.versao=6
-      AND (v.pessoa_schema_ref<>CONCAT(N'config/contracts/gestores/',g.codigo,N'/pessoa/v6/pessoa.schema.json')
+    WHERE v.versao=1
+      AND (v.pessoa_schema_ref<>CONCAT(N'config/contracts/gestores/',g.codigo,N'/pessoa/v1/pessoa.schema.json')
            OR v.pessoa_schema_sha256<>x.schema_hash))
-    THROW 51593,'Pessoa v6 já cadastrada com referência/hash divergente.',1;
+    THROW 51593,'Pessoa v1 já cadastrada com referência/hash divergente.',1;
 
 INSERT ref.gestor_pessoa_versao(
     gestor_id,versao,vigencia_inicio,pessoa_schema_ref,pessoa_schema_sha256,status,ativado_em)
-SELECT g.gestor_id,6,'2026-10-06',
-       CONCAT(N'config/contracts/gestores/',g.codigo,N'/pessoa/v6/pessoa.schema.json'),
+SELECT g.gestor_id,1,'2026-10-06',
+       CONCAT(N'config/contracts/gestores/',g.codigo,N'/pessoa/v1/pessoa.schema.json'),
        x.schema_hash,N'ATIVA','2026-10-06'
 FROM ref.gestor g
 JOIN @PessoaAtual x ON x.codigo=g.codigo
 WHERE NOT EXISTS(
     SELECT 1 FROM ref.gestor_pessoa_versao v
-    WHERE v.gestor_id=g.gestor_id AND v.versao=6);
+    WHERE v.gestor_id=g.gestor_id AND v.versao=1);
 
 UPDATE v
    SET status='ATIVA',
        vigencia_inicio='2026-10-06',
        vigencia_fim=NULL,
-       pessoa_schema_ref=CONCAT(N'config/contracts/gestores/',g.codigo,N'/pessoa/v6/pessoa.schema.json'),
+       pessoa_schema_ref=CONCAT(N'config/contracts/gestores/',g.codigo,N'/pessoa/v1/pessoa.schema.json'),
        pessoa_schema_sha256=x.schema_hash,
        ativado_em=COALESCE(v.ativado_em,'2026-10-06')
 FROM ref.gestor_pessoa_versao v
 JOIN ref.gestor g ON g.gestor_id=v.gestor_id
 JOIN @PessoaAtual x ON x.codigo=g.codigo
-WHERE v.versao=6;
+WHERE v.versao=1;
 
--- Ambientes DEV antigos podem conter Entregas seed apontando para versões anteriores.
--- Reaponta essas fixtures para o contrato corrente antes de remover o catálogo legado.
-UPDATE e
-   SET gestor_pessoa_versao_id=atual.gestor_pessoa_versao_id
-FROM ingestao.entrega e
-JOIN ref.gestor_pessoa_versao antiga ON antiga.gestor_pessoa_versao_id=e.gestor_pessoa_versao_id
-JOIN ref.gestor g ON g.gestor_id=e.gestor_id
-JOIN ref.gestor_pessoa_versao atual ON atual.gestor_id=e.gestor_id AND atual.versao=6
-WHERE antiga.versao<>6
-  AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
+-- Contratos de desenvolvimento anteriores nao sao migrados implicitamente.
+-- Falhar fechado para proteger JornadaLocal: validar instalacao limpa em banco descartavel.
+IF EXISTS (
+    SELECT 1
+    FROM ref.gestor_pessoa_versao v
+    JOIN ref.gestor g ON g.gestor_id = v.gestor_id
+    WHERE v.versao <> 1
+      AND g.codigo IN ('SMS','SEHAB','SMADS','SMDET')
+)
+    THROW 51594, 'Banco contem Pessoa v2-v6: use um banco descartavel para a consolidacao ou migracao autorizada; o seed nao altera Entregas historicas.', 1;
 
-DELETE v
-FROM ref.gestor_pessoa_versao v
-JOIN ref.gestor g ON g.gestor_id=v.gestor_id
-WHERE v.versao<>6
-  AND g.codigo IN('SMS','SEHAB','SMADS','SMDET');
-
-DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=6),
-        @gpvSmads BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND versao=6),
-        @gpvSms BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSms AND versao=6);
+DECLARE @gpvSehab BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSehab AND versao=1),
+        @gpvSmads BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSmads AND versao=1),
+        @gpvSms BIGINT=(SELECT gestor_pessoa_versao_id FROM ref.gestor_pessoa_versao WHERE gestor_id=@gSms AND versao=1);
 
 -- Credenciais no banco guardam somente secret_ref. Os IDs abaixo são os mesmos da fixture
 -- config/security/test-access-keys.json para que toda chamada DEV possa ser auditada por FK.
