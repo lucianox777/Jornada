@@ -162,10 +162,10 @@ public sealed class JsonSchemaSubsetValidatorTests
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null)
         {
-            var candidate = Path.Combine(dir.FullName, "config", "contracts", "gestores", "SMS", "pessoa", "v6", "pessoa.schema.json");
+            var candidate = Path.Combine(dir.FullName, "config", "contracts", "gestores", "SMS", "pessoa", "v1", "pessoa.schema.json");
             if (File.Exists(candidate)) return JsonSchemaSubsetValidator.Load(candidate);
             dir = dir.Parent;
         }
-        throw new InvalidOperationException("Contrato Pessoa corrente v6 não localizado a partir do diretório de teste.");
+        throw new InvalidOperationException("Contrato Pessoa corrente v1 não localizado a partir do diretório de teste.");
     }
 }
