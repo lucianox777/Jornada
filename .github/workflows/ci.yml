@@ -218,6 +218,15 @@ jobs:
         env:
           JORNADA_CONSOLE_ACCEPTANCE_ISOLATED: 'true'
         run: python3 scripts/test-devconsole-http-acceptance.py
+      - name: Install pinned Chromium only for browser acceptance (reuse current build)
+        run: |
+          python3 -m venv .local/console-browser-venv
+          .local/console-browser-venv/bin/python -m pip install --disable-pip-version-check playwright==1.56.0
+          .local/console-browser-venv/bin/python -m playwright install --with-deps chromium
+      - name: T0.1e Console actual Chromium browser click acceptance (no SQL)
+        env:
+          JORNADA_CONSOLE_BROWSER_ISOLATED: 'true'
+        run: .local/console-browser-venv/bin/python scripts/test-devconsole-browser-ui.py
       - name: Prove Python-to-CSharp synthetic corpus rule equivalence
         run: |
           mkdir -p .local/test-evidence/unit
