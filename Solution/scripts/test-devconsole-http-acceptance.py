@@ -138,7 +138,7 @@ def run_mode(mode: str) -> dict:
                                 "Linkage without Silver is not blocked in catalog")
                     status, blocked = http(base, "POST", "/api/commands/linkage/start")
                     assert_true(status == 409 and isinstance(blocked, dict)
-                                and "Silver" in blocked.get("error", ""),
+                                and "Envie um arquivo de ingestão" in blocked.get("error", ""),
                                 "Linkage accepted before ingest/Silver")
                     status, _ = http(base, "POST", "/api/session-counts/reset", ["silver"])
                     assert_true(status == 200, "session counter reset failed")
