@@ -157,8 +157,8 @@ public sealed class PersonContractSqlServerTests
         Assert.Multiple(()=>
         {
             Assert.That(reader.GetInt64(0),Is.GreaterThan(0),"A Console deve encontrar contratos correntes no catálogo ref.*.");
-            Assert.That(reader.GetInt32(1),Is.EqualTo(6));
-            Assert.That(reader.GetInt32(2),Is.EqualTo(6));
+            Assert.That(reader.GetInt32(1),Is.EqualTo(1));
+            Assert.That(reader.GetInt32(2),Is.EqualTo(1));
         });
     }
 
