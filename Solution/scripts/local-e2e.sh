@@ -306,9 +306,9 @@ PY
     exit 24
   }
   # Confirma o hash exato do schema Pessoa corrente carregado para cada gestor.
-  manager_schema="$ROOT/config/contracts/gestores/$gestor/pessoa/v6/pessoa.schema.json"
+  manager_schema="$ROOT/config/contracts/gestores/$gestor/pessoa/v1/pessoa.schema.json"
   manager_source_hash="$(sha256sum "$manager_schema" | awk '{print $1}')"
-  manager_db_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='$gestor' AND gpv.versao=6;")"
+  manager_db_hash="$(scalar "SELECT LOWER(CONVERT(varchar(64),gpv.pessoa_schema_sha256,2)) FROM ref.gestor g JOIN ref.gestor_pessoa_versao gpv ON gpv.gestor_id=g.gestor_id WHERE g.codigo='$gestor' AND gpv.versao=1;")"
   [[ "$manager_source_hash" == "$manager_db_hash" ]] || {
     echo "ERRO: $gestor schema Pessoa corrente divergiu do catálogo" >&2; exit 25;
   }
