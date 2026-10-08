@@ -205,6 +205,25 @@ def main() -> int:
                                 "Linkage browser button enabled before ingest/Silver")
                         checked.append("desktop navigation and precondition rendering")
 
+                        # Keyboard-only activation and native dialog focus semantics.
+                        zip_trigger = page.locator('#commands button[onclick="openZipDialog()"]')
+                        zip_trigger.focus()
+                        require(zip_trigger.evaluate("(node) => document.activeElement === node"),
+                                "ZIP action cannot receive keyboard focus")
+                        page.keyboard.press("Enter")
+                        page.locator("#zipDialog").wait_for(state="visible")
+                        require(page.locator("#zipDialog").evaluate(
+                            "(node) => node.open && node.matches(':modal')"),
+                            "ZIP dialog is not exposed as a modal dialog")
+                        require(page.locator("#zipDialog").evaluate(
+                            "(node) => node.contains(document.activeElement)"),
+                            "Keyboard activation did not move focus into the ZIP dialog")
+                        page.keyboard.press("Escape")
+                        page.locator("#zipDialog").wait_for(state="hidden")
+                        require(zip_trigger.evaluate("(node) => document.activeElement === node"),
+                                "Closing ZIP dialog did not restore focus to its trigger")
+                        checked.append("keyboard Enter opens modal ZIP dialog; Escape restores focus")
+
                         start_zip_dialog(page)
                         require(page.locator("#zipContract").input_value() == CONTRACT_KEY,
                                 "Contract selector lost the provided synthetic catalog")
