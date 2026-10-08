@@ -18,7 +18,10 @@ def main():
     url = os.environ.get("JORNADA_E2E_API_URL")
     if url != "http://127.0.0.1:5088":
         raise RuntimeError("Isolated ingestion requires dedicated loopback API at port 5088")
-    zip_path = Path(os.environ["JORNADA_E2E_INGESTION_ZIP"]).resolve(strict=True)
+    pointer = ROOT / ".local/e2e/browser-ingestion-zip-path.txt"
+    if not pointer.is_file():
+        raise RuntimeError("Missing disposable browser ZIP pointer")
+    zip_path = Path(pointer.read_text(encoding="utf-8").strip()).resolve(strict=True)
     expected_root = (ROOT / ".local" / "e2e" / "packages").resolve()
     if not zip_path.is_relative_to(expected_root) or not zip_path.is_file() or zip_path.is_symlink():
         raise RuntimeError("ZIP must reside inside disposable E2E packages directory")
