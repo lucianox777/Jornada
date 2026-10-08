@@ -1,0 +1,10 @@
+{
+  "gestor": "SMDET",
+  "versao": 1,
+  "status": "ATIVA",
+  "descricao": "Contrato cadastral versionado de Pessoas do Gestor SMDET.",
+  "resolucaoIdentidade": {
+    "rotaNormal": "CPF_DETERMINISTICO",
+    "fallbackSemCpf": "PENDENTE_PROBABILISTICO"
+  }
+}
