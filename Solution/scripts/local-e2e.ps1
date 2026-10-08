@@ -141,7 +141,7 @@ try {
         $stagedSehab = $targetContracts
         Copy-Item -LiteralPath $supportContracts -Destination $targetContracts -Recurse
     }
-    foreach ($relative in @('pessoa/v6/pessoa.schema.json')) {
+    foreach ($relative in @('pessoa/v1/pessoa.schema.json')) {
         $sourceHash = (Get-FileHash -LiteralPath (Join-Path $supportContracts $relative) -Algorithm SHA256).Hash
         $stagedHash = (Get-FileHash -LiteralPath (Join-Path $targetContracts $relative) -Algorithm SHA256).Hash
         if ($sourceHash -ne $stagedHash) {
