@@ -151,13 +151,13 @@ public sealed class PersonContractTests
     }
 
     [Test]
-    public void Current_schema_hashes_match_governance_inventory_and_only_v6_is_kept()
+    public void Current_schema_hashes_match_governance_inventory_and_only_v1_is_kept()
     {
         var root = FindRepositoryRoot();
         using var governance = JsonDocument.Parse(File.ReadAllText(Path.Combine(
             root, "Solution", "config", "governance", "schema-approvals.json")));
 
-        foreach (var gestor in new[] { "SMADS", "SMDET", "SMS" })
+        foreach (var gestor in new[] { "SEHAB", "SMADS", "SMDET", "SMS" })
         {
             var relative = $"config/contracts/gestores/{gestor}/pessoa/v{PersonContractRules.CurrentSchemaVersion}/pessoa.schema.json";
             var expected = governance.RootElement.GetProperty("contracts").EnumerateArray()
@@ -174,7 +174,7 @@ public sealed class PersonContractTests
             {
                 Assert.That(actual, Is.EqualTo(expected), $"{gestor} contrato corrente divergiu do inventário.");
                 Assert.That(required, Is.EqualTo(new[] { "idPessoaEntrega" }), $"{gestor} não deve exigir campos do núcleo.");
-                for (var oldVersion = 1; oldVersion < PersonContractRules.CurrentSchemaVersion; oldVersion++)
+                for (var oldVersion = 2; oldVersion <= 6; oldVersion++)
                 {
                     var oldPath = Path.Combine(root, "Solution", "config", "contracts", "gestores", gestor, "pessoa", $"v{oldVersion}", "pessoa.schema.json");
                     Assert.That(File.Exists(oldPath), Is.False, $"{gestor} ainda mantém contrato Pessoa antigo v{oldVersion}.");
