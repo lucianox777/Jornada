@@ -287,3 +287,16 @@ JORNADA_CONSOLE_ACCEPTANCE_ISOLATED=true python3 scripts/test-devconsole-http-ac
 O gate do job `unit` inicia o binário real `Jornada.DevConsole.dll` em loopback e em diretórios temporários (`XDG_DATA_HOME`/HOME). Ele consulta as rotas `/`, `/api/version`, `/api/commands`, `/api/runs`, `/api/activity`, prova 404 para ID/comando inexistente, exige 409 para Linkage antes da ingestão em DEV e 409 para comandos destrutivos em PROD. Verifica ordem, modo RunOnce/one-shot e reinicialização de contadores **somente da sessão**. Não dispara trabalho operacional, não acessa SQL, não chama ZIP, não cria nem apaga bancos ou volumes.
 
 A evidência `.local/test-evidence/unit/devconsole-http-acceptance.json` registra os grupos efetivamente exercitados. **Não equivale ao T0.1b nível 2 nem ao E2E nível 3** (Console → ZIP → API → Silver → Linkage → Gold). Eles continuam exigindo banco descartável e evidência de execução ponta a ponta.
+ 
+
+## T0.1a — Console ZIP: teste funcional HTTP (CI isolada)
+
+O gate já existente `test-devconsole-http-acceptance.py` agora executa `POST /api/zip/manual/start` na Console real e acompanha o run até gravar o recibo. Prova os dois casos SEHAB com fixtures sintéticas existentes:
+
+- **Somente Pessoa:** ZIP contém exatamente `manifest.json`, `pessoas.jsonl` e `registros.jsonl` vazio; resposta HTTP permite baixar o ZIP íntegro, com nome contendo o SHA-256 real.
+- **Pessoa + Registro:** mesma estrutura canônica, com `registros.jsonl` não vazio e dados preservados.
+- **JSONL malformado:** status de run `FALHA` e ausência de artefato para download (`404`).
+
+O fluxo usa o executável da Console em localhost e Python do CI, sem API de ingestão, sem banco e sem acesso à referência IBGE. Os arquivos são gravados em `.local/dev-console/manual-zip/<guid>` no checkout **descartável do runner CI**, e a sessão fica em diretório HOME/XDG temporário. O teste não pode ser considerado prova de Processor, Silver, Linkage ou Gold: esses cenários exigem T0.1b/T0.1c em banco SQL descartável.
+
+A geração atual de ZIP só valida **sintaxe JSON**, não toda a semântica do schema; portanto, um pacote sintaticamente válido mas contratualmente inválido ainda precisa ser rejeitado pelo Processor. Esta lacuna permanece visível para a frente C3.1, não deve ser classificada como teste aprovado de contrato.
