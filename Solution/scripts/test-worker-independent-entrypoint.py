@@ -20,8 +20,8 @@ VALID = {
     "JORNADA_SQL_DATABASE_OVERRIDE": "JornadaE2E",
     "JORNADA_NODE_ID": "NODE2",
     "ConnectionStrings__Jornada": (
-        "Server=localhost,1433;Database=JornadaE2E;User Id=fake;"
-        "Password=synthetic;TrustServerCertificate=true"
+        "Server=localhost,1433;Database=JornadaE2E;"
+        "Integrated Security=true;Encrypt=true"
     ),
 }
 
@@ -63,10 +63,10 @@ def main() -> int:
         ({**VALID, "JORNADA_E2E_SQL_DATABASE": "JornadaLocal"}, "local E2E label denied"),
         ({**VALID, "JORNADA_NODE_ID": "NODE3"}, "unrecognized NODE denied"),
         ({**VALID, "ConnectionStrings__Jornada": (
-            "Server=localhost;Database=JornadaLocal;Password=synthetic"
+            "Server=localhost;Database=JornadaLocal;Integrated Security=true;Encrypt=true"
         )}, "actual local DB denied"),
         ({**VALID, "ConnectionStrings__Jornada": (
-            "Server=localhost;Database=JornadaE2EExtra;Password=synthetic"
+            "Server=localhost;Database=JornadaE2EExtra;Integrated Security=true;Encrypt=true"
         )}, "prefix-matching fake DB denied"),
     ]
     for environment, label in deny_cases:
