@@ -74,6 +74,12 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
 .back{margin-bottom:12px}
 .small{font-size:12px;color:#697481}
 @media(max-width:700px){header{flex-direction:column;align-items:stretch;gap:10px;padding:12px}.toolbar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.toolbar .iconbtn{width:100%;white-space:normal}.stage-head{flex-wrap:wrap}.stage-reset{margin-left:0;white-space:normal}main{padding:12px}.action-row{grid-template-columns:1fr}.action-control{display:grid;grid-template-columns:auto minmax(0,1fr);justify-content:stretch}.action-count{text-align:left}.action-control button{width:100%;min-width:0}.terminal{height:55vh}}
+
+.worker-panel{margin:16px 0;padding:16px;border:1px solid #d9dee5;border-radius:10px;background:#fff}
+.worker-panel h2{margin:0 0 8px;font-size:19px}.worker-top{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:12px}
+.worker-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.worker-card{border:1px solid #e0e5eb;border-radius:8px;padding:12px}
+.worker-actions{display:flex;flex-direction:column;gap:7px;margin-top:10px}.worker-actions button{width:100%}.worker-panel button:disabled{opacity:.45;cursor:not-allowed}
+.worker-error{color:#a12525}.worker-ok{color:#18734b}
 </style>
 </head>
 <body>
@@ -87,6 +93,13 @@ th,td{border-bottom:1px solid #ddd;padding:7px;text-align:left;vertical-align:to
   </div>
 </header>
 <main>
+  <section id="workerPanel" class="worker-panel" hidden aria-label="Supervisão dos workers">
+    <h2>Workers · ambiente isolado</h2>
+    <div class="worker-top"><strong id="workerMode">Consultando…</strong><button type="button" id="workerToggle" disabled onclick="toggleWorkers()">Alternar ON/OFF</button><button type="button" class="secondary" onclick="refreshWorkers()">Atualizar</button></div>
+    <p id="workerMessage" class="small" role="status">Estado real consultado no Docker e SQL.</p>
+    <div id="workerCards" class="worker-grid"></div>
+  </section>
+
   <section id="homeView">
     <div class="hero">
       <h2>Fluxo do dado</h2>
@@ -1157,6 +1170,83 @@ async function loadConsoleRevision(){
 
 loadConsoleRevision();
 loadCommands('flow').catch(e=>commands.textContent='Falha ao carregar o fluxo: '+e.message);
+
+// C3.4: visual controls reflect only verified supervisor observations.
+let workerSnapshot=null;
+let workerBusy=false;
+const workerNames={'processor':'Processor','operations-maintenance':'Manutenção de operações','bronze-maintenance':'Manutenção Bronze'};
+function workerNotice(message,isError=false){
+  const el=document.getElementById('workerMessage');
+  el.textContent=message;el.className=isError?'worker-error':'small';
+}
+function renderWorkers(snapshot){
+  workerSnapshot=snapshot;
+  const mode=snapshot.mode||'ERRO';
+  document.getElementById('workerMode').textContent='Estado global: '+mode;
+  const toggle=document.getElementById('workerToggle');
+  toggle.textContent=mode==='ON'?'Desligar todos (OFF)':'Ligar todos (ON)';
+  toggle.disabled=workerBusy||!snapshot.toggleAvailable||!['ON','OFF'].includes(mode);
+  const list=Array.isArray(snapshot.workers)?snapshot.workers:[];
+  const cards=document.getElementById('workerCards');
+  cards.replaceChildren();
+  for(const w of list){
+    if(!Object.prototype.hasOwnProperty.call(workerNames,w.worker))continue;
+    const card=document.createElement('article');card.className='worker-card';
+    const name=document.createElement('strong');name.textContent=workerNames[w.worker];card.append(name);
+    const state=document.createElement('div');state.className='small';
+    state.textContent='Estado: '+w.state+' · PID: '+(w.hostPid??'—')+' · reinícios: '+(w.restartCount??'—');card.append(state);
+    const actions=document.createElement('div');actions.className='worker-actions';
+    const once=document.createElement('button');once.textContent='Executar uma vez';
+    once.disabled=workerBusy||mode!=='OFF'||w.state!=='PARADO';
+    once.addEventListener('click',()=>workerAction(w.worker,'run-once'));actions.append(once);
+    const stop=document.createElement('button');stop.className='secondary';stop.textContent='Parar processo';
+    stop.disabled=workerBusy||mode!=='ON'||w.state!=='ATIVO'||!w.containerId||!Number.isInteger(w.hostPid);
+    stop.addEventListener('click',()=>workerAction(w.worker,'stop',w));actions.append(stop);
+    card.append(actions);cards.append(card);
+  }
+}
+async function refreshWorkers(){
+  try{
+    const snapshot=await api('/api/workers/supervisor');
+    document.getElementById('workerPanel').hidden=false;
+    renderWorkers(snapshot);
+    workerNotice('Estado observado no ambiente isolado.');
+  }catch(e){
+    workerSnapshot=null;
+    // Outside CI this panel is unavailable by design, not a broken control.
+    if(!document.getElementById('workerPanel').hidden){
+      document.getElementById('workerToggle').disabled=true;
+      document.getElementById('workerCards').replaceChildren();
+      workerNotice('Não foi possível comprovar o estado: '+e.message,true);
+    }
+  }
+}
+async function workerAction(worker,action,observed){
+  if(workerBusy||!Object.prototype.hasOwnProperty.call(workerNames,worker))return;
+  if(action==='stop'&&!confirm('Parar somente '+workerNames[worker]+'? Os demais serviços permanecerão ativos.'))return;
+  workerBusy=true;
+  try{
+    if(workerSnapshot)renderWorkers(workerSnapshot);
+    workerNotice('Operação em andamento; aguardando confirmação real…');
+    const body=action==='stop'?{containerId:observed.containerId,hostPid:observed.hostPid,confirmed:true}:{};
+    await api('/api/workers/'+encodeURIComponent(worker)+'/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  }catch(e){workerNotice('Operação recusada: '+e.message,true)}
+  finally{workerBusy=false;await refreshWorkers()}
+}
+async function toggleWorkers(){
+  if(workerBusy||!workerSnapshot||!['ON','OFF'].includes(workerSnapshot.mode))return;
+  const requested=workerSnapshot.mode==='ON'?'OFF':'ON';
+  if(!confirm('Alterar todos os workers para '+requested+'?'))return;
+  workerBusy=true;
+  try{
+    renderWorkers(workerSnapshot);
+    workerNotice('Alterando modo global; aguardando confirmação real…');
+    await api('/api/workers/supervisor',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mode:requested})});
+  }catch(e){workerNotice('Transição recusada: '+e.message,true)}
+  finally{workerBusy=false;await refreshWorkers()}
+}
+refreshWorkers();
+setInterval(()=>{if(!workerBusy&&!document.hidden)refreshWorkers()},5000);
 </script>
 </body>
 </html>
