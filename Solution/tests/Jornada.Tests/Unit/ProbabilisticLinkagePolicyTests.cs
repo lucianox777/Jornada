@@ -34,7 +34,7 @@ public sealed class ProbabilisticLinkagePolicyTests
         var complete = LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V1", parameters);
         Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(complete), Is.True);
         parameters.Remove("U_NASC_DIA_DIFF");
-        var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V1", parameters));
+        var error = Assert.Throws<InvalidOperationException>((Action)(() => LinkageModelPolicy.Create(ModelId, 2, "FELLEGI_SUNTER_V1", parameters)));
         Assert.That(error!.Message, Does.Contain("U_NASC_DIA_DIFF"));
     }
 
@@ -45,7 +45,7 @@ public sealed class ProbabilisticLinkagePolicyTests
         var complete = LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V1", parameters);
         Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.True);
         parameters.Remove("U_DATA_NASCIMENTO_DIFF");
-        var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V1", parameters));
+        var error = Assert.Throws<InvalidOperationException>((Action)(() => LinkageModelPolicy.Create(ModelId, 3, "FELLEGI_SUNTER_V1", parameters)));
         Assert.That(error!.Message, Does.Contain("U_DATA_NASCIMENTO_DIFF"));
     }
 
@@ -60,7 +60,7 @@ public sealed class ProbabilisticLinkagePolicyTests
             Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.False);
         }));
         parameters.Remove("U_NASCIMENTO_CONJUNTO_101");
-        var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters));
+        var error = Assert.Throws<InvalidOperationException>((Action)(() => LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters)));
         Assert.That(error!.Message, Does.Contain("U_NASCIMENTO_CONJUNTO_101"));
     }
 
@@ -76,7 +76,7 @@ public sealed class ProbabilisticLinkagePolicyTests
             Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.False);
         }));
         parameters.Remove($"U_NASCIMENTO_SEMANTICO_{BirthDateSemanticEvidence.OneDigitError}");
-        var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters));
+        var error = Assert.Throws<InvalidOperationException>((Action)(() => LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters)));
         Assert.That(error!.Message, Does.Contain($"U_NASCIMENTO_SEMANTICO_{BirthDateSemanticEvidence.OneDigitError}"));
     }
 
@@ -87,7 +87,7 @@ public sealed class ProbabilisticLinkagePolicyTests
         var parameters = SemanticBirthParameters(includeLegacyFlags: false);
         if (disabledInsteadOfMissing) parameters[LinkageParameterCatalog.BirthSemanticEvidenceScoring] = 0m;
         else parameters.Remove(LinkageParameterCatalog.BirthSemanticEvidenceScoring);
-        var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters));
+        var error = Assert.Throws<InvalidOperationException>((Action)(() => LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters)));
         Assert.That(error!.Message, Does.Contain(LinkageParameterCatalog.BirthSemanticEvidenceScoring));
     }
 

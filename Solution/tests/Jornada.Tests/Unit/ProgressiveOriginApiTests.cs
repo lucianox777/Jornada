@@ -44,17 +44,17 @@ public sealed class ProgressiveOriginApiTests
         var provisional = Snapshot(ProgressiveIdentityStatus.PROVISORIA, null, 0, null);
         var reference = Snapshot(ProgressiveIdentityStatus.REFERENCIA, Canonical, 1, Created.AddMinutes(1));
         var indefinite = Snapshot(ProgressiveIdentityStatus.INDEFINIDA, null, 1, Created.AddMinutes(1));
-        Assert.DoesNotThrow(() => ProgressiveOriginApi.ValidateSnapshot(provisional));
-        Assert.DoesNotThrow(() => ProgressiveOriginApi.ValidateSnapshot(reference));
-        Assert.DoesNotThrow(() => ProgressiveOriginApi.ValidateSnapshot(indefinite));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(provisional with { CanonicalUuid = Canonical }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { Versao = 0 }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { CanonicalUuid = null }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(indefinite with { CanonicalUuid = Canonical }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { Estado = (ProgressiveIdentityStatus)99 }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { InitialUuid = Guid.Empty }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { CriadoEm = Created.ToOffset(TimeSpan.FromHours(-3)) }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { AtualizadoEm = Created.AddSeconds(-1) }));
+        Assert.DoesNotThrow((Action)(() => ProgressiveOriginApi.ValidateSnapshot(provisional)));
+        Assert.DoesNotThrow((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference)));
+        Assert.DoesNotThrow((Action)(() => ProgressiveOriginApi.ValidateSnapshot(indefinite)));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(provisional with { CanonicalUuid = Canonical })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { Versao = 0 })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { CanonicalUuid = null })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(indefinite with { CanonicalUuid = Canonical })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { Estado = (ProgressiveIdentityStatus)99 })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { InitialUuid = Guid.Empty })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { CriadoEm = Created.ToOffset(TimeSpan.FromHours(-3)) })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { AtualizadoEm = Created.AddSeconds(-1) })));
     }
 
     [Test]

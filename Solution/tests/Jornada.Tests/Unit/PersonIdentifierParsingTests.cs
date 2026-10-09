@@ -58,8 +58,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, legacyCpf, null, null));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, legacyCpf, null, null)));
 
         Assert.That(error!.Message, Does.Contain("diverge").IgnoreCase);
     }
@@ -78,8 +78,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, null, null));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, null)));
 
         Assert.That(error!.Message, Does.Contain("CPFs distintos").IgnoreCase);
     }
@@ -109,8 +109,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A"));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A")));
 
         Assert.That(error!.Message, Does.Contain("diverge").IgnoreCase);
     }
@@ -127,8 +127,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A"));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A")));
 
         Assert.That(error!.Message, Does.Contain("mais de um CODIGO_BASE_ORIGEM").IgnoreCase);
     }
@@ -144,8 +144,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, "P-SYNTH-1", null));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, "P-SYNTH-1", null)));
 
         Assert.That(error!.Message, Does.Contain("exige codigoBasePessoaOrigem").IgnoreCase);
     }
@@ -187,8 +187,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, null, null));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, null)));
 
         Assert.That(error!.Message, Does.Contain("namespace NIS, PIS, PASEP ou NIT"));
     }

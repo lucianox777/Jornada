@@ -54,9 +54,9 @@ public sealed class PossibilityRuleEngineTests
     public void Invalid_or_empty_published_rule_fails_closed()
     {
         var empty = new PossibilityRuleSet("SERVICO", "TEST", 1, "TEST.v1", []);
-        Assert.Throws<InvalidDataException>(() => PossibilityRuleValidator.Validate(empty));
+        Assert.Throws<InvalidDataException>((Action)(() => PossibilityRuleValidator.Validate(empty)));
         var invalid = new PossibilityRuleSet("SERVICO", "TEST", 1, "TEST.v1", [new("DATA", PossibilityRuleOperator.DATA_MAIOR_IGUAL, null)]);
-        Assert.Throws<InvalidDataException>(() => PossibilityRuleValidator.Validate(invalid));
+        Assert.Throws<InvalidDataException>((Action)(() => PossibilityRuleValidator.Validate(invalid)));
     }
 
     [Test]
@@ -78,7 +78,7 @@ public sealed class PossibilityRuleEngineTests
     public void Pending_catalog_cannot_be_loaded_for_execution()
     {
         const string json = """{"schemaVersion":1,"status":"PENDENTE","catalogVersion":"v1","rules":[],"approval":null}""";
-        Assert.Throws<InvalidDataException>(() => PossibilityRuleCatalogLoader.Load(json, requireApproved: true));
+        Assert.Throws<InvalidDataException>((Action)(() => PossibilityRuleCatalogLoader.Load(json, requireApproved: true)));
         var catalog = PossibilityRuleCatalogLoader.Load(json, requireApproved: false);
         Assert.That(catalog.Rules, Is.Empty);
     }
@@ -87,7 +87,7 @@ public sealed class PossibilityRuleEngineTests
     public void Approved_catalog_requires_complete_approval_metadata()
     {
         const string missingApproval = """{"schemaVersion":1,"status":"APROVADO","catalogVersion":"v1","rules":[{"natureza":"SERVICO","codigo":"TEST","versao":1,"implementacaoVersao":"TEST.v1","allOf":[{"fact":"ATIVO","operator":"PRESENTE"}]}],"approval":null}""";
-        Assert.Throws<InvalidDataException>(() => PossibilityRuleCatalogLoader.Load(missingApproval, requireApproved: true));
+        Assert.Throws<InvalidDataException>((Action)(() => PossibilityRuleCatalogLoader.Load(missingApproval, requireApproved: true)));
     }
 
     [Test]
@@ -105,7 +105,7 @@ public sealed class PossibilityRuleEngineTests
             File.WriteAllText(catalogPath, json);
             Assert.That(PossibilityRuleCatalogLoader.LoadFromFile(catalogPath, root).Status, Is.EqualTo("APROVADO"));
             File.AppendAllText(evidence, "tampered");
-            Assert.Throws<InvalidDataException>(() => PossibilityRuleCatalogLoader.LoadFromFile(catalogPath, root));
+            Assert.Throws<InvalidDataException>((Action)(() => PossibilityRuleCatalogLoader.LoadFromFile(catalogPath, root)));
         }
         finally
         {

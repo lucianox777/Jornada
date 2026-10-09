@@ -15,8 +15,8 @@ public sealed class PersonContractTests
     [TestCase("EM_REGULARIZACAO")]
     public void Current_contract_accepts_only_explicit_cpf_absence_taxonomy(string reason)
     {
-        Assert.DoesNotThrow(() =>
-            PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, null, reason));
+        Assert.DoesNotThrow((Action)(() =>
+            PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, null, reason)));
         Assert.That(PersonContractRules.IsCpfAbsenceReason(reason), Is.True);
     }
 
@@ -25,16 +25,16 @@ public sealed class PersonContractTests
     {
         Assert.Multiple((Action)(() =>
         {
-            Assert.Throws<InvalidDataException>(() =>
-                PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, null, "SEM_CPF"));
-            Assert.Throws<InvalidDataException>(() =>
-                PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, null, null));
-            Assert.Throws<InvalidDataException>(() =>
-                PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, "11144477735", "NAO_INFORMADO_ORIGEM"));
-            Assert.DoesNotThrow(() =>
-                PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, "11144477735", null));
-            Assert.Throws<InvalidDataException>(() =>
-                PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion - 1, null, "NAO_INFORMADO_ORIGEM"));
+            Assert.Throws<InvalidDataException>((Action)(() =>
+                PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, null, "SEM_CPF")));
+            Assert.Throws<InvalidDataException>((Action)(() =>
+                PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, null, null)));
+            Assert.Throws<InvalidDataException>((Action)(() =>
+                PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, "11144477735", "NAO_INFORMADO_ORIGEM")));
+            Assert.DoesNotThrow((Action)(() =>
+                PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, "11144477735", null)));
+            Assert.Throws<InvalidDataException>((Action)(() =>
+                PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion - 1, null, "NAO_INFORMADO_ORIGEM")));
         }));
     }
 
@@ -64,7 +64,7 @@ public sealed class PersonContractTests
         }
         """;
 
-        Assert.DoesNotThrow(() => validator.ParseAndValidate(json, "pessoas.jsonl", 1));
+        Assert.DoesNotThrow((Action)(() => validator.ParseAndValidate(json, "pessoas.jsonl", 1)));
     }
 
     [Test]
@@ -86,7 +86,7 @@ public sealed class PersonContractTests
         }
         """;
 
-        Assert.DoesNotThrow(() => validator.ParseAndValidate(json, "pessoas.jsonl", 1));
+        Assert.DoesNotThrow((Action)(() => validator.ParseAndValidate(json, "pessoas.jsonl", 1)));
     }
 
     [Test]
@@ -143,10 +143,10 @@ public sealed class PersonContractTests
 
         Assert.Multiple((Action)(() =>
         {
-            Assert.Throws<InvalidDataException>(() =>
-                PersonIdentifierParsing.Parse(rg.RootElement, null, null, null));
-            Assert.Throws<InvalidDataException>(() =>
-                PersonIdentifierParsing.Parse(cnh.RootElement, null, null, null));
+            Assert.Throws<InvalidDataException>((Action)(() =>
+                PersonIdentifierParsing.Parse(rg.RootElement, null, null, null)));
+            Assert.Throws<InvalidDataException>((Action)(() =>
+                PersonIdentifierParsing.Parse(cnh.RootElement, null, null, null)));
         }));
     }
 

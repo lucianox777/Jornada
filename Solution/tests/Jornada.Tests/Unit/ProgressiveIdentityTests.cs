@@ -88,12 +88,12 @@ public sealed class ProgressiveIdentityTests
         var uncertain = ProgressiveIdentityLifecycle.Conclude(associated,
             Decision(associated, ProgressiveResolutionOutcome.INDEFINIDA));
         Assert.That(uncertain.CanonicalUuid, Is.Null);
-        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(associated,
-            Decision(associated, ProgressiveResolutionOutcome.NOVA_IDENTIDADE)));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(uncertain,
-            Decision(uncertain, ProgressiveResolutionOutcome.NOVA_IDENTIDADE)));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(uncertain,
-            Decision(uncertain, ProgressiveResolutionOutcome.ASSOCIACAO_EXISTENTE, Initial)));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(associated,
+            Decision(associated, ProgressiveResolutionOutcome.NOVA_IDENTIDADE))));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(uncertain,
+            Decision(uncertain, ProgressiveResolutionOutcome.NOVA_IDENTIDADE))));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(uncertain,
+            Decision(uncertain, ProgressiveResolutionOutcome.ASSOCIACAO_EXISTENTE, Initial))));
         Assert.That(uncertain.LastExternalAssociationUuid, Is.EqualTo(Existing));
         Assert.That(associated.CanonicalUuid, Is.EqualTo(Existing));
     }
@@ -103,20 +103,20 @@ public sealed class ProgressiveIdentityTests
     {
         var state = ProgressiveIdentityLifecycle.Create(Initial, Created);
         var valid = Decision(state, ProgressiveResolutionOutcome.NOVA_IDENTIDADE);
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Create(Guid.Empty, Created));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Create(Initial, Created.ToOffset(TimeSpan.FromHours(-3))));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { Complete = false }));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { InitialUuid = Existing }));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { EvidenceReference = " " }));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { UniverseReference = null }));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { TargetUuid = Existing }));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { DecidedAt = Created.AddMinutes(-1) }));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(state,
-            Decision(state, ProgressiveResolutionOutcome.ASSOCIACAO_EXISTENTE)));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(state,
-            Decision(state, ProgressiveResolutionOutcome.INDEFINIDA, Existing)));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(state,
-            valid with { Outcome = (ProgressiveResolutionOutcome)999 }));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Create(Guid.Empty, Created)));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Create(Initial, Created.ToOffset(TimeSpan.FromHours(-3)))));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { Complete = false })));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { InitialUuid = Existing })));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { EvidenceReference = " " })));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { UniverseReference = null })));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { TargetUuid = Existing })));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(state, valid with { DecidedAt = Created.AddMinutes(-1) })));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(state,
+            Decision(state, ProgressiveResolutionOutcome.ASSOCIACAO_EXISTENTE))));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(state,
+            Decision(state, ProgressiveResolutionOutcome.INDEFINIDA, Existing))));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(state,
+            valid with { Outcome = (ProgressiveResolutionOutcome)999 })));
     }
 
     [Test]
@@ -129,10 +129,10 @@ public sealed class ProgressiveIdentityTests
 
         string Code(ProgressiveIdentitySnapshot snapshot)
         {
-            var exception = Assert.Throws<InvalidOperationException>(() =>
+            var exception = Assert.Throws<InvalidOperationException>((Action)(() =>
                 ProgressiveIdentityLifecycle.Conclude(
                     snapshot,
-                    Decision(snapshot, ProgressiveResolutionOutcome.INDEFINIDA)));
+                    Decision(snapshot, ProgressiveResolutionOutcome.INDEFINIDA))));
             Assert.That(exception!.Message, Does.Not.Contain(Initial.ToString()));
             return exception.Message;
         }
@@ -154,16 +154,16 @@ public sealed class ProgressiveIdentityTests
         var state = ProgressiveIdentityLifecycle.Create(Initial, Created);
         var decision = Decision(state, ProgressiveResolutionOutcome.NOVA_IDENTIDADE);
         var referenced = ProgressiveIdentityLifecycle.Conclude(state, decision);
-        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(referenced,
-            decision with { Outcome = ProgressiveResolutionOutcome.INDEFINIDA }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(referenced,
-            Decision(state, ProgressiveResolutionOutcome.INDEFINIDA)));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(referenced with { Status = ProgressiveIdentityStatus.PROVISORIA },
-            Decision(referenced, ProgressiveResolutionOutcome.INDEFINIDA)));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveIdentityLifecycle.Conclude(referenced with { Version = -1 },
-            Decision(referenced, ProgressiveResolutionOutcome.INDEFINIDA)));
-        Assert.Throws<ArgumentException>(() => ProgressiveIdentityLifecycle.Conclude(referenced,
-            Decision(referenced, ProgressiveResolutionOutcome.INDEFINIDA) with { DecidedAt = Created.AddMinutes(-1) }));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(referenced,
+            decision with { Outcome = ProgressiveResolutionOutcome.INDEFINIDA })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(referenced,
+            Decision(state, ProgressiveResolutionOutcome.INDEFINIDA))));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(referenced with { Status = ProgressiveIdentityStatus.PROVISORIA },
+            Decision(referenced, ProgressiveResolutionOutcome.INDEFINIDA))));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(referenced with { Version = -1 },
+            Decision(referenced, ProgressiveResolutionOutcome.INDEFINIDA))));
+        Assert.Throws<ArgumentException>((Action)(() => ProgressiveIdentityLifecycle.Conclude(referenced,
+            Decision(referenced, ProgressiveResolutionOutcome.INDEFINIDA) with { DecidedAt = Created.AddMinutes(-1) })));
     }
 
     [Test]

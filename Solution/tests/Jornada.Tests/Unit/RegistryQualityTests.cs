@@ -20,7 +20,7 @@ public sealed class RegistryQualityTests
     public void Implemented_qc_without_executable_evaluator_fails_closed()
     {
         var engine = new RegistryQualityEngine(Array.Empty<IRegistryQualityEvaluator>());
-        Assert.Throws<InvalidDataException>(() => engine.Evaluate(Batch("IMPLEMENTADO"), BenefitFact(10m)));
+        Assert.Throws<InvalidDataException>((Action)(() => engine.Evaluate(Batch("IMPLEMENTADO"), BenefitFact(10m))));
     }
 
     [Test]

@@ -107,10 +107,10 @@ public sealed class ProbabilisticV8TermFrequencyTests
         var parameters = Parameters(withTf: false);
         parameters[LinkageParameterCatalog.NonUniqueDemographicExactGuard] = 1m;
 
-        Assert.DoesNotThrow(() => LinkageModelPolicy.Create(
+        Assert.DoesNotThrow((Action)(() => LinkageModelPolicy.Create(
             ModelId, 8,
             LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
-            parameters));
+            parameters)));
     }
 
     [Test]

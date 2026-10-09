@@ -53,10 +53,10 @@ public sealed class ResolutionProjectionGroundTruthLineageTests
             },
             "test-fingerprint");
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             ResolutionProjectionGroundTruthLineage.EnsureBlockingCandidatesDoNotLeak(
                 plan,
-                GroundTruthSource.Cns));
+                GroundTruthSource.Cns)));
     }
 
     [Test]
@@ -66,14 +66,14 @@ public sealed class ResolutionProjectionGroundTruthLineageTests
 
         Assert.Multiple(() =>
         {
-            Assert.DoesNotThrow(() =>
+            Assert.DoesNotThrow((Action)(() =>
                 ResolutionProjectionGroundTruthLineage.EnsureBlockingCandidatesDoNotLeak(
                     plan,
-                    GroundTruthSource.Cpf));
-            Assert.DoesNotThrow(() =>
+                    GroundTruthSource.Cpf)));
+            Assert.DoesNotThrow((Action)(() =>
                 ResolutionProjectionGroundTruthLineage.EnsureBlockingCandidatesDoNotLeak(
                     plan,
-                    GroundTruthSource.Cns));
+                    GroundTruthSource.Cns)));
         });
     }
 }
