@@ -168,6 +168,12 @@ python3 scripts/e2e-console-worker-supervisor-status.py ON
 # ON recreates only the three workers, SQL/2 APIs keep their PIDs.
 python3 scripts/e2e-console-supervisor-global-toggle.py
 
+# C3.3b2: with supervisor ON, verify all finite commands are rejected.
+# Switch OFF, execute exactly one isolated job for each worker, confirm zero
+# residents and independent SQL/APIs, then restore ON; no new build/container
+# other than disposable oneoff worker jobs in this same private project.
+python3 scripts/e2e-console-supervisor-three-runonce.py
+
 python3 - "$OUT/summary.json" "$PROJECT" "$before" <<'PY'
 import json, pathlib, sys
 output, project, seed_count = sys.argv[1:]
@@ -181,7 +187,8 @@ pathlib.Path(output).write_text(json.dumps({
   'subsequent_synthetic_ingestion_baseline':'PASS',
   'real_crash_recovery_and_fencing':'PASS',
   'processing_recovery_verified':True,
-  'real_console_global_on_off_on':'PASS'
+  'real_console_global_on_off_on':'PASS',
+  'real_three_worker_runonce':'PASS'
 }, indent=2) + '\n', encoding='utf-8')
 PY
 echo 'C3.2d SQL-only operational gate: PASS'
