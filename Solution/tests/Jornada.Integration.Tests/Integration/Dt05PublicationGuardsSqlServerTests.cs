@@ -29,7 +29,7 @@ public sealed class Dt05PublicationGuardsSqlServerTests
         {
             noTransaction.CommandText = "EXEC identidade.sp_registrar_transicoes_linkage_run @run;";
             noTransaction.Parameters.AddWithValue("@run", Guid.NewGuid());
-            var exception = Assert.ThrowsAsync<SqlException>((AsyncTestDelegate)(async () => await noTransaction.ExecuteNonQueryAsync()));
+            var exception = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await noTransaction.ExecuteNonQueryAsync()));
             Assert.That(exception!.Number, Is.EqualTo(51940));
         }
 
@@ -63,7 +63,7 @@ public sealed class Dt05PublicationGuardsSqlServerTests
                 rejected.Transaction = preparingTx;
                 rejected.CommandText = "EXEC identidade.sp_registrar_transicoes_linkage_run @run;";
                 rejected.Parameters.AddWithValue("@run", runId);
-                var exception = Assert.ThrowsAsync<SqlException>((AsyncTestDelegate)(async () => await rejected.ExecuteNonQueryAsync()));
+                var exception = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await rejected.ExecuteNonQueryAsync()));
                 Assert.That(exception!.Number, Is.EqualTo(51941));
             }
             finally
@@ -81,7 +81,7 @@ public sealed class Dt05PublicationGuardsSqlServerTests
             invalidRun.Transaction = tx;
             invalidRun.CommandText = "EXEC identidade.sp_registrar_transicoes_linkage_run @run;";
             invalidRun.Parameters.AddWithValue("@run", Guid.NewGuid());
-            var exception = Assert.ThrowsAsync<SqlException>((AsyncTestDelegate)(async () => await invalidRun.ExecuteNonQueryAsync()));
+            var exception = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await invalidRun.ExecuteNonQueryAsync()));
             Assert.That(exception!.Number, Is.EqualTo(51941));
         }
         finally
