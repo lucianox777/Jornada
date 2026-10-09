@@ -59,7 +59,7 @@ public sealed class BlockingRuleSetSearchConfigurationTests
             })
             .Build();
 
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            BlockingRuleSetSearchConfiguration.FromConfiguration(configuration));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
+            BlockingRuleSetSearchConfiguration.FromConfiguration(configuration)));
     }
 }

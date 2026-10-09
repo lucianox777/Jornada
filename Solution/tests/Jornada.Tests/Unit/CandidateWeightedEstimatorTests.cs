@@ -96,15 +96,15 @@ public sealed class CandidateWeightedEstimatorTests
     {
         var capture = await CaptureAsync();
         var corpus = Corpus(capture);
-        Assert.Throws<ArgumentException>(() => CandidateLabeling.Validate(capture, corpus with { Manifest = corpus.Manifest with { Complete = false } }));
-        Assert.Throws<ArgumentException>(() => CandidateLabeling.Validate(capture, corpus with { Manifest = corpus.Manifest with { PolicyVersion = "UNAPPROVED" } }));
-        Assert.Throws<ArgumentException>(() => CandidateLabeling.Validate(capture, corpus with { Manifest = corpus.Manifest with { SelectionFingerprint = new string('b', 64) } }));
-        Assert.Throws<ArgumentException>(() => CandidateLabeling.Validate(capture, corpus with { Manifest = corpus.Manifest with { NormalizationVersion = "OTHER" } }));
-        Assert.Throws<ArgumentException>(() => CandidateLabeling.Validate(capture, corpus with { Manifest = corpus.Manifest with { AttestedAt = Captured.AddMinutes(-1) } }));
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture, corpus with { Labels = corpus.Labels.Skip(1).ToArray() }));
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture, corpus with { Evidence = corpus.Evidence.Skip(1).ToArray() }));
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture, corpus with { Labels = corpus.Labels.Concat(corpus.Labels.Take(1)).ToArray() }));
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture, corpus with { Evidence = corpus.Evidence.Concat(corpus.Evidence.Take(1)).ToArray() }));
+        Assert.Throws<ArgumentException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Manifest = corpus.Manifest with { Complete = false } })));
+        Assert.Throws<ArgumentException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Manifest = corpus.Manifest with { PolicyVersion = "UNAPPROVED" } })));
+        Assert.Throws<ArgumentException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Manifest = corpus.Manifest with { SelectionFingerprint = new string('b', 64) } })));
+        Assert.Throws<ArgumentException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Manifest = corpus.Manifest with { NormalizationVersion = "OTHER" } })));
+        Assert.Throws<ArgumentException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Manifest = corpus.Manifest with { AttestedAt = Captured.AddMinutes(-1) } })));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Labels = corpus.Labels.Skip(1).ToArray() })));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Evidence = corpus.Evidence.Skip(1).ToArray() })));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Labels = corpus.Labels.Concat(corpus.Labels.Take(1)).ToArray() })));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Evidence = corpus.Evidence.Concat(corpus.Evidence.Take(1)).ToArray() })));
     }
 
     [Test]
@@ -113,8 +113,8 @@ public sealed class CandidateWeightedEstimatorTests
         var capture = await CaptureAsync();
         var corpus = Corpus(capture);
         var first = corpus.Labels[0];
-        void Reject(CandidateIndependentLabel label) => Assert.Throws<InvalidOperationException>(() =>
-            CandidateLabeling.Validate(capture, corpus with { Labels = corpus.Labels.Select(l => l == first ? label : l).ToArray() }));
+        void Reject(CandidateIndependentLabel label) => Assert.Throws<InvalidOperationException>((Action)(() =>
+            CandidateLabeling.Validate(capture, corpus with { Labels = corpus.Labels.Select(l => l == first ? label : l).ToArray() })));
         Reject(first with { Method = (IndependentLabelMethod)99 });
         Reject(first with { Decision = (IndependentMatchLabel)99 });
         Reject(first with { EvidenceReference = "" });
@@ -128,15 +128,15 @@ public sealed class CandidateWeightedEstimatorTests
     {
         var capture = await CaptureAsync();
         var corpus = Corpus(capture);
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture, corpus with { Partitions = corpus.Partitions.Skip(1).ToArray() }));
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture, corpus with { Partitions = corpus.Partitions.Concat(corpus.Partitions.Take(1)).ToArray() }));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Partitions = corpus.Partitions.Skip(1).ToArray() })));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Partitions = corpus.Partitions.Concat(corpus.Partitions.Take(1)).ToArray() })));
         var groups = corpus.Partitions.ToArray();
         groups[4] = groups[4] with { IndependenceGroupId = groups[0].IndependenceGroupId };
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture, corpus with { Partitions = groups }));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Partitions = groups })));
         groups = corpus.Partitions.ToArray();
         groups[4] = groups[4] with { Partition = CandidateCorpusPartition.Training };
         groups[5] = groups[5] with { Partition = CandidateCorpusPartition.Training };
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture, corpus with { Partitions = groups }));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture, corpus with { Partitions = groups })));
     }
 
     [Test]
@@ -146,16 +146,16 @@ public sealed class CandidateWeightedEstimatorTests
         var corpus = Corpus(capture);
         var pairs = capture.Pairs.ToArray();
         pairs[0] = pairs[0] with { DesignWeight = 1m };
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture with { Pairs = pairs }, corpus));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture with { Pairs = pairs }, corpus)));
         pairs = capture.Pairs.ToArray();
         pairs[0] = pairs[0] with { InclusionProbability = 0.9m };
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture with { Pairs = pairs }, corpus));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture with { Pairs = pairs }, corpus)));
         pairs = capture.Pairs.ToArray();
         pairs[0] = pairs[0] with { StratumPopulation = 3 };
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture with { Pairs = pairs }, corpus));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture with { Pairs = pairs }, corpus)));
         pairs = capture.Pairs.ToArray();
         pairs[0] = pairs[0] with { Membership = BirthBlockingPass.None };
-        Assert.Throws<InvalidOperationException>(() => CandidateLabeling.Validate(capture with { Pairs = pairs }, corpus));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateLabeling.Validate(capture with { Pairs = pairs }, corpus)));
     }
 
     [Test]
@@ -166,15 +166,15 @@ public sealed class CandidateWeightedEstimatorTests
         var first = corpus.Labels[0];
         var inconclusive = corpus with { Labels = corpus.Labels.Select(l => l == first
             ? l with { Decision = IndependentMatchLabel.Inconclusive } : l).ToArray() };
-        Assert.Throws<InvalidOperationException>(() => CandidateWeightedEstimator.Estimate(CandidateLabeling.Validate(capture, inconclusive), 0.5m));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateWeightedEstimator.Estimate(CandidateLabeling.Validate(capture, inconclusive), 0.5m)));
         var noMatches = corpus with { Labels = corpus.Labels.Select(l => l with { Decision = IndependentMatchLabel.NonMatch }).ToArray() };
-        Assert.Throws<InvalidOperationException>(() => CandidateWeightedEstimator.Estimate(CandidateLabeling.Validate(capture, noMatches), 0.5m));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateWeightedEstimator.Estimate(CandidateLabeling.Validate(capture, noMatches), 0.5m)));
         var onlyOneGroup = corpus with { Labels = corpus.Labels.Select(l => l.SourceId != Sources[0] && l.Decision == IndependentMatchLabel.Match
             ? l with { Decision = IndependentMatchLabel.NonMatch } : l).ToArray() };
-        Assert.Throws<InvalidOperationException>(() => CandidateWeightedEstimator.Estimate(CandidateLabeling.Validate(capture, onlyOneGroup), 0.5m));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateWeightedEstimator.Estimate(CandidateLabeling.Validate(capture, onlyOneGroup), 0.5m)));
         var noEvaluationMatch = corpus with { Labels = corpus.Labels.Select(l => Sources.Skip(4).Contains(l.SourceId)
             ? l with { Decision = IndependentMatchLabel.NonMatch } : l).ToArray() };
-        Assert.Throws<InvalidOperationException>(() => CandidateWeightedEstimator.Estimate(CandidateLabeling.Validate(capture, noEvaluationMatch), 0.5m));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateWeightedEstimator.Estimate(CandidateLabeling.Validate(capture, noEvaluationMatch), 0.5m)));
     }
 
     [Test]
@@ -182,10 +182,10 @@ public sealed class CandidateWeightedEstimatorTests
     {
         var capture = await CaptureAsync();
         var validated = CandidateLabeling.Validate(capture, Corpus(capture));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CandidateWeightedEstimator.Estimate(validated, 0m));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CandidateWeightedEstimator.Estimate(validated, -1m));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CandidateWeightedEstimator.Estimate(validated, 1001m));
-        Assert.Throws<InvalidOperationException>(() => CandidateWeightedEstimator.Estimate(validated, 0.5m, 5m));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => CandidateWeightedEstimator.Estimate(validated, 0m)));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => CandidateWeightedEstimator.Estimate(validated, -1m)));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => CandidateWeightedEstimator.Estimate(validated, 1001m)));
+        Assert.Throws<InvalidOperationException>((Action)(() => CandidateWeightedEstimator.Estimate(validated, 0.5m, 5m)));
         var first = CandidateWeightedEstimator.Estimate(validated, 0.5m);
         var second = CandidateWeightedEstimator.Estimate(validated, 0.5m);
         Assert.That(System.Text.Json.JsonSerializer.Serialize(second),

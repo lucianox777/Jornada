@@ -44,10 +44,10 @@ public sealed class CandidateSamplingTests
             Assert.That(w, Is.EqualTo(10m));
             Assert.That(CandidateSamplingDesign.Inclusion(10, 10, 2, 2).Weight, Is.EqualTo(1m));
         }));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CandidateSamplingDesign.Inclusion(2, 3, 1, 1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CandidateSamplingDesign.Inclusion(2, 1, 0, 1));
-        Assert.Throws<ArgumentException>(() => CandidateSamplingDesign.Draw(new[] { 1, 1 }, 1, Seed, "x", x => x.ToString(CultureInfo.InvariantCulture)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CandidateSamplingDesign.Draw(new[] { 1 }, 1, new byte[1], "x", x => x.ToString(CultureInfo.InvariantCulture)));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => CandidateSamplingDesign.Inclusion(2, 3, 1, 1)));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => CandidateSamplingDesign.Inclusion(2, 1, 0, 1)));
+        Assert.Throws<ArgumentException>((Action)(() => CandidateSamplingDesign.Draw(new[] { 1, 1 }, 1, Seed, "x", x => x.ToString(CultureInfo.InvariantCulture))));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => CandidateSamplingDesign.Draw(new[] { 1 }, 1, new byte[1], "x", x => x.ToString(CultureInfo.InvariantCulture))));
     }
 
     [Test]
