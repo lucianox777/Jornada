@@ -43,10 +43,10 @@ public sealed class BronzeMaintenanceTests
 
             var deleted = await repository.DeleteIfStillUnreferencedAsync(candidate, store, 1, CancellationToken.None);
             Assert.That(deleted.Deleted, Is.True);
-            Assert.ThrowsAsync<BronzeObjectNotFoundException>(async () =>
+            Assert.ThrowsAsync<BronzeObjectNotFoundException>((AsyncTestDelegate)(async () =>
             {
                 await using var _ = await store.OpenReadAsync(reference.ObjectKey, CancellationToken.None);
-            });
+            }));
         }
         finally { try { Directory.Delete(root, recursive:true); } catch { } }
     }
