@@ -136,6 +136,14 @@ services:
   processor:
     <<: *worker-service
     command: ["Processor"]
+    # C3.2f2c: shorter lease ONLY in this ephemeral no-port CI Compose.
+    # Real deployments and the canonical NODE Compose retain their defaults.
+    environment:
+      <<: *worker-env
+      Processor__PollingMilliseconds: "150"
+      Processor__LeaseDurationSeconds: "35"
+      Processor__HeartbeatSeconds: "5"
+      Processor__RecoveryScanSeconds: "5"
 
   operations-maintenance:
     <<: *worker-service
