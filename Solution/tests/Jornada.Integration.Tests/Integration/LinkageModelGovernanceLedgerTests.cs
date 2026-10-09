@@ -160,7 +160,7 @@ public sealed class LinkageModelGovernanceLedgerTests
         var monitor = await new OperationalMonitorService(new OperationalSqlAdapter(connectionString))
             .GetAsync(CancellationToken.None);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(monitor.LinkageModelGovernance.Status, Is.EqualTo("OK"));
             Assert.That(monitor.LinkageModelGovernance.ActiveModelCount, Is.EqualTo(1));
@@ -194,11 +194,11 @@ public sealed class LinkageModelGovernanceLedgerTests
             Assert.That(monitor.LinkageBlockingPassSupport[0].MotherNameSufficient, Is.True);
             Assert.That(monitor.LinkageModelTransitions.Any(x =>
                 x.ModelId == modelId && x.Operation == "ACTIVATE" && x.NewStatus == "ATIVO"), Is.True);
-        });
+        }));
 
         var masterPreview = await new ModelGovernanceReadOnlyService(
             new OperationalSqlAdapter(connectionString)).GetAsync(CancellationToken.None);
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(masterPreview.MethodVersion, Is.EqualTo("DT15_MASTER_READONLY_DEV_V1"));
             Assert.That(masterPreview.Actions, Does.Contain("NAO_HABILITADAS"));
@@ -212,7 +212,7 @@ public sealed class LinkageModelGovernanceLedgerTests
                 "SEM_AVALIACAO_PERSISTIDA" or "SINTETICA_NAO_PROMOVIVEL"), Is.True);
             Assert.That(typeof(OperationalMonitorSnapshot).GetProperty("CalibrationHistory"), Is.Null,
                 "Histórico restrito não pode migrar para o refresh do Monitor Operacional.");
-        });
+        }));
     }
 
     private static async Task PrepareAsync(string connectionString)
