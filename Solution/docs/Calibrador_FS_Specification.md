@@ -220,3 +220,8 @@ A tabela `ref.calibracao_inicial_versao` é o **marco zero** do histórico, não
 #### Registro idempotente do marco zero
 
 `ref.sp_registrar_calibracao_inicial` recebe JSON e identidade do corpus, calcula SHA-256 dos resultados e reutiliza `codigo` existente **somente** quando corpus, referência, algoritmo, método, modelo e hash coincidem. Caso contrário falha com `52225`, sem sobrescrever versão publicada. `ref.sp_publicar_calibracao_inicial` continua sendo a transição explícita para `PUBLICADA`. Esta procedure implementa a semântica de carga, mas a integração do importador com os arquivos reais e a exigência de modelo inicial ativo continuam pendentes.
+
+
+#### Persistência da distribuição diária em `ref` (etapa SQL)
+
+`20261009_Ref_Distribuicao_Nascimento_IBGE.sql` cria `ref.distribuicao_nascimento_versao` e `ref.distribuicao_nascimento_dia`, com peso por data de nascimento, versão, fonte, geografia, método e SHA-256 de origem. `ref.sp_publicar_distribuicao_nascimento` exige contagem e soma de pesos conforme o manifesto; triggers bloqueiam alterações da versão e das linhas após `PUBLICADA`. Para o manifesto atual: `39268` linhas e população projetada `46179008` (UF_SP, 2026-07-01). **Esta migração não carrega automaticamente as linhas**, não valida hash dos bytes dentro do SQL e não conecta ainda a versão da distribuição ao modelo/Calibrador: são etapas de integração e testes pendentes. Os valores são projeções demográficas, não observações diárias de nascimentos.
