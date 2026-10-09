@@ -22,7 +22,7 @@ public sealed class WorkerRunOnceContractTests
         var bronze=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.Bronze.Maintenance.Worker","Program.cs"));
         var bronzeSettings=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.Bronze.Maintenance.Worker","appsettings.json"));
 
-        Assert.Multiple((TestDelegate)(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(processor,Does.Contain("PROCESS_UNTIL_IDLE"));
             Assert.That(processor,Does.Contain("Processor:RunOnce"));
             Assert.That(processor,Does.Contain("legacyFiniteMode"));
