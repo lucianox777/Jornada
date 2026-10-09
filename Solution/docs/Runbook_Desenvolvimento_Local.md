@@ -1,3 +1,15 @@
+> **AVISO DE SEGURANÇA E VIGÊNCIA — 09/10/2026:** os comandos de
+> preparação/reset deste documento só são apropriados em ambiente
+> **novo e expressamente autorizado**. A atualização documental
+> **não** autoriza executá-los em `JornadaLocal`, no NODE/Compose
+> existente, em volumes persistentes, nem sobre referência IBGE,
+> HML ou PROD. Os testes recentes C3 de workers/Console rodam
+> exclusivamente em projeto Compose GitHub Actions efêmero e
+> SQL `JornadaE2E`; para consultá-los usar
+> [Guia Console](Console_DEV_Supervisao_Atual.md) e
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md).
+> A versão do schema candidato é 3.70, normativa publicada 3.62.
+>
 # Jornada - desenvolvimento e teste local — base normativa v3.62 / engenharia v3.96
 
 ## Objetivo
