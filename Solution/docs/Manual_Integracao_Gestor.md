@@ -1,3 +1,15 @@
+> **Nota de vigência técnica — 09/10/2026:** os contratos
+> externos de Gestor continuam controlados por versão, escopo e
+> autorização. Os testes E2E CI de ZIP/ingestão, rollback e
+> idempotência são feitos com dados **sintéticos** em
+> `JornadaE2E` (#849–#850), não representam onboarding ou
+> homologação automática de uma Secretaria real. A Console DEV
+> de testes **não** substitui os sistemas finalísticos nem o
+> contrato da `Jornada.Api`. Ver
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md),
+> [API](API.md), [Governança](Governanca_Finalidade_Acesso.md)
+> e [Ensaio](Ensaio_Unico_Paridade_HML.md).
+>
 # Manual de Integração do Gestor — Jornada do Cidadão
 
 ## 1. Objetivo
