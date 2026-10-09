@@ -1,3 +1,11 @@
+> **Decisão específica de identidade — 09/10/2026:** a antiga
+> Trilha 4 como mecanismo contínuo independente não integra mais
+> o roteiro de entrega. A reavaliação extraordinária dos RESOLVIDOS
+> é [DT-22](DT22_Reavaliacao_Governada_Resolvidos.md), aberta e
+> postergada. O texto histórico abaixo pode tratar a Trilha 4 como
+> suspensa; isso não significa que a recomposição abrangente por
+> mudança indireta de candidatos tenha sido implementada.
+>
 > **Conferência de execução — 09/10/2026:** este plano foi
 > redigido em 08/10 como **decisão de desenho**. O código atual
 > integra as etapas C3.2/C3.3 e o painel C3.4 em DEV/CI
