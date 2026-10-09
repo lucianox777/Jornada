@@ -8,6 +8,7 @@ sealed class IsolatedWorkerSupervisorModeController(
     IsolatedWorkerSupervisorStatusReader reader,
     LiveExecutionService live,
     ConsoleActivityLog activity,
+    IsolatedWorkerAuditJournal audit,
     IWebHostEnvironment env) : IDisposable
 {
     private readonly SemaphoreSlim transition = new(1, 1);
@@ -61,6 +62,7 @@ sealed class IsolatedWorkerSupervisorModeController(
                     "RunOnce em execução. Confirmação e parada finita exigidas antes de ativar.");
             }
 
+            audit.Record("SUPERVISAO", requested, "ADMITIDO");
             try
             {
                 await ApplyPrivateModeAsync(requested, env, ct);
@@ -73,6 +75,7 @@ sealed class IsolatedWorkerSupervisorModeController(
                     var effective = await reader.ReadAsync(runtime, deadline.Token);
                     if (effective.Mode == requested)
                     {
+                        audit.Record("SUPERVISAO", requested, "SUCESSO");
                         activity.Add("SUPERVISAO", requested, "SUCESSO",
                             $"C3.3b1 · {requested} · três workers · {effective.ComposeProject}");
                         return effective;
@@ -84,6 +87,7 @@ sealed class IsolatedWorkerSupervisorModeController(
             }
             catch
             {
+                audit.Record("SUPERVISAO", requested, "ERRO");
                 activity.Add("SUPERVISAO", requested, "ERRO",
                     "Transição não comprovada no SQL/Docker privado.");
                 throw;
@@ -128,6 +132,7 @@ sealed class IsolatedWorkerSupervisorModeController(
                     worker, containerId, hostPid))
                 throw new InvalidOperationException("Identidade do residente não comprovada.");
 
+            audit.Record("PARAR_PROCESSO", worker, "ADMITIDO");
             var root = DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
             var script = Path.Combine(root, "scripts", "console-private-worker-stop.py");
             if (!File.Exists(script))
@@ -158,12 +163,14 @@ sealed class IsolatedWorkerSupervisorModeController(
                 || after.Workers.Single(x => x.Worker == worker).State != "PARADO"
                 || after.Workers.Where(x => x.Worker != worker).Any(x => x.State != "ATIVO"))
                 throw new InvalidOperationException("Estado final não comprovado.");
+            audit.Record("PARAR_PROCESSO", worker, "SUCESSO");
             activity.Add("PARAR_PROCESSO", worker, "SUCESSO",
                 "C3.3c: residente privado parado com confirmação e identidade verificada.");
             return after;
         }
         catch
         {
+            audit.Record("PARAR_PROCESSO", worker, "ERRO");
             activity.Add("PARAR_PROCESSO", worker, "ERRO",
                 "C3.3c: operação não comprovada.");
             throw;
@@ -192,6 +199,7 @@ sealed class IsolatedWorkerSupervisorModeController(
             var effective=await reader.ReadAsync(runtime,ct);
             if(effective.Mode!="OFF")
                 throw new InvalidOperationException("RunOnce só é autorizado com supervisão OFF comprovada.");
+            audit.Record("RUN_ONCE",worker,"ADMITIDO");
             if(!activeFinite.TryAdd(worker,0))
                 throw new InvalidOperationException("RunOnce concorrente não autorizado.");
         }
@@ -206,12 +214,14 @@ sealed class IsolatedWorkerSupervisorModeController(
             var after=await reader.ReadAsync(runtime,ct);
             if(after.Mode!="OFF")
                 throw new InvalidOperationException("RunOnce terminou sem preservar OFF.");
+            audit.Record("RUN_ONCE",worker,"SUCESSO");
             activity.Add("RUN_ONCE",worker,"SUCESSO",
                 "Worker finito, independente, apenas JornadaE2E.");
             return new IsolatedWorkerRunOnceResult(worker,"CONCLUIDO",0);
         }
         catch
         {
+            audit.Record("RUN_ONCE",worker,"ERRO");
             activity.Add("RUN_ONCE",worker,"ERRO",
                 "Execução finita não concluiu no banco DEV privado.");
             throw;
