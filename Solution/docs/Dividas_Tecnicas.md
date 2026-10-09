@@ -1,3 +1,16 @@
+> **Atualização de engenharia — 09/10/2026:** as DT-18–21
+> ganharam implementação e evidências reais no projeto `JornadaE2E`
+> após a decisão de 08/10. Os estados da tabela das **novas** DTs
+> abaixo foram atualizados. DT-20/21 **não** estão integralmente
+> concluídas: falta confirmação explícita para cancelar RunOnce
+> ativo, e a telemetria durável precisa de prova própria. A DT-10
+> histórica de publicação SQL já tinha aceite técnico; a *extração
+> do gate DT10 da CI* começou depois por #857–#859, sem completar
+> otimização de todos os builds. Consulte
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md),
+> [Estado atual](Estado_Atual_Projeto.md) e
+> [Console DEV](Console_DEV_Supervisao_Atual.md). Trilha4 suspensa.
+>
 # Dívidas técnicas — Jornada do Cidadão
 
 **Revisão:** 2026-10-02 — reconciliação documental pós-PR #700; evidências históricas permanecem datadas e não são reescritas — estados no `master`, com PRs #510, #517, #540 e #568 confirmados e CI da última rodada #36348920753 verde; os marcos históricos preservados abaixo não são reabertos · **Natureza:** backlog técnico candidato, não normativo · **Base histórica do inventário:** `7d03e1bc040dd76d9c848a7267fdf84c1048c9d8`. **Conferência posterior:** PR #498 integrado em `e2abce62` (cache nominal nacional V1), PR #499 (decisão de SP) integrado; demais quantidades históricas não revalidadas.  
@@ -14,14 +27,14 @@ Permanece na fila ativa: **DT-05**. A DT-15 foi encerrada quanto a bypass técni
 A consolidação de 01/10 acima é **histórica naquele corte**. A frente
 posterior da Console DEV foi autorizada em 08/10/2026, após concluir o
 aceite de ingestão (#837, #839, #840). As quatro DTs abaixo
-**não foram executadas/mescladas apenas pela documentação**:
+**não foram executadas/mescladas apenas pela documentação original de 08/10; já existem implementações e aceites adicionais em #845–#856**:
 
 | Nova DT | Decisão aprovada | Estado / gate |
 |---|---|---|
-| [DT-18](DT18_Servicos_Independentes_Console_DEV.md) | Workers são serviços/processos independentes, sem cascata de reinício do NODE. | **PENDENTE** — prova de isolamento de processos em CI descartável. |
-| [DT-19](DT19_Console_Acoes_Workers.md) | **Dois botões empilhados** por worker: Executar uma vez (OFF), Parar processo (ON/PID vivo). Status é **indicador automático** + eventos no Log da sessão já existente, sem botão próprio. | **PENDENTE** — preservar RunOnce, integrar os dois RunOnce de manutenção na UI e acrescentar supervisor/Parar. |
-| [DT-20](DT20_Supervisao_Opt_In_Workers.md) | **Toggle global:** OFF inicial = RunOnce; ON mata RunOnce ativos e inicia 3 residentes. Parar processo injeta falha; supervisor reinicia automaticamente somente o worker morto e o próprio worker recupera trabalho por lease/heartbeat. | **PENDENTE** — transição atômica, PID, restart e recuperação comprovados. |
-| [DT-21](DT21_Testes_Resiliencia_Workers.md) | **Preservar testes RunOnce**; acrescentar Chromium/E2E OFF→ON→OFF, 2 botões verticais, status automático/log, Parar por PID, restart individual e recuperação de lease/lote sem duplicar. | **PENDENTE** — SQL exclusivamente `JornadaE2E`, sem falso sucesso. |
+| [DT-18](DT18_Servicos_Independentes_Console_DEV.md) | Workers são serviços/processos independentes, sem cascata de reinício do NODE. | **IMPLEMENTADO/ACEITO EM CI DEV** — #845–#847; isolamento real de PIDs, API/Resultado e restart independente. |
+| [DT-19](DT19_Console_Acoes_Workers.md) | **Dois botões empilhados** por worker: Executar uma vez (OFF), Parar processo (ON/PID vivo). Status é **indicador automático** + eventos no Log da sessão já existente, sem botão próprio. | **IMPLEMENTADO NO ESCOPO DEV/CI** — #851–#856; três RunOnce e painel com dois botões por worker. A comprovação do log durável externo continua separada. |
+| [DT-20](DT20_Supervisao_Opt_In_Workers.md) | **Toggle global:** OFF inicial = RunOnce; ON mata RunOnce ativos e inicia 3 residentes. Parar processo injeta falha; supervisor reinicia automaticamente somente o worker morto e o próprio worker recupera trabalho por lease/heartbeat. | **PARCIALMENTE CONCLUÍDO EM DEV/CI** — #850–#855 provam rollback/restart/lease e toggle; cancelamento explícito **confirmado** de RunOnce ativo ainda pendente. |
+| [DT-21](DT21_Testes_Resiliencia_Workers.md) | **Preservar testes RunOnce**; acrescentar Chromium/E2E OFF→ON→OFF, 2 botões verticais, status automático/log, Parar por PID, restart individual e recuperação de lease/lote sem duplicar. | **PARCIALMENTE ACEITO EM DEV/CI** — provas reais por etapa #847–#856 e testes Chromium/painel; confirmação de cancelamento RunOnce e observabilidade durável ainda pendentes. |
 
 A sequência operacional C3.1–C3.4 está em
 [Plano Console Workers](Plano_Console_Workers_Independentes_2026-10-08.md).
