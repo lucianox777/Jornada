@@ -24,7 +24,7 @@ BEGIN
    THROW 52240,'Schema JSON de distribuição demográfica inválido.',1;
  IF @linhas_esperadas<=0 OR @peso_total_esperado<=0
    THROW 52241,'Manifesto de distribuição demográfica inválido.',1;
- IF JSON_QUERY(@json,'$.rows') IS NULL\n   THROW 52248,'Array rows obrigatório.',1;\n DECLARE @rows TABLE(data_nascimento DATE PRIMARY KEY,peso BIGINT NOT NULL);
+ IF LEFT(LTRIM(JSON_QUERY(@json,'$.rows')),1)<>N'[' OR JSON_QUERY(@json,'$.rows') IS NULL\n   THROW 52248,'Array rows obrigatório.',1;\n DECLARE @rows TABLE(data_nascimento DATE PRIMARY KEY,peso BIGINT NOT NULL);
  INSERT @rows(data_nascimento,peso)
  SELECT TRY_CONVERT(DATE,JSON_VALUE(value,'$.date'),23),
         TRY_CONVERT(BIGINT,JSON_VALUE(value,'$.births'))
