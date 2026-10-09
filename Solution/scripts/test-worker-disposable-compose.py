@@ -24,7 +24,7 @@ def require(value: bool, message: str) -> None:
         raise AssertionError(message)
 
 
-def inspect(extra: dict[str, str]) -> subprocess.CompletedProcess[str]:
+def inspect(extra: dict[str, str], *, continuous: bool = False) -> subprocess.CompletedProcess[str]:
     # Deliberately pass no local .env and NEVER invoke up, build, stop or down.
     env = {
         "PATH": os.environ.get("PATH", ""),
@@ -33,6 +33,7 @@ def inspect(extra: dict[str, str]) -> subprocess.CompletedProcess[str]:
     }
     return subprocess.run(
         ["docker", "compose", "--env-file", "/dev/null",
+         *(["--profile", "continuous"] if continuous else []),
          "-f", str(COMPOSE), "config", "--format", "json"],
         cwd=ROOT, env=env, text=True,
         capture_output=True, timeout=30, check=False,
@@ -48,9 +49,19 @@ def main() -> int:
            "JORNADA_WORKERS_E2E_SQL_PASSWORD": password}
     denied = inspect({"JORNADA_WORKERS_E2E_ID": "contract123"})
     require(denied.returncode != 0, "Compose must fail without dedicated E2E secret")
-    result = inspect(env)
+    default = inspect(env)
+    require(default.returncode == 0,
+            "Disposable Compose OFF mode failed config validation: " + default.stderr[:500])
+    default_cfg = json.loads(default.stdout)
+    require(set(default_cfg.get("services", {})) == {"sqlserver"},
+            "Default supervisor OFF must never start or declare resident workers")
+
+    # Compose's default `config` excludes profile-gated services. Activate
+    # the profile explicitly to inspect all three independently supervised
+    # containers; this still runs only `config`, never `up`.
+    result = inspect(env, continuous=True)
     require(result.returncode == 0,
-            "Disposable worker Compose failed config validation: " + result.stderr[:500])
+            "Disposable Compose ON mode failed config validation: " + result.stderr[:500])
     cfg = json.loads(result.stdout)
 
     require(cfg.get("name") == PROJECT, "Compose did not retain isolated project name")
