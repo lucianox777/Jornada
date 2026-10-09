@@ -1,3 +1,14 @@
+# Priorização técnica atual — revisão 09/10/2026
+
+**Fonte:** [Manual integrado](Manual_Sistema_Consolidado_20261009.md), [Estado atual](Estado_Atual_Projeto.md), [Dívidas técnicas](Dividas_Tecnicas.md) e PRs/Actions em `master`. Este bloco atualiza a ordem das frentes DEV sem reescrever o plano histórico abaixo, que também trata de decisões sobre identidade e estatística com critérios próprios.
+
+- **Entregue em DEV/CI:** #847–#850 — workers isolados e recuperação transacional; #851–#856 — leitura do estado, toggle ON↔OFF, RunOnce dos três, proteção contra desconexão, parada individual e painel; #857–#859 — proteção dos gates CI e primeira extração DT-10 reutilizável.
+- **A completar:** cancelamento **explicitamente confirmado** de RunOnce em andamento (ID/tokens, conclusão observada e nenhum one-off órfão), documentação/telemetria durável de eventos da Console fechada e **redução segura dos rebuilds restantes da CI**, com proveniência por SHA. Não confundir primeira extração DT-10 com a conclusão da otimização integral.
+- **Dependências institucionais:** identidade corporativa, autorização ambiental, Ensaio e homologação HML/PROD têm gates próprios. Não os inferir de CI sintética verde.
+- **Escopo suspenso neste ciclo:** Trilha 4 e reprocessamento automático de RESOLVIDOS. Não tocar `JornadaLocal`, IBGE original nem NODE/Compose canônico.
+
+---
+
 # Plano de desenvolvimento — ponto único de priorização
 
 > **Organização do monorepo (06/10/2026):** a antiga solução embarcada `Solution/ApoioSecretarias/` foi removida do repositório principal. Referências abaixo a esse caminho descrevem evidência/histórico anterior à remoção. O produto não compila nem distribui esse transmissor/preparador; apenas schemas SEHAB estritamente sintéticos necessários à regressão permanecem em `Solution/tests/fixtures/external-contracts/gestores/SEHAB/`.
