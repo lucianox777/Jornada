@@ -27,7 +27,7 @@ public sealed class GoldNamePublicationSqlServerTests
         Assert.That(projected, Is.Not.Null);
         var silverFirstToken = sample.NomeCmp.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sample.NomePublicacaoNormalizado, Is.EqualTo(projected!.FirstNameNormalized));
             Assert.That(sample.NomePublicacaoNormalizado, Is.EqualTo(silverFirstToken),
@@ -59,7 +59,7 @@ public sealed class GoldNamePublicationSqlServerTests
         }
 
         var afterRecomposition = await ReadGoldKeyAsync(connection, sample.PessoaUuid);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(afterRecomposition.Key, Is.EqualTo(projected.FirstNameNormalized));
             Assert.That(afterRecomposition.MethodVersion, Is.EqualTo(IbgeNamePublicationSemantics.MethodVersion));

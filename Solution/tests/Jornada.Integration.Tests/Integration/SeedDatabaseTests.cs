@@ -131,7 +131,7 @@ JOIN (VALUES
 ) x(codigo_publico,credencial_id) ON x.codigo_publico=c.codigo_publico
 WHERE c.credencial_id<>x.credencial_id;");
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(gestores, Is.EqualTo(4));
             Assert.That(tipos, Is.EqualTo(6));
@@ -306,7 +306,7 @@ WHERE c.credencial_id<>x.credencial_id;");
             query.Parameters.AddWithValue("@uuid", pessoaUuid);
             await using var result = await query.ExecuteReaderAsync();
             Assert.That(await result.ReadAsync(), Is.True);
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(result.GetString(0), Is.EqualTo("Maria Referência"));
                 Assert.That(result.GetString(1), Is.EqualTo("NOME_SOCIAL"));

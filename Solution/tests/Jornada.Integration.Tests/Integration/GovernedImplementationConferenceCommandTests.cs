@@ -66,7 +66,7 @@ public sealed class GovernedImplementationConferenceCommandTests
             60,
             "integration-test");
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(first.Status, Is.EqualTo(ImplementationConferenceStatus.CONFORME));
             Assert.That(first.ScenarioCount, Is.EqualTo(7));
@@ -95,7 +95,7 @@ public sealed class GovernedImplementationConferenceCommandTests
 
         await using var reader = await command.ExecuteReaderAsync();
         await reader.ReadAsync();
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetInt32(0), Is.EqualTo(1));
             Assert.That(reader.GetString(1), Is.EqualTo("CONFORME"));
