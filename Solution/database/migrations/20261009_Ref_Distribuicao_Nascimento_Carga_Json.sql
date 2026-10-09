@@ -22,7 +22,7 @@ BEGIN
  SET XACT_ABORT ON;
  IF ISJSON(@json)<>1 OR JSON_VALUE(@json,'$.schema_version')<>N'JORNADA_SYNTH_BIRTH_DAILY_V1'
    THROW 52240,'Schema JSON de distribuição demográfica inválido.',1;
- IF @linhas_esperadas<=0 OR @peso_total_esperado<=0
+ IF @codigo IS NULL OR LEN(LTRIM(RTRIM(@codigo)))=0\n   OR @fonte IS NULL OR LEN(LTRIM(RTRIM(@fonte)))=0\n   OR @geografia IS NULL OR LEN(LTRIM(RTRIM(@geografia)))=0\n   OR @metodo IS NULL OR LEN(LTRIM(RTRIM(@metodo)))=0\n   OR @fonte_arquivo_sha256 IS NULL\n   OR LEN(@fonte_arquivo_sha256)<>64\n   OR @fonte_arquivo_sha256 LIKE '%[^0-9A-F]%'\n   THROW 52250,'Metadados da referência demográfica inválidos.',1;\n IF @linhas_esperadas<=0 OR @peso_total_esperado<=0
    THROW 52241,'Manifesto de distribuição demográfica inválido.',1;
  IF JSON_QUERY(@json,'$.rows') IS NULL\n   OR LEFT(LTRIM(JSON_QUERY(@json,'$.rows')),1)<>N'['\n   THROW 52248,'Array rows obrigatório.',1;\n IF EXISTS(SELECT 1 FROM OPENJSON(@json,'$.rows') WHERE [type]<>5)\n   THROW 52249,'Cada linha de rows deve ser objeto JSON.',1;\n DECLARE @rows TABLE(data_nascimento DATE PRIMARY KEY,peso BIGINT NOT NULL);
  INSERT @rows(data_nascimento,peso)
