@@ -1,5 +1,7 @@
 # Jornada — Solution de Referência (Fase 1) — consolidação candidata v5.00
 
+**Auditoria editorial:** [revisão transversal de 09/10](docs/Revisao_Documental_Integral_20261009.md) classifica o acervo corrente e preserva snapshots/artefatos normativos selados.
+
 > **Documentação técnica atualizada em 09/10/2026:** consulte o [manual integrado do sistema](docs/Manual_Sistema_Consolidado_20261009.md), o [estado técnico atual](docs/Estado_Atual_Projeto.md), o [guia da Console DEV](docs/Console_DEV_Supervisao_Atual.md) e o [índice vivo do acervo](docs/Indice_Acervo_Documental.md). Esta é a visão operacional do código candidato em `master`, **não** uma publicação normativa ou homologação HML/PROD. Para estado de PRs/jobs consulte GitHub Actions e o HEAD vigente. A documentação datada anterior permanece como evidência histórica.
 
 **Incrementos recentes comprovados em CI descartável:** #847–#850 implementaram isolamento dos três workers, SIGKILL e recuperação de lote sintético; #851–#856 adicionaram observação, toggle, três RunOnce, parada individual e painel DEV; #857–#859 preservaram e iniciaram a extração do gate SQL DT-10 para workflow reutilizável. O **cancelamento explicitamente confirmado** de RunOnce ainda é pendência separada. A divisão total dos builds CI também permanece pendente. Essas funcionalidades da Console **não** autorizam uso em `JornadaLocal`, IBGE original, NODE canônico, HML ou PROD.
