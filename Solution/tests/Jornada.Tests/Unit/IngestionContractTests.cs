@@ -112,7 +112,7 @@ public sealed class IngestionContractTests
         });
         using var ms = new MemoryStream(bytes, writable: false);
         using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
-        Assert.That((Func<object?>)(() => IngestionPackageInspector.ValidateActualUncompressedSize(zip, 1024)), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => IngestionPackageInspector.ValidateActualUncompressedSize(zip, 1024)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -175,7 +175,7 @@ public sealed class IngestionContractTests
         var manifest = new IngestionPackageManifest(2, ContractVersions.CurrentPersonSchemaVersion, "SAUDE", null, null, null, DateTimeOffset.UtcNow);
         var context = new AccessContext(Guid.NewGuid(), AccessCredentialType.GESTOR, "SMS", "SMS", null, [], []);
         var hash = new string('a', 64);
-        Assert.That((Func<object?>)(() => IngestionPackageInspector.ValidateCanonicalFileName($"../ENTREGA_SMS_SAUDE_v2_{hash}.zip", manifest, context, hash)), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => IngestionPackageInspector.ValidateCanonicalFileName($"../ENTREGA_SMS_SAUDE_v2_{hash}.zip", manifest, context, hash)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -254,7 +254,7 @@ public sealed class IngestionContractTests
                 File.ReadAllText,
                 StringComparer.Ordinal);
             var bytes = BuildZip(files);
-            Assert.DoesNotThrow((Action)(() => IngestionPackageInspector.ParseAndValidate(bytes), directory));
+            Assert.DoesNotThrow((Action)(() => IngestionPackageInspector.ParseAndValidate(bytes, directory)));
         }
     }
 

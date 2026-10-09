@@ -25,7 +25,7 @@ public sealed class DevTestConsoleContractTests
         Assert.That(statusStart,Is.GreaterThanOrEqualTo(0));
         Assert.That(statusEnd,Is.GreaterThan(statusStart));
         var systemStatus=operations[statusStart..statusEnd];
-        Assert.Multiple(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(cluster,Does.Contain("'blocking' { Ensure-LocalBlockingProjection }"));
             Assert.That(cluster,Does.Contain("'blocking-refresh' { Refresh-LocalBlockingProjection }"));
             Assert.That(cluster,Does.Contain("Processor__Operation=REBUILD_LOCAL_BLOCKING"));
@@ -37,7 +37,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(operations,Does.Contain("'bronze-verify-latest' {"));
             Assert.That(systemStatus,Does.Contain("SELECT COUNT(*) FROM bronze.entrega_arquivo;"));
             Assert.That(systemStatus,Does.Not.Contain("Jornada.Bronze.Verify.dll"));
-        });
+        }));
     }
 
     [Test]
@@ -69,7 +69,7 @@ public sealed class DevTestConsoleContractTests
         var containerEntrypoint=File.ReadAllText(Path.Combine(root,"Solution","install","container-test","entrypoint.sh"));
         var containerDockerfile=File.ReadAllText(Path.Combine(root,"Solution","install","container-test","Dockerfile"));
 
-        Assert.Multiple(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
             Assert.That(program,Does.Contain("/api/runs/{id:guid}/stream"));
             Assert.That(program,Does.Contain("/api/activity"));
@@ -686,7 +686,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(launch,Does.Contain("\"Action\": \"Start\""));
 
             Assert.That(program,Does.Not.Contain("Jornada.Api"));
-        });
+        }));
     }
     [Test]
     public void Dev_person_contract_keeps_only_current_v1_for_all_gestores_and_core_fields_are_nullable()

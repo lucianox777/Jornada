@@ -132,7 +132,7 @@ public sealed class GroundTruthStratifiedDiagnosticsTests
             StatisticallySufficient: true,
             RepresentativeForTargetStratum: true);
 
-        Assert.Throws<InvalidOperationException>(assessment.Validate);
+        Assert.Throws<InvalidOperationException>((Action)assessment.Validate);
     }
 
     [Test]

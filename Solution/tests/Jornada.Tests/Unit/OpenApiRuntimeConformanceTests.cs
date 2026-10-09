@@ -148,7 +148,7 @@ public sealed class OpenApiRuntimeConformanceTests : IDisposable
         }
 
         if (IsJsonMediaType(mediaType!))
-            Assert.DoesNotThrow((Action)(() => JsonDocument.Parse(bytes).Dispose(), "Corpo application/json deve ser JSON bem-formado."));
+            Assert.DoesNotThrow((Action)(() => JsonDocument.Parse(bytes).Dispose()), "Corpo application/json deve ser JSON bem-formado.");
     }
 
     [Test]
