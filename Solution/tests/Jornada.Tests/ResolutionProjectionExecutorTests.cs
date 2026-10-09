@@ -18,14 +18,14 @@ public sealed class ResolutionProjectionExecutorTests
                 new(PersonResolutionAttributeCatalog.SocialName, "Maria das Flores")
             });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result, Does.Contain(new Jornada.Contracts.BlockingProjectionKey("name_full", "JOSE DA SILVA")));
             Assert.That(result, Does.Contain(new Jornada.Contracts.BlockingProjectionKey("birth_year", "1980")));
             Assert.That(result, Does.Contain(new Jornada.Contracts.BlockingProjectionKey("telefone_contato__canonical", "5511999990001")));
             Assert.That(result, Does.Contain(new Jornada.Contracts.BlockingProjectionKey("email_contato__canonical", "pessoa@example.test")));
             Assert.That(result.Any(static key => key.Feature == "nome_social__normalized"), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -70,7 +70,7 @@ public sealed class ResolutionProjectionExecutorTests
         var result = ResolutionProjectionExecutor.Project(plan,
             new[] { new ResolutionSourceValue("nome", "João da Silva Filho") });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result, Does.Contain(
                 new Jornada.Contracts.BlockingProjectionKey("nome__full_with_agnome", "JOAO DA SILVA FILHO")));
@@ -80,7 +80,7 @@ public sealed class ResolutionProjectionExecutorTests
                 Is.False);
             Assert.That(result, Does.Contain(
                 new Jornada.Contracts.BlockingProjectionKey("nome__normalized", "JOAO DA SILVA FILHO")));
-        });
+        }));
     }
 
     [Test]

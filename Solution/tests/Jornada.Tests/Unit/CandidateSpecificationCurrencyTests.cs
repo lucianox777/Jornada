@@ -17,13 +17,13 @@ public sealed class CandidateSpecificationCurrencyTests
         var readmePath = Path.Combine(root, "Solution", "README.md");
         var fabricCompatibilityPath = Path.Combine(root, "Solution", "docs", "Fabric_SQL_Compatibility.md");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(File.Exists(specificationPath), Is.True);
             Assert.That(File.Exists(manifestPath), Is.True);
             Assert.That(File.Exists(readmePath), Is.True);
             Assert.That(File.Exists(fabricCompatibilityPath), Is.True);
-        });
+        }));
 
         var specification = File.ReadAllText(specificationPath);
         var readme = File.ReadAllText(readmePath);
@@ -33,7 +33,7 @@ public sealed class CandidateSpecificationCurrencyTests
             .Select(value => value.GetString()).Where(value => value is not null).Cast<string>().ToArray();
         var productionTarget = manifest.RootElement.GetProperty("candidate").GetProperty("production_relational_target").GetString();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(specification, Does.Contain("o SHA exato somente é fixado no corte formal da candidata"));
             Assert.That(specification, Does.Contain("Identificador técnico citável:** `v5.00-candidata`"));
@@ -53,7 +53,7 @@ public sealed class CandidateSpecificationCurrencyTests
             Assert.That(externalGates, Does.Not.Contain("CCGD_PURPOSE_LEGAL_BASIS_DECISION"));
             Assert.That(externalGates, Does.Not.Contain("FABRIC_SQL_DATABASE_EXACT_HEAD_HOMOLOGATION"));
             Assert.That(externalGates, Does.Contain("LINKAGE_REPRESENTATIVE_STATISTICAL_VALIDATION"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

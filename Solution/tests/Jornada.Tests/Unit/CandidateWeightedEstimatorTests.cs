@@ -36,7 +36,7 @@ public sealed class CandidateWeightedEstimatorTests
         var capture = await CaptureAsync();
         var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
         var result = CandidateWeightedEstimator.Estimate(corpus, 0.5m);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Version, Is.EqualTo(CandidateWeightedEstimator.Version));
             Assert.That(result.TrainingPairs, Is.EqualTo(12));
@@ -45,7 +45,7 @@ public sealed class CandidateWeightedEstimatorTests
             Assert.That(result.TrainingClasses.Select(c => c.IndependentGroups), Is.EqualTo(new[] { 4, 4 }));
             Assert.That(result.TrainingClasses.Select(c => c.EffectiveSampleSize), Is.EqualTo(new[] { 4m, 8m }));
             Assert.That(result.TrainingClasses.All(c => c.Distributions.Count == 3), Is.True);
-        });
+        }));
         var matched = result.TrainingClasses.Single(c => c.Label == IndependentMatchLabel.Match);
         var name = matched.Distributions.Single(d => d.Feature == "NOME");
         Assert.That(name.Probabilities["EXACT"], Is.EqualTo(4.5m / 10.5m));

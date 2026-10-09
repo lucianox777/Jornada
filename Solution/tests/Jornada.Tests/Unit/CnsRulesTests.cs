@@ -15,11 +15,11 @@ public sealed class CnsRulesTests
     [TestCase("900000000000008")] // CNS 9
     public void Synthetic_structurally_valid_cns_passes_checksum(string value)
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(CnsRules.IsValid(value), Is.True);
             Assert.DoesNotThrow(() => CnsRules.ValidateOptionalSmsCns(value));
-        });
+        }));
     }
 
     [TestCase("211111111110008")] // Dígito adulterado
@@ -40,22 +40,22 @@ public sealed class CnsRulesTests
         var error = Assert.Throws<InvalidDataException>(
             () => CnsRules.ValidateOptionalSmsCns(value));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(CnsRules.IsValid(value), Is.False);
             Assert.That(error!.Message, Does.Contain("dígito verificador"));
             Assert.That(error.Message, Does.Not.Contain(value.Length == 0 ? "XXXXX" : value));
-        });
+        }));
     }
 
     [Test]
     public void Absence_is_optional_but_blank_input_is_not_absence()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(CnsRules.IsValid(null), Is.False);
             Assert.DoesNotThrow(() => CnsRules.ValidateOptionalSmsCns(null));
             Assert.Throws<InvalidDataException>(() => CnsRules.ValidateOptionalSmsCns(" "));
-        });
+        }));
     }
 }
