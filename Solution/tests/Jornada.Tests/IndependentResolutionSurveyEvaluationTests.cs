@@ -17,7 +17,7 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             threshold: 0.95m,
             conflictMargin: 0.03m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Version, Is.EqualTo(IndependentResolutionSurveyEvaluator.Version));
             Assert.That(report.SamplingDesignFingerprintSha256, Has.Length.EqualTo(64));
@@ -42,10 +42,10 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             Assert.That(report.Overall.CandidateRecoveryRate, Is.EqualTo(3m / 7m));
             Assert.That(report.Overall.TopCandidateBrierScore, Is.EqualTo(0.62665m));
             Assert.That(report.OverallUncertainty, Has.Count.EqualTo(7));
-        });
+        }));
 
         var recall = report.OverallUncertainty.Single(interval => interval.Metric == "RECALL");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(recall.Estimate, Is.EqualTo(report.Overall.Recall));
             Assert.That(recall.StandardError, Is.GreaterThan(0m));
@@ -53,16 +53,16 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             Assert.That(recall.Upper95, Is.InRange(0m, 1m));
             Assert.That(recall.IndependentGroups, Is.EqualTo(4));
             Assert.That(recall.Replicates, Is.EqualTo(4));
-        });
+        }));
 
         var highBin = report.Calibration.Single(bin => bin.LowerInclusivePercent == 90);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(highBin.Observations, Is.EqualTo(3));
             Assert.That(highBin.DesignWeight, Is.EqualTo(6m));
             Assert.That(highBin.MeanPredictedProbability, Is.EqualTo(5.81m / 6m));
             Assert.That(highBin.ObservedMatchRate, Is.EqualTo(1m / 3m));
-        });
+        }));
     }
 
     [Test]
@@ -84,11 +84,11 @@ public sealed class IndependentResolutionSurveyEvaluationTests
         var first = IndependentResolutionSurveyEvaluator.Evaluate(manifest, firstRows, 0.95m, 0.03m);
         var second = IndependentResolutionSurveyEvaluator.Evaluate(manifest, secondRows, 0.95m, 0.03m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(first.SamplingDesignFingerprintSha256, Is.EqualTo(second.SamplingDesignFingerprintSha256));
             Assert.That(first.FingerprintSha256, Is.EqualTo(second.FingerprintSha256));
-        });
+        }));
     }
 
     [Test]
@@ -105,13 +105,13 @@ public sealed class IndependentResolutionSurveyEvaluationTests
         var b = IndependentResolutionSurveyEvaluator.Evaluate(manifest, changedWeight, 0.95m, 0.03m);
         var c = IndependentResolutionSurveyEvaluator.Evaluate(manifest, changedCluster, 0.95m, 0.03m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(b.SamplingDesignFingerprintSha256, Is.Not.EqualTo(a.SamplingDesignFingerprintSha256));
             Assert.That(c.SamplingDesignFingerprintSha256, Is.Not.EqualTo(a.SamplingDesignFingerprintSha256));
             Assert.That(b.FingerprintSha256, Is.Not.EqualTo(a.FingerprintSha256));
             Assert.That(c.FingerprintSha256, Is.Not.EqualTo(a.FingerprintSha256));
-        });
+        }));
     }
 
     [Test]
@@ -124,12 +124,12 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             0.03m);
 
         var all = report.Subgroups.Single(group => group.Dimension == "FRAME" && group.Value == "ALL");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(all.Metrics.IndependentGroups, Is.EqualTo(4));
             Assert.That(all.Uncertainty, Has.Count.EqualTo(7));
             Assert.That(all.Uncertainty.All(interval => interval.IndependentGroups == 4), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -146,7 +146,7 @@ public sealed class IndependentResolutionSurveyEvaluationTests
         twoGroups[2] = twoGroups[2] with { IndependenceGroupFingerprintSha256 = Hash("b") };
         twoGroups[3] = twoGroups[3] with { IndependenceGroupFingerprintSha256 = Hash("b") };
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 () => IndependentResolutionSurveyEvaluator.Evaluate(manifest, invalidWeight, 0.95m, 0.03m),
@@ -157,7 +157,7 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             Assert.That(
                 () => IndependentResolutionSurveyEvaluator.Evaluate(manifest, twoGroups, 0.95m, 0.03m),
                 Throws.TypeOf<InvalidOperationException>());
-        });
+        }));
     }
 
     [Test]
@@ -198,7 +198,7 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             Observation = row.Observation with { Candidates = row.Observation.Candidates.Reverse().ToArray() }
         }).ToArray(), outcomes.Reverse().ToArray());
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Version, Is.EqualTo(IndependentResolutionSurveyEvaluator.RecordedVersion));
             Assert.That(report.Overall.ObservationWeight, Is.EqualTo(10m));
@@ -221,7 +221,7 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             Assert.That(report.FingerprintSha256, Is.EqualTo(reordered.FingerprintSha256));
             Assert.That(report.SamplingDesignFingerprintSha256, Is.EqualTo(reordered.SamplingDesignFingerprintSha256));
             Assert.That(report.BaseEvaluationFingerprintSha256, Is.EqualTo(reordered.BaseEvaluationFingerprintSha256));
-        });
+        }));
     }
 
     [Test]
@@ -247,7 +247,7 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             IndependenceGroupFingerprintSha256 = row.DesignWeight <= 2m ? Hash("a") : Hash("b")
         }).ToArray();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(() => Run(rows, decisions, complete: false), Throws.TypeOf<InvalidOperationException>());
             Assert.That(() => Run(rows, decisions.Take(3).ToArray()), Throws.TypeOf<InvalidOperationException>());
@@ -259,7 +259,7 @@ public sealed class IndependentResolutionSurveyEvaluationTests
             Assert.That(() => Run(rows, decisions.Select((o, i) => i == 0
                 ? o with { BestCandidateFingerprintSha256 = Hash("9") } : o).ToArray()),
                 Throws.TypeOf<InvalidOperationException>());
-        });
+        }));
     }
 
     private static IndependentRecordedOutcome[] RecordedOutcomes() =>

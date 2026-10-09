@@ -9,13 +9,13 @@ public sealed class SyntheticCorpusV2PortTests
     [Test]
     public void Csharp_profiles_match_python_v2_declared_rates()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             AssertProfile("clean", .06, .10, .04, .00, .05, .01);
             AssertProfile("independent", .22, .30, .15, .00, .18, .05);
             AssertProfile("correlated", .12, .16, .08, .18, .18, .05);
             AssertProfile("field", .35, .45, .28, .22, .40, .12);
-        });
+        }));
     }
 
     [Test]
@@ -67,11 +67,11 @@ public sealed class SyntheticCorpusV2PortTests
         for (var n = 0; n < 1000; n++)
         {
             var corrupted = SyntheticCorpusV2Rules.CorruptDate(source, random);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(corrupted.Operation, Is.Not.Null);
                 Assert.That(corrupted.Value, Is.Not.EqualTo(source));
-            });
+            }));
         }
     }
 
@@ -96,12 +96,12 @@ public sealed class SyntheticCorpusV2PortTests
                 continue;
 
             yearCorruptionObserved = true;
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(corrupted.Value.Year, Is.AnyOf(year - 4, year + 4));
                 Assert.That(corrupted.Value.Month, Is.EqualTo(2));
                 Assert.That(corrupted.Value.Day, Is.EqualTo(29));
-            });
+            }));
         }
 
         Assert.That(yearCorruptionObserved, Is.True,
@@ -120,7 +120,7 @@ public sealed class SyntheticCorpusV2PortTests
 
         var m = SyntheticCorpusGenerator.ComputeEmpiricalM(rows);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(m["NOME"].EligiblePairs, Is.EqualTo(3));
             Assert.That(m["NOME"].ExactPairs, Is.EqualTo(1));
@@ -129,7 +129,7 @@ public sealed class SyntheticCorpusV2PortTests
             Assert.That(m["NOME_MAE"].MExactEmpirical, Is.EqualTo(1.0));
             Assert.That(m["NASCIMENTO"].EligiblePairs, Is.EqualTo(1));
             Assert.That(m["NASCIMENTO"].MExactEmpirical, Is.EqualTo(1.0));
-        });
+        }));
     }
 
     [Test]
@@ -154,12 +154,12 @@ public sealed class SyntheticCorpusV2PortTests
 
         SyntheticCorpusGenerator.ApplyCnsScenarios(people, random, .10, .10, .10);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(people.Select(x => x.BasePersonId), Is.EqualTo(before));
             Assert.That(people.Any(x => x.CnsScenario != "CLEAN"), Is.True);
             Assert.That(people.All(x => x.CnsScenario is not null), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -184,7 +184,7 @@ public sealed class SyntheticCorpusV2PortTests
         var left = new SyntheticCorpusGenerator(first, surname).Generate(options);
         var right = new SyntheticCorpusGenerator(first, surname).Generate(options);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 left.People.Select(x => (x.BasePersonId, x.Partition, x.Name, x.MotherName, x.BirthDate, x.Cpf, x.Cns, x.CnsScenario)),
@@ -193,7 +193,7 @@ public sealed class SyntheticCorpusV2PortTests
                 left.Observations.Select(x => (x.ObservationId, x.Name, x.MotherName, x.BirthDate, x.Cpf, x.Cns, x.Corruptions)),
                 Is.EqualTo(right.Observations.Select(x => (x.ObservationId, x.Name, x.MotherName, x.BirthDate, x.Cpf, x.Cns, x.Corruptions))));
             Assert.That(left.EmpiricalMExact, Is.EqualTo(right.EmpiricalMExact));
-        });
+        }));
     }
 
     [Test]
@@ -232,14 +232,14 @@ public sealed class SyntheticCorpusV2PortTests
             }
 
             using var truth = JsonDocument.Parse(await File.ReadAllTextAsync(left.TruthPath));
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(truth.RootElement.GetProperty("generator_version").GetString(),
                     Is.EqualTo(SyntheticCorpusInputIdentity.GeneratorVersion));
                 Assert.That(truth.RootElement.GetProperty("ruleset_version").GetString(),
                     Is.EqualTo(SyntheticCorpusV2Rules.RulesetVersion));
                 Assert.That(truth.RootElement.GetProperty("empirical_m_exact").TryGetProperty("NOME", out _), Is.True);
-            });
+            }));
         }
         finally
         {

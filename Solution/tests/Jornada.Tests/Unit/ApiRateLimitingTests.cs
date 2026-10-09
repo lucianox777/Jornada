@@ -37,13 +37,13 @@ public sealed class ApiRateLimitingTests
         identity.Request.Path = "/api/v1/identidade/resolver";
         var identityBucket = AuthenticatedRateLimitGuard.ResolveBucket(identity.Request, options);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(personBucket.Bucket, Is.EqualTo("PESSOA"));
             Assert.That(personBucket.Limit, Is.EqualTo(options.StandardPermitLimit));
             Assert.That(identityBucket.Bucket, Is.EqualTo("IDENTIDADE"));
             Assert.That(identityBucket.Limit, Is.EqualTo(options.IdentityPermitLimit));
-        });
+        }));
     }
 
 

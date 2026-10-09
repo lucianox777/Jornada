@@ -18,7 +18,7 @@ public sealed class SyntheticExactHomonymEvaluationTests
                 linked: true, motherExact: false)
         ]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.PopulationPairs, Is.EqualTo(1));
             Assert.That(report.ReservedChallengePairs, Is.EqualTo(4));
@@ -26,7 +26,7 @@ public sealed class SyntheticExactHomonymEvaluationTests
             Assert.That(report.ExactDistinctHomonymFalseLinks, Is.EqualTo(2));
             Assert.That(report.ExactDistinctHomonymFalseLinkRate, Is.EqualTo(2m / 3m));
             Assert.That(report.ByStratum, Has.Count.EqualTo(2));
-        });
+        }));
         Assert.DoesNotThrow(() => SyntheticExactHomonymEvaluator.ConferArithmetic(report));
     }
 
@@ -39,12 +39,12 @@ public sealed class SyntheticExactHomonymEvaluationTests
                 samePerson: true, linked: true)
         ]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.ExactDistinctHomonymPairs, Is.Zero);
             Assert.That(report.ExactDistinctHomonymFalseLinks, Is.Zero);
             Assert.That(report.ExactDistinctHomonymFalseLinkRate, Is.Zero);
-        });
+        }));
     }
 
     [Test]
