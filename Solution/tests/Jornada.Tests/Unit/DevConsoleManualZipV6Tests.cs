@@ -47,8 +47,8 @@ public sealed class DevConsoleManualZipV1Tests
 
         Assert.Multiple((Action)(()=>
         {
-            Assert.DoesNotThrow((Action)(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1),scenario));
-            Assert.DoesNotThrow((Action)(()=>PersonContractRules.ValidateCpfAbsence(1,cpf,reason),scenario));
+            Assert.DoesNotThrow((Action)(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1)),scenario);
+            Assert.DoesNotThrow((Action)(()=>PersonContractRules.ValidateCpfAbsence(1,cpf,reason)),scenario);
         }));
     }
 

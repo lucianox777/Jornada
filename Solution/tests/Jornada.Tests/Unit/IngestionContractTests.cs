@@ -254,7 +254,7 @@ public sealed class IngestionContractTests
                 File.ReadAllText,
                 StringComparer.Ordinal);
             var bytes = BuildZip(files);
-            Assert.DoesNotThrow((Action)(() => IngestionPackageInspector.ParseAndValidate(bytes, directory)));
+            Assert.DoesNotThrow((Action)(() => IngestionPackageInspector.ParseAndValidate(bytes)), directory);
         }
     }
 
