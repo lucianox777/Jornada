@@ -104,8 +104,7 @@ public sealed class FsDecisionThresholdCalibrationTests
             Assert.That(b.TestSafetyPassed, Is.False);
             Assert.That(b.TestWrongPersonFalsePositive, Is.Zero);
             Assert.That(b.TestLeaveTruthOutFalsePositive, Is.EqualTo(1));
-            var failure = Assert.Throws<InvalidOperationException>(
-                () => FsDecisionThresholdCalibrator.ApplySelected(Parameters(), b));
+            var failure = Assert.Throws<InvalidOperationException>((Action)(() => FsDecisionThresholdCalibrator.ApplySelected(Parameters(), b)));
             Assert.That(failure!.Message, Does.Contain("falsePositive=1"));
             Assert.That(failure.Message, Does.Contain("fpPessoaErrada=0"));
             Assert.That(failure.Message, Does.Contain("fpLeaveTruthOut=1"));
@@ -158,8 +157,7 @@ public sealed class FsDecisionThresholdCalibrationTests
             Assert.That(unsafeResult.Selected.Test.FalsePositive, Is.EqualTo(1));
             Assert.That(unsafeResult.TestSafetyPassed, Is.False);
         }));
-        var exception = Assert.Throws<InvalidOperationException>(
-            () => FsDecisionThresholdCalibrator.ApplySelected(Parameters(), unsafeResult));
+        var exception = Assert.Throws<InvalidOperationException>((Action)(() => FsDecisionThresholdCalibrator.ApplySelected(Parameters(), unsafeResult)));
         Assert.That(exception!.Message, Does.Contain("fpPessoaErrada=1"));
         Assert.That(exception.Message, Does.Contain("fpLeaveTruthOut=0"));
         Assert.That(exception.Message.Length, Is.LessThanOrEqualTo(500));
@@ -225,8 +223,7 @@ public sealed class FsDecisionThresholdCalibrationTests
         Assert.That(strict.Selected, Is.Not.Null);
         Assert.That(strict.Selected!.Validation.FalsePositive, Is.Zero);
         Assert.That(strict.Selected.Validation.FalseNegative, Is.EqualTo(1));
-        var originalCall = Assert.Throws<InvalidOperationException>(
-            () => FsDecisionThresholdCalibrator.ApplySelected(Parameters(), withFp));
+        var originalCall = Assert.Throws<InvalidOperationException>((Action)(() => FsDecisionThresholdCalibrator.ApplySelected(Parameters(), withFp)));
         Assert.That(originalCall!.Message, Does.Contain("Limite TEST divergente"));
         var applied = FsDecisionThresholdCalibrator.ApplySelected(
             Parameters(), withFp, maxFpTest: withFp.MaxFpTestAbsolute);
@@ -253,10 +250,8 @@ public sealed class FsDecisionThresholdCalibrationTests
             Assert.That(FsDecisionThresholdCalibrator.FalsePositiveBudget(299, 0), Is.Zero);
             Assert.That(FsDecisionThresholdCalibrator.FalsePositiveBudget(300, 100), Is.EqualTo(3),
                 "Trezentos positivos permitem três FP; negativos LTO não entram no denominador.");
-            Assert.Throws<ArgumentOutOfRangeException>(
-                () => FsDecisionThresholdCalibrator.FalsePositiveBudget(0, 100));
-            Assert.Throws<ArgumentOutOfRangeException>(
-                () => FsDecisionThresholdCalibrator.FalsePositiveBudget(10, 10001));
+            Assert.Throws<ArgumentOutOfRangeException>((Action)(() => FsDecisionThresholdCalibrator.FalsePositiveBudget(0, 100)));
+            Assert.Throws<ArgumentOutOfRangeException>((Action)(() => FsDecisionThresholdCalibrator.FalsePositiveBudget(10, 10001)));
         }));
     }
 

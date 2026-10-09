@@ -49,21 +49,21 @@ public sealed class GroundTruthCalibrationPlanTests
     [Test]
     public void PlannerFailsClosedWhenNoSourceRepresentsTarget()
     {
-        Assert.Throws<InvalidOperationException>(() => GroundTruthCalibrationPlanner.Create(
+        Assert.Throws<InvalidOperationException>((Action)(() => GroundTruthCalibrationPlanner.Create(
             Cpf(false, false),
             Cns(true, false),
             new[] { "NOME_COMPLETO" },
-            new[] { "NOME_JARO_WINKLER" }));
+            new[] { "NOME_JARO_WINKLER" })));
     }
 
     [Test]
     public void PlannerRejectsCnsLeakageBeforeCalibrationRuns()
     {
-        Assert.Throws<InvalidOperationException>(() => GroundTruthCalibrationPlanner.Create(
+        Assert.Throws<InvalidOperationException>((Action)(() => GroundTruthCalibrationPlanner.Create(
             Cpf(false, false),
             Cns(true, true),
             new[] { "CNS_HASH_BLOCK" },
-            new[] { "NOME_JARO_WINKLER" }));
+            new[] { "NOME_JARO_WINKLER" })));
     }
 
     [Test]
@@ -133,12 +133,12 @@ public sealed class GroundTruthCalibrationPlanTests
             Features = projection.Features.Concat(new[] { feature }).ToArray()
         };
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             GroundTruthCalibrationPlanner.CreateFromProjectionPlan(
                 Cpf(false, false),
                 Cns(true, true),
                 projection,
-                new[] { "identificador_hash" }));
+                new[] { "identificador_hash" })));
     }
 
     [Test]
@@ -154,12 +154,12 @@ public sealed class GroundTruthCalibrationPlanTests
             },
             "TEST_UNKNOWN_V1");
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var ex = Assert.Throws<InvalidOperationException>((Action)(() =>
             GroundTruthCalibrationPlanner.CreateFromProjectionPlan(
                 Cpf(true, true),
                 Cns(true, true),
                 projection,
-                new[] { "FEATURE_FORA_DO_PLANO" }));
+                new[] { "FEATURE_FORA_DO_PLANO" })));
 
         Assert.That(ex!.Message, Does.Contain("sem linhagem"));
     }

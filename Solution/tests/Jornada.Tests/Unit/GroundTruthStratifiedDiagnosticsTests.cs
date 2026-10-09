@@ -110,14 +110,14 @@ public sealed class GroundTruthStratifiedDiagnosticsTests
             StatisticallySufficient: true,
             RepresentativeForTargetStratum: true);
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             GroundTruthCoverageDiagnosticsBuilder.Build(
                 GroundTruthSource.Cpf,
                 GroundTruthPopulationStratum.WithCpf,
                 eligiblePopulation: 10000,
                 targetPopulation: 10000,
                 positivePairCount: 5000,
-                assessment));
+                assessment)));
     }
 
     [Test]

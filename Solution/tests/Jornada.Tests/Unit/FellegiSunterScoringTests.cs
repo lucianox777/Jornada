@@ -139,12 +139,12 @@ public sealed class FellegiSunterScoringTests
     [TestCase(-1)]
     public void Explicit_non_positive_block_candidate_count_is_invalid(int candidateCount)
     {
-        var exception = Assert.Throws<ArgumentOutOfRangeException>(() =>
+        var exception = Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
             FellegiSunterScoring.Calculate(
                 Parameters,
                 NameComparisonState.EXACT,
                 NameComparisonState.EXACT,
-                candidateCount));
+                candidateCount)));
         Assert.That(exception!.ParamName, Is.EqualTo("blockCandidateCount"));
     }
 
@@ -169,11 +169,11 @@ public sealed class FellegiSunterScoringTests
         var parameters = new Dictionary<string, decimal>(Parameters);
         parameters.Remove(LinkageParameterCatalog.PriorMatchProbability);
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        var exception = Assert.Throws<InvalidOperationException>((Action)(() =>
             FellegiSunterScoring.Calculate(
                 parameters,
                 NameComparisonState.EXACT,
-                NameComparisonState.EXACT));
+                NameComparisonState.EXACT)));
 
         Assert.That(exception!.Message, Does.Contain(LinkageParameterCatalog.PriorMatchProbability));
     }
@@ -184,11 +184,11 @@ public sealed class FellegiSunterScoringTests
         var parameters = new Dictionary<string, decimal>(Parameters);
         parameters.Remove("M_NOME_EXACT");
 
-        var exception = Assert.Throws<InvalidOperationException>(() =>
+        var exception = Assert.Throws<InvalidOperationException>((Action)(() =>
             FellegiSunterScoring.Calculate(
                 parameters,
                 NameComparisonState.EXACT,
-                NameComparisonState.EXACT));
+                NameComparisonState.EXACT)));
 
         Assert.That(exception!.Message, Does.Contain("M_NOME_EXACT"));
     }
