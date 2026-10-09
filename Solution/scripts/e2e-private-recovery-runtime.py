@@ -274,8 +274,14 @@ def main() -> None:
     command(["sudo", "kill", "-KILL", "--", str(old_pid)], timeout=10)
 
     def restarted():
-        state = attest(ids["processor"], "processor", project)
-        if (int(state["State"]["Pid"]) != old_pid
+        state = inspect(ids["processor"])
+        labels = state["Config"]["Labels"]
+        require(labels.get("com.docker.compose.project") == project
+                and labels.get("com.docker.compose.service") == "processor",
+                "processor container identity changed during restart")
+        if (state["State"]["Running"]
+                and int(state["State"]["Pid"]) > 1
+                and int(state["State"]["Pid"]) != old_pid
                 and int(state["RestartCount"]) > old_restart):
             return state
         return None
@@ -362,6 +368,7 @@ def main() -> None:
     def terminal():
         s = lote_state(ids["sqlserver"], lote)
         status = sql(ids["sqlserver"],
+                     f"SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED; "
                      f"SELECT status FROM ingestao.entrega WHERE entrega_id='{entrega}';")
         if s["status"] == "PROCESSADO" and status == "PROCESSADA":
             return s
@@ -441,9 +448,17 @@ def main() -> None:
                                "additional_silver_rows": diff("people")+diff("records"),
                                "additional_gold_rows": diff("gold"),
                                "additional_serving_rows": diff("serving")},
-        "sql_provenance": {stage: True for stage in (
-            "before", "during_open_transaction", "after_crash",
-            "after_lease_recovery", "terminal", "replay")},
+        "sql_provenance": {
+            "before": (OUT / "before-sigkill-sql.json").is_file(),
+            "during_open_transaction": before["dirty_silver_people"] == 1
+                and before["status"] == "PROCESSANDO",
+            "after_crash": (OUT / "after-crash-silver-sql.json").is_file()
+                and rolled_back == 0,
+            "after_lease_recovery": (OUT / "requeue-audit-sql.json").is_file()
+                and (OUT / "old-heartbeat-removed-sql.json").is_file(),
+            "terminal": (OUT / "terminal-sql.json").is_file(),
+            "replay": (OUT / "replay-sql.json").is_file(),
+        },
     }
     save("real-recovery-evidence.json", evidence)
     command(["python3", "scripts/e2e-lot-recovery-evidence-gate.py",
