@@ -53,3 +53,14 @@ do runner GitHub e base sintética própria. Nunca executar
 permanece suspensa. Outras lacunas da Console, incluindo o
 cancelamento explicitamente confirmado de RunOnce, não são
 resolvidas por esta PR.
+
+## Resultado verificado da integração (09/10/2026)
+
+- PR [#858](https://github.com/lucianox777/Jornada/pull/858) integrada em `master` por **squash merge** em 2026-10-09 18:10:20 UTC; commit de integração `97efa6e3261d84d14c8d9553e7f83f76eaed7e5d`.
+- HEAD validada: `871e1baee41672097a19b582a78b9ee7c9cfbfd9`. Execução [jornada-ci #9796](https://github.com/lucianox777/Jornada/actions/runs/37970495157), conclusão **success**.
+- Dez gates executados com **success**: `impact`, `dependency-lock`, `ddl-upgrade`, `deterministic-build`, `harness-smoke`, `security-analysis`, `integration-sql`, `e2e`, `unit` e `dt10-evidence / dt10-evidence` (workflow reutilizável aninhado, não skipped).
+- Artefato `dt10-evidence` publicado na mesma execução: ID `11635467318`, 21.470 bytes, digest `sha256:28351cd12fad41be6ee66d79334250921005cdcaf98fdf9b09386246fcd05268`. A existência do artefato e o sucesso do job foram verificados pela API do GitHub; esta atualização documental **não** reanalisa o conteúdo interno do ZIP nem atesta separadamente as contagens individuais dos testes.
+- `scale-harness`, `bronze-restore-drill` e jobs de publicação RC/release foram `skipped` nesta execução por escopo/condição; não integram a lista dos dez gates executados acima.
+- Nenhuma revisão ou thread bloqueante foi encontrada antes do merge. A PR ficou fechada e marcada como merged após a operação.
+
+**Limite de conclusão:** a DT-10 entregou apenas a **primeira extração incremental** do gate SQL para reusable workflow. Não declarar otimização completa de toda a CI, publicação normativa, homologação ou implantação em HML/PROD. Não foram executadas ações locais sobre JornadaLocal, IBGE original, dados reais ou volumes/containers do usuário nesta integração.
