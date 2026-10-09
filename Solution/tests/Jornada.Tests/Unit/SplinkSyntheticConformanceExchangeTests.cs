@@ -40,14 +40,14 @@ public sealed class SplinkSyntheticConformanceExchangeTests
 
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => SplinkSyntheticConformanceExchange.SerializeFixture(altered),
+            Assert.That((Func<object?>)(() => SplinkSyntheticConformanceExchange.SerializeFixture(altered)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => SplinkSyntheticConformanceExchange.SerializeFixture(forged),
+            Assert.That((Func<object?>)(() => SplinkSyntheticConformanceExchange.SerializeFixture(forged)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => SplinkSyntheticConformanceExchange.ReadFixture(
+            Assert.That((Func<object?>)(() => SplinkSyntheticConformanceExchange.ReadFixture(
                 SplinkSyntheticConformanceExchange.SerializeFixture(fixture)
                     .Replace("\"records\"", "\"unexpected_real_data\":true,\"records\"",
-                        StringComparison.Ordinal)),
+                        StringComparison.Ordinal))),
                 Throws.TypeOf<JsonException>());
         }));
     }
@@ -63,21 +63,21 @@ public sealed class SplinkSyntheticConformanceExchangeTests
         {
             Assert.That(result.Estimates.Select(x => x.Level),
                 Is.EquivalentTo(new[] { "EXACT", "HIGH", "MEDIUM", "LOW" }));
-            Assert.That(() => SplinkSyntheticConformanceExchange.ReadExternal(
+            Assert.That((Func<object?>)(() => SplinkSyntheticConformanceExchange.ReadExternal(
                 valid.Replace("\"seed\":20260926", "\"seed\":20260927",
-                    StringComparison.Ordinal), source),
+                    StringComparison.Ordinal), source)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => SplinkSyntheticConformanceExchange.ReadExternal(
-                valid.Replace("0.92", "0.90", StringComparison.Ordinal), source),
+            Assert.That((Func<object?>)(() => SplinkSyntheticConformanceExchange.ReadExternal(
+                valid.Replace("0.92", "0.90", StringComparison.Ordinal), source)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => SplinkSyntheticConformanceExchange.ReadExternal(
+            Assert.That((Func<object?>)(() => SplinkSyntheticConformanceExchange.ReadExternal(
                 valid.Replace("\"source_schema_version\":", "\"unrecognized_person\":1,\"source_schema_version\":",
-                    StringComparison.Ordinal), source),
+                    StringComparison.Ordinal), source)),
                 Throws.TypeOf<JsonException>());
-            Assert.That(() => SplinkSyntheticConformanceExchange.ReadExternal(
+            Assert.That((Func<object?>)(() => SplinkSyntheticConformanceExchange.ReadExternal(
                 valid.Replace("\"feature\":\"NOME\",\"level\":\"LOW\"",
                     "\"feature\":\"NOME\",\"level\":\"EXACT\"",
-                    StringComparison.Ordinal), source),
+                    StringComparison.Ordinal), source)),
                 Throws.TypeOf<InvalidDataException>());
         }));
     }
