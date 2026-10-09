@@ -80,10 +80,9 @@ public sealed class SyntheticTemporalTruthEvaluatorTests
             WriteFixture(root, completedRun: false);
             File.AppendAllText(Path.Combine(root, "ingestion", "wave-02", "bridge-truth.jsonl"),
                 "extra\n");
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
-            {
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () => {
                 await SyntheticTemporalTruthEvaluator.EvaluateAsync(root);
-            });
+            }));
         }
         finally { Directory.Delete(root, recursive: true); }
     }
@@ -95,10 +94,9 @@ public sealed class SyntheticTemporalTruthEvaluatorTests
         try
         {
             WriteFixture(root, completedRun: false, swapTruth: true);
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
-            {
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () => {
                 await SyntheticTemporalTruthEvaluator.EvaluateAsync(root);
-            });
+            }));
         }
         finally { Directory.Delete(root, recursive: true); }
     }
