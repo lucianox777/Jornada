@@ -91,7 +91,13 @@ def main() -> None:
     assert '"ON" must reject' not in e2e or '"ON"' in e2e
     assert 'ON must reject all three RunOnce workers' in e2e
     assert 'state(base, "OFF")' in e2e and 'state(base, "ON")' in e2e
-    assert "python3 scripts/e2e-console-supervisor-three-runonce.py" in BOOT.read_text()
+    bootstrap=BOOT.read_text()
+    assert "python3 scripts/e2e-console-supervisor-three-runonce.py" in bootstrap
+    # An intentionally denied SQL bootstrap replay must not leave a oneoff
+    # container which would legitimately block ON in the mode controller.
+    assert "compose run --rm --no-deps sql-bootstrap" in bootstrap
+    assert "compose run --no-deps sql-bootstrap" not in bootstrap
+    assert 'label=com.docker.compose.oneoff=True' in mode
     print("C3.3b2: PASS three finite worker endpoints/guards (no Docker or SQL)")
 
 
