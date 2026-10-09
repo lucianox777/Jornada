@@ -20,7 +20,7 @@ public sealed class ResolutionProjectionPromotionPlannerTests
 
         var physical = ResolutionProjectionPromotionPlanner.Build(projection, passes);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(physical.SimpleIndexes, Is.Empty);
             Assert.That(
@@ -32,7 +32,7 @@ public sealed class ResolutionProjectionPromotionPlannerTests
             Assert.That(
                 physical.Features.Single(x => x.Feature == BlockingCandidateFeatureCatalog.BirthYear).Lifecycle,
                 Is.EqualTo(ResolutionFeatureLifecycle.Promoted));
-        });
+        }));
     }
 
     [Test]
@@ -53,7 +53,7 @@ public sealed class ResolutionProjectionPromotionPlannerTests
             passes,
             physicallyValidatedIndexes: new[] { BlockingCandidateFeatureCatalog.LastName });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 physical.SimpleIndexes.Select(static x => x.Feature),
@@ -65,7 +65,7 @@ public sealed class ResolutionProjectionPromotionPlannerTests
             Assert.That(
                 physical.Features.Single(x => x.Feature == BlockingCandidateFeatureCatalog.BirthYear).Lifecycle,
                 Is.EqualTo(ResolutionFeatureLifecycle.Promoted));
-        });
+        }));
     }
 
     [Test]

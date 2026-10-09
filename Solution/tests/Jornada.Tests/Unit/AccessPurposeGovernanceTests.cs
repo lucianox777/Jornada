@@ -15,14 +15,14 @@ public sealed class AccessPurposeGovernanceTests
         var openApiPath = Path.Combine(root, "Solution", "openapi", "jornada-v1.openapi.json");
         var programPath = Path.Combine(root, "Solution", "src", "Jornada.Api", "Program.cs");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(File.Exists(governancePath), Is.True, "Gate documental de finalidade de acesso ausente.");
             Assert.That(File.Exists(apiDocsPath), Is.True);
             Assert.That(File.Exists(securityReadmePath), Is.True);
             Assert.That(File.Exists(openApiPath), Is.True);
             Assert.That(File.Exists(programPath), Is.True);
-        });
+        }));
 
         var governance = File.ReadAllText(governancePath);
         var apiDocs = File.ReadAllText(apiDocsPath);
@@ -30,7 +30,7 @@ public sealed class AccessPurposeGovernanceTests
         var openApi = File.ReadAllText(openApiPath);
         var program = File.ReadAllText(programPath);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(governance, Does.Contain("gate de decisão institucional"));
             Assert.That(governance, Does.Contain("Núcleo Gestor do Programa Reencontro"));
@@ -45,7 +45,7 @@ public sealed class AccessPurposeGovernanceTests
             Assert.That(securityReadme, Does.Contain("não carregam catálogo ou allowlist de finalidade"));
             Assert.That(openApi, Does.Not.Contain("X-Jornada-Finalidade"));
             Assert.That(program, Does.Not.Contain("X-Jornada-Finalidade"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

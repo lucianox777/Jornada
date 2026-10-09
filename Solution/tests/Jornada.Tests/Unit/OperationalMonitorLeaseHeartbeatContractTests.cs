@@ -16,7 +16,7 @@ public sealed class OperationalMonitorLeaseHeartbeatContractTests
         Assert.That(end, Is.GreaterThan(start));
         var sql = monitor[start..end];
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("COALESCE(h.heartbeat_em,l.heartbeat_em) AS heartbeat_em"),
                 "O heartbeat atual prevalece; snapshot do Lote so quando nao houver lease correspondente.");
@@ -29,7 +29,7 @@ public sealed class OperationalMonitorLeaseHeartbeatContractTests
             Assert.That(sql, Does.Contain("ORDER BY l.lease_adquirido_em,l.lote_id"));
             Assert.That(monitor, Does.Contain("ReadNullableDateTimeOffset(reader, 9)"),
                 "A coluna de heartbeat deve continuar na mesma posicao do DTO da API.");
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

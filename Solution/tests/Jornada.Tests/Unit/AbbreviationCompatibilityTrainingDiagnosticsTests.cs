@@ -23,13 +23,13 @@ public sealed class AbbreviationCompatibilityTrainingDiagnosticsTests
 
         var measured = AbbreviationCompatibilityTrainingDiagnostics.Measure(pairs);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(measured.NameDenominator, Is.EqualTo(3));
             Assert.That(measured.NameCompatible, Is.EqualTo(1));
             Assert.That(measured.MotherNameDenominator, Is.EqualTo(2));
             Assert.That(measured.MotherNameCompatible, Is.EqualTo(1));
-        });
+        }));
     }
 
     [Test]
@@ -53,7 +53,7 @@ public sealed class AbbreviationCompatibilityTrainingDiagnosticsTests
             m,
             u);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result["KEEP"], Is.EqualTo(7m));
             Assert.That(result["DIAG_ABBREV_M_NOME_SUPPORT"], Is.EqualTo(1m));
@@ -64,6 +64,6 @@ public sealed class AbbreviationCompatibilityTrainingDiagnosticsTests
             Assert.That(result["DIAG_ABBREV_M_REFERENCE_CPF_INTERGESTOR_V1"], Is.EqualTo(1m));
             Assert.That(result["DIAG_ABBREV_U_REFERENCE_BLOCKING_GOLD_GOLD_V1"], Is.EqualTo(1m));
             Assert.That(result.Keys.Any(k => k.Contains("LLR", StringComparison.Ordinal)), Is.False);
-        });
+        }));
     }
 }

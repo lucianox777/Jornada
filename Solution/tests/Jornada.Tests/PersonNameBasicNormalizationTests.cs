@@ -10,12 +10,12 @@ public sealed class PersonNameBasicNormalizationTests
         var projection = PersonNameBasicNormalization.Project("  João   da  Sílva  ");
 
         Assert.That(projection, Is.Not.Null);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(projection!.Upper, Is.EqualTo("JOÃO DA SÍLVA"));
             Assert.That(projection.UpperNoDiacritics, Is.EqualTo("JOAO DA SILVA"));
             Assert.That(projection.WithoutPortugueseParticles, Is.EqualTo("JOAO SILVA"));
-        });
+        }));
     }
 
     [Test]

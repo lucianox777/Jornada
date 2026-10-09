@@ -19,12 +19,12 @@ public sealed class ProbabilisticLinkagePolicyTests
         var observation = Observation();
         var decision = ProbabilisticLinkageDecisions.Resolve(model, observation,
             [new LinkageCandidate(CandidateA, observation.NomeCompleto, Birth, observation.NomeMae)]);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(decision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
             Assert.That(decision.PessoaUuidResolvido, Is.EqualTo(CandidateA));
             Assert.That(decision.ModeloId, Is.EqualTo(ModelId));
-        });
+        }));
     }
 
     [Test]
@@ -54,11 +54,11 @@ public sealed class ProbabilisticLinkagePolicyTests
     {
         var parameters = JointBirthParameters(includeLegacyFlags: false);
         var complete = LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(LinkageModelPolicy.SupportsJointBirthScoring(complete), Is.True);
             Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.False);
-        });
+        }));
         parameters.Remove("U_NASCIMENTO_CONJUNTO_101");
         var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters));
         Assert.That(error!.Message, Does.Contain("U_NASCIMENTO_CONJUNTO_101"));
@@ -69,12 +69,12 @@ public sealed class ProbabilisticLinkagePolicyTests
     {
         var parameters = SemanticBirthParameters(includeLegacyFlags: false);
         var complete = LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(LinkageModelPolicy.SupportsSemanticBirthScoring(complete), Is.True);
             Assert.That(LinkageModelPolicy.SupportsJointBirthScoring(complete), Is.False);
             Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(complete), Is.False);
-        });
+        }));
         parameters.Remove($"U_NASCIMENTO_SEMANTICO_{BirthDateSemanticEvidence.OneDigitError}");
         var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters));
         Assert.That(error!.Message, Does.Contain($"U_NASCIMENTO_SEMANTICO_{BirthDateSemanticEvidence.OneDigitError}"));
@@ -102,12 +102,12 @@ public sealed class ProbabilisticLinkagePolicyTests
             parameters[$"U_{feature}_EXACT"] = .1m; parameters[$"U_{feature}_DIFF"] = .9m;
         }
         var model = LinkageModelPolicy.Create(ModelId, 4, "FELLEGI_SUNTER_JOINT_BIRTH_V4", parameters);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(LinkageModelPolicy.SupportsJointBirthScoring(model), Is.True);
             Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(model), Is.True);
             Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(model), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -121,13 +121,13 @@ public sealed class ProbabilisticLinkagePolicyTests
             parameters[$"U_{feature}_EXACT"] = .1m; parameters[$"U_{feature}_DIFF"] = .9m;
         }
         var model = LinkageModelPolicy.Create(ModelId, 6, LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion, parameters);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(LinkageModelPolicy.SupportsSemanticBirthScoring(model), Is.True);
             Assert.That(LinkageModelPolicy.SupportsJointBirthScoring(model), Is.True);
             Assert.That(LinkageModelPolicy.SupportsSingleBirthScoring(model), Is.True);
             Assert.That(LinkageModelPolicy.SupportsBirthComponentScoring(model), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -154,7 +154,7 @@ public sealed class ProbabilisticLinkagePolicyTests
             new LinkageCandidate(CandidateB, observation.NomeCompleto, Birth, "Pessoa sem relação")
         ]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(decision.MelhorScore, Is.GreaterThanOrEqualTo(model.Threshold));
             Assert.That(decision.SegundoScore, Is.GreaterThanOrEqualTo(model.Threshold));
@@ -163,7 +163,7 @@ public sealed class ProbabilisticLinkagePolicyTests
             Assert.That(decision.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
             Assert.That(decision.PessoaUuidResolvido, Is.Null);
             Assert.That(decision.Motivo, Is.EqualTo("DOIS_CANDIDATOS_ACIMA_T_LINKAGE"));
-        });
+        }));
     }
 
     [Test]
@@ -195,13 +195,13 @@ public sealed class ProbabilisticLinkagePolicyTests
         var legacyDecision = ProbabilisticLinkageDecisions.ResolveRanked(
             legacy, ranking, "SEM_CANDIDATO_TESTE");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(decision.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
             Assert.That(decision.Motivo, Is.EqualTo("SEGUNDO_CANDIDATO_ACIMA_PISO_CONFLITO"));
             Assert.That(legacyDecision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO),
                 "Sem o piso independente, elevar T enfraquece a guarda antiga quando o segundo candidato cai abaixo de T.");
-        });
+        }));
     }
 
     [Test]
@@ -268,7 +268,7 @@ public sealed class ProbabilisticLinkagePolicyTests
         var activeRanking = ProbabilisticLinkageDecisions.Rank(active, observation, candidates);
         var counterfactualRanking = ProbabilisticLinkageDecisions.Rank(counterfactual, observation, candidates);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 counterfactualRanking.Select(static row => row.PessoaUuid),
@@ -282,7 +282,7 @@ public sealed class ProbabilisticLinkagePolicyTests
             Assert.That(
                 counterfactualRanking[0].Score,
                 Is.LessThan(activeRanking[0].Score));
-        });
+        }));
     }
 
     [Test]
@@ -301,13 +301,13 @@ public sealed class ProbabilisticLinkagePolicyTests
             new LinkageCandidate(CandidateB, observation.NomeCompleto, Birth, "Pessoa sem relação")
         ]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(decision.SegundoScore, Is.GreaterThanOrEqualTo(model.Threshold));
             Assert.That(decision.Margem, Is.GreaterThan(model.ConflictMargin));
             Assert.That(decision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
             Assert.That(decision.PessoaUuidResolvido, Is.EqualTo(CandidateA));
-        });
+        }));
     }
 
     [Test]
@@ -316,22 +316,22 @@ public sealed class ProbabilisticLinkagePolicyTests
         var model = LinkageModelPolicy.Create(ModelId, 1, "FELLEGI_SUNTER_V1", Parameters());
         var observation = Observation();
         var low = ProbabilisticLinkageDecisions.Resolve(model, observation, [new LinkageCandidate(CandidateA, "Nome sem relação", Birth, "Mãe diferente")]);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(low.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
             Assert.That(low.PessoaUuidResolvido, Is.Null);
             Assert.That(low.Motivo, Is.EqualTo("ABAIXO_T_LINKAGE"));
-        });
+        }));
         var tied = ProbabilisticLinkageDecisions.Resolve(model, observation,
         [new LinkageCandidate(CandidateB, observation.NomeCompleto, Birth, observation.NomeMae), new LinkageCandidate(CandidateA, observation.NomeCompleto, Birth, observation.NomeMae)]);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(tied.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
             Assert.That(tied.PessoaUuidResolvido, Is.Null);
             Assert.That(tied.MelhorCandidatoUuid, Is.EqualTo(CandidateA));
             Assert.That(tied.SegundoCandidatoUuid, Is.EqualTo(CandidateB));
             Assert.That(tied.Margem, Is.EqualTo(0m));
-        });
+        }));
     }
 
     private static Dictionary<string, decimal> SemanticBirthParameters(bool includeLegacyFlags)
