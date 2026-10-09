@@ -1,0 +1,77 @@
+# OPT-IN disposable DEV sandbox; NEVER compose-merge this with Solution/docker-compose.yml.
+# Project name and separate secret are required; there are no container_names,
+# published host ports, bind mounts, external networks or globally named volumes.
+name: jornada-workers-e2e-${JORNADA_WORKERS_E2E_ID:?Explicit disposable E2E ID is required}
+
+x-worker-image: &worker-image
+  image: jornada-workers-e2e:${JORNADA_WORKERS_E2E_IMAGE_TAG:-test}
+  build:
+    context: ../..
+    dockerfile: install/container-test/Dockerfile
+
+x-worker-env: &worker-env
+  JORNADA_RUNTIME_MODE: DEV
+  JORNADA_WORKER_ISOLATED_PROFILE: "true"
+  JORNADA_E2E_SQL_DATABASE: JornadaE2E
+  JORNADA_SQL_DATABASE_OVERRIDE: JornadaE2E
+  JORNADA_NODE_ID: NODE2
+  DOTNET_ENVIRONMENT: Development
+  ASPNETCORE_ENVIRONMENT: Development
+  ConnectionStrings__Jornada: "Server=sqlserver,1433;Database=JornadaE2E;User Id=sa;Password=${JORNADA_WORKERS_E2E_SQL_PASSWORD:?Separate disposable E2E SQL password required};Encrypt=true;TrustServerCertificate=false"
+  Contracts__RepositoryRoot: /opt/jornada
+  BronzeStorage__Provider: FileSystem
+  BronzeStorage__RootPath: /data/bronze
+  IngestionStaging__RootPath: /data/staging
+
+x-worker-service: &worker-service
+  <<: *worker-image
+  profiles: ["continuous"]
+  restart: unless-stopped
+  depends_on:
+    sqlserver:
+      condition: service_healthy
+  environment:
+    <<: *worker-env
+  volumes:
+    - bronze:/data/bronze
+    - staging:/data/staging
+  entrypoint: ["/usr/local/bin/jornada-worker-entrypoint"]
+
+services:
+  # Isolated SQL Server instance with project-prefixed volume; NO host port.
+  # Schema/bootstrap and application-level integration are separate C3.2 gates:
+  # this profile must not silently point to the existing JornadaLocal server.
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: Developer
+      MSSQL_SA_PASSWORD: "${JORNADA_WORKERS_E2E_SQL_PASSWORD:?Separate disposable E2E SQL password required}"
+    volumes:
+      - sql_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -C -Q 'SELECT 1' >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+    restart: "no"
+
+  processor:
+    <<: *worker-service
+    command: ["Processor"]
+
+  operations-maintenance:
+    <<: *worker-service
+    command: ["OperationsMaintenance"]
+
+  bronze-maintenance:
+    <<: *worker-service
+    command: ["BronzeMaintenance"]
+
+volumes:
+  # Compose generates PROJECT_sql_data, PROJECT_bronze, PROJECT_staging.
+  # No hard-coded names; never attach volumes of the ordinary cluster.
+  sql_data: {}
+  bronze: {}
+  staging: {}
