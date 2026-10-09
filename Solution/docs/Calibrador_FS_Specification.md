@@ -225,3 +225,8 @@ A tabela `ref.calibracao_inicial_versao` é o **marco zero** do histórico, não
 #### Persistência da distribuição diária em `ref` (etapa SQL)
 
 `20261009_Ref_Distribuicao_Nascimento_IBGE.sql` cria `ref.distribuicao_nascimento_versao` e `ref.distribuicao_nascimento_dia`, com peso por data de nascimento, versão, fonte, geografia, método e SHA-256 de origem. `ref.sp_publicar_distribuicao_nascimento` exige contagem e soma de pesos conforme o manifesto; triggers bloqueiam alterações da versão e das linhas após `PUBLICADA`. Para o manifesto atual: `39268` linhas e população projetada `46179008` (UF_SP, 2026-07-01). **Esta migração não carrega automaticamente as linhas**, não valida hash dos bytes dentro do SQL e não conecta ainda a versão da distribuição ao modelo/Calibrador: são etapas de integração e testes pendentes. Os valores são projeções demográficas, não observações diárias de nascimentos.
+
+
+#### FK da distribuição publicada para o modelo
+
+`20261009_Ref_Distribuicao_Nascimento_Modelo_Binding.sql` acrescenta `distribuicao_versao_id` à tabela `identidade.modelo_linkage_referencia_demografica`, com FK para `ref.distribuicao_nascimento_versao`. Novos pins que informam a FK exigem versão `PUBLICADA` e coincidência de código, geografia, data, método e SHA-256; o vínculo é imutável pela proteção anterior. **O campo permanece temporariamente opcional**, portanto a etapa ainda não garante que todo modelo publicado tenha distribuição demográfica. Próximos gates: backfill/carga, exigência de FK no bootstrap, fingerprint agregado incluindo o pin e testes SQL de promoção. Evitar tratar apenas o SHA como fonte operacional.
