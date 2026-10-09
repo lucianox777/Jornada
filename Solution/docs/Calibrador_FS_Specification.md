@@ -173,3 +173,21 @@ A limitação de cobertura de nomes por **período de nascimento** no Censo 2022
 A distribuição diária efetivamente implementada está congelada em `data/reference/synthetic-birth-sp/manifest.json`: fonte `IBGE_PROJECAO_POPULACAO_REVISAO_2024`, geografia `UF_SP`, referência `2026-07-01`, população projetada `46.179.008`, com benchmark auxiliar `IBGE_CENSO_2022_SIDRA_9514_TAIL_BENCHMARK` para cauda 100+; idade 90+ modelada por decaimento geométrico e datas intrafaixa distribuídas uniformemente por dia. A uniformidade **intrafaixa** é hipótese de interpolação, não sorteio uniforme de anos nem série diária observada. A projeção é da UF São Paulo, enquanto frequências nominais da pessoa usam o município 3550308; declarar essa diferença de geografia em cada modelo.
 
 A amostra gerada representa uma **distribuição etária projetada da população viva em 2026**, não uma série de nascimentos anuais nem uma previsão de nomes de recém-nascidos. Para associações entre prenomes e coortes de nascimento após a cobertura observada, não extrapolar frequências como se fossem medidas; marcar `PROJETADO/HIPOTESE` e aguardar fonte adicional verificável. Manter referência, método, fingerprint, recorte temporal, limites de extrapolação e validação empírica no snapshot FS congelado.
+
+
+### Matriz de implementação do congelamento FS — revisão de código (09/10/2026)
+
+A revisão das migrações `20260912_Frequencia_Nomes_Referencia.sql` e `20260910_Linkage_RuleSet_Passes.sql` comprova mecanismos **já implementados**, mas não comprova ainda o congelamento integral do bootstrap FS:
+
+| Invariante | Evidência existente | Situação |
+|---|---|---|
+| Referência nominal `ref` versionada | `ref.frequencia_nome_versao` e `ref.frequencia_nome`, publicação ATIVA | Implementado |
+| Versão nominal capturada atomicamente na criação do modelo | `identidade.tr_modelo_linkage_fixa_frequencia_nome_versao` com `HOLDLOCK` | Implementado |
+| Versão nominal do modelo imutável | Mesmo trigger proíbe troca de `frequencia_nome_versao_id` | Implementado |
+| Passes e campos de blocking vinculados a modelo | `identidade.linkage_ruleset*` | Implementado |
+| Alteração/remoção de ruleset e passes impedida | Triggers `INSTEAD OF UPDATE, DELETE` | Implementado |
+| Distribuição diária de nascimento em tabela `ref` versionada e vinculada ao modelo | Apenas arquivo + manifesto em `data/reference/synthetic-birth-sp` identificados | **Pendente** |
+| Snapshot único de todos os parâmetros FS (m/u/TF/prior/limiares) com fingerprint verificável | Não comprovado pelas duas migrações auditadas | **Pendente de implementação/auditoria** |
+| Validação das correlações condicionais por blocking e congelamento do resultado | Não comprovado pelas duas migrações auditadas | **Pendente** |
+
+**Critério de aceite para fechamento:** publicar modelo inicial somente com todas as referências requeridas fixadas e fingerprints consistentes; proibir mutação posterior; permitir recalibração apenas por nova versão; teste de tentativa de alteração rejeitada e teste de replay determinístico com referências antigas. Não introduzir cópias redundantes de `ref.frequencia_nome` em tabelas FS: armazenar FKs e fingerprints de origem, além dos parâmetros FS efetivamente estimados.
