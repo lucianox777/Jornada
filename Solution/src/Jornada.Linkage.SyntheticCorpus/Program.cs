@@ -272,7 +272,7 @@ static async Task<(SyntheticCorpusGeneration Generation, SyntheticCorpusNominalS
     IReadOnlyDictionary<string, string> values)
 {
     var manifest = await IbgeProjectionReader.ReadManifestAsync(referenceRoot);
-    var profile = Get(values, "population-profile") ?? "legacy";
+    var profile = Get(values, "population-profile") ?? "demographic-primary";
     if (string.Equals(profile, "legacy", StringComparison.Ordinal))
     {
         var inputFingerprint = SyntheticCorpusInputIdentity.ComputeFingerprint(
@@ -345,7 +345,7 @@ static void PrintUsage()
 
           Jornada.Linkage.SyntheticCorpus generate
             [--reference-root <dir>]
-            [--population-profile legacy|demographic-primary]
+            [--population-profile demographic-primary|legacy (default demographic-primary)]
             [--birth-daily-source <arquivo.json> (obrigatório em demographic-primary; sem fallback uniforme)]
             [--out <dir>]
             [--people <N> (default 30000; corpus demografico primario)]
