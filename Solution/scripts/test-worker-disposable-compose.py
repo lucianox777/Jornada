@@ -40,6 +40,17 @@ def inspect(extra: dict[str, str], *, continuous: bool = False) -> subprocess.Co
     )
 
 
+def require_private_tls(connection: str, component: str) -> None:
+    # SQL Server Developer uses a self-signed certificate. The exception may
+    # exist ONLY on this private Compose, with TLS encryption ON, DEV and
+    # isolated JornadaE2E; the source-sanity policy names this file exactly.
+    settings = dict(part.split("=", 1) for part in connection.split(";") if "=" in part)
+    settings = {key.strip().lower(): val.strip().lower() for key, val in settings.items()}
+    require(settings.get("encrypt") == "true"
+            and settings.get("trustservercertificate") == "true",
+            f"{component}: private DEV TLS acceptance missing or encryption disabled")
+
+
 def main() -> int:
     denied = inspect({})
     require(denied.returncode != 0, "Compose must fail without explicit sandbox name/secret")
@@ -128,6 +139,7 @@ def main() -> int:
         require("Server=sqlserver,1433;Database=JornadaE2E;" in
                 api_env.get("ConnectionStrings__Jornada", ""),
                 f"{name}: points outside the private E2E SQL service")
+        require_private_tls(api_env.get("ConnectionStrings__Jornada", ""), name)
         require(svc.get("healthcheck", {}).get("test"),
                 f"{name}: must expose liveness healthcheck")
     require(services["resultado-api"]["environment"].get("JornadaApiBaseUrl")
@@ -162,6 +174,7 @@ def main() -> int:
         conn = worker_env.get("ConnectionStrings__Jornada", "")
         require("Database=JornadaE2E;" in conn and sql_secret in conn,
                 f"{name}: wrong effective database connection")
+        require_private_tls(conn, name)
         for dependency in svc.get("depends_on", {}):
             require(dependency in {"sqlserver", "sql-bootstrap"},
                     f"{name}: unexpected shared service dependency")

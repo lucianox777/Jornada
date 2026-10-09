@@ -131,7 +131,7 @@ portas de host.
 
 O SQL E2E usa certificado autofirmado. Somente nesta rede privada e
 descartável a conexão mantém `Encrypt=true` e aceita o certificado
-com `TrustServerCertificate=true`. Fora do perfil isolado nenhum
+com `TrustServerCertificate` habilitado no E2E privado. Fora do perfil isolado nenhum
 parâmetro é alterado.
 
 Em OFF, o script confere **ausência dos três workers residentes**
