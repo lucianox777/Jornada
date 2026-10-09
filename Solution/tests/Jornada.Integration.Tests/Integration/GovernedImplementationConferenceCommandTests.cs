@@ -21,7 +21,7 @@ public sealed class GovernedImplementationConferenceCommandTests
             "UNFROZEN",
             null);
 
-        var ex = Assert.ThrowsAsync<ConferencePreconditionException>((AsyncTestDelegate)(async () =>
+        var ex = Assert.ThrowsAsync<ConferencePreconditionException>((Func<Task>)(async () =>
             await GovernedImplementationConferenceCommand.ExecuteAsync(
                 "Server=invalid.invalid;Database=NeverOpen;Encrypt=True",
                 Guid.NewGuid(),
