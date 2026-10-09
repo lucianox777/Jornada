@@ -11,7 +11,7 @@ public sealed class Dt15HumanModelApprovalContractTests
         var migration=File.ReadAllText(Path.Combine(solution,"database","migrations","20261002_DT15_Human_Model_Approval.sql"));
         var dossierBinding=File.ReadAllText(Path.Combine(solution,"database","migrations","20261003_DT15_Human_Approval_Dossier_Binding.sql"));
         var worker=File.ReadAllText(Path.Combine(solution,"src","Jornada.Linkage.Parameters.Worker","LinkageParametersWorker.cs"));
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(migration,Does.Contain("modelo_linkage_aprovacao"));
             Assert.That(migration,Does.Contain("INSTEAD OF UPDATE,DELETE"));
             Assert.That(migration,Does.Contain("sp_calcular_fingerprint_modelo_linkage"));
@@ -24,6 +24,6 @@ public sealed class Dt15HumanModelApprovalContractTests
             Assert.That(dossierBinding,Does.Contain("sp_assert_dossie_decisao_modelo_linkage"));
             Assert.That(worker,Does.Contain("sp_assert_aprovacao_modelo_linkage @modelo_id=@modelo_id,@acao=N'VALIDATE'"));
             Assert.That(worker,Does.Contain("sp_assert_aprovacao_modelo_linkage @modelo_id=@modelo_id,@acao=N'ACTIVATE'"));
-        });
+        }));
     }
 }

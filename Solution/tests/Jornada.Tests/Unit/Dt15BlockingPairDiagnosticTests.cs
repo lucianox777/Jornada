@@ -23,7 +23,7 @@ public sealed class Dt15BlockingPairDiagnosticTests
             sample, [Pass("D-name", Name)], Active(Pass("D-mother", Mother)),
             "FS_LINKAGE_V6", IdentityComparison.NormalizationVersion);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Status, Is.EqualTo(Dt15BlockingPairDiagnostic.Comparable));
             Assert.That(result.StatusCode, Is.EqualTo(1));
@@ -35,7 +35,7 @@ public sealed class Dt15BlockingPairDiagnosticTests
             Assert.That(result.Draft.ReductionRatio, Is.EqualTo(0.5d));
             Assert.That(result.RecallDelta, Is.EqualTo(1d / 3d).Within(0.000001));
             Assert.That(result.ReductionDelta, Is.EqualTo(-0.25d));
-        });
+        }));
     }
 
     [Test]
@@ -49,13 +49,13 @@ public sealed class Dt15BlockingPairDiagnosticTests
         var result = Dt15BlockingPairDiagnostic.Compare(
             sample, [Pass("name", Name)], Active(Pass("mother", Mother)),
             "FS_LINKAGE_V6", IdentityComparison.NormalizationVersion);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.MatchedPairWeight, Is.EqualTo(2m));
             Assert.That(result.Active!.TrueMatchRecall, Is.EqualTo(0.5d));
             Assert.That(result.Draft.TrueMatchRecall, Is.EqualTo(0.5d));
             Assert.That(result.Active.CompleteMatchCoverage, Is.EqualTo(0.5d));
-        });
+        }));
     }
 
     [Test]
@@ -64,7 +64,7 @@ public sealed class Dt15BlockingPairDiagnosticTests
         var result = Dt15BlockingPairDiagnostic.Compare(
             Minimal(), [Pass("name", Name)], null,
             "FS_LINKAGE_V6", IdentityComparison.NormalizationVersion);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Status, Is.EqualTo(Dt15BlockingPairDiagnostic.NoActiveModel));
             Assert.That(result.IsComparable, Is.False);
@@ -72,7 +72,7 @@ public sealed class Dt15BlockingPairDiagnosticTests
             Assert.That(result.RecallDelta, Is.Null);
             Assert.That(result.ReductionDelta, Is.Null);
             Assert.That(result.Draft.TrueMatchRecall, Is.EqualTo(1d));
-        });
+        }));
     }
 
     [Test]
@@ -91,12 +91,12 @@ public sealed class Dt15BlockingPairDiagnosticTests
             var result = Dt15BlockingPairDiagnostic.Compare(
                 Minimal(), [Pass("name", Name)], changed,
                 "FS_LINKAGE_V6", IdentityComparison.NormalizationVersion);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(result.IsComparable, Is.False);
                 Assert.That(result.Active, Is.Null);
                 Assert.That(result.RecallDelta, Is.Null);
-            });
+            }));
         }
     }
 

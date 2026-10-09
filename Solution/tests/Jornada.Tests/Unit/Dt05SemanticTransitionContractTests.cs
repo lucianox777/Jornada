@@ -41,14 +41,14 @@ public sealed class Dt05SemanticTransitionContractTests
             Assert.That(contract, Does.Contain($"`{field[2..]}`"),
                 $"V1 normative contract must list {field}");
         }
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(signature, Does.Contain("COALESCE("));
             Assert.That(signature, Does.Contain("N'<NULL>'"));
             Assert.That(signature, Does.Not.Contain("r.linkage_run_id"));
             Assert.That(signature, Does.Not.Contain("r.score_melhor"));
             Assert.That(sql, Does.Contain("anterior.assinatura_sha256<>s.assinatura"));
-        });
+        }));
     }
 
     [Test]
@@ -62,7 +62,7 @@ public sealed class Dt05SemanticTransitionContractTests
         var ledger = runner.IndexOf("EXEC identidade.sp_registrar_transicoes_linkage_run", progressive, StringComparison.Ordinal);
         var published = runner.IndexOf("SET status='PUBLICADO'", ledger, StringComparison.Ordinal);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(progressive, Is.GreaterThan(publish));
             Assert.That(ledger, Is.GreaterThan(progressive));
@@ -72,6 +72,6 @@ public sealed class Dt05SemanticTransitionContractTests
             Assert.That(migration, Does.Contain("anterior.assinatura_sha256<>s.assinatura"));
             Assert.That(migration, Does.Contain("UQ_linkage_transicao_resultado"));
             Assert.That(migration, Does.Not.Contain("DELETE FROM identidade.linkage_resultado"));
-        });
+        }));
     }
 }

@@ -15,7 +15,7 @@ public sealed class Dt15SyntheticPairedComparisonTests
     public void Same_corpus_and_partition_compares_frozen_FS_outcomes_not_a_historical_run()
     {
         var result = Dt15SyntheticPairedComparison.Compare(Facts(true), Facts(false));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Status, Is.EqualTo(Dt15SyntheticPairedComparison.Comparable));
             Assert.That(result.Purpose, Is.EqualTo("ENGINEERING_EVIDENCE_ONLY_NOT_PROMOTABLE"));
@@ -32,7 +32,7 @@ public sealed class Dt15SyntheticPairedComparisonTests
             Assert.That(result.Test.FalseNegativeDelta, Is.EqualTo(0));
             Assert.That(result.Strata, Has.Count.EqualTo(2));
             Assert.That(result.Safeguards, Has.Some.Contains("no score").IgnoreCase);
-        });
+        }));
     }
 
     [Test]
@@ -52,14 +52,14 @@ public sealed class Dt15SyntheticPairedComparisonTests
         foreach (var altered in new[] { changedTruth, changedSeed, changedDenominator })
         {
             var result = Dt15SyntheticPairedComparison.Compare(active, altered);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(result.Status, Is.EqualTo(Dt15SyntheticPairedComparison.NotComparable));
                 Assert.That(result.Blocking, Is.Null);
                 Assert.That(result.Validation, Is.Null);
                 Assert.That(result.Test, Is.Null);
                 Assert.That(result.Strata, Is.Null);
-            });
+            }));
         }
     }
 
@@ -71,13 +71,13 @@ public sealed class Dt15SyntheticPairedComparisonTests
         var noOracle = Dt15SyntheticPairedComparison.Compare(active, draft with { Decision = null });
         var noFingerprint = Dt15SyntheticPairedComparison.Compare(active,
             draft with { Reference = draft.Reference with { SnapshotSha256 = "" } });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(noOracle.Status, Is.EqualTo(Dt15SyntheticPairedComparison.Incomplete));
             Assert.That(noOracle.Validation, Is.Null);
             Assert.That(noFingerprint.Status, Is.EqualTo(Dt15SyntheticPairedComparison.Incomplete));
             Assert.That(noFingerprint.Blocking, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -91,12 +91,12 @@ public sealed class Dt15SyntheticPairedComparisonTests
                 x.Partition == "TEST" ? x with { Total = 9 } : x).ToArray()
         };
         var result = Dt15SyntheticPairedComparison.Compare(active, tampered);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Status, Is.EqualTo(Dt15SyntheticPairedComparison.NotComparable));
             Assert.That(result.Strata, Is.Null);
             Assert.That(result.Validation, Is.Null);
-        });
+        }));
     }
 
     [Test]

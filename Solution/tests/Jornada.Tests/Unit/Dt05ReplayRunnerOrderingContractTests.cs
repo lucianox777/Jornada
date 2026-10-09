@@ -15,13 +15,13 @@ public sealed class Dt05ReplayRunnerOrderingContractTests
         var bind = source.IndexOf("replaySql.RegisterAsync(", publish, StringComparison.Ordinal);
         var scoreLoop = source.IndexOf("while (evaluated < eligible)", bind, StringComparison.Ordinal);
 
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(materialize, Is.GreaterThanOrEqualTo(0));
             Assert.That(capture, Is.GreaterThan(materialize));
             Assert.That(publish, Is.GreaterThan(capture));
             Assert.That(bind, Is.GreaterThan(publish));
             Assert.That(scoreLoop, Is.GreaterThan(bind));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

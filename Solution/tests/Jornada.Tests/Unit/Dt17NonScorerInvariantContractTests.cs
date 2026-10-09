@@ -54,7 +54,7 @@ public sealed class Dt17NonScorerInvariantContractTests
         var semiblind = File.ReadAllText(Path.Combine(root, "Solution", "tests", "Jornada.Tests", "Unit", "SemiblindIdentityHttpTests.cs"));
         var authorization = File.ReadAllText(Path.Combine(root, "Solution", "tests", "Jornada.Tests", "Unit", "AuthorizationMatrixContractTests.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(origin, Does.Contain("HttpStatusCode.Unauthorized"));
             Assert.That(origin, Does.Contain("HttpStatusCode.Forbidden"));
@@ -62,7 +62,7 @@ public sealed class Dt17NonScorerInvariantContractTests
             Assert.That(semiblind, Does.Contain("Unauthorized"));
             Assert.That(semiblind, Does.Contain("Forbidden"));
             Assert.That(authorization, Does.Contain("Route_matrix_is_unique_and_type_credentials_are_limited_to_explicit_routes"));
-        });
+        }));
     }
 
     [Test]
@@ -73,14 +73,14 @@ public sealed class Dt17NonScorerInvariantContractTests
         var resolver = File.ReadAllText(Path.Combine(root, "Solution", "tests", "Jornada.Integration.Tests", "Integration", "CpfAnchorResolutionApiTests.cs"));
         var correction = File.ReadAllText(Path.Combine(root, "Solution", "tests", "Jornada.Integration.Tests", "Integration", "CpfAnchorGovernedCorrectionTests.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(rules, Does.Contain("Normalizes_valid_cpf"));
             Assert.That(rules, Does.Contain("Rejects_invalid_cpf"));
             Assert.That(resolver, Does.Contain("Resolver_classifies_structurally_invalid_cpf_without_uuid"));
             Assert.That(resolver, Does.Contain("Resolver_uses_permanent_anchor_when_current_map_is_closed_or_in_conflict"));
             Assert.That(correction, Does.Contain("Governed_correction_cannot_transfer_permanent_cpf_anchor"));
-        });
+        }));
     }
 
     private static string RepositoryRoot()
