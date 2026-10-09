@@ -144,3 +144,38 @@ Este aceite **não prova** que RunOnce dos 3 workers está integrado
 workers, não observa leases/recovery de lote e não implementa toggle
 global/indicadores/controles. Essas provas ficam para C3.2f, C3.3 e
 C3.4. Nenhuma alegação de conclusão DT-21 é permitida.
+
+## C3.2f1 — SIGKILL e reinício independente dos três workers (CI real)
+
+O mesmo job E2E da CI (e não um novo job pesado) reutiliza a imagem já
+construída e o banco SQL privado `JornadaE2E`. **Somente após** obter
+sucesso nos gates de bootstrap create-only e de API/ResultadoApi readiness,
+`e2e-private-worker-restart-runtime.sh` inicia os **três workers** sob
+`--profile continuous` dentro do projeto `jornada-workers-e2e-ci*`.
+
+Antes de injetar falha, o teste exige identidade real de cada contêiner
+pelas labels do Compose, restart `unless-stopped`, processos distintos e
+heartbeat SQL recente em `controle.runtime_componente`.
+A falha é enviada a **PID 1 dentro do contêiner alvo**, e não por um
+`docker compose stop` administrativo que poderia desarmar a política de
+reinício. Repete separadamente para Processor, Operations Maintenance e
+Bronze Maintenance. Para cada alvo exige **novo PID do host, incremento no
+RestartCount e novo instance_id de heartbeat** sem outro clique. O teste
+também confirma identidade e PID de SQL, API, Resultado e dos workers
+não atingidos, e testa readiness de API novamente ao final.
+
+Resultados devem existir no artefato E2E
+`.local/e2e/c3-2f1-worker-restart/` em `summary.json` e
+`restart-evidence.tsv`, contendo **valores antes/depois**, além de logs
+do runner. O script é negado fora da CI autorizada, de projeto privado
+prefixado e de banco descartável exclusivo. Nunca acessa
+`JornadaLocal`, referência IBGE original, HML/PROD ou volumes reais.
+
+**Limite explícito:** C3.2f1 comprova apenas supervisão automática de
+processos isolados; `processing_recovery_verified=false` é intencional.
+Ele **NÃO comprova** que um lote interrompido retomou o processamento,
+que leases expirados foram reconciliados, nem que não houve duplicação
+de entregas/itens. Esses casos exigem C3.2f2 com lote sintético,
+rollback, lease/heartbeat/fencing e idempotência em SQL. DT-21 só poderá
+ser concluída após todos os aceites, incluindo Console global OFF↔ON
+e Chromium E2E.
