@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """C3.3a static/fail-closed contract. Do NOT start Console, Docker or SQL."""
 from pathlib import Path
+import os
 import re
+import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[1]
 SERVICE = ROOT / "src/Jornada.DevConsole/IsolatedWorkerSupervisorStatusReader.cs"
 API = ROOT / "src/Jornada.DevConsole/Program.cs"
+E2E = ROOT / "scripts/e2e-console-worker-supervisor-status.py"
+BOOTSTRAP = ROOT / "scripts/e2e-private-sql-bootstrap-runtime.sh"
 
 
 def main() -> None:
@@ -62,7 +67,32 @@ def main() -> None:
     assert 'response.Headers.CacheControl="no-store"' in api
     assert 'app.MapPost("/api/workers/supervisor"' not in api
     assert not re.search(r'app\.Map(?:Put|Delete|Post)\("/api/workers/', api)
-    print("C3.3a: PASS read-only guarded effective status contract (no Docker or SQL)")
+    e2e = E2E.read_text(encoding="utf-8")
+    compile(e2e, str(E2E), "exec")
+    assert 'proc.terminate()' in e2e and 'proc.kill()' in e2e
+    assert '"/api/workers/supervisor"' in e2e
+    assert '"OFF", "ON"' in e2e
+    assert 'ASSEMBLY.is_file()' in e2e
+    assert 'subprocess.Popen(' in e2e and '"dotnet"' in e2e
+    assert '127.0.0.1' in e2e and "0.0.0.0" not in e2e
+    assert 'docker' not in re.sub(r'(?m)^\s*#.*
+
+
+if __name__ == "__main__":
+    main()
+, '', e2e.lower())
+    assert 'python3 scripts/e2e-console-worker-supervisor-status.py OFF' in BOOTSTRAP.read_text()
+    assert 'python3 scripts/e2e-console-worker-supervisor-status.py ON' in BOOTSTRAP.read_text()
+    base = {"PATH": os.environ.get("PATH", ""), "HOME": "/tmp"}
+    for args, env in [(("ON",), base), (("OFF",), base),
+                      (("UNKNOWN",), base), ((), base),
+                      (("ON",), {**base, "GITHUB_ACTIONS": "true", "CI": "true",
+                                 "GITHUB_REPOSITORY": "wrong/repository"})]:
+        res = subprocess.run([sys.executable, str(E2E), *args],
+                             cwd=ROOT, env=env, capture_output=True,
+                             text=True, timeout=5, check=False)
+        assert res.returncode == 2 and not res.stdout
+    print("C3.3a: PASS read-only guarded status + CI-only HTTP E2E negative contract (no Docker or SQL)")
 
 
 if __name__ == "__main__":
