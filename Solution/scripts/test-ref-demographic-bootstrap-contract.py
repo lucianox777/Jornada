@@ -24,6 +24,8 @@ def main() -> None:
         "THROW 52243",
         "THROW 52244",
         "THROW 52247",
+        "THROW 52251",
+        "EXCEPT",
     ))
     check("20261009_Ref_Calibracao_Inicial_Sintetica.sql", (
         "ref.calibracao_inicial_versao",
