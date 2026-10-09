@@ -9,22 +9,17 @@ public sealed class SyntheticStratifiedErrorOverlayTests
     [Test]
     public void Config_rejects_invalid_rates_keys_and_versions()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new SyntheticStratifiedErrorRates { MissingMother = double.NaN }.Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new SyntheticStratifiedErrorRates { DateCorruption = 1.01 }.Validate());
-        Assert.Throws<ArgumentException>(
-            () => new SyntheticStratifiedErrorConfig { Version = "NOPE" }.Validate(4));
-        Assert.Throws<ArgumentException>(
-            () => new SyntheticStratifiedErrorConfig
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => new SyntheticStratifiedErrorRates { MissingMother = double.NaN }.Validate()));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => new SyntheticStratifiedErrorRates { DateCorruption = 1.01 }.Validate()));
+        Assert.Throws<ArgumentException>((Action)(() => new SyntheticStratifiedErrorConfig { Version = "NOPE" }.Validate(4)));
+        Assert.Throws<ArgumentException>((Action)(() => new SyntheticStratifiedErrorConfig
             {
                 ByGestorAndCpfStratum = new() { ["G5/WITH_CPF"] = new() }
-            }.Validate(4));
-        Assert.Throws<ArgumentException>(
-            () => new SyntheticStratifiedErrorConfig
+            }.Validate(4)));
+        Assert.Throws<ArgumentException>((Action)(() => new SyntheticStratifiedErrorConfig
             {
                 ByCpfStratum = new() { ["UNKNOWN"] = new() }
-            }.Validate(4));
+            }.Validate(4)));
     }
 
     [Test]

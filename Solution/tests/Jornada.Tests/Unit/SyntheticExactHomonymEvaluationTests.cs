@@ -57,18 +57,18 @@ public sealed class SyntheticExactHomonymEvaluationTests
         ]);
 
         var tampered = report with { ExactDistinctHomonymFalseLinkRate = 0m };
-        Assert.Throws<InvalidDataException>(() =>
-            SyntheticExactHomonymEvaluator.ConferArithmetic(tampered));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            SyntheticExactHomonymEvaluator.ConferArithmetic(tampered)));
     }
 
     [Test]
     public void Duplicate_pair_id_is_rejected()
     {
-        Assert.Throws<InvalidDataException>(() => SyntheticExactHomonymEvaluator.Evaluate(
+        Assert.Throws<InvalidDataException>((Action)(() => SyntheticExactHomonymEvaluator.Evaluate(
         [
             Case("dup", "TEST", "A", SyntheticReservedTruthFamilies.ExactDemographicHomonym),
             Case("dup", "TEST", "B", SyntheticReservedTruthFamilies.ExactDemographicHomonym)
-        ]));
+        ])));
     }
 
     private static SyntheticTruthDecisionCase Case(

@@ -13,26 +13,19 @@ public sealed class SyntheticBrazilianNameErrorTests
     public void Configuration_is_explicit_versioned_and_rejects_invalid_rates_or_strata()
     {
         Assert.DoesNotThrow(() => new SyntheticBrazilianNameErrorConfig().Validate(4));
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new SyntheticBrazilianNameErrorRates { DuplicateLetter = double.NaN }.Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new SyntheticBrazilianNameErrorRates { DuplicateParticle = double.PositiveInfinity }.Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new SyntheticBrazilianNameErrorRates { OmitAgnome = -0.1 }.Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new SyntheticBrazilianNameErrorRates { PrefixTitle = 1.1 }.Validate());
-        Assert.Throws<ArgumentException>(
-            () => new SyntheticBrazilianNameErrorConfig { Version = "UNKNOWN" }.Validate(4));
-        Assert.Throws<ArgumentException>(
-            () => new SyntheticBrazilianNameErrorConfig
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => new SyntheticBrazilianNameErrorRates { DuplicateLetter = double.NaN }.Validate()));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => new SyntheticBrazilianNameErrorRates { DuplicateParticle = double.PositiveInfinity }.Validate()));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => new SyntheticBrazilianNameErrorRates { OmitAgnome = -0.1 }.Validate()));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => new SyntheticBrazilianNameErrorRates { PrefixTitle = 1.1 }.Validate()));
+        Assert.Throws<ArgumentException>((Action)(() => new SyntheticBrazilianNameErrorConfig { Version = "UNKNOWN" }.Validate(4)));
+        Assert.Throws<ArgumentException>((Action)(() => new SyntheticBrazilianNameErrorConfig
             {
                 ByGestor = new() { ["G4"] = new() }
-            }.Validate(4));
-        Assert.Throws<ArgumentException>(
-            () => new SyntheticBrazilianNameErrorConfig
+            }.Validate(4)));
+        Assert.Throws<ArgumentException>((Action)(() => new SyntheticBrazilianNameErrorConfig
             {
                 ByGestorAndCpfStratum = new() { ["G0/UNKNOWN"] = new() }
-            }.Validate(4));
+            }.Validate(4)));
     }
 
     [Test]
