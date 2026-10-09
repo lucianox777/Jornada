@@ -201,3 +201,10 @@ A revisão das migrações `20260912_Frequencia_Nomes_Referencia.sql` e `2026091
 ### Gate de conferência contra snapshot mutado — verificado em SQL (09/10/2026)
 
 `database/migrations/20260920_Linkage_Implementation_Conference_Evidence.sql` já define `auditoria.sp_assert_conferencia_linkage_conforme`: exige última evidência `CONFORME` para método/tolerância, gates primários consistentes, modelo na versão e estado esperados e **recalcula** `auditoria.sp_calcular_fingerprint_modelo_linkage`; quando o hash difere da evidência, lança erro `51989`. `20260920_Linkage_Conference_Command_Governance.sql` mantém registro governado. Portanto **há proteção existente contra reutilização de evidência de conferência após alteração do snapshot**. Falta verificar em teste de integração os pontos de chamada desse assert em todas as transições de publicação, inclusive estados posteriores, e garantir que fontes demográficas estejam incluídas no snapshot; não criar um segundo verificador paralelo.
+
+
+### Pin de referência demográfica por modelo — implementação inicial (09/10/2026)
+
+A migração `20261009_Linkage_Demographic_Reference_Pin.sql` cria `identidade.modelo_linkage_referencia_demografica` (um registro por `modelo_id`) com código da referência, geografia, data, método e SHA-256 do arquivo diário. O pin só pode ser inserido em `GERANDO/RASCUNHO`, e UPDATE/DELETE são rejeitados. A tabela **não copia** a distribuição diária versionada do arquivo JSON.
+
+**Limitação importante:** esta primeira migração não torna o pin obrigatório para ativação, não calcula automaticamente a identidade do manifesto e **ainda não o inclui** em `auditoria.sp_calcular_fingerprint_modelo_linkage`. Antes de promover esse mecanismo como gate de publicação, integrar a tabela ao fingerprint existente, exigir a referência onde aplicável e cobrir SQL com testes de mutação/ausência. Não confundir pin persistido com congelamento FS completo.
