@@ -148,7 +148,7 @@ jobs:
         shell: pwsh
         run: |
           $script = Get-Content -Raw -Encoding UTF8 install/windows-production/Install-JornadaProduction.ps1
-          foreach ($token in @('function Ensure-DotNet10', 'Microsoft\\.NETCore\\.App 10\\.', 'Microsoft\\.AspNetCore\\.App 10\\.', 'Ensure-DotNet10 $config.dotnet', 'jornada-dotnet-hosting-10.exe', 'Get-AuthenticodeSignature')) {
+          foreach ($token in @('function Ensure-DotNet10', 'Microsoft\.NETCore\.App 10\.', 'Microsoft\.AspNetCore\.App 10\.', 'Ensure-DotNet10 $config.dotnet', 'jornada-dotnet-hosting-10.exe', 'Get-AuthenticodeSignature')) {
             if (-not $script.Contains($token)) { throw "Missing .NET 10 guard: $token" }
           }
           if ($script.Contains('Ensure-DotNet8') -or $script.Contains('jornada-dotnet-hosting-8.exe')) {
