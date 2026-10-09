@@ -144,19 +144,20 @@ for i in "${!services[@]}"; do
   before_pid="${pids[$target]}"
   before_count="${counts[$target]}"
   before_instance="${instances[$target]}"
-  # Never call 'docker stop' or 'docker kill': those administrative actions
-  # may suppress the external restart policy. SIGKILL only PID 1 INSIDE
-  # the verified target container, leaving all siblings and APIs untouched.
-  [[ "$(label "$target_cid")" == "$PROJECT:$target" ]] ||
-    die 'worker identity changed before fault injection'
-  # Docker exec's default user may not have permission to signal PID 1.
-  # Explicit root is scoped to this already verified disposable container.
-  # Docker may return 137 when the target dies: exit status of docker exec
-  # is not evidence; prove restart via host PID + RestartCount + SQL instance.
+  # A PID namespace's init (PID 1) cannot be reliably SIGKILLed by a
+  # process inside that namespace. Signal the verified container init HOST PID
+  # from this ephemeral GitHub runner; never use docker stop/kill, which can
+  # suppress the external restart policy. Recheck identity and PID immediately.
+  [[ "$(label "$target_cid")" == "$PROJECT:$target" &&
+     "$(get_pid "$target_cid")" == "$before_pid" &&
+     "$(docker inspect -f '{{.State.Running}}' "$target_cid")" == true &&
+     "$before_pid" =~ ^[0-9]+$ && "$before_pid" -gt 1 ]] ||
+    die 'worker identity/PID changed before fault injection'
   signal_exit=0
-  docker exec --user 0 "$target_cid" /bin/sh -c 'kill -KILL 1' \
+  sudo kill -KILL -- "$before_pid" \
     > "$OUT/$target-fault-signal.log" 2>&1 || signal_exit=$?
-  printf 'target=%s;inject_exit=%s;before_pid=%s;before_restart=%s\n' \
+  [[ "$signal_exit" -eq 0 ]] || die "SIGKILL failed for verified sandbox worker: $target"
+  printf 'target=%s;inject_exit=%s;before_pid=%s;before_restart=%s\\n' \
     "$target" "$signal_exit" "$before_pid" "$before_count" \
     >> "$OUT/fault-injection-evidence.log"
 
