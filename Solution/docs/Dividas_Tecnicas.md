@@ -19,9 +19,9 @@ aceite de ingestão (#837, #839, #840). As quatro DTs abaixo
 | Nova DT | Decisão aprovada | Estado / gate |
 |---|---|---|
 | [DT-18](DT18_Servicos_Independentes_Console_DEV.md) | Workers são serviços/processos independentes, sem cascata de reinício do NODE. | **PENDENTE** — prova de isolamento de processos em CI descartável. |
-| [DT-19](DT19_Console_Acoes_Workers.md) | Quatro botões: Executar uma vez, Iniciar contínuo, Parar processo (kill abrupto), Status do processo. | **PENDENTE** — API/UI/Chromium real; sem botões redundantes. |
-| [DT-20](DT20_Supervisao_Opt_In_Workers.md) | Toggle adicional Ativar/Desativar supervisão por worker. ON reinicia após kill; OFF permanece parado. | **PENDENTE** — efetividade e segurança do supervisor; não iniciar/matar ao alternar. |
-| [DT-21](DT21_Testes_Resiliencia_Workers.md) | Testes das duas políticas de supervisão, PID, RunOnce, heartbeat, leases, retry sem duplicação. | **PENDENTE** — SQL exclusivamente `JornadaE2E`, sem falso sucesso. |
+| [DT-19](DT19_Console_Acoes_Workers.md) | Três ações individuais por worker: Executar uma vez, Parar processo (kill abrupto), Status do processo. Iniciar contínuo individual foi substituído pelo toggle global. | **PENDENTE** — API/UI/Chromium real; sem botões redundantes. |
+| [DT-20](DT20_Supervisao_Opt_In_Workers.md) | **Toggle global** de modo: OFF inicial habilita os três RunOnce; ON mata/encerra instâncias antigas e inicia os três continuamente, desabilitando RunOnce; OFF novamente encerra os residentes. | **PENDENTE** — orquestração atômica e isolamento real no E2E. |
+| [DT-21](DT21_Testes_Resiliencia_Workers.md) | Testes da máquina de estados global OFF→ON→OFF, PID, bloqueio RunOnce em ON, heartbeat, leases e recuperação sem duplicação. | **PENDENTE** — SQL exclusivamente `JornadaE2E`, sem falso sucesso. |
 
 A sequência operacional C3.1–C3.4 está em
 [Plano Console Workers](Plano_Console_Workers_Independentes_2026-10-08.md).
