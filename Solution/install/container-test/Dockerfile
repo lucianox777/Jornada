@@ -70,8 +70,11 @@ COPY install/container-test/entrypoint.sh /usr/local/bin/jornada-cluster-entrypo
 # Separate entrypoint is INERT unless explicitly selected in a future
 # disposable DEV Compose service. The existing NODE keeps its entrypoint.
 COPY install/container-test/worker-entrypoint.sh /usr/local/bin/jornada-worker-entrypoint
+# Inert in the legacy NODE image unless explicitly selected by the
+# disposable E2E Compose service; API lifecycle remains independent.
+COPY install/container-test/api-entrypoint.sh /usr/local/bin/jornada-api-entrypoint
 
-RUN chmod 0755 /usr/local/bin/jornada-cluster-entrypoint /usr/local/bin/jornada-worker-entrypoint \
+RUN chmod 0755 /usr/local/bin/jornada-cluster-entrypoint /usr/local/bin/jornada-worker-entrypoint /usr/local/bin/jornada-api-entrypoint \
  && mkdir -p /data/bronze /data/staging /data/logs /data/node /etc/jornada
 
 EXPOSE 5080 5081

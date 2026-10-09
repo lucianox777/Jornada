@@ -37,6 +37,20 @@ x-worker-service: &worker-service
     - staging:/data/staging
   entrypoint: ["/usr/local/bin/jornada-worker-entrypoint"]
 
+x-api-service: &api-service
+  <<: *worker-image
+  # A morte de worker nenhum deve reiniciar ou encerrar as APIs.
+  restart: unless-stopped
+  depends_on:
+    sqlserver:
+      condition: service_healthy
+  entrypoint: ["/usr/local/bin/jornada-api-entrypoint"]
+  environment:
+    <<: *worker-env
+  volumes:
+    - bronze:/data/bronze
+    - staging:/data/staging
+
 services:
   # Isolated SQL Server instance with project-prefixed volume; NO host port.
   # Schema/bootstrap and application-level integration are separate C3.2 gates:
@@ -56,6 +70,41 @@ services:
       retries: 30
       start_period: 20s
     restart: "no"
+
+  # Always available in OFF and ON modes; separate PID 1 / service restart.
+  api:
+    <<: *api-service
+    command: ["Api"]
+    environment:
+      <<: *worker-env
+      JORNADA_NODE_ID: NODE1
+      ASPNETCORE_URLS: "http://0.0.0.0:5080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5080/health/live >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  resultado-api:
+    <<: *api-service
+    command: ["ResultadoApi"]
+    environment:
+      <<: *worker-env
+      JORNADA_NODE_ID: NODE2
+      ASPNETCORE_URLS: "http://0.0.0.0:5081"
+      JornadaApiBaseUrl: "http://api:5080"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:5081/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
 
   processor:
     <<: *worker-service
