@@ -131,7 +131,7 @@ JOIN (VALUES
 ) x(codigo_publico,credencial_id) ON x.codigo_publico=c.codigo_publico
 WHERE c.credencial_id<>x.credencial_id;");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(gestores, Is.EqualTo(4));
             Assert.That(tipos, Is.EqualTo(6));
@@ -225,7 +225,7 @@ WHERE c.credencial_id<>x.credencial_id;");
             Assert.That(sucessaoUuid, Is.EqualTo(1), "UUID fundido deve poder apontar para seu sucessor canônico.");
             Assert.That(funcaoUuidCanonico, Is.EqualTo(1));
             Assert.That(biUuidExposto, Is.Zero, "Modelo BI padrão não deve depender de pessoa_uuid em views de consumo.");
-        });
+        }));
     }
 
     [Test]
@@ -306,7 +306,7 @@ WHERE c.credencial_id<>x.credencial_id;");
             query.Parameters.AddWithValue("@uuid", pessoaUuid);
             await using var result = await query.ExecuteReaderAsync();
             Assert.That(await result.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((TestDelegate)(() =>
             {
                 Assert.That(result.GetString(0), Is.EqualTo("Maria Referência"));
                 Assert.That(result.GetString(1), Is.EqualTo("NOME_SOCIAL"));
@@ -316,7 +316,7 @@ WHERE c.credencial_id<>x.credencial_id;");
                 Assert.That(result.GetString(3), Is.Not.EqualTo(result.GetString(0)));
                 Assert.That(result.GetInt32(4), Is.Zero,
                     "A superfície padrão não deve expor nome_completo civil como coluna paralela.");
-            });
+            }));
         }
         finally
         {
