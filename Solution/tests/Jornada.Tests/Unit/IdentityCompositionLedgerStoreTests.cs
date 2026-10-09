@@ -70,7 +70,7 @@ public sealed class IdentityCompositionLedgerStoreTests
         var changedDecision = decision with { PolicyVersion = "COMPOSITION_PREPARED_V2" };
         var changedPlan = plan with { RequestHash = new string('0', 64) };
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
                 receipt, changedDecision, plan, new[] { R })));
@@ -78,7 +78,7 @@ public sealed class IdentityCompositionLedgerStoreTests
                 receipt, decision, changedPlan, new[] { R })));
             Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
                 receipt, decision, plan, Array.Empty<Guid>())));
-        });
+        }));
     }
 
     [Test]
@@ -87,7 +87,7 @@ public sealed class IdentityCompositionLedgerStoreTests
         var (decision, plan) = Build();
         var receipt = Receipt(decision, plan, new[] { R });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
                 receipt with { State = "APLICADA" }, decision, plan, new[] { R })));
@@ -95,6 +95,6 @@ public sealed class IdentityCompositionLedgerStoreTests
                 receipt with { RequestHash = "ABC" }, decision, plan, new[] { R })));
             Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
                 receipt with { RequesterReference = " " }, decision, plan, new[] { R })));
-        });
+        }));
     }
 }

@@ -64,7 +64,7 @@ public sealed class ResolutionProjectionGroundTruthLineageTests
     {
         var plan = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.DoesNotThrow((Action)(() =>
                 ResolutionProjectionGroundTruthLineage.EnsureBlockingCandidatesDoNotLeak(
@@ -74,6 +74,6 @@ public sealed class ResolutionProjectionGroundTruthLineageTests
                 ResolutionProjectionGroundTruthLineage.EnsureBlockingCandidatesDoNotLeak(
                     plan,
                     GroundTruthSource.Cns)));
-        });
+        }));
     }
 }

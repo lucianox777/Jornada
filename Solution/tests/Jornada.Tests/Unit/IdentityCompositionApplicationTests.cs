@@ -66,13 +66,13 @@ public sealed class IdentityCompositionApplicationTests
     {
         var first = IdentityCompositionCanonical.SerializeHistoryMembers(new[] { B, A });
         var second = IdentityCompositionCanonical.SerializeHistoryMembers(new[] { A, B });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(first, Is.EqualTo(second));
             Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionCanonical.SerializeHistoryMembers(Array.Empty<Guid>())));
             Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionCanonical.SerializeHistoryMembers(new[] { A, A })));
             Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionCanonical.SerializeHistoryMembers(new[] { Guid.Empty })));
-        });
+        }));
     }
 
     [Test]
@@ -88,7 +88,7 @@ public sealed class IdentityCompositionApplicationTests
     {
         var (_, plan, prepared) = Build();
         var applied = Applied(prepared, plan);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionApplicationStore.ValidateAppliedContent(
                 applied with { PlanHash = new string('0', 64) }, prepared, plan)));
@@ -96,7 +96,7 @@ public sealed class IdentityCompositionApplicationTests
                 applied with { AppliedChanges = applied.AppliedChanges + 1 }, prepared, plan)));
             Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionApplicationStore.ValidateAppliedContent(
                 applied with { RegisteredHistories = applied.RegisteredHistories + 1 }, prepared, plan)));
-        });
+        }));
     }
 
     [Test]
@@ -104,7 +104,7 @@ public sealed class IdentityCompositionApplicationTests
     {
         var (_, plan, prepared) = Build();
         var applied = Applied(prepared, plan);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionApplicationStore.ValidateAppliedContent(
                 applied with { State = "PREPARADA" }, prepared, plan)));
@@ -112,6 +112,6 @@ public sealed class IdentityCompositionApplicationTests
                 applied with { ApplierReference = " " }, prepared, plan)));
             Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionApplicationStore.ValidateAppliedContent(
                 applied with { AppliedAt = When.ToOffset(TimeSpan.FromHours(-3)) }, prepared, plan)));
-        });
+        }));
     }
 }

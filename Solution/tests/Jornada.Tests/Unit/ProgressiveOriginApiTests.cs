@@ -71,8 +71,8 @@ public sealed class ProgressiveOriginApiTests
         var service = new SqlProgressiveOriginQueryService(new OperationalSqlAdapter("Server=localhost;Database=JornadaTest;Integrated Security=true"));
         var gestor = new AccessContext(Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null, [], []);
         var type = gestor with { CredentialType = AccessCredentialType.BENEFICIO, Scopes = [ProgressiveOriginApi.Permission] };
-        Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await service.GetAsync(gestor, Query, CancellationToken.None));
-        Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await service.GetAsync(type, Query, CancellationToken.None));
+        Assert.ThrowsAsync<UnauthorizedAccessException>((Func<Task>)(async () => await service.GetAsync(gestor, Query, CancellationToken.None)));
+        Assert.ThrowsAsync<UnauthorizedAccessException>((Func<Task>)(async () => await service.GetAsync(type, Query, CancellationToken.None)));
     }
 
     [TestCase("missing", HttpStatusCode.Unauthorized)]

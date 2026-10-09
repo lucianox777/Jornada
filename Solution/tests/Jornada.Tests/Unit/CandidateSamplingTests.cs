@@ -111,18 +111,18 @@ public sealed class CandidateSamplingTests
     [Test]
     public void InvalidFramesAndLimitsFailClosed()
     {
-        Assert.ThrowsAsync<ArgumentException>(async () => await RunAsync(Frame(1) with { Complete = false }, Options(1), Seed));
-        Assert.ThrowsAsync<ArgumentException>(async () => await RunAsync(Frame(1) with { Reference = " " }, Options(1), Seed));
-        Assert.ThrowsAsync<ArgumentException>(async () => await RunAsync(Frame(1) with { Sources = new[] { Source(SourceA), Source(SourceA) } }, Options(1), Seed));
-        Assert.ThrowsAsync<ArgumentException>(async () => await RunAsync(Frame(1), Options(1), new byte[31]));
-        Assert.ThrowsAsync<ArgumentException>(async () => await RunAsync(Frame(1), Options(2), Seed));
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await RunAsync(Frame(1), Options(1) with { MaxCandidatesPerSource = 5 }, Seed));
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await RunAsync(Frame(3), Options(3) with { MaxEnumeratedPairs = 11 }, Seed));
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await RunAsync(Frame(1), Options(1) with { MaxSelectedPairs = 4 }, Seed));
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await CandidateSamplingEngine.CaptureAsync(Frame(1), Options(1), Seed, "snapshot", Captured,
-            (_, _) => Task.FromResult<IReadOnlyList<CandidateSamplingCandidate>>(new[] { new CandidateSamplingCandidate(A, BirthBlockingPass.None) }), CancellationToken.None));
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await CandidateSamplingEngine.CaptureAsync(Frame(1), Options(1), Seed, "snapshot", Captured,
-            (_, _) => Task.FromResult<IReadOnlyList<CandidateSamplingCandidate>>(new[] { new CandidateSamplingCandidate(A, BirthBlockingPass.ExactDate), new CandidateSamplingCandidate(A, BirthBlockingPass.ExactDate) }), CancellationToken.None));
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () => await RunAsync(Frame(1) with { Complete = false }, Options(1), Seed)));
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () => await RunAsync(Frame(1) with { Reference = " " }, Options(1), Seed)));
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () => await RunAsync(Frame(1) with { Sources = new[] { Source(SourceA), Source(SourceA) } }, Options(1), Seed)));
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () => await RunAsync(Frame(1), Options(1), new byte[31])));
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () => await RunAsync(Frame(1), Options(2), Seed)));
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () => await RunAsync(Frame(1), Options(1) with { MaxCandidatesPerSource = 5 }, Seed)));
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () => await RunAsync(Frame(3), Options(3) with { MaxEnumeratedPairs = 11 }, Seed)));
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () => await RunAsync(Frame(1), Options(1) with { MaxSelectedPairs = 4 }, Seed)));
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () => await CandidateSamplingEngine.CaptureAsync(Frame(1), Options(1), Seed, "snapshot", Captured,
+            (_, _) => Task.FromResult<IReadOnlyList<CandidateSamplingCandidate>>(new[] { new CandidateSamplingCandidate(A, BirthBlockingPass.None) }), CancellationToken.None)));
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () => await CandidateSamplingEngine.CaptureAsync(Frame(1), Options(1), Seed, "snapshot", Captured,
+            (_, _) => Task.FromResult<IReadOnlyList<CandidateSamplingCandidate>>(new[] { new CandidateSamplingCandidate(A, BirthBlockingPass.ExactDate), new CandidateSamplingCandidate(A, BirthBlockingPass.ExactDate) }), CancellationToken.None)));
     }
 
     private static CandidateUniverseSource Source(Guid id) =>
