@@ -39,7 +39,9 @@ def main() -> None:
     assert '[[ "${JORNADA_WORKERS_E2E_ID:-}" == "$EXPECTED_ID" ]]' in code
     for name in ("processor", "operations-maintenance", "bronze-maintenance"):
         assert name in code
-    assert "kill -KILL 1" in code and "com.docker.compose.project" in code
+    assert 'sudo kill -KILL -- "$before_pid"' in code
+    assert '$(get_pid "$target_cid")" == "$before_pid"' in code
+    assert "com.docker.compose.project" in code
     assert "com.docker.compose.service" in code
     assert "unless-stopped" in code
     assert "controle.runtime_componente" in code and "instance_id" in code
