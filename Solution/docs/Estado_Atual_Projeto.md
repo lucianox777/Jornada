@@ -1,3 +1,23 @@
+# Estado técnico atual — atualização de engenharia 09/10/2026
+
+**Base observada:** `master` em `b4f74cb34e4346191ed58010b3d6b5cbb2db7e65` após #859, candidata v5.00/Schema 3.70; última release selada e precedência normativa continuam definidos por `RELEASE_INFO.txt` e pela Especificação Técnica publicada. Este bloco prevalece, **somente quanto ao estado de implementação em DEV/CI**, sobre as fotografias datadas posteriores neste arquivo; não altera decisões normativas nem aprova HML/Produção. Consulte o [manual do sistema](Manual_Sistema_Consolidado_20261009.md), [Console atual](Console_DEV_Supervisao_Atual.md), [índice documental](Indice_Acervo_Documental.md) e Actions da HEAD exata.
+
+| Frente | Estado técnico em 09/10 | Evidência/limite |
+|---|---|---|
+| API, SQL, Resultado independentes | **Integrado no sandbox GitHub descartável** | #845, #846; não equivale a deploy |
+| Três workers independentes e auto-restart | **Integrado/aceito em CI** | #847; processo reiniciado não é lote recuperado |
+| Ingestão real de ZIP sintético, idempotência, rollback SIGKILL, lease/fencing e reprocessamento | **Integrado/aceito em CI** | #848–#850; banco `JornadaE2E` exclusivo |
+| Console DEV: GET estado, toggle global ON↔OFF, três RunOnce isolados, desconexão, parada individual e painel | **Código em `master`, com testes em CI** | #851–#856; perfil GitHub DEV/loopback; sem implantação institucional |
+| Cancelamento de RunOnce ativo com confirmação separada/ID de execução | **PENDENTE** | [C3.3b3](C3_3b3_Confirmacao_Cancelamento_RunOnce.md); #854 apenas evita perda de supervisão ao desconectar |
+| CI: dez gates preservados e DT-10 SQL reutilizável | **Primeira extração integrada; não é otimização integral** | #857–#859, [DT10](DT10_CI_Extracao_Reutilizavel.md) |
+| Modelos de linkage, Ensaio, HML e PROD | **Aprovações próprias ainda necessárias** | Não inferir implantação/validade estatística representativa de CI sintética |
+
+**Restrições:** não operar, resetar, migrar ou testar os dados originais de `JornadaLocal`/IBGE, o NODE/Compose do usuário ou HML/PROD para conferir este estado. As provas acima são históricas de GitHub Actions e seus alvos efêmeros. Trilha 4 / RESOLVIDOS automáticos permanecem suspensos segundo o recorte deste trabalho.
+
+---
+
+## Fotografia documental anterior (preservada para contexto)
+
 # Estado atual — conferência técnica documental atualizada em 06/10/2026
 
 **Escopo:** fotografia de implementação e governança documental sobre a candidata técnica `master`, revista em 06/10/2026. A PR #702 citada em revisões anteriores já está integrada. Este arquivo não substitui consulta ao HEAD, Actions, issues/PRs, gates institucionais nem ao [Plano de Desenvolvimento](Plano_Desenvolvimento.md); para precedência entre tipos de documento, usar o [índice vivo do acervo](Indice_Acervo_Documental.md).
