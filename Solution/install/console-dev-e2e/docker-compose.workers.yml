@@ -17,7 +17,7 @@ x-worker-env: &worker-env
   JORNADA_NODE_ID: NODE2
   DOTNET_ENVIRONMENT: Development
   ASPNETCORE_ENVIRONMENT: Development
-  ConnectionStrings__Jornada: "Server=sqlserver,1433;Database=JornadaE2E;User Id=sa;Password=${JORNADA_WORKERS_E2E_SQL_PASSWORD:?Separate disposable E2E SQL password required};Encrypt=true;TrustServerCertificate=true"
+  ConnectionStrings__Jornada: "Server=sqlserver,1433;Database=JornadaE2E;User Id=sa;Password=${JORNADA_WORKERS_E2E_SQL_PASSWORD:?Separate disposable E2E SQL password required};Encrypt=true;TrustServerCertificate=false"
   Contracts__RepositoryRoot: /opt/jornada
   BronzeStorage__Provider: FileSystem
   BronzeStorage__RootPath: /data/bronze
