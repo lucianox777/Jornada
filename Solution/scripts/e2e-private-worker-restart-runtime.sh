@@ -134,6 +134,8 @@ for service in sqlserver api resultado-api; do
   stable_counts["$service"]="$(get_restart_count "$cid")"
 done
 
+printf "service\tbefore_host_pid\tafter_host_pid\tbefore_restart_count\tafter_restart_count\tbefore_sql_instance\tafter_sql_instance\n" > "$OUT/restart-evidence.tsv"
+
 for i in "${!services[@]}"; do
   target="${services[$i]}"
   target_cid="${ids[$target]}"
@@ -185,6 +187,9 @@ for i in "${!services[@]}"; do
        "$(get_restart_count "$cid")" == "${stable_counts[$service]}" ]] ||
       die "SQL/API unexpectedly restarted during $target fault"
   done
+  printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n" \
+    "$target" "$before_pid" "$now_pid" "$before_count" "$now_count" \
+    "$before_instance" "$next_instance" >> "$OUT/restart-evidence.tsv"
   echo "C3.2f1: $target automatic restart isolated; new host PID and SQL instance_id confirmed"
 done
 
