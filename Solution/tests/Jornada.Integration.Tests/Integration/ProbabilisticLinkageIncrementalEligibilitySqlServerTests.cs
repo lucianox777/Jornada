@@ -204,8 +204,7 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
                     SET reavaliados=2 WHERE linkage_run_id=@run_id;
                     """;
                 invalidSum.Parameters.AddWithValue("@run_id", runId);
-                Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => { await invalidSum.ExecuteNonQueryAsync(); })),
-                    "Contadores nao podem exceder o universo materializado."));
+                Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => { await invalidSum.ExecuteNonQueryAsync(); }));
             }
 
             await using (var invalidMode = connection.CreateCommand())
@@ -216,8 +215,7 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
                     SET tipo_run=N'ON_DEMAND' WHERE linkage_run_id=@run_id;
                     """;
                 invalidMode.Parameters.AddWithValue("@run_id", runId);
-                Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => { await invalidMode.ExecuteNonQueryAsync(); })),
-                    "Outros modos nao podem expor contagens falsamente exatas."));
+                Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => { await invalidMode.ExecuteNonQueryAsync(); }));
             }
         }
         finally
