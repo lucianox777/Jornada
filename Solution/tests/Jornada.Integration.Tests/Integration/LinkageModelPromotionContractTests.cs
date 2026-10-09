@@ -37,7 +37,7 @@ public sealed class LinkageModelPromotionContractTests
             await monotonicityTriggerCommand.ExecuteScalarAsync(),
             System.Globalization.CultureInfo.InvariantCulture);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(triggerDefinition, Is.Not.Null.And.Not.Empty);
             Assert.That(triggerDefinition, Does.Contain("FELLEGI_SUNTER_SEMANTIC_BIRTH_V5"));
@@ -66,7 +66,7 @@ public sealed class LinkageModelPromotionContractTests
             Assert.That(monotonicityTriggerDefinition, Does.Contain("MEDIUM"));
             Assert.That(monotonicityTriggerDefinition, Does.Contain("LOW"));
             Assert.That(monotonicityTriggerDefinition, Does.Not.Contain("M_NOME_MAE_MISSING"));
-        });
+        }));
     }
 
     [Test]
