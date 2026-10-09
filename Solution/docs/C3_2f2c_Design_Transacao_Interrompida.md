@@ -30,8 +30,17 @@ HML/PROD, SQL de usuário ou seu Docker host ordinário.
 
 Uma opção de instrumentação **somente para ensaio privado** é instalar,
 depois do bootstrap SQL, um `AFTER INSERT` temporário na
-`silver.pessoa_observacao`, com predicado de
+`identidade.vinculo_fonte`, após a inserção da Pessoa em Silver,
+com predicado de
 `ingestao.entrega.idempotency_key='ci-e2e-recovery-<run>-<attempt>'`.
+O próprio Processor faz INSERT em Silver com OUTPUT INSERTED sem INTO,
+incompatível com trigger AFTER INSERT na tabela Silver. O vínculo de
+identidade é escrito depois, na **mesma transação Serializable**, sem
+OUTPUT; seu trigger é compatível. A auditoria do requeue real usa
+AFTER UPDATE em ingestao.lote, onde os comandos existentes empregam
+OUTPUT ... INTO; os eventos são transacionais e só persistem quando
+o UPDATE de recuperação comita.
+
 Para esse lote e **apenas esse lote**, ele bloqueia a transação por
 um intervalo definido e limitado (`WAITFOR DELAY`, exemplo 90 s).
 O gatilho NÃO pode existir no schema de produto, nem interferir no
@@ -135,7 +144,7 @@ configurações no Compose operacional original.
 
 ## Critérios de avanço
 
-Este arquivo é um plano; **C3.2f2c não está implementada**.
+Este arquivo é um plano; **C3.2f2c somente poderá ser aceita após E2E efetivo**.
 Integrar somente depois de C3.2f2b verde na HEAD exata; construir
 passos incrementais no mesmo E2E e validar operacionalmente antes
 de qualquer merge. A Console global OFF↔ON (C3.3) e botões/Chromium
