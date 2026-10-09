@@ -22,13 +22,13 @@ public sealed class CpfAnchorResolutionApiTests
 
         var result = await service.ResolveAsync(context, new IdentityResolutionRequest(invalidCpf), CancellationToken.None);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(result.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
             Assert.That(result.PessoaUuid, Is.Null);
             Assert.That(result.MetodoResolucao, Is.EqualTo(ResolutionMethod.CPF_DETERMINISTICO));
             Assert.That(result.Motivo, Is.EqualTo(CpfRules.StructurallyInvalidReason));
-        });
+        }));
     }
 
     [Test]
@@ -77,13 +77,13 @@ public sealed class CpfAnchorResolutionApiTests
         try
         {
             var active = await service.ResolveAsync(context, request, CancellationToken.None);
-            Assert.Multiple(() =>
+            Assert.Multiple((TestDelegate)(() =>
             {
                 Assert.That(active.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
                 Assert.That(active.PessoaUuid, Is.EqualTo(anchorUuid));
                 Assert.That(active.MetodoResolucao, Is.EqualTo(Enum.Parse<ResolutionMethod>(originalMethod)));
                 Assert.That(active.Motivo, Is.Null);
-            });
+            }));
 
             await using (var close = connection.CreateCommand())
             {
@@ -97,13 +97,13 @@ public sealed class CpfAnchorResolutionApiTests
             }
 
             var withoutCurrentMap = await service.ResolveAsync(context, request, CancellationToken.None);
-            Assert.Multiple(() =>
+            Assert.Multiple((TestDelegate)(() =>
             {
                 Assert.That(withoutCurrentMap.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
                 Assert.That(withoutCurrentMap.PessoaUuid, Is.EqualTo(anchorUuid), "Encerrar projeção identity_map não apaga a referência CPF→UUID.");
                 Assert.That(withoutCurrentMap.MetodoResolucao, Is.EqualTo(ResolutionMethod.CPF_DETERMINISTICO));
                 Assert.That(withoutCurrentMap.Motivo, Is.EqualTo("CPF_ANCORA_SEM_MAPA_CORRENTE"));
-            });
+            }));
 
             await RestoreMapAsync(connection, mapId, originalState, originalReason, originalStateAt, originalEnd);
 
@@ -120,13 +120,13 @@ public sealed class CpfAnchorResolutionApiTests
             }
 
             var conflicted = await service.ResolveAsync(context, request, CancellationToken.None);
-            Assert.Multiple(() =>
+            Assert.Multiple((TestDelegate)(() =>
             {
                 Assert.That(conflicted.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
                 Assert.That(conflicted.PessoaUuid, Is.EqualTo(anchorUuid), "O conflito global sinaliza o identificador, sem alterar o UUID permanente do CPF.");
                 Assert.That(conflicted.MetodoResolucao, Is.EqualTo(ResolutionMethod.CPF_DETERMINISTICO));
                 Assert.That(conflicted.Motivo, Is.EqualTo(CpfIdentityConsistency.IdentifierInConflictReason));
-            });
+            }));
         }
         finally
         {
