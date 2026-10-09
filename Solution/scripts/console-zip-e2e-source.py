@@ -166,7 +166,9 @@ def generate(fixture: Path, output: Path, summary_path: Path) -> None:
                             page = browser.new_page()
                             page.goto(base, wait_until="domcontentloaded", timeout=30000)
                             button = page.get_by_role("button", name="Enviar arquivo", exact=True)
-                            require(button.count() == 1, "Missing ingestion button in Chromium")
+                            # Command cards load asynchronously after DOMContentLoaded.
+                            button.wait_for(state="visible", timeout=15000)
+                            require(button.count() == 1, "Missing or duplicate ingestion button in Chromium")
                             # Clicking the same explicit UI action a second time must
                             # replay the SAME delivery, not create another one.
                             # This exercises two distinct Console command runs against
