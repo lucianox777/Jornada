@@ -121,10 +121,9 @@ public sealed class IbgeNominalUBootstrapEstimatorTests
             new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.FirstName, "MARIA", 100)
         };
 
-        Assert.That(
-            () => IbgeNominalUBootstrapEstimator.Estimate(
+        Assert.That((Func<object?>)(() => IbgeNominalUBootstrapEstimator.Estimate(
                 entries,
-                new IbgeNominalUBootstrapOptions(1, 1_000)),
+                new IbgeNominalUBootstrapOptions(1, 1_000))),
             Throws.ArgumentException.With.Message.Contains("Surname"));
     }
 }

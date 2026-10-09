@@ -96,7 +96,7 @@ public sealed class Dt17MariaSurnameTrioBlockingTests
     [Test]
     public void MariaTrio_UnionFailsClosedRatherThanTruncateARequiredCandidate()
     {
-        Assert.That(() => Evaluate(maxCandidatePairs: 5),
+        Assert.That((Func<object?>)(() => Evaluate(maxCandidatePairs: 5)),
             Throws.TypeOf<InvalidOperationException>().With.Message.Contains("sem truncar"));
     }
 }

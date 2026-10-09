@@ -124,8 +124,7 @@ public sealed class CandidateEvidenceDependencyDiagnosticTests
                     ? label with { Decision = IndependentMatchLabel.Inconclusive }
                     : label).ToArray()
         };
-        Assert.That(
-            () => CandidateEvidenceDependencyDiagnostic.Analyze(CandidateLabeling.Validate(capture, inconclusive)),
+        Assert.That((Func<object?>)(() => CandidateEvidenceDependencyDiagnostic.Analyze(CandidateLabeling.Validate(capture, inconclusive))),
             Throws.TypeOf<InvalidOperationException>());
 
         var noMatch = corpus with
@@ -134,8 +133,7 @@ public sealed class CandidateEvidenceDependencyDiagnosticTests
                 ? label with { Decision = IndependentMatchLabel.NonMatch }
                 : label).ToArray()
         };
-        Assert.That(
-            () => CandidateEvidenceDependencyDiagnostic.Analyze(CandidateLabeling.Validate(capture, noMatch)),
+        Assert.That((Func<object?>)(() => CandidateEvidenceDependencyDiagnostic.Analyze(CandidateLabeling.Validate(capture, noMatch))),
             Throws.TypeOf<InvalidOperationException>());
     }
 

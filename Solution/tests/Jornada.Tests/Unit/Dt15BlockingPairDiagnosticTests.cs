@@ -103,13 +103,13 @@ public sealed class Dt15BlockingPairDiagnosticTests
     [Test]
     public void Compare_RejectsEmptyObservationsOrMissingDraftPasses()
     {
-        Assert.That(() => Dt15BlockingPairDiagnostic.Compare(
+        Assert.That((Func<object?>)(() => Dt15BlockingPairDiagnostic.Compare(
             Array.Empty<BlockingFeatureObservation>(), [Pass("name", Name)], null,
-            "FS_LINKAGE_V6", IdentityComparison.NormalizationVersion),
+            "FS_LINKAGE_V6", IdentityComparison.NormalizationVersion)),
             Throws.ArgumentException);
-        Assert.That(() => Dt15BlockingPairDiagnostic.Compare(
+        Assert.That((Func<object?>)(() => Dt15BlockingPairDiagnostic.Compare(
             Minimal(), Array.Empty<LinkageBlockingPass>(), null,
-            "FS_LINKAGE_V6", IdentityComparison.NormalizationVersion),
+            "FS_LINKAGE_V6", IdentityComparison.NormalizationVersion)),
             Throws.ArgumentException);
     }
 

@@ -65,8 +65,7 @@ public sealed class BlockingCombinationDiagnosticTests
     public void Analyze_RejectsCorpusWithoutReferenceNonMatches()
     {
         var observations = new[] { Obs(true, true, false), Obs(true, false, true) };
-        Assert.That(
-            () => BlockingCombinationDiagnostic.Analyze(observations),
+        Assert.That((Func<object?>)(() => BlockingCombinationDiagnostic.Analyze(observations)),
             Throws.TypeOf<ArgumentException>());
     }
 

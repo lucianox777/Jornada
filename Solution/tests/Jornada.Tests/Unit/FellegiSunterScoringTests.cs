@@ -78,8 +78,8 @@ public sealed class FellegiSunterScoringTests
                 Is.EqualTo(Math.Round((decimal)raw.Posterior, 8, MidpointRounding.AwayFromZero)));
             Assert.That(published.LogOdds,
                 Is.EqualTo(Math.Round((decimal)raw.LogOdds, 8, MidpointRounding.AwayFromZero)));
-            Assert.That(() => FellegiSunterScoring.ToContractScore(
-                    new FellegiSunterRawScore(double.NaN, 0d)),
+            Assert.That((Func<object?>)(() => FellegiSunterScoring.ToContractScore(
+                    new FellegiSunterRawScore(double.NaN, 0d))),
                 Throws.InvalidOperationException);
         }));
     }
@@ -155,11 +155,11 @@ public sealed class FellegiSunterScoringTests
         {
             [LinkageParameterCatalog.DecisionEvidenceScoring] = 1m
         };
-        Assert.That(() => FellegiSunterScoring.Calculate(
+        Assert.That((Func<object?>)(() => FellegiSunterScoring.Calculate(
                 parameters,
                 NameComparisonState.EXACT,
                 NameComparisonState.EXACT,
-                blockCandidateCount: 0),
+                blockCandidateCount: 0)),
             Throws.TypeOf<ArgumentOutOfRangeException>());
     }
 

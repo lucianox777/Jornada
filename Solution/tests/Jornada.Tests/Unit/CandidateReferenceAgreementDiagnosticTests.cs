@@ -106,15 +106,15 @@ public sealed class CandidateReferenceAgreementDiagnosticTests
 
         var trainingEvidence = AgreementEvidence(validated,
             [Judgment(training, Hash('1'), IndependentMatchLabel.Match, Hash('a'))]);
-        Assert.That(() => CandidateReferenceAgreementDiagnostic.Analyze(validated, trainingEvidence),
+        Assert.That((Func<object?>)(() => CandidateReferenceAgreementDiagnostic.Analyze(validated, trainingEvidence)),
             Throws.TypeOf<InvalidOperationException>());
 
         var unknown = Judgment(evaluation, Hash('1'), IndependentMatchLabel.Match, Hash('a')) with
         {
             CandidateId = Id(9999)
         };
-        Assert.That(() => CandidateReferenceAgreementDiagnostic.Analyze(
-                validated, AgreementEvidence(validated, [unknown])),
+        Assert.That((Func<object?>)(() => CandidateReferenceAgreementDiagnostic.Analyze(
+                validated, AgreementEvidence(validated, [unknown]))),
             Throws.TypeOf<InvalidOperationException>());
 
         var duplicateUnit = new[]
@@ -122,8 +122,8 @@ public sealed class CandidateReferenceAgreementDiagnosticTests
             Judgment(evaluation, Hash('1'), IndependentMatchLabel.Match, Hash('a')),
             Judgment(evaluation, Hash('1'), IndependentMatchLabel.NonMatch, Hash('b'))
         };
-        Assert.That(() => CandidateReferenceAgreementDiagnostic.Analyze(
-                validated, AgreementEvidence(validated, duplicateUnit)),
+        Assert.That((Func<object?>)(() => CandidateReferenceAgreementDiagnostic.Analyze(
+                validated, AgreementEvidence(validated, duplicateUnit))),
             Throws.TypeOf<InvalidOperationException>());
     }
 
@@ -136,18 +136,18 @@ public sealed class CandidateReferenceAgreementDiagnosticTests
         var evidence = AgreementEvidence(validated,
             [Judgment(row, Hash('1'), IndependentMatchLabel.Match, Hash('a'))]);
 
-        Assert.That(() => CandidateReferenceAgreementDiagnostic.Analyze(
-                validated, evidence with { FrameFingerprint = Hash('b') }),
+        Assert.That((Func<object?>)(() => CandidateReferenceAgreementDiagnostic.Analyze(
+                validated, evidence with { FrameFingerprint = Hash('b') })),
             Throws.TypeOf<ArgumentException>());
-        Assert.That(() => CandidateReferenceAgreementDiagnostic.Analyze(
-                validated, evidence with { LabelingReference = "OTHER_LABELS" }),
+        Assert.That((Func<object?>)(() => CandidateReferenceAgreementDiagnostic.Analyze(
+                validated, evidence with { LabelingReference = "OTHER_LABELS" })),
             Throws.TypeOf<ArgumentException>());
-        Assert.That(() => CandidateReferenceAgreementDiagnostic.Analyze(
-                validated, evidence with { AttestedAt = validated.Manifest.AttestedAt.AddTicks(-1) }),
+        Assert.That((Func<object?>)(() => CandidateReferenceAgreementDiagnostic.Analyze(
+                validated, evidence with { AttestedAt = validated.Manifest.AttestedAt.AddTicks(-1) })),
             Throws.TypeOf<ArgumentException>());
-        Assert.That(() => CandidateReferenceAgreementDiagnostic.Analyze(
+        Assert.That((Func<object?>)(() => CandidateReferenceAgreementDiagnostic.Analyze(
                 validated, evidence with { Judgments = evidence.Judgments.Select(judgment =>
-                    judgment with { EvidenceFingerprint = Hash('z') }).ToArray() }),
+                    judgment with { EvidenceFingerprint = Hash('z') }).ToArray() })),
             Throws.TypeOf<InvalidOperationException>());
     }
 

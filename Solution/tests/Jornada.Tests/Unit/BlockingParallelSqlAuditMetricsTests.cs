@@ -63,14 +63,14 @@ public sealed class BlockingParallelSqlAuditMetricsTests
     [Test]
     public void Summarize_RejectsInvalidOverlapAndIneligibleCombinedResults()
     {
-        Assert.That(() => BlockingParallelSqlAuditMetrics.Summarize(new[]
+        Assert.That((Func<object?>)(() => BlockingParallelSqlAuditMetrics.Summarize(new[]
         {
             new BlockingParallelSqlAuditRow(true, 2, 2, 5, 1, false, false, 1, 1, 1)
-        }), Throws.TypeOf<InvalidDataException>());
-        Assert.That(() => BlockingParallelSqlAuditMetrics.Summarize(new[]
+        })), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => BlockingParallelSqlAuditMetrics.Summarize(new[]
         {
             new BlockingParallelSqlAuditRow(false, 0, 1, 1, 0, false, true, 1, 1, 1)
-        }), Throws.TypeOf<InvalidDataException>());
+        })), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -85,9 +85,9 @@ public sealed class BlockingParallelSqlAuditMetricsTests
             Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([option, "false"], option), Is.False);
             Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([option + "=false"], option), Is.False);
         }));
-        Assert.That(() => BlockingPassAuditCommand.ReadOptionalBooleanOption([option], option),
+        Assert.That((Func<object?>)(() => BlockingPassAuditCommand.ReadOptionalBooleanOption([option], option)),
             Throws.TypeOf<ArgumentException>());
-        Assert.That(() => BlockingPassAuditCommand.ReadOptionalBooleanOption([option + "=maybe"], option),
+        Assert.That((Func<object?>)(() => BlockingPassAuditCommand.ReadOptionalBooleanOption([option + "=maybe"], option)),
             Throws.TypeOf<ArgumentException>());
     }
 

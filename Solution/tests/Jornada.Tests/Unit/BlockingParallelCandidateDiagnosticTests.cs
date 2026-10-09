@@ -92,14 +92,13 @@ public sealed class BlockingParallelCandidateDiagnosticTests
     [Test]
     public void Analyze_FailsClosedWhenCombinedUnionExceedsBudget()
     {
-        Assert.That(
-            () => BlockingParallelCandidateDiagnostic.Analyze(
+        Assert.That((Func<object?>)(() => BlockingParallelCandidateDiagnostic.Analyze(
                 dynamicCandidatePairs: new ulong[] { 1, 2 },
                 combinedCandidatePairs: new ulong[] { 3 },
                 eligibleTruePairs: new ulong[] { 1 },
                 eligiblePairCount: 4,
                 combinedEligibleTruePairs: 1,
-                maxCandidatePairs: 2),
+                maxCandidatePairs: 2)),
             Throws.TypeOf<InvalidOperationException>()
                 .With.Message.Contains("sem truncar"));
     }
@@ -107,20 +106,17 @@ public sealed class BlockingParallelCandidateDiagnosticTests
     [Test]
     public void Analyze_RejectsInconsistentTruePairAndEligibilityDenominators()
     {
-        Assert.That(
-            () => BlockingParallelCandidateDiagnostic.Analyze(
+        Assert.That((Func<object?>)(() => BlockingParallelCandidateDiagnostic.Analyze(
                 new ulong[] { 1 }, new ulong[] { 1 },
-                new ulong[] { 1, 1 }, 2, 1, 3),
+                new ulong[] { 1, 1 }, 2, 1, 3)),
             Throws.TypeOf<InvalidDataException>());
-        Assert.That(
-            () => BlockingParallelCandidateDiagnostic.Analyze(
+        Assert.That((Func<object?>)(() => BlockingParallelCandidateDiagnostic.Analyze(
                 new ulong[] { 1 }, new ulong[] { 1 },
-                new ulong[] { 1 }, 1, 0, 3),
+                new ulong[] { 1 }, 1, 0, 3)),
             Throws.TypeOf<InvalidDataException>());
-        Assert.That(
-            () => BlockingParallelCandidateDiagnostic.Analyze(
+        Assert.That((Func<object?>)(() => BlockingParallelCandidateDiagnostic.Analyze(
                 new ulong[] { 1, 2 }, Array.Empty<ulong>(),
-                new ulong[] { 1 }, 1, 0, 3),
+                new ulong[] { 1 }, 1, 0, 3)),
             Throws.TypeOf<InvalidDataException>());
     }
 

@@ -55,16 +55,16 @@ public sealed class IbgePublicMarginalsExchangeTests
         };
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => IbgePublicMarginalsExchange.Serialize("OTHER", Hash, "TODOS", rows),
+            Assert.That((Func<object?>)(() => IbgePublicMarginalsExchange.Serialize("OTHER", Hash, "TODOS", rows)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgePublicMarginalsExchange.Serialize(
-                IbgePublicMarginalsExchange.Reference, "bad", "TODOS", rows),
+            Assert.That((Func<object?>)(() => IbgePublicMarginalsExchange.Serialize(
+                IbgePublicMarginalsExchange.Reference, "bad", "TODOS", rows)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgePublicMarginalsExchange.Serialize(
-                IbgePublicMarginalsExchange.Reference, Hash, "MASCULINO", rows),
+            Assert.That((Func<object?>)(() => IbgePublicMarginalsExchange.Serialize(
+                IbgePublicMarginalsExchange.Reference, Hash, "MASCULINO", rows)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgePublicMarginalsExchange.Serialize(
-                IbgePublicMarginalsExchange.Reference, Hash, "TODOS", rows.Take(1)),
+            Assert.That((Func<object?>)(() => IbgePublicMarginalsExchange.Serialize(
+                IbgePublicMarginalsExchange.Reference, Hash, "TODOS", rows.Take(1))),
                 Throws.TypeOf<InvalidDataException>());
         }));
     }

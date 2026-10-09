@@ -48,16 +48,16 @@ public sealed class IbgeOfflineUReferenceTests
     {
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => IbgeOfflineUReference.Estimate(
-                Fixture.Replace("CENSO2022_NOMES_BRASIL_V1", "OTHER"), 10),
+            Assert.That((Func<object?>)(() => IbgeOfflineUReference.Estimate(
+                Fixture.Replace("CENSO2022_NOMES_BRASIL_V1", "OTHER"), 10)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgeOfflineUReference.Estimate(
-                Fixture.Replace("\"ANA\"", "\"ana\""), 10),
+            Assert.That((Func<object?>)(() => IbgeOfflineUReference.Estimate(
+                Fixture.Replace("\"ANA\"", "\"ana\""), 10)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgeOfflineUReference.Estimate(
-                Fixture.Replace("\"occurrences\":3", "\"occurrences\":0"), 10),
+            Assert.That((Func<object?>)(() => IbgeOfflineUReference.Estimate(
+                Fixture.Replace("\"occurrences\":3", "\"occurrences\":0"), 10)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgeOfflineUReference.Estimate(Fixture, 0),
+            Assert.That((Func<object?>)(() => IbgeOfflineUReference.Estimate(Fixture, 0)),
                 Throws.TypeOf<ArgumentOutOfRangeException>());
         }));
     }

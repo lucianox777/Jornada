@@ -55,11 +55,11 @@ public sealed class IbgeIndependentUConferenceTests
         wrongSex["first_name_sex"] = "FEMININO";
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => IbgeIndependentUConference.Compare(
-                Marginals, csharp, tamperedHash.ToJsonString()),
+            Assert.That((Func<object?>)(() => IbgeIndependentUConference.Compare(
+                Marginals, csharp, tamperedHash.ToJsonString())),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgeIndependentUConference.Compare(
-                Marginals, csharp, wrongSex.ToJsonString()),
+            Assert.That((Func<object?>)(() => IbgeIndependentUConference.Compare(
+                Marginals, csharp, wrongSex.ToJsonString())),
                 Throws.TypeOf<InvalidDataException>());
         }));
     }
@@ -78,14 +78,14 @@ public sealed class IbgeIndependentUConferenceTests
         exact["support"] = exact["support"]!.GetValue<long>() + 1;
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => IbgeIndependentUConference.Compare(
-                Marginals, csharp, duplicateSeed.ToJsonString()),
+            Assert.That((Func<object?>)(() => IbgeIndependentUConference.Compare(
+                Marginals, csharp, duplicateSeed.ToJsonString())),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgeIndependentUConference.Compare(
-                Marginals, csharp, missingState.ToJsonString()),
+            Assert.That((Func<object?>)(() => IbgeIndependentUConference.Compare(
+                Marginals, csharp, missingState.ToJsonString())),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgeIndependentUConference.Compare(
-                Marginals, csharp, corruptSupport.ToJsonString()),
+            Assert.That((Func<object?>)(() => IbgeIndependentUConference.Compare(
+                Marginals, csharp, corruptSupport.ToJsonString())),
                 Throws.TypeOf<InvalidDataException>());
         }));
     }
