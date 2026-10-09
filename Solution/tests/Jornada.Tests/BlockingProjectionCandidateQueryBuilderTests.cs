@@ -96,7 +96,7 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
                 command,
                 new[] { pass },
                 PersonResolutionProjectionContract.SchemaVersion,
-                projectionFingerprintSha256: null),
+                projectionFingerprintSha256: null)),
             Throws.TypeOf<InvalidOperationException>());
         Assert.That(command.Parameters, Is.Empty);
     }
@@ -166,7 +166,7 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
             (Func<object?>)(() => BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
                 command,
                 new[] { pass },
-                maxParameters: 4),
+                maxParameters: 4)),
             Throws.TypeOf<InvalidOperationException>());
         Assert.That(command.Parameters, Is.Empty,
             "Falha deve ocorrer antes de materializar consulta parcial.");
