@@ -377,3 +377,27 @@ nunca de ambiente ou SQL. Nova captura
 Não testa Linkage probabilístico, persistência de CPF ausente
 na Silver ou qualquer trabalho da Trilha 4. Tudo continua em
 processo de Console local sem SQL e sem tocar `JornadaLocal`.
+
+
+## T0.1i — falhas HTTP 503 e falha de rede na interface Chromium
+
+Amplia o **mesmo teste Chromium/Unit já existente**, sem outro build ou job.
+O clique `Enviar arquivo` é interceptado **antes** de alcançar a Console
+por dois controles de rede Playwright independentes: `route.abort("failed")`
+simula quebra de transporte; `route.fulfill(status=503)`, com
+`Retry-After: 3`, simula indisponibilidade temporária da API.
+
+Para cada caso, exige um único POST da interface, `alert` visível
+com indicação da falha, botão disponível para nova tentativa e
+ausência de navegação para execução fantasma. Antes e depois dos dois
+casos o teste consulta `GET /api/runs` real e exige a mesma lista
+de IDs: nenhum comando de ingestão chegou ao backend. Em seguida,
+a geração ZIP local **real** da suíte continua e precisa terminar
+em `SUCESSO`, verificando a recuperação da navegação.
+
+São falhas injetadas **somente no navegador**: não avaliam o
+recovery transacional do SQL, backoff automático, nem interrupção de
+requisição já recebida. A prova de retransmissão real por API/SQL
+fica no T0.1g; contrato de conflito fica no T0.1h.
+
+Trilha 4 proibida. Nunca acessa JornadaLocal, IBGE ou HML/PROD.

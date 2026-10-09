@@ -234,7 +234,59 @@ def main() -> int:
                         page.unroute("**/api/commands/ingestion/start", block_ingestion)
                         checked.append("Enviar arquivo HTTP 409 is visible, no phantom run, retry enabled")
 
+                        # Network failure and a temporary 503 must keep the browser
+                        # recoverable without creating fake runs or executing
+                        # the real ingestion/cluster command.
+                        before_runs = context.request.get(base + "/api/runs").json()
+                        outage_requests = []
+                        def disconnected(route):
+                            outage_requests.append(route.request.method)
+                            route.abort("failed")
+                        page.route("**/api/commands/ingestion/start", disconnected)
+                        with page.expect_event("dialog") as outage_dialog:
+                            send_button.click()
+                        dialog = outage_dialog.value
+                        require(dialog.type == "alert"
+                                and "Não foi possível iniciar" in dialog.message,
+                                "Network outage was not shown as a browser error")
+                        dialog.accept()
+                        require(outage_requests == ["POST"],
+                                "Network abort did not intercept exactly one POST")
+                        page.unroute("**/api/commands/ingestion/start", disconnected)
+                        require(send_button.is_enabled()
+                                and page.locator("#consoleView").is_hidden(),
+                                "Network outage left a phantom run or disabled retry")
+                        checked.append("network abort: visible error, no phantom execution, retry available")
 
+                        unavailable_requests = []
+                        def temporarily_unavailable(route):
+                            unavailable_requests.append(route.request.method)
+                            route.fulfill(
+                                status=503, content_type="application/json",
+                                headers={"Retry-After": "3"},
+                                body='{"error":"SYNTHETIC_API_UNAVAILABLE"}'
+                            )
+                        page.route("**/api/commands/ingestion/start", temporarily_unavailable)
+                        with page.expect_event("dialog") as service_dialog:
+                            send_button.click()
+                        dialog = service_dialog.value
+                        require(dialog.type == "alert"
+                                and "SYNTHETIC_API_UNAVAILABLE" in dialog.message,
+                                "Temporary HTTP 503 reason was not surfaced to the browser")
+                        dialog.accept()
+                        page.unroute("**/api/commands/ingestion/start", temporarily_unavailable)
+                        require(unavailable_requests == ["POST"] and send_button.is_enabled()
+                                and page.locator("#consoleView").is_hidden(),
+                                "Temporary HTTP 503 blocked retry or opened a phantom execution")
+                        after_runs = context.request.get(base + "/api/runs").json()
+                        require([r.get("id") for r in before_runs]
+                                == [r.get("id") for r in after_runs],
+                                "Blocked requests must never create a backend Console run")
+                        checked.append("HTTP 503 with Retry-After: visible reason, no phantom run")
+
+                        # The next safe ZIP action below must still succeed:
+                        # this proves navigation/interaction works after both
+                        # injected failures without touching any ingestion DB.
                         # Keyboard-only activation and native dialog focus semantics.
                         zip_trigger = page.locator('#commands button[onclick="openZipDialog()"]')
                         zip_trigger.focus()
