@@ -16,6 +16,17 @@ sealed class IsolatedWorkerSupervisorModeController(
 
     public IReadOnlyList<string> ActiveFiniteWorkers => activeFinite.Keys.OrderBy(x=>x,StringComparer.Ordinal).ToArray();
 
+    public IsolatedWorkerSupervisorStatus WithFiniteWorkers(IsolatedWorkerSupervisorStatus status)
+    {
+        if(activeFinite.IsEmpty)return status;
+        return status with {
+            Workers=status.Workers.Select(x=>
+                activeFinite.ContainsKey(x.Worker) && x.State=="PARADO"
+                    ? x with {State="RUN_ONCE"}
+                    : x).ToArray()
+        };
+    }
+
     // DI owns this singleton and disposes its gate on application shutdown.
     public void Dispose() => transition.Dispose();
 
