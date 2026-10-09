@@ -18,8 +18,11 @@ Consequentemente, `Produto/runtime` abaixo significa **runtime da implementaçã
 
 ## Projetos C#
 
+**Conferência 09/10/2026:** os **20 projetos `.csproj`** encontrados em `Solution/src/` estão classificados nesta tabela. A Console DEV ganhou observação, toggle global, RunOnce finito, parada e painel via #851–#856; esse escopo permanece restrito ao runner GitHub descartável. Ver [Manual integrado](Manual_Sistema_Consolidado_20261009.md), [Guia Console](Console_DEV_Supervisao_Atual.md) e [Estado atual](Estado_Atual_Projeto.md).
+
 | Projeto | Classe | Responsabilidade |
 |---|---|---|
+| `Jornada.Access.Security` | Produto/segurança | Tratamento compartilhado de credenciais DEV, scopes e políticas de acesso nas APIs; não presume IdP PROD homologado. |
 | `Jornada.Api` | Produto | Porta de entrada REST, autorização e ingestão/controle. |
 | `Jornada.Contracts` | Produto | Contratos compartilhados e tipos canônicos. |
 | `Jornada.Ingestion` | Produto | Inspeção/validação de pacotes de entrada. |
@@ -35,6 +38,7 @@ Consequentemente, `Produto/runtime` abaixo significa **runtime da implementaçã
 | `Jornada.Operations.Maintenance.Worker` | Operação | Rotinas operacionais/maintenance. |
 | `Jornada.Bronze.Verify` | Andaime/evidência | Verificação de integridade e provas operacionais; não é writer de domínio. |
 | `Jornada.Ensaio` | Andaime/evidência | Orquestra ensaios técnicos; não substitui scheduler/runtime institucional. |
+| `Jornada.DevConsole` | Andaime DEV/CI | Interface e backend de diagnóstico e supervisão de três workers no projeto GitHub-hosted `JornadaE2E`; não é interface finalística nem supervisor corporativo. |
 | `Jornada.Linkage.Conference` | Andaime/evidência | Segundo scorer/policy independente para conferência; proibido como resolvedor operacional. |
 | `Jornada.Linkage.Evaluation` | Andaime/evidência | Export, avaliação e evidência estatística/técnica; não publica vínculo. |
 | `Jornada.Linkage.SyntheticCorpus` | Andaime/evidência DEV | Gera corpus sintético determinístico e pode materializá-lo em pacotes via `Jornada.Ingestion`; truth permanece sidecar DEV. Nunca é dependência do Parameters.Worker/Runner nem entra no publish de Produção. |
