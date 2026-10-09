@@ -37,7 +37,7 @@ mode="${2:-}"
 # finite execution as strongly as they apply to the resident.
 if [[ "$mode" == "--run-once" ]]; then
   [[ "${JORNADA_WORKERS_E2E_RUN_ONCE:-}" == true &&
-     "${JORNADA_WORKERS_E2E_ID:-}" =~ ^ci[0-9]{7,17}$ &&
+     "${JORNADA_WORKERS_E2E_ID:-}" =~ ^ci[0-9]{7,19}$ &&
      "${JORNADA_WORKERS_E2E_RUN_ONCE_ALLOWED:-}" == true ]] \
     || deny "RunOnce só é autorizado no projeto descartável com opt-in explícito"
 fi
