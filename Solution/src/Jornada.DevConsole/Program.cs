@@ -11,6 +11,7 @@ builder.Services.AddSingleton<ContractFileService>();
 builder.Services.AddSingleton<ActiveConfigFileService>();
 builder.Services.AddSingleton<LayerBrowserService>();
 builder.Services.AddSingleton<ConsoleActivityLog>();
+builder.Services.AddSingleton<IsolatedWorkerSupervisorStatusReader>();
 
 var app=builder.Build();
 
@@ -129,6 +130,37 @@ app.MapGet("/api/runs",async(RunStore store,CancellationToken ct)=>
     Results.Ok(await store.ListSessionSummariesAsync(ct)));
 
 app.MapGet("/api/activity",(ConsoleActivityLog activity)=>Results.Ok(activity.Snapshot()));
+
+// C3.3a: effective mode is OBSERVED from Docker + SQL, never persisted in
+// session memory. Not a toggle; write actions will be added only after
+// isolated lifecycle/RunOnce gates pass. No view of the canonical cluster.
+app.MapGet("/api/workers/supervisor",async(
+    HttpResponse response, ConsoleRuntimeMode runtime,
+    IsolatedWorkerSupervisorStatusReader supervisor, CancellationToken ct)=>{
+    response.Headers.CacheControl="no-store";
+    if(!supervisor.Enabled(runtime))
+        return Results.Conflict(new{
+            error="Supervisão indisponível fora do perfil GitHub DEV descartável.",
+            toggleAvailable=false
+        });
+    try
+    {
+        return Results.Ok(await supervisor.ReadAsync(runtime,ct));
+    }
+    catch(OperationCanceledException) when(ct.IsCancellationRequested)
+    {
+        return Results.StatusCode(StatusCodes.Status408RequestTimeout);
+    }
+    catch(Exception)
+    {
+        // Fail closed on missing, ambiguous, stale or inaccessible Docker/SQL
+        // evidence. Never report OFF merely because inspection failed.
+        return Results.Json(new{
+            error="Estado efetivo não comprovado no sandbox privado.",
+            mode="ERRO",toggleAvailable=false
+        },statusCode:StatusCodes.Status503ServiceUnavailable);
+    }
+});
 
 app.MapPost("/api/session-counts/reset",([FromBody] string[] commands,RunStore store)=>
     Results.Ok(new{reset=store.ResetExecutionCounts(commands)}));
