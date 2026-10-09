@@ -1,3 +1,12 @@
+> **Atualização 09/10/2026:** este guia explica conceitos e vocabulário;
+> a visão corrente dos componentes, ambientes, processos de três workers,
+> Console DEV, CI e limites de homologação encontra-se no
+> [Manual do sistema](Manual_Sistema_Consolidado_20261009.md)
+> e a trilha de atualização em
+> [Revisão documental](Revisao_Documental_Integral_20261009.md).
+> Vocabulário de documentos históricos deve ser interpretado no corte
+> da fonte; “CI DEV aceito” não significa “norma publicada/HML aprovado”.
+>
 > **Leitura prioritária atualizada:** [decisões canônicas 29/09/2026](Decisoes_Canonicas_Identidade_Linkage_20260929.md), [índice de vigência](Indice_Decisoes_Vigentes.md) e [catálogo-snapshot de 29/09](Catalogo_Vigencia_Documental_20260929.md). Terminologia correta: **UUID inicial** (`initial_uuid`), **UUID canônico** (`canonical_uuid`); não usar OID como sinônimo.
 
 # Guia de leitura por papel e glossário
