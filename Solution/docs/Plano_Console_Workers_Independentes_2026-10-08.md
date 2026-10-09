@@ -1,6 +1,9 @@
 # Plano Console DEV — supervisor global, workers independentes e RunOnce preservado
 
-**Decisão vigente de 08/10/2026.** O operador confirmou **dois níveis
+**Decisão vigente de 08/10/2026, refinada para evitar botão Status.**
+O estado será um indicador automático alimentado por consulta ao
+backend, com detalhes no Log da sessão existente; o log atual sozinho
+não prova liveness após fechar a Console. O operador confirmou **dois níveis
 distintos de recuperação**: o supervisor deve **reiniciar
 automaticamente o executável morto**, e o worker reiniciado deve
 **recuperar por si próprio o processamento elegível**. Não há botão
@@ -12,7 +15,8 @@ workers. Nenhum mecanismo RunOnce ou teste existente será removido.
 - [DT-18 — serviços independentes](DT18_Servicos_Independentes_Console_DEV.md):
   a morte de um worker não reinicia NODE/API/Resultado/demais workers.
 - [DT-19 — botões e layout](DT19_Console_Acoes_Workers.md):
-  **três botões individuais empilhados verticalmente** por worker.
+  **dois botões individuais empilhados verticalmente**, indicador
+  automático e Log da sessão existente por worker.
 - [DT-20 — supervisor global](DT20_Supervisao_Opt_In_Workers.md):
   ON inicia os três automaticamente; Parar processo com ON
   provoca **reinício automático só daquele worker**.
@@ -24,20 +28,19 @@ workers. Nenhum mecanismo RunOnce ou teste existente será removido.
 ```text
 [ SUPERVISÃO AUTOMÁTICA: DESATIVADA | ATIVADA ]  (GLOBAL)
 
-Processor Worker                   Estado/PID/heartbeat reais
+Processor Worker                   ● STATUS AUTOMÁTICO/PID
   [Executar uma vez]
   [Parar processo]
-  [Status do processo]
 
-Operations Maintenance Worker      Estado/PID/heartbeat reais
+Operations Maintenance Worker      ● STATUS AUTOMÁTICO/PID
   [Executar uma vez]
   [Parar processo]
-  [Status do processo]
 
-Bronze Maintenance Worker          Estado/PID/heartbeat reais
+Bronze Maintenance Worker          ● STATUS AUTOMÁTICO/PID
   [Executar uma vez]
   [Parar processo]
-  [Status do processo]
+
+[Log da sessão]  (já presente no cabeçalho; detalhes/eventos)
 ```
 
 **OFF inicial no DEV descartável:** RunOnce dos três disponível,
@@ -67,8 +70,9 @@ concorrentes/falhas parciais não permitem dois modos simultâneos;
 mostrar `ERRO` quando não houver estado consistente. Reload da
 Console consulta estado efetivo no backend, não inventa OFF.
 
-Não criar botões `Iniciar contínuo`, `Desligar processo`,
-`Matar processo`, `Simular falha` ou `Parar contínuo`.
+Não criar botões `Status do processo`, `Iniciar contínuo`,
+`Desligar processo`, `Matar processo`, `Simular falha`
+ou `Parar contínuo`.
 **O único botão que mata um worker é `Parar processo`**. Quando
 ON, é injeção de falha, não desligamento permanente.
 
@@ -81,10 +85,15 @@ ON, é injeção de falha, não desligamento permanente.
    **descartável**, isolados de volumes/rede/banco do cluster normal,
    com restart individual sob supervisor externo.
 3. **C3.3:** backend da Console controla modo global OFF↔ON,
-   preserva RunOnce e acrescenta Parar/Status individuais,
-   com concorrência atômica e validação efetiva de PID.
-4. **C3.4:** interface vertical e Chromium/E2E das transições,
-   SIGKILL e recuperação de dados reais **sintéticos**.
+   preserva RunOnce Silver/Processor existente, mapeia os RunOnce
+   de manutenção (executáveis já suportam RunOnce), acrescenta
+   Parar individual, **consulta interna real de estado** para
+   habilitação/indicador e eventos no Log da sessão, com exclusão
+   atômica e validação de PID.
+4. **C3.4:** interface com **dois botões empilhados por worker**,
+   um único toggle global, estado automático e Log da sessão
+   existente; Chromium/E2E das transições, SIGKILL e recuperação
+   de dados **sintéticos**.
 
 Merge somente com todos os gates obrigatórios completed/success no
 HEAD exato e PR mergeable, com checagem horária configurada. Não
