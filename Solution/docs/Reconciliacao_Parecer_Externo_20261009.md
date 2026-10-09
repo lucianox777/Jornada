@@ -34,3 +34,8 @@ Cada crítica é classificada como **procedente**, **parcialmente atendida** ou 
 ### Reexecução de distribuição publicada — proteção adicional
 
 A procedure `ref.sp_carregar_distribuicao_nascimento_json` passou a comparar **todas as datas e pesos** do payload recebido com a versão publicada, em ambos os sentidos (`EXCEPT`). Contagem e soma idênticas não bastam para considerar uma reexecução idempotente. A verificação do SHA-256 dos bytes do arquivo frente ao manifesto continua sendo responsabilidade do importador, ainda pendente de integração operacional; este ajuste SQL não a substitui.
+
+
+### Fingerprint demográfico (implementação em PR)
+
+A migração `20261009_Z_Linkage_Demographic_Reference_Fingerprint.sql` estende `auditoria.sp_calcular_fingerprint_modelo_linkage` para incorporar a linha de `identidade.modelo_linkage_referencia_demografica`, incluindo código, geografia, data, método, SHA-256 e `distribuicao_versao_id`. Isso torna o vínculo parte do fingerprint usado na conferência; **não** torna o vínculo obrigatório por si só e **não** comprova o gate de promoção sem teste SQL. O procedimento anterior de fingerprint continua como histórico de migração; a definição posterior é a efetiva após instalação ordenada.
