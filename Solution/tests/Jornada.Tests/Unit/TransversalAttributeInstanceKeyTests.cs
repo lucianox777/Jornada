@@ -31,7 +31,7 @@ public sealed class TransversalAttributeInstanceKeyTests
                 }
                 else
                 {
-                    Assert.Throws<InvalidDataException>((Action)(() => TransversalAttributeInstanceKey.Compute("MULTI", vectors.Rule, vector.Input), vector.Id));
+                    Assert.Throws<InvalidDataException>((Action)(() => TransversalAttributeInstanceKey.Compute("MULTI", vectors.Rule, vector.Input)), vector.Id);
                 }
             }
         }));
