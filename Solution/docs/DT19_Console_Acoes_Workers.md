@@ -1,67 +1,90 @@
-# DT-19 — botões dos workers e apresentação da Console DEV
+# DT-19 — ações e layout da Console DEV para workers
 
-**Decisão refinada em 08/10/2026.** Esta versão substitui os layouts
-anteriores, sem alterar os mecanismos RunOnce existentes. Estado:
-**PENDENTE DE IMPLEMENTAÇÃO E TESTES**.
+**Última decisão do responsável — 08/10/2026 (DEV).** Este documento
+substitui as propostas anteriores de botão individual `Iniciar contínuo`,
+`Desligar processo` e toggle por worker. **Implementação e aceite pendentes**:
+a decisão registrada não significa que a interface já exista.
 
 ## Interface aprovada
 
-Um **controle global** `Supervisão: DESATIVADA / ATIVADA` muda o modo
-dos três executáveis: `Jornada.Processor.Worker`,
+Um **único controle global** `Supervisão automática: DESATIVADA / ATIVADA`
+para os três executáveis `Jornada.Processor.Worker`,
 `Jornada.Operations.Maintenance.Worker` e
-`Jornada.Bronze.Maintenance.Worker`. É único, não um toggle por worker.
+`Jornada.Bronze.Maintenance.Worker`. O ambiente DEV isolado novo
+inicia com supervisão DESATIVADA e modo RunOnce.
 
-Para **cada worker**, apresentar os controles **EMPILHADOS na vertical**,
-não dispostos lado a lado em uma linha:
+Os botões de cada worker são **somente três, empilhados VERTICALMENTE**:
 
 ```text
-Processor Worker                  ● ATIVO — PID ... / heartbeat ...
-[▶ Executar uma vez]             (RUN_ONCE; OFF)
-[🟢 Iniciar contínuo]              (CONTÍNUO; ON)
-[🔴 Desligar processo]             (CONTÍNUO; ON e PID vivo)
-[📊 Status do processo]            (sempre, read-only)
+SUPERVISÃO AUTOMÁTICA: [ DESATIVADA | ATIVADA ]  (ÚNICO controle global)
+
+Processor Worker                           ● STATUS REAL
+[ ▶ Executar uma vez ]
+[ ■ Parar processo ]
+[ ▤ Status do processo ]
+
+Operations Maintenance Worker              ● STATUS REAL
+[ ▶ Executar uma vez ]
+[ ■ Parar processo ]
+[ ▤ Status do processo ]
+
+Bronze Maintenance Worker                  ● STATUS REAL
+[ ▶ Executar uma vez ]
+[ ■ Parar processo ]
+[ ▤ Status do processo ]
 ```
 
-Os labels funcionais são `Executar uma vez`, `Iniciar contínuo`,
-`Desligar processo` e `Status do processo`. A ação de desligar
-corresponde ao **`Parar processo` anteriormente aprovado**, isto é,
-encerrar imediatamente **somente** o PID do worker para ensaiar
-recuperação; com supervisão ON, o supervisor reinicia esse worker
-automaticamente. Não acrescentar outro botão `Matar processo`,
-`Simular falha` ou `Parar contínuo` separado. Explicar por tooltip
-que `Desligar processo` não desativa o modo supervisionado.
+**Não criar botão `Iniciar contínuo` nem `Desligar processo`.** A
+transição do supervisor global para ON **já inicia automaticamente
+os três processos contínuos**. O rótulo aprovado para a ação de
+interrupção abrupta é **`Parar processo`**. Não criar alternativas
+`Matar processo`, `Simular falha` ou `Parar contínuo`.
 
-## Habilitação por modo e estado efetivo
+## Regra de habilitação
 
-| Ação | Supervisor OFF (padrão) | Supervisor ON |
+| Ação | Supervisão OFF — RunOnce | Supervisão ON — contínuo |
 |---|---|---|
-| **Executar uma vez (RunOnce)** | Habilitado para os três workers, respeitados os pré-requisitos individuais e um processo finito já ativo. | **Desabilitado** na UI e **recusado pela API** para os três. |
-| **Iniciar contínuo** | Desabilitado. | Habilitado **somente se o worker ainda não estiver ativo e sua inicialização for permitida**. Ao ligar supervisor ON, os três são iniciados automaticamente; normalmente este botão aparecerá desabilitado, com status ATIVO. |
-| **Desligar processo** | Desabilitado para residentes; RunOnce em andamento é tratado pela transição global com confirmação. | **Habilitado somente quando aquele worker efetivamente subiu e tem PID verificável**. Encerra abruptamente a instância escolhida; supervisão reinicia apenas ela. Desabilitado enquanto parado/iniciando/reiniciando. |
-| **Status do processo** | Habilitado, mostra OFF e últimas execuções finitas. | Habilitado, consulta PID, horário, heartbeat, reinícios e recuperação; sem inferir saúde só de PID. |
+| **Executar uma vez** | Habilitado nos 3 workers, conforme pré-requisitos/concorrência já existentes. Mantém comportamento e testes anteriores. | Desabilitado em UI e recusado no backend. |
+| **Parar processo** | Desabilitado sem processo a parar; durante transição OFF→ON, RunOnce ativos são interrompidos com confirmação prévia. | **Habilitado SOMENTE se o respectivo processo contínuo estiver realmente ativo, PID vivo verificado**. Encerra abruptamente aquele PID; supervisor reinicia apenas esse worker. Enquanto reiniciando/inativo fica desabilitado. |
+| **Status do processo** | Habilitado, consulta RunOnce, PID/saída e supervisor OFF. | Habilitado, consulta PID, uptime, heartbeat, reinícios e estados de recuperação reais. |
 
-A presença de `Desligar processo` **HABILITADO** é também indicação
-visual de que o worker está executando. O status explícito, contudo,
-é fonte de verdade e distingue ATIVO, INICIANDO, RECUPERANDO e ERRO.
+A habilitação de `Parar processo` no modo ON também indica visualmente
+que **aquele processo realmente subiu**. Esta indicação não substitui
+o status real: PID por si só não prova heartbeat saudável nem trabalho
+recuperado.
 
-Os controles contínuos podem aparecer no layout enquanto OFF, mas
-devem estar desabilitados e identificados como indisponíveis.
-Ao ligar supervisor, desbloquear suas regras de habilitação,
-**não** todos indiscriminadamente: `Desligar` depende de PID real.
+## Dois níveis de recuperação (não confundir)
 
-## Restrições e testes existentes
+1. **Supervisor externo:** quando ON e o operador pressiona
+   `Parar processo`, encerrar **imediatamente** somente o PID
+   escolhido (falha injetada, sem shutdown gracioso); o supervisor
+   observa a morte e inicia outra instância **apenas daquele worker**.
+   O estado passa por `PARANDO` / `REINICIANDO` / `ATIVO`.
+2. **Worker reiniciado:** recupera **seu próprio processamento** por
+   mecanismos existentes de leases, heartbeat, reaquisição/fencing,
+   transações e idempotência. A conclusão da recuperação de lotes
+   depende de prova operacional; reinício do PID não garante
+   recuperação instantânea nem que o lease já expirou.
 
-Preservar os comandos, limites, códigos de saída e testes atuais de
-RunOnce; os testes de Console/Chromium/SQL pré-existentes continuam no
-CI sem reescrita. A nova implementação **acrescenta** apenas os
-controles contínuos/supervisão e seus novos testes. Não é prova de que
-E2E de continuidade foi executado.
+**Não** reiniciar NODE, API, Resultado, SQL ou os outros workers.
+Quando a supervisão é desligada globalmente, o próprio controlador
+desabilita reinícios e encerra os três residentes; o botão individual
+`Parar processo` não é a forma de desligar permanentemente um worker.
 
-Inícios simultâneos não podem duplicar workers; bloquear por operação
-atômica no backend, não por mera leitura de PID. Browser só envia
-comandos allowlisted e DEV-only. Nunca encerrar API/Resultado/SQL/NODE
-ao matar um worker.
+## Preservação e segurança
 
-Mais detalhes na [DT-20](DT20_Supervisao_Opt_In_Workers.md) e
+Preservar intactos comandos, limites, códigos de saída e suítes RunOnce
+da Console. Adicionar cobertura nova para supervisão e recovery, sem
+considerar o teste histórico como prova de execução contínua.
+
+As mudanças de modo são atômicas no backend: verificação isolada de PID
+é insuficiente contra cliques simultâneos. UI lê estado efetivo, nunca
+força OFF cosmético ao recarregar. Permitir apenas workers conhecidos
+e ambiente DEV/`JornadaE2E` **descartável e isolado**.
+
+Ver [DT-18](DT18_Servicos_Independentes_Console_DEV.md),
+[DT-20](DT20_Supervisao_Opt_In_Workers.md) e
 [DT-21](DT21_Testes_Resiliencia_Workers.md).
-**Trilha 4, JornadaLocal, IBGE original e HML/PROD fora de escopo.**
+
+**Não tocar JornadaLocal, IBGE original, HML/PROD, volumes comuns
+ou Trilha 4/reprocessamento de RESOLVIDOS.**
