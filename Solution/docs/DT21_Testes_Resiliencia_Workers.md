@@ -1,52 +1,62 @@
-# DT-21 — provas de modos, botões e recuperação da Console DEV
+# DT-21 — evidências de supervisão e autorrecuperação dos workers
 
-**Decisão refinada em 08/10/2026.** Estado: **PENDENTE**.
-Os testes RunOnce e de Console existentes serão **mantidos**, não
-reescritos em razão da interface adicional. Os casos novos abaixo são
-gates incrementais; não declarados executados apenas por sua previsão.
+**Decisão final refinada em 08/10/2026.** Estado: **PENDENTE DE
+IMPLEMENTAÇÃO, EXECUÇÃO E ACEITE**. Os testes RunOnce/Console existentes
+devem continuar íntegros; a cobertura nova é **aditiva**.
 
 ## Contrato observado
 
-Toggle único do supervisor, **OFF inicialmente** em DEV descartável.
-OFF: três `Executar uma vez` disponíveis e sem residentes; ON:
-cancelar/matar RunOnce ativos, iniciar automaticamente os **três**
-workers contínuos, desligar RunOnce e liberar controles contínuos.
-Cada cartão terá botões **empilhados verticalmente**: Executar uma
-vez, Iniciar contínuo, Desligar processo, Status do processo.
-`Desligar` só é clicável depois de confirmado que **aquele PID**
-está vivo. Com supervisor ON, desligar o PID provoca restart somente
-desse worker. Com OFF, não há processo residente para desligar.
-Matar um worker não derruba API/Resultado/SQL/NODE nem os demais.
+Um supervisor **global**, inicialmente DESATIVADO em DEV descartável:
+OFF = todos os RunOnce permitidos e nenhum residente gerenciado;
+ON = matar RunOnce ativos após confirmação, iniciar automaticamente
+**os três workers contínuos**, desabilitar RunOnce. Controles de
+cada cartão **empilhados na vertical**:
 
-## Matriz mínima nova de aceite
+```text
+[Executar uma vez]
+[Parar processo]
+[Status do processo]
+```
 
-| Caso | Prova real exigida |
+**NÃO** incluir `Iniciar contínuo` ou `Desligar processo`.
+`Parar processo` só fica habilitado em ON se PID **realmente vivo**.
+O restart após kill é tarefa do **supervisor externo**, sem clique
+adicional; a recuperação de lotes/trabalho é **responsabilidade do
+worker reiniciado**, possivelmente após vencimento de lease.
+Matar um worker não deve derrubar NODE, API, Resultado ou outros
+workers. Não confundir processo novamente ativo com lote já recuperado.
+
+## Matriz mínima de aceite
+
+| ID | Prova |
 |---|---|
-| **TC-SV01 Estado inicial** | Console DEV descartável abre com supervisor OFF, 3 RunOnce habilitados (salvo pré-requisitos legítimos), botões contínuos desabilitados, `Status do processo` acessível, nenhum residente controlado. |
-| **TC-SV02 Regressão RunOnce** | Suítes anteriores unit/HTTP/Chromium/E2E de RunOnce passam **sem remoção ou bypass**. Execução finita mantém limites, exit codes e ausência de restart. |
-| **TC-SV03 Ativar supervisor** | ON impede imediatamente novos RunOnce e, mediante confirmação para ativos, mata todos os RunOnce dos três workers; prova não haver concorrência com residentes. Sobe automaticamente os três serviços contínuos, cada qual com PID e supervisão própria. |
-| **TC-SV04 Botões por estado** | Quatro botões por worker em **coluna vertical**. ON: RunOnce desabilitado na UI/API; `Iniciar contínuo` disponibilizado no modo correto mas desabilitado se já ativo; **`Desligar processo` habilitado só quando PID real estiver ativo**, nunca somente por toggle ON. `Status` sempre disponível. |
-| **TC-SV05 Desligar processo ON** | Desligar (falha abrupta) só no worker escolhido; restart automático com PID novo; API, Resultado e outros dois workers não reiniciam. Durante reinício, botão Desligar desabilitado e status não mente. Repetir nos 3 workers. |
-| **TC-SV06 Recuperar lote** | Interromper Processor em lote sintético ativo; provar heartbeat, lease expirado, fencing, reaquisição e zero duplicações no `JornadaE2E`. PID novo não é prova suficiente. |
-| **TC-SV07 Voltar OFF** | Desarmar reinícios, encerrar três residentes, verificar ausência, reabilitar RunOnce e desabilitar controles contínuos. Nunca reiniciar após OFF. |
-| **TC-SV08 Corridas e reinício Console** | Toggles concorrentes e cliques repetidos não duplicam instâncias; RunOnce nunca começa durante ON. Reabrir Console lê estado efetivo (não força OFF visual). |
-| **TC-SV09 Falha parcial** | Falha provocada no segundo start não exibe supervisor ATIVO/saudável e não libera simultaneamente RunOnce e residentes; recuperação de modo explícita. |
-| **TC-SV10 Escopo seguro** | Endpoints aceitam só workers allowlisted DEV/`JornadaE2E`; sem PID arbitrário, sem shell exposto, sem matar API/NODE/serviços compartilhados. |
+| TC-SV01 — OFF inicial | Perfil descartável isolado começa OFF; 3 RunOnce disponíveis (respeitando pré-requisitos), sem workers residentes. UI com 3 botões verticais por worker; Status sempre acessível. |
+| TC-SV02 — regressão RunOnce | Testes preexistentes de RunOnce/Console em .NET, HTTP, Chromium e E2E permanecem sem skips/bypasses novos; exit code e limitação de ciclo preservados. |
+| TC-SV03 — ON global | Bloquear RunOnce em UI/backend; pedir confirmação de kill se RunOnce ativo, matar todos RunOnce desses 3 workers, esperar ausência, iniciar automaticamente os três residentes, validar identidade e saúde de cada um. |
+| TC-SV04 — botões por PID | `Parar processo` desabilitado até o respectivo PID ficar vivo, habilitado após subir, desabilitado durante reinício; não habilitar só porque toggle ON. Sem `Iniciar contínuo` separado. |
+| TC-SV05 — restart automático | ON: clicar Parar em Processor, provar SIGKILL de **apenas** Processor, PID novo **sem intervenção do operador**, API/Resultado/Operations/Bronze permanecem com PIDs estáveis. Repetir individualmente para cada outro worker. |
+| TC-SV06 — trabalho recuperado | Parar Processor durante lote sintético ativo; observar rollback de operação não confirmada, heartbeat/lease e fencing, retomada elegível pelo worker reiniciado, consistência/idempotência e ausência de duplicações em `JornadaE2E`. Separar métrica `processo_reiniciado` da evidência `trabalho_recuperado`. |
+| TC-SV07 — OFF após ON | Primeiro desarmar restart dos 3, depois encerrar residentes, confirmar ausência e reabilitar RunOnce. Nenhuma instância ressuscita. |
+| TC-SV08 — robustez da Console | Reload/restart da Console reflete modo efetivo e não duplica workers; dois toggles simultâneos ficam serializados e não permitem RunOnce+residente no mesmo alvo. |
+| TC-SV09 — erro parcial | Falha ao subir worker 2/3 gera estado `ERRO`, RunOnce continua bloqueado e não há falso ON saudável; deve ser possível reconciliação segura. |
+| TC-SV10 — isolamento e segurança | Todos os testes de falha reais limitados a serviço allowlisted em Compose descartável isolado; negar PID/worker arbitrário, modo PROD/HML, `JornadaLocal` e volumes compartilhados. |
 
-## Etapas e gates
+## Sequência de implementação
 
-- **C3.1:** entrypoint independente com allowlist, CI em modo
-  `--check` sem processos/DB; documentação destas DTs.
-- **C3.2:** supervisor real com restart individual e contêineres/volumes
-  **exclusivos** do CI descartável; não modificar cluster comum.
-- **C3.3:** backend de modos globais ON/OFF e ações por worker,
-  exclusão atômica, confirmação de RunOnce ativo, PID/estado reais.
-- **C3.4:** interface com botões empilhados + Chromium E2E
-  TC-SV01–10 e testes de recuperação.
+- C3.1: entrypoint isolado não ativado, allowlist, proteção DEV/E2E
+  e regressão não destrutiva (PR #841).
+- C3.2: topologia e política de restart externa **independente para
+  os três serviços**, sem `wait -n` compartilhado nos workers, em
+  projeto Docker descartável.
+- C3.3: controlador global OFF↔ON, RunOnce preexistente,
+  `Parar processo` individual (SIGKILL) e `Status do processo`
+  real; isolamento e transições atômicas.
+- C3.4: UI com toggle global + 3 botões verticais/worker;
+  testes Chromium/E2E de TC-SV01–10 com regressões originais preservadas.
 
-Merge somente após workflows e gates obrigatórios `completed/success`
-no HEAD exato. `Skipped` não comprova execução; acompanhamento horário
-não substitui gate real.
+Cada PR tem seu HEAD e gates obrigatórios a validar antes do squash
+merge. `Skipped` opcional não é evidência positiva daquele teste.
+Checagem horária não substitui comprovação de restart e recuperação.
 
-**Fora de escopo:** Trilha 4, RESOLVIDOS automáticos, `JornadaLocal`,
-IBGE original, volumes compartilhados, HML/PROD, dados reais.
+**Fora do escopo:** Trilha 4, reprocessamento automático de RESOLVIDOS,
+JornadaLocal, IBGE original, volumes comuns, dados reais, HML/PROD.
