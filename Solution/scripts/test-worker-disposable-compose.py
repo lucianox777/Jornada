@@ -76,6 +76,9 @@ def main() -> int:
                 f"{name}: worker allowlist command incorrect")
         require(not svc.get("ports") and not svc.get("container_name"),
                 f"{name}: must never use host ports/fixed container_name")
+        require(not svc.get("pid") and not svc.get("network_mode")
+                and not svc.get("privileged"),
+                f"{name}: PID/network namespace must remain isolated and unprivileged")
         worker_env = svc.get("environment", {})
         require(worker_env.get("JORNADA_WORKER_ISOLATED_PROFILE") == "true"
                 and worker_env.get("DOTNET_ENVIRONMENT") == "Development"
