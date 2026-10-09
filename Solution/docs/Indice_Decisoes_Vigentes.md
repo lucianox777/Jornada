@@ -1,3 +1,12 @@
+> **Nota editorial — 09/10/2026:** o índice de decisões de
+> 29/09 permanece válido como referência de precedência para
+> identidade/linkage, mas **não** é fotografia das implementações
+> de Console/CI em outubro. Para essas superfícies ver
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md),
+> [Estado atual](Estado_Atual_Projeto.md) e
+> [Console DEV](Console_DEV_Supervisao_Atual.md).
+> Nenhuma implementação altera uma decisão normativa por si só.
+>
 # Índice de decisões vigentes — Jornada
 
 **Atualização:** 29/09/2026. **Fonte de precedência para a candidata v5.00:** [Decisões canônicas de identidade e linkage](Decisoes_Canonicas_Identidade_Linkage_20260929.md). A decisão nova prevalece sobre texto histórico contraditório, mas não torna o código automaticamente conforme, não reescreve a última release formal nem substitui aprovação institucional. Consulte o [catálogo de vigência de 29/09](Catalogo_Vigencia_Documental_20260929.md) como snapshot datado; para estado corrente, confronte [Estado atual](Estado_Atual_Projeto.md) com `master`, CI e issues.
