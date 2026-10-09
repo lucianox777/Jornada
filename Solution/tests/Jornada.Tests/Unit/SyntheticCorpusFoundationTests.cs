@@ -179,20 +179,17 @@ public sealed class SyntheticCorpusFoundationTests
     {
         Assert.Multiple((TestDelegate)(() =>
         {
-            Assert.Throws<ArgumentException>(() =>
-                _ = new DeterministicWeightedSampler<string>(new[] { new WeightedValue<string>("A", "A", 0) }));
-            Assert.Throws<ArgumentException>(() =>
-                _ = new DeterministicWeightedSampler<string>(new[]
+            Assert.Throws<ArgumentException>((TestDelegate)(() => _ = new DeterministicWeightedSampler<string>(new[] { new WeightedValue<string>("A", "A", 0) })));
+            Assert.Throws<ArgumentException>((TestDelegate)(() => _ = new DeterministicWeightedSampler<string>(new[]
                 {
                     new WeightedValue<string>("A", "A", 1),
                     new WeightedValue<string>("A", "B", 1)
-                }));
-            Assert.Throws<ArgumentException>(() =>
-                _ = new DeterministicWeightedSampler<string>(new[]
+                })));
+            Assert.Throws<ArgumentException>((TestDelegate)(() => _ = new DeterministicWeightedSampler<string>(new[]
                 {
                     new WeightedValue<string>("A", "A", ulong.MaxValue),
                     new WeightedValue<string>("B", "B", 1)
-                }));
+                })));
         }));
     }
 
@@ -250,7 +247,7 @@ public sealed class SyntheticCorpusFoundationTests
             Row("NOME", "ANA", 200, "FEMININO", "TODOS")
         };
 
-        Assert.Throws<InvalidDataException>(() => SexPeriodCompositionInspector.Inspect(rows));
+        Assert.Throws<InvalidDataException>((TestDelegate)(() => SexPeriodCompositionInspector.Inspect(rows)));
     }
 
     private static IbgeFrequencyRow Row(
