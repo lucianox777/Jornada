@@ -18,7 +18,7 @@ public sealed class BlockingParallelCandidateDiagnosticTests
             combinedEligibleTruePairs: 3,
             maxCandidatePairs: 6);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Universe, Is.EqualTo(
                 BlockingParallelCandidateDiagnostic.Universe));
@@ -43,7 +43,7 @@ public sealed class BlockingParallelCandidateDiagnosticTests
             Assert.That(result.DynamicReductionRatio, Is.EqualTo(2m / 3m));
             Assert.That(result.CombinedReductionRatio, Is.EqualTo(2m / 3m));
             Assert.That(result.UnionReductionRatio, Is.EqualTo(1m / 3m));
-        });
+        }));
     }
 
     [Test]
@@ -58,13 +58,13 @@ public sealed class BlockingParallelCandidateDiagnosticTests
             combinedEligibleTruePairs: 1,
             maxCandidatePairs: 4);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.CombinedRecall, Is.EqualTo(0.5m));
             Assert.That(result.CombinedConditionalRecall, Is.EqualTo(1m));
             Assert.That(result.UnionRecall, Is.EqualTo(1m));
             Assert.That(result.CombinedOnlyTruePairs, Is.Zero);
-        });
+        }));
     }
 
     [Test]
@@ -78,7 +78,7 @@ public sealed class BlockingParallelCandidateDiagnosticTests
             combinedEligibleTruePairs: 1,
             maxCandidatePairs: 2);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.DynamicCandidatePairs, Is.EqualTo(2));
             Assert.That(result.UnionCandidatePairs, Is.EqualTo(2));
@@ -86,7 +86,7 @@ public sealed class BlockingParallelCandidateDiagnosticTests
             Assert.That(result.CombinedOnlyCandidatePairs, Is.Zero);
             Assert.That(result.CombinedOnlyTruePairs, Is.Zero);
             Assert.That(result.UnionTruePairs, Is.EqualTo(result.DynamicTruePairs));
-        });
+        }));
     }
 
     [Test]
@@ -131,12 +131,12 @@ public sealed class BlockingParallelCandidateDiagnosticTests
             Array.Empty<ulong>(), Array.Empty<ulong>(), Array.Empty<ulong>(),
             eligiblePairCount: 0, combinedEligibleTruePairs: 0, maxCandidatePairs: 5);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.UnionCandidatePairs, Is.Zero);
             Assert.That(result.UnionRecall, Is.Zero);
             Assert.That(result.UnionReductionRatio, Is.Zero);
             Assert.That(result.EligibleTruePairs, Is.Zero);
-        });
+        }));
     }
 }

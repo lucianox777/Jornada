@@ -19,11 +19,11 @@ public sealed class BirthDateSemanticEvidenceTests
         var left = new DateOnly(1975, 6, 7);
         var right = new DateOnly(1975, 7, 6);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(BirthDateSemanticEvidence.Classify(left, right), Is.EqualTo(BirthDateSemanticEvidence.DayMonthSwap));
             Assert.That(BirthDateSemanticEvidence.Classify(right, left), Is.EqualTo(BirthDateSemanticEvidence.DayMonthSwap));
-        });
+        }));
     }
 
     [Test]

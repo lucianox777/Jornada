@@ -42,14 +42,14 @@ public sealed class SyntheticBrazilianNameErrorTests
             }
         };
         config.Validate(2);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(config.Resolve("G0", false).OmitAgnome, Is.EqualTo(.4));
             Assert.That(config.Resolve("G0", false).PrefixTitle, Is.Zero);
             Assert.That(config.Resolve("G0", true).PrefixTitle, Is.EqualTo(.3));
             Assert.That(config.Resolve("G1", false).DuplicateParticle, Is.EqualTo(.2));
             Assert.That(config.Resolve("G1", true).DuplicateLetter, Is.EqualTo(.1));
-        });
+        }));
     }
 
     [Test]
@@ -73,22 +73,22 @@ public sealed class SyntheticBrazilianNameErrorTests
         var doubles = Observe(
             "ANA SILVA", "MARIA LIMA",
             new() { Default = new() { DuplicateLetter = 1 } });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(doubles.Name, Has.Length.EqualTo("ANA SILVA".Length + 1));
             Assert.That(doubles.MotherName, Has.Length.EqualTo("MARIA LIMA".Length + 1));
             Assert.That(doubles.Corruptions, Does.Contain("NOME_BR_DUPLICATE_LETTER"));
             Assert.That(doubles.Corruptions, Does.Contain("MAE_BR_DUPLICATE_LETTER"));
-        });
+        }));
 
         var particles = Observe(
             "ANA DE LIMA", "MARIA DAS SOUZA",
             new() { Default = new() { DuplicateParticle = 1 } });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(particles.Name, Is.EqualTo("ANA DE DE LIMA"));
             Assert.That(particles.MotherName, Is.EqualTo("MARIA DAS DAS SOUZA"));
-        });
+        }));
 
         var apostrophe = Observe(
             "ANA SILVA", "MARIA LIMA",
@@ -104,12 +104,12 @@ public sealed class SyntheticBrazilianNameErrorTests
         var administrative = Observe(
             "ANA SILVA", "MARIA LIMA",
             new() { Default = new() { AdministrativeMarker = 1 } });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(administrative.Name, Is.EqualTo("NAO INFORMADO"));
             Assert.That(administrative.MotherName, Is.EqualTo("NAO INFORMADO"));
             Assert.That(administrative.Corruptions, Does.Contain("NOME_BR_ADMINISTRATIVE_MARKER"));
-        });
+        }));
     }
 
     [Test]
@@ -123,14 +123,14 @@ public sealed class SyntheticBrazilianNameErrorTests
         var observed = SyntheticCorpusGenerator.Observe(
             person, new Xoshiro256StarStar(402), NoLegacyErrors, "G0", 0, 1, 1, config);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(person.Name, Is.EqualTo("JOAO SILVA FILHO"));
             Assert.That(observed.Name, Is.EqualTo("JOAO SILVA"));
             Assert.That(observed.Corruptions, Does.Contain("NOME_BR_OMIT_AGNOME"));
             Assert.That(BrazilianNameComponents.Project(person.Name)!.Agnome, Is.EqualTo("FILHO"));
             Assert.That(BrazilianNameComponents.Project(observed.Name)!.Agnome, Is.Null);
-        });
+        }));
 
         var father = Person("JOAO SILVA");
         Assert.That(BrazilianNameComponents.Project(father.Name)!.NormalizedFull,
@@ -158,7 +158,7 @@ public sealed class SyntheticBrazilianNameErrorTests
             person, new Xoshiro256StarStar(21), NoLegacyErrors, "G0", 0, 0, 1, config);
         var retained = SyntheticCorpusGenerator.Observe(
             person, new Xoshiro256StarStar(21), NoLegacyErrors, "G0", 1, 1, 1, config);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(dropped.Cpf, Is.Null);
             Assert.That(dropped.Name!.StartsWith("DR ", StringComparison.Ordinal)
@@ -166,7 +166,7 @@ public sealed class SyntheticBrazilianNameErrorTests
             Assert.That(retained.Cpf, Is.EqualTo(person.Cpf));
             Assert.That(retained.Name, Is.EqualTo("NAO INFORMADO"));
             Assert.That(retained.Corruptions, Does.Contain("NOME_BR_ADMINISTRATIVE_MARKER"));
-        });
+        }));
     }
 
     [Test]
@@ -183,7 +183,7 @@ public sealed class SyntheticBrazilianNameErrorTests
         var b = Generator().Generate(experimental);
         var c = Generator().Generate(legacy);
         var d = Generator().Generate(legacy with { BrazilianNameErrors = null });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(a.People.Select(x => (x.Name, x.Cpf, x.MotherName)),
                 Is.EqualTo(b.People.Select(x => (x.Name, x.Cpf, x.MotherName))));
@@ -194,7 +194,7 @@ public sealed class SyntheticBrazilianNameErrorTests
                 Is.EqualTo(d.People.Select(x => (x.Name, x.Cpf))));
             Assert.That(c.Observations.Select(x => (x.Name, x.Corruptions)),
                 Is.EqualTo(d.Observations.Select(x => (x.Name, x.Corruptions))));
-        });
+        }));
     }
 
     [Test]
@@ -221,7 +221,7 @@ public sealed class SyntheticBrazilianNameErrorTests
             var paths = await SyntheticCorpusMaterializer.WriteAsync(root, gen, source, fingerprint);
             using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(paths.ManifestPath));
             using var truth = JsonDocument.Parse(await File.ReadAllTextAsync(paths.TruthPath));
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(manifest.RootElement.GetProperty("brazilian_name_errors")
                     .GetProperty("config_sha256").GetString(), Is.EqualTo(config.ConfigSha256()));
@@ -231,7 +231,7 @@ public sealed class SyntheticBrazilianNameErrorTests
                     .EnumerateObject().Any(), Is.True);
                 Assert.That(truth.RootElement.GetProperty("brazilian_name_errors_rates_source").GetString(),
                     Is.EqualTo("synthetic_configured_rates_not_empirical"));
-            });
+            }));
         }
         finally
         {

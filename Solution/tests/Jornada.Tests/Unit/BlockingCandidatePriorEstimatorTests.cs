@@ -25,7 +25,7 @@ public sealed class BlockingCandidatePriorEstimatorTests
 
         var result = BlockingCandidatePriorEstimator.AppendDiagnostics(parameters, estimate);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result[LinkageParameterCatalog.PriorMatchProbability], Is.EqualTo(0.25m));
             Assert.That(result["KEEP"], Is.EqualTo(7m));
@@ -37,7 +37,7 @@ public sealed class BlockingCandidatePriorEstimatorTests
             Assert.That(result["DIAG_CANDIDATE_PRIOR_ACTIVE_SCORE_CHANGED"], Is.EqualTo(0m));
             Assert.That(result["DIAG_CANDIDATE_PRIOR_VALIDATION_CANDIDATES_EXCLUDED"], Is.EqualTo(1m));
             Assert.That(result["DIAG_CANDIDATE_PRIOR_DELTA_LOG_ODDS_VS_ACTIVE"], Is.LessThan(0m));
-        });
+        }));
     }
 
     [Test]
@@ -58,12 +58,12 @@ public sealed class BlockingCandidatePriorEstimatorTests
 
         var result = BlockingCandidatePriorEstimator.AppendDiagnostics(parameters, estimate);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result["DIAG_CANDIDATE_PRIOR_AVAILABLE"], Is.EqualTo(0m));
             Assert.That(result.ContainsKey("DIAG_CANDIDATE_PRIOR_MATCH_PROBABILITY"), Is.False);
             Assert.That(result["DIAG_CANDIDATE_PRIOR_BOTH_CLASSES_OBSERVED"], Is.EqualTo(0m));
             Assert.That(result[LinkageParameterCatalog.PriorMatchProbability], Is.EqualTo(0.25m));
-        });
+        }));
     }
 }

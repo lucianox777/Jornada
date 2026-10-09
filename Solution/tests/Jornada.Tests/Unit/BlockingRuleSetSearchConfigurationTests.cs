@@ -13,14 +13,14 @@ public sealed class BlockingRuleSetSearchConfigurationTests
         var configuration = new ConfigurationBuilder().Build();
         var options = BlockingRuleSetSearchConfiguration.FromConfiguration(configuration);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(options.MaxFieldsPerPass, Is.EqualTo(2));
             Assert.That(options.MaxPasses, Is.EqualTo(2));
             Assert.That(options.PrimitivePoolSize, Is.EqualTo(8));
             Assert.That(options.MinimumTrueMatchRecall, Is.EqualTo(0.95d));
             Assert.That(options.RequireObservedNonMatchSupport, Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -39,14 +39,14 @@ public sealed class BlockingRuleSetSearchConfigurationTests
 
         var options = BlockingRuleSetSearchConfiguration.FromConfiguration(configuration);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(options.MaxFieldsPerPass, Is.EqualTo(3));
             Assert.That(options.MaxPasses, Is.EqualTo(1));
             Assert.That(options.PrimitivePoolSize, Is.EqualTo(16));
             Assert.That(options.MinimumTrueMatchRecall, Is.EqualTo(0.975d));
             Assert.That(options.RequireObservedNonMatchSupport, Is.False);
-        });
+        }));
     }
 
     [Test]
