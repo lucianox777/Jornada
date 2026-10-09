@@ -21,7 +21,7 @@ ou ações sobre banco/containers.
 | **Workers e Console DEV** | [Guia atual da Console](Console_DEV_Supervisao_Atual.md), [DT-18](DT18_Servicos_Independentes_Console_DEV.md), [DT-19](DT19_Console_Acoes_Workers.md), [DT-20](DT20_Supervisao_Opt_In_Workers.md), [DT-21](DT21_Testes_Resiliencia_Workers.md), [Plano de 08/10](Plano_Console_Workers_Independentes_2026-10-08.md), [Compose efêmero](../install/console-dev-e2e/README.md) | Não confundir histórico “PENDENTE em 08/10” com merges #845–#856; cancelamento confirmado segue pendente |
 | **CI, qualidade, release e testes** | [DT10 extração](DT10_CI_Extracao_Reutilizavel.md), [Runbook de testes](Runbook_Testes_Tecnicos.md), [Índice de testes](Testes_Operacao_Indice.md) | Dez identidades de gates; DT10 condicional reusable, builds repetidos ainda pendentes |
 | **Operação, governança e segurança** | [Runbook operacional](Runbook_Operacao.md), [Desenvolvimento local](Runbook_Desenvolvimento_Local.md), [Monitor](Monitor_Operacional.md), [Readiness](Governanca_Tecnica_Readiness.md) | CI sintética não homologa HML/PROD nem autoriza reset de bancos existentes |
-| **Planejamento e dívidas** | [Plano](Plano_Desenvolvimento.md), [Dívidas técnicas](Dividas_Tecnicas.md), [Contrato de cancelamento](C3_3b3_Confirmacao_Cancelamento_RunOnce.md) | Pendência real separada de funcionalidade já mergeada |
+| **Planejamento e dívidas** | [Plano](Plano_Desenvolvimento.md), [Dívidas técnicas](Dividas_Tecnicas.md), [DT-22 de RESOLVIDOS](DT22_Reavaliacao_Governada_Resolvidos.md), [Contrato de cancelamento](C3_3b3_Confirmacao_Cancelamento_RunOnce.md) | Trilha 4 encerrada como **proposta contínua**; replay extraordinário postergado, não entregue; pendências reais separadas de funcionalidades já mergeadas |
 | **Diagramas / visão institucional** | [Índice UML](UML_Arquitetura_Indice.md) e documentos publicados em `Documentos/` | Diagramas datados não são atualizados silenciosamente nem documentos selados reeditados |
 
 ## O que significa “todo o sistema”
@@ -58,6 +58,26 @@ revalidado individualmente cada hipótese de estudo/experimento antigo.
    `JornadaLocal`, acervo IBGE, Compose/volumes do usuário ou
    HML/PROD. A cadeia de evidências C3 usa ambiente GitHub-hosted
    isolado `JornadaE2E`.
+
+## Decisão posterior incorporada — 09/10: Trilha 4 → DT-22
+
+A proposta de uma **Trilha 4 periódica/contínua** foi
+**encerrada pelo responsável**. Seu resultado funcional futuro
+de reavaliar `RESOLVIDOS` com novas evidências/candidatos ou
+modelo recalibrado é uma **dívida técnica separada e postergada**:
+[DT-22](DT22_Reavaliacao_Governada_Resolvidos.md). Não há
+comando novo, scheduler ou replay implementado nesta revisão.
+O `INCREMENTAL` seleciona faltantes, `NAO_RESOLVIDO`,
+`CONFLITO` e `PENDENTE_PROBABILISTICO`, não abrange
+genericamente `RESOLVIDOS` indiretamente afetados. O
+`REPLAY` já implementado é reprodução do modelo histórico;
+não se pode declará-lo reavaliação com modelo novo. A ativação
+e o replay extraordinário são operações **separadas**.
+A limitação é expressamente conhecida, não autocorreção já
+comprovada; manter critério de risco e aprovação próprios
+no Ensaio. Atualizados: Plano, Dívidas, Manual, Estado, índices,
+DT-05, DT-15, documentos de blocking e o plano datado de 08/10,
+sem reescrever a normativa publicada.
 
 ## Checklist editorial para as próximas PRs
 
