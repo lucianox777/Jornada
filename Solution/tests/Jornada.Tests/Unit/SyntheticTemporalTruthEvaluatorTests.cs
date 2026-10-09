@@ -20,7 +20,7 @@ public sealed class SyntheticTemporalTruthEvaluatorTests
         {
             WriteFixture(root, completedRun: true);
             var report = await SyntheticTemporalTruthEvaluator.EvaluateAsync(root);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(report.Waves.Count, Is.EqualTo(2));
                 Assert.That(report.Waves[0].CurrentMaterializedSources, Is.EqualTo(2));
@@ -40,14 +40,14 @@ public sealed class SyntheticTemporalTruthEvaluatorTests
                 Assert.That(report.Waves[1].Recall, Is.EqualTo(1m));
                 Assert.That(report.ModelPromotionAttempted, Is.False);
                 Assert.That(report.TruthConsumedByIngestionOrCalibrator, Is.False);
-            });
+            }));
             var json = JsonSerializer.Serialize(report);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(json, Does.Not.Contain("TRUTH-P1"));
                 Assert.That(json, Does.Not.Contain("SYNTH-A"));
                 Assert.That(json, Does.Not.Contain("SYNTH-B"));
-            });
+            }));
         }
         finally { Directory.Delete(root, recursive: true); }
     }
@@ -60,13 +60,13 @@ public sealed class SyntheticTemporalTruthEvaluatorTests
         {
             WriteFixture(root, completedRun: false);
             var report = await SyntheticTemporalTruthEvaluator.EvaluateAsync(root);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(report.Waves[1].TruePairs.Total, Is.EqualTo(1));
                 Assert.That(report.Waves[1].Precision, Is.Null);
                 Assert.That(report.Waves[1].Recall, Is.Null);
                 Assert.That(report.Waves[1].TruePositive, Is.Null);
-            });
+            }));
         }
         finally { Directory.Delete(root, recursive: true); }
     }
