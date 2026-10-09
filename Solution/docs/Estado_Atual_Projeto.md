@@ -15,6 +15,28 @@
 
 **Restrições:** não operar, resetar, migrar ou testar os dados originais de `JornadaLocal`/IBGE, o NODE/Compose do usuário ou HML/PROD para conferir este estado. As provas acima são históricas de GitHub Actions e seus alvos efêmeros. **Decisão revisada de 09/10:** a antiga Trilha 4 de varredura temporal foi **encerrada como frente autônoma**; a reavaliação de RESOLVIDOS passa à DT-22 postergada. **Não** declarar que a Gold se autocorrige completamente por evento nem que o replay após mudança de modelo esteja implementado.
 
+## O que falta resolver — quadro de ação após a decisão de 09/10
+
+Abaixo, **pendência não é tarefa já autorizada a modificar dados
+reais**. São classes distintas; a prioridade final e critérios de
+promoção dependem dos responsáveis por cada frente:
+
+| Situação | Pendência de fato | Verificação para encerramento |
+|---|---|---|
+| **Técnica / produto** | [DT-05](DT05_Snapshots_Parquet_NAS.md) ainda tem itens de fechamento global de replay histórico NAS, retenção/GC e medição real de custo/latência; não confundir com DT-22. | Runbook, invariantes de snapshot imutável, métricas e aceite explicitamente registrado na HEAD exata. |
+| **Técnica / qualidade de identidade** | Consolidar decisões executáveis da **V8**, TF nominal calibrado, não-presunção de independência, separação sem CPF e regras de Gold por atributo; validar por corpus/snapshot conforme as [decisões canônicas](Decisoes_Canonicas_Identidade_Linkage_20260929.md) e o [Plano](Plano_Desenvolvimento.md). | Testes adversariais/estratificados e avaliação estatística independente; nenhuma simples regra escrita vale como implementação. |
+| **Técnica / Console DEV** | Confirmar autorização/encerramento explícito de RunOnce ativo e **histórico externo durável** fora da sessão; os merges #854–#856 não provaram tudo isso. | E2E no ambiente privado GitHub `JornadaE2E`, sem efeitos em NODE real. |
+| **Técnica / CI e tooling** | Reduzir builds .NET repetidos após a extração DT-10; conferir o desalinhamento de instalador Windows .NET 8 vs `net10.0` (issue #790) e a PR #809 Dependabot antes de qualquer merge. | Gates de segurança/integração preservados, provenance de artefatos por SHA e regressões do instalador/lock. |
+| **Institucional / Ensaio** | Avaliar risco de falsos vínculos e de RESOLVIDOS desatualizados, validar os contratos de Gestor, massas representativas, IdP/RBAC/PRODAM e condições HML/PROD. | Aprovações, corpus, rastreabilidade e evidências próprios; CI DEV sintética não as substitui. |
+| **Posterior / não bloqueante desta proposta** | [**DT-22**](DT22_Reavaliacao_Governada_Resolvidos.md): replay extraordinário e governado de RESOLVIDOS por nova evidência/candidato ou modelo. **Nenhuma execução contínua da antiga Trilha 4.** | PR nova de implementação, E2E de escopo/conservação/retomada, evidência de riscos e autorização; **não foi feita agora**. |
+
+**Fechamento da proposta arquitetural ≠ fechamento das dívidas
+funcionais ou homologação.** A Gold é revisável e pode conter
+associação probabilística ainda não revista; não afirmar
+autocorreção completa de RESOLVIDOS no modo `INCREMENTAL`.
+A [DT-22](DT22_Reavaliacao_Governada_Resolvidos.md) documenta
+explicitamente o risco aceito até sua execução posterior.
+
 ---
 
 ## Fotografia documental anterior (preservada para contexto)
