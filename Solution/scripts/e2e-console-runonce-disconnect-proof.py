@@ -200,5 +200,5 @@ def main() -> None:
 if __name__=="__main__":
     try: main()
     except (RuntimeError,OSError,ValueError,KeyError) as exc:
-        # RuntimeError messages originate from fixed require() assertions above.\n        # Do not print arbitrary OS/HTTP exception details (may contain secrets).\n        detail = ": " + str(exc) if type(exc) is RuntimeError else ""\n        print("C3.3b3a: REJECTED "+type(exc).__name__+detail,file=sys.stderr)
+        # RuntimeError messages originate from fixed require() assertions above.\n        # Do not print arbitrary OS/HTTP exception details (may contain secrets).\n        detail = ": " + str(exc) if type(exc) is RuntimeError else ""\n        failure = {"status":"FAIL","scenario":"C3.3b3a_disconnect_does_not_cancel_oneoff",\n                   "exception_type":type(exc).__name__,\n                   "assertion":str(exc) if type(exc) is RuntimeError else "non-assertion runtime failure"}\n        OUT.mkdir(parents=True,exist_ok=True)\n        (OUT/"failure.json").write_text(json.dumps(failure,indent=2)+"\\n",encoding="utf-8")\n        print("C3.3b3a: REJECTED "+type(exc).__name__+detail,flush=True)
         sys.exit(2)
