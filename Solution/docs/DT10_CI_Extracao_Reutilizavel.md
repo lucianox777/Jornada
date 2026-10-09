@@ -1,3 +1,13 @@
+> **Revisão transversal 09/10/2026:** este documento registra a
+> primeira extração SQL da CI, integrada por #858 e documentada
+> adicionalmente por #859. A mudança **não removeu nem
+> desmembrou todos os builds**; o trabalho restante deve seguir os
+> gates condicionais e artefatos da HEAD exata. Para a visão de todo
+> o sistema, consulte o
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md).
+> “DT-10” aqui é extração de CI; a dívida histórica DT-10 de
+> publicação SQL tem aceite técnico próprio e não deve ser confundida.
+
 # DT-10 — Extração incremental do gate SQL de evidência para workflow reutilizável
 
 **Escopo:** primeira separação real de execução da CI, mantendo o grafo de
