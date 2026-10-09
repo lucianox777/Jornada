@@ -12,21 +12,21 @@ public sealed class HistoricalDocumentClassificationTests
         var docxPath = Path.Combine(documentos, "Anexo_Pendencias_Desenvolvimento_Jornada_v1.47.docx");
         var pdfPath = Path.Combine(documentos, "Anexo_Pendencias_Desenvolvimento_Jornada_v1.47.pdf");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(File.Exists(docxPath), Is.True, "Snapshot histórico DOCX ausente.");
             Assert.That(File.Exists(pdfPath), Is.True, "Snapshot histórico PDF ausente.");
             Assert.That(File.Exists(readmePath), Is.True, "Índice documental ausente.");
-        });
+        }));
 
         var index = File.ReadAllText(readmePath);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(index, Does.Contain("Documentos/Anexo_Pendencias_Desenvolvimento_Jornada_v1.47.docx"));
             Assert.That(index, Does.Contain("Documentos/Anexo_Pendencias_Desenvolvimento_Jornada_v1.47.pdf"));
             Assert.That(index, Does.Contain("snapshot histórico de pendências").IgnoreCase);
             Assert.That(index, Does.Contain("não constituem o backlog corrente").IgnoreCase);
-        });
+        }));
     }
 
     [Test]
@@ -41,7 +41,7 @@ public sealed class HistoricalDocumentClassificationTests
         var legacyMap = Path.Combine(requisitos, "requirements-map.json");
         var supersededAddendum = Path.Combine(requisitos, "06_Adendo_RF_RNF_Linkage_Calibracao_Avaliacao_v1.0.md");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(File.Exists(readmePath), Is.True, "README da família de requisitos ausente.");
             Assert.That(File.Exists(currentIndex), Is.True, "Índice mestre v1.1 corrente ausente.");
@@ -49,13 +49,13 @@ public sealed class HistoricalDocumentClassificationTests
             Assert.That(File.Exists(currentMap), Is.True, "Mapa corrente v1.1 ausente.");
             Assert.That(File.Exists(legacyMap), Is.True, "Mapa baseline histórico ausente.");
             Assert.That(File.Exists(supersededAddendum), Is.True, "Adendo histórico/superseded ausente.");
-        });
+        }));
 
         var readme = File.ReadAllText(readmePath);
         var index = File.ReadAllText(currentIndex);
         var map = File.ReadAllText(currentMap);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(readme, Does.Contain("00_Indice_Mestre_Requisitos_Jornada_v1.1"));
             Assert.That(readme, Does.Contain("baselines históricos").IgnoreCase);
@@ -73,7 +73,7 @@ public sealed class HistoricalDocumentClassificationTests
             Assert.That(map, Does.Contain("\"status\": \"VIGENTE\""));
             Assert.That(map, Does.Contain("\"baselineMap\": \"requirements-map.json\""));
             Assert.That(map, Does.Contain("06_Adendo_RF_RNF_Linkage_Calibracao_Avaliacao_v1.0.md"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

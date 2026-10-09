@@ -21,11 +21,11 @@ public sealed class GroundTruthCalibrationPlanTests
             new[] { "NOME_COMPLETO", "DATA_NASCIMENTO" },
             new[] { "NOME_JARO_WINKLER", "NASC_ANO_EXACT" });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.LabelSource, Is.EqualTo(GroundTruthSource.Cpf));
             Assert.That(plan.PopulationStratum, Is.EqualTo(GroundTruthPopulationStratum.WithCpf));
-        });
+        }));
     }
 
     [Test]
@@ -38,12 +38,12 @@ public sealed class GroundTruthCalibrationPlanTests
             new[] { "NOME_JARO_WINKLER", "NASC_ANO_EXACT" },
             new[] { "IBGE_TERM_FREQUENCY" });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.LabelSource, Is.EqualTo(GroundTruthSource.Cns));
             Assert.That(plan.PopulationStratum, Is.EqualTo(GroundTruthPopulationStratum.WithoutCpfWithCns));
             Assert.That(GroundTruthIsolationPolicy.CanActAsIdentityAnchor(plan.LabelSource), Is.False);
-        });
+        }));
     }
 
     [Test]
@@ -91,7 +91,7 @@ public sealed class GroundTruthCalibrationPlanTests
             projection,
             new[] { "name_full", "birth_year" });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.LabelSource, Is.EqualTo(GroundTruthSource.Cns));
             Assert.That(plan.CandidateGenerationInputs, Is.EquivalentTo(projection.BlockingCandidateFeatures));
@@ -101,7 +101,7 @@ public sealed class GroundTruthCalibrationPlanTests
                 plan.FeatureLineages.Single(static x => x.FeatureName == "name_full")
                     .Sources.Select(static source => source.CanonicalAttribute),
                 Is.EquivalentTo(new[] { "nome_completo" }));
-        });
+        }));
     }
 
     [Test]

@@ -9,11 +9,11 @@ public sealed class GroundTruthIsolationPolicyTests
     [Test]
     public void Cpf_IsTheOnlyIdentityAnchor()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(GroundTruthIsolationPolicy.CanActAsIdentityAnchor(GroundTruthSource.Cpf), Is.True);
             Assert.That(GroundTruthIsolationPolicy.CanActAsIdentityAnchor(GroundTruthSource.Cns), Is.False);
-        });
+        }));
     }
 
     [Test]
@@ -30,13 +30,13 @@ public sealed class GroundTruthIsolationPolicyTests
         var distantBirthDates = eligible with { BirthDateDistanceDays = 31 };
         var invalid = eligible with { StructurallyValid = false };
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(eligible.IsEligible, Is.True);
             Assert.That(reused.IsEligible, Is.False);
             Assert.That(distantBirthDates.IsEligible, Is.False);
             Assert.That(invalid.IsEligible, Is.False);
-        });
+        }));
     }
 
     [Test]
@@ -121,17 +121,17 @@ public sealed class GroundTruthIsolationPolicyTests
             StatisticallySufficient: true,
             RepresentativeForTargetStratum: false);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(cns.Coverage, Is.EqualTo(0.3m));
             Assert.That(cns.CanBePreferredForCalibration, Is.False);
-        });
+        }));
     }
 
     [Test]
     public void LabelSourceCannotLeakIntoBlockingScoringOrDerivedInputs()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.DoesNotThrow(() => GroundTruthIsolationPolicy.EnsureNoLabelLeakage(
                 GroundTruthSource.Cns,
@@ -149,6 +149,6 @@ public sealed class GroundTruthIsolationPolicyTests
                 new[] { "NOME_NORMALIZADO" },
                 new[] { "NOME_JARO_WINKLER" },
                 new[] { "HASH_CNS" }));
-        });
+        }));
     }
 }

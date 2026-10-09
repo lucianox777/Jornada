@@ -56,14 +56,14 @@ public sealed class FellegiSunterScoringTests
             var published = FellegiSunterScoring.Calculate(
                 ParametersV5, NameComparisonState.HIGH, NameComparisonState.HIGH,
                 100, born, candidateDate);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(double.IsFinite(raw.Posterior), Is.True);
                 Assert.That(double.IsFinite(raw.LogOdds), Is.True);
                 Assert.That(published,
                     Is.EqualTo(FellegiSunterScoring.ToContractScore(raw)));
                 Assert.That(published.Posterior, Is.InRange(0m, 1m));
-            });
+            }));
         }
     }
 
@@ -72,7 +72,7 @@ public sealed class FellegiSunterScoringTests
     {
         var raw = new FellegiSunterRawScore(0.899999995d, 0.123456785d);
         var published = FellegiSunterScoring.ToContractScore(raw);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(published.Posterior,
                 Is.EqualTo(Math.Round((decimal)raw.Posterior, 8, MidpointRounding.AwayFromZero)));
@@ -81,7 +81,7 @@ public sealed class FellegiSunterScoringTests
             Assert.That(() => FellegiSunterScoring.ToContractScore(
                     new FellegiSunterRawScore(double.NaN, 0d)),
                 Throws.InvalidOperationException);
-        });
+        }));
     }
 
     [Test]
@@ -117,7 +117,7 @@ public sealed class FellegiSunterScoringTests
         };
         // O scorer não deve usar probabilidades legadas quando V8 habilita ausência neutra.
         var neutral = FellegiSunterScoring.CalculateWithBreakdown(parameters, null, null);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(neutral.Score.Posterior, Is.EqualTo(.01m).Within(.00000001m));
             Assert.That(neutral.Contributions.Count, Is.EqualTo(3));
@@ -128,7 +128,7 @@ public sealed class FellegiSunterScoringTests
                 Assert.That(contribution.MProbability, Is.Null);
                 Assert.That(contribution.UProbability, Is.Null);
             }
-        });
+        }));
         parameters.Remove(LinkageParameterCatalog.NeutralMissingEvidenceScoring);
         var legacy = FellegiSunterScoring.CalculateWithBreakdown(parameters, null, null);
         Assert.That(legacy.Contributions.Single(x => x.Evidence == "NOME_MAE").State, Is.EqualTo("MISSING"));
@@ -206,7 +206,7 @@ public sealed class FellegiSunterScoringTests
         var withoutMother = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, null, blockCandidateCount: 100);
         var expected = FellegiSunterScoring.CalculatePosterior(new Dictionary<string, decimal>(Parameters), NameComparisonState.HIGH, null, blockCandidateCount: 100);
         var observedLowMother = FellegiSunterScoring.CalculatePosterior(Parameters, NameComparisonState.HIGH, NameComparisonState.LOW, blockCandidateCount: 100);
-        Assert.Multiple(() => { Assert.That(withoutMother, Is.EqualTo(expected)); Assert.That(withoutMother, Is.GreaterThan(observedLowMother)); });
+        Assert.Multiple((Action)(() => { Assert.That(withoutMother, Is.EqualTo(expected)); Assert.That(withoutMother, Is.GreaterThan(observedLowMother)); }));
     }
 
     [Test]
@@ -246,7 +246,7 @@ public sealed class FellegiSunterScoringTests
         var baseline = FellegiSunterScoring.CalculatePosterior(ParametersV3, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
         var changedLegacy = FellegiSunterScoring.CalculatePosterior(extremeLegacy, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, source);
         var different = FellegiSunterScoring.CalculatePosterior(ParametersV3, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1980, 6, 6));
-        Assert.Multiple(() => { Assert.That(changedLegacy, Is.EqualTo(baseline)); Assert.That(baseline, Is.GreaterThan(different)); });
+        Assert.Multiple((Action)(() => { Assert.That(changedLegacy, Is.EqualTo(baseline)); Assert.That(baseline, Is.GreaterThan(different)); }));
     }
 
     [Test]
@@ -257,12 +257,12 @@ public sealed class FellegiSunterScoringTests
         var yearOnly = FellegiSunterScoring.CalculatePosterior(ParametersV4, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1980, 7, 6));
         var dayMonth = FellegiSunterScoring.CalculatePosterior(ParametersV4, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1981, 6, 5));
         var dayYear = FellegiSunterScoring.CalculatePosterior(ParametersV4, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1980, 7, 5));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(exact, Is.GreaterThan(dayYear));
             Assert.That(dayYear, Is.GreaterThan(dayMonth));
             Assert.That(dayMonth, Is.GreaterThan(yearOnly));
-        });
+        }));
     }
 
     [Test]
@@ -291,12 +291,12 @@ public sealed class FellegiSunterScoringTests
         var oneDigit = FellegiSunterScoring.CalculatePosterior(ParametersV5, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1975, 6, 8));
         var unrelated = FellegiSunterScoring.CalculatePosterior(ParametersV5, NameComparisonState.HIGH, NameComparisonState.HIGH, 100, source, new DateOnly(1984, 9, 21));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(exact, Is.GreaterThan(swapped));
             Assert.That(swapped, Is.GreaterThan(oneDigit));
             Assert.That(oneDigit, Is.GreaterThan(unrelated));
-        });
+        }));
     }
 
     [Test]

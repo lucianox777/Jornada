@@ -16,12 +16,12 @@ public sealed class GroundTruthDiagnosticCalibrationPlannerTests
             new[] { "NOME_COMPLETO", "DATA_NASCIMENTO" },
             new[] { "NOME_JARO_WINKLER" });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.LabelSource, Is.EqualTo(GroundTruthSource.Cns));
             Assert.That(plan.PopulationStratum, Is.EqualTo(GroundTruthPopulationStratum.WithoutCpfWithCns));
             Assert.That(plan.Diagnostics.PositivePairCount, Is.EqualTo(80));
-        });
+        }));
     }
 
     [Test]
@@ -61,13 +61,13 @@ public sealed class GroundTruthDiagnosticCalibrationPlannerTests
             projection,
             new[] { "name_full", "birth_year" });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.LabelSource, Is.EqualTo(GroundTruthSource.Cpf));
             Assert.That(plan.CandidateGenerationInputs, Is.EquivalentTo(projection.BlockingCandidateFeatures));
             Assert.That(plan.FeatureLineages.Select(static item => item.FeatureName), Does.Contain("name_full"));
             Assert.That(plan.FeatureLineages.Select(static item => item.FeatureName), Does.Contain("birth_year"));
-        });
+        }));
     }
 
     private static GroundTruthDiagnosticRun BuildRun(

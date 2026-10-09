@@ -39,13 +39,13 @@ public sealed class GroundTruthFeatureLineageTests
         var cpf = GroundTruthFeatureLineage.Direct("CPF_BUCKET", "cpf-declarado");
         var cns = GroundTruthFeatureLineage.Direct("CNS_BUCKET", "identificador:cns");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(cpf.Sources.Single().CanonicalAttribute, Is.EqualTo("cpf_declarado"));
             Assert.That(cpf.Sources.Single().LabelSource, Is.EqualTo(GroundTruthSource.Cpf));
             Assert.That(cns.Sources.Single().CanonicalAttribute, Is.EqualTo("identificador_cns"));
             Assert.That(cns.Sources.Single().LabelSource, Is.EqualTo(GroundTruthSource.Cns));
-        });
+        }));
     }
 
     [Test]
@@ -76,11 +76,11 @@ public sealed class GroundTruthFeatureLineageTests
     [Test]
     public void DirectRejectsMissingProvenance()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.Throws<ArgumentException>(() => GroundTruthFeatureLineage.Direct("FEATURE_SEM_ORIGEM"));
             Assert.Throws<ArgumentException>(() => GroundTruthFeatureLineage.Direct("FEATURE_SEM_ORIGEM", " "));
             Assert.Throws<ArgumentException>(() => GroundTruthFeatureLineage.Direct(" ", "NOME_COMPLETO"));
-        });
+        }));
     }
 }

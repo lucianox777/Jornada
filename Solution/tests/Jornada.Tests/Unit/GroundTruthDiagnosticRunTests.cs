@@ -43,14 +43,14 @@ public sealed class GroundTruthDiagnosticRunTests
 
         var run = GroundTruthDiagnosticRunBuilder.Build(population, plan, observations, assessments);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(run.LabelableDiagnostics, Has.Count.EqualTo(2));
             Assert.That(run.UnrepresentedPopulationShare, Is.EqualTo(0.2m));
             Assert.That(run.For(GroundTruthPopulationStratum.WithCpf).Coverage!.Coverage, Is.EqualTo(2900m / 3000m));
             Assert.That(run.For(GroundTruthPopulationStratum.WithoutCpfWithCns).Coverage!.CanBePreferredForCalibration, Is.False);
             Assert.That(run.For(GroundTruthPopulationStratum.WithoutCpfWithoutCns).Coverage, Is.Null);
-        });
+        }));
     }
 
     [Test]

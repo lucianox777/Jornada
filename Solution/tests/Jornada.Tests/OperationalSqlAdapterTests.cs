@@ -23,13 +23,13 @@ public sealed class OperationalSqlAdapterTests
         using var connection = adapter.CreateConnection();
         var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(builder.InitialCatalog, Is.EqualTo("JornadaDev"));
             Assert.That(builder.Pooling, Is.True);
             Assert.That(builder.Enlist, Is.True);
             Assert.That(builder.ApplicationName, Is.EqualTo("Jornada.Tests"));
-        });
+        }));
     }
 
     [Test]
@@ -41,11 +41,11 @@ public sealed class OperationalSqlAdapterTests
         using var connection = adapter.CreateDedicatedSessionConnection();
         var builder = new SqlConnectionStringBuilder(connection.ConnectionString);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(builder.Pooling, Is.False);
             Assert.That(builder.Enlist, Is.False);
             Assert.That(builder.InitialCatalog, Is.EqualTo("JornadaDev"));
-        });
+        }));
     }
 }

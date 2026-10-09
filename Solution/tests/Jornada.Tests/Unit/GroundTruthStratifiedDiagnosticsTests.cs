@@ -17,13 +17,13 @@ public sealed class GroundTruthStratifiedDiagnosticsTests
                 WithoutCpfWithoutCns: 500),
             requestedBudget: 1000);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.AllocatedBudget, Is.EqualTo(1000));
             Assert.That(plan.For(GroundTruthPopulationStratum.WithCpf).RequestedSample, Is.EqualTo(750));
             Assert.That(plan.For(GroundTruthPopulationStratum.WithoutCpfWithCns).RequestedSample, Is.EqualTo(250));
             Assert.That(plan.For(GroundTruthPopulationStratum.WithoutCpfWithoutCns).RequestedSample, Is.Zero);
-        });
+        }));
     }
 
     [Test]
@@ -35,13 +35,13 @@ public sealed class GroundTruthStratifiedDiagnosticsTests
 
         var uncovered = plan.For(GroundTruthPopulationStratum.WithoutCpfWithoutCns);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(uncovered.HasIndependentLabelSource, Is.False);
             Assert.That(uncovered.LabelSource, Is.Null);
             Assert.That(uncovered.TargetPopulation, Is.EqualTo(500));
             Assert.That(uncovered.PopulationShare, Is.EqualTo(500m / 1500m));
-        });
+        }));
     }
 
     [Test]
@@ -51,12 +51,12 @@ public sealed class GroundTruthStratifiedDiagnosticsTests
             new GroundTruthPopulationSnapshot(80, 20, 0),
             requestedBudget: 10);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.AllocatedBudget, Is.EqualTo(10));
             Assert.That(plan.For(GroundTruthPopulationStratum.WithCpf).RequestedSample, Is.EqualTo(8));
             Assert.That(plan.For(GroundTruthPopulationStratum.WithoutCpfWithCns).RequestedSample, Is.EqualTo(2));
-        });
+        }));
     }
 
     [Test]
@@ -89,13 +89,13 @@ public sealed class GroundTruthStratifiedDiagnosticsTests
             positivePairCount: 240,
             assessment);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(diagnostics.StatisticallySufficient, Is.True);
             Assert.That(diagnostics.RepresentativeForTargetStratum, Is.True);
             Assert.That(diagnostics.CanBePreferredForCalibration, Is.True);
             Assert.That(diagnostics.Coverage, Is.EqualTo(0.5m));
-        });
+        }));
     }
 
     [Test]

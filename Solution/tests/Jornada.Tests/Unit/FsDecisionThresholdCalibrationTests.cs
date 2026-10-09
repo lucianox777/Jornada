@@ -32,7 +32,7 @@ public sealed class FsDecisionThresholdCalibrationTests
             validationBasisPoints: 2000,
             testBasisPoints: 2000);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Selected, Is.Not.Null);
             Assert.That(result.Selected!.Candidate.Threshold, Is.EqualTo(.98m));
@@ -44,10 +44,10 @@ public sealed class FsDecisionThresholdCalibrationTests
             Assert.That(result.TestSafetyPassed, Is.True);
             Assert.That(result.TestWrongPersonFalsePositive, Is.Zero);
             Assert.That(result.TestLeaveTruthOutFalsePositive, Is.Zero);
-        });
+        }));
 
         var promoted = FsDecisionThresholdCalibrator.ApplySelected(Parameters(), result);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(promoted[LinkageParameterCatalog.Threshold], Is.EqualTo(.98m));
             Assert.That(promoted[LinkageParameterCatalog.DualThresholdConflictFloorV2], Is.EqualTo(1m));
@@ -55,7 +55,7 @@ public sealed class FsDecisionThresholdCalibrationTests
             Assert.That(promoted["FS_DECISION_THRESHOLD_PARETO_V1"], Is.EqualTo(1m));
             Assert.That(promoted["FS_DECISION_CALIBRATION_VALIDATION_FP"], Is.Zero);
             Assert.That(promoted["FS_DECISION_CALIBRATION_TEST_FP"], Is.Zero);
-        });
+        }));
     }
 
     [Test]
@@ -94,7 +94,7 @@ public sealed class FsDecisionThresholdCalibrationTests
             validation.Concat(unsafeTest).ToArray(),
             20260919, 2000, 2000);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(a.Selected, Is.Not.Null);
             Assert.That(b.Selected, Is.Not.Null);
@@ -112,7 +112,7 @@ public sealed class FsDecisionThresholdCalibrationTests
             Assert.That(failure.Message, Does.Contain("Nenhum threshold foi promovido."));
             Assert.That(failure.Message.Length, Is.LessThanOrEqualTo(500),
                 "A evidência deve caber em identidade.modelo_linkage.falha_resumo.");
-        });
+        }));
     }
 
     [Test]
@@ -147,7 +147,7 @@ public sealed class FsDecisionThresholdCalibrationTests
             LinkageParameterCatalog.DecisionEvidenceAlgorithmVersion,
             Parameters(), unsafePositive, 20260919, 2000, 2000);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(unsafeResult.Selected, Is.Not.Null);
             Assert.That(unsafeResult.Selected!.Candidate.CandidateId,
@@ -157,7 +157,7 @@ public sealed class FsDecisionThresholdCalibrationTests
             Assert.That(unsafeResult.TestLeaveTruthOutFalsePositive, Is.Zero);
             Assert.That(unsafeResult.Selected.Test.FalsePositive, Is.EqualTo(1));
             Assert.That(unsafeResult.TestSafetyPassed, Is.False);
-        });
+        }));
         var exception = Assert.Throws<InvalidOperationException>(
             () => FsDecisionThresholdCalibrator.ApplySelected(Parameters(), unsafeResult));
         Assert.That(exception!.Message, Does.Contain("fpPessoaErrada=1"));
@@ -206,7 +206,7 @@ public sealed class FsDecisionThresholdCalibrationTests
 
         var withFp = Run(testWithFp);
         var withoutFp = Run(testWithoutFp);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(withFp.Selected, Is.Not.Null);
             Assert.That(withFp.MaxFpValidationAbsolute, Is.EqualTo(1));
@@ -219,7 +219,7 @@ public sealed class FsDecisionThresholdCalibrationTests
             Assert.That(withFp.Selected.Candidate.CandidateId,
                 Is.EqualTo(withoutFp.Selected!.Candidate.CandidateId),
                 "TEST não escolhe o threshold após validar a fronteira.");
-        });
+        }));
 
         var strict = Run(testWithFp, validationBp: 0);
         Assert.That(strict.Selected, Is.Not.Null);
@@ -230,7 +230,7 @@ public sealed class FsDecisionThresholdCalibrationTests
         Assert.That(originalCall!.Message, Does.Contain("Limite TEST divergente"));
         var applied = FsDecisionThresholdCalibrator.ApplySelected(
             Parameters(), withFp, maxFpTest: withFp.MaxFpTestAbsolute);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(applied["FS_DECISION_CALIBRATION_MAX_FP_VALIDATION_BP"], Is.EqualTo(100m));
             Assert.That(applied["FS_DECISION_CALIBRATION_MAX_FP_TEST_BP"], Is.EqualTo(100m));
@@ -239,13 +239,13 @@ public sealed class FsDecisionThresholdCalibrationTests
             Assert.That(applied["FS_DECISION_CALIBRATION_TEST_FP_LEAVE_TRUTH_OUT"], Is.EqualTo(1m));
             Assert.That(applied["FS_DECISION_CALIBRATION_TEST_FP_EFFECTIVE_CAP_BP"], Is.EqualTo(10000m),
                 "Amostra pequena: arredondamento por positivo pode permitir 100% da unidade discreta.");
-        });
+        }));
     }
 
     [Test]
     public void Fp_budget_uses_positive_scenarios_without_dilution_by_leave_truth_out()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(FsDecisionThresholdCalibrator.FalsePositiveBudget(2, 100), Is.EqualTo(1));
             Assert.That(FsDecisionThresholdCalibrator.FalsePositiveBudget(200, 100), Is.EqualTo(2));
@@ -257,7 +257,7 @@ public sealed class FsDecisionThresholdCalibrationTests
                 () => FsDecisionThresholdCalibrator.FalsePositiveBudget(0, 100));
             Assert.Throws<ArgumentOutOfRangeException>(
                 () => FsDecisionThresholdCalibrator.FalsePositiveBudget(10, 10001));
-        });
+        }));
     }
 
     [Test]
@@ -296,7 +296,7 @@ public sealed class FsDecisionThresholdCalibrationTests
             Parameters(), scenarios, 20260926, 2000, 2000,
             maxFpValidationBasisPoints: 100, maxFpTestBasisPoints: 100);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(calibrated.ValidationPositiveScenarios, Is.EqualTo(300));
             Assert.That(calibrated.ValidationNegativeScenarios, Is.EqualTo(3));
@@ -306,10 +306,10 @@ public sealed class FsDecisionThresholdCalibrationTests
             Assert.That(calibrated.Selected.Validation.FalseNegative, Is.Zero);
             Assert.That(calibrated.Selected.Test.FalsePositive, Is.EqualTo(3));
             Assert.That(calibrated.TestSafetyPassed, Is.True);
-        });
+        }));
         var output = FsDecisionThresholdCalibrator.ApplySelected(
             Parameters(), calibrated, calibrated.MaxFpTestAbsolute);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(output["FS_DECISION_CALIBRATION_VALIDATION_DENOMINATOR"],
                 Is.EqualTo(300m));
@@ -319,7 +319,7 @@ public sealed class FsDecisionThresholdCalibrationTests
                 Is.EqualTo(100m));
             Assert.That(output["FS_DECISION_CALIBRATION_TEST_FP_LEAVE_TRUTH_OUT"],
                 Is.EqualTo(3m));
-        });
+        }));
     }
 
     [Test]
