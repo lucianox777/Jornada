@@ -1,48 +1,79 @@
-# DT-19 — ações de controle dos workers na Console DEV
+# DT-19 — comandos operacionais e modos mutuamente exclusivos da Console DEV
 
-**Decisão técnica aprovada em 08/10/2026 (escopo DEV).** Estado: **PENDENTE**,
-sujeito a PRs, testes reais e merge.
+**Decisão atualizada em 08/10/2026.** A decisão posterior do operador sobre
+o supervisor **substitui** a proposta de quatro ações independentes por worker.
+Estado: **PENDENTE DE IMPLEMENTAÇÃO E DE ACEITE**. Não confundir esta decisão
+com funcionalidade já disponível no master.
 
-## Nomes finais aprovados e semântica
+## Interface final
 
-Cada um dos **três workers** definidos em DT-18 terá quatro ações com estes
-nomes exatos:
+A Console apresenta **um único controle global** `Supervisão automática`
+(ATIVADA/DESATIVADA), aplicável em conjunto a estes três workers:
+`Jornada.Processor.Worker`, `Jornada.Operations.Maintenance.Worker` e
+`Jornada.Bronze.Maintenance.Worker`. Não abrange API, Resultado.Api,
+SQL ou serviços de infraestrutura.
 
-| Ação | Contrato |
-|---|---|
-| **Executar uma vez** | RunOnce finito, código de saída real e limites de tempo; não manter residente ao terminar. |
-| **Iniciar contínuo** | Inicia um worker residente quando ausente, sem duplicar instâncias; vários cliques concorrentes devem produzir no máximo uma instância. |
-| **Parar processo** | **Mata abruptamente** somente a instância atual do worker (sem parada graciosa), para observar resiliência. Se supervisão estiver ATIVADA, o worker deve reiniciar automaticamente; se DESATIVADA, permanecer parado. |
-| **Status do processo** | Consulta observável de PID, estado atual, início/uptime, heartbeat, última falha, contagem de reinícios e sinais de recuperação que realmente existirem. Nunca rotular um processo de saudável apenas por ter PID. |
+Cada worker mantém **três ações individuais**, conforme o modo:
 
-Não criar os botões `Parar contínuo`, `Desligar`, `Simular falha`
-nem `Matar processo`: o nome final da ação destrutiva de teste é
-**Parar processo**. A ação NÃO é uma ordem administrativa de desativar
-permanentemente o serviço. Antes de matar, exibir confirmação e o
-identificador do worker afetado.
+| Ação por worker | Supervisão DESATIVADA | Supervisão ATIVADA |
+|---|---|---|
+| **Executar uma vez (RunOnce)** | **HABILITADA** para iniciar ciclo finito, sujeita somente a pré-requisitos e exclusão de instância já ativa. | **DESABILITADA**; nunca executar em paralelo com o worker residente. |
+| **Parar processo** | Pode interromper um RunOnce ativo, sem reinício automático. Não há processo contínuo esperado. | Mata abruptamente **só o worker escolhido**; o supervisor reinicia apenas esse worker. |
+| **Status do processo** | Mostra estado das execuções finitas, PID e saídas reais. | Mostra PID residente, uptime, heartbeat, reinícios, saúde/recuperação reais e estado da supervisão. |
 
-**Distinção adicional:** o controle independente de supervisão, aprovado
-posteriormente, fica documentado na **DT-20**: é um toggle para habilitar
-ou desabilitar reinício automático, **não** altera o nome/semântica
-destas quatro ações. Portanto a UI terá quatro ações mais **um toggle
-de supervisão** por worker.
+**Não criar** o botão individual `Iniciar contínuo`: passou a ser
+redundante, porque a transição global para supervisão ATIVADA inicia
+**todos os três** workers continuamente. Também não criar os botões
+`Desligar`, `Parar contínuo`, `Matar processo` ou `Simular falha`.
+O nome final aprovado permanece **Parar processo**.
 
-## Restrições de concorrência
+O controle global é o **quarto controle lógico**, além das três ações
+apresentadas em cada cartão. Não existem três toggles independentes.
 
-RunOnce e worker residente conflitantes não podem operar em paralelo
-no mesmo alvo. `Iniciar contínuo` é idempotente. Verificação de PID
-isolada é insuficiente para dois pedidos simultâneos: serializar
-decisão e transição sob trava atômica no controlador autorizado.
-O `RunOnce` jamais entra em laço de reinício automático por acidente.
+## Transições do modo de execução
 
-Ações DEV por allowlist fechada de worker, sem parâmetros livres do
-navegador e sem executar comandos de shell arbitrários.
+- **Início padrão do DEV isolado: supervisão DESATIVADA**, nenhum dos
+  três workers residente controlados pela Console e RunOnce habilitado
+  em cada cartão (desde que pré-requisitos reais estejam satisfeitos).
+- **DESATIVADA → ATIVADA:** bloquear novos RunOnce imediatamente; fazer
+  a transição controlada de **todos os três processos de worker**,
+  encerrando instâncias já existentes, inclusive RunOnce em andamento
+  **somente após confirmação explícita do operador**. Preparar política
+  de reinício e subir os **três residentes contínuos**. Confirmar o
+  estado real de todos antes de apresentar ATIVADA/OPERACIONAL.
+- **ATIVADA → DESATIVADA:** primeiro desabilitar reinícios automáticos
+  dos três workers, depois encerrar suas instâncias residentes e
+  confirmar que permaneceram paradas. Habilitar RunOnce para cada worker.
+  Nenhuma API/Resultado/SQL ou worker de outro ambiente é encerrado.
+- **ATIVADA, Parar processo:** SIGKILL só no PID/instância selecionada;
+  o supervisor deve restaurar apenas aquele worker automaticamente.
+  Nunca derrubar o NODE nem os outros workers.
+- **DESATIVADA, Parar processo:** encerrar somente a execução finita
+  ativa (quando existir), sem iniciar outra.
 
-## Prova
+Uma transição parcialmente executada é **ERRO/TRANSIÇÃO INCOMPLETA**, não
+um sucesso aparente. O backend é fonte da verdade: recarga do navegador
+não pode mentir que está DESATIVADA se a supervisão real continua ATIVADA.
 
-Aceite com Chromium real para cada ação, estados habilitados/desabilitados,
-erros HTTP recuperáveis, reinício/reconexão da Console, tentativas
-concorrentes, proteção de RunOnce e leitura real de status. A interface
-não deve afirmar êxito com base só na resposta HTTP de início.
+## Segurança e concorrência
 
-**Trilha 4 proibida; não tocar JornadaLocal, referência IBGE ou HML/PROD.**
+As mudanças de modo e ações são serializadas por trava atômica
+e por identidade estável do ambiente/serviço. Em modo ON, RunOnce é
+recusado também no **backend** (não basta desabilitar botão). Em modo
+OFF, processos contínuos não podem ser criados por rota alternativa.
+Inícios repetidos/toggles concorrentes são idempotentes ou rejeitados,
+nunca duplicam workers.
+
+Matar os processos existentes antes de ativar o modo contínuo **não**
+autoriza parar serviços API/Resultado ou containers compartilhados.
+Configuração fail-closed somente DEV + `JornadaE2E` descartável, sem
+`JornadaLocal`, referência IBGE original, HML/PROD nem Trilha 4.
+
+## Evidência exigida
+
+A UI Chromium, API e E2E devem provar estado OFF inicial, RunOnce por
+worker, troca ON com três workers residentes e RunOnce indisponível,
+Parar processo individual com reinício isolado, troca OFF e execução
+finita novamente. Status deve representar estado efetivo, não resposta
+fictícia à chamada HTTP. Veja [DT-20](DT20_Supervisao_Opt_In_Workers.md)
+e [DT-21](DT21_Testes_Resiliencia_Workers.md).
