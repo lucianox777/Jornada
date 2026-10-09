@@ -1,3 +1,12 @@
+> **Revisão de escopo 09/10/2026:** a Trilha 4 como varredura
+> temporal contínua foi encerrada como frente separada; a
+> reavaliação extraordinária dos RESOLVIDOS está registrada como
+> [DT-22](DT22_Reavaliacao_Governada_Resolvidos.md), **aberta
+> e postergada**. O `INCREMENTAL` atual **não** seleciona
+> genericamente RESOLVIDOS por mudança indireta de candidato.
+> O fluxo histórico abaixo não deve ser interpretado como
+> reprocessamento por evento já comprovado para todos.
+>
 # Fluxos detalhados — blocking e seleção de registro (29/09/2026)
 
 **Estado:** contrato arquitetural documentado; distinguir componentes já implementados de capacidades experimentais. Este documento é Markdown (`.md`) com diagramas Mermaid. Referências: [decisão de blocking](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md), [Calibrador FS](Calibrador_FS_Specification.md), [Plano](Plano_Desenvolvimento.md) e [diretrizes da identidade](Diretrizes_Identidade_Progressiva_Apoio_Decisao.md). **Não** autoriza ativação HML/PROD.
