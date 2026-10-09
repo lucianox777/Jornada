@@ -1,6 +1,6 @@
 # Jornada — Instalador de Produção Windows
 
-> **DRIFT CONHECIDO (06/10/2026):** a Solution corrente compila para .NET 10, mas `Install-JornadaProduction.ps1` ainda verifica/instala runtimes .NET 8. A issue #790 rastreia a correção técnica. Até esse PR ser implementado e validado, este diretório não deve ser usado como evidência de alinhamento do runtime de produção com o build corrente.
+> **Correção técnica proposta (09/10/2026; issue #790):** o instalador agora exige **.NET 10 Runtime + ASP.NET Core Runtime** para o bundle publicado em `net10.0`. A validação `-ValidateOnly`/`-PlanOnly` rejeita URLs de Hosting Bundle fora da major `10.0` quando a instalação automática está habilitada; o fluxo de instalação mantém a exigência de assinatura Authenticode válida da Microsoft. Verificar os gates Windows da HEAD exata antes de considerar o ajuste integrado. **Não** é autorização de instalação/upgrade no NODE, HML ou PROD, nem homologação corporativa.
 
 Este diretório contém o instalador versionado da Jornada para Windows Server.
 
@@ -8,7 +8,7 @@ Este diretório contém o instalador versionado da Jornada para Windows Server.
 
 O caminho de produção é nativo no Windows:
 
-- .NET 8 Runtime + ASP.NET Core Runtime;
+- .NET 10 Runtime + ASP.NET Core Runtime;
 - executáveis publicados da Jornada;
 - SQL Server 2022 existente/nativo ou SQL externo homologado;
 - Bronze em NAS compartilhado e Staging/logs locais por VM;
