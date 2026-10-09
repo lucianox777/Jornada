@@ -12,7 +12,7 @@ public sealed class OperationalMonitorModelGovernanceContractTests
         var html = File.ReadAllText(Path.Combine(root, "Solution", "src", "Jornada.Api", "wwwroot", "monitor", "index.html"));
         var service = File.ReadAllText(Path.Combine(root, "Solution", "src", "Jornada.Api", "OperationalMonitor.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(html, Does.Contain("Linkage · governança do modelo"));
             Assert.That(html, Does.Contain("Linkage · Calibrador e referência IBGE"));
@@ -52,7 +52,7 @@ public sealed class OperationalMonitorModelGovernanceContractTests
             Assert.That(service, Does.Contain("frequencia_nome_versao_id"));
             Assert.That(service, Does.Contain("SELECT TOP(5) linkage_run_id,modelo_id,tipo_run,status,modelo_versao"));
             Assert.That(html, Does.Contain("shortId(x.modelId)"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

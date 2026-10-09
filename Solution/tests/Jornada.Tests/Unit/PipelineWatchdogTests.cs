@@ -31,13 +31,13 @@ public sealed class PipelineWatchdogTests
 
         var findings = PipelineWatchdogEvaluator.Evaluate(snapshot, options);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(findings.Any(f => f.Code == "LINKAGE_RUN_STALE"), Is.True);
             Assert.That(findings.Any(f => f.Code == "LINKAGE_MODEL_GENERATION_STALE"), Is.False);
             Assert.That(findings.Any(f => f.Code == "PROCESSOR_LEASE_EXPIRED"), Is.True);
             Assert.That(findings.Any(f => f.Code == "PROCESSOR_BACKLOG_OLD"), Is.True);
-        });
+        }));
     }
 
     [Test]

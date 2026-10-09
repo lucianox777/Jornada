@@ -23,7 +23,7 @@ public sealed class PersonContractTests
     [Test]
     public void Current_contract_rejects_invalid_cpf_absence_states()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.Throws<InvalidDataException>(() =>
                 PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, null, "SEM_CPF"));
@@ -35,7 +35,7 @@ public sealed class PersonContractTests
                 PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion, "11144477735", null));
             Assert.Throws<InvalidDataException>(() =>
                 PersonContractRules.ValidateCpfAbsence(PersonContractRules.CurrentSchemaVersion - 1, null, "NAO_INFORMADO_ORIGEM"));
-        });
+        }));
     }
 
     [Test]
@@ -114,13 +114,13 @@ public sealed class PersonContractTests
         }
         """;
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(() => validator.ParseAndValidate(invalidCpf, "pessoas.jsonl", 1),
                 Throws.TypeOf<InvalidDataException>());
             Assert.That(() => validator.ParseAndValidate(invalidTerritorialNature, "pessoas.jsonl", 2),
                 Throws.TypeOf<InvalidDataException>());
-        });
+        }));
     }
 
     [Test]
@@ -141,13 +141,13 @@ public sealed class PersonContractTests
         }
         """);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.Throws<InvalidDataException>(() =>
                 PersonIdentifierParsing.Parse(rg.RootElement, null, null, null));
             Assert.Throws<InvalidDataException>(() =>
                 PersonIdentifierParsing.Parse(cnh.RootElement, null, null, null));
-        });
+        }));
     }
 
     [Test]
@@ -170,7 +170,7 @@ public sealed class PersonContractTests
             using var schema = JsonDocument.Parse(bytes);
             var required = schema.RootElement.GetProperty("required").EnumerateArray().Select(x => x.GetString()).ToArray();
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(actual, Is.EqualTo(expected), $"{gestor} contrato corrente divergiu do inventário.");
                 Assert.That(required, Is.EqualTo(new[] { "idPessoaEntrega" }), $"{gestor} não deve exigir campos do núcleo.");
@@ -179,7 +179,7 @@ public sealed class PersonContractTests
                     var oldPath = Path.Combine(root, "Solution", "config", "contracts", "gestores", gestor, "pessoa", $"v{oldVersion}", "pessoa.schema.json");
                     Assert.That(File.Exists(oldPath), Is.False, $"{gestor} ainda mantém contrato Pessoa antigo v{oldVersion}.");
                 }
-            });
+            }));
         }
     }
 

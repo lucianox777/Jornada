@@ -16,13 +16,13 @@ public sealed class PossibilityRuleEngineTests
         var compatible = PossibilityRuleEngine.Evaluate(rule, Snapshot(("IDADE","20"),("MUNICIPIO","SAO_PAULO")), At);
         var incompatible = PossibilityRuleEngine.Evaluate(rule, Snapshot(("IDADE","17"),("MUNICIPIO","SAO_PAULO")), At);
         var missing = PossibilityRuleEngine.Evaluate(rule, Snapshot(("MUNICIPIO","SAO_PAULO")), At);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(compatible.Resultado, Is.EqualTo(PossibilityResult.COMPATIVEL));
             Assert.That(incompatible.Resultado, Is.EqualTo(PossibilityResult.NAO_COMPATIVEL));
             Assert.That(missing.Resultado, Is.EqualTo(PossibilityResult.NAO_AVALIAVEL));
             Assert.That(missing.Motivo, Is.EqualTo("DADO_AUSENTE:IDADE"));
-        });
+        }));
     }
 
     [Test]
@@ -38,7 +38,7 @@ public sealed class PossibilityRuleEngineTests
             [Guid.NewGuid()] = Snapshot()
         };
         var impact = PossibilityImpactSimulator.Compare(current, candidate, population, At);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(impact.Population, Is.EqualTo(4));
             Assert.That(impact.CurrentCompatible, Is.EqualTo(2));
@@ -47,7 +47,7 @@ public sealed class PossibilityRuleEngineTests
             Assert.That(impact.Exited, Is.EqualTo(1));
             Assert.That(impact.CurrentNotEvaluable, Is.EqualTo(1));
             Assert.That(impact.CandidateNotEvaluable, Is.EqualTo(1));
-        });
+        }));
     }
 
     [Test]
@@ -65,13 +65,13 @@ public sealed class PossibilityRuleEngineTests
         var rule = new PossibilityRuleSet("SERVICO", "TEST", 3, "TEST.v3", [new("ATIVO", PossibilityRuleOperator.IGUAL, "SIM")]);
         var evaluator = new ConfiguredPossibilityEvaluator(rule, (_, _) => Task.FromResult(Snapshot(("ATIVO", "SIM"))));
         var result = await evaluator.EvaluateAsync(Guid.NewGuid(), CancellationToken.None);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(evaluator.Natureza, Is.EqualTo("SERVICO"));
             Assert.That(evaluator.Codigo, Is.EqualTo("TEST"));
             Assert.That(evaluator.Versao, Is.EqualTo(3));
             Assert.That(result.Resultado, Is.EqualTo(PossibilityResult.COMPATIVEL));
-        });
+        }));
     }
 
     [Test]

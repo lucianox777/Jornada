@@ -180,13 +180,13 @@ public sealed class OpenApiRuntimeConformanceTests : IDisposable
         using var normal = await client.GetAsync("/monitor");
         var normalHtml = await normal.Content.ReadAsStringAsync();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(page.StatusCode, Is.EqualTo(System.Net.HttpStatusCode.NotFound));
             Assert.That(api.StatusCode, Is.EqualTo(System.Net.HttpStatusCode.NotFound));
             Assert.That(normalHtml, Does.Not.Contain("synthetic-monitor-dev"));
             Assert.That(normalHtml, Does.Not.Contain("SINTÉTICO — NÃO PROMOVÍVEL"));
-        });
+        }));
     }
 
     [Test]
