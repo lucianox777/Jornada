@@ -142,6 +142,11 @@ resultado_pid="$(docker inspect -f '{{.State.Pid}}' "$resultado_cid")"
    "$api_pid" != "$resultado_pid" && "$api_pid" -gt 1 && "$resultado_pid" -gt 1 ]] ||
   die 'independent resident API PID1 evidence missing'
 
+# C3.3a: initial OFF must be visible through the real DevConsole HTTP GET
+# reading private Docker labels/PIDs, SQL heartbeat and API readiness.
+# Starts only a short-lived local Console observer; no Docker build or mutation.
+python3 scripts/e2e-console-worker-supervisor-status.py OFF
+
 # C3.2f1: after private SQL and two APIs are ready, exercise only
 # the three independent resident workers; this is NOT the lot-recovery gate.
 bash scripts/e2e-private-worker-restart-runtime.sh
@@ -153,6 +158,10 @@ bash scripts/e2e-private-api-ingestion-baseline-runtime.sh
 # C3.2f2c: actual interrupted SQL Serializable transaction/lease recovery,
 # confined to THIS already validated disposable Compose project. No new build.
 python3 scripts/e2e-private-recovery-runtime.py
+
+# The same read-only endpoint must report all three live workers after
+# SIGKILL/restart/real rollback recovery without losing the APIs.
+python3 scripts/e2e-console-worker-supervisor-status.py ON
 
 python3 - "$OUT/summary.json" "$PROJECT" "$before" <<'PY'
 import json, pathlib, sys
