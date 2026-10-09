@@ -27,7 +27,7 @@ public sealed class ProgressiveOriginApiTests
     [Test]
     public void Request_rejects_missing_oversized_and_control_character_keys()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(ProgressiveOriginApi.TryValidateRequest(Query), Is.True);
             Assert.That(ProgressiveOriginApi.TryValidateRequest(new("", "1")), Is.False);
@@ -35,7 +35,7 @@ public sealed class ProgressiveOriginApiTests
             Assert.That(ProgressiveOriginApi.TryValidateRequest(new(new string('a', 81), "1")), Is.False);
             Assert.That(ProgressiveOriginApi.TryValidateRequest(new("ASSISTENCIA", new string('a', 256))), Is.False);
             Assert.That(ProgressiveOriginApi.TryValidateRequest(new("ASSISTENCIA", "1\r\n2")), Is.False);
-        });
+        }));
     }
 
     [Test]

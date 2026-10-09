@@ -59,12 +59,12 @@ public sealed class ProbabilisticV8NeutralMissingContractTests
 
         var oneSided = ProbabilisticLinkageDecisions.Resolve(model, observation, [unilateral]);
         var bothMissing = ProbabilisticLinkageDecisions.Resolve(model, observation, [bilateral]);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(oneSided.MelhorScore, Is.EqualTo(expected.Posterior));
             Assert.That(bothMissing.MelhorScore, Is.EqualTo(expected.Posterior));
             Assert.That(bothMissing.MelhorScore, Is.EqualTo(oneSided.MelhorScore));
-        });
+        }));
     }
 
     private static Dictionary<string, decimal> Parameters()

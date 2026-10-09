@@ -11,7 +11,7 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
     {
         var sql = ProbabilisticLinkageBatchRunner.ProgressivePublicationSql();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("resultado_publicacao"));
             Assert.That(sql, Does.Contain("pessoa_uuid_publicado"));
@@ -27,7 +27,7 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
                 "Um cursor por origem não é uma implementação set-based.");
             Assert.That(sql, Does.Not.Contain("EXEC identidade.sp_publicar_resolucao_progressiva_linkage\n"),
                 "Não contornar o contrato de lote chamando a procedure escalar por linha.");
-        });
+        }));
     }
 
     [Test]
@@ -45,7 +45,7 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
         var lease = runner.IndexOf("await pipelineCoordinator.AcquireExclusiveJobAsync(",
             preflight, StringComparison.Ordinal);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(validate, Is.GreaterThanOrEqualTo(0));
             Assert.That(conditional, Is.GreaterThan(validate));
@@ -54,7 +54,7 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
                 "Não adquirir a janela exclusiva nem materializar run sem API de publicação.");
             Assert.That(runner, Does.Contain(
                 "OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote', N'P')"));
-        });
+        }));
     }
 
     [Test]
@@ -64,7 +64,7 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
         var migration = File.ReadAllText(Path.Combine(FindSolutionRoot(), "database", "migrations",
             "20260920_Linkage_Conflito_Revisao_Governada.sql"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("sp_registrar_conflitos_linkage_publicados"));
             Assert.That(sql, Does.Contain("@linkage_run_id=@run_id"));
@@ -81,7 +81,7 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
             Assert.That(migration, Does.Contain("v_divergencia_linkage_contexto"));
             Assert.That(migration, Does.Contain("r.melhor_candidato_uuid,r.score_melhor"));
             Assert.That(migration, Does.Contain("r.segundo_candidato_uuid,r.score_segundo,r.margem"));
-        });
+        }));
     }
 
     [Test]
@@ -90,7 +90,7 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
         var migration = File.ReadAllText(Path.Combine(FindSolutionRoot(), "database", "migrations",
             "20260919_Linkage_Publicacao_Progressiva.sql"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(migration, Does.Contain("@run_avaliados<>@run_elegiveis"));
             Assert.That(migration, Does.Contain("@run_itens<>@run_elegiveis"));
@@ -109,7 +109,7 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
             Assert.That(migration, Does.Contain("tr_linkage_resultado_bloqueia_delete"));
             Assert.That(migration, Does.Not.Contain("score_melhor=initial_uuid").IgnoreCase);
             Assert.That(migration, Does.Not.Contain("score_segundo=initial_uuid").IgnoreCase);
-        });
+        }));
     }
 
     private static string FindSolutionRoot()

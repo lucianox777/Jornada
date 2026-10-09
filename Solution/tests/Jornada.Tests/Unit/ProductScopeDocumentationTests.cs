@@ -20,18 +20,18 @@ public sealed class ProductScopeDocumentationTests
             "tables",
             "BeneficiosConcedidos.tmdl");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(File.Exists(scopePath), Is.True, "Documento canônico de limites da Fase 1 ausente.");
             Assert.That(File.Exists(docsReadmePath), Is.True);
             Assert.That(File.Exists(semanticModelPath), Is.True);
-        });
+        }));
 
         var scope = File.ReadAllText(scopePath);
         var docsReadme = File.ReadAllText(docsReadmePath);
         var semanticModel = File.ReadAllText(semanticModelPath);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(docsReadme, Does.Contain("Escopo_Produto_Fase1.md"));
             Assert.That(scope, Does.Contain("Benefício Concedido não é sinônimo de pagamento"));
@@ -40,7 +40,7 @@ public sealed class ProductScopeDocumentationTests
             Assert.That(scope, Does.Contain("Ausência de registro fora dessa cobertura não deve ser convertida em afirmação de inexistência administrativa no Município"));
             Assert.That(scope, Does.Contain("não de identidade"));
             Assert.That(semanticModel, Does.Contain("Não representa pagamento ocorrido, despesa orçamentária ou desembolso"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

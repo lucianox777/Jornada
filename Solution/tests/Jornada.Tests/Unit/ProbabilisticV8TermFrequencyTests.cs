@@ -31,12 +31,12 @@ public sealed class ProbabilisticV8TermFrequencyTests
             [new LinkageCandidate(Guid.Parse("22222222-2222-4222-8222-222222222222"),
                 "ZULEICA KRAUSE", birth, "ANA SOUZA")]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(rare.MelhorScore, Is.GreaterThan(common.MelhorScore));
             Assert.That(rare.Margem, Is.Null);
             Assert.That(common.Margem, Is.Null);
-        });
+        }));
     }
 
     [TestCase("MARIA SILVA", "MARIA SILVAA", NameComparisonState.HIGH)]

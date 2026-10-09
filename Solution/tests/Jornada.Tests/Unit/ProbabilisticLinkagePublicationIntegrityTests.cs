@@ -10,7 +10,7 @@ public sealed class ProbabilisticLinkagePublicationIntegrityTests
     {
         var sql = ProbabilisticLinkageBatchRunner.PublicationIntegrityGuardSql();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("@run_elegiveis<>@elegiveis"));
             Assert.That(sql, Does.Contain("@itens<>@elegiveis"));
@@ -20,7 +20,7 @@ public sealed class ProbabilisticLinkagePublicationIntegrityTests
             Assert.That(sql, Does.Contain("THROW 51108"));
             Assert.That(sql, Does.Contain("THROW 51109"));
             Assert.That(sql, Does.Contain("THROW 51110"));
-        });
+        }));
     }
 
     [Test]
@@ -28,7 +28,7 @@ public sealed class ProbabilisticLinkagePublicationIntegrityTests
     {
         var sql = ProbabilisticLinkageBatchRunner.ProgressivePublicationSql();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("resultado_publicacao"));
             Assert.That(sql, Does.Contain("pessoa_uuid_publicado"));
@@ -42,7 +42,7 @@ public sealed class ProbabilisticLinkagePublicationIntegrityTests
             Assert.That(sql, Does.Contain("UUID_JORNADA_RETROALIMENTACAO"));
             Assert.That(sql, Does.Not.Contain("SET status=N'RESOLVIDO'"));
             Assert.That(sql, Does.Not.Contain("SET pessoa_uuid_resolvido="));
-        });
+        }));
     }
 
     [Test]
@@ -50,7 +50,7 @@ public sealed class ProbabilisticLinkagePublicationIntegrityTests
     {
         var sql = ProbabilisticLinkageBatchRunner.ProgressivePublicationSql();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("c.raw_status=N'NAO_RESOLVIDO'"));
             Assert.That(sql, Does.Contain("c.raw_motivo LIKE N'SEM_CANDIDATO_%'"));
@@ -59,6 +59,6 @@ public sealed class ProbabilisticLinkagePublicationIntegrityTests
             Assert.That(sql, Does.Contain("N'ASSOCIACAO_EXISTENTE'"));
             Assert.That(sql, Does.Contain("destino_estabelecido=1"));
             Assert.That(sql, Does.Contain("THROW 51821"));
-        });
+        }));
     }
 }

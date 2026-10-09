@@ -28,7 +28,7 @@ public sealed class ProbabilisticV6TieOrderingTests
 
         foreach (var decision in new[] { forward, reverse })
         {
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(decision.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
                 Assert.That(decision.PessoaUuidResolvido, Is.Null);
@@ -37,7 +37,7 @@ public sealed class ProbabilisticV6TieOrderingTests
                 Assert.That(decision.MelhorScore, Is.EqualTo(decision.SegundoScore));
                 Assert.That(decision.Margem, Is.EqualTo(0m));
                 Assert.That(decision.Motivo, Is.EqualTo("MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE"));
-            });
+            }));
         }
     }
 

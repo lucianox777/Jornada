@@ -20,14 +20,14 @@ public sealed class ProgressiveIdentityTests
     public void InitialUuidIsAllocatedBeforeResolutionWithoutInventingAnAssociation()
     {
         var state = ProgressiveIdentityLifecycle.Create(Initial, Created);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(state.InitialUuid, Is.EqualTo(Initial));
             Assert.That(state.CanonicalUuid, Is.Null);
             Assert.That(state.Status, Is.EqualTo(ProgressiveIdentityStatus.PROVISORIA));
             Assert.That(state.Version, Is.Zero);
             Assert.That(state.LastResolutionAt, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -137,7 +137,7 @@ public sealed class ProgressiveIdentityTests
             return exception.Message;
         }
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(Code(initial with { InitialUuid = Guid.Empty }),
                 Is.EqualTo("PI_SNAPSHOT_INITIAL_UUID_EMPTY"));
@@ -145,7 +145,7 @@ public sealed class ProgressiveIdentityTests
                 Is.EqualTo("PI_SNAPSHOT_REFERENCE_WITHOUT_CANONICAL"));
             Assert.That(Code(referenced with { LastDecision = null }),
                 Is.EqualTo("PI_SNAPSHOT_VERSION_WITHOUT_RECEIPT"));
-        });
+        }));
     }
 
     [Test]
@@ -203,7 +203,7 @@ public sealed class ProgressiveIdentityTests
         var sql = ProbabilisticLinkageBatchRunner.ProgressivePublicationSql();
         const string batchCall = "EXEC identidade.sp_publicar_resolucao_progressiva_linkage_lote";
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql.Split(batchCall, StringSplitOptions.None), Has.Length.EqualTo(2),
                 "Uma execução do run deve acionar somente uma chamada de lote.");
@@ -211,7 +211,7 @@ public sealed class ProgressiveIdentityTests
             Assert.That(sql, Does.Not.Contain("progressiva_linkage CURSOR"));
             Assert.That(sql, Does.Contain("progressiva_versao IS NULL"),
                 "Origem não protegida sem versão nunca pode ser publicada.");
-        });
+        }));
     }
 
     private static ProgressiveIdentityDecision Decision(ProgressiveIdentitySnapshot state,
