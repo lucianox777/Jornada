@@ -25,7 +25,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var estimate = IbgeNominalUBootstrapEstimator.Estimate(Published, options);
         var replay = IbgeNominalUBootstrapEstimator.ReplayPairs(Published, options);
         var repeated = IbgeNominalUBootstrapEstimator.ReplayPairs(Published, options);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(replay, Is.EquivalentTo(repeated));
             Assert.That(replay, Has.Count.EqualTo(1000));
@@ -47,7 +47,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
             Pairs = document.Pairs.Select((p, i) =>
                 i == 0 ? p with { CSharpState = "INVALID" } : p).ToArray()
         };
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(() => SplinkIbgeReplayContract.SerializeInput(contaminated),
                 Throws.TypeOf<InvalidDataException>());
@@ -70,7 +70,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var forced = source.Pairs[0].CSharpState == "LOW" ? "EXACT" : "LOW";
         var different = ExternalJson(source, input, 0, forced);
         var divergent = SplinkIbgeReplayContract.Diagnose(input, different);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(identical.Status, Is.EqualTo("ESTADOS_IDENTICOS_DIAGNOSTICO"));
             Assert.That(identical.PairwiseDisagreements, Is.Zero);
@@ -88,7 +88,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var source = CreateReplay(10);
         var input = SplinkIbgeReplayContract.SerializeInput(source);
         var valid = ExternalJson(source, input);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(() => SplinkIbgeReplayContract.Diagnose(
                 input, valid.Replace("\"input_sha256\"", "\"unexpected\":1,\"input_sha256\"",
@@ -121,7 +121,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var actualOrder = unchanged.Transitions
             .Select(cell => (cell.CSharpState, cell.SplinkState)).ToArray();
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(SplinkIbgeReplayContract.LegacyReportSchema,
                 Is.EqualTo("JORNADA_SPLINK_IBGE_U_REPLAY_DIAGNOSTIC_V1"));
@@ -146,7 +146,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         using var document = JsonDocument.Parse(
             SplinkIbgeReplayContract.SerializeDiagnostic(unchanged));
         var root = document.RootElement;
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(root.GetProperty("schema_version").GetString(),
                 Is.EqualTo(SplinkIbgeReplayContract.ReportSchema));
@@ -191,7 +191,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var reverse = report.Transitions.Single(cell =>
             cell.CSharpState == selected[1].CSharpState &&
             cell.SplinkState == selected[0].CSharpState);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.PairwiseDisagreements, Is.EqualTo(2));
             Assert.That(report.TotalVariation, Is.Zero,
@@ -216,7 +216,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
             Pairs = swapped.Pairs.Select((pair, i) =>
                 i == 0 ? pair with { SplinkState = "UNKNOWN" } : pair).ToArray()
         };
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(() => SplinkIbgeReplayContract.Diagnose(input,
                 JsonSerializer.Serialize(repeated, SplinkIbgeReplayContract.JsonOptions)),
@@ -236,7 +236,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var external = ExternalJson(source, input, 3, changed);
         var csv = SplinkIbgeReplayContract.ExportDisagreementsCsv(input, external);
         var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(lines, Has.Length.EqualTo(2));
             Assert.That(lines[0], Is.EqualTo(
