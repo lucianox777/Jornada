@@ -177,6 +177,10 @@ jobs:
         run: python3 scripts/test-e2e-lot-recovery-evidence-gate.py
       - name: C3.2f2b private API/SQL ZIP baseline safety contract (no Docker or SQL)
         run: python3 scripts/test-e2e-private-api-ingestion-baseline-contract.py
+      - name: C3.2f2c private crash/transaction recovery safety contract (no Docker or SQL)
+        run: |
+          python3 scripts/test-e2e-private-recovery-transaction-hold-contract.py
+          python3 scripts/test-e2e-private-recovery-runtime-contract.py
       - name: C3.2b isolated Api and ResultadoApi entrypoints (check-only)
         run: python3 scripts/test-api-independent-entrypoint.py
       - name: Self-test HML SQL/API evidence gates
