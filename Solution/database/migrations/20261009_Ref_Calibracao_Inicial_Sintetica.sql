@@ -81,3 +81,59 @@ BEGIN
  END CATCH
 END;
 GO
+
+
+-- Idempotência por código: a carga deve reutilizar a versão já publicada
+-- somente quando hashes de corpus/resultados forem idênticos.
+CREATE OR ALTER PROCEDURE ref.sp_registrar_calibracao_inicial
+ @codigo NVARCHAR(120),
+ @corpus_codigo NVARCHAR(160),
+ @corpus_sha256 CHAR(64),
+ @referencia_ibge_codigo NVARCHAR(120),
+ @algoritmo_versao NVARCHAR(120),
+ @metodo NVARCHAR(160),
+ @resultados_json NVARCHAR(MAX),
+ @modelo_id UNIQUEIDENTIFIER=NULL,
+ @calibracao_versao_id BIGINT OUTPUT
+AS
+BEGIN
+ SET NOCOUNT ON;
+ SET XACT_ABORT ON;
+ IF ISJSON(@resultados_json)<>1
+   THROW 52224,'Resultados da calibração inicial devem ser JSON válido.',1;
+ DECLARE @sha CHAR(64)=UPPER(CONVERT(VARCHAR(64),
+   HASHBYTES('SHA2_256',CONVERT(VARBINARY(MAX),@resultados_json)),2));
+ BEGIN TRANSACTION;
+ BEGIN TRY
+   SELECT @calibracao_versao_id=calibracao_versao_id
+   FROM ref.calibracao_inicial_versao WITH(UPDLOCK,HOLDLOCK)
+   WHERE codigo=@codigo;
+   IF @calibracao_versao_id IS NOT NULL
+   BEGIN
+     IF NOT EXISTS(
+       SELECT 1 FROM ref.calibracao_inicial_versao
+       WHERE calibracao_versao_id=@calibracao_versao_id
+         AND corpus_codigo=@corpus_codigo AND corpus_sha256=@corpus_sha256
+         AND referencia_ibge_codigo=@referencia_ibge_codigo
+         AND algoritmo_versao=@algoritmo_versao AND metodo=@metodo
+         AND resultados_sha256=@sha
+         AND ((modelo_id=@modelo_id) OR (modelo_id IS NULL AND @modelo_id IS NULL)))
+       THROW 52225,'Código de calibração inicial já existe com conteúdo ou origem diferente.',1;
+   END
+   ELSE
+   BEGIN
+     INSERT ref.calibracao_inicial_versao(
+       codigo,modelo_id,corpus_codigo,corpus_sha256,
+       referencia_ibge_codigo,algoritmo_versao,metodo,resultados_json,resultados_sha256)
+     VALUES(@codigo,@modelo_id,@corpus_codigo,@corpus_sha256,
+       @referencia_ibge_codigo,@algoritmo_versao,@metodo,@resultados_json,@sha);
+     SET @calibracao_versao_id=CONVERT(BIGINT,SCOPE_IDENTITY());
+   END;
+   COMMIT TRANSACTION;
+ END TRY
+ BEGIN CATCH
+   IF XACT_STATE()<>0 ROLLBACK TRANSACTION;
+   THROW;
+ END CATCH
+END;
+GO
