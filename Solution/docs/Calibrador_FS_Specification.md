@@ -240,3 +240,6 @@ A tabela `ref.calibracao_inicial_versao` é o **marco zero** do histórico, não
 #### Carga JSON da distribuição em `ref`
 
 `20261009_Ref_Distribuicao_Nascimento_Carga_Json.sql` cria `ref.sp_carregar_distribuicao_nascimento_json`, que recebe o documento `JORNADA_SYNTH_BIRTH_DAILY_V1` e metadados do manifesto, valida contagem/soma de pesos, grava as linhas em `ref.distribuicao_nascimento_dia` e evita sobrescrever versão publicada. Uma carga repetida com mesmo código/proveniência e totais é aceita; proveniência divergente falha. **Limite:** o procedimento não autentica os bytes do arquivo nem compara individualmente linhas quando a versão já está publicada; o importador deve conferir o SHA-256 do arquivo antes da chamada, e a validação de integridade ponta a ponta exige testes e fingerprint da versão. O procedimento ainda não é chamado automaticamente pela infraestrutura.
+
+
+> **Reconciliação das críticas do avaliador (09/10/2026):** ver [matriz de críticas, respostas, evidências e pendências](Reconciliacao_Parecer_Externo_20261009.md). Esta referência não substitui decisões canônicas nem atesta testes ainda não executados.
