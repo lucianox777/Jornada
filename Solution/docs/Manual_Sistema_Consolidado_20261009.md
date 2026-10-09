@@ -249,7 +249,7 @@ identidades RESOLVIDAS pelo simples decurso do tempo**. Essa versão
 da Trilha 4 foi **encerrada como frente arquitetural autônoma**.
 Seu valor remanescente passa à
 [**DT-22 — Reavaliação governada dos RESOLVIDOS**](DT22_Reavaliacao_Governada_Resolvidos.md),
-**ABERTA/POSTERGADA** e independente do ciclo normal de ingestão.
+**ABERTA/POSTERGADA** ([issue #861](https://github.com/lucianox777/Jornada/issues/861)) e independente do ciclo normal de ingestão.
 Permitirá futura execução **explícita e autorizada**, inclusive
 após mudança de modelo, com universo/versão definidos,
 checkpoint, histórico e recomposição Gold/Serving consistentes.
