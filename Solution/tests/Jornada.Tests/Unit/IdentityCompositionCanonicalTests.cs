@@ -52,10 +52,10 @@ public sealed class IdentityCompositionCanonicalTests
         {
             Assert.That(reverse, Is.EqualTo(forward));
             Assert.That(JsonSerializer.Deserialize<Guid[]>(forward), Is.EqualTo(new[] { R1, R2 }));
-            Assert.Throws<InvalidOperationException>(() =>
-                IdentityCompositionCanonical.SerializeReservations(new[] { R1, R1 }));
-            Assert.Throws<InvalidOperationException>(() =>
-                IdentityCompositionCanonical.SerializeReservations(new[] { Guid.Empty }));
+            Assert.Throws<InvalidOperationException>((Action)(() =>
+                IdentityCompositionCanonical.SerializeReservations(new[] { R1, R1 })));
+            Assert.Throws<InvalidOperationException>((Action)(() =>
+                IdentityCompositionCanonical.SerializeReservations(new[] { Guid.Empty })));
         }));
     }
 

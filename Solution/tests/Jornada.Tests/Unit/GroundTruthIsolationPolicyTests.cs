@@ -105,8 +105,8 @@ public sealed class GroundTruthIsolationPolicyTests
             StatisticallySufficient: true,
             RepresentativeForTargetStratum: false);
 
-        Assert.Throws<InvalidOperationException>(() =>
-            GroundTruthIsolationPolicy.SelectPreferredLabelSource(cpf, cns));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            GroundTruthIsolationPolicy.SelectPreferredLabelSource(cpf, cns)));
     }
 
     [Test]
@@ -133,22 +133,22 @@ public sealed class GroundTruthIsolationPolicyTests
     {
         Assert.Multiple((Action)(() =>
         {
-            Assert.DoesNotThrow(() => GroundTruthIsolationPolicy.EnsureNoLabelLeakage(
+            Assert.DoesNotThrow((Action)(() => GroundTruthIsolationPolicy.EnsureNoLabelLeakage(
                 GroundTruthSource.Cns,
                 new[] { "NOME_NORMALIZADO", "DATA_NASCIMENTO" },
                 new[] { "NOME_JARO_WINKLER", "NASC_ANO_EXACT" },
-                new[] { "IBGE_TERM_FREQUENCY" }));
+                new[] { "IBGE_TERM_FREQUENCY" })));
 
-            Assert.Throws<InvalidOperationException>(() => GroundTruthIsolationPolicy.EnsureNoLabelLeakage(
+            Assert.Throws<InvalidOperationException>((Action)(() => GroundTruthIsolationPolicy.EnsureNoLabelLeakage(
                 GroundTruthSource.Cns,
                 new[] { "CNS_EXACT" },
-                new[] { "NOME_JARO_WINKLER" }));
+                new[] { "NOME_JARO_WINKLER" })));
 
-            Assert.Throws<InvalidOperationException>(() => GroundTruthIsolationPolicy.EnsureNoLabelLeakage(
+            Assert.Throws<InvalidOperationException>((Action)(() => GroundTruthIsolationPolicy.EnsureNoLabelLeakage(
                 GroundTruthSource.Cns,
                 new[] { "NOME_NORMALIZADO" },
                 new[] { "NOME_JARO_WINKLER" },
-                new[] { "HASH_CNS" }));
+                new[] { "HASH_CNS" })));
         }));
     }
 }

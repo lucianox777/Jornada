@@ -65,8 +65,8 @@ public sealed class GroundTruthDiagnosticRunTests
             Assessment(GroundTruthSource.Cpf, GroundTruthPopulationStratum.WithCpf, 20, true, true)
         };
 
-        Assert.Throws<InvalidOperationException>(() =>
-            GroundTruthDiagnosticRunBuilder.Build(population, plan, observations, assessments));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            GroundTruthDiagnosticRunBuilder.Build(population, plan, observations, assessments)));
     }
 
     [Test]
@@ -90,8 +90,8 @@ public sealed class GroundTruthDiagnosticRunTests
                 false)
         };
 
-        Assert.Throws<InvalidOperationException>(() =>
-            GroundTruthDiagnosticRunBuilder.Build(population, plan, observations, assessments));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            GroundTruthDiagnosticRunBuilder.Build(population, plan, observations, assessments)));
     }
 
     [Test]
@@ -107,7 +107,7 @@ public sealed class GroundTruthDiagnosticRunTests
             SampledRecords: allocation.RequestedSample + 1,
             PositivePairCount: 1);
 
-        Assert.Throws<InvalidOperationException>(() => observation.Validate(allocation));
+        Assert.Throws<InvalidOperationException>((Action)(() => observation.Validate(allocation)));
     }
 
     private static GroundTruthStratumObservation[] ObservationsFor(

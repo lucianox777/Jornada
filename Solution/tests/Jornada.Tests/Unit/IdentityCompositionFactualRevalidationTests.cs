@@ -67,33 +67,33 @@ public sealed class IdentityCompositionFactualRevalidationTests
     [Test]
     public void Missing_record_fails_closed()
     {
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionFactualRevalidationPlanner.Prepare(
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionFactualRevalidationPlanner.Prepare(
             Recomposition(A, 101, 102), Hash,
-            ImmutableArray.Create(Snapshot(A, 101, null, null))));
+            ImmutableArray.Create(Snapshot(A, 101, null, null)))));
     }
 
     [Test]
     public void Extra_or_wrong_origin_record_fails_closed()
     {
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionFactualRevalidationPlanner.Prepare(
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionFactualRevalidationPlanner.Prepare(
             Recomposition(A, 101), Hash,
-            ImmutableArray.Create(Snapshot(B, 101, null, null))));
+            ImmutableArray.Create(Snapshot(B, 101, null, null)))));
     }
 
     [Test]
     public void Resolved_without_uuid_fails_closed()
     {
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionFactualRevalidationPlanner.Prepare(
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionFactualRevalidationPlanner.Prepare(
             Recomposition(A, 101), Hash,
-            ImmutableArray.Create(Snapshot(A, 101, null, "RESOLVIDO"))));
+            ImmutableArray.Create(Snapshot(A, 101, null, "RESOLVIDO")))));
     }
 
     [Test]
     public void Non_resolved_with_uuid_fails_closed()
     {
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionFactualRevalidationPlanner.Prepare(
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionFactualRevalidationPlanner.Prepare(
             Recomposition(A, 101), Hash,
-            ImmutableArray.Create(Snapshot(A, 101, C, "NAO_RESOLVIDO"))));
+            ImmutableArray.Create(Snapshot(A, 101, C, "NAO_RESOLVIDO")))));
     }
 
     [Test]

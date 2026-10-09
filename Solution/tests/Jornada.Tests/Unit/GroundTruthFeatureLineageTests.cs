@@ -15,8 +15,8 @@ public sealed class GroundTruthFeatureLineageTests
             GroundTruthFeatureLineage.Direct("IDENTIFICADOR_HASH", "CNS")
         };
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            GroundTruthFeatureLineagePolicy.EnsureNoLabelLeakage(GroundTruthSource.Cns, features));
+        var ex = Assert.Throws<InvalidOperationException>((Action)(() =>
+            GroundTruthFeatureLineagePolicy.EnsureNoLabelLeakage(GroundTruthSource.Cns, features)));
 
         Assert.That(ex!.Message, Does.Contain("IDENTIFICADOR_HASH"));
     }
@@ -29,8 +29,8 @@ public sealed class GroundTruthFeatureLineageTests
             GroundTruthFeatureLineage.Direct("IDENTIDADE_BUCKET", "CPF")
         };
 
-        Assert.Throws<InvalidOperationException>(() =>
-            GroundTruthFeatureLineagePolicy.EnsureNoLabelLeakage(GroundTruthSource.Cpf, features));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            GroundTruthFeatureLineagePolicy.EnsureNoLabelLeakage(GroundTruthSource.Cpf, features)));
     }
 
     [Test]
@@ -57,8 +57,8 @@ public sealed class GroundTruthFeatureLineageTests
             GroundTruthFeatureLineage.Direct("ANO_NASCIMENTO", "DATA_NASCIMENTO")
         };
 
-        Assert.DoesNotThrow(() =>
-            GroundTruthFeatureLineagePolicy.EnsureNoLabelLeakage(GroundTruthSource.Cns, features));
+        Assert.DoesNotThrow((Action)(() =>
+            GroundTruthFeatureLineagePolicy.EnsureNoLabelLeakage(GroundTruthSource.Cns, features)));
     }
 
     [Test]
@@ -69,8 +69,8 @@ public sealed class GroundTruthFeatureLineageTests
             GroundTruthFeatureLineage.Direct("FEATURE_COMPOSTA", "NOME_COMPLETO", "CNS", "DATA_NASCIMENTO")
         };
 
-        Assert.Throws<InvalidOperationException>(() =>
-            GroundTruthFeatureLineagePolicy.EnsureNoLabelLeakage(GroundTruthSource.Cns, features));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            GroundTruthFeatureLineagePolicy.EnsureNoLabelLeakage(GroundTruthSource.Cns, features)));
     }
 
     [Test]
@@ -78,9 +78,9 @@ public sealed class GroundTruthFeatureLineageTests
     {
         Assert.Multiple((Action)(() =>
         {
-            Assert.Throws<ArgumentException>(() => GroundTruthFeatureLineage.Direct("FEATURE_SEM_ORIGEM"));
-            Assert.Throws<ArgumentException>(() => GroundTruthFeatureLineage.Direct("FEATURE_SEM_ORIGEM", " "));
-            Assert.Throws<ArgumentException>(() => GroundTruthFeatureLineage.Direct(" ", "NOME_COMPLETO"));
+            Assert.Throws<ArgumentException>((Action)(() => GroundTruthFeatureLineage.Direct("FEATURE_SEM_ORIGEM")));
+            Assert.Throws<ArgumentException>((Action)(() => GroundTruthFeatureLineage.Direct("FEATURE_SEM_ORIGEM", " ")));
+            Assert.Throws<ArgumentException>((Action)(() => GroundTruthFeatureLineage.Direct(" ", "NOME_COMPLETO")));
         }));
     }
 }

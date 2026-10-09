@@ -29,11 +29,11 @@ public sealed class GroundTruthDiagnosticCalibrationPlannerTests
     {
         var run = BuildRun(cpfSufficient: false, cpfRepresentative: false, cnsSufficient: true, cnsRepresentative: false);
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             GroundTruthCalibrationPlanner.CreateFromDiagnosticRun(
                 run,
                 new[] { "NOME_COMPLETO" },
-                new[] { "NOME_JARO_WINKLER" }));
+                new[] { "NOME_JARO_WINKLER" })));
     }
 
     [Test]
