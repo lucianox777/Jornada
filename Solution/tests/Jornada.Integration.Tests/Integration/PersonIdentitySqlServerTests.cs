@@ -56,13 +56,13 @@ public sealed class PersonIdentitySqlServerTests
             verify.Parameters.AddWithValue("@obs", manyObservationId);
             await using var reader = await verify.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetInt32(0), Is.EqualTo(3));
                 Assert.That(reader.GetInt32(1), Is.EqualTo(1));
                 Assert.That(reader.GetInt32(2), Is.EqualTo(1));
                 Assert.That(reader.GetInt32(3), Is.EqualTo(1));
-            });
+            }));
         }
         finally
         {
@@ -163,12 +163,12 @@ public sealed class PersonIdentitySqlServerTests
             verify.Parameters.AddWithValue("@origem", personOriginId);
             await using var result = await verify.ExecuteReaderAsync();
             Assert.That(await result.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(result.GetInt32(0), Is.EqualTo(1), "A identidade de origem é única no namespace da base.");
                 Assert.That(result.GetInt32(1), Is.EqualTo(2), "Dois sistemas podem observar a mesma identidade da base compartilhada.");
                 Assert.That(result.GetInt32(2), Is.EqualTo(2), "A base compartilhada está explicitamente autorizada para os dois sistemas.");
-            });
+            }));
         }
         finally
         {
@@ -204,11 +204,11 @@ public sealed class PersonIdentitySqlServerTests
         verify.Parameters.AddWithValue("@obs", observationId);
         await using var reader = await verify.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetInt32(0), Is.Zero, "Rollback não pode deixar observação parcial.");
             Assert.That(reader.GetInt32(1), Is.Zero, "Rollback não pode deixar identificador órfão.");
-        });
+        }));
     }
 
     private static async Task EnsureCurrentIdentitySchemaAsync(SqlConnection connection)

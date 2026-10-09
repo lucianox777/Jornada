@@ -111,7 +111,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                 verify.Parameters.AddWithValue("@obs", source.ObservationId);
                 await using var reader = await verify.ExecuteReaderAsync();
                 Assert.That(await reader.ReadAsync(), Is.True);
-                Assert.Multiple((TestDelegate)(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(reader.GetGuid(0), Is.EqualTo(source.InitialUuid));
                     Assert.That(reader.GetGuid(1), Is.EqualTo(source.InitialUuid));
@@ -240,7 +240,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             verify.Parameters.AddWithValue("@obs", source.ObservationId);
             await using var reader = await verify.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetGuid(0), Is.EqualTo(source.InitialUuid));
                 Assert.That(reader.GetGuid(1), Is.EqualTo(source.InitialUuid));
@@ -355,7 +355,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             verify.Parameters.AddWithValue("@obs", source.ObservationId);
             await using var reader = await verify.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetInt32(0), Is.EqualTo(1), "Replay do mesmo conflito não pode duplicar a fila.");
                 Assert.That(reader.GetInt64(1), Is.EqualTo(resultId));
@@ -489,7 +489,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             verify.Parameters.AddWithValue("@source", sourceId);
             await using var verifyReader = await verify.ExecuteReaderAsync();
             Assert.That(await verifyReader.ReadAsync(), Is.True);
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(verifyReader.GetInt64(0), Is.EqualTo(versionBefore),
                     "O Linkage não pode avançar identidade protegida por CPF.");
@@ -558,7 +558,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                 provisional.Parameters.AddWithValue("@initial", source.InitialUuid);
                 await using var reader = await provisional.ExecuteReaderAsync();
                 Assert.That(await reader.ReadAsync(), Is.True, "A casca progressiva deve existir na Gold mesmo com núcleo parcial.");
-                Assert.Multiple((TestDelegate)(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(reader.GetString(0), Is.EqualTo("PROVISORIA"));
                     Assert.That(reader.GetString(1), Is.EqualTo("PARCIAL"));
@@ -605,7 +605,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             reference.Parameters.AddWithValue("@initial", source.InitialUuid);
             await using var referenceReader = await reference.ExecuteReaderAsync();
             Assert.That(await referenceReader.ReadAsync(), Is.True);
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(referenceReader.GetString(0), Is.EqualTo("REFERENCIA"));
                 Assert.That(referenceReader.GetString(1), Is.EqualTo("PARCIAL"),
@@ -707,7 +707,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             verify.Parameters.AddWithValue("@source", source.SourceId);
             await using var reader = await verify.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetGuid(0), Is.EqualTo(source.InitialUuid));
                 Assert.That(reader.GetGuid(1), Is.EqualTo(target));

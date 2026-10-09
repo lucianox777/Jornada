@@ -113,13 +113,13 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
             var eligible = Convert.ToInt64(await eligibility.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
             var afterVersionCount = await CountObservationVersionsAsync(connection, tx, observationId);
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(eligible, Is.EqualTo(1),
                     "Mudança apenas no universo candidato deve tornar o conflito probabilístico elegível no próximo INCREMENTAL; este teste não executa o run completo até a resolução.");
                 Assert.That(afterVersionCount, Is.EqualTo(beforeVersionCount),
                     "Reavaliação não pode depender de nova versão da observação antiga.");
-            });
+            }));
         }
         finally
         {
@@ -156,11 +156,11 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
                 await using var reader = await read.ExecuteReaderAsync();
                 Assert.That(await reader.ReadAsync(), Is.True, "Seed exige um run historico.");
                 runId = reader.GetGuid(0);
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(reader.IsDBNull(1), Is.True, "Nao fabricar FreshPending legado.");
                     Assert.That(reader.IsDBNull(2), Is.True, "Nao fabricar Reavaliados legado.");
-                });
+                }));
             }
 
             // O Runner calcula ambas as contagens da lista congelada e as
@@ -188,12 +188,12 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
                 check.Parameters.AddWithValue("@run_id", runId);
                 await using var reader = await check.ExecuteReaderAsync();
                 Assert.That(await reader.ReadAsync(), Is.True);
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(reader.GetInt64(0), Is.EqualTo(1));
                     Assert.That(reader.GetInt64(1), Is.EqualTo(1));
                     Assert.That(reader.GetDecimal(2), Is.EqualTo(50m));
-                });
+                }));
             }
 
             await using (var invalidSum = connection.CreateCommand())
@@ -204,9 +204,8 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
                     SET reavaliados=2 WHERE linkage_run_id=@run_id;
                     """;
                 invalidSum.Parameters.AddWithValue("@run_id", runId);
-                Assert.ThrowsAsync<SqlException>(
-                    async () => { await invalidSum.ExecuteNonQueryAsync(); },
-                    "Contadores nao podem exceder o universo materializado.");
+                Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => { await invalidSum.ExecuteNonQueryAsync(); },
+                    "Contadores nao podem exceder o universo materializado."));
             }
 
             await using (var invalidMode = connection.CreateCommand())
@@ -217,9 +216,8 @@ public sealed class ProbabilisticLinkageIncrementalEligibilitySqlServerTests
                     SET tipo_run=N'ON_DEMAND' WHERE linkage_run_id=@run_id;
                     """;
                 invalidMode.Parameters.AddWithValue("@run_id", runId);
-                Assert.ThrowsAsync<SqlException>(
-                    async () => { await invalidMode.ExecuteNonQueryAsync(); },
-                    "Outros modos nao podem expor contagens falsamente exatas.");
+                Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => { await invalidMode.ExecuteNonQueryAsync(); },
+                    "Outros modos nao podem expor contagens falsamente exatas."));
             }
         }
         finally

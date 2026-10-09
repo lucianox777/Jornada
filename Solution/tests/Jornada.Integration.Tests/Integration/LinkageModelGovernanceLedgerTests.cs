@@ -153,14 +153,14 @@ public sealed class LinkageModelGovernanceLedgerTests
                 WHERE modelo_id=@id;
                 """;
             immutable.Parameters.AddWithValue("@id", modelId);
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await immutable.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await immutable.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(51961));
         }
 
         var monitor = await new OperationalMonitorService(new OperationalSqlAdapter(connectionString))
             .GetAsync(CancellationToken.None);
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(monitor.LinkageModelGovernance.Status, Is.EqualTo("OK"));
             Assert.That(monitor.LinkageModelGovernance.ActiveModelCount, Is.EqualTo(1));
@@ -198,7 +198,7 @@ public sealed class LinkageModelGovernanceLedgerTests
 
         var masterPreview = await new ModelGovernanceReadOnlyService(
             new OperationalSqlAdapter(connectionString)).GetAsync(CancellationToken.None);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(masterPreview.MethodVersion, Is.EqualTo("DT15_MASTER_READONLY_DEV_V1"));
             Assert.That(masterPreview.Actions, Does.Contain("NAO_HABILITADAS"));
