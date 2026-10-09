@@ -1,3 +1,14 @@
+> **Delimitação de escopo aprovada em 09/10/2026:** a
+> fidelidade do `REPLAY` histórico de DT-05 (mesmo modelo
+> e candidatos imutáveis do run original) **não** constitui
+> reavaliação dos `RESOLVIDOS` pelo modelo recém-ativado.
+> Esta capacidade é a nova
+> [DT-22 — Reavaliação governada dos RESOLVIDOS](DT22_Reavaliacao_Governada_Resolvidos.md),
+> aberta/postergada após a retirada da Trilha 4 como mecanismo
+> temporal contínuo. DT-05 mantém suas próprias pendências
+> de retenção/GC/custo/latência e não é reaberta ou encerrada
+> pela decisão da DT-22. Não alterar manifests históricos.
+>
 # DT-05 — snapshots incrementais de replay do Linkage no NAS
 
 **Estado reconciliado em 04/10/2026:** PRs #520–#522 e #700–#719 consolidaram ledger semântico, pins Bronze, manifestos create-only, candidate-state Parquet/ZSTD, projeção histórica de blocking e REPLAY fail-closed sobre o mesmo modelo/universo. O **aceite estreito** de três ondas/CPF tardio já havia sido concluído no PR #540, e o replay histórico determinístico passou a ser provado ponta a ponta no #719. **DT-05 global ainda PARCIAL:** este incremento acrescenta manutenção física fail-closed dos snapshots: auditoria de hashes/bytes, métricas de deduplicação, detecção de órfãos/temp e GC opcional somente após janela de segurança, sem tocar manifestos, objetos referenciados nem ZIPs Bronze. Qualquer manifesto inválido bloqueia toda exclusão. O vínculo SQL create-once do manifesto NAS imutável já foi integrado no PR #700. O plano de aceite combinava reconstrução histórica determinística e medição de custo/latência; a reconstrução já foi comprovada no #719, enquanto a política de retenção continua externa (#379) e ainda falta registrar medição real de custo/latência DEV antes do fechamento global. Os trechos cronológicos abaixo preservam o histórico da implementação.
