@@ -75,3 +75,10 @@ Seguir [prioridades e dependências](Plano_Desenvolvimento.md), [inventário DT 
 A [matriz de reconciliação do parecer externo](Reconciliacao_Parecer_Externo_20261009.md) separa críticas procedentes, decisões já tomadas, código observado e evidências ainda pendentes. Para o Calibrador, a referência demográfica diária projetada e a calibração sintética inicial são **artefatos diferentes**, ambos versionados e congelados em `ref` após publicação. O corpus sintético não certifica FDR em dados reais; o limite unilateral de FDR permanece candidato até implementação e validação. A PR de bootstrap demográfico não equivale à carga operacional executada nem à promoção de modelo.
 
 Em **DEV v1**, não se exige retrocompatibilidade do runtime antigo, mas permanecem obrigatórios integridade de versões publicadas, histórico de decisões, testes do contrato vigente e preservação de branches históricos relevantes. O único decisor probabilístico é FS C#; Splink é conferência externa, sem duplicação de motor.
+
+
+### Bootstrap congelado na subida — contrato de operação
+
+**Decisão:** o pacote do sistema deve incluir o snapshot demográfico já materializado em `data/reference/synthetic-birth-sp/`, com manifesto e SHA-256, e o marco zero de calibração inicial publicado em `ref`. Na inicialização, verificar integridade e existência da versão publicada no SQL Server; quando ausente, importar **os bytes já congelados** e publicar a versão, sem executar projeção IBGE, gerar nova população de referência ou recalibrar FS. Se os hashes/proveniência divergirem, falhar de forma explícita. Subidas subsequentes reutilizam as versões publicadas e não sobrescrevem dados. Novas calibrações são processos explícitos, separados da subida.
+
+**Estado de entrega:** `scripts/verify-frozen-birth-reference.py` confere manifesto, SHA-256, esquema e linhas do arquivo local, sem alterar dados; ainda falta conectar o importador SQL e a verificação do marco zero à inicialização automática. Assim, o comportamento completo descrito acima é **requisito de aceitação**, não funcionalidade já demonstrada em runtime.
