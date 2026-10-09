@@ -23,7 +23,7 @@ def require(condition: bool, reason: str) -> None:
 
 def docker(*args: str) -> str:
     result = subprocess.run(["docker", *args], stdin=subprocess.DEVNULL,
-                            capture_output=True, check=False, timeout=20)
+                            capture_output=True, check=False, timeout=35)
     require(result.returncode == 0, "private Docker command failed")
     return result.stdout.decode("utf-8").strip()
 
@@ -65,9 +65,10 @@ def main() -> None:
                  "--filter", "label=com.docker.compose.project=" + project,
                  "--filter", "label=com.docker.compose.service=" + worker,
                  "--filter", "label=com.docker.compose.oneoff=False").splitlines()
-    require(len(ids) == 1 and ids[0] == cid[:12],
+    require(len(ids) == 1 and (ids[0] == cid or ids[0] == cid[:12]),
             "worker container changed or is ambiguous")
     before = inspect(cid, project, worker)
+    require(before["Id"] == cid, "immutable container ID changed")
     require(before["State"]["Running"] is True
             and before["State"]["Pid"] == int(pid_text)
             and before["HostConfig"]["RestartPolicy"]["Name"] == "unless-stopped",
