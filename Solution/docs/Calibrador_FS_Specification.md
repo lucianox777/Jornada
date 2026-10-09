@@ -140,3 +140,8 @@ O código `SyntheticDailyBirthDistribution.LoadAsync` valida esquema, datas, con
 Preservar a mesma data de nascimento verdadeira entre observações da mesma identidade, aplicando degradações de data somente no modelo de erros observacionais. Separar a distribuição etária marginal da dependência entre nascimento e nomes: marginais IBGE não identificam automaticamente a distribuição conjunta. Testar distribuição empírica gerada versus pesos de referência por faixas etárias, cobertura de extremos, determinismo por seed, integridade SHA-256 e separação TRAIN/VALIDATION/TEST por identidade. Registrar fonte, transformação, hipótese intrafaixa, seed e desvios no relatório do Calibrador.
 
 **Situação:** o amostrador demográfico e referência já existem; a eliminação/isolamento do fallback uniforme e os gates de cobertura de todos os caminhos de bootstrap ainda devem ser verificados/implementados. Não declarar esses gates concluídos.
+
+
+### Implementação incremental: padrão demográfico da CLI
+
+A CLI `Jornada.Linkage.SyntheticCorpus` passa a assumir `--population-profile demographic-primary` quando o perfil não é informado. Nessa modalidade, `--birth-daily-source` é obrigatório e a ausência da distribuição provoca erro antes de gerar pessoas. `legacy` permanece disponível somente por opção explícita para ensaios históricos, não como padrão de bootstrap. Esta alteração não prova que todos os scripts e fluxos externos já passam a fonte obrigatória; esses pontos ainda precisam de auditoria e testes de ponta a ponta.
