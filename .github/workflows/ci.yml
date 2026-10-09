@@ -167,6 +167,8 @@ jobs:
         run: python3 scripts/test-worker-independent-entrypoint.py
       - name: C3.2a isolated worker Compose topology (config-only, no containers)
         run: python3 scripts/test-worker-disposable-compose.py
+      - name: C3.2c create-only E2E SQL bootstrap contract (no DB/containers)
+        run: python3 scripts/test-e2e-sql-bootstrap-contract.py
       - name: C3.2b isolated Api and ResultadoApi entrypoints (check-only)
         run: python3 scripts/test-api-independent-entrypoint.py
       - name: Self-test HML SQL/API evidence gates

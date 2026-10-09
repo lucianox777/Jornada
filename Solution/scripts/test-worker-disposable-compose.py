@@ -53,7 +53,7 @@ def main() -> int:
     require(default.returncode == 0,
             "Disposable Compose OFF mode failed config validation: " + default.stderr[:500])
     default_cfg = json.loads(default.stdout)
-    require(set(default_cfg.get("services", {})) == {"sqlserver", "api", "resultado-api"},
+    require(set(default_cfg.get("services", {})) == {"sqlserver", "sql-bootstrap", "api", "resultado-api"},
             "Default supervisor OFF must keep both APIs alive but no resident workers")
 
     # Compose's default `config` excludes profile-gated services. Activate
@@ -66,7 +66,7 @@ def main() -> int:
 
     require(cfg.get("name") == PROJECT, "Compose did not retain isolated project name")
     services = cfg.get("services", {})
-    require(set(services) == set(WORKERS) | {"sqlserver", "api", "resultado-api"},
+    require(set(services) == set(WORKERS) | {"sqlserver", "sql-bootstrap", "api", "resultado-api"},
             "Unexpected services or missing isolated API/ResultadoApi/worker")
     db = services["sqlserver"]
     require(db.get("restart") == "no", "SQL service must not auto-start workers")
@@ -74,6 +74,27 @@ def main() -> int:
             "Sandbox SQL must expose no host port/fixed container name")
     require(db.get("environment", {}).get("MSSQL_SA_PASSWORD") == sql_secret,
             "SQL service secret not separately scoped")
+
+    init = services["sql-bootstrap"]
+    require(not init.get("profiles") and init.get("restart") == "no",
+            "SQL bootstrap must run once in both supervisor modes")
+    require(not init.get("volumes") and not init.get("ports")
+            and not init.get("container_name") and not init.get("privileged"),
+            "SQL bootstrap may not mount volumes or publish host resources")
+    require(init.get("build", {}).get("dockerfile")
+            == "install/console-dev-e2e/sql-bootstrap/Dockerfile",
+            "SQL bootstrap must use restricted private build")
+    require(set(init.get("depends_on", {})) == {"sqlserver"},
+            "SQL bootstrap may depend only on private SQL")
+    init_env = init.get("environment", {})
+    require(init_env.get("JORNADA_WORKERS_E2E_SQL_BOOTSTRAP") == "true"
+            and init_env.get("JORNADA_RUNTIME_MODE") == "DEV"
+            and init_env.get("DOTNET_ENVIRONMENT") == "Development"
+            and init_env.get("JORNADA_E2E_SQL_DATABASE") == "JornadaE2E"
+            and init_env.get("JORNADA_SQL_DATABASE_OVERRIDE") == "JornadaE2E"
+            and init_env.get("JORNADA_WORKERS_E2E_SQL_HOST") == "sqlserver"
+            and init_env.get("SQLCMDPASSWORD") == sql_secret,
+            "Bootstrap lost private DEV/E2E guard")
 
     # API/ResultadoApi are independently supervised, not in the continuous
     # profile. Workers may be killed without stopping or restarting the APIs.
@@ -83,6 +104,10 @@ def main() -> int:
     ):
         svc = services[name]
         require(not svc.get("profiles"), f"{name}: must stay alive in OFF")
+        require("sql-bootstrap" in svc.get("depends_on", {})
+                and svc["depends_on"]["sql-bootstrap"].get("condition")
+                == "service_completed_successfully",
+                f"{name}: must wait for private SQL bootstrap")
         require(svc.get("restart") == "unless-stopped",
                 f"{name}: needs its own restart policy")
         require(svc.get("entrypoint") == ["/usr/local/bin/jornada-api-entrypoint"],
@@ -108,10 +133,14 @@ def main() -> int:
     require(services["resultado-api"]["environment"].get("JornadaApiBaseUrl")
             == "http://api:5080", "ResultadoApi must call the internal API")
     require(set(services["resultado-api"].get("depends_on", {}))
-            == {"sqlserver", "api"}, "ResultadoApi service dependency drift")
+            == {"sqlserver", "sql-bootstrap", "api"}, "ResultadoApi service dependency drift")
 
     for name, arg in WORKERS.items():
         svc = services[name]
+        require("sql-bootstrap" in svc.get("depends_on", {})
+                and svc["depends_on"]["sql-bootstrap"].get("condition")
+                == "service_completed_successfully",
+                f"{name}: continuous worker must wait for private SQL bootstrap")
         require(svc.get("profiles") == ["continuous"],
                 f"{name}: default OFF must not autostart")
         require(svc.get("restart") == "unless-stopped",
@@ -134,7 +163,7 @@ def main() -> int:
         require("Database=JornadaE2E;" in conn and sql_secret in conn,
                 f"{name}: wrong effective database connection")
         for dependency in svc.get("depends_on", {}):
-            require(dependency == "sqlserver",
+            require(dependency in {"sqlserver", "sql-bootstrap"},
                     f"{name}: unexpected shared service dependency")
 
     for name, svc in services.items():

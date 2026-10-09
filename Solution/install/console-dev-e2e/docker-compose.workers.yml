@@ -30,6 +30,8 @@ x-worker-service: &worker-service
   depends_on:
     sqlserver:
       condition: service_healthy
+    sql-bootstrap:
+      condition: service_completed_successfully
   environment:
     <<: *worker-env
   volumes:
@@ -44,6 +46,8 @@ x-api-service: &api-service
   depends_on:
     sqlserver:
       condition: service_healthy
+    sql-bootstrap:
+      condition: service_completed_successfully
   entrypoint: ["/usr/local/bin/jornada-api-entrypoint"]
   environment:
     <<: *worker-env
@@ -71,6 +75,25 @@ services:
       start_period: 20s
     restart: "no"
 
+  # One-shot create-only schema and synthetic DEV seed on this PRIVATE SQL server.
+  sql-bootstrap:
+    build:
+      context: ../..
+      dockerfile: install/console-dev-e2e/sql-bootstrap/Dockerfile
+    restart: "no"
+    depends_on:
+      sqlserver:
+        condition: service_healthy
+    environment:
+      JORNADA_WORKERS_E2E_SQL_BOOTSTRAP: "true"
+      JORNADA_WORKERS_E2E_ID: "${JORNADA_WORKERS_E2E_ID:?Required E2E ID}"
+      JORNADA_WORKERS_E2E_SQL_HOST: sqlserver
+      JORNADA_RUNTIME_MODE: DEV
+      DOTNET_ENVIRONMENT: Development
+      JORNADA_E2E_SQL_DATABASE: JornadaE2E
+      JORNADA_SQL_DATABASE_OVERRIDE: JornadaE2E
+      SQLCMDPASSWORD: "${JORNADA_WORKERS_E2E_SQL_PASSWORD:?E2E SQL secret required}"
+
   # Always available in OFF and ON modes; separate PID 1 / service restart.
   api:
     <<: *api-service
@@ -97,6 +120,8 @@ services:
     depends_on:
       sqlserver:
         condition: service_healthy
+      sql-bootstrap:
+        condition: service_completed_successfully
       api:
         condition: service_healthy
     healthcheck:
