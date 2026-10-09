@@ -37,6 +37,15 @@ def main() -> None:
     assert "e2e-private-sql-runtime-preflight.py" in content
     assert "--env-file /dev/null -p" in content
     assert "sql-bootstrap" in content and "JornadaE2E" in content
+    # API/Resultado smoke runs ONLY after SQL bootstrap succeeded, still
+    # inside the exclusive project with workers absent in OFF mode.
+    assert content.index("state:0") == -1  # never infer success from exit code alone
+    assert "compose build api" in content and "compose up -d --no-build --no-deps api resultado-api" in content
+    assert "http://127.0.0.1:5080/health/ready" in content
+    assert "http://127.0.0.1:5081/health" in content
+    assert "http://api:5080/health/ready" in content
+    assert "resultado_to_api_private_dns" in content
+    assert "worker_residents':0" in content
     assert "jornada-local" not in content
     for unsafe in ("local-db.ps1", "local-db.sh", "docker compose down",
                    "compose down", "DROP DATABASE", "RESTORE DATABASE"):
