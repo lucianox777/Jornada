@@ -33,6 +33,10 @@ BEGIN
    THROW 52242,'Peso diário inválido.',1;
  IF NOT EXISTS(SELECT 1 FROM OPENJSON(@json,'$.rows'))
    THROW 52246,'Distribuição sem linhas.',1;
+ IF EXISTS(SELECT 1 FROM OPENJSON(@json,'$.rows')
+   WHERE TRY_CONVERT(DATE,JSON_VALUE(value,'$.date'),23) IS NULL
+     OR TRY_CONVERT(BIGINT,JSON_VALUE(value,'$.births')) IS NULL)
+   THROW 52247,'Linha demográfica com data ou peso inválido.',1;
  IF (SELECT COUNT_BIG(*) FROM @rows)<>@linhas_esperadas
    OR (SELECT SUM(peso) FROM @rows)<>@peso_total_esperado
    THROW 52243,'Distribuição divergente do manifesto.',1;
