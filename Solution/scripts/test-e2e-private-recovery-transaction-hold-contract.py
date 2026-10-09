@@ -23,8 +23,8 @@ def main():
     assert text.count("WAITFOR DELAY") == 2
     # Silver persistence uses INSERT ... OUTPUT INSERTED without INTO; an
     # AFTER INSERT trigger ON Silver would break the SQL Server statement.
-    assert "ON identidade.vinculo_fonte\\nAFTER INSERT" in text
-    assert "ON silver.pessoa_observacao\\nAFTER INSERT" not in text
+    assert "ON identidade.vinculo_fonte\nAFTER INSERT" in text
+    assert "ON silver.pessoa_observacao\nAFTER INSERT" not in text
     executable = "\n".join(line for line in text.splitlines()
                            if not line.lstrip().startswith("--"))
     for dangerous in ("JornadaLocal", "DROP DATABASE", "RESTORE DATABASE",
