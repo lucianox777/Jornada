@@ -1,90 +1,94 @@
-# DT-19 — ações e layout da Console DEV para workers
+# DT-19 — interface mínima de controle dos workers (Console DEV)
 
-**Última decisão do responsável — 08/10/2026 (DEV).** Este documento
-substitui as propostas anteriores de botão individual `Iniciar contínuo`,
-`Desligar processo` e toggle por worker. **Implementação e aceite pendentes**:
-a decisão registrada não significa que a interface já exista.
+**Revisão de 08/10/2026:** proposta de simplificação aceita como desenho
+desta frente. Estado: **DECISÃO DOCUMENTADA, IMPLEMENTAÇÃO PENDENTE**.
+A revisão elimina o botão `Status do processo` e usa o log que
+já existe na Console, sem eliminar a necessidade de consulta real de
+estado no backend.
 
-## Interface aprovada
+## Interface desejada
 
-Um **único controle global** `Supervisão automática: DESATIVADA / ATIVADA`
-para os três executáveis `Jornada.Processor.Worker`,
-`Jornada.Operations.Maintenance.Worker` e
-`Jornada.Bronze.Maintenance.Worker`. O ambiente DEV isolado novo
-inicia com supervisão DESATIVADA e modo RunOnce.
+**UM controle global** `Supervisão automática: DESATIVADA / ATIVADA`
+para os três workers: Processor, Operations Maintenance e Bronze
+Maintenance. Inicia OFF no **novo perfil DEV descartável**.
 
-Os botões de cada worker são **somente três, empilhados VERTICALMENTE**:
+**Cada worker mantém os botões verticalmente empilhados:**
 
 ```text
-SUPERVISÃO AUTOMÁTICA: [ DESATIVADA | ATIVADA ]  (ÚNICO controle global)
+SUPERVISÃO AUTOMÁTICA:  [ DESATIVADA | ATIVADA ]   (global)
 
-Processor Worker                           ● STATUS REAL
+Processor Worker         ● ATIVO   PID 123  (indicador automático)
 [ ▶ Executar uma vez ]
 [ ■ Parar processo ]
-[ ▤ Status do processo ]
 
-Operations Maintenance Worker              ● STATUS REAL
+Operations Maintenance   ○ PARADO  (indicador automático)
 [ ▶ Executar uma vez ]
 [ ■ Parar processo ]
-[ ▤ Status do processo ]
 
-Bronze Maintenance Worker                  ● STATUS REAL
+Bronze Maintenance       ↻ REINICIANDO  (indicador automático)
 [ ▶ Executar uma vez ]
 [ ■ Parar processo ]
-[ ▤ Status do processo ]
+
+[ 📋 Log da sessão ]      (já existe no cabeçalho da Console)
 ```
 
-**Não criar botão `Iniciar contínuo` nem `Desligar processo`.** A
-transição do supervisor global para ON **já inicia automaticamente
-os três processos contínuos**. O rótulo aprovado para a ação de
-interrupção abrupta é **`Parar processo`**. Não criar alternativas
-`Matar processo`, `Simular falha` ou `Parar contínuo`.
+**NÃO CRIAR** botões `Status do processo`, `Iniciar processo`,
+`Iniciar contínuo`, `Desligar processo`, `Matar processo`,
+`Simular falha` ou `Parar contínuo`. O único start contínuo é
+a transição ON do supervisor global.
 
-## Regra de habilitação
+## Habilitação
 
-| Ação | Supervisão OFF — RunOnce | Supervisão ON — contínuo |
+| Controle | Supervisor OFF (padrão) | Supervisor ON |
 |---|---|---|
-| **Executar uma vez** | Habilitado nos 3 workers, conforme pré-requisitos/concorrência já existentes. Mantém comportamento e testes anteriores. | Desabilitado em UI e recusado no backend. |
-| **Parar processo** | Desabilitado sem processo a parar; durante transição OFF→ON, RunOnce ativos são interrompidos com confirmação prévia. | **Habilitado SOMENTE se o respectivo processo contínuo estiver realmente ativo, PID vivo verificado**. Encerra abruptamente aquele PID; supervisor reinicia apenas esse worker. Enquanto reiniciando/inativo fica desabilitado. |
-| **Status do processo** | Habilitado, consulta RunOnce, PID/saída e supervisor OFF. | Habilitado, consulta PID, uptime, heartbeat, reinícios e estados de recuperação reais. |
+| **Executar uma vez (RunOnce)** | Habilitado para os três workers sujeitos aos pré-requisitos reais e exclusão de execução já em andamento. | Desabilitado no navegador e **rejeitado também no backend**. |
+| **Parar processo** | Desabilitado sem residente; RunOnce ativos são encerrados **somente na troca de modo** com confirmação explícita. | Habilitado **somente quando o PID real daquele trabalhador está vivo**. SIGKILL nele; supervisor reinicia automaticamente **apenas esse worker**. Durante reinício, desabilitado. |
+| **Indicador automático de estado** | PARADO ou RUN_ONCE (quando finito ativo). | INICIANDO/ATIVO/REINICIANDO/RECUPERANDO/ERRO conforme evidência. |
 
-A habilitação de `Parar processo` no modo ON também indica visualmente
-que **aquele processo realmente subiu**. Esta indicação não substitui
-o status real: PID por si só não prova heartbeat saudável nem trabalho
-recuperado.
+Mostrar, sem clique, estado compacto (`ATIVO`, `PARADO`,
+`REINICIANDO`, `ERRO`) e opcionalmente PID/último heartbeat.
+O estado precisa ser **consultado periodicamente no backend** por
+observação real do processo e heartbeat. A habilitação de `Parar
+processo` ajuda a indicar que o processo subiu, mas não prova
+saúde ou recuperação de dados.
 
-## Dois níveis de recuperação (não confundir)
+## Aproveitamento do log existente — NÃO do log como status real
 
-1. **Supervisor externo:** quando ON e o operador pressiona
-   `Parar processo`, encerrar **imediatamente** somente o PID
-   escolhido (falha injetada, sem shutdown gracioso); o supervisor
-   observa a morte e inicia outra instância **apenas daquele worker**.
-   O estado passa por `PARANDO` / `REINICIANDO` / `ATIVO`.
-2. **Worker reiniciado:** recupera **seu próprio processamento** por
-   mecanismos existentes de leases, heartbeat, reaquisição/fencing,
-   transações e idempotência. A conclusão da recuperação de lotes
-   depende de prova operacional; reinício do PID não garante
-   recuperação instantânea nem que o lease já expirou.
+A Console já oferece `Log da sessão`, histórico de execuções e
+saída de terminal. Reutilizar esta interface, incluindo por worker
+eventos estruturados de:
+- ativação/desativação do supervisor e mudanças de modo;
+- término de RunOnce, PID morto, PID novo e contagem de reinícios;
+- última saída, erros, heartbeat/alertas e evidências de recuperação
+  quando disponíveis; distinguir **EXECUTÁVEL REINICIADO** de
+  **TRABALHO RECUPERADO**.
 
-**Não** reiniciar NODE, API, Resultado, SQL ou os outros workers.
-Quando a supervisão é desligada globalmente, o próprio controlador
-desabilita reinícios e encerra os três residentes; o botão individual
-`Parar processo` não é a forma de desligar permanentemente um worker.
+**Limite encontrado no código:** o log existente é de **sessão da
+Console**, não é atualmente fonte durável de processos de longa
+duração; eventos do supervisor que ocorram sem Console ativa devem
+ser recuperados de logs/estado do gerenciador externo. Não inferir
+liveness apenas do último log. Um backend read-only de status
+continua **necessário internamente**, embora **não exista botão
+Status** no frontend.
 
-## Preservação e segurança
+## Preservação
 
-Preservar intactos comandos, limites, códigos de saída e suítes RunOnce
-da Console. Adicionar cobertura nova para supervisão e recovery, sem
-considerar o teste histórico como prova de execução contínua.
-
-As mudanças de modo são atômicas no backend: verificação isolada de PID
-é insuficiente contra cliques simultâneos. UI lê estado efetivo, nunca
-força OFF cosmético ao recarregar. Permitir apenas workers conhecidos
-e ambiente DEV/`JornadaE2E` **descartável e isolado**.
+- Preservar rotinas, comandos, códigos de saída e testes RunOnce
+  existentes. Já há **RunOnce do Processor/Silver** na Console.
+- Os dois **executáveis** de manutenção aceitam modo RunOnce, mas o
+  catálogo da Console atual **não possui botões RunOnce individuais**
+  de Operations Maintenance e Bronze Maintenance; será preciso
+  expô-los para cumprir a regra de três RunOnce habilitados em OFF.
+  Não declarar que estes botões já foram implementados.
+- Novos recursos limitados a botão global, `Parar processo`,
+  indicadores simples, ligação RunOnce ausente e integração no log.
+  Controles ficam verticalmente empilhados, sem ações redundantes.
+- Isolar transições sob lock atômico; evitar RunOnce e contínuo
+  simultâneos e nunca parar NODE, APIs ou outros trabalhadores.
 
 Ver [DT-18](DT18_Servicos_Independentes_Console_DEV.md),
 [DT-20](DT20_Supervisao_Opt_In_Workers.md) e
 [DT-21](DT21_Testes_Resiliencia_Workers.md).
 
-**Não tocar JornadaLocal, IBGE original, HML/PROD, volumes comuns
-ou Trilha 4/reprocessamento de RESOLVIDOS.**
+**Proibições:** JornadaLocal, IBGE original, HML/PROD, volumes
+compartilhados, Trilha 4 e reprocessamento automático de RESOLVIDOS.
