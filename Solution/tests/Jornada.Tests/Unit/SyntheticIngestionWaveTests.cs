@@ -65,9 +65,9 @@ public sealed class SyntheticIngestionWaveTests
     [Test]
     public void Aggregate_waves_manifest_rejects_mismatched_wave_count()
     {
-        Assert.Throws<ArgumentException>(() => SyntheticWaveManifestSerializer.Serialize(
+        Assert.Throws<ArgumentException>((Action)(() => SyntheticWaveManifestSerializer.Serialize(
             42, new string('E', 64), new string('F', 64), 0, 0,
-            new SyntheticWaveScenario(WaveCount: 3), new object[] { new { wave = 1 } }));
+            new SyntheticWaveScenario(WaveCount: 3), new object[] { new { wave = 1 } })));
     }
 
     [Test]
@@ -207,25 +207,25 @@ public sealed class SyntheticIngestionWaveTests
         {
             Observations = source.Observations.Take(2).ToArray()
         };
-        var error = Assert.Throws<InvalidDataException>(() =>
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
             SyntheticIngestionBridge.Build(duplicate,
                 new SyntheticIngestionBridgeOptions(ContractVersions.CurrentPersonSchemaVersion, DayOne,
                     "unit-test-pseudonymization-key-32-bytes",
-                    StableSourceIdentity: true, WaveNumber: 0)));
+                    StableSourceIdentity: true, WaveNumber: 0))));
         Assert.That(error!.Message, Does.Contain("Identificador-fonte repetido"));
     }
 
     [Test]
     public void Wave_number_and_rates_must_be_valid()
     {
-        Assert.Throws<ArgumentException>(() =>
+        Assert.Throws<ArgumentException>((Action)(() =>
             new SyntheticIngestionBridgeOptions(ContractVersions.CurrentPersonSchemaVersion, DayOne,
                 "unit-test-pseudonymization-key-32-bytes",
-                StableSourceIdentity: true).Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new SyntheticWaveScenario(CpfRevealProbability: double.NaN).Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new SyntheticWaveScenario(WaveCount: 1).Validate());
+                StableSourceIdentity: true).Validate()));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
+            new SyntheticWaveScenario(CpfRevealProbability: double.NaN).Validate()));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
+            new SyntheticWaveScenario(WaveCount: 1).Validate()));
     }
 
     private static SyntheticIngestionBridgeResult Build(SyntheticIngestionWave wave)

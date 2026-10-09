@@ -100,13 +100,13 @@ public sealed class SyntheticIngestionBridgeTests
     public void Bridge_rejects_non_active_Pessoa_schema_version()
     {
         var generation = FixtureGeneration();
-        var error = Assert.Throws<ArgumentOutOfRangeException>(() =>
+        var error = Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
             SyntheticIngestionBridge.Build(
                 generation,
                 new SyntheticIngestionBridgeOptions(
                     5,
                     ReferenceDate,
-                    "unit-test-pseudonymization-key-32-bytes")));
+                    "unit-test-pseudonymization-key-32-bytes"))));
 
         Assert.That(error!.Message, Does.Contain("contrato Pessoa corrente"));
     }
@@ -214,13 +214,13 @@ public sealed class SyntheticIngestionBridgeTests
             source.EmpiricalMExact,
             source.Options);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
             SyntheticIngestionBridge.Build(
                 generation,
                 new SyntheticIngestionBridgeOptions(
                     ContractVersions.CurrentPersonSchemaVersion,
                     ReferenceDate,
-                    "unit-test-pseudonymization-key-32-bytes")));
+                    "unit-test-pseudonymization-key-32-bytes"))));
 
         Assert.That(error!.Message, Does.Contain("Sem rota de ingestão"));
     }
@@ -294,7 +294,7 @@ public sealed class SyntheticIngestionBridgeTests
         var validator = JsonSchemaSubsetValidator.Load(schema);
         var lines = jsonl.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         for (var i = 0; i < lines.Length; i++)
-            Assert.DoesNotThrow(() => validator.ParseAndValidate(lines[i], "pessoas.jsonl", i + 1));
+            Assert.DoesNotThrow((Action)(() => validator.ParseAndValidate(lines[i], "pessoas.jsonl", i + 1)));
     }
 
     private static string ReadEntry(ZipArchive zip, string name)
