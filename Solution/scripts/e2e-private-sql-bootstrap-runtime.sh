@@ -182,6 +182,10 @@ python3 scripts/e2e-console-supervisor-three-runonce.py
 # client; ON must remain blocked until finite exit and --rm verified.
 python3 scripts/e2e-console-runonce-disconnect-proof.py
 
+# C3.3c: reject stale/foreign identities; stop only one private resident.
+# Runs LAST because it intentionally leaves Processor stopped.
+python3 scripts/e2e-console-worker-stop-proof.py
+
 python3 - "$OUT/summary.json" "$PROJECT" "$before" <<'PY'
 import json, pathlib, sys
 output, project, seed_count = sys.argv[1:]

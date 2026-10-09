@@ -234,6 +234,35 @@ app.MapPost("/api/workers/{worker}/run-once",async(
     }
 });
 
+// C3.3c: confirmed resident lifecycle, loopback and disposable CI only.
+app.MapPost("/api/workers/{worker}/stop", async(
+    string worker, IsolatedWorkerStopRequest request, HttpContext context,
+    ConsoleRuntimeMode runtime, IsolatedWorkerSupervisorStatusReader reader,
+    IsolatedWorkerSupervisorModeController controller, CancellationToken ct) =>
+{
+    if (!reader.Enabled(runtime)
+        || context.Connection.RemoteIpAddress is not { } remote
+        || !System.Net.IPAddress.IsLoopback(remote))
+        return Results.Conflict(new { error = "Operação restrita ao CI DEV isolado." });
+    try
+    {
+        return Results.Ok(await controller.StopResidentAsync(
+            worker, request.ContainerId, request.HostPid, request.Confirmed, runtime, ct));
+    }
+    catch (InvalidOperationException)
+    {
+        return Results.Conflict(new { error = "Identidade, confirmação ou estado não comprovado." });
+    }
+    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+    {
+        return Results.StatusCode(StatusCodes.Status408RequestTimeout);
+    }
+    catch (Exception)
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+});
+
 app.MapPost("/api/session-counts/reset",([FromBody] string[] commands,RunStore store)=>
     Results.Ok(new{reset=store.ResetExecutionCounts(commands)}));
 
@@ -402,3 +431,5 @@ static IResult ServeArtifact(string path,IWebHostEnvironment env,bool html)
 }
 
 app.Run();
+
+sealed record IsolatedWorkerStopRequest(string ContainerId, int HostPid, bool Confirmed);
