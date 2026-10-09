@@ -1,81 +1,89 @@
-# DT-20 — supervisor global como seletor de modo da Console DEV
+# DT-20 — supervisor GLOBAL, modo RunOnce versus processos contínuos
 
-**Decisão atualizada em 08/10/2026, após discussão com o operador.**
-A semântica global abaixo **substitui a proposta anterior de toggles
-por worker e de supervisão que alteraria apenas a política de restart**.
-Estado: **PENDENTE DE IMPLEMENTAÇÃO E TESTES**.
+**Decisão refinada em 08/10/2026 pelo operador.** Estado
+**PENDENTE**: esta especificação não alega implementação/aceite.
+Prevalece sobre versões anteriores do toggle por worker ou sem
+botões de processo contínuo.
 
-## Controle único do conjunto de workers
+## Comportamento do supervisor
 
-Um único controle visível, inicializado como **DESATIVADO no perfil DEV
-descartável ainda não iniciado**:
+Um único toggle global `Supervisão: DESATIVADA / ATIVADA` controla
+os três workers independentes (Processor, Operations Maintenance,
+Bronze Maintenance). Ele inicia em **DESATIVADA** no novo ambiente
+DEV `JornadaE2E` descartável.
 
-**Supervisão: DESATIVADA (modo RunOnce) / ATIVADA (modo contínuo)**
+### OFF — RunOnce
 
-Controla conjuntamente **Processor**, **Operations Maintenance** e
-**Bronze Maintenance**. Cada worker continua sendo processo/serviço
-independente, supervisionado separadamente quando o modo está ON.
-A independência impede que uma falha do Processor reinicie a API, os
-demais workers ou o NODE. O controle global não mata nem inicia
-`Jornada.Api`, `Jornada.Resultado.Api`, SQL nem serviços auxiliares.
+- **Todos os botões `Executar uma vez` habilitados** nos três
+  workers, sujeitos aos pré-requisitos reais do comando.
+- Nenhum dos três processos residentes contínuos gerenciados fica
+  ativo. `Iniciar contínuo` e `Desligar processo` ficam
+  desabilitados. `Status do processo` continua disponível.
+- O fluxo e os testes RunOnce existentes permanecem intactos.
 
-## Matriz operacional aprovada
+### OFF → ON — supervisor ativado
 
-| Evento / estado | Supervisão DESATIVADA | Supervisão ATIVADA |
-|---|---|---|
-| Execução normal | Nenhum residente da Console, **RunOnce habilitado** nos três cartões. | **Os três residentes iniciados automaticamente**, e RunOnce desabilitado nos três cartões. |
-| Clique no controle global | OFF → ON: parar **todos os processos dos três workers**, impedir novos RunOnce, habilitar supervisão e iniciar **os três** continuamente. | ON → OFF: desligar a política de restart **antes** de parar os três residentes; habilitar RunOnce após confirmar os encerramentos. |
-| `Parar processo` no cartão | Mata apenas o RunOnce daquele worker, se estiver executando; sem restart. | Mata apenas o residente daquele worker, que deve ser reiniciado automaticamente. |
-| `Status do processo` | Exibe processo finito/último RunOnce e modo efetivo OFF. | Exibe residente/heartbeat/restarts e modo efetivo ON. |
-| Abriu/recarregou a página | Ler modo **efetivo** do backend. Um primeiro ambiente descartável inicia OFF. | Ler modo **efetivo** do backend; recarga não pode forçar OFF nem reiniciar os três. |
+1. Bloquear imediatamente novos RunOnce **na UI e no backend**.
+2. Localizar todas as instâncias ativas de RunOnce dos três workers,
+   informar quais serão interrompidas e exigir confirmação explícita
+   caso existam.
+3. **Matar/encerrar esses RunOnce** antes de iniciar residentes e
+   confirmar ausência. Não matar processos API, Resultado, SQL,
+   serviço de outro perfil nem contêiner NODE inteiro.
+4. Habilitar política de reinício **independente por worker** e
+   iniciar **automaticamente os três processos contínuos**.
+5. Liberar os controles de modo contínuo nos cartões dos três
+   workers. `Iniciar contínuo` fica habilitável somente se algum
+   serviço estiver efetivamente parado; `Desligar processo` fica
+   **habilitado somente depois que o respectivo processo subir**,
+   tendo PID/estado verificado. A habilitação de Desligar funciona
+   como indicação visual complementar de execução.
+6. Só marcar supervisor `ATIVADA / OPERACIONAL` após confirmar a
+   subida dos três. Falha parcial = `ERRO`, não sucesso.
 
-A transição ON inicia o trabalho contínuo por ação do operador:
-**não existe botão separado `Iniciar contínuo` por worker**. O modo
-OFF permite iniciar RunOnce individualmente. Alternar ON com algum
-RunOnce ainda ativo exige confirmação explícita para interrompê-lo
-abruptamente; a ação deve informar quais processos serão atingidos.
+### ON — supervisão contínua
 
-## Máquina de estados e atomicidade
+- `Executar uma vez` permanece desabilitado nos três cartões.
+- Cada worker tem seu processo independente. `Desligar processo`
+  encerra **imediatamente apenas aquele processo** (falha injetada,
+  sem parada graciosa); o supervisor reinicia **só ele**.
+  Durante reinício, Desligar fica desabilitado e o status informa
+  INICIANDO/RECUPERANDO.
+- `Iniciar contínuo` pode ser usado se houver instância ausente
+  que não esteja reiniciando e cujo estado permita intervenção;
+  cliques repetidos não duplicam instância.
+- `Status do processo` consulta PID real, uptime, heartbeat,
+  reinícios, última falha e sinais de recuperação, sem inventar
+  contagens de lotes para outros workers.
 
-Estados mínimos: `RUN_ONCE`, `ATIVANDO_CONTINUO`,
-`CONTINUO`, `DESATIVANDO_CONTINUO`, `ERRO`.
-O backend deve bloquear operações incompatíveis durante as transições,
-serializar mudanças simultâneas e reportar **estado real por worker**.
-A UI não declara CONTINUO até os três residentes atingirem o critério
-de saúde verificável; se um falhar, apresentar `ERRO`, nunca falso
-verde ou habilitar ambos os modos ao mesmo tempo.
+### ON → OFF — supervisor desativado
 
-**ON:** bloquear RunOnce → desabilitar restart para neutralizar
-instâncias antigas → encerrar workers existentes identificados
-→ configurar restart por worker → iniciar os três → verificar que
-estão ativos e monitorados. Não derrubar instâncias fora do ambiente
-descartável. Em caso de falha parcial, manter interface fail-closed e
-exigir reconciliação segura (sem apagar estado do banco).
+1. Bloquear ações concorrentes e **desarmar primeiro** as três
+   políticas de reinício.
+2. Encerrar os três workers residentes e confirmar que não subiram
+   novamente.
+3. Desabilitar botões contínuos e reabilitar `Executar uma vez`
+   para os três. `Status do processo` permanece disponível.
 
-**OFF:** bloquear novos inícios contínuos → desabilitar restart dos
-três → encerrar instâncias residentes → confirmar ausência dos três
-→ habilitar RunOnce. O modo OFF não é só uma alteração cosmética
-de política: encerra efetivamente a execução contínua.
+## Princípios de implementação
 
-Um `RunOnce` nunca passa para o pool de supervisão nem sofre restart
-automático após saída normal ou falha.
+**O toggle é global, mas a supervisão/restart é individual.** O
+gerenciador externo (Docker/serviço) cuida da retomada do executável;
+o próprio worker cuida de trabalho, leases, heartbeat e idempotência.
+A Console não se torna um novo supervisor de processos.
 
-## Limites
+Estado efetivo é consultado no backend ao abrir/recarregar a página:
+se a Console reiniciar e os serviços estiverem ON, não apresentar
+OFF falso. Guardas atômicas impedem RunOnce em ON, start contínuo
+em OFF, duplicação por cliques e transições simultâneas. Estado
+intermediário/falha parcial é explícito e **não** libera os dois
+modos em paralelo.
 
-A política é aplicada pelo gerenciador externo dos **três serviços
-allowlisted**, mas acionada por um único comando da Console. O
-backend recebe somente valores enumerados e não expõe shell ou
-Docker socket ao navegador. Estado inicial OFF é garantido pelo
-perfil descartável, **não** inferido de aparência padrão da página.
+`Desligar processo` no modo ON é a ação de falha/recuperação
+anteriormente chamada `Parar processo`; **não é desativação
+administrativa permanente**. Para parar normalmente todos os três
+residentes e voltar ao modo manual, desligar supervisor global.
 
-Nenhuma ação executará sobre `JornadaLocal`, IBGE original,
-volumes compartilhados, HML/PROD ou outros processos do usuário.
-Trilha 4 continua suspensa.
-
-## Aceite
-
-Validar a máquina de estados OFF → ON → OFF, morte e reinício isolado
-sob ON, ausência de restart sob OFF, corrida de toggles e reinício da
-própria Console, com evidência real em `JornadaE2E`. Ver
-[DT-19](DT19_Console_Acoes_Workers.md) e
-[DT-21](DT21_Testes_Resiliencia_Workers.md).
+Somente no perfil DEV `JornadaE2E` descartável, com allowlist
+de processos e validação de ambiente/recurso. Proibido atingir
+`JornadaLocal`, IBGE original, HML/PROD ou Trilha 4.
