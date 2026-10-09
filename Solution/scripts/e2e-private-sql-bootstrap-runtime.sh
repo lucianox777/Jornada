@@ -163,6 +163,11 @@ python3 scripts/e2e-private-recovery-runtime.py
 # SIGKILL/restart/real rollback recovery without losing the APIs.
 python3 scripts/e2e-console-worker-supervisor-status.py ON
 
+# C3.3b1: ON→OFF→ON only through the loopback Console backend using the
+# existing private Compose image/network. OFF DISARMS restart before stop;
+# ON recreates only the three workers, SQL/2 APIs keep their PIDs.
+python3 scripts/e2e-console-supervisor-global-toggle.py
+
 python3 - "$OUT/summary.json" "$PROJECT" "$before" <<'PY'
 import json, pathlib, sys
 output, project, seed_count = sys.argv[1:]
@@ -175,7 +180,8 @@ pathlib.Path(output).write_text(json.dumps({
   'resultado_to_api_private_dns':'PASS', 'initial_off_worker_residents':0,
   'subsequent_synthetic_ingestion_baseline':'PASS',
   'real_crash_recovery_and_fencing':'PASS',
-  'processing_recovery_verified':True
+  'processing_recovery_verified':True,
+  'real_console_global_on_off_on':'PASS'
 }, indent=2) + '\n', encoding='utf-8')
 PY
 echo 'C3.2d SQL-only operational gate: PASS'

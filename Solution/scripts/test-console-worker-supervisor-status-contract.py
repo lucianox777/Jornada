@@ -65,8 +65,9 @@ def main() -> None:
     assert 'mode="ERRO",toggleAvailable=false' in api
     assert 'Status503ServiceUnavailable' in api
     assert 'response.Headers.CacheControl="no-store"' in api
-    assert 'app.MapPost("/api/workers/supervisor"' not in api
-    assert not re.search(r'app\.Map(?:Put|Delete|Post)\("/api/workers/', api)
+    # Reader itself is read-only; C3.3b1 adds separate guarded POST.\n    assert 'app.MapPost("/api/workers/supervisor"' in api\n    assert 'System.Net.IPAddress.IsLoopback(remote)' in api
+    assert 'app.MapPut("/api/workers/' not in api
+    assert 'app.MapDelete("/api/workers/' not in api
     e2e = E2E.read_text(encoding="utf-8")
     compile(e2e, str(E2E), "exec")
     assert 'proc.terminate()' in e2e and 'proc.kill()' in e2e
