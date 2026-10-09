@@ -19,9 +19,9 @@ aceite de ingestão (#837, #839, #840). As quatro DTs abaixo
 | Nova DT | Decisão aprovada | Estado / gate |
 |---|---|---|
 | [DT-18](DT18_Servicos_Independentes_Console_DEV.md) | Workers são serviços/processos independentes, sem cascata de reinício do NODE. | **PENDENTE** — prova de isolamento de processos em CI descartável. |
-| [DT-19](DT19_Console_Acoes_Workers.md) | Quatro ações empilhadas por worker: Executar uma vez (OFF), Iniciar contínuo (ON), Desligar processo (kill/restart; habilitado só com PID vivo) e Status do processo (sempre). | **PENDENTE** — manter RunOnce e acrescentar interface/API/Chromium, sem rewrite. |
-| [DT-20](DT20_Supervisao_Opt_In_Workers.md) | **Toggle global** OFF inicial habilita RunOnce; ON mata RunOnce ativos, inicia automaticamente três contínuos e só libera Desligar do worker com PID efetivo; OFF retorna ao RunOnce. | **PENDENTE** — transição atômica e prova de status real. |
-| [DT-21](DT21_Testes_Resiliencia_Workers.md) | **Preservar os testes RunOnce existentes**; adicionar Chromium/E2E de layout vertical, transição OFF→ON→OFF, PID para Desligar, heartbeat, leases e recuperação. | **PENDENTE** — SQL exclusivamente `JornadaE2E`, sem falso sucesso. |
+| [DT-19](DT19_Console_Acoes_Workers.md) | **Três botões empilhados** por worker: Executar uma vez (OFF), Parar processo (ON e PID realmente ativo), Status (sempre). **Sem Iniciar contínuo:** supervisor global inicia os 3. | **PENDENTE** — manter RunOnce e acrescentar interface/API/Chromium, sem reescrever a suíte existente. |
+| [DT-20](DT20_Supervisao_Opt_In_Workers.md) | **Toggle global:** OFF inicial = RunOnce; ON mata RunOnce ativos e inicia 3 residentes. Parar processo injeta falha; supervisor reinicia automaticamente somente o worker morto e o próprio worker recupera trabalho por lease/heartbeat. | **PENDENTE** — transição atômica, PID, restart e recuperação comprovados. |
+| [DT-21](DT21_Testes_Resiliencia_Workers.md) | **Preservar testes RunOnce**; adicionar Chromium/E2E OFF→ON→OFF, 3 ações verticais, Parar processo por PID, restart individual sem clique e recuperação de lease/lote sem duplicar. | **PENDENTE** — SQL exclusivamente `JornadaE2E`, sem falso sucesso. |
 
 A sequência operacional C3.1–C3.4 está em
 [Plano Console Workers](Plano_Console_Workers_Independentes_2026-10-08.md).
