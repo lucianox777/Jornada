@@ -53,8 +53,8 @@ def main() -> int:
     require(default.returncode == 0,
             "Disposable Compose OFF mode failed config validation: " + default.stderr[:500])
     default_cfg = json.loads(default.stdout)
-    require(set(default_cfg.get("services", {})) == {"sqlserver"},
-            "Default supervisor OFF must never start or declare resident workers")
+    require(set(default_cfg.get("services", {})) == {"sqlserver", "api", "resultado-api"},
+            "Default supervisor OFF must keep both APIs alive but no resident workers")
 
     # Compose's default `config` excludes profile-gated services. Activate
     # the profile explicitly to inspect all three independently supervised
@@ -66,14 +66,49 @@ def main() -> int:
 
     require(cfg.get("name") == PROJECT, "Compose did not retain isolated project name")
     services = cfg.get("services", {})
-    require(set(services) == set(WORKERS) | {"sqlserver"},
-            "Unexpected services or missing one of the 3 independent workers")
+    require(set(services) == set(WORKERS) | {"sqlserver", "api", "resultado-api"},
+            "Unexpected services or missing isolated API/ResultadoApi/worker")
     db = services["sqlserver"]
     require(db.get("restart") == "no", "SQL service must not auto-start workers")
     require(not db.get("ports") and not db.get("container_name"),
             "Sandbox SQL must expose no host port/fixed container name")
     require(db.get("environment", {}).get("MSSQL_SA_PASSWORD") == sql_secret,
             "SQL service secret not separately scoped")
+
+    # API/ResultadoApi are independently supervised, not in the continuous
+    # profile. Workers may be killed without stopping or restarting the APIs.
+    for name, arg, node, port in (
+        ("api", "Api", "NODE1", "5080"),
+        ("resultado-api", "ResultadoApi", "NODE2", "5081"),
+    ):
+        svc = services[name]
+        require(not svc.get("profiles"), f"{name}: must stay alive in OFF")
+        require(svc.get("restart") == "unless-stopped",
+                f"{name}: needs its own restart policy")
+        require(svc.get("entrypoint") == ["/usr/local/bin/jornada-api-entrypoint"],
+                f"{name}: must not use collective NODE entrypoint")
+        require(svc.get("command") == [arg], f"{name}: invalid allowlisted API")
+        require(not svc.get("ports") and not svc.get("container_name")
+                and not svc.get("pid") and not svc.get("privileged")
+                and not svc.get("network_mode"),
+                f"{name}: shared process/host namespace or port detected")
+        api_env = svc.get("environment", {})
+        require(api_env.get("JORNADA_WORKER_ISOLATED_PROFILE") == "true"
+                and api_env.get("JORNADA_RUNTIME_MODE") == "DEV"
+                and api_env.get("JORNADA_E2E_SQL_DATABASE") == "JornadaE2E"
+                and api_env.get("JORNADA_SQL_DATABASE_OVERRIDE") == "JornadaE2E"
+                and api_env.get("JORNADA_NODE_ID") == node
+                and api_env.get("ASPNETCORE_URLS") == f"http://0.0.0.0:{port}",
+                f"{name}: incorrect DEV-only API guard or internal listener")
+        require("Server=sqlserver,1433;Database=JornadaE2E;" in
+                api_env.get("ConnectionStrings__Jornada", ""),
+                f"{name}: points outside the private E2E SQL service")
+        require(svc.get("healthcheck", {}).get("test"),
+                f"{name}: must expose liveness healthcheck")
+    require(services["resultado-api"]["environment"].get("JornadaApiBaseUrl")
+            == "http://api:5080", "ResultadoApi must call the internal API")
+    require(set(services["resultado-api"].get("depends_on", {}))
+            == {"sqlserver", "api"}, "ResultadoApi service dependency drift")
 
     for name, arg in WORKERS.items():
         svc = services[name]
@@ -115,8 +150,8 @@ def main() -> int:
     for net in cfg.get("networks", {}).values():
         require(net.get("external") is not True,
                 "External network not allowed in disposable Compose")
-    print("WORKER DISPOSABLE COMPOSE: PASS (dry-run config only, 3 isolated workers, "
-          "default OFF, dedicated SQL/volumes/network; nothing started)")
+    print("WORKER DISPOSABLE COMPOSE: PASS (dry-run config only, 2 independent APIs + "
+          "3 independent workers, default OFF, dedicated SQL/volumes/network; nothing started)")
     return 0
 
 
