@@ -22,15 +22,15 @@ public sealed class SyntheticStratifiedEvaluationTests
 
         var report = SyntheticStratifiedEvaluator.Evaluate(cases);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.PopulationCases, Is.EqualTo(4));
             Assert.That(report.ReservedChallengeCases, Is.Zero);
             Assert.That(report.PopulationByStratum, Has.Count.EqualTo(3));
-        });
+        }));
 
         var train = report.PopulationByStratum.Single(x => x.Partition == "TRAIN");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(train.Wave, Is.EqualTo(1));
             Assert.That(train.CpfStratum, Is.EqualTo("CPF_ABSENT"));
@@ -44,7 +44,7 @@ public sealed class SyntheticStratifiedEvaluationTests
             Assert.That(train.Rates.PrecisionPpv, Is.EqualTo(1m));
             Assert.That(train.Rates.DecisionRecall, Is.EqualTo(0.5m));
             Assert.That(train.Rates.Coverage, Is.EqualTo(0.5m));
-        });
+        }));
         Assert.DoesNotThrow(() => SyntheticStratifiedMetricConference.Confer(cases, report));
     }
 
@@ -71,13 +71,13 @@ public sealed class SyntheticStratifiedEvaluationTests
 
         var report = SyntheticStratifiedEvaluator.Evaluate(cases);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.PopulationCases, Is.EqualTo(1));
             Assert.That(report.ReservedChallengeCases, Is.EqualTo(4));
             Assert.That(report.PopulationByStratum.Sum(x => x.Counts.Cases), Is.EqualTo(1));
             Assert.That(report.ChallengeByStratum.Sum(x => x.Counts.Cases), Is.EqualTo(4));
-        });
+        }));
         Assert.DoesNotThrow(() => SyntheticStratifiedMetricConference.Confer(cases, report));
     }
 
@@ -153,13 +153,13 @@ public sealed class SyntheticStratifiedEvaluationTests
         var report = SyntheticStratifiedEvaluator.Evaluate(cases);
         var slice = report.PopulationByStratum.Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(slice.Rates.BlockingRecall, Is.Null);
             Assert.That(slice.Rates.PrecisionPpv, Is.Null);
             Assert.That(slice.Rates.DecisionRecall, Is.Null);
             Assert.That(slice.Rates.Coverage, Is.Zero);
-        });
+        }));
         Assert.DoesNotThrow(() => SyntheticStratifiedMetricConference.Confer(cases, report));
     }
 
