@@ -201,3 +201,15 @@ A revisão das migrações `20260912_Frequencia_Nomes_Referencia.sql` e `2026091
 ### Gate de conferência contra snapshot mutado — verificado em SQL (09/10/2026)
 
 `database/migrations/20260920_Linkage_Implementation_Conference_Evidence.sql` já define `auditoria.sp_assert_conferencia_linkage_conforme`: exige última evidência `CONFORME` para método/tolerância, gates primários consistentes, modelo na versão e estado esperados e **recalcula** `auditoria.sp_calcular_fingerprint_modelo_linkage`; quando o hash difere da evidência, lança erro `51989`. `20260920_Linkage_Conference_Command_Governance.sql` mantém registro governado. Portanto **há proteção existente contra reutilização de evidência de conferência após alteração do snapshot**. Falta verificar em teste de integração os pontos de chamada desse assert em todas as transições de publicação, inclusive estados posteriores, e garantir que fontes demográficas estejam incluídas no snapshot; não criar um segundo verificador paralelo.
+
+
+### Política DEV v1: testes atuais e preservação histórica de branches (09/10/2026)
+
+Durante o desenvolvimento da primeira versão, **retrocompatibilidade com implementações anteriores não é gate prioritário**. A suíte de testes deve priorizar comportamento vigente, invariantes de identidade, regressão funcional, integração, E2E, reprodutibilidade e evidência de publicação. Não confundir dispensa de retrocompatibilidade com permissão para modificar referências ou modelos já publicados: snapshots de `ref`, rulesets, fingerprints e decisões históricas permanecem auditáveis e imutáveis.
+
+É permitido manter **branches históricos selecionados**, PRs e commits para compreender a evolução das interações; não apagar automaticamente branches antigas como parte desta mudança. Branches históricos não são fonte normativa, nem justificam duplicação do runtime ou compatibilidade obrigatória. A decisão atual prevalece na `master` e na especificação vigente.
+
+O teste de equivalência Python/C# pode usar `--population-profile legacy` explicitamente enquanto tiver valor como diagnóstico de migração; sua execução não deve bloquear indefinidamente a remoção futura do legado quando houver cobertura equivalente da implementação demográfica. Para bootstrap atual, exigir `demographic-primary` e referência diária versionada.
+
+
+**Auditoria de chamadas do gerador (09/10/2026):** `scripts/dev-console-gold-synthetic.ps1` já fornece explicitamente `--population-profile demographic-primary` e `--birth-daily-source` com o artefato versionado. `scripts/local-synthetic-calibration.ps1` e `.sh` não invocam diretamente o comando `generate` do executável C#; portanto não precisam receber esses parâmetros. O gate `scripts/synthetic-corpus-equivalence-gate.py` foi adaptado para solicitar `legacy` de forma explícita. Esta inspeção cobre esses caminhos conhecidos, **não constitui varredura exaustiva de todas as invocações do repositório**.

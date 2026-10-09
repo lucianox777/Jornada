@@ -227,6 +227,7 @@ def main() -> int:
     run(
         [
             "dotnet", str(dll), "generate",
+            "--population-profile", "legacy",  # Equivalência histórica explícita; bootstrap usa demographic-primary.
             "--reference-root", str(reference),
             "--out", str(csharp_out),
             *common,
