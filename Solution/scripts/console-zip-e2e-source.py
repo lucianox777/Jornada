@@ -166,7 +166,10 @@ def generate(fixture: Path, output: Path, summary_path: Path) -> None:
                             page = browser.new_page()
                             page.goto(base, wait_until="domcontentloaded", timeout=30000)
                             button = page.get_by_role("button", name="Enviar arquivo", exact=True)
-                            require(button.count() == 1, "Missing ingestion button in Chromium")
+                            # The command cards load asynchronously after DOMContentLoaded.
+                            # Wait for the actual command UI before asserting uniqueness.
+                            button.wait_for(state="visible", timeout=15000)
+                            require(button.count() == 1, "Missing or duplicate ingestion button in Chromium")
                             with page.expect_response(lambda r: "/api/commands/ingestion/start" in r.url and r.request.method == "POST", timeout=15000) as started_response:
                                 button.click()
                             response = started_response.value
