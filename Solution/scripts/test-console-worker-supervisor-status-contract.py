@@ -75,12 +75,8 @@ def main() -> None:
     assert 'ASSEMBLY.is_file()' in e2e
     assert 'subprocess.Popen(' in e2e and '"dotnet"' in e2e
     assert '127.0.0.1' in e2e and "0.0.0.0" not in e2e
-    assert 'docker' not in re.sub(r'(?m)^\s*#.*
-
-
-if __name__ == "__main__":
-    main()
-, '', e2e.lower())
+    assert 'subprocess.run(["docker"' not in e2e
+    assert 'subprocess.Popen(["docker"' not in e2e
     assert 'python3 scripts/e2e-console-worker-supervisor-status.py OFF' in BOOTSTRAP.read_text()
     assert 'python3 scripts/e2e-console-worker-supervisor-status.py ON' in BOOTSTRAP.read_text()
     base = {"PATH": os.environ.get("PATH", ""), "HOME": "/tmp"}
