@@ -37,7 +37,7 @@ def test_dt10_reusable_job_has_same_gate_and_real_sql_acceptance():
     assert reusable.is_file(), "DT10 reusable workflow removed"
     evidence = reusable.read_text(encoding="utf-8")
     block = re.search(
-        r"(?ms)^  dt10-evidence:\\s*\\n(.*?)(?=^  [a-z][a-z0-9-]*:\\s*$|\\Z)",
+        r"(?ms)^  dt10-evidence:\s*\n(.*?)(?=^  [a-z][a-z0-9-]*:\s*$|\Z)",
         caller,
     )
     assert block, "DT10 caller status check missing"
