@@ -51,3 +51,7 @@ Em caso de dúvida sobre versão ou vigência:
 8. trate documentos explicitamente versionados anteriores e evidências runtime como histórico, salvo indicação expressa em documento corrente.
 
 Nenhum item deste índice implica aprovação institucional, implantação em HML/Produção ou conclusão de gates que dependam de dados reais, governança ou decisão externa.
+
+## Registro de integração DT-10 (09/10/2026)
+
+A primeira extração do gate SQL de evidência para workflow reutilizável foi integrada por squash merge na PR [#858](https://github.com/lucianox777/Jornada/pull/858), commit `97efa6e3261d84d14c8d9553e7f83f76eaed7e5d`, após [CI #9796](https://github.com/lucianox777/Jornada/actions/runs/37970495157) bem-sucedida. O registro técnico e as ressalvas de escopo estão em `Solution/docs/DT10_CI_Extracao_Reutilizavel.md`; a especificação v5.00 candidata contém somente anexo informativo sobre a evidência. Esta atualização **não** publica uma nova versão normativa e não altera os artefatos v3.62 publicados.
