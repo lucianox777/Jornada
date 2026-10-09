@@ -25,7 +25,7 @@ public sealed class LinkagePublicationBatchContractTests
         var localCluster = File.ReadAllText(Path.Combine(
             root, "Solution", "scripts", "local-cluster.ps1"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(runner, Does.Not.Contain("DECLARE gold_progressiva CURSOR"));
             Assert.That(runner, Does.Not.Contain("foreach (var uuid in newReferences)"));
@@ -51,6 +51,6 @@ public sealed class LinkagePublicationBatchContractTests
 
             Assert.That(localCluster, Does.Contain("execução/publicação do linkage"));
             Assert.That(localCluster, Does.Contain("Logs do jornada-node2"));
-        });
+        }));
     }
 }

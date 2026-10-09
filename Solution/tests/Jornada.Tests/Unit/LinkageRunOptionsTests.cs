@@ -22,7 +22,7 @@ public sealed class LinkageRunOptionsTests
             "--replay-source-run-id", "11111111-2222-3333-4444-555555555555"
         });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(options.Mode, Is.EqualTo(LinkageRunType.REPLAY));
             Assert.That(options.ModelVersion, Is.EqualTo(12));
@@ -32,7 +32,7 @@ public sealed class LinkageRunOptionsTests
             Assert.That(options.MaxRecords, Is.EqualTo(500000));
             Assert.That(options.Publish, Is.True);
             Assert.That(options.ReplaySourceRunId, Is.EqualTo(Guid.Parse("11111111-2222-3333-4444-555555555555")));
-        });
+        }));
     }
 
     [Test]

@@ -93,12 +93,12 @@ public sealed class LinkageCalibrationAuditRoundTripTests
         var ruleEx = Assert.Throws<InvalidDataException>(() =>
             LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongRule, JsonOptions)));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(statusEx!.Message, Does.Contain("statusAtExport"));
             Assert.That(statesEx!.Message, Does.Contain("Estados não bijetivos"));
             Assert.That(ruleEx!.Message, Does.Contain("Regra de mapeamento"));
-        });
+        }));
     }
 
     [Test]
@@ -148,12 +148,12 @@ public sealed class LinkageCalibrationAuditRoundTripTests
         var referenceEx = Assert.Throws<InvalidDataException>(() =>
             LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongReference, JsonOptions)));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(tfEx!.Message, Does.Contain("runtimeEnabled"));
             Assert.That(algorithmEx!.Message, Does.Contain("Versão da matemática"));
             Assert.That(referenceEx!.Message, Does.Contain("versão fixada no modelo"));
-        });
+        }));
     }
 
     [Test]

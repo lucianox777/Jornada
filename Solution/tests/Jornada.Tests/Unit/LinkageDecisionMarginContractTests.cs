@@ -24,14 +24,14 @@ public sealed class LinkageDecisionMarginContractTests
             new LinkageCandidate(Guid.Parse("8b000000-0000-4000-8000-000000000002"), "Nome sem relação", birth, "Ana de Souza")
         ]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(decision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
             Assert.That(decision.MelhorScore, Is.InRange(0m, 1m));
             Assert.That(decision.SegundoScore, Is.InRange(0m, 1m));
             Assert.That(decision.Margem, Is.GreaterThan(1m),
                 "A margem V6 é diferença de log-odds e não pode ser limitada ao intervalo de probabilidades.");
-        });
+        }));
     }
 
     [Test]
@@ -41,7 +41,7 @@ public sealed class LinkageDecisionMarginContractTests
         var migration = File.ReadAllText(Path.Combine(
             root, "database", "migrations", "20260915_Linkage_LogOdds_Margin.sql"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(migration, Does.Contain("ALTER COLUMN margem DECIMAL(18,8) NULL"));
             Assert.That(migration, Does.Contain("score_melhor >= 0 AND score_melhor <= 1"));
@@ -50,7 +50,7 @@ public sealed class LinkageDecisionMarginContractTests
             Assert.That(migration, Does.Not.Contain("margem <= 1"));
             Assert.That(migration, Does.Contain("ck_linkage_resultado_candidatos_distintos"));
             Assert.That(migration, Does.Contain("segundo_candidato_uuid <> melhor_candidato_uuid"));
-        });
+        }));
     }
 
     private static Dictionary<string, decimal> V6Parameters()

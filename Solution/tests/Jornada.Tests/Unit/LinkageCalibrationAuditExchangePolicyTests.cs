@@ -21,7 +21,7 @@ public sealed class LinkageCalibrationAuditExchangePolicyTests
     [Test]
     public void Exchange_contract_declares_blocking_conditioned_u_and_non_bijective_date_states()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics,
@@ -35,7 +35,7 @@ public sealed class LinkageCalibrationAuditExchangePolicyTests
             Assert.That(
                 LinkageCalibrationAuditExchangePolicy.UnmappedOrNonBijectiveComparisonStates,
                 Does.Contain("PARTIAL_COMPONENT_AGREEMENT"));
-        });
+        }));
     }
 
     [Test]

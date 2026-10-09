@@ -21,7 +21,7 @@ public sealed class LocalBlockingRefreshContractTests
         var persistence = File.ReadAllText(Path.Combine(
             root, "Solution", "src", "Jornada.Operational.Sql", "BlockingProjectionPersistence.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(bootstrap, Does.Contain("LocalBlockingCommandTimeoutSeconds = 900"));
             Assert.That(bootstrap, Does.Contain("LocalBlockingCommandTimeoutSeconds, ct"));
@@ -34,6 +34,6 @@ public sealed class LocalBlockingRefreshContractTests
             Assert.That(
                 persistence.Split("CommandTimeout = commandTimeoutSeconds", StringSplitOptions.None).Length - 1,
                 Is.EqualTo(7));
-        });
+        }));
     }
 }
