@@ -533,7 +533,7 @@ public sealed class ProcessorRepositoryTests
         var manifest = new IngestionPackageManifest(2, reservedBatch.PessoaSchemaVersao,
             reservedBatch.CodigoSistemaOrigem, null, null, null, reservedBatch.DataReferencia);
 
-        Assert.ThrowsAsync<InvalidDataException>((AsyncTestDelegate)(async () => await repository.PersistValidatedAsync(reservedBatch, new ParsedPackage(manifest, [valid, failsAfterSilver], []), CancellationToken.None)));
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () => await repository.PersistValidatedAsync(reservedBatch, new ParsedPackage(manifest, [valid, failsAfterSilver], []), CancellationToken.None)));
 
         await using var verify = new SqlConnection(connectionString);
         await verify.OpenAsync();
@@ -708,7 +708,7 @@ public sealed class ProcessorRepositoryTests
                 await create.ExecuteNonQueryAsync();
             }
 
-            var ex = Assert.ThrowsAsync<SqlException>((AsyncTestDelegate)(async () => await repository.MarkRejectedAsync(reserved!, "TESTE_ATOMICIDADE", CancellationToken.None)));
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await repository.MarkRejectedAsync(reserved!, "TESTE_ATOMICIDADE", CancellationToken.None)));
             Assert.That(ex!.Number, Is.EqualTo(51985));
 
             await using var verify = connection.CreateCommand();
@@ -1115,7 +1115,7 @@ public sealed class ProcessorRepositoryTests
         Assert.That(newBatch, Is.Not.Null);
         Assert.That(newBatch!.LeaseId, Is.Not.EqualTo(oldBatch!.LeaseId));
 
-        Assert.ThrowsAsync<SqlException>((AsyncTestDelegate)(async () => await repository.MarkRejectedAsync(oldBatch!, "STALE_WORKER", CancellationToken.None)));
+        Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await repository.MarkRejectedAsync(oldBatch!, "STALE_WORKER", CancellationToken.None)));
     }
 
     [Test]
