@@ -243,3 +243,8 @@ A tabela `ref.calibracao_inicial_versao` é o **marco zero** do histórico, não
 
 
 > **Reconciliação das críticas do avaliador (09/10/2026):** ver [matriz de críticas, respostas, evidências e pendências](Reconciliacao_Parecer_Externo_20261009.md). Esta referência não substitui decisões canônicas nem atesta testes ainda não executados.
+
+
+### Fingerprint demográfico (implementação em PR)
+
+A migração `20261009_Z_Linkage_Demographic_Reference_Fingerprint.sql` estende `auditoria.sp_calcular_fingerprint_modelo_linkage` para incorporar a linha de `identidade.modelo_linkage_referencia_demografica`, incluindo código, geografia, data, método, SHA-256 e `distribuicao_versao_id`. Isso torna o vínculo parte do fingerprint usado na conferência; **não** torna o vínculo obrigatório por si só e **não** comprova o gate de promoção sem teste SQL. O procedimento anterior de fingerprint continua como histórico de migração; a definição posterior é a efetiva após instalação ordenada.
