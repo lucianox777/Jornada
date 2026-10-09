@@ -112,3 +112,6 @@ O FS operacional permanece **único**. Para que o Calibrador compare V8, evidên
 
 
 > **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-tf--norma-vigente-de-frequência-nominal-fs-e-calibrador-09102026). O peso TF zero é neutro (peso 1 aplica ajuste integral); os pesos e m/u devem ser estimados pelo Calibrador a partir do bootstrap sintético IBGE e, progressivamente, de evidência histórica real. Primeiro nome e último sobrenome significativo de pessoa e mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Em caso de divergência, prevalece a decisão canônica; este documento não certifica implementação concluída.
+
+
+> **Reconciliação das críticas do avaliador (09/10/2026):** ver [matriz de críticas, respostas, evidências e pendências](Reconciliacao_Parecer_Externo_20261009.md). Esta referência não substitui decisões canônicas nem atesta testes ainda não executados.
