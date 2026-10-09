@@ -67,6 +67,30 @@ da Entrega, hash do ZIP, contagens e nomes das camadas, sem nome/CPF. O teste
 não é executado no harness local sem a flag explícita. A aprovação depende
 do job E2E passar, não deste texto nem de teste HTTP isolado.
 
-Ainda faltam a reprodução pelo navegador, o caso sem CPF com Linkage governado,
-o fluxo de clique “Enviar arquivo” da própria UI e regras de JSON Schema
-no gerador manual. A Trilha 4 permanece proibida.
+Os testes Chromium das PRs #825 e #835 passaram a cobrir a navegação e
+o primeiro clique real em “Enviar arquivo” contra API isolada. O cenário
+sem CPF com Linkage governado e a aplicação integral de JSON Schema na
+geração manual continuam pendentes. A Trilha 4 permanece proibida.
+
+## T0.1g — retry de “Enviar arquivo” sem duplicar a Entrega
+
+Quando o E2E descartável habilita `JORNADA_E2E_CONSOLE_ZIP=true` e
+`JORNADA_E2E_BROWSER_INGESTION=true`, o Chromium faz **duas**
+execuções da ação real `Enviar arquivo`, uma depois da outra, com
+mesmos bytes ZIP e mesma chave de idempotência. O teste verifica:
+
+1. Cada clique cria um ID de **execução da Console distinto**,
+   registrado como `SUCESSO` com exit code 0.
+2. Ambos os recibos da API apontam para o **mesmo `entregaId`**,
+   preservados em `.local/e2e/console-zip-source.json`.
+3. O POST direto já existente do E2E com a mesma chave e os mesmos
+   bytes retorna exatamente **esse ID**, e as verificações SQL
+   preexistentes exigem uma única linha da Entrega em `ingestao.entrega`.
+4. Bronze, Processor, Silver e Gold continuam sujeitos aos gates de
+   integridade e publicação do E2E original.
+
+Essa é uma prova comportamental de retransmissão segura pela UI no
+banco **descartável `JornadaE2E`**, não demonstra tratamento de
+timeouts HTTP reais, concorrência de usuários ou perdas de rede.
+Nenhum comando executa contra `JornadaLocal`, IBGE ou HML/PROD.
+**Trilha 4 não deve ser iniciada.**
