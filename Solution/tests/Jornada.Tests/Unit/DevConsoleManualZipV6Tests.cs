@@ -47,8 +47,8 @@ public sealed class DevConsoleManualZipV1Tests
 
         Assert.Multiple((Action)(()=>
         {
-            Assert.DoesNotThrow(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1),scenario);
-            Assert.DoesNotThrow(()=>PersonContractRules.ValidateCpfAbsence(1,cpf,reason),scenario);
+            Assert.DoesNotThrow((Action)(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1),scenario));
+            Assert.DoesNotThrow((Action)(()=>PersonContractRules.ValidateCpfAbsence(1,cpf,reason),scenario));
         }));
     }
 
@@ -60,7 +60,7 @@ public sealed class DevConsoleManualZipV1Tests
         var validator=JsonSchemaSubsetValidator.Load(schema);
         const string json="""{"idPessoaEntrega":"DEV-ONLY-ID","cpf":null,"cpfAusenteMotivo":"NAO_INFORMADO_ORIGEM","nomeCompleto":null,"dataNascimento":null,"nomeMae":null}""";
 
-        Assert.DoesNotThrow(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1));
+        Assert.DoesNotThrow((Action)(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1)));
     }
 
     [Test]

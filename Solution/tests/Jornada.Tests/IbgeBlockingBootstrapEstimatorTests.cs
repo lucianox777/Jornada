@@ -84,21 +84,21 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
     [Test]
     public void MissingSnapshotAndInvalidHash_FailClosed()
     {
-        Assert.Throws<DirectoryNotFoundException>(() => IbgeBlockingSnapshotVerifier.Verify(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))));
-        Assert.Throws<ArgumentException>(() => IbgeBlockingBootstrapEstimator.Estimate(N(100), "ref", "bad", new[]
+        Assert.Throws<DirectoryNotFoundException>((Action)(() => IbgeBlockingSnapshotVerifier.Verify(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")))));
+        Assert.Throws<ArgumentException>((Action)(() => IbgeBlockingBootstrapEstimator.Estimate(N(100), "ref", "bad", new[]
         {
             new BootstrapPassInput("x", BootstrapPassCategory.Exact, new[] { new MarginalKeyProbability("x", .1, "scope") }, "r")
-        }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve));
+        }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve)));
     }
 
     [Test]
     public void NrefWithoutCalibratorProvenance_FailsClosed()
     {
         var invalid = new ReferencePopulationEvidence(100, "MANUAL", "run", Hash);
-        Assert.Throws<ArgumentException>(() => IbgeBlockingBootstrapEstimator.Estimate(invalid, "ref", Hash, new[]
+        Assert.Throws<ArgumentException>((Action)(() => IbgeBlockingBootstrapEstimator.Estimate(invalid, "ref", Hash, new[]
         {
             new BootstrapPassInput("x", BootstrapPassCategory.Exact, new[] { new MarginalKeyProbability("x", .1, "scope") }, "r")
-        }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve));
+        }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve)));
     }
 
     [Test]

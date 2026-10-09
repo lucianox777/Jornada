@@ -30,24 +30,24 @@ public sealed class ExternalNameFrequencyCatalogTests
     [Test]
     public void Snapshot_rejects_duplicate_normalized_names()
     {
-        Assert.Throws<ArgumentException>(() => ExternalNameFrequencyCatalog.CreateIbgeSnapshot(
+        Assert.Throws<ArgumentException>((Action)(() => ExternalNameFrequencyCatalog.CreateIbgeSnapshot(
             "v1",
             new[]
             {
                 new ExternalNameFrequencyEntry("Maria", 1),
                 new ExternalNameFrequencyEntry(" maria ", 2)
-            }));
+            })));
     }
 
     [Test]
     public void Snapshot_rejects_invalid_metadata_and_counts()
     {
-        Assert.Throws<ArgumentException>(() => ExternalNameFrequencyCatalog.CreateIbgeSnapshot(
+        Assert.Throws<ArgumentException>((Action)(() => ExternalNameFrequencyCatalog.CreateIbgeSnapshot(
             " ",
-            new[] { new ExternalNameFrequencyEntry("Maria", 1) }));
+            new[] { new ExternalNameFrequencyEntry("Maria", 1) })));
 
-        Assert.Throws<ArgumentOutOfRangeException>(() => ExternalNameFrequencyCatalog.CreateIbgeSnapshot(
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => ExternalNameFrequencyCatalog.CreateIbgeSnapshot(
             "v1",
-            new[] { new ExternalNameFrequencyEntry("Maria", -1) }));
+            new[] { new ExternalNameFrequencyEntry("Maria", -1) })));
     }
 }

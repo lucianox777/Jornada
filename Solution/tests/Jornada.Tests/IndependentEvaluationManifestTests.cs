@@ -38,13 +38,13 @@ public sealed class IndependentEvaluationManifestTests
     [Test]
     public void Create_RejectsInvalidDenominators()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That((Func<object?>)(() => IndependentEvaluationManifestCatalog.Create("m", "v", A, B, C, 0, 0, DateTimeOffset.UnixEpoch)),
                 Throws.TypeOf<ArgumentOutOfRangeException>());
             Assert.That((Func<object?>)(() => IndependentEvaluationManifestCatalog.Create("m", "v", A, B, C, 10, 11, DateTimeOffset.UnixEpoch)),
                 Throws.TypeOf<ArgumentOutOfRangeException>());
-        });
+        }));
     }
 
     [Test]

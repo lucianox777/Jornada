@@ -45,8 +45,8 @@ public sealed class Dt17IdentityCompositionRegressionTests
     public void DcId02_bare_initial_uuid_is_not_promoted_to_canonical_destination()
     {
         var read = Read(Member(A, A), Member(I2, A)) with { ReservedNewUuids = [B] };
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityCompositionPlanner.Prepare(read, Decision(read, (A, B), (I2, I2))));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityCompositionPlanner.Prepare(read, Decision(read, (A, B), (I2, I2)))));
     }
 
     private static IdentityCompositionMember Member(Guid initial, Guid canonical, Guid? anchor = null) =>

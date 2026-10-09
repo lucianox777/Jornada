@@ -18,7 +18,7 @@ public sealed class CnsRulesTests
         Assert.Multiple((Action)(() =>
         {
             Assert.That(CnsRules.IsValid(value), Is.True);
-            Assert.DoesNotThrow(() => CnsRules.ValidateOptionalSmsCns(value));
+            Assert.DoesNotThrow((Action)(() => CnsRules.ValidateOptionalSmsCns(value)));
         }));
     }
 
@@ -37,8 +37,7 @@ public sealed class CnsRulesTests
     [TestCase("")]
     public void Invalid_cns_is_rejected_without_disclosing_the_supplied_value(string value)
     {
-        var error = Assert.Throws<InvalidDataException>(
-            () => CnsRules.ValidateOptionalSmsCns(value));
+        var error = Assert.Throws<InvalidDataException>((Action)(() => CnsRules.ValidateOptionalSmsCns(value)));
 
         Assert.Multiple((Action)(() =>
         {
@@ -54,8 +53,8 @@ public sealed class CnsRulesTests
         Assert.Multiple((Action)(() =>
         {
             Assert.That(CnsRules.IsValid(null), Is.False);
-            Assert.DoesNotThrow(() => CnsRules.ValidateOptionalSmsCns(null));
-            Assert.Throws<InvalidDataException>(() => CnsRules.ValidateOptionalSmsCns(" "));
+            Assert.DoesNotThrow((Action)(() => CnsRules.ValidateOptionalSmsCns(null)));
+            Assert.Throws<InvalidDataException>((Action)(() => CnsRules.ValidateOptionalSmsCns(" ")));
         }));
     }
 }

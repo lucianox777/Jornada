@@ -38,7 +38,7 @@ public sealed class DynamicBlockingPolicyTests
             ExternalNameFrequencyVersion = "2026",
             ExternalNameFrequencyFingerprint = null
         };
-        Assert.Throws<ArgumentException>(() => invalid.Validate());
+        Assert.Throws<ArgumentException>((Action)(() => invalid.Validate()));
     }
 
     [Test]
