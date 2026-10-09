@@ -63,10 +63,10 @@ sealed class IsolatedWorkerSupervisorStatusReader
         foreach (var service in new[] { "sqlserver", "api", "resultado-api" }
                      .Concat(Workers.Select(x => x.Service)))
         {
-            var ids = await DockerAsync(ct, null,
-                "ps", "-aq",
-                "--filter", "label=com.docker.compose.project=" + project,
-                "--filter", "label=com.docker.compose.service=" + service);
+            var ids = await DockerAsync(null,
+                ["ps", "-aq",
+                 "--filter", "label=com.docker.compose.project=" + project,
+                 "--filter", "label=com.docker.compose.service=" + service], ct);
             var lines = ids.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (lines.Length > 1 || lines.Any(x => !ContainerId.IsMatch(x)))
                 throw new InvalidOperationException("Identidade de serviço Docker ambígua no sandbox.");
@@ -83,10 +83,10 @@ sealed class IsolatedWorkerSupervisorStatusReader
             throw new InvalidOperationException("SQL/API/ResultadoApi privados não estão disponíveis.");
 
         // Inspect alone is insufficient: /health/ready exercises schema/SQL.
-        await DockerAsync(ct, null, "exec", api.Id,
-            "curl", "--max-time", "6", "-fsS", "http://127.0.0.1:5080/health/ready");
-        await DockerAsync(ct, null, "exec", resultado.Id,
-            "curl", "--max-time", "6", "-fsS", "http://127.0.0.1:5081/health");
+        await DockerAsync(null, ["exec", api.Id,
+            "curl", "--max-time", "6", "-fsS", "http://127.0.0.1:5080/health/ready"], ct);
+        await DockerAsync(null, ["exec", resultado.Id,
+            "curl", "--max-time", "6", "-fsS", "http://127.0.0.1:5081/health"], ct);
 
         var state = new List<IsolatedWorkerState>(Workers.Length);
         foreach (var (service, component) in Workers)
@@ -128,8 +128,8 @@ sealed class IsolatedWorkerSupervisorStatusReader
     private static async Task<DockerServiceSnapshot> InspectVerifiedAsync(
         string id, string project, string service, CancellationToken ct)
     {
-        using var json = JsonDocument.Parse(await DockerAsync(ct, null,
-            "inspect", "--format", "{{json .}}", id));
+        using var json = JsonDocument.Parse(await DockerAsync(null,
+            ["inspect", "--format", "{{json .}}", id], ct));
         var value = json.RootElement;
         var labels = value.GetProperty("Config").GetProperty("Labels");
         if (labels.GetProperty("com.docker.compose.project").GetString() != project
@@ -159,11 +159,11 @@ sealed class IsolatedWorkerSupervisorStatusReader
             + " FROM controle.runtime_componente"
             + " WHERE node_id=N'NODE2' AND componente=N'" + component + "'"
             + " ORDER BY heartbeat_em DESC;";
-        var raw = await DockerAsync(ct, password,
-            "exec", "-e", "SQLCMDPASSWORD", sqlId,
-            "/opt/mssql-tools18/bin/sqlcmd",
-            "-S", "localhost", "-U", "sa", "-C", "-b", "-I", "-l", "7",
-            "-d", "JornadaE2E", "-W", "-h", "-1", "-Q", query);
+        var raw = await DockerAsync(password,
+            ["exec", "-e", "SQLCMDPASSWORD", sqlId,
+             "/opt/mssql-tools18/bin/sqlcmd",
+             "-S", "localhost", "-U", "sa", "-C", "-b", "-I", "-l", "7",
+             "-d", "JornadaE2E", "-W", "-h", "-1", "-Q", query], ct);
         var fields = string.Concat(raw.Where(x => x is not '\r' and not '\n')).Trim().Split('|');
         if (fields.Length == 1 && fields[0].Length == 0) return null;
         if (fields.Length != 4 || !Uuid.IsMatch(fields[0])
@@ -174,7 +174,7 @@ sealed class IsolatedWorkerSupervisorStatusReader
     }
 
     private static async Task<string> DockerAsync(
-        CancellationToken ct, string? sqlPassword, params string[] args)
+        string? sqlPassword, string[] args, CancellationToken ct)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
         timeout.CancelAfter(TimeSpan.FromSeconds(12));
