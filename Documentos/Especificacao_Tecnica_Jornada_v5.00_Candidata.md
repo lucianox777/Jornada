@@ -226,3 +226,9 @@ A revisão desta candidata deve considerar, entre outros, os seguintes artefatos
 ---
 
 Esta candidata é deliberadamente conservadora: consolida o que o sistema já prova e mantém como pendência aquilo que depende de ambiente, governança ou decisão institucional externa.
+
+## Anexo informativo — Evidência de engenharia DT-10 (09/10/2026)
+
+A PR [#858](https://github.com/lucianox777/Jornada/pull/858) introduziu a primeira extração incremental do gate `dt10-evidence` para um workflow reutilizável de GitHub Actions. Foi integrada em `master` por squash merge (commit `97efa6e3261d84d14c8d9553e7f83f76eaed7e5d`) após a execução [CI #9796](https://github.com/lucianox777/Jornada/actions/runs/37970495157) concluir com sucesso os dez gates requeridos, inclusive o job aninhado `dt10-evidence / dt10-evidence`, e publicar o artefato `dt10-evidence` (ID `11635467318`). Detalhes e limites de comprovação: `Solution/docs/DT10_CI_Extracao_Reutilizavel.md`.
+
+**Natureza deste anexo:** registro informativo de engenharia e rastreabilidade, **não** nova regra normativa, mudança de contrato, aprovação institucional ou publicação da especificação v5.00. Permanecem intactas a hierarquia normativa, as pendências externas e a condição de candidata deste documento. A extração não representa separação total da CI nem comprova implantação em HML/PROD.
