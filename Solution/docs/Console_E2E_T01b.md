@@ -94,3 +94,24 @@ banco **descartável `JornadaE2E`**, não demonstra tratamento de
 timeouts HTTP reais, concorrência de usuários ou perdas de rede.
 Nenhum comando executa contra `JornadaLocal`, IBGE ou HML/PROD.
 **Trilha 4 não deve ser iniciada.**
+
+## T0.1h — chave de idempotência repetida com conteúdo diferente
+
+O E2E descartável aproveita os dois ZIPs **efetivamente gerados pela
+Console via HTTP**: a carga `AA01_v2` e a carga `AA01_SEM_FATOS_v2`.
+Antes de aceitar a segunda carga com sua chave própria, tenta enviá-la
+com a chave da primeira (`local-e2e-001`), embora os hashes sejam
+diferentes. A API real deve responder **409 Conflict** com mensagem
+sobre `Idempotency-Key` de conteúdo divergente, sem devolver recibo.
+
+O gate verifica em `JornadaE2E` que a chave original ainda identifica
+exatamente **uma** Entrega, com o **mesmo** ID; não existe metadado
+`bronze.entrega_arquivo` para o SHA rejeitado nem Staging residual.
+Em seguida, envia a carga somente Pessoa com **chave nova** e confirma
+normalmente Bronze/Silver/Gold. A verificação cobre metadados SQL
+e staging, **não prova ausência de objetos físicos órfãos** no storage:
+o armazenamento por hash pode ocorrer antes da verificação transacional
+de idempotência e depende de coleta de lixo segura.
+
+Evidência sintética em `.local/e2e/console-idempotency-conflict-evidence.json`.
+Não iniciar Trilha 4 nem tocar `JornadaLocal`, IBGE ou HML/PROD.
