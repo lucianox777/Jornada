@@ -8,6 +8,7 @@
     ".github/workflows/identity-progressive-persistence.yml",
     ".github/workflows/identity-operational-cutover.yml",
     "Solution/docker-compose.yml",
+    "Solution/install/console-dev-e2e/docker-compose.workers.yml",
     "Solution/install/windows-production/Jornada.Cluster.Test.json",
     "Solution/scripts/local-*.sh",
     "Solution/scripts/local-*.ps1",

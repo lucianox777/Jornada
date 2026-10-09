@@ -17,7 +17,9 @@ x-worker-env: &worker-env
   JORNADA_NODE_ID: NODE2
   DOTNET_ENVIRONMENT: Development
   ASPNETCORE_ENVIRONMENT: Development
-  ConnectionStrings__Jornada: "Server=sqlserver,1433;Database=JornadaE2E;User Id=sa;Password=${JORNADA_WORKERS_E2E_SQL_PASSWORD:?Separate disposable E2E SQL password required};Encrypt=true;TrustServerCertificate=false"
+  # Private CI E2E SQL uses a self-signed certificate. Encrypt remains ON;
+  # accepting this certificate is allowed ONLY in the unexposed disposable network.
+  ConnectionStrings__Jornada: "Server=sqlserver,1433;Database=JornadaE2E;User Id=sa;Password=${JORNADA_WORKERS_E2E_SQL_PASSWORD:?Separate disposable E2E SQL password required};Encrypt=true;TrustServerCertificate=true"
   Contracts__RepositoryRoot: /opt/jornada
   BronzeStorage__Provider: FileSystem
   BronzeStorage__RootPath: /data/bronze
