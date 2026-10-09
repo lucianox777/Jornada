@@ -41,7 +41,8 @@ def inspect(cid: str) -> dict:
 def service_id(project: str, service: str) -> str | None:
     ids = cmd("docker", "ps", "-aq",
               "--filter", "label=com.docker.compose.project=" + project,
-              "--filter", "label=com.docker.compose.service=" + service).splitlines()
+              "--filter", "label=com.docker.compose.service=" + service,
+              "--filter", "label=com.docker.compose.oneoff=False").splitlines()
     require(len(ids) <= 1 and all(re.fullmatch(r"[a-f0-9]{12,64}", i) for i in ids),
             "ambiguous Docker service identity")
     return ids[0] if ids else None
@@ -93,6 +94,10 @@ def verified_compose(project: str) -> tuple[str, ...]:
 
 def on(project: str) -> None:
     before = infra_before(project)
+    oneoffs = cmd("docker", "ps", "-aq",
+                  "--filter", "label=com.docker.compose.project=" + project,
+                  "--filter", "label=com.docker.compose.oneoff=True")
+    require(not oneoffs, "refusing ON while a finite oneoff might be active")
     for name in WORKERS:
         entry = service(project, name)
         require(entry is None or entry[1]["State"]["Running"] is False,

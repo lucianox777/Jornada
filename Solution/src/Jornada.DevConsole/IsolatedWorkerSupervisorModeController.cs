@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Diagnostics;
 
 // C3.3b1: backend mode changes in one process only, exclusively for the
@@ -10,6 +11,21 @@ sealed class IsolatedWorkerSupervisorModeController(
     IWebHostEnvironment env) : IDisposable
 {
     private readonly SemaphoreSlim transition = new(1, 1);
+    private readonly ConcurrentDictionary<string,byte> activeFinite =
+        new(StringComparer.Ordinal);
+
+    public IReadOnlyList<string> ActiveFiniteWorkers => activeFinite.Keys.OrderBy(x=>x,StringComparer.Ordinal).ToArray();
+
+    public IsolatedWorkerSupervisorStatus WithFiniteWorkers(IsolatedWorkerSupervisorStatus status)
+    {
+        if(activeFinite.IsEmpty)return status;
+        return status with {
+            Workers=status.Workers.Select(x=>
+                activeFinite.ContainsKey(x.Worker) && x.State=="PARADO"
+                    ? x with {State="RUN_ONCE"}
+                    : x).ToArray()
+        };
+    }
 
     // DI owns this singleton and disposes its gate on application shutdown.
     public void Dispose() => transition.Dispose();
@@ -25,6 +41,11 @@ sealed class IsolatedWorkerSupervisorModeController(
         await transition.WaitAsync(ct);
         try
         {
+            // A finite one-off may be active even though the 3 resident services
+            // are correctly OFF. Never queue an implicit ON behind its work.
+            if(requested=="ON"&&!activeFinite.IsEmpty)
+                throw new InvalidOperationException(
+                    "RunOnce isolado em execução; ON requer confirmação explícita de interrupção.");
             var before = await reader.ReadAsync(runtime, ct);
             if (before.Mode is not ("OFF" or "ON"))
                 throw new InvalidOperationException("Modo atual não comprovado; operação rejeitada sem efeitos.");
@@ -71,6 +92,98 @@ sealed class IsolatedWorkerSupervisorModeController(
         finally
         {
             transition.Release();
+        }
+    }
+
+    private static readonly HashSet<string> AllowedFiniteWorkers =
+        new(["processor", "operations-maintenance", "bronze-maintenance"],
+            StringComparer.Ordinal);
+
+    public async Task<IsolatedWorkerRunOnceResult> RunOnceAsync(
+        string worker, ConsoleRuntimeMode runtime, CancellationToken ct)
+    {
+        if(!reader.Enabled(runtime) || !AllowedFiniteWorkers.Contains(worker))
+            throw new InvalidOperationException("RunOnce fora da allowlist/projeto DEV isolado.");
+
+        // Admission and supervisor transitions share the same semaphore.
+        // Do NOT hold it for the entire finite workload; SetAsync must be
+        // able to reject ON immediately while this subprocess runs.
+        await transition.WaitAsync(ct);
+        try
+        {
+            if(!activeFinite.IsEmpty || live.HasActiveWorkerRunOnce())
+                throw new InvalidOperationException("RunOnce já está em execução.");
+            var effective=await reader.ReadAsync(runtime,ct);
+            if(effective.Mode!="OFF")
+                throw new InvalidOperationException("RunOnce só é autorizado com supervisão OFF comprovada.");
+            if(!activeFinite.TryAdd(worker,0))
+                throw new InvalidOperationException("RunOnce concorrente não autorizado.");
+        }
+        finally
+        {
+            transition.Release();
+        }
+
+        try
+        {
+            await ApplyPrivateRunOnceAsync(worker,env,ct);
+            var after=await reader.ReadAsync(runtime,ct);
+            if(after.Mode!="OFF")
+                throw new InvalidOperationException("RunOnce terminou sem preservar OFF.");
+            activity.Add("RUN_ONCE",worker,"SUCESSO",
+                "Worker finito, independente, apenas JornadaE2E.");
+            return new IsolatedWorkerRunOnceResult(worker,"CONCLUIDO",0);
+        }
+        catch
+        {
+            activity.Add("RUN_ONCE",worker,"ERRO",
+                "Execução finita não concluiu no banco DEV privado.");
+            throw;
+        }
+        finally
+        {
+            activeFinite.TryRemove(worker,out _);
+        }
+    }
+
+    private static async Task ApplyPrivateRunOnceAsync(
+        string worker, IWebHostEnvironment env, CancellationToken ct)
+    {
+        var root=DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
+        var script=Path.Combine(root,"scripts","console-private-worker-runonce.py");
+        if(!File.Exists(script))
+            throw new InvalidOperationException("Script RunOnce privado indisponível.");
+        var psi=new ProcessStartInfo("python3"){
+            WorkingDirectory=root,
+            UseShellExecute=false,
+            CreateNoWindow=true,
+            RedirectStandardOutput=true,
+            RedirectStandardError=true,
+        };
+        psi.ArgumentList.Add(script);
+        psi.ArgumentList.Add(worker);
+        psi.Environment["JORNADA_RUNTIME_MODE"]="DEV";
+        using var process=new Process{StartInfo=psi};
+        if(!process.Start())
+            throw new InvalidOperationException("RunOnce privado não iniciou.");
+        using var timeout=CancellationTokenSource.CreateLinkedTokenSource(ct);
+        timeout.CancelAfter(TimeSpan.FromSeconds(115));
+        try
+        {
+            var output=process.StandardOutput.ReadToEndAsync(timeout.Token);
+            var errors=process.StandardError.ReadToEndAsync(timeout.Token);
+            await process.WaitForExitAsync(timeout.Token);
+            _=await output;
+            _=await errors; // never log stderr/output with possible secrets
+            if(process.ExitCode!=0)
+                throw new InvalidOperationException("RunOnce privado retornou código de erro.");
+        }
+        catch(OperationCanceledException)
+        {
+            // Only the CLI process started by this request. If a Compose
+            // oneoff remains, C3.3b1 ON refuses its existence fail-closed.
+            if(!process.HasExited)process.Kill(entireProcessTree:true);
+            throw;
         }
     }
 
@@ -121,3 +234,5 @@ sealed class IsolatedWorkerSupervisorModeController(
 }
 
 sealed record IsolatedWorkerModeRequest(string Mode);
+
+sealed record IsolatedWorkerRunOnceResult(string Worker,string State,int ExitCode);

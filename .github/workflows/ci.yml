@@ -185,6 +185,10 @@ jobs:
         run: python3 scripts/test-console-worker-supervisor-status-contract.py
       - name: C3.3b1 Console global worker lifecycle guards (no Docker or SQL)
         run: python3 scripts/test-console-supervisor-global-mode-contract.py
+      - name: C3.3b2 isolated Processor/Operations/Bronze finite RunOnce contracts (no Docker/SQL)
+        run: |
+          python3 scripts/test-private-worker-runonce-entrypoint-contract.py
+          python3 scripts/test-console-three-runonce-contract.py
       - name: C3.2b isolated Api and ResultadoApi entrypoints (check-only)
         run: python3 scripts/test-api-independent-entrypoint.py
       - name: Self-test HML SQL/API evidence gates

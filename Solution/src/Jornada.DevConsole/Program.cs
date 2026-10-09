@@ -137,7 +137,8 @@ app.MapGet("/api/activity",(ConsoleActivityLog activity)=>Results.Ok(activity.Sn
 // isolated lifecycle/RunOnce gates pass. No view of the canonical cluster.
 app.MapGet("/api/workers/supervisor",async(
     HttpResponse response, ConsoleRuntimeMode runtime,
-    IsolatedWorkerSupervisorStatusReader supervisor, CancellationToken ct)=>{
+    IsolatedWorkerSupervisorStatusReader supervisor,
+    IsolatedWorkerSupervisorModeController controller, CancellationToken ct)=>{
     response.Headers.CacheControl="no-store";
     if(!supervisor.Enabled(runtime))
         return Results.Conflict(new{
@@ -146,7 +147,7 @@ app.MapGet("/api/workers/supervisor",async(
         });
     try
     {
-        return Results.Ok(await supervisor.ReadAsync(runtime,ct));
+        return Results.Ok(controller.WithFiniteWorkers(await supervisor.ReadAsync(runtime,ct)));
     }
     catch(OperationCanceledException) when(ct.IsCancellationRequested)
     {
@@ -195,6 +196,35 @@ app.MapPost("/api/workers/supervisor",async(
     catch(Exception)
     {
         return Results.Json(new{error="Transição privada falhou.",mode="ERRO"},
+            statusCode:StatusCodes.Status503ServiceUnavailable);
+    }
+});
+
+// C3.3b2: an individual FINITE worker cycle, not an individual continuous
+// start. Only loopback HTTP in the isolated GitHub-hosted Development sandbox.
+app.MapPost("/api/workers/{worker}/run-once",async(
+    string worker, HttpContext context, ConsoleRuntimeMode runtime,
+    IsolatedWorkerSupervisorStatusReader reader,
+    IsolatedWorkerSupervisorModeController controller, CancellationToken ct)=>{
+    if(!reader.Enabled(runtime)
+        ||context.Connection.RemoteIpAddress is not { } remote
+        ||!System.Net.IPAddress.IsLoopback(remote))
+        return Results.Conflict(new{error="RunOnce restrito ao CI DEV efêmero local."});
+    try
+    {
+        return Results.Ok(await controller.RunOnceAsync(worker,runtime,ct));
+    }
+    catch(InvalidOperationException)
+    {
+        return Results.Conflict(new{error="RunOnce recusado por modo/worker/instância conflitante."});
+    }
+    catch(OperationCanceledException) when(ct.IsCancellationRequested)
+    {
+        return Results.StatusCode(StatusCodes.Status408RequestTimeout);
+    }
+    catch(Exception)
+    {
+        return Results.Json(new{error="RunOnce privado não foi concluído."},
             statusCode:StatusCodes.Status503ServiceUnavailable);
     }
 });

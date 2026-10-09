@@ -28,20 +28,32 @@ shopt -u nocasematch
 [[ "$#" == 1 || "$#" == 2 ]] || deny "uso: worker-entrypoint.sh WORKER [--check]"
 worker="${1:-}"
 mode="${2:-}"
-[[ "$mode" == "" || "$mode" == "--check" ]] || deny "opção não reconhecida"
+[[ "$mode" == "" || "$mode" == "--check" || "$mode" == "--run-once" ]] \
+  || deny "opção não reconhecida"
+
+# Finite invocations must be explicitly requested by a one-off Compose job
+# from the unique ephemeral CI project. Residents never get this opt-in.
+# The actual connection string / NODE / Development guards above apply to
+# finite execution as strongly as they apply to the resident.
+if [[ "$mode" == "--run-once" ]]; then
+  [[ "${JORNADA_WORKERS_E2E_RUN_ONCE:-}" == true &&
+     "${JORNADA_WORKERS_E2E_ID:-}" =~ ^ci[0-9]{7,19}$ &&
+     "${JORNADA_WORKERS_E2E_RUN_ONCE_ALLOWED:-}" == true ]] \
+    || deny "RunOnce só é autorizado no projeto descartável com opt-in explícito"
+fi
 
 case "$worker" in
   Processor)
     dll="/opt/jornada/apps/Jornada.Processor.Worker/Jornada.Processor.Worker.dll"
-    export Processor__RunOnce=false
+    export Processor__RunOnce=$([[ "$mode" == "--run-once" ]] && echo true || echo false)
     ;;
   OperationsMaintenance)
     dll="/opt/jornada/apps/Jornada.Operations.Maintenance.Worker/Jornada.Operations.Maintenance.Worker.dll"
-    export MaintenanceExecution__RunOnce=false
+    export MaintenanceExecution__RunOnce=$([[ "$mode" == "--run-once" ]] && echo true || echo false)
     ;;
   BronzeMaintenance)
     dll="/opt/jornada/apps/Jornada.Bronze.Maintenance.Worker/Jornada.Bronze.Maintenance.Worker.dll"
-    export BronzeMaintenance__RunOnce=false
+    export BronzeMaintenance__RunOnce=$([[ "$mode" == "--run-once" ]] && echo true || echo false)
     ;;
   *) deny "worker fora da allowlist" ;;
 esac
@@ -50,6 +62,10 @@ esac
 if [[ "$mode" == "--check" ]]; then
   printf 'worker=%s;mode=CONTINUOUS;restart=external;database=JornadaE2E\n' "$worker"
   exit 0
+fi
+
+if [[ "$mode" == "--run-once" ]]; then
+  printf 'worker=%s;mode=RUN_ONCE;restart=none;database=JornadaE2E\n' "$worker"
 fi
 
 [[ -f "$dll" ]] || deny "executável publicado ausente"
