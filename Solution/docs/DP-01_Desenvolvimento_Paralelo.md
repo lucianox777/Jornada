@@ -1,3 +1,10 @@
+> **Atualização de priorização 09/10/2026:** a Trilha 4 contínua
+> deixa de ser uma frente de implementação paralela. A decisão
+> de reavaliar RESOLVIDOS é uma **DT-22 postergada**
+> ([contrato](DT22_Reavaliacao_Governada_Resolvidos.md)).
+> Os marcos históricos abaixo e as demais filas conservam
+> critérios próprios; não declarar a DT-22 concluída.
+>
 # DP-01 — Desenvolvimento paralelo por superfícies independentes
 
 **Estado:** diretriz de desenvolvimento. **Destino:** .NET 10 LTS (DT-02); não criar etapa intermediária em .NET 9.
