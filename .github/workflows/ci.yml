@@ -183,6 +183,8 @@ jobs:
           python3 scripts/test-e2e-private-recovery-runtime-contract.py
       - name: C3.3a Console isolated worker effective status (read-only static safety gate)
         run: python3 scripts/test-console-worker-supervisor-status-contract.py
+      - name: C3.3b1 Console global worker lifecycle guards (no Docker or SQL)
+        run: python3 scripts/test-console-supervisor-global-mode-contract.py
       - name: C3.2b isolated Api and ResultadoApi entrypoints (check-only)
         run: python3 scripts/test-api-independent-entrypoint.py
       - name: Self-test HML SQL/API evidence gates
