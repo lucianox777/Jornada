@@ -94,3 +94,32 @@ criar um segundo build dotnet nem job completo para a recuperação.
 interrupção de **transação real** e um ZIP sintético com contagens finais
 assertivas que rodem no Compose privado. Não reduzir a exigência a
 simulação SQL ou ao reinício do processo.
+
+## Contrato de verificação offline (preparatório)
+
+O validador **somente de leitura**
+`scripts/e2e-lot-recovery-evidence-gate.py` rejeita qualquer pacote de
+evidência sem a sequência coerente de estados, lease/token novo, fencing,
+rollback confirmado, `recuperacao_count` e `tentativa_count` crescentes,
+contagens de Silver/itens conforme ZIP, consistência de Gold/Serving,
+ausência de chaves duplicadas e replay idempotente. O conjunto de
+testes `scripts/test-e2e-lot-recovery-evidence-gate.py` gera uma
+**amostra sintética em memória**, cobrindo casos positivos e negativos
+sem usar SQL/Docker. Esses testes são apenas validadores de estrutura.
+
+**Atenção:** um JSON autodeclarado `origin=live_sql_in_ephemeral_ci`
+não comprova sua própria procedência. Apenas coletor operacional
+independente, em job E2E da HEAD exata, com consultas reais
+`JornadaE2E`, barreira determinística e logs do GitHub Actions,
+poderá transformar esse contrato em prova de recuperação real. O
+validador não está integrado ao job pesado, nem houve tentativa de
+matar processos ou recuperar lotes nesta branch.
+
+**Limitação atual de injeção:** C3.2f1 (#847) demonstrou que
+`kill -KILL 1` executado dentro do namespace PID do próprio
+contêiner não provoca necessariamente a morte do processo PID 1.
+O primeiro E2E dessa PR falhou em `no automatic restart after SIGKILL:
+processor`. A variante de injeção com sinal privilegiado no PID host
+não passou pelo controle de segurança da integração; não contornar
+esse bloqueio. Até existir forma aprovada de interrupção efetiva,
+o requisito SIGKILL→restart e esta prova C3.2f2 permanecem pendentes.
