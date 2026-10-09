@@ -45,7 +45,7 @@ public sealed class Sehab20240717CharacterizationTests
     public void Raw_sehab_zip_is_intentionally_not_a_jornada_v2_envelope()
     {
         using var stream = File.OpenRead(_zipPath);
-        var ex = Assert.Throws<InvalidDataException>(() => IngestionPackageInspector.ParseAndValidate(stream, stream.Length));
+        var ex = Assert.Throws<InvalidDataException>((TestDelegate)(() => IngestionPackageInspector.ParseAndValidate(stream, stream.Length)));
         Assert.That(ex!.Message, Does.Contain("exatamente manifest.json, pessoas.jsonl e registros.jsonl"));
     }
 
