@@ -22,21 +22,35 @@ BEGIN
  SET XACT_ABORT ON;
  IF ISJSON(@json)<>1 OR JSON_VALUE(@json,'$.schema_version')<>N'JORNADA_SYNTH_BIRTH_DAILY_V1'
    THROW 52240,'Schema JSON de distribuição demográfica inválido.',1;
- IF @codigo IS NULL OR LEN(LTRIM(RTRIM(@codigo)))=0\n   OR @fonte IS NULL OR LEN(LTRIM(RTRIM(@fonte)))=0\n   OR @geografia IS NULL OR LEN(LTRIM(RTRIM(@geografia)))=0\n   OR @metodo IS NULL OR LEN(LTRIM(RTRIM(@metodo)))=0\n   OR @fonte_arquivo_sha256 IS NULL\n   OR LEN(@fonte_arquivo_sha256)<>64\n   OR @fonte_arquivo_sha256 LIKE '%[^0-9A-F]%'\n   THROW 52250,'Metadados da referência demográfica inválidos.',1;\n IF @linhas_esperadas<=0 OR @peso_total_esperado<=0
+ IF @codigo IS NULL OR LEN(LTRIM(RTRIM(@codigo)))=0
+   OR @fonte IS NULL OR LEN(LTRIM(RTRIM(@fonte)))=0
+   OR @geografia IS NULL OR LEN(LTRIM(RTRIM(@geografia)))=0
+   OR @metodo IS NULL OR LEN(LTRIM(RTRIM(@metodo)))=0
+   OR @fonte_arquivo_sha256 IS NULL
+   OR LEN(@fonte_arquivo_sha256)<>64
+   OR @fonte_arquivo_sha256 LIKE '%[^0-9A-F]%'
+   THROW 52250,'Metadados da referência demográfica inválidos.',1;
+ IF @linhas_esperadas<=0 OR @peso_total_esperado<=0
    THROW 52241,'Manifesto de distribuição demográfica inválido.',1;
- IF JSON_QUERY(@json,'$.rows') IS NULL\n   OR LEFT(LTRIM(JSON_QUERY(@json,'$.rows')),1)<>N'['\n   THROW 52248,'Array rows obrigatório.',1;\n IF EXISTS(SELECT 1 FROM OPENJSON(@json,'$.rows') WHERE [type]<>5)\n   THROW 52249,'Cada linha de rows deve ser objeto JSON.',1;\n DECLARE @rows TABLE(data_nascimento DATE PRIMARY KEY,peso BIGINT NOT NULL);
+ IF JSON_QUERY(@json,'$.rows') IS NULL
+   OR LEFT(LTRIM(JSON_QUERY(@json,'$.rows')),1)<>N'['
+   THROW 52248,'Array rows obrigatório.',1;
+ IF EXISTS(SELECT 1 FROM OPENJSON(@json,'$.rows') WHERE [type]<>5)
+   THROW 52249,'Cada linha de rows deve ser objeto JSON.',1;
+ IF NOT EXISTS(SELECT 1 FROM OPENJSON(@json,'$.rows'))
+   THROW 52246,'Distribuição sem linhas.',1;
+ IF EXISTS(SELECT 1 FROM OPENJSON(@json,'$.rows')
+   WHERE TRY_CONVERT(DATE,JSON_VALUE(value,'$.date'),23) IS NULL
+      OR TRY_CONVERT(BIGINT,JSON_VALUE(value,'$.births')) IS NULL
+      OR TRY_CONVERT(BIGINT,JSON_VALUE(value,'$.births'))<=0)
+   THROW 52247,'Linha demográfica com data ou peso inválido.',1;
+ DECLARE @rows TABLE(data_nascimento DATE PRIMARY KEY,peso BIGINT NOT NULL);
  INSERT @rows(data_nascimento,peso)
  SELECT TRY_CONVERT(DATE,JSON_VALUE(value,'$.date'),23),
         TRY_CONVERT(BIGINT,JSON_VALUE(value,'$.births'))
  FROM OPENJSON(@json,'$.rows');
  IF EXISTS(SELECT 1 FROM @rows WHERE data_nascimento IS NULL OR peso IS NULL OR peso<=0)
    THROW 52242,'Peso diário inválido.',1;
- IF NOT EXISTS(SELECT 1 FROM OPENJSON(@json,'$.rows'))
-   THROW 52246,'Distribuição sem linhas.',1;
- IF EXISTS(SELECT 1 FROM OPENJSON(@json,'$.rows')
-   WHERE TRY_CONVERT(DATE,JSON_VALUE(value,'$.date'),23) IS NULL
-     OR TRY_CONVERT(BIGINT,JSON_VALUE(value,'$.births')) IS NULL)
-   THROW 52247,'Linha demográfica com data ou peso inválido.',1;
  IF (SELECT COUNT_BIG(*) FROM @rows)<>@linhas_esperadas
    OR (SELECT SUM(peso) FROM @rows)<>@peso_total_esperado
    THROW 52243,'Distribuição divergente do manifesto.',1;
