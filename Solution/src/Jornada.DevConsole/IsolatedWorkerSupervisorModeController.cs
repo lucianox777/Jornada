@@ -7,9 +7,12 @@ sealed class IsolatedWorkerSupervisorModeController(
     IsolatedWorkerSupervisorStatusReader reader,
     LiveExecutionService live,
     ConsoleActivityLog activity,
-    IWebHostEnvironment env)
+    IWebHostEnvironment env) : IDisposable
 {
     private readonly SemaphoreSlim transition = new(1, 1);
+
+    // DI owns this singleton and disposes its gate on application shutdown.
+    public void Dispose() => transition.Dispose();
 
     public async Task<IsolatedWorkerSupervisorStatus> SetAsync(
         string requested, ConsoleRuntimeMode runtime, CancellationToken ct)
