@@ -14,7 +14,7 @@ public sealed class LinkageParameterEstimatorTests
 
         var p = LinkageParameterEstimator.Estimate(matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m);
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p.ContainsKey("M_NOME_EXACT"), Is.True);
             Assert.That(p.ContainsKey("U_NOME_LOW"), Is.True);
@@ -78,7 +78,7 @@ public sealed class LinkageParameterEstimatorTests
         var p = LinkageParameterEstimator.Estimate(matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m,
             BirthScoringContract.JointEvidenceV4);
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p[LinkageParameterCatalog.BirthJointEvidenceScoring], Is.EqualTo(1m));
             Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthSemanticEvidenceScoring), Is.False);
@@ -101,7 +101,7 @@ public sealed class LinkageParameterEstimatorTests
         var p = LinkageParameterEstimator.Estimate(matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m,
             BirthScoringContract.SingleEvidenceV3);
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p[LinkageParameterCatalog.BirthSingleEvidenceScoring], Is.EqualTo(1m));
             Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthSemanticEvidenceScoring), Is.False);
@@ -150,7 +150,7 @@ public sealed class LinkageParameterEstimatorTests
             matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m,
             nameComparisonContract: NameComparisonContract.PtBrContentTokenGuardV2);
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(v1["SUPPORT_U_NOME_HIGH"], Is.EqualTo(1m));
             Assert.That(v1["SUPPORT_U_NOME_LOW"], Is.EqualTo(0m));
@@ -180,7 +180,7 @@ public sealed class LinkageParameterEstimatorTests
 
         var p = LinkageParameterEstimator.Estimate(matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m);
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p.ContainsKey("M_NOME_MAE_SAMPLE_SIZE"), Is.False);
             Assert.That(p.ContainsKey("U_NOME_MAE_SAMPLE_SIZE"), Is.False);
@@ -211,7 +211,7 @@ public sealed class LinkageParameterEstimatorTests
         var p = LinkageParameterEstimator.Estimate(
             matched, unmatched, 1000, 100, .5m, .95m, .03m,
             neutralMissingEvidenceV8: true);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p[LinkageParameterCatalog.NeutralMissingEvidenceScoring], Is.EqualTo(1m));
             Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.False);
@@ -266,7 +266,7 @@ public sealed class LinkageParameterEstimatorTests
             1000, 365, 1m, 0.95m, 0.03m,
             neutralMissingEvidenceV8: true);
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(parameters["SUPPORT_M_LEDGER_EMAIL_CONTATO_EXACT"], Is.EqualTo(1m));
             Assert.That(parameters["SUPPORT_M_LEDGER_EMAIL_CONTATO_MISSING"], Is.EqualTo(1m));
