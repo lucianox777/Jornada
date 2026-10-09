@@ -8,7 +8,7 @@ WORKFLOW = ROOT / ".github/workflows/ci.yml"
 REQUIRED = (
     "impact", "dependency-lock", "ddl-upgrade", "unit",
     "security-analysis", "harness-smoke", "e2e",
-    "deterministic-build", "integration-sql",
+    "deterministic-build", "integration-sql", "dt10-evidence",
 )
 
 
