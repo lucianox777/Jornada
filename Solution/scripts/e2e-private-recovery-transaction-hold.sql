@@ -13,17 +13,20 @@ IF NOT EXISTS (
 ) THROW 51802, 'C3.2f2c requires disposable Development SQL', 1;
 IF N'$(RecoveryKey)' NOT LIKE N'ci-e2e-recovery-[0-9]%'
     THROW 51803, 'C3.2f2c expected synthetic CI-only key', 1;
-IF OBJECT_ID(N'silver.pessoa_observacao', N'U') IS NULL
-    THROW 51804, 'C3.2f2c Silver table is absent', 1;
+IF OBJECT_ID(N'identidade.vinculo_fonte', N'U') IS NULL
+    THROW 51804, 'C3.2f2c identity link table is absent', 1;
 GO
 
--- When the first attempt is in its uncommitted Serializable transaction,
--- hold that transaction open so a second observer can verify the dirty row
+-- The Processor INSERT into Silver uses OUTPUT INSERTED without INTO, so a
+-- trigger on Silver would BREAK it (SQL Server disallows OUTPUT on a table
+-- with an enabled trigger). Instead attach to identidade.vinculo_fonte,
+-- which the Processor inserts without OUTPUT later in the SAME transaction.
+-- Hold that transaction open so a second observer can verify the dirty row
 -- AND the committed PROCESSANDO lease, BEFORE the CI injects SIGKILL.
 -- Second attempt is briefly held to allow observing the new fencing token.
 -- No other delivery is delayed; matching is by exact CI-only idempotency key.
-CREATE OR ALTER TRIGGER silver.tr_ci_c3_2f2c_hold_first_write
-ON silver.pessoa_observacao
+CREATE OR ALTER TRIGGER identidade.tr_ci_c3_2f2c_hold_first_write
+ON identidade.vinculo_fonte
 AFTER INSERT
 AS
 BEGIN
@@ -34,7 +37,8 @@ BEGIN
     DECLARE @attempt INT = NULL;
     SELECT TOP (1) @attempt = l.tentativa_count
     FROM inserted i
-    JOIN ingestao.lote l ON l.lote_id = i.lote_id
+    JOIN silver.pessoa_observacao p ON p.pessoa_observacao_id = i.pessoa_observacao_id
+    JOIN ingestao.lote l ON l.lote_id = p.lote_id
     JOIN ingestao.entrega e ON e.entrega_id = l.entrega_id
     WHERE e.idempotency_key = N'$(RecoveryKey)';
 
@@ -48,7 +52,7 @@ IF (
     SELECT COUNT(*)
     FROM sys.triggers
     WHERE name = N'tr_ci_c3_2f2c_hold_first_write'
-      AND parent_id = OBJECT_ID(N'silver.pessoa_observacao')
+      AND parent_id = OBJECT_ID(N'identidade.vinculo_fonte')
       AND is_disabled = 0
 ) <> 1
     THROW 51806, 'C3.2f2c hold trigger not installed', 1;
