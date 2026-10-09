@@ -21,8 +21,8 @@ public sealed class LinkageCalibrationAuditRoundTripTests
 
         var actual = LinkageCalibrationAuditRoundTrip.Import(json);
 
-        Assert.DoesNotThrow(() =>
-            LinkageCalibrationAuditRoundTrip.VerifyEquivalent(expected, actual));
+        Assert.DoesNotThrow((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.VerifyEquivalent(expected, actual)));
     }
 
     [Test]
@@ -36,8 +36,8 @@ public sealed class LinkageCalibrationAuditRoundTripTests
         };
         var changed = expected with { Parameters = changedParameters };
 
-        var ex = Assert.Throws<InvalidDataException>(() =>
-            LinkageCalibrationAuditRoundTrip.VerifyEquivalent(expected, changed));
+        var ex = Assert.Throws<InvalidDataException>((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.VerifyEquivalent(expected, changed)));
 
         Assert.That(ex!.Message, Does.Contain("parameters[0]"));
     }
@@ -49,8 +49,8 @@ public sealed class LinkageCalibrationAuditRoundTripTests
         var root = JsonNode.Parse(json)!.AsObject();
         root["cpf"] = "12345678901";
 
-        var ex = Assert.Throws<JsonException>(() =>
-            LinkageCalibrationAuditRoundTrip.Import(root.ToJsonString()));
+        var ex = Assert.Throws<JsonException>((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.Import(root.ToJsonString())));
 
         Assert.That(ex!.Message, Does.Contain("cpf"));
     }
@@ -64,8 +64,8 @@ public sealed class LinkageCalibrationAuditRoundTripTests
         {
             InterchangeContract = sample.InterchangeContract with { StatusAtExport = "ATIVO" }
         };
-        var statusEx = Assert.Throws<InvalidDataException>(() =>
-            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongStatus, JsonOptions)));
+        var statusEx = Assert.Throws<InvalidDataException>((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongStatus, JsonOptions))));
 
         var wrongStates = sample with
         {
@@ -77,8 +77,8 @@ public sealed class LinkageCalibrationAuditRoundTripTests
                 }
             }
         };
-        var statesEx = Assert.Throws<InvalidDataException>(() =>
-            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongStates, JsonOptions)));
+        var statesEx = Assert.Throws<InvalidDataException>((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongStates, JsonOptions))));
 
         var wrongRule = sample with
         {
@@ -90,8 +90,8 @@ public sealed class LinkageCalibrationAuditRoundTripTests
                 }
             }
         };
-        var ruleEx = Assert.Throws<InvalidDataException>(() =>
-            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongRule, JsonOptions)));
+        var ruleEx = Assert.Throws<InvalidDataException>((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongRule, JsonOptions))));
 
         Assert.Multiple((Action)(() =>
         {
@@ -113,8 +113,8 @@ public sealed class LinkageCalibrationAuditRoundTripTests
             }
         };
 
-        var ex = Assert.Throws<InvalidDataException>(() =>
-            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrong, JsonOptions)));
+        var ex = Assert.Throws<InvalidDataException>((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrong, JsonOptions))));
 
         Assert.That(ex!.Message, Does.Contain("Fonte nominal de u para nome"));
     }
@@ -128,15 +128,15 @@ public sealed class LinkageCalibrationAuditRoundTripTests
         {
             TermFrequency = sample.TermFrequency with { RuntimeEnabled = true }
         };
-        var tfEx = Assert.Throws<InvalidDataException>(() =>
-            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(runtimeTf, JsonOptions)));
+        var tfEx = Assert.Throws<InvalidDataException>((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(runtimeTf, JsonOptions))));
 
         var wrongAlgorithm = sample with
         {
             TermFrequency = sample.TermFrequency with { AlgorithmVersion = "TF_UNKNOWN" }
         };
-        var algorithmEx = Assert.Throws<InvalidDataException>(() =>
-            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongAlgorithm, JsonOptions)));
+        var algorithmEx = Assert.Throws<InvalidDataException>((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongAlgorithm, JsonOptions))));
 
         var wrongReference = sample with
         {
@@ -145,8 +145,8 @@ public sealed class LinkageCalibrationAuditRoundTripTests
                 ReferenceSnapshot = sample.TermFrequency.ReferenceSnapshot! with { VersionId = 999 }
             }
         };
-        var referenceEx = Assert.Throws<InvalidDataException>(() =>
-            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongReference, JsonOptions)));
+        var referenceEx = Assert.Throws<InvalidDataException>((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(wrongReference, JsonOptions))));
 
         Assert.Multiple((Action)(() =>
         {
@@ -179,8 +179,8 @@ public sealed class LinkageCalibrationAuditRoundTripTests
             }
         };
 
-        Assert.DoesNotThrow(() =>
-            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(runtimeTf, JsonOptions)));
+        Assert.DoesNotThrow((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.Import(JsonSerializer.Serialize(runtimeTf, JsonOptions))));
     }
 
     [Test]
@@ -193,8 +193,8 @@ public sealed class LinkageCalibrationAuditRoundTripTests
         };
         var json = JsonSerializer.Serialize(draft, JsonOptions);
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            LinkageCalibrationAuditRoundTrip.Import(json));
+        var ex = Assert.Throws<InvalidOperationException>((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.Import(json)));
 
         Assert.That(ex!.Message, Does.Contain("ATIVO ou VALIDADO"));
     }

@@ -36,16 +36,16 @@ public sealed class NominalTermFrequencySnapshotTests
     [Test]
     public void Snapshot_fails_closed_on_inconsistent_frequency_or_unknown_attribute()
     {
-        Assert.Throws<InvalidDataException>(() => NominalTermFrequencySnapshot.Create(new[]
+        Assert.Throws<InvalidDataException>((Action)(() => NominalTermFrequencySnapshot.Create(new[]
         {
             new NominalTermFrequencyEntry(
                 NominalTermFrequencySnapshot.PersonFirstNameAttribute,
                 "MARIA", 600, 1000, 0.5m)
-        }));
+        })));
 
-        Assert.Throws<InvalidDataException>(() => NominalTermFrequencySnapshot.Create(new[]
+        Assert.Throws<InvalidDataException>((Action)(() => NominalTermFrequencySnapshot.Create(new[]
         {
             new NominalTermFrequencyEntry("OUTRO", "MARIA", 600, 1000, 0.6m)
-        }));
+        })));
     }
 }

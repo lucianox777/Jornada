@@ -60,7 +60,7 @@ public sealed class IngestionContractTests
             ["pessoas.jsonl"] = "{}\n",
             ["registros.jsonl"] = string.Empty
         });
-        Assert.DoesNotThrow(() => IngestionPackageInspector.ParseAndValidate(bytes));
+        Assert.DoesNotThrow((Action)(() => IngestionPackageInspector.ParseAndValidate(bytes)));
     }
 
     [Test]
@@ -163,9 +163,9 @@ public sealed class IngestionContractTests
         var manifest = IngestionPackageInspector.ParseAndValidate(bytes);
         var hash = IngestionPackageInspector.ComputeSha256(bytes);
         var context = new AccessContext(Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null, [], []);
-        Assert.DoesNotThrow(() => IngestionPackageInspector.ValidateCanonicalFileName($"ENTREGA_SMADS_ASSISTENCIA_v2_{hash}.zip", manifest, context, hash));
-        var ex = Assert.Throws<InvalidDataException>(() =>
-            IngestionPackageInspector.ValidateCanonicalFileName($"ENTREGA_SMADS_ASSISTENCIA_v2_{new string('0',64)}.zip", manifest, context, hash));
+        Assert.DoesNotThrow((Action)(() => IngestionPackageInspector.ValidateCanonicalFileName($"ENTREGA_SMADS_ASSISTENCIA_v2_{hash}.zip", manifest, context, hash)));
+        var ex = Assert.Throws<InvalidDataException>((Action)(() =>
+            IngestionPackageInspector.ValidateCanonicalFileName($"ENTREGA_SMADS_ASSISTENCIA_v2_{new string('0',64)}.zip", manifest, context, hash)));
         Assert.That(ex!.Message, Does.Not.Contain(hash));
     }
 
@@ -254,7 +254,7 @@ public sealed class IngestionContractTests
                 File.ReadAllText,
                 StringComparer.Ordinal);
             var bytes = BuildZip(files);
-            Assert.DoesNotThrow(() => IngestionPackageInspector.ParseAndValidate(bytes), directory);
+            Assert.DoesNotThrow((Action)(() => IngestionPackageInspector.ParseAndValidate(bytes), directory));
         }
     }
 

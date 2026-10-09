@@ -58,8 +58,8 @@ public sealed class IdentityCompositionLedgerStoreTests
     public void Exact_prepared_content_is_accepted()
     {
         var (decision, plan) = Build();
-        Assert.DoesNotThrow(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
-            Receipt(decision, plan, new[] { R }), decision, plan, new[] { R }));
+        Assert.DoesNotThrow((Action)(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
+            Receipt(decision, plan, new[] { R }), decision, plan, new[] { R })));
     }
 
     [Test]
@@ -72,12 +72,12 @@ public sealed class IdentityCompositionLedgerStoreTests
 
         Assert.Multiple(() =>
         {
-            Assert.Throws<InvalidOperationException>(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
-                receipt, changedDecision, plan, new[] { R }));
-            Assert.Throws<InvalidOperationException>(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
-                receipt, decision, changedPlan, new[] { R }));
-            Assert.Throws<InvalidOperationException>(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
-                receipt, decision, plan, Array.Empty<Guid>()));
+            Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
+                receipt, changedDecision, plan, new[] { R })));
+            Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
+                receipt, decision, changedPlan, new[] { R })));
+            Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
+                receipt, decision, plan, Array.Empty<Guid>())));
         });
     }
 
@@ -89,12 +89,12 @@ public sealed class IdentityCompositionLedgerStoreTests
 
         Assert.Multiple(() =>
         {
-            Assert.Throws<InvalidOperationException>(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
-                receipt with { State = "APLICADA" }, decision, plan, new[] { R }));
-            Assert.Throws<InvalidOperationException>(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
-                receipt with { RequestHash = "ABC" }, decision, plan, new[] { R }));
-            Assert.Throws<InvalidOperationException>(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
-                receipt with { RequesterReference = " " }, decision, plan, new[] { R }));
+            Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
+                receipt with { State = "APLICADA" }, decision, plan, new[] { R })));
+            Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
+                receipt with { RequestHash = "ABC" }, decision, plan, new[] { R })));
+            Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionLedgerStore.ValidatePreparedContent(
+                receipt with { RequesterReference = " " }, decision, plan, new[] { R })));
         });
     }
 }

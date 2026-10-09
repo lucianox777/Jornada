@@ -53,36 +53,36 @@ public sealed class IdentityHistoricalResolverTests
     [Test]
     public void Missing_member_fails_closed()
     {
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C))));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C)))));
     }
 
     [Test]
     public void Duplicate_history_member_is_rejected()
     {
         var history = History with { MemberInitialUuids = ImmutableArray.Create(A, A) };
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityHistoricalResolver.Resolve(history, ImmutableArray.Create(Member(A, C))));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityHistoricalResolver.Resolve(history, ImmutableArray.Create(Member(A, C)))));
     }
 
     [Test]
     public void Duplicate_current_member_is_rejected()
     {
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C), Member(A, C), Member(B, C))));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C), Member(A, C), Member(B, C)))));
     }
 
     [Test]
     public void Invalid_current_version_is_rejected()
     {
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C) with { Version = 0 }, Member(B, C))));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C) with { Version = 0 }, Member(B, C)))));
     }
 
     [Test]
     public void Invalid_cpf_anchor_is_rejected()
     {
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C) with { CpfAnchorUuid = Guid.Empty }, Member(B, C))));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C) with { CpfAnchorUuid = Guid.Empty }, Member(B, C)))));
     }
 }

@@ -38,24 +38,24 @@ public sealed class LinkageRunOptionsTests
     [Test]
     public void Replay_requires_explicit_historical_source_run()
     {
-        var error = Assert.Throws<InvalidOperationException>(() =>
-            LinkageRunOptions.Parse(new[] { "--mode", "REPLAY" }));
+        var error = Assert.Throws<InvalidOperationException>((Action)(() =>
+            LinkageRunOptions.Parse(new[] { "--mode", "REPLAY" })));
         Assert.That(error!.Message, Does.Contain("replay-source-run-id"));
     }
 
     [Test]
     public void Replay_source_run_is_rejected_outside_replay()
     {
-        Assert.Throws<InvalidOperationException>(() => LinkageRunOptions.Parse(new[]
+        Assert.Throws<InvalidOperationException>((Action)(() => LinkageRunOptions.Parse(new[]
         {
             "--mode", "ON_DEMAND", "--replay-source-run-id", "11111111-2222-3333-4444-555555555555"
-        }));
+        })));
     }
 
     [Test]
     public void Model_validation_cannot_publish()
     {
-        Assert.Throws<InvalidOperationException>(() =>
-            LinkageRunOptions.Parse(new[] { "--mode", "MODEL_VALIDATION", "--publish", "true" }));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            LinkageRunOptions.Parse(new[] { "--mode", "MODEL_VALIDATION", "--publish", "true" })));
     }
 }
