@@ -21,13 +21,13 @@ public sealed class GovernedImplementationConferenceCommandTests
             "UNFROZEN",
             null);
 
-        var ex = Assert.ThrowsAsync<ConferencePreconditionException>(async () =>
+        var ex = Assert.ThrowsAsync<ConferencePreconditionException>((AsyncTestDelegate)(async () =>
             await GovernedImplementationConferenceCommand.ExecuteAsync(
                 "Server=invalid.invalid;Database=NeverOpen;Encrypt=True",
                 Guid.NewGuid(),
                 tolerance,
                 5,
-                "test"));
+                "test")));
 
         Assert.That(ex!.Code, Is.EqualTo("TOLERANCE_NOT_FROZEN"));
     }
