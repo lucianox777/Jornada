@@ -1,3 +1,14 @@
+> **Atualização 09/10/2026:** a matriz atual de gates `jornada-ci`
+> tem dez identidades, sendo `dt10-evidence` **condicional**
+> a alterações relevantes e executado em workflow reutilizável
+> após #858. Os testes de supervisão, três RunOnce,
+> SIGKILL/rollback de lote e painel DEV pertencem ao
+> **runner SQL descartável `JornadaE2E`**, não são uma nova
+> fase de Ensaio, nem homologação HML/PROD. Consulte
+> [Runbook de testes](Runbook_Testes_Tecnicos.md),
+> [Manual do sistema](Manual_Sistema_Consolidado_20261009.md)
+> e [Console DEV](Console_DEV_Supervisao_Atual.md).
+>
 # Testes e operação — roteiro único
 
 **Sequência:** DEV → Ensaio único → HML → Produção. Os testes locais em DEV não constituem um segundo Ensaio. Scripts e logs são a evidência de execução; este índice não afirma testes aprovados.
