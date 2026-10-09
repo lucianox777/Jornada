@@ -14,7 +14,7 @@ public sealed class BlockingFeatureObservationFactoryTests
 
         var observation = BlockingFeatureObservationFactory.Create(pair, true);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.FirstName], Is.True);
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.Surnames], Is.True);
@@ -26,7 +26,7 @@ public sealed class BlockingFeatureObservationFactoryTests
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.BirthDay], Is.True);
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.BirthMonth], Is.True);
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.BirthYear], Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -38,11 +38,11 @@ public sealed class BlockingFeatureObservationFactoryTests
 
         var observation = BlockingFeatureObservationFactory.Create(pair, true);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.FullName], Is.False);
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr], Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -54,7 +54,7 @@ public sealed class BlockingFeatureObservationFactoryTests
 
         var observation = BlockingFeatureObservationFactory.Create(pair, false, 2m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(observation.Weight, Is.EqualTo(2m));
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.FullName], Is.Null);
@@ -63,7 +63,7 @@ public sealed class BlockingFeatureObservationFactoryTests
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.Surnames], Is.Null);
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.LastName], Is.Null);
             Assert.That(observation.Agreements[BlockingCandidateFeatureCatalog.BirthYear], Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -87,11 +87,11 @@ public sealed class BlockingFeatureObservationFactoryTests
 
         var observation = BlockingFeatureObservationFactory.Create(pair, true);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(observation.Agreements["email_contato__canonical"], Is.True);
             Assert.That(observation.Agreements["telefone_contato__canonical"], Is.False);
-        });
+        }));
     }
 
     [Test]
