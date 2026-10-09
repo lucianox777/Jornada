@@ -62,3 +62,30 @@ real após SIGKILL ou recuperação de lotes. O SQL dentro do projeto
 isolado ainda exige migrações governadas no próprio `JornadaE2E`
 antes de qualquer teste operacional. Não inventar progresso além
 das evidências da CI.
+
+
+## C3.2c — Bootstrap SQL privado antes dos serviços (em validação)
+
+O serviço `sql-bootstrap` é um processo **finito, create-only**,
+executado **somente dentro** do projeto `jornada-workers-e2e-*` e
+dependente do `sqlserver` privado desse mesmo Compose. Ele utiliza
+imagem SQL específica com cópias limitadas aos scripts do esquema
+canônico e seeds DEV; **não monta nenhum volume ou diretório do host**.
+Não lê nem carrega a referência IBGE original.
+
+O script recusa execução quando falta opt-in, modo DEV, ID exclusivo,
+endereço privado `sqlserver` ou o banco desejado não é exatamente
+`JornadaE2E`. **Recusa banco já existente** e não executa DROP/RESET:
+a recriação do ambiente só pode ser tratada por infraestrutura E2E
+descartável e verificada, nunca pelos scripts do `JornadaLocal`.
+Executa baseline canônico, seeds sintéticos e guardas de leases.
+A API, Resultado e os três workers aguardam
+`service_completed_successfully` para iniciar.
+
+**Importante:** o teste incluído nesta PR é apenas
+`docker compose config` + `bash --check` com guardas negativos e
+conferência de scripts. Ele **não cria banco nem inicia contêineres**.
+Ainda falta evidência operacional real na CI com o SQL isolado:
+readiness de API/Resultado, supervisão OFF↔ON, kill e reinício efetivos,
+recuperação de lote sintético sem duplicação. Não marcar C3.2 concluído
+somente com esta PR.
