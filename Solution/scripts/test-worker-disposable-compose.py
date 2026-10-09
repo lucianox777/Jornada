@@ -44,9 +44,9 @@ def main() -> int:
     denied = inspect({})
     require(denied.returncode != 0, "Compose must fail without explicit sandbox name/secret")
 
-    password = secrets.token_urlsafe(32) + "Aa9!"
+    sql_secret = secrets.token_urlsafe(32) + "Aa9!"
     env = {"JORNADA_WORKERS_E2E_ID": "contract123",
-           "JORNADA_WORKERS_E2E_SQL_PASSWORD": password}
+           "JORNADA_WORKERS_E2E_SQL_PASSWORD": sql_secret}
     denied = inspect({"JORNADA_WORKERS_E2E_ID": "contract123"})
     require(denied.returncode != 0, "Compose must fail without dedicated E2E secret")
     default = inspect(env)
@@ -72,7 +72,7 @@ def main() -> int:
     require(db.get("restart") == "no", "SQL service must not auto-start workers")
     require(not db.get("ports") and not db.get("container_name"),
             "Sandbox SQL must expose no host port/fixed container name")
-    require(db.get("environment", {}).get("MSSQL_SA_PASSWORD") == password,
+    require(db.get("environment", {}).get("MSSQL_SA_PASSWORD") == sql_secret,
             "SQL service secret not separately scoped")
 
     for name, arg in WORKERS.items():
@@ -96,7 +96,7 @@ def main() -> int:
                 and worker_env.get("JORNADA_SQL_DATABASE_OVERRIDE") == "JornadaE2E",
                 f"{name}: E2E guard missing")
         conn = worker_env.get("ConnectionStrings__Jornada", "")
-        require("Database=JornadaE2E;" in conn and password in conn,
+        require("Database=JornadaE2E;" in conn and sql_secret in conn,
                 f"{name}: wrong effective database connection")
         for dependency in svc.get("depends_on", {}):
             require(dependency == "sqlserver",
