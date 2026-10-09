@@ -129,7 +129,7 @@ PY
 
 # Explicit OFF semantics: zero resident workers, independent APIs and SQL still alive.
 for worker in processor operations-maintenance bronze-maintenance; do
-  [[ -z "$(compose ps -aq "$worker")" ]] ||
+  [[ -z "$(docker ps -aq --filter "label=com.docker.compose.project=$PROJECT" --filter "label=com.docker.compose.service=$worker")" ]] ||
     die "worker $worker exists in initial OFF mode"
 done
 for cid in "$sql_cid" "$api_cid" "$resultado_cid"; do
@@ -151,7 +151,7 @@ pathlib.Path(output).write_text(json.dumps({
   'seed_gestor_count':int(seed_count),
   'create_only_second_run':'REJECTED_EXISTING_DB',
   'api_ready':True, 'resultado_api_ready':True,
-  'api_to_resultado_private_dns':'PASS', 'worker_residents':0
+  'resultado_to_api_private_dns':'PASS', 'worker_residents':0
 }, indent=2) + '\n', encoding='utf-8')
 PY
 echo 'C3.2d SQL-only operational gate: PASS'
