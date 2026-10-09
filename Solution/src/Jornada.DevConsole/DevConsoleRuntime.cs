@@ -440,8 +440,14 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
 {
     static readonly JsonSerializerOptions StreamJson=new(JsonSerializerDefaults.Web);
     readonly ConcurrentDictionary<Guid,LiveExecution> active=new();
+    readonly ConcurrentDictionary<Guid,string> commandIds=new();
 
     public bool Contains(Guid id)=>active.ContainsKey(id);
+
+    // The current Console has only Silver/Processor RunOnce. Maintenance
+    // RunOnce must be wired in a later guarded C3.3b2 increment.
+    public bool HasActiveWorkerRunOnce()=>commandIds.Any(x=>
+        x.Value=="silver" && active.TryGetValue(x.Key,out var run) && !run.Completed);
 
     public StartedExecution StartCommand(CommandDefinition definition)
     {
@@ -449,6 +455,7 @@ sealed class LiveExecutionService(IWebHostEnvironment env,RunStore store)
         var executionNumber=store.ReserveExecutionNumber(definition.Id);
         var live=new LiveExecution(id);
         if(!active.TryAdd(id,live))throw new InvalidOperationException("Não foi possível registrar a execução.");
+        commandIds.TryAdd(id,definition.Id);
         _=definition.IsComposite
             ?Task.Run(()=>RunCompositeCommandAsync(id,definition,live,executionNumber))
             :Task.Run(()=>RunCommandAsync(id,definition,live,executionNumber));
