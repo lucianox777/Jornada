@@ -140,3 +140,27 @@ O código `SyntheticDailyBirthDistribution.LoadAsync` valida esquema, datas, con
 Preservar a mesma data de nascimento verdadeira entre observações da mesma identidade, aplicando degradações de data somente no modelo de erros observacionais. Separar a distribuição etária marginal da dependência entre nascimento e nomes: marginais IBGE não identificam automaticamente a distribuição conjunta. Testar distribuição empírica gerada versus pesos de referência por faixas etárias, cobertura de extremos, determinismo por seed, integridade SHA-256 e separação TRAIN/VALIDATION/TEST por identidade. Registrar fonte, transformação, hipótese intrafaixa, seed e desvios no relatório do Calibrador.
 
 **Situação:** o amostrador demográfico e referência já existem; a eliminação/isolamento do fallback uniforme e os gates de cobertura de todos os caminhos de bootstrap ainda devem ser verificados/implementados. Não declarar esses gates concluídos.
+
+
+## 13. Tabelas FS consolidadas e bootstrap inicial congelado em `ref` (decisão vigente)
+
+A **primeira calibração de blocking e FS** é um bootstrap governado a partir da camada `ref` (frequências nominais IBGE, distribuição demográfica de nascimento e políticas de calibração). Seu **snapshot publicado é congelado**: não recalcular ou sobrescrever silenciosamente pesos, `m/u`, passes, limiares, TF, estrutura de dependências, proveniência ou fingerprints. Mudanças posteriores, inclusive substituição por evidência municipal real, criam **nova versão/modelo** e seguem VALIDATION, TEST, gates e promoção auditada. O congelamento refere-se ao snapshot publicado e seus vínculos, **não** à impossibilidade de publicar uma versão nova de `ref`.
+
+### Mapa lógico consolidado das tabelas e evidências FS
+
+| Conjunto lógico | Persistência atual ou referência | Fonte inicial | Regra de publicação |
+| --- | --- | --- | --- |
+| Frequências de nomes e sobrenomes | `ref.frequencia_nome_versao`, `ref.frequencia_nome` | IBGE versionado | Versão publicada imutável; novo modelo fixa ID da referência. |
+| Distribuição demográfica de nascimento | `data/reference/synthetic-birth-sp/` (artefato versionado com manifesto e SHA-256) | Projeção IBGE SP 2026, cauda Censo 2022 | Fixar fingerprint e transformação no bootstrap; **não afirmar** que já existe tabela SQL em `ref` para nascimento. |
+| Identidade e parâmetros FS | `identidade.modelo_linkage` e parâmetros associados ao modelo | Bootstrap calibrado | Modelo/snapshot versionado, sem mutação do publicado. |
+| Blocking | `identidade.linkage_ruleset`, `identidade.linkage_ruleset_passe`, `identidade.linkage_ruleset_passe_campo` | Calibração inicial governada | Ruleset e passes imutáveis; mudança gera novo modelo. |
+| TF materializada por modelo | `identidade.frequencia_linkage` | Frequências da versão `ref` fixada | Materialização vinculada ao modelo, sem consultar a referência ATIVA dinamicamente no score. |
+| Dependências condicionais, pesos TF selecionados e diagnóstico | **Extensão de contrato pendente** | Treino sintético com hipóteses identificadas; dados reais quando suficientes | Não declarar persistência implementada; adicionar ao snapshot governado sem criar fonte concorrente. |
+
+A expressão **“juntar tudo nas tabelas FS”** significa unificar a **visão lógica, as chaves de versão e a rastreabilidade do modelo**, sem copiar indiscriminadamente dados de referência para tabelas de decisão nem misturar referências imutáveis com métricas de execução. Referência `ref` → modelo FS/ruleset → evidências de validação → ativação → runs devem compartilhar IDs/fingerprints verificáveis.
+
+### Invariantes e verificação
+
+- Um bootstrap só é publicável com referência fixada, conteúdo verificável e configuração de blocking/FS coerente. A referência inicial não é recalibrada retroativamente quando chegarem novos lotes.
+- Em caso de atualização de dados reais, criar candidato novo; não alterar `ref` nem modelo já publicado. Reproduzir uma decisão histórica deve utilizar **exatamente** o snapshot vigente naquele run.
+- Conferir no código/migrações os gates de imutabilidade existentes e adicionar os que faltarem para nascimento e estrutura estatística conjunta. O banco já protege frequências publicadas em `ref` e rulesets de blocking, mas isso **não comprova** congelamento integral do bootstrap multidimensional.
