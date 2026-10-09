@@ -30,3 +30,7 @@ Cada crítica é classificada como **procedente**, **parcialmente atendida** ou 
 6. Só após suficiência de evidência real: avaliar novo RASCUNHO e promoção governada; manter histórico íntegro.
 
 **Regra de conclusão:** item só muda para concluído quando houver PR/commit, teste executado e resultado rastreável. Esta matriz responde às críticas recuperadas, mas não afirma que todos os itens estão implementados.
+
+### Reexecução de distribuição publicada — proteção adicional
+
+A procedure `ref.sp_carregar_distribuicao_nascimento_json` passou a comparar **todas as datas e pesos** do payload recebido com a versão publicada, em ambos os sentidos (`EXCEPT`). Contagem e soma idênticas não bastam para considerar uma reexecução idempotente. A verificação do SHA-256 dos bytes do arquivo frente ao manifesto continua sendo responsabilidade do importador, ainda pendente de integração operacional; este ajuste SQL não a substitui.
