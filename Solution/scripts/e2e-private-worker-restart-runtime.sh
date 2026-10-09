@@ -221,7 +221,7 @@ Path(sys.argv[1]).write_text(json.dumps({
     "status": "PASS",
     "scope": "C3.2f1 restart and sibling/API isolation only",
     "workers_tested": ["processor", "operations-maintenance", "bronze-maintenance"],
-    "fault": "SIGKILL inside allowlisted PID1, never Docker stop",
+    "fault": "SIGKILL of verified sandbox container host PID, never Docker stop",
     "automatic_restart_with_new_host_pid": True,
     "new_sql_heartbeat_instance_id": True,
     "sql_and_apis_and_siblings_not_restarted": True,

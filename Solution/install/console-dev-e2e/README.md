@@ -156,9 +156,11 @@ sucesso nos gates de bootstrap create-only e de API/ResultadoApi readiness,
 Antes de injetar falha, o teste exige identidade real de cada contêiner
 pelas labels do Compose, restart `unless-stopped`, processos distintos e
 heartbeat SQL recente em `controle.runtime_componente`.
-A falha é enviada a **PID 1 dentro do contêiner alvo**, e não por um
-`docker compose stop` administrativo que poderia desarmar a política de
-reinício. Repete separadamente para Processor, Operations Maintenance e
+A falha é enviada por SIGKILL ao **PID de host do contêiner alvo**
+identificado por labels/PID no runner efêmero; `docker compose stop`
+administrativo poderia desarmar a política de reinício. SIGKILL do PID1
+executado *dentro* do próprio namespace já falhou (run 37883567829),
+por isso não é usado como evidência de morte do processo. Repete separadamente para Processor, Operations Maintenance e
 Bronze Maintenance. Para cada alvo exige **novo PID do host, incremento no
 RestartCount e novo instance_id de heartbeat** sem outro clique. O teste
 também confirma identidade e PID de SQL, API, Resultado e dos workers
@@ -179,3 +181,32 @@ de entregas/itens. Esses casos exigem C3.2f2 com lote sintético,
 rollback, lease/heartbeat/fencing e idempotência em SQL. DT-21 só poderá
 ser concluída após todos os aceites, incluindo Console global OFF↔ON
 e Chromium E2E.
+
+
+## C3.2f2b — ZIP sintético da API ao Processor residente e SQL real (baseline)
+
+Depois do aceite C3.2f1, o **mesmo job E2E** usa a imagem já construída,
+sem novo restore/build, para enviar um ZIP de
+`tests/fixtures/ingestao/AA01_v2` à API privada por HTTP de dentro do
+contêiner isolado. A credencial é **sintética Development** e não aparece
+nos artefatos. O projeto Compose é
+`jornada-workers-e2e-ci<GITHUB_RUN_ID><GITHUB_RUN_ATTEMPT>`; nenhuma
+porta do host ou bind mount externo é criado.
+
+`scripts/e2e-private-api-ingestion-baseline-runtime.sh` comprova
+`/health/ready` SQL, heartbeat recente do Processor e entrega real
+`PROCESSADA`, com 1 lote, 1 pessoa Silver, 1 registro Silver,
+2 itens processados e materialização Serving por `entrega_id`.
+O script repete o **POST HTTP** com a mesma chave e ZIP, exige o
+mesmo `entregaId` e cardinalidades idênticas (sem duplicação), e grava
+`.local/e2e/c3-2f2b-api-sql-baseline/summary.json` como evidência.
+
+O novo contrato negativo em `unit` é barato e **não invoca Docker/SQL**.
+Apenas a execução E2E da HEAD exata poderá confirmar processamento
+operacional. A evidência deve declarar
+`fault_injected=false` e `processing_recovery_verified=false`.
+
+**C3.2f2b NÃO testa interrupção de transação, rollback, lease vencido,
+fencing ou autorrecuperação.** O próximo C3.2f2c deverá injetar
+SIGKILL com transação **realmente aberta** e comprovar em SQL o
+reprocessamento sem duplicações. Não considerar DT-21 concluída.

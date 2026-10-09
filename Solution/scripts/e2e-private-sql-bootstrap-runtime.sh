@@ -146,16 +146,22 @@ resultado_pid="$(docker inspect -f '{{.State.Pid}}' "$resultado_cid")"
 # the three independent resident workers; this is NOT the lot-recovery gate.
 bash scripts/e2e-private-worker-restart-runtime.sh
 
+# C3.2f2b: real API→Processor→SQL synthetic ZIP and idempotency baseline.
+# No crash/transaction rollback exercised here: those require separate C3.2f2c.
+bash scripts/e2e-private-api-ingestion-baseline-runtime.sh
+
 python3 - "$OUT/summary.json" "$PROJECT" "$before" <<'PY'
 import json, pathlib, sys
 output, project, seed_count = sys.argv[1:]
 pathlib.Path(output).write_text(json.dumps({
-  'status':'PASS', 'scenario':'C3.2d private SQL bootstrap only',
+  'status':'PASS', 'scenario':'C3.2d/E2E SQL bootstrap plus APIs, independent workers and synthetic ingestion',
   'project':project, 'database':'JornadaE2E',
   'seed_gestor_count':int(seed_count),
   'create_only_second_run':'REJECTED_EXISTING_DB',
   'api_ready':True, 'resultado_api_ready':True,
-  'resultado_to_api_private_dns':'PASS', 'worker_residents':0
+  'resultado_to_api_private_dns':'PASS', 'initial_off_worker_residents':0,
+  'subsequent_synthetic_ingestion_baseline':'PASS',
+  'processing_recovery_verified':False
 }, indent=2) + '\n', encoding='utf-8')
 PY
 echo 'C3.2d SQL-only operational gate: PASS'
