@@ -59,8 +59,8 @@ internal static class LinkageModelPolicy
                 {
                     if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyFirstTokenContract, out var tfContract) || tfContract < 1m)
                         throw new InvalidOperationException($"V8 com TF exige {LinkageParameterCatalog.TermFrequencyFirstTokenContract}.");
-                    if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyWeight, out var tfWeight) || tfWeight <= 0m)
-                        throw new InvalidOperationException($"V8 com TF exige {LinkageParameterCatalog.TermFrequencyWeight} positivo.");
+                    if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyWeight, out var tfWeight) || tfWeight < 0m)
+                        throw new InvalidOperationException($"TF exige {LinkageParameterCatalog.TermFrequencyWeight} não negativo.");
                     if (!parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyMinimumU, out var tfMinimumU)
                         || tfMinimumU <= 0m || tfMinimumU > 1m)
                         throw new InvalidOperationException($"V8 com TF exige {LinkageParameterCatalog.TermFrequencyMinimumU} em (0,1].");
@@ -222,6 +222,10 @@ internal static class ProbabilisticLinkageDecisions
         var minimumU = model.Parameters.TryGetValue(LinkageParameterCatalog.TermFrequencyMinimumU, out var configuredMinimum)
             ? configuredMinimum
             : throw new InvalidOperationException("V8 com TF habilitado exige TERM_FREQUENCY_MIN_U.");
+
+        // Splink: peso zero desliga apenas o ajuste TF, sem alterar o LLR FS base.
+        if (weight == 0m)
+            return raw;
 
         double adjustment = 0d;
         if (nameState == NameComparisonState.EXACT
