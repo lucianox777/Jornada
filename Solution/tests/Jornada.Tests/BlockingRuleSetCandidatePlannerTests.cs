@@ -201,7 +201,7 @@ public sealed class BlockingRuleSetCandidatePlannerTests
             NomeMae: "Ana Lima");
 
         Assert.That(
-            () => BlockingRuleSetCandidatePlanner.Plan(ruleSet, observation),
+            (Func<object?>)(() => BlockingRuleSetCandidatePlanner.Plan(ruleSet, observation),
             Throws.TypeOf<InvalidOperationException>());
     }
 
@@ -221,7 +221,7 @@ public sealed class BlockingRuleSetCandidatePlannerTests
             NomeMae: "Ana Lima");
 
         Assert.That(
-            () => BlockingRuleSetCandidatePlanner.Plan(ruleSet, observation),
+            (Func<object?>)(() => BlockingRuleSetCandidatePlanner.Plan(ruleSet, observation),
             Throws.TypeOf<ArgumentOutOfRangeException>());
     }
 }

@@ -92,7 +92,7 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
         using var command = new SqlCommand();
 
         Assert.That(
-            () => BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
+            (Func<object?>)(() => BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
                 command,
                 new[] { pass },
                 PersonResolutionProjectionContract.SchemaVersion,
@@ -163,7 +163,7 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
         using var command = new SqlCommand();
 
         Assert.That(
-            () => BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
+            (Func<object?>)(() => BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
                 command,
                 new[] { pass },
                 maxParameters: 4),
