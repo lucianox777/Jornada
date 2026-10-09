@@ -51,7 +51,7 @@ public sealed class CalibrationReplayManifestTests
         var manifest = CalibrationReplayManifest.Create(
             "CALIBRATOR_V1", Projection, "PLAN_V9", "plan-fingerprint", person, corpus, new[] { ibge });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(manifest.PersonSnapshot, Is.EqualTo(person));
             Assert.That(manifest.TrainingCorpusSnapshot, Is.EqualTo(corpus));
@@ -61,7 +61,7 @@ public sealed class CalibrationReplayManifestTests
             Assert.That(manifest.ProjectionFingerprint, Is.EqualTo(Projection.Fingerprint));
             Assert.That(manifest.BlockingPlanVersion, Is.EqualTo("PLAN_V9"));
             Assert.That(manifest.Fingerprint, Has.Length.EqualTo(64));
-        });
+        }));
     }
 
     private static CalibrationSourceSnapshot Snapshot(
