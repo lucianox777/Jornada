@@ -144,6 +144,40 @@ jobs:
             -PayloadRoot "$PWD\.local\windows-production-bundle" `
             -ValidateOnly
 
+      - name: Guard Windows installer .NET 10 runtime in ValidateOnly without deployment
+        shell: pwsh
+        run: |
+          $script = Get-Content -Raw -Encoding UTF8 install/windows-production/Install-JornadaProduction.ps1
+          foreach ($token in @('function Ensure-DotNet10', 'Microsoft\\.NETCore\\.App 10\\.', 'Microsoft\\.AspNetCore\\.App 10\\.', 'Ensure-DotNet10 $config.dotnet', 'jornada-dotnet-hosting-10.exe', 'Get-AuthenticodeSignature')) {
+            if (-not $script.Contains($token)) { throw "Missing .NET 10 guard: $token" }
+          }
+          if ($script.Contains('Ensure-DotNet8') -or $script.Contains('jornada-dotnet-hosting-8.exe')) {
+            throw '.NET 8 installer behavior still reachable.'
+          }
+          $original = Get-Content -Raw -Encoding UTF8 install/windows-production/Jornada.Production.example.json | ConvertFrom-Json
+          foreach ($url in @('https://aka.ms/dotnet/8.0/dotnet-hosting-win.exe', 'http://aka.ms/dotnet/10.0/dotnet-hosting-win.exe')) {
+            $cfg = $original | ConvertTo-Json -Depth 40 | ConvertFrom-Json
+            $cfg.installationRoot = 'C:\Jornada-CI-Net10-Validation'
+            $cfg.dataRoot = 'C:\Jornada-CI-Net10-Data'
+            $cfg.sql.mode = 'External'
+            $cfg.sql.initializeDatabase = $false
+            $cfg.dotnet.installIfMissing = $true
+            $cfg.dotnet.hostingBundleUrl = $url
+            foreach ($task in $cfg.tasks) { $task.enabled = $false }
+            $bad = "$PWD\.local\net10-runtime-invalid.json"
+            $cfg | ConvertTo-Json -Depth 40 | Set-Content -Encoding UTF8 $bad
+            $rejected = $false
+            try {
+              .\install\windows-production\Install-JornadaProduction.ps1 -ConfigPath $bad -PayloadRoot "$PWD\.local\windows-production-bundle" -ValidateOnly
+            }
+            catch {
+              if ($_.Exception.Message -like '*Hosting Bundle .NET 10 via HTTPS*') { $rejected = $true }
+              else { throw }
+            }
+            if (-not $rejected) { throw "ValidateOnly accepted unsafe hosting bundle URL: $url" }
+          }
+          Write-Host 'Windows installer .NET 10: valid profiles checked; old-major and insecure URL denied.'
+
       - name: Validate canonical cluster profiles and installer
         shell: pwsh
         run: |
