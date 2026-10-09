@@ -1,3 +1,17 @@
+> **Aditamento 09/10/2026 — não altera autorização de operação:** a
+> Console DEV ganhou serviço de observação, toggle ON↔OFF dos
+> três workers, RunOnce e parada individual no **sandbox GitHub-hosted
+> efêmero `JornadaE2E`** (#851–#856). Essa implementação
+> **não substitui** o scheduler corporativo descrito abaixo e
+> **não autoriza** uso dos métodos de injeção de falha em NODE,
+> HML/PROD, volumes/contêineres locais ou dados originais. A
+> recuperação de lote sintético após falha do Processor foi
+> comprovada na CI (#850); para incidentes de produção continuam
+> exigidos runbooks, backup, autorização, logs de auditoria e
+> infraestrutura específicos. Consulte
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md) e
+> [Console DEV](Console_DEV_Supervisao_Atual.md).
+>
 > **Precedência de decisão (29/09/2026):** [DC-LK/OP](Decisoes_Canonicas_Identidade_Linkage_20260929.md) prevalece sobre notas antigas V6/V7 e o guard demográfico; o código ainda exige conferência governada por modelo e mantém parâmetros históricos. Este runbook descreve passos executáveis com distinção de estado e objetivo futuro; não ativar a V8 revista antes dos gates de implementação.
 
 # Jornada - Runbook operacional da Fase 1 (v3.55)
