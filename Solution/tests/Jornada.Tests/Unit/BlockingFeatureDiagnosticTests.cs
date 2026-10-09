@@ -77,8 +77,7 @@ public sealed class BlockingFeatureDiagnosticTests
             Obs(true, ("nome", false))
         };
 
-        Assert.That(
-            () => BlockingFeatureDiagnostic.Analyze(observations),
+        Assert.That((Func<object?>)(() => BlockingFeatureDiagnostic.Analyze(observations)),
             Throws.TypeOf<ArgumentException>());
     }
 

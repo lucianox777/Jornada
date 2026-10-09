@@ -37,8 +37,7 @@ public sealed class ExternalNameFrequencySnapshotReaderTests
         }
         """;
 
-        Assert.That(
-            () => ExternalNameFrequencySnapshotReader.ParseJson(json),
+        Assert.That((Func<object?>)(() => ExternalNameFrequencySnapshotReader.ParseJson(json)),
             Throws.TypeOf<InvalidDataException>());
     }
 
@@ -54,8 +53,7 @@ public sealed class ExternalNameFrequencySnapshotReaderTests
         }
         """;
 
-        Assert.That(
-            () => ExternalNameFrequencySnapshotReader.ParseJson(json),
+        Assert.That((Func<object?>)(() => ExternalNameFrequencySnapshotReader.ParseJson(json)),
             Throws.TypeOf<InvalidDataException>());
     }
 
@@ -93,8 +91,7 @@ public sealed class ExternalNameFrequencySnapshotReaderTests
         }
         """;
 
-        Assert.That(
-            () => ExternalNameFrequencySnapshotReader.ParseJson(json),
+        Assert.That((Func<object?>)(() => ExternalNameFrequencySnapshotReader.ParseJson(json)),
             Throws.TypeOf<ArgumentException>());
     }
 }

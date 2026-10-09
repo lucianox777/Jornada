@@ -51,8 +51,8 @@ public sealed class CombinedIdentityCandidatePlannerTests
             null, "NAO_INFORMADO", "Jose Silva", new DateOnly(1975, 2, 11), null)), Is.Empty);
         Assert.That(CombinedIdentityCandidatePlanner.Plan(new IdentityObservation(
             null, "NAO_INFORMADO", "Jose Silva", null, "Maria Silva")), Is.Empty);
-        Assert.That(() => CombinedIdentityCandidatePlanner.Plan(new IdentityObservation(
+        Assert.That((Func<object?>)(() => CombinedIdentityCandidatePlanner.Plan(new IdentityObservation(
             "12345678909", "NAO_INFORMADO", "Jose Silva",
-            new DateOnly(1975, 2, 11), "Maria Silva")), Throws.InvalidOperationException);
+            new DateOnly(1975, 2, 11), "Maria Silva"))), Throws.InvalidOperationException);
     }
 }

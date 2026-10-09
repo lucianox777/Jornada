@@ -97,8 +97,8 @@ public sealed class BlockingTaggedCandidateQueryBuilderTests
                 ["D", "E"])
         ]);
         using var command = new SqlCommand();
-        Assert.That(() => BlockingProjectionCandidateQueryBuilder.BuildTaggedCandidateUuidQuery(
-            command, [d], [c], maxParameters: 7),
+        Assert.That((Func<object?>)(() => BlockingProjectionCandidateQueryBuilder.BuildTaggedCandidateUuidQuery(
+            command, [d], [c], maxParameters: 7)),
             Throws.TypeOf<InvalidOperationException>()
                 .With.Message.Contains("recusado"));
         Assert.That(command.Parameters, Is.Empty);

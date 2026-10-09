@@ -9,8 +9,7 @@ public sealed class OperationalSqlAdapterTests
     [Test]
     public void Rejects_empty_connection_string()
     {
-        Assert.That(
-            () => new OperationalSqlAdapter("  "),
+        Assert.That((Func<object?>)(() => new OperationalSqlAdapter("  ")),
             Throws.TypeOf<ArgumentException>());
     }
 

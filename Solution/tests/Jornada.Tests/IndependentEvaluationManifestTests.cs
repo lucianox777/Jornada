@@ -24,16 +24,14 @@ public sealed class IndependentEvaluationManifestTests
     [Test]
     public void Create_RejectsSameCalibrationAndEvaluationCorpus()
     {
-        Assert.That(
-            () => IndependentEvaluationManifestCatalog.Create("m", "v", A, A, C, 10, 1, DateTimeOffset.UnixEpoch),
+        Assert.That((Func<object?>)(() => IndependentEvaluationManifestCatalog.Create("m", "v", A, A, C, 10, 1, DateTimeOffset.UnixEpoch)),
             Throws.TypeOf<ArgumentException>());
     }
 
     [Test]
     public void Create_RejectsInvalidFingerprints()
     {
-        Assert.That(
-            () => IndependentEvaluationManifestCatalog.Create("m", "v", "deadbeef", B, C, 10, 1, DateTimeOffset.UnixEpoch),
+        Assert.That((Func<object?>)(() => IndependentEvaluationManifestCatalog.Create("m", "v", "deadbeef", B, C, 10, 1, DateTimeOffset.UnixEpoch)),
             Throws.TypeOf<ArgumentException>());
     }
 
@@ -42,11 +40,9 @@ public sealed class IndependentEvaluationManifestTests
     {
         Assert.Multiple(() =>
         {
-            Assert.That(
-                () => IndependentEvaluationManifestCatalog.Create("m", "v", A, B, C, 0, 0, DateTimeOffset.UnixEpoch),
+            Assert.That((Func<object?>)(() => IndependentEvaluationManifestCatalog.Create("m", "v", A, B, C, 0, 0, DateTimeOffset.UnixEpoch)),
                 Throws.TypeOf<ArgumentOutOfRangeException>());
-            Assert.That(
-                () => IndependentEvaluationManifestCatalog.Create("m", "v", A, B, C, 10, 11, DateTimeOffset.UnixEpoch),
+            Assert.That((Func<object?>)(() => IndependentEvaluationManifestCatalog.Create("m", "v", A, B, C, 10, 11, DateTimeOffset.UnixEpoch)),
                 Throws.TypeOf<ArgumentOutOfRangeException>());
         });
     }
@@ -55,8 +51,7 @@ public sealed class IndependentEvaluationManifestTests
     public void Create_RequiresUtcTimestamp()
     {
         var nonUtc = new DateTimeOffset(2026, 9, 10, 0, 0, 0, TimeSpan.FromHours(-3));
-        Assert.That(
-            () => IndependentEvaluationManifestCatalog.Create("m", "v", A, B, C, 10, 1, nonUtc),
+        Assert.That((Func<object?>)(() => IndependentEvaluationManifestCatalog.Create("m", "v", A, B, C, 10, 1, nonUtc)),
             Throws.TypeOf<ArgumentException>());
     }
 }

@@ -148,14 +148,11 @@ public sealed class IndependentResolutionSurveyEvaluationTests
 
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(
-                () => IndependentResolutionSurveyEvaluator.Evaluate(manifest, invalidWeight, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionSurveyEvaluator.Evaluate(manifest, invalidWeight, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(
-                () => IndependentResolutionSurveyEvaluator.Evaluate(manifest, invalidGroup, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionSurveyEvaluator.Evaluate(manifest, invalidGroup, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(
-                () => IndependentResolutionSurveyEvaluator.Evaluate(manifest, twoGroups, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionSurveyEvaluator.Evaluate(manifest, twoGroups, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
         }));
     }
@@ -171,8 +168,8 @@ public sealed class IndependentResolutionSurveyEvaluationTests
         })
         {
             var manifest = Manifest(7, 3, algorithm);
-            Assert.That(() => IndependentResolutionSurveyEvaluator.Evaluate(
-                manifest, SurveyRows(), 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionSurveyEvaluator.Evaluate(
+                manifest, SurveyRows(), 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>().With.Message.Contains("EvaluateRecorded"),
                 algorithm);
         }
@@ -249,15 +246,15 @@ public sealed class IndependentResolutionSurveyEvaluationTests
 
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => Run(rows, decisions, complete: false), Throws.TypeOf<InvalidOperationException>());
-            Assert.That(() => Run(rows, decisions.Take(3).ToArray()), Throws.TypeOf<InvalidOperationException>());
-            Assert.That(() => Run(rows, new[] { decisions[0], decisions[0], decisions[2], decisions[3] }),
+            Assert.That((Func<object?>)(() => Run(rows, decisions, complete: false)), Throws.TypeOf<InvalidOperationException>());
+            Assert.That((Func<object?>)(() => Run(rows, decisions.Take(3).ToArray())), Throws.TypeOf<InvalidOperationException>());
+            Assert.That((Func<object?>)(() => Run(rows, new[] { decisions[0], decisions[0], decisions[2], decisions[3] })),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(() => Run(rows, decisions, run: Guid.Empty), Throws.TypeOf<ArgumentException>());
-            Assert.That(() => Run(invalid, decisions), Throws.TypeOf<InvalidOperationException>());
-            Assert.That(() => Run(twoGroups, decisions), Throws.TypeOf<InvalidOperationException>());
-            Assert.That(() => Run(rows, decisions.Select((o, i) => i == 0
-                ? o with { BestCandidateFingerprintSha256 = Hash("9") } : o).ToArray()),
+            Assert.That((Func<object?>)(() => Run(rows, decisions, run: Guid.Empty)), Throws.TypeOf<ArgumentException>());
+            Assert.That((Func<object?>)(() => Run(invalid, decisions)), Throws.TypeOf<InvalidOperationException>());
+            Assert.That((Func<object?>)(() => Run(twoGroups, decisions)), Throws.TypeOf<InvalidOperationException>());
+            Assert.That((Func<object?>)(() => Run(rows, decisions.Select((o, i) => i == 0
+                ? o with { BestCandidateFingerprintSha256 = Hash("9") } : o).ToArray())),
                 Throws.TypeOf<InvalidOperationException>());
         }));
     }

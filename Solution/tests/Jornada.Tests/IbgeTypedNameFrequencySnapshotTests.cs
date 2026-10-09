@@ -36,12 +36,11 @@ public sealed class IbgeTypedNameFrequencySnapshotTests
     [Test]
     public void Snapshot_RequiresTerritorialCodeOutsideBrazil()
     {
-        Assert.That(
-            () => IbgeTypedNameFrequencyCatalog.Create(
+        Assert.That((Func<object?>)(() => IbgeTypedNameFrequencyCatalog.Create(
                 "v1",
                 IbgeGeographicScope.Municipality,
                 null,
-                new[] { new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.FirstName, "ANA", 1) }),
+                new[] { new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.FirstName, "ANA", 1) })),
             Throws.ArgumentException);
     }
 

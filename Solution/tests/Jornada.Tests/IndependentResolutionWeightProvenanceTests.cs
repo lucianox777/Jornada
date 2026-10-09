@@ -108,17 +108,13 @@ public sealed class IndependentResolutionWeightProvenanceTests
 
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(
-                () => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, mismatch, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, mismatch, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(
-                () => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, missingAdjustment, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, missingAdjustment, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(
-                () => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, appliedWithoutEvidence, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, appliedWithoutEvidence, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(
-                () => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, notApplicableWithEvidence, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, notApplicableWithEvidence, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
         }));
     }
@@ -133,8 +129,7 @@ public sealed class IndependentResolutionWeightProvenanceTests
             WeightProvenance = rows[3].WeightProvenance with { MethodVersion = "WEIGHT_METHOD_V2" }
         };
 
-        Assert.That(
-            () => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, rows, 0.95m, 0.03m),
+        Assert.That((Func<object?>)(() => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, rows, 0.95m, 0.03m)),
             Throws.TypeOf<InvalidOperationException>());
     }
 
@@ -179,7 +174,7 @@ public sealed class IndependentResolutionWeightProvenanceTests
             Assert.That(report.NonResponseAdjustmentsApplied, Is.EqualTo(1));
             Assert.That(report.CalibrationAdjustmentsApplied, Is.EqualTo(1));
             Assert.That(report.FingerprintSha256, Is.EqualTo(reversed.FingerprintSha256));
-            Assert.That(() => Run(invalidWeight), Throws.TypeOf<InvalidOperationException>());
+            Assert.That((Func<object?>)(() => Run(invalidWeight)), Throws.TypeOf<InvalidOperationException>());
         }));
     }
 
