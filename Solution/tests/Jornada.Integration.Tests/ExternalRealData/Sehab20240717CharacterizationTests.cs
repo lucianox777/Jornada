@@ -69,11 +69,11 @@ public sealed class Sehab20240717CharacterizationTests
         var root = TestContext.CurrentContext.TestDirectory;
         var aa = Path.Combine(root, "config", "contracts", "registros", "AA01", "v1", "registro.schema.json");
         var ae = Path.Combine(root, "config", "contracts", "registros", "AE01", "v1", "registro.schema.json");
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(File.Exists(aa), Is.True, "AA01 deve permanecer contratado na Solution atual.");
             Assert.That(File.Exists(ae), Is.False, "Caracterização v4.05: AE01 existe na origem real, mas ainda não possui contrato factual.");
-        });
+        }));
     }
 
     [Test]
@@ -86,13 +86,13 @@ public sealed class Sehab20240717CharacterizationTests
 
         using var zip = ZipFile.OpenRead(_zipPath);
         var headers = ReadHeader(zip.GetEntry("dados_base_central_aa.csv")!);
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(headers, Does.Contain("con_data_ini_vig_beneficio"));
             Assert.That(headers, Does.Contain("con_fim_vig_beneficio"));
             Assert.That(headers, Does.Not.Contain("situacaoVigencia"));
             Assert.That(headers, Does.Not.Contain("situacao_vigencia"));
-        });
+        }));
     }
 
     [Test]
@@ -104,7 +104,7 @@ public sealed class Sehab20240717CharacterizationTests
 
         using var zip = ZipFile.OpenRead(_zipPath);
         var headers = ReadHeader(zip.GetEntry("beneficios_cencedidos_aa.csv")!);
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(headers, Does.Contain("bene_dt_pagamento"));
             Assert.That(headers, Does.Contain("bene_ano_mes"));
@@ -112,7 +112,7 @@ public sealed class Sehab20240717CharacterizationTests
             Assert.That(properties, Does.Not.Contain("dataPagamento"));
             Assert.That(properties, Does.Not.Contain("competenciaPagamento"));
             Assert.That(properties, Does.Not.Contain("numeroPagamento"));
-        });
+        }));
     }
 
     [Test]
@@ -122,7 +122,7 @@ public sealed class Sehab20240717CharacterizationTests
         var aa = AnalyzePersonCore(zip, "dados_base_central_aa.csv", "con_cbp_aa.csv");
         var ae = AnalyzePersonCore(zip, "dados_base_central_ce.csv", "dados_cbp_ce.csv");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(aa.UniqueBeneficiaries, Is.EqualTo(45_774));
             Assert.That(aa.EligibleWithoutInventingData, Is.EqualTo(45_639));
@@ -134,7 +134,7 @@ public sealed class Sehab20240717CharacterizationTests
             Assert.That(ae.EligibleWithoutInventingData, Is.EqualTo(2_673));
             Assert.That(ae.MissingSourcePerson, Is.EqualTo(19));
             Assert.That(ae.MissingMotherName, Is.EqualTo(2_800));
-        });
+        }));
     }
 
     private static long CountRows(ZipArchiveEntry entry)
