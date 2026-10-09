@@ -147,7 +147,16 @@ for i in "${!services[@]}"; do
   # the verified target container, leaving all siblings and APIs untouched.
   [[ "$(label "$target_cid")" == "$PROJECT:$target" ]] ||
     die 'worker identity changed before fault injection'
-  docker exec "$target_cid" /bin/sh -c 'kill -KILL 1' > /dev/null 2>&1 || true
+  # Docker exec's default user may not have permission to signal PID 1.
+  # Explicit root is scoped to this already verified disposable container.
+  # Docker may return 137 when the target dies: exit status of docker exec
+  # is not evidence; prove restart via host PID + RestartCount + SQL instance.
+  signal_exit=0
+  docker exec --user 0 "$target_cid" /bin/sh -c 'kill -KILL 1' \
+    > "$OUT/$target-fault-signal.log" 2>&1 || signal_exit=$?
+  printf 'target=%s;inject_exit=%s;before_pid=%s;before_restart=%s\n' \
+    "$target" "$signal_exit" "$before_pid" "$before_count" \
+    >> "$OUT/fault-injection-evidence.log"
 
   restarted=''
   for _ in $(seq 1 50); do
@@ -162,7 +171,12 @@ for i in "${!services[@]}"; do
     fi
     sleep 2
   done
-  [[ "$restarted" == true ]] || die "no automatic restart after SIGKILL: $target"
+  if [[ "$restarted" != true ]]; then
+    docker inspect -f 'status={{.State.Status}};running={{.State.Running}};exit={{.State.ExitCode}};pid={{.State.Pid}};restart={{.RestartCount}};policy={{.HostConfig.RestartPolicy.Name}}' "$target_cid" \
+      >> "$OUT/fault-injection-evidence.log" 2>&1 || true
+    docker logs --tail 100 "$target_cid" > "$OUT/$target-runtime-diagnostic.log" 2>&1 || true
+    die "no automatic restart after SIGKILL: $target (diagnostics recorded)"
+  fi
   next_instance="$(wait_heartbeat "$target" "${components[$i]}" "$before_instance")" ||
     die "new process emitted no distinct SQL heartbeat: $target"
   valid_uuid "$next_instance" || die "new SQL instance_id invalid: $target"
