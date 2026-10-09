@@ -45,7 +45,7 @@ sealed class IsolatedWorkerSupervisorStatusReader
             && RunId.IsMatch(run) && AttemptId.IsMatch(attempt)
             && Environment.GetEnvironmentVariable("JORNADA_WORKERS_E2E_ID") == "ci" + run + attempt
             && !string.IsNullOrEmpty(Environment.GetEnvironmentVariable("JORNADA_WORKERS_E2E_SQL_PASSWORD"))
-            && Environment.GetEnvironmentVariable("JORNADA_WORKERS_E2E_IMAGE_TAG") is null or "test"
+            && (Environment.GetEnvironmentVariable("JORNADA_WORKERS_E2E_IMAGE_TAG") is null or "test")
             && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOCKER_HOST"))
             && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("DOCKER_CONTEXT"));
     }
@@ -79,7 +79,7 @@ sealed class IsolatedWorkerSupervisorStatusReader
         var api = known["api"];
         var resultado = known["resultado-api"];
         if (sql?.Running != true || api?.Running != true || resultado?.Running != true
-            || sql.Healthy is false || api.Healthy is false || resultado.Healthy is false)
+            || sql?.Healthy != true || api?.Healthy != true || resultado?.Healthy != true)
             throw new InvalidOperationException("SQL/API/ResultadoApi privados não estão disponíveis.");
 
         // Inspect alone is insufficient: /health/ready exercises schema/SQL.
