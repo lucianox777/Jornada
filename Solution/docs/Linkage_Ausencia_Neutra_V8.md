@@ -25,3 +25,6 @@ Comparações presentes preservam os comparadores de nome V1 (`WHOLE_NAME_JARO_W
 5. Somente `VALIDATE` e `ACTIVATE` explícitos após evidência governada `CONFORME` para o **novo** modelo. O bloqueio fail-closed permanece.
 
 Esta mudança não altera a obrigatoriedade nos contratos de ingestão, não preenche valores ausentes e não muda a resolução determinística pelo CPF.
+
+
+> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-tf--norma-vigente-de-frequência-nominal-fs-e-calibrador-09102026). O peso TF zero é neutro (peso 1 aplica ajuste integral); os pesos e m/u devem ser estimados pelo Calibrador a partir do bootstrap sintético IBGE e, progressivamente, de evidência histórica real. Primeiro nome e último sobrenome significativo de pessoa e mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Em caso de divergência, prevalece a decisão canônica; este documento não certifica implementação concluída.
