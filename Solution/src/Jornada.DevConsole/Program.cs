@@ -12,6 +12,7 @@ builder.Services.AddSingleton<ActiveConfigFileService>();
 builder.Services.AddSingleton<LayerBrowserService>();
 builder.Services.AddSingleton<ConsoleActivityLog>();
 builder.Services.AddSingleton<IsolatedWorkerSupervisorStatusReader>();
+builder.Services.AddSingleton<IsolatedWorkerSupervisorModeController>();
 
 var app=builder.Build();
 
@@ -162,15 +163,56 @@ app.MapGet("/api/workers/supervisor",async(
     }
 });
 
+
+// C3.3b1: a single global ON/OFF operation, never an individual start button.
+// Only this private GitHub-hosted DEV profile has a lifecycle endpoint; all
+// other modes refuse BEFORE inspecting or modifying any Docker resources.
+app.MapPost("/api/workers/supervisor",async(
+    HttpContext context, IsolatedWorkerModeRequest request,
+    ConsoleRuntimeMode runtime, IsolatedWorkerSupervisorStatusReader reader,
+    IsolatedWorkerSupervisorModeController controller, CancellationToken ct)=>{
+    if(!reader.Enabled(runtime)
+        ||context.Connection.RemoteIpAddress is not { } remote
+        ||!System.Net.IPAddress.IsLoopback(remote))
+        return Results.Conflict(new{error="Supervisão somente no CI DEV efêmero local."});
+    try
+    {
+        var effective=await controller.SetAsync(request.Mode,runtime,ct);
+        return Results.Ok(effective);
+    }
+    catch(ArgumentException ex)
+    {
+        return Results.BadRequest(new{error=ex.Message});
+    }
+    catch(InvalidOperationException)
+    {
+        return Results.Conflict(new{error="Modo não alterado ou não comprovado; consulte estado real."});
+    }
+    catch(OperationCanceledException) when(ct.IsCancellationRequested)
+    {
+        return Results.StatusCode(StatusCodes.Status408RequestTimeout);
+    }
+    catch(Exception)
+    {
+        return Results.Json(new{error="Transição privada falhou.",mode="ERRO"},
+            statusCode:StatusCodes.Status503ServiceUnavailable);
+    }
+});
+
 app.MapPost("/api/session-counts/reset",([FromBody] string[] commands,RunStore store)=>
     Results.Ok(new{reset=store.ResetExecutionCounts(commands)}));
 
 app.MapGet("/api/runs/{id:guid}",async(Guid id,RunStore store,CancellationToken ct)=>
     await store.GetAsync(id,ct) is { } run?Results.Ok(run):Results.NotFound());
 
-app.MapPost("/api/commands/{command}/start",async(string command,[FromServices] LiveExecutionService live,[FromServices] ConsoleRuntimeMode runtime,[FromServices] RunStore store,[FromServices] ConsoleActivityLog activity,CancellationToken ct)=>{
+app.MapPost("/api/commands/{command}/start",async(string command,[FromServices] LiveExecutionService live,[FromServices] ConsoleRuntimeMode runtime,[FromServices] IsolatedWorkerSupervisorStatusReader supervisor,[FromServices] RunStore store,[FromServices] ConsoleActivityLog activity,CancellationToken ct)=>{
     var definition=CommandCatalog.All.FirstOrDefault(x=>x.Id.Equals(command,StringComparison.OrdinalIgnoreCase));
     if(definition is null)return Results.NotFound();
+    // The legacy Silver RunOnce executes cluster-bound PowerShell. Do not
+    // allow it to target user SQL while private lifecycle mode is enabled.
+    // A new sandbox-specific 3-worker RunOnce path comes in C3.3b2.
+    if(definition.Id=="silver"&&supervisor.Enabled(runtime))
+        return Results.Conflict(new{error="RunOnce isolado ainda não implementado; execução canônica bloqueada."});
     if(runtime.IsDisabled(definition))
         return Results.Conflict(new{error=runtime.DisabledReason(definition),mode=runtime.Mode});
     var latest=await store.LatestByCommandAsync(ct);
