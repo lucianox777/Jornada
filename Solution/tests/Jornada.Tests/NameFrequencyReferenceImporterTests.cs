@@ -21,7 +21,7 @@ public sealed class NameFrequencyReferenceImporterTests
 
         var page = NameFrequencyReferenceImporter.ParseRankingPage(document.RootElement, "NOME");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(page.TotalPages, Is.EqualTo(3));
             Assert.That(page.Rows, Has.Count.EqualTo(2));
@@ -30,7 +30,7 @@ public sealed class NameFrequencyReferenceImporterTests
             Assert.That(page.Rows[0].NormalizedValue, Is.EqualTo("ANTONIO"));
             Assert.That(page.Rows[0].Frequency, Is.EqualTo(12345));
             Assert.That(page.Rows[1].NormalizedValue, Is.EqualTo("MARIA CLARA"));
-        });
+        }));
     }
 
     [Test]
@@ -65,11 +65,11 @@ public sealed class NameFrequencyReferenceImporterTests
         var reordered = NameFrequencyReferenceImporter.ComputeCanonicalHash([b, a]);
         var changed = NameFrequencyReferenceImporter.ComputeCanonicalHash([a, b with { Frequency = 21 }]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reordered, Is.EqualTo(first));
             Assert.That(changed, Is.Not.EqualTo(first));
             Assert.That(first, Has.Length.EqualTo(32));
-        });
+        }));
     }
 }
