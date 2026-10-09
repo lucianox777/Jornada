@@ -82,7 +82,7 @@ public sealed class SyntheticCorpusFoundationTests
 
             var result = await IbgeProjectionReader.ReadFilteredAsync(root, meta, row => row.Tipo == "NOME");
 
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(result.RowCount, Is.EqualTo(2));
                 Assert.That(result.Rows, Has.Count.EqualTo(1));
@@ -110,7 +110,7 @@ public sealed class SyntheticCorpusFoundationTests
             "Jornada.Linkage.Parameters.Worker",
             "Jornada.Linkage.Parameters.Worker.csproj"));
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(source, Does.Not.Contain("System.Random"));
             Assert.That(source, Does.Not.Contain("new Random("));
@@ -137,7 +137,7 @@ public sealed class SyntheticCorpusFoundationTests
         var leftSequence = Enumerable.Range(0, 512).Select(_ => left.Next(leftRandom)).ToArray();
         var rightSequence = Enumerable.Range(0, 512).Select(_ => right.Next(rightRandom)).ToArray();
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(left.TotalWeight, Is.EqualTo(10));
             Assert.That(right.TotalWeight, Is.EqualTo(10));
@@ -166,7 +166,7 @@ public sealed class SyntheticCorpusFoundationTests
         for (var i = 0; i < draws; i++)
             counts[sampler.Next(random)]++;
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(counts["A"] / (double)draws, Is.InRange(0.08, 0.12));
             Assert.That(counts["B"] / (double)draws, Is.InRange(0.28, 0.32));
@@ -177,15 +177,15 @@ public sealed class SyntheticCorpusFoundationTests
     [Test]
     public void Weighted_sampler_rejects_zero_duplicate_key_and_overflow()
     {
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
-            Assert.Throws<ArgumentException>((TestDelegate)(() => _ = new DeterministicWeightedSampler<string>(new[] { new WeightedValue<string>("A", "A", 0) })));
-            Assert.Throws<ArgumentException>((TestDelegate)(() => _ = new DeterministicWeightedSampler<string>(new[]
+            Assert.Throws<ArgumentException>((Action)(() => _ = new DeterministicWeightedSampler<string>(new[] { new WeightedValue<string>("A", "A", 0) })));
+            Assert.Throws<ArgumentException>((Action)(() => _ = new DeterministicWeightedSampler<string>(new[]
                 {
                     new WeightedValue<string>("A", "A", 1),
                     new WeightedValue<string>("A", "B", 1)
                 })));
-            Assert.Throws<ArgumentException>((TestDelegate)(() => _ = new DeterministicWeightedSampler<string>(new[]
+            Assert.Throws<ArgumentException>((Action)(() => _ = new DeterministicWeightedSampler<string>(new[]
                 {
                     new WeightedValue<string>("A", "A", ulong.MaxValue),
                     new WeightedValue<string>("B", "B", 1)
@@ -206,7 +206,7 @@ public sealed class SyntheticCorpusFoundationTests
 
         var plan = SexPeriodCompositionInspector.Inspect(rows);
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.Kind, Is.EqualTo(SexPeriodCompositionKind.ObservedJoint));
             Assert.That(plan.MethodVersion, Is.EqualTo(SexPeriodCompositionInspector.ObservedJointVersion));
@@ -228,7 +228,7 @@ public sealed class SyntheticCorpusFoundationTests
 
         var plan = SexPeriodCompositionInspector.Inspect(rows);
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.Kind, Is.EqualTo(SexPeriodCompositionKind.IndependentMarginals));
             Assert.That(plan.MethodVersion, Is.EqualTo(SexPeriodCompositionInspector.IndependentMarginalsVersion));
@@ -247,7 +247,7 @@ public sealed class SyntheticCorpusFoundationTests
             Row("NOME", "ANA", 200, "FEMININO", "TODOS")
         };
 
-        Assert.Throws<InvalidDataException>((TestDelegate)(() => SexPeriodCompositionInspector.Inspect(rows)));
+        Assert.Throws<InvalidDataException>((Action)(() => SexPeriodCompositionInspector.Inspect(rows)));
     }
 
     private static IbgeFrequencyRow Row(
