@@ -1,3 +1,14 @@
+> **Atualização 09/10/2026 — superfícies distintas:** este
+> Monitor Operacional é uma superfície **read-only** de domínio;
+> não confundir com o painel de trabalhadores de
+> `Jornada.DevConsole` do CI isolado, documentado em
+> [Console DEV](Console_DEV_Supervisao_Atual.md). O painel de
+> workers consulta estado efetivo Docker/SQL, mas a observação
+> no CI não equivale a monitoramento corporativo homologado,
+> identidade PRODAM, SLA de Produção ou histórico de eventos
+> durável. Para mapa de módulos e fontes consulte
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md).
+>
 # Monitor Operacional da Jornada
 
 ## Objetivo
