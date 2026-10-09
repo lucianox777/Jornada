@@ -1,10 +1,20 @@
 # DT-19 — interface mínima de controle dos workers (Console DEV)
 
-**Revisão de 08/10/2026:** proposta de simplificação aceita como desenho
-desta frente. Estado: **DECISÃO DOCUMENTADA, IMPLEMENTAÇÃO PENDENTE**.
-A revisão elimina o botão `Status do processo` e usa o log que
-já existe na Console, sem eliminar a necessidade de consulta real de
-estado no backend.
+**Revisão de estado — 09/10/2026:** o desenho de 08/10 foi **implementado
+no código da Console DEV e integrado à `master`**: #851 (estado
+real), #852 (toggle), #853 (três RunOnce), #855 (Parar individual) e
+#856 (painel e estados), com regressões em CI. Os dois botões
+`Executar uma vez` e `Parar processo` e o indicador automático
+constam em `src/Jornada.DevConsole/Page.cs`; **não** existe botão
+separado de status/início residente. Não interpretar menções
+históricas abaixo a “catálogo atual sem os dois Maintenances” como
+estado da `master` pós-#853. O log é de **sessão**; telemetria durável
+fora da Console exige evidência separada. O cancelamento
+**explicitamente confirmado** de RunOnce ativo permanece pendente,
+conforme [C3.3b3](C3_3b3_Confirmacao_Cancelamento_RunOnce.md).
+Funcionalidade restrita ao GitHub CI DEV descartável `JornadaE2E`,
+não implantada/autorizada em HML/PROD.
+Ver [guia atual](Console_DEV_Supervisao_Atual.md).
 
 ## Interface desejada
 
