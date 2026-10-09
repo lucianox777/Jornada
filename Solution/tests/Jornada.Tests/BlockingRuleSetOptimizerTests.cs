@@ -27,12 +27,12 @@ public sealed class BlockingRuleSetOptimizerTests
             minimumTrueMatchRecall: 0.5d,
             requireObservedNonMatchSupport: true);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(best.CanonicalSignature, Is.EqualTo("selective:selective"));
             Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(0.5d));
             Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(0.75d));
-        });
+        }));
     }
 
     [Test]
@@ -74,12 +74,12 @@ public sealed class BlockingRuleSetOptimizerTests
             new IReadOnlyList<LinkageBlockingPass>[] { lowerRecall, higherRecall },
             minimumTrueMatchRecall: 0.5d);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(best.CanonicalSignature, Is.EqualTo("higher:b"));
             Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(1d));
             Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
-        });
+        }));
     }
 
     [Test]
@@ -99,13 +99,13 @@ public sealed class BlockingRuleSetOptimizerTests
             observations,
             new IReadOnlyList<LinkageBlockingPass>[] { redundant, complementary });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(best.CanonicalSignature, Is.EqualTo("c:c||d:d"));
             Assert.That(best.UnjustifiedZeroGainPassCount, Is.Zero);
             Assert.That(best.PassContributions, Has.All.Matches<BlockingPassMarginalContribution>(
                 contribution => contribution.IncrementalTrueMatchWeight > 0m));
-        });
+        }));
     }
 
     [Test]
@@ -127,13 +127,13 @@ public sealed class BlockingRuleSetOptimizerTests
             requireObservedNonMatchSupport: true);
 
         var support = best.PassContributions.Single(contribution => contribution.PassId == "support");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(support.IncrementalTrueMatchWeight, Is.Zero);
             Assert.That(support.IncrementalNonMatchWeight, Is.EqualTo(1m));
             Assert.That(support.Justification, Is.EqualTo("OBSERVED_NONMATCH_SUPPORT"));
             Assert.That(best.UnjustifiedZeroGainPassCount, Is.Zero);
-        });
+        }));
     }
 
     [Test]

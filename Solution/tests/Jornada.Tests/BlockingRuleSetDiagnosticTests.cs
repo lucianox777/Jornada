@@ -23,12 +23,12 @@ public sealed class BlockingRuleSetDiagnosticTests
 
         var result = BlockingRuleSetDiagnostic.Analyze(observations, passes);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.TrueMatchRecall, Is.EqualTo(1d));
             Assert.That(result.NonMatchRetention, Is.EqualTo(0.5d));
             Assert.That(result.ReductionRatio, Is.EqualTo(0.5d));
-        });
+        }));
     }
 
     [Test]
@@ -46,12 +46,12 @@ public sealed class BlockingRuleSetDiagnosticTests
 
         var result = BlockingRuleSetDiagnostic.Analyze(observations, passes);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.TrueMatchRecall, Is.EqualTo(0d));
             Assert.That(result.CompleteMatchCoverage, Is.EqualTo(0d));
             Assert.That(result.NonMatchRetention, Is.EqualTo(1d));
-        });
+        }));
     }
 
     [Test]
@@ -71,12 +71,12 @@ public sealed class BlockingRuleSetDiagnosticTests
 
         var result = BlockingRuleSetDiagnostic.Analyze(observations, passes);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.TrueMatchRecall, Is.EqualTo(2d / 3d).Within(1e-12));
             Assert.That(result.NonMatchRetention, Is.EqualTo(0.25d).Within(1e-12));
             Assert.That(result.ReductionRatio, Is.EqualTo(0.75d).Within(1e-12));
-        });
+        }));
     }
 
     private static BlockingFeatureObservation Obs(

@@ -25,12 +25,12 @@ public sealed class BlockingRuleSetSearchTests
                 PrimitivePoolSize: 2,
                 MinimumTrueMatchRecall: 1d));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(best.Passes.Count, Is.EqualTo(2));
             Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
             Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(1d));
-        });
+        }));
     }
 
     [Test]
@@ -58,13 +58,13 @@ public sealed class BlockingRuleSetSearchTests
                 MinimumTrueMatchRecall: 0.75d,
                 RequireObservedNonMatchSupport: true));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(best.Passes, Has.Count.EqualTo(1));
             Assert.That(best.Passes[0].Fields, Is.EquivalentTo(new[] { "s" }));
             Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(0.75d));
             Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(0.75d));
-        });
+        }));
     }
 
     [Test]
@@ -91,13 +91,13 @@ public sealed class BlockingRuleSetSearchTests
                 PrimitivePoolSize: 3,
                 MinimumTrueMatchRecall: 1d));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(best.Passes, Has.Count.EqualTo(1));
             Assert.That(best.Passes[0].Fields, Is.EquivalentTo(new[] { name, year }));
             Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
             Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(1d));
-        });
+        }));
     }
 
     [Test]
@@ -122,13 +122,13 @@ public sealed class BlockingRuleSetSearchTests
                 PrimitivePoolSize: 3,
                 MinimumTrueMatchRecall: 1d));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(best.Passes, Has.Count.EqualTo(1));
             Assert.That(best.Passes[0].Fields, Has.Count.EqualTo(1));
             Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
             Assert.That(best.Diagnostic.ReductionRatio, Is.EqualTo(1d));
-        });
+        }));
     }
 
     [Test]
@@ -152,13 +152,13 @@ public sealed class BlockingRuleSetSearchTests
                 MinimumTrueMatchRecall: 1d,
                 RequireObservedNonMatchSupport: true));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(best.Passes, Has.Count.EqualTo(1));
             Assert.That(best.Passes[0].Fields, Is.EquivalentTo(new[] { "b" }));
             Assert.That(best.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
             Assert.That(best.Diagnostic.NonMatchRetention, Is.EqualTo(0.5d));
-        });
+        }));
     }
 
     [Test]

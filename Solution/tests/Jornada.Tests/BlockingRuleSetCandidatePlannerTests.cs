@@ -14,12 +14,12 @@ public sealed class BlockingRuleSetCandidatePlannerTests
             new[] { BlockingFeatureNames.FirstName, BlockingFeatureNames.BirthYear },
             Array.Empty<KeyValuePair<string, decimal>>());
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(ruleSet.BlockingPasses, Is.Empty);
             Assert.That(ruleSet.EffectiveBlockingPasses, Has.Count.EqualTo(1));
             Assert.That(ruleSet.EffectiveBlockingPasses[0].PassId, Is.EqualTo("legacy"));
-        });
+        }));
     }
 
     [Test]
@@ -60,12 +60,12 @@ public sealed class BlockingRuleSetCandidatePlannerTests
             },
             Array.Empty<KeyValuePair<string, decimal>>());
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(first.BlockingPasses, Has.Count.EqualTo(2));
             Assert.That(first.BlockingFields, Is.EquivalentTo(second.BlockingFields));
             Assert.That(first.FingerprintSha256, Is.Not.EqualTo(second.FingerprintSha256));
-        });
+        }));
     }
 
     [Test]
@@ -95,11 +95,11 @@ public sealed class BlockingRuleSetCandidatePlannerTests
 
         Assert.That(planned, Has.Count.EqualTo(1));
         var clauses = planned[0].Clauses.ToDictionary(static x => x.Feature, StringComparer.Ordinal);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(clauses[BlockingFeatureNames.BirthYear].Values, Is.EqualTo(new[] { "1980" }));
             Assert.That(clauses[BlockingFeatureNames.Surnames].Values, Is.EqualTo(new[] { "DA", "SILVA", "SOUZA" }));
-        });
+        }));
     }
 
     [Test]
@@ -133,12 +133,12 @@ public sealed class BlockingRuleSetCandidatePlannerTests
 
         Assert.That(planned, Has.Count.EqualTo(1));
         var clauses = planned[0].Clauses.ToDictionary(static x => x.Feature, StringComparer.Ordinal);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(clauses[PersonResolutionContractCatalog.ContactEmailCanonicalFeature].Values,
                 Is.EqualTo(new[] { "a@example.test", "b@example.test" }));
             Assert.That(clauses[BlockingFeatureNames.BirthYear].Values, Is.EqualTo(new[] { "1980" }));
-        });
+        }));
     }
 
     [Test]
