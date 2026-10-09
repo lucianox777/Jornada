@@ -4,6 +4,8 @@
 
 A **porta de entrada técnica transversal** agora é o [Manual integrado do sistema](Manual_Sistema_Consolidado_20261009.md). Acompanhe o [estado de implementação](Estado_Atual_Projeto.md), a [Console DEV implementada](Console_DEV_Supervisao_Atual.md), a [extração DT-10](DT10_CI_Extracao_Reutilizavel.md), as [dívidas revisadas](Dividas_Tecnicas.md), o [plano](Plano_Desenvolvimento.md) e as [decisões canônicas](Indice_Decisoes_Vigentes.md). **Esta revisão editorial não substitui a Especificação Técnica publicada nem reclassifica releases seladas.** Para provar merges/testes, conferir HEAD e Actions, nunca só o texto datado.
 
+**Nova decisão de arquitetura 09/10:** [DT-22 — Reavaliação governada dos RESOLVIDOS](DT22_Reavaliacao_Governada_Resolvidos.md). A Trilha 4 como varredura contínua foi **encerrada como proposta**, e não como capacidade implementada; o replay extraordinário passa a **DT aberta e postergada**, que não autoriza declarar automática a recomposição dos RESOLVIDOS afetados por mudanças indiretas. Consultar a [seção corrente do Plano](Plano_Desenvolvimento.md#decisão-superveniente-de-09102026--trilha-4--dt-22) e o [backlog](Dividas_Tecnicas.md#nova-pendência-funcional--dt-22-decisão-de-09102026).
+
 **Classificação de histórico:** anotações de 08/10 que dizem “DT-18–21 pendente” documentam o *estado anterior* à série #847–#856. Elas não devem ser usadas para afirmar que o código continua ausente; os itens comprovados são discriminados no manual atual. Por outro lado, o cancelamento **confirmado** de um RunOnce ativo e a homologação HML/PROD **não** foram entregues por essa série. O [contrato de cancelamento](C3_3b3_Confirmacao_Cancelamento_RunOnce.md) é uma especificação futura.
 
 ---
