@@ -83,6 +83,65 @@ grep -F 'banco JornadaE2E já existe' "$OUT/replay-denial.log" >/dev/null ||
 after="$(sql -W -h -1 -Q 'SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM ref.gestor;' | tr -d '[:space:]\r')"
 [[ "$before" == "$after" ]] || die 'second bootstrap modified seed'
 
+# C3.2e: build only the app image from the canonical Dockerfile and start
+# the TWO APIs in the SAME private E2E project. The three workers remain OFF.
+# --no-deps is permitted because this script already checked SQL bootstrap.
+compose build api > "$OUT/api-image-build.log" 2>&1 || die 'isolated API image build failed'
+compose up -d --no-build --no-deps api resultado-api > "$OUT/api-start.log" 2>&1 ||
+  die 'independent API services failed to start'
+
+api_cid="$(compose ps -q api)"
+resultado_cid="$(compose ps -q resultado-api)"
+[[ -n "$api_cid" && -n "$resultado_cid" && "$api_cid" != "$resultado_cid" &&
+   "$api_cid" != "$sql_cid" && "$resultado_cid" != "$sql_cid" ]] ||
+  die 'API/ResultadoApi/SQL must be independent containers'
+for pair in "$api_cid:api" "$resultado_cid:resultado-api"; do
+  cid="${pair%%:*}"; service="${pair##*:}"
+  [[ "$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.project" }}' "$cid")" == "$PROJECT" &&
+     "$(docker inspect -f '{{ index .Config.Labels "com.docker.compose.service" }}' "$cid")" == "$service" ]] ||
+    die 'API container not part of the disposable sandbox'
+done
+
+# Liveness alone is insufficient: API readiness must prove SQL/schema access.
+# Check both health endpoints INSIDE the private Docker network, no host ports.
+ready=''
+for _ in $(seq 1 90); do
+  api_health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$api_cid")"
+  result_health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$resultado_cid")"
+  if [[ "$api_health" == healthy && "$result_health" == healthy ]] &&
+     docker exec "$api_cid" curl --fail --silent --show-error        http://127.0.0.1:5080/health/ready > "$OUT/api-readiness.json" &&
+     docker exec "$resultado_cid" curl --fail --silent --show-error        http://127.0.0.1:5081/health > "$OUT/resultado-health.json" &&
+     docker exec "$resultado_cid" curl --fail --silent --show-error        http://api:5080/health/ready > "$OUT/resultado-to-api-readiness.json"; then
+    ready=true
+    break
+  fi
+  sleep 5
+done
+[[ "$ready" == true ]] || die 'independent API/ResultadoApi readiness or private DNS failed'
+python3 - "$OUT/api-readiness.json" "$OUT/resultado-health.json"     "$OUT/resultado-to-api-readiness.json" <<'PY'
+import json, sys
+api = json.load(open(sys.argv[1], encoding='utf-8'))
+resultado = json.load(open(sys.argv[2], encoding='utf-8'))
+upstream = json.load(open(sys.argv[3], encoding='utf-8'))
+assert api.get('status') == 'ready' and upstream.get('status') == 'ready', 'API SQL/schema not ready'
+assert resultado.get('status') == 'ok', 'ResultadoApi not live'
+PY
+
+# Explicit OFF semantics: zero resident workers, independent APIs and SQL still alive.
+for worker in processor operations-maintenance bronze-maintenance; do
+  [[ -z "$(compose ps -aq "$worker")" ]] ||
+    die "worker $worker exists in initial OFF mode"
+done
+for cid in "$sql_cid" "$api_cid" "$resultado_cid"; do
+  [[ "$(docker inspect -f '{{.State.Running}}' "$cid")" == true ]] ||
+    die 'SQL/API/Resultado unexpectedly stopped in OFF mode'
+done
+api_pid="$(docker inspect -f '{{.State.Pid}}' "$api_cid")"
+resultado_pid="$(docker inspect -f '{{.State.Pid}}' "$resultado_cid")"
+[[ "$api_pid" =~ ^[0-9]+$ && "$resultado_pid" =~ ^[0-9]+$ &&
+   "$api_pid" != "$resultado_pid" && "$api_pid" -gt 1 && "$resultado_pid" -gt 1 ]] ||
+  die 'independent resident API PID1 evidence missing'
+
 python3 - "$OUT/summary.json" "$PROJECT" "$before" <<'PY'
 import json, pathlib, sys
 output, project, seed_count = sys.argv[1:]
@@ -91,7 +150,8 @@ pathlib.Path(output).write_text(json.dumps({
   'project':project, 'database':'JornadaE2E',
   'seed_gestor_count':int(seed_count),
   'create_only_second_run':'REJECTED_EXISTING_DB',
-  'api_and_workers_started':False
+  'api_ready':True, 'resultado_api_ready':True,
+  'api_to_resultado_private_dns':'PASS', 'worker_residents':0
 }, indent=2) + '\n', encoding='utf-8')
 PY
 echo 'C3.2d SQL-only operational gate: PASS'
