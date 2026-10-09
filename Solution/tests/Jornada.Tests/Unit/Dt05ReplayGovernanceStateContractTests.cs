@@ -16,7 +16,7 @@ public sealed class Dt05ReplayGovernanceStateContractTests
         var root=Root();
         var migration=File.ReadAllText(Path.Combine(root,"database","migrations","20261002_Linkage_Replay_Governanca_DT05.sql"));
         var runner=File.ReadAllText(Path.Combine(root,"src","Jornada.Linkage.Runner","ProbabilisticLinkageBatchRunner.cs"));
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(migration,Does.Contain("linkage_replay_estado_governanca"));
             Assert.That(migration,Does.Contain("INSTEAD OF UPDATE,DELETE"));
             Assert.That(migration,Does.Contain("estado_identidade=N'REFERENCIA'"));
@@ -28,6 +28,6 @@ public sealed class Dt05ReplayGovernanceStateContractTests
             Assert.That(capture,Is.GreaterThanOrEqualTo(0));
             Assert.That(manifest,Is.GreaterThan(capture));
             Assert.That(score,Is.GreaterThan(manifest));
-        });
+        }));
     }
 }
