@@ -48,7 +48,7 @@ Para estado comparativo `γ_j`, estimar `m_j=P(γ_j|M)` e `u_j=P(γ_j|U)`, sendo
 
 Blocking recupera candidatos; não comprova identidade. Comparadores produzem estados; FS calcula evidência; política de decisão aplica threshold, margem e conflitos. A exigência universal de “nome + outro atributo comparável” **não foi identificada** no caminho examinado. Se desejada como proteção conservadora, deve ser deliberada e versionada como política, com impacto em FP/FN/abstenção medido; não deve ser apresentada como teorema FS. Testar nome isolado, nome raro, EXACT/HIGH no mesmo contexto, nascimento discordante, atributos ausentes e segundo candidato.
 
-O limite unilateral de FDR consta de especificação **candidata**, não deve ser descrito como gate operacional existente. O orçamento atual de FP observado não é automaticamente FDR certificado. A issue #31 continua condicionante de avaliação representativa antes de resolução probabilística real.
+O limite unilateral de FDR consta de especificação **candidata**, não deve ser descrito como gate operacional existente. O orçamento atual de FP observado não é automaticamente FDR certificado. A avaliação representativa permanece necessária; **não haverá revisão humana**. A rotulagem retrospectiva deverá aproveitar CPF tardio com âncora determinística independente da decisão probabilística avaliada, incluindo controles de vazamento e viés de seleção. A issue #31 deve ser reconciliada com essa decisão.
 
 ## 6. Plano de avaliação independente — sem redesenho prévio
 
@@ -79,3 +79,31 @@ O limite unilateral de FDR consta de especificação **candidata**, não deve se
 **Limite deste parecer:** leitura de código/documentação no commit citado; **não** houve execução local de testes, SQL, ensaio de calibração ou Splink independente nesta rodada.
 
 **Conclusão:** preservar o FS C# único e o bootstrap IBGE; completar a implementação do Calibrador para avaliar atributos e dependências com suporte, sem presunções estatísticas; reconciliar referências de sobrenomes e scorer; manter substituição progressiva por evidência real e governança explícita.
+
+## 9. Esclarecimentos de decisões preexistentes e pendências objetivas (09/10/2026)
+
+### 9.1. Corpus de 30.000 pessoas e substituição progressiva
+
+O gerador `src/Jornada.Linkage.SyntheticCorpus/Program.cs` estabelece `--people` padrão **30.000**, e `scripts/dev-console-gold-synthetic.ps1` exige essa escala. Trata-se do tamanho operacional já decidido para o corpus primário, **não** de proposta de aumento. A suficiência local de estados raros e de pares efetivamente amostrados continua sendo verificada pelo Calibrador, sem reabrir a escala global. O corpus utiliza marginais IBGE; como as distribuições públicas de nome e sobrenome não especificam toda a distribuição conjunta, dependências geradas devem ter proveniência explícita. O bootstrap **pode selecionar parâmetros e representações** sobre o sintético: suas conclusões são provisórias e a dependência das hipóteses sintéticas **diminui conforme evidência real suficiente passa a sustentar novas calibrações**. Ingestões por si só não alteram o modelo ativo; novos RASCUNHOS e promoção permanecem governados.
+
+### 9.2. Último sobrenome: decisão, extração e lacuna de integração
+
+A diretriz de utilizar o **último sobrenome** e a frequência IBGE de `SOBRENOME` deve ser preservada. A metodologia de coleta do IBGE prioriza o último sobrenome quando nem todos são informados. O projeto já possui `BrazilianNameComponents.Project(...).LastContentSurname`, projeção `last_content_surname`, features `name_last` e `mother_name_last`, além de estimador IBGE com `IbgeNameStatisticKind.Surname`. Contudo, a inspeção do caminho operacional mostra que `IbgeCalibrationAttributeCatalog` mapeia apenas `name_first` e `mother_name_first`, enquanto `ProbabilisticLinkagePolicy.ApplyTermFrequency` aplica TF apenas aos primeiros nomes. Assim, **extração/referência existentes não equivalem a TF de último sobrenome já implantada no scorer**. Reconciliar explicitamente o gate de `Linkage_IBGE_Name_Frequency.md` com a diretriz de último sobrenome; registrar contrato de extração, ambiguidade residual, proveniência, validação e fallback seguro. Reutilizar componentes existentes, sem duplicar extratores.
+
+### 9.3. Seleção de representações e dependências
+
+O FS operacional permanece **único**. Para que o Calibrador compare V8, evidência de primeiro nome + último sobrenome com TF e eventual estado conjunto, essas representações precisam estar implementadas como candidatas. Versionar o contrato/scorer se a mudança for incompatível; **não** presumir antecipadamente a superioridade de qualquer candidato ou a correlação entre sobrenomes. O diagnóstico de dependência existente é somente leitura e deve ser conectado a uma seleção governada com validação TRAIN/VALIDATION/TEST. A calibração sintética inicial é permitida, mas não constitui prova de dependências populacionais reais.
+
+### 9.4. Ausência de revisão humana e CPF tardio
+
+**Não haverá revisão humana de pares**, por decisão arquitetural. Rótulos retrospectivos do estrato originalmente sem CPF deverão derivar de **CPF tardio** quando houver âncora determinística admissível, sem usar a própria resolução probabilística avaliada como verdade. Conferir a integração com o ledger semântico e distinguir pares Match de NonMatch, evitando viés de seleção e vazamento. A redação da issue #31 e de documentos preparatórios deve ser reconciliada; não criar requisito de revisão manual.
+
+### 9.5. Ordem executiva das pendências
+
+1. Executar testes com parâmetros efetivamente calibrados: **nome isolado raro/comum**, inversão **EXATO/HIGH**, mãe/nascimento divergentes, ausências, segundo candidato e margem. Não criar gate rígido de dois atributos sem evidência.
+2. Formalizar a conciliação semântica do **último sobrenome** entre DC-LK-02A e o gate atual.
+3. Completar o mapeamento IBGE e o TF do último sobrenome da pessoa e da mãe, com testes e versionamento apropriado.
+4. Disponibilizar representações candidatas no FS único, integrar diagnóstico e seleção calibrada sem pesos/dependências fixos.
+5. Validar o bootstrap de 30.000 e a transição progressiva governada para evidências reais; verificar CPF tardio sem revisão humana.
+
+**Estado desta nota:** esclarecimento documental; nenhuma dessas integrações ou execuções de teste é declarada concluída apenas por esta atualização.
