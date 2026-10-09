@@ -45,7 +45,7 @@ public sealed class Sehab20240717CharacterizationTests
     public void Raw_sehab_zip_is_intentionally_not_a_jornada_v2_envelope()
     {
         using var stream = File.OpenRead(_zipPath);
-        var ex = Assert.Throws<InvalidDataException>((TestDelegate)(() => IngestionPackageInspector.ParseAndValidate(stream, stream.Length)));
+        var ex = Assert.Throws<InvalidDataException>((Action)(() => IngestionPackageInspector.ParseAndValidate(stream, stream.Length)));
         Assert.That(ex!.Message, Does.Contain("exatamente manifest.json, pessoas.jsonl e registros.jsonl"));
     }
 
@@ -69,7 +69,7 @@ public sealed class Sehab20240717CharacterizationTests
         var root = TestContext.CurrentContext.TestDirectory;
         var aa = Path.Combine(root, "config", "contracts", "registros", "AA01", "v1", "registro.schema.json");
         var ae = Path.Combine(root, "config", "contracts", "registros", "AE01", "v1", "registro.schema.json");
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(File.Exists(aa), Is.True, "AA01 deve permanecer contratado na Solution atual.");
             Assert.That(File.Exists(ae), Is.False, "Caracterização v4.05: AE01 existe na origem real, mas ainda não possui contrato factual.");
@@ -86,7 +86,7 @@ public sealed class Sehab20240717CharacterizationTests
 
         using var zip = ZipFile.OpenRead(_zipPath);
         var headers = ReadHeader(zip.GetEntry("dados_base_central_aa.csv")!);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(headers, Does.Contain("con_data_ini_vig_beneficio"));
             Assert.That(headers, Does.Contain("con_fim_vig_beneficio"));
@@ -104,7 +104,7 @@ public sealed class Sehab20240717CharacterizationTests
 
         using var zip = ZipFile.OpenRead(_zipPath);
         var headers = ReadHeader(zip.GetEntry("beneficios_cencedidos_aa.csv")!);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(headers, Does.Contain("bene_dt_pagamento"));
             Assert.That(headers, Does.Contain("bene_ano_mes"));
@@ -122,7 +122,7 @@ public sealed class Sehab20240717CharacterizationTests
         var aa = AnalyzePersonCore(zip, "dados_base_central_aa.csv", "con_cbp_aa.csv");
         var ae = AnalyzePersonCore(zip, "dados_base_central_ce.csv", "dados_cbp_ce.csv");
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(aa.UniqueBeneficiaries, Is.EqualTo(45_774));
             Assert.That(aa.EligibleWithoutInventingData, Is.EqualTo(45_639));
