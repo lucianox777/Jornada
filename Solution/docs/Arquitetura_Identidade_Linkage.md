@@ -154,3 +154,10 @@ Na consolidação v5.00, os diagramas de classes de Identidade/Linkage e de ativ
 
 
 > **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-tf--norma-vigente-de-frequência-nominal-fs-e-calibrador-09102026). O peso TF zero é neutro (peso 1 aplica ajuste integral); os pesos e m/u devem ser estimados pelo Calibrador a partir do bootstrap sintético IBGE e, progressivamente, de evidência histórica real. Primeiro nome e último sobrenome significativo de pessoa e mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Em caso de divergência, prevalece a decisão canônica; este documento não certifica implementação concluída.
+
+
+## Atualização transversal — revisão do parecer FS/IBGE (09/10/2026)
+
+A [matriz de reconciliação do parecer externo](Reconciliacao_Parecer_Externo_20261009.md) separa críticas procedentes, decisões já tomadas, código observado e evidências ainda pendentes. Para o Calibrador, a referência demográfica diária projetada e a calibração sintética inicial são **artefatos diferentes**, ambos versionados e congelados em `ref` após publicação. O corpus sintético não certifica FDR em dados reais; o limite unilateral de FDR permanece candidato até implementação e validação. A PR de bootstrap demográfico não equivale à carga operacional executada nem à promoção de modelo.
+
+Em **DEV v1**, não se exige retrocompatibilidade do runtime antigo, mas permanecem obrigatórios integridade de versões publicadas, histórico de decisões, testes do contrato vigente e preservação de branches históricos relevantes. O único decisor probabilístico é FS C#; Splink é conferência externa, sem duplicação de motor.
