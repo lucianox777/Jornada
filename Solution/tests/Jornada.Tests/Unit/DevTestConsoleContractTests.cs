@@ -710,7 +710,7 @@ public sealed class DevTestConsoleContractTests
             var nascimentoTypes=properties.GetProperty("dataNascimento").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
             var schemaHash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(schemaPath)));
 
-            Assert.Multiple((TestDelegate)(()=>{
+            Assert.Multiple((Action)(()=>{
                 Assert.That(required,Is.EqualTo(new[]{"idPessoaEntrega"}),gestor);
                 Assert.That(schemaHash,Is.EqualTo(expectedHashes[gestor]),gestor);
                 Assert.That(nomeTypes,Does.Contain("null"),gestor);
@@ -718,7 +718,7 @@ public sealed class DevTestConsoleContractTests
             }));
         }
 
-        Assert.Multiple((TestDelegate)(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(seed,Does.Contain("WHERE v.versao<>1"));
             Assert.That(seed,Does.Contain("WHERE v.versao=1"));
             Assert.That(seed,Does.Contain("N'ATIVA','2026-10-06'"));
