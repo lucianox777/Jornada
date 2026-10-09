@@ -56,7 +56,7 @@ IBGE original, volumes compartilhados e HML/PROD.
 
 ## Nova pendência funcional — DT-22 (decisão de 09/10/2026)
 
-**Estado formal:** **PENDENTE / IMPLEMENTAÇÃO POSTERGADA / NÃO ACEITA**.
+**Estado formal:** **PENDENTE / IMPLEMENTAÇÃO POSTERGADA / NÃO ACEITA**.\n**Rastreamento:** [issue #861](https://github.com/lucianox777/Jornada/issues/861), sem autorização implícita para execução.
 A Trilha 4 **não** deve permanecer em backlog como serviço contínuo
 autônomo. O legado normativo/arquitetural de preservação de decisões
 e fatos segue vigente; o **novo** contrato de execução está em
