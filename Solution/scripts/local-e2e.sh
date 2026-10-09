@@ -228,6 +228,22 @@ else
 fi
 [[ "$(cat "$OUT/post1.code")" == 202 ]] || { echo "ERRO: POST inicial não retornou 202" >&2; cat "$OUT/post1.json" >&2; exit 4; }
 id1="$(json_get "$OUT/post1.json" entregaId)"
+if [[ "${JORNADA_E2E_CONSOLE_ZIP:-false}" == "true" ]]; then
+  # TC-06: the same ZIP+key was already sent TWICE by Chromium's "Enviar
+  # arquivo" button; the regular E2E POST must resolve to that same Entrega.
+  # All three invocations use a disposable API and JornadaE2E database.
+  python3 - "$OUT/console-zip-source.json" "$id1" <<'PY'
+import json,sys
+report=json.load(open(sys.argv[1],encoding='utf-8'))
+ingest=report.get('browserIngestion') or {}
+runs=ingest.get('runIds') or []
+assert ingest.get('status')=='PASS' and ingest.get('attempts')==2, 'Browser did not finish two UI ingestion attempts'
+assert len(runs)==2 and runs[0]!=runs[1], 'Browser ingestion retry reused a Console run ID'
+assert ingest.get('browserRetrySameDelivery') is True, 'Browser replay did not preserve the Entrega ID'
+assert ingest.get('entregaId')==sys.argv[2], 'Console UI receipt differs from direct idempotent API receipt'
+print('CONSOLE BROWSER IDEMPOTENCY: PASS (2 browser sends, 1 direct replay, same Entrega ID).')
+PY
+fi
 wait_processed "$id1" "$OUT/status1.json"
 
 # Mesma Idempotency-Key + mesmos bytes deve devolver a mesma Entrega e não duplicar a borda.
