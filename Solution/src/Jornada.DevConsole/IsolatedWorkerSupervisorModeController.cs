@@ -107,6 +107,70 @@ sealed class IsolatedWorkerSupervisorModeController(
             && hostPid > 1;
     }
 
+    public async Task<IsolatedWorkerSupervisorStatus> StopResidentAsync(
+        string worker, string containerId, int hostPid, bool confirmed,
+        ConsoleRuntimeMode runtime, CancellationToken ct)
+    {
+        if (!reader.Enabled(runtime) || !confirmed
+            || !AllowedFiniteWorkers.Contains(worker)
+            || containerId.Length != 64
+            || !containerId.All(c => (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f')))
+            throw new InvalidOperationException("Identidade ou confirmação inválida.");
+
+        await transition.WaitAsync(ct);
+        try
+        {
+            if (!activeFinite.IsEmpty || live.HasActiveWorkerRunOnce())
+                throw new InvalidOperationException("RunOnce em andamento.");
+            var before = await reader.ReadAsync(runtime, ct);
+            if (before.Mode != "ON"
+                || !MatchesResidentIdentity(before.Workers.Single(x => x.Worker == worker),
+                    worker, containerId, hostPid))
+                throw new InvalidOperationException("Identidade do residente não comprovada.");
+
+            var root = DevConsolePaths.FindSolutionRoot(env.ContentRootPath);
+            var script = Path.Combine(root, "scripts", "console-private-worker-stop.py");
+            if (!File.Exists(script))
+                throw new InvalidOperationException("Operação privada indisponível.");
+            var psi = new ProcessStartInfo("python3")
+            {
+                WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true,
+                RedirectStandardOutput = true, RedirectStandardError = true
+            };
+            foreach (var arg in new[] { script, worker, containerId,
+                         hostPid.ToString(System.Globalization.CultureInfo.InvariantCulture) })
+                psi.ArgumentList.Add(arg);
+            psi.Environment["JORNADA_RUNTIME_MODE"] = "DEV";
+            using var process = new Process { StartInfo = psi };
+            if (!process.Start())
+                throw new InvalidOperationException("Operação privada não iniciou.");
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(45));
+            var stdout = process.StandardOutput.ReadToEndAsync(timeout.Token);
+            var stderr = process.StandardError.ReadToEndAsync(timeout.Token);
+            await process.WaitForExitAsync(timeout.Token);
+            _ = await stdout;
+            _ = await stderr;
+            if (process.ExitCode != 0)
+                throw new InvalidOperationException("Operação privada rejeitada.");
+            var after = await reader.ReadAsync(runtime, ct);
+            if (after.Mode != "ERRO"
+                || after.Workers.Single(x => x.Worker == worker).State != "PARADO"
+                || after.Workers.Where(x => x.Worker != worker).Any(x => x.State != "ATIVO"))
+                throw new InvalidOperationException("Estado final não comprovado.");
+            activity.Add("PARAR_PROCESSO", worker, "SUCESSO",
+                "C3.3c: residente privado parado com confirmação e identidade verificada.");
+            return after;
+        }
+        catch
+        {
+            activity.Add("PARAR_PROCESSO", worker, "ERRO",
+                "C3.3c: operação não comprovada.");
+            throw;
+        }
+        finally { transition.Release(); }
+    }
+
     private static readonly HashSet<string> AllowedFiniteWorkers =
         new(["processor", "operations-maintenance", "bronze-maintenance"],
             StringComparer.Ordinal);
