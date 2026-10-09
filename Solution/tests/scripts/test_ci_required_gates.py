@@ -29,3 +29,12 @@ def test_full_gate_is_fail_closed():
         )
         assert block, f"Missing CI job: {name}"
         assert "needs:" in block.group(1), f"CI job {name} must declare dependencies"
+
+import unittest
+
+class CiGateContractTests(unittest.TestCase):
+    def test_required_jobs(self):
+        test_required_ci_jobs_present()
+
+    def test_dependencies(self):
+        test_full_gate_is_fail_closed()
