@@ -27,7 +27,7 @@ public sealed class IbgeOfflineUReferenceTests
         Assert.That(IbgeOfflineUReference.Estimate(Fixture, 128), Is.EqualTo(first));
         using var doc = JsonDocument.Parse(first);
         var root = doc.RootElement;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(root.GetProperty("schema_version").GetString(),
                 Is.EqualTo("JORNADA_IBGE_CSHARP_OFFLINE_U_V1"));
@@ -40,13 +40,13 @@ public sealed class IbgeOfflineUReferenceTests
             Assert.That(root.GetProperty("runs")[0]
                 .GetProperty("analytic_exact_collision_probability").GetDecimal(),
                 Is.EqualTo(0.3125m));
-        });
+        }));
     }
 
     [Test]
     public void OfflineReference_RejectsTamperedPublicContract()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(() => IbgeOfflineUReference.Estimate(
                 Fixture.Replace("CENSO2022_NOMES_BRASIL_V1", "OTHER"), 10),
@@ -59,6 +59,6 @@ public sealed class IbgeOfflineUReferenceTests
                 Throws.TypeOf<InvalidDataException>());
             Assert.That(() => IbgeOfflineUReference.Estimate(Fixture, 0),
                 Throws.TypeOf<ArgumentOutOfRangeException>());
-        });
+        }));
     }
 }

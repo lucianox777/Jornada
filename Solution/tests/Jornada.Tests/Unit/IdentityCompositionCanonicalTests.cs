@@ -33,13 +33,13 @@ public sealed class IdentityCompositionCanonicalTests
 
         var plan = IdentityCompositionPlanner.Prepare(read, forward);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(IdentityCompositionCanonical.SerializeDecision(reverse),
                 Is.EqualTo(IdentityCompositionCanonical.SerializeDecision(forward)));
             Assert.That(IdentityCompositionCanonical.HashDecision(forward), Is.EqualTo(plan.RequestHash));
             Assert.That(IdentityCompositionCanonical.HashDecision(reverse), Is.EqualTo(plan.RequestHash));
-        });
+        }));
     }
 
     [Test]
@@ -48,7 +48,7 @@ public sealed class IdentityCompositionCanonicalTests
         var forward = IdentityCompositionCanonical.SerializeReservations(new[] { R1, R2 });
         var reverse = IdentityCompositionCanonical.SerializeReservations(new[] { R2, R1 });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reverse, Is.EqualTo(forward));
             Assert.That(JsonSerializer.Deserialize<Guid[]>(forward), Is.EqualTo(new[] { R1, R2 }));
@@ -56,7 +56,7 @@ public sealed class IdentityCompositionCanonicalTests
                 IdentityCompositionCanonical.SerializeReservations(new[] { R1, R1 }));
             Assert.Throws<InvalidOperationException>(() =>
                 IdentityCompositionCanonical.SerializeReservations(new[] { Guid.Empty }));
-        });
+        }));
     }
 
     [Test]
@@ -76,7 +76,7 @@ public sealed class IdentityCompositionCanonicalTests
         var roundTrip = JsonSerializer.Deserialize<IdentityCompositionPlan>(json)
             ?? throw new InvalidOperationException("Round-trip do plano retornou null.");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(roundTrip.DecisionId, Is.EqualTo(plan.DecisionId));
             Assert.That(roundTrip.RequestHash, Is.EqualTo(plan.RequestHash));
@@ -92,6 +92,6 @@ public sealed class IdentityCompositionCanonicalTests
                     Is.EqualTo(plan.HistoryToAppend[index].MemberInitialUuids.ToArray()));
             }
             Assert.That(IdentityCompositionCanonical.SerializePlan(roundTrip), Is.EqualTo(json));
-        });
+        }));
     }
 }

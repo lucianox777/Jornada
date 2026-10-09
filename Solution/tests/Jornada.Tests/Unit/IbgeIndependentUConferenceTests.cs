@@ -29,7 +29,7 @@ public sealed class IbgeIndependentUConferenceTests
         var diagnostic = IbgeIndependentUConference.Compare(Marginals, csharp, external);
         using var doc = JsonDocument.Parse(diagnostic);
         var result = doc.RootElement;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.GetProperty("schema_version").GetString(),
                 Is.EqualTo("JORNADA_IBGE_INDEPENDENT_U_CONFERENCE_V1"));
@@ -41,7 +41,7 @@ public sealed class IbgeIndependentUConferenceTests
                 .GetDecimal(), Is.Zero);
             Assert.That(IbgeIndependentUConference.Compare(Marginals, csharp, external),
                 Is.EqualTo(diagnostic));
-        });
+        }));
     }
 
     [Test]
@@ -53,7 +53,7 @@ public sealed class IbgeIndependentUConferenceTests
         tamperedHash["marginals_sha256"] = new string('0', 64);
         var wrongSex = JsonNode.Parse(external)!;
         wrongSex["first_name_sex"] = "FEMININO";
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(() => IbgeIndependentUConference.Compare(
                 Marginals, csharp, tamperedHash.ToJsonString()),
@@ -61,7 +61,7 @@ public sealed class IbgeIndependentUConferenceTests
             Assert.That(() => IbgeIndependentUConference.Compare(
                 Marginals, csharp, wrongSex.ToJsonString()),
                 Throws.TypeOf<InvalidDataException>());
-        });
+        }));
     }
 
     [Test]
@@ -76,7 +76,7 @@ public sealed class IbgeIndependentUConferenceTests
         var corruptSupport = JsonNode.Parse(external)!;
         var exact = corruptSupport["runs"]![0]!["states"]!["EXACT"]!;
         exact["support"] = exact["support"]!.GetValue<long>() + 1;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(() => IbgeIndependentUConference.Compare(
                 Marginals, csharp, duplicateSeed.ToJsonString()),
@@ -87,7 +87,7 @@ public sealed class IbgeIndependentUConferenceTests
             Assert.That(() => IbgeIndependentUConference.Compare(
                 Marginals, csharp, corruptSupport.ToJsonString()),
                 Throws.TypeOf<InvalidDataException>());
-        });
+        }));
     }
 
     private static string MakeFictionalExternal(string csharpJson)

@@ -29,12 +29,12 @@ public sealed class JointBirthSupportTests
             threshold: 0.95m,
             conflictMargin: 0.03m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result["SUPPORT_M_NASCIMENTO_CONJUNTO_111"], Is.EqualTo(1m));
             Assert.That(result["SUPPORT_M_NASCIMENTO_CONJUNTO_110"], Is.EqualTo(1m));
             Assert.That(result["SUPPORT_U_NASCIMENTO_CONJUNTO_110"], Is.EqualTo(1m));
             Assert.That(result["SUPPORT_U_NASCIMENTO_CONJUNTO_000"], Is.EqualTo(1m));
-        });
+        }));
     }
 }

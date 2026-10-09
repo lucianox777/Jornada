@@ -11,11 +11,11 @@ public sealed class IdentityAbbreviationCompatibilityTests
     [TestCase("Maria Souza da Silva", "Maria S. Silva")]
     public void Compatible_initial_abbreviations_are_detected(string left, string right)
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(IdentityComparison.IsAbbreviationCompatible(left, right), Is.True);
             Assert.That(IdentityComparison.IsAbbreviationCompatible(right, left), Is.True);
-        });
+        }));
     }
 
     [TestCase("Maria Souza Silva", "Maria Souza Silva")]
@@ -32,7 +32,7 @@ public sealed class IdentityAbbreviationCompatibilityTests
     [Test]
     public void Diagnostic_has_explicit_version_and_does_not_change_legacy_states()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 IdentityComparison.AbbreviationCompatibilityVersionV1,
@@ -43,6 +43,6 @@ public sealed class IdentityAbbreviationCompatibilityTests
             Assert.That(
                 IdentityComparison.IsAbbreviationCompatible("Maria S. Silva", "Maria Souza Silva"),
                 Is.True);
-        });
+        }));
     }
 }

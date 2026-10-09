@@ -48,19 +48,19 @@ public sealed class IdentityCompositionTests
         var merge = IdentityCompositionPlanner.Prepare(original,
             Decision(IdentityCompositionOperation.FUSAO, original, (A, A), (B, A)));
         var merged = Apply(original, merge);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(merged.Members.Select(m => m.InitialUuid), Is.EquivalentTo(new[] { A, B }));
             Assert.That(merged.Members.Select(m => m.CanonicalUuid), Is.All.EqualTo(A));
             Assert.That(merge.Changes, Has.Length.EqualTo(1));
             Assert.That(merge.HistoryToAppend, Has.Length.EqualTo(2));
-        });
+        }));
         var splitRead = merged with { ReservedNewUuids = ImmutableArray.Create(C, D) };
         var split = IdentityCompositionPlanner.Prepare(splitRead,
             Decision(IdentityCompositionOperation.SEPARACAO, splitRead, (A, C), (B, D)));
         var separated = Apply(splitRead, split);
         var historical = IdentityCompositionPlanner.ResolveHistorical(split.HistoryToAppend.Single(), separated.Members);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(historical.State, Is.EqualTo(HistoricalReferenceState.AMBIGUA));
             Assert.That(historical.CanonicalUuid, Is.Null);
@@ -70,7 +70,7 @@ public sealed class IdentityCompositionTests
                 Is.EqualTo(D));
             Assert.That(separated.Members.Single(m => m.InitialUuid == B).Version, Is.EqualTo(3));
             Assert.That(original.Members.Single(m => m.InitialUuid == B).CanonicalUuid, Is.EqualTo(B));
-        });
+        }));
     }
 
     [Test]
@@ -157,13 +157,13 @@ public sealed class IdentityCompositionTests
         var reserved = read with { ReservedNewUuids = ImmutableArray.Create(C, D) };
         var plan = IdentityCompositionPlanner.Prepare(reserved,
             Decision(IdentityCompositionOperation.SEPARACAO, reserved, (A, C), (B, D)));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.Changes, Has.Length.EqualTo(2));
             Assert.That(plan.Changes.Single(x => x.InitialUuid == A).AfterUuid, Is.EqualTo(C));
             Assert.That(plan.Changes.Single(x => x.InitialUuid == B).AfterUuid, Is.EqualTo(D));
             Assert.That(plan.Changes.Select(x => x.InitialUuid), Is.EquivalentTo(new[] { A, B }));
-        });
+        }));
     }
 
     [Test]
@@ -175,11 +175,11 @@ public sealed class IdentityCompositionTests
         };
         var plan = IdentityCompositionPlanner.Prepare(read,
             Decision(IdentityCompositionOperation.SEPARACAO, read, (A, A), (B, D)));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.Changes.Single(x => x.InitialUuid == B).AfterUuid, Is.EqualTo(D));
             Assert.That(plan.Changes.Any(x => x.InitialUuid == A && x.AfterUuid != A), Is.False);
-        });
+        }));
     }
 
     [Test]

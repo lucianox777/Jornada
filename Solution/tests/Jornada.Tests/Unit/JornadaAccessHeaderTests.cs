@@ -47,12 +47,12 @@ public sealed class JornadaAccessHeaderTests
             [name] = "AR01"
         };
         var parsed = JornadaCredentialHeaderParser.Parse(headers);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(parsed.RejectStatus, Is.Null);
             Assert.That(parsed.Credential?.Type, Is.EqualTo(expected));
             Assert.That(parsed.Credential?.PublicCode, Is.EqualTo("AR01"));
-        });
+        }));
     }
 
     [Test]
@@ -106,11 +106,11 @@ public sealed class JornadaAccessHeaderTests
             var scope = policy.Requirements.OfType<JornadaScopeRequirement>().Single();
             var allowType = route.GetProperty("allowedCredentialTypes").EnumerateArray()
                 .Any(v => v.GetString() is "BENEFICIO" or "SERVICO");
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(scope.Permission, Is.EqualTo(permission));
                 Assert.That(scope.AllowType, Is.EqualTo(allowType), "Tipo divergente da matriz em " + permission);
-            });
+            }));
         }
     }
 }

@@ -15,7 +15,7 @@ public sealed class IngestionContractTests
     {
         var manifest = new IngestionPackageManifest(2, ContractVersions.CurrentPersonSchemaVersion, "SEHAB", IntegrationNature.BENEFICIO, "AA01", 1, DateTimeOffset.UtcNow);
         var names = typeof(IngestionPackageManifest).GetProperties().Select(p => p.Name).ToArray();
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(Enum.GetNames<IntegrationNature>(), Is.EquivalentTo(new[] { "BENEFICIO", "SERVICO" }));
             Assert.That(manifest.CodigoTipo, Has.Length.EqualTo(4));
@@ -25,7 +25,7 @@ public sealed class IngestionContractTests
             Assert.That(names, Does.Not.Contain("EntregaId"));
             Assert.That(names, Does.Not.Contain("LoteSeq"));
             Assert.That(names, Does.Not.Contain("LoteTotal"));
-        });
+        }));
     }
 
     [TestCase("AA01")]
@@ -44,11 +44,11 @@ public sealed class IngestionContractTests
             ["registros.jsonl"] = string.Empty
         });
         var manifest = IngestionPackageInspector.ParseAndValidate(bytes);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(manifest.Natureza, Is.Null);
             Assert.That(manifest.CodigoTipo, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -221,22 +221,22 @@ public sealed class IngestionContractTests
         using var document = JsonDocument.Parse("""{"nomeCompleto":"Maria da Silva"}""");
         var response = new PersonProjectionResponse(Guid.NewGuid(), document.RootElement.Clone(), "pessoa.schema.json", metadata);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(response.Metadados.FontesDistintas, Is.EqualTo(3));
             Assert.That(response.Metadados.EstadoConcordancia, Is.EqualTo("CORROBORADO"));
             Assert.That(response.Dados.TryGetProperty("fontesDistintas", out _), Is.False);
-        });
+        }));
     }
 
     [Test]
     public void Fact_dtos_do_not_expose_generic_specific_attributes_json()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(typeof(BeneficioConcedidoPessoaDto).GetProperties().Any(p => p.Name.Contains("Atribut", StringComparison.OrdinalIgnoreCase)), Is.False);
             Assert.That(typeof(ServicoPrestadoPessoaDto).GetProperties().Any(p => p.Name.Contains("Atribut", StringComparison.OrdinalIgnoreCase)), Is.False);
-        });
+        }));
     }
 
     [Test]
@@ -310,11 +310,11 @@ public sealed class IngestionContractTests
         });
         using var stream = new MemoryStream(bytes);
         var manifest = IngestionPackageInspector.ParseManifestForAuthorization(stream, bytes.LongLength);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(manifest.CodigoTipo, Is.EqualTo("AA01"));
             Assert.That(manifest.CodigoSistemaOrigem, Is.EqualTo("ASSISTENCIA"));
-        });
+        }));
     }
 
 }

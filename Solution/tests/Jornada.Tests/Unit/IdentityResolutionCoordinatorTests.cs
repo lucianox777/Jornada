@@ -19,7 +19,7 @@ public sealed class IdentityResolutionCoordinatorTests
             "529.982.247-25", null, "Maria da Silva", new DateOnly(1982, 4, 10), "Ana de Souza");
         var result = await sut.ResolveAsync(observation, CancellationToken.None);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
             Assert.That(result.PessoaUuid, Is.EqualTo(expected));
@@ -28,7 +28,7 @@ public sealed class IdentityResolutionCoordinatorTests
             Assert.That(result.ModeloId, Is.Null);
             Assert.That(map.LastCpf, Is.EqualTo("52998224725"));
             Assert.That(map.LastObservation, Is.EqualTo(observation));
-        });
+        }));
     }
 
     [Test]
@@ -43,13 +43,13 @@ public sealed class IdentityResolutionCoordinatorTests
             new IdentityObservation(DeterministicCpfFixture.Valid(37), null, "Pedro Santos", new DateOnly(2017, 8, 21), "Maria da Silva"),
             CancellationToken.None);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
             Assert.That(result.PessoaUuid, Is.EqualTo(expected));
             Assert.That(result.MetodoResolucao, Is.EqualTo(ResolutionMethod.CPF_DETERMINISTICO));
             Assert.That(result.Motivo, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -60,13 +60,13 @@ public sealed class IdentityResolutionCoordinatorTests
 
         var result = CpfIdentityConsistency.Evaluate(existing, incoming);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.IsConflict, Is.True);
             Assert.That(result.Motivo, Is.EqualTo("CPF_COMPARTILHADO_SUSPEITO"));
             Assert.That(result.Nome, Is.EqualTo(NameComparisonState.LOW));
             Assert.That(result.DataNascimentoIgual, Is.False);
-        });
+        }));
     }
 
     [Test]
@@ -99,13 +99,13 @@ public sealed class IdentityResolutionCoordinatorTests
 
         var result = CpfIdentityConsistency.Evaluate(existing, incoming);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.IsConflict, Is.False);
             Assert.That(result.Nome, Is.Null);
             Assert.That(result.NomeMae, Is.Null);
             Assert.That(result.DataNascimentoIgual, Is.False);
-        });
+        }));
     }
 
     [Test]
@@ -116,12 +116,12 @@ public sealed class IdentityResolutionCoordinatorTests
 
         var result = CpfIdentityConsistency.Evaluate(existing, incoming);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.IsConflict, Is.False);
             Assert.That(result.Nome, Is.EqualTo(NameComparisonState.LOW));
             Assert.That(result.DataNascimentoIgual, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -135,7 +135,7 @@ public sealed class IdentityResolutionCoordinatorTests
             new IdentityObservation(null, "SEM_CPF", "Carlos Santos", new DateOnly(1990, 1, 15), "Lucia Santos"),
             CancellationToken.None);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
             Assert.That(result.MetodoResolucao, Is.EqualTo(ResolutionMethod.PENDENTE_PROBABILISTICO));
@@ -143,7 +143,7 @@ public sealed class IdentityResolutionCoordinatorTests
             Assert.That(result.ModeloId, Is.Null);
             Assert.That(result.Motivo, Is.EqualTo("AGUARDA_LINKAGE_SOB_DEMANDA"));
             Assert.That(map.Calls, Is.Zero);
-        });
+        }));
     }
 
     [Test]
@@ -157,13 +157,13 @@ public sealed class IdentityResolutionCoordinatorTests
             new IdentityObservation("11111111111", null, "Pessoa", new DateOnly(1980, 1, 1), "Mae"),
             CancellationToken.None);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
             Assert.That(result.PessoaUuid, Is.Null);
             Assert.That(result.Motivo, Is.EqualTo(CpfRules.StructurallyInvalidReason));
             Assert.That(map.Calls, Is.Zero);
-        });
+        }));
     }
 
     private sealed class FakeIdentityMap(InternalIdentityResolution result) : IIdentityMapRepository

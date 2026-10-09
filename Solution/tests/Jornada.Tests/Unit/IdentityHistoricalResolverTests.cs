@@ -18,36 +18,36 @@ public sealed class IdentityHistoricalResolverTests
     public void Fusion_has_one_successor()
     {
         var result = IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C), Member(B, C)));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.State, Is.EqualTo(HistoricalReferenceState.UNIVOCA));
             Assert.That(result.CanonicalUuid, Is.EqualTo(C));
             Assert.That(result.Candidates, Is.EqualTo(new[] { C }));
-        });
+        }));
     }
 
     [Test]
     public void Split_never_selects_arbitrary_successor()
     {
         var result = IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, A), Member(B, B)));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.State, Is.EqualTo(HistoricalReferenceState.AMBIGUA));
             Assert.That(result.CanonicalUuid, Is.Null);
             Assert.That(result.Candidates, Is.EqualTo(new[] { A, B }));
-        });
+        }));
     }
 
     [Test]
     public void Unresolved_member_prevents_univocal_resolution()
     {
         var result = IdentityHistoricalResolver.Resolve(History, ImmutableArray.Create(Member(A, C), Member(B, null)));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.State, Is.EqualTo(HistoricalReferenceState.INDEFINIDA));
             Assert.That(result.CanonicalUuid, Is.Null);
             Assert.That(result.UnresolvedInitialUuids, Is.EqualTo(new[] { B }));
-        });
+        }));
     }
 
     [Test]

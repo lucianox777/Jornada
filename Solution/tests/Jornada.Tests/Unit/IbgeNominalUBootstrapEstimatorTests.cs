@@ -22,7 +22,7 @@ public sealed class IbgeNominalUBootstrapEstimatorTests
         var first = IbgeNominalUBootstrapEstimator.Estimate(entries, options);
         var replay = IbgeNominalUBootstrapEstimator.Estimate(entries, options);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(Projection(replay), Is.EqualTo(Projection(first)));
             Assert.That(first.AnalyticExactFirstNameProbability, Is.EqualTo(0.625m));
@@ -31,7 +31,7 @@ public sealed class IbgeNominalUBootstrapEstimatorTests
             Assert.That(first.States.Sum(state => state.Support), Is.EqualTo(options.PairCount));
             Assert.That(first.States.Sum(state => state.Probability), Is.EqualTo(1m));
             Assert.That(first.ObservationChannelVersion, Is.EqualTo("CLEAN_PUBLISHED_REFERENCE_NO_ERROR_CHANNEL_V1"));
-        });
+        }));
 
         var exact = first.States.Single(state => state.State == "EXACT");
         Assert.That(
@@ -81,14 +81,14 @@ public sealed class IbgeNominalUBootstrapEstimatorTests
         var v2Medium = v2.States.Single(state => state.State == "MEDIUM");
         var v2Low = v2.States.Single(state => state.State == "LOW");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(v1Medium.Support, Is.GreaterThan(0));
             Assert.That(v1Low.Support, Is.EqualTo(0));
             Assert.That(v2Medium.Support, Is.EqualTo(0));
             Assert.That(v2Low.Support, Is.EqualTo(v1Medium.Support));
             Assert.That(v2.States.Sum(state => state.Support), Is.EqualTo(options.PairCount));
-        });
+        }));
     }
 
     [Test]
@@ -105,12 +105,12 @@ public sealed class IbgeNominalUBootstrapEstimatorTests
             new IbgeNominalUBootstrapOptions(7, 1_000));
 
         var exact = result.States.Single(state => state.State == "EXACT");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(exact.Support, Is.EqualTo(1_000));
             Assert.That(exact.Probability, Is.EqualTo(1m));
             Assert.That(result.AnalyticExactSyntheticFullNameProbability, Is.EqualTo(1m));
-        });
+        }));
     }
 
     [Test]
