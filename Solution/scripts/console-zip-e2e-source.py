@@ -167,28 +167,67 @@ def generate(fixture: Path, output: Path, summary_path: Path) -> None:
                             page.goto(base, wait_until="domcontentloaded", timeout=30000)
                             button = page.get_by_role("button", name="Enviar arquivo", exact=True)
                             require(button.count() == 1, "Missing ingestion button in Chromium")
-                            with page.expect_response(lambda r: "/api/commands/ingestion/start" in r.url and r.request.method == "POST", timeout=15000) as started_response:
-                                button.click()
-                            response = started_response.value
-                            require(response.status == 202, f"Browser ingestion command returned HTTP {response.status}")
-                            command_id = response.json().get("id")
-                            require(command_id, "Browser ingestion command did not return run id")
-                            deadline = time.monotonic() + 45
-                            while True:
-                                status, command_run = call_json(base, "GET", f"/api/runs/{command_id}")
-                                if status == 200:
-                                    break
-                                require(status == 404, f"Unexpected browser command run status: {status}")
-                                require(time.monotonic() < deadline, "Browser ingestion command timed out")
-                                time.sleep(0.25)
-                            require(command_run.get("status") == "SUCESSO", f"Browser ingestion failed: {command_run}")
+                            # Clicking the same explicit UI action a second time must
+                            # replay the SAME delivery, not create another one.
+                            # This exercises two distinct Console command runs against
+                            # the real isolated ingestion API with identical ZIP+key.
                             receipt_path = ROOT / ".local/dev-console/last-ingestion.json"
-                            require(receipt_path.is_file(), "Browser ingestion receipt missing")
-                            receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-                            require(receipt.get("database") == "JornadaE2E" and receipt.get("receipt", {}).get("entregaId"),
-                                    "Browser ingestion did not persist disposable API receipt")
-                            report["browserIngestion"] = {"status": "PASS", "runId": command_id,
-                                                           "entregaId": receipt["receipt"]["entregaId"]}
+                            browser_runs = []
+                            browser_deliveries = []
+                            for attempt in (1, 2):
+                                with page.expect_response(
+                                    lambda r: "/api/commands/ingestion/start" in r.url
+                                    and r.request.method == "POST", timeout=15000
+                                ) as started_response:
+                                    button.click()
+                                response = started_response.value
+                                require(response.status == 202,
+                                        f"Browser ingestion #{attempt} returned HTTP {response.status}")
+                                command_id = response.json().get("id")
+                                require(command_id and command_id not in browser_runs,
+                                        "Browser retry did not create a distinct Console command run")
+                                deadline = time.monotonic() + 45
+                                while True:
+                                    status, command_run = call_json(base, "GET", f"/api/runs/{command_id}")
+                                    if status == 200:
+                                        break
+                                    require(status == 404,
+                                            f"Unexpected browser command run status: {status}")
+                                    require(time.monotonic() < deadline,
+                                            f"Browser ingestion attempt #{attempt} timed out")
+                                    time.sleep(0.25)
+                                require(command_run.get("status") == "SUCESSO"
+                                        and command_run.get("command") == "ingestion"
+                                        and command_run.get("step", {}).get("exitCode") == 0,
+                                        f"Browser ingestion attempt #{attempt} failed: {command_run}")
+                                require(receipt_path.is_file(), "Browser ingestion receipt missing")
+                                receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+                                require(receipt.get("database") == "JornadaE2E"
+                                        and receipt.get("gestor") == "SEHAB"
+                                        and receipt.get("zip") == str(target)
+                                        and receipt.get("receipt", {}).get("entregaId"),
+                                        "Browser ingestion receipt is not scoped to disposable E2E")
+                                browser_runs.append(command_id)
+                                browser_deliveries.append(receipt["receipt"]["entregaId"])
+                                # The UI must show the actual completion before retrying
+                                # from the Flow page. No in-memory/local DB reset occurs.
+                                page.wait_for_function(
+                                    "() => document.querySelector('#consoleStatus')?.textContent?.trim() === 'SUCESSO'",
+                                    timeout=15000
+                                )
+                                if attempt == 1:
+                                    page.locator('header button[onclick="showHome()"]').click()
+                                    button.wait_for(state="visible", timeout=15000)
+                            require(browser_deliveries[0] == browser_deliveries[1],
+                                    "Browser retry duplicated the delivery despite identical idempotency key")
+                            report["browserIngestion"] = {
+                                "status": "PASS",
+                                "runIds": browser_runs,
+                                "entregaId": browser_deliveries[0],
+                                "browserRetrySameDelivery": True,
+                                "attempts": 2,
+                                "source": "Chromium Enviar arquivo → disposable API"
+                            }
                             summary_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
                         finally:
                             browser.close()
