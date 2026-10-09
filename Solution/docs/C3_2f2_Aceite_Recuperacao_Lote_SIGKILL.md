@@ -97,6 +97,15 @@ simulação SQL ou ao reinício do processo.
 
 ## Contrato de verificação offline (preparatório)
 
+O contrato preparatório também cruza `github_run_id` e
+`github_run_attempt` com o nome exato do projeto Compose privado;
+exige cinco marcos `observed_at_utc` em ordem temporal estrita,
+e exige `fault.old_worker_exit_code=137` (SIGKILL/128+9) para não
+confundir encerramento voluntário com SIGKILL. Essas verificações
+rejeitam evidências estruturalmente inconsistentes, mas **não**
+autenticam o emissor do JSON nem substituem inspeção independente
+do log Docker e da CI da HEAD exata.
+
 O validador **somente de leitura**
 `scripts/e2e-lot-recovery-evidence-gate.py` rejeita qualquer pacote de
 evidência sem a sequência coerente de estados, lease/token novo, fencing,
