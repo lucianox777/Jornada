@@ -57,3 +57,40 @@ IF (
 ) <> 1
     THROW 51806, 'C3.2f2c hold trigger not installed', 1;
 GO
+
+-- Transactional audit of the real lease-recovery UPDATE, only for the
+-- synthetic recovery key. A subsequent reservation may make PENDENTE too
+-- brief for any polling observer; the committed audit row avoids guessing.
+-- The repository's UPDATE uses OUTPUT ... INTO, so this trigger is compatible.
+IF OBJECT_ID(N'dbo.ci_c3_2f2c_requeue_events', N'U') IS NOT NULL
+    THROW 51807, 'C3.2f2c audit table already exists', 1;
+CREATE TABLE dbo.ci_c3_2f2c_requeue_events(
+    event_id BIGINT IDENTITY(1,1) PRIMARY KEY,
+    lote_id UNIQUEIDENTIFIER NOT NULL,
+    old_lease_id UNIQUEIDENTIFIER NULL,
+    old_recuperacao_count INT NOT NULL,
+    new_recuperacao_count INT NOT NULL,
+    new_status NVARCHAR(40) NOT NULL,
+    observed_at DATETIMEOFFSET(7) NOT NULL DEFAULT(SYSUTCDATETIME())
+);
+GO
+CREATE OR ALTER TRIGGER ingestao.tr_ci_c3_2f2c_requeue_audit
+ON ingestao.lote
+AFTER UPDATE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF DB_NAME() <> N'JornadaE2E'
+        THROW 51808, 'C3.2f2c audit outside private E2E', 1;
+    INSERT dbo.ci_c3_2f2c_requeue_events(
+        lote_id,old_lease_id,old_recuperacao_count,new_recuperacao_count,new_status)
+    SELECT i.lote_id,d.lease_id,d.recuperacao_count,i.recuperacao_count,i.status
+    FROM inserted i
+    JOIN deleted d ON d.lote_id=i.lote_id
+    JOIN ingestao.entrega e ON e.entrega_id=i.entrega_id
+    WHERE e.idempotency_key=N'$(RecoveryKey)'
+      AND i.status=N'PENDENTE'
+      AND d.status IN(N'PROCESSANDO',N'VALIDANDO')
+      AND i.recuperacao_count=d.recuperacao_count+1;
+END;
+GO
