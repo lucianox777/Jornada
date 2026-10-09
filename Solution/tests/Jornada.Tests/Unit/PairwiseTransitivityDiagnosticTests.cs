@@ -85,16 +85,16 @@ public sealed class PairwiseTransitivityDiagnosticTests
 
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => PairwiseTransitivityDiagnostic.Analyze(new[]
+            Assert.That((Func<object?>)(() => PairwiseTransitivityDiagnostic.Analyze(new[]
             {
                 new PairwiseLinkageDecision(a, a, PairwiseLinkageDecisionState.Accepted)
-            }), Throws.ArgumentException);
+            })), Throws.ArgumentException);
 
-            Assert.That(() => PairwiseTransitivityDiagnostic.Analyze(new[]
+            Assert.That((Func<object?>)(() => PairwiseTransitivityDiagnostic.Analyze(new[]
             {
                 new PairwiseLinkageDecision(a, b, PairwiseLinkageDecisionState.Accepted),
                 new PairwiseLinkageDecision(b, a, PairwiseLinkageDecisionState.Rejected)
-            }), Throws.InvalidOperationException);
+            })), Throws.InvalidOperationException);
         }));
     }
 }

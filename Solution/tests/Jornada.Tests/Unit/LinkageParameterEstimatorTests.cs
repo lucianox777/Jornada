@@ -229,10 +229,10 @@ public sealed class LinkageParameterEstimatorTests
     public void V8_rejects_non_semantic_training_contract()
     {
         var (matched, unmatched) = TrainingPairs();
-        Assert.That(() => LinkageParameterEstimator.Estimate(
+        Assert.That((Func<object?>)(() => LinkageParameterEstimator.Estimate(
             matched, unmatched, 1000, 100, .5m, .95m, .03m,
             BirthScoringContract.JointEvidenceV4,
-            neutralMissingEvidenceV8: true), Throws.InvalidOperationException);
+            neutralMissingEvidenceV8: true)), Throws.InvalidOperationException);
     }
 
     private static (IdentityTrainingPair[] Matched, IdentityTrainingPair[] Unmatched) TrainingPairs()

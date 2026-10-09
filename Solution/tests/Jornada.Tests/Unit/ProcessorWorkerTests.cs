@@ -20,8 +20,7 @@ public sealed class ProcessorWorkerTests
             Assert.That(
                 ProcessorWorker.CalculateLoopFailureBackoff(10, 1000).TotalMilliseconds,
                 Is.EqualTo(30000));
-            Assert.That(
-                () => ProcessorWorker.CalculateLoopFailureBackoff(0, 1000),
+            Assert.That((Func<object?>)(() => ProcessorWorker.CalculateLoopFailureBackoff(0, 1000)),
                 Throws.TypeOf<ArgumentOutOfRangeException>());
         });
     }

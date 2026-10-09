@@ -54,12 +54,11 @@ public sealed class ProbabilisticV7NameComparisonContractTests
     [Test]
     public void V7_without_name_comparison_provenance_is_rejected_fail_closed()
     {
-        Assert.That(
-            () => LinkageModelPolicy.Create(
+        Assert.That((Func<object?>)(() => LinkageModelPolicy.Create(
                 V7ModelId,
                 7,
                 LinkageParameterCatalog.NominalGuardDecisionEvidenceAlgorithmVersion,
-                Parameters(includeV7Marker: false)),
+                Parameters(includeV7Marker: false))),
             Throws.InvalidOperationException.With.Message.Contains(
                 LinkageParameterCatalog.NameComparisonPtBrContentTokenGuardV2));
     }

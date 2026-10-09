@@ -116,9 +116,9 @@ public sealed class PersonContractTests
 
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => validator.ParseAndValidate(invalidCpf, "pessoas.jsonl", 1),
+            Assert.That((Func<object?>)(() => validator.ParseAndValidate(invalidCpf, "pessoas.jsonl", 1)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => validator.ParseAndValidate(invalidTerritorialNature, "pessoas.jsonl", 2),
+            Assert.That((Func<object?>)(() => validator.ParseAndValidate(invalidTerritorialNature, "pessoas.jsonl", 2)),
                 Throws.TypeOf<InvalidDataException>());
         }));
     }

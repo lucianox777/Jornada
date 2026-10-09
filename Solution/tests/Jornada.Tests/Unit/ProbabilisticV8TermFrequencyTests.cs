@@ -117,20 +117,18 @@ public sealed class ProbabilisticV8TermFrequencyTests
     public void TF_enabled_V8_requires_snapshot_and_rejects_legacy_demographic_guard()
     {
         var parameters = Parameters(withTf: true);
-        Assert.That(
-            () => LinkageModelPolicy.Create(
+        Assert.That((Func<object?>)(() => LinkageModelPolicy.Create(
                 ModelId, 9,
                 LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
-                parameters),
+                parameters)),
             Throws.InvalidOperationException.With.Message.Contains("snapshot nominal"));
 
         parameters[LinkageParameterCatalog.NonUniqueDemographicExactGuard] = 1m;
-        Assert.That(
-            () => LinkageModelPolicy.Create(
+        Assert.That((Func<object?>)(() => LinkageModelPolicy.Create(
                 ModelId, 9,
                 LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
                 parameters,
-                Snapshot()),
+                Snapshot())),
             Throws.InvalidOperationException.With.Message.Contains("guard demográfico"));
     }
 

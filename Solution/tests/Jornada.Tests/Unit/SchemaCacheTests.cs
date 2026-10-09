@@ -48,7 +48,7 @@ public sealed class SchemaCacheTests
 
             Thread.Sleep(1100); // garante mudança observável de LastWriteTime em FS com granularidade de 1 s.
             File.WriteAllText(path, MinimalSchema("urn:test:v1-alterada") + " ");
-            Assert.That(() => cache.Get(path), Throws.TypeOf<InvalidOperationException>());
+            Assert.That((Func<object?>)(() => cache.Get(path)), Throws.TypeOf<InvalidOperationException>());
         }
         finally
         {
@@ -71,7 +71,7 @@ public sealed class SchemaCacheTests
 
             // Simula novo deploy/restart: cache novo, mesmo caminho v1, bytes adulterados.
             File.WriteAllText(path, MinimalSchema("urn:test:substituted"));
-            Assert.That(() => new JsonSchemaValidatorCache().Get(path, approved), Throws.TypeOf<InvalidOperationException>());
+            Assert.That((Func<object?>)(() => new JsonSchemaValidatorCache().Get(path, approved)), Throws.TypeOf<InvalidOperationException>());
         }
         finally
         {
@@ -88,7 +88,7 @@ public sealed class SchemaCacheTests
         Assert.That(a.Read(buffer, 0, buffer.Length), Is.EqualTo(3));
 
         using var b = new DecompressedLimitStream(new MemoryStream(new byte[] {4,5,6}), budget);
-        Assert.That(() => b.Read(buffer, 0, buffer.Length), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => b.Read(buffer, 0, buffer.Length)), Throws.TypeOf<InvalidDataException>());
     }
 
     private static string MinimalSchema(string id) => $$"""

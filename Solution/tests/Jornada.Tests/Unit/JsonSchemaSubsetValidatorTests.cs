@@ -30,8 +30,8 @@ public sealed class JsonSchemaSubsetValidatorTests
         {
             var validator = JsonSchemaSubsetValidator.Load(path);
             Assert.DoesNotThrow((Action)(() => validator.ParseAndValidate("{\"codigo\":\"AA01\",\"cpf\":null,\"cpfAusenteMotivo\":\"SEM_CPF\"}", "pessoas.jsonl", 1)));
-            Assert.That(() => validator.ParseAndValidate("{\"codigo\":\"AA001\",\"cpf\":null,\"cpfAusenteMotivo\":\"SEM_CPF\"}", "pessoas.jsonl", 2), Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => validator.ParseAndValidate("{\"codigo\":\"AA01\",\"cpf\":null}", "pessoas.jsonl", 3), Throws.TypeOf<InvalidDataException>());
+            Assert.That((Func<object?>)(() => validator.ParseAndValidate("{\"codigo\":\"AA001\",\"cpf\":null,\"cpfAusenteMotivo\":\"SEM_CPF\"}", "pessoas.jsonl", 2)), Throws.TypeOf<InvalidDataException>());
+            Assert.That((Func<object?>)(() => validator.ParseAndValidate("{\"codigo\":\"AA01\",\"cpf\":null}", "pessoas.jsonl", 3)), Throws.TypeOf<InvalidDataException>());
         }
         finally { File.Delete(path); }
     }
@@ -42,7 +42,7 @@ public sealed class JsonSchemaSubsetValidatorTests
         var path = WriteSchema("{\"type\":\"object\",\"unevaluatedProperties\":false}");
         try
         {
-            Assert.That(() => JsonSchemaSubsetValidator.Load(path), Throws.TypeOf<InvalidDataException>());
+            Assert.That((Func<object?>)(() => JsonSchemaSubsetValidator.Load(path)), Throws.TypeOf<InvalidDataException>());
         }
         finally { File.Delete(path); }
     }
@@ -124,7 +124,7 @@ public sealed class JsonSchemaSubsetValidatorTests
         }
         """;
         Assert.DoesNotThrow((Action)(() => validator.ParseAndValidate(valid, "pessoas.jsonl", 1)));
-        Assert.That(() => validator.ParseAndValidate(invalid, "pessoas.jsonl", 2), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => validator.ParseAndValidate(invalid, "pessoas.jsonl", 2)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]

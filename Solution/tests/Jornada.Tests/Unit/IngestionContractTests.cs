@@ -72,7 +72,7 @@ public sealed class IngestionContractTests
             ["pessoas.jsonl"] = "{}\n",
             ["registros.jsonl"] = "{}\n"
         });
-        Assert.That(() => IngestionPackageInspector.ParseAndValidate(bytes), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => IngestionPackageInspector.ParseAndValidate(bytes)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -85,7 +85,7 @@ public sealed class IngestionContractTests
             ["pessoas.jsonl"] = "{}\n",
             ["registros.jsonl"] = string.Empty
         });
-        Assert.That(() => IngestionPackageInspector.ParseAndValidate(bytes), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => IngestionPackageInspector.ParseAndValidate(bytes)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -98,7 +98,7 @@ public sealed class IngestionContractTests
             ["registros.jsonl"] = "{}\n"
         });
         PatchCentralDirectoryUncompressedSize(bytes, "pessoas.jsonl", 0x80000001u);
-        Assert.That(() => IngestionPackageInspector.ParseAndValidate(bytes), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => IngestionPackageInspector.ParseAndValidate(bytes)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -112,7 +112,7 @@ public sealed class IngestionContractTests
         });
         using var ms = new MemoryStream(bytes, writable: false);
         using var zip = new ZipArchive(ms, ZipArchiveMode.Read);
-        Assert.That(() => IngestionPackageInspector.ValidateActualUncompressedSize(zip, 1024), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => IngestionPackageInspector.ValidateActualUncompressedSize(zip, 1024)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -124,7 +124,7 @@ public sealed class IngestionContractTests
             ["pessoas.jsonl"] = "{}\n",
             ["../registros.jsonl"] = "{}\n"
         });
-        Assert.That(() => IngestionPackageInspector.ParseAndValidate(bytes), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => IngestionPackageInspector.ParseAndValidate(bytes)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -136,7 +136,7 @@ public sealed class IngestionContractTests
             ["pessoas.jsonl"] = "{}\n",
             ["beneficios_concedidos.jsonl"] = "{}\n"
         });
-        Assert.That(() => IngestionPackageInspector.ParseAndValidate(bytes), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => IngestionPackageInspector.ParseAndValidate(bytes)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -148,7 +148,7 @@ public sealed class IngestionContractTests
             ["pessoas.jsonl"] = string.Empty,
             ["registros.jsonl"] = string.Empty
         });
-        Assert.That(() => IngestionPackageInspector.ParseAndValidate(bytes), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => IngestionPackageInspector.ParseAndValidate(bytes)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -175,7 +175,7 @@ public sealed class IngestionContractTests
         var manifest = new IngestionPackageManifest(2, ContractVersions.CurrentPersonSchemaVersion, "SAUDE", null, null, null, DateTimeOffset.UtcNow);
         var context = new AccessContext(Guid.NewGuid(), AccessCredentialType.GESTOR, "SMS", "SMS", null, [], []);
         var hash = new string('a', 64);
-        Assert.That(() => IngestionPackageInspector.ValidateCanonicalFileName($"../ENTREGA_SMS_SAUDE_v2_{hash}.zip", manifest, context, hash), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => IngestionPackageInspector.ValidateCanonicalFileName($"../ENTREGA_SMS_SAUDE_v2_{hash}.zip", manifest, context, hash)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -187,7 +187,7 @@ public sealed class IngestionContractTests
             ["pessoas.jsonl"] = "{}\n",
             ["registros.jsonl"] = string.Empty
         });
-        Assert.That(() => IngestionPackageInspector.ParseAndValidate(bytes), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => IngestionPackageInspector.ParseAndValidate(bytes)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -201,7 +201,7 @@ public sealed class IngestionContractTests
             WriteEntry(zip, "PESSOAS.JSONL", "{}\n");
             WriteEntry(zip, "registros.jsonl", string.Empty);
         }
-        Assert.That(() => IngestionPackageInspector.ParseAndValidate(ms.ToArray()), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => IngestionPackageInspector.ParseAndValidate(ms.ToArray())), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]

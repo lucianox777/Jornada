@@ -49,13 +49,13 @@ public sealed class SplinkIbgeBootstrapReplayTests
         };
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => SplinkIbgeReplayContract.SerializeInput(contaminated),
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.SerializeInput(contaminated)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => SplinkIbgeReplayContract.ParseInput(
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.ParseInput(
                 json.Replace("\"pairs\"", "\"cpf\":\"00000000000\",\"pairs\"",
-                    StringComparison.Ordinal)), Throws.TypeOf<JsonException>());
-            Assert.That(() => IbgeNominalUBootstrapEstimator.ReplayPairs(
-                Published, new IbgeNominalUBootstrapOptions(42, 100_001)),
+                    StringComparison.Ordinal))), Throws.TypeOf<JsonException>());
+            Assert.That((Func<object?>)(() => IbgeNominalUBootstrapEstimator.ReplayPairs(
+                Published, new IbgeNominalUBootstrapOptions(42, 100_001))),
                 Throws.TypeOf<ArgumentOutOfRangeException>());
         }));
     }
@@ -90,22 +90,22 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var valid = ExternalJson(source, input);
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(
                 input, valid.Replace("\"input_sha256\"", "\"unexpected\":1,\"input_sha256\"",
-                    StringComparison.Ordinal)), Throws.TypeOf<JsonException>());
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(
+                    StringComparison.Ordinal))), Throws.TypeOf<JsonException>());
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(
                 input, valid.Replace(source.ReferenceContentSha256,
-                    new string('b', 64), StringComparison.Ordinal)),
+                    new string('b', 64), StringComparison.Ordinal))),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(
                 input, valid.Replace("WHOLE_NAME_JARO_WINKLER_V1",
-                    "OTHER_COMPARATOR", StringComparison.Ordinal)),
+                    "OTHER_COMPARATOR", StringComparison.Ordinal))),
                 Throws.TypeOf<InvalidDataException>());
             var parsed = JsonSerializer.Deserialize<SplinkIbgeReplayExternalResult>(
                 valid, SplinkIbgeReplayContract.JsonOptions)!;
             var dropped = parsed with { Pairs = parsed.Pairs.Take(9).ToArray() };
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(
-                input, JsonSerializer.Serialize(dropped, SplinkIbgeReplayContract.JsonOptions)),
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(
+                input, JsonSerializer.Serialize(dropped, SplinkIbgeReplayContract.JsonOptions))),
                 Throws.TypeOf<InvalidDataException>());
         }));
     }
@@ -218,11 +218,11 @@ public sealed class SplinkIbgeBootstrapReplayTests
         };
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(input,
-                JsonSerializer.Serialize(repeated, SplinkIbgeReplayContract.JsonOptions)),
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(input,
+                JsonSerializer.Serialize(repeated, SplinkIbgeReplayContract.JsonOptions))),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(input,
-                JsonSerializer.Serialize(unknown, SplinkIbgeReplayContract.JsonOptions)),
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(input,
+                JsonSerializer.Serialize(unknown, SplinkIbgeReplayContract.JsonOptions))),
                 Throws.TypeOf<InvalidDataException>());
         }));
     }
@@ -255,9 +255,9 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var source = CreateReplay(10);
         var input = SplinkIbgeReplayContract.SerializeInput(source);
         var external = ExternalJson(source, input);
-        Assert.That(() => SplinkIbgeReplayContract.ExportDisagreementsCsv(
+        Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.ExportDisagreementsCsv(
             input, external.Replace(SplinkIbgeReplayContract.Sha(input),
-                new string('0', 64), StringComparison.Ordinal)),
+                new string('0', 64), StringComparison.Ordinal))),
             Throws.TypeOf<InvalidDataException>());
     }
 

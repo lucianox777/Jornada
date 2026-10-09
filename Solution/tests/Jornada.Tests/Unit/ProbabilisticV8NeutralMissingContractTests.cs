@@ -13,9 +13,8 @@ public sealed class ProbabilisticV8NeutralMissingContractTests
     {
         var p = Parameters();
         p.Remove(LinkageParameterCatalog.NeutralMissingEvidenceScoring);
-        Assert.That(
-            () => LinkageModelPolicy.Create(ModelId, 8,
-                LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion, p),
+        Assert.That((Func<object?>)(() => LinkageModelPolicy.Create(ModelId, 8,
+                LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion, p)),
             Throws.InvalidOperationException.With.Message.Contains(
                 LinkageParameterCatalog.NeutralMissingEvidenceScoring));
     }
@@ -25,9 +24,8 @@ public sealed class ProbabilisticV8NeutralMissingContractTests
     {
         var p = Parameters();
         p["M_NOME_MAE_MISSING"] = .2m;
-        Assert.That(
-            () => LinkageModelPolicy.Create(ModelId, 8,
-                LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion, p),
+        Assert.That((Func<object?>)(() => LinkageModelPolicy.Create(ModelId, 8,
+                LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion, p)),
             Throws.InvalidOperationException.With.Message.Contains("V8 não admite probabilidades"));
     }
 
