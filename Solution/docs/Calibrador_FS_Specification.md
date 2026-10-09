@@ -110,3 +110,22 @@ O IBGE fornece marginais iniciais: frequência de sobrenome em qualquer posiçã
 A geração de rascunho em `LinkageParametersWorker.GenerateDraftFromGoldAsync` ainda define explicitamente `TERM_FREQUENCY_WEIGHT = 1m` após preparar `NominalTermFrequencyReferenceStore`. Portanto, a presença do parâmetro e a correção para aceitar zero **não significam estimação automática**. A próxima implementação deve remover a atribuição fixa e selecionar o peso com dados de calibração, sem consultar TEST para ajuste. É obrigatório conservar a referência do snapshot e evidências de seleção.
 
 A preparação atual (`NominalTermFrequencyReferenceStore`) publica apenas prenomes da pessoa e mãe; o suporte de sobrenome em `NominalTermFrequencySnapshot` está em evolução separada, e não deve ser habilitado no score antes de haver frequências governadas, calibração conjunta e validação contra dupla contagem. Na falta de evidência suficiente, não substituir um valor fixo por outro peso arbitrário. O corpus sintético de 30 mil pessoas é bootstrap metodológico, não prova de FDR real.
+
+
+## 11. Avaliação de dependências condicionais pelo Calibrador (decisão vigente)
+
+O Calibrador é responsável por avaliar dependências **condicionadas à classe de par** (match / non-match) e ao **universo de candidatos após blocking**. A hipótese de independência condicional do FS clássico não deve ser tomada como fato. A avaliação abrange: (a) nome integral, primeiro nome e último sobrenome significativo da pessoa; (b) os mesmos componentes da mãe; (c) dependências entre nome da pessoa e da mãe; (d) nome e nascimento; e (e) dependências e viés de seleção induzidos pelos passes de blocking.
+
+### Método e governança
+
+1. Em TRAIN, estimar distribuições conjuntas e marginais de níveis de comparação, separadas por classe, estrato e passe quando houver suporte; quantificar associação por medidas apropriadas a dados categóricos (informação mútua condicional, razões de probabilidades ou tabelas conjuntas com suavização), não presumir que Pearson seja apropriado.
+2. Comparar um FS básico, níveis nominais mutuamente exclusivos e correções condicionais parcimoniosas. **Nunca somar evidência do nome integral e de seus componentes como se fossem independentes.** A TF deve ser estimada no mesmo procedimento, com peso zero elegível e sem contagem dupla.
+3. Selecionar em VALIDATION, com os mesmos gates de suporte, FDR e minimização de FN estabelecidos para a fronteira de decisão. Usar TEST apenas para certificação independente, sem ajustar estrutura, pesos ou limiares depois de consultar seus resultados.
+4. Persistir estrutura selecionada, parâmetros, suporte amostral, métricas por estrato, proveniência de dados e razões para manter ou descartar cada dependência. Se o suporte for insuficiente, manter representação mais simples e declarar a dependência **não identificável**, não assumir independência comprovada.
+5. O runtime permanece com **um único scorer FS**, que aplica o snapshot calibrado; nenhuma segunda implementação de decisão, nem aprendizado em produção durante a resolução.
+
+### Limite da referência IBGE e dados reais
+
+Marginais publicadas de prenomes e sobrenomes **não identificam distribuições conjuntas** de nome, sobrenome, mãe e nascimento. O corpus sintético de 30 mil registros pode avaliar robustez sob hipóteses explícitas e correlações estruturais conhecidas, mas não autoriza inferir correlação familiar ou FDR real. Separar resultados `SINTETICO_HIPOTESE` de `REAL_OBSERVADO`; promover modelos dependentes de correlações populacionais apenas quando houver evidência municipal independente e suficiente. Amostragem de pares não-match deve refletir o blocking efetivo, evitando estimativas `u` da população irrestrita.
+
+**Situação de implementação:** requisito aprovado e documentado; a seleção automática de estrutura conjunta e a correção de dependências ainda não estão implementadas no Calibrador. Não confundir este contrato com funcionalidade entregue.
