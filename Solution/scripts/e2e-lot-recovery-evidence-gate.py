@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 
 UUID = re.compile(r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
@@ -53,6 +54,28 @@ def validate(data: dict) -> None:
     project = field(env, "compose_project")
     require(type(project) is str and PROJECT.fullmatch(project) is not None,
             "invalid ephemeral Compose project")
+    run_id = field(env, "github_run_id")
+    attempt = field(env, "github_run_attempt")
+    require(type(run_id) is str and re.fullmatch(r"[0-9]{6,16}", run_id) is not None
+            and type(attempt) is str and re.fullmatch(r"[0-9]{1,3}", attempt) is not None
+            and project == f"jornada-workers-e2e-ci{run_id}{attempt}",
+            "evidence run/attempt does not match isolated Compose project")
+
+    def timestamp(obj_value: dict, stage: str) -> datetime:
+        value = field(obj_value, "observed_at_utc")
+        require(type(value) is str and value.endswith("Z"), f"{stage} must have UTC timestamp")
+        try:
+            ts = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError(f"invalid timestamp in {stage}") from exc
+        require(ts.tzinfo is not None and ts.utcoffset().total_seconds() == 0,
+                f"invalid UTC timestamp in {stage}")
+        return ts
+
+    stages = ["before", "fault", "recovery", "terminal", "idempotency_replay"]
+    ordered = [timestamp(obj(field(data, stage), stage), stage) for stage in stages]
+    require(all(left < right for left, right in zip(ordered, ordered[1:])),
+            "SQL recovery evidence stages must be strictly chronological")
     require(field(data, "scenario") == "C3.2f2_real_worker_lot_recovery",
             "wrong scenario")
 
@@ -88,6 +111,10 @@ def validate(data: dict) -> None:
     before_pid = number(field(fault, "before_host_pid"), "before PID", 2)
     after_pid = number(field(fault, "after_host_pid"), "after PID", 2)
     require(before_pid != after_pid, "no worker PID change")
+    # A passing restart count without a SIGKILL exit is not a SIGKILL acceptance.
+    # SIGKILL is 9; Docker conventionally records 128 + 9 = 137.
+    require(number(field(fault, "old_worker_exit_code"), "SIGKILL exit code") == 137,
+            "worker did not exit with SIGKILL status 137")
     require(uuid(field(fault, "before_instance_id"), "before worker instance") !=
             uuid(field(fault, "after_instance_id"), "after worker instance"),
             "SQL heartbeat worker instance unchanged")
