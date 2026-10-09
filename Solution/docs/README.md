@@ -92,3 +92,6 @@ Por regra estrutural, esse atributo não é projetado pela API a Gestor diferent
 - `Runbook_Operacao.md`: scheduler corporativo/HML; não é substituído pelo Compose local.
 - `Governanca_Tecnica_Readiness.md`: schemas, retenção/DR, ciclo de vida de identidade, scheduler e preflight de ambiente.
 - `HML_Evidencias_SQL_API.md`: coleta/gates de Query Store/waits/deadlocks e consulta em lote 1/10/100/1000 sem PII.
+
+
+> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-tf--norma-vigente-de-frequência-nominal-fs-e-calibrador-09102026). O peso TF zero é neutro (peso 1 aplica ajuste integral); os pesos e m/u devem ser estimados pelo Calibrador a partir do bootstrap sintético IBGE e, progressivamente, de evidência histórica real. Primeiro nome e último sobrenome significativo de pessoa e mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Em caso de divergência, prevalece a decisão canônica; este documento não certifica implementação concluída.

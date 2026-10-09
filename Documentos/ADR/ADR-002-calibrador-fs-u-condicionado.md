@@ -53,3 +53,6 @@ O uso de bootstrap IBGE antes de suporte suficiente do u condicionado é **trans
 ## Precedência e registro histórico (29/09/2026)
 
 Os itens 7 e 8 acima substituem expressamente a exigência histórica de snapshot ativo em cada `GENERATE_DRAFT`. O histórico de commits preserva a formulação antiga, que **não é normativa**. Para decisões correntes, consultar [índice canônico](../../Solution/docs/Indice_Decisoes_Vigentes.md), [fluxos detalhados](../../Solution/docs/Fluxos_Blocking_Selecao_Registro.md) e [Calibrador](../../Solution/docs/Calibrador_FS_Specification.md). A mudança documental não prova adequação do Worker, SQL ou contratos; verificar implementação e gates antes de declarar entregue.
+
+
+> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](../../Solution/docs/Decisoes_Canonicas_Identidade_Linkage_20260929.md). Peso TF zero é neutro; peso 1 aplica ajuste integral. O Calibrador deve estimar pesos e m/u usando bootstrap sintético IBGE e depois evidência real. Primeiro nome e último sobrenome significativo da pessoa e da mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Esta remissão não certifica implementação concluída.
