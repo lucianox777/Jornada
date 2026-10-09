@@ -31,8 +31,7 @@ public sealed class TransversalAttributeInstanceKeyTests
                 }
                 else
                 {
-                    Assert.Throws<InvalidDataException>(
-                        () => TransversalAttributeInstanceKey.Compute("MULTI", vectors.Rule, vector.Input), vector.Id);
+                    Assert.Throws<InvalidDataException>((Action)(() => TransversalAttributeInstanceKey.Compute("MULTI", vectors.Rule, vector.Input), vector.Id));
                 }
             }
         }));
@@ -44,7 +43,7 @@ public sealed class TransversalAttributeInstanceKeyTests
 
     [Test]
     public void Unknown_multi_rule_fails_closed() =>
-        Assert.Throws<InvalidDataException>(() => TransversalAttributeInstanceKey.Compute("MULTI", "DESCONHECIDA", "x"));
+        Assert.Throws<InvalidDataException>((Action)(() => TransversalAttributeInstanceKey.Compute("MULTI", "DESCONHECIDA", "x")));
 
     private static PhoneVectorFile LoadPhoneVectors()
     {

@@ -164,11 +164,11 @@ public sealed class BlockingRuleSetOptimizerTests
             Obs(false, ("a", false))
         };
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             BlockingRuleSetOptimizer.SelectBest(
                 observations,
                 new IReadOnlyList<LinkageBlockingPass>[] { new[] { Pass("a", "a") } },
-                minimumTrueMatchRecall: 0.95d));
+                minimumTrueMatchRecall: 0.95d)));
     }
 
     private static LinkageBlockingPass Pass(string id, params string[] fields) =>
