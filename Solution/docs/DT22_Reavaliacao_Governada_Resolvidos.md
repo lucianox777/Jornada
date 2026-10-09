@@ -1,6 +1,6 @@
 # DT-22 — Reavaliação governada dos RESOLVIDOS por nova execução de linkage
 
-**Decisão de arquitetura:** 09/10/2026 · **Tipo:** dívida técnica funcional
+**Rastreamento:** [issue #861 — DT-22](https://github.com/lucianox777/Jornada/issues/861), aberta e postergada.\n\n**Decisão de arquitetura:** 09/10/2026 · **Tipo:** dívida técnica funcional
 posterior à conclusão da proposta de sistema · **Estado:** **ABERTA,
 IMPLEMENTAÇÃO POSTERGADA E SEM ACEITE**. A DT-22 é o destino formal do
 objetivo antes denominado **Trilha 4 — reavaliação contínua dos RESOLVIDOS**.
