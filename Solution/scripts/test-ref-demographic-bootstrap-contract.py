@@ -7,6 +7,8 @@ MIGRATIONS = ROOT / "database" / "migrations"
 
 def check(name: str, required: tuple[str, ...]) -> None:
     text = (MIGRATIONS / name).read_text(encoding="utf-8-sig")
+    assert "\
+" not in text, f"{name}: literal escaped newline in SQL migration"
     for token in required:
         assert token.lower() in text.lower(), f"{name}: missing {token}"
 
@@ -39,6 +41,19 @@ def main() -> None:
         "fk_modelo_linkage_ref_demografica_distribuicao",
         "THROW 52235",
     ))
+    check("20261009_Z_Linkage_Demographic_Reference_Fingerprint.sql", (
+        "auditoria.sp_calcular_fingerprint_modelo_linkage",
+        "DEMOGRAPHIC_REFERENCE",
+        "distribuicao_versao_id",
+        "TERM_FREQUENCY",
+    ))
+    names = [
+        "20261009_Linkage_Demographic_Reference_Pin.sql",
+        "20261009_Ref_Distribuicao_Nascimento_IBGE.sql",
+        "20261009_Ref_Distribuicao_Nascimento_Modelo_Binding.sql",
+        "20261009_Z_Linkage_Demographic_Reference_Fingerprint.sql",
+    ]
+    assert names == sorted(names), "Migration ordering must preserve binding before fingerprint"
     print("ref demographic bootstrap SQL static contract: OK")
 
 if __name__ == "__main__":
