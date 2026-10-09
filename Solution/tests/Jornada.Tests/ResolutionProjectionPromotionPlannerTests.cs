@@ -107,9 +107,9 @@ public sealed class ResolutionProjectionPromotionPlannerTests
     {
         var projection = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
 
-        Assert.Throws<ArgumentException>(() => ResolutionProjectionPromotionPlanner.Build(
+        Assert.Throws<ArgumentException>((Action)(() => ResolutionProjectionPromotionPlanner.Build(
             projection,
-            new[] { LinkageBlockingPass.Create("P1", new[] { "feature_inexistente" }) }));
+            new[] { LinkageBlockingPass.Create("P1", new[] { "feature_inexistente" }) })));
     }
 
     [Test]
@@ -117,9 +117,9 @@ public sealed class ResolutionProjectionPromotionPlannerTests
     {
         var projection = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
 
-        Assert.Throws<ArgumentException>(() => ResolutionProjectionPromotionPlanner.Build(
+        Assert.Throws<ArgumentException>((Action)(() => ResolutionProjectionPromotionPlanner.Build(
             projection,
             new[] { LinkageBlockingPass.Create("P1", new[] { BlockingCandidateFeatureCatalog.BirthYear }) },
-            physicallyValidatedIndexes: new[] { BlockingCandidateFeatureCatalog.LastName }));
+            physicallyValidatedIndexes: new[] { BlockingCandidateFeatureCatalog.LastName })));
     }
 }

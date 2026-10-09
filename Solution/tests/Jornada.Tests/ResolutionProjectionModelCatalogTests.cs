@@ -240,9 +240,9 @@ public sealed class ResolutionProjectionModelCatalogTests
                 Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
         }));
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             ResolutionProjectionPlanner.BuildExperimental(source,
-                PersonResolutionProjectionContract.SchemaVersion));
+                PersonResolutionProjectionContract.SchemaVersion)));
     }
 
     [Test]

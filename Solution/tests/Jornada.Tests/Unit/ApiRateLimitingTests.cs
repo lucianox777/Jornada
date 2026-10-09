@@ -50,9 +50,9 @@ public sealed class ApiRateLimitingTests
     [Test]
     public void Rate_limit_options_reject_non_positive_and_overflowing_values()
     {
-        Assert.Throws<InvalidOperationException>(() => new ApiRateLimitOptions { IngestionPermitLimit = 0 }.Validate());
-        Assert.Throws<InvalidOperationException>(() => new ApiRateLimitOptions { EdgeMultiplier = 1001 }.Validate());
-        Assert.Throws<InvalidOperationException>(() => new ApiRateLimitOptions { StandardPermitLimit = 1_000_001 }.Validate());
+        Assert.Throws<InvalidOperationException>((Action)(() => new ApiRateLimitOptions { IngestionPermitLimit = 0 }.Validate()));
+        Assert.Throws<InvalidOperationException>((Action)(() => new ApiRateLimitOptions { EdgeMultiplier = 1001 }.Validate()));
+        Assert.Throws<InvalidOperationException>((Action)(() => new ApiRateLimitOptions { StandardPermitLimit = 1_000_001 }.Validate()));
     }
 
     private static DefaultHttpContext Context(string remoteIp, string gestor)

@@ -48,7 +48,7 @@ public sealed class BirthBlockingPlanTests
             Assert.That(Plan().ConfigurationFingerprint(), Is.EqualTo(Plan().ConfigurationFingerprint()));
             Assert.That(BirthBlockingPlan.PrimaryPass(BirthBlockingPass.ExactDate | BirthBlockingPass.DayYearWithInitial), Is.EqualTo(BirthBlockingPass.ExactDate));
         }));
-        Assert.Throws<ArgumentOutOfRangeException>(() => Plan(tolerance: 3));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => Plan(tolerance: 3)));
     }
 
     [Test]

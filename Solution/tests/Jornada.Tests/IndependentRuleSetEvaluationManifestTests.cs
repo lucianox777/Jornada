@@ -27,7 +27,7 @@ public sealed class IndependentRuleSetEvaluationManifestTests
         Assert.That(manifest.RuleSetVersion, Is.EqualTo("rules-v7"));
         Assert.That(manifest.RuleSetFingerprintSha256, Is.EqualTo(rules.FingerprintSha256));
         Assert.That(manifest.IbgeFingerprintSha256, Is.EqualTo(D));
-        Assert.DoesNotThrow(() => IndependentRuleSetEvaluationManifestCatalog.EnsureSameRuleSet(manifest, rules));
+        Assert.DoesNotThrow((Action)(() => IndependentRuleSetEvaluationManifestCatalog.EnsureSameRuleSet(manifest, rules)));
     }
 
     [Test]
@@ -47,7 +47,7 @@ public sealed class IndependentRuleSetEvaluationManifestTests
 
         var manifest = IndependentRuleSetEvaluationManifestCatalog.Bind(evaluation, first);
 
-        Assert.Throws<InvalidOperationException>(() =>
-            IndependentRuleSetEvaluationManifestCatalog.EnsureSameRuleSet(manifest, second));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IndependentRuleSetEvaluationManifestCatalog.EnsureSameRuleSet(manifest, second)));
     }
 }

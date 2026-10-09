@@ -40,8 +40,8 @@ public sealed class NameFrequencyReferenceImporterTests
             { "totalPages": 1, "items": [ { "nome": "Silva", "frequencia": 0 } ] }
             """);
 
-        Assert.Throws<InvalidDataException>(() =>
-            NameFrequencyReferenceImporter.ParseRankingPage(document.RootElement, "SOBRENOME"));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            NameFrequencyReferenceImporter.ParseRankingPage(document.RootElement, "SOBRENOME")));
     }
 
     [Test]
@@ -51,8 +51,8 @@ public sealed class NameFrequencyReferenceImporterTests
             { "totalPages": 1, "items": [ { "nome": "Silva", "frequencia": 20 } ] }
             """);
 
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            NameFrequencyReferenceImporter.ParseRankingPage(document.RootElement, "ULTIMO_NOME"));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
+            NameFrequencyReferenceImporter.ParseRankingPage(document.RootElement, "ULTIMO_NOME")));
     }
 
     [Test]

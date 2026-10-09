@@ -27,7 +27,7 @@ public sealed class SyntheticExactHomonymEvaluationTests
             Assert.That(report.ExactDistinctHomonymFalseLinkRate, Is.EqualTo(2m / 3m));
             Assert.That(report.ByStratum, Has.Count.EqualTo(2));
         }));
-        Assert.DoesNotThrow(() => SyntheticExactHomonymEvaluator.ConferArithmetic(report));
+        Assert.DoesNotThrow((Action)(() => SyntheticExactHomonymEvaluator.ConferArithmetic(report)));
     }
 
     [Test]
