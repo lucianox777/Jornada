@@ -186,6 +186,29 @@ python3 scripts/e2e-console-runonce-disconnect-proof.py
 # Runs LAST because it intentionally leaves Processor stopped.
 python3 scripts/e2e-console-worker-stop-proof.py
 
+# C3.3d: multiple transient Console processes have exited. The independent,
+# write-through append-only journal must retain each worker's real events.
+# No arbitrary request payload, secret, CPF or SQL data is logged.
+python3 - "$PROJECT" <<'PY'
+import json, pathlib, sys
+project=sys.argv[1]
+journal=pathlib.Path(".local/e2e/c3-3d-private-worker-audit/events.jsonl")
+assert journal.is_file(), "C3.3d audit journal missing after Console restarts"
+events=[json.loads(line) for line in journal.read_text(encoding="utf-8").splitlines()]
+assert len(events)>=10, "C3.3d audit lost expected worker lifecycle events"
+assert all(e["project"]==project for e in events), "C3.3d foreign project in journal"
+assert all(set(e)=={"timestampUtc","project","category","operation","outcome"} for e in events), "C3.3d unsafe journal fields"
+allowed={"SUPERVISAO":{"ON","OFF"},"RUN_ONCE":{"processor","operations-maintenance","bronze-maintenance"},"PARAR_PROCESSO":{"processor","operations-maintenance","bronze-maintenance"}}
+assert all(e["category"] in allowed and e["operation"] in allowed[e["category"]]
+           and e["outcome"] in {"ADMITIDO","SUCESSO","ERRO"} for e in events)
+success={(e["category"],e["operation"]) for e in events if e["outcome"]=="SUCESSO"}
+assert {("SUPERVISAO","ON"),("SUPERVISAO","OFF"),("RUN_ONCE","processor"),
+        ("RUN_ONCE","operations-maintenance"),("RUN_ONCE","bronze-maintenance"),
+        ("PARAR_PROCESSO","processor")}.issubset(success), "C3.3d missing real lifecycle successes"
+assert any(e["outcome"]=="ADMITIDO" for e in events), "C3.3d pre-mutation audit missing"
+print("C3.3d: PASS private write-through journal survived Console processes; ON/OFF, 3 RunOnce and individual stop recorded")
+PY
+
 python3 - "$OUT/summary.json" "$PROJECT" "$before" <<'PY'
 import json, pathlib, sys
 output, project, seed_count = sys.argv[1:]
