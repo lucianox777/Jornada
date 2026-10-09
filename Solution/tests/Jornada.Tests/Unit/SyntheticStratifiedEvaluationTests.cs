@@ -45,7 +45,7 @@ public sealed class SyntheticStratifiedEvaluationTests
             Assert.That(train.Rates.DecisionRecall, Is.EqualTo(0.5m));
             Assert.That(train.Rates.Coverage, Is.EqualTo(0.5m));
         }));
-        Assert.DoesNotThrow(() => SyntheticStratifiedMetricConference.Confer(cases, report));
+        Assert.DoesNotThrow((Action)(() => SyntheticStratifiedMetricConference.Confer(cases, report)));
     }
 
     [Test]
@@ -78,7 +78,7 @@ public sealed class SyntheticStratifiedEvaluationTests
             Assert.That(report.PopulationByStratum.Sum(x => x.Counts.Cases), Is.EqualTo(1));
             Assert.That(report.ChallengeByStratum.Sum(x => x.Counts.Cases), Is.EqualTo(4));
         }));
-        Assert.DoesNotThrow(() => SyntheticStratifiedMetricConference.Confer(cases, report));
+        Assert.DoesNotThrow((Action)(() => SyntheticStratifiedMetricConference.Confer(cases, report)));
     }
 
     [TestCase("TRAIN", "CHALLENGE_MISSING_MOTHER_V1")]
@@ -88,7 +88,7 @@ public sealed class SyntheticStratifiedEvaluationTests
     {
         var item = Case("x", partition, 1, hasCpf: false, mother: false, homonym: false,
             truth: true, retrieved: false, SyntheticEvaluationDecision.Abstained, family: family);
-        Assert.Throws<InvalidDataException>(() => SyntheticStratifiedEvaluator.Evaluate([item]));
+        Assert.Throws<InvalidDataException>((Action)(() => SyntheticStratifiedEvaluator.Evaluate([item])));
     }
 
     [Test]
@@ -97,7 +97,7 @@ public sealed class SyntheticStratifiedEvaluationTests
         var item = Case("x", "CHALLENGE", 1, hasCpf: false, mother: false, homonym: false,
             truth: true, retrieved: false, SyntheticEvaluationDecision.Abstained,
             family: "CHALLENGE_UNVERSIONED");
-        Assert.Throws<InvalidDataException>(() => SyntheticStratifiedEvaluator.Evaluate([item]));
+        Assert.Throws<InvalidDataException>((Action)(() => SyntheticStratifiedEvaluator.Evaluate([item])));
     }
 
     [Test]
@@ -105,11 +105,11 @@ public sealed class SyntheticStratifiedEvaluationTests
     {
         var item = Case("dup", "TRAIN", 1, hasCpf: false, mother: true, homonym: false,
             truth: true, retrieved: true, SyntheticEvaluationDecision.Abstained);
-        Assert.Throws<InvalidDataException>(() => SyntheticStratifiedEvaluator.Evaluate([item, item]));
+        Assert.Throws<InvalidDataException>((Action)(() => SyntheticStratifiedEvaluator.Evaluate([item, item])));
 
         var impossible = Case("impossible", "TEST", 1, hasCpf: false, mother: true, homonym: false,
             truth: true, retrieved: false, SyntheticEvaluationDecision.Linked, correct: true);
-        Assert.Throws<InvalidDataException>(() => SyntheticStratifiedEvaluator.Evaluate([impossible]));
+        Assert.Throws<InvalidDataException>((Action)(() => SyntheticStratifiedEvaluator.Evaluate([impossible])));
     }
 
     [Test]
@@ -130,16 +130,16 @@ public sealed class SyntheticStratifiedEvaluationTests
             Counts = slice.Counts with { FalsePositive = slice.Counts.FalsePositive + 1 }
         };
         var tamperedCounts = report with { PopulationByStratum = [badCounts] };
-        Assert.Throws<InvalidDataException>(() =>
-            SyntheticStratifiedMetricConference.Confer(cases, tamperedCounts));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            SyntheticStratifiedMetricConference.Confer(cases, tamperedCounts)));
 
         var badRates = slice with
         {
             Rates = slice.Rates with { PrecisionPpv = 1m }
         };
         var tamperedRates = report with { PopulationByStratum = [badRates] };
-        Assert.Throws<InvalidDataException>(() =>
-            SyntheticStratifiedMetricConference.Confer(cases, tamperedRates));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            SyntheticStratifiedMetricConference.Confer(cases, tamperedRates)));
     }
 
     [Test]
@@ -160,7 +160,7 @@ public sealed class SyntheticStratifiedEvaluationTests
             Assert.That(slice.Rates.DecisionRecall, Is.Null);
             Assert.That(slice.Rates.Coverage, Is.Zero);
         }));
-        Assert.DoesNotThrow(() => SyntheticStratifiedMetricConference.Confer(cases, report));
+        Assert.DoesNotThrow((Action)(() => SyntheticStratifiedMetricConference.Confer(cases, report)));
     }
 
     private static SyntheticEvaluationTruthCase Case(
