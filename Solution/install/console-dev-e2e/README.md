@@ -89,3 +89,30 @@ Ainda falta evidência operacional real na CI com o SQL isolado:
 readiness de API/Resultado, supervisão OFF↔ON, kill e reinício efetivos,
 recuperação de lote sintético sem duplicação. Não marcar C3.2 concluído
 somente com esta PR.
+
+## C3.2d — Primeiro aceite operacional real SQL (CI isolada)
+
+O script `scripts/e2e-private-sql-bootstrap-runtime.sh` roda **somente**
+no job `e2e` do GitHub Actions com opt-in, projeto Compose exclusivo
+`jornada-workers-e2e-ci<run><attempt>`, senha aleatória e SQL privado.
+Sem host ports, bind mounts, DB existente, volumes externos nem
+qualquer acesso a `JornadaLocal`. Preflight de contrato fail-closed
+é verificado também no job `unit`, sem abrir containers.
+
+O teste operacional inicia **apenas `sqlserver` e `sql-bootstrap`**,
+espera saída zero do one-shot, confere schema, seed DEV, marcador de
+ambiente, lease/heartbeat e banco exclusivo `JornadaE2E`. Depois
+tenta executar bootstrap novamente: a operação deve recusar banco
+existente **sem alterar os dados**. A evidência vai para
+`.local/e2e/c3-2d-sql-bootstrap/summary.json` e logs. Não há
+comando de limpeza de volumes nesse script: GitHub descarta seu runner
+efêmero no término do job.
+
+Este é **SQL-only**, não comprova APIs prontas, os três workers
+residentes, restarts independentes após SIGKILL nem recuperação de
+lotes. Esses cenários ainda exigem aceites posteriores e gates
+próprios. Um PR/commit verde de C3.2d não conclui o contrato DT-21.
+
+O teste operacional é novo: somente considerar comprovado quando o
+job E2E da **HEAD exata** terminar `completed/success` e o artefato
+confirmar `status=PASS`. Nenhuma execução fora da CI foi autorizada.

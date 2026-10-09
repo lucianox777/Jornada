@@ -169,6 +169,8 @@ jobs:
         run: python3 scripts/test-worker-disposable-compose.py
       - name: C3.2c create-only E2E SQL bootstrap contract (no DB/containers)
         run: python3 scripts/test-e2e-sql-bootstrap-contract.py
+      - name: C3.2d private SQL runtime guard self-test (no Docker or DB)
+        run: python3 scripts/test-e2e-private-sql-runtime-contract.py
       - name: C3.2b isolated Api and ResultadoApi entrypoints (check-only)
         run: python3 scripts/test-api-independent-entrypoint.py
       - name: Self-test HML SQL/API evidence gates
@@ -937,6 +939,10 @@ jobs:
           JORNADA_E2E_LOCKED_RESTORE: 'true'
           JORNADA_E2E_CONSOLE_ZIP: 'true'
         run: python3 scripts/jornada-runner.py --profile e2e --allow-reset e2e
+      - name: C3.2d real isolated SQL create-only acceptance (ephemeral Compose; no workers)
+        env:
+          JORNADA_WORKERS_E2E_RUNTIME_TEST: 'true'
+        run: bash scripts/e2e-private-sql-bootstrap-runtime.sh
       - name: Upload E2E evidence and logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
