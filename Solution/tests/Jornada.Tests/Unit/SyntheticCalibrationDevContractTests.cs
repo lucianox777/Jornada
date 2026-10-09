@@ -86,7 +86,7 @@ public sealed class SyntheticCalibrationDevContractTests
             "Jornada.Linkage.Evaluation",
             "SyntheticEvaluationGroupReader.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(program, Does.Contain("SyntheticCalibrationDevRunner.Mode"));
             Assert.That(source, Does.Contain("SYNTHETIC_CALIBRATION_DEV"));
@@ -182,7 +182,7 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(operationalMonitor, Does.Contain("hostEnvironment.IsDevelopment()"));
             Assert.That(operationalMonitor, Does.Contain("SyntheticOperationalMonitorGate.IsResidentDevelopment"));
             Assert.That(operationalMonitor, Does.Contain("if (syntheticDevelopment)"));
-        });
+        }));
     }
 
     [Test]
@@ -195,7 +195,7 @@ public sealed class SyntheticCalibrationDevContractTests
             "Solution", "src", "Jornada.Ensaio", "SyntheticCalibrationDevRunner.Waves.cs"));
         var generator = File.ReadAllText(Path.Combine(root,
             "Solution", "src", "Jornada.Linkage.SyntheticCorpus", "Program.cs"));
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(program, Does.Contain("SyntheticCalibrationDevRunner.WaveMode"));
             Assert.That(runner, Does.Contain("AssertDevelopmentEnvironmentAsync"));
@@ -219,7 +219,7 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(generator, Does.Contain("SyntheticWaveManifestSerializer.Serialize("));
             Assert.That(generator, Does.Contain("waves = reports"));
             Assert.That(generator, Does.Contain("manifestSha256 = materializedWave.ManifestSha256"));
-        });
+        }));
     }
 
     [Test]
@@ -232,13 +232,13 @@ public sealed class SyntheticCalibrationDevContractTests
 
         foreach (var script in new[] { shell, powershell })
         {
-            Assert.Multiple(() =>
+            Assert.Multiple((TestDelegate)(() =>
             {
                 Assert.That(script, Does.Contain("Jornada.EnvironmentProfile"));
                 Assert.That(script, Does.Contain("sp_updateextendedproperty"));
                 Assert.That(script, Does.Contain("sp_addextendedproperty"));
                 Assert.That(script, Does.Contain("Development"));
-            });
+            }));
         }
 
         Assert.That(ddl, Does.Not.Contain("Jornada.EnvironmentProfile"),
@@ -253,7 +253,7 @@ public sealed class SyntheticCalibrationDevContractTests
         var powershell = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "local-synthetic-calibration.ps1"));
         var cleanup = File.ReadAllText(Path.Combine(root, "Solution", "database", "Jornada_Dev_SyntheticCalibration_Cleanup.sql"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(shell, Does.Contain("up --no-synthetic-corpus"));
             Assert.That(shell, Does.Contain("Jornada_Dev_SyntheticCalibration_Cleanup.sql"));
@@ -283,7 +283,7 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(cleanup, Does.Contain("child_table.object_id IS NULL"));
             Assert.That(cleanup, Does.Contain("qc_registro_implementacao"));
             Assert.That(cleanup, Does.Contain("possibilidade_implementacao"));
-        });
+        }));
     }
 
     [Test]
@@ -294,7 +294,7 @@ public sealed class SyntheticCalibrationDevContractTests
             root, "Solution", "src", "Jornada.Ensaio",
             "SyntheticCalibrationDevRunner.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(runner, Does.Contain("ReadOptionalStringProperty(body, \"erro\")"),
                 "O ensaio deve aproveitar o erro_codigo já devolvido pela API.");
@@ -304,7 +304,7 @@ public sealed class SyntheticCalibrationDevContractTests
                 "A ausência de erro deve ser explícita, sem quebrar o parsing.");
             Assert.That(runner, Does.Contain("item.Value.ValueKind == JsonValueKind.String"),
                 "Erros nulos do endpoint de status não podem lançar outra exceção.");
-        });
+        }));
     }
 
     [Test]
@@ -329,7 +329,7 @@ public sealed class SyntheticCalibrationDevContractTests
         const string cleanup = "Jornada_Dev_SyntheticCalibration_Cleanup.sql";
         const string runtimeGuard = "await AssertNoExternalProcessorAsync(cancellationToken)";
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(sql, Does.Contain("Jornada.EnvironmentProfile"));
             Assert.That(sql, Does.Contain("Development"));
@@ -350,7 +350,7 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(waves.Split(runtimeGuard).Length, Is.EqualTo(3),
                 "Cargas em ondas também precisam das duas verificações.");
             Assert.That(runner, Does.Contain("RuntimeBronzeDirectory"));
-        });
+        }));
     }
 
     [Test]
@@ -366,7 +366,7 @@ public sealed class SyntheticCalibrationDevContractTests
         var diagnostics = File.ReadAllText(Path.Combine(
             root, "Solution", "scripts", "local-synthetic-diagnostics.ps1"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(sql, Does.Contain("Jornada.EnvironmentProfile"));
             Assert.That(sql, Does.Contain("Development"));
@@ -384,7 +384,7 @@ public sealed class SyntheticCalibrationDevContractTests
             Assert.That(shell, Does.Contain("exit \"$ensaio_exit\""));
             Assert.That(diagnostics, Does.Contain("-d $db"));
             Assert.That(diagnostics, Does.Not.Contain("Jornada_Dev_SyntheticCalibration_Cleanup.sql"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()
