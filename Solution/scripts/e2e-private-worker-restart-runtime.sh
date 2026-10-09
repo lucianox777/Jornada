@@ -157,7 +157,7 @@ for i in "${!services[@]}"; do
   sudo kill -KILL -- "$before_pid" \
     > "$OUT/$target-fault-signal.log" 2>&1 || signal_exit=$?
   [[ "$signal_exit" -eq 0 ]] || die "SIGKILL failed for verified sandbox worker: $target"
-  printf 'target=%s;inject_exit=%s;before_pid=%s;before_restart=%s\\n' \
+  printf 'target=%s;inject_exit=%s;before_pid=%s;before_restart=%s\n' \
     "$target" "$signal_exit" "$before_pid" "$before_count" \
     >> "$OUT/fault-injection-evidence.log"
 
