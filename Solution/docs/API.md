@@ -1,10 +1,21 @@
-# Jornada API — contrato normativo v3.62 / implementação de engenharia v3.72
+> **Revisão de engenharia em 09/10/2026:** o contrato normativo
+> publicado permanece 3.62, a implementação candidata corrente usa
+> `SolutionSchema=3.70`; menções no restante do documento a versões
+> intermediárias são histórico de evolução, não configuração
+> obrigatória atual. Para a visão de arquitetura/integração, consulte
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md) e
+> [Integração do Gestor](Manual_Integracao_Gestor.md). O backend HTTP
+> da Console DEV tem **rotas separadas** documentadas em
+> [Console DEV](Console_DEV_Supervisao_Atual.md); não publicar essas
+> rotas de supervisão em HML/PROD por engano.
+>
+# Jornada API — contrato normativo v3.62 / implementação candidata com schema 3.70
 
 
 ## Saúde operacional e limite de borda — engenharia v3.69
 
 - `GET /health` e `GET /health/live`: liveness do processo; `/health` é mantido por compatibilidade.
-- `GET /health/ready`: readiness de SQL, diretório Bronze e staging; retorna `503` quando uma dependência essencial não está pronta. O SQL só fica `READY` quando o banco declara `Jornada.BaseNormativa=3.62` e `Jornada.SolutionSchema=3.69` e contém os objetos essenciais; banco vazio, antigo ou incompatível retorna `SQL_SCHEMA_INCOMPATIVEL`.
+- `GET /health/ready`: readiness de SQL, diretório Bronze e staging; retorna `503` quando uma dependência essencial não está pronta. O SQL só fica `READY` quando o banco declara `Jornada.BaseNormativa=3.62` e `Jornada.SolutionSchema=3.70` e contém os objetos essenciais; banco vazio, antigo ou incompatível retorna `SQL_SCHEMA_INCOMPATIVEL`.
 - O teto contratual do ZIP continua 250 MiB. A implementação ajusta `IHttpMaxRequestBodySizeFeature` somente em `POST /api/v1/ingestao/entregas`, antes da leitura do corpo. Proxy/ingress corporativo continua responsável por permitir ao menos o mesmo tamanho.
 - Rate limits de aplicação são configuráveis na seção `ApiRateLimiting`; mudança de HML não exige recompilar.
 - O contrato máquina está em `openapi/jornada-v1.openapi.json` e `scripts/openapi-contract-gate.py` falha se método+rota divergirem do `Program.cs` ou dos módulos de endpoint registrados.
