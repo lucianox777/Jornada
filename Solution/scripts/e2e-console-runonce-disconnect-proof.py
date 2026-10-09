@@ -200,5 +200,5 @@ def main() -> None:
 if __name__=="__main__":
     try: main()
     except (RuntimeError,OSError,ValueError,KeyError) as exc:
-        print("C3.3b3a: REJECTED "+type(exc).__name__,file=sys.stderr)
+        # RuntimeError messages originate from fixed require() assertions above.\n        # Do not print arbitrary OS/HTTP exception details (may contain secrets).\n        detail = ": " + str(exc) if type(exc) is RuntimeError else ""\n        print("C3.3b3a: REJECTED "+type(exc).__name__+detail,file=sys.stderr)
         sys.exit(2)
