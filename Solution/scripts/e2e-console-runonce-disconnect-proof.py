@@ -128,20 +128,25 @@ def main() -> None:
                     b"POST /api/workers/processor/run-once HTTP/1.1\r\n"
                     b"Host: 127.0.0.1\r\nContent-Length: 0\r\n"
                     b"Connection: keep-alive\r\n\r\n")
+                # Admission marks RUN_ONCE before Compose finishes creating
+                # the actual oneoff. On a slower runner these are distinct
+                # moments; poll until BOTH truths hold simultaneously, then
+                # disconnect while the Docker process is verifiably alive.
                 deadline=time.monotonic()+30
                 while True:
                     current=state(base,"OFF")
                     rows={x["worker"]:x for x in current["workers"]}
                     if rows["processor"]["state"]=="RUN_ONCE":
-                        break
+                        containers=oneoffs(project)
+                        require(len(containers)<=1,
+                                "multiple private Processor oneoffs during RunOnce")
+                        if (len(containers)==1 and containers[0]["running"] is True
+                                and int(containers[0]["pid"])>1
+                                and containers[0]["restart_policy"]=="no"):
+                            break
                     require(time.monotonic()<deadline,
-                            "server did not register live Processor RunOnce")
+                            "real active Docker oneoff and backend RUN_ONCE never coincided")
                     time.sleep(0.15)
-                containers=oneoffs(project)
-                require(len(containers)==1 and containers[0]["running"] is True
-                        and int(containers[0]["pid"])>1
-                        and containers[0]["restart_policy"]=="no",
-                        "RUN_ONCE state did not match a real active Docker oneoff")
                 # Explicitly disconnect with the job active.
                 client.shutdown(socket.SHUT_RDWR)
             disconnected_at=time.monotonic()
