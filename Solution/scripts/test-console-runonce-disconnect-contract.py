@@ -69,6 +69,12 @@ def main() -> None:
     assert '"RUN_ONCE"' in e2e
     assert 'label=com.docker.compose.oneoff=True' in e2e
     assert 'restart_policy' in e2e and '=="no"' in e2e
+    # The backend advertises RUN_ONCE as soon as admission wins, before
+    # Compose creates the real container. The E2E must poll until BOTH
+    # status sources are true to avoid a CI scheduling false negative.
+    assert 'if rows["processor"]["state"]=="RUN_ONCE":' in e2e
+    assert 'len(containers)<=1' in e2e
+    assert 'real active Docker oneoff and backend RUN_ONCE never coincided' in e2e
     assert 'denied==409' in e2e
     assert "not oneoffs(project)" in e2e
     assert 'global_mode_after' in e2e

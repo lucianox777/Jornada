@@ -3,6 +3,7 @@
   "status": "VIGENTE",
   "allowedInsecureSqlGlobs": [
     ".github/workflows/ci.yml",
+    ".github/workflows/dt10-evidence.yml",
     ".github/workflows/cpf-anchor.yml",
     ".github/workflows/cpf-anchor-processor.yml",
     ".github/workflows/identity-progressive-persistence.yml",
@@ -24,6 +25,7 @@
   ],
   "allowedPasswordLiteralGlobs": [
     ".github/workflows/ci.yml",
+    ".github/workflows/dt10-evidence.yml",
     ".github/workflows/cpf-anchor.yml",
     ".github/workflows/cpf-anchor-processor.yml",
     ".github/workflows/identity-progressive-persistence.yml",
@@ -45,5 +47,5 @@
     "AKIA",
     "ASIA"
   ],
-  "note": "Exceções são apenas Development/CI sintético. Produção não pode distribuir credencial, chave privada ou TLS SQL enfraquecido. O compose e Jornada.Cluster.Test.json são artefatos exclusivamente locais de Development."
+  "note": "Exceções só para Development/CI sintético. .github/workflows/dt10-evidence.yml é reusable workflow chamado exclusivamente pelo job CI impact-gated, usa JornadaSyntheticDev efêmero e senha derivada de github.run_id, igual ao job original ci.yml; não habilita TLS SQL enfraquecido em produção. Produção não distribui credencial, chave privada ou TLS SQL enfraquecido."
 }

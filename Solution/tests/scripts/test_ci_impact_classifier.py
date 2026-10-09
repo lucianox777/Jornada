@@ -35,6 +35,11 @@ class CiImpactClassifierTests(unittest.TestCase):
         r=m.classify([".github/workflows/ci.yml"])
         self.assertTrue(r["run_full"]); self.assertTrue(r["run_dt10"])
 
+    def test_reusable_dt10_workflow_changes_require_sql_evidence(self):
+        r=m.classify([".github/workflows/dt10-evidence.yml"])
+        self.assertTrue(r["run_full"])
+        self.assertTrue(r["run_dt10"])
+
     def test_mixed_docs_and_code_requires_full_ci(self):
         r=m.classify(["Solution/docs/x.md","Solution/src/Jornada.Api/Program.cs"])
         self.assertTrue(r["run_full"])
