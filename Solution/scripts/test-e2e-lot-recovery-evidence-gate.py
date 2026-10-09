@@ -24,7 +24,8 @@ def fixture() -> dict:
         "scenario": "C3.2f2_real_worker_lot_recovery",
         "environment": {
             "origin": "live_sql_in_ephemeral_ci", "database": "JornadaE2E",
-            "compose_project": "jornada-workers-e2e-ci378828444111"
+            "compose_project": "jornada-workers-e2e-ci378828444111",
+            "github_run_id": "37882844411", "github_run_attempt": "1"
         },
         "batch": {
             "entrega_id": ENTREGA, "lote_id": LOTE,
@@ -33,27 +34,32 @@ def fixture() -> dict:
             "expected_pessoas": 1, "expected_registros": 1
         },
         "before": {
+            "observed_at_utc": "2026-10-09T04:25:00Z",
             "lote_status": "PROCESSANDO",
             "lease_id": OLD, "heartbeat_lease_id": OLD,
             "lease_owner": "synthetic-processor",
             "tentativa_count": 1, "recuperacao_count": 0
         },
         "fault": {
+            "observed_at_utc": "2026-10-09T04:25:10Z",
             "transaction_open_after_first_write": True,
             "not_committed_before_crash": True,
             "old_worker_unexpected_exit": True, "worker_pid_changed": True,
             "sql_transaction_rollback_observed": True,
             "before_host_pid": 1002, "after_host_pid": 1019,
+            "old_worker_exit_code": 137,
             "before_instance_id": OLD_WORKER, "after_instance_id": NEW_WORKER,
             "before_restart_count": 0, "after_restart_count": 1
         },
         "recovery": {
+            "observed_at_utc": "2026-10-09T04:26:10Z",
             "previous_token_expired": True,
             "old_lease_heartbeat_deleted": True,
             "old_lease_fenced": True, "requeued_by_worker": True,
             "new_lease_id": NEW, "recuperacao_count": 1, "tentativa_count": 2
         },
         "terminal": {
+            "observed_at_utc": "2026-10-09T04:26:30Z",
             "lote_status": "PROCESSADO", "entrega_status": "PROCESSADA",
             "lease_id": None, "lease_owner": None,
             "lote_heartbeat_rows": 0, "silver_people": 1,
@@ -61,6 +67,7 @@ def fixture() -> dict:
             "gold_and_serving_consistent": True, "duplicate_business_keys": 0
         },
         "idempotency_replay": {
+            "observed_at_utc": "2026-10-09T04:26:40Z",
             "same_zip_and_idempotency_key": True, "additional_entregas": 0,
             "additional_lotes": 0, "additional_silver_rows": 0,
             "additional_gold_rows": 0, "additional_serving_rows": 0
@@ -88,6 +95,15 @@ def main() -> None:
         ("environment", "database", "JornadaLocal"),
         ("environment", "origin", "CI_config_only"),
         ("environment", "compose_project", "production"),
+        ("environment", "github_run_id", "37882844412"),
+        ("environment", "github_run_attempt", "2"),
+        ("fault", "old_worker_exit_code", 0),
+        ("fault", "old_worker_exit_code", True),
+        ("before", "observed_at_utc", "2026-10-09T04:27:00Z"),
+        ("fault", "observed_at_utc", "2026-10-09T04:24:00Z"),
+        ("recovery", "observed_at_utc", "2026-10-09T04:25:10Z"),
+        ("terminal", "observed_at_utc", "2026-10-09T04:25:30+00:00"),
+        ("idempotency_replay", "observed_at_utc", "not-a-time"),
         ("batch", "entrega_id", "not-uuid"),
         ("batch", "payload_sha256", "not-hash"),
         ("batch", "expected_pessoas", 0),
