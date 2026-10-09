@@ -13,6 +13,7 @@ DT10_PREFIXES = (
 )
 DT10_EXACT = {
     ".github/workflows/ci.yml",
+    ".github/workflows/dt10-evidence.yml",
     "Solution/tests/Jornada.Integration.Tests/Integration/SqlBatchRunner.cs",
     "Solution/tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj",
     "Solution/database/Jornada_Dev_SyntheticScale.sql",
