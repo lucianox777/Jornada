@@ -241,7 +241,51 @@ autoriza execução de `local-db.sh`, reset de containers ou
 | DBA/infra | [runbook operacional](Runbook_Operacao.md) → [upgrade](DT06_Aceite_Upgrade_Evidencia.md) → [esquema](Operational_SQL_Adapter.md) |
 | Governança / QA | [índice vivo](Indice_Acervo_Documental.md) → [decisões vigentes](Indice_Decisoes_Vigentes.md) → [dívidas](Dividas_Tecnicas.md) → [testes](Runbook_Testes_Tecnicos.md) |
 
-## 10. Pendências e critério de conclusão
+## 10. Decisão de encerramento da Trilha 4 como frente contínua
+
+**Decisão superveniente de 09/10/2026:** a proposta do sistema
+**não depende de criar um serviço contínuo que revisite todas as
+identidades RESOLVIDAS pelo simples decurso do tempo**. Essa versão
+da Trilha 4 foi **encerrada como frente arquitetural autônoma**.
+Seu valor remanescente passa à
+[**DT-22 — Reavaliação governada dos RESOLVIDOS**](DT22_Reavaliacao_Governada_Resolvidos.md),
+**ABERTA/POSTERGADA** e independente do ciclo normal de ingestão.
+Permitirá futura execução **explícita e autorizada**, inclusive
+após mudança de modelo, com universo/versão definidos,
+checkpoint, histórico e recomposição Gold/Serving consistentes.
+Ativar um modelo **não** cria obrigação implícita de replay imediato
+nem prova de que a população inteira já foi recalculada.
+
+**Limitação atual comprovada no código:** `INCREMENTAL` seleciona
+observações sem vínculo, `NAO_RESOLVIDO`, `CONFLITO` ou
+`PENDENTE_PROBABILISTICO` e não captura de maneira geral
+`RESOLVIDO` indiretamente afetado por um candidato novo de
+outra fonte. A nova versão de origem no Processor e a
+ancoragem CPF **não provam recomposição automática de todos os
+outros membros de um agrupamento probabilístico anterior**.
+O modo `REPLAY` existente exige run/modelo histórico imutável
+e **não reavalia com novo modelo**; `FULL` existe como
+modalidade mais ampla, não como DT-22 entregue. A Gold continua
+a melhor representação disponível, **não a garantia de que
+todas as evidências passadas foram reavaliadas**.
+
+**Risco transparente:** associações probabilísticas de RESOLVIDOS
+podem permanecer desatualizadas sem uma operação específica.
+Registrar isso nos critérios de qualidade/risco antes de afirmar
+automação ou encerrar o Ensaio. **Fechar a proposta arquitetural
+não quita a DT-22 e não homologa a qualidade estatística.**
+Preservar a regra de CPF-first, a impossibilidade de dois CPFs
+no mesmo UUID, a origem de cada observação, o histórico e
+todos os fatos finalísticos.
+
+## 11. Pendências e critério de conclusão
+
+**Débitos restantes prioritários:** DT-05 (replay histórico NAS),
+DT-22 (reavaliação extraordinária dos RESOLVIDOS, **postergada**),
+cancelamento **explicitamente confirmado** de RunOnce,
+telemetria durável com Console fechada e otimização segura
+dos builds repetidos da CI. Essas frentes são distintas e
+não reabrem os aceites DEV já integrados.
 
 **Ainda sem aceite comprovado:** IdP corporativo/HML/PROD, validação
 estatística representativa do Ensaio com massa de Secretarias,
