@@ -230,8 +230,19 @@ fi
 id1="$(json_get "$OUT/post1.json" entregaId)"
 if [[ "${JORNADA_E2E_CONSOLE_ZIP:-false}" == "true" ]]; then
   # TC-06: the same ZIP+key was already sent TWICE by Chromium's "Enviar
-  # arquivo" button; the regular E2E POST must resolve to that same Entrega.
-  # All three invocations use a disposable API and JornadaE2E database.
+  # arquivo" button; a third, direct POST with same ZIP/key must
+  # resolve to the SAME Entrega. This must be a real HTTP call rather
+  # than a synthetic receipt copied from the browser report.
+  post_delivery 'local-e2e-001' "$OUT/post1-ui-replay.json" "$OUT/post1-ui-replay.code"
+  [[ "$(cat "$OUT/post1-ui-replay.code")" == 202 ]] || {
+    echo 'ERRO: replay direto da Entrega iniciada pelo navegador falhou.' >&2
+    exit 26
+  }
+  replay_id="$(json_get "$OUT/post1-ui-replay.json" entregaId)"
+  [[ "$replay_id" == "$id1" ]] || {
+    echo 'ERRO: replay direto duplicou Entrega iniciada pelo navegador.' >&2
+    exit 26
+  }
   python3 - "$OUT/console-zip-source.json" "$id1" <<'PY'
 import json,sys
 report=json.load(open(sys.argv[1],encoding='utf-8'))
