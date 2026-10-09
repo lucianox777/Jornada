@@ -116,3 +116,31 @@ próprios. Um PR/commit verde de C3.2d não conclui o contrato DT-21.
 O teste operacional é novo: somente considerar comprovado quando o
 job E2E da **HEAD exata** terminar `completed/success` e o artefato
 confirmar `status=PASS`. Nenhuma execução fora da CI foi autorizada.
+
+## C3.2e — APIs independentes, readiness real e modo OFF (CI)
+
+Após o aceite SQL create-only do C3.2d na mesma execução e no **mesmo
+projeto Compose exclusivo**, a CI constrói a imagem de aplicações
+somente uma vez e executa `api` e `resultado-api` em contêineres
+independentes (com PID1 distintos). O teste lê `/health/ready` da
+API, `/health` do ResultadoApi e acessa a API por
+`http://api:5080/health/ready` a partir do ResultadoApi. Requer
+healthchecks reais, DNS privado e consulta SQL/schema para readiness;
+não confunde HTTP 200 de liveness com readiness. Não são abertas
+portas de host.
+
+O SQL E2E usa certificado autofirmado. Somente nesta rede privada e
+descartável a conexão mantém `Encrypt=true` e aceita o certificado
+com `TrustServerCertificate=true`. Fora do perfil isolado nenhum
+parâmetro é alterado.
+
+Em OFF, o script confere **ausência dos três workers residentes**
+por labels exclusivas do projeto, SQL e APIs vivos e processos distintos.
+A evidência fica em `.local/e2e/c3-2d-sql-bootstrap/`, incluindo
+readiness das APIs, e deve ser conferida no E2E do HEAD exato.
+
+Este aceite **não prova** que RunOnce dos 3 workers está integrado
+à Console, não injeta SIGKILL, não demonstra reinício automático dos
+workers, não observa leases/recovery de lote e não implementa toggle
+global/indicadores/controles. Essas provas ficam para C3.2f, C3.3 e
+C3.4. Nenhuma alegação de conclusão DT-21 é permitida.
