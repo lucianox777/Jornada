@@ -30,6 +30,8 @@ x-worker-service: &worker-service
   depends_on:
     sqlserver:
       condition: service_healthy
+    sql-bootstrap:
+      condition: service_completed_successfully
   environment:
     <<: *worker-env
   volumes:
