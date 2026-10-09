@@ -14,7 +14,7 @@ public sealed class TrustedProxyConfigurationTests
         var configured = Options.Create(new TrustedProxyOptions { KnownProxies = ["10.0.0.10", "10.0.0.11"], ForwardLimit = 2 });
         var forwarded = new ForwardedHeadersOptions();
         new ConfigureTrustedForwardedHeaders(configured).Configure(forwarded);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(forwarded.ForwardLimit, Is.EqualTo(2));
             Assert.That(forwarded.RequireHeaderSymmetry, Is.True);
@@ -29,7 +29,7 @@ public sealed class TrustedProxyConfigurationTests
         var configured = Options.Create(new TrustedProxyOptions { KnownNetworks = ["10.20.30.0/24", "2001:db8::/48"] });
         var forwarded = new ForwardedHeadersOptions();
         new ConfigureTrustedForwardedHeaders(configured).Configure(forwarded);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(forwarded.KnownProxies, Is.Empty);
             Assert.That(forwarded.KnownIPNetworks.Count, Is.EqualTo(2));
