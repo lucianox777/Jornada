@@ -29,7 +29,7 @@ public sealed class BlockingTaggedCandidateQueryBuilderTests
             PersonResolutionProjectionContract.SchemaVersion,
             PersonResolutionProjectionContract.FingerprintSha256);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain(" UNION ALL "));
             Assert.That(sql, Does.Contain(" INTERSECT "));
@@ -47,7 +47,7 @@ public sealed class BlockingTaggedCandidateQueryBuilderTests
             Assert.That(command.Parameters.Cast<SqlParameter>()
                 .Select(static p => p.ParameterName).Distinct().Count(),
                 Is.EqualTo(command.Parameters.Count));
-        });
+        }));
     }
 
     [Test]
@@ -60,12 +60,12 @@ public sealed class BlockingTaggedCandidateQueryBuilderTests
         using var command = new SqlCommand();
         var sql = BlockingProjectionCandidateQueryBuilder.BuildTaggedCandidateUuidQuery(
             command, [dynamicPass], []);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("CAST(1 AS int) AS in_dynamic"));
             Assert.That(sql, Does.Contain("CAST(0 AS int) AS in_combined"));
             Assert.That(sql, Does.Not.Contain(" UNION ALL "));
-        });
+        }));
     }
 
     [Test]
@@ -74,13 +74,13 @@ public sealed class BlockingTaggedCandidateQueryBuilderTests
         using var command = new SqlCommand();
         var sql = BlockingProjectionCandidateQueryBuilder.BuildTaggedCandidateUuidQuery(
             command, [], []);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("1=0"));
             Assert.That(sql, Does.Contain("in_dynamic"));
             Assert.That(sql, Does.Contain("in_combined"));
             Assert.That(command.Parameters, Is.Empty);
-        });
+        }));
     }
 
     [Test]

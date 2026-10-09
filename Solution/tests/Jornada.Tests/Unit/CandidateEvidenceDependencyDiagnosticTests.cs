@@ -42,7 +42,7 @@ public sealed class CandidateEvidenceDependencyDiagnosticTests
             metric.LeftFeature == "NOME" &&
             metric.RightFeature == "NOME_MAE");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Version, Is.EqualTo(CandidateEvidenceDependencyDiagnostic.Version));
             Assert.That(report.EvaluationPairs, Is.EqualTo(6));
@@ -53,7 +53,7 @@ public sealed class CandidateEvidenceDependencyDiagnosticTests
             Assert.That(dependency.PairCount, Is.EqualTo(2));
             Assert.That(dependency.TotalVariationDistance, Is.EqualTo(0.5d).Within(1e-12));
             Assert.That(dependency.NormalizedMutualInformation, Is.EqualTo(1d).Within(1e-12));
-        });
+        }));
     }
 
     [Test]
@@ -79,14 +79,14 @@ public sealed class CandidateEvidenceDependencyDiagnosticTests
             metric.Scope == CandidateEvidenceDependencyScope.ObservedOnly &&
             metric.LeftFeature == "NOME" && metric.RightFeature == "NOME_MAE");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(allStates.IsEstimable, Is.True);
             Assert.That(observedOnly.IsEstimable, Is.False);
             Assert.That(observedOnly.NonEstimableReason, Is.EqualTo("INSUFFICIENT_INDEPENDENT_GROUPS"));
             Assert.That(observedOnly.TotalVariationDistance, Is.Null);
             Assert.That(observedOnly.NormalizedMutualInformation, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -147,14 +147,14 @@ public sealed class CandidateEvidenceDependencyDiagnosticTests
         var first = CandidateEvidenceDependencyDiagnostic.Analyze(validated);
         var second = CandidateEvidenceDependencyDiagnostic.Analyze(validated);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(second.FingerprintSha256, Is.EqualTo(first.FingerprintSha256));
             Assert.That(System.Text.Json.JsonSerializer.Serialize(second),
                 Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(first)));
             Assert.That(typeof(CandidateEvidenceDependencyReport).GetProperties()
                 .Any(property => property.Name.Contains("Threshold", StringComparison.OrdinalIgnoreCase)), Is.False);
-        });
+        }));
     }
 
     private static async Task<CandidateSamplingCapture> CaptureAsync()

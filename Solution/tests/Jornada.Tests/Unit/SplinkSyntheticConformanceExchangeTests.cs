@@ -14,7 +14,7 @@ public sealed class SplinkSyntheticConformanceExchangeTests
         var json = SplinkSyntheticConformanceExchange.SerializeFixture(original);
         var roundTrip = SplinkSyntheticConformanceExchange.ReadFixture(json);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(json, Does.Contain("\"schema_version\": \"JORNADA_SPLINK_EXCHANGE_V1\""));
             Assert.That(json, Does.Contain("\"source_dataset_l\""));
@@ -24,7 +24,7 @@ public sealed class SplinkSyntheticConformanceExchangeTests
             Assert.That(original.Labels, Has.Count.EqualTo(9));
             Assert.That(roundTrip.Records, Is.EqualTo(original.Records));
             Assert.That(roundTrip.IbgeFingerprintSha256, Has.Length.EqualTo(64));
-        });
+        }));
     }
 
     [Test]
@@ -38,7 +38,7 @@ public sealed class SplinkSyntheticConformanceExchangeTests
         };
         var forged = fixture with { IbgeSourceVersion = "CENSO2022_NOMES_BRASIL_V1" };
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(() => SplinkSyntheticConformanceExchange.SerializeFixture(altered),
                 Throws.TypeOf<InvalidDataException>());
@@ -49,7 +49,7 @@ public sealed class SplinkSyntheticConformanceExchangeTests
                     .Replace("\"records\"", "\"unexpected_real_data\":true,\"records\"",
                         StringComparison.Ordinal)),
                 Throws.TypeOf<JsonException>());
-        });
+        }));
     }
 
     [Test]
@@ -59,7 +59,7 @@ public sealed class SplinkSyntheticConformanceExchangeTests
         var valid = ResultJson(source);
         var result = SplinkSyntheticConformanceExchange.ReadExternal(valid, source);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Estimates.Select(x => x.Level),
                 Is.EquivalentTo(new[] { "EXACT", "HIGH", "MEDIUM", "LOW" }));
@@ -79,7 +79,7 @@ public sealed class SplinkSyntheticConformanceExchangeTests
                     "\"feature\":\"NOME\",\"level\":\"EXACT\"",
                     StringComparison.Ordinal), source),
                 Throws.TypeOf<InvalidDataException>());
-        });
+        }));
     }
 
     [Test]
@@ -89,7 +89,7 @@ public sealed class SplinkSyntheticConformanceExchangeTests
         var report = SplinkSyntheticConformanceExchange.Diagnose(package, ResultJson(package));
         var json = SplinkSyntheticConformanceExchange.SerializeDiagnostic(report);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Status, Is.EqualTo("DIAGNOSTICO_NAO_GOVERNADO"));
             Assert.That(report.InputSchema, Is.EqualTo("JORNADA_SPLINK_EXCHANGE_V1"));
@@ -103,7 +103,7 @@ public sealed class SplinkSyntheticConformanceExchangeTests
             Assert.That(report.MaxAbsoluteLlrDifference, Is.GreaterThanOrEqualTo(0d));
             Assert.That(json, Does.Contain("nao_g").IgnoreCase);
             Assert.That(json, Does.Not.Contain("promovido"));
-        });
+        }));
     }
 
     private static string ResultJson(SplinkSyntheticPackage source) =>

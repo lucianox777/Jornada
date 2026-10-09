@@ -38,12 +38,12 @@ public sealed class CandidateSamplingTests
     public void ProbabilitiesUseActualDenominators()
     {
         var (p, w) = CandidateSamplingDesign.Inclusion(10, 4, 8, 2);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p, Is.EqualTo(0.1m));
             Assert.That(w, Is.EqualTo(10m));
             Assert.That(CandidateSamplingDesign.Inclusion(10, 10, 2, 2).Weight, Is.EqualTo(1m));
-        });
+        }));
         Assert.Throws<ArgumentOutOfRangeException>(() => CandidateSamplingDesign.Inclusion(2, 3, 1, 1));
         Assert.Throws<ArgumentOutOfRangeException>(() => CandidateSamplingDesign.Inclusion(2, 1, 0, 1));
         Assert.Throws<ArgumentException>(() => CandidateSamplingDesign.Draw(new[] { 1, 1 }, 1, Seed, "x", x => x.ToString(CultureInfo.InvariantCulture)));
@@ -54,7 +54,7 @@ public sealed class CandidateSamplingTests
     public async Task CensusEnumeratesAllPassesAndDeduplicatesBeforeSampling()
     {
         var capture = await RunAsync(Frame(3), Options(3), Seed);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(capture.FrameSize, Is.EqualTo(3));
             Assert.That(capture.SelectedSources, Is.EqualTo(3));
@@ -70,7 +70,7 @@ public sealed class CandidateSamplingTests
                 BirthBlockingPlan.OrderedPasses.Select(pass => capture.Pairs.Where(p => (p.Membership & pass) != 0).Sum(p => p.DesignWeight))));
             Assert.That(capture.Pairs.Where(p => p.PrimaryPass == BirthBlockingPass.ExactDate).All(p =>
                 p.StratumPopulation == 2 && p.StratumSampleSize == 1 && p.InclusionProbability == 0.5m && p.DesignWeight == 2m), Is.True);
-        });
+        }));
         var reordered = await RunAsync(Frame(3) with { Sources = Frame(3).Sources.Reverse().ToArray() }, Options(3), Seed);
         Assert.That(reordered.SelectionFingerprint, Is.EqualTo(capture.SelectionFingerprint));
         Assert.That(reordered.UniverseFingerprint, Is.EqualTo(capture.UniverseFingerprint));

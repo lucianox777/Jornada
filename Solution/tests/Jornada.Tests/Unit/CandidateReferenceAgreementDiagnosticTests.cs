@@ -43,7 +43,7 @@ public sealed class CandidateReferenceAgreementDiagnosticTests
             .Sum(static row => row.Sample.DesignWeight);
         var assessedWeight = rows.Sum(static row => row.Sample.DesignWeight);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Version, Is.EqualTo(CandidateReferenceAgreementDiagnostic.Version));
             Assert.That(report.EvaluationPairs, Is.EqualTo(6));
@@ -70,7 +70,7 @@ public sealed class CandidateReferenceAgreementDiagnosticTests
             Assert.That(report.MethodCounts[0].Judgments, Is.EqualTo(6));
             Assert.That(report.MethodCounts[0].Pairs, Is.EqualTo(3));
             Assert.That(report.FingerprintSha256, Has.Length.EqualTo(64));
-        });
+        }));
     }
 
     [Test]
@@ -84,7 +84,7 @@ public sealed class CandidateReferenceAgreementDiagnosticTests
 
         var report = CandidateReferenceAgreementDiagnostic.Analyze(validated, evidence);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.AssessedPairs, Is.EqualTo(1));
             Assert.That(report.ReplicatedPairs, Is.Zero);
@@ -93,7 +93,7 @@ public sealed class CandidateReferenceAgreementDiagnosticTests
             Assert.That(report.ConclusivePairwiseAgreement, Is.Null);
             Assert.That(report.ReplicatedDesignWeight, Is.Zero);
             Assert.That(report.ReplicatedWeightCoverage, Is.Zero);
-        });
+        }));
     }
 
     [Test]
@@ -173,7 +173,7 @@ public sealed class CandidateReferenceAgreementDiagnosticTests
         var second = CandidateReferenceAgreementDiagnostic.Analyze(
             validated, AgreementEvidence(validated, judgments.Reverse().ToArray()));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(second.FingerprintSha256, Is.EqualTo(first.FingerprintSha256));
             Assert.That(System.Text.Json.JsonSerializer.Serialize(second),
@@ -182,7 +182,7 @@ public sealed class CandidateReferenceAgreementDiagnosticTests
                 property.Name.Contains("Threshold", StringComparison.OrdinalIgnoreCase) ||
                 property.Name.Contains("Approved", StringComparison.OrdinalIgnoreCase) ||
                 property.Name.Contains("Adjudicated", StringComparison.OrdinalIgnoreCase)), Is.False);
-        });
+        }));
     }
 
     private static CandidateReferenceJudgment Judgment(
