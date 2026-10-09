@@ -121,9 +121,9 @@ public sealed class SyntheticDemographicPrimaryTests
     [Test]
     public void Daily_birth_distribution_fails_closed_on_missing_or_invalid_frequency()
     {
-        Assert.ThrowsAsync<FileNotFoundException>(async () =>
+        Assert.ThrowsAsync<FileNotFoundException>((Func<Task>)(async () =>
             await SyntheticDailyBirthDistribution.LoadAsync(
-                Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json")));
+                Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json"))));
 
         var dir = CreateTempDirectory();
         try
@@ -138,8 +138,8 @@ public sealed class SyntheticDemographicPrimaryTests
               "rows":[{"date":"1988-01-01","births":0}]
             }
             """);
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await SyntheticDailyBirthDistribution.LoadAsync(path));
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await SyntheticDailyBirthDistribution.LoadAsync(path)));
         }
         finally
         {
