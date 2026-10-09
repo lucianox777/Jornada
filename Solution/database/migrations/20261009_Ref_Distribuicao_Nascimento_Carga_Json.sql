@@ -85,6 +85,19 @@ BEGIN
          OR (SELECT SUM(peso_populacional) FROM ref.distribuicao_nascimento_dia
            WHERE distribuicao_versao_id=@distribuicao_versao_id)<>@peso_total_esperado
          THROW 52245,'Distribuição publicada diverge do manifesto.',1;
+       IF EXISTS(
+         SELECT data_nascimento,peso_populacional
+         FROM ref.distribuicao_nascimento_dia
+         WHERE distribuicao_versao_id=@distribuicao_versao_id
+         EXCEPT
+         SELECT data_nascimento,peso FROM @rows)
+         OR EXISTS(
+         SELECT data_nascimento,peso FROM @rows
+         EXCEPT
+         SELECT data_nascimento,peso_populacional
+         FROM ref.distribuicao_nascimento_dia
+         WHERE distribuicao_versao_id=@distribuicao_versao_id)
+         THROW 52251,'Distribuição publicada diverge do conteúdo diário recebido.',1;
        COMMIT TRANSACTION;
        RETURN;
      END;
