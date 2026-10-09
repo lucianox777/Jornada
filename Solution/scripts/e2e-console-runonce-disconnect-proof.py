@@ -211,5 +211,5 @@ if __name__=="__main__":
         OUT.mkdir(parents=True, exist_ok=True)
         (OUT / "failure.json").write_text(
             json.dumps(failure, indent=2) + "\n", encoding="utf-8")
-        print("C3.3b3a: REJECTED " + type(exc).__name__ + detail, flush=True)
+        print("C3.3b3a: REJECTED " + type(exc).__name__ + detail, file=sys.stderr, flush=True)
         sys.exit(2)
