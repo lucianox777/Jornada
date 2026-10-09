@@ -22,7 +22,7 @@ public sealed class CpfAnchorResolutionApiTests
 
         var result = await service.ResolveAsync(context, new IdentityResolutionRequest(invalidCpf), CancellationToken.None);
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
             Assert.That(result.PessoaUuid, Is.Null);
@@ -77,7 +77,7 @@ public sealed class CpfAnchorResolutionApiTests
         try
         {
             var active = await service.ResolveAsync(context, request, CancellationToken.None);
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(active.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
                 Assert.That(active.PessoaUuid, Is.EqualTo(anchorUuid));
@@ -97,7 +97,7 @@ public sealed class CpfAnchorResolutionApiTests
             }
 
             var withoutCurrentMap = await service.ResolveAsync(context, request, CancellationToken.None);
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(withoutCurrentMap.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
                 Assert.That(withoutCurrentMap.PessoaUuid, Is.EqualTo(anchorUuid), "Encerrar projeção identity_map não apaga a referência CPF→UUID.");
@@ -120,7 +120,7 @@ public sealed class CpfAnchorResolutionApiTests
             }
 
             var conflicted = await service.ResolveAsync(context, request, CancellationToken.None);
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(conflicted.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
                 Assert.That(conflicted.PessoaUuid, Is.EqualTo(anchorUuid), "O conflito global sinaliza o identificador, sem alterar o UUID permanente do CPF.");

@@ -60,7 +60,7 @@ public sealed class CpfAnchorGovernedCorrectionTests
             rejected.Parameters.AddWithValue("@justificativa", "Tentativa sintética de transferir a âncora permanente.");
             rejected.Parameters.AddWithValue("@correlation", Guid.NewGuid());
 
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await rejected.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await rejected.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(51360));
         }
 

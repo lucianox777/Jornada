@@ -28,10 +28,10 @@ public sealed class CalibrationAuditExporterSqlServerTests
         var json = JsonSerializer.Serialize(document, JsonOptions);
         var imported = LinkageCalibrationAuditRoundTrip.Import(json);
 
-        Assert.DoesNotThrow(() =>
-            LinkageCalibrationAuditRoundTrip.VerifyEquivalent(document, imported));
+        Assert.DoesNotThrow((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.VerifyEquivalent(document, imported)));
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(document.Model.Status, Is.EqualTo("ATIVO"));
             Assert.That(document.SchemaVersion, Is.EqualTo(1));

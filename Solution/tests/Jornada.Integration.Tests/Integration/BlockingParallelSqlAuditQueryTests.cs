@@ -66,7 +66,7 @@ public sealed class BlockingParallelSqlAuditQueryTests
             "A consulta precisa continuar 100% parametrizada.");
         await using var reader = await command.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetInt64(0), Is.Zero, "Nenhum candidato sintético deve existir em Gold.");
             Assert.That(reader.GetInt64(1), Is.Zero);
@@ -179,7 +179,7 @@ public sealed class BlockingParallelSqlAuditQueryTests
             await using (var reader = await audit.ExecuteReaderAsync())
             {
                 Assert.That(await reader.ReadAsync(), Is.True);
-                Assert.Multiple((TestDelegate)(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(reader.GetInt64(0), Is.EqualTo(4), "D∪C deduplica quatro UUIDs.");
                     Assert.That(reader.GetInt64(1), Is.EqualTo(3), "D inclui homônimo distinto.");

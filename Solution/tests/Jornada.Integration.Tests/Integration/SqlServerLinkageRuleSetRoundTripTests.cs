@@ -93,7 +93,7 @@ public sealed class SqlServerLinkageRuleSetRoundTripTests
 
         var actual = await LinkageRuleSetReader.TryLoadAsync(connection, modelId, CancellationToken.None);
         Assert.That(actual, Is.Not.Null);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(actual!.RuleSetVersion, Is.EqualTo(expected.RuleSetVersion));
             Assert.That(actual.AlgorithmVersion, Is.EqualTo(algorithm));
