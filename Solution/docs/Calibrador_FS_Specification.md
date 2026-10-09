@@ -235,3 +235,8 @@ A tabela `ref.calibracao_inicial_versao` é o **marco zero** do histórico, não
 #### FK da distribuição publicada para o modelo
 
 `20261009_Ref_Distribuicao_Nascimento_Modelo_Binding.sql` acrescenta `distribuicao_versao_id` à tabela `identidade.modelo_linkage_referencia_demografica`, com FK para `ref.distribuicao_nascimento_versao`. Novos pins que informam a FK exigem versão `PUBLICADA` e coincidência de código, geografia, data, método e SHA-256; o vínculo é imutável pela proteção anterior. **O campo permanece temporariamente opcional**, portanto a etapa ainda não garante que todo modelo publicado tenha distribuição demográfica. Próximos gates: backfill/carga, exigência de FK no bootstrap, fingerprint agregado incluindo o pin e testes SQL de promoção. Evitar tratar apenas o SHA como fonte operacional.
+
+
+#### Carga JSON da distribuição em `ref`
+
+`20261009_Ref_Distribuicao_Nascimento_Carga_Json.sql` cria `ref.sp_carregar_distribuicao_nascimento_json`, que recebe o documento `JORNADA_SYNTH_BIRTH_DAILY_V1` e metadados do manifesto, valida contagem/soma de pesos, grava as linhas em `ref.distribuicao_nascimento_dia` e evita sobrescrever versão publicada. Uma carga repetida com mesmo código/proveniência e totais é aceita; proveniência divergente falha. **Limite:** o procedimento não autentica os bytes do arquivo nem compara individualmente linhas quando a versão já está publicada; o importador deve conferir o SHA-256 do arquivo antes da chamada, e a validação de integridade ponta a ponta exige testes e fingerprint da versão. O procedimento ainda não é chamado automaticamente pela infraestrutura.
