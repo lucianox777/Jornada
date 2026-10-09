@@ -29,7 +29,7 @@ BEGIN
  SELECT TRY_CONVERT(DATE,JSON_VALUE(value,'$.date'),23),
         TRY_CONVERT(BIGINT,JSON_VALUE(value,'$.births'))
  FROM OPENJSON(@json,'$.rows');
- IF EXISTS(SELECT 1 FROM @rows WHERE peso IS NULL OR peso<=0)
+ IF EXISTS(SELECT 1 FROM @rows WHERE data_nascimento IS NULL OR peso IS NULL OR peso<=0)
    THROW 52242,'Peso diário inválido.',1;
  IF NOT EXISTS(SELECT 1 FROM OPENJSON(@json,'$.rows'))
    THROW 52246,'Distribuição sem linhas.',1;
