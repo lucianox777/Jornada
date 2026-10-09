@@ -66,7 +66,7 @@ public sealed class BlockingParallelSqlAuditQueryTests
             "A consulta precisa continuar 100% parametrizada.");
         await using var reader = await command.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(reader.GetInt64(0), Is.Zero, "Nenhum candidato sintético deve existir em Gold.");
             Assert.That(reader.GetInt64(1), Is.Zero);
@@ -74,7 +74,7 @@ public sealed class BlockingParallelSqlAuditQueryTests
             Assert.That(reader.GetInt64(3), Is.Zero);
             Assert.That(reader.GetInt32(4), Is.Zero);
             Assert.That(reader.GetInt32(5), Is.Zero);
-        });
+        }));
     }
     [Test]
     public async Task MariaTrio_TaggedOperationalSqlCountsDynamicCombinedSharedAndMissingMother()
@@ -179,7 +179,7 @@ public sealed class BlockingParallelSqlAuditQueryTests
             await using (var reader = await audit.ExecuteReaderAsync())
             {
                 Assert.That(await reader.ReadAsync(), Is.True);
-                Assert.Multiple(() =>
+                Assert.Multiple((TestDelegate)(() =>
                 {
                     Assert.That(reader.GetInt64(0), Is.EqualTo(4), "D∪C deduplica quatro UUIDs.");
                     Assert.That(reader.GetInt64(1), Is.EqualTo(3), "D inclui homônimo distinto.");
@@ -187,7 +187,7 @@ public sealed class BlockingParallelSqlAuditQueryTests
                     Assert.That(reader.GetInt64(3), Is.EqualTo(1), "Interseção D∩C explícita.");
                     Assert.That(reader.GetInt32(4), Is.Zero, "MARIA SOUZA LIMA é C-only.");
                     Assert.That(reader.GetInt32(5), Is.EqualTo(1));
-                });
+                }));
             }
 
             truth.Value = mariaLimaNoMother;
