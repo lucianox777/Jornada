@@ -75,7 +75,10 @@ IF NOT EXISTS (SELECT 1 FROM ref.gestor WHERE codigo=N'SMS') THROW 51605,'No DEV
 IF NOT EXISTS (SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile' AND CONVERT(NVARCHAR(100),value)=N'Development') THROW 51606,'No DEV marker',1;" > "$OUT/schema-validation.log"
 before="$(sql -W -h -1 -Q 'SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM ref.gestor;' | tr -d '[:space:]\r')"
 [[ "$before" =~ ^[0-9]+$ && "$before" -gt 0 ]] || die 'bad seed count'
-if compose run --no-deps sql-bootstrap > "$OUT/replay-denial.log" 2>&1; then
+# The intentionally failed replay creates a one-off Compose container.
+# Always --rm it even on non-zero exit: otherwise the new supervisor
+# correctly refuses global ON, detecting a leftover oneoff=True container.
+if compose run --rm --no-deps sql-bootstrap > "$OUT/replay-denial.log" 2>&1; then
   die 'second bootstrap unexpectedly succeeded'
 fi
 grep -F 'banco JornadaE2E já existe' "$OUT/replay-denial.log" >/dev/null ||
