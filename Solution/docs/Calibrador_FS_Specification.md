@@ -248,3 +248,10 @@ A tabela `ref.calibracao_inicial_versao` é o **marco zero** do histórico, não
 ### Fingerprint demográfico (implementação em PR)
 
 A migração `20261009_Z_Linkage_Demographic_Reference_Fingerprint.sql` estende `auditoria.sp_calcular_fingerprint_modelo_linkage` para incorporar a linha de `identidade.modelo_linkage_referencia_demografica`, incluindo código, geografia, data, método, SHA-256 e `distribuicao_versao_id`. Isso torna o vínculo parte do fingerprint usado na conferência; **não** torna o vínculo obrigatório por si só e **não** comprova o gate de promoção sem teste SQL. O procedimento anterior de fingerprint continua como histórico de migração; a definição posterior é a efetiva após instalação ordenada.
+
+
+### Bootstrap congelado na subida — contrato de operação
+
+**Decisão:** o pacote do sistema deve incluir o snapshot demográfico já materializado em `data/reference/synthetic-birth-sp/`, com manifesto e SHA-256, e o marco zero de calibração inicial publicado em `ref`. Na inicialização, verificar integridade e existência da versão publicada no SQL Server; quando ausente, importar **os bytes já congelados** e publicar a versão, sem executar projeção IBGE, gerar nova população de referência ou recalibrar FS. Se os hashes/proveniência divergirem, falhar de forma explícita. Subidas subsequentes reutilizam as versões publicadas e não sobrescrevem dados. Novas calibrações são processos explícitos, separados da subida.
+
+**Estado de entrega:** `scripts/verify-frozen-birth-reference.py` confere manifesto, SHA-256, esquema e linhas do arquivo local, sem alterar dados; ainda falta conectar o importador SQL e a verificação do marco zero à inicialização automática. Assim, o comportamento completo descrito acima é **requisito de aceitação**, não funcionalidade já demonstrada em runtime.
