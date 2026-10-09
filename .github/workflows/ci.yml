@@ -163,6 +163,8 @@ jobs:
         run: |
           python3 scripts/scheduler-contract-gate.py --root . --summary .local/scheduler-summary.json
           python3 scripts/scheduler-contract-gate.py --root . --self-test
+      - name: C3.1 independent worker entrypoint contract (DEV disposable, no processes)
+        run: python3 scripts/test-worker-independent-entrypoint.py
       - name: Self-test HML SQL/API evidence gates
         run: |
           python3 scripts/sql-performance-evidence-gate.py --self-test

@@ -9,6 +9,26 @@ Para a fila ativa de dívida técnica, consideram-se encerradas **DT-01, DT-02, 
 
 Permanece na fila ativa: **DT-05**. A DT-15 foi encerrada quanto a bypass técnico, ledger decisório, vínculo criptográfico e anti-TOCTOU; homologação HML/PROD continua condicionada a evidência representativa e IdP/RBAC reais. Em 01/10/2026 foram concluídos o fechamento funcional em .NET 8, **E2E-A/DT-17A**, a **DT-02 (.NET 10)**, **E2E-B/DT-17B**, a **DT-12 (limpeza)** e **E2E-C/DT-17C**. A DT-17 fica encerrada no escopo técnico DEV desta sequência, com as lacunas externas/institucionais preservadas separadamente.
 
+## Novas decisões técnicas DEV — 08/10/2026 (sem reabrir marcos históricos)
+
+A consolidação de 01/10 acima é **histórica naquele corte**. A frente
+posterior da Console DEV foi autorizada em 08/10/2026, após concluir o
+aceite de ingestão (#837, #839, #840). As quatro DTs abaixo
+**não foram executadas/mescladas apenas pela documentação**:
+
+| Nova DT | Decisão aprovada | Estado / gate |
+|---|---|---|
+| [DT-18](DT18_Servicos_Independentes_Console_DEV.md) | Workers são serviços/processos independentes, sem cascata de reinício do NODE. | **PENDENTE** — prova de isolamento de processos em CI descartável. |
+| [DT-19](DT19_Console_Acoes_Workers.md) | **Dois botões empilhados** por worker: Executar uma vez (OFF), Parar processo (ON/PID vivo). Status é **indicador automático** + eventos no Log da sessão já existente, sem botão próprio. | **PENDENTE** — preservar RunOnce, integrar os dois RunOnce de manutenção na UI e acrescentar supervisor/Parar. |
+| [DT-20](DT20_Supervisao_Opt_In_Workers.md) | **Toggle global:** OFF inicial = RunOnce; ON mata RunOnce ativos e inicia 3 residentes. Parar processo injeta falha; supervisor reinicia automaticamente somente o worker morto e o próprio worker recupera trabalho por lease/heartbeat. | **PENDENTE** — transição atômica, PID, restart e recuperação comprovados. |
+| [DT-21](DT21_Testes_Resiliencia_Workers.md) | **Preservar testes RunOnce**; acrescentar Chromium/E2E OFF→ON→OFF, 2 botões verticais, status automático/log, Parar por PID, restart individual e recuperação de lease/lote sem duplicar. | **PENDENTE** — SQL exclusivamente `JornadaE2E`, sem falso sucesso. |
+
+A sequência operacional C3.1–C3.4 está em
+[Plano Console Workers](Plano_Console_Workers_Independentes_2026-10-08.md).
+Estas DTs não integram a **Trilha 4**, que permanece expressamente
+proibida até nova autorização. Preservar `JornadaLocal`, IBGE original,
+volumes compartilhados, HML/PROD.
+
 ## Ordem proposta e critérios de aceite
 
 **Decisão de execução atualizada em 30/09/2026:** manter `jornada-ci` sem divisão de jobs ou CI especializada; trabalhar em PRs incrementais. Gates técnicos integrais são exigidos no HEAD exato para mudanças substantivas de código/configuração/schema; PRs exclusivamente documentais usam validação documental leve e não ficam reféns da regressão técnica integral. **A sequência técnica E2E-A → DT-02 → E2E-B → DT-12 → E2E-C foi concluída em 01/10/2026**, com DT-17 consolidada no escopo DEV; as pendências externas e institucionais permanecem rastreadas separadamente, conforme a sequência normativa abaixo. A DT-16 foi **revertida**: o repositório volta a usar somente `Jornada.sln`; as cinco solutions especializadas, o gate de exclusividade e seus builds adicionais foram removidos. Não há migração física/CI especializado pendente na DT-16. Itens com decisão externa (identidade PRODAM, HML/Produção e políticas) continuam bloqueados até seus responsáveis deliberarem.
