@@ -191,3 +191,8 @@ A revisão das migrações `20260912_Frequencia_Nomes_Referencia.sql` e `2026091
 | Validação das correlações condicionais por blocking e congelamento do resultado | Não comprovado pelas duas migrações auditadas | **Pendente** |
 
 **Critério de aceite para fechamento:** publicar modelo inicial somente com todas as referências requeridas fixadas e fingerprints consistentes; proibir mutação posterior; permitir recalibração apenas por nova versão; teste de tentativa de alteração rejeitada e teste de replay determinístico com referências antigas. Não introduzir cópias redundantes de `ref.frequencia_nome` em tabelas FS: armazenar FKs e fingerprints de origem, além dos parâmetros FS efetivamente estimados.
+
+
+### Retificação da auditoria de fingerprint (09/10/2026)
+
+**Evidência adicional encontrada após a matriz anterior:** `database/migrations/20260930_Linkage_Z_Model_Config_Bundle_Fingerprint.sql` já redefine `auditoria.sp_calcular_fingerprint_modelo_linkage`, incluindo identidade do modelo, versão/fingerprint do bundle Base+Blocking+FS, `identidade.parametro_linkage`, `identidade.estatistica_linkage`, ruleset/passes/campos e `identidade.frequencia_linkage`. A migração `20260930_Linkage_TF_Conference_Fingerprint.sql` também cobre TF, porém a migração `Z_Model_Config_Bundle_Fingerprint` é a definição posterior a observar na ordem de aplicação. **Portanto, o fingerprint agregado FS/TF não está ausente**: existe código SQL para calculá-lo. Ainda requerem comprovação por testes a abrangência de todas as referências demográficas, a obrigatoriedade dos pins na publicação e a rejeição de mutações após a publicação. Esta retificação prevalece sobre qualquer leitura da matriz acima que sugira inexistência do cálculo de fingerprint agregado.
