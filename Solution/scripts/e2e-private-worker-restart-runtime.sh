@@ -47,7 +47,9 @@ get_restart_count() {
   docker inspect -f '{{.RestartCount}}' "$1"
 }
 # Restrict ALL mutable operations to known Compose service IDs and project labels.
-for service in sqlserver sql-bootstrap api resultado-api; do
+# Bootstrap was already verified by the parent E2E gate; its deliberate
+# replay-denial one-off container may coexist with the successful one-shot.
+for service in sqlserver api resultado-api; do
   cid="$(compose ps -aq "$service")"
   [[ -n "$cid" && "$(label "$cid")" == "$PROJECT:$service" ]] ||
     die "missing verified isolated $service"
