@@ -59,7 +59,9 @@ def main() -> None:
     assert "JORNADA_WORKERS_E2E_RUN_ONCE_ALLOWED" in source
     assert re.search(r"\^ci\[0-9\]\{7,19\}\$", source)
     assert "JornadaLocal" not in source
-    assert "exec dotnet" in source and "wait -n" not in source
+    executable = "\n".join(line for line in source.splitlines()
+                           if not line.lstrip().startswith("#"))
+    assert "exec dotnet" in executable and "wait -n" not in executable
     print("C3.3b2 prep: PASS finite worker entrypoint negative contract (no Docker or SQL)")
 
 
