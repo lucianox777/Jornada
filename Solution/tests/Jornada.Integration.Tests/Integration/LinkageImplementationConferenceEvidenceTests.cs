@@ -56,8 +56,8 @@ public sealed class LinkageImplementationConferenceEvidenceTests
             connection, modelId, version, "NAO_EXECUTADA", 0, null, false,
             "ENVIRONMENT_FAILURE", 2);
 
-        var blocked = Assert.ThrowsAsync<SqlException>(async () =>
-            await AssertGateAsync(connection, modelId));
+        var blocked = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
+            await AssertGateAsync(connection, modelId)));
         Assert.That(blocked!.Number, Is.EqualTo(51984));
 
         var secondConforme = await RegisterAsync(
@@ -76,8 +76,8 @@ public sealed class LinkageImplementationConferenceEvidenceTests
             await mutate.ExecuteNonQueryAsync();
         }
 
-        var stale = Assert.ThrowsAsync<SqlException>(async () =>
-            await AssertGateAsync(connection, modelId));
+        var stale = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
+            await AssertGateAsync(connection, modelId)));
         Assert.That(stale!.Number, Is.EqualTo(51989));
 
         await using (var immutable = connection.CreateCommand())
@@ -88,7 +88,7 @@ public sealed class LinkageImplementationConferenceEvidenceTests
                 WHERE evidencia_id=@evidencia;
                 """;
             immutable.Parameters.AddWithValue("@evidencia", secondConforme);
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await immutable.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await immutable.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(51971));
         }
 
@@ -153,8 +153,8 @@ public sealed class LinkageImplementationConferenceEvidenceTests
             await mutate.ExecuteNonQueryAsync();
         }
 
-        var stale = Assert.ThrowsAsync<SqlException>(async () =>
-            await AssertGateAsync(connection, modelId));
+        var stale = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
+            await AssertGateAsync(connection, modelId)));
         Assert.That(stale!.Number, Is.EqualTo(51989));
     }
 
@@ -185,10 +185,10 @@ public sealed class LinkageImplementationConferenceEvidenceTests
             await insert.ExecuteNonQueryAsync();
         }
 
-        var ex = Assert.ThrowsAsync<SqlException>(async () =>
+        var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
             await RegisterAsync(
                 connection, modelId, version, "DIVERGENTE", 2, null, true,
-                "PAIR_LLR_DIVERGENCE", 4));
+                "PAIR_LLR_DIVERGENCE", 4)));
 
         Assert.That(ex!.Number, Is.EqualTo(51981));
     }
@@ -214,7 +214,7 @@ public sealed class LinkageImplementationConferenceEvidenceTests
         while (await reader.ReadAsync())
             names.Add(reader.GetString(0));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(names, Does.Contain("candidatos_avaliados"));
             Assert.That(names, Does.Contain("max_llr_par_observado"));
@@ -224,7 +224,7 @@ public sealed class LinkageImplementationConferenceEvidenceTests
             Assert.That(names, Does.Not.Contain("nome"));
             Assert.That(names, Does.Not.Contain("data_nascimento"));
             Assert.That(names, Does.Not.Contain("score_par"));
-        });
+        }));
     }
 
     private static async Task<Guid> RegisterAsync(

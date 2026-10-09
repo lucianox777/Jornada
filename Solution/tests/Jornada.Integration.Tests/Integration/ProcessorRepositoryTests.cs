@@ -57,7 +57,7 @@ public sealed class ProcessorRepositoryTests
             command.Parameters.AddWithValue("@id", reserved!.LoteId);
             using var reader = await command.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetString(0), Is.EqualTo("PENDENTE"));
                 Assert.That(reader.GetInt32(1), Is.EqualTo(1));
@@ -128,7 +128,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@target", target.LoteId);
         using var state = await query.ExecuteReaderAsync();
         Assert.That(await state.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(state.GetString(0), Is.EqualTo("PENDENTE"), "Carga alheia ao fluxo atual deve permanecer intacta.");
             Assert.That(state.GetString(1), Is.EqualTo("VALIDANDO"));
@@ -171,7 +171,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@id", reserved!.LoteId);
         using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetString(0), Is.EqualTo("REJEITADO"));
             Assert.That(reader.GetString(1), Is.EqualTo("TESTE_REJEICAO"));
@@ -237,7 +237,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@id", reservedBatch.LoteId);
         using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetString(0), Is.EqualTo("PROCESSADO"));
             Assert.That(reader.GetString(1), Is.EqualTo("PROCESSADA"));
@@ -312,7 +312,7 @@ public sealed class ProcessorRepositoryTests
             """;
         using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetString(0), Is.EqualTo("RESOLVIDO"));
             Assert.That(reader.IsDBNull(1), Is.True, "O motivo pertence ao CPF, não à observação que revelou a divergência.");
@@ -371,7 +371,7 @@ public sealed class ProcessorRepositoryTests
             """;
         using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetString(0), Is.EqualTo("16899535009"));
             Assert.That(reader.IsDBNull(1), Is.True, "codigo_pessoa_origem não adquire semântica de CPF pelo formato.");
@@ -438,7 +438,7 @@ public sealed class ProcessorRepositoryTests
             """;
         using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetString(0), Is.EqualTo("RESOLVIDO"));
             Assert.That(reader.IsDBNull(1), Is.True);
@@ -488,7 +488,7 @@ public sealed class ProcessorRepositoryTests
         if (second is null)
             second = await secondRepository.ReserveNextAsync(CancellationToken.None);
 
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(first, Is.Not.Null, "Worker que perdeu a primeira disputa deve progredir no poll seguinte.");
             Assert.That(second, Is.Not.Null, "Worker que perdeu a primeira disputa deve progredir no poll seguinte.");
@@ -554,7 +554,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@lote", reservedBatch.LoteId);
         using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetInt32(0), Is.Zero);
             Assert.That(reader.GetInt32(1), Is.Zero);
@@ -644,7 +644,7 @@ public sealed class ProcessorRepositoryTests
         var sw = System.Diagnostics.Stopwatch.StartNew();
         var renewed = await repository.HeartbeatAsync(batch!, TimeSpan.FromMinutes(3), cts.Token);
         sw.Stop();
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(renewed, Is.True);
             Assert.That(sw.Elapsed, Is.LessThan(TimeSpan.FromSeconds(8)),
@@ -716,7 +716,7 @@ public sealed class ProcessorRepositoryTests
             verify.Parameters.AddWithValue("@id", reserved!.LoteId);
             await using var reader = await verify.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple((TestDelegate)(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetString(0), Is.EqualTo("VALIDANDO"));
                 Assert.That(reader.IsDBNull(1), Is.True, "Erro do lote deve voltar ao valor anterior.");
@@ -767,7 +767,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@id", second.LoteId);
         using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetString(0), Is.EqualTo("POISON"));
             Assert.That(reader.GetInt32(1), Is.EqualTo(2));
@@ -818,7 +818,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@lote", batch.LoteId);
         await using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.IsDBNull(0), Is.True);
             Assert.That(reader.IsDBNull(1), Is.True);
@@ -872,7 +872,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@lote", batch.LoteId);
         await using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetInt32(0), Is.EqualTo(2));
             Assert.That(reader.GetInt32(1), Is.EqualTo(2));
@@ -945,7 +945,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@lote", batch.LoteId);
         await using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.IsDBNull(0), Is.True, "Pessoa sem código local não cria pessoa_origem artificial.");
             Assert.That(reader.IsDBNull(1), Is.True);
@@ -1023,7 +1023,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@codigo", sourceCode);
         await using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetString(0), Is.EqualTo(baseCode));
             Assert.That(reader.GetInt32(1), Is.EqualTo(3));
@@ -1082,7 +1082,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@lote", batch.LoteId);
         await using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetString(0), Is.EqualTo("RESOLVIDO"));
             Assert.That(reader.GetString(1), Is.EqualTo("UUID_JORNADA_RETROALIMENTACAO"));
@@ -1184,7 +1184,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@codigo", recordCode);
         await using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetInt32(0), Is.EqualTo(2), "As duas declarações devem permanecer em Silver.");
             Assert.That(reader.GetInt32(1), Is.EqualTo(1), "A retificação conflitante não cria segunda versão Gold.");
@@ -1250,7 +1250,7 @@ public sealed class ProcessorRepositoryTests
             """;
         await using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetInt32(0), Is.EqualTo(2), "Alerta de duplicação nunca remove ou bloqueia automaticamente fatos distintos.");
             Assert.That(reader.GetInt32(1), Is.EqualTo(1), "O segundo código deve abrir alerta exato para o Gestor.");
@@ -1305,7 +1305,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@nis", nis);
         await using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetString(0), Is.EqualTo("NAO_RESOLVIDO"));
             Assert.That(reader.GetString(1), Is.EqualTo("PENDENTE_PROBABILISTICO"));
@@ -1368,7 +1368,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@nis", nis);
         await using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetString(0), Is.EqualTo("NAO_RESOLVIDO"));
             Assert.That(reader.GetString(1), Is.EqualTo("PENDENTE_PROBABILISTICO"));
@@ -1451,7 +1451,7 @@ public sealed class ProcessorRepositoryTests
         query.Parameters.AddWithValue("@nis", nis);
         await using var reader = await query.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetInt32(0), Is.EqualTo(2), "CPF continua resolvendo as duas observações.");
             Assert.That(reader.GetInt32(1), Is.EqualTo(2), "NIS compartilhado não funde Pessoas com CPFs distintos.");
