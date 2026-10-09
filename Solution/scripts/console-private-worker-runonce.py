@@ -90,6 +90,10 @@ def main() -> None:
     require(len(oneoffs) == 0, "concurrent/leftover finite worker found in E2E project")
 
     worker, flag = WORKERS[sys.argv[1]]
+    hold = os.environ.get("JORNADA_WORKERS_E2E_TEST_RUNONCE_HOLD_SECONDS", "")
+    require(hold in ("", "8"), "only fixed CI hold duration is permitted")
+    require(not hold or sys.argv[1] == "processor",
+            "CI hold is permitted solely for synthetic Processor oneoff")
     compose = ("docker", "compose", "--env-file", "/dev/null", "--profile",
                "continuous", "-p", project, "-f", str(FILE))
     result = subprocess.run([
@@ -99,6 +103,7 @@ def main() -> None:
         "-e", "JORNADA_WORKERS_E2E_ID=ci" + run + attempt,
         "-e", flag + "=true",
         "-e", flag.replace("RunOnce", "RunOnceMaxSeconds") + "=65",
+        *(["-e", "JORNADA_WORKERS_E2E_TEST_RUNONCE_HOLD_SECONDS=8"] if hold else []),
         sys.argv[1], worker, "--run-once"
     ], cwd=ROOT, stdin=subprocess.DEVNULL,
        capture_output=True, check=False, timeout=95)

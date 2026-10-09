@@ -69,5 +69,17 @@ if [[ "$mode" == "--run-once" ]]; then
 fi
 
 [[ -f "$dll" ]] || deny "executável publicado ausente"
+
+# Disposable CI-only bounded pre-exec barrier: permits a real Compose oneoff
+# container to remain alive while the browser HTTP client disconnects. It is
+# never enabled for a resident or any non-allowlisted deployment.
+if [[ -n "${JORNADA_WORKERS_E2E_TEST_RUNONCE_HOLD_SECONDS:-}" ]]; then
+  [[ "$mode" == "--run-once" && "$worker" == "Processor" &&
+     "${JORNADA_WORKERS_E2E_RUN_ONCE_ALLOWED:-}" == true &&
+     "${JORNADA_WORKERS_E2E_TEST_RUNONCE_HOLD_SECONDS}" == 8 ]] ||
+    deny "barreira de teste restrita a um RunOnce sintético no CI"
+  sleep 8
+fi
+
 # PID 1 must be the worker itself: never launch siblings, never wait -n.
 exec dotnet "$dll"

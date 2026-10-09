@@ -205,22 +205,27 @@ app.MapPost("/api/workers/supervisor",async(
 app.MapPost("/api/workers/{worker}/run-once",async(
     string worker, HttpContext context, ConsoleRuntimeMode runtime,
     IsolatedWorkerSupervisorStatusReader reader,
-    IsolatedWorkerSupervisorModeController controller, CancellationToken ct)=>{
+    IsolatedWorkerSupervisorModeController controller,
+    IHostApplicationLifetime application)=>{
     if(!reader.Enabled(runtime)
         ||context.Connection.RemoteIpAddress is not { } remote
         ||!System.Net.IPAddress.IsLoopback(remote))
         return Results.Conflict(new{error="RunOnce restrito ao CI DEV efêmero local."});
     try
     {
-        return Results.Ok(await controller.RunOnceAsync(worker,runtime,ct));
+        // RequestAborted is NOT a worker cancellation signal. Losing the
+        // browser connection must not untrack a running oneoff; it remains
+        // owned by the server until exit or application shutdown.
+        return Results.Ok(await controller.RunOnceAsync(
+            worker,runtime,application.ApplicationStopping));
     }
     catch(InvalidOperationException)
     {
         return Results.Conflict(new{error="RunOnce recusado por modo/worker/instância conflitante."});
     }
-    catch(OperationCanceledException) when(ct.IsCancellationRequested)
+    catch(OperationCanceledException) when(application.ApplicationStopping.IsCancellationRequested)
     {
-        return Results.StatusCode(StatusCodes.Status408RequestTimeout);
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
     }
     catch(Exception)
     {

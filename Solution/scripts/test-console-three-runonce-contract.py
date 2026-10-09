@@ -83,7 +83,11 @@ def main() -> None:
     assert 'Script' not in ctrl or 'console-private-worker-runonce.py' in ctrl
     assert 'UseShellExecute=false' in ctrl
     assert 'psi.ArgumentList.Add(worker)' in ctrl
-    assert 'Results.Ok(await controller.RunOnceAsync(worker,runtime,ct))' in api
+    assert 'Results.Ok(await controller.RunOnceAsync(' in api
+    # A disconnected HTTP client must not cancel a running Docker oneoff.
+    # The task is owned by the server's ApplicationStopping token.
+    assert 'worker,runtime,application.ApplicationStopping' in api
+    assert 'IHostApplicationLifetime application' in api
     assert 'app.MapPost("/api/workers/{worker}/run-once"' in api
     assert 'System.Net.IPAddress.IsLoopback(remote)' in api
     assert 'controller.WithFiniteWorkers(await supervisor.ReadAsync(runtime,ct))' in api

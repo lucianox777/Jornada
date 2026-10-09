@@ -177,6 +177,11 @@ python3 scripts/e2e-console-supervisor-global-toggle.py
 # other than disposable oneoff worker jobs in this same private project.
 python3 scripts/e2e-console-supervisor-three-runonce.py
 
+# C3.3b3a: losing the browser TCP connection must NOT kill/untrack a
+# live private oneoff. Observe actual oneoff=True then abort the HTTP
+# client; ON must remain blocked until finite exit and --rm verified.
+python3 scripts/e2e-console-runonce-disconnect-proof.py
+
 python3 - "$OUT/summary.json" "$PROJECT" "$before" <<'PY'
 import json, pathlib, sys
 output, project, seed_count = sys.argv[1:]
@@ -191,7 +196,8 @@ pathlib.Path(output).write_text(json.dumps({
   'real_crash_recovery_and_fencing':'PASS',
   'processing_recovery_verified':True,
   'real_console_global_on_off_on':'PASS',
-  'real_three_worker_runonce':'PASS'
+  'real_three_worker_runonce':'PASS',
+  'http_abort_does_not_orphan_runonce':'PASS'
 }, indent=2) + '\n', encoding='utf-8')
 PY
 echo 'C3.2d SQL-only operational gate: PASS'
