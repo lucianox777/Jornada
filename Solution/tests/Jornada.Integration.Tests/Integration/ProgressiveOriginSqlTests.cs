@@ -71,7 +71,7 @@ public sealed class ProgressiveOriginSqlTests
         var service = new SqlProgressiveOriginQueryService(new OperationalSqlAdapter(cs!));
         var first = await service.GetAsync(context, query, CancellationToken.None);
         var repeat = await service.GetAsync(context, query, CancellationToken.None);
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(first, Is.Not.Null);
             Assert.That(first!.InitialUuid, Is.EqualTo(initial));
@@ -79,7 +79,7 @@ public sealed class ProgressiveOriginSqlTests
             Assert.That(first.Estado.ToString(), Is.EqualTo(state));
             Assert.That(first.Versao, Is.EqualTo(version));
             Assert.That(repeat, Is.EqualTo(first));
-        });
+        }));
 
         var other = context with { GestorCodigo = "CI_GESTOR_SEM_PROPRIEDADE", PublicCode = "CI_GESTOR_SEM_PROPRIEDADE" };
         Assert.That(await service.GetAsync(other, query, CancellationToken.None), Is.Null);
