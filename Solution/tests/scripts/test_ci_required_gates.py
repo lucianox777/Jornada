@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Fail closed if the CI refactor silently removes mandatory validation jobs."""
 from pathlib import Path
+import json
 import re
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -65,6 +66,13 @@ def test_dt10_reusable_job_has_same_gate_and_real_sql_acceptance():
     assert "if-no-files-found: error" in evidence
     assert "name: dt10-evidence" in evidence
     assert "Solution/.local/test-evidence/dt10" in evidence
+    policy = json.loads(
+        (ROOT / "Solution/config/security/source-sanity-policy.json").read_text(encoding="utf-8")
+    )
+    for key in ("allowedInsecureSqlGlobs", "allowedPasswordLiteralGlobs"):
+        assert ".github/workflows/dt10-evidence.yml" in policy[key], (
+            "synthetic CI-only credentials must stay explicitly audited by exact filename"
+        )
     classifier = (ROOT / "Solution/scripts/ci-impact-classifier.py").read_text(encoding="utf-8")
     assert '".github/workflows/dt10-evidence.yml"' in classifier, (
         "changes to reusable DT10 must trigger its SQL evidence gate"
