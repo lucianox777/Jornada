@@ -10,9 +10,10 @@
 | Console DEV: GET estado, toggle global ON↔OFF, três RunOnce isolados, desconexão, parada individual e painel | **Código em `master`, com testes em CI** | #851–#856; perfil GitHub DEV/loopback; sem implantação institucional |
 | Cancelamento de RunOnce ativo com confirmação separada/ID de execução | **PENDENTE** | [C3.3b3](C3_3b3_Confirmacao_Cancelamento_RunOnce.md); #854 apenas evita perda de supervisão ao desconectar |
 | CI: dez gates preservados e DT-10 SQL reutilizável | **Primeira extração integrada; não é otimização integral** | #857–#859, [DT10](DT10_CI_Extracao_Reutilizavel.md) |
+| **Trilha 4 / DT-22 — revisão governada de RESOLVIDOS** | **Trilha 4 contínua ENCERRADA COMO PROPOSTA; DT-22 ABERTA e POSTERGADA** | [DT-22](DT22_Reavaliacao_Governada_Resolvidos.md) e [Plano](Plano_Desenvolvimento.md). `INCREMENTAL` não cobre genericamente RESOLVIDOS afetados por novos candidatos de terceiros; `REPLAY` atual reproduz modelo histórico. Replay extraordinário futuro **não entregue**. |
 | Modelos de linkage, Ensaio, HML e PROD | **Aprovações próprias ainda necessárias** | Não inferir implantação/validade estatística representativa de CI sintética |
 
-**Restrições:** não operar, resetar, migrar ou testar os dados originais de `JornadaLocal`/IBGE, o NODE/Compose do usuário ou HML/PROD para conferir este estado. As provas acima são históricas de GitHub Actions e seus alvos efêmeros. Trilha 4 / RESOLVIDOS automáticos permanecem suspensos segundo o recorte deste trabalho.
+**Restrições:** não operar, resetar, migrar ou testar os dados originais de `JornadaLocal`/IBGE, o NODE/Compose do usuário ou HML/PROD para conferir este estado. As provas acima são históricas de GitHub Actions e seus alvos efêmeros. **Decisão revisada de 09/10:** a antiga Trilha 4 de varredura temporal foi **encerrada como frente autônoma**; a reavaliação de RESOLVIDOS passa à DT-22 postergada. **Não** declarar que a Gold se autocorrige completamente por evento nem que o replay após mudança de modelo esteja implementado.
 
 ---
 
