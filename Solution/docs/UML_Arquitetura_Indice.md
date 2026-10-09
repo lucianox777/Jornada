@@ -1,3 +1,13 @@
+> **Enquadramento 09/10/2026:** o catálogo de diagramas
+> permanece versão datada; novos fluxos do sandbox de workers,
+> Console e split CI (PRs #845–#859) estão descritos no
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md)
+> e no [Guia da Console](Console_DEV_Supervisao_Atual.md).
+> Não presumir que diagramas históricos de 21/09 representem
+> automaticamente os novos serviços e endpoints. Diagramas
+> formais DOCX/PDF devem ser atualizados na tramitação
+> normativa própria, sem substituir arquivos selados.
+>
 # Índice de diagramas — Jornada do Cidadão
 
 **Atualização:** 21/09/2026  
