@@ -92,3 +92,14 @@ CI verde não equivale a homologação estatística. Antes de ativação probabi
 
 
 > **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-tf--norma-vigente-de-frequência-nominal-fs-e-calibrador-09102026). O peso TF zero é neutro (peso 1 aplica ajuste integral); os pesos e m/u devem ser estimados pelo Calibrador a partir do bootstrap sintético IBGE e, progressivamente, de evidência histórica real. Primeiro nome e último sobrenome significativo de pessoa e mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Em caso de divergência, prevalece a decisão canônica; este documento não certifica implementação concluída.
+
+
+## 10. Nome completo e componentes nominais (decisão vigente)
+
+A comparação FS principal preserva o **nome completo** da pessoa e da mãe. Primeiro nome e último sobrenome significativo são componentes auxiliares, não substitutos do nome completo. Exemplo: MARIA APARECIDA DE OLIVEIRA SANTOS continua integral; MARIA e SANTOS qualificam sua evidência.
+
+O Calibrador deve estimar níveis nominais compostos ou distribuições conjuntas, evitando somar como independentes as evidências do nome completo e de seus componentes. O mesmo vale para o nome materno. A TF por componente e seu peso, incluindo zero, devem ser estimados e avaliados com partições TRAIN/VALIDATION/TEST; o scorer somente aplica o snapshot aprovado.
+
+O IBGE fornece marginais iniciais: frequência de sobrenome em qualquer posição é **proxy**, não frequência observada do último sobrenome. A transição para dados municipais depende de suficiência e proveniência. Não inferir famílias a partir das marginais sintéticas.
+
+**Estado atual:** o código compara nomes completos e ajusta TF de primeiros nomes nos estados EXACT; TF de último sobrenome, níveis compostos e seleção automática do peso ainda exigem implementação e testes. Consultar a norma DC-LK-TF no documento de decisões canônicas.
