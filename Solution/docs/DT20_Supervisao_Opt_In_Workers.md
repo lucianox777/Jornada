@@ -1,9 +1,11 @@
 # DT-20 — supervisão GLOBAL e reinício automático por worker
 
-**Decisão final refinada em 08/10/2026 pelo responsável.**
-**PENDENTE DE IMPLEMENTAÇÃO E TESTES**. Esta decisão prevalece sobre
-qualquer versão anterior que proponha `Iniciar contínuo` separado,
-`Desligar processo` ou três toggles individuais.
+**Decisão refinada em 08/10/2026 pelo responsável.**
+**PENDENTE DE IMPLEMENTAÇÃO E TESTES**. A simplificação posterior
+substitui o botão `Status do processo` por indicador automático
++ `Log da sessão` existente, **sem dispensar** consulta read-only
+real no backend. Continuam excluídos `Iniciar contínuo`,
+`Desligar processo` e toggles por worker.
 
 ## Um único toggle — modo dos três workers
 
@@ -17,7 +19,7 @@ Maintenance**. No ambiente DEV **descartável novo**, começa
 |---|---|---|
 | Execução | RunOnce dos três workers habilitados, respeitados pré-requisitos. Nenhum residente supervisionado. | Três workers contínuos sob supervisão, automaticamente iniciados ao ativar. RunOnce bloqueado em UI e API. |
 | Parar processo individual | Sem residentes a parar; RunOnce ativos somente serão encerrados na troca de modo com confirmação. | Encerra imediatamente o PID ativo daquele worker; **o supervisor reinicia automaticamente somente ele**, sem clique em iniciar. |
-| Status | Mostra RunOnce/sem residente, PID e estado efetivo OFF. | PID, heartbeat, reinícios, estado real da instância e recuperação; sem falso verde. |
+| Indicador automático + log existente | Cartão mostra RUN_ONCE/PARADO; detalhes da execução no log. | Cartão mostra estado/PID observados; eventos de start, kill, restart, heartbeat e recuperação no log. |
 
 ### Transição OFF → ON
 
@@ -37,7 +39,7 @@ Maintenance**. No ambiente DEV **descartável novo**, começa
 
 ### Supervisor ON — injeção de falha
 
-Quando `Parar processo` é clicado em um worker **ativo**:
+Quando `Parar processo` é clicado em um worker **ativo** (PID real consultado pelo backend):
 - Encerra **somente a instância atual** desse worker, em modo
   abrupto (SIGKILL/equivalente) e confirma o término.
 - A política externa de supervisão detecta a saída e **reinicia
@@ -50,9 +52,16 @@ Quando `Parar processo` é clicado em um worker **ativo**:
   sua validade; reprocessamento elegível continua com idempotência.
   A retomada pode exigir **expiração do lease**. Não confundir
   reinício imediato do executável com conclusão imediata do lote.
-- O status distingue **PROCESSO REINICIADO** de **TRABALHO
-  RECUPERADO**, com evidências reais de ambos. Não fabricar
-  contadores de recuperação para Maintenance Workers.
+- O **indicador automático no cartão** distingue ATIVO, REINICIANDO,
+  RECUPERANDO e ERRO, alimentado pela consulta real de processo/heartbeat;
+  não exige botão `Status do processo`.
+- O **Log da sessão existente** apresenta eventos e detalhes de
+  supervisão, PID antigo/novo e recuperação, vinculados ao worker;
+  obter histórico externo quando a Console não estava aberta, porque
+  o log atual é de sessão e não substitui a leitura real de estado.
+- Distinguir **PROCESSO REINICIADO** de **TRABALHO RECUPERADO**, com
+  evidências reais de ambos. Não fabricar contadores de recuperação
+  para Maintenance Workers.
 
 ### Transição ON → OFF
 
