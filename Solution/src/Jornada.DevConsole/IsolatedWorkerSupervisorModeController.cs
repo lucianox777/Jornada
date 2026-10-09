@@ -95,6 +95,18 @@ sealed class IsolatedWorkerSupervisorModeController(
         }
     }
 
+    // C3.3c: immutable request identity. A resident must be re-observed
+    // before a confirmed action; client-provided PID alone is insufficient.
+    public static bool MatchesResidentIdentity(
+        IsolatedWorkerState observed, string worker, string containerId, int hostPid)
+    {
+        return observed.Worker == worker
+            && observed.State == "ATIVO"
+            && observed.ContainerId == containerId
+            && observed.HostPid == hostPid
+            && hostPid > 1;
+    }
+
     private static readonly HashSet<string> AllowedFiniteWorkers =
         new(["processor", "operations-maintenance", "bronze-maintenance"],
             StringComparer.Ordinal);
