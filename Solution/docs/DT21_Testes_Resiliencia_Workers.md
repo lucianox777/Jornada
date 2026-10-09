@@ -1,8 +1,24 @@
 # DT-21 — evidências de supervisão e autorrecuperação dos workers
 
-**Decisão final refinada em 08/10/2026.** Estado: **PENDENTE DE
-IMPLEMENTAÇÃO, EXECUÇÃO E ACEITE**. Os testes RunOnce/Console existentes
-devem continuar íntegros; a cobertura nova é **aditiva**.
+**Atualização da matriz — 09/10/2026:** o escopo técnico DEV/CI foi
+**parcialmente implementado e aceito por testes reais**, não integralmente
+concluído. #847 prova restart independente; #849 baseline ZIP real;
+#850 rollback/fencing/recovery do lote sintético; #851 estado GET;
+#852 OFF→ON→OFF; #853 RunOnce dos três; #854 proteção a desconexão
+HTTP; #855 parada individual; #856 painel visual/controles da Console.
+Os passos abaixo são **matriz de critérios**, não um certificado
+único de que TODOS os TC-SV01–10 passaram em Chromium. Confirmar
+cada gate/executável na HEAD e no workflow específicos.
+
+**Afirmar PENDENTE explicitamente:** TC-SV03 na parte de **confirmação
+separada para encerrar RunOnce ativo antes de ON**; o comportamento
+atual recusa ON enquanto finito está ativo. Ver
+[C3.3b3](C3_3b3_Confirmacao_Cancelamento_RunOnce.md).
+Não confundir cancelamento explícito com sobrevivência à desconexão
+(#854), nem prova de reinício com prova de recuperação.
+Toda a evidência operacional é em CI `JornadaE2E`, não em
+`JornadaLocal` nem HML/PROD.
+Ver [manual consolidado](Manual_Sistema_Consolidado_20261009.md).
 
 ## Contrato observado
 

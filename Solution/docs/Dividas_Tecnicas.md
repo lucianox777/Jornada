@@ -1,3 +1,24 @@
+> **Atualização de engenharia — 09/10/2026:** as DT-18–21
+> ganharam implementação e evidências reais no projeto `JornadaE2E`
+> após a decisão de 08/10. Os estados da tabela das **novas** DTs
+> abaixo foram atualizados. DT-20/21 **não** estão integralmente
+> concluídas: falta confirmação explícita para cancelar RunOnce
+> ativo, e a telemetria durável precisa de prova própria. A DT-10
+> histórica de publicação SQL já tinha aceite técnico; a *extração
+> do gate DT10 da CI* começou depois por #857–#859, sem completar
+> otimização de todos os builds. Consulte
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md),
+> [Estado atual](Estado_Atual_Projeto.md) e
+> [Console DEV](Console_DEV_Supervisao_Atual.md). **Emenda de
+> 09/10:** a Trilha 4 **deixa de ser uma frente autônoma ou varredura
+> periódica**; seu escopo futuro de reavaliação extraordinária dos
+> `RESOLVIDOS` sem CPF passa à
+> [DT-22 — Reavaliação governada](DT22_Reavaliacao_Governada_Resolvidos.md),
+> **aberta e postergada**, não executada nem aceita. O `INCREMENTAL`
+> atual não garante reprocessar RESOLVIDOS indiretamente afetados
+> por mudança de candidatos/origem. Essa limitação deve ser
+> explicitada em aceites de risco, sem alegar autocorreção.
+>
 # Dívidas técnicas — Jornada do Cidadão
 
 **Revisão:** 2026-10-02 — reconciliação documental pós-PR #700; evidências históricas permanecem datadas e não são reescritas — estados no `master`, com PRs #510, #517, #540 e #568 confirmados e CI da última rodada #36348920753 verde; os marcos históricos preservados abaixo não são reabertos · **Natureza:** backlog técnico candidato, não normativo · **Base histórica do inventário:** `7d03e1bc040dd76d9c848a7267fdf84c1048c9d8`. **Conferência posterior:** PR #498 integrado em `e2abce62` (cache nominal nacional V1), PR #499 (decisão de SP) integrado; demais quantidades históricas não revalidadas.  
@@ -14,20 +35,73 @@ Permanece na fila ativa: **DT-05**. A DT-15 foi encerrada quanto a bypass técni
 A consolidação de 01/10 acima é **histórica naquele corte**. A frente
 posterior da Console DEV foi autorizada em 08/10/2026, após concluir o
 aceite de ingestão (#837, #839, #840). As quatro DTs abaixo
-**não foram executadas/mescladas apenas pela documentação**:
+**não foram executadas/mescladas apenas pela documentação original de 08/10; já existem implementações e aceites adicionais em #845–#856**:
 
 | Nova DT | Decisão aprovada | Estado / gate |
 |---|---|---|
-| [DT-18](DT18_Servicos_Independentes_Console_DEV.md) | Workers são serviços/processos independentes, sem cascata de reinício do NODE. | **PENDENTE** — prova de isolamento de processos em CI descartável. |
-| [DT-19](DT19_Console_Acoes_Workers.md) | **Dois botões empilhados** por worker: Executar uma vez (OFF), Parar processo (ON/PID vivo). Status é **indicador automático** + eventos no Log da sessão já existente, sem botão próprio. | **PENDENTE** — preservar RunOnce, integrar os dois RunOnce de manutenção na UI e acrescentar supervisor/Parar. |
-| [DT-20](DT20_Supervisao_Opt_In_Workers.md) | **Toggle global:** OFF inicial = RunOnce; ON mata RunOnce ativos e inicia 3 residentes. Parar processo injeta falha; supervisor reinicia automaticamente somente o worker morto e o próprio worker recupera trabalho por lease/heartbeat. | **PENDENTE** — transição atômica, PID, restart e recuperação comprovados. |
-| [DT-21](DT21_Testes_Resiliencia_Workers.md) | **Preservar testes RunOnce**; acrescentar Chromium/E2E OFF→ON→OFF, 2 botões verticais, status automático/log, Parar por PID, restart individual e recuperação de lease/lote sem duplicar. | **PENDENTE** — SQL exclusivamente `JornadaE2E`, sem falso sucesso. |
+| [DT-18](DT18_Servicos_Independentes_Console_DEV.md) | Workers são serviços/processos independentes, sem cascata de reinício do NODE. | **IMPLEMENTADO/ACEITO EM CI DEV** — #845–#847; isolamento real de PIDs, API/Resultado e restart independente. |
+| [DT-19](DT19_Console_Acoes_Workers.md) | **Dois botões empilhados** por worker: Executar uma vez (OFF), Parar processo (ON/PID vivo). Status é **indicador automático** + eventos no Log da sessão já existente, sem botão próprio. | **IMPLEMENTADO NO ESCOPO DEV/CI** — #851–#856; três RunOnce e painel com dois botões por worker. A comprovação do log durável externo continua separada. |
+| [DT-20](DT20_Supervisao_Opt_In_Workers.md) | **Toggle global:** OFF inicial = RunOnce; ON mata RunOnce ativos e inicia 3 residentes. Parar processo injeta falha; supervisor reinicia automaticamente somente o worker morto e o próprio worker recupera trabalho por lease/heartbeat. | **PARCIALMENTE CONCLUÍDO EM DEV/CI** — #850–#855 provam rollback/restart/lease e toggle; cancelamento explícito **confirmado** de RunOnce ativo ainda pendente. |
+| [DT-21](DT21_Testes_Resiliencia_Workers.md) | **Preservar testes RunOnce**; acrescentar Chromium/E2E OFF→ON→OFF, 2 botões verticais, status automático/log, Parar por PID, restart individual e recuperação de lease/lote sem duplicar. | **PARCIALMENTE ACEITO EM DEV/CI** — provas reais por etapa #847–#856 e testes Chromium/painel; confirmação de cancelamento RunOnce e observabilidade durável ainda pendentes. |
+| [**DT-22**](DT22_Reavaliacao_Governada_Resolvidos.md) | **Nova decisão de 09/10:** substituir a Trilha 4 contínua por **reavaliação extraordinária, explícita e governada dos RESOLVIDOS sem CPF**, após mudança de modelo ou decisão operacional. Preservar histórico/âncoras/Gold, com universo versionado e retomada. **Diferente do `REPLAY` histórico**. | **ABERTA — POSTERGADA/SEM ACEITE**. Não bloquear o fechamento da proposta arquitetural; não declarar corrigida a elegibilidade de RESOLVIDOS afetados por novas referências. Critérios e risco registrados no documento da DT. |
 
 A sequência operacional C3.1–C3.4 está em
 [Plano Console Workers](Plano_Console_Workers_Independentes_2026-10-08.md).
-Estas DTs não integram a **Trilha 4**, que permanece expressamente
-proibida até nova autorização. Preservar `JornadaLocal`, IBGE original,
-volumes compartilhados, HML/PROD.
+As DT-18–21 pertencem à Console DEV. **A Trilha 4 como processo
+periódico independente foi encerrada como proposta** pela decisão
+de 09/10; a **DT-22**, separada e postergada, concentra o replay
+governado de RESOLVIDOS. Não abrir implementação da DT-22 sem
+priorização/autorização próprias. Preservar `JornadaLocal`,
+IBGE original, volumes compartilhados e HML/PROD.
+
+## Nova pendência funcional — DT-22 (decisão de 09/10/2026)
+
+**Estado formal:** **PENDENTE / IMPLEMENTAÇÃO POSTERGADA / NÃO ACEITA**.\n**Rastreamento:** [issue #861](https://github.com/lucianox777/Jornada/issues/861), sem autorização implícita para execução.
+A Trilha 4 **não** deve permanecer em backlog como serviço contínuo
+autônomo. O legado normativo/arquitetural de preservação de decisões
+e fatos segue vigente; o **novo** contrato de execução está em
+[DT-22](DT22_Reavaliacao_Governada_Resolvidos.md).
+
+**Motivação comprovada por inspeção de código:** o Runner
+`EligibleFromWhereSql()` permite no `INCREMENTAL` faltantes,
+`NAO_RESOLVIDO`, `CONFLITO` e `PENDENTE_PROBABILISTICO`,
+mas **não seleciona genericamente `RESOLVIDO`** afetado por
+um novo candidato de terceiros; a atualização de versão da origem
+e a ancoragem CPF não provam que vínculos antigos foram todos
+recompostos. O `REPLAY` atual só reproduz modelo/run histórico:
+exige `ReplaySourceRunId` e veda trocar versão. O modo `FULL`
+disponível **não** equivale à capacidade futura governada/retomável.
+
+**Compromisso e limite do produto:** não prometer autocorreção completa
+de todos os RESOLVIDOS a cada evento; aceitar explicitamente que
+associações probabilísticas possam permanecer desatualizadas
+sem execução de revisão. Permitir concluir a proposta **com risco
+documentado**, sem afirmar que a DT foi tecnicamente fechada.
+Após ativação de modelo, um replay governado será **operação
+separada**, registrada e autorizada, jamais `ACTIVATE` com
+reprocessamento escondido.
+
+**Aceite futuro mínimo:** universo determinado/fingerprint; CPF-first
+e inexistência de dois CPFs no mesmo UUID; novos candidatos e
+decisões antigas auditados; Gold/Serving e fatos conservados;
+ledger sem duplicações; checkpoint/retomada; bloqueio
+concorrente/sem permissão; regressão multiondas e prova de
+não truncamento. Não usar referência IBGE original nem dados
+`JornadaLocal` para o gate. **Não executar DT-22 agora sem decisão
+de priorização posterior.**
+
+### Fila remanescente distinta de DT-22
+
+No escopo técnico/documental atual, verificar **DT-05** (replay
+histórico NAS e fidelidade, cujo aceite é distinto de recalcular
+RESOLVIDOS com modelo novo), **DT-20/DT-21** na parte de
+cancelamento explicitamente confirmado e telemetria durável,
+redução segura dos builds restantes da CI, e lacunas de produto
+sobre modelo/calibração/Ensaio/IdP/HML/PROD. A DT-16 permanece
+**REVERTIDA**, não deve ser contada como entrega pendente;
+DT-15 mantém ressalvas institucionais apesar do aceite técnico DEV.
+A consolidação histórica de 01/10 abaixo conserva seu próprio
+corte temporal.
 
 ## Ordem proposta e critérios de aceite
 

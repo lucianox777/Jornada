@@ -1,3 +1,46 @@
+# Estado técnico atual — atualização de engenharia 09/10/2026
+
+**Base observada:** `master` em `b4f74cb34e4346191ed58010b3d6b5cbb2db7e65` após #859, candidata v5.00/Schema 3.70; última release selada e precedência normativa continuam definidos por `RELEASE_INFO.txt` e pela Especificação Técnica publicada. Este bloco prevalece, **somente quanto ao estado de implementação em DEV/CI**, sobre as fotografias datadas posteriores neste arquivo; não altera decisões normativas nem aprova HML/Produção. Consulte o [manual do sistema](Manual_Sistema_Consolidado_20261009.md), [Console atual](Console_DEV_Supervisao_Atual.md), [índice documental](Indice_Acervo_Documental.md) e Actions da HEAD exata.
+
+| Frente | Estado técnico em 09/10 | Evidência/limite |
+|---|---|---|
+| API, SQL, Resultado independentes | **Integrado no sandbox GitHub descartável** | #845, #846; não equivale a deploy |
+| Três workers independentes e auto-restart | **Integrado/aceito em CI** | #847; processo reiniciado não é lote recuperado |
+| Ingestão real de ZIP sintético, idempotência, rollback SIGKILL, lease/fencing e reprocessamento | **Integrado/aceito em CI** | #848–#850; banco `JornadaE2E` exclusivo |
+| Console DEV: GET estado, toggle global ON↔OFF, três RunOnce isolados, desconexão, parada individual e painel | **Código em `master`, com testes em CI** | #851–#856; perfil GitHub DEV/loopback; sem implantação institucional |
+| Cancelamento de RunOnce ativo com confirmação separada/ID de execução | **PENDENTE** | [C3.3b3](C3_3b3_Confirmacao_Cancelamento_RunOnce.md); #854 apenas evita perda de supervisão ao desconectar |
+| CI: dez gates preservados e DT-10 SQL reutilizável | **Primeira extração integrada; não é otimização integral** | #857–#859, [DT10](DT10_CI_Extracao_Reutilizavel.md) |
+| **Trilha 4 / DT-22 — revisão governada de RESOLVIDOS** | **Trilha 4 contínua ENCERRADA COMO PROPOSTA; DT-22 ABERTA e POSTERGADA** | [DT-22](DT22_Reavaliacao_Governada_Resolvidos.md) e [Plano](Plano_Desenvolvimento.md). `INCREMENTAL` não cobre genericamente RESOLVIDOS afetados por novos candidatos de terceiros; `REPLAY` atual reproduz modelo histórico. Replay extraordinário futuro **não entregue**. |
+| Modelos de linkage, Ensaio, HML e PROD | **Aprovações próprias ainda necessárias** | Não inferir implantação/validade estatística representativa de CI sintética |
+
+**Restrições:** não operar, resetar, migrar ou testar os dados originais de `JornadaLocal`/IBGE, o NODE/Compose do usuário ou HML/PROD para conferir este estado. As provas acima são históricas de GitHub Actions e seus alvos efêmeros. **Decisão revisada de 09/10:** a antiga Trilha 4 de varredura temporal foi **encerrada como frente autônoma**; a reavaliação de RESOLVIDOS passa à DT-22 postergada. **Não** declarar que a Gold se autocorrige completamente por evento nem que o replay após mudança de modelo esteja implementado.
+
+## O que falta resolver — quadro de ação após a decisão de 09/10
+
+Abaixo, **pendência não é tarefa já autorizada a modificar dados
+reais**. São classes distintas; a prioridade final e critérios de
+promoção dependem dos responsáveis por cada frente:
+
+| Situação | Pendência de fato | Verificação para encerramento |
+|---|---|---|
+| **Técnica / produto** | [DT-05](DT05_Snapshots_Parquet_NAS.md) ainda tem itens de fechamento global de replay histórico NAS, retenção/GC e medição real de custo/latência; não confundir com DT-22. | Runbook, invariantes de snapshot imutável, métricas e aceite explicitamente registrado na HEAD exata. |
+| **Técnica / qualidade de identidade** | Consolidar decisões executáveis da **V8**, TF nominal calibrado, não-presunção de independência, separação sem CPF e regras de Gold por atributo; validar por corpus/snapshot conforme as [decisões canônicas](Decisoes_Canonicas_Identidade_Linkage_20260929.md) e o [Plano](Plano_Desenvolvimento.md). | Testes adversariais/estratificados e avaliação estatística independente; nenhuma simples regra escrita vale como implementação. |
+| **Técnica / Console DEV** | Confirmar autorização/encerramento explícito de RunOnce ativo e **histórico externo durável** fora da sessão; os merges #854–#856 não provaram tudo isso. | E2E no ambiente privado GitHub `JornadaE2E`, sem efeitos em NODE real. |
+| **Técnica / CI e tooling** | Reduzir builds .NET repetidos após a extração DT-10; conferir o desalinhamento de instalador Windows .NET 8 vs `net10.0` (issue #790) e a PR #809 Dependabot antes de qualquer merge. | Gates de segurança/integração preservados, provenance de artefatos por SHA e regressões do instalador/lock. |
+| **Institucional / Ensaio** | Avaliar risco de falsos vínculos e de RESOLVIDOS desatualizados, validar os contratos de Gestor, massas representativas, IdP/RBAC/PRODAM e condições HML/PROD. | Aprovações, corpus, rastreabilidade e evidências próprios; CI DEV sintética não as substitui. |
+| **Posterior / não bloqueante desta proposta** | [**DT-22**](DT22_Reavaliacao_Governada_Resolvidos.md): replay extraordinário e governado de RESOLVIDOS por nova evidência/candidato ou modelo. **Nenhuma execução contínua da antiga Trilha 4.** | PR nova de implementação, E2E de escopo/conservação/retomada, evidência de riscos e autorização; **não foi feita agora**. |
+
+**Fechamento da proposta arquitetural ≠ fechamento das dívidas
+funcionais ou homologação.** A Gold é revisável e pode conter
+associação probabilística ainda não revista; não afirmar
+autocorreção completa de RESOLVIDOS no modo `INCREMENTAL`.
+A [DT-22](DT22_Reavaliacao_Governada_Resolvidos.md) documenta
+explicitamente o risco aceito até sua execução posterior.
+
+---
+
+## Fotografia documental anterior (preservada para contexto)
+
 # Estado atual — conferência técnica documental atualizada em 06/10/2026
 
 **Escopo:** fotografia de implementação e governança documental sobre a candidata técnica `master`, revista em 06/10/2026. A PR #702 citada em revisões anteriores já está integrada. Este arquivo não substitui consulta ao HEAD, Actions, issues/PRs, gates institucionais nem ao [Plano de Desenvolvimento](Plano_Desenvolvimento.md); para precedência entre tipos de documento, usar o [índice vivo do acervo](Indice_Acervo_Documental.md).

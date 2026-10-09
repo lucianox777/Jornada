@@ -1,3 +1,13 @@
+> **Atualização documental — 09/10/2026:** a cadeia de
+> implementação DEV/CI dos três workers, Supervisor/Console,
+> RunOnce, parada e recuperação de lote (#845–#856) e a
+> extração DT10 (#857–#859) **não** altera nem promove
+> automaticamente aprovações de schema, identidade corporativa,
+> HML ou PROD. Evidências sintéticas não dispensam os
+> registros de responsável/data/SHA e aceites institucionais
+> definidos neste documento. Ver
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md).
+>
 # Governança técnica e readiness
 
 A Solution distribui contratos machine-readable para itens que dependem de decisão externa, sem converter defaults de Development em política de Produção.

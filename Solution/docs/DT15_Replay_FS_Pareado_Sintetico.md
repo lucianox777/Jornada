@@ -1,3 +1,11 @@
+> **Separação de responsabilidades — 09/10/2026:** esta
+> conferência sintética pareada de modelos para a DT-15
+> não é revisão/publicação dos RESOLVIDOS do banco operacional.
+> A reavaliação extraordinária com modelo novo consta como
+> [DT-22](DT22_Reavaliacao_Governada_Resolvidos.md) aberta
+> e postergada. `REPLAY` histórico mantém modelo de origem;
+> `ACTIVATE` não dispara DT-22 automaticamente.
+>
 # DT-15 — replay FS agregado pareado no mesmo corpus sintético
 
 **Estado:** etapa implementada em Desenvolvimento. Evidência exclusivamente de engenharia; **não é** o dossiê decisório completo, validação estatística da população de São Paulo ou parecer do operador master.

@@ -1,3 +1,17 @@
+> **Decisão superveniente de 09/10/2026:** a orientação histórica
+> “executar Trilha 4 por último” constante nesta fotografia de
+> 08/10 foi substituída: **a Trilha 4 como serviço temporal
+> contínuo foi encerrada como frente autônoma**. A revisão
+> extraordinária de RESOLVIDOS é a
+> [DT-22 — Reavaliação governada](DT22_Reavaliacao_Governada_Resolvidos.md),
+> **aberta/postergada**, sem implementação e sem bloquear o
+> fechamento da proposta arquitetural. A falta atual de
+> reavaliação automática de RESOLVIDOS quando surgem candidatos
+> de terceiros é **risco aceito/documentado**, não capacidade
+> concluída; consulte o [Plano corrente](Plano_Desenvolvimento.md).
+> O texto e as provas do corte de 08/10 abaixo continuam
+> disponíveis para rastreabilidade.
+>
 # Jornada — Plano de continuidade v5 (base de execução)
 
 **Data:** 08/10/2026  

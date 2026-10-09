@@ -1,7 +1,16 @@
 # DT-18 — serviços independentes e ciclo de vida por worker (Console DEV)
 
-**Decisão técnica aprovada em 08/10/2026 (escopo DEV).** Estado de implementação: **PENDENTE**;
-a existência deste documento não afirma implantação, teste nem merge.
+**Revisão de estado — 09/10/2026:** **implementado e validado tecnicamente
+em DEV/CI efêmero**. Os serviços independentes/API/Resultado e três workers
+têm aceites em #845–#847, recuperação transacional/lease em #848–#850.
+O Compose `install/console-dev-e2e/docker-compose.workers.yml` e os
+entrypoints privados NÃO substituem o `container-test`/NODE canônico
+mencionado na decisão original. O texto abaixo permanece como
+desenho/critério de aceite de 08/10, não fotografia atual de pendência.
+Não há homologação nem implantação HML/PROD; ver
+[Manual integrado](Manual_Sistema_Consolidado_20261009.md),
+[Console DEV](Console_DEV_Supervisao_Atual.md) e
+[estado atual](Estado_Atual_Projeto.md).
 
 ## Contexto confirmado
 

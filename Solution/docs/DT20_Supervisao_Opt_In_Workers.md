@@ -1,11 +1,19 @@
 # DT-20 — supervisão GLOBAL e reinício automático por worker
 
-**Decisão refinada em 08/10/2026 pelo responsável.**
-**PENDENTE DE IMPLEMENTAÇÃO E TESTES**. A simplificação posterior
-substitui o botão `Status do processo` por indicador automático
-+ `Log da sessão` existente, **sem dispensar** consulta read-only
-real no backend. Continuam excluídos `Iniciar contínuo`,
-`Desligar processo` e toggles por worker.
+**Revisão de estado — 09/10/2026:** a arquitetura foi implementada
+**no ambiente DEV/CI isolado**, com estado efetivo GET (#851), toggle
+global ON↔OFF e desarme de restart (#852), três RunOnce (#853),
+sobrevivência à desconexão do navegador (#854), parada individual
+(#855) e painel (#856). `C3.2f2c` (#850) comprovou a retomada do lote
+sintético no SQL `JornadaE2E`. A transição **ON com RunOnce ativo
+não o mata silenciosamente**: o backend recusa o comando; a etapa de
+**cancelamento explicitamente confirmado** ainda está PENDENTE
+([contrato](C3_3b3_Confirmacao_Cancelamento_RunOnce.md)).
+O procedimento desejado abaixo para matar finitos *após confirmação*
+é **critério futuro**, não função já aceita. O estado de UI não
+substitui validação de PID/heartbeat no backend.
+HML/PROD e NODE canônico fora do escopo.
+Ver [guia atual](Console_DEV_Supervisao_Atual.md).
 
 ## Um único toggle — modo dos três workers
 

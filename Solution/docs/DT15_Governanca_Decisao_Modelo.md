@@ -82,7 +82,7 @@ O executável C# `Jornada.Linkage.Evaluation` oferece o comando `--dt15-compare-
 
 - **DT-14:** determina *quando* repetir conferência independente scorer/comparadores/runtime. **DT-15:** mostra *o que mudou* entre modelos e registra decisão de promoção. Não reexecutar conferência decimal×float64 por causa de um novo dossiê se não houver gatilho; preservar o gate implementado por modelo.
 - **DT-09:** guardas técnicos atualmente executados por `VALIDATE`/`ACTIVATE`; DT-15 **soma** autorização humana vinculada e evidência comparativa, sem relaxá-los.
-- **Trilha 4 / DT-05:** reprocessamento por mudanças/ondas e replay auditável; a comparação contrafactual pode reutilizar seu universo capturado, mas não depende de concluir toda a migração NAS/GC para especificar ou implementar o dossiê em DEV.
+- **Decisão superveniente 09/10 — [DT-22](DT22_Reavaliacao_Governada_Resolvidos.md) / DT-05:** a antiga Trilha 4 como reavaliação temporal contínua foi encerrada como proposta. A DT-22 **aberta/postergada** define futura reavaliação extraordinária dos RESOLVIDOS em modelo novo; a DT-05 mantém replay **histórico** com modelo/run/candidatos imutáveis. `ACTIVATE` não aciona automaticamente DT-22 e não atesta Gold inteira recalibrada. O dossiê comparativo/decisório DT-15 e a fidelidade histórica DT-05 conservam critérios independentes.
 - **PRs #566–#568:** diagnóstico paralelo D/C/D∪C sintético, ledger agregado e auditoria SQL real amostral DEV/HML são **insumos parciais**; não garantem, por si, reexecução pareada de **dois modelos** nem evidência estatística de população real.
 
 **Aceite técnico da DT-15, em entregas separáveis:**

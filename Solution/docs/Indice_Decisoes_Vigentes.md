@@ -1,9 +1,19 @@
+> **Nota editorial — 09/10/2026:** o índice de decisões de
+> 29/09 permanece válido como referência de precedência para
+> identidade/linkage, mas **não** é fotografia das implementações
+> de Console/CI em outubro. Para essas superfícies ver
+> [Manual integrado](Manual_Sistema_Consolidado_20261009.md),
+> [Estado atual](Estado_Atual_Projeto.md) e
+> [Console DEV](Console_DEV_Supervisao_Atual.md).
+> Nenhuma implementação altera uma decisão normativa por si só.
+>
 # Índice de decisões vigentes — Jornada
 
 **Atualização:** 29/09/2026. **Fonte de precedência para a candidata v5.00:** [Decisões canônicas de identidade e linkage](Decisoes_Canonicas_Identidade_Linkage_20260929.md). A decisão nova prevalece sobre texto histórico contraditório, mas não torna o código automaticamente conforme, não reescreve a última release formal nem substitui aprovação institucional. Consulte o [catálogo de vigência de 29/09](Catalogo_Vigencia_Documental_20260929.md) como snapshot datado; para estado corrente, confronte [Estado atual](Estado_Atual_Projeto.md) com `master`, CI e issues.
 
 | Domínio | Fonte de decisão | Detalhamento; estado |
 |---|---|---|
+| **Reavaliação de RESOLVIDOS / Trilha 4** | [DT-22 — decisão de escopo de 09/10](DT22_Reavaliacao_Governada_Resolvidos.md) | **Trilha 4 contínua encerrada como frente**. Replay extraordinário governado de RESOLVIDOS sem CPF **ABERTO/POSTERGADO**, não confundir com `REPLAY` histórico nem considerar implementado. Limitação atual do `INCREMENTAL` para terceiros RESOLVIDOS indiretamente afetados permanece documentada. Preservar [regras canônicas CPF/UUID](Decisoes_Canonicas_Identidade_Linkage_20260929.md), sem alterar publicação normativa. |
 | UUID inicial/canônico, CPF, fusão e divisão | [DC-ID-01/02](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-id-01--dois-uuids-sem-atribuição-artificial) | [Arquitetura](Arquitetura_Identidade_Linkage.md), [âncora](CPF_Ancora_Processor_V1.md), [composição](Identidade_Composicao_PreAplicacao.md). **Nova regra de separação sem CPF ainda não codificada.** |
 | V8 único, sem veto demográfico fixo | [DC-LK-01/02](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-01--somente-v8-como-contrato-executável-futuro) | [Política V8 histórica](Linkage_Ausencia_Neutra_V8.md), [conferência](Linkage_Implementation_Conference.md). **Legados e guard ainda presentes no runtime.** |
 | Nome social, blocking, score e ausência | [DC-LK-03](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-03--núcleo-nominal-e-nome-social) | [FS](Calibrador_FS_Specification.md), [blocking](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md). **Projeções físicas existem; hipótese estatística do score não implementada/validada.** |

@@ -1,3 +1,21 @@
+> **STATUS CORRENTE — 09/10/2026:** as seções iniciais abaixo foram
+> escritas como scaffolds/planos incrementais. Hoje #845–#856 estão
+> integradas: SQL/API/Resultado privados, três workers independentes,
+> SIGKILL/restart, lote sintético com rollback/lease/fencing, leitura
+> efetiva de estado, toggle global, RunOnce e parada individual,
+> painel DEV e testes em CI. O alvo **continua EXCLUSIVAMENTE**
+> `JornadaE2E` do projeto Docker Compose efêmero GitHub-hosted.
+> **Não** aplicar comandos daqui em `JornadaLocal`, NODE canônico,
+> volumes do usuário, IBGE original, HML ou PROD. O cancelamento
+> explicitamente confirmado de RunOnce e a implantação institucional
+> **não** foram entregues pelo scaffold. Veja
+> [guia atual da Console](../../docs/Console_DEV_Supervisao_Atual.md)
+> e [manual integrado](../../docs/Manual_Sistema_Consolidado_20261009.md).
+>
+> Referências a “pendente”/“não conclui C3.2” nas seções históricas
+> identificam o recorte daquela etapa, e não o resultado final da
+> cadeia de PRs posterior.
+
 # C3.2a–b — fronteiras independentes de API e workers (DEV descartável)
 
 **Estado: scaffold, não aceite operacional.** Este diretório é totalmente

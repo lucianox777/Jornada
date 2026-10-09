@@ -1,3 +1,13 @@
+> **Atualização de execução 09/10/2026 (sem reescrever a decisão
+> arquitetural original de 27/09):** a proposta de execução
+> permanente da **Trilha 4** foi encerrada; o replay governado,
+> excepcional e autorizado dos RESOLVIDOS agora é a
+> [DT-22](DT22_Reavaliacao_Governada_Resolvidos.md), **pendente**.
+> A chegada de novos candidatos de terceiros não provoca hoje
+> reavaliação geral automática dos `RESOLVIDOS` no
+> `INCREMENTAL`. Referências abaixo à Trilha 4 descrevem
+> o desenho anterior e seus riscos, não um serviço em execução.
+>
 # Decisão arquitetural — blocking complementar com referência IBGE
 
 **Data:** 27/09/2026  

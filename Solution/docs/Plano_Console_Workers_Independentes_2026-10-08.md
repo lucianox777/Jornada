@@ -1,3 +1,23 @@
+> **Decisão específica de identidade — 09/10/2026:** a antiga
+> Trilha 4 como mecanismo contínuo independente não integra mais
+> o roteiro de entrega. A reavaliação extraordinária dos RESOLVIDOS
+> é [DT-22](DT22_Reavaliacao_Governada_Resolvidos.md), aberta e
+> postergada. O texto histórico abaixo pode tratar a Trilha 4 como
+> suspensa; isso não significa que a recomposição abrangente por
+> mudança indireta de candidatos tenha sido implementada.
+>
+> **Conferência de execução — 09/10/2026:** este plano foi
+> redigido em 08/10 como **decisão de desenho**. O código atual
+> integra as etapas C3.2/C3.3 e o painel C3.4 em DEV/CI
+> descartável (#845–#856), com evidências operacionais dos três
+> workers e testes de interface. A operação agora **recusa**
+> ON quando há RunOnce vivo, mas o cancelamento do finito
+> **após confirmação explícita do operador** permanece uma
+> pendência C3.3b3b. Não tratar o item “matar RunOnce ao confirmar”
+> abaixo como implementado. Não há implantação HML/PROD.
+> Ver [Manual atual](Console_DEV_Supervisao_Atual.md) e
+> [Estado atual](Estado_Atual_Projeto.md).
+>
 # Plano Console DEV — supervisor global, workers independentes e RunOnce preservado
 
 **Decisão vigente de 08/10/2026, refinada para evitar botão Status.**
