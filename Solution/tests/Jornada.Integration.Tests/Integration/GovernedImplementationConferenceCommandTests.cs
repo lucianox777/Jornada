@@ -66,7 +66,7 @@ public sealed class GovernedImplementationConferenceCommandTests
             60,
             "integration-test");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(first.Status, Is.EqualTo(ImplementationConferenceStatus.CONFORME));
             Assert.That(first.ScenarioCount, Is.EqualTo(7));
@@ -77,7 +77,7 @@ public sealed class GovernedImplementationConferenceCommandTests
             Assert.That(second.EvidenceId, Is.EqualTo(first.EvidenceId));
             Assert.That(second.RequestSha256, Is.EqualTo(first.RequestSha256));
             Assert.That(second.ReportSha256, Is.EqualTo(first.ReportSha256));
-        });
+        }));
 
         await using var verify = new SqlConnection(connectionString);
         await verify.OpenAsync();
@@ -95,7 +95,7 @@ public sealed class GovernedImplementationConferenceCommandTests
 
         await using var reader = await command.ExecuteReaderAsync();
         await reader.ReadAsync();
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(reader.GetInt32(0), Is.EqualTo(1));
             Assert.That(reader.GetString(1), Is.EqualTo("CONFORME"));
@@ -103,7 +103,7 @@ public sealed class GovernedImplementationConferenceCommandTests
             Assert.That(reader.GetInt32(3), Is.EqualTo(32));
             Assert.That(reader.GetInt32(4), Is.EqualTo(32));
             Assert.That(reader.GetInt32(5), Is.EqualTo(32));
-        });
+        }));
     }
 
     private static async Task InsertModelAsync(
