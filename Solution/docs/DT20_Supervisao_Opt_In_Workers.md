@@ -1,89 +1,90 @@
-# DT-20 — supervisor GLOBAL, modo RunOnce versus processos contínuos
+# DT-20 — supervisão GLOBAL e reinício automático por worker
 
-**Decisão refinada em 08/10/2026 pelo operador.** Estado
-**PENDENTE**: esta especificação não alega implementação/aceite.
-Prevalece sobre versões anteriores do toggle por worker ou sem
-botões de processo contínuo.
+**Decisão final refinada em 08/10/2026 pelo responsável.**
+**PENDENTE DE IMPLEMENTAÇÃO E TESTES**. Esta decisão prevalece sobre
+qualquer versão anterior que proponha `Iniciar contínuo` separado,
+`Desligar processo` ou três toggles individuais.
 
-## Comportamento do supervisor
+## Um único toggle — modo dos três workers
 
-Um único toggle global `Supervisão: DESATIVADA / ATIVADA` controla
-os três workers independentes (Processor, Operations Maintenance,
-Bronze Maintenance). Ele inicia em **DESATIVADA** no novo ambiente
-DEV `JornadaE2E` descartável.
+`Supervisão automática: DESATIVADA / ATIVADA`.
 
-### OFF — RunOnce
+O toggle é **GLOBAL para Processor, Operations Maintenance e Bronze
+Maintenance**. No ambiente DEV **descartável novo**, começa
+**DESATIVADA**, preservando o RunOnce individual de cada worker.
 
-- **Todos os botões `Executar uma vez` habilitados** nos três
-  workers, sujeitos aos pré-requisitos reais do comando.
-- Nenhum dos três processos residentes contínuos gerenciados fica
-  ativo. `Iniciar contínuo` e `Desligar processo` ficam
-  desabilitados. `Status do processo` continua disponível.
-- O fluxo e os testes RunOnce existentes permanecem intactos.
+| | Supervisão OFF | Supervisão ON |
+|---|---|---|
+| Execução | RunOnce dos três workers habilitados, respeitados pré-requisitos. Nenhum residente supervisionado. | Três workers contínuos sob supervisão, automaticamente iniciados ao ativar. RunOnce bloqueado em UI e API. |
+| Parar processo individual | Sem residentes a parar; RunOnce ativos somente serão encerrados na troca de modo com confirmação. | Encerra imediatamente o PID ativo daquele worker; **o supervisor reinicia automaticamente somente ele**, sem clique em iniciar. |
+| Status | Mostra RunOnce/sem residente, PID e estado efetivo OFF. | PID, heartbeat, reinícios, estado real da instância e recuperação; sem falso verde. |
 
-### OFF → ON — supervisor ativado
+### Transição OFF → ON
 
-1. Bloquear imediatamente novos RunOnce **na UI e no backend**.
-2. Localizar todas as instâncias ativas de RunOnce dos três workers,
-   informar quais serão interrompidas e exigir confirmação explícita
-   caso existam.
-3. **Matar/encerrar esses RunOnce** antes de iniciar residentes e
-   confirmar ausência. Não matar processos API, Resultado, SQL,
-   serviço de outro perfil nem contêiner NODE inteiro.
-4. Habilitar política de reinício **independente por worker** e
-   iniciar **automaticamente os três processos contínuos**.
-5. Liberar os controles de modo contínuo nos cartões dos três
-   workers. `Iniciar contínuo` fica habilitável somente se algum
-   serviço estiver efetivamente parado; `Desligar processo` fica
-   **habilitado somente depois que o respectivo processo subir**,
-   tendo PID/estado verificado. A habilitação de Desligar funciona
-   como indicação visual complementar de execução.
-6. Só marcar supervisor `ATIVADA / OPERACIONAL` após confirmar a
-   subida dos três. Falha parcial = `ERRO`, não sucesso.
+1. Impedir **atomicamente** novos RunOnce em UI e backend.
+2. Identificar RunOnce ativos e pedir confirmação explícita antes de
+   interrompê-los; não iniciar residentes enquanto a operação finita
+   estiver ativa.
+3. **Matar/encerrar todos os RunOnce ativos dos três workers**,
+   confirmando a ausência de instâncias conflitantes.
+4. Habilitar restart independente nos **três serviços de worker** e
+   **iniciar automaticamente os três residentes contínuos**. Não
+   oferecer comando individual de start contínuo.
+5. Confirmar processo vivo/PID/saúde de cada serviço; somente então
+   apresentar supervisor `ATIVADA` como operacional. `Parar processo`
+   de cada worker fica habilitado **apenas quando seu PID está ativo**.
+   Durante `INICIANDO`/`REINICIANDO`, permanecer desabilitado.
 
-### ON — supervisão contínua
+### Supervisor ON — injeção de falha
 
-- `Executar uma vez` permanece desabilitado nos três cartões.
-- Cada worker tem seu processo independente. `Desligar processo`
-  encerra **imediatamente apenas aquele processo** (falha injetada,
-  sem parada graciosa); o supervisor reinicia **só ele**.
-  Durante reinício, Desligar fica desabilitado e o status informa
-  INICIANDO/RECUPERANDO.
-- `Iniciar contínuo` pode ser usado se houver instância ausente
-  que não esteja reiniciando e cujo estado permita intervenção;
-  cliques repetidos não duplicam instância.
-- `Status do processo` consulta PID real, uptime, heartbeat,
-  reinícios, última falha e sinais de recuperação, sem inventar
-  contagens de lotes para outros workers.
+Quando `Parar processo` é clicado em um worker **ativo**:
+- Encerra **somente a instância atual** desse worker, em modo
+  abrupto (SIGKILL/equivalente) e confirma o término.
+- A política externa de supervisão detecta a saída e **reinicia
+  automaticamente o mesmo serviço de worker**, com novo PID. Não
+  precisa de clique adicional. Os outros dois workers e APIs não
+  são encerrados nem reiniciados.
+- O worker recém-iniciado **recupera por conta própria seu trabalho
+  interrompido**: transações interrompidas fazem rollback quando
+  aplicável; leases e heartbeat são examinados/recuperados segundo
+  sua validade; reprocessamento elegível continua com idempotência.
+  A retomada pode exigir **expiração do lease**. Não confundir
+  reinício imediato do executável com conclusão imediata do lote.
+- O status distingue **PROCESSO REINICIADO** de **TRABALHO
+  RECUPERADO**, com evidências reais de ambos. Não fabricar
+  contadores de recuperação para Maintenance Workers.
 
-### ON → OFF — supervisor desativado
+### Transição ON → OFF
 
-1. Bloquear ações concorrentes e **desarmar primeiro** as três
-   políticas de reinício.
-2. Encerrar os três workers residentes e confirmar que não subiram
-   novamente.
-3. Desabilitar botões contínuos e reabilitar `Executar uma vez`
-   para os três. `Status do processo` permanece disponível.
+1. Impedir novas operações conflitantes e **desativar primeiro** a
+   política automática de restart dos três workers.
+2. Encerrar e conferir ausência dos três residentes, sem afetar
+   API, Resultado, SQL ou supervisor de infraestrutura de outros
+   serviços. A desativação global é a única parada administrativa
+   normal do conjunto.
+3. Reabilitar os RunOnce dos três workers; botões `Parar processo`
+   ficam indisponíveis sem PID contínuo.
 
-## Princípios de implementação
+## Responsabilidades e segurança
 
-**O toggle é global, mas a supervisão/restart é individual.** O
-gerenciador externo (Docker/serviço) cuida da retomada do executável;
-o próprio worker cuida de trabalho, leases, heartbeat e idempotência.
-A Console não se torna um novo supervisor de processos.
+**Supervisor externo:** mantém executáveis vivos no modo ON, inclusive
+após SIGKILL; supervisiona cada worker independentemente.
+**Worker:** mantém/repara seus próprios ciclos, leases, heartbeat,
+dados e garantias de idempotência.
+**Console:** alterna modo global e exibe/comanda as ações permitidas;
+**não** se torna um supervisor próprio de todos os PIDs.
 
-Estado efetivo é consultado no backend ao abrir/recarregar a página:
-se a Console reiniciar e os serviços estiverem ON, não apresentar
-OFF falso. Guardas atômicas impedem RunOnce em ON, start contínuo
-em OFF, duplicação por cliques e transições simultâneas. Estado
-intermediário/falha parcial é explícito e **não** libera os dois
-modos em paralelo.
+A transição é serializada/atômica; falha parcial entra em `ERRO` e
+não libera RunOnce junto de residentes. Reload da página deve consultar
+modo **efetivo**, sem reativar/suspender processos por aparência do
+toggle. Ambiente/serviço identifiáveis por allowlist e perfil DEV
+`JornadaE2E` isolado; nenhuma operação de processo sobre o cluster
+existente. O primeiro estado OFF só é afirmado após confirmação de
+perfil descartável novo.
 
-`Desligar processo` no modo ON é a ação de falha/recuperação
-anteriormente chamada `Parar processo`; **não é desativação
-administrativa permanente**. Para parar normalmente todos os três
-residentes e voltar ao modo manual, desligar supervisor global.
+Referências: [DT-18](DT18_Servicos_Independentes_Console_DEV.md),
+[DT-19](DT19_Console_Acoes_Workers.md),
+[DT-21](DT21_Testes_Resiliencia_Workers.md).
 
-Somente no perfil DEV `JornadaE2E` descartável, com allowlist
-de processos e validação de ambiente/recurso. Proibido atingir
-`JornadaLocal`, IBGE original, HML/PROD ou Trilha 4.
+**Não tocar JornadaLocal, IBGE original, HML/PROD, volumes
+compartilhados, dados reais, Trilha 4 ou RESOLVIDOS automáticos.**
