@@ -66,7 +66,8 @@ sealed class IsolatedWorkerSupervisorStatusReader
             var ids = await DockerAsync(null,
                 ["ps", "-aq",
                  "--filter", "label=com.docker.compose.project=" + project,
-                 "--filter", "label=com.docker.compose.service=" + service], ct);
+                 "--filter", "label=com.docker.compose.service=" + service,
+                 "--filter", "label=com.docker.compose.oneoff=False"], ct);
             var lines = ids.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             if (lines.Length > 1 || lines.Any(x => !ContainerId.IsMatch(x)))
                 throw new InvalidOperationException("Identidade de serviço Docker ambígua no sandbox.");
