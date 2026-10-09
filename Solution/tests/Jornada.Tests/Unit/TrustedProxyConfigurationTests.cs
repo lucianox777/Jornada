@@ -42,7 +42,7 @@ public sealed class TrustedProxyConfigurationTests
     public void Invalid_proxy_name_fails_closed()
     {
         var configured = Options.Create(new TrustedProxyOptions { KnownProxies = ["gateway.internal"] });
-        Assert.Throws<InvalidOperationException>(() => new ConfigureTrustedForwardedHeaders(configured).Configure(new ForwardedHeadersOptions()));
+        Assert.Throws<InvalidOperationException>((Action)(() => new ConfigureTrustedForwardedHeaders(configured).Configure(new ForwardedHeadersOptions())));
     }
 
     [TestCase("10.0.0.0/33")]
@@ -51,6 +51,6 @@ public sealed class TrustedProxyConfigurationTests
     public void Invalid_cidr_fails_closed(string value)
     {
         var configured = Options.Create(new TrustedProxyOptions { KnownNetworks = [value] });
-        Assert.Throws<InvalidOperationException>(() => new ConfigureTrustedForwardedHeaders(configured).Configure(new ForwardedHeadersOptions()));
+        Assert.Throws<InvalidOperationException>((Action)(() => new ConfigureTrustedForwardedHeaders(configured).Configure(new ForwardedHeadersOptions())));
     }
 }

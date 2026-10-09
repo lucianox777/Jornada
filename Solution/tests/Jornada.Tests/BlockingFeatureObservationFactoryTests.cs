@@ -117,7 +117,7 @@ public sealed class BlockingFeatureObservationFactoryTests
             "A B", new DateOnly(2000, 1, 1), "C D",
             "A B", new DateOnly(2000, 1, 1), "C D");
 
-        Assert.Throws<ArgumentException>(() =>
-            BlockingFeatureObservationFactory.Create(new[] { pair }, Array.Empty<IdentityTrainingPair>()));
+        Assert.Throws<ArgumentException>((Action)(() =>
+            BlockingFeatureObservationFactory.Create(new[] { pair }, Array.Empty<IdentityTrainingPair>())));
     }
 }
