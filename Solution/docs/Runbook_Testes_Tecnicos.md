@@ -1,3 +1,11 @@
+> **Atualização 09/10/2026:** [Manual do sistema](Manual_Sistema_Consolidado_20261009.md),
+> [Console DEV atual](Console_DEV_Supervisao_Atual.md) e
+> [CI DT10 reutilizável](DT10_CI_Extracao_Reutilizavel.md).
+> As provas adicionais em E2E privado incluem restart de três workers,
+> rollback SQL/lease/fencing, três RunOnce, toggle ON↔OFF, parada
+> individual e UI DEV. Uma CI verde não autoriza executar testes
+> destrutivos em `JornadaLocal`, IBGE original ou NODE canônico.
+>
 # Jornada - testes técnicos reproduzíveis — base normativa v3.62 / engenharia v3.72
 
 ## Critérios do núcleo: melhor representação, não perfeição
@@ -221,7 +229,7 @@ Ele gera os rótulos sintéticos a partir da relação determinística da massa 
 
 ## 8. CI
 
-O workflow único `.github/workflows/ci.yml` exige **oito gates em cada PR**: `dependency-lock`, `ddl-upgrade`, `unit`, `deterministic-build`, `security-analysis`, `integration-sql`, `harness-smoke` e `e2e`. Antes de qualquer merge, conferir os oito em `success` para o **HEAD exato**, a base atualizada e a ausência de conflitos. Jobs condicionais, como `bronze-restore-drill`, `scale-harness`, `rc-evidence`, `rc-publish` e `release-promotion`, podem ficar `skipped` em PRs comuns; sua não execução não é prova de aceite de release. Em tag/dispatch, aplicar também os gates específicos previstos pelo workflow.
+O chamador `.github/workflows/ci.yml` protege **dez identidades de gate**: `impact`, `dependency-lock`, `ddl-upgrade`, `unit`, `deterministic-build`, `security-analysis`, `integration-sql`, `harness-smoke`, `e2e` e `dt10-evidence` (**condicional** ao classificador `run_dt10` em pull request). Desde #858, o último pode aparecer aninhado como `dt10-evidence / dt10-evidence` no reusable workflow `.github/workflows/dt10-evidence.yml`. Para PR que altera o próprio YAML DT-10, o classificador exige execução REAL do gate SQL, com mínimo 4 testes e zero `skipped`. Para docs-only, o classificador pode dispensar jobs integrais; não confundir `skipped` previsto por impacto com teste executado. Antes de cada merge, conferir os gates **efetivamente requeridos**, a HEAD exata, o estado das revisões/threads, os artefatos e a ausência de conflitos. Jobs condicionais, como `bronze-restore-drill`, `scale-harness`, `rc-evidence`, `rc-publish` e `release-promotion`, podem ficar `skipped` em PRs comuns; sua não execução não é prova de aceite de release. Em tag/dispatch, aplicar também os gates específicos previstos pelo workflow.
 
 Em DEV local, durante a edição, é suficiente executar primeiro os testes específicos dos arquivos alterados e expandir para integração SQL/E2E quando o comportamento tocar essas fronteiras. **A validação integral do PR continua obrigatória no CI existente**, sem duplicar jobs ativos. A suíte padrão preserva `JornadaLocal` e a referência IBGE; harnesses destrutivos exigem alvo isolado e autorização explícita. Uma Action verde sintética não autoriza Ensaio institucional, HML, Produção nem ativação de modelos.
 
