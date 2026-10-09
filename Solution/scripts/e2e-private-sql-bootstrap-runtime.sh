@@ -150,6 +150,10 @@ bash scripts/e2e-private-worker-restart-runtime.sh
 # No crash/transaction rollback exercised here: those require separate C3.2f2c.
 bash scripts/e2e-private-api-ingestion-baseline-runtime.sh
 
+# C3.2f2c: actual interrupted SQL Serializable transaction/lease recovery,
+# confined to THIS already validated disposable Compose project. No new build.
+python3 scripts/e2e-private-recovery-runtime.py
+
 python3 - "$OUT/summary.json" "$PROJECT" "$before" <<'PY'
 import json, pathlib, sys
 output, project, seed_count = sys.argv[1:]
@@ -161,7 +165,8 @@ pathlib.Path(output).write_text(json.dumps({
   'api_ready':True, 'resultado_api_ready':True,
   'resultado_to_api_private_dns':'PASS', 'initial_off_worker_residents':0,
   'subsequent_synthetic_ingestion_baseline':'PASS',
-  'processing_recovery_verified':False
+  'real_crash_recovery_and_fencing':'PASS',
+  'processing_recovery_verified':True
 }, indent=2) + '\n', encoding='utf-8')
 PY
 echo 'C3.2d SQL-only operational gate: PASS'
