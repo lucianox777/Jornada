@@ -1,79 +1,78 @@
-# Console DEV — quatro ações e supervisão opcional de workers independentes
+# Plano Console DEV — supervisor global e workers independentes
 
-**Decisão de escopo (08/10/2026).** Decisões formais vinculantes desta frente: [DT-18 — independência](DT18_Servicos_Independentes_Console_DEV.md), [DT-19 — quatro ações](DT19_Console_Acoes_Workers.md), [DT-20 — supervisão opcional](DT20_Supervisao_Opt_In_Workers.md) e [DT-21 — resiliência/testes](DT21_Testes_Resiliencia_Workers.md). A implementação continua pendente até a CI e o merge respectivos. O trabalho anterior de aceite de ingestão
-da Console (TC-05/TC-06, PRs #837, #839 e #840) foi concluído antes de iniciar
-esta frente. Esta evolução é **uma frente separada**, com PRs pequenas e
-gates da CI por HEAD. A Trilha 4 continua expressamente suspensa.
+**Decisão atualizada em 08/10/2026:** a supervisão controla o
+**modo de execução dos três workers em conjunto**. Esta decisão mais
+recente **prevalece** sobre a proposta anterior de start contínuo
+individual e toggle de supervisão por worker, que não deve ser
+implementada. Histórico do aceite de ingestão da Console: PRs
+#837, #839 e #840 concluídas no master; não reabrir esses trabalhos.
 
-## Contrato de interface — exatamente quatro ações
+## Contratos vinculantes
 
-A interface disponibilizará os mesmos controles para os três executáveis
-`Jornada.Processor.Worker`, `Jornada.Operations.Maintenance.Worker` e
-`Jornada.Bronze.Maintenance.Worker`:
+- [DT-18 — serviços independentes](DT18_Servicos_Independentes_Console_DEV.md)
+- [DT-19 — RunOnce, Parar processo e Status individuais](DT19_Console_Acoes_Workers.md)
+- [DT-20 — supervisor GLOBAL OFF/ON com start dos três](DT20_Supervisao_Opt_In_Workers.md)
+- [DT-21 — testes e evidências de resiliência](DT21_Testes_Resiliencia_Workers.md)
 
-| Ação | Semântica |
-|---|---|
-| **Executar uma vez** | RunOnce finito, aguardando conclusão e exit code. Recusar se a instância residente conflitar com a execução. |
-| **Iniciar contínuo** | Garantir **uma instância** residente deste worker. Se já iniciada, retornar estado existente, sem duplicar. |
-| **Parar processo** | Injetar falha abrupta **no PID do worker**, sem shutdown coordenado e sem desligar o serviço; o supervisor reinicia **somente esse worker**. |
-| **Status do processo** | Consultar estado real, PID, geração/reinícios, uptime e heartbeat operacional. Resposta nunca deve inventar saúde com base só no PID. |
+**Interface:** um toggle global `Supervisão: DESATIVADA / ATIVADA`,
+inicialmente **DESATIVADO** no novo ambiente descartável. Cada
+worker mantém **Executar uma vez**, **Parar processo** e
+**Status do processo**. Não há `Iniciar contínuo` individual:
+ao ativar a supervisão, **os três** workers iniciam continuamente.
 
-**Não** haverá botões distintos de “Parar contínuo”, “Desligar” ou
-“Simular falha”. O nome `Parar processo` significa, neste DEV de teste,
-morte abrupta. **Reinício automático é configurável pelo toggle de supervisão**
-da DT-20, e não é incondicional. Indicar esta diferença no tooltip e
-exigir confirmação antes do SIGKILL.
+| Modo | RunOnce de todos | Workers contínuos | Parar processo |
+|---|---|---|---|
+| **OFF — inicial** | Habilitados, respeitando pré-requisitos. | Três ausentes/parados. | Interrompe execução finita ativa sem restart. |
+| **ON** | Todos desabilitados, inclusive pela API. | Os três iniciados automaticamente e supervisionados individualmente. | Mata o worker escolhido; supervisor reinicia somente esse worker. |
 
-**Quinto controle (toggle separado dos quatro botões):**
-`Supervisão automática: ATIVADA / DESATIVADA`. Quando ativada, uma morte
-abrupta do worker contínuo produz reinício apenas daquele serviço; quando
-desativada, permanece parado. Alternar a política não mata nem inicia o
-processo por si só. O RunOnce jamais é reiniciado automaticamente.
+**ON:** bloquear RunOnce e confirmar interrupção de qualquer execução
+finita ativa; matar/encerrar **somente os três workers** (não API,
+Resultado, SQL ou contêineres compartilhados), preparar supervisão,
+iniciar os três residentes e validar estados reais antes de declarar
+ativação concluída.
 
-## Motivo arquitetural e fases em ordem
+**OFF:** desarmar a política de restart dos três **antes** de encerrar
+suas instâncias; confirmar ausência de residentes, habilitar RunOnce.
+O toggle é comando operacional de transição; não apenas preferência
+visual. Uma transição parcial não é sucesso e não pode liberar os
+dois modos simultaneamente.
 
-O supervisor atual `install/container-test/entrypoint.sh` lança vários
-processos no mesmo container e, quando qualquer um sai (`wait -n`),
-derruba todo o NODE. A semântica desejada exige que os três workers
-tenham processos e políticas de restart **independentes**, em vez de
-alterar o `wait -n` isoladamente e perder a supervisão.
+## Sequência em PRs pequenas
 
-1. **Infraestrutura isolada (C3.1).** Preparar um entrypoint de
-   **worker único** com allowlist de executáveis e opt-in fail-closed
-   somente DEV/`JornadaE2E`. Validar comando e rejeições na CI.
-   Nesta primeira PR, não modificar supervisor, Compose padrão nem
-   iniciar workers reais.
-2. **Supervisão independente (C3.2).** Compor cada worker como serviço
-   separado, com PID 1 próprio e **política de reinício selecionável**
-   (inicialmente DESATIVADA no perfil descartável; toggle ON habilita
-   reinício automático, toggle OFF impede reinício), no projeto
-   Docker **descartável**, sem usar containers, DB ou volumes do
-   `JornadaLocal`. Desabilitar os workers residentes dentro dos NODES
-   **somente no perfil novo**, mantendo API e Resultado independentes.
-   Provar que SIGKILL no Processor reinicia somente Processor; os PIDs
-   de API/Resultado/Operations/Bronze continuam estáveis. Não ativar em
-   HML/PROD e não alterar Compose padrão sem ensaios.
-3. **API da Console (C3.3).** Endpoints DEV exclusivos com allowlist
-   explícita para `run-once`, `start-continuous`,
-   `kill-process`, `status` e **`supervision` on/off/status**. Falhar fechado quando não houver
-   perfil descartável confirmado. Proteção de exclusão/concorrência
-   **atômica** (verificar PID antes de iniciar é insuficiente).
-   Nunca executar shell de texto vindo do navegador.
-4. **Interface e E2E (C3.4).** Exatamente os quatro botões **mais
-   um toggle de supervisão** por worker, com estados e acessibilidade.
-   Testar RunOnce, dois inícios simultâneos,
-   PID morto, reinício automático, heartbeat/leases e recuperação sem
-   duplicidade em lote sintético. Comprovar API acessível durante morte
-   do Processor e demais workers sem troca de PID.
+1. **C3.1 — boundary individual:** entrypoint com allowlist,
+   guardas DEV/`JornadaE2E` e gate CI sem executar Docker/SQL.
+   Apenas incluir o entrypoint na imagem; **não ativá-lo** na
+   topologia do NODE padrão. Primeira PR #841.
+2. **C3.2 — isolamento real descartável:** criar projeto Compose
+   próprio para testes com três serviços independentes, PIDs e
+   restart configuráveis, sem volume/container/banco do cluster
+   comum. Provar que matar um processo não mata os outros nem API.
+3. **C3.3 — controlador global:** backend DEV fail-closed, API de
+   transição OFF→ON→OFF **serializada**, e endpoints por worker de
+   RunOnce, Parar processo, Status. Checagem de PID e serviço
+   reais; impedir processos duplicados e qualquer execução de
+   shell arbitrário recebida do navegador.
+4. **C3.4 — interface e E2E:** toggle global + três ações por
+   worker, sem botão redundante de iniciar contínuo individual.
+   Chromium/E2E de toda a matriz [DT-21](DT21_Testes_Resiliencia_Workers.md),
+   incluindo kill sob ON, restart seletivo, recuperação sem
+   duplicação, corrida e OFF após ON.
 
-## Gates / segurança
+A **Console não substitui o supervisor externo**: aciona política
+do gerenciador de serviços; cada worker recupera seu trabalho
+via mecanismos próprios de lease/heartbeat e idempotência.
 
-Nenhuma etapa toca, reseta, limpa ou migra `JornadaLocal`, referência
-IBGE original, volumes compartilhados ou HML/PROD. Os testes usam
-`JornadaE2E` e recursos temporários independentes; qualquer
-configuração ambígua ou divergência de banco **recusa executar**.
+## Gates, estado e não-escopo
 
-A parada abrupta poderá deixar lease em vigor até expiração. O status
-deve distinguir `REINICIADO`, `RECUPERANDO` e `OPERACIONAL` com
-**evidência verificável**; PID novo não prova recuperação do lote.
-Nenhum trabalho de reprocessamento automático de RESOLVIDOS ou Trilha 4.
+A ativação só está disponível no ambiente DEV **descartável**,
+com `JornadaE2E` e fixtures sintéticas. Estado OFF só pode ser
+afirmado como padrão de uma **primeira implantação descartável**;
+recarregar a Console deve refletir estado efetivo do backend,
+inclusive se já estiver ON. Os testes devem provar o processo e
+a recuperação, não presumir saúde por PID.
+
+**Nunca** usar/limpar/migrar `JornadaLocal`, IBGE original,
+volumes compartilhados, HML/PROD ou dados reais. Não implementar
+Trilha 4/reprocessamento automático de RESOLVIDOS. Merge somente
+com gates obrigatórios completos e `success` na HEAD exata,
+com verificação horária e evidência real.
