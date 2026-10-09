@@ -20,9 +20,11 @@ def main():
     assert re.search(r"IF @attempt = 1\s+WAITFOR DELAY", text)
     assert re.search(r"ELSE IF @attempt >= 2\s+WAITFOR DELAY", text)
     assert text.count("WAITFOR DELAY") == 2
+    executable = "\n".join(line for line in text.splitlines()
+                           if not line.lstrip().startswith("--"))
     for dangerous in ("JornadaLocal", "DROP DATABASE", "RESTORE DATABASE",
                       "ALTER DATABASE", "TRUNCATE TABLE", "DELETE FROM", "UPDATE "):
-        assert dangerous not in text
+        assert dangerous not in executable
     assert "CREATE OR ALTER TRIGGER" in text and text.count("\nGO\n") >= 2
     print("C3.2f2c: static private transaction barrier contract PASS (NO DB)")
 
