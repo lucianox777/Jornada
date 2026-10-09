@@ -46,6 +46,8 @@ x-api-service: &api-service
   depends_on:
     sqlserver:
       condition: service_healthy
+    sql-bootstrap:
+      condition: service_completed_successfully
   entrypoint: ["/usr/local/bin/jornada-api-entrypoint"]
   environment:
     <<: *worker-env
@@ -118,6 +120,8 @@ services:
     depends_on:
       sqlserver:
         condition: service_healthy
+      sql-bootstrap:
+        condition: service_completed_successfully
       api:
         condition: service_healthy
     healthcheck:
