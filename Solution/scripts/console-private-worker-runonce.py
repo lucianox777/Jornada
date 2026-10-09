@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Finite 3-worker CLI exclusively for CI-created JornadaE2E Compose project.
 
-This program NEVER targets the normal NODE, JornadaLocal, HML, or PROD.
+This program NEVER targets ordinary database, NODE, staging or production resources.
 No user/HTTP-supplied project, service or command is accepted.
 """
 from __future__ import annotations
