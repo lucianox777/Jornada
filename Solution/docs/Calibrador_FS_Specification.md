@@ -103,3 +103,10 @@ O Calibrador deve estimar níveis nominais compostos ou distribuições conjunta
 O IBGE fornece marginais iniciais: frequência de sobrenome em qualquer posição é **proxy**, não frequência observada do último sobrenome. A transição para dados municipais depende de suficiência e proveniência. Não inferir famílias a partir das marginais sintéticas.
 
 **Estado atual:** o código compara nomes completos e ajusta TF de primeiros nomes nos estados EXACT; TF de último sobrenome, níveis compostos e seleção automática do peso ainda exigem implementação e testes. Consultar a norma DC-LK-TF no documento de decisões canônicas.
+
+
+### Diagnóstico de implementação para a próxima frente (09/10/2026)
+
+A geração de rascunho em `LinkageParametersWorker.GenerateDraftFromGoldAsync` ainda define explicitamente `TERM_FREQUENCY_WEIGHT = 1m` após preparar `NominalTermFrequencyReferenceStore`. Portanto, a presença do parâmetro e a correção para aceitar zero **não significam estimação automática**. A próxima implementação deve remover a atribuição fixa e selecionar o peso com dados de calibração, sem consultar TEST para ajuste. É obrigatório conservar a referência do snapshot e evidências de seleção.
+
+A preparação atual (`NominalTermFrequencyReferenceStore`) publica apenas prenomes da pessoa e mãe; o suporte de sobrenome em `NominalTermFrequencySnapshot` está em evolução separada, e não deve ser habilitado no score antes de haver frequências governadas, calibração conjunta e validação contra dupla contagem. Na falta de evidência suficiente, não substituir um valor fixo por outro peso arbitrário. O corpus sintético de 30 mil pessoas é bootstrap metodológico, não prova de FDR real.
