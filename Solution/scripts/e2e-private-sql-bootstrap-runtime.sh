@@ -142,6 +142,10 @@ resultado_pid="$(docker inspect -f '{{.State.Pid}}' "$resultado_cid")"
    "$api_pid" != "$resultado_pid" && "$api_pid" -gt 1 && "$resultado_pid" -gt 1 ]] ||
   die 'independent resident API PID1 evidence missing'
 
+# C3.2f1: after private SQL and two APIs are ready, exercise only
+# the three independent resident workers; this is NOT the lot-recovery gate.
+bash scripts/e2e-private-worker-restart-runtime.sh
+
 python3 - "$OUT/summary.json" "$PROJECT" "$before" <<'PY'
 import json, pathlib, sys
 output, project, seed_count = sys.argv[1:]

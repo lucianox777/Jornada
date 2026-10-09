@@ -171,6 +171,8 @@ jobs:
         run: python3 scripts/test-e2e-sql-bootstrap-contract.py
       - name: C3.2d private SQL runtime guard self-test (no Docker or DB)
         run: python3 scripts/test-e2e-private-sql-runtime-contract.py
+      - name: C3.2f1 independent worker SIGKILL safety contract (no Docker or SQL)
+        run: python3 scripts/test-e2e-private-worker-restart-contract.py
       - name: C3.2b isolated Api and ResultadoApi entrypoints (check-only)
         run: python3 scripts/test-api-independent-entrypoint.py
       - name: Self-test HML SQL/API evidence gates
