@@ -115,14 +115,14 @@ function Invoke-BlockingStage {
 
 function Invoke-ModelStage {
     Write-Host ''
-    Write-Host '=== Etapa 6/7 · Modelo inicial ===' -ForegroundColor Cyan
+    Write-Host '=== Ação manual · Calibração do modelo inicial ===' -ForegroundColor Cyan
     & (Join-Path $PSScriptRoot 'dev-console-operations.ps1') -Action calibrate-initial
     if($LASTEXITCODE -ne 0){throw "Garantia do modelo BOOTSTRAP inicial falhou ($LASTEXITCODE)."}
 }
 
 function Invoke-FinalizeStage {
     Write-Host ''
-    Write-Host '=== Etapa 7/7 · Finalização ===' -ForegroundColor Cyan
+    Write-Host '=== Etapa final · Finalização ===' -ForegroundColor Cyan
     Write-Host 'Gerando configuração inicial da Console (JSON + HTML)...'
     & (Join-Path $PSScriptRoot 'dev-console-initial-config.ps1')
     if($LASTEXITCODE -ne 0){throw "Geração da configuração inicial falhou ($LASTEXITCODE)."}
@@ -133,7 +133,7 @@ function Invoke-FinalizeStage {
     if($LASTEXITCODE -ne 0){throw "Geração do bundle inicial falhou ($LASTEXITCODE)."}
 
     Write-Host ''
-    Write-Host "Ambiente preparado: modo=$RuntimeMode; SQL/schema + NAS + referência IBGE + NODE1/NODE2 + corpus + blocking + modelo ATIVO."
+    Write-Host "Ambiente preparado: modo=$RuntimeMode; SQL/schema + NAS + referência IBGE + NODE1/NODE2 + corpus + blocking; calibração FS somente por demanda."
     Write-Host 'O serviço jornada-reference-bootstrap é um init one-shot: Exited (0) significa CONCLUÍDO com sucesso, não falha.'
     Write-Host "# docker compose --env-file $(Split-Path -Leaf $EnvFile) ps -a"
     Push-Location $Root
@@ -149,7 +149,7 @@ function Invoke-AllStages {
     Invoke-NodesStage
     Invoke-CorpusStage
     Invoke-BlockingStage
-    Invoke-ModelStage
+    # Calibracao FS e exclusivamente manual; nao disparar na subida.
     Invoke-FinalizeStage
 }
 
@@ -169,7 +169,7 @@ switch($Action){
         Invoke-Cluster 'reset' -ConfirmDestructive:$ConfirmProductionReset
         Invoke-CorpusStage
         Invoke-BlockingStage
-        Invoke-ModelStage
+        # Reset nao autoriza calibracao FS automatica.
         Invoke-FinalizeStage
     }
     'clean' {
