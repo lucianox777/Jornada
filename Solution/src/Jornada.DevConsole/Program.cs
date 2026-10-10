@@ -235,6 +235,36 @@ app.MapPost("/api/workers/{worker}/run-once",async(
     }
 });
 
+// C3.3b3b1: read-only per-execution cancellation challenge.
+// This does NOT cancel a worker, authorize ON, or expose Docker identities.
+// The mutating confirmed-cancel operation is deliberately NOT implemented.
+app.MapGet("/api/workers/{worker}/run-once/cancel-challenge",async(
+    string worker, HttpContext context, ConsoleRuntimeMode runtime,
+    IsolatedWorkerSupervisorStatusReader reader,
+    IsolatedWorkerSupervisorModeController controller, CancellationToken ct)=>{
+    context.Response.Headers.CacheControl="no-store";
+    if(!reader.Enabled(runtime)
+        ||context.Connection.RemoteIpAddress is not { } remote
+        ||!System.Net.IPAddress.IsLoopback(remote))
+        return Results.Conflict(new{error="Desafio restrito ao CI DEV efêmero loopback."});
+    try
+    {
+        return Results.Ok(await controller.ReadCancelChallengeAsync(worker,runtime,ct));
+    }
+    catch(InvalidOperationException)
+    {
+        return Results.Conflict(new{error="RunOnce ativo e válido não comprovado."});
+    }
+    catch(OperationCanceledException) when(ct.IsCancellationRequested)
+    {
+        return Results.StatusCode(StatusCodes.Status408RequestTimeout);
+    }
+    catch(Exception)
+    {
+        return Results.StatusCode(StatusCodes.Status503ServiceUnavailable);
+    }
+});
+
 // C3.3c: confirmed resident lifecycle, loopback and disposable CI only.
 app.MapPost("/api/workers/{worker}/stop", async(
     string worker, IsolatedWorkerStopRequest request, HttpContext context,
