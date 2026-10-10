@@ -43,7 +43,13 @@ def main() -> None:
                  "dt10-evidence:"):
         assert "\n  " + gate in data, f"removed mandatory gate {gate}"
     assert "uses: ./.github/workflows/dt10-evidence.yml" in data
-    print("DT10 cache: PASS 10 SDK setups use hash-pinned NuGet package cache; "
+    dt10 = (ROOT.parent / ".github/workflows/dt10-evidence.yml").read_text(encoding="utf-8")
+    assert "          cache: true\\n          cache-dependency-path: 'Solution/**/packages.lock.json'" in dt10
+    assert "dotnet restore Jornada.sln --locked-mode" in dt10
+    assert "TestCategory=DT10Evidence" in dt10
+    assert "--forbid-skipped --minimum-tests 4" in dt10
+    assert "name: Upload DT-10 evidence" in dt10
+    print("DT10 cache: PASS 11 SDK setups use hash-pinned NuGet package cache; "
           "locked restore, build, evidence and all gates remain")
 
 
