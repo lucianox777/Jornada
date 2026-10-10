@@ -69,7 +69,7 @@ public sealed class SampleSufficiencyAssessmentTests
     {
         var evidence = new[] {
             new Evidence("SP", "p1", true, true, "g1"),
-            new Evidence("SP", "p1", true, true),
+            new Evidence("SP", "p1", true, true, "g1"),
             new Evidence("SP", "p2", true, false, "g2"),
             new Evidence("SP", "p3", false, true)
         };
