@@ -24,7 +24,7 @@ public sealed class SampleSufficiencyAssessmentTests
             new Evidence("SP", "p3", false, true)
         };
         var result = Evaluate(evidence, new[] { "SP" }, 2, 1);
-        Assert.Multiple((NUnit.Framework.TestDelegate)(() => {
+        Assert.Multiple((System.Action)(() => {
             Assert.That(result.State, Is.EqualTo(Status.Insufficient));
             Assert.That(result.Counts[0].M, Is.EqualTo(1));
             Assert.That(result.Counts[0].U, Is.EqualTo(1));
@@ -49,7 +49,7 @@ public sealed class SampleSufficiencyAssessmentTests
     [Test]
     public void RejectsInvalidPolicyThresholds()
     {
-        Assert.Throws<ArgumentOutOfRangeException>((NUnit.Framework.TestDelegate)(() =>
+        Assert.Throws<ArgumentOutOfRangeException>((System.Action)(() =>
             Evaluate(Array.Empty<Evidence>(), new[] { "SP" }, 0, 1)));
     }
     [Test]
