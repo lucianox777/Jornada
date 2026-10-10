@@ -25,6 +25,7 @@ def main() -> None:
     compile(text, str(HELPER), "exec")
     for token in (
         'JORNADA_WORKERS_E2E_CANCEL_ALLOWED") == "true"',
+        'os.environ.get("JORNADA_WORKERS_E2E_IMAGE_TAG") == "test"',
         'JORNADA_WORKERS_E2E_RUNTIME_TEST") == "true"',
         'GITHUB_REPOSITORY") == "lucianox777/Jornada"',
         'JORNADA_RUNTIME_MODE") == "DEV"',
