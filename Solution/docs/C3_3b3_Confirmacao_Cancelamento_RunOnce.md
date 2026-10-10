@@ -1,3 +1,21 @@
+> **Incremento técnico em avaliação — C3.3b3b0 (09/10/2026):**
+> `scripts/console-private-worker-cancel-oneoff.py` é um **helper
+> ainda NÃO conectado à Console**. Ele exige CI DEV GitHub efêmero,
+> `JornadaE2E`, opt-in separado `JORNADA_WORKERS_E2E_CANCEL_ALLOWED`,
+> ID do container (64 hex), host PID real, worker allowlisted,
+> UUID de execução e inspeção das labels exatas `project/service/oneoff`,
+> `--run-once`, rede privada, zero bind mounts/portas e restart=no.
+> O comando confinado `docker stop --time 6 <id>` envia SIGTERM e
+> mantém fallback Docker só para **esse exato contêiner finito**;
+> aguarda `--rm` pelo owner e valida SQL/API/Resultado inalterados.
+> Não possui rota HTTP, token de confirmação, UI nem aceite E2E
+> positivo; portanto **NÃO** é funcionalidade de cancelamento
+> entregue. O contrato offline negativo só prova rejeição fora
+> do perfil privado. Posteriormente o controlador deve vincular
+> ID/nonce descartável, admitir o cancelamento explicitamente
+> confirmado e executar E2E real antes de disponibilizar a ação.
+> Não executar o helper diretamente nem ativá-lo em ambiente usuário.
+>
 # C3.3b3 — Interromper RunOnce ativo com confirmação e preservar a supervisão
 
 **Estado em 09/10/2026:** **PENDÊNCIA FUNCIONAL CONFIRMADA** — contrato de
