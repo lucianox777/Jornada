@@ -47,6 +47,24 @@ Exemplo: uma certidão de nascimento pode comprovar nascimento e filiação; um 
 
 O tratamento de documento sem data própria permanece governado: não usar data do atendimento como substituta. O contrato e o banco devem representar a associação documento → valores comprovados, com data documental única na instância, e não data repetida por campo.
 
+
+## Catálogo relacional configurável de tipos documentais
+
+**Decisão:** não codificar em C#, SQL procedural ou JSON estático a relação entre tipo documental e campos. Persistir o catálogo em tabelas de referência, consultadas pela validação e pela seleção Gold. Proposta de esquema lógico (nomes físicos a confirmar com a convenção de `ref`):
+
+| Tabela | Colunas essenciais | Regra |
+| --- | --- | --- |
+| `ref.tipo_documento` | `tipo_documento_id`, `codigo` único, `descricao`, `classe_evidencia` (DOCUMENTO/AUTODECLARACAO), `ativo`, `vigencia_inicio`, `vigencia_fim`, `versao` | Define o tipo e sua classe; vigência e versionamento auditáveis. |
+| `ref.tipo_documento_atributo` | `tipo_documento_id`, `atributo_codigo`, `vigencia_inicio`, `vigencia_fim` | Associação N:N entre tipo e atributo que **pode** comprovar; FK para catálogo de atributos; chave/índice impedem associações duplicadas vigentes. |
+| `identidade.documento_evidencia` (proposta) | `documento_evidencia_id`, `tipo_documento_id`, `data_documento`, `data_atendimento`, `proveniencia`, `status_validacao` | **Uma data própria por instância documental**, independente do atendimento; não repetir data em cada atributo. |
+| `identidade.documento_evidencia_valor` (proposta) | `documento_evidencia_id`, `atributo_codigo`, `valor`/referência ao valor original | Só aceita atributo autorizado pelo tipo e vigente na política aplicável; conserva origem e divergências. |
+
+**Governança:** cadastrar/alterar tipos e associações por migração ou operação administrativa autorizada, com trilha de auditoria e versão da política; nunca permitir que mudança retroativa silenciosa reinterprete evidências históricas. Incluir `data_documento` e `data_atendimento` como campos distintos; a segunda jamais participa do desempate temporal. A validação da evidência verifica tipo, atributo permitido, conteúdo, validade e versão do catálogo; não basta constar do catálogo para que o valor seja automaticamente considerado comprovado.
+
+**Consultas:** a seleção Gold une valores → instância documental → tipo e associação tipo/atributo, filtra evidências válidas e ordena `classe_evidencia` (DOCUMENTO antes de AUTODECLARACAO), `data_documento DESC` dentro da classe. Para autodeclaração, `data_documento` representa a data própria da declaração; pode receber nome físico mais neutro `data_evidencia`. Data ausente/empate exige regra explícita e auditável, sem fallback para atendimento.
+
+**Aceite técnico adicional:** testes de cadastro de novo tipo e seus atributos **sem recompilar o sistema**; rejeição de atributo não permitido; atualização de vigência/versionamento; múltiplas instâncias do mesmo tipo; datas de atendimento invertidas; preservação da evidência histórica quando o catálogo muda. Não criar tabelas diretamente em ambiente real sem migração e testes em banco descartável.
+
 ## Pendências técnicas para o aceite
 
 Verificar modelagem normalizada de **instância de documento com data própria única**, **tipo de evidência e catálogo versionado de atributos admissíveis** e **valores comprovados vinculados à instância** no contrato e no SQL; implementar ordenação por classe/data própria na seleção Gold; garantir histórico/auditoria; criar regressão SQL/E2E com datas de atendimento invertidas. Até esses testes passarem, **decisão documentada ≠ implementação certificada**.
