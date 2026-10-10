@@ -70,7 +70,8 @@ def main() -> None:
             "GITHUB_REPOSITORY": "not/Jornada"})
     # Every CI admission condition is independently fail-closed, even with
     # the explicit cancellation opt-in. These tests never invoke Docker.
-    allowed = {**fake_ci, "JORNADA_WORKERS_E2E_CANCEL_ALLOWED": "true"}
+    allowed = {**fake_ci, "JORNADA_WORKERS_E2E_CANCEL_ALLOWED": "true",
+               "JORNADA_WORKERS_E2E_IMAGE_TAG": "test"}
     for key, invalid in (
         ("GITHUB_ACTIONS", "false"),
         ("CI", "false"),
@@ -92,6 +93,7 @@ def main() -> None:
         "JORNADA_WORKERS_E2E_RUNTIME_TEST",
         "JORNADA_WORKERS_E2E_CANCEL_ALLOWED", "JORNADA_WORKERS_E2E_ID",
         "JORNADA_WORKERS_E2E_SQL_PASSWORD",
+        "JORNADA_WORKERS_E2E_IMAGE_TAG",
     ):
         missing = allowed.copy()
         del missing[key]
