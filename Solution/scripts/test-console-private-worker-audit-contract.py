@@ -7,6 +7,7 @@ JOURNAL=ROOT/"src/Jornada.DevConsole/IsolatedWorkerAuditJournal.cs"
 CTRL=ROOT/"src/Jornada.DevConsole/IsolatedWorkerSupervisorModeController.cs"
 API=ROOT/"src/Jornada.DevConsole/Program.cs"
 BOOT=ROOT/"scripts/e2e-private-sql-bootstrap-runtime.sh"
+STOP=ROOT/"scripts/e2e-console-worker-stop-proof.py"
 
 def main():
     j=JOURNAL.read_text(encoding="utf-8")
@@ -43,6 +44,16 @@ def main():
     assert 'C3.3d: PASS private write-through journal survived Console processes' in b
     assert '"timestampUtc","project","category","operation","outcome"' in b
     assert "PARAR_PROCESSO" in b and "RUN_ONCE" in b
+    # Only the DevConsole controller writes worker-audit success. A direct
+    # subprocess invoking Docker CLI proves stop but bypasses the journal.
+    stop=STOP.read_text(encoding="utf-8")
+    compile(stop, str(STOP), "exec")
+    assert '"/api/workers/{worker}/stop"' in stop
+    assert '"POST"' in stop and '"confirmed": True' in stop
+    assert '"confirmed": False' in stop
+    assert 'result.get("mode") == "ERRO"' in stop
+    assert 'after[worker]["state"] == "PARADO"' in stop
+    assert 'not ready' in stop and 'console.terminate()' in stop
     print("C3.3d: PASS private allowlisted audit journal guard/append (offline)")
 
 if __name__=="__main__":
