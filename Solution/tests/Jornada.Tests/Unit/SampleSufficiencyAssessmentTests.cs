@@ -45,6 +45,19 @@ public sealed class SampleSufficiencyAssessmentTests
     }
 
     [Test]
+    public void DuplicatePairWithMissingAndPresentProvenanceIsIndeterminate()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "person-A"),
+            new Evidence("SP", "m1", true, true),
+            new Evidence("SP", "u1", true, false, "person-B")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(r => r.Contains("contradictory independent group provenance", StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
     public void NoEvidence_IsIndeterminate()
     {
         var result = Evaluate(Array.Empty<Evidence>(), new[] { "SP" }, 1, 1);
