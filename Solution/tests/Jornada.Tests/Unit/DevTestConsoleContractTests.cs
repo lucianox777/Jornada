@@ -526,7 +526,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(infraScript,Does.Contain("=== Ação manual · Calibração do modelo inicial ==="));
             Assert.That(infraScript,Does.Contain("=== Etapa final · Finalização ==="));
             var upStages=infraScript.Split("function Invoke-AllStages {",StringSplitOptions.None)[1]
-                .Split("\n}\n",StringSplitOptions.None)[0];
+                .Split("switch($Action)",StringSplitOptions.None)[0];
             Assert.That(upStages,Does.Not.Contain("Invoke-ModelStage"),
                 "DEV bootstrap must not activate/calibrate FS automatically.");
             Assert.That(infraScript,Does.Contain("Estado transitório da Console removido"));
