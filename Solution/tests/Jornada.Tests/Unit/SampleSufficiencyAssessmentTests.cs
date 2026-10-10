@@ -40,8 +40,8 @@ public sealed class SampleSufficiencyAssessmentTests
             new Evidence("SP", "u1", true, false, "person-C")
         };
         var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
-        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
-        Assert.That(result.Reasons.Any(r => r.Contains("missing group identifiers", StringComparison.Ordinal)), Is.True);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(r => r.Contains("contradictory independent group provenance", StringComparison.Ordinal)), Is.True);
     }
 
     [Test]
