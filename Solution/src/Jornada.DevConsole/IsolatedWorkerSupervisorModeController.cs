@@ -38,8 +38,10 @@ sealed class IsolatedWorkerSupervisorModeController(
                 || run.ExpiresAtUtc <= DateTimeOffset.UtcNow)
                 throw new InvalidOperationException("Nenhum RunOnce confirmado neste worker.");
             var effective = await reader.ReadAsync(runtime, ct);
-            if (effective.Mode != "OFF")
-                throw new InvalidOperationException("Modo efetivo não é OFF.");
+            if (effective.Mode != "OFF"
+                || !ReferenceEquals(finiteConfirmation,run)
+                || !activeFinite.ContainsKey(worker))
+                throw new InvalidOperationException("RunOnce já terminou ou modo não é OFF.");
             // Read-only token, no Docker/PID mutation and no implicit ON.
             return new IsolatedWorkerRunOnceChallenge(
                 run.RunId, run.Worker, run.Nonce, run.ExpiresAtUtc);
