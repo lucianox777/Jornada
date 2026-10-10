@@ -114,6 +114,19 @@ Estrutura proposta:
 
 **Aceite:** (1) dois documentos de modelos distintos na Silver com datas próprias; (2) Gold de nome derivada de uma instância e Gold de endereço derivada de outra, cada qual rastreável; (3) data do atendimento invertida não altera vencedores; (4) modelo não reconhecido não recebe atributos por inferência; (5) data ausente não é substituída por atendimento; (6) replay determinístico respeita versão do catálogo.
 
+
+## Multiplicidade longitudinal: vários RGs e outros documentos por pessoa
+
+**Cardinalidade obrigatória:** uma pessoa pode ter **0..N instâncias** de um mesmo tipo/modelo documental ao longo da vida (incluindo RGs expedidos em datas diferentes, por órgãos/UFs diferentes e segundas vias). Não impor `UNIQUE(pessoa_id, tipo_documento_id)` nem `UNIQUE(pessoa_id, modelo_documento_id)`, nem sobrescrever o documento anterior ao receber outro.
+
+O desenho deve distinguir **(a) identidade da pessoa**, **(b) instância/expedição do documento** e **(c) identificador impresso**. Um mesmo número de RG pode aparecer em segunda via ou reemissão; número sozinho não identifica uma instância, e diferentes RGs podem ter números distintos. Identificadores como CPF, RG e CNS possuem regras de identidade próprias e não devem ser confundidos com a chave primária da instância documental.
+
+**Relações propostas:** `silver.documento_evidencia` (ou equivalente normalizado) contém `documento_evidencia_id` imutável, `modelo_documento_id`, `numero_documento` quando houver, `orgao_emissor`, `uf_emissora`, `data_expedicao`, `data_validade` quando aplicável, proveniência e estado. Uma tabela de associação `silver.pessoa_documento` (ou FK da observação para o documento, conforme domínio) liga uma pessoa/observação a **várias instâncias**; vinculação de identidade pode mudar sem destruir a evidência. `silver.documento_evidencia_valor` associa cada instância aos atributos efetivamente comprovados. Na Gold, cada atributo selecionado aponta para o `documento_evidencia_id` vencedor; demais documentos e divergências continuam consultáveis.
+
+**Exemplo:** RG estadual expedido em 2005, segunda via em 2015 e CIN expedida em 2025 são **três instâncias** (não três pessoas). Todas permanecem no histórico; para um atributo comprovado por todas e com evidências válidas, vence a instância com a data própria mais recente. Para um atributo que a CIN não comprova, uma instância anterior pode continuar sendo a fonte vencedora. Atendimento/ingestão nunca define a ordem.
+
+**Invariantes de aceite:** duas expedições do mesmo número não colapsam em uma linha; RGs de UFs diferentes coexistem; reprocessar a mesma observação é idempotente sem criar duplicatas; novo documento não apaga o anterior; identidade/CPF não é inferida da mera coincidência de RG; auditoria mostra histórico e o documento vencedor por atributo.
+
 ## Pendências técnicas para o aceite
 
 Verificar modelagem normalizada de **instância de documento com data própria única**, **tipo de evidência e catálogo versionado de atributos admissíveis** e **valores comprovados vinculados à instância** no contrato e no SQL; implementar ordenação por classe/data própria na seleção Gold; garantir histórico/auditoria; criar regressão SQL/E2E com datas de atendimento invertidas. Até esses testes passarem, **decisão documentada ≠ implementação certificada**.
