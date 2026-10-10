@@ -521,8 +521,15 @@ public sealed class DevTestConsoleContractTests
             Assert.That(infraScript,Does.Contain("Gerando bundle inicial de contratos e configurações exigido pela ingestão"));
             Assert.That(infraScript,Does.Contain("dev-console-operations.ps1"));
             Assert.That(infraScript,Does.Contain("-Action calibrate-initial"));
-            Assert.That(infraScript,Does.Contain("=== Etapa 6/7 · Modelo inicial ==="));
-            Assert.That(infraScript,Does.Contain("=== Etapa 7/7 · Finalização ==="));
+            // A model bootstrap is now explicitly manual. A normal DEV "up"
+            // must not silently calibrate or activate the probabilistic model.
+            Assert.That(infraScript,Does.Contain("=== Ação manual · Calibração do modelo inicial ==="));
+            Assert.That(infraScript,Does.Contain("=== Etapa final · Finalização ==="));
+            var upStages=infraScript.Split("function Invoke-AllStages {",StringSplitOptions.None)[1]
+                .Split("switch($Action)",StringSplitOptions.None)[0];
+            Assert.That(upStages,Does.Not.Contain("Invoke-ModelStage"),
+                "DEV bootstrap must not activate/calibrate FS automatically.");
+
             Assert.That(infraScript,Does.Contain("Estado transitório da Console removido"));
             Assert.That(infraScript,Does.Contain("Histórico e contadores de execução foram preservados"));
             Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));

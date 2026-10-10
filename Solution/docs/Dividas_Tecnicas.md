@@ -1,3 +1,5 @@
+> **DT-23 — decisão confirmada em 09/10/2026:** [diagnóstico automático de suficiência FS](DT23_Diagnostico_Automatico_Suficiencia_FS.md) **ABERTA / NÃO IMPLEMENTADA**. Monitoramento periódico read-only, semáforo e recomendação são automáticos; calibração FS é **manual por demanda**, e ativação do modelo é governada. A carga congelada de referências na inicialização não executa calibração. Não confundir a documentação desta DT com entrega funcional.
+
 > **Atualização de engenharia — 09/10/2026:** as DT-18–21
 > ganharam implementação e evidências reais no projeto `JornadaE2E`
 > após a decisão de 08/10. Os estados da tabela das **novas** DTs

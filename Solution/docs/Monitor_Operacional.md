@@ -1,3 +1,5 @@
+> **DT-23 (09/10/2026):** o diagnóstico periódico automático de suficiência amostral FS, com semáforo e recomendação de recalibração **manual**, é requisito [ABERTO / NÃO IMPLEMENTADO](DT23_Diagnostico_Automatico_Suficiencia_FS.md). O Monitor atual não deve ser apresentado como se já fizesse essa detecção. Reinício/health não executam calibração; promoção do modelo exige ação governada.
+
 > **Atualização 09/10/2026 — superfícies distintas:** este
 > Monitor Operacional é uma superfície **read-only** de domínio;
 > não confundir com o painel de trabalhadores de

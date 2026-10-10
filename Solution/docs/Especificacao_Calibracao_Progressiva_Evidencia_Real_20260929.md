@@ -1,3 +1,5 @@
+> **Esclarecimento aprovado em 09/10/2026:** a expressão histórica “calibração offline, periódica” **não** autoriza um agendador que execute o Calibrador. O que é periódico/automático é **o diagnóstico de suficiência e a recomendação**, objeto da [DT-23](DT23_Diagnostico_Automatico_Suficiencia_FS.md). A **execução da calibração é exclusivamente manual por demanda**; `GENERATE_DRAFT`, `VALIDATE` e `ACTIVATE` permanecem operações explícitas e governadas. O diagnóstico automático ainda **não está implementado**. Referências congeladas podem ser verificadas/carregadas na inicialização, sem executar calibração.
+
 # Especificação — calibração bootstrap, evidência real e governança manual do modelo de linkage
 
 **Data:** 2026-09-29  

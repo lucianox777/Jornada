@@ -213,3 +213,65 @@ O teste de equivalência Python/C# pode usar `--population-profile legacy` expli
 
 
 **Auditoria de chamadas do gerador (09/10/2026):** `scripts/dev-console-gold-synthetic.ps1` já fornece explicitamente `--population-profile demographic-primary` e `--birth-daily-source` com o artefato versionado. `scripts/local-synthetic-calibration.ps1` e `.sh` não invocam diretamente o comando `generate` do executável C#; portanto não precisam receber esses parâmetros. O gate `scripts/synthetic-corpus-equivalence-gate.py` foi adaptado para solicitar `legacy` de forma explícita. Esta inspeção cobre esses caminhos conhecidos, **não constitui varredura exaustiva de todas as invocações do repositório**.
+
+
+### Bootstrap inicial sintético e histórico permanente — decisão ratificada (09/10/2026)
+
+A calibração inicial do FS **não é um dado observado pelo IBGE**: ela é o resultado do Calibrador sobre corpus sintético, usando referências IBGE versionadas. Ambos pertencem à camada `ref`, mas com **proveniências distintas**. A migração `20261009_Ref_Calibracao_Inicial_Sintetica.sql` introduz `ref.calibracao_inicial_versao`, com JSON de resultados, SHA-256 de corpus/resultados, referência IBGE, algoritmo, estado e publicação transacional que valida hash. Após `PUBLICADA`, o snapshot não admite UPDATE/DELETE.
+
+A tabela `ref.calibracao_inicial_versao` é o **marco zero** do histórico, não um arquivo mutável com todas as recalibrações. Calibrações subsequentes continuam no histórico versionado de `identidade.modelo_linkage`, seus parâmetros, estatísticas, evidências e ledger de promoção; cada novo modelo referencia suas fontes congeladas, sem sobrescrever o bootstrap. Reinicializar o ambiente não pode duplicar o código da versão inicial. **Ainda faltam** o carregador idempotente do payload real, o vínculo obrigatório de publicação/ativação e a ingestão dos valores IBGE demográficos em tabelas `ref` (não somente pin do JSON). Não anunciar bootstrap operacional até que esses itens tenham teste de integração.
+
+
+#### Registro idempotente do marco zero
+
+`ref.sp_registrar_calibracao_inicial` recebe JSON e identidade do corpus, calcula SHA-256 dos resultados e reutiliza `codigo` existente **somente** quando corpus, referência, algoritmo, método, modelo e hash coincidem. Caso contrário falha com `52225`, sem sobrescrever versão publicada. `ref.sp_publicar_calibracao_inicial` continua sendo a transição explícita para `PUBLICADA`. Esta procedure implementa a semântica de carga, mas a integração do importador com os arquivos reais e a exigência de modelo inicial ativo continuam pendentes.
+
+
+#### Persistência da distribuição diária em `ref` (etapa SQL)
+
+`20261009_Ref_Distribuicao_Nascimento_IBGE.sql` cria `ref.distribuicao_nascimento_versao` e `ref.distribuicao_nascimento_dia`, com peso por data de nascimento, versão, fonte, geografia, método e SHA-256 de origem. `ref.sp_publicar_distribuicao_nascimento` exige contagem e soma de pesos conforme o manifesto; triggers bloqueiam alterações da versão e das linhas após `PUBLICADA`. Para o manifesto atual: `39268` linhas e população projetada `46179008` (UF_SP, 2026-07-01). **Esta migração não carrega automaticamente as linhas**, não valida hash dos bytes dentro do SQL e não conecta ainda a versão da distribuição ao modelo/Calibrador: são etapas de integração e testes pendentes. Os valores são projeções demográficas, não observações diárias de nascimentos.
+
+
+#### FK da distribuição publicada para o modelo
+
+`20261009_Ref_Distribuicao_Nascimento_Modelo_Binding.sql` acrescenta `distribuicao_versao_id` à tabela `identidade.modelo_linkage_referencia_demografica`, com FK para `ref.distribuicao_nascimento_versao`. Novos pins que informam a FK exigem versão `PUBLICADA` e coincidência de código, geografia, data, método e SHA-256; o vínculo é imutável pela proteção anterior. **O campo permanece temporariamente opcional**, portanto a etapa ainda não garante que todo modelo publicado tenha distribuição demográfica. Próximos gates: backfill/carga, exigência de FK no bootstrap, fingerprint agregado incluindo o pin e testes SQL de promoção. Evitar tratar apenas o SHA como fonte operacional.
+
+
+#### Carga JSON da distribuição em `ref`
+
+`20261009_Ref_Distribuicao_Nascimento_Carga_Json.sql` cria `ref.sp_carregar_distribuicao_nascimento_json`, que recebe o documento `JORNADA_SYNTH_BIRTH_DAILY_V1` e metadados do manifesto, valida contagem/soma de pesos, grava as linhas em `ref.distribuicao_nascimento_dia` e evita sobrescrever versão publicada. Uma carga repetida com mesmo código/proveniência e totais é aceita; proveniência divergente falha. **Limite:** o procedimento não autentica os bytes do arquivo nem compara individualmente linhas quando a versão já está publicada; o importador deve conferir o SHA-256 do arquivo antes da chamada, e a validação de integridade ponta a ponta exige testes e fingerprint da versão. O procedimento ainda não é chamado automaticamente pela infraestrutura.
+
+
+> **Reconciliação das críticas do avaliador (09/10/2026):** ver [matriz de críticas, respostas, evidências e pendências](Reconciliacao_Parecer_Externo_20261009.md). Esta referência não substitui decisões canônicas nem atesta testes ainda não executados.
+
+
+### Fingerprint demográfico (implementação em PR)
+
+A migração `20261009_Z_Linkage_Demographic_Reference_Fingerprint.sql` estende `auditoria.sp_calcular_fingerprint_modelo_linkage` para incorporar a linha de `identidade.modelo_linkage_referencia_demografica`, incluindo código, geografia, data, método, SHA-256 e `distribuicao_versao_id`. Isso torna o vínculo parte do fingerprint usado na conferência; **não** torna o vínculo obrigatório por si só e **não** comprova o gate de promoção sem teste SQL. O procedimento anterior de fingerprint continua como histórico de migração; a definição posterior é a efetiva após instalação ordenada.
+
+
+### Bootstrap congelado na subida — contrato de operação
+
+**Decisão:** o pacote do sistema deve incluir o snapshot demográfico já materializado em `data/reference/synthetic-birth-sp/`, com manifesto e SHA-256, e o registro histórico do marco zero de calibração inicial em `ref`, quando produzido por execução explícita. Na inicialização, verificar integridade e existência da **referência demográfica** publicada no SQL Server; quando ausente, importar **os bytes já congelados** e publicar a referência, sem executar projeção IBGE, gerar nova população de referência ou recalibrar FS. **Não** executar nem exigir a calibração FS na subida: ela é acionada exclusivamente por demanda. Se os hashes/proveniência divergirem, falhar de forma explícita. Subidas subsequentes reutilizam as versões publicadas e não sobrescrevem dados. Novas calibrações são processos explícitos, separados da subida.
+
+**Estado de entrega:** `scripts/verify-frozen-birth-reference.py` confere manifesto, SHA-256, esquema e linhas do arquivo local, sem alterar dados; ainda falta conectar o importador SQL e a verificação da referência congelada à inicialização automática. Assim, o comportamento completo descrito acima é **requisito de aceitação**, não funcionalidade já demonstrada em runtime.
+
+
+**Decisão de operação (09/10/2026):** a **calibração FS é por demanda**, não faz parte do bootstrap, health/readiness nem da inicialização automática. O sistema sobe apenas com referências congeladas verificadas/carregadas. Quando uma calibração for solicitada, o resultado pode ser versionado em `ref` como marco histórico; ausência desse resultado não deve provocar recalibração automática ou bloquear a subida da infraestrutura.
+
+
+### Monitoramento de suficiência — decisão confirmada em 09/10/2026
+
+A Jornada deve **detectar automaticamente** a suficiência de evidência real independente para recomendar uma nova calibração FS. O diagnóstico periódico apresenta `VERDE` / `AMARELO` / `VERMELHO`, os suportes efetivos de `m` e `u` condicionados ao blocking, cobertura por passe/estrato, diversidade, qualidade da verdade CPF e razões objetivas de insuficiência. Limiares e confiança devem ser versionados e auditáveis; não converter números exploratórios em gates definitivos.
+
+A detecção **não** executa `GENERATE_DRAFT`, `VALIDATE` nem `ACTIVATE`. **Calibração é manual, por solicitação explícita**, e a ativação permanece governada e auditável. Reinício/health/bootstrap nunca disparam calibração. A ausência de suficiência não impede a infraestrutura de subir.
+
+**Estado:** requisito aprovado, diagnóstico automático de suficiência ainda não comprovado como implementado. Planejar implementação e testes em frente independente da carga congelada de `ref`.
+
+### Implementação incremental: padrão demográfico da CLI
+
+A CLI `Jornada.Linkage.SyntheticCorpus` passa a assumir `--population-profile demographic-primary` quando o perfil não é informado. Nessa modalidade, `--birth-daily-source` é obrigatório e a ausência da distribuição provoca erro antes de gerar pessoas. `legacy` permanece disponível somente por opção explícita para ensaios históricos, não como padrão de bootstrap. Esta alteração não prova que todos os scripts e fluxos externos já passam a fonte obrigatória; esses pontos ainda precisam de auditoria e testes de ponta a ponta.
+
+
+O gate `scripts/synthetic-corpus-equivalence-gate.py` declara explicitamente `--population-profile legacy` apenas para comparar as regras históricas Python/C# com fixture Brasil Total; essa exceção de teste **não** autoriza fallback legacy no bootstrap demográfico. A alteração corrige a falha inicial do job unit causada pela mudança do default; a CI precisa ser reexecutada para confirmação.
+
