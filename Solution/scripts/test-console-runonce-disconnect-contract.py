@@ -41,7 +41,9 @@ def main() -> None:
     route=route[:route.index('app.MapPost("/api/session-counts/reset"')]
     assert 'IHostApplicationLifetime application' in route
     assert 'worker,runtime,application.ApplicationStopping' in route
-    assert 'worker,runtime,ct' not in route
+    # Other read-only endpoints legitimately pass a request token to their
+    # own reader. Only RunOnce must never pass client RequestAborted.
+    assert 'controller.RunOnceAsync(worker,runtime,ct)' not in route
     assert 'HttpContext context' in route
     assert 'System.Net.IPAddress.IsLoopback(remote)' in route
     assert 'reader.Enabled(runtime)' in route
