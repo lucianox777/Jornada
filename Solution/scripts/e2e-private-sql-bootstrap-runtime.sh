@@ -202,9 +202,11 @@ allowed={"SUPERVISAO":{"ON","OFF"},"RUN_ONCE":{"processor","operations-maintenan
 assert all(e["category"] in allowed and e["operation"] in allowed[e["category"]]
            and e["outcome"] in {"ADMITIDO","SUCESSO","ERRO"} for e in events)
 success={(e["category"],e["operation"]) for e in events if e["outcome"]=="SUCESSO"}
-assert {("SUPERVISAO","ON"),("SUPERVISAO","OFF"),("RUN_ONCE","processor"),
-        ("RUN_ONCE","operations-maintenance"),("RUN_ONCE","bronze-maintenance"),
-        ("PARAR_PROCESSO","processor")}.issubset(success), "C3.3d missing real lifecycle successes"
+required={("SUPERVISAO","ON"),("SUPERVISAO","OFF"),("RUN_ONCE","processor"),
+          ("RUN_ONCE","operations-maintenance"),("RUN_ONCE","bronze-maintenance"),
+          ("PARAR_PROCESSO","processor")}
+missing=required-success
+assert not missing, f"C3.3d missing real lifecycle successes: {sorted(missing)}; observed={sorted(success)}"
 assert any(e["outcome"]=="ADMITIDO" for e in events), "C3.3d pre-mutation audit missing"
 print("C3.3d: PASS private write-through journal survived Console processes; ON/OFF, 3 RunOnce and individual stop recorded")
 PY
