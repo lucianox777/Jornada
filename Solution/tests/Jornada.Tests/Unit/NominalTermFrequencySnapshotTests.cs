@@ -30,7 +30,7 @@ public sealed class NominalTermFrequencySnapshotTests
             Assert.That(snapshot.TryGetPersonFirstName("Zuleica Krause", out var rare), Is.True);
             Assert.That(rare, Is.EqualTo(0.01m));
             Assert.That(snapshot.TryGetPersonFirstName("Nome Não Publicado", out _), Is.False);
-        });
+        }));
     }
 
     [Test]
