@@ -102,6 +102,18 @@ Estrutura proposta:
 
 **Cenários de aceite:** (1) RG tradicional e CIN apresentados no mesmo atendimento mantêm modelos e conjuntos de atributos próprios; (2) documento emitido antes da implantação de um novo modelo conserva interpretação histórica; (3) coexistência temporal de RG e CIN não gera escolha automática incorreta; (4) inclusão de novo modelo/campos é possível sem recompilação; (5) alteração de política preserva versão aplicada à evidência.
 
+
+## Contrato de Silver e Gold: modelo e data de expedição (decisão 10/10)
+
+**Sim: `modelo_documento_id` e `data_expedicao` são campos de domínio obrigatórios no registro da evidência documental quando conhecidos e aplicáveis, tanto na Silver quanto na proveniência consultável da Gold.** Não multiplicar `data_expedicao` por atributo nem supor um único documento para toda a pessoa.
+
+- **Silver:** normalizar cada **instância documental** com `documento_evidencia_id`, `modelo_documento_id` (FK `ref.modelo_documento`), `data_expedicao` (data declarada no próprio documento, opcional quando desconhecida), proveniência, estado de validação e vínculo aos atributos efetivamente comprovados. Preservar também o valor bruto e as datas de atendimento/ingestão em campos **distintos**. Para autodeclarações, usar data própria da declaração (`data_declaracao` ou `data_evidencia`), sem fingir expedição documental.
+- **Gold:** a **proveniência de cada atributo selecionado** deve apontar para a instância documental vencedora e permitir consultar `modelo_documento_id` e `data_expedicao` por join/view; se houver materialização desses campos na Gold, ela será derivada, não uma segunda fonte independente. Diferentes atributos da mesma pessoa podem ter documentos vencedores diferentes; **não colocar um único modelo/data de documento em `gold.pessoa` como se valesse para todos os campos**.
+- **Precedência:** dentro da classe DOCUMENTO, usar `data_expedicao DESC` da instância que comprova o atributo; dentro da classe AUTODECLARACAO, `data_declaracao DESC`. Data do atendimento não participa. Caso um documento tenha data de emissão, expedição, registro e validade distintas, definir e preservar cada semântica: a regra aqui elege **data de expedição efetivamente constante no documento**, não data de validade ou atendimento. Para documentos sem expedição mas com outra data oficial, a equivalência exige regra específica por modelo no catálogo, não substituição implícita.
+- **Contratos:** transportar identificador estável do modelo, data própria e proveniência Bronze → Silver → Gold; falhar/abster em modelo não identificado conforme política, sem inventar campos; migrações e testes de rastreabilidade por atributo são necessários.
+
+**Aceite:** (1) dois documentos de modelos distintos na Silver com datas próprias; (2) Gold de nome derivada de uma instância e Gold de endereço derivada de outra, cada qual rastreável; (3) data do atendimento invertida não altera vencedores; (4) modelo não reconhecido não recebe atributos por inferência; (5) data ausente não é substituída por atendimento; (6) replay determinístico respeita versão do catálogo.
+
 ## Pendências técnicas para o aceite
 
 Verificar modelagem normalizada de **instância de documento com data própria única**, **tipo de evidência e catálogo versionado de atributos admissíveis** e **valores comprovados vinculados à instância** no contrato e no SQL; implementar ordenação por classe/data própria na seleção Gold; garantir histórico/auditoria; criar regressão SQL/E2E com datas de atendimento invertidas. Até esses testes passarem, **decisão documentada ≠ implementação certificada**.
