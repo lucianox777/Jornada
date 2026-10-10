@@ -19,8 +19,14 @@ public static class SampleSufficiencyAssessment
         var requiredStrata = strata.ToHashSet(StringComparer.Ordinal);
         // Group the independent pairs once so a streaming source cannot change between
         // eligibility counts and contradiction checks.
+        // Normalize surrounding whitespace before deduplication: the same pair or
+        // group must never inflate effective sample size through formatting alone.
         var independentPairs = evidence.Where(e => requiredStrata.Contains(e.Stratum) && e.IndependentTruth
                 && !string.IsNullOrWhiteSpace(e.PairKey))
+            .Select(e => e with {
+                PairKey = e.PairKey.Trim(),
+                IndependentGroupKey = e.IndependentGroupKey?.Trim()
+            })
             .GroupBy(e => (e.Stratum, e.PairKey)).ToArray();
         var eligible = independentPairs
             .Where(g => g.Select(e => e.Match).Distinct().Count() == 1)
