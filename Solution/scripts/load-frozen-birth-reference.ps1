@@ -23,6 +23,8 @@ try{
         & docker cp $tmp ($container+':/tmp/jornada-frozen-reference.sql')
         if($LASTEXITCODE -ne 0){throw 'docker cp falhou.'}
         $env:SQLCMDPASSWORD=$password
+        & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -d $Database -Q "IF OBJECT_ID(N'ref.sp_carregar_distribuicao_nascimento_json',N'P') IS NULL OR OBJECT_ID(N'ref.sp_publicar_distribuicao_nascimento',N'P') IS NULL THROW 52261,'Migrations da referencia congelada ausentes',1;"
+        if($LASTEXITCODE -ne 0){throw 'Migrations de referencia ausentes: execute a instalacao de schema antes da carga.'}
         & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -f 65001 -d $Database -i /tmp/jornada-frozen-reference.sql
         if($LASTEXITCODE -ne 0){throw 'Carga SQL da referencia congelada falhou.'}
     }finally{
