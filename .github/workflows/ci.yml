@@ -201,6 +201,8 @@ jobs:
           python3 scripts/test-console-three-runonce-contract.py
       - name: C3.3b3a oneoff survives browser disconnect (offline contract)
         run: python3 scripts/test-console-runonce-disconnect-contract.py
+      - name: C3.3d private worker audit journal (offline contract)
+        run: python3 scripts/test-console-private-worker-audit-contract.py
       - name: C3.2b isolated Api and ResultadoApi entrypoints (check-only)
         run: python3 scripts/test-api-independent-entrypoint.py
       - name: Self-test HML SQL/API evidence gates

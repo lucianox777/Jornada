@@ -144,8 +144,17 @@ sealed class IsolatedWorkerSupervisorStatusReader
             ? healthValue.GetProperty("Status").GetString() : null;
         var policy = value.GetProperty("HostConfig")
             .GetProperty("RestartPolicy").GetProperty("Name").GetString();
+        // Docker ps -aq emits a 12-character short ID by default. The
+        // stop endpoint deliberately requires an immutable 64-character ID
+        // so a stale or ambiguous prefix can never authorize a mutation.
+        // Normalize only from the verified docker-inspect object, never by
+        // accepting a client-supplied prefix as the canonical identity.
+        var fullId = value.GetProperty("Id").GetString();
+        if (fullId is null || fullId.Length != 64 || !ContainerId.IsMatch(fullId)
+            || !fullId.StartsWith(id, StringComparison.Ordinal))
+            throw new InvalidOperationException("Identidade Docker completa não comprovada.");
         return new DockerServiceSnapshot(
-            id, running, restarting, pid, value.GetProperty("RestartCount").GetInt32(),
+            fullId, running, restarting, pid, value.GetProperty("RestartCount").GetInt32(),
             policy, health is null ? null : health == "healthy");
     }
 

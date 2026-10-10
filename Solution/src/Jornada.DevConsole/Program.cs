@@ -13,6 +13,7 @@ builder.Services.AddSingleton<LayerBrowserService>();
 builder.Services.AddSingleton<ConsoleActivityLog>();
 builder.Services.AddSingleton<IsolatedWorkerSupervisorStatusReader>();
 builder.Services.AddSingleton<IsolatedWorkerSupervisorModeController>();
+builder.Services.AddSingleton<IsolatedWorkerAuditJournal>();
 
 var app=builder.Build();
 
