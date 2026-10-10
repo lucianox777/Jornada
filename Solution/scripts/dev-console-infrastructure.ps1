@@ -177,6 +177,8 @@ switch($Action){
             throw 'Reset bloqueado em PROD. Execute o comando explicitamente com -ConfirmProductionReset; a interface não oferece essa confirmação.'
         }
         Invoke-Cluster 'reset' -ConfirmDestructive:$ConfirmProductionReset
+        # Reset recria o banco: republicar a referencia congelada antes do corpus.
+        Invoke-ReferenceStage
         Invoke-CorpusStage
         Invoke-BlockingStage
         # Reset nao autoriza calibracao FS automatica.
