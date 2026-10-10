@@ -11,9 +11,9 @@ public sealed class SampleSufficiencyAssessmentTests
     public void RepeatedPairsWithoutIndependentGroupIdentifiersCannotCertify()
     {
         var evidence = new[] {
-            new Evidence("SP", "m1", true, true, "g1"),
-            new Evidence("SP", "m2", true, true, "g2"),
-            new Evidence("SP", "u1", true, false, "g3")
+            new Evidence("SP", "m1", true, true),
+            new Evidence("SP", "m2", true, true),
+            new Evidence("SP", "u1", true, false)
         };
         var result = Evaluate(evidence, new[] { "SP" }, 2, 1);
         Assert.That(result.State, Is.EqualTo(Status.Insufficient));
@@ -80,9 +80,9 @@ public sealed class SampleSufficiencyAssessmentTests
     public void ThresholdBoundary_ChangesOnlyAtRequiredIndependentCount()
     {
         var observations = new[] {
-            new Evidence("SP", "m1", true, true),
-            new Evidence("SP", "m2", true, true),
-            new Evidence("SP", "u1", true, false),
+            new Evidence("SP", "m1", true, true, "g1"),
+            new Evidence("SP", "m2", true, true, "g2"),
+            new Evidence("SP", "u1", true, false, "g3"),
             new Evidence("SP", "u2", true, false, "g4")
         };
         Assert.That(Evaluate(observations.Take(3), new[] { "SP" }, 2, 2).State,
