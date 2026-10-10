@@ -10,7 +10,7 @@ public static class BlockingSelectivityDiagnostic
     public static Result Assess(IEnumerable<Pass> passes, long maximumCandidateCount)
     {
         ArgumentNullException.ThrowIfNull(passes);
-        if (maximumCandidateCount < 1) throw new ArgumentOutOfRangeException(nameof(maximumCandidateCount));
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumCandidateCount, 1);
         var values = passes.ToArray();
         if (values.Any(p => string.IsNullOrWhiteSpace(p.Name) || p.CandidateCount < 0))
             throw new ArgumentException("Invalid pass diagnostics.", nameof(passes));
