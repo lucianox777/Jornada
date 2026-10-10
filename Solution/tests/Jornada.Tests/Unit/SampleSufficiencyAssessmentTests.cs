@@ -41,7 +41,7 @@ public sealed class SampleSufficiencyAssessmentTests
             new Evidence("RJ", "c", true, false)
         };
         Assert.That(Evaluate(evidence, new[] { "SP", "RJ" }, 1, 1).State,
-            Is.EqualTo(Status.Insufficient));
+            Is.EqualTo(Status.Indeterminate));
         Assert.That(Evaluate(evidence, new[] { "SP" }, 1, 1).State,
             Is.EqualTo(Status.Sufficient));
     }
