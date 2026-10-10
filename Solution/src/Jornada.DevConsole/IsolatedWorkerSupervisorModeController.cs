@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Security.Cryptography;
 
 // C3.3b1: backend mode changes in one process only, exclusively for the
 // disposable GitHub-hosted SQL/JornadaE2E project. No host cluster access.
@@ -14,6 +15,37 @@ sealed class IsolatedWorkerSupervisorModeController(
     private readonly SemaphoreSlim transition = new(1, 1);
     private readonly ConcurrentDictionary<string,byte> activeFinite =
         new(StringComparer.Ordinal);
+
+    // An opaque server-owned finite identity is never inferred from a socket,
+    // Docker PID or client-provided string. It is NOT permission to cancel.
+    // A separate confirmed cancellation implementation must consume the
+    // nonce atomically and verify an actual removed CI-only oneoff.
+    private FiniteRunConfirmation? finiteConfirmation;
+    private sealed record FiniteRunConfirmation(
+        Guid RunId, string Worker, string Nonce, DateTimeOffset ExpiresAtUtc);
+
+    public async Task<IsolatedWorkerRunOnceChallenge> ReadCancelChallengeAsync(
+        string worker, ConsoleRuntimeMode runtime, CancellationToken ct)
+    {
+        if (!reader.Enabled(runtime) || !AllowedFiniteWorkers.Contains(worker))
+            throw new InvalidOperationException("Desafio de RunOnce fora do CI DEV isolado.");
+        await transition.WaitAsync(ct);
+        try
+        {
+            var run = finiteConfirmation;
+            if (run is null || run.Worker != worker
+                || !activeFinite.ContainsKey(worker)
+                || run.ExpiresAtUtc <= DateTimeOffset.UtcNow)
+                throw new InvalidOperationException("Nenhum RunOnce confirmado neste worker.");
+            var effective = await reader.ReadAsync(runtime, ct);
+            if (effective.Mode != "OFF")
+                throw new InvalidOperationException("Modo efetivo não é OFF.");
+            // Read-only token, no Docker/PID mutation and no implicit ON.
+            return new IsolatedWorkerRunOnceChallenge(
+                run.RunId, run.Worker, run.Nonce, run.ExpiresAtUtc);
+        }
+        finally { transition.Release(); }
+    }
 
     public IReadOnlyList<string> ActiveFiniteWorkers => activeFinite.Keys.OrderBy(x=>x,StringComparer.Ordinal).ToArray();
 
@@ -202,6 +234,12 @@ sealed class IsolatedWorkerSupervisorModeController(
             audit.Record("RUN_ONCE",worker,"ADMITIDO");
             if(!activeFinite.TryAdd(worker,0))
                 throw new InvalidOperationException("RunOnce concorrente não autorizado.");
+            // Random 256-bit nonce, never persisted nor inserted into audit.
+            // Versioning/expiry belong to this specific active server process.
+            var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+                .TrimEnd('=').Replace('+','-').Replace('/','_');
+            finiteConfirmation = new FiniteRunConfirmation(
+                Guid.NewGuid(),worker,nonce,DateTimeOffset.UtcNow.AddMinutes(2));
         }
         finally
         {
@@ -229,6 +267,10 @@ sealed class IsolatedWorkerSupervisorModeController(
         finally
         {
             activeFinite.TryRemove(worker,out _);
+            // The server owns the challenge, not the disconnected HTTP client.
+            // Invalidating on exit makes stale confirmations useless.
+            if(finiteConfirmation?.Worker==worker)
+                finiteConfirmation=null;
         }
     }
 
@@ -322,3 +364,5 @@ sealed class IsolatedWorkerSupervisorModeController(
 sealed record IsolatedWorkerModeRequest(string Mode);
 
 sealed record IsolatedWorkerRunOnceResult(string Worker,string State,int ExitCode);
+sealed record IsolatedWorkerRunOnceChallenge(
+    Guid RunId, string Worker, string ConfirmationNonce, DateTimeOffset ExpiresAtUtc);
