@@ -18,7 +18,7 @@ public sealed class BlockingSelectivityDiagnosticTests
     {
         var passes = new[] { new Pass("name", 4), new Pass("mother", 6) };
         Assert.That(Assess(passes, 10).State, Is.EqualTo(Status.WithinBudget));
-        Assert.That(Assess(passes, 9).State, Is.EqualTo(Status.OverBudget));
+        Assert.That(Assess(passes, 9).State, Is.EqualTo(Status.NeedsUnionMeasurement));
     }
 
     [Test]
@@ -32,6 +32,6 @@ public sealed class BlockingSelectivityDiagnosticTests
     public void OverflowFailsClosed()
     {
         Assert.That(Assess(new[] { new Pass("a", long.MaxValue), new Pass("b", 1) }, 100).State,
-            Is.EqualTo(Status.OverBudget));
+            Is.EqualTo(Status.NeedsUnionMeasurement));
     }
 }
