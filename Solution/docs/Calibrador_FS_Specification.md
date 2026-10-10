@@ -267,3 +267,11 @@ A Jornada deve **detectar automaticamente** a suficiência de evidência real in
 A detecção **não** executa `GENERATE_DRAFT`, `VALIDATE` nem `ACTIVATE`. **Calibração é manual, por solicitação explícita**, e a ativação permanece governada e auditável. Reinício/health/bootstrap nunca disparam calibração. A ausência de suficiência não impede a infraestrutura de subir.
 
 **Estado:** requisito aprovado, diagnóstico automático de suficiência ainda não comprovado como implementado. Planejar implementação e testes em frente independente da carga congelada de `ref`.
+
+### Implementação incremental: padrão demográfico da CLI
+
+A CLI `Jornada.Linkage.SyntheticCorpus` passa a assumir `--population-profile demographic-primary` quando o perfil não é informado. Nessa modalidade, `--birth-daily-source` é obrigatório e a ausência da distribuição provoca erro antes de gerar pessoas. `legacy` permanece disponível somente por opção explícita para ensaios históricos, não como padrão de bootstrap. Esta alteração não prova que todos os scripts e fluxos externos já passam a fonte obrigatória; esses pontos ainda precisam de auditoria e testes de ponta a ponta.
+
+
+O gate `scripts/synthetic-corpus-equivalence-gate.py` declara explicitamente `--population-profile legacy` apenas para comparar as regras históricas Python/C# com fixture Brasil Total; essa exceção de teste **não** autoriza fallback legacy no bootstrap demográfico. A alteração corrige a falha inicial do job unit causada pela mudança do default; a CI precisa ser reexecutada para confirmação.
+
