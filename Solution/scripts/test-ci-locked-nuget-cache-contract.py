@@ -44,7 +44,7 @@ def main() -> None:
         assert "\n  " + gate in data, f"removed mandatory gate {gate}"
     assert "uses: ./.github/workflows/dt10-evidence.yml" in data
     dt10 = (ROOT.parent / ".github/workflows/dt10-evidence.yml").read_text(encoding="utf-8")
-    assert "          cache: true\\n          cache-dependency-path: 'Solution/**/packages.lock.json'" in dt10
+    assert "          cache: true\n          cache-dependency-path: 'Solution/**/packages.lock.json'" in dt10
     assert "dotnet restore Jornada.sln --locked-mode" in dt10
     assert "TestCategory=DT10Evidence" in dt10
     assert "--forbid-skipped --minimum-tests 4" in dt10
