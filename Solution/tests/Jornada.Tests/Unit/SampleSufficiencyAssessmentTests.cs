@@ -52,4 +52,31 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.Throws<ArgumentOutOfRangeException>(() =>
             Evaluate(Array.Empty<Evidence>(), new[] { "SP" }, 0, 1));
     }
+    [Test]
+    public void ThresholdBoundary_ChangesOnlyAtRequiredIndependentCount()
+    {
+        var observations = new[] {
+            new Evidence("SP", "m1", true, true),
+            new Evidence("SP", "m2", true, true),
+            new Evidence("SP", "u1", true, false),
+            new Evidence("SP", "u2", true, false)
+        };
+        Assert.That(Evaluate(observations.Take(3), new[] { "SP" }, 2, 2).State,
+            Is.EqualTo(Status.Insufficient));
+        Assert.That(Evaluate(observations, new[] { "SP" }, 2, 2).State,
+            Is.EqualTo(Status.Sufficient));
+    }
+
+    [Test]
+    public void UnrelatedStratumCannotSatisfyMissingRequiredStratum()
+    {
+        var observations = new[] {
+            new Evidence("SP", "m1", true, true),
+            new Evidence("SP", "u1", true, false)
+        };
+        var result = Evaluate(observations, new[] { "SP", "RJ" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
+        Assert.That(result.Counts.Single(c => c.Stratum == "RJ").M, Is.Zero);
+    }
+
 }
