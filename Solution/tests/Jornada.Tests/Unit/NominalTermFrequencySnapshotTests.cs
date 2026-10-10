@@ -58,7 +58,7 @@ public sealed class NominalTermFrequencySnapshotTests
             new NominalTermFrequencyEntry(NominalTermFrequencySnapshot.MotherLastSurnameAttribute, "SANTOS", 80, 1000, 0.08m)
         });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(snapshot.TryGetPersonLastSurname("Maria Aparecida de Oliveira Santos", out var person), Is.True);
             Assert.That(person, Is.EqualTo(0.2m));
