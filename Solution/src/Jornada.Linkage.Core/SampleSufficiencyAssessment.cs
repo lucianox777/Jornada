@@ -41,11 +41,20 @@ public static class SampleSufficiencyAssessment
         var reasons = counts.Where(c => c.M < minimumM || c.U < minimumU)
             .Select(c => $"Stratum {c.Stratum}: m={c.M}, u={c.U}; minimum m={minimumM}, u={minimumU}.")
             .ToArray();
-        var groupReasons = counts.Select(c => new { c.Stratum, Groups = eligible.Where(e => e.Stratum == c.Stratum)
-            .Select(e => e.IndependentGroupKey).Where(k => !string.IsNullOrWhiteSpace(k))
-            .Distinct(StringComparer.Ordinal).Count(), Missing = eligible.Any(e => e.Stratum == c.Stratum && string.IsNullOrWhiteSpace(e.IndependentGroupKey)) })
-            .Where(g => g.Missing || g.Groups < minimumIndependentGroups)
-            .Select(g => $"Stratum {g.Stratum}: independent groups={g.Groups}, required={minimumIndependentGroups}; missing group identifiers block certification.")
+        // Require independent diversity in m and u separately for each stratum.
+        var groupReasons = counts.Select(c => {
+            var stratumEvidence = eligible.Where(e => e.Stratum == c.Stratum).ToArray();
+            var mGroups = stratumEvidence.Where(e => e.Match)
+                .Select(e => e.IndependentGroupKey).Where(k => !string.IsNullOrWhiteSpace(k))
+                .Distinct(StringComparer.Ordinal).Count();
+            var uGroups = stratumEvidence.Where(e => !e.Match)
+                .Select(e => e.IndependentGroupKey).Where(k => !string.IsNullOrWhiteSpace(k))
+                .Distinct(StringComparer.Ordinal).Count();
+            var missing = stratumEvidence.Any(e => string.IsNullOrWhiteSpace(e.IndependentGroupKey));
+            return new { c.Stratum, MGroups = mGroups, UGroups = uGroups, Missing = missing };
+        })
+            .Where(g => g.Missing || g.MGroups < minimumIndependentGroups || g.UGroups < minimumIndependentGroups)
+            .Select(g => $"Stratum {g.Stratum}: independent groups m={g.MGroups}, u={g.UGroups}; required per class={minimumIndependentGroups}; missing group identifiers block certification.")
             .ToArray();
         if (contradictions.Length > 0)
             return new Result(Status.Indeterminate, counts,
