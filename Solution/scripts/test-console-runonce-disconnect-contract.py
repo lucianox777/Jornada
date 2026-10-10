@@ -8,6 +8,7 @@ import sys
 
 ROOT=Path(__file__).resolve().parents[1]
 API=ROOT/"src/Jornada.DevConsole/Program.cs"
+CTRL=ROOT/"src/Jornada.DevConsole/IsolatedWorkerSupervisorModeController.cs"
 ENTRY=ROOT/"install/container-test/worker-entrypoint.sh"
 RUNONCE=ROOT/"scripts/console-private-worker-runonce.py"
 E2E=ROOT/"scripts/e2e-console-runonce-disconnect-proof.py"
@@ -79,6 +80,26 @@ def main() -> None:
     assert "not oneoffs(project)" in e2e
     assert 'global_mode_after' in e2e
     assert '"cancel_with_confirmation_implemented":False' in e2e
+    # C3.3b3b1 is a read-only challenge: no mutating cancellation action
+    # may be silently hidden behind global ON or the old RunOnce POST.
+    controller=CTRL.read_text(encoding="utf-8")
+    assert 'RandomNumberGenerator.GetBytes(32)' in controller
+    assert 'Guid.NewGuid()' in controller
+    assert 'DateTimeOffset.UtcNow.AddMinutes(2)' in controller
+    assert 'ReadCancelChallengeAsync(' in controller
+    assert 'ReferenceEquals(finiteConfirmation,run)' in controller
+    assert 'activeFinite.ContainsKey(worker)' in controller
+    assert 'finiteConfirmation=null;' in controller
+    assert 'new IsolatedWorkerRunOnceChallenge(' in controller
+    assert 'reader.Enabled(runtime)' in controller
+    assert 'effective.Mode != "OFF"' in controller
+    assert 'app.MapGet("/api/workers/{worker}/run-once/cancel-challenge"' in route
+    assert 'System.Net.IPAddress.IsLoopback(remote)' in route
+    assert 'context.Response.Headers.CacheControl="no-store"' in route
+    assert 'app.MapPost("/api/workers/{worker}/run-once/cancel"' not in route
+    assert 'confirmationNonce' in e2e
+    assert 'stale_challenge_rejected_after_exit' in e2e
+    assert 'denied_other==409' in e2e
     assert 'python3 scripts/e2e-console-runonce-disconnect-proof.py' in bootstrap
     print("C3.3b3a: PASS HTTP disconnect ownership and private oneoff guards (offline)")
 
