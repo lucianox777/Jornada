@@ -36,5 +36,13 @@ IF NOT EXISTS (
    AND definition LIKE N'%ABSTER_EMPATE%'
 )
  THROW 52335,'Abstencao por data ausente ou empate nao declarada na view.',1;
+
+-- Regressao estrutural: a selecao nunca deve atualizar Gold automaticamente.
+IF EXISTS (
+ SELECT 1 FROM sys.sql_modules
+ WHERE object_id=OBJECT_ID(N'silver.vw_documento_evidencia_candidato_gold')
+   AND (definition LIKE N'%UPDATE%gold.%' OR definition LIKE N'%MERGE%gold.%')
+)
+ THROW 52336,'A view de candidatos nao pode escrever em Gold.',1;
 PRINT N'GOLD DOCUMENTARY CANDIDATE VIEW SCHEMA: OK';
 GO
