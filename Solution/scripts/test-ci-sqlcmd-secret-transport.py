@@ -63,7 +63,7 @@ def check_job(source: str, name: str, suffix: str, expected_calls: int) -> None:
 
 
 def check(source: str) -> None:
-    check_job(source, "integration-sql", "Sql", 8)
+    check_job(source, "integration-sql", "Sql", 10)
     check_job(source, "harness-smoke", "HarnessSql", 15)
 
 
@@ -97,4 +97,4 @@ if __name__ == "__main__":
     source = WORKFLOW.read_text(encoding="utf-8")
     check(source)
     self_test(source)
-    print("CI SQLCMD CREDENTIAL TRANSPORT: OK (23 SQL calls and 2 health checks)")
+    print("CI SQLCMD CREDENTIAL TRANSPORT: OK (25 SQL calls and 2 health checks)")
