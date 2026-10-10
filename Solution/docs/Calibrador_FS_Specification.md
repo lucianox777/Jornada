@@ -258,3 +258,12 @@ A migração `20261009_Z_Linkage_Demographic_Reference_Fingerprint.sql` estende 
 
 
 **Decisão de operação (09/10/2026):** a **calibração FS é por demanda**, não faz parte do bootstrap, health/readiness nem da inicialização automática. O sistema sobe apenas com referências congeladas verificadas/carregadas. Quando uma calibração for solicitada, o resultado pode ser versionado em `ref` como marco histórico; ausência desse resultado não deve provocar recalibração automática ou bloquear a subida da infraestrutura.
+
+
+### Monitoramento de suficiência — decisão confirmada em 09/10/2026
+
+A Jornada deve **detectar automaticamente** a suficiência de evidência real independente para recomendar uma nova calibração FS. O diagnóstico periódico apresenta `VERDE` / `AMARELO` / `VERMELHO`, os suportes efetivos de `m` e `u` condicionados ao blocking, cobertura por passe/estrato, diversidade, qualidade da verdade CPF e razões objetivas de insuficiência. Limiares e confiança devem ser versionados e auditáveis; não converter números exploratórios em gates definitivos.
+
+A detecção **não** executa `GENERATE_DRAFT`, `VALIDATE` nem `ACTIVATE`. **Calibração é manual, por solicitação explícita**, e a ativação permanece governada e auditável. Reinício/health/bootstrap nunca disparam calibração. A ausência de suficiência não impede a infraestrutura de subir.
+
+**Estado:** requisito aprovado, diagnóstico automático de suficiência ainda não comprovado como implementado. Planejar implementação e testes em frente independente da carga congelada de `ref`.
