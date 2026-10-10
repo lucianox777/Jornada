@@ -35,3 +35,7 @@
 - [Decisões vigentes](Indice_Decisoes_Vigentes.md)
 
 **Separação de escopo:** a PR #883 trata da carga congelada de referências e do vínculo/fingerprint; esta DT-23 é trabalho futuro independente. Não declarar a DT concluída com base apenas na documentação.
+
+## Contrato negativo obrigatório para aceite
+
+O diagnóstico automático de suficiência deve ser **estritamente observacional**: nenhuma transição `GENERATE_DRAFT`, `VALIDATE`, `ACTIVATE`, publicação de modelo ou alteração de limiar pode ser efeito colateral de uma consulta, coleta periódica ou evento de nova amostra. Ensaios negativos devem verificar esse comportamento inclusive quando a amostra passa de insuficiente para suficiente, em retries e após reinicialização. A suficiência é um convite auditável à decisão humana, não autorização para calibrar. A documentação deste contrato não representa implementação da DT-23.
