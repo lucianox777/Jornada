@@ -22,5 +22,19 @@ IF EXISTS(
    AND name IN(N'data_atendimento',N'capturado_em')
 )
  THROW 52333,'Metadados de atendimento/captura nao devem ordenar Gold.',1;
+IF NOT EXISTS (
+ SELECT 1 FROM sys.columns
+ WHERE object_id=OBJECT_ID(N'silver.vw_documento_evidencia_candidato_gold')
+   AND name=N'quantidade_mesma_classe_data'
+)
+ THROW 52334,'Contagem de empates documentais ausente.',1;
+IF NOT EXISTS (
+ SELECT 1 FROM sys.sql_modules
+ WHERE object_id=OBJECT_ID(N'silver.vw_documento_evidencia_candidato_gold')
+   AND definition LIKE N'%classe_possui_data_ausente%'
+   AND definition LIKE N'%ABSTER_SEM_DATA%'
+   AND definition LIKE N'%ABSTER_EMPATE%'
+)
+ THROW 52335,'Abstencao por data ausente ou empate nao declarada na view.',1;
 PRINT N'GOLD DOCUMENTARY CANDIDATE VIEW SCHEMA: OK';
 GO
