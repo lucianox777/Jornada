@@ -21,7 +21,10 @@ WITH admissiveis AS (
         COUNT(*) OVER (
           PARTITION BY e.pessoa_observacao_id,v.atributo_codigo,
                        e.classe_evidencia,e.data_evidencia
-        ) AS quantidade_mesma_classe_data
+        ) AS quantidade_mesma_classe_data,
+        MAX(CASE WHEN e.data_evidencia IS NULL THEN 1 ELSE 0 END) OVER (
+          PARTITION BY e.pessoa_observacao_id,v.atributo_codigo,e.classe_evidencia
+        ) AS classe_possui_data_ausente
  FROM silver.documento_evidencia_valor v
  JOIN silver.documento_evidencia_observacao e
    ON e.documento_evidencia_id=v.documento_evidencia_id
@@ -38,7 +41,7 @@ SELECT pessoa_observacao_id,atributo_codigo,valor_original,
        documento_evidencia_id,modelo_documento_id,classe_evidencia,
        data_evidencia,base_origem_codigo,ocorrencia_origem_codigo,
        ordem_candidata,quantidade_mesma_classe_data,
-       CASE WHEN data_evidencia IS NULL THEN N'ABSTER_SEM_DATA'
+       CASE WHEN classe_possui_data_ausente=1 THEN N'ABSTER_SEM_DATA'
             WHEN quantidade_mesma_classe_data>1 THEN N'ABSTER_EMPATE'
             ELSE N'CANDIDATO_DATADO' END AS situacao_candidata
 FROM admissiveis;
