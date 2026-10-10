@@ -57,7 +57,7 @@ def verify_ci() -> str:
             and os.environ.get("JORNADA_RUNTIME_MODE") == "DEV"
             and os.environ.get("JORNADA_WORKERS_E2E_RUNTIME_TEST") == "true"
             and os.environ.get("JORNADA_WORKERS_E2E_CANCEL_ALLOWED") == "true"
-            and os.environ.get("JORNADA_WORKERS_E2E_IMAGE_TAG", "test") == "test"
+            and os.environ.get("JORNADA_WORKERS_E2E_IMAGE_TAG") == "test"
             and re.fullmatch(r"[0-9]{6,16}", run_id) is not None
             and re.fullmatch(r"[0-9]{1,3}", attempt) is not None
             and os.environ.get("JORNADA_WORKERS_E2E_ID") == "ci" + run_id + attempt
