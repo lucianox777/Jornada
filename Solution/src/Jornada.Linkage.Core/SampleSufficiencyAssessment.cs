@@ -41,6 +41,15 @@ public static class SampleSufficiencyAssessment
             .Select(g => g.Key.Stratum)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(s => s, StringComparer.Ordinal).ToArray();
+        // Conflicting nonempty provenance for one independently labelled pair is
+        // an integrity error, not merely an undersized sample. Never certify it.
+        var provenanceConflicts = independentPairs
+            .Where(g => g.Select(e => e.IndependentGroupKey)
+                .Where(k => !string.IsNullOrWhiteSpace(k))
+                .Distinct(StringComparer.Ordinal).Skip(1).Any())
+            .Select(g => g.Key.Stratum)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(s => s, StringComparer.Ordinal).ToArray();
         var counts = strata.Distinct(StringComparer.Ordinal).OrderBy(s => s, StringComparer.Ordinal)
             .Select(s => new Count(s, eligible.Count(e => e.Stratum == s && e.Match),
                 eligible.Count(e => e.Stratum == s && !e.Match))).ToArray();
@@ -62,9 +71,12 @@ public static class SampleSufficiencyAssessment
             .Where(g => g.Missing || g.MGroups < minimumIndependentGroups || g.UGroups < minimumIndependentGroups)
             .Select(g => $"Stratum {g.Stratum}: independent groups m={g.MGroups}, u={g.UGroups}; required per class={minimumIndependentGroups}; missing group identifiers block certification.")
             .ToArray();
-        if (contradictions.Length > 0)
+        if (contradictions.Length > 0 || provenanceConflicts.Length > 0)
             return new Result(Status.Indeterminate, counts,
-                reasons.Concat(groupReasons).Concat(contradictions.Select(s => $"Stratum {s}: contradictory independent labels block certification; investigate source integrity.")).ToArray());
+                reasons.Concat(groupReasons)
+                    .Concat(contradictions.Select(s => $"Stratum {s}: contradictory independent labels block certification; investigate source integrity."))
+                    .Concat(provenanceConflicts.Select(s => $"Stratum {s}: contradictory independent group provenance blocks certification; investigate source integrity."))
+                    .ToArray());
         return new Result(eligible.Length == 0 ? Status.Indeterminate :
             reasons.Length == 0 && groupReasons.Length == 0 ? Status.Sufficient : Status.Insufficient, counts, reasons.Concat(groupReasons).ToArray());
     }
