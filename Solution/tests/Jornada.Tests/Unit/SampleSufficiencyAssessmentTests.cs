@@ -79,4 +79,13 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.That(result.Counts.Single(c => c.Stratum == "RJ").M, Is.Zero);
     }
 
+    [Test]
+    public void EvidenceOutsideRequiredStrataDoesNotCertifyAssessment()
+    {
+        var unrelated = new[] { new Evidence("RJ", "m", true, true), new Evidence("RJ", "u", true, false) };
+        var result = Evaluate(unrelated, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Counts.Single().M, Is.Zero);
+        Assert.That(result.Counts.Single().U, Is.Zero);
+    }
 }

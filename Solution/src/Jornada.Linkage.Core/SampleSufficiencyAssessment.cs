@@ -16,7 +16,8 @@ public static class SampleSufficiencyAssessment
         if (strata.Count == 0 || strata.Any(string.IsNullOrWhiteSpace))
             throw new ArgumentException("At least one stratum is required.", nameof(strata));
 
-        var eligible = evidence.Where(e => e.IndependentTruth && !string.IsNullOrWhiteSpace(e.Stratum)
+        var requiredStrata = strata.ToHashSet(StringComparer.Ordinal);
+        var eligible = evidence.Where(e => requiredStrata.Contains(e.Stratum) && e.IndependentTruth && !string.IsNullOrWhiteSpace(e.Stratum)
                 && !string.IsNullOrWhiteSpace(e.PairKey))
             .GroupBy(e => (e.Stratum, e.PairKey))
             .Where(g => g.Select(e => e.Match).Distinct().Count() == 1)
