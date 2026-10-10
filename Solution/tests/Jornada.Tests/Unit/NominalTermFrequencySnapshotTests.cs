@@ -21,7 +21,7 @@ public sealed class NominalTermFrequencySnapshotTests
                 "ZULÉICA", 10, 1000, 0.01m)
         });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(snapshot.TryGetPersonFirstName("Maria da Silva", out var maria), Is.True);
             Assert.That(maria, Is.EqualTo(0.6m));
@@ -66,6 +66,6 @@ public sealed class NominalTermFrequencySnapshotTests
             Assert.That(mother, Is.EqualTo(0.08m));
             Assert.That(snapshot.TryGetPersonLastSurname("Maria", out _), Is.False);
             Assert.That(snapshot.TryGetMotherLastSurname("Sobrenome Não Publicado", out _), Is.False);
-        });
+        }));
     }
 }
