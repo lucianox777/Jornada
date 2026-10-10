@@ -84,6 +84,22 @@ def main() -> None:
         ("DOCKER_CONTEXT", "remote"),
     ):
         reject(("processor", fake_id, "123", fake_run), {**allowed, key: invalid})
+    # Absence is distinct from an invalid value: every required attestation
+    # must be present, and a default image tag must not grant host access.
+    for key in (
+        "GITHUB_ACTIONS", "CI", "GITHUB_REPOSITORY", "GITHUB_RUN_ID",
+        "GITHUB_RUN_ATTEMPT", "JORNADA_RUNTIME_MODE",
+        "JORNADA_WORKERS_E2E_RUNTIME_TEST",
+        "JORNADA_WORKERS_E2E_CANCEL_ALLOWED", "JORNADA_WORKERS_E2E_ID",
+        "JORNADA_WORKERS_E2E_SQL_PASSWORD",
+    ):
+        missing = allowed.copy()
+        del missing[key]
+        reject(("processor", fake_id, "123", fake_run), missing)
+    reject(("processor", fake_id, "123", fake_run),
+           {**allowed, "GITHUB_RUN_ATTEMPT": "2"})
+    reject(("processor", fake_id, "123", fake_run),
+           {**allowed, "GITHUB_RUN_ID": "38013214020"})
     for bad_args in (
         ("processor", "not-a-container", "123", fake_run),
         ("processor", fake_id, "0", fake_run),
