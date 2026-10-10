@@ -130,3 +130,19 @@ O desenho deve distinguir **(a) identidade da pessoa**, **(b) instância/expedi�
 ## Pendências técnicas para o aceite
 
 Verificar modelagem normalizada de **instância de documento com data própria única**, **tipo de evidência e catálogo versionado de atributos admissíveis** e **valores comprovados vinculados à instância** no contrato e no SQL; implementar ordenação por classe/data própria na seleção Gold; garantir histórico/auditoria; criar regressão SQL/E2E com datas de atendimento invertidas. Até esses testes passarem, **decisão documentada ≠ implementação certificada**.
+
+## Rastreabilidade de implementação — issue #903
+
+**Estado (10/10/2026):** especificação integrada pela PR #902; implementação Silver/Gold **não comprovada**. O fechamento da #903 requer evidência verificável para cada etapa abaixo, não apenas documentação.
+
+| Etapa | Artefato esperado | Verificação obrigatória |
+|---|---|---|
+| Catálogo | Migração idempotente de `ref.tipo_documento`, `ref.modelo_documento`, `ref.modelo_documento_atributo` e versão de política | RG/CIN coexistem; alterações administrativas não são sobrescritas pelo seed |
+| Silver | Instância documental com modelo, expedição, órgão, identificador e valores comprovados | Uma pessoa possui RGs de múltiplas expedições sem perda histórica |
+| Gold | Referência à instância vencedora **por atributo** | Nome e nascimento podem ter documentos vencedores distintos |
+| Temporalidade | Expedição separada de atendimento, ingestão e validade | Inverter atendimentos não altera precedência; expedição ausente não recebe fallback |
+| Identidade | Vínculo entre observação documental e pessoa reconciliável | RG compartilhado/segunda via não cria identidade nem colapsa instâncias automaticamente |
+| Governança | Catálogo versionado e edição auditada/autorizada | Replay preserva a versão aplicada; sem mutação silenciosa em produção |
+| Regressão | Testes SQL e integração em ambiente descartável | Reprocessamento idempotente, sem perdas e com proveniência completa |
+
+**Ordem de entrega:** (1) schema/catálogo; (2) Silver; (3) Gold; (4) integração/serving. Cada fatia pode ter PR independente, mas não deve ser declarada completa sem regressão de ponta a ponta.
