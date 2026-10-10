@@ -68,6 +68,29 @@ def main() -> None:
     reject(("processor", fake_id, "123", fake_run),
            {**fake_ci, "JORNADA_WORKERS_E2E_CANCEL_ALLOWED": "true",
             "GITHUB_REPOSITORY": "not/Jornada"})
+    # Every CI admission condition is independently fail-closed, even with
+    # the explicit cancellation opt-in. These tests never invoke Docker.
+    allowed = {**fake_ci, "JORNADA_WORKERS_E2E_CANCEL_ALLOWED": "true"}
+    for key, invalid in (
+        ("GITHUB_ACTIONS", "false"),
+        ("CI", "false"),
+        ("GITHUB_RUN_ID", "not-a-run"),
+        ("GITHUB_RUN_ATTEMPT", "0"),
+        ("JORNADA_RUNTIME_MODE", "PROD"),
+        ("JORNADA_WORKERS_E2E_RUNTIME_TEST", "false"),
+        ("JORNADA_WORKERS_E2E_ID", "ci-foreign"),
+        ("JORNADA_WORKERS_E2E_SQL_PASSWORD", ""),
+        ("JORNADA_WORKERS_E2E_IMAGE_TAG", "production"),
+        ("DOCKER_CONTEXT", "remote"),
+    ):
+        reject(("processor", fake_id, "123", fake_run), {**allowed, key: invalid})
+    for bad_args in (
+        ("processor", "not-a-container", "123", fake_run),
+        ("processor", fake_id, "0", fake_run),
+        ("processor", fake_id, "123", "not-a-uuid"),
+        ("operations-maintenance", fake_id, "123", fake_run, "extra"),
+    ):
+        reject(bad_args, allowed)
     print("C3.3b3b0: PASS cancelled oneoff helper refuses unconfirmed/foreign host (offline)")
 
 
