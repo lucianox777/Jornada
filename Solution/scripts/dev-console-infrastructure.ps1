@@ -78,6 +78,13 @@ function Invoke-ReferenceStage {
         }
         Invoke-Cluster 'reference'
     }
+    Assert-FrozenBirthReference
+}
+
+function Assert-FrozenBirthReference {
+    Write-Host 'Verificando integridade do snapshot demografico congelado...'
+    & python (Join-Path $PSScriptRoot 'verify-frozen-birth-reference.py')
+    if($LASTEXITCODE -ne 0){throw 'Falha na verificacao do snapshot demografico congelado.'}
 }
 
 function Invoke-BaseStage {
