@@ -85,6 +85,23 @@ O catálogo nasce em `ref` com **versão inicial 1**, e não requer incremento d
 
 **Bootstrap em produção:** somente dados de referência, com migração/seed idempotente e aprovação; não reativar tipos desativados, não recriar associações removidas, não apagar versões, não fazer update massivo sobre decisões Gold existentes. Registrar versão da política usada na decisão para preservar interpretação histórica.
 
+
+## Modelos e gerações de um mesmo documento — RG tradicional, CIN e transições
+
+**Não confundir versão do catálogo com modelo/geração do documento.** Uma versão de política (`versao_catalogo`) registra alterações administrativas; o **modelo documental** (`modelo_documento_id`) representa layouts/gerações diferentes do mesmo tipo e determina quais campos podem ser comprovados. O bootstrap precisa cadastrar modelos distintos, inclusive coexistentes.
+
+Estrutura proposta:
+- `ref.tipo_documento`: família estável (ex.: IDENTIDADE_CIVIL, CERTIDAO_NASCIMENTO, CNS, TITULO_ELEITOR, CPF_COMPROVANTE).
+- `ref.modelo_documento`: FK para tipo, código do modelo (ex.: `RG_ESTADUAL_TRADICIONAL`, `CIN_NACIONAL`), descrição, órgão emissor/jurisdição quando aplicável, `emissao_inicio` e `emissao_fim` **quando comprovadas por norma**, estado e versão da configuração.
+- `ref.modelo_documento_atributo`: FK para modelo, atributo permitido, vigência/versão da associação. É **aqui** que varia a lista de campos entre modelos.
+- `identidade.documento_evidencia`: FK para **modelo** efetivamente apresentado e `data_documento` da **instância**, mais metadados de proveniência. Não atribuir automaticamente modelo por data do atendimento.
+
+**Bootstrap mínimo:** `RG_ESTADUAL_TRADICIONAL` e `CIN_NACIONAL` como modelos separados (a CIN substitui gradualmente o RG, mas o RG antigo não deixa de existir por isso). Variantes estaduais ou de layout podem exigir modelos adicionais quando a cobertura de campos for diferente. Não assumir uma única data de transição nacional: verificar legislação, UF, órgão emissor e tipo de emissão. Uma faixa de datas serve para **validar plausibilidade**, não para identificar com certeza o modelo; a identificação usa o modelo efetivo do documento. Na dúvida, registrar `MODELO_NAO_IDENTIFICADO`/abstenção e não atribuir campos não demonstrados.
+
+**Datas distintas:** `emissao_inicio/fim` descrevem quando o modelo pode ser emitido; `data_documento` é a data da ocorrência apresentada e governa a prioridade; `data_atendimento` é somente auditoria. Um RG tradicional apresentado hoje não se torna CIN nem recebe campos da CIN. A emissão de um modelo novo não invalida automaticamente documentos antigos ainda válidos.
+
+**Cenários de aceite:** (1) RG tradicional e CIN apresentados no mesmo atendimento mantêm modelos e conjuntos de atributos próprios; (2) documento emitido antes da implantação de um novo modelo conserva interpretação histórica; (3) coexistência temporal de RG e CIN não gera escolha automática incorreta; (4) inclusão de novo modelo/campos é possível sem recompilação; (5) alteração de política preserva versão aplicada à evidência.
+
 ## Pendências técnicas para o aceite
 
 Verificar modelagem normalizada de **instância de documento com data própria única**, **tipo de evidência e catálogo versionado de atributos admissíveis** e **valores comprovados vinculados à instância** no contrato e no SQL; implementar ordenação por classe/data própria na seleção Gold; garantir histórico/auditoria; criar regressão SQL/E2E com datas de atendimento invertidas. Até esses testes passarem, **decisão documentada ≠ implementação certificada**.
