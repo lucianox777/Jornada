@@ -12,6 +12,8 @@ namespace Jornada.Tests.Unit;
 [TestFixture, Category("Unit")]
 public sealed class Dt05SyntheticSnapshotCostEvidenceTests
 {
+    private static readonly JsonSerializerOptions PrettyJson = new() { WriteIndented = true };
+
     [Test]
     public async Task Reused_partitions_report_measured_physical_bytes_and_latency_without_gc()
     {
@@ -108,8 +110,7 @@ public sealed class Dt05SyntheticSnapshotCostEvidenceTests
                 real_nas_measurement = false,
                 real_cpf_or_ibge_data = false
             };
-            var json = JsonSerializer.Serialize(summary,
-                new JsonSerializerOptions { WriteIndented = true });
+            var json = JsonSerializer.Serialize(summary, PrettyJson);
             TestContext.WriteLine("DT-05 synthetic read-only physical cost: " + json);
             // Existing unit-test-evidence upload publishes this only inside
             // a GitHub-hosted CI runner; local test invocations only print it.
