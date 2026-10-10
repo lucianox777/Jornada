@@ -24,8 +24,8 @@ public sealed class BlockingSelectivityDiagnosticTests
     [Test]
     public void RejectsNegativeCountsAndInvalidBudget()
     {
-        Assert.Throws<ArgumentException>(() => Assess(new[] { new Pass("name", -1) }, 10));
-        Assert.Throws<ArgumentOutOfRangeException>(() => Assess(Array.Empty<Pass>(), 0));
+        Assert.Throws<ArgumentException>((System.Action)(() => Assess(new[] { new Pass("name", -1) }, 10)));
+        Assert.Throws<ArgumentOutOfRangeException>((System.Action)(() => Assess(Array.Empty<Pass>(), 0)));
     }
 
     [Test]
