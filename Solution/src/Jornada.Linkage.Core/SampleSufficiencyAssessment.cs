@@ -17,9 +17,12 @@ public static class SampleSufficiencyAssessment
             throw new ArgumentException("At least one stratum is required.", nameof(strata));
 
         var requiredStrata = strata.ToHashSet(StringComparer.Ordinal);
-        var eligible = evidence.Where(e => requiredStrata.Contains(e.Stratum) && e.IndependentTruth && !string.IsNullOrWhiteSpace(e.Stratum)
+        // Group the independent pairs once so a streaming source cannot change between
+        // eligibility counts and contradiction checks.
+        var independentPairs = evidence.Where(e => requiredStrata.Contains(e.Stratum) && e.IndependentTruth
                 && !string.IsNullOrWhiteSpace(e.PairKey))
-            .GroupBy(e => (e.Stratum, e.PairKey))
+            .GroupBy(e => (e.Stratum, e.PairKey)).ToArray();
+        var eligible = independentPairs
             .Where(g => g.Select(e => e.Match).Distinct().Count() == 1)
             .Select(g => {
                 var first = g.First();
@@ -27,9 +30,7 @@ public static class SampleSufficiencyAssessment
                 return first with { IndependentGroupKey = keys.Length == 1 ? keys[0] : null };
             }).ToArray();
         // Contradictory independent truth in a required stratum blocks certification.
-        var contradictions = evidence.Where(e => requiredStrata.Contains(e.Stratum) && e.IndependentTruth
-                && !string.IsNullOrWhiteSpace(e.PairKey))
-            .GroupBy(e => (e.Stratum, e.PairKey))
+        var contradictions = independentPairs
             .Where(g => g.Select(e => e.Match).Distinct().Count() > 1)
             .Select(g => g.Key.Stratum)
             .Distinct(StringComparer.Ordinal)

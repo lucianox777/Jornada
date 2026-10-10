@@ -139,4 +139,33 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.That(result.Counts.Single().M, Is.Zero);
         Assert.That(result.Counts.Single().U, Is.Zero);
     }
+    [Test]
+    public void SingleUseEvidenceSequenceIsNotEnumeratedTwice()
+    {
+        var observations = new SingleUseEvidence(new[] {
+            new Evidence("SP", "m1", true, true, "g1"),
+            new Evidence("SP", "u1", true, false, "g2")
+        });
+        var result = Evaluate(observations, new[] { "SP" }, 1, 1, 2);
+        Assert.That(result.State, Is.EqualTo(Status.Sufficient));
+        Assert.That(result.Counts.Single().M, Is.EqualTo(1));
+        Assert.That(result.Counts.Single().U, Is.EqualTo(1));
+    }
+
+    private sealed class SingleUseEvidence : IEnumerable<Evidence>
+    {
+        private readonly Evidence[] _items;
+        private bool _used;
+
+        public SingleUseEvidence(Evidence[] items) => _items = items;
+
+        public IEnumerator<Evidence> GetEnumerator()
+        {
+            if (_used) throw new InvalidOperationException("Evidence sequence was enumerated more than once.");
+            _used = true;
+            return ((IEnumerable<Evidence>)_items).GetEnumerator();
+        }
+
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
 }
