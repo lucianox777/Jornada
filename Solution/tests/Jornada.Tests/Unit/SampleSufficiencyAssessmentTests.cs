@@ -195,6 +195,33 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.That(result.Counts.Single().U, Is.EqualTo(2));
     }
 
+    [Test]
+    public void WhitespaceVariantsOfSamePairDoNotInflateCounts()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "group-A"),
+            new Evidence("SP", " m1 ", true, true, " group-A "),
+            new Evidence("SP", "u1", true, false, "group-B")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 2, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
+        Assert.That(result.Counts.Single().M, Is.EqualTo(1));
+        Assert.That(result.Counts.Single().U, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void WhitespaceCannotHideContradictoryProvenance()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "group-A"),
+            new Evidence("SP", " m1 ", true, true, "group-B"),
+            new Evidence("SP", "u1", true, false, "group-C")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(r => r.Contains("contradictory independent group provenance", StringComparison.Ordinal)), Is.True);
+    }
+
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
     {
         private readonly Evidence[] _items;
