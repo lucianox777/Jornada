@@ -56,6 +56,8 @@ BEGIN TRY
  IF NOT EXISTS(SELECT 1 FROM sys.key_constraints WHERE name=N'uq_documento_evidencia_origem' AND parent_object_id=OBJECT_ID(N'silver.documento_evidencia_observacao')) THROW 52322,'Idempotencia de origem documental ausente.',1;
  IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'silver.documento_evidencia_observacao') AND name=N'data_evidencia' AND is_nullable=1) THROW 52323,'Data propria opcional nao preservada.',1;
 
+ IF NOT EXISTS(SELECT 1 FROM sys.triggers WHERE name=N'tr_documento_evidencia_modelo_publicado' AND parent_id=OBJECT_ID(N'silver.documento_evidencia_observacao')) THROW 52325,'Gate de modelo documental publicado ausente.',1;
+
  PRINT N'PASSOU: estruturas, RG/CIN, FKs, imutabilidade e data na instancia.';
  ROLLBACK TRANSACTION;
 END TRY
