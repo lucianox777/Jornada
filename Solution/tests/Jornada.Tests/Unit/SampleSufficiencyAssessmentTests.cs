@@ -41,7 +41,7 @@ public sealed class SampleSufficiencyAssessmentTests
             new Evidence("RJ", "c", true, false)
         };
         Assert.That(Evaluate(evidence, new[] { "SP", "RJ" }, 1, 1).State,
-            Is.EqualTo(Status.Insufficient));
+            Is.EqualTo(Status.Indeterminate));
         Assert.That(Evaluate(evidence, new[] { "SP" }, 1, 1).State,
             Is.EqualTo(Status.Sufficient));
     }
@@ -77,6 +77,20 @@ public sealed class SampleSufficiencyAssessmentTests
         var result = Evaluate(observations, new[] { "SP", "RJ" }, 1, 1);
         Assert.That(result.State, Is.EqualTo(Status.Insufficient));
         Assert.That(result.Counts.Single(c => c.Stratum == "RJ").M, Is.Zero);
+    }
+
+    [Test]
+    public void ContradictoryIndependentLabelsFailClosedEvenWhenCountsMeetMinimum()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true),
+            new Evidence("SP", "u1", true, false),
+            new Evidence("SP", "conflict", true, true),
+            new Evidence("SP", "conflict", true, false)
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(x => x.Contains("contradictory", StringComparison.Ordinal)), Is.True);
     }
 
     [Test]
