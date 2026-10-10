@@ -5,6 +5,7 @@ on:
     paths:
       - '.github/workflows/dt05-cpf-late-e2e.yml'
       - 'Solution/scripts/dt05-cpf-late-wave.ps1'
+      - 'Solution/scripts/verify-dt05-replay-latency-evidence.py'
       - 'Solution/scripts/local-e2e.ps1'
       - 'Solution/docs/DT05_Assinatura_Semantica_V1.md'
       - 'Solution/docs/Dividas_Tecnicas.md'
@@ -51,6 +52,9 @@ jobs:
       - name: Three real Runner waves with actual synthetic late-CPF ingestion
         shell: pwsh
         run: ./scripts/local-e2e.ps1 -VerifyLinkageRunner -Dt05CpfLate -Dt05HistoricalReplay -AllowSyntheticReset
+      - name: Verify real historical Replay timing provenance
+        shell: bash
+        run: python3 scripts/verify-dt05-replay-latency-evidence.py
       - name: Upload three-wave evidence, SQL assertions and logs
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
