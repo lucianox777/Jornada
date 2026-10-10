@@ -21,7 +21,11 @@ public static class SampleSufficiencyAssessment
                 && !string.IsNullOrWhiteSpace(e.PairKey))
             .GroupBy(e => (e.Stratum, e.PairKey))
             .Where(g => g.Select(e => e.Match).Distinct().Count() == 1)
-            .Select(g => g.First()).ToArray();
+            .Select(g => {
+                var first = g.First();
+                var keys = g.Select(e => e.IndependentGroupKey).Distinct(StringComparer.Ordinal).ToArray();
+                return first with { IndependentGroupKey = keys.Length == 1 ? keys[0] : null };
+            }).ToArray();
         // Contradictory independent truth in a required stratum blocks certification.
         var contradictions = evidence.Where(e => requiredStrata.Contains(e.Stratum) && e.IndependentTruth
                 && !string.IsNullOrWhiteSpace(e.PairKey))
