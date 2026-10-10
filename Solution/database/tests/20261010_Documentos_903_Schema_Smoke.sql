@@ -58,6 +58,28 @@ BEGIN TRY
 
  IF NOT EXISTS(SELECT 1 FROM sys.triggers WHERE name=N'tr_documento_evidencia_modelo_publicado' AND parent_id=OBJECT_ID(N'silver.documento_evidencia_observacao')) THROW 52325,'Gate de modelo documental publicado ausente.',1;
 
+ -- Comportamento: rejeitar evidencias associadas a modelos em rascunho.
+ DECLARE @modelo_rascunho BIGINT;
+ INSERT ref.modelo_documento(tipo_documento_codigo,codigo,versao,descricao)
+ VALUES(N'RG',N'SMOKE_903_RASCUNHO',1,N'Fixture transacional');
+ SET @modelo_rascunho=SCOPE_IDENTITY();
+ DECLARE @pessoa_smoke BIGINT=(SELECT MIN(pessoa_observacao_id) FROM silver.pessoa_observacao);
+ IF @pessoa_smoke IS NOT NULL
+ BEGIN
+   DECLARE @rejeitado BIT=0;
+   BEGIN TRY
+     INSERT silver.documento_evidencia_observacao
+       (pessoa_observacao_id,modelo_documento_id,base_origem_codigo,ocorrencia_origem_codigo,classe_evidencia)
+     VALUES(@pessoa_smoke,@modelo_rascunho,N'SMOKE_903',N'RASCUNHO',N'DOCUMENTO');
+   END TRY
+   BEGIN CATCH
+     IF ERROR_NUMBER()=52324 SET @rejeitado=1;
+     ELSE THROW;
+   END CATCH;
+   IF @rejeitado=0 THROW 52326,'Modelo em rascunho foi admitido como evidencia.',1;
+ END
+ ELSE PRINT N'AVISO: fixture sem pessoa Silver; rejeicao DML nao exercitada.';
+
  PRINT N'PASSOU: estruturas, RG/CIN, FKs, imutabilidade e data na instancia.';
  ROLLBACK TRANSACTION;
 END TRY
