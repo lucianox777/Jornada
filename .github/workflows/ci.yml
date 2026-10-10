@@ -292,6 +292,10 @@ jobs:
           python3 scripts/coverage-evidence-gate.py "$COVERAGE" \
             --baseline config/release/coverage-baseline.json \
             --summary .local/test-evidence/unit/coverage-summary.json
+      - name: Accept measured DT-05 synthetic snapshot cost and latency (no NAS/SQL)
+        run: |
+          python3 scripts/dt05-synthetic-cost-evidence-gate.py --self-test
+          python3 scripts/dt05-synthetic-cost-evidence-gate.py .local/test-evidence/unit/dt05-synthetic-cost.json
       - name: Upload unit test evidence
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
