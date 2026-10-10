@@ -119,7 +119,10 @@ def main() -> None:
             code, before = http(base, "/api/workers/supervisor")
             require(code == 200 and before.get("mode") == "ON"
                     and before.get("composeProject") == project,
-                    "worker supervisor not ON in the private project")
+                    "worker supervisor not ON in the private project "
+                    "(status=" + str(code) + ", mode=" +
+                    str(before.get("mode")) + ", private-project=" +
+                    str(before.get("composeProject") == project) + ")")
             require(before.get("sqlRunning") is True
                     and before.get("apiReady") is True
                     and before.get("resultadoApiLive") is True,
@@ -128,7 +131,12 @@ def main() -> None:
             require(set(members) == set(WORKERS)
                     and members[worker]["containerId"] == cid
                     and members[worker]["hostPid"] == pid,
-                    "private Docker identity differs from Console observation")
+                    "private Docker identity differs from Console observation: "
+                    "names=" + str(set(members) == set(WORKERS)) +
+                    ", full-id-matched=" +
+                    str(members.get(worker, {}).get("containerId") == cid) +
+                    ", pid-matched=" +
+                    str(members.get(worker, {}).get("hostPid") == pid))
             endpoint = f"/api/workers/{worker}/stop"
             code, _ = http(base, endpoint, "POST",
                            {"containerId": cid, "hostPid": pid, "confirmed": False})
@@ -174,6 +182,11 @@ def main() -> None:
 if __name__ == "__main__":
     try:
         main()
-    except (RuntimeError, OSError, ValueError, KeyError, subprocess.TimeoutExpired):
-        print("C3.3c: FAIL private stop regression", file=sys.stderr)
+    except RuntimeError as exc:
+        # All messages originate in this CI-only allowlisted test; never emit
+        # SQL passwords, container tokens or raw subprocess output.
+        print("C3.3c: FAIL private stop regression: " + str(exc), file=sys.stderr)
+        sys.exit(2)
+    except (OSError, ValueError, KeyError, subprocess.TimeoutExpired):
+        print("C3.3c: FAIL private stop regression (exception)", file=sys.stderr)
         sys.exit(2)
