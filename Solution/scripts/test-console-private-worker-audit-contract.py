@@ -8,6 +8,7 @@ CTRL=ROOT/"src/Jornada.DevConsole/IsolatedWorkerSupervisorModeController.cs"
 API=ROOT/"src/Jornada.DevConsole/Program.cs"
 BOOT=ROOT/"scripts/e2e-private-sql-bootstrap-runtime.sh"
 STOP=ROOT/"scripts/e2e-console-worker-stop-proof.py"
+STATUS=ROOT/"src/Jornada.DevConsole/IsolatedWorkerSupervisorStatusReader.cs"
 
 def main():
     j=JOURNAL.read_text(encoding="utf-8")
@@ -54,6 +55,14 @@ def main():
     assert 'result.get("mode") == "ERRO"' in stop
     assert 'after[worker]["state"] == "PARADO"' in stop
     assert 'not ready' in stop and 'console.terminate()' in stop
+    # Docker ps -aq emits 12-char IDs. A confirmed HTTP stop requires a
+    # full 64-char immutable ID, resolved by verified Docker inspect.
+    status=STATUS.read_text(encoding="utf-8")
+    assert 'var fullId = value.GetProperty("Id").GetString();' in status
+    assert 'fullId.Length != 64' in status
+    assert 'fullId.StartsWith(id, StringComparison.Ordinal)' in status
+    assert 'new DockerServiceSnapshot(\n            fullId' in status
+    assert 'members[worker]["containerId"] == cid' in stop
     print("C3.3d: PASS private allowlisted audit journal guard/append (offline)")
 
 if __name__=="__main__":
