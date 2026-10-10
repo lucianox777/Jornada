@@ -55,3 +55,5 @@ O avaliador puro passa a aceitar `IndependentGroupKey` por evidência e um limit
 **Responsabilidades de identidade:** canais apenas fornecem dados e proveniência. A resolução de identidade pertence ao Linkage, com abstenção quando as evidências são insuficientes. Não criar seleção manual de vínculos por usuários ou canais. O diagnóstico de suficiência não pode acionar calibração, que permanece por demanda explícita.
 
 **Ajuste de integridade (10/10/2026):** duas chaves de grupo independente não vazias e distintas associadas ao mesmo par tornam o diagnóstico `Indeterminate`. A ausência de chave continua `Insufficient`. Nenhuma calibração é acionada.
+
+**Endurecimento de integridade — PR #915:** a duplicação do mesmo par com uma chave de grupo presente e outra ausente também é divergência de proveniência e retorna `Indeterminate`, mesmo quando os limiares numéricos são atendidos. A decisão é fail-closed: não se completa automaticamente a chave ausente com o valor da outra ocorrência. Teste unitário de regressão cobre o caso. A CI da nova HEAD deve ser validada antes de qualquer merge; isso não altera a regra de calibração exclusivamente manual.
