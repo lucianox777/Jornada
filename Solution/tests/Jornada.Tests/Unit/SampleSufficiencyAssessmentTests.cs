@@ -8,6 +8,30 @@ namespace Jornada.Tests.Unit;
 public sealed class SampleSufficiencyAssessmentTests
 {
     [Test]
+    public void RepeatedPairsWithoutIndependentGroupIdentifiersCannotCertify()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "g1"),
+            new Evidence("SP", "m2", true, true, "g2"),
+            new Evidence("SP", "u1", true, false, "g3")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 2, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
+        Assert.That(result.Reasons.Any(r => r.Contains("missing group identifiers", StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
+    public void IndependentGroupDiversityIsRequiredBeyondPairCount()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "person-A"),
+            new Evidence("SP", "m2", true, true, "person-A"),
+            new Evidence("SP", "u1", true, false, "person-A")
+        };
+        Assert.That(Evaluate(evidence, new[] { "SP" }, 2, 1, 2).State, Is.EqualTo(Status.Insufficient));
+    }
+
+    [Test]
     public void NoEvidence_IsIndeterminate()
     {
         var result = Evaluate(Array.Empty<Evidence>(), new[] { "SP" }, 1, 1);
@@ -18,9 +42,9 @@ public sealed class SampleSufficiencyAssessmentTests
     public void DeduplicatesPairsAndExcludesNonIndependentTruth()
     {
         var evidence = new[] {
+            new Evidence("SP", "p1", true, true, "g1"),
             new Evidence("SP", "p1", true, true),
-            new Evidence("SP", "p1", true, true),
-            new Evidence("SP", "p2", true, false),
+            new Evidence("SP", "p2", true, false, "g2"),
             new Evidence("SP", "p3", false, true)
         };
         var result = Evaluate(evidence, new[] { "SP" }, 2, 1);
@@ -35,8 +59,8 @@ public sealed class SampleSufficiencyAssessmentTests
     public void AllStrataMustPass_AndContradictionsAreExcluded()
     {
         var evidence = new[] {
-            new Evidence("SP", "a", true, true),
-            new Evidence("SP", "b", true, false),
+            new Evidence("SP", "a", true, true, "g1"),
+            new Evidence("SP", "b", true, false, "g2"),
             new Evidence("RJ", "c", true, true),
             new Evidence("RJ", "c", true, false)
         };
@@ -59,7 +83,7 @@ public sealed class SampleSufficiencyAssessmentTests
             new Evidence("SP", "m1", true, true),
             new Evidence("SP", "m2", true, true),
             new Evidence("SP", "u1", true, false),
-            new Evidence("SP", "u2", true, false)
+            new Evidence("SP", "u2", true, false, "g4")
         };
         Assert.That(Evaluate(observations.Take(3), new[] { "SP" }, 2, 2).State,
             Is.EqualTo(Status.Insufficient));
