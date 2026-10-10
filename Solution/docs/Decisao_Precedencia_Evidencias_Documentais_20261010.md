@@ -65,6 +65,26 @@ O tratamento de documento sem data própria permanece governado: não usar data 
 
 **Aceite técnico adicional:** testes de cadastro de novo tipo e seus atributos **sem recompilar o sistema**; rejeição de atributo não permitido; atualização de vigência/versionamento; múltiplas instâncias do mesmo tipo; datas de atendimento invertidas; preservação da evidência histórica quando o catálogo muda. Não criar tabelas diretamente em ambiente real sem migração e testes em banco descartável.
 
+
+## Bootstrap inicial do catálogo — proposta pesquisada em fontes oficiais (10/10/2026)
+
+O catálogo nasce em `ref` com **versão inicial 1**, e não requer incremento de versão a cada execução do bootstrap. O bootstrap é **idempotente**: insere apenas tipos/associações ainda ausentes, sem sobrescrever alterações administrativas posteriores. Incrementar versão **somente ao publicar uma mudança efetiva** de cobertura, sem reescrever a versão anterior. A publicação em produção é controlada e auditável.
+
+| Código sugerido | Documento | Atributos candidatos no catálogo inicial | Ressalvas |
+| --- | --- | --- | --- |
+| `CPF_COMPROVANTE` | Comprovante de inscrição/situação cadastral CPF (Receita Federal) | `CPF`, `NOME_COMPLETO`, `DATA_NASCIMENTO` | Distinguir comprovante emitido de formulário de consulta; não inferir filiação pelos campos solicitados no formulário. |
+| `RG` | Carteira de identidade estadual (modelo tradicional) | `RG`, `NOME_COMPLETO`, `DATA_NASCIMENTO`, `NOME_MAE`, `NOME_PAI`, `NATURALIDADE`, `CPF` | CPF só se efetivamente presente; cobertura pode variar por modelo/UF. |
+| `CIN` | Carteira de Identidade Nacional | `CPF`, `NOME_COMPLETO`, `DATA_NASCIMENTO`, `NOME_MAE`, `NOME_PAI`, `NATURALIDADE` | Manter separada do RG tradicional; filiação pode variar e não implica mãe/pai identificáveis automaticamente. |
+| `CERTIDAO_NASCIMENTO` | Certidão de nascimento | `NOME_COMPLETO`, `DATA_NASCIMENTO`, `NOME_MAE`, `NOME_PAI`, `NATURALIDADE`, `CPF` | CPF somente se constar na certidão; registros antigos e averbações variam. |
+| `CNS` | Cartão Nacional de Saúde | `CNS`, `NOME_COMPLETO`, `DATA_NASCIMENTO`, `NOME_MAE` | **Distinguir cartão exibido do cadastro CADSUS**: nem todo campo da base nacional está impresso no cartão. |
+| `TITULO_ELEITOR` | Título de eleitor / e-Título | `TITULO_ELEITOR`, `NOME_COMPLETO`, `DATA_NASCIMENTO`, `NOME_MAE`, `NOME_PAI` | Filiação se presente; zona/seção/município eleitoral são metadados eleitorais, **não naturalidade/endereço residencial**. |
+
+**Fontes oficiais consultadas:** Receita Federal (comprovante CPF): https://solucoes.receita.fazenda.gov.br/Servicos/cpf/ConsultaSituacao/ConsultaPublica.asp ; Lei 7.116/1983 (RG): https://www.planalto.gov.br/ccivil_03/leis/1980-1988/l7116.htm ; Modelo informacional CIN: https://www.gov.br/participamaisbrasil/mi-cin ; SIRC (registro de nascimento): https://www.sirc.gov.br/guias/guia-sirc-cartorios/menu-registros-civis/registro-de-nascimento/ ; DATASUS CNS: https://datasus.saude.gov.br/cartao-nacional-de-saude/ ; TSE e-Título: https://www.tse.jus.br/servicos-eleitorais/e-titulo-perguntas-frequentes/2-quais-servicos-voce-encontra-no-e-titulo .
+
+**Limite da pesquisa:** a tabela é **seed inicial candidata**, não uma declaração de que cada campo é impresso em toda variante do documento, nem homologação institucional. Validar o campo efetivamente presente e o tipo/versão antes de atribuir comprovação; separar `RG` e `CIN` e distinguir `CPF_COMPROVANTE` de simples número CPF. Nunca promover `DATA_EMISSAO` como atributo pessoal: ela é metadado temporal da instância documental.
+
+**Bootstrap em produção:** somente dados de referência, com migração/seed idempotente e aprovação; não reativar tipos desativados, não recriar associações removidas, não apagar versões, não fazer update massivo sobre decisões Gold existentes. Registrar versão da política usada na decisão para preservar interpretação histórica.
+
 ## Pendências técnicas para o aceite
 
 Verificar modelagem normalizada de **instância de documento com data própria única**, **tipo de evidência e catálogo versionado de atributos admissíveis** e **valores comprovados vinculados à instância** no contrato e no SQL; implementar ordenação por classe/data própria na seleção Gold; garantir histórico/auditoria; criar regressão SQL/E2E com datas de atendimento invertidas. Até esses testes passarem, **decisão documentada ≠ implementação certificada**.
