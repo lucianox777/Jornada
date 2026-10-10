@@ -27,7 +27,7 @@ public sealed class ProgressiveOriginApiTests
     [Test]
     public void Request_rejects_missing_oversized_and_control_character_keys()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(ProgressiveOriginApi.TryValidateRequest(Query), Is.True);
             Assert.That(ProgressiveOriginApi.TryValidateRequest(new("", "1")), Is.False);
@@ -35,7 +35,7 @@ public sealed class ProgressiveOriginApiTests
             Assert.That(ProgressiveOriginApi.TryValidateRequest(new(new string('a', 81), "1")), Is.False);
             Assert.That(ProgressiveOriginApi.TryValidateRequest(new("ASSISTENCIA", new string('a', 256))), Is.False);
             Assert.That(ProgressiveOriginApi.TryValidateRequest(new("ASSISTENCIA", "1\r\n2")), Is.False);
-        });
+        }));
     }
 
     [Test]
@@ -44,17 +44,17 @@ public sealed class ProgressiveOriginApiTests
         var provisional = Snapshot(ProgressiveIdentityStatus.PROVISORIA, null, 0, null);
         var reference = Snapshot(ProgressiveIdentityStatus.REFERENCIA, Canonical, 1, Created.AddMinutes(1));
         var indefinite = Snapshot(ProgressiveIdentityStatus.INDEFINIDA, null, 1, Created.AddMinutes(1));
-        Assert.DoesNotThrow(() => ProgressiveOriginApi.ValidateSnapshot(provisional));
-        Assert.DoesNotThrow(() => ProgressiveOriginApi.ValidateSnapshot(reference));
-        Assert.DoesNotThrow(() => ProgressiveOriginApi.ValidateSnapshot(indefinite));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(provisional with { CanonicalUuid = Canonical }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { Versao = 0 }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { CanonicalUuid = null }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(indefinite with { CanonicalUuid = Canonical }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { Estado = (ProgressiveIdentityStatus)99 }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { InitialUuid = Guid.Empty }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { CriadoEm = Created.ToOffset(TimeSpan.FromHours(-3)) }));
-        Assert.Throws<InvalidOperationException>(() => ProgressiveOriginApi.ValidateSnapshot(reference with { AtualizadoEm = Created.AddSeconds(-1) }));
+        Assert.DoesNotThrow((Action)(() => ProgressiveOriginApi.ValidateSnapshot(provisional)));
+        Assert.DoesNotThrow((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference)));
+        Assert.DoesNotThrow((Action)(() => ProgressiveOriginApi.ValidateSnapshot(indefinite)));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(provisional with { CanonicalUuid = Canonical })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { Versao = 0 })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { CanonicalUuid = null })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(indefinite with { CanonicalUuid = Canonical })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { Estado = (ProgressiveIdentityStatus)99 })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { InitialUuid = Guid.Empty })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { CriadoEm = Created.ToOffset(TimeSpan.FromHours(-3)) })));
+        Assert.Throws<InvalidOperationException>((Action)(() => ProgressiveOriginApi.ValidateSnapshot(reference with { AtualizadoEm = Created.AddSeconds(-1) })));
     }
 
     [Test]
@@ -71,8 +71,8 @@ public sealed class ProgressiveOriginApiTests
         var service = new SqlProgressiveOriginQueryService(new OperationalSqlAdapter("Server=localhost;Database=JornadaTest;Integrated Security=true"));
         var gestor = new AccessContext(Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null, [], []);
         var type = gestor with { CredentialType = AccessCredentialType.BENEFICIO, Scopes = [ProgressiveOriginApi.Permission] };
-        Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await service.GetAsync(gestor, Query, CancellationToken.None));
-        Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await service.GetAsync(type, Query, CancellationToken.None));
+        Assert.ThrowsAsync<UnauthorizedAccessException>((Func<Task>)(async () => await service.GetAsync(gestor, Query, CancellationToken.None)));
+        Assert.ThrowsAsync<UnauthorizedAccessException>((Func<Task>)(async () => await service.GetAsync(type, Query, CancellationToken.None)));
     }
 
     [TestCase("missing", HttpStatusCode.Unauthorized)]

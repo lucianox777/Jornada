@@ -22,7 +22,7 @@ public sealed class Dt05ReplayExecutableContractsTests
         var runner = File.ReadAllText(Path.Combine(root, "src", "Jornada.Linkage.Runner",
             "ProbabilisticLinkageBatchRunner.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(migration, Does.Contain("schema_version IN(1,2)"));
             Assert.That(migration, Does.Contain("schema v2 exige contratos executáveis exatos"));
@@ -35,6 +35,6 @@ public sealed class Dt05ReplayExecutableContractsTests
             Assert.That(runner, Does.Contain("PersonResolutionContractCatalog.CatalogVersion"));
             Assert.That(runner, Does.Contain("PersonResolutionProjectionContract.ValidateSupported"));
             Assert.That(runner, Does.Contain("modelo sem identidade exata da projeção"));
-        });
+        }));
     }
 }

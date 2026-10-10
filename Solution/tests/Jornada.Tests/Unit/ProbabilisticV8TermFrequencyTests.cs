@@ -31,12 +31,12 @@ public sealed class ProbabilisticV8TermFrequencyTests
             [new LinkageCandidate(Guid.Parse("22222222-2222-4222-8222-222222222222"),
                 "ZULEICA KRAUSE", birth, "ANA SOUZA")]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(rare.MelhorScore, Is.GreaterThan(common.MelhorScore));
             Assert.That(rare.Margem, Is.Null);
             Assert.That(common.Margem, Is.Null);
-        });
+        }));
     }
 
     [TestCase("MARIA SILVA", "MARIA SILVAA", NameComparisonState.HIGH)]
@@ -107,30 +107,28 @@ public sealed class ProbabilisticV8TermFrequencyTests
         var parameters = Parameters(withTf: false);
         parameters[LinkageParameterCatalog.NonUniqueDemographicExactGuard] = 1m;
 
-        Assert.DoesNotThrow(() => LinkageModelPolicy.Create(
+        Assert.DoesNotThrow((Action)(() => LinkageModelPolicy.Create(
             ModelId, 8,
             LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
-            parameters));
+            parameters)));
     }
 
     [Test]
     public void TF_enabled_V8_requires_snapshot_and_rejects_legacy_demographic_guard()
     {
         var parameters = Parameters(withTf: true);
-        Assert.That(
-            () => LinkageModelPolicy.Create(
+        Assert.That((Func<object?>)(() => LinkageModelPolicy.Create(
                 ModelId, 9,
                 LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
-                parameters),
+                parameters)),
             Throws.InvalidOperationException.With.Message.Contains("snapshot nominal"));
 
         parameters[LinkageParameterCatalog.NonUniqueDemographicExactGuard] = 1m;
-        Assert.That(
-            () => LinkageModelPolicy.Create(
+        Assert.That((Func<object?>)(() => LinkageModelPolicy.Create(
                 ModelId, 9,
                 LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
                 parameters,
-                Snapshot()),
+                Snapshot())),
             Throws.InvalidOperationException.With.Message.Contains("guard demográfico"));
     }
 

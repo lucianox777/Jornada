@@ -29,7 +29,7 @@ public sealed class CombinedBlockingIbgeSyntheticBootstrapTests
         // No CPF route, no base-person ID, and no truth labels enter the blocking planner.
         var firstEvidence = Evaluate(first.Observations);
         var replayEvidence = Evaluate(second.Observations);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(source.PhysicalSha256, Has.Length.EqualTo(64));
             Assert.That(source.CanonicalContentSha256, Has.Length.EqualTo(64));
@@ -37,7 +37,7 @@ public sealed class CombinedBlockingIbgeSyntheticBootstrapTests
             Assert.That(firstEvidence.Eligible, Is.GreaterThan(0));
             Assert.That(firstEvidence.UnionRetained, Is.GreaterThanOrEqualTo(firstEvidence.ExactRetained));
             Assert.That(firstEvidence.UnionRetained, Is.LessThanOrEqualTo(firstEvidence.Eligible));
-        });
+        }));
 
         // This is a bootstrap identity, not a measured recall threshold.
         var canonical = string.Join("|", CombinedIdentityCandidatePlanner.MethodVersion,

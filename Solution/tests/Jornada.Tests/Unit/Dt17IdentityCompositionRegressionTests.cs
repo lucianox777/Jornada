@@ -18,13 +18,13 @@ public sealed class Dt17IdentityCompositionRegressionTests
         var read = Read(Member(A, A), Member(I2, A)) with { ReservedNewUuids = [B, C] };
         var plan = IdentityCompositionPlanner.Prepare(read, Decision(read, (A, B), (I2, C)));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.Changes.Select(x => x.AfterUuid), Is.EquivalentTo(new Guid?[] { B, C }));
             Assert.That(plan.Changes.Any(x => x.AfterUuid == A), Is.False);
             Assert.That(plan.HistoryToAppend.Single().ReferenceUuid, Is.EqualTo(A));
             Assert.That(plan.HistoryToAppend.Single().MemberInitialUuids, Is.EquivalentTo(new[] { A, I2 }));
-        });
+        }));
     }
 
     [Test]
@@ -33,20 +33,20 @@ public sealed class Dt17IdentityCompositionRegressionTests
         var read = Read(Member(A, A, A), Member(I2, A)) with { ReservedNewUuids = [B] };
         var plan = IdentityCompositionPlanner.Prepare(read, Decision(read, (A, A), (I2, B)));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.Changes.Any(x => x.InitialUuid == A && x.AfterUuid != A), Is.False);
             Assert.That(plan.Changes.Single(x => x.InitialUuid == I2).AfterUuid, Is.EqualTo(B));
             Assert.That(plan.HistoryToAppend.Single().ReferenceUuid, Is.EqualTo(A));
-        });
+        }));
     }
 
     [Test]
     public void DcId02_bare_initial_uuid_is_not_promoted_to_canonical_destination()
     {
         var read = Read(Member(A, A), Member(I2, A)) with { ReservedNewUuids = [B] };
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityCompositionPlanner.Prepare(read, Decision(read, (A, B), (I2, I2))));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityCompositionPlanner.Prepare(read, Decision(read, (A, B), (I2, I2)))));
     }
 
     private static IdentityCompositionMember Member(Guid initial, Guid canonical, Guid? anchor = null) =>

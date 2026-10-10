@@ -22,13 +22,13 @@ public sealed class AgentCpfPseudonymizerTests
         var a = sut.ComputeHash(cpf);
         var b = sut.ComputeHash(cpf);
         var c = sut.ComputeHash(otherCpf);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(a, Has.Length.EqualTo(32));
             Assert.That(a, Is.EqualTo(b));
             Assert.That(a, Is.Not.EqualTo(c));
             Assert.That(sut.KeyVersion, Is.EqualTo(7));
-        });
+        }));
     }
 
     private sealed class FakeEnvironment : IHostEnvironment

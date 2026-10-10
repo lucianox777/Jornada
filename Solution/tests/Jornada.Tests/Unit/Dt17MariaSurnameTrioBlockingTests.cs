@@ -61,7 +61,7 @@ public sealed class Dt17MariaSurnameTrioBlockingTests
     {
         var result = Evaluate(maxCandidatePairs: 6);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(Cases.SelectMany(p => new[] { p.LeftName, p.RightName }).Distinct(),
                 Is.SupersetOf(new[] { "MARIA SOUZA", "MARIA SOUZA LIMA", "MARIA LIMA" }));
@@ -90,13 +90,13 @@ public sealed class Dt17MariaSurnameTrioBlockingTests
             Assert.That(result.DynamicReductionRatio, Is.EqualTo(2m / 3m));
             Assert.That(result.CombinedReductionRatio, Is.EqualTo(2m / 3m));
             Assert.That(result.UnionReductionRatio, Is.EqualTo(1m / 3m));
-        });
+        }));
     }
 
     [Test]
     public void MariaTrio_UnionFailsClosedRatherThanTruncateARequiredCandidate()
     {
-        Assert.That(() => Evaluate(maxCandidatePairs: 5),
+        Assert.That((Func<object?>)(() => Evaluate(maxCandidatePairs: 5)),
             Throws.TypeOf<InvalidOperationException>().With.Message.Contains("sem truncar"));
     }
 }

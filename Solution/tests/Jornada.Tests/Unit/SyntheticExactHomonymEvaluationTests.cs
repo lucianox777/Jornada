@@ -18,7 +18,7 @@ public sealed class SyntheticExactHomonymEvaluationTests
                 linked: true, motherExact: false)
         ]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.PopulationPairs, Is.EqualTo(1));
             Assert.That(report.ReservedChallengePairs, Is.EqualTo(4));
@@ -26,8 +26,8 @@ public sealed class SyntheticExactHomonymEvaluationTests
             Assert.That(report.ExactDistinctHomonymFalseLinks, Is.EqualTo(2));
             Assert.That(report.ExactDistinctHomonymFalseLinkRate, Is.EqualTo(2m / 3m));
             Assert.That(report.ByStratum, Has.Count.EqualTo(2));
-        });
-        Assert.DoesNotThrow(() => SyntheticExactHomonymEvaluator.ConferArithmetic(report));
+        }));
+        Assert.DoesNotThrow((Action)(() => SyntheticExactHomonymEvaluator.ConferArithmetic(report)));
     }
 
     [Test]
@@ -39,12 +39,12 @@ public sealed class SyntheticExactHomonymEvaluationTests
                 samePerson: true, linked: true)
         ]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.ExactDistinctHomonymPairs, Is.Zero);
             Assert.That(report.ExactDistinctHomonymFalseLinks, Is.Zero);
             Assert.That(report.ExactDistinctHomonymFalseLinkRate, Is.Zero);
-        });
+        }));
     }
 
     [Test]
@@ -57,18 +57,18 @@ public sealed class SyntheticExactHomonymEvaluationTests
         ]);
 
         var tampered = report with { ExactDistinctHomonymFalseLinkRate = 0m };
-        Assert.Throws<InvalidDataException>(() =>
-            SyntheticExactHomonymEvaluator.ConferArithmetic(tampered));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            SyntheticExactHomonymEvaluator.ConferArithmetic(tampered)));
     }
 
     [Test]
     public void Duplicate_pair_id_is_rejected()
     {
-        Assert.Throws<InvalidDataException>(() => SyntheticExactHomonymEvaluator.Evaluate(
+        Assert.Throws<InvalidDataException>((Action)(() => SyntheticExactHomonymEvaluator.Evaluate(
         [
             Case("dup", "TEST", "A", SyntheticReservedTruthFamilies.ExactDemographicHomonym),
             Case("dup", "TEST", "B", SyntheticReservedTruthFamilies.ExactDemographicHomonym)
-        ]));
+        ])));
     }
 
     private static SyntheticTruthDecisionCase Case(

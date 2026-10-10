@@ -21,7 +21,7 @@ public sealed class NominalTermFrequencySnapshotTests
                 "ZULÉICA", 10, 1000, 0.01m)
         });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(snapshot.TryGetPersonFirstName("Maria da Silva", out var maria), Is.True);
             Assert.That(maria, Is.EqualTo(0.6m));
@@ -30,23 +30,23 @@ public sealed class NominalTermFrequencySnapshotTests
             Assert.That(snapshot.TryGetPersonFirstName("Zuleica Krause", out var rare), Is.True);
             Assert.That(rare, Is.EqualTo(0.01m));
             Assert.That(snapshot.TryGetPersonFirstName("Nome Não Publicado", out _), Is.False);
-        });
+        }));
     }
 
     [Test]
     public void Snapshot_fails_closed_on_inconsistent_frequency_or_unknown_attribute()
     {
-        Assert.Throws<InvalidDataException>(() => NominalTermFrequencySnapshot.Create(new[]
+        Assert.Throws<InvalidDataException>((Action)(() => NominalTermFrequencySnapshot.Create(new[]
         {
             new NominalTermFrequencyEntry(
                 NominalTermFrequencySnapshot.PersonFirstNameAttribute,
                 "MARIA", 600, 1000, 0.5m)
-        }));
+        })));
 
-        Assert.Throws<InvalidDataException>(() => NominalTermFrequencySnapshot.Create(new[]
+        Assert.Throws<InvalidDataException>((Action)(() => NominalTermFrequencySnapshot.Create(new[]
         {
             new NominalTermFrequencyEntry("OUTRO", "MARIA", 600, 1000, 0.6m)
-        }));
+        })));
     }
 
     [Test]

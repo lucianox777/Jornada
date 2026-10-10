@@ -23,7 +23,7 @@ public sealed class RuntimeModeContractTests
         var scaleSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Dev_SyntheticScale.sql"));
         var pendingSql=File.ReadAllText(Path.Combine(root,"Solution","database","Jornada_Dev_SyntheticPending.sql"));
 
-        Assert.Multiple(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(cmd,Does.Contain("JORNADA_MODE_ARG=-RuntimeMode HML"));
             Assert.That(File.Exists(Path.Combine(root,"Solution","teste.cmd")),Is.False);
             Assert.That(cmd,Does.Contain("--dev"));
@@ -54,7 +54,7 @@ public sealed class RuntimeModeContractTests
             Assert.That(localDb,Does.Contain("startup nunca apaga dados implicitamente"));
             Assert.That(pendingSql,Does.Contain("Não cria vínculo: a publicação deve acontecer pelo"));
             Assert.That(pendingSql,Does.Contain("SCALE-PEND-"));
-        });
+        }));
     }
 
     [Test]
@@ -67,7 +67,7 @@ public sealed class RuntimeModeContractTests
         var infra=File.ReadAllText(Path.Combine(root,"Solution","scripts","dev-console-infrastructure.ps1"));
         var cluster=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-cluster.ps1"));
 
-        Assert.Multiple(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(runtime,Does.Contain("IsProduction=>Mode==\"PROD\""));
             Assert.That(runtime,Does.Contain("IsProduction&&command.Destructive"));
             Assert.That(runtime,Does.Contain("new(\"reset-environment\",\"Resetar ambiente\""));
@@ -83,6 +83,6 @@ public sealed class RuntimeModeContractTests
             Assert.That(infra,Does.Contain("-ConfirmProductionReset"));
             Assert.That(cluster,Does.Contain("Reset bloqueado em PROD"));
             Assert.That(cluster,Does.Contain("Clean destrutivo bloqueado em PROD"));
-        });
+        }));
     }
 }

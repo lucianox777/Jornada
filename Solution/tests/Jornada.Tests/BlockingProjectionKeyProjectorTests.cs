@@ -13,7 +13,7 @@ public sealed class BlockingProjectionKeyProjectorTests
             "Ana de Souza",
             new DateOnly(1982, 4, 10));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.FullNameUpper, "MARÍA DA SILVA")));
@@ -52,7 +52,7 @@ public sealed class BlockingProjectionKeyProjectorTests
                 BlockingCandidateFeatureCatalog.MotherSurnames, "SOUZA")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.MotherLastName, "SOUZA")));
-        });
+        }));
     }
 
     [Test]
@@ -63,7 +63,7 @@ public sealed class BlockingProjectionKeyProjectorTests
             "Ana Souza",
             new DateOnly(1982, 4, 10));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.BirthDay, "10")));
@@ -71,7 +71,7 @@ public sealed class BlockingProjectionKeyProjectorTests
                 BlockingCandidateFeatureCatalog.BirthMonth, "04")));
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.BirthYear, "1982")));
-        });
+        }));
     }
 
     [Test]
@@ -86,7 +86,7 @@ public sealed class BlockingProjectionKeyProjectorTests
             "Maria Souza",
             new DateOnly(2000, 1, 2));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(withoutAccent, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.FullNameUpper, "JOAO SILVA")));
@@ -104,7 +104,7 @@ public sealed class BlockingProjectionKeyProjectorTests
                 BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr, "JOAO SILVA")));
             Assert.That(withAccent, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr, "JOAO SILVA")));
-        });
+        }));
     }
 
     [Test]
@@ -112,14 +112,14 @@ public sealed class BlockingProjectionKeyProjectorTests
     {
         var keys = BlockingProjectionKeyProjector.Project("Maria Silva", null, null);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(keys, Does.Contain(new BlockingProjectionKey(
                 BlockingCandidateFeatureCatalog.FullName, "MARIA SILVA")));
             Assert.That(keys.Any(k => k.Feature == BlockingCandidateFeatureCatalog.BirthDay), Is.False);
             Assert.That(keys.Any(k => k.Feature == BlockingCandidateFeatureCatalog.BirthMonth), Is.False);
             Assert.That(keys.Any(k => k.Feature == BlockingCandidateFeatureCatalog.BirthYear), Is.False);
-        });
+        }));
     }
 
     [Test]

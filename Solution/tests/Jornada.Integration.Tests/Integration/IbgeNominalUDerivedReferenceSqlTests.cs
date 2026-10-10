@@ -62,8 +62,7 @@ public sealed class IbgeNominalUDerivedReferenceSqlTests
         {
             incomplete.Parameters.Add("@id", SqlDbType.BigInt).Value = id;
             incomplete.Parameters.Add("@hash", SqlDbType.Binary, 32).Value = resultHash;
-            var failure = Assert.ThrowsAsync<SqlException>(
-                async () => await incomplete.ExecuteNonQueryAsync());
+            var failure = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await incomplete.ExecuteNonQueryAsync()));
             Assert.That(failure!.Number, Is.EqualTo(52085),
                 "A publicação sem os quatro estados deve falhar.");
         }
@@ -101,8 +100,7 @@ public sealed class IbgeNominalUDerivedReferenceSqlTests
             connection))
         {
             immutableState.Parameters.Add("@id", SqlDbType.BigInt).Value = id;
-            var ex = Assert.ThrowsAsync<SqlException>(
-                async () => await immutableState.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await immutableState.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(52082));
         }
         await using (var immutableParent = new SqlCommand(
@@ -110,8 +108,7 @@ public sealed class IbgeNominalUDerivedReferenceSqlTests
             connection))
         {
             immutableParent.Parameters.Add("@id", SqlDbType.BigInt).Value = id;
-            var ex = Assert.ThrowsAsync<SqlException>(
-                async () => await immutableParent.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await immutableParent.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(52083),
                 "O trigger deve recusar qualquer mudança do registro publicado.");
         }
@@ -120,8 +117,7 @@ public sealed class IbgeNominalUDerivedReferenceSqlTests
             connection))
         {
             parentDeletion.Parameters.Add("@id", SqlDbType.BigInt).Value = id;
-            var ex = Assert.ThrowsAsync<SqlException>(
-                async () => await parentDeletion.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await parentDeletion.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(547),
                 "A FK dos quatro estados pode rejeitar DELETE antes de executar o trigger imutável.");
         }

@@ -34,11 +34,11 @@ public sealed class Rf052PersistedIbgeBootstrapSqlServerTests
 
             var persisted = await PersistedIbgeBootstrapReferenceQuery.RequireAsync(
                 connection, 20260917, 10_000, CancellationToken.None, transaction);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(persisted.Id, Is.EqualTo(sourceId));
                 Assert.That(persisted.Code, Is.EqualTo(PersistedIbgeBootstrapReferenceQuery.CanonicalReferenceCode));
-            });
+            }));
 
             var modelId = Guid.NewGuid();
             await using (var insertModel = new SqlCommand(
@@ -71,7 +71,7 @@ public sealed class Rf052PersistedIbgeBootstrapSqlServerTests
                 Assert.That(Convert.ToInt64(await read.ExecuteScalarAsync(), CultureInfo.InvariantCulture), Is.EqualTo(sourceId));
             }
 
-            var missingReference = Assert.ThrowsAsync<SqlException>(async () =>
+            var missingReference = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
             {
                 await using var invalid = new SqlCommand(
                     """
@@ -90,7 +90,7 @@ public sealed class Rf052PersistedIbgeBootstrapSqlServerTests
                         N'TEST_RF052_SEM_BOOTSTRAP',1000,NULL,NULL,NULL,NULL);
                     """, connection, transaction);
                 await invalid.ExecuteNonQueryAsync();
-            });
+            }));
             Assert.That(missingReference!.Number, Is.EqualTo(51639));
         }
         finally
@@ -122,9 +122,9 @@ public sealed class Rf052PersistedIbgeBootstrapSqlServerTests
             cleanup.Parameters.AddWithValue("@codigo", PersistedIbgeBootstrapReferenceQuery.CanonicalReferenceCode);
             await cleanup.ExecuteNonQueryAsync();
 
-            Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
                 await PersistedIbgeBootstrapReferenceQuery.RequireAsync(
-                    connection, 20269999, 10_000, CancellationToken.None));
+                    connection, 20269999, 10_000, CancellationToken.None)));
         }
         finally
         {

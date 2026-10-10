@@ -10,11 +10,11 @@ public sealed class IbgeNamePublicationSemanticsTests
         var projection = IbgeNamePublicationSemantics.ProjectFirstName("Maria Clara da Silva");
 
         Assert.That(projection, Is.Not.Null);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(projection!.FirstName, Is.EqualTo("Maria"));
             Assert.That(projection.FirstNameNormalized, Is.EqualTo("MARIA"));
-        });
+        }));
     }
 
     [Test]
@@ -23,11 +23,11 @@ public sealed class IbgeNamePublicationSemanticsTests
         var projection = IbgeNamePublicationSemantics.ProjectFirstName("  João   Pedro dos Santos  ");
 
         Assert.That(projection, Is.Not.Null);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(projection!.FirstName, Is.EqualTo("João"));
             Assert.That(projection.FirstNameNormalized, Is.EqualTo("JOAO"));
-        });
+        }));
     }
 
     [TestCase(null)]
@@ -45,13 +45,13 @@ public sealed class IbgeNamePublicationSemanticsTests
             .Select(static property => property.Name)
             .ToArray();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(properties, Does.Contain(nameof(IbgePublishedNameProjection.FirstName)));
             Assert.That(properties, Does.Contain(nameof(IbgePublishedNameProjection.FirstNameNormalized)));
             Assert.That(properties.Any(static name => name.Contains("Surname", StringComparison.OrdinalIgnoreCase)), Is.False);
             Assert.That(properties.Any(static name => name.Contains("Sobrenome", StringComparison.OrdinalIgnoreCase)), Is.False);
-        });
+        }));
     }
 
     [Test]

@@ -20,7 +20,7 @@ public sealed class LinkagePromotionConferenceGateContractTests
         var config = ImplementationConferenceToleranceConfiguration.Load(path);
         var tolerance = config.ToContract();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(config.MethodVersion,
                 Is.EqualTo(ImplementationConferenceGovernanceContract.MethodVersion));
@@ -33,7 +33,7 @@ public sealed class LinkagePromotionConferenceGateContractTests
             Assert.That(reason, Is.Empty);
             Assert.That(config.DecisionEquivalence, Is.EqualTo(
                 ImplementationConferenceGovernanceContract.DecisionEquivalence));
-        });
+        }));
     }
 
     [Test]
@@ -53,7 +53,7 @@ public sealed class LinkagePromotionConferenceGateContractTests
             "Jornada.Linkage.Parameters.Worker",
             "Jornada.Linkage.Parameters.Worker.csproj"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(worker, Does.Contain("LoadPromotionConferenceTolerance"));
             Assert.That(worker, Does.Contain("LinkageParameters:ConferenceToleranceConfigPath"));
@@ -65,7 +65,7 @@ public sealed class LinkagePromotionConferenceGateContractTests
             Assert.That(worker, Does.Contain("Promoção do modelo bloqueada pela conferência de implementação"));
             Assert.That(project, Does.Not.Contain("Jornada.Linkage.Conference"));
             Assert.That(project, Does.Not.Contain("Jornada.Linkage.Evaluation"));
-        });
+        }));
     }
 
     [Test]
@@ -82,12 +82,12 @@ public sealed class LinkagePromotionConferenceGateContractTests
         var validateStart = worker.IndexOf(validateMarker, StringComparison.Ordinal);
         var activateStart = worker.IndexOf(activateMarker, StringComparison.Ordinal);
         var loaderStart = worker.IndexOf(loaderMarker, StringComparison.Ordinal);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(validateStart, Is.GreaterThanOrEqualTo(0));
             Assert.That(activateStart, Is.GreaterThan(validateStart));
             Assert.That(loaderStart, Is.GreaterThan(activateStart));
-        });
+        }));
         if (validateStart < 0 || activateStart <= validateStart || loaderStart <= activateStart)
             return;
 
@@ -95,7 +95,7 @@ public sealed class LinkagePromotionConferenceGateContractTests
         var activate = worker[activateStart..loaderStart];
         foreach (var section in new[] { validate, activate })
         {
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(section, Does.Contain("LoadPromotionConferenceTolerance();"));
                 Assert.That(section, Does.Contain("BeginTransactionAsync(IsolationLevel.Serializable"));
@@ -111,7 +111,7 @@ public sealed class LinkagePromotionConferenceGateContractTests
                     StringComparison.Ordinal),
                     Is.LessThan(section.IndexOf("UPDATE identidade.modelo_linkage SET status=",
                         StringComparison.Ordinal)));
-            });
+            }));
         }
         Assert.That(worker.Split("LoadPromotionConferenceTolerance();", StringSplitOptions.None).Length - 1,
             Is.EqualTo(2), "Somente os dois gates de promoção devem carregar o contrato governado.");
@@ -139,7 +139,7 @@ public sealed class LinkagePromotionConferenceGateContractTests
             "scripts",
             "local-scale.sh"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(ci.IndexOf("src/Jornada.Linkage.Conference", StringComparison.Ordinal),
                 Is.GreaterThanOrEqualTo(0));
@@ -166,7 +166,7 @@ public sealed class LinkagePromotionConferenceGateContractTests
                 Is.GreaterThanOrEqualTo(0));
             Assert.That(scale.IndexOf("LinkageParameters__Operation=VALIDATE", StringComparison.Ordinal),
                 Is.GreaterThan(scale.IndexOf("src/Jornada.Linkage.Conference", StringComparison.Ordinal)));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

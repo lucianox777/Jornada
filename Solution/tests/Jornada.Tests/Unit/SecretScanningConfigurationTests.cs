@@ -13,7 +13,7 @@ public sealed class SecretScanningConfigurationTests
         Assert.That(File.Exists(path), Is.True, "Configuração Gitleaks deve existir na raiz do repositório.");
 
         var config = File.ReadAllText(path);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(config, Does.Contain("[extend]"));
             Assert.That(config, Does.Match(new Regex(@"(?m)^useDefault\s*=\s*true\s*$")));
@@ -29,7 +29,7 @@ public sealed class SecretScanningConfigurationTests
                 "Não permitir exceção ampla de diretório.");
             Assert.That(config, Does.Not.Contain(@"tests/.*"),
                 "Não permitir exceção ampla de testes.");
-        });
+        }));
     }
 
     [Test]
@@ -46,7 +46,7 @@ public sealed class SecretScanningConfigurationTests
         var root = FindRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(workflow, Does.Contain("GITLEAKS_VERSION: '8.30.1'"));
             Assert.That(workflow, Does.Contain("GITLEAKS_LINUX_X64_SHA256: '551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'"));
@@ -57,7 +57,7 @@ public sealed class SecretScanningConfigurationTests
             Assert.That(workflow, Does.Not.Contain("gitleaks/gitleaks-action@"),
                 "O CI usa binário versionado+checksum em vez de uma Action adicional não necessária.");
             Assert.That(workflow, Does.Not.Contain("gitleaks:latest"));
-        });
+        }));
     }
 
     [Test]
@@ -67,14 +67,14 @@ public sealed class SecretScanningConfigurationTests
         var compose = File.ReadAllText(Path.Combine(root, "Solution", "docker-compose.yml"));
         const string required = "${JORNADA_SQL_SA_PASSWORD:?Set JORNADA_SQL_SA_PASSWORD in the local .env file}";
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(Regex.Matches(compose, Regex.Escape(required)).Count, Is.EqualTo(4),
                 "SQL Server, both node connections and reference bootstrap must use explicit secret injection.");
             Assert.That(compose, Does.Not.Contain("${JORNADA_SQL_SA_PASSWORD:-"),
                 "An absent password must never fall back to the published example credential.");
             Assert.That(compose, Does.Not.Contain("Jornada_Local_2026!ChangeMe"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

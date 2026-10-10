@@ -18,7 +18,7 @@ public sealed class ProcessorStatusLockContractTests
         Assert.That(end, Is.GreaterThan(start));
         var method = reservation[start..end];
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(method, Does.Contain("UPDATE ingestao.lote SET status='PROCESSANDO'"));
             Assert.That(method, Does.Not.Contain("UPDATE ingestao.entrega"));
@@ -40,7 +40,7 @@ public sealed class ProcessorStatusLockContractTests
                 "A transição do Lote deve terminar antes de abrir a transação de Silver/Gold.");
             Assert.That(persistence, Does.Contain("DELETE FROM ingestao.lote_heartbeat"),
                 "Finalização e remoção do heartbeat devem estar no mesmo commit.");
-        });
+        }));
     }
 
     [Test]
@@ -52,13 +52,13 @@ public sealed class ProcessorStatusLockContractTests
         var observability = File.ReadAllText(Path.Combine(
             root, "Solution", "database", "Jornada_HML_Observabilidade.sql"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(watchdog, Does.Contain("COALESCE(h.lease_expira_em,l.lease_expira_em)"));
             Assert.That(observability, Does.Contain("COALESCE(h.lease_expira_em,l.lease_expira_em)"));
             Assert.That(watchdog, Does.Contain("h.lease_id=l.lease_id"));
             Assert.That(observability, Does.Contain("h.lease_id=l.lease_id"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

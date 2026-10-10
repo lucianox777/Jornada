@@ -9,22 +9,17 @@ public sealed class SyntheticStratifiedErrorOverlayTests
     [Test]
     public void Config_rejects_invalid_rates_keys_and_versions()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new SyntheticStratifiedErrorRates { MissingMother = double.NaN }.Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(
-            () => new SyntheticStratifiedErrorRates { DateCorruption = 1.01 }.Validate());
-        Assert.Throws<ArgumentException>(
-            () => new SyntheticStratifiedErrorConfig { Version = "NOPE" }.Validate(4));
-        Assert.Throws<ArgumentException>(
-            () => new SyntheticStratifiedErrorConfig
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => new SyntheticStratifiedErrorRates { MissingMother = double.NaN }.Validate()));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => new SyntheticStratifiedErrorRates { DateCorruption = 1.01 }.Validate()));
+        Assert.Throws<ArgumentException>((Action)(() => new SyntheticStratifiedErrorConfig { Version = "NOPE" }.Validate(4)));
+        Assert.Throws<ArgumentException>((Action)(() => new SyntheticStratifiedErrorConfig
             {
                 ByGestorAndCpfStratum = new() { ["G5/WITH_CPF"] = new() }
-            }.Validate(4));
-        Assert.Throws<ArgumentException>(
-            () => new SyntheticStratifiedErrorConfig
+            }.Validate(4)));
+        Assert.Throws<ArgumentException>((Action)(() => new SyntheticStratifiedErrorConfig
             {
                 ByCpfStratum = new() { ["UNKNOWN"] = new() }
-            }.Validate(4));
+            }.Validate(4)));
     }
 
     [Test]
@@ -41,14 +36,14 @@ public sealed class SyntheticStratifiedErrorOverlayTests
             }
         };
         c.Validate(2);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(c.Resolve("G0", false).MissingDate, Is.EqualTo(.4));
             Assert.That(c.Resolve("G0", false).DateCorruption, Is.Zero);
             Assert.That(c.Resolve("G0", true).DateCorruption, Is.EqualTo(.3));
             Assert.That(c.Resolve("G1", false).MissingMother, Is.EqualTo(.2));
             Assert.That(c.Resolve("G1", true).NameCorruption, Is.EqualTo(.1));
-        });
+        }));
         var reordered = new SyntheticStratifiedErrorConfig
         {
             Default = c.Default,
@@ -74,7 +69,7 @@ public sealed class SyntheticStratifiedErrorOverlayTests
         var with = Observation("12345678909");
         SyntheticStratifiedErrorOverlay.Apply(without, new Xoshiro256StarStar(4), rates);
         SyntheticStratifiedErrorOverlay.Apply(with, new Xoshiro256StarStar(4), rates);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(without.MotherName, Is.Null);
             Assert.That(without.BirthDate, Is.Null);
@@ -83,7 +78,7 @@ public sealed class SyntheticStratifiedErrorOverlayTests
             Assert.That(with.MotherName, Is.EqualTo("MARIA SILVA"));
             Assert.That(with.BirthDate, Is.EqualTo(new DateOnly(1980, 7, 27)));
             Assert.That(with.Corruptions, Is.Empty);
-        });
+        }));
     }
 
     [Test]
@@ -105,7 +100,7 @@ public sealed class SyntheticStratifiedErrorOverlayTests
         var baselineAgain = generator.Generate(original with { StratifiedErrors = null });
         var experimental = generator.Generate(original with { StratifiedErrors = config });
         var repeat = generator.Generate(original with { StratifiedErrors = config });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(baseline.Observations.Select(x => (x.Cpf, x.Name, x.MotherName, x.Corruptions)),
                 Is.EqualTo(baselineAgain.Observations.Select(x => (x.Cpf, x.Name, x.MotherName, x.Corruptions))));
@@ -117,7 +112,7 @@ public sealed class SyntheticStratifiedErrorOverlayTests
                 .All(x => x.MotherName is null), Is.True);
             Assert.That(experimental.Observations.Where(x => x.Cpf is not null)
                 .All(x => !x.Corruptions.Contains("STRAT_", StringComparison.Ordinal)), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -149,7 +144,7 @@ public sealed class SyntheticStratifiedErrorOverlayTests
                 root, generation, source, experimental);
             using var truth = JsonDocument.Parse(await File.ReadAllTextAsync(paths.TruthPath));
             using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(paths.ManifestPath));
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(manifest.RootElement.GetProperty("stratified_error_overlay")
                     .GetProperty("config_sha256").GetString(), Is.EqualTo(config.ConfigSha256()));
@@ -159,7 +154,7 @@ public sealed class SyntheticStratifiedErrorOverlayTests
                     .EnumerateObject().Any(), Is.True);
                 Assert.That(truth.RootElement.GetProperty("stratified_error_stratum_basis").GetString(),
                     Is.EqualTo("observed_cpf_after_retention"));
-            });
+            }));
         }
         finally { if (Directory.Exists(root)) Directory.Delete(root, true); }
     }

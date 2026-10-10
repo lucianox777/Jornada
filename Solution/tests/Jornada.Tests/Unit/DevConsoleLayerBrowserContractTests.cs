@@ -21,7 +21,7 @@ public sealed class DevConsoleLayerBrowserContractTests
         var browser=File.ReadAllText(Path.Combine(root,"Solution","src","Jornada.DevConsole","LayerBrowserService.cs"));
         var cluster=File.ReadAllText(Path.Combine(root,"Solution","scripts","local-cluster.ps1"));
 
-        Assert.Multiple(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(program,Does.Contain("AddSingleton<LayerBrowserService>"));
             Assert.That(program,Does.Contain("/api/layers/{layer}"));
             Assert.That(program,Does.Contain("BrowseAsync(layer,page,pageSize,search,ct)"));
@@ -69,6 +69,6 @@ public sealed class DevConsoleLayerBrowserContractTests
 
             Assert.That(cluster,Does.Contain("Ensure-CanonicalSeedBronzeObjects"));
             Assert.That(cluster,Does.Contain("Objetos Bronze canônicos do seed DEV presentes e íntegros."));
-        });
+        }));
     }
 }

@@ -37,7 +37,7 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
 
         var sql = BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(command, passes);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain(" INTERSECT "));
             Assert.That(sql, Does.Contain(" UNION "));
@@ -45,7 +45,7 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
             Assert.That(sql, Does.Not.Contain("ANA"));
             Assert.That(command.Parameters.Cast<SqlParameter>().Select(static p => p.Value), Does.Contain("MARIA"));
             Assert.That(command.Parameters.Cast<SqlParameter>().Select(static p => p.Value), Does.Contain("ANA"));
-        });
+        }));
     }
 
     [Test]
@@ -69,13 +69,13 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
 
         var parameters = command.Parameters.Cast<SqlParameter>()
             .ToDictionary(static p => p.ParameterName, static p => p.Value?.ToString(), StringComparer.Ordinal);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("projection_schema_version=@blocking_projection_schema"));
             Assert.That(sql, Does.Contain("projection_fingerprint_sha256=@blocking_projection_fingerprint"));
             Assert.That(parameters["@blocking_projection_schema"], Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
             Assert.That(parameters["@blocking_projection_fingerprint"], Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
-        });
+        }));
     }
 
     [Test]
@@ -92,11 +92,11 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
         using var command = new SqlCommand();
 
         Assert.That(
-            () => BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
+            (Func<object?>)(() => BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
                 command,
                 new[] { pass },
                 PersonResolutionProjectionContract.SchemaVersion,
-                projectionFingerprintSha256: null),
+                projectionFingerprintSha256: null)),
             Throws.TypeOf<InvalidOperationException>());
         Assert.That(command.Parameters, Is.Empty);
     }
@@ -142,11 +142,11 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
             command,
             Array.Empty<BlockingCandidatePassLookup>());
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("1=0"));
             Assert.That(command.Parameters, Is.Empty);
-        });
+        }));
     }
 
     [Test]
@@ -163,10 +163,10 @@ public sealed class BlockingProjectionCandidateQueryBuilderTests
         using var command = new SqlCommand();
 
         Assert.That(
-            () => BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
+            (Func<object?>)(() => BlockingProjectionCandidateQueryBuilder.BuildCandidateUuidQuery(
                 command,
                 new[] { pass },
-                maxParameters: 4),
+                maxParameters: 4)),
             Throws.TypeOf<InvalidOperationException>());
         Assert.That(command.Parameters, Is.Empty,
             "Falha deve ocorrer antes de materializar consulta parcial.");

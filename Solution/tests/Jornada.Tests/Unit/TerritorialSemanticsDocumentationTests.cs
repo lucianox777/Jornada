@@ -20,7 +20,7 @@ public sealed class TerritorialSemanticsDocumentationTests
         var ddlPath = Path.Combine(root, "Solution", "database", "Jornada_Fase1.sql");
         var seedPath = Path.Combine(root, "Solution", "database", "Jornada_Seed_Dev.sql");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(File.Exists(catalogPath), Is.True);
             Assert.That(File.Exists(territorializationPath), Is.True);
@@ -29,7 +29,7 @@ public sealed class TerritorialSemanticsDocumentationTests
             Assert.That(File.Exists(candidateSpecificationPath), Is.True);
             Assert.That(File.Exists(ddlPath), Is.True);
             Assert.That(File.Exists(seedPath), Is.True);
-        });
+        }));
 
         using var catalog = JsonDocument.Parse(File.ReadAllText(catalogPath));
         var attributes = catalog.RootElement.GetProperty("atributos").EnumerateArray().ToArray();
@@ -45,7 +45,7 @@ public sealed class TerritorialSemanticsDocumentationTests
         var ddl = File.ReadAllText(ddlPath);
         var seed = File.ReadAllText(seedPath);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(residentialAddressDescription, Does.Contain("Atributo contratual de endereço residencial informado pela origem"));
             Assert.That(residentialAddressDescription, Does.Contain("não o redefine automaticamente como endereço de residência"));
@@ -83,7 +83,7 @@ public sealed class TerritorialSemanticsDocumentationTests
             Assert.That(seed, Does.Not.Contain("O snapshot da classificação fica associado à observação do ENDERECO_RESIDENCIAL"));
             Assert.That(seed, Does.Contain("O snapshot da classificação territorial fica associado à REFERENCIA_TERRITORIAL selecionada"));
             Assert.That(seed, Does.Contain("fonte_semantica=ENDERECO_RESIDENCIAL"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

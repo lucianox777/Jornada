@@ -29,7 +29,7 @@ public sealed class LinkageDecisionBoundaryTests
         var exactDecision = ProbabilisticLinkageDecisions.Resolve(exact, Observation, [Strong]);
         var aboveDecision = ProbabilisticLinkageDecisions.Resolve(above, Observation, [Strong]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(exactDecision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO),
                 "T_LINKAGE é inclusivo: score == threshold deve resolver quando não há conflito.");
@@ -37,7 +37,7 @@ public sealed class LinkageDecisionBoundaryTests
             Assert.That(aboveDecision.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
             Assert.That(aboveDecision.Motivo, Is.EqualTo("ABAIXO_T_LINKAGE"));
             Assert.That(aboveDecision.MelhorScore, Is.EqualTo(best.Score));
-        });
+        }));
     }
 
     [Test]
@@ -55,7 +55,7 @@ public sealed class LinkageDecisionBoundaryTests
         var exactDecision = ProbabilisticLinkageDecisions.Resolve(exact, Observation, [Strong, Weak]);
         var aboveDecision = ProbabilisticLinkageDecisions.Resolve(above, Observation, [Strong, Weak]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(exactDecision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO),
                 "CONFLICT_MARGIN_LOG_ODDS é inclusivo: margem == limite não deve conflitar.");
@@ -63,7 +63,7 @@ public sealed class LinkageDecisionBoundaryTests
             Assert.That(aboveDecision.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
             Assert.That(aboveDecision.Motivo, Is.EqualTo("MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE"));
             Assert.That(aboveDecision.Margem, Is.EqualTo(observedMargin));
-        });
+        }));
     }
 
     private static LinkageModel CreateModel(decimal threshold, decimal logOddsConflictMargin)

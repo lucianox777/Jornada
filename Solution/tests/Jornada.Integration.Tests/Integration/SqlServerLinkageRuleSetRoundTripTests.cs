@@ -93,7 +93,7 @@ public sealed class SqlServerLinkageRuleSetRoundTripTests
 
         var actual = await LinkageRuleSetReader.TryLoadAsync(connection, modelId, CancellationToken.None);
         Assert.That(actual, Is.Not.Null);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(actual!.RuleSetVersion, Is.EqualTo(expected.RuleSetVersion));
             Assert.That(actual.AlgorithmVersion, Is.EqualTo(algorithm));
@@ -102,7 +102,7 @@ public sealed class SqlServerLinkageRuleSetRoundTripTests
             Assert.That(actual.BlockingPasses[0].Fields, Is.EqualTo(new[] { "birth_year" }));
             Assert.That(actual.ProjectionSchemaVersion, Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
             Assert.That(actual.ProjectionFingerprintSha256, Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
-        });
+        }));
 
         await using var count = connection.CreateCommand();
         count.CommandText = "SELECT COUNT(*) FROM identidade.linkage_ruleset WHERE modelo_id=@modelo;";

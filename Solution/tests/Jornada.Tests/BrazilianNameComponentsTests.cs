@@ -12,7 +12,7 @@ public sealed class BrazilianNameComponentsTests
         var grandson = BrazilianNameComponents.Project("João da Silva Neto")!;
         var junior = BrazilianNameComponents.Project("João da Silva Jr.")!;
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(father.NormalizedFull, Is.EqualTo("JOAO DA SILVA"));
             Assert.That(son.NormalizedFull, Is.EqualTo("JOAO DA SILVA FILHO"));
@@ -28,7 +28,7 @@ public sealed class BrazilianNameComponentsTests
             Assert.That(son.NormalizedFull, Is.Not.EqualTo(grandson.NormalizedFull));
             Assert.That(IdentityComparison.CompareName(father.NormalizedFull, son.NormalizedFull),
                 Is.Not.EqualTo(NameComparisonState.EXACT));
-        });
+        }));
     }
 
     [TestCase("Dra. Ana Maria de Souza Neto", "DRA", "NETO", "SOUZA")]
@@ -41,14 +41,14 @@ public sealed class BrazilianNameComponentsTests
         string input, string? title, string? agnome, string? surname)
     {
         var projection = BrazilianNameComponents.Project(input)!;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(projection.TitlePrefix, Is.EqualTo(title));
             Assert.That(projection.Agnome, Is.EqualTo(agnome));
             Assert.That(projection.LastContentSurname, Is.EqualTo(surname));
             Assert.That(projection.NormalizedFull,
                 Is.EqualTo(IdentityComparison.NormalizeText(input)));
-        });
+        }));
     }
 
     [Test]
@@ -57,7 +57,7 @@ public sealed class BrazilianNameComponentsTests
         var ambiguous = BrazilianNameComponents.Project("João Filho")!;
         var oneToken = BrazilianNameComponents.Project("Neto")!;
         var onlyOneContentBeforeSuffix = BrazilianNameComponents.Project("João de Filho")!;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(ambiguous.Agnome, Is.Null);
             Assert.That(ambiguous.LastContentSurname, Is.EqualTo("FILHO"));
@@ -67,30 +67,30 @@ public sealed class BrazilianNameComponentsTests
             Assert.That(oneToken.LastContentSurname, Is.Null);
             Assert.That(BrazilianNameComponents.Project(null), Is.Null);
             Assert.That(BrazilianNameComponents.Project("   "), Is.Null);
-        });
+        }));
     }
 
     [Test]
     public void Project_ReportsRepeatedParticleWithoutChangingName()
     {
         var result = BrazilianNameComponents.Project("Maria de de Souza")!;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.NormalizedFull, Is.EqualTo("MARIA DE DE SOUZA"));
             Assert.That(result.LastContentSurname, Is.EqualTo("SOUZA"));
             Assert.That(result.RepeatedParticle, Is.True);
             Assert.That(BrazilianNameComponents.Project("Maria de Souza")!.RepeatedParticle, Is.False);
-        });
+        }));
     }
 
     [Test]
     public void Project_ExactTokenBoundaryProtectsUnrelatedSurnames()
     {
         var result = BrazilianNameComponents.Project("Ana Silva Filhote")!;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Agnome, Is.Null);
             Assert.That(result.LastContentSurname, Is.EqualTo("FILHOTE"));
-        });
+        }));
     }
 }

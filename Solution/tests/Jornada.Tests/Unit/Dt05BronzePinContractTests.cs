@@ -22,7 +22,7 @@ public sealed class Dt05BronzePinContractTests
         var capture = File.ReadAllText(Path.Combine(root, "database", "migrations", "20260927_Linkage_Bronze_Captura_DT05.sql"));
         var runner = File.ReadAllText(Path.Combine(root, "src", "Jornada.Linkage.Runner", "ProbabilisticLinkageBatchRunner.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(gc, Does.Contain("FROM identidade.linkage_bronze_pin"));
             Assert.That(gc, Does.Contain("references != 0 || pins != 0"));
@@ -36,6 +36,6 @@ public sealed class Dt05BronzePinContractTests
             Assert.That(migration, Does.Contain("PRIMARY KEY(linkage_run_id,payload_sha256)"));
             Assert.That(migration, Does.Contain("IX_linkage_bronze_pin_objeto ON identidade.linkage_bronze_pin(payload_sha256)"));
             Assert.That(migration, Does.Contain("estado_armazenamento=N'DISPONIVEL'"));
-        });
+        }));
     }
 }

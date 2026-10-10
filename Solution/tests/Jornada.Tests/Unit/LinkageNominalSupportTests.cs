@@ -39,7 +39,7 @@ public sealed class LinkageNominalSupportTests
         var matchedMotherSupport = LinkageParameterCatalog.MotherNameStates.Sum(state => parameters[$"SUPPORT_M_NOME_MAE_{state}"]);
         var unmatchedMotherSupport = LinkageParameterCatalog.MotherNameStates.Sum(state => parameters[$"SUPPORT_U_NOME_MAE_{state}"]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(matchedNameSupport, Is.EqualTo(2m));
             Assert.That(unmatchedNameSupport, Is.EqualTo(3m));
@@ -49,7 +49,7 @@ public sealed class LinkageNominalSupportTests
             Assert.That(parameters["SUPPORT_U_NOME_MAE_MISSING"], Is.EqualTo(1m));
             Assert.That(parameters["SUPPORT_M_NOME_EXACT"], Is.EqualTo(2m));
             Assert.That(parameters["SUPPORT_U_NOME_LOW"], Is.GreaterThanOrEqualTo(1m));
-        });
+        }));
     }
 
     private static IdentityTrainingPair Pair(

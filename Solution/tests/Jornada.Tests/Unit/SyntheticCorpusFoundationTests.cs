@@ -82,14 +82,14 @@ public sealed class SyntheticCorpusFoundationTests
 
             var result = await IbgeProjectionReader.ReadFilteredAsync(root, meta, row => row.Tipo == "NOME");
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(result.RowCount, Is.EqualTo(2));
                 Assert.That(result.Rows, Has.Count.EqualTo(1));
                 Assert.That(result.Rows[0].Valor, Is.EqualTo("ANA"));
                 Assert.That(result.PhysicalSha256, Is.EqualTo(physical));
                 Assert.That(result.CanonicalContentSha256, Is.EqualTo(canonical));
-            });
+            }));
         }
         finally
         {
@@ -110,12 +110,12 @@ public sealed class SyntheticCorpusFoundationTests
             "Jornada.Linkage.Parameters.Worker",
             "Jornada.Linkage.Parameters.Worker.csproj"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(source, Does.Not.Contain("System.Random"));
             Assert.That(source, Does.Not.Contain("new Random("));
             Assert.That(workerProject, Does.Not.Contain("Jornada.Linkage.SyntheticCorpus"));
-        });
+        }));
     }
 
     [Test]
@@ -137,18 +137,18 @@ public sealed class SyntheticCorpusFoundationTests
         var leftSequence = Enumerable.Range(0, 512).Select(_ => left.Next(leftRandom)).ToArray();
         var rightSequence = Enumerable.Range(0, 512).Select(_ => right.Next(rightRandom)).ToArray();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(left.TotalWeight, Is.EqualTo(10));
             Assert.That(right.TotalWeight, Is.EqualTo(10));
             Assert.That(leftSequence, Is.EqualTo(rightSequence));
-        });
+        }));
     }
 
     [Test]
     public void Weighted_sampler_tracks_declared_integer_distribution()
     {
-        var sampler = new DeterministicWeightedSampler<string>(new[]
+        var sampler = _ = new DeterministicWeightedSampler<string>(new[]
         {
             new WeightedValue<string>("A", "A", 1),
             new WeightedValue<string>("B", "B", 3),
@@ -166,34 +166,31 @@ public sealed class SyntheticCorpusFoundationTests
         for (var i = 0; i < draws; i++)
             counts[sampler.Next(random)]++;
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(counts["A"] / (double)draws, Is.InRange(0.08, 0.12));
             Assert.That(counts["B"] / (double)draws, Is.InRange(0.28, 0.32));
             Assert.That(counts["C"] / (double)draws, Is.InRange(0.58, 0.62));
-        });
+        }));
     }
 
     [Test]
     public void Weighted_sampler_rejects_zero_duplicate_key_and_overflow()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
-            Assert.Throws<ArgumentException>(() =>
-                new DeterministicWeightedSampler<string>(new[] { new WeightedValue<string>("A", "A", 0) }));
-            Assert.Throws<ArgumentException>(() =>
-                new DeterministicWeightedSampler<string>(new[]
+            Assert.Throws<ArgumentException>((Action)(() => _ = new DeterministicWeightedSampler<string>(new[] { new WeightedValue<string>("A", "A", 0) })));
+            Assert.Throws<ArgumentException>((Action)(() => _ = new DeterministicWeightedSampler<string>(new[]
                 {
                     new WeightedValue<string>("A", "A", 1),
                     new WeightedValue<string>("A", "B", 1)
-                }));
-            Assert.Throws<ArgumentException>(() =>
-                new DeterministicWeightedSampler<string>(new[]
+                })));
+            Assert.Throws<ArgumentException>((Action)(() => _ = new DeterministicWeightedSampler<string>(new[]
                 {
                     new WeightedValue<string>("A", "A", ulong.MaxValue),
                     new WeightedValue<string>("B", "B", 1)
-                }));
-        });
+                })));
+        }));
     }
 
     [Test]
@@ -209,13 +206,13 @@ public sealed class SyntheticCorpusFoundationTests
 
         var plan = SexPeriodCompositionInspector.Inspect(rows);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.Kind, Is.EqualTo(SexPeriodCompositionKind.ObservedJoint));
             Assert.That(plan.MethodVersion, Is.EqualTo(SexPeriodCompositionInspector.ObservedJointVersion));
             Assert.That(plan.JointCellCount, Is.EqualTo(2));
             Assert.That(plan.Declaration, Does.Contain("diretamente"));
-        });
+        }));
     }
 
     [Test]
@@ -231,7 +228,7 @@ public sealed class SyntheticCorpusFoundationTests
 
         var plan = SexPeriodCompositionInspector.Inspect(rows);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.Kind, Is.EqualTo(SexPeriodCompositionKind.IndependentMarginals));
             Assert.That(plan.MethodVersion, Is.EqualTo(SexPeriodCompositionInspector.IndependentMarginalsVersion));
@@ -239,7 +236,7 @@ public sealed class SyntheticCorpusFoundationTests
             Assert.That(plan.SexMarginalCellCount, Is.EqualTo(2));
             Assert.That(plan.PeriodMarginalCellCount, Is.EqualTo(2));
             Assert.That(plan.Declaration, Does.Contain("não representa distribuição conjunta observada"));
-        });
+        }));
     }
 
     [Test]
@@ -250,7 +247,7 @@ public sealed class SyntheticCorpusFoundationTests
             Row("NOME", "ANA", 200, "FEMININO", "TODOS")
         };
 
-        Assert.Throws<InvalidDataException>(() => SexPeriodCompositionInspector.Inspect(rows));
+        Assert.Throws<InvalidDataException>((Action)(() => SexPeriodCompositionInspector.Inspect(rows)));
     }
 
     private static IbgeFrequencyRow Row(

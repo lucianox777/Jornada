@@ -20,7 +20,7 @@ public sealed class RegistryQualityTests
     public void Implemented_qc_without_executable_evaluator_fails_closed()
     {
         var engine = new RegistryQualityEngine(Array.Empty<IRegistryQualityEvaluator>());
-        Assert.Throws<InvalidDataException>(() => engine.Evaluate(Batch("IMPLEMENTADO"), BenefitFact(10m)));
+        Assert.Throws<InvalidDataException>((Action)(() => engine.Evaluate(Batch("IMPLEMENTADO"), BenefitFact(10m))));
     }
 
     [Test]
@@ -35,11 +35,11 @@ public sealed class RegistryQualityTests
     {
         var engine = new RegistryQualityEngine(Array.Empty<IRegistryQualityEvaluator>());
         var result = engine.Evaluate(Batch("NAO_IMPLEMENTADO", regimeVigencia: "PRAZO_DETERMINADO"), BenefitFact(10m));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result?.Resultado, Is.EqualTo("DIVERGENTE"));
             Assert.That(result?.RegraCodigo, Is.EqualTo("DATA_FIM_CONCESSAO_OBRIGATORIA_V1"));
-        });
+        }));
     }
 
     [Test]
@@ -56,11 +56,11 @@ public sealed class RegistryQualityTests
         var result = engine.Evaluate(
             Batch("NAO_IMPLEMENTADO", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "PRAZO_INDETERMINADO"),
             BenefitFact(10m, dataInicioConcessao: new DateOnly(2027, 1, 1)));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result?.Resultado, Is.EqualTo("DIVERGENTE"));
             Assert.That(result?.RegraCodigo, Is.EqualTo("CONCESSAO_FORA_JANELA_V1"));
-        });
+        }));
     }
 
     [Test]
@@ -70,11 +70,11 @@ public sealed class RegistryQualityTests
         var result = engine.Evaluate(
             Batch("NAO_IMPLEMENTADO", new DateOnly(2026, 1, 1), new DateOnly(2026, 12, 31), "PRAZO_INDETERMINADO"),
             BenefitFactWithoutStart(10m));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result?.Resultado, Is.EqualTo("NAO_VERIFICAVEL"));
             Assert.That(result?.RegraCodigo, Is.EqualTo("CONCESSAO_JANELA_NAO_VERIFICAVEL_V1"));
-        });
+        }));
     }
 
     [Test]

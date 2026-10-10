@@ -60,11 +60,11 @@ public sealed class NameFrequencyCoverageSqlServerTests
             verify.Parameters.AddWithValue("@id", versionId);
             await using var reader = await verify.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetString(0), Is.EqualTo("PARCIAL"));
                 Assert.That(reader.GetString(1), Is.EqualTo("NAO_PUBLICADA_OU_SUPRIMIDA"));
-            });
+            }));
         }
 
         await using (var publish = connection.CreateCommand())
@@ -79,7 +79,7 @@ public sealed class NameFrequencyCoverageSqlServerTests
         {
             mutate.CommandText = "UPDATE ref.frequencia_nome_cobertura SET cobertura='COMPLETA' WHERE frequencia_nome_versao_id=@id AND escopo_geografico='MUNICIPIO';";
             mutate.Parameters.AddWithValue("@id", versionId);
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await mutate.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await mutate.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(51650));
         }
     }
@@ -133,7 +133,7 @@ public sealed class NameFrequencyCoverageSqlServerTests
             versionId,
             CancellationToken.None);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(prepared.Snapshot.PersonFirstNameCount, Is.EqualTo(2));
             Assert.That(prepared.Snapshot.MotherFirstNameCount, Is.EqualTo(1));
@@ -141,7 +141,7 @@ public sealed class NameFrequencyCoverageSqlServerTests
             Assert.That(maria, Is.EqualTo(decimal.Divide(600m, 610m)).Within(0.000000000001m));
             Assert.That(prepared.Snapshot.TryGetMotherFirstName("ANA SOUZA", out var ana), Is.True);
             Assert.That(ana, Is.EqualTo(1m));
-        });
+        }));
     }
 
     private static string RequireIntegrationConnection()

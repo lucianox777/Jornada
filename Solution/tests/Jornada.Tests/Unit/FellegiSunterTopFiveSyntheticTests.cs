@@ -75,7 +75,7 @@ public sealed class FellegiSunterTopFiveSyntheticTests
             $"fs_fp={(decision.Status == ResolutionStatus.RESOLVIDO && decision.PessoaUuidResolvido != truth ? 1 : 0) + (absent.Status == ResolutionStatus.RESOLVIDO ? 1 : 0)}; " +
             $"top5_truth_present={(topFive.Contains(truth) ? 1 : 0)}; " +
             $"top5_truth_absent={(absentTopFive.Contains(truth) ? 1 : 0)}");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(ranked, Has.Count.EqualTo(7));
             Assert.That(topFive, Has.Length.EqualTo(5));
@@ -83,6 +83,6 @@ public sealed class FellegiSunterTopFiveSyntheticTests
             Assert.That(topFive, Does.Contain(truth), "A verdade presente deve ser recuperada entre os cinco nesta fixture.");
             Assert.That(absentTopFive, Does.Not.Contain(truth));
             Assert.That(decision.PessoaUuidResolvido is null || candidates.Any(x => x.PessoaUuid == decision.PessoaUuidResolvido));
-        });
+        }));
     }
 }

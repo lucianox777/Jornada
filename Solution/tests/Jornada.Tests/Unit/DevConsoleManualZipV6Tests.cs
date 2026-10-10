@@ -45,11 +45,11 @@ public sealed class DevConsoleManualZipV1Tests
             ["atributosTransversais"]=Array.Empty<object>()
         });
 
-        Assert.Multiple(()=>
+        Assert.Multiple((Action)(()=>
         {
-            Assert.DoesNotThrow(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1),scenario);
-            Assert.DoesNotThrow(()=>PersonContractRules.ValidateCpfAbsence(1,cpf,reason),scenario);
-        });
+            Assert.DoesNotThrow((Action)(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1)),scenario);
+            Assert.DoesNotThrow((Action)(()=>PersonContractRules.ValidateCpfAbsence(1,cpf,reason)),scenario);
+        }));
     }
 
     [Test]
@@ -60,7 +60,7 @@ public sealed class DevConsoleManualZipV1Tests
         var validator=JsonSchemaSubsetValidator.Load(schema);
         const string json="""{"idPessoaEntrega":"DEV-ONLY-ID","cpf":null,"cpfAusenteMotivo":"NAO_INFORMADO_ORIGEM","nomeCompleto":null,"dataNascimento":null,"nomeMae":null}""";
 
-        Assert.DoesNotThrow(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1));
+        Assert.DoesNotThrow((Action)(()=>validator.ParseAndValidate(json,"pessoas.jsonl",1)));
     }
 
     [Test]
@@ -74,14 +74,14 @@ public sealed class DevConsoleManualZipV1Tests
             .ToArray();
 
         Assert.That(handlers,Is.Not.Empty);
-        Assert.Multiple(()=>
+        Assert.Multiple((Action)(()=>
         {
             foreach(var handler in handlers)
                 Assert.That(
                     Regex.IsMatch(page,$@"(?:async\s+)?function\s+{Regex.Escape(handler)}\s*\("),
                     Is.True,
                     $"Handler de um clique ausente: {handler}");
-        });
+        }));
     }
 
     [Test]
@@ -95,10 +95,10 @@ public sealed class DevConsoleManualZipV1Tests
             .ToArray();
 
         Assert.That(scriptPaths,Is.Not.Empty);
-        Assert.Multiple(()=>
+        Assert.Multiple((Action)(()=>
         {
             foreach(var relative in scriptPaths)
                 Assert.That(File.Exists(Path.Combine(root,"Solution",relative)),Is.True,$"Executor da Console ausente: {relative}");
-        });
+        }));
     }
 }

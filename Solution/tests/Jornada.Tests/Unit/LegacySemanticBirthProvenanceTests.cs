@@ -30,11 +30,11 @@ public sealed class LegacySemanticBirthProvenanceTests
         else
             parameters.Remove(LinkageParameterCatalog.BirthSemanticEvidenceScoring);
 
-        var error = Assert.Throws<InvalidOperationException>(() => LinkageModelPolicy.Create(
+        var error = Assert.Throws<InvalidOperationException>((Action)(() => LinkageModelPolicy.Create(
             ModelId,
             5,
             LinkageParameterCatalog.LegacySemanticBirthAlgorithmVersion,
-            parameters));
+            parameters)));
 
         Assert.That(error!.Message, Does.Contain(LinkageParameterCatalog.BirthSemanticEvidenceScoring));
     }

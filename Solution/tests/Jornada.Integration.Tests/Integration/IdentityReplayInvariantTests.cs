@@ -21,11 +21,11 @@ public sealed class IdentityReplayInvariantTests
         var once = await BusinessStateAsync(connection, uuid);
         await ExecRecomposeAsync(connection, uuid);
         var twice = await BusinessStateAsync(connection, uuid);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(once, Is.EqualTo(before), "Primeira recomposição não pode alterar estado de negócio sem nova evidência.");
             Assert.That(twice, Is.EqualTo(once), "Replay da recomposição deve convergir ao mesmo estado de negócio.");
-        });
+        }));
     }
 
     [Test]
@@ -72,10 +72,10 @@ public sealed class IdentityReplayInvariantTests
             """;
         await using var q = connection.CreateCommand(); q.CommandText = sql;
         await using var reader = await q.ExecuteReaderAsync(); Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             for (var i=0;i<5;i++) Assert.That(reader.GetInt32(i), Is.Zero, $"invariante global índice {i}");
-        });
+        }));
     }
 
     private static async Task PrepareAsync(SqlConnection connection)

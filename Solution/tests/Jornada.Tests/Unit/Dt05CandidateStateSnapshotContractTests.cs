@@ -22,7 +22,7 @@ public sealed class Dt05CandidateStateSnapshotContractTests
         var project = File.ReadAllText(Path.Combine(root, "src", "Jornada.Linkage.Runner",
             "Jornada.Linkage.Runner.csproj"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(project, Does.Contain("Parquet.Net").And.Contain("6.1.0"));
             Assert.That(publisher, Does.Contain("CompressionMethod.Zstd"));
@@ -41,6 +41,6 @@ public sealed class Dt05CandidateStateSnapshotContractTests
             Assert.That(candidateState, Is.GreaterThan(governance));
             Assert.That(manifest, Is.GreaterThan(candidateState));
             Assert.That(score, Is.GreaterThan(manifest));
-        });
+        }));
     }
 }

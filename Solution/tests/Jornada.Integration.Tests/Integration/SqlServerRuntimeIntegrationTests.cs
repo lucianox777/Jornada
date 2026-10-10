@@ -116,10 +116,10 @@ public sealed class SqlServerRuntimeIntegrationTests
         await using var command = connection.CreateCommand();
         command.CommandText = "INSERT INTO #ConstraintProbe (Value) VALUES (-1);";
 
-        var exception = Assert.ThrowsAsync<SqlException>(async () =>
+        var exception = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
         {
             _ = await command.ExecuteNonQueryAsync().ConfigureAwait(false);
-        });
+        }));
 
         Assert.That(exception, Is.Not.Null);
         Assert.That(exception!.Number, Is.EqualTo(547));
@@ -155,10 +155,10 @@ public sealed class SqlServerRuntimeIntegrationTests
                 $"SET LOCK_TIMEOUT 1000; UPDATE {tableName} SET Value = 3 WHERE Id = 1;";
             blockedUpdate.CommandTimeout = 5;
 
-            var exception = Assert.ThrowsAsync<SqlException>(async () =>
+            var exception = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
             {
                 _ = await blockedUpdate.ExecuteNonQueryAsync().ConfigureAwait(false);
-            });
+            }));
 
             Assert.That(exception, Is.Not.Null);
             Assert.That(exception!.Number, Is.EqualTo(1222),

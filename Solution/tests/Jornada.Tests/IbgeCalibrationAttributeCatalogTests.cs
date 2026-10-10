@@ -9,11 +9,11 @@ public sealed class IbgeCalibrationAttributeCatalogTests
     public void First_name_features_use_ibge_first_name_statistics(string feature)
     {
         Assert.That(IbgeCalibrationAttributeCatalog.TryGetMapping(feature, out var mapping), Is.True);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(mapping.Source, Is.EqualTo(ExternalNameFrequencyCatalog.IbgeSource));
             Assert.That(mapping.StatisticKind, Is.EqualTo(IbgeNameStatisticKind.FirstName));
-        });
+        }));
     }
 
     [TestCase(BlockingCandidateFeatureCatalog.Surnames)]
@@ -22,12 +22,12 @@ public sealed class IbgeCalibrationAttributeCatalogTests
     [TestCase(BlockingCandidateFeatureCatalog.MotherLastName)]
     public void Token_derived_surname_features_do_not_borrow_ibge_surname_semantics(string feature)
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(IbgeCalibrationAttributeCatalog.Supports(feature), Is.False);
             Assert.That(BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates, Does.Contain(feature),
                 "A feature interna continua disponível ao Calibrador; apenas o enriquecimento IBGE indevido é removido.");
-        });
+        }));
     }
 
     [TestCase(BlockingCandidateFeatureCatalog.FullName)]

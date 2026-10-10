@@ -17,7 +17,7 @@ public sealed class IndependentResolutionEvaluationTests
             threshold: 0.95m,
             conflictMargin: 0.03m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Version, Is.EqualTo(IndependentResolutionEvaluator.Version));
             Assert.That(report.RuleSetVersion, Is.EqualTo("rules-v1"));
@@ -39,15 +39,15 @@ public sealed class IndependentResolutionEvaluationTests
             Assert.That(report.Overall.ResolutionRate, Is.EqualTo(0.5m));
             Assert.That(report.Overall.CandidateRecoveryRate, Is.EqualTo(2m / 3m));
             Assert.That(report.Overall.TopCandidateBrierScore, Is.EqualTo(0.625725m));
-        });
+        }));
 
         var highBin = report.Calibration.Single(x => x.LowerInclusivePercent == 90);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(highBin.Observations, Is.EqualTo(3));
             Assert.That(highBin.MeanPredictedProbability, Is.EqualTo(0.97m));
             Assert.That(highBin.ObservedMatchRate, Is.EqualTo(1m / 3m));
-        });
+        }));
     }
 
     [Test]
@@ -61,12 +61,12 @@ public sealed class IndependentResolutionEvaluationTests
         var report = IndependentResolutionEvaluator.Evaluate(
             Manifest(candidatePairs: 2, referenceLinks: 1), rows, 0.95m, 0.03m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Overall.Resolved, Is.EqualTo(1));
             Assert.That(report.Overall.Conflicts, Is.Zero);
             Assert.That(report.Overall.TrueLinks, Is.EqualTo(1));
-        });
+        }));
     }
 
     [Test]
@@ -95,7 +95,7 @@ public sealed class IndependentResolutionEvaluationTests
             0.03m);
 
         var cohortA = report.Subgroups.Single(x => x.Dimension == "COHORT" && x.Value == "A");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(cohortA.Metrics.Observations, Is.EqualTo(2));
             Assert.That(cohortA.Metrics.ReferenceLinks, Is.EqualTo(2));
@@ -104,7 +104,7 @@ public sealed class IndependentResolutionEvaluationTests
             Assert.That(cohortA.Metrics.MissedLinks, Is.EqualTo(1));
             Assert.That(cohortA.Metrics.Recall, Is.EqualTo(0.5m));
             Assert.That(cohortA.Metrics.Precision, Is.EqualTo(0.5m));
-        });
+        }));
     }
 
     [Test]
@@ -112,36 +112,32 @@ public sealed class IndependentResolutionEvaluationTests
     {
         var valid = RepresentativeObservations();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
-            Assert.That(
-                () => IndependentResolutionEvaluator.Evaluate(
-                    Manifest(candidatePairs: 8, referenceLinks: 3), valid, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionEvaluator.Evaluate(
+                    Manifest(candidatePairs: 8, referenceLinks: 3), valid, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
 
-            Assert.That(
-                () => IndependentResolutionEvaluator.Evaluate(
-                    Manifest(candidatePairs: 7, referenceLinks: 2), valid, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionEvaluator.Evaluate(
+                    Manifest(candidatePairs: 7, referenceLinks: 2), valid, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
 
             var duplicate = new[]
             {
                 Observation("1", null, new[] { Candidate("a", 0.1m), Candidate("a", 0.2m) })
             };
-            Assert.That(
-                () => IndependentResolutionEvaluator.Evaluate(
-                    Manifest(candidatePairs: 2, referenceLinks: 0), duplicate, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionEvaluator.Evaluate(
+                    Manifest(candidatePairs: 2, referenceLinks: 0), duplicate, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
 
             var invalidScore = new[]
             {
                 Observation("1", null, new[] { Candidate("a", 1.01m) })
             };
-            Assert.That(
-                () => IndependentResolutionEvaluator.Evaluate(
-                    Manifest(candidatePairs: 1, referenceLinks: 0), invalidScore, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionEvaluator.Evaluate(
+                    Manifest(candidatePairs: 1, referenceLinks: 0), invalidScore, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
-        });
+        }));
     }
 
     [Test]
@@ -152,7 +148,7 @@ public sealed class IndependentResolutionEvaluationTests
         {
             Observation("1", "a", new[] { Candidate("a", 0.99999992m), Candidate("b", 0.99935817m) })
         };
-        Assert.That(() => IndependentResolutionEvaluator.Evaluate(manifest, observations, 0.99967823m, 0.03m),
+        Assert.That((Func<object?>)(() => IndependentResolutionEvaluator.Evaluate(manifest, observations, 0.99967823m, 0.03m)),
             Throws.TypeOf<InvalidOperationException>().With.Message.Contains("EvaluateRecorded"));
     }
 
@@ -170,7 +166,7 @@ public sealed class IndependentResolutionEvaluationTests
         })
         {
             var manifest = Manifest(1, 1, algorithm);
-            Assert.That(() => IndependentResolutionEvaluator.Evaluate(manifest, observations, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionEvaluator.Evaluate(manifest, observations, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>().With.Message.Contains("EvaluateRecorded"),
                 algorithm);
         }
@@ -198,7 +194,7 @@ public sealed class IndependentResolutionEvaluationTests
         var b = IndependentResolutionEvaluator.EvaluateRecorded(manifest, rows.Reverse().ToArray(),
             outcomes.Reverse().ToArray(), runId, manifest.Evaluation.ModelVersion,
             manifest.RuleSetFingerprintSha256, 0.99967823m, 3.99997580m, true);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(a.Version, Is.EqualTo(IndependentResolutionEvaluator.RecordedVersion));
             Assert.That(a.Overall.Conflicts, Is.EqualTo(1));
@@ -208,7 +204,7 @@ public sealed class IndependentResolutionEvaluationTests
             Assert.That(a.Overall.Recall, Is.Zero);
             Assert.That(a.ConflictMargin, Is.EqualTo(3.99997580m));
             Assert.That(a.FingerprintSha256, Is.EqualTo(b.FingerprintSha256));
-        });
+        }));
     }
 
     [Test]
@@ -231,23 +227,23 @@ public sealed class IndependentResolutionEvaluationTests
                 manifest.Evaluation.ModelVersion, manifest.RuleSetFingerprintSha256, 0.95m, 4m, complete);
 
         var report = Run(outcomes);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Overall.FalseLinks, Is.EqualTo(1));
             Assert.That(report.Overall.TrueNonLinks, Is.EqualTo(1));
             Assert.That(report.Overall.FalseLinkRate, Is.EqualTo(1m));
             Assert.That(report.Overall.FalsePositiveRate, Is.EqualTo(0.5m));
-            Assert.That(() => Run(outcomes, false), Throws.TypeOf<InvalidOperationException>());
-            Assert.That(() => Run(new[] { outcomes[0], outcomes[0] }),
+            Assert.That((Func<object?>)(() => Run(outcomes, false)), Throws.TypeOf<InvalidOperationException>());
+            Assert.That((Func<object?>)(() => Run(new[] { outcomes[0], outcomes[0] })),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(() => Run(new[] { outcomes[0] with { Status = "CONFLITO" }, outcomes[1] }),
+            Assert.That((Func<object?>)(() => Run(new[] { outcomes[0] with { Status = "CONFLITO" }, outcomes[1] })),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(() => Run(new[] { outcomes[0] with { BestCandidateFingerprintSha256 = Hash("a") }, outcomes[1] }),
+            Assert.That((Func<object?>)(() => Run(new[] { outcomes[0] with { BestCandidateFingerprintSha256 = Hash("a") }, outcomes[1] })),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(() => IndependentResolutionEvaluator.EvaluateRecorded(manifest, rows, outcomes, runId,
-                "incorrect", manifest.RuleSetFingerprintSha256, 0.95m, 4m, true),
+            Assert.That((Func<object?>)(() => IndependentResolutionEvaluator.EvaluateRecorded(manifest, rows, outcomes, runId,
+                "incorrect", manifest.RuleSetFingerprintSha256, 0.95m, 4m, true)),
                 Throws.TypeOf<InvalidOperationException>());
-        });
+        }));
     }
 
     private static IndependentResolutionObservation[] RepresentativeObservations() =>

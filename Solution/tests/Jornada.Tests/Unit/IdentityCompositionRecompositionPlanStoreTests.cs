@@ -45,7 +45,7 @@ public sealed class IdentityCompositionRecompositionPlanStoreTests
             Decision, RequestHash, IdentityCompositionRecompositionPlanner.Version,
             json, hash, DateTimeOffset.UnixEpoch, "PLANEJADA");
 
-        Assert.DoesNotThrow(() => IdentityCompositionRecompositionPlanStore.ValidateContent(receipt, plan));
+        Assert.DoesNotThrow((Action)(() => IdentityCompositionRecompositionPlanStore.ValidateContent(receipt, plan)));
     }
 
     [Test]
@@ -61,8 +61,8 @@ public sealed class IdentityCompositionRecompositionPlanStoreTests
             Decision, RequestHash, IdentityCompositionRecompositionPlanner.Version,
             json, new string('b', 64), DateTimeOffset.UnixEpoch, "PLANEJADA");
 
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityCompositionRecompositionPlanStore.ValidateContent(receipt, plan));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityCompositionRecompositionPlanStore.ValidateContent(receipt, plan)));
     }
 
     [Test]
@@ -78,8 +78,8 @@ public sealed class IdentityCompositionRecompositionPlanStoreTests
             Decision, RequestHash, "IDENTITY_COMPOSITION_RECOMPOSITION_PLAN_V0",
             json, IdentityCompositionCanonical.HashUtf8(json), DateTimeOffset.UnixEpoch, "PLANEJADA");
 
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityCompositionRecompositionPlanStore.ValidateContent(receipt, plan));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityCompositionRecompositionPlanStore.ValidateContent(receipt, plan)));
     }
 
     private static IdentityCompositionRecompositionPlan Plan(

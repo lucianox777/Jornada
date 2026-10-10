@@ -45,21 +45,21 @@ public sealed class EmailNormalizationConformanceTests
 
             if (vector.Valid)
             {
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(sqlValue, Is.EqualTo(vector.Expected), $"SQL: {vector.Id}");
                     Assert.That(csharpError, Is.Null, $"C#: {vector.Id}");
                     Assert.That(csharpValue, Is.EqualTo(vector.Expected), $"C#: {vector.Id}");
                     Assert.That(sqlValue, Is.EqualTo(csharpValue), $"SQL/C#: {vector.Id}");
-                });
+                }));
             }
             else
             {
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(sqlValue, Is.Null, $"SQL deveria falhar fechado: {vector.Id}");
                     Assert.That(csharpError, Is.TypeOf<InvalidDataException>(), $"C# deveria falhar fechado: {vector.Id}");
-                });
+                }));
             }
         }
     }

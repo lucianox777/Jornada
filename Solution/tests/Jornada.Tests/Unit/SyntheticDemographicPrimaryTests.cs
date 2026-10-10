@@ -40,7 +40,7 @@ public sealed class SyntheticDemographicPrimaryTests
                 CpfBasePrevalence: 0,
                 CnsBasePrevalence: 0));
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(generation.People, Has.Count.EqualTo(40));
                 Assert.That(generation.People.All(x => x.Name.StartsWith("PAULO ", StringComparison.Ordinal)), Is.True);
@@ -50,7 +50,7 @@ public sealed class SyntheticDemographicPrimaryTests
                 Assert.That(generation.People.All(x => x.BirthDate == new DateOnly(1988, 7, 7)), Is.True);
                 Assert.That(birth.Provenance.SchemaVersion, Is.EqualTo(SyntheticDailyBirthDistribution.Schema));
                 Assert.That(birth.Provenance.Sha256, Does.Match("^[0-9A-F]{64}$"));
-            });
+            }));
         }
         finally
         {
@@ -100,7 +100,7 @@ public sealed class SyntheticDemographicPrimaryTests
                 new SyntheticCorpusOptions(People: 1, MinFrequency: 1));
 
             var random = new Xoshiro256StarStar(42);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(source.PersonFirstNames.Draw(random), Is.EqualTo("PAULO"));
                 Assert.That(source.PersonSurnames.Draw(random), Is.EqualTo("SILVA"));
@@ -110,7 +110,7 @@ public sealed class SyntheticDemographicPrimaryTests
                 Assert.That(source.PersonSurnameCount, Is.EqualTo(1));
                 Assert.That(source.MotherFirstNameCount, Is.EqualTo(1));
                 Assert.That(source.MotherSurnameCount, Is.EqualTo(1));
-            });
+            }));
         }
         finally
         {
@@ -121,9 +121,9 @@ public sealed class SyntheticDemographicPrimaryTests
     [Test]
     public void Daily_birth_distribution_fails_closed_on_missing_or_invalid_frequency()
     {
-        Assert.ThrowsAsync<FileNotFoundException>(async () =>
+        Assert.ThrowsAsync<FileNotFoundException>((Func<Task>)(async () =>
             await SyntheticDailyBirthDistribution.LoadAsync(
-                Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json")));
+                Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".json"))));
 
         var dir = CreateTempDirectory();
         try
@@ -138,8 +138,8 @@ public sealed class SyntheticDemographicPrimaryTests
               "rows":[{"date":"1988-01-01","births":0}]
             }
             """);
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await SyntheticDailyBirthDistribution.LoadAsync(path));
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await SyntheticDailyBirthDistribution.LoadAsync(path)));
         }
         finally
         {

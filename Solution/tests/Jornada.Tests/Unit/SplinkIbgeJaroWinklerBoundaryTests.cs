@@ -21,14 +21,14 @@ public sealed class SplinkIbgeJaroWinklerBoundaryTests
         // exact synthetic pair LOW, whereas Jornada V1 classified it MEDIUM.
         var score = IdentityComparison.JaroWinkler(left, right);
         var inferredJaroBase = (score - 0.4d) / 0.6d;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(inferredJaroBase, Is.LessThan(0.7d));
             Assert.That(score, Is.GreaterThanOrEqualTo(0.80d));
             Assert.That(score, Is.LessThan(0.92d));
             Assert.That(IdentityComparison.CompareNameV1(left, right),
                 Is.EqualTo(NameComparisonState.MEDIUM));
-        });
+        }));
     }
 
     [TestCase("JOSIANE SANTOS", "ELISA SANTOS", NameComparisonState.LOW)]

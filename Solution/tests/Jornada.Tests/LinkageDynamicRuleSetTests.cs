@@ -61,9 +61,9 @@ public sealed class LinkageDynamicRuleSetTests
     [Test]
     public void Create_RequiresCompleteIbgeIdentity()
     {
-        Assert.Throws<ArgumentException>(() => LinkageDynamicRuleSet.Create(
+        Assert.Throws<ArgumentException>((Action)(() => LinkageDynamicRuleSet.Create(
             "rules-1", "calibrator-1", new[] { "first_name" },
             Array.Empty<KeyValuePair<string, decimal>>(),
-            ibgeSourceVersion: "ibge-2026-09"));
+            ibgeSourceVersion: "ibge-2026-09")));
     }
 }

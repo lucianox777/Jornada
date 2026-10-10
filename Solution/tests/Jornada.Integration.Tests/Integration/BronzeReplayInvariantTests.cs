@@ -72,12 +72,12 @@ public sealed class BronzeReplayInvariantTests
 
             var replay = await repository.ReserveNextAsync("bronze-replay-second", TimeSpan.FromMinutes(2), CancellationToken.None);
             Assert.That(replay, Is.Not.Null);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(replay!.LoteId, Is.EqualTo(lotId));
                 Assert.That(replay.ObjetoChave, Is.EqualTo(objectKey));
                 Assert.That(replay.PayloadSha256, Is.EqualTo(sha256));
-            });
+            }));
             await ProcessFromBronzeAsync(repository, parser, store, replay!);
 
             await store.VerifyAsync(objectKey, sha256, payload.LongLength, CancellationToken.None);
@@ -87,13 +87,13 @@ public sealed class BronzeReplayInvariantTests
                 "SELECT registro_observacao_id FROM silver.registro_observacao WHERE lote_id=@lote AND codigo_registro_origem=@codigo",
                 ("@lote", lotId), ("@codigo", FixtureRecord));
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(replayUuid, Is.EqualTo(canonicalUuid), "Replay não pode trocar UUID canônico já publicado.");
                 Assert.That(replayFactObservation, Is.GreaterThan(0));
                 Assert.That(replayFactObservation, Is.Not.EqualTo(firstFactObservation),
                     "A observação factual removida deve ter sido reconstruída a partir do Bronze.");
-            });
+            }));
             await AssertCurrentProjectionAsync(connectionString, deliveryId, lotId, canonicalUuid);
         }
         finally

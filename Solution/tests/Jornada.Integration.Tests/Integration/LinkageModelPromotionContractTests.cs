@@ -37,7 +37,7 @@ public sealed class LinkageModelPromotionContractTests
             await monotonicityTriggerCommand.ExecuteScalarAsync(),
             System.Globalization.CultureInfo.InvariantCulture);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(triggerDefinition, Is.Not.Null.And.Not.Empty);
             Assert.That(triggerDefinition, Does.Contain("FELLEGI_SUNTER_SEMANTIC_BIRTH_V5"));
@@ -66,7 +66,7 @@ public sealed class LinkageModelPromotionContractTests
             Assert.That(monotonicityTriggerDefinition, Does.Contain("MEDIUM"));
             Assert.That(monotonicityTriggerDefinition, Does.Contain("LOW"));
             Assert.That(monotonicityTriggerDefinition, Does.Not.Contain("M_NOME_MAE_MISSING"));
-        });
+        }));
     }
 
     [Test]
@@ -167,7 +167,7 @@ public sealed class LinkageModelPromotionContractTests
             """;
 
         await using var command = new SqlCommand(sql, connection) { CommandTimeout = 60 };
-        Assert.DoesNotThrowAsync(async () => await command.ExecuteNonQueryAsync());
+        Assert.DoesNotThrowAsync((Func<Task>)(async () => await command.ExecuteNonQueryAsync()));
     }
 
     [Test]
@@ -289,7 +289,7 @@ public sealed class LinkageModelPromotionContractTests
             """;
 
         await using var command = new SqlCommand(sql, connection) { CommandTimeout = 60 };
-        Assert.DoesNotThrowAsync(async () => await command.ExecuteNonQueryAsync());
+        Assert.DoesNotThrowAsync((Func<Task>)(async () => await command.ExecuteNonQueryAsync()));
     }
 
     [Test]
@@ -378,7 +378,7 @@ public sealed class LinkageModelPromotionContractTests
                 THROW 51996,'V8 válida não foi promovida.',1;
             """;
         await using var command = new SqlCommand(sql, connection) { CommandTimeout = 60 };
-        Assert.DoesNotThrowAsync(async () => await command.ExecuteNonQueryAsync());
+        Assert.DoesNotThrowAsync((Func<Task>)(async () => await command.ExecuteNonQueryAsync()));
     }
 
     private static async Task ApplyContractAsync(SqlConnection connection)

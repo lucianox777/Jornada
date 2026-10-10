@@ -70,7 +70,7 @@ public sealed class DT10PublicationPlanVolumeSqlServerTests
         TestContext.AddTestAttachment(evidencePath, "DT-10 relative plan/volumetry evidence (no SLA claim)");
         TestContext.Progress.WriteLine($"DT10_EVIDENCE_FILE={evidencePath}");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(measurements, Has.Count.EqualTo(volumes.Length));
             Assert.That(measurements.Select(x => x.Volume), Is.Ordered.Ascending);
@@ -78,7 +78,7 @@ public sealed class DT10PublicationPlanVolumeSqlServerTests
             Assert.That(measurements, Has.All.Matches<Measurement>(x => x.Scalar.LogicalReads >= 0 && x.Batch.LogicalReads >= 0));
             Assert.That(measurements, Has.All.Matches<Measurement>(x =>
                 !string.IsNullOrWhiteSpace(x.Scalar.PlanXml) && !string.IsNullOrWhiteSpace(x.Batch.PlanXml)));
-        });
+        }));
     }
 
     private static async Task<PathMeasurement> MeasureScalarAsync(

@@ -37,11 +37,11 @@ public sealed class BlockingPhysicalFeatureCatalogTests
     public void NameFeatures_UseMaterializedSilverHistory(string feature)
     {
         Assert.That(BlockingPhysicalFeatureCatalog.TryGet(feature, out var mapping), Is.True);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(mapping.Strategy, Is.EqualTo(BlockingPhysicalStrategy.MaterializedProjection));
             Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.SilverObservationHistory));
-        });
+        }));
     }
 
     [TestCase(BlockingCandidateFeatureCatalog.BirthDay)]
@@ -50,11 +50,11 @@ public sealed class BlockingPhysicalFeatureCatalogTests
     public void BirthComponents_UseMaterializedCurrentGoldValue(string feature)
     {
         Assert.That(BlockingPhysicalFeatureCatalog.TryGet(feature, out var mapping), Is.True);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(mapping.Strategy, Is.EqualTo(BlockingPhysicalStrategy.MaterializedProjection));
             Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.GoldCurrent));
-        });
+        }));
     }
 
     [Test]
@@ -75,13 +75,13 @@ public sealed class BlockingPhysicalFeatureCatalogTests
         bool multiValued)
     {
         Assert.That(BlockingPhysicalFeatureCatalog.TryGet(feature, out var mapping), Is.True);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(mapping.SourceColumn, Is.EqualTo($"pessoa_atributo[{sourceAttribute}].valor"));
             Assert.That(mapping.Strategy, Is.EqualTo(BlockingPhysicalStrategy.MaterializedProjection));
             Assert.That(mapping.SourceScope, Is.EqualTo(BlockingPhysicalSourceScope.SilverObservationHistory));
             Assert.That(mapping.MultiValued, Is.EqualTo(multiValued));
-        });
+        }));
     }
 
     [Test]

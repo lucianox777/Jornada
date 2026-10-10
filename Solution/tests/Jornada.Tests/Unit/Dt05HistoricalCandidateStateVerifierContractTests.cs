@@ -13,7 +13,7 @@ public sealed class Dt05HistoricalCandidateStateVerifierContractTests
             "Jornada.Linkage.Runner", "Dt05HistoricalCandidateStateVerifier.cs"));
         var source = File.ReadAllText(path);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(source, Does.Contain("schema_version").And.Contain("!= 2"));
             Assert.That(source, Does.Contain("snapshot_kind").And.Contain("candidate-state"));
@@ -26,6 +26,6 @@ public sealed class Dt05HistoricalCandidateStateVerifierContractTests
             Assert.That(source, Does.Contain("objects/{expectedSha[..2]}/{expectedSha}.parquet"));
             Assert.That(source, Does.Contain("partitionRows != rowCount"));
             Assert.That(source, Does.Not.Contain("gold.pessoa"));
-        });
+        }));
     }
 }

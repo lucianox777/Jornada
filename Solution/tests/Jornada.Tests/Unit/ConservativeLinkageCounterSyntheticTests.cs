@@ -97,7 +97,7 @@ public sealed class ConservativeLinkageCounterSyntheticTests
             $"nominal_precision={precision:F6}; nominal_recall={recall:F6}; " +
             $"nominal_fpr={falsePositiveRate:F6}; distinct_base_names={names.Distinct().Count()}");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(positives, Has.Length.EqualTo(population));
             Assert.That(negatives, Has.Length.EqualTo(population));
@@ -109,7 +109,7 @@ public sealed class ConservativeLinkageCounterSyntheticTests
             Assert.That(recall, Is.InRange(0d, 1d));
             Assert.That(counterRecovered, Is.GreaterThan(0),
                 "A recuperação para o balcão deve resgatar alguns pares não automáticos.");
-        });
+        }));
     }
 
     [Test]

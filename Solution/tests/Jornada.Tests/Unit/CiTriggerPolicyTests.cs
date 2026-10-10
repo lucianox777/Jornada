@@ -25,7 +25,7 @@ public sealed class CiTriggerPolicyTests
             "  pull_request:",
             "  workflow_dispatch:");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(ci, Does.Contain(expected));
             Assert.That(ci, Does.Contain("  dependency-lock:"));
@@ -33,6 +33,6 @@ public sealed class CiTriggerPolicyTests
             Assert.That(ci, Does.Contain("  deterministic-build:"));
             Assert.That(ci, Does.Contain("dotnet build Jornada.sln"));
             Assert.That(ci, Does.Contain("  cancel-in-progress: true"));
-        });
+        }));
     }
 }
