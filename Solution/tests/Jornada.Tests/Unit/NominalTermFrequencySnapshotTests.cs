@@ -21,7 +21,7 @@ public sealed class NominalTermFrequencySnapshotTests
                 "ZULÉICA", 10, 1000, 0.01m)
         });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(snapshot.TryGetPersonFirstName("Maria da Silva", out var maria), Is.True);
             Assert.That(maria, Is.EqualTo(0.6m));
