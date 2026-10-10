@@ -165,3 +165,7 @@ Em **DEV v1**, não se exige retrocompatibilidade do runtime antigo, mas permane
 ### Gate de implementação da qualidade cadastral (#413)
 
 A detecção de sentinelas/invenções deve gerar **metadados versionados de qualidade**, preservando sempre o valor original, proveniência, observação e histórico. `SENTINELA_PROVAVEL` não equivale a exclusão nem autoriza corrigir silenciosamente nome, nome da mãe, CPF ou data de nascimento. Um detector deve demonstrar testes negativos para nomes legítimos raros e valores ausentes, e sua saída não pode mudar decisões de Linkage sem política calibrada e publicada. Esta regra documental não substitui a implementação e os testes da issue #413.
+
+### Suficiência do blocking e abstenção (#612)
+
+Campos do núcleo (nome, data de nascimento, nome da mãe e CPF) podem estar ausentes na origem; ausência não autoriza descartar a observação. A suficiência para buscar candidatos deve ser avaliada pela **seletividade efetiva do blocking e orçamento de candidatos**, sob política versionada, não por lista fixa de campos obrigatórios. Quando não houver evidência seletiva suficiente, o resultado deve ser abstenção rastreável, preservando o fato recebido. Esse critério precisa de implementação e testes de recall/custo por estrato antes de encerrar a issue #612.
