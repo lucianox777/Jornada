@@ -25,7 +25,10 @@ try{
         $env:SQLCMDPASSWORD=$password
         & docker compose --env-file $EnvFile exec -T -e SQLCMDPASSWORD sqlserver /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -C -b -I -f 65001 -d $Database -i /tmp/jornada-frozen-reference.sql
         if($LASTEXITCODE -ne 0){throw 'Carga SQL da referencia congelada falhou.'}
-    }finally{Pop-Location}
+    }finally{
+        if($container){ & docker exec $container rm -f /tmp/jornada-frozen-reference.sql | Out-Null }
+        Pop-Location
+    }
 }finally{
     if($null -eq $previous){Remove-Item Env:\SQLCMDPASSWORD -ErrorAction SilentlyContinue}else{$env:SQLCMDPASSWORD=$previous}
     Remove-Item -LiteralPath $tmp -Force -ErrorAction SilentlyContinue
