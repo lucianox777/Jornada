@@ -79,6 +79,9 @@ function Invoke-ReferenceStage {
         Invoke-Cluster 'reference'
     }
     Assert-FrozenBirthReference
+    Write-Host 'Carregando ou verificando referencia demografica congelada em SQL ref...'
+    & (Join-Path $PSScriptRoot 'load-frozen-birth-reference.ps1') -EnvFile $EnvFile -Database $DevConsoleDatabase
+    if($LASTEXITCODE -ne 0){throw 'Carga da referencia demografica congelada falhou.'}
 }
 
 function Assert-FrozenBirthReference {
