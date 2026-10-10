@@ -66,7 +66,7 @@ def main() -> None:
             'IF NOT EXISTS (SELECT 1 FROM ref.distribuicao_nascimento_versao WHERE distribuicao_versao_id=@id AND status=N\'PUBLICADA\') THROW 52260,\'Frozen reference not published\',1;',
             'PRINT N\'FROZEN DEMOGRAPHIC REFERENCE PUBLISHED OR VERIFIED\';',
         ]
-        Path(args.emit_sql).write_text('\\n'.join(lines) + '\\n', encoding='utf-8')
+        Path(args.emit_sql).write_text('\n'.join(lines) + '\n', encoding='utf-8')
     print(f"FROZEN BIRTH REFERENCE OK: {manifest['referenceCode']} "
           f"rows={len(rows)} sha256={actual} total_weight={sum(r['births'] for r in rows)}")
     print("No projection recalculated; no database modified.")
