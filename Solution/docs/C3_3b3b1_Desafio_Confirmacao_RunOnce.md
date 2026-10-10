@@ -63,3 +63,7 @@ somente como autorização de encerramento.
 NODE/Compose canônico, HML/PROD, volumes ou contêineres reais
 do usuário. Somente GitHub Actions efêmero `JornadaE2E`.
 A DT-22 de reavaliação de RESOLVIDOS permanece **por último**.
+
+## Critérios negativos para o endpoint de confirmação futuro
+
+A confirmação deve rejeitar nonce expirado, já consumido, associado a outro run, outra sessão ou outro usuário, e também runs que não estejam em `RunOnce` efêmero e explicitamente atestado. A desconexão do HTTP não pode cancelar o trabalho de auditoria; após tentativa de parada, exigir verificação do término real e estado terminal inequívoco, inclusive `INCOMPLETO` em timeout. Requisições concorrentes para o mesmo nonce devem admitir no máximo uma transição de confirmação. Nenhum destes requisitos significa que o endpoint POST já exista.
