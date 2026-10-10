@@ -527,7 +527,7 @@ jobs:
           --health-interval 10s --health-timeout 5s --health-retries 20
     env:
       JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!Sql'
-      JORNADA_TEST_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaTest;User Id=sa;Password=Jornada_${{ github.run_id }}!Sql;TrustServerCertificate=true;Encrypt=false'
+      JORNADA_TEST_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaE2E;User Id=sa;Password=Jornada_${{ github.run_id }}!Sql;TrustServerCertificate=true;Encrypt=false'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -552,18 +552,18 @@ jobs:
         run: |
           CID=$(docker ps -q --filter publish=1433 | head -1)
           test -n "$CID"
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -Q "IF DB_ID('JornadaTest') IS NULL CREATE DATABASE JornadaTest;"
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -Q "IF DB_ID('JornadaE2E') IS NULL CREATE DATABASE JornadaE2E;"
       - name: SQL runtime semantic smoke on canonical 3.70
         run: |
           CID=$(docker ps -q --filter publish=1433 | head -1)
           test -n "$CID"
           docker exec "$CID" mkdir -p /var/opt/mssql/data/jornada/database
           docker cp database/. "$CID":/var/opt/mssql/data/jornada/database/
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/Jornada_Fase1_v3.70.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/Jornada_Seed_Dev.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/migrations/20260907_Cpf_Ancora.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/migrations/20260910_Schema_Consolidation_370.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/Jornada_Runtime_Smoke.sql -i database/tests/Gold_Pessoa_Divergencia_Tres_Fontes.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/Jornada_Fase1_v3.70.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/Jornada_Seed_Dev.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/migrations/20260907_Cpf_Ancora.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/migrations/20260910_Schema_Consolidation_370.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/Jornada_Runtime_Smoke.sql -i database/tests/Gold_Pessoa_Divergencia_Tres_Fontes.sql
       - name: Documentary schema smoke on disposable SQL database (#903)
         run: |
           set -euo pipefail
@@ -574,9 +574,16 @@ jobs:
             database/migrations/20261010_Ref_Catalogo_Documental_903.sql \
             database/migrations/20261010_Silver_Documento_Evidencia_903.sql \
             database/migrations/20261010_Silver_Documento_Admissibilidade_903.sql; do
-            SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i "$migration"
+            SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i "$migration"
           done
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/tests/20261010_Documentos_903_Schema_Smoke.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/tests/20261010_Documentos_903_Schema_Smoke.sql
+      - name: Gold documentary candidate schema smoke on disposable SQL (#903)
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          test -n "$CID"
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/migrations/20261010_Gold_Documento_Candidatos_903.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/tests/20261010_Gold_Documento_Candidatos_903_Smoke.sql
       - name: Integration tests must execute without skips
         run: |
           mkdir -p .local/test-evidence/integration
@@ -641,7 +648,7 @@ jobs:
           --health-interval 10s --health-timeout 5s --health-retries 20
     env:
       JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!HarnessSql'
-      ConnectionStrings__Jornada: 'Server=localhost,1433;Database=JornadaHarness;User Id=sa;Password=Jornada_${{ github.run_id }}!HarnessSql;TrustServerCertificate=true;Encrypt=false'
+      ConnectionStrings__Jornada: 'Server=localhost,1433;Database=JornadaSyntheticDev;User Id=sa;Password=Jornada_${{ github.run_id }}!HarnessSql;TrustServerCertificate=true;Encrypt=false'
       PipelineCoordination__HeartbeatSeconds: '2'
       PipelineCoordination__ExclusiveIntentTimeoutSeconds: '5'
       LinkageParameters__RunOnce: 'true'
@@ -676,16 +683,16 @@ jobs:
           test -n "$CID"
           docker exec "$CID" mkdir -p /var/opt/mssql/data/jornada/database
           docker cp database/. "$CID":/var/opt/mssql/data/jornada/database/
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaHarness;"
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/Jornada_Fase1_v3.70.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/Jornada_Seed_Dev.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/migrations/20260907_Cpf_Ancora.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/migrations/20260910_Schema_Consolidation_370.sql -i database/migrations/20260930_Linkage_Z_Model_Config_Bundle_Fingerprint.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaSyntheticDev;"
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -i database/Jornada_Fase1_v3.70.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -i database/Jornada_Seed_Dev.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -i database/migrations/20260907_Cpf_Ancora.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -i database/migrations/20260910_Schema_Consolidation_370.sql -i database/migrations/20260930_Linkage_Z_Model_Config_Bundle_Fingerprint.sql
           DOTNET_ENVIRONMENT=Development \
           LinkageParameters__Operation=LOAD_NAME_FREQUENCY_SNAPSHOT \
           NameFrequencySnapshot__ManifestPath="$PWD/data/reference/ibge-nomes-2022/manifest.json" \
             dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
-          ACTIVE_NAME_REFERENCE=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT TOP(1) codigo FROM ref.frequencia_nome_versao WHERE status=N'ATIVA';" | tr -d '\r' | xargs)
+          ACTIVE_NAME_REFERENCE=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -h -1 -W -Q "SET NOCOUNT ON; SELECT TOP(1) codigo FROM ref.frequencia_nome_versao WHERE status=N'ATIVA';" | tr -d '\r' | xargs)
           test "$ACTIVE_NAME_REFERENCE" = 'CENSO2022_NOMES_BRASIL_V1'
           # Derivado versionado deve existir antes de gerar o corpus e o modelo.
           DOTNET_ENVIRONMENT=Development LinkageParameters__Operation=ENSURE_IBGE_NOMINAL_U_REFERENCE \
@@ -698,8 +705,8 @@ jobs:
           # 4.000 pares preservam cerca de 2.400 pessoas-base TRAIN sob holdout 60/20/20,
           # permitindo amostra m=2.000 sem reutilizar VALIDATION/TEST. O gate de recall
           # continua 0,95 e não é relaxado para acomodar a calibração.
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_PAIRED=4000 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 -i database/Jornada_Dev_SyntheticScale.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 -i database/Jornada_Dev_SyntheticScale_Diversify.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -v SCALE_PEOPLE=5000 SCALE_PAIRED=4000 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 -i database/Jornada_Dev_SyntheticScale.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -v SCALE_PEOPLE=5000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 -i database/Jornada_Dev_SyntheticScale_Diversify.sql
       - name: Upload portable IBGE nominal u artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -761,16 +768,16 @@ jobs:
         run: |
           dotnet run --project src/Jornada.Processor.Worker --configuration Release --no-build
           CID=$(docker ps -q --filter publish=1433 | head -1)
-          KEY_COUNT=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM identidade.blocking_chave;" | tr -d '\r' | xargs)
+          KEY_COUNT=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -h -1 -W -Q "SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM identidade.blocking_chave;" | tr -d '\r' | xargs)
           test "${KEY_COUNT:-0}" -gt 0
       - name: Generate, validate and activate model
         run: |
           export LinkageParameters__Operation=GENERATE_DRAFT
           dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
           CID=$(docker ps -q --filter publish=1433 | head -1)
-          MODEL_VERSION=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='RASCUNHO' ORDER BY versao DESC;" | tr -d '\r' | xargs)
+          MODEL_VERSION=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -h -1 -W -Q "SET NOCOUNT ON; SELECT TOP(1) versao FROM identidade.modelo_linkage WHERE status='RASCUNHO' ORDER BY versao DESC;" | tr -d '\r' | xargs)
           test -n "$MODEL_VERSION"
-          MODEL_ID=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE versao=$MODEL_VERSION;" | tr -d '\r' | xargs)
+          MODEL_ID=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -h -1 -W -Q "SET NOCOUNT ON; SELECT CONVERT(varchar(36),modelo_id) FROM identidade.modelo_linkage WHERE versao=$MODEL_VERSION;" | tr -d '\r' | xargs)
           test -n "$MODEL_ID"
 
           TEST_CONFERENCE_TOLERANCE="$RUNNER_TEMP/jornada-conference-tolerance.json"
@@ -804,10 +811,10 @@ jobs:
 
           export LinkageParameters__ConferenceToleranceConfigPath="$TEST_CONFERENCE_TOLERANCE"
           export LinkageParameters__TargetVersion="$MODEL_VERSION"
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -Q "DECLARE @dossie uniqueidentifier,@aprovacao uniqueidentifier,@validade datetimeoffset(7)=DATEADD(hour,1,SYSDATETIMEOFFSET()),@sha binary(32)=HASHBYTES('SHA2_256',CONVERT(varbinary(max),'CI_TEST_DOSSIER')); EXEC auditoria.sp_registrar_dossie_decisao_modelo_linkage @modelo_id='$MODEL_ID',@dossie_sha256=@sha,@contrato_versao=N'DT15_TEST_V1',@estado=N'COMPLETO',@origem_evidencia=N'SINTETICA_DEV',@valido_ate=@validade,@referencia_artefato=N'CI_TEST_DOSSIER',@registrado_por=N'CI_HARNESS',@dossie_id=@dossie OUTPUT; EXEC auditoria.sp_registrar_aprovacao_modelo_linkage @modelo_id='$MODEL_ID',@acao=N'VALIDATE',@dossie_sha256=@sha,@decisor=N'CI_HARNESS',@motivo=N'Aprovação técnica explícita do harness CI para VALIDATE',@aprovacao_id=@aprovacao OUTPUT;"
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -Q "DECLARE @dossie uniqueidentifier,@aprovacao uniqueidentifier,@validade datetimeoffset(7)=DATEADD(hour,1,SYSDATETIMEOFFSET()),@sha binary(32)=HASHBYTES('SHA2_256',CONVERT(varbinary(max),'CI_TEST_DOSSIER')); EXEC auditoria.sp_registrar_dossie_decisao_modelo_linkage @modelo_id='$MODEL_ID',@dossie_sha256=@sha,@contrato_versao=N'DT15_TEST_V1',@estado=N'COMPLETO',@origem_evidencia=N'SINTETICA_DEV',@valido_ate=@validade,@referencia_artefato=N'CI_TEST_DOSSIER',@registrado_por=N'CI_HARNESS',@dossie_id=@dossie OUTPUT; EXEC auditoria.sp_registrar_aprovacao_modelo_linkage @modelo_id='$MODEL_ID',@acao=N'VALIDATE',@dossie_sha256=@sha,@decisor=N'CI_HARNESS',@motivo=N'Aprovação técnica explícita do harness CI para VALIDATE',@aprovacao_id=@aprovacao OUTPUT;"
           export LinkageParameters__Operation=VALIDATE
           dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -Q "DECLARE @aprovacao uniqueidentifier,@sha binary(32)=HASHBYTES('SHA2_256',CONVERT(varbinary(max),'CI_TEST_DOSSIER')); EXEC auditoria.sp_registrar_aprovacao_modelo_linkage @modelo_id='$MODEL_ID',@acao=N'ACTIVATE',@dossie_sha256=@sha,@decisor=N'CI_HARNESS',@motivo=N'Aprovação técnica explícita do harness CI para ACTIVATE',@aprovacao_id=@aprovacao OUTPUT;"
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -Q "DECLARE @aprovacao uniqueidentifier,@sha binary(32)=HASHBYTES('SHA2_256',CONVERT(varbinary(max),'CI_TEST_DOSSIER')); EXEC auditoria.sp_registrar_aprovacao_modelo_linkage @modelo_id='$MODEL_ID',@acao=N'ACTIVATE',@dossie_sha256=@sha,@decisor=N'CI_HARNESS',@motivo=N'Aprovação técnica explícita do harness CI para ACTIVATE',@aprovacao_id=@aprovacao OUTPUT;"
           export LinkageParameters__Operation=ACTIVATE
           dotnet run --project src/Jornada.Linkage.Parameters.Worker --configuration Release --no-build
           echo "MODEL_VERSION=$MODEL_VERSION" >> "$GITHUB_ENV"
@@ -820,9 +827,9 @@ jobs:
       - name: Reconcile no-candidate counter on generic synthetic smoke
         run: |
           CID=$(docker ps -q --filter publish=1433 | head -1)
-          RUN_ID=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE solicitado_por=N'CI_HARNESS' ORDER BY iniciado_em DESC;" | tr -d '\r' | xargs)
+          RUN_ID=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -h -1 -W -Q "SET NOCOUNT ON; SELECT TOP(1) CONVERT(varchar(36),linkage_run_id) FROM identidade.linkage_run WHERE solicitado_por=N'CI_HARNESS' ORDER BY iniciado_em DESC;" | tr -d '\r' | xargs)
           test -n "$RUN_ID"
-          AUDIT=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -h -1 -W -Q "SET NOCOUNT ON; WITH rr AS (SELECT r.motivo FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id WHERE r.linkage_run_id='$RUN_ID' AND po.codigo_pessoa_origem LIKE N'SCALE-PEND-%'), nc AS (SELECT * FROM rr WHERE motivo LIKE N'SEM_CANDIDATO_%') SELECT CONCAT((SELECT sem_candidato_no_bloco FROM identidade.linkage_run WHERE linkage_run_id='$RUN_ID'),'|',(SELECT COUNT_BIG(*) FROM nc),'|',(SELECT COUNT_BIG(*) FROM rr));" | tr -d '\r' | xargs)
+          AUDIT=$(SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -i -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaSyntheticDev -h -1 -W -Q "SET NOCOUNT ON; WITH rr AS (SELECT r.motivo FROM identidade.linkage_resultado r JOIN silver.pessoa_observacao po ON po.pessoa_observacao_id=r.pessoa_observacao_id WHERE r.linkage_run_id='$RUN_ID' AND po.codigo_pessoa_origem LIKE N'SCALE-PEND-%'), nc AS (SELECT * FROM rr WHERE motivo LIKE N'SEM_CANDIDATO_%') SELECT CONCAT((SELECT sem_candidato_no_bloco FROM identidade.linkage_run WHERE linkage_run_id='$RUN_ID'),'|',(SELECT COUNT_BIG(*) FROM nc),'|',(SELECT COUNT_BIG(*) FROM rr));" | tr -d '\r' | xargs)
           IFS='|' read -r REPORTED_NO_CANDIDATE ACTUAL_NO_CANDIDATE TOTAL_SYNTHETIC_RESULTS <<< "$AUDIT"
           echo "NO-CANDIDATE AUDIT: reported=$REPORTED_NO_CANDIDATE actual=$ACTUAL_NO_CANDIDATE total=$TOTAL_SYNTHETIC_RESULTS"
           test "$REPORTED_NO_CANDIDATE" = "$ACTUAL_NO_CANDIDATE"
@@ -833,7 +840,7 @@ jobs:
       - name: Run read-only linkage evaluation smoke
         env:
           JORNADA_EVALUATION_SQL_PASSWORD: 'Jornada_${{ github.run_id }}!HarnessSql'
-          JORNADA_EVALUATION_DATABASE: 'JornadaHarness'
+          JORNADA_EVALUATION_DATABASE: 'JornadaSyntheticDev'
           JORNADA_EVALUATION_SCALE_PEOPLE: '5000'
           JORNADA_EVALUATION_SCALE_SEED: '355'
           JORNADA_EVALUATION_LABEL_COUNT: '100'

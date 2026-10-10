@@ -170,7 +170,17 @@ public sealed class PersonContractSqlServerTests
 
         var builder = new SqlConnectionStringBuilder(connectionString);
         var database = builder.InitialCatalog ?? string.Empty;
-        if (!database.Contains("test", StringComparison.OrdinalIgnoreCase)
+        // Explicit CI-only exception: disposable SQL on loopback, never external or Fabric.
+        var isEphemeralGithubE2E =
+            string.Equals(database, "JornadaE2E", StringComparison.Ordinal)
+            && string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(Environment.GetEnvironmentVariable("JORNADA_TEST_SQL_TARGET") ?? "SQL_SERVER_2022", "SQL_SERVER_2022", StringComparison.OrdinalIgnoreCase)
+            && (string.Equals(builder.DataSource, "localhost,1433", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(builder.DataSource, "127.0.0.1,1433", StringComparison.Ordinal)
+                || string.Equals(builder.DataSource, "localhost", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(builder.DataSource, "127.0.0.1", StringComparison.Ordinal));
+        if (!isEphemeralGithubE2E
+            && !database.Contains("test", StringComparison.OrdinalIgnoreCase)
             && !database.Contains("dev", StringComparison.OrdinalIgnoreCase)
             && !database.Contains("local", StringComparison.OrdinalIgnoreCase))
         {

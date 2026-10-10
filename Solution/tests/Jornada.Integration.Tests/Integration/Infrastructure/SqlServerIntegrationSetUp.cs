@@ -73,7 +73,7 @@ public sealed class SqlServerIntegrationSetUp
                 externalBuilder.ConnectTimeout = Math.Max(externalBuilder.ConnectTimeout, 300);
             }
 
-            EnsureIntegrationDatabaseNameIsSafe(externalBuilder.InitialCatalog);
+            EnsureIntegrationDatabaseNameIsSafe(externalBuilder.InitialCatalog, externalBuilder.DataSource);
 
             if (string.Equals(
                     Environment.GetEnvironmentVariable("JORNADA_TEST_SQL_RESET_EXISTING_DATABASE"),
@@ -302,7 +302,7 @@ public sealed class SqlServerIntegrationSetUp
         await command.ExecuteNonQueryAsync().ConfigureAwait(false);
     }
 
-    private static void EnsureIntegrationDatabaseNameIsSafe(string? databaseName)
+    private static void EnsureIntegrationDatabaseNameIsSafe(string? databaseName, string? dataSource)
     {
         if (string.IsNullOrWhiteSpace(databaseName))
         {
@@ -310,7 +310,19 @@ public sealed class SqlServerIntegrationSetUp
                 "A conexão externa de Integration deve informar explicitamente o banco de dados.");
         }
 
-        if (!databaseName.Contains("test", StringComparison.OrdinalIgnoreCase)
+        // JornadaE2E is allowed only on the disposable GitHub runner and its loopback SQL.
+        // Never grant this exception to developer machines, remote SQL or Fabric.
+        var isGithubHostedLoopbackE2E =
+            string.Equals(databaseName, "JornadaE2E", StringComparison.Ordinal)
+            && string.Equals(Environment.GetEnvironmentVariable("GITHUB_ACTIONS"), "true", StringComparison.OrdinalIgnoreCase)
+            && !Infrastructure.SqlIntegrationEnvironment.IsFabricSqlDatabase
+            && (string.Equals(dataSource, "localhost", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(dataSource, "127.0.0.1", StringComparison.Ordinal)
+                || string.Equals(dataSource, "localhost,1433", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(dataSource, "127.0.0.1,1433", StringComparison.Ordinal));
+
+        if (!isGithubHostedLoopbackE2E
+            && !databaseName.Contains("test", StringComparison.OrdinalIgnoreCase)
             && !databaseName.Contains("dev", StringComparison.OrdinalIgnoreCase)
             && !databaseName.Contains("local", StringComparison.OrdinalIgnoreCase))
         {
