@@ -53,3 +53,5 @@ O avaliador puro passa a aceitar `IndependentGroupKey` por evidência e um limit
 **Limite do incremento:** a configuração ainda não é política persistida/versionada; `IndependentGroupKey` precisa de derivação confiável de pessoa/fonte no pipeline real, sem tratar o identificador do par como grupo independente. Não há estimativa de tamanho amostral efetivo, intervalo de confiança para contradições nem integração com o Monitor. Portanto, não declarar DT-23 concluída ou amostra real certificada por estes testes.
 
 **Responsabilidades de identidade:** canais apenas fornecem dados e proveniência. A resolução de identidade pertence ao Linkage, com abstenção quando as evidências são insuficientes. Não criar seleção manual de vínculos por usuários ou canais. O diagnóstico de suficiência não pode acionar calibração, que permanece por demanda explícita.
+
+**Ajuste de integridade (10/10/2026):** duas chaves de grupo independente não vazias e distintas associadas ao mesmo par tornam o diagnóstico `Indeterminate`. A ausência de chave continua `Insufficient`. Nenhuma calibração é acionada.
