@@ -147,6 +147,24 @@ def main() -> None:
                     require(time.monotonic()<deadline,
                             "real active Docker oneoff and backend RUN_ONCE never coincided")
                     time.sleep(0.15)
+                # C3.3b3b1: issue a challenge while BOTH backend RUN_ONCE and
+                # a real labeled Docker oneoff remain live. Never publish the
+                # nonce in CI logs/evidence and never treat it as permission to
+                # cancel (there is no mutating endpoint in this increment).
+                c, challenge=call(base,
+                    "/api/workers/processor/run-once/cancel-challenge")
+                require(c==200 and challenge.get("worker")=="processor"
+                        and re.fullmatch(
+                            r"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}",
+                            challenge.get("runId","")) is not None
+                        and re.fullmatch(r"[A-Za-z0-9_-]{43}",
+                            challenge.get("confirmationNonce","")) is not None
+                        and len(challenge.get("expiresAtUtc",""))>=20,
+                        "no opaque active-run confirmation challenge")
+                denied_other,_=call(base,
+                    "/api/workers/bronze-maintenance/run-once/cancel-challenge")
+                require(denied_other==409,
+                        "challenge leaked across different worker identity")
                 # Explicitly disconnect with the job active.
                 client.shutdown(socket.SHUT_RDWR)
             disconnected_at=time.monotonic()
@@ -168,6 +186,10 @@ def main() -> None:
                     break
                 time.sleep(0.5)
             require(finished is not None,"finite job did not finish and remove oneoff")
+            expired_code,_=call(base,
+                "/api/workers/processor/run-once/cancel-challenge")
+            require(expired_code==409,
+                    "stale confirmation challenge remains after worker exit")
             require(time.monotonic()-disconnected_at>=1,
                     "oneoff ended before disconnect was actually tested")
             ready,enabled=call(base,"/api/workers/supervisor","POST",{"mode":"ON"})
@@ -188,7 +210,9 @@ def main() -> None:
                 "finite_container_removed_before_on":True,
                 "no_user_data_access":True,
                 "global_mode_after":"ON",
-                "cancel_with_confirmation_implemented":False}
+                "cancel_with_confirmation_implemented":False,
+                "finite_confirmation_challenge_observed_live":True,
+                "stale_challenge_rejected_after_exit":True}
             (OUT/"summary.json").write_text(
                 json.dumps(summary,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
             print("C3.3b3a: PASS disconnected HTTP while real oneoff active; "
