@@ -41,11 +41,10 @@ public static class SampleSufficiencyAssessment
             .Select(g => g.Key.Stratum)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(s => s, StringComparer.Ordinal).ToArray();
-        // Conflicting nonempty provenance for one independently labelled pair is
+        // Missing versus present provenance, or two different provenance keys, for one pair is
         // an integrity error, not merely an undersized sample. Never certify it.
         var provenanceConflicts = independentPairs
             .Where(g => g.Select(e => e.IndependentGroupKey)
-                .Where(k => !string.IsNullOrWhiteSpace(k))
                 .Distinct(StringComparer.Ordinal).Skip(1).Any())
             .Select(g => g.Key.Stratum)
             .Distinct(StringComparer.Ordinal)
