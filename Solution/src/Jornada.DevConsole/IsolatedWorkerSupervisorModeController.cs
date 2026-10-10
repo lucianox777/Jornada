@@ -233,15 +233,17 @@ sealed class IsolatedWorkerSupervisorModeController(
             var effective=await reader.ReadAsync(runtime,ct);
             if(effective.Mode!="OFF")
                 throw new InvalidOperationException("RunOnce só é autorizado com supervisão OFF comprovada.");
+            // Generate everything potentially fallible before marking a
+            // worker active; an RNG failure must not strand the in-memory
+            // RUN_ONCE admission state and falsely block all future toggles.
+            var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
+                .TrimEnd('=').Replace('+','-').Replace('/','_');
+            var id = Guid.NewGuid();
             audit.Record("RUN_ONCE",worker,"ADMITIDO");
             if(!activeFinite.TryAdd(worker,0))
                 throw new InvalidOperationException("RunOnce concorrente não autorizado.");
-            // Random 256-bit nonce, never persisted nor inserted into audit.
-            // Versioning/expiry belong to this specific active server process.
-            var nonce = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))
-                .TrimEnd('=').Replace('+','-').Replace('/','_');
             finiteConfirmation = new FiniteRunConfirmation(
-                Guid.NewGuid(),worker,nonce,DateTimeOffset.UtcNow.AddMinutes(2));
+                id,worker,nonce,DateTimeOffset.UtcNow.AddMinutes(2));
         }
         finally
         {
