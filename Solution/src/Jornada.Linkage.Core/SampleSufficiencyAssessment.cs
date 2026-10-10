@@ -21,12 +21,25 @@ public static class SampleSufficiencyAssessment
             .GroupBy(e => (e.Stratum, e.PairKey))
             .Where(g => g.Select(e => e.Match).Distinct().Count() == 1)
             .Select(g => g.First()).ToArray();
+        // Conflicting independent labels cannot be silently counted as trustworthy samples.
+        var contradictions = evidence.Where(e => e.IndependentTruth && !string.IsNullOrWhiteSpace(e.Stratum)
+                && !string.IsNullOrWhiteSpace(e.PairKey))
+            .GroupBy(e => (e.Stratum, e.PairKey))
+            .Where(g => g.Select(e => e.Match).Distinct().Count() > 1)
+            .Select(g => g.Key.Stratum)
+            .Distinct(StringComparer.Ordinal)
+            .ToHashSet(StringComparer.Ordinal);
         var counts = strata.Distinct(StringComparer.Ordinal).OrderBy(s => s, StringComparer.Ordinal)
             .Select(s => new Count(s, eligible.Count(e => e.Stratum == s && e.Match),
                 eligible.Count(e => e.Stratum == s && !e.Match))).ToArray();
         var reasons = counts.Where(c => c.M < minimumM || c.U < minimumU)
             .Select(c => $"Stratum {c.Stratum}: m={c.M}, u={c.U}; minimum m={minimumM}, u={minimumU}.")
             .ToArray();
+        var requiredContradictions = contradictions.Intersect(strata, StringComparer.Ordinal)
+            .OrderBy(s => s, StringComparer.Ordinal).ToArray();
+        if (requiredContradictions.Length > 0)
+            return new Result(Status.Indeterminate, counts,
+                reasons.Concat(requiredContradictions.Select(s => $"Stratum {s}: contradictory independent labels require review.")).ToArray());
         return new Result(eligible.Length == 0 ? Status.Indeterminate :
             reasons.Length == 0 ? Status.Sufficient : Status.Insufficient, counts, reasons);
     }
