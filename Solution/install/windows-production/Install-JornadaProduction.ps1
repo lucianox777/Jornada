@@ -66,8 +66,16 @@ function Assert-Config($Config, [string]$ResolvedPayloadRoot) {
     if (-not [IO.Path]::IsPathRooted($dataRoot)) { throw 'dataRoot deve ser absoluto.' }
 
     $dotnet = Require-Property $Config 'dotnet'
-    if ([bool]$dotnet.installIfMissing -and -not [Uri]::IsWellFormedUriString([string]$dotnet.hostingBundleUrl, [UriKind]::Absolute)) {
-        throw 'dotnet.hostingBundleUrl inválida.'
+    # Payloads in this release target net10.0. ValidateOnly/PlanOnly must
+    # reject an obsolete hosting bundle BEFORE any deployment side effects.
+    $hostingUrl = [string](Require-Property $dotnet 'hostingBundleUrl')
+    if ([bool]$dotnet.installIfMissing) {
+        $uri = $null
+        if (-not [Uri]::TryCreate($hostingUrl, [UriKind]::Absolute, [ref]$uri) -or
+            $uri.Scheme -ne 'https' -or
+            $uri.AbsolutePath -notmatch '(?i)/10[.]0/') {
+            throw 'dotnet.hostingBundleUrl deve apontar para Hosting Bundle .NET 10 via HTTPS.'
+        }
     }
 
     $docker = Require-Property $Config 'docker'
@@ -133,14 +141,14 @@ function Assert-Config($Config, [string]$ResolvedPayloadRoot) {
     }
 }
 
-function Ensure-DotNet8($DotNetConfig) {
+function Ensure-DotNet10($DotNetConfig) {
     $runtimes = if (Get-Command dotnet -ErrorAction SilentlyContinue) { @(& dotnet --list-runtimes 2>$null) } else { @() }
-    $core = @($runtimes | Where-Object { $_ -match '^Microsoft\.NETCore\.App 8\.' }).Count -gt 0
-    $asp = @($runtimes | Where-Object { $_ -match '^Microsoft\.AspNetCore\.App 8\.' }).Count -gt 0
-    if ($core -and $asp) { Write-Host '.NET 8 Runtime + ASP.NET Core Runtime: OK'; return }
-    if (-not [bool]$DotNetConfig.installIfMissing) { throw '.NET 8 ausente e instalação automática desabilitada.' }
+    $core = @($runtimes | Where-Object { $_ -match '^Microsoft\.NETCore\.App 10\.' }).Count -gt 0
+    $asp = @($runtimes | Where-Object { $_ -match '^Microsoft\.AspNetCore\.App 10\.' }).Count -gt 0
+    if ($core -and $asp) { Write-Host '.NET 10 Runtime + ASP.NET Core Runtime: OK'; return }
+    if (-not [bool]$DotNetConfig.installIfMissing) { throw '.NET 10 ausente e instalação automática desabilitada.' }
 
-    $installer = Join-Path $env:TEMP 'jornada-dotnet-hosting-8.exe'
+    $installer = Join-Path $env:TEMP 'jornada-dotnet-hosting-10.exe'
     Invoke-WebRequest -UseBasicParsing -Uri ([string]$DotNetConfig.hostingBundleUrl) -OutFile $installer
     $signature = Get-AuthenticodeSignature -FilePath $installer
     if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate -or $signature.SignerCertificate.Subject -notmatch 'Microsoft') {
@@ -350,7 +358,7 @@ if ($ValidateOnly -or $PlanOnly) {
 if (-not (Test-Administrator)) { throw 'Execute PowerShell elevado como Administrador.' }
 if (-not (Test-WindowsServer)) { throw 'Instalação de Produção exige Windows Server.' }
 
-Ensure-DotNet8 $config.dotnet
+Ensure-DotNet10 $config.dotnet
 Ensure-Docker $config.docker
 if ([string]$config.sql.mode -eq 'InstallFromMedia') { Install-SqlFromMedia $config.sql }
 

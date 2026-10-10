@@ -71,9 +71,9 @@ public sealed class IdentityCompositionPreApplicationTests
         var receipt = Receipt(decision, plan, Array.Empty<Guid>());
         var live = Read(Member(A, A, 2), Member(B, B));
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             IdentityCompositionPreApplicationService.ValidateAuthoritativeState(
-                receipt, decision, plan, Array.Empty<Guid>(), live));
+                receipt, decision, plan, Array.Empty<Guid>(), live)));
     }
 
     [Test]
@@ -85,9 +85,9 @@ public sealed class IdentityCompositionPreApplicationTests
         var receipt = Receipt(decision, plan, Array.Empty<Guid>());
         var live = Read(Member(A, A), Member(B, C));
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             IdentityCompositionPreApplicationService.ValidateAuthoritativeState(
-                receipt, decision, plan, Array.Empty<Guid>(), live));
+                receipt, decision, plan, Array.Empty<Guid>(), live)));
     }
 
     [Test]
@@ -102,9 +102,9 @@ public sealed class IdentityCompositionPreApplicationTests
             ImmutableArray<Guid>.Empty,
             ImmutableArray<IdentityCompositionHistory>.Empty);
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             IdentityCompositionPreApplicationService.ValidateAuthoritativeState(
-                receipt, decision, plan, Array.Empty<Guid>(), live));
+                receipt, decision, plan, Array.Empty<Guid>(), live)));
     }
 
     [Test]
@@ -116,9 +116,9 @@ public sealed class IdentityCompositionPreApplicationTests
         var receipt = Receipt(decision, plan, Array.Empty<Guid>());
         var live = Read(Member(A, A, anchor: A), Member(B, B, anchor: B));
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             IdentityCompositionPreApplicationService.ValidateAuthoritativeState(
-                receipt, decision, plan, Array.Empty<Guid>(), live));
+                receipt, decision, plan, Array.Empty<Guid>(), live)));
     }
 
     [Test]
@@ -129,8 +129,8 @@ public sealed class IdentityCompositionPreApplicationTests
         var plan = IdentityCompositionPlanner.Prepare(preparedRead, decision);
         var receipt = Receipt(decision, plan, Array.Empty<Guid>());
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             IdentityCompositionPreApplicationService.ValidateAuthoritativeState(
-                receipt, decision, plan, new[] { C }, preparedRead));
+                receipt, decision, plan, new[] { C }, preparedRead)));
     }
 }

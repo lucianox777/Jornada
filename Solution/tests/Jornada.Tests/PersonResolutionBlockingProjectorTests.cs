@@ -15,7 +15,7 @@ public sealed class PersonResolutionBlockingProjectorTests
             new(PersonResolutionContractCatalog.ContactEmail, "b@example.test")
         });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(projected
                 .Where(static key => key.Feature == PersonResolutionContractCatalog.ContactPhoneCanonicalFeature)
@@ -25,7 +25,7 @@ public sealed class PersonResolutionBlockingProjectorTests
                 .Where(static key => key.Feature == PersonResolutionContractCatalog.ContactEmailCanonicalFeature)
                 .Select(static key => key.Value),
                 Is.EquivalentTo(new[] { "a@example.test", "b@example.test" }));
-        });
+        }));
     }
 
     [Test]
@@ -36,7 +36,7 @@ public sealed class PersonResolutionBlockingProjectorTests
             new IdentityResolutionAttributeValue(PersonResolutionContractCatalog.SocialName, "Maria das Flores")
         });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(projected, Does.Contain(new BlockingProjectionKey(
                 PersonResolutionContractCatalog.SocialNameNormalizedFeature, "MARIA DAS FLORES")));
@@ -47,7 +47,7 @@ public sealed class PersonResolutionBlockingProjectorTests
             Assert.That(projected.All(static key =>
                 PersonResolutionContractCatalog.TryGetByBlockingFeature(key.Feature, out var field) &&
                 field.Code == PersonResolutionContractCatalog.SocialName), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -88,11 +88,11 @@ public sealed class PersonResolutionBlockingProjectorTests
     {
         Assert.That(PersonResolutionContractCatalog.TryGet(
             PersonResolutionContractCatalog.ConfidentialShelterAddress, out var field), Is.True);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(field.EligibleForResolution, Is.False);
             Assert.That(field.BlockingFeatures, Is.Empty);
             Assert.That(field.BlockingTemporalSemantics, Is.Null);
-        });
+        }));
     }
 }

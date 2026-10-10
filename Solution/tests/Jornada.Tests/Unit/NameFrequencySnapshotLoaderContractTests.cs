@@ -23,16 +23,16 @@ public sealed class NameFrequencySnapshotLoaderContractTests
             "migrations",
             "20260912_Frequencia_Nomes_Cobertura.sql");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(File.Exists(loaderPath), Is.True);
             Assert.That(File.Exists(migrationPath), Is.True);
-        });
+        }));
 
         var loader = File.ReadAllText(loaderPath);
         var migration = File.ReadAllText(migrationPath);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(migration, Does.Contain("ausencia_semantica NVARCHAR(40) NOT NULL"));
             Assert.That(migration, Does.Contain("origem_endpoint NVARCHAR(400) NOT NULL"));
@@ -46,7 +46,7 @@ public sealed class NameFrequencySnapshotLoaderContractTests
             Assert.That(loader, Does.Contain("ValidateProjectedFileIntegrity"));
             Assert.That(loader, Does.Contain("canonicalContentSha256"));
             Assert.That(loader, Does.Contain("rowCount"));
-        });
+        }));
     }
 
     [Test]
@@ -64,14 +64,14 @@ public sealed class NameFrequencySnapshotLoaderContractTests
         var projectionRoot = projection.RootElement;
         var snapshot = manifestRoot.GetProperty("snapshot");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(snapshot.GetProperty("projectionManifest").GetString(), Is.EqualTo("projection-manifest.json"));
             Assert.That(projectionRoot.GetProperty("schemaVersion").GetInt32(), Is.EqualTo(1));
             Assert.That(projectionRoot.GetProperty("referenceCode").GetString(), Is.EqualTo(manifestRoot.GetProperty("referenceCode").GetString()));
             Assert.That(projectionRoot.GetProperty("format").GetString(), Is.EqualTo(snapshot.GetProperty("format").GetString()));
             Assert.That(projectionRoot.GetProperty("generatedFrom").GetString(), Is.EqualTo(snapshot.GetProperty("generatedFrom").GetString()));
-        });
+        }));
 
         var mainFiles = snapshot.GetProperty("files")
             .EnumerateArray()
@@ -86,7 +86,7 @@ public sealed class NameFrequencySnapshotLoaderContractTests
             var projected = projectedFiles[path];
             var canonicalHash = projected.GetProperty("canonicalContentSha256").GetString();
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(projected.GetProperty("kind").GetString(), Is.EqualTo(mainFile.GetProperty("kind").GetString()), path);
                 Assert.That(projected.GetProperty("required").GetBoolean(), Is.EqualTo(mainFile.GetProperty("required").GetBoolean()), path);
@@ -94,7 +94,7 @@ public sealed class NameFrequencySnapshotLoaderContractTests
                 Assert.That(projected.GetProperty("rowCount").GetInt64(), Is.GreaterThan(0), path);
                 Assert.That(canonicalHash, Has.Length.EqualTo(64), path);
                 Assert.That(canonicalHash, Does.Match("^[0-9A-Fa-f]{64}$"), path);
-            });
+            }));
         }
     }
 

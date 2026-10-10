@@ -33,13 +33,13 @@ public sealed class IndependentImplementationConferenceParityTests
 
         var report = IndependentImplementationConference.Evaluate(request);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.NAO_EXECUTADA));
             Assert.That(report.Reason, Is.EqualTo("TOLERANCE_NOT_FROZEN"));
             Assert.That(report.MaxAllowedPairLlrDifference, Is.Null);
             Assert.That(report.StatisticalValidation, Is.EqualTo("NOT_ASSESSED_ISSUE_31"));
-        });
+        }));
     }
 
     [Test]
@@ -66,7 +66,7 @@ public sealed class IndependentImplementationConferenceParityTests
         var request = RequestFromRuntime(model, candidates, parameters, TestTolerance);
         var report = IndependentImplementationConference.Evaluate(request);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.CONFORME));
             Assert.That(report.SameFinalDecision, Is.True);
@@ -75,7 +75,7 @@ public sealed class IndependentImplementationConferenceParityTests
             Assert.That(report.MaxObservedPairLlrDifference, Is.LessThanOrEqualTo(TestToleranceValue));
             Assert.That(report.Scope, Is.EqualTo(
                 "SCORER_POLICY_ONLY_STATES_AND_GUARD_INPUTS_PRECOMPUTED_COMPARATORS_OUT_OF_SCOPE"));
-        });
+        }));
     }
 
     [Test]
@@ -105,12 +105,12 @@ public sealed class IndependentImplementationConferenceParityTests
         var request = RequestFromRuntime(model, candidates, parameters, TestTolerance);
         var report = IndependentImplementationConference.Evaluate(request);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.CONFORME));
             Assert.That(report.IndependentDecision!.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
             Assert.That(report.IndependentDecision.Reason, Is.EqualTo("DOIS_CANDIDATOS_ACIMA_T_LINKAGE"));
-        });
+        }));
     }
 
     [Test]
@@ -132,11 +132,11 @@ public sealed class IndependentImplementationConferenceParityTests
         var report = IndependentImplementationConference.Evaluate(
             valid with { Parameters = parameters });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.NAO_EXECUTADA));
             Assert.That(report.Reason, Is.EqualTo("MODEL_OR_VECTOR_CONTRACT_INVALID"));
-        });
+        }));
     }
 
     [Test]
@@ -171,7 +171,7 @@ public sealed class IndependentImplementationConferenceParityTests
         var report = IndependentImplementationConference.Evaluate(
             request with { CanonicalDecision = alteredDecision });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.DIVERGENTE));
             Assert.That(report.Reason, Is.EqualTo("FINAL_DECISION_DIVERGENCE"));
@@ -179,7 +179,7 @@ public sealed class IndependentImplementationConferenceParityTests
                 TestToleranceValue));
             Assert.That(report.SameTop1, Is.True);
             Assert.That(report.SameFinalDecision, Is.False);
-        });
+        }));
     }
 
     [Test]
@@ -214,13 +214,13 @@ public sealed class IndependentImplementationConferenceParityTests
         var report = IndependentImplementationConference.Evaluate(
             request with { Candidates = changed });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.DIVERGENTE));
             Assert.That(report.Reason, Is.EqualTo("PAIR_LLR_DIVERGENCE"));
             Assert.That(report.SameTop1, Is.True);
             Assert.That(report.SameFinalDecision, Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -248,11 +248,11 @@ public sealed class IndependentImplementationConferenceParityTests
         var report = IndependentImplementationConference.Evaluate(
             request with { Candidates = incomplete });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.NAO_EXECUTADA));
             Assert.That(report.Reason, Is.EqualTo("INVALID_EVIDENCE_VECTOR_SHAPE"));
-        });
+        }));
     }
 
     [Test]
@@ -327,12 +327,12 @@ public sealed class IndependentImplementationConferenceParityTests
 
         var report = IndependentImplementationConference.Evaluate(request);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Status, Is.EqualTo(ImplementationConferenceStatus.CONFORME));
             Assert.That(report.SameFinalDecision, Is.True);
             Assert.That(report.MaxObservedPairLlrDifference, Is.LessThanOrEqualTo(TestToleranceValue));
-        });
+        }));
     }
 
     [Test]
@@ -346,7 +346,7 @@ public sealed class IndependentImplementationConferenceParityTests
         using var document = System.Text.Json.JsonDocument.Parse(json);
         var config = document.RootElement;
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 config.GetProperty("status").GetString(),
@@ -360,7 +360,7 @@ public sealed class IndependentImplementationConferenceParityTests
             Assert.That(
                 config.GetProperty("toleranceVersion").GetString(),
                 Is.EqualTo("V1_2026-09-26"));
-        });
+        }));
     }
 
     [Test]
@@ -393,12 +393,12 @@ public sealed class IndependentImplementationConferenceParityTests
         };
         var divergent = IndependentImplementationConference.Evaluate(
             request with { Candidates = altered });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(divergent.Status, Is.EqualTo(ImplementationConferenceStatus.DIVERGENTE));
             Assert.That(divergent.Reason, Is.EqualTo("PAIR_LLR_DIVERGENCE"));
             Assert.That(divergent.SameFinalDecision, Is.True);
-        });
+        }));
 
         var wrong = request.CanonicalDecision with
         {
@@ -408,11 +408,11 @@ public sealed class IndependentImplementationConferenceParityTests
         };
         var decision = IndependentImplementationConference.Evaluate(
             request with { CanonicalDecision = wrong });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(decision.Status, Is.EqualTo(ImplementationConferenceStatus.DIVERGENTE));
             Assert.That(decision.Reason, Is.EqualTo("FINAL_DECISION_DIVERGENCE"));
-        });
+        }));
     }
 
     [Test]
@@ -435,7 +435,7 @@ public sealed class IndependentImplementationConferenceParityTests
             root, "Solution", "src", "Jornada.Linkage.Parameters.Worker",
             "Jornada.Linkage.Parameters.Worker.csproj"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(source, Does.Not.Contain("FellegiSunterScoring"));
             Assert.That(source, Does.Not.Contain("ProbabilisticLinkageDecisions"));
@@ -452,7 +452,7 @@ public sealed class IndependentImplementationConferenceParityTests
             Assert.That(evaluationProject, Does.Not.Contain("Jornada.Linkage.Runner"));
             Assert.That(runnerProject, Does.Not.Contain("Jornada.Linkage.Evaluation"));
             Assert.That(workerProject, Does.Not.Contain("Jornada.Linkage.Evaluation"));
-        });
+        }));
     }
 
     private static ImplementationConferenceRequest RequestFromRuntime(

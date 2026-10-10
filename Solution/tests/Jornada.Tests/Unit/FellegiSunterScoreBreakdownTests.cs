@@ -21,14 +21,14 @@ public sealed class FellegiSunterScoreBreakdownTests
         var breakdown = FellegiSunterScoring.CalculateWithBreakdown(
             parameters, NameComparisonState.EXACT, null);
         var name = breakdown.Contributions.Single(x => x.Evidence == "NOME");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(name.MProbability, Is.EqualTo(preciseM));
             Assert.That(name.UProbability, Is.EqualTo(preciseU));
             Assert.That(breakdown.Score,
                 Is.EqualTo(FellegiSunterScoring.Calculate(
                     parameters, NameComparisonState.EXACT, null)));
-        });
+        }));
     }
 
     [Test]
@@ -68,7 +68,7 @@ public sealed class FellegiSunterScoreBreakdownTests
             8,
             MidpointRounding.AwayFromZero);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(breakdown.Score, Is.EqualTo(runtime));
             Assert.That(breakdown.PriorKind, Is.EqualTo("MODEL_PRIOR"), "V6 não deve reintroduzir prior dependente do tamanho do bloco.");
@@ -76,7 +76,7 @@ public sealed class FellegiSunterScoreBreakdownTests
             Assert.That(breakdown.Contributions.Any(c => c.Evidence == "NOME" && c.State == "EXACT"), Is.True);
             Assert.That(breakdown.Contributions.Any(c => c.Evidence == "NOME_MAE" && c.State == "MISSING" && c.MProbability == .20m && c.UProbability == .40m), Is.True);
             Assert.That(breakdown.Contributions.Any(c => c.Evidence == "NASCIMENTO_SEMANTICO" && c.State == BirthDateSemanticEvidence.DayMonthSwap), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -93,13 +93,13 @@ public sealed class FellegiSunterScoreBreakdownTests
             motherNameState: null);
 
         var name = breakdown.Contributions.Single(c => c.Evidence == "NOME");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(name.State, Is.EqualTo("MISSING_NEUTRAL"));
             Assert.That(name.MProbability, Is.Null);
             Assert.That(name.UProbability, Is.Null);
             Assert.That(name.LogLikelihoodRatio, Is.Zero);
-        });
+        }));
     }
 
     [Test]
@@ -115,14 +115,14 @@ public sealed class FellegiSunterScoreBreakdownTests
         };
         var missing = FellegiSunterScoring.CalculateWithBreakdown(parameters, null, null);
         var observed = FellegiSunterScoring.CalculateWithBreakdown(parameters, null, NameComparisonState.EXACT);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(missing.Score.Posterior, Is.EqualTo(.10m).Within(.00000001m));
             Assert.That(missing.Contributions.Select(x => x.State), Is.All.EqualTo("MISSING_NEUTRAL"));
             Assert.That(missing.Contributions.Select(x => x.LogLikelihoodRatio), Is.All.EqualTo(0m));
             Assert.That(observed.Contributions.Single(x => x.Evidence == "NOME_MAE").State, Is.EqualTo("EXACT"));
             Assert.That(observed.Score.Posterior, Is.GreaterThan(missing.Score.Posterior));
-        });
+        }));
     }
 
     [Test]
@@ -143,13 +143,13 @@ public sealed class FellegiSunterScoreBreakdownTests
             motherNameState: null,
             blockCandidateCount: 10);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(breakdown.PriorKind, Is.EqualTo("BLOCK_CANDIDATE_COUNT"));
             Assert.That(breakdown.PriorProbability, Is.EqualTo(.10m));
             Assert.That(breakdown.Contributions.Single(c => c.Evidence == "NOME_MAE").State, Is.EqualTo("MISSING_NEUTRAL"));
             Assert.That(breakdown.Contributions.Single(c => c.Evidence == "NOME_MAE").LogLikelihoodRatio, Is.Zero);
             Assert.That(breakdown.Contributions.Single(c => c.Evidence == "NASCIMENTO").State, Is.EqualTo("MISSING_NEUTRAL"));
-        });
+        }));
     }
 }

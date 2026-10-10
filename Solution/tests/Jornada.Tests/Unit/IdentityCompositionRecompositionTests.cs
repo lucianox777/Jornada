@@ -37,8 +37,8 @@ public sealed class IdentityCompositionRecompositionTests
         var composition = Plan(Change(A, A, C), Change(B, B, C));
         var scopes = ImmutableArray.Create(Scope(A, 10, 101));
 
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityCompositionRecompositionPlanner.Prepare(composition, scopes));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityCompositionRecompositionPlanner.Prepare(composition, scopes)));
     }
 
     [Test]
@@ -47,8 +47,8 @@ public sealed class IdentityCompositionRecompositionTests
         var composition = Plan(Change(A, A, C));
         var scopes = ImmutableArray.Create(Scope(A, 10, 101), Scope(B, 20, 201));
 
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityCompositionRecompositionPlanner.Prepare(composition, scopes));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityCompositionRecompositionPlanner.Prepare(composition, scopes)));
     }
 
     [Test]
@@ -58,8 +58,8 @@ public sealed class IdentityCompositionRecompositionTests
         var scopes = ImmutableArray.Create(new IdentityCompositionProjectionScope(
             A, 10, ImmutableArray.Create(101L), IsComplete: false));
 
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityCompositionRecompositionPlanner.Prepare(composition, scopes));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityCompositionRecompositionPlanner.Prepare(composition, scopes)));
     }
 
     [Test]
@@ -68,8 +68,8 @@ public sealed class IdentityCompositionRecompositionTests
         var composition = Plan(Change(A, A, C), Change(B, B, C));
         var scopes = ImmutableArray.Create(Scope(A, 10, 101), Scope(B, 20, 101));
 
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityCompositionRecompositionPlanner.Prepare(composition, scopes));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityCompositionRecompositionPlanner.Prepare(composition, scopes)));
     }
 
     [Test]
@@ -78,8 +78,8 @@ public sealed class IdentityCompositionRecompositionTests
         var composition = Plan(Change(A, A, C), Change(B, B, C));
         var scopes = ImmutableArray.Create(Scope(A, 10, 101), Scope(B, 10, 201));
 
-        Assert.Throws<InvalidOperationException>(() =>
-            IdentityCompositionRecompositionPlanner.Prepare(composition, scopes));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            IdentityCompositionRecompositionPlanner.Prepare(composition, scopes)));
     }
 
     [Test]

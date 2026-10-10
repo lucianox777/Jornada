@@ -19,7 +19,7 @@ public sealed class ModelGovernanceDt15DocumentationTests
         var runbook = File.ReadAllText(Path.Combine(docs, "Runbook_Operacao.md"));
         var readme = File.ReadAllText(Path.Combine(docs, "README.md"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(decision, Does.Contain("atual × proposto"));
             Assert.That(decision, Does.Contain("página restrita de governança"));
@@ -42,7 +42,7 @@ public sealed class ModelGovernanceDt15DocumentationTests
             Assert.That(monitor, Does.Contain("somente"));
             Assert.That(runbook, Does.Contain("prévia master independente do Monitor e somente leitura"));
             Assert.That(readme, Does.Contain("DT15_Governanca_Decisao_Modelo.md"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

@@ -27,11 +27,11 @@ public sealed class FactVersionGovernanceTests
 
         var result = FactVersionGovernance.Evaluate(previous, proposed);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.HasRetificationConflict, Is.True);
             Assert.That(result.ConflictReasons, Is.EquivalentTo(new[] { "PESSOA" }));
-        });
+        }));
     }
 
     [Test]
@@ -43,12 +43,12 @@ public sealed class FactVersionGovernanceTests
 
         var result = FactVersionGovernance.Evaluate(previous, proposed);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.ConflictReasons, Does.Contain("NATUREZA_TIPO"));
             Assert.That(result.ConflictReasons, Does.Contain("MARCO_INICIAL"));
             Assert.That(result.CanonicalReason, Is.EqualTo("RN_CT_12:MARCO_INICIAL,NATUREZA_TIPO"));
-        });
+        }));
     }
 
     [Test]

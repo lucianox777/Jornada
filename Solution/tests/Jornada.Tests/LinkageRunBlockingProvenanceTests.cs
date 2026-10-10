@@ -39,7 +39,7 @@ public sealed class LinkageRunBlockingProvenanceTests
 
         var reference = new LinkageRuntimeSnapshot(model, ruleSet).Reference;
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reference.ModelId, Is.EqualTo(ModelId));
             Assert.That(reference.Version, Is.EqualTo(12));
@@ -49,7 +49,7 @@ public sealed class LinkageRunBlockingProvenanceTests
             Assert.That(reference.BlockingContract.RuleSetFingerprintSha256, Is.EqualTo(RuleSetFingerprint));
             Assert.That(reference.BlockingContract.ProjectionSchemaVersion, Is.EqualTo(ProjectionSchemaVersion));
             Assert.That(reference.BlockingContract.ProjectionFingerprintSha256, Is.EqualTo(ProjectionFingerprint));
-        });
+        }));
     }
 
     [Test]
@@ -70,7 +70,7 @@ public sealed class LinkageRunBlockingProvenanceTests
         var selectedModel = root.GetProperty("selectedModel");
         var blocking = root.GetProperty("blocking");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(root.GetProperty("mode").GetString(), Is.EqualTo("REPLAY"));
             Assert.That(root.GetProperty("modelVersion").ValueKind, Is.EqualTo(JsonValueKind.Null));
@@ -88,7 +88,7 @@ public sealed class LinkageRunBlockingProvenanceTests
             Assert.That(blocking.GetProperty("ruleSetFingerprintSha256").GetString(), Is.EqualTo(RuleSetFingerprint));
             Assert.That(blocking.GetProperty("projectionSchemaVersion").GetString(), Is.EqualTo(ProjectionSchemaVersion));
             Assert.That(blocking.GetProperty("projectionFingerprintSha256").GetString(), Is.EqualTo(ProjectionFingerprint));
-        });
+        }));
     }
 
     [Test]
@@ -102,7 +102,7 @@ public sealed class LinkageRunBlockingProvenanceTests
         var blocking = document.RootElement.GetProperty("blocking");
         var selectedModel = document.RootElement.GetProperty("selectedModel");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(blocking.GetProperty("mode").GetString(), Is.EqualTo("LEGACY"));
             Assert.That(blocking.GetProperty("ruleSetVersion").ValueKind, Is.EqualTo(JsonValueKind.Null));
@@ -111,7 +111,7 @@ public sealed class LinkageRunBlockingProvenanceTests
             Assert.That(blocking.GetProperty("projectionFingerprintSha256").ValueKind, Is.EqualTo(JsonValueKind.Null));
             Assert.That(selectedModel.GetProperty("modelId").GetGuid(), Is.EqualTo(ModelId));
             Assert.That(selectedModel.GetProperty("version").GetInt32(), Is.EqualTo(12));
-        });
+        }));
     }
 
     private static ProbabilisticLinkageModelRef ModelReference() =>

@@ -111,7 +111,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                 verify.Parameters.AddWithValue("@obs", source.ObservationId);
                 await using var reader = await verify.ExecuteReaderAsync();
                 Assert.That(await reader.ReadAsync(), Is.True);
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(reader.GetGuid(0), Is.EqualTo(source.InitialUuid));
                     Assert.That(reader.GetGuid(1), Is.EqualTo(source.InitialUuid));
@@ -126,7 +126,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                     Assert.That(reader.GetString(9), Is.EqualTo("RESOLVIDO"));
                     Assert.That(reader.GetInt32(10), Is.EqualTo(1), "Um run produz no máximo um recibo progressivo por origem.");
                     Assert.That(reader.GetString(11), Is.EqualTo("NOVA_IDENTIDADE"));
-                });
+                }));
             }
         }
         finally
@@ -240,7 +240,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             verify.Parameters.AddWithValue("@obs", source.ObservationId);
             await using var reader = await verify.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetGuid(0), Is.EqualTo(source.InitialUuid));
                 Assert.That(reader.GetGuid(1), Is.EqualTo(source.InitialUuid));
@@ -259,7 +259,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                 Assert.That(reader.GetInt64(11), Is.EqualTo(1),
                     "Replay idêntico não cria segundo evento.");
                 Assert.That(reader.GetString(12), Is.EqualTo("NOVA_IDENTIDADE"));
-            });
+            }));
         }
         finally
         {
@@ -355,7 +355,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             verify.Parameters.AddWithValue("@obs", source.ObservationId);
             await using var reader = await verify.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetInt32(0), Is.EqualTo(1), "Replay do mesmo conflito não pode duplicar a fila.");
                 Assert.That(reader.GetInt64(1), Is.EqualTo(resultId));
@@ -367,7 +367,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                 Assert.That(reader.GetDecimal(7), Is.EqualTo(0.01000000m));
                 Assert.That(reader.GetString(8), Is.EqualTo("CONFLITO"));
                 Assert.That(reader.GetString(9), Is.EqualTo("MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE"));
-            });
+            }));
         }
         finally
         {
@@ -489,7 +489,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             verify.Parameters.AddWithValue("@source", sourceId);
             await using var verifyReader = await verify.ExecuteReaderAsync();
             Assert.That(await verifyReader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(verifyReader.GetInt64(0), Is.EqualTo(versionBefore),
                     "O Linkage não pode avançar identidade protegida por CPF.");
@@ -500,7 +500,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                 Assert.That(verifyReader.GetGuid(3), Is.EqualTo(deterministicUuid));
                 Assert.That(verifyReader.GetInt64(4), Is.Zero,
                     "O lote não pode criar evento probabilístico em origem determinística.");
-            });
+            }));
         }
         finally
         {
@@ -558,7 +558,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                 provisional.Parameters.AddWithValue("@initial", source.InitialUuid);
                 await using var reader = await provisional.ExecuteReaderAsync();
                 Assert.That(await reader.ReadAsync(), Is.True, "A casca progressiva deve existir na Gold mesmo com núcleo parcial.");
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(reader.GetString(0), Is.EqualTo("PROVISORIA"));
                     Assert.That(reader.GetString(1), Is.EqualTo("PARCIAL"));
@@ -567,7 +567,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                     Assert.That(reader.IsDBNull(4), Is.True);
                     Assert.That(reader.GetInt32(5), Is.Zero,
                         "PROVISORIA não pode contaminar o corpus de candidate generation.");
-                });
+                }));
             }
 
             await using (var promote = connection.CreateCommand())
@@ -605,7 +605,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             reference.Parameters.AddWithValue("@initial", source.InitialUuid);
             await using var referenceReader = await reference.ExecuteReaderAsync();
             Assert.That(await referenceReader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(referenceReader.GetString(0), Is.EqualTo("REFERENCIA"));
                 Assert.That(referenceReader.GetString(1), Is.EqualTo("PARCIAL"),
@@ -614,7 +614,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                     "A referência deve projetar chaves derivadas do nome disponível.");
                 Assert.That(referenceReader.GetInt32(3), Is.Zero,
                     "Data ausente não pode gerar chaves de nascimento sintéticas.");
-            });
+            }));
         }
         finally
         {
@@ -707,7 +707,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
             verify.Parameters.AddWithValue("@source", source.SourceId);
             await using var reader = await verify.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetGuid(0), Is.EqualTo(source.InitialUuid));
                 Assert.That(reader.GetGuid(1), Is.EqualTo(target));
@@ -717,7 +717,7 @@ public sealed class LinkageProgressivePublicationSqlServerTests
                 Assert.That(reader.GetGuid(5), Is.EqualTo(target));
                 Assert.That(reader.GetString(6), Is.EqualTo("ASSOCIACAO_EXISTENTE"));
                 Assert.That(reader.GetGuid(7), Is.EqualTo(target));
-            });
+            }));
         }
         finally
         {

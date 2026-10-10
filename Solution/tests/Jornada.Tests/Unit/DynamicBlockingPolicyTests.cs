@@ -11,13 +11,13 @@ public sealed class DynamicBlockingPolicyTests
         var a = DynamicBlockingPolicy.CreateCurrent(true, 1);
         var b = DynamicBlockingPolicy.CreateCurrent(true, 1);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(a.PolicyVersion, Is.EqualTo(DynamicBlockingPolicy.CurrentPolicyVersion));
             Assert.That(a.BlockingPlanVersion, Is.EqualTo(BirthBlockingPlan.Version));
             Assert.That(a.FingerprintSha256(), Is.EqualTo(b.FingerprintSha256()));
             Assert.That(a.FingerprintSha256(), Has.Length.EqualTo(64));
-        });
+        }));
     }
 
     [Test]
@@ -38,7 +38,7 @@ public sealed class DynamicBlockingPolicyTests
             ExternalNameFrequencyVersion = "2026",
             ExternalNameFrequencyFingerprint = null
         };
-        Assert.Throws<ArgumentException>(() => invalid.Validate());
+        Assert.Throws<ArgumentException>((Action)(() => invalid.Validate()));
     }
 
     [Test]
@@ -48,12 +48,12 @@ public sealed class DynamicBlockingPolicyTests
         var exactOnly = (current with { EnabledPasses = BirthBlockingPass.ExactDate }).Validate();
         var plan = BirthBlockingPlan.Create(new DateOnly(1982,4,10), "Maria", "Ana", true, 1);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(exactOnly.Match(plan, new DateOnly(1982,4,10), "Maria", "Ana"),
                 Is.EqualTo(BirthBlockingPass.ExactDate));
             Assert.That(exactOnly.Match(plan, new DateOnly(1982,4,11), "Maria", "Ana"),
                 Is.EqualTo(BirthBlockingPass.None));
-        });
+        }));
     }
 }

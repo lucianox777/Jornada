@@ -20,7 +20,7 @@ public sealed class PairwiseTransitivityDiagnosticTests
             new PairwiseLinkageDecision(a, c, PairwiseLinkageDecisionState.Rejected, 0.20m)
         });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Version, Is.EqualTo(PairwiseTransitivityDiagnostic.Version));
             Assert.That(report.NodeCount, Is.EqualTo(3));
@@ -30,7 +30,7 @@ public sealed class PairwiseTransitivityDiagnosticTests
             Assert.That(report.RejectedClosures, Is.EqualTo(1));
             Assert.That(report.MissingClosures, Is.Zero);
             Assert.That(report.OpenWedges[0].BridgeId, Is.EqualTo(b));
-        });
+        }));
     }
 
     [Test]
@@ -46,13 +46,13 @@ public sealed class PairwiseTransitivityDiagnosticTests
             new PairwiseLinkageDecision(b, c, PairwiseLinkageDecisionState.Accepted)
         });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.OpenWedges, Has.Count.EqualTo(1));
             Assert.That(report.MissingClosures, Is.EqualTo(1));
             Assert.That(report.RejectedClosures, Is.Zero);
             Assert.That(report.OpenWedges[0].ClosureDecision, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -69,12 +69,12 @@ public sealed class PairwiseTransitivityDiagnosticTests
             new PairwiseLinkageDecision(a, c, PairwiseLinkageDecisionState.Accepted)
         });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.AcceptedEdges, Is.EqualTo(3));
             Assert.That(report.Components.Single().Members, Has.Count.EqualTo(3));
             Assert.That(report.OpenWedges, Is.Empty);
-        });
+        }));
     }
 
     [Test]
@@ -83,18 +83,18 @@ public sealed class PairwiseTransitivityDiagnosticTests
         var a = Guid.Parse("00000000-0000-0000-0000-000000000031");
         var b = Guid.Parse("00000000-0000-0000-0000-000000000032");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => PairwiseTransitivityDiagnostic.Analyze(new[]
+            Assert.That((Func<object?>)(() => PairwiseTransitivityDiagnostic.Analyze(new[]
             {
                 new PairwiseLinkageDecision(a, a, PairwiseLinkageDecisionState.Accepted)
-            }), Throws.ArgumentException);
+            })), Throws.ArgumentException);
 
-            Assert.That(() => PairwiseTransitivityDiagnostic.Analyze(new[]
+            Assert.That((Func<object?>)(() => PairwiseTransitivityDiagnostic.Analyze(new[]
             {
                 new PairwiseLinkageDecision(a, b, PairwiseLinkageDecisionState.Accepted),
                 new PairwiseLinkageDecision(b, a, PairwiseLinkageDecisionState.Rejected)
-            }), Throws.InvalidOperationException);
-        });
+            })), Throws.InvalidOperationException);
+        }));
     }
 }

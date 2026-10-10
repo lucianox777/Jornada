@@ -47,7 +47,7 @@ public sealed class SyntheticEvaluationSqlServerTests
 
             var json = JsonSerializer.Serialize(report, JsonOptions);
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(report.Model.Status, Is.EqualTo("RASCUNHO"));
                 Assert.That(report.Model.ModelId, Is.EqualTo(modelId));
@@ -90,7 +90,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                 Assert.That(report.Input.GenerationManifestSha256, Has.Length.EqualTo(64));
                 Assert.That(report.Model.ModelSnapshotSha256, Has.Length.EqualTo(64));
                 Assert.That(json, Does.Not.Contain("OBS-2"));
-            });
+            }));
 
             var reportJson = JsonSerializer.Serialize(report, JsonOptions) + Environment.NewLine;
             var reportSha = Convert.ToHexString(
@@ -100,23 +100,23 @@ public sealed class SyntheticEvaluationSqlServerTests
             var persisted = await writer.PersistAsync(report, reportSha, runGroupId);
             var repeated = await writer.PersistAsync(report, reportSha, runGroupId);
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(persisted.EvaluationId, Is.Not.EqualTo(Guid.Empty));
                 Assert.That(persisted.RunGroupId, Is.EqualTo(runGroupId));
                 Assert.That(repeated.EvaluationId, Is.EqualTo(persisted.EvaluationId));
-            });
+            }));
 
             var completedGroup = await new SyntheticEvaluationGroupReader(connection, 60)
                 .ReadAsync(runGroupId);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(completedGroup.Status, Is.EqualTo("CONCLUIDO"));
                 Assert.That(completedGroup.ExpectedSeeds, Is.EqualTo(new[] { 42UL }));
                 Assert.That(completedGroup.CompletedSeeds, Is.EqualTo(new[] { 42UL }));
                 Assert.That(completedGroup.MissingSeeds, Is.Empty);
                 Assert.That(completedGroup.Dispersion, Is.Not.Empty);
-            });
+            }));
 
             var incompleteGroupId = Guid.NewGuid();
             var multiSeedReport = report with
@@ -129,7 +129,7 @@ public sealed class SyntheticEvaluationSqlServerTests
             await writer.PersistAsync(multiSeedReport, multiSeedSha, incompleteGroupId);
             var incompleteGroup = await new SyntheticEvaluationGroupReader(connection, 60)
                 .ReadAsync(incompleteGroupId);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(incompleteGroup.Status, Is.EqualTo("INCOMPLETO"));
                 Assert.That(incompleteGroup.ExpectedSeeds, Is.EqualTo(new[] { 42UL, 43UL }));
@@ -137,7 +137,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                 Assert.That(incompleteGroup.MissingSeeds, Is.EqualTo(new[] { 43UL }));
                 Assert.That(incompleteGroup.Dispersion, Is.Empty,
                     "Grupo parcial não pode agregar subconjunto de seeds.");
-            });
+            }));
 
             await using (var persistedCheck = connection.CreateCommand())
             {
@@ -154,7 +154,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                 persistedCheck.Parameters.AddWithValue("@evaluation_id", persisted.EvaluationId);
                 await using var reader = await persistedCheck.ExecuteReaderAsync();
                 Assert.That(await reader.ReadAsync(), Is.True);
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(reader.GetString(0), Is.EqualTo("Development"));
                     Assert.That(reader.GetString(1), Is.EqualTo("CONCLUIDA"));
@@ -163,7 +163,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                     Assert.That(reader.GetBoolean(4), Is.False);
                     Assert.That(reader.GetInt32(5), Is.GreaterThan(40));
                     Assert.That(report.ParallelBlocking, Is.Not.Null);
-                });
+                }));
             }
 
             // Metrics in the append-only ledger match the read-only D/C/union report.
@@ -179,14 +179,14 @@ public sealed class SyntheticEvaluationSqlServerTests
                 await using var reader = await parallelMetrics.ExecuteReaderAsync();
                 while (await reader.ReadAsync())
                     saved.Add(reader.GetString(0), reader.GetDecimal(1));
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(saved, Has.Count.GreaterThan(15));
                     Assert.That(saved["ELIGIBLE_TRUE_PAIRS"], Is.EqualTo(1m));
                     Assert.That(saved["UNION_TRUE_PAIRS"], Is.EqualTo(1m));
                     Assert.That(saved["D_ONLY_TRUE_PAIRS"], Is.Zero);
                     Assert.That(saved["C_ONLY_TRUE_PAIRS"], Is.Zero);
-                });
+                }));
             }
 
             await using (var immutable = connection.CreateCommand())
@@ -197,7 +197,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                     WHERE avaliacao_id=@evaluation_id;
                     """;
                 immutable.Parameters.AddWithValue("@evaluation_id", persisted.EvaluationId);
-                var error = Assert.ThrowsAsync<SqlException>(async () => await immutable.ExecuteNonQueryAsync());
+                var error = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await immutable.ExecuteNonQueryAsync()));
                 Assert.That(error!.Number, Is.EqualTo(51911));
             }
 
@@ -208,7 +208,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                     WHERE avaliacao_id=@evaluation_id;
                     """;
                 immutableMetric.Parameters.AddWithValue("@evaluation_id", persisted.EvaluationId);
-                var error = Assert.ThrowsAsync<SqlException>(async () => await immutableMetric.ExecuteNonQueryAsync());
+                var error = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await immutableMetric.ExecuteNonQueryAsync()));
                 Assert.That(error!.Number, Is.EqualTo(51912));
             }
 
@@ -226,7 +226,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                 while (await reader.ReadAsync())
                     columns.Add(reader.GetString(0));
 
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(columns, Does.Contain("modelo_id"));
                     Assert.That(columns, Does.Contain("report_sha256"));
@@ -238,7 +238,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                     Assert.That(columns, Does.Not.Contain("nome"));
                     Assert.That(columns, Does.Not.Contain("data_nascimento"));
                     Assert.That(columns, Does.Not.Contain("score_par"));
-                });
+                }));
             }
 
             await using (var retainedEvidence = connection.CreateCommand())
@@ -274,8 +274,8 @@ public sealed class SyntheticEvaluationSqlServerTests
             try
             {
                 var secondReportSha = new string('f', 64);
-                var environmentError = Assert.ThrowsAsync<SqlException>(async () =>
-                    await writer.PersistAsync(report, secondReportSha, Guid.NewGuid()));
+                var environmentError = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
+                    await writer.PersistAsync(report, secondReportSha, Guid.NewGuid())));
                 Assert.That(environmentError!.Number, Is.EqualTo(51914));
             }
             finally
@@ -303,8 +303,8 @@ public sealed class SyntheticEvaluationSqlServerTests
 
             try
             {
-                var missingMarker = Assert.ThrowsAsync<SqlException>(async () =>
-                    await SqlBatchRunner.ExecuteFileAsync(connection, cleanupPath));
+                var missingMarker = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
+                    await SqlBatchRunner.ExecuteFileAsync(connection, cleanupPath)));
                 Assert.That(missingMarker!.Number, Is.EqualTo(51930),
                     "Sem marcador residente a limpeza deve falhar antes de qualquer DELETE.");
             }
@@ -363,7 +363,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                 retainedAfterCleanup.Parameters.AddWithValue("@model_id", modelId);
                 await using var reader = await retainedAfterCleanup.ExecuteReaderAsync();
                 Assert.That(await reader.ReadAsync(), Is.True);
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(reader.GetInt64(0), Is.EqualTo(1),
                         "Cabeçalho sintético deve sobreviver à limpeza DEV.");
@@ -380,7 +380,7 @@ public sealed class SyntheticEvaluationSqlServerTests
                         "Resultados de qualidade vinculados à massa anterior devem ser descartados.");
                     Assert.That(reader.GetInt64(7), Is.Zero,
                         "Serving deve ser limpo sem preservar dados de carga.");
-                });
+                }));
             }
         }
         finally
@@ -410,13 +410,13 @@ public sealed class SyntheticEvaluationSqlServerTests
         {
             WriteSyntheticFixture(root);
             var evaluator = new SyntheticEvaluationEngine(connection, 60);
-            var error = Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            var error = Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
                 await evaluator.EvaluateAsync(
                     new SyntheticEvaluationOptions(
                         activeModelId,
                         root,
                         MaxCandidatePairs: 1_000,
-                        CommandTimeoutSeconds: 60)));
+                        CommandTimeoutSeconds: 60))));
 
             Assert.That(error!.Message, Does.Contain("somente modelo RASCUNHO"));
         }

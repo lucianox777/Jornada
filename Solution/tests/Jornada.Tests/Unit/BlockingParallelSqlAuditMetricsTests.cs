@@ -17,7 +17,7 @@ public sealed class BlockingParallelSqlAuditMetricsTests
         };
         var report = BlockingParallelSqlAuditMetrics.Summarize(rows);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.MethodVersion, Is.EqualTo("BLOCKING_PARALLEL_SQL_AUDIT_V1"));
             Assert.That(report.SampleSize, Is.EqualTo(4));
@@ -39,7 +39,7 @@ public sealed class BlockingParallelSqlAuditMetricsTests
             Assert.That(report.DynamicLatencyP95Ms, Is.EqualTo(9));
             Assert.That(report.CombinedLatencyP95Ms, Is.EqualTo(12));
             Assert.That(report.TaggedUnionLatencyP95Ms, Is.EqualTo(23));
-        });
+        }));
     }
 
     [Test]
@@ -50,44 +50,44 @@ public sealed class BlockingParallelSqlAuditMetricsTests
             new BlockingParallelSqlAuditRow(false, 1, 0, 1, 0, true, false, 2, 0, 3),
             new BlockingParallelSqlAuditRow(true, 2, 1, 2, 1, true, true, 4, 6, 7)
         });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.SampleSize, Is.EqualTo(2));
             Assert.That(report.CombinedEligibleObservations, Is.EqualTo(1));
             Assert.That(report.CombinedRecallPct, Is.EqualTo(50m));
             Assert.That(report.CombinedConditionalRecallPct, Is.EqualTo(100m));
             Assert.That(report.UnionRecallPct, Is.EqualTo(100m));
-        });
+        }));
     }
 
     [Test]
     public void Summarize_RejectsInvalidOverlapAndIneligibleCombinedResults()
     {
-        Assert.That(() => BlockingParallelSqlAuditMetrics.Summarize(new[]
+        Assert.That((Func<object?>)(() => BlockingParallelSqlAuditMetrics.Summarize(new[]
         {
             new BlockingParallelSqlAuditRow(true, 2, 2, 5, 1, false, false, 1, 1, 1)
-        }), Throws.TypeOf<InvalidDataException>());
-        Assert.That(() => BlockingParallelSqlAuditMetrics.Summarize(new[]
+        })), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Func<object?>)(() => BlockingParallelSqlAuditMetrics.Summarize(new[]
         {
             new BlockingParallelSqlAuditRow(false, 0, 1, 1, 0, false, true, 1, 1, 1)
-        }), Throws.TypeOf<InvalidDataException>());
+        })), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
     public void OptionalSqlAuditFlag_RequiresExplicitBooleanAndDefaultsOff()
     {
         var option = BlockingPassAuditCommand.CompareCombinedOption;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([], option), Is.False);
             Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([option, "true"], option), Is.True);
             Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([option + "=true"], option), Is.True);
             Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([option, "false"], option), Is.False);
             Assert.That(BlockingPassAuditCommand.ReadOptionalBooleanOption([option + "=false"], option), Is.False);
-        });
-        Assert.That(() => BlockingPassAuditCommand.ReadOptionalBooleanOption([option], option),
+        }));
+        Assert.That((Func<object?>)(() => BlockingPassAuditCommand.ReadOptionalBooleanOption([option], option)),
             Throws.TypeOf<ArgumentException>());
-        Assert.That(() => BlockingPassAuditCommand.ReadOptionalBooleanOption([option + "=maybe"], option),
+        Assert.That((Func<object?>)(() => BlockingPassAuditCommand.ReadOptionalBooleanOption([option + "=maybe"], option)),
             Throws.TypeOf<ArgumentException>());
     }
 
@@ -95,12 +95,12 @@ public sealed class BlockingParallelSqlAuditMetricsTests
     public void Summarize_ZeroEvidenceIsExplicit()
     {
         var report = BlockingParallelSqlAuditMetrics.Summarize(Array.Empty<BlockingParallelSqlAuditRow>());
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.SampleSize, Is.Zero);
             Assert.That(report.CombinedEligibleObservations, Is.Zero);
             Assert.That(report.UnionRecallPct, Is.Zero);
             Assert.That(report.TaggedUnionLatencyP95Ms, Is.Zero);
-        });
+        }));
     }
 }

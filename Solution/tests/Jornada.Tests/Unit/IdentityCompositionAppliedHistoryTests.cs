@@ -26,29 +26,29 @@ public sealed class IdentityCompositionAppliedHistoryTests
 
     [Test]
     public void MissingAppliedReceiptIsRejected() =>
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionAppliedHistory.Validate(Row() with { HasAppliedReceipt = false }));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionAppliedHistory.Validate(Row() with { HasAppliedReceipt = false })));
 
     [Test]
     public void HashMismatchIsRejected() =>
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionAppliedHistory.Validate(Row() with { MembersHash = new string('0', 64) }));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionAppliedHistory.Validate(Row() with { MembersHash = new string('0', 64) })));
 
     [Test]
     public void NonCanonicalPayloadIsRejected()
     {
         var row = Row() with { MembersJson = "[\"" + B + "\",\"" + A + "\"]" };
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionAppliedHistory.Validate(row));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionAppliedHistory.Validate(row)));
     }
 
     [Test]
     public void DuplicateMembersAreRejected()
     {
         var json = "[\"" + A + "\",\"" + A + "\"]";
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionAppliedHistory.Validate(Row() with { MembersJson = json, MembersHash = IdentityCompositionCanonical.HashUtf8(json) }));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionAppliedHistory.Validate(Row() with { MembersJson = json, MembersHash = IdentityCompositionCanonical.HashUtf8(json) })));
     }
 
     [Test]
     public void DuplicateRowsAreRejected() =>
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionAppliedHistory.ValidateBatch(new[] { Row(), Row() }));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionAppliedHistory.ValidateBatch(new[] { Row(), Row() })));
 
     [Test]
     public void EmptyBatchIsValid() =>
@@ -56,5 +56,5 @@ public sealed class IdentityCompositionAppliedHistoryTests
 
     [Test]
     public void InvalidJsonIsRejected() =>
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionAppliedHistory.Validate(Row() with { MembersJson = "not-json" }));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionAppliedHistory.Validate(Row() with { MembersJson = "not-json" })));
 }

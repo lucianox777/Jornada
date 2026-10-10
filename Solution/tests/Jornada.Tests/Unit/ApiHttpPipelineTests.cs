@@ -117,14 +117,14 @@ public sealed class ApiHttpPipelineTests
         var integrity = BronzeStorageHttpFailureMapper.Map(
             new Jornada.Bronze.Storage.BronzeObjectIntegrityException("sha256/aa/bb/test.zip", "hash divergente"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(unavailable.StatusCode, Is.EqualTo(503));
             Assert.That(unavailable.Code, Is.EqualTo("BRONZE_STORAGE_INDISPONIVEL"));
             Assert.That(integrity.StatusCode, Is.EqualTo(503));
             Assert.That(integrity.Code, Is.EqualTo("BRONZE_INTEGRIDADE_DIVERGENTE"));
             Assert.That(BronzeStorageHttpFailureMapper.RetryAfterSeconds, Is.GreaterThan(0));
-        });
+        }));
     }
 
 }

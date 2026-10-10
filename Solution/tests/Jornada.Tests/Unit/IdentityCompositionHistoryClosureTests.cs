@@ -24,21 +24,21 @@ public sealed class IdentityCompositionHistoryClosureTests
     {
         var history = new[] { History(A, D, A, B), History(B, C, B, C) };
         Assert.That(IdentityCompositionHistoryClosure.MissingMembers(history, new[] { A }), Is.EqualTo(new[] { B, C }));
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionHistoryClosure.RequireComplete(history, new[] { A, B }));
-        Assert.DoesNotThrow(() => IdentityCompositionHistoryClosure.RequireComplete(history, new[] { A, B, C }));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionHistoryClosure.RequireComplete(history, new[] { A, B })));
+        Assert.DoesNotThrow((Action)(() => IdentityCompositionHistoryClosure.RequireComplete(history, new[] { A, B, C })));
     }
 
     [Test]
     public void DuplicateHistoryKeysAreRejected() =>
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionHistoryClosure.MissingMembers(
-            new[] { History(A, D, A), History(A, D, B) }, new[] { A, B }));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionHistoryClosure.MissingMembers(
+            new[] { History(A, D, A), History(A, D, B) }, new[] { A, B })));
 
     [Test]
     public void DuplicateAndEmptyMembersAreRejected()
     {
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionHistoryClosure.MissingMembers(new[] { History(A, D, A, A) }, new[] { A }));
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionHistoryClosure.MissingMembers(new[] { History(A, D, Guid.Empty) }, new[] { A }));
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionHistoryClosure.MissingMembers(new[] { History(A, D) }, new[] { A }));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionHistoryClosure.MissingMembers(new[] { History(A, D, A, A) }, new[] { A })));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionHistoryClosure.MissingMembers(new[] { History(A, D, Guid.Empty) }, new[] { A })));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionHistoryClosure.MissingMembers(new[] { History(A, D) }, new[] { A })));
     }
 
     [Test]

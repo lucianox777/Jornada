@@ -8,7 +8,7 @@ public sealed class OriginalClusterReadinessContractTests
     {
         var root = FindRoot();
         var script = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "local-cluster-readiness.ps1"));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(script, Does.Contain("Join-Path $Root '.env'"));
             Assert.That(script, Does.Contain("$values['JORNADA_SQL_DATABASE'] -ne $DatabaseName"));
@@ -32,7 +32,7 @@ public sealed class OriginalClusterReadinessContractTests
             Assert.That(script, Does.Not.Contain("local-synthetic-calibration.ps1"));
             Assert.That(script, Does.Not.Contain("DROP DATABASE"));
             Assert.That(script, Does.Not.Contain("--publish true"));
-        });
+        }));
     }
     private static string FindRoot()
     {

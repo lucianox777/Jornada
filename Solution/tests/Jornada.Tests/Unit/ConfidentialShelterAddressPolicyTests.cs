@@ -9,16 +9,16 @@ public sealed class ConfidentialShelterAddressPolicyTests
     [Test]
     public void Special_address_is_accepted_only_from_explicitly_enabled_service_type()
     {
-        Assert.DoesNotThrow(() => ConfidentialShelterAddressPolicy.ValidateSource(Batch(IntegrationNature.SERVICO, true), ConfidentialShelterAddressPolicy.AttributeCode));
-        Assert.Throws<InvalidDataException>(() => ConfidentialShelterAddressPolicy.ValidateSource(Batch(IntegrationNature.SERVICO, false), ConfidentialShelterAddressPolicy.AttributeCode));
-        Assert.Throws<InvalidDataException>(() => ConfidentialShelterAddressPolicy.ValidateSource(Batch(IntegrationNature.BENEFICIO, true), ConfidentialShelterAddressPolicy.AttributeCode));
-        Assert.Throws<InvalidDataException>(() => ConfidentialShelterAddressPolicy.ValidateSource(Batch(null, false), ConfidentialShelterAddressPolicy.AttributeCode));
+        Assert.DoesNotThrow((Action)(() => ConfidentialShelterAddressPolicy.ValidateSource(Batch(IntegrationNature.SERVICO, true), ConfidentialShelterAddressPolicy.AttributeCode)));
+        Assert.Throws<InvalidDataException>((Action)(() => ConfidentialShelterAddressPolicy.ValidateSource(Batch(IntegrationNature.SERVICO, false), ConfidentialShelterAddressPolicy.AttributeCode)));
+        Assert.Throws<InvalidDataException>((Action)(() => ConfidentialShelterAddressPolicy.ValidateSource(Batch(IntegrationNature.BENEFICIO, true), ConfidentialShelterAddressPolicy.AttributeCode)));
+        Assert.Throws<InvalidDataException>((Action)(() => ConfidentialShelterAddressPolicy.ValidateSource(Batch(null, false), ConfidentialShelterAddressPolicy.AttributeCode)));
     }
 
     [Test]
     public void Ordinary_address_is_not_reclassified_or_blocked()
     {
-        Assert.DoesNotThrow(() => ConfidentialShelterAddressPolicy.ValidateSource(Batch(null, false), "ENDERECO_RESIDENCIAL"));
+        Assert.DoesNotThrow((Action)(() => ConfidentialShelterAddressPolicy.ValidateSource(Batch(null, false), "ENDERECO_RESIDENCIAL")));
     }
 
     private static ReservedBatch Batch(IntegrationNature? nature, bool allowed) => new(

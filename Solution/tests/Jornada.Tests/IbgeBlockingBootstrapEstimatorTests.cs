@@ -28,14 +28,14 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
         var a = IbgeBlockingBootstrapEstimator.Estimate(N(10_000_000), "CENSO2022_NOMES_BRASIL_V1", Hash, passes, new FrequentKeyRule(.99), SurnameParticlePolicy.ExcludePortugueseParticles);
         var b = IbgeBlockingBootstrapEstimator.Estimate(N(10_000_000), "CENSO2022_NOMES_BRASIL_V1", Hash, passes, new FrequentKeyRule(.99), SurnameParticlePolicy.ExcludePortugueseParticles);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(a.Marker, Is.EqualTo("NAO_PROMOCIONAL"));
             Assert.That(a.JointDistributionObserved, Is.False);
             Assert.That(a.EstimationKind, Is.EqualTo("MARGINAL_INDEPENDENCE_DIAGNOSTIC"));
             Assert.That(a.Passes.Single().ExpectedCandidates, Is.GreaterThan(0));
             Assert.That(a.ResultFingerprintSha256, Is.EqualTo(b.ResultFingerprintSha256));
-        });
+        }));
     }
 
     [Test]
@@ -72,33 +72,33 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
         var transpose = CombinedIdentityCandidatePlanner.Plan(O(new DateOnly(2024, 3, 4)));
         var future = CombinedIdentityCandidatePlanner.Plan(O(new DateOnly(2099, 1, 1)));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(leap.Any(p => p.PassId == "combined-neighbor-year"), Is.False);
             Assert.That(transpose.Any(p => p.PassId == "combined-day-month-transpose"), Is.True);
             Assert.That(transpose.Any(p => p.PassId == "combined-neighbor-year"), Is.True);
             Assert.That(future, Is.Not.Empty, "Blocking não transforma data futura em identidade; validação pertence ao contrato de admissão.");
-        });
+        }));
     }
 
     [Test]
     public void MissingSnapshotAndInvalidHash_FailClosed()
     {
-        Assert.Throws<DirectoryNotFoundException>(() => IbgeBlockingSnapshotVerifier.Verify(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"))));
-        Assert.Throws<ArgumentException>(() => IbgeBlockingBootstrapEstimator.Estimate(N(100), "ref", "bad", new[]
+        Assert.Throws<DirectoryNotFoundException>((Action)(() => IbgeBlockingSnapshotVerifier.Verify(Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N")))));
+        Assert.Throws<ArgumentException>((Action)(() => IbgeBlockingBootstrapEstimator.Estimate(N(100), "ref", "bad", new[]
         {
             new BootstrapPassInput("x", BootstrapPassCategory.Exact, new[] { new MarginalKeyProbability("x", .1, "scope") }, "r")
-        }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve));
+        }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve)));
     }
 
     [Test]
     public void NrefWithoutCalibratorProvenance_FailsClosed()
     {
         var invalid = new ReferencePopulationEvidence(100, "MANUAL", "run", Hash);
-        Assert.Throws<ArgumentException>(() => IbgeBlockingBootstrapEstimator.Estimate(invalid, "ref", Hash, new[]
+        Assert.Throws<ArgumentException>((Action)(() => IbgeBlockingBootstrapEstimator.Estimate(invalid, "ref", Hash, new[]
         {
             new BootstrapPassInput("x", BootstrapPassCategory.Exact, new[] { new MarginalKeyProbability("x", .1, "scope") }, "r")
-        }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve));
+        }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve)));
     }
 
     [Test]
@@ -109,7 +109,7 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
             new BootstrapPassInput("x", BootstrapPassCategory.Exact, new[] { new MarginalKeyProbability("x", .1, "scope") }, "r")
         }, new FrequentKeyRule(.9), SurnameParticlePolicy.Preserve);
         var json = IbgeBlockingBootstrapEstimator.ToImmutableJson(proposal);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(json, Does.Contain("NAO_PROMOCIONAL"));
             Assert.That(json, Does.Contain("MARGINAL_INDEPENDENCE_DIAGNOSTIC"));
@@ -117,6 +117,6 @@ public sealed class IbgeBlockingBootstrapEstimatorTests
             Assert.That(json, Does.Contain(ReferencePopulationEvidence.CalibratorCorpusMethod));
             Assert.That(json, Does.Contain("cal-run-test"));
             Assert.That(json, Does.Contain(proposal.ResultFingerprintSha256));
-        });
+        }));
     }
 }

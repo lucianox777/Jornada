@@ -20,7 +20,7 @@ public sealed class Dt05ReplayManifestBindingContractTests
             root, "database", "migrations", "20261002_Linkage_Replay_Manifest_Binding_DT05.sql"));
         var manifest = File.ReadAllText(Path.Combine(root, "database", "migrations", "manifest.txt"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(manifest, Does.Contain("migrations/20261002_Linkage_Replay_Manifest_Binding_DT05.sql"));
             Assert.That(migration, Does.Contain("identidade.linkage_replay_manifesto"));
@@ -36,6 +36,6 @@ public sealed class Dt05ReplayManifestBindingContractTests
             Assert.That(migration, Does.Contain("ruleset_version"));
             Assert.That(migration, Does.Contain("model_version"));
             Assert.That(migration, Does.Contain("input_snapshot_id"));
-        });
+        }));
     }
 }

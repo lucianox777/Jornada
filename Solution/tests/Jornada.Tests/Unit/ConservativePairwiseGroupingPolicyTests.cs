@@ -21,7 +21,7 @@ public sealed class ConservativePairwiseGroupingPolicyTests
         });
 
         var component = report.Components.Single(x => x.Members.Count == 3);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.PolicyVersion, Is.EqualTo(ConservativePairwiseGroupingPolicy.Version));
             Assert.That(component.State, Is.EqualTo(PairwiseGroupingState.Eligible));
@@ -31,7 +31,7 @@ public sealed class ConservativePairwiseGroupingPolicyTests
             Assert.That(component.InconclusivePairs, Is.Zero);
             Assert.That(component.MissingPairs, Is.Zero);
             Assert.That(component.Reason, Is.EqualTo("COMPLETE_LINK_TODOS_PARES_ACEITOS"));
-        });
+        }));
     }
 
     [Test]
@@ -49,14 +49,14 @@ public sealed class ConservativePairwiseGroupingPolicyTests
         });
 
         var component = report.Components.Single(x => x.Members.Count == 3);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(component.State, Is.EqualTo(PairwiseGroupingState.Ambiguous));
             Assert.That(component.AcceptedPairs, Is.EqualTo(2));
             Assert.That(component.RejectedPairs, Is.EqualTo(1));
             Assert.That(component.MissingPairs, Is.Zero);
             Assert.That(component.Reason, Is.EqualTo("AMBIGUO_FECHAMENTO_REJEITADO"));
-        });
+        }));
     }
 
     [Test]
@@ -73,12 +73,12 @@ public sealed class ConservativePairwiseGroupingPolicyTests
         });
 
         var component = report.Components.Single(x => x.Members.Count == 3);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(component.State, Is.EqualTo(PairwiseGroupingState.Ambiguous));
             Assert.That(component.MissingPairs, Is.EqualTo(1));
             Assert.That(component.Reason, Is.EqualTo("AMBIGUO_FECHAMENTO_NAO_OBSERVADO"));
-        });
+        }));
     }
 
     [Test]
@@ -96,12 +96,12 @@ public sealed class ConservativePairwiseGroupingPolicyTests
         });
 
         var component = report.Components.Single(x => x.Members.Count == 3);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(component.State, Is.EqualTo(PairwiseGroupingState.Ambiguous));
             Assert.That(component.InconclusivePairs, Is.EqualTo(1));
             Assert.That(component.Reason, Is.EqualTo("AMBIGUO_FECHAMENTO_INCONCLUSIVO"));
-        });
+        }));
     }
 
     [Test]
@@ -126,11 +126,11 @@ public sealed class ConservativePairwiseGroupingPolicyTests
         var left = ConservativePairwiseGroupingPolicy.Evaluate(first);
         var right = ConservativePairwiseGroupingPolicy.Evaluate(second);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(left.EvidenceFingerprintSha256, Is.EqualTo(right.EvidenceFingerprintSha256));
             Assert.That(left.Components.Select(ComponentShape), Is.EqualTo(right.Components.Select(ComponentShape)));
-        });
+        }));
     }
 
     [Test]
@@ -147,13 +147,13 @@ public sealed class ConservativePairwiseGroupingPolicyTests
             new PairwiseLinkageDecision(c, d, PairwiseLinkageDecisionState.Rejected, 0.02m)
         });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.EligibleComponents, Is.EqualTo(1));
             Assert.That(report.Components.Single(x => x.Members.Contains(a)).State, Is.EqualTo(PairwiseGroupingState.Eligible));
             Assert.That(report.Components.Where(x => x.Members.Contains(c) || x.Members.Contains(d))
                 .All(x => x.State == PairwiseGroupingState.NoComposition), Is.True);
-        });
+        }));
     }
 
     private static PairwiseLinkageDecision Accepted(Guid left, Guid right, decimal score = 0.99m) =>

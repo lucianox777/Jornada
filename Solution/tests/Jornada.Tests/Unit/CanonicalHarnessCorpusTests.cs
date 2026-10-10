@@ -18,7 +18,7 @@ public sealed class CanonicalHarnessCorpusTests
         var diversify = workflow.IndexOf("database/Jornada_Dev_SyntheticScale_Diversify.sql", StringComparison.Ordinal);
         var rebuild = workflow.IndexOf("REBUILD_LOCAL_BLOCKING", StringComparison.Ordinal);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(load, Is.GreaterThanOrEqualTo(0), "CI harness deve carregar o snapshot IBGE pelo loader canônico.");
             Assert.That(manifest, Is.GreaterThan(load), "Manifesto IBGE deve ser associado à carga canônica.");
@@ -26,7 +26,7 @@ public sealed class CanonicalHarnessCorpusTests
             Assert.That(diversify, Is.GreaterThan(generate), "Diversificação IBGE deve ocorrer após a massa base.");
             Assert.That(rebuild, Is.GreaterThan(diversify), "Blocking deve ser materializado somente após a diversificação.");
             Assert.That(workflow, Does.Contain("CENSO2022_NOMES_BRASIL_V1"));
-        });
+        }));
     }
 
     [Test]
@@ -35,7 +35,7 @@ public sealed class CanonicalHarnessCorpusTests
         var root = FindRepositoryRoot();
         var workflow = File.ReadAllText(Path.Combine(root, ".github", "workflows", "ci.yml"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(workflow, Does.Contain("--since 2026-08-31T01:00:00Z"));
             Assert.That(workflow, Does.Contain("SEM_CANDIDATO_%"));
@@ -48,7 +48,7 @@ public sealed class CanonicalHarnessCorpusTests
             Assert.That(workflow, Does.Not.Contain("test \"$BLOCKING_RECALL_PPM\" -ge 950000"));
             Assert.That(workflow, Does.Not.Contain("UNEXPECTED_NO_CANDIDATE"));
             Assert.That(workflow, Does.Not.Contain("n%10<>0"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

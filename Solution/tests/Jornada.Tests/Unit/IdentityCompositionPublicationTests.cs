@@ -42,28 +42,28 @@ public sealed class IdentityCompositionPublicationTests
             new IdentityCompositionFactualProjectionExpectation(A, 101, null, "PENDENTE_IDENTIDADE"),
             new IdentityCompositionFactualProjectionExpectation(B, 101, null, "CONFLITO_IDENTIDADE"));
 
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionPublicationPlanner.Prepare(plan));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionPublicationPlanner.Prepare(plan)));
     }
 
     [Test]
     public void Assigned_without_uuid_fails_closed()
     {
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionPublicationPlanner.Prepare(Plan(
-            new IdentityCompositionFactualProjectionExpectation(A, 101, null, "ATRIBUIDA"))));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionPublicationPlanner.Prepare(Plan(
+            new IdentityCompositionFactualProjectionExpectation(A, 101, null, "ATRIBUIDA")))));
     }
 
     [Test]
     public void Non_assigned_with_uuid_fails_closed()
     {
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionPublicationPlanner.Prepare(Plan(
-            new IdentityCompositionFactualProjectionExpectation(A, 101, B, "PENDENTE_IDENTIDADE"))));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionPublicationPlanner.Prepare(Plan(
+            new IdentityCompositionFactualProjectionExpectation(A, 101, B, "PENDENTE_IDENTIDADE")))));
     }
 
     [Test]
     public void Unknown_assignment_state_fails_closed()
     {
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionPublicationPlanner.Prepare(Plan(
-            new IdentityCompositionFactualProjectionExpectation(A, 101, null, "DESCONHECIDA"))));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionPublicationPlanner.Prepare(Plan(
+            new IdentityCompositionFactualProjectionExpectation(A, 101, null, "DESCONHECIDA")))));
     }
 
     [Test]
@@ -72,7 +72,7 @@ public sealed class IdentityCompositionPublicationTests
         var plan = new IdentityCompositionFactualRevalidationPlan(
             Decision, Hash, ImmutableArray<IdentityCompositionFactualProjectionExpectation>.Empty, false);
 
-        Assert.Throws<InvalidOperationException>(() => IdentityCompositionPublicationPlanner.Prepare(plan));
+        Assert.Throws<InvalidOperationException>((Action)(() => IdentityCompositionPublicationPlanner.Prepare(plan)));
     }
 
     [Test]

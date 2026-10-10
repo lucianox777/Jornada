@@ -12,7 +12,7 @@ public sealed class Dt05HistoricalCandidateParquetReaderContractTests
         var path = Path.GetFullPath(Path.Combine(root, "..", "..", "..", "..", "..", "src",
             "Jornada.Linkage.Runner", "Dt05HistoricalCandidateStateVerifier.cs"));
         var source = File.ReadAllText(path);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(source, Does.Contain("ParquetReader.CreateAsync"));
             Assert.That(source, Does.Contain("candidate_uuid").And.Contain("nome_completo")
@@ -24,6 +24,6 @@ public sealed class Dt05HistoricalCandidateParquetReaderContractTests
             Assert.That(source, Does.Contain("Encoding.Unicode"));
             Assert.That(source, Does.Contain("binding.CandidateSetSha256"));
             Assert.That(source, Does.Not.Contain("gold.pessoa"));
-        });
+        }));
     }
 }

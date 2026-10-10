@@ -14,7 +14,7 @@ public sealed class LinkageParameterEstimatorTests
 
         var p = LinkageParameterEstimator.Estimate(matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p.ContainsKey("M_NOME_EXACT"), Is.True);
             Assert.That(p.ContainsKey("U_NOME_LOW"), Is.True);
@@ -67,7 +67,7 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p.ContainsKey("U_NASC_DIA_DIFF"), Is.True);
             Assert.That(p.ContainsKey("M_NASC_MES_EXACT"), Is.True);
             Assert.That(p.ContainsKey("M_NASC_ANO_EXACT"), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -78,7 +78,7 @@ public sealed class LinkageParameterEstimatorTests
         var p = LinkageParameterEstimator.Estimate(matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m,
             BirthScoringContract.JointEvidenceV4);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p[LinkageParameterCatalog.BirthJointEvidenceScoring], Is.EqualTo(1m));
             Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthSemanticEvidenceScoring), Is.False);
@@ -90,7 +90,7 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p.ContainsKey("U_NOME_MAE_MISSING"), Is.False);
             foreach (var name in LinkageParameterCatalog.BirthSemanticEvidenceRequired)
                 Assert.That(p.ContainsKey(name), Is.True, $"Distribuição V5 para replay ausente: {name}.");
-        });
+        }));
     }
 
     [Test]
@@ -101,7 +101,7 @@ public sealed class LinkageParameterEstimatorTests
         var p = LinkageParameterEstimator.Estimate(matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m,
             BirthScoringContract.SingleEvidenceV3);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p[LinkageParameterCatalog.BirthSingleEvidenceScoring], Is.EqualTo(1m));
             Assert.That(p.ContainsKey(LinkageParameterCatalog.BirthSemanticEvidenceScoring), Is.False);
@@ -126,7 +126,7 @@ public sealed class LinkageParameterEstimatorTests
                 Assert.That(p.ContainsKey(name), Is.True, $"Distribuição V4 para replay ausente: {name}.");
             foreach (var name in LinkageParameterCatalog.BirthSingleEvidenceRequired)
                 Assert.That(p.ContainsKey(name), Is.True, $"Distribuição V3 ausente: {name}.");
-        });
+        }));
     }
 
     [Test]
@@ -150,7 +150,7 @@ public sealed class LinkageParameterEstimatorTests
             matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m,
             nameComparisonContract: NameComparisonContract.PtBrContentTokenGuardV2);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(v1["SUPPORT_U_NOME_HIGH"], Is.EqualTo(1m));
             Assert.That(v1["SUPPORT_U_NOME_LOW"], Is.EqualTo(0m));
@@ -161,7 +161,7 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(v2["SUPPORT_U_NOME_LOW"], Is.EqualTo(1m));
             Assert.That(v2["SUPPORT_U_NOME_MAE_HIGH"], Is.EqualTo(0m));
             Assert.That(v2["SUPPORT_U_NOME_MAE_LOW"], Is.EqualTo(1m));
-        });
+        }));
     }
 
     [Test]
@@ -180,7 +180,7 @@ public sealed class LinkageParameterEstimatorTests
 
         var p = LinkageParameterEstimator.Estimate(matched, unmatched, 1000, 100, 0.5m, 0.95m, 0.03m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p.ContainsKey("M_NOME_MAE_SAMPLE_SIZE"), Is.False);
             Assert.That(p.ContainsKey("U_NOME_MAE_SAMPLE_SIZE"), Is.False);
@@ -188,7 +188,7 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(p["U_NOME_MAE_MISSING"], Is.GreaterThan(0m));
             Assert.That(p["M_NOME_MAE_EXACT"], Is.GreaterThan(p["M_NOME_MAE_LOW"]));
             Assert.That(p["U_NOME_MAE_LOW"], Is.GreaterThan(p["U_NOME_MAE_EXACT"]));
-        });
+        }));
     }
 
     [Test]
@@ -211,7 +211,7 @@ public sealed class LinkageParameterEstimatorTests
         var p = LinkageParameterEstimator.Estimate(
             matched, unmatched, 1000, 100, .5m, .95m, .03m,
             neutralMissingEvidenceV8: true);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p[LinkageParameterCatalog.NeutralMissingEvidenceScoring], Is.EqualTo(1m));
             Assert.That(p.ContainsKey("M_NOME_MAE_MISSING"), Is.False);
@@ -222,17 +222,17 @@ public sealed class LinkageParameterEstimatorTests
                 Is.EqualTo(1m).Within(.00000001m));
             Assert.That(LinkageParameterCatalog.NameStates.Sum(x => p["U_NOME_MAE_" + x]),
                 Is.EqualTo(1m).Within(.00000001m));
-        });
+        }));
     }
 
     [Test]
     public void V8_rejects_non_semantic_training_contract()
     {
         var (matched, unmatched) = TrainingPairs();
-        Assert.That(() => LinkageParameterEstimator.Estimate(
+        Assert.That((Func<object?>)(() => LinkageParameterEstimator.Estimate(
             matched, unmatched, 1000, 100, .5m, .95m, .03m,
             BirthScoringContract.JointEvidenceV4,
-            neutralMissingEvidenceV8: true), Throws.InvalidOperationException);
+            neutralMissingEvidenceV8: true)), Throws.InvalidOperationException);
     }
 
     private static (IdentityTrainingPair[] Matched, IdentityTrainingPair[] Unmatched) TrainingPairs()
@@ -266,7 +266,7 @@ public sealed class LinkageParameterEstimatorTests
             1000, 365, 1m, 0.95m, 0.03m,
             neutralMissingEvidenceV8: true);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(parameters["SUPPORT_M_LEDGER_EMAIL_CONTATO_EXACT"], Is.EqualTo(1m));
             Assert.That(parameters["SUPPORT_M_LEDGER_EMAIL_CONTATO_MISSING"], Is.EqualTo(1m));
@@ -276,6 +276,6 @@ public sealed class LinkageParameterEstimatorTests
             Assert.That(parameters.ContainsKey("U_LEDGER_EMAIL_CONTATO_EXACT"), Is.True);
             Assert.That(parameters.ContainsKey("M_LEDGER_EMAIL_CONTATO_MISSING"), Is.False);
             Assert.That(parameters.ContainsKey("U_LEDGER_EMAIL_CONTATO_MISSING"), Is.False);
-        });
+        }));
     }
 }

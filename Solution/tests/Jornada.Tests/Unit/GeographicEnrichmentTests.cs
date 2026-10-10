@@ -19,12 +19,12 @@ public sealed class GeographicEnrichmentTests
 
         var result = OriginTerritorialGeography.ApplyResolutionTimestamp(new ParsedPackage(manifest, [person], []));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Pessoas[0].Atributos[0].SituacaoGeografia, Is.EqualTo(GeographicResolutionStatus.RESOLVIDA));
             Assert.That(result.Pessoas[0].Atributos[0].Geografia?.Origem, Is.EqualTo(ReferenceGeographyOrigin.ORIGEM));
             Assert.That(result.Pessoas[0].Atributos[0].Geografia?.ResolvidoEm, Is.EqualTo(manifest.DataReferencia));
-        });
+        }));
     }
 
     [Test]
@@ -37,11 +37,11 @@ public sealed class GeographicEnrichmentTests
         var manifest = new IngestionPackageManifest(2, 1, "ASSISTENCIA", null, null, null, DateTimeOffset.Parse("2026-08-21T00:00:00-03:00", System.Globalization.CultureInfo.InvariantCulture));
 
         var result = OriginTerritorialGeography.ApplyResolutionTimestamp(new ParsedPackage(manifest, [person], []));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Pessoas[0].Atributos[0].SituacaoGeografia, Is.EqualTo(GeographicResolutionStatus.NAO_RESOLVIDA_ORIGEM));
             Assert.That(result.Pessoas[0].Atributos[0].Geografia, Is.Null);
-        });
+        }));
     }
 
     [Test]

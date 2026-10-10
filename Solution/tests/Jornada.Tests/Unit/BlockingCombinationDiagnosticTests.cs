@@ -18,14 +18,14 @@ public sealed class BlockingCombinationDiagnosticTests
 
         var result = BlockingCombinationDiagnostic.Analyze(observations, 2, 2).Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Fields, Is.EqualTo(new[] { "A", "B" }));
             Assert.That(result.TrueMatchRecall, Is.EqualTo(1d));
             Assert.That(result.IncrementalRecallVsBestMember, Is.EqualTo(0.5d));
             Assert.That(result.NonMatchRetention, Is.EqualTo(0.5d));
             Assert.That(result.ReductionRatio, Is.EqualTo(0.5d));
-        });
+        }));
     }
 
     [Test]
@@ -65,8 +65,7 @@ public sealed class BlockingCombinationDiagnosticTests
     public void Analyze_RejectsCorpusWithoutReferenceNonMatches()
     {
         var observations = new[] { Obs(true, true, false), Obs(true, false, true) };
-        Assert.That(
-            () => BlockingCombinationDiagnostic.Analyze(observations),
+        Assert.That((Func<object?>)(() => BlockingCombinationDiagnostic.Analyze(observations)),
             Throws.TypeOf<ArgumentException>());
     }
 

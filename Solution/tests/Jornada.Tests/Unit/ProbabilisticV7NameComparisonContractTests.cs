@@ -40,7 +40,7 @@ public sealed class ProbabilisticV7NameComparisonContractTests
         var v6Decision = ProbabilisticLinkageDecisions.Resolve(v6, observation, [candidate]);
         var v7Decision = ProbabilisticLinkageDecisions.Resolve(v7, observation, [candidate]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(v6Decision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
             Assert.That(v6Decision.PessoaUuidResolvido, Is.EqualTo(CandidateId));
@@ -48,18 +48,17 @@ public sealed class ProbabilisticV7NameComparisonContractTests
             Assert.That(v7Decision.PessoaUuidResolvido, Is.Null);
             Assert.That(v7Decision.Motivo, Is.EqualTo("ABAIXO_T_LINKAGE"));
             Assert.That(v6Decision.MelhorScore, Is.GreaterThan(v7Decision.MelhorScore));
-        });
+        }));
     }
 
     [Test]
     public void V7_without_name_comparison_provenance_is_rejected_fail_closed()
     {
-        Assert.That(
-            () => LinkageModelPolicy.Create(
+        Assert.That((Func<object?>)(() => LinkageModelPolicy.Create(
                 V7ModelId,
                 7,
                 LinkageParameterCatalog.NominalGuardDecisionEvidenceAlgorithmVersion,
-                Parameters(includeV7Marker: false)),
+                Parameters(includeV7Marker: false))),
             Throws.InvalidOperationException.With.Message.Contains(
                 LinkageParameterCatalog.NameComparisonPtBrContentTokenGuardV2));
     }
@@ -67,7 +66,7 @@ public sealed class ProbabilisticV7NameComparisonContractTests
     [Test]
     public void V6_alias_remains_stable_for_replay_and_maps_to_legacy_name_contract()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 LinkageParameterCatalog.SemanticBirthAlgorithmVersion,
@@ -80,7 +79,7 @@ public sealed class ProbabilisticV7NameComparisonContractTests
                 LinkageParameterCatalog.NameComparisonContractForAlgorithm(
                     LinkageParameterCatalog.NominalGuardDecisionEvidenceAlgorithmVersion),
                 Is.EqualTo(NameComparisonContract.PtBrContentTokenGuardV2));
-        });
+        }));
     }
 
     private static Dictionary<string, decimal> Parameters(bool includeV7Marker)

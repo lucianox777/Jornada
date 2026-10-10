@@ -35,10 +35,10 @@ public sealed class BronzeObjectStorageTests
         try
         {
             var store = new FileSystemBronzeObjectStore(root);
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             {
                 await using var _ = await store.OpenReadAsync("../escape.zip", CancellationToken.None);
-            });
+            }));
         }
         finally { try { Directory.Delete(root, recursive: true); } catch { } }
     }
@@ -59,11 +59,11 @@ public sealed class BronzeObjectStorageTests
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllBytes(path, corrupted);
 
-            Assert.ThrowsAsync<BronzeObjectIntegrityException>(async () =>
+            Assert.ThrowsAsync<BronzeObjectIntegrityException>((Func<Task>)(async () =>
             {
                 await using var content = new MemoryStream(expected, writable: false);
                 await store.PutIfAbsentAsync(hash, content, expected.Length, CancellationToken.None);
-            });
+            }));
         }
         finally { try { Directory.Delete(root, recursive: true); } catch { } }
     }
@@ -81,16 +81,16 @@ public sealed class BronzeObjectStorageTests
                 await store.PutIfAbsentAsync(hash, source, bytes.Length, CancellationToken.None);
             var key = store.BuildObjectKey(hash);
 
-            Assert.DoesNotThrowAsync(async () => await store.VerifyAsync(key, hash, bytes.Length, CancellationToken.None));
+            Assert.DoesNotThrowAsync((Func<Task>)(async () => await store.VerifyAsync(key, hash, bytes.Length, CancellationToken.None)));
 
             var path = Path.Combine(root, key.Replace('/', Path.DirectorySeparatorChar));
             File.WriteAllBytes(path, "corrupted bronze object"u8.ToArray());
-            Assert.ThrowsAsync<BronzeObjectIntegrityException>(async () =>
-                await store.VerifyAsync(key, hash, bytes.Length, CancellationToken.None));
+            Assert.ThrowsAsync<BronzeObjectIntegrityException>((Func<Task>)(async () =>
+                await store.VerifyAsync(key, hash, bytes.Length, CancellationToken.None)));
 
             File.Delete(path);
-            Assert.ThrowsAsync<BronzeObjectNotFoundException>(async () =>
-                await store.VerifyAsync(key, hash, bytes.Length, CancellationToken.None));
+            Assert.ThrowsAsync<BronzeObjectNotFoundException>((Func<Task>)(async () =>
+                await store.VerifyAsync(key, hash, bytes.Length, CancellationToken.None)));
         }
         finally { try { Directory.Delete(root, recursive: true); } catch { } }
     }

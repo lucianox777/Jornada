@@ -18,7 +18,7 @@ public sealed class NormativeDocumentHierarchyTests
         var specV364Docx = Path.Combine(documentos, "Especificacao_Tecnica_Jornada_v3.64.docx");
         var specV364Pdf = Path.Combine(documentos, "Especificacao_Tecnica_Jornada_v3.64.pdf");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(File.Exists(docsReadmePath), Is.True);
             Assert.That(File.Exists(solutionDocsReadmePath), Is.True);
@@ -27,13 +27,13 @@ public sealed class NormativeDocumentHierarchyTests
             Assert.That(File.Exists(specV362Pdf), Is.True, "Especificação Técnica v3.62 PDF publicada ausente.");
             Assert.That(File.Exists(specV364Docx), Is.False, "Não criar Especificação Técnica v3.64 por inferência.");
             Assert.That(File.Exists(specV364Pdf), Is.False, "Não criar Especificação Técnica v3.64 por inferência.");
-        });
+        }));
 
         var docsReadme = File.ReadAllText(docsReadmePath);
         var solutionDocsReadme = File.ReadAllText(solutionDocsReadmePath);
         var releaseInfo = File.ReadAllText(releaseInfoPath);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(releaseInfo, Does.Contain("base_normativa=v3.64"));
             Assert.That(releaseInfo, Does.Contain("schema_base_normativa=v3.62"));
@@ -42,7 +42,7 @@ public sealed class NormativeDocumentHierarchyTests
             Assert.That(solutionDocsReadme, Does.Contain("Especificacao_Tecnica_Jornada_v3.62.docx"));
             Assert.That(solutionDocsReadme, Does.Not.Contain("A fonte normativa é `../../Documentos/Especificacao_Tecnica_Jornada_v3.64.docx`"));
             Assert.That(solutionDocsReadme, Does.Contain("não implica que exista um arquivo `Especificacao_Tecnica_Jornada_v3.64.*`"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

@@ -10,7 +10,7 @@ public sealed class ResolutionProjectionModelCatalogTests
     {
         var candidates = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan.BlockingCandidateFeatures;
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(candidates, Does.Contain(BlockingCandidateFeatureCatalog.FullName));
             Assert.That(candidates, Does.Contain(BlockingCandidateFeatureCatalog.FullNamePhoneticPtBr));
@@ -20,7 +20,7 @@ public sealed class ResolutionProjectionModelCatalogTests
             Assert.That(candidates, Does.Contain("email_contato__canonical"));
             Assert.That(candidates, Does.Contain("nome_social__normalized"));
             Assert.That(candidates, Does.Not.Contain("endereco_casa_abrigo_sigilosa__canonical"));
-        });
+        }));
     }
 
     [Test]
@@ -28,25 +28,25 @@ public sealed class ResolutionProjectionModelCatalogTests
     {
         var plan = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.SchemaVersion, Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
             Assert.That(plan.Fingerprint, Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
             Assert.That(PersonResolutionAttributeCatalog.ProjectionSchemaVersion,
                 Is.EqualTo(PersonResolutionProjectionContract.SchemaVersion));
-        });
+        }));
     }
 
     [Test]
     public void PresentationReferenceName_IsNotAResolutionAttribute()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(PersonResolutionContractCatalog.TryGet("nome_referencia", out _), Is.False);
             Assert.That(
                 BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan.BlockingCandidateFeatures,
                 Does.Not.Contain("nome_referencia"));
-        });
+        }));
     }
 
     [Test]
@@ -59,13 +59,13 @@ public sealed class ResolutionProjectionModelCatalogTests
             new[] { new ResolutionSourceField("apelido_social", ResolutionAttributeSemantic.PersonName, EligibleForResolution: true) },
             "TEST_V1");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(denied.BlockingCandidateFeatures, Is.Empty);
             Assert.That(denied.Features, Has.Count.EqualTo(1));
             Assert.That(allowed.BlockingCandidateFeatures, Does.Contain("apelido_social__normalized"));
             Assert.That(allowed.BlockingCandidateFeatures, Does.Contain("apelido_social__phonetic"));
-        });
+        }));
     }
 
     [Test]
@@ -78,7 +78,7 @@ public sealed class ResolutionProjectionModelCatalogTests
         var original = plan.Features.Single(static feature => feature.Feature == "source__apelido_social");
         var calculated = plan.Features.Where(static feature => feature.Origin == ResolutionFeatureOrigin.Calculated).ToArray();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(original.CandidateForBlocking, Is.False);
             Assert.That(calculated.Select(static x => x.Feature), Does.Contain("apelido_social__upper"));
@@ -89,7 +89,7 @@ public sealed class ResolutionProjectionModelCatalogTests
             Assert.That(calculated.Select(static x => x.Algorithm), Does.Contain("PERSON_NAME_COMPONENTS@V2"));
             Assert.That(calculated.Select(static x => x.Algorithm), Does.Contain("PERSON_NAME_METAPHONE_BR@V1"));
             Assert.That(calculated.All(static x => x.ProjectionOutput is not null), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -100,7 +100,7 @@ public sealed class ResolutionProjectionModelCatalogTests
             "TEST_V1");
         var calculated = plan.Features.Where(static feature => feature.Origin == ResolutionFeatureOrigin.Calculated).ToArray();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(calculated.Select(static x => x.Feature), Is.EquivalentTo(new[]
             {
@@ -108,7 +108,7 @@ public sealed class ResolutionProjectionModelCatalogTests
             }));
             Assert.That(calculated.All(static x => x.Materialization == ResolutionMaterializationKind.GeneratedColumn), Is.True);
             Assert.That(calculated.All(static x => x.Algorithm == "DATE_COMPONENTS@V2"), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -123,7 +123,7 @@ public sealed class ResolutionProjectionModelCatalogTests
             "TEST_V1");
         var calculated = plan.Features.Where(static feature => feature.Origin == ResolutionFeatureOrigin.Calculated).ToArray();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(calculated.Select(static x => x.Feature), Is.EquivalentTo(new[]
             {
@@ -134,7 +134,7 @@ public sealed class ResolutionProjectionModelCatalogTests
             Assert.That(calculated.Single(static x => x.Feature == "email_contato__canonical").Algorithm,
                 Is.EqualTo("EMAIL_CANONICO@V2"));
             Assert.That(calculated.All(static x => x.MultiValued), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -150,11 +150,11 @@ public sealed class ResolutionProjectionModelCatalogTests
         foreach (var code in codes)
         {
             Assert.That(PersonResolutionContractCatalog.TryGet(code, out var field), Is.True, code);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(field.EligibleForResolution, Is.False, code);
                 Assert.That(field.BlockingFeatures, Is.Empty, code);
-            });
+            }));
         }
     }
 
@@ -164,13 +164,13 @@ public sealed class ResolutionProjectionModelCatalogTests
         Assert.That(PersonResolutionAttributeCatalog.TryGet(PersonResolutionAttributeCatalog.ConfidentialShelterAddress, out var field), Is.True);
         var plan = ResolutionProjectionPlanner.Build(new[] { field }, "TEST_V1");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(field.Semantic, Is.EqualTo(ResolutionAttributeSemantic.Address));
             Assert.That(field.EligibleForResolution, Is.False);
             Assert.That(plan.BlockingCandidateFeatures, Is.Empty);
             Assert.That(plan.Features.Single().Feature, Is.EqualTo("source__endereco_casa_abrigo_sigilosa"));
-        });
+        }));
     }
 
     [Test]
@@ -180,18 +180,18 @@ public sealed class ResolutionProjectionModelCatalogTests
             new[] { new ResolutionSourceField("logradouro", ResolutionAttributeSemantic.Address, EligibleForResolution: true) },
             "TEST_V1");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.Features, Has.Count.EqualTo(1));
             Assert.That(plan.Features[0].Origin, Is.EqualTo(ResolutionFeatureOrigin.Original));
             Assert.That(plan.BlockingCandidateFeatures, Is.Empty);
-        });
+        }));
     }
 
     [Test]
     public void Catalog_AllowsSeveralAlgorithmsPerSemanticWithoutOneToOneDictionaryConstraint()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(HomologatedResolutionAlgorithmCatalog.ForSemantic(ResolutionAttributeSemantic.PersonName)
                 .Select(static x => x.QualifiedAlgorithm), Does.Contain("PERSON_NAME_METAPHONE_BR@V1"));
@@ -199,7 +199,7 @@ public sealed class ResolutionProjectionModelCatalogTests
                 .Select(static x => x.QualifiedAlgorithm), Does.Contain("TELEFONE_BR_CANONICO@V2"));
             Assert.That(HomologatedResolutionAlgorithmCatalog.ForSemantic(ResolutionAttributeSemantic.Email)
                 .Select(static x => x.QualifiedAlgorithm), Does.Contain("EMAIL_CANONICO@V2"));
-        });
+        }));
     }
 
     [Test]
@@ -214,7 +214,7 @@ public sealed class ResolutionProjectionModelCatalogTests
         var experimental = ResolutionProjectionPlanner.BuildExperimental(source, "TEST_NOMESBR_V1");
         var replay = ResolutionProjectionPlanner.BuildExperimental(source, "TEST_NOMESBR_V1");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(baseline.Features.Select(static f => f.Feature),
                 Does.Not.Contain("apelido_social__last_content_surname"));
@@ -238,11 +238,11 @@ public sealed class ResolutionProjectionModelCatalogTests
                 Does.Contain("PERSON_NAME_BRAZILIAN_COMPONENTS@V1"));
             Assert.That(BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan.Fingerprint,
                 Is.EqualTo(PersonResolutionProjectionContract.FingerprintSha256));
-        });
+        }));
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             ResolutionProjectionPlanner.BuildExperimental(source,
-                PersonResolutionProjectionContract.SchemaVersion));
+                PersonResolutionProjectionContract.SchemaVersion)));
     }
 
     [Test]
@@ -263,12 +263,12 @@ public sealed class ResolutionProjectionModelCatalogTests
                 new ResolutionSourceField("data", ResolutionAttributeSemantic.Date, EligibleForResolution: true)
             }, "TEST_V1");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(first.Fingerprint, Is.EqualTo(reordered.Fingerprint));
             Assert.That(first.Fingerprint, Is.Not.EqualTo(next.Fingerprint));
             Assert.That(first.Fingerprint, Is.Not.EqualTo(denied.Fingerprint));
             Assert.That(first.Fingerprint, Has.Length.EqualTo(64));
-        });
+        }));
     }
 }

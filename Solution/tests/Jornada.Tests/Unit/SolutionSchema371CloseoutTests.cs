@@ -17,13 +17,13 @@ public sealed class SolutionSchema371CloseoutTests
     public void Participants_are_role_explicit_and_never_identity_anchors()
     {
         var sql=File.ReadAllText(Path.Combine(Root(),"Solution","database","migrations","20261003_SolutionSchema_371_Participantes_Divergencia.sql"));
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(sql,Does.Contain("RESPONSAVEL_RECEBIMENTO"));
             Assert.That(sql,Does.Contain("BENEFICIARIO"));
             Assert.That(sql,Does.Contain("pessoa_observacao_id"));
             Assert.That(sql,Does.Not.Contain("INSERT identidade.identity_map").IgnoreCase);
             Assert.That(sql,Does.Not.Contain("UPDATE identidade.identity_map").IgnoreCase);
-        });
+        }));
     }
 
     [Test]
@@ -31,14 +31,14 @@ public sealed class SolutionSchema371CloseoutTests
     {
         var sql=File.ReadAllText(Path.Combine(Root(),"Solution","database","migrations","20261003_SolutionSchema_371_Participantes_Divergencia.sql"));
         var proc=sql[(sql.IndexOf("CREATE OR ALTER PROCEDURE qualidade.sp_registrar_divergencia_causal_v1",StringComparison.Ordinal))..];
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(proc,Does.Contain("conteudo_hash"));
             Assert.That(proc,Does.Contain("candidatos_canonicos"));
             Assert.That(proc,Does.Contain("DIVERGENCIA_CAUSAL_V1"));
             Assert.That(proc,Does.Contain("same causal state never reopens"));
             Assert.That(proc,Does.Not.Contain("score_melhor").IgnoreCase);
             Assert.That(proc,Does.Not.Contain("modelo_id").IgnoreCase);
-        });
+        }));
     }
 
     [Test]
@@ -50,7 +50,7 @@ public sealed class SolutionSchema371CloseoutTests
         Assert.That(methodStart,Is.GreaterThanOrEqualTo(0));
         Assert.That(methodEnd,Is.GreaterThan(methodStart));
         var method=source[methodStart..methodEnd];
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(method,Does.Contain("qualidade.sp_registrar_divergencia_causal_v1"));
             Assert.That(method,Does.Contain("CommandType.StoredProcedure"));
             Assert.That(method,Does.Contain("@candidatos_json"));
@@ -58,14 +58,14 @@ public sealed class SolutionSchema371CloseoutTests
             Assert.That(method,Does.Not.Contain("IF NOT EXISTS").IgnoreCase);
             Assert.That(method,Does.Not.Contain("modelo_id").IgnoreCase);
             Assert.That(method,Does.Not.Contain("score_melhor").IgnoreCase);
-        });
+        }));
     }
 
     [Test]
     public void Possible_presentation_is_append_only_minimal_and_threshold_free()
     {
         var sql=File.ReadAllText(Path.Combine(Root(),"Solution","database","migrations","20261003_SolutionSchema_371_Possivel_Apresentacao.sql"));
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(sql,Does.Contain("apresentacao_id"));
             Assert.That(sql,Does.Contain("NENHUM_DESTES"));
             Assert.That(sql,Does.Contain("ordem BETWEEN 1 AND 5"));
@@ -76,7 +76,7 @@ public sealed class SolutionSchema371CloseoutTests
             Assert.That(sql,Does.Not.Contain("data_nascimento").IgnoreCase);
             Assert.That(sql,Does.Not.Contain("limiar_inferior").IgnoreCase);
             Assert.That(sql,Does.Not.Contain("threshold").IgnoreCase);
-        });
+        }));
     }
 
     [Test]

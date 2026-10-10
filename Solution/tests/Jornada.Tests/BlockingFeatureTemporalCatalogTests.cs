@@ -32,7 +32,7 @@ public sealed class BlockingFeatureTemporalCatalogTests
     [Test]
     public void Unknown_feature_is_rejected()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            BlockingFeatureTemporalCatalog.Get("unknown"));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
+            BlockingFeatureTemporalCatalog.Get("unknown")));
     }
 }

@@ -14,18 +14,18 @@ public sealed class CalibratorBlockingAnalysisDocumentationTests
         var decisionPath = Path.Combine(root, "Solution", "docs",
             "Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(File.Exists(planPath), Is.True, "Plano analítico do Calibrador ausente.");
             Assert.That(File.Exists(readmePath), Is.True, "Índice de documentação técnica ausente.");
             Assert.That(File.Exists(decisionPath), Is.True, "Decisão canônica de blocking complementar ausente.");
-        });
+        }));
 
         var plan = File.ReadAllText(planPath);
         var readme = File.ReadAllText(readmePath);
         var decision = File.ReadAllText(decisionPath);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(readme, Does.Contain("Calibrador_Plano_Blocking_Analise.md"));
             Assert.That(plan, Does.Contain("análise técnica e proposições"));
@@ -61,7 +61,7 @@ public sealed class CalibratorBlockingAnalysisDocumentationTests
             Assert.That(decision, Does.Contain("históricos e pessoas falecidas"));
             Assert.That(plan, Does.Contain("não propõe valores numéricos"));
             Assert.That(plan, Does.Contain("qualquer promoção continua fail-closed"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

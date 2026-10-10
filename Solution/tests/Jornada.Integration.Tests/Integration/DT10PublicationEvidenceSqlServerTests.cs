@@ -33,11 +33,11 @@ public sealed class DT10PublicationEvidenceSqlServerTests
         gate.SetResult();
         var outcomes = await Task.WhenAll(a, b);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(outcomes, Has.All.Matches<PublishOutcome>(x => x.ErrorNumber != 1205));
             Assert.That(outcomes, Has.All.Matches<PublishOutcome>(x => x.ErrorNumber is null));
-        });
+        }));
 
         await using var verify = new SqlConnection(cs);
         await verify.OpenAsync();
@@ -58,13 +58,13 @@ public sealed class DT10PublicationEvidenceSqlServerTests
             command.Parameters.AddWithValue("@source", source.SourceId);
             await using var reader = await command.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetGuid(0), Is.EqualTo(source.InitialUuid));
                 Assert.That(reader.GetString(1), Is.EqualTo("REFERENCIA"));
                 Assert.That(reader.GetInt64(2), Is.EqualTo(1));
                 Assert.That(reader.GetInt64(3), Is.EqualTo(1));
-            });
+            }));
         }
     }
 
@@ -101,11 +101,11 @@ public sealed class DT10PublicationEvidenceSqlServerTests
         await tx.CommitAsync();
 
         var outcome = await second;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(outcome.ErrorNumber, Is.EqualTo(51807));
             Assert.That(outcome.ErrorNumber, Is.Not.EqualTo(1205));
-        });
+        }));
 
         await using var verify = new SqlConnection(cs);
         await verify.OpenAsync();
@@ -122,12 +122,12 @@ public sealed class DT10PublicationEvidenceSqlServerTests
         command.Parameters.AddWithValue("@b", runDifferent);
         await using var reader = await command.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetGuid(0), Is.EqualTo(source.InitialUuid));
             Assert.That(reader.GetString(1), Is.EqualTo("REFERENCIA"));
             Assert.That(reader.GetInt64(2), Is.EqualTo(1));
-        });
+        }));
     }
 
     [Test]
@@ -167,7 +167,7 @@ public sealed class DT10PublicationEvidenceSqlServerTests
                 await arm.ExecuteNonQueryAsync();
             }
 
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await ExecuteBatchAsync(connection, tx, run));
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await ExecuteBatchAsync(connection, tx, run)));
             Assert.That(ex!.Number, Is.EqualTo(51998));
             await using var state = connection.CreateCommand();
             state.Transaction = tx;
@@ -197,13 +197,13 @@ public sealed class DT10PublicationEvidenceSqlServerTests
         command.Parameters.AddWithValue("@run", run);
         await using var reader = await command.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(reader.GetInt64(0), Is.Zero);
             Assert.That(reader.GetInt64(1), Is.Zero);
             Assert.That(reader.GetInt64(2), Is.Zero);
             Assert.That(reader.GetInt32(3), Is.Zero);
-        });
+        }));
     }
 
     private static async Task PrepareAsync(SqlConnection connection)

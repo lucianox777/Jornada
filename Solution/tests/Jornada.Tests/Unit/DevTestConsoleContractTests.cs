@@ -25,7 +25,7 @@ public sealed class DevTestConsoleContractTests
         Assert.That(statusStart,Is.GreaterThanOrEqualTo(0));
         Assert.That(statusEnd,Is.GreaterThan(statusStart));
         var systemStatus=operations[statusStart..statusEnd];
-        Assert.Multiple(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(cluster,Does.Contain("'blocking' { Ensure-LocalBlockingProjection }"));
             Assert.That(cluster,Does.Contain("'blocking-refresh' { Refresh-LocalBlockingProjection }"));
             Assert.That(cluster,Does.Contain("Processor__Operation=REBUILD_LOCAL_BLOCKING"));
@@ -37,7 +37,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(operations,Does.Contain("'bronze-verify-latest' {"));
             Assert.That(systemStatus,Does.Contain("SELECT COUNT(*) FROM bronze.entrega_arquivo;"));
             Assert.That(systemStatus,Does.Not.Contain("Jornada.Bronze.Verify.dll"));
-        });
+        }));
     }
 
     [Test]
@@ -69,7 +69,7 @@ public sealed class DevTestConsoleContractTests
         var containerEntrypoint=File.ReadAllText(Path.Combine(root,"Solution","install","container-test","entrypoint.sh"));
         var containerDockerfile=File.ReadAllText(Path.Combine(root,"Solution","install","container-test","Dockerfile"));
 
-        Assert.Multiple(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(program,Does.Contain("/api/commands/{command}/start"));
             Assert.That(program,Does.Contain("/api/runs/{id:guid}/stream"));
             Assert.That(program,Does.Contain("/api/activity"));
@@ -529,6 +529,7 @@ public sealed class DevTestConsoleContractTests
                 .Split("switch($Action)",StringSplitOptions.None)[0];
             Assert.That(upStages,Does.Not.Contain("Invoke-ModelStage"),
                 "DEV bootstrap must not activate/calibrate FS automatically.");
+
             Assert.That(infraScript,Does.Contain("Estado transitório da Console removido"));
             Assert.That(infraScript,Does.Contain("Histórico e contadores de execução foram preservados"));
             Assert.That(localCluster,Does.Contain("[Console]::OutputEncoding=[Text.UTF8Encoding]::new($false)"));
@@ -692,7 +693,7 @@ public sealed class DevTestConsoleContractTests
             Assert.That(launch,Does.Contain("\"Action\": \"Start\""));
 
             Assert.That(program,Does.Not.Contain("Jornada.Api"));
-        });
+        }));
     }
     [Test]
     public void Dev_person_contract_keeps_only_current_v1_for_all_gestores_and_core_fields_are_nullable()
@@ -716,21 +717,21 @@ public sealed class DevTestConsoleContractTests
             var nascimentoTypes=properties.GetProperty("dataNascimento").GetProperty("type").EnumerateArray().Select(x=>x.GetString()).ToArray();
             var schemaHash=Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(schemaPath)));
 
-            Assert.Multiple(()=>{
+            Assert.Multiple((Action)(()=>{
                 Assert.That(required,Is.EqualTo(new[]{"idPessoaEntrega"}),gestor);
                 Assert.That(schemaHash,Is.EqualTo(expectedHashes[gestor]),gestor);
                 Assert.That(nomeTypes,Does.Contain("null"),gestor);
                 Assert.That(nascimentoTypes,Does.Contain("null"),gestor);
-            });
+            }));
         }
 
-        Assert.Multiple(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(seed,Does.Contain("WHERE v.versao<>1"));
             Assert.That(seed,Does.Contain("WHERE v.versao=1"));
             Assert.That(seed,Does.Contain("N'ATIVA','2026-10-06'"));
             Assert.That(seed,Does.Not.Contain("/pessoa/v4/"));
             Assert.That(seed,Does.Not.Contain("/pessoa/v5/"));
-        });
+        }));
     }
 
 }

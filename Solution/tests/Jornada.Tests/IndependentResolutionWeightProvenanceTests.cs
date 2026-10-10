@@ -24,7 +24,7 @@ public sealed class IndependentResolutionWeightProvenanceTests
             threshold: 0.95m,
             conflictMargin: 0.03m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Version, Is.EqualTo(IndependentResolutionGovernedSurveyEvaluator.Version));
             Assert.That(report.BaseSurveyFingerprintSha256, Is.EqualTo(direct.FingerprintSha256));
@@ -38,7 +38,7 @@ public sealed class IndependentResolutionWeightProvenanceTests
             Assert.That(report.SelectionAdjustmentsApplied, Is.EqualTo(1));
             Assert.That(report.NonResponseAdjustmentsApplied, Is.EqualTo(1));
             Assert.That(report.CalibrationAdjustmentsApplied, Is.EqualTo(1));
-        });
+        }));
     }
 
     [Test]
@@ -60,14 +60,14 @@ public sealed class IndependentResolutionWeightProvenanceTests
         };
         var third = IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, changed, 0.95m, 0.03m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(second.WeightProvenanceFingerprintSha256, Is.EqualTo(first.WeightProvenanceFingerprintSha256));
             Assert.That(second.FingerprintSha256, Is.EqualTo(first.FingerprintSha256));
             Assert.That(third.BaseSurveyFingerprintSha256, Is.EqualTo(first.BaseSurveyFingerprintSha256));
             Assert.That(third.WeightProvenanceFingerprintSha256, Is.Not.EqualTo(first.WeightProvenanceFingerprintSha256));
             Assert.That(third.FingerprintSha256, Is.Not.EqualTo(first.FingerprintSha256));
-        });
+        }));
     }
 
     [Test]
@@ -106,21 +106,17 @@ public sealed class IndependentResolutionWeightProvenanceTests
             WeightProvenance = notApplicableWithEvidence[3].WeightProvenance with { Adjustments = hidden }
         };
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
-            Assert.That(
-                () => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, mismatch, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, mismatch, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(
-                () => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, missingAdjustment, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, missingAdjustment, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(
-                () => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, appliedWithoutEvidence, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, appliedWithoutEvidence, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
-            Assert.That(
-                () => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, notApplicableWithEvidence, 0.95m, 0.03m),
+            Assert.That((Func<object?>)(() => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, notApplicableWithEvidence, 0.95m, 0.03m)),
                 Throws.TypeOf<InvalidOperationException>());
-        });
+        }));
     }
 
     [Test]
@@ -133,8 +129,7 @@ public sealed class IndependentResolutionWeightProvenanceTests
             WeightProvenance = rows[3].WeightProvenance with { MethodVersion = "WEIGHT_METHOD_V2" }
         };
 
-        Assert.That(
-            () => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, rows, 0.95m, 0.03m),
+        Assert.That((Func<object?>)(() => IndependentResolutionGovernedSurveyEvaluator.Evaluate(manifest, rows, 0.95m, 0.03m)),
             Throws.TypeOf<InvalidOperationException>());
     }
 
@@ -166,7 +161,7 @@ public sealed class IndependentResolutionWeightProvenanceTests
             WeightProvenance = invalidWeight[0].WeightProvenance with { FinalWeight = 99m }
         };
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Version, Is.EqualTo(IndependentResolutionGovernedSurveyEvaluator.RecordedVersion));
             Assert.That(report.Survey.Version, Is.EqualTo(IndependentResolutionSurveyEvaluator.RecordedVersion));
@@ -179,8 +174,8 @@ public sealed class IndependentResolutionWeightProvenanceTests
             Assert.That(report.NonResponseAdjustmentsApplied, Is.EqualTo(1));
             Assert.That(report.CalibrationAdjustmentsApplied, Is.EqualTo(1));
             Assert.That(report.FingerprintSha256, Is.EqualTo(reversed.FingerprintSha256));
-            Assert.That(() => Run(invalidWeight), Throws.TypeOf<InvalidOperationException>());
-        });
+            Assert.That((Func<object?>)(() => Run(invalidWeight)), Throws.TypeOf<InvalidOperationException>());
+        }));
     }
 
     private static GovernedIndependentResolutionSurveyObservation[] GovernedRows()

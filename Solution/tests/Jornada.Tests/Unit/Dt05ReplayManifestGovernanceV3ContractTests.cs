@@ -18,7 +18,7 @@ public sealed class Dt05ReplayManifestGovernanceV3ContractTests
         var sql=File.ReadAllText(Path.Combine(root,"src","Jornada.Linkage.Runner","Dt05ReplaySql.cs"));
         var publisher=File.ReadAllText(Path.Combine(root,"src","Jornada.Linkage.Runner","Dt05ReplayManifestPublisher.cs"));
         var runner=File.ReadAllText(Path.Combine(root,"src","Jornada.Linkage.Runner","ProbabilisticLinkageBatchRunner.cs"));
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(migration,Does.Contain("schema_version IN(1,2,3)"));
             Assert.That(migration,Does.Contain("linkage_replay_estado_governanca"));
             Assert.That(migration,Does.Contain("THROW 51985"));
@@ -32,6 +32,6 @@ public sealed class Dt05ReplayManifestGovernanceV3ContractTests
             Assert.That(preparation,Is.GreaterThan(capture));
             Assert.That(manifest,Is.GreaterThan(preparation));
             Assert.That(score,Is.GreaterThan(manifest));
-        });
+        }));
     }
 }

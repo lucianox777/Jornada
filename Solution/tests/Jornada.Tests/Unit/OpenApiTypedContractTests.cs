@@ -221,12 +221,12 @@ public sealed class OpenApiTypedContractTests
             .GetProperty("PersonProjectionResponse").GetProperty("properties");
         Assert.That(projection.GetProperty("schemaRef").GetProperty("type").GetString(), Is.EqualTo("string"));
         var dados = projection.GetProperty("dados");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(dados.GetProperty("type").GetString(), Is.EqualTo("object"));
             Assert.That(dados.GetProperty("additionalProperties").GetBoolean(), Is.True);
             Assert.That(dados.TryGetProperty("properties", out _), Is.False);
-        });
+        }));
     }
 
     [Test]

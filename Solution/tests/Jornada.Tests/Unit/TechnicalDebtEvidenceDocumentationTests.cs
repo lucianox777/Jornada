@@ -32,7 +32,7 @@ public sealed class TechnicalDebtEvidenceDocumentationTests
         var dt05Sql = Read(root, "Solution", "database", "migrations",
             "20260927_Linkage_Transicao_Semantica_DT05.sql");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(debts, Does.Contain("DT-03 |"));
             Assert.That(debts, Does.Contain("DT-04 |"));
@@ -73,7 +73,7 @@ public sealed class TechnicalDebtEvidenceDocumentationTests
             Assert.That(dt05Sql, Does.Contain("status=N'EXECUTANDO'"));
             Assert.That(File.Exists(Path.Combine(root, "Solution", "tests",
                 "Jornada.Tests", "Unit", "OpenApiTypedContractTests.cs")), Is.True);
-        });
+        }));
     }
 
     private static string FindRoot()

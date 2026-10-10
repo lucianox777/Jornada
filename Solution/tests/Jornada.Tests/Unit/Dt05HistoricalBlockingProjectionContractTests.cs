@@ -14,7 +14,7 @@ public sealed class Dt05HistoricalBlockingProjectionContractTests
         var sql=File.ReadAllText(Path.Combine(root,"src","Jornada.Linkage.Runner","Dt05ReplaySql.cs"));
         var runner=File.ReadAllText(Path.Combine(root,"src","Jornada.Linkage.Runner","ProbabilisticLinkageBatchRunner.cs"));
         var linkage=File.ReadAllText(Path.Combine(root,"src","Jornada.Linkage.Runner","SqlProbabilisticIdentityLinkage.cs"));
-        Assert.Multiple(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(migration,Does.Contain("schema v4 exige binding físico válido da projeção de blocking"));
             Assert.That(sql,Does.Contain("ReadHistoricalBlockingProjectionBindingAsync"));
             Assert.That(sql,Does.Contain("@schema_version=4"));
@@ -23,6 +23,6 @@ public sealed class Dt05HistoricalBlockingProjectionContractTests
             Assert.That(linkage,Does.Contain("passSet.IntersectWith"));
             Assert.That(linkage,Does.Contain("matching.UnionWith"));
             Assert.That(linkage,Does.Not.Contain("replay histórico com ruleset dinâmico exige consumo da projeção de blocking congelada"));
-        });
+        }));
     }
 }

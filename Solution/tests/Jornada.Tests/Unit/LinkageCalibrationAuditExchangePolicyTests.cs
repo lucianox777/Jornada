@@ -21,7 +21,7 @@ public sealed class LinkageCalibrationAuditExchangePolicyTests
     [Test]
     public void Exchange_contract_declares_blocking_conditioned_u_and_non_bijective_date_states()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 LinkageCalibrationAuditExchangePolicy.UProbabilitySemantics,
@@ -35,14 +35,14 @@ public sealed class LinkageCalibrationAuditExchangePolicyTests
             Assert.That(
                 LinkageCalibrationAuditExchangePolicy.UnmappedOrNonBijectiveComparisonStates,
                 Does.Contain("PARTIAL_COMPONENT_AGREEMENT"));
-        });
+        }));
     }
 
     [Test]
     public void Non_exportable_model_is_rejected()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() =>
-            LinkageCalibrationAuditExchangePolicy.EnsureExportableModelStatus(Guid.NewGuid(), "RASCUNHO"));
+        var ex = Assert.Throws<InvalidOperationException>((Action)(() =>
+            LinkageCalibrationAuditExchangePolicy.EnsureExportableModelStatus(Guid.NewGuid(), "RASCUNHO")));
         Assert.That(ex!.Message, Does.Contain("ATIVO ou VALIDADO"));
     }
 }

@@ -78,7 +78,7 @@ public sealed class IdentityDecisionLedgerTests
         }
 
         Assert.That(rows, Has.Count.EqualTo(2));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(rows[0].Event, Is.EqualTo("CASO_CONFLITO_ABERTO"));
             Assert.That(rows[0].Result, Is.EqualTo("ABERTO"));
@@ -97,7 +97,7 @@ public sealed class IdentityDecisionLedgerTests
             Assert.That(rows.Select(r => r.Operation).Distinct().Count(), Is.EqualTo(2));
             Assert.That(rows.All(r => r.Operation != openCorrelation && r.Operation != applyCorrelation), Is.True,
                 "operacao_id é gerado pelo SQL Server e não reutiliza correlation_id.");
-        });
+        }));
 
         await using var immutable = connection.CreateCommand();
         immutable.CommandText = """
@@ -106,7 +106,7 @@ public sealed class IdentityDecisionLedgerTests
             WHERE caso_id=@case;
             """;
         immutable.Parameters.AddWithValue("@case", opened.CasoId);
-        var immutableError = Assert.ThrowsAsync<SqlException>(async () => await immutable.ExecuteNonQueryAsync());
+        var immutableError = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await immutable.ExecuteNonQueryAsync()));
         Assert.That(immutableError!.Number, Is.EqualTo(51941));
     }
 
@@ -118,7 +118,7 @@ public sealed class IdentityDecisionLedgerTests
         var context = new AccessContext(
             Guid.NewGuid(), AccessCredentialType.GESTOR, "SMADS", "SMADS", null, [], []);
 
-        var ex = Assert.ThrowsAsync<ArgumentException>(async () =>
+        var ex = Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () =>
             await service.ApplyCaseAsync(
                 context,
                 Guid.NewGuid(),
@@ -126,7 +126,7 @@ public sealed class IdentityDecisionLedgerTests
                     [new IdentityCorrectionGroupRequest("A", null, [1])],
                     new IdentityDecisionEvidence("DOCUMENTO_VERIFICADO")),
                 Guid.NewGuid(),
-                CancellationToken.None));
+                CancellationToken.None)));
 
         Assert.That(ex!.Message, Does.Contain("documentoTipoCodigo"));
     }
@@ -163,14 +163,14 @@ public sealed class IdentityDecisionLedgerTests
                 await create.ExecuteNonQueryAsync();
             }
 
-            var ex = Assert.ThrowsAsync<SqlException>(async () =>
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
                 await service.OpenCaseAsync(
                     context,
                     new IdentityGovernedCaseOpenRequest(
                         "OUTRO", [observationId], ato,
                         "A mutação deve ser revertida quando o ledger não puder ser persistido."),
                     Guid.NewGuid(),
-                    CancellationToken.None));
+                    CancellationToken.None)));
             Assert.That(ex!.Number, Is.EqualTo(51990));
 
             await using var verify = connection.CreateCommand();
@@ -186,12 +186,12 @@ public sealed class IdentityDecisionLedgerTests
             verify.Parameters.AddWithValue("@uuid", originalUuid);
             await using var reader = await verify.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetInt32(0), Is.EqualTo(0), "O caso não pode sobreviver sem seu evento canônico.");
                 Assert.That(reader.GetInt32(1), Is.EqualTo(0), "O evento que falhou não pode ficar parcialmente gravado.");
                 Assert.That(reader.GetInt32(2), Is.EqualTo(1), "O vínculo corrente original deve ser restaurado pelo rollback.");
-            });
+            }));
         }
         finally
         {
