@@ -39,6 +39,44 @@ public sealed class FellegiSunterScoringTests
     private static readonly IReadOnlyDictionary<string, decimal> ParametersV5 = SemanticBirthParameters(includeLegacyFlags: false);
 
     [Test]
+    public void P0_NameOnly_ExactVersusHigh_ReportsDecisionRiskWithoutInventingThreshold()
+    {
+        // Fixture illustrative only: not a calibrated model or a certified FDR gate.
+        var exact = FellegiSunterScoring.CalculateWithBreakdown(Parameters,
+            NameComparisonState.EXACT, null);
+        var high = FellegiSunterScoring.CalculateWithBreakdown(Parameters,
+            NameComparisonState.HIGH, null);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(exact.Score.Posterior, Is.GreaterThan(high.Score.Posterior));
+            Assert.That(exact.Contributions.Single(c => c.Evidence == "NOME").State, Is.EqualTo("EXACT"));
+            Assert.That(high.Contributions.Single(c => c.Evidence == "NOME").State, Is.EqualTo("HIGH"));
+            Assert.That(exact.Contributions.Single(c => c.Evidence == "NOME_MAE").LogLikelihoodRatio, Is.Zero);
+            Assert.That(high.Contributions.Single(c => c.Evidence == "NASCIMENTO").LogLikelihoodRatio, Is.Zero);
+        }));
+    }
+
+    [Test]
+    public void P0_NameOnly_CommonNameCollisionSensitivity_IsExplicitInCalibratedU()
+    {
+        // Vary U_EXACT while holding M_EXACT fixed; not a surrogate for real IBGE calibration.
+        var rare = FellegiSunterScoring.CalculateWithBreakdown(Parameters,
+            NameComparisonState.EXACT, null);
+        var commonParameters = new Dictionary<string, decimal>(Parameters)
+        {
+            ["U_NOME_EXACT"] = .10m
+        };
+        var common = FellegiSunterScoring.CalculateWithBreakdown(commonParameters,
+            NameComparisonState.EXACT, null);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(rare.Score.Posterior, Is.GreaterThan(common.Score.Posterior));
+            Assert.That(rare.Contributions.Single(c => c.Evidence == "NOME").LogLikelihoodRatio,
+                Is.GreaterThan(common.Contributions.Single(c => c.Evidence == "NOME").LogLikelihoodRatio));
+        }));
+    }
+
+    [Test]
     public void Double_kernel_matches_decimal_contract_boundary_for_v5_birth_cases()
     {
         var numeric = FellegiSunterScoring.ToDoubleParameters(ParametersV5);
