@@ -32,6 +32,19 @@ public sealed class SampleSufficiencyAssessmentTests
     }
 
     [Test]
+    public void DuplicatePairWithConflictingGroupProvenanceCannotCertify()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "person-A"),
+            new Evidence("SP", "m1", true, true, "person-B"),
+            new Evidence("SP", "u1", true, false, "person-C")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
+        Assert.That(result.Reasons.Any(r => r.Contains("missing group identifiers", StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
     public void NoEvidence_IsIndeterminate()
     {
         var result = Evaluate(Array.Empty<Evidence>(), new[] { "SP" }, 1, 1);
