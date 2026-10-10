@@ -3,7 +3,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// <summary>Read-only candidate-budget assessment; missing attributes do not invalidate a source fact.</summary>
 public static class BlockingSelectivityDiagnostic
 {
-    public enum Status { NoEvidence, WithinBudget, OverBudget }
+    public enum Status { NoEvidence, WithinBudget, NeedsUnionMeasurement }
     public sealed record Pass(string Name, long CandidateCount);
     public sealed record Result(Status State, long CandidateCount, long Budget, IReadOnlyList<string> Reasons);
 
@@ -22,13 +22,13 @@ public static class BlockingSelectivityDiagnostic
         foreach (var pass in values)
         {
             if (pass.CandidateCount > long.MaxValue - sum)
-                return new Result(Status.OverBudget, long.MaxValue, maximumCandidateCount,
+                return new Result(Status.NeedsUnionMeasurement, long.MaxValue, maximumCandidateCount,
                     new[] { "Candidate-count sum overflowed; abstain until union is measured." });
             sum += pass.CandidateCount;
         }
         return sum > maximumCandidateCount
-            ? new Result(Status.OverBudget, sum, maximumCandidateCount,
-                new[] { "Upper-bound candidate count exceeds configured budget; abstain or refine blocking." })
+            ? new Result(Status.NeedsUnionMeasurement, sum, maximumCandidateCount,
+                new[] { "Sum of pass counts exceeds budget, but overlap is unknown: measure distinct union before deciding." })
             : new Result(Status.WithinBudget, sum, maximumCandidateCount, Array.Empty<string>());
     }
 }
