@@ -564,6 +564,19 @@ jobs:
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/migrations/20260907_Cpf_Ancora.sql
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/migrations/20260910_Schema_Consolidation_370.sql
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/Jornada_Runtime_Smoke.sql -i database/tests/Gold_Pessoa_Divergencia_Tres_Fontes.sql
+      - name: Documentary schema smoke on disposable SQL database (#903)
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          test -n "$CID"
+          for migration in \
+            database/migrations/20260913_Pessoa_Identificadores_Multiplos.sql \
+            database/migrations/20261010_Ref_Catalogo_Documental_903.sql \
+            database/migrations/20261010_Silver_Documento_Evidencia_903.sql \
+            database/migrations/20261010_Silver_Documento_Admissibilidade_903.sql; do
+            SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i "$migration"
+          done
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/tests/20261010_Documentos_903_Schema_Smoke.sql
       - name: Integration tests must execute without skips
         run: |
           mkdir -p .local/test-evidence/integration
