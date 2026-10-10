@@ -46,6 +46,11 @@ BEGIN TRY
      AND name IN(N'data_evidencia',N'data_atendimento'))
     THROW 52317,'Data documental nao pode ser duplicada por atributo.',1;
 
+ IF NOT EXISTS(SELECT 1 FROM sys.triggers
+   WHERE name=N'tr_documento_evidencia_valor_admissivel'
+     AND parent_id=OBJECT_ID(N'silver.documento_evidencia_valor'))
+    THROW 52319,'Trigger de admissibilidade documental ausente.',1;
+
  PRINT N'PASSOU: estruturas, RG/CIN, FKs, imutabilidade e data na instancia.';
  ROLLBACK TRANSACTION;
 END TRY
