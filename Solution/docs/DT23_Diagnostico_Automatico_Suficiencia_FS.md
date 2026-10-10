@@ -2,6 +2,8 @@
 
 **Decisão confirmada:** 09/10/2026 · **Estado:** ABERTA / NÃO IMPLEMENTADA · **Prioridade:** após estabilização do bootstrap congelado de referências da PR #883 · **Natureza:** diagnóstico read-only, sem execução de calibração.
 
+> **Estado de implementação (10/10/2026):** o avaliador puro `SampleSufficiencyAssessment` e testes unitários foram integrados pela PR #900. Isso **não** implementa coleta automática, contadores persistidos, política versionada, agendamento, semáforo no Monitor nem alertas. A DT-23 permanece aberta; calibração e ativação continuam manuais/governadas. A PR #904 propõe corrigir o filtro de estratos exigidos (aguarda CI/merge).
+
 ## Fronteira obrigatória
 
 - **Automático:** acumular/consultar evidência real independente, calcular suficiência e emitir diagnóstico periódico com semáforo **VERDE / AMARELO / VERMELHO**, suportes e justificativas.
