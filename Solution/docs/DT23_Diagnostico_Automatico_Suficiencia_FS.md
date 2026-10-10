@@ -39,3 +39,7 @@
 ## Contrato negativo obrigatório para aceite
 
 O diagnóstico automático de suficiência deve ser **estritamente observacional**: nenhuma transição `GENERATE_DRAFT`, `VALIDATE`, `ACTIVATE`, publicação de modelo ou alteração de limiar pode ser efeito colateral de uma consulta, coleta periódica ou evento de nova amostra. Ensaios negativos devem verificar esse comportamento inclusive quando a amostra passa de insuficiente para suficiente, em retries e após reinicialização. A suficiência é um convite auditável à decisão humana, não autorização para calibrar. A documentação deste contrato não representa implementação da DT-23.
+
+### Matriz mínima de testes de fronteira
+
+Testar com 0, `n_min-1`, `n_min` e `n_min+1` exemplos válidos por estrato; casos com duplicação da mesma pessoa, evidência contraditória e rótulos ausentes devem ser identificados e não inflar `n` efetivo. O resultado deve registrar versão da política, universo de candidatos, data de corte, fonte, contagens elegíveis e razões de não certificação. O sinal `SUFICIENTE` jamais altera modelo ativo, parâmetros ou jobs de calibração; a ativação depende de comando humano explícito. Este texto é critério de teste futuro, não prova de execução.
