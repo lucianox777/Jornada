@@ -29,3 +29,7 @@ assert "Invoke-ModelStage" not in reset.group("body"), "Reset invokes FS calibra
 assert "Invoke-ModelStage" in script, "Explicit manual model action must remain"
 assert re.search(r"'model'\s*\{\s*Invoke-ModelStage\s*\}", script), "Manual model action missing"
 print("PASS: startup/reset do not calibrate; manual model action preserved")
+
+reference = body('Invoke-ReferenceStage')
+assert 'Assert-FrozenBirthReference' in reference, 'Reference stage must verify frozen demographic snapshot'
+assert 'Invoke-ModelStage' not in reference, 'Reference stage must not calibrate'
