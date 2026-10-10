@@ -33,3 +33,10 @@ print("PASS: startup/reset do not calibrate; manual model action preserved")
 reference = body('Invoke-ReferenceStage')
 assert 'Assert-FrozenBirthReference' in reference, 'Reference stage must verify frozen demographic snapshot'
 assert 'Invoke-ModelStage' not in reference, 'Reference stage must not calibrate'
+assert 'load-frozen-birth-reference.ps1' in reference, 'Reference stage must import frozen distribution into SQL ref'
+
+loader = (Path(__file__).resolve().parent / 'load-frozen-birth-reference.ps1').read_text(encoding='utf-8')
+assert 'sp_carregar_distribuicao_nascimento_json' in loader, 'Loader must check SQL import procedure before executing'
+assert 'sp_publicar_distribuicao_nascimento' in loader, 'Loader must check SQL publication procedure before executing'
+assert '--emit-sql' in loader, 'Loader must use frozen validated SQL generator'
+assert 'calibrate-initial' not in loader.lower(), 'Loader must never calibrate FS'
