@@ -113,7 +113,7 @@ public sealed class IngestionStatusConcurrencyTests
         var response = await service.GetStatusAsync(context, EntregaId, cts.Token);
         sw.Stop();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(response, Is.Not.Null);
             Assert.That(response!.Status, Is.EqualTo("VALIDANDO"),
@@ -121,7 +121,7 @@ public sealed class IngestionStatusConcurrencyTests
             Assert.That(response.Erro, Is.Null);
             Assert.That(sw.Elapsed, Is.LessThan(TimeSpan.FromSeconds(3)),
                 "Status não deve aguardar o lock da transação longa do Processor.");
-        });
+        }));
 
         await tx.RollbackAsync();
     }

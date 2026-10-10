@@ -25,14 +25,14 @@ public sealed class SyntheticIngestionBridgeTests
 
         var result = SyntheticIngestionBridge.Build(generation, options);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.SourceObservationCount, Is.EqualTo(3));
             Assert.That(result.MaterializedObservationCount, Is.EqualTo(3));
             Assert.That(result.ExcludedObservationCount, Is.Zero);
             Assert.That(result.Packages, Has.Count.EqualTo(2));
             Assert.That(result.TruthRows, Has.All.Matches<SyntheticIngestionTruthRow>(x => x.Status == "MATERIALIZADA"));
-        });
+        }));
 
         foreach (var package in result.Packages)
         {
@@ -45,7 +45,7 @@ public sealed class SyntheticIngestionBridgeTests
             var pessoas = ReadEntry(zip, "pessoas.jsonl");
             var registros = ReadEntry(zip, "registros.jsonl");
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(registros, Is.Empty);
                 Assert.That(pessoas, Does.Not.Contain("P-TRUTH-001"));
@@ -53,7 +53,7 @@ public sealed class SyntheticIngestionBridgeTests
                 Assert.That(pessoas, Does.Not.Contain("OBS-TRUTH-A"));
                 Assert.That(pessoas, Does.Not.Contain("OBS-TRUTH-B"));
                 Assert.That(pessoas, Does.Contain("SYNTH-"));
-            });
+            }));
 
             ValidatePeopleAgainstCurrentContract(package.GestorCodigo, pessoas);
         }
@@ -71,7 +71,7 @@ public sealed class SyntheticIngestionBridgeTests
         var left = SyntheticIngestionBridge.Build(generation, options);
         var right = SyntheticIngestionBridge.Build(generation, options);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 left.Packages.Select(x => (x.FileName, x.Sha256, x.PeopleCount)),
@@ -82,7 +82,7 @@ public sealed class SyntheticIngestionBridgeTests
                 left.TruthRows.Select(x => x.OpaquePersonId),
                 Is.EqualTo(right.TruthRows.Select(x => x.OpaquePersonId)));
             Assert.That(left.PseudonymizationKeySha256, Is.EqualTo(right.PseudonymizationKeySha256));
-        });
+        }));
 
         var other = SyntheticIngestionBridge.Build(
             generation,
@@ -100,13 +100,13 @@ public sealed class SyntheticIngestionBridgeTests
     public void Bridge_rejects_non_active_Pessoa_schema_version()
     {
         var generation = FixtureGeneration();
-        var error = Assert.Throws<ArgumentOutOfRangeException>(() =>
+        var error = Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
             SyntheticIngestionBridge.Build(
                 generation,
                 new SyntheticIngestionBridgeOptions(
                     5,
                     ReferenceDate,
-                    "unit-test-pseudonymization-key-32-bytes")));
+                    "unit-test-pseudonymization-key-32-bytes"))));
 
         Assert.That(error!.Message, Does.Contain("contrato Pessoa corrente"));
     }
@@ -155,23 +155,23 @@ public sealed class SyntheticIngestionBridgeTests
             var leftTruthBytes = await File.ReadAllBytesAsync(left.TruthPath);
             var rightTruthBytes = await File.ReadAllBytesAsync(right.TruthPath);
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(leftManifestBytes, Is.EqualTo(rightManifestBytes));
                 Assert.That(leftTruthBytes, Is.EqualTo(rightTruthBytes));
                 Assert.That(left.ManifestSha256, Is.EqualTo(right.ManifestSha256));
                 Assert.That(left.TruthSha256, Is.EqualTo(right.TruthSha256));
-            });
+            }));
 
             var truthText = await File.ReadAllTextAsync(left.TruthPath);
             var manifestText = await File.ReadAllTextAsync(left.ManifestPath);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(truthText, Does.Contain("P-TRUTH-001"));
                 Assert.That(manifestText, Does.Not.Contain("P-TRUTH-001"));
                 Assert.That(manifestText, Does.Contain("\"allowedForScoring\": false"));
                 Assert.That(manifestText, Does.Contain("\"currentContractAllowsMissingIdentityCore\": true"));
-            });
+            }));
 
             foreach (var packagePath in left.PackagePaths)
             {
@@ -214,13 +214,13 @@ public sealed class SyntheticIngestionBridgeTests
             source.EmpiricalMExact,
             source.Options);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
             SyntheticIngestionBridge.Build(
                 generation,
                 new SyntheticIngestionBridgeOptions(
                     ContractVersions.CurrentPersonSchemaVersion,
                     ReferenceDate,
-                    "unit-test-pseudonymization-key-32-bytes")));
+                    "unit-test-pseudonymization-key-32-bytes"))));
 
         Assert.That(error!.Message, Does.Contain("Sem rota de ingestão"));
     }
@@ -294,7 +294,7 @@ public sealed class SyntheticIngestionBridgeTests
         var validator = JsonSchemaSubsetValidator.Load(schema);
         var lines = jsonl.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         for (var i = 0; i < lines.Length; i++)
-            Assert.DoesNotThrow(() => validator.ParseAndValidate(lines[i], "pessoas.jsonl", i + 1));
+            Assert.DoesNotThrow((Action)(() => validator.ParseAndValidate(lines[i], "pessoas.jsonl", i + 1)));
     }
 
     private static string ReadEntry(ZipArchive zip, string name)

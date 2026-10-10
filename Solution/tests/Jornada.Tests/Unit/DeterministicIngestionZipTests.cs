@@ -18,11 +18,11 @@ public sealed class DeterministicIngestionZipTests
         var first = DeterministicIngestionZipWriter.Create(manifest, pessoas, registros);
         var second = DeterministicIngestionZipWriter.Create(manifest, pessoas, registros);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(second, Is.EqualTo(first));
             Assert.That(IngestionPackageInspector.ComputeSha256(second), Is.EqualTo(IngestionPackageInspector.ComputeSha256(first)));
-        });
+        }));
     }
 
     [Test]

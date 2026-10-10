@@ -141,7 +141,7 @@ public sealed class IdentityGovernanceErrorContractTests
         await using var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable);
         try
         {
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await action(connection, tx));
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await action(connection, tx)));
             Assert.That(ex!.Number, Is.EqualTo(expected));
         }
         finally

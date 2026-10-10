@@ -16,11 +16,11 @@ public sealed class SplinkCompatibleTermFrequencyTests
             0.01m,
             referenceUProbability: 0.02m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(effective, Is.EqualTo(0.01m));
             Assert.That(adjustment, Is.EqualTo(Math.Log(2d)).Within(1e-12));
-        });
+        }));
     }
 
     [Test]
@@ -36,11 +36,11 @@ public sealed class SplinkCompatibleTermFrequencyTests
             0.01m,
             minimumUValue: 0.001m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(capped, Is.LessThan(uncapped));
             Assert.That(capped, Is.EqualTo(Math.Log(10d)).Within(1e-12));
-        });
+        }));
     }
 
     [Test]

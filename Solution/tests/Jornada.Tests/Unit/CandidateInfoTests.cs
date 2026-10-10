@@ -17,11 +17,11 @@ public sealed class CandidateInfoTests
         var candidatePath = Path.Combine(root, "CANDIDATE_INFO.json");
         var releasePath = Path.Combine(root, "RELEASE_INFO.txt");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(File.Exists(candidatePath), Is.True);
             Assert.That(File.Exists(releasePath), Is.True);
-        });
+        }));
 
         using var candidate = JsonDocument.Parse(File.ReadAllText(candidatePath));
         var sealedRelease = candidate.RootElement.GetProperty("sealed_release");
@@ -29,7 +29,7 @@ public sealed class CandidateInfoTests
         var technicalRc = candidateState.GetProperty("technical_rc");
         var releaseInfo = File.ReadAllText(releasePath);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(candidate.RootElement.GetProperty("manifest_version").GetInt32(), Is.EqualTo(3));
             Assert.That(candidate.RootElement.GetProperty("nature").GetString(), Is.EqualTo("ENGINEERING_CANDIDATE"));
@@ -70,7 +70,7 @@ public sealed class CandidateInfoTests
             Assert.That(releaseInfo, Does.Contain("solution_engenharia=v4.05"));
             Assert.That(releaseInfo, Does.Contain("schema_solution=v3.69"));
             Assert.That(releaseInfo, Does.Not.Contain("solution_engenharia=v5.00"));
-        });
+        }));
     }
 
     [Test]
@@ -91,7 +91,7 @@ public sealed class CandidateInfoTests
         var structuralHash = provenance.GetProperty("structural_fingerprint_sha256").GetString();
         var sourceCommit = provenance.GetProperty("source_commit").GetString();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(provenance.GetProperty("status").GetString(), Is.EqualTo("BOUND_FOR_TECHNICAL_RC"));
             Assert.That(provenance.GetProperty("canonical_ddl").GetString(), Is.EqualTo(candidateState.GetProperty("canonical_ddl").GetString()));
@@ -100,11 +100,11 @@ public sealed class CandidateInfoTests
             Assert.That(structuralHash, Does.Match("^[0-9a-f]{64}$"));
             Assert.That(sourceCommit, Does.Match("^[0-9a-f]{40}$"));
             Assert.That(provenance.GetProperty("evidence_model").GetString(), Is.EqualTo("CURRENT_CI_EXACT_HASH_BINDING_PLUS_ANCESTOR_BASELINE"));
-        });
+        }));
 
         var workflow = File.ReadAllText(Path.Combine(
             root, ".github", "workflows", "schema-consolidation-370.yml"));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(workflow, Does.Contain("CANDIDATE_INFO.json"));
             Assert.That(workflow, Does.Contain("fetch-depth: 0"));
@@ -114,7 +114,7 @@ public sealed class CandidateInfoTests
             Assert.That(workflow, Does.Contain("test \"$current_manifest\" = \"$declared_manifest\""));
             Assert.That(workflow, Does.Not.Contain("actions/runs/$ddl_run_id"));
             Assert.That(workflow, Does.Contain("CANDIDATE_INFO.json"));
-        });
+        }));
     }
 
     [Test]
@@ -138,7 +138,7 @@ public sealed class CandidateInfoTests
         var informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         var fileVersion = assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()?.Version;
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(properties.ContainsKey("VersionPrefix"), Is.False, "RC binário não deve alterar a versão NuGet dos projetos.");
             Assert.That(properties.ContainsKey("VersionSuffix"), Is.False, "RC binário não deve alterar a versão NuGet dos projetos.");
@@ -151,7 +151,7 @@ public sealed class CandidateInfoTests
             Assert.That(assembly.GetName().Version?.ToString(), Is.EqualTo(expectedAssemblyVersion));
             Assert.That(fileVersion, Is.EqualTo(expectedFileVersion));
             Assert.That(informationalVersion, Does.StartWith(expectedSemVer!));
-        });
+        }));
     }
 
     [Test]
@@ -163,7 +163,7 @@ public sealed class CandidateInfoTests
         var rcEvidence = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "rc-evidence-gate.py"));
         var rcBundle = File.ReadAllText(Path.Combine(root, "Solution", "scripts", "build-rc-source-bundle.sh"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(workflow, Does.Contain("release-promotion:\n    if: github.ref_type == 'tag' && startsWith(github.ref_name, 'jornada-solution-v')"));
             Assert.That(workflow, Does.Contain("rc_evidence_preflight:"));
@@ -201,7 +201,7 @@ public sealed class CandidateInfoTests
             Assert.That(rcPublishJob, Does.Contain("github.ref_name == 'v5.00-rc.1'"));
             Assert.That(rcPublishJob, Does.Not.Contain("startsWith(github.ref_name, 'v')"));
             Assert.That(rcPublishJob, Does.Not.Contain("workflow_dispatch"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

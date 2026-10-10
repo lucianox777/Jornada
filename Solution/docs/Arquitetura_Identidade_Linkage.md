@@ -151,3 +151,6 @@ O modelo estrutural deve ser representado por **diagrama de classes UML**, e nã
 Nenhum leitor da documentação deve depender de PlantUML, Mermaid ou software específico de modelagem para compreender a arquitetura. Fontes técnicas eventualmente utilizadas durante a geração de diagramas não constituem artefatos normativos de entrega nem podem ser pré-requisito para leitura.
 
 Na consolidação v5.00, os diagramas de classes de Identidade/Linkage e de atividade de resolução de identidade integram o **Anexo Modelo Físico v1.40 em DOCX/PDF**. Os demais documentos normativos devem seguir a mesma regra: UML quando a notação gráfica for aplicável, incorporada em Word/PDF.
+
+
+> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-tf--norma-vigente-de-frequência-nominal-fs-e-calibrador-09102026). O peso TF zero é neutro (peso 1 aplica ajuste integral); os pesos e m/u devem ser estimados pelo Calibrador a partir do bootstrap sintético IBGE e, progressivamente, de evidência histórica real. Primeiro nome e último sobrenome significativo de pessoa e mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Em caso de divergência, prevalece a decisão canônica; este documento não certifica implementação concluída.

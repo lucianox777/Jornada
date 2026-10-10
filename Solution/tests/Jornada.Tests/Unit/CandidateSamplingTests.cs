@@ -38,23 +38,23 @@ public sealed class CandidateSamplingTests
     public void ProbabilitiesUseActualDenominators()
     {
         var (p, w) = CandidateSamplingDesign.Inclusion(10, 4, 8, 2);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(p, Is.EqualTo(0.1m));
             Assert.That(w, Is.EqualTo(10m));
             Assert.That(CandidateSamplingDesign.Inclusion(10, 10, 2, 2).Weight, Is.EqualTo(1m));
-        });
-        Assert.Throws<ArgumentOutOfRangeException>(() => CandidateSamplingDesign.Inclusion(2, 3, 1, 1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CandidateSamplingDesign.Inclusion(2, 1, 0, 1));
-        Assert.Throws<ArgumentException>(() => CandidateSamplingDesign.Draw(new[] { 1, 1 }, 1, Seed, "x", x => x.ToString(CultureInfo.InvariantCulture)));
-        Assert.Throws<ArgumentOutOfRangeException>(() => CandidateSamplingDesign.Draw(new[] { 1 }, 1, new byte[1], "x", x => x.ToString(CultureInfo.InvariantCulture)));
+        }));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => CandidateSamplingDesign.Inclusion(2, 3, 1, 1)));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => CandidateSamplingDesign.Inclusion(2, 1, 0, 1)));
+        Assert.Throws<ArgumentException>((Action)(() => CandidateSamplingDesign.Draw(new[] { 1, 1 }, 1, Seed, "x", x => x.ToString(CultureInfo.InvariantCulture))));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() => CandidateSamplingDesign.Draw(new[] { 1 }, 1, new byte[1], "x", x => x.ToString(CultureInfo.InvariantCulture))));
     }
 
     [Test]
     public async Task CensusEnumeratesAllPassesAndDeduplicatesBeforeSampling()
     {
         var capture = await RunAsync(Frame(3), Options(3), Seed);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(capture.FrameSize, Is.EqualTo(3));
             Assert.That(capture.SelectedSources, Is.EqualTo(3));
@@ -70,7 +70,7 @@ public sealed class CandidateSamplingTests
                 BirthBlockingPlan.OrderedPasses.Select(pass => capture.Pairs.Where(p => (p.Membership & pass) != 0).Sum(p => p.DesignWeight))));
             Assert.That(capture.Pairs.Where(p => p.PrimaryPass == BirthBlockingPass.ExactDate).All(p =>
                 p.StratumPopulation == 2 && p.StratumSampleSize == 1 && p.InclusionProbability == 0.5m && p.DesignWeight == 2m), Is.True);
-        });
+        }));
         var reordered = await RunAsync(Frame(3) with { Sources = Frame(3).Sources.Reverse().ToArray() }, Options(3), Seed);
         Assert.That(reordered.SelectionFingerprint, Is.EqualTo(capture.SelectionFingerprint));
         Assert.That(reordered.UniverseFingerprint, Is.EqualTo(capture.UniverseFingerprint));
@@ -111,18 +111,18 @@ public sealed class CandidateSamplingTests
     [Test]
     public void InvalidFramesAndLimitsFailClosed()
     {
-        Assert.ThrowsAsync<ArgumentException>(async () => await RunAsync(Frame(1) with { Complete = false }, Options(1), Seed));
-        Assert.ThrowsAsync<ArgumentException>(async () => await RunAsync(Frame(1) with { Reference = " " }, Options(1), Seed));
-        Assert.ThrowsAsync<ArgumentException>(async () => await RunAsync(Frame(1) with { Sources = new[] { Source(SourceA), Source(SourceA) } }, Options(1), Seed));
-        Assert.ThrowsAsync<ArgumentException>(async () => await RunAsync(Frame(1), Options(1), new byte[31]));
-        Assert.ThrowsAsync<ArgumentException>(async () => await RunAsync(Frame(1), Options(2), Seed));
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await RunAsync(Frame(1), Options(1) with { MaxCandidatesPerSource = 5 }, Seed));
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await RunAsync(Frame(3), Options(3) with { MaxEnumeratedPairs = 11 }, Seed));
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await RunAsync(Frame(1), Options(1) with { MaxSelectedPairs = 4 }, Seed));
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await CandidateSamplingEngine.CaptureAsync(Frame(1), Options(1), Seed, "snapshot", Captured,
-            (_, _) => Task.FromResult<IReadOnlyList<CandidateSamplingCandidate>>(new[] { new CandidateSamplingCandidate(A, BirthBlockingPass.None) }), CancellationToken.None));
-        Assert.ThrowsAsync<InvalidOperationException>(async () => await CandidateSamplingEngine.CaptureAsync(Frame(1), Options(1), Seed, "snapshot", Captured,
-            (_, _) => Task.FromResult<IReadOnlyList<CandidateSamplingCandidate>>(new[] { new CandidateSamplingCandidate(A, BirthBlockingPass.ExactDate), new CandidateSamplingCandidate(A, BirthBlockingPass.ExactDate) }), CancellationToken.None));
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () => await RunAsync(Frame(1) with { Complete = false }, Options(1), Seed)));
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () => await RunAsync(Frame(1) with { Reference = " " }, Options(1), Seed)));
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () => await RunAsync(Frame(1) with { Sources = new[] { Source(SourceA), Source(SourceA) } }, Options(1), Seed)));
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () => await RunAsync(Frame(1), Options(1), new byte[31])));
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () => await RunAsync(Frame(1), Options(2), Seed)));
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () => await RunAsync(Frame(1), Options(1) with { MaxCandidatesPerSource = 5 }, Seed)));
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () => await RunAsync(Frame(3), Options(3) with { MaxEnumeratedPairs = 11 }, Seed)));
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () => await RunAsync(Frame(1), Options(1) with { MaxSelectedPairs = 4 }, Seed)));
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () => await CandidateSamplingEngine.CaptureAsync(Frame(1), Options(1), Seed, "snapshot", Captured,
+            (_, _) => Task.FromResult<IReadOnlyList<CandidateSamplingCandidate>>(new[] { new CandidateSamplingCandidate(A, BirthBlockingPass.None) }), CancellationToken.None)));
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () => await CandidateSamplingEngine.CaptureAsync(Frame(1), Options(1), Seed, "snapshot", Captured,
+            (_, _) => Task.FromResult<IReadOnlyList<CandidateSamplingCandidate>>(new[] { new CandidateSamplingCandidate(A, BirthBlockingPass.ExactDate), new CandidateSamplingCandidate(A, BirthBlockingPass.ExactDate) }), CancellationToken.None)));
     }
 
     private static CandidateUniverseSource Source(Guid id) =>

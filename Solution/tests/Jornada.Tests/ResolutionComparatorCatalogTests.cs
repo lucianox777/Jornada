@@ -8,7 +8,7 @@ public sealed class ResolutionComparatorCatalogTests
     [Test]
     public void Catalog_ContainsUniversalExactAndJaroWinklerComparators()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 HomologatedResolutionComparatorCatalog.All.Select(static x => x.QualifiedComparator),
@@ -17,13 +17,13 @@ public sealed class ResolutionComparatorCatalogTests
                 HomologatedResolutionComparatorCatalog.All.Select(static x => x.QualifiedComparator),
                 Does.Contain("JARO_WINKLER@V1"));
             Assert.That(HomologatedResolutionComparatorCatalog.All.All(static x => x.SystemDefault), Is.True);
-        });
+        }));
     }
 
     [Test]
     public void ExactOrdinal_ReturnsBinaryAgreement()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(
                 HomologatedResolutionComparatorCatalog.Evaluate("EXACT_ORDINAL", "V1", "JOAO", "JOAO"),
@@ -31,7 +31,7 @@ public sealed class ResolutionComparatorCatalogTests
             Assert.That(
                 HomologatedResolutionComparatorCatalog.Evaluate("EXACT_ORDINAL", "V1", "JOAO", "Joao"),
                 Is.EqualTo(0d));
-        });
+        }));
     }
 
     [Test]
@@ -45,12 +45,12 @@ public sealed class ResolutionComparatorCatalogTests
         var close = HomologatedResolutionComparatorCatalog.Evaluate("JARO_WINKLER", "V1", "MARIA", "MARTA");
         var far = HomologatedResolutionComparatorCatalog.Evaluate("JARO_WINKLER", "V1", "MARIA", "JOSE");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(definition.OutputKind, Is.EqualTo(ResolutionComparatorOutputKind.SimilarityScore));
             Assert.That(definition.CalibratedThresholdAllowed, Is.True);
             Assert.That(equal, Is.EqualTo(1d));
             Assert.That(close, Is.GreaterThan(far));
-        });
+        }));
     }
 }

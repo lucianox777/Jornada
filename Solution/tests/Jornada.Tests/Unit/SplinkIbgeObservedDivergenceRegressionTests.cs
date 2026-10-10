@@ -75,7 +75,7 @@ FEMININO|MARIA CRUZ|MARIA PIMENTEL|MEDIUM|LOW
     {
         var rows = Observed.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(line => line.Split('|')).ToArray();
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(rows, Has.Length.EqualTo(53));
             Assert.That(rows.Count(x => x[0] == "TODOS"), Is.EqualTo(20));
@@ -83,7 +83,7 @@ FEMININO|MARIA CRUZ|MARIA PIMENTEL|MEDIUM|LOW
             Assert.That(rows.All(x => x.Length == 5), Is.True);
             Assert.That(rows.All(x => x[3] != x[4]), Is.True);
             Assert.That(rows.Count(x => x[3] == "MEDIUM" && x[4] == "HIGH"), Is.EqualTo(1));
-        });
+        }));
         foreach (var row in rows)
         {
             Assert.That(IdentityComparison.CompareName(row[1], row[2],
@@ -111,13 +111,13 @@ FEMININO|MARIA CRUZ|MARIA PIMENTEL|MEDIUM|LOW
 
         // Diagnostic only: the historical Splink observations are NOT a general
         // assertion of equivalence and do not authorize operational activation.
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(rows, Has.Length.EqualTo(53));
             Assert.That(matchesSplink, Is.EqualTo(31));
             Assert.That(changedFromV1, Is.EqualTo(31));
             Assert.That(rows.Length - matchesSplink, Is.EqualTo(22));
-        });
+        }));
     }
 
     [Test]

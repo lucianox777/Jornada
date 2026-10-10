@@ -24,7 +24,7 @@ public sealed class LedgerEvidenceFrequencyEstimatorTests
 
         var item = LedgerEvidenceFrequencyEstimator.Estimate(matches, nonMatches, 1m).Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(item.MatchExact, Is.EqualTo(1));
             Assert.That(item.MatchDisagree, Is.EqualTo(1));
@@ -36,7 +36,7 @@ public sealed class LedgerEvidenceFrequencyEstimatorTests
             Assert.That(item.UExact, Is.EqualTo(0.25m));
             Assert.That(item.ExactLogLikelihoodRatio, Is.Not.Null);
             Assert.That((double)item.ExactLogLikelihoodRatio!.Value, Is.EqualTo(Math.Log(2d)).Within(1e-9));
-        });
+        }));
     }
 
     [Test]
@@ -48,13 +48,13 @@ public sealed class LedgerEvidenceFrequencyEstimatorTests
 
         var item = LedgerEvidenceFrequencyEstimator.Estimate(matches, nonMatches, 1m).Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(item.MExact, Is.Null);
             Assert.That(item.UExact, Is.Null);
             Assert.That(item.ExactLogLikelihoodRatio, Is.Null);
             Assert.That(item.NonMatchMissing, Is.EqualTo(1));
-        });
+        }));
     }
 
     [Test]

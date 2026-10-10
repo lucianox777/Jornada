@@ -40,7 +40,7 @@ public sealed class SyntheticIngestionWaveTests
         var root = document.RootElement;
         var first = root.GetProperty("waves")[0];
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(root.GetProperty("schemaVersion").GetInt32(), Is.EqualTo(1));
             Assert.That(root.GetProperty("scenarioVersion").GetString(),
@@ -59,15 +59,15 @@ public sealed class SyntheticIngestionWaveTests
             Assert.That(first.GetProperty("packages")[0].GetProperty("gestorCodigo").GetString(),
                 Is.EqualTo("SEHAB"));
             Assert.That(first.TryGetProperty("MaterializedObservationCount", out _), Is.False);
-        });
+        }));
     }
 
     [Test]
     public void Aggregate_waves_manifest_rejects_mismatched_wave_count()
     {
-        Assert.Throws<ArgumentException>(() => SyntheticWaveManifestSerializer.Serialize(
+        Assert.Throws<ArgumentException>((Action)(() => SyntheticWaveManifestSerializer.Serialize(
             42, new string('E', 64), new string('F', 64), 0, 0,
-            new SyntheticWaveScenario(WaveCount: 3), new object[] { new { wave = 1 } }));
+            new SyntheticWaveScenario(WaveCount: 3), new object[] { new { wave = 1 } })));
     }
 
     [Test]
@@ -82,7 +82,7 @@ public sealed class SyntheticIngestionWaveTests
         var first = Build(waves[0]);
         var second = Build(waves[1]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(waves[0].NewSourceCount, Is.EqualTo(3));
             Assert.That(waves[1].UpdatedSourceCount, Is.EqualTo(3));
@@ -91,7 +91,7 @@ public sealed class SyntheticIngestionWaveTests
             Assert.That(waves[2].Generation.Observations, Is.Empty);
             Assert.That(first.ExcludedObservationCount, Is.Zero);
             Assert.That(second.ExcludedObservationCount, Is.Zero);
-        });
+        }));
 
         var firstSource = first.TruthRows.Single(x =>
             x.BasePersonId == "P-TRUTH-001" && x.SyntheticGestor == "G0");
@@ -105,7 +105,7 @@ public sealed class SyntheticIngestionWaveTests
 
         var firstPayload = ReadPerson(first, firstSource);
         var secondPayload = ReadPerson(second, secondSource);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(firstPayload.GetProperty("cpf").ValueKind, Is.EqualTo(JsonValueKind.Null));
             Assert.That(secondPayload.GetProperty("cpf").GetString(), Is.EqualTo("11144477735"));
@@ -115,7 +115,7 @@ public sealed class SyntheticIngestionWaveTests
                 Is.Not.EqualTo(firstPayload.GetProperty("idPessoaEntrega").GetString()));
             Assert.That(secondPayload.GetProperty("idPessoaEntrega").GetString(),
                 Is.Not.EqualTo(secondPayload.GetProperty("codigoPessoaOrigem").GetString()));
-        });
+        }));
 
         foreach (var package in first.Packages.Concat(second.Packages))
         {
@@ -172,7 +172,7 @@ public sealed class SyntheticIngestionWaveTests
                     dir, result, options, new string('A', 64));
                 using var manifest = JsonDocument.Parse(
                     await File.ReadAllTextAsync(materialized.ManifestPath));
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(manifest.RootElement.GetProperty("bridgeVersion").GetString(),
                         Is.EqualTo(SyntheticIngestionBridge.WaveBridgeVersion));
@@ -184,7 +184,7 @@ public sealed class SyntheticIngestionWaveTests
                         Is.EqualTo(Convert.ToHexString(
                             System.Security.Cryptography.SHA256.HashData(
                                 File.ReadAllBytes(materialized.ManifestPath)))));
-                });
+                }));
                 foreach (var package in materialized.PackagePaths)
                 {
                     using var archive = ZipFile.OpenRead(package);
@@ -207,25 +207,25 @@ public sealed class SyntheticIngestionWaveTests
         {
             Observations = source.Observations.Take(2).ToArray()
         };
-        var error = Assert.Throws<InvalidDataException>(() =>
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
             SyntheticIngestionBridge.Build(duplicate,
                 new SyntheticIngestionBridgeOptions(ContractVersions.CurrentPersonSchemaVersion, DayOne,
                     "unit-test-pseudonymization-key-32-bytes",
-                    StableSourceIdentity: true, WaveNumber: 0)));
+                    StableSourceIdentity: true, WaveNumber: 0))));
         Assert.That(error!.Message, Does.Contain("Identificador-fonte repetido"));
     }
 
     [Test]
     public void Wave_number_and_rates_must_be_valid()
     {
-        Assert.Throws<ArgumentException>(() =>
+        Assert.Throws<ArgumentException>((Action)(() =>
             new SyntheticIngestionBridgeOptions(ContractVersions.CurrentPersonSchemaVersion, DayOne,
                 "unit-test-pseudonymization-key-32-bytes",
-                StableSourceIdentity: true).Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new SyntheticWaveScenario(CpfRevealProbability: double.NaN).Validate());
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
-            new SyntheticWaveScenario(WaveCount: 1).Validate());
+                StableSourceIdentity: true).Validate()));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
+            new SyntheticWaveScenario(CpfRevealProbability: double.NaN).Validate()));
+        Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
+            new SyntheticWaveScenario(WaveCount: 1).Validate()));
     }
 
     private static SyntheticIngestionBridgeResult Build(SyntheticIngestionWave wave)

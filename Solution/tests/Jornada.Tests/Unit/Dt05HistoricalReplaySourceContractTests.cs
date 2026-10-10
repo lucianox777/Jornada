@@ -13,7 +13,7 @@ public sealed class Dt05HistoricalReplaySourceContractTests
         var path = Path.GetFullPath(Path.Combine(root, "..", "..", "..", "..", "..", "src", "Jornada.Linkage.Runner", "Dt05ReplaySql.cs"));
         var sql = File.ReadAllText(path);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("ReadHistoricalCandidateStateBindingAsync"));
             Assert.That(sql, Does.Contain("m.schema_version IN (3,4)"));
@@ -22,6 +22,6 @@ public sealed class Dt05HistoricalReplaySourceContractTests
             Assert.That(sql, Does.Contain("candidate_state_partition_set_sha256"));
             Assert.That(sql, Does.Contain("binding candidate-state v3/v4 completo; replay recusado"));
             Assert.That(sql, Does.Not.Contain("FROM gold.pessoa"));
-        });
+        }));
     }
 }

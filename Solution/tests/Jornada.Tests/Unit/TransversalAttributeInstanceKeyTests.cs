@@ -20,7 +20,7 @@ public sealed class TransversalAttributeInstanceKeyTests
         var vectors = LoadPhoneVectors();
         Assert.That(vectors.Rule, Is.EqualTo("TELEFONE_BR_CANONICO_V2"));
         Assert.That(vectors.EnvelopeTrimUnicodeCodePoints, Is.EqualTo(new[] { 9, 10, 13, 32, 160 }));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             foreach (var vector in vectors.Cases)
             {
@@ -31,11 +31,10 @@ public sealed class TransversalAttributeInstanceKeyTests
                 }
                 else
                 {
-                    Assert.Throws<InvalidDataException>(
-                        () => TransversalAttributeInstanceKey.Compute("MULTI", vectors.Rule, vector.Input), vector.Id);
+                    Assert.Throws<InvalidDataException>((Action)(() => TransversalAttributeInstanceKey.Compute("MULTI", vectors.Rule, vector.Input)), vector.Id);
                 }
             }
-        });
+        }));
     }
 
     [Test]
@@ -44,7 +43,7 @@ public sealed class TransversalAttributeInstanceKeyTests
 
     [Test]
     public void Unknown_multi_rule_fails_closed() =>
-        Assert.Throws<InvalidDataException>(() => TransversalAttributeInstanceKey.Compute("MULTI", "DESCONHECIDA", "x"));
+        Assert.Throws<InvalidDataException>((Action)(() => TransversalAttributeInstanceKey.Compute("MULTI", "DESCONHECIDA", "x")));
 
     private static PhoneVectorFile LoadPhoneVectors()
     {
@@ -56,11 +55,11 @@ public sealed class TransversalAttributeInstanceKeyTests
     [Test]
     public void Email_v2_lowercases_only_ascii_and_does_not_unicode_normalize()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(TransversalAttributeInstanceKey.Compute("MULTI", "EMAIL_CANONICO_V2", " JOSÉ@EXAMPLE.ORG "), Is.EqualTo("josÉ@example.org"));
             Assert.That(TransversalAttributeInstanceKey.Compute("MULTI", "EMAIL_CANONICO_V2", "Jose\u0301@Example.org"), Is.EqualTo("jose\u0301@example.org"));
             Assert.That(TransversalAttributeInstanceKey.Compute("MULTI", "EMAIL_CANONICO_V2", "José@Example.org"), Is.EqualTo("josé@example.org"));
-        });
+        }));
     }
 }

@@ -28,10 +28,10 @@ public sealed class CalibrationAuditExporterSqlServerTests
         var json = JsonSerializer.Serialize(document, JsonOptions);
         var imported = LinkageCalibrationAuditRoundTrip.Import(json);
 
-        Assert.DoesNotThrow(() =>
-            LinkageCalibrationAuditRoundTrip.VerifyEquivalent(document, imported));
+        Assert.DoesNotThrow((Action)(() =>
+            LinkageCalibrationAuditRoundTrip.VerifyEquivalent(document, imported)));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(document.Model.Status, Is.EqualTo("ATIVO"));
             Assert.That(document.SchemaVersion, Is.EqualTo(1));
@@ -43,7 +43,7 @@ public sealed class CalibrationAuditExporterSqlServerTests
             Assert.That(document.InterchangeContract.NominalMotherNameUSource,
                 Is.EqualTo(LinkageCalibrationAuditExchangePolicy.ResolveNominalUSource(document.Parameters, true)));
             Assert.That(document.TermFrequency.RuntimeEnabled, Is.False);
-        });
+        }));
     }
 
     private static async Task PrepareAsync(string connectionString)

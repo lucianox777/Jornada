@@ -21,11 +21,11 @@ public sealed class GroundTruthCalibrationPlanTests
             new[] { "NOME_COMPLETO", "DATA_NASCIMENTO" },
             new[] { "NOME_JARO_WINKLER", "NASC_ANO_EXACT" });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.LabelSource, Is.EqualTo(GroundTruthSource.Cpf));
             Assert.That(plan.PopulationStratum, Is.EqualTo(GroundTruthPopulationStratum.WithCpf));
-        });
+        }));
     }
 
     [Test]
@@ -38,32 +38,32 @@ public sealed class GroundTruthCalibrationPlanTests
             new[] { "NOME_JARO_WINKLER", "NASC_ANO_EXACT" },
             new[] { "IBGE_TERM_FREQUENCY" });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.LabelSource, Is.EqualTo(GroundTruthSource.Cns));
             Assert.That(plan.PopulationStratum, Is.EqualTo(GroundTruthPopulationStratum.WithoutCpfWithCns));
             Assert.That(GroundTruthIsolationPolicy.CanActAsIdentityAnchor(plan.LabelSource), Is.False);
-        });
+        }));
     }
 
     [Test]
     public void PlannerFailsClosedWhenNoSourceRepresentsTarget()
     {
-        Assert.Throws<InvalidOperationException>(() => GroundTruthCalibrationPlanner.Create(
+        Assert.Throws<InvalidOperationException>((Action)(() => GroundTruthCalibrationPlanner.Create(
             Cpf(false, false),
             Cns(true, false),
             new[] { "NOME_COMPLETO" },
-            new[] { "NOME_JARO_WINKLER" }));
+            new[] { "NOME_JARO_WINKLER" })));
     }
 
     [Test]
     public void PlannerRejectsCnsLeakageBeforeCalibrationRuns()
     {
-        Assert.Throws<InvalidOperationException>(() => GroundTruthCalibrationPlanner.Create(
+        Assert.Throws<InvalidOperationException>((Action)(() => GroundTruthCalibrationPlanner.Create(
             Cpf(false, false),
             Cns(true, true),
             new[] { "CNS_HASH_BLOCK" },
-            new[] { "NOME_JARO_WINKLER" }));
+            new[] { "NOME_JARO_WINKLER" })));
     }
 
     [Test]
@@ -91,7 +91,7 @@ public sealed class GroundTruthCalibrationPlanTests
             projection,
             new[] { "name_full", "birth_year" });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(plan.LabelSource, Is.EqualTo(GroundTruthSource.Cns));
             Assert.That(plan.CandidateGenerationInputs, Is.EquivalentTo(projection.BlockingCandidateFeatures));
@@ -101,7 +101,7 @@ public sealed class GroundTruthCalibrationPlanTests
                 plan.FeatureLineages.Single(static x => x.FeatureName == "name_full")
                     .Sources.Select(static source => source.CanonicalAttribute),
                 Is.EquivalentTo(new[] { "nome_completo" }));
-        });
+        }));
     }
 
     [Test]
@@ -133,12 +133,12 @@ public sealed class GroundTruthCalibrationPlanTests
             Features = projection.Features.Concat(new[] { feature }).ToArray()
         };
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
             GroundTruthCalibrationPlanner.CreateFromProjectionPlan(
                 Cpf(false, false),
                 Cns(true, true),
                 projection,
-                new[] { "identificador_hash" }));
+                new[] { "identificador_hash" })));
     }
 
     [Test]
@@ -154,12 +154,12 @@ public sealed class GroundTruthCalibrationPlanTests
             },
             "TEST_UNKNOWN_V1");
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var ex = Assert.Throws<InvalidOperationException>((Action)(() =>
             GroundTruthCalibrationPlanner.CreateFromProjectionPlan(
                 Cpf(true, true),
                 Cns(true, true),
                 projection,
-                new[] { "FEATURE_FORA_DO_PLANO" }));
+                new[] { "FEATURE_FORA_DO_PLANO" })));
 
         Assert.That(ex!.Message, Does.Contain("sem linhagem"));
     }

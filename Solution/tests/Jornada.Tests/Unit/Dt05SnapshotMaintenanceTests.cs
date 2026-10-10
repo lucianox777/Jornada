@@ -48,7 +48,7 @@ public sealed class Dt05SnapshotMaintenanceTests
         var report = await new Dt05SnapshotMaintenance(_root)
             .ScanAsync(TimeSpan.FromHours(24), deleteOrphans: true, now);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.ManifestCount, Is.EqualTo(2));
             Assert.That(report.ReferencedObjectOccurrences, Is.EqualTo(2));
@@ -65,7 +65,7 @@ public sealed class Dt05SnapshotMaintenanceTests
             Assert.That(File.Exists(freshOrphan.Path), Is.True);
             Assert.That(File.Exists(temp), Is.False);
             Assert.That(File.Exists(bronzeZip), Is.True, "GC DT-05 jamais pode atravessar para o namespace ZIP Bronze.");
-        });
+        }));
     }
 
     [Test]
@@ -81,8 +81,8 @@ public sealed class Dt05SnapshotMaintenanceTests
             """{"partitions":[{"path":"objects/aa/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.parquet","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bytes":1}]}""");
 
         var maintenance = new Dt05SnapshotMaintenance(_root);
-        Assert.ThrowsAsync<FileNotFoundException>(async () =>
-            await maintenance.ScanAsync(TimeSpan.FromHours(24), true, now));
+        Assert.ThrowsAsync<FileNotFoundException>((Func<Task>)(async () =>
+            await maintenance.ScanAsync(TimeSpan.FromHours(24), true, now)));
         Assert.That(File.Exists(orphan.Path), Is.True,
             "A descoberta de corrupção deve interromper a coleta antes de excluir qualquer órfão.");
     }
@@ -97,12 +97,12 @@ public sealed class Dt05SnapshotMaintenanceTests
         var report = await new Dt05SnapshotMaintenance(_root)
             .ScanAsync(TimeSpan.FromHours(24), deleteOrphans: false, now);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.OrphanObjectCount, Is.EqualTo(1));
             Assert.That(report.DeletedOrphanObjectCount, Is.Zero);
             Assert.That(File.Exists(orphan.Path), Is.True);
-        });
+        }));
     }
 
     private (string Path, string Relative, string Sha, long Bytes) PublishObject(string text)

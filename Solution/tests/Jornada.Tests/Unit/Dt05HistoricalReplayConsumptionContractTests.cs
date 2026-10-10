@@ -19,7 +19,7 @@ public sealed class Dt05HistoricalReplayConsumptionContractTests
         var root=Root();
         var runner=File.ReadAllText(Path.Combine(root,"src","Jornada.Linkage.Runner","ProbabilisticLinkageBatchRunner.cs"));
         var linkage=File.ReadAllText(Path.Combine(root,"src","Jornada.Linkage.Runner","SqlProbabilisticIdentityLinkage.cs"));
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(runner,Does.Contain("ReadHistoricalCandidateStateBindingAsync"));
             Assert.That(runner,Does.Contain("historicalCandidateStateVerifier.VerifyAsync"));
             Assert.That(runner,Does.Contain("UseHistoricalCandidates"));
@@ -27,7 +27,7 @@ public sealed class Dt05HistoricalReplayConsumptionContractTests
             Assert.That(runner,Does.Contain("ReadHistoricalBlockingProjectionBindingAsync"));
             Assert.That(runner,Does.Contain("historicalBlockingProjectionVerifier.VerifyAsync"));
             Assert.That(linkage,Does.Contain("REPLAY dinâmico sem blocking-projection histórica verificada; fallback SQL recusado."));
-        });
+        }));
     }
 
     [Test]

@@ -71,7 +71,7 @@ public sealed class ProgressiveOriginSqlTests
         var service = new SqlProgressiveOriginQueryService(new OperationalSqlAdapter(cs!));
         var first = await service.GetAsync(context, query, CancellationToken.None);
         var repeat = await service.GetAsync(context, query, CancellationToken.None);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(first, Is.Not.Null);
             Assert.That(first!.InitialUuid, Is.EqualTo(initial));
@@ -79,7 +79,7 @@ public sealed class ProgressiveOriginSqlTests
             Assert.That(first.Estado.ToString(), Is.EqualTo(state));
             Assert.That(first.Versao, Is.EqualTo(version));
             Assert.That(repeat, Is.EqualTo(first));
-        });
+        }));
 
         var other = context with { GestorCodigo = "CI_GESTOR_SEM_PROPRIEDADE", PublicCode = "CI_GESTOR_SEM_PROPRIEDADE" };
         Assert.That(await service.GetAsync(other, query, CancellationToken.None), Is.Null);
@@ -90,8 +90,8 @@ public sealed class ProgressiveOriginSqlTests
             Assert.That(await service.GetAsync(context, query with { CodigoPessoaOrigem = changedCase }, CancellationToken.None), Is.Null);
         Assert.That(await service.GetAsync(context, query with { CodigoPessoaOrigem = code + " " }, CancellationToken.None), Is.Null,
             "Espaços finais não podem ampliar a igualdade de chaves do SQL Server.");
-        Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await service.GetAsync(context with { Scopes = [] }, query, CancellationToken.None));
-        Assert.ThrowsAsync<UnauthorizedAccessException>(async () => await service.GetAsync(context with { CredentialType = AccessCredentialType.SERVICO }, query, CancellationToken.None));
+        Assert.ThrowsAsync<UnauthorizedAccessException>((Func<Task>)(async () => await service.GetAsync(context with { Scopes = [] }, query, CancellationToken.None)));
+        Assert.ThrowsAsync<UnauthorizedAccessException>((Func<Task>)(async () => await service.GetAsync(context with { CredentialType = AccessCredentialType.SERVICO }, query, CancellationToken.None)));
 
         await using var verify = connection.CreateCommand();
         verify.CommandText = "SELECT initial_uuid,versao FROM identidade.pessoa_origem_progressiva WHERE pessoa_origem_id=@id;";

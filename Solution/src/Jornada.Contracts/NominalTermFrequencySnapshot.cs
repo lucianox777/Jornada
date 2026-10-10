@@ -19,25 +19,37 @@ public sealed class NominalTermFrequencySnapshot
 {
     public const string PersonFirstNameAttribute = "NOME_PRENOME";
     public const string MotherFirstNameAttribute = "NOME_MAE_PRENOME";
+    public const string PersonLastSurnameAttribute = "NOME_ULTIMO_SOBRENOME";
+    public const string MotherLastSurnameAttribute = "NOME_MAE_ULTIMO_SOBRENOME";
     public const string ContractVersion = "NOMINAL_TERM_FREQUENCY_SNAPSHOT_V1";
 
     private readonly IReadOnlyDictionary<string, decimal> personFirst;
     private readonly IReadOnlyDictionary<string, decimal> motherFirst;
+    private readonly IReadOnlyDictionary<string, decimal> personLast;
+    private readonly IReadOnlyDictionary<string, decimal> motherLast;
 
     private NominalTermFrequencySnapshot(
         IReadOnlyDictionary<string, decimal> personFirst,
-        IReadOnlyDictionary<string, decimal> motherFirst)
+        IReadOnlyDictionary<string, decimal> motherFirst,
+        IReadOnlyDictionary<string, decimal> personLast,
+        IReadOnlyDictionary<string, decimal> motherLast)
     {
         this.personFirst = personFirst;
         this.motherFirst = motherFirst;
+        this.personLast = personLast;
+        this.motherLast = motherLast;
         MinimumPublishedFrequency = personFirst.Values
             .Concat(motherFirst.Values)
+            .Concat(personLast.Values)
+            .Concat(motherLast.Values)
             .DefaultIfEmpty(1m)
             .Min();
     }
 
     public int PersonFirstNameCount => personFirst.Count;
     public int MotherFirstNameCount => motherFirst.Count;
+    public int PersonLastSurnameCount => personLast.Count;
+    public int MotherLastSurnameCount => motherLast.Count;
     public decimal MinimumPublishedFrequency { get; }
 
     public IReadOnlyList<NominalTermFrequencyValue> PersonFirstNames =>
@@ -55,6 +67,8 @@ public sealed class NominalTermFrequencySnapshot
         ArgumentNullException.ThrowIfNull(entries);
         var person = new Dictionary<string, decimal>(StringComparer.Ordinal);
         var mother = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        var personLast = new Dictionary<string, decimal>(StringComparer.Ordinal);
+        var motherLast = new Dictionary<string, decimal>(StringComparer.Ordinal);
 
         foreach (var entry in entries)
         {
@@ -73,13 +87,15 @@ public sealed class NominalTermFrequencySnapshot
             {
                 PersonFirstNameAttribute => person,
                 MotherFirstNameAttribute => mother,
+                PersonLastSurnameAttribute => personLast,
+                MotherLastSurnameAttribute => motherLast,
                 _ => throw new InvalidDataException($"Atributo TF não suportado: {entry.Attribute}.")
             };
             if (!target.TryAdd(normalized, entry.Frequency))
                 throw new InvalidDataException($"Frequência nominal duplicada: {entry.Attribute}/{normalized}.");
         }
 
-        return new NominalTermFrequencySnapshot(person, mother);
+        return new NominalTermFrequencySnapshot(person, mother, personLast, motherLast);
     }
 
     public bool TryGetPersonFirstName(string? fullName, out decimal frequency)
@@ -87,6 +103,26 @@ public sealed class NominalTermFrequencySnapshot
 
     public bool TryGetMotherFirstName(string? fullName, out decimal frequency)
         => TryGetFirstToken(motherFirst, fullName, out frequency);
+
+    public bool TryGetPersonLastSurname(string? fullName, out decimal frequency)
+        => TryGetLastSurname(personLast, fullName, out frequency);
+
+    public bool TryGetMotherLastSurname(string? fullName, out decimal frequency)
+        => TryGetLastSurname(motherLast, fullName, out frequency);
+
+    private static bool TryGetLastSurname(
+        IReadOnlyDictionary<string, decimal> source,
+        string? fullName,
+        out decimal frequency)
+    {
+        var surname = BrazilianNameComponents.Project(fullName)?.LastContentSurname;
+        if (surname is null)
+        {
+            frequency = default;
+            return false;
+        }
+        return source.TryGetValue(surname, out frequency);
+    }
 
     private static bool TryGetFirstToken(
         IReadOnlyDictionary<string, decimal> source,

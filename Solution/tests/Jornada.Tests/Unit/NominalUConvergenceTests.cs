@@ -24,7 +24,7 @@ public sealed class NominalUConvergenceTests
             passes,
             new NominalUConvergenceOptions(2_000, 500));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result["NOMINAL_U_NOME_SOURCE_BLOCKING_CONDITIONED"], Is.Zero);
             Assert.That(result["NOMINAL_U_NOME_MAE_SOURCE_BLOCKING_CONDITIONED"], Is.Zero);
@@ -33,7 +33,7 @@ public sealed class NominalUConvergenceTests
             Assert.That(result["U_NOME_EXACT"], Is.EqualTo(.10m));
             Assert.That(result["U_NOME_MAE_EXACT"], Is.EqualTo(.075m),
                 "Missingness de mãe continua empírico: 600/800=0,75 de massa presente × bootstrap EXACT 0,1.");
-        });
+        }));
     }
 
     [Test]
@@ -56,7 +56,7 @@ public sealed class NominalUConvergenceTests
             passes,
             new NominalUConvergenceOptions(4_000, 2_000));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result["NOMINAL_U_NOME_SOURCE_BLOCKING_CONDITIONED"], Is.EqualTo(1m));
             Assert.That(result["NOMINAL_U_NOME_MAE_SOURCE_BLOCKING_CONDITIONED"], Is.EqualTo(1m));
@@ -66,7 +66,7 @@ public sealed class NominalUConvergenceTests
             Assert.That(result["U_NOME_MAE_EXACT"], Is.EqualTo(empiricalMotherExact));
             Assert.That(result["BLOCKING_PASS_U_COUNT"], Is.EqualTo(2m));
             Assert.That(result["BLOCKING_PASS_U_01_SAMPLE_SIZE"], Is.EqualTo(2_500m));
-        });
+        }));
     }
 
     [Test]
@@ -87,13 +87,13 @@ public sealed class NominalUConvergenceTests
             passes,
             new NominalUConvergenceOptions(5_000, 1_000));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result["NOMINAL_U_ALL_PASSES_NAME_SUFFICIENT"], Is.Zero);
             Assert.That(result["NOMINAL_U_ALL_PASSES_MOTHER_SUFFICIENT"], Is.Zero);
             Assert.That(result["NOMINAL_U_NOME_SOURCE_BLOCKING_CONDITIONED"], Is.Zero);
             Assert.That(result["NOMINAL_U_NOME_MAE_SOURCE_BLOCKING_CONDITIONED"], Is.Zero);
-        });
+        }));
     }
 
     private static Dictionary<string, decimal> EmpiricalParameters(

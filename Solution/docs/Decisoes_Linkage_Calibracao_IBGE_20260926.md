@@ -88,3 +88,8 @@ A geração manual ou orquestrada de novo modelo é evento explícito e pode ser
 - Plano item 1/4/7, [issue #31](https://github.com/lucianox777/Jornada/issues/31), [DT-01/09](Dividas_Tecnicas.md), [DT-05](https://github.com/lucianox777/Jornada/issues/494).
 - Solução de Apoio às Secretarias / migração SEHAB: [issue #496](https://github.com/lucianox777/Jornada/issues/496), **pré-Ensaio**, sem supor implementação completa.
 - Antes de alterar defaults ou afirmar objetivos atingidos, consultar esta decisão, Plano, contrato IBGE, testes e o HEAD atual; registrar medições e justificar qualquer mudança.
+
+> **Decisões vigentes de 09/10/2026:** consultar a [consolidação canônica de bootstrap estatístico, último sobrenome, CPF tardio e substituição histórica](Decisoes_Canonicas_Identidade_Linkage_20260929.md#consolidação-decisória-de-09102026--bootstrap-estatístico-e-substituição-histórica). Esta referência prevalece sobre passagens preparatórias incompatíveis; não há segunda cópia normativa neste documento.
+
+
+> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-tf--norma-vigente-de-frequência-nominal-fs-e-calibrador-09102026). O peso TF zero é neutro (peso 1 aplica ajuste integral); os pesos e m/u devem ser estimados pelo Calibrador a partir do bootstrap sintético IBGE e, progressivamente, de evidência histórica real. Primeiro nome e último sobrenome significativo de pessoa e mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Em caso de divergência, prevalece a decisão canônica; este documento não certifica implementação concluída.

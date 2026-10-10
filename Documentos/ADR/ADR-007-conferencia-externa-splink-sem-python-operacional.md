@@ -52,3 +52,6 @@ Para uma **conferência independente de scorer**, injetar os **mesmos parâmetro
 ## Consequências
 
 A arquitetura continua C#-only no **runtime de Linkage**, a implementação C# pode testar e comparar a estrutura do intercâmbio sem Python/Splink, o estudo Python fica isolado e a segurança é garantida por **origem sintética verificável**, não por um booleano. O primeiro experimento é deliberadamente pequeno e não deve ser vendido como validação científica do modelo.
+
+
+> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](../../Solution/docs/Decisoes_Canonicas_Identidade_Linkage_20260929.md). Peso TF zero é neutro; peso 1 aplica ajuste integral. O Calibrador deve estimar pesos e m/u usando bootstrap sintético IBGE e depois evidência real. Primeiro nome e último sobrenome significativo da pessoa e da mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Esta remissão não certifica implementação concluída.

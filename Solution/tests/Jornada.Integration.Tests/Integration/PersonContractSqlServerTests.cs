@@ -109,7 +109,7 @@ public sealed class PersonContractSqlServerTests
                 """;
             await using var reader = await query.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetInt32(0), Is.EqualTo(4), "Os quatro Gestores DEV devem usar somente Pessoa v1.");
                 Assert.That(reader.GetInt32(1), Is.Zero, "O catálogo DEV não deve manter versões Pessoa anteriores.");
@@ -119,7 +119,7 @@ public sealed class PersonContractSqlServerTests
                 Assert.That(reader.GetInt32(5), Is.EqualTo(1), "Sem endereço fixo é estado próprio, sem geografia fabricada.");
                 Assert.That(reader.GetInt32(6), Is.Zero, "Referência prisional não pode aparecer na visão territorial compartilhada.");
                 Assert.That(reader.GetInt32(7), Is.Zero, "A projeção BI compartilhada não pode revelar natureza prisional.");
-            });
+            }));
         }
         finally
         {
@@ -154,12 +154,12 @@ public sealed class PersonContractSqlServerTests
 
         await using var reader=await command.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(),Is.True);
-        Assert.Multiple(()=>
+        Assert.Multiple((Action)(()=>
         {
             Assert.That(reader.GetInt64(0),Is.GreaterThan(0),"A Console deve encontrar contratos correntes no catálogo ref.*.");
             Assert.That(reader.GetInt32(1),Is.EqualTo(1));
             Assert.That(reader.GetInt32(2),Is.EqualTo(1));
-        });
+        }));
     }
 
     private static string RequireIntegrationConnection()

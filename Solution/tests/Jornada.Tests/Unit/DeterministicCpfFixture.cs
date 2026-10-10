@@ -21,7 +21,7 @@ public sealed class DeterministicCpfFixtureTests
     public void Valid_generates_reproducible_structurally_valid_cpf_for_each_seed()
     {
         var first = DeterministicCpfFixture.Valid(101);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(first, Has.Length.EqualTo(11));
             Assert.That(CpfRules.NormalizeAndValidate(first), Is.EqualTo(first));
@@ -29,6 +29,6 @@ public sealed class DeterministicCpfFixtureTests
             Assert.That(DeterministicCpfFixture.Valid(202), Is.Not.EqualTo(first));
             Assert.That(CpfRules.NormalizeAndValidate(DeterministicCpfFixture.Valid(202)),
                 Is.EqualTo(DeterministicCpfFixture.Valid(202)));
-        });
+        }));
     }
 }

@@ -28,7 +28,7 @@ public sealed class IbgePublicMarginalsExchangeTests
             IbgePublicMarginalsExchange.Reference, Hash, "FEMININO", entries.Reverse());
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(json, Is.EqualTo(reversed));
             Assert.That(root.EnumerateObject().Select(x => x.Name), Is.EquivalentTo(
@@ -43,7 +43,7 @@ public sealed class IbgePublicMarginalsExchangeTests
             Assert.That(root.GetProperty("first_names")[0].GetProperty("occurrences").GetInt64(),
                 Is.EqualTo(5));
             Assert.That(root.GetProperty("surnames").GetArrayLength(), Is.EqualTo(2));
-        });
+        }));
     }
 
     [Test]
@@ -53,19 +53,19 @@ public sealed class IbgePublicMarginalsExchangeTests
             new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.FirstName, "ANA", 5),
             new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.Surname, "SILVA", 3)
         };
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => IbgePublicMarginalsExchange.Serialize("OTHER", Hash, "TODOS", rows),
+            Assert.That((Func<object?>)(() => IbgePublicMarginalsExchange.Serialize("OTHER", Hash, "TODOS", rows)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgePublicMarginalsExchange.Serialize(
-                IbgePublicMarginalsExchange.Reference, "bad", "TODOS", rows),
+            Assert.That((Func<object?>)(() => IbgePublicMarginalsExchange.Serialize(
+                IbgePublicMarginalsExchange.Reference, "bad", "TODOS", rows)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgePublicMarginalsExchange.Serialize(
-                IbgePublicMarginalsExchange.Reference, Hash, "MASCULINO", rows),
+            Assert.That((Func<object?>)(() => IbgePublicMarginalsExchange.Serialize(
+                IbgePublicMarginalsExchange.Reference, Hash, "MASCULINO", rows)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => IbgePublicMarginalsExchange.Serialize(
-                IbgePublicMarginalsExchange.Reference, Hash, "TODOS", rows.Take(1)),
+            Assert.That((Func<object?>)(() => IbgePublicMarginalsExchange.Serialize(
+                IbgePublicMarginalsExchange.Reference, Hash, "TODOS", rows.Take(1))),
                 Throws.TypeOf<InvalidDataException>());
-        });
+        }));
     }
 }

@@ -12,7 +12,7 @@ public sealed class LinkageParametersBootstrapProgressTests
         var program = File.ReadAllText(Path.Combine(
             root, "Solution", "src", "Jornada.Linkage.Parameters.Worker", "Program.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(program, Does.Contain("RunHostWithHeartbeatAsync"));
             Assert.That(program, Does.Contain("TimeSpan.FromSeconds(15)"));
@@ -20,7 +20,7 @@ public sealed class LinkageParametersBootstrapProgressTests
             Assert.That(program, Does.Contain("milhoes de linhas e pode levar alguns minutos"));
             Assert.That(program, Does.Contain("ensureBuilder.Build(),"));
             Assert.That(program, Does.Contain("operation == NameFrequencySnapshotLoader.Operation"));
-        });
+        }));
     }
 
     [Test]
@@ -33,13 +33,13 @@ public sealed class LinkageParametersBootstrapProgressTests
         Assert.That(draftStart, Is.GreaterThanOrEqualTo(0));
         Assert.That(draftEnd, Is.GreaterThan(draftStart));
         var draft = program[draftStart..draftEnd];
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(draft, Does.Contain("PersistedIbgeBootstrapReferenceQuery.RequireAsync"));
             Assert.That(draft, Does.Not.Contain("ActiveNameFrequencyReferenceQuery.HasActiveAsync"));
             Assert.That(draft, Does.Not.Contain("EnsureCanonicalActiveAsync"));
             Assert.That(draft, Does.Not.Contain("NameFrequencySnapshotLoader"));
-        });
+        }));
     }
 
     [Test]
@@ -48,7 +48,7 @@ public sealed class LinkageParametersBootstrapProgressTests
         var query = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Solution", "src",
             "Jornada.Linkage.Parameters.Worker", "PersistedIbgeBootstrapReferenceQuery.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(query, Does.Contain("CENSO2022_NOMES_BRASIL_V1"));
             Assert.That(query, Does.Contain("u.status=N'PRONTA'"));
@@ -58,7 +58,7 @@ public sealed class LinkageParametersBootstrapProgressTests
             Assert.That(query, Does.Contain("IbgeNominalUBootstrapOptions.MethodVersion"));
             Assert.That(query, Does.Not.Contain("v.status='ATIVA'"));
             Assert.That(query, Does.Contain("rascunhos posteriores não exigem referência IBGE ATIVA"));
-        });
+        }));
     }
 
     [Test]
@@ -68,7 +68,7 @@ public sealed class LinkageParametersBootstrapProgressTests
         var state = File.ReadAllText(Path.Combine(
             root, "Solution", "src", "Jornada.Linkage.Parameters.Worker", "NameFrequencyReferenceState.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(state, Does.Contain("status == \"ATIVA\""));
             Assert.That(state, Does.Contain("status == \"CARREGANDO\""));
@@ -77,7 +77,7 @@ public sealed class LinkageParametersBootstrapProgressTests
             Assert.That(state, Does.Contain("tipo='SOBRENOME'"));
             Assert.That(state, Does.Contain("SET status='ATIVA'"));
             Assert.That(state, Does.Contain("IsolationLevel.Serializable"));
-        });
+        }));
     }
 
     [Test]
@@ -88,7 +88,7 @@ public sealed class LinkageParametersBootstrapProgressTests
         var worker = File.ReadAllText(Path.Combine(FindRepositoryRoot(), "Solution", "src",
             "Jornada.Linkage.Parameters.Worker", "LinkageParametersWorker.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(migration, Does.Contain("referência explícita do bootstrap IBGE inicial persistido"));
             Assert.That(migration, Does.Contain("u.status=N'PRONTA'"));
@@ -97,7 +97,7 @@ public sealed class LinkageParametersBootstrapProgressTests
             Assert.That(worker, Does.Contain("@ibge_ref"));
             Assert.That(worker, Does.Contain("PersistedIbgeBootstrapReferenceQuery.RequireAsync"));
             Assert.That(worker, Does.Not.Contain("IbgeNominalUReferenceReader.ReadActiveReferenceAsync(connection, workCt)"));
-        });
+        }));
     }
 
     [Test]
@@ -116,7 +116,7 @@ public sealed class LinkageParametersBootstrapProgressTests
         var node1Index = compose.IndexOf("jornada-node1:", StringComparison.Ordinal);
         var node2Index = compose.IndexOf("jornada-node2:", StringComparison.Ordinal);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(program, Does.Contain($"const string EnsureNameFrequencySnapshotOperation = \"{ensureOperation}\""));
             Assert.That(program, Does.Contain($"const string CanonicalNameFrequencyReferenceCode = \"{canonicalReference}\""));
@@ -133,7 +133,7 @@ public sealed class LinkageParametersBootstrapProgressTests
             Assert.That(calibration, Does.Not.Contain("Invoke-Parameters 'ENSURE_IBGE_NOMINAL_U_REFERENCE'"));
             Assert.That(calibration, Does.Contain("GENERATE_DRAFT"));
             Assert.That(calibration, Does.Contain("não carrega, reativa nem recalcula"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

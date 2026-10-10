@@ -25,7 +25,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var estimate = IbgeNominalUBootstrapEstimator.Estimate(Published, options);
         var replay = IbgeNominalUBootstrapEstimator.ReplayPairs(Published, options);
         var repeated = IbgeNominalUBootstrapEstimator.ReplayPairs(Published, options);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(replay, Is.EquivalentTo(repeated));
             Assert.That(replay, Has.Count.EqualTo(1000));
@@ -33,7 +33,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
             foreach (var state in estimate.States)
                 Assert.That(replay.Count(x => x.CSharpState == state.State),
                     Is.EqualTo(state.Support), state.State);
-        });
+        }));
     }
 
     [Test]
@@ -47,17 +47,17 @@ public sealed class SplinkIbgeBootstrapReplayTests
             Pairs = document.Pairs.Select((p, i) =>
                 i == 0 ? p with { CSharpState = "INVALID" } : p).ToArray()
         };
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => SplinkIbgeReplayContract.SerializeInput(contaminated),
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.SerializeInput(contaminated)),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => SplinkIbgeReplayContract.ParseInput(
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.ParseInput(
                 json.Replace("\"pairs\"", "\"cpf\":\"00000000000\",\"pairs\"",
-                    StringComparison.Ordinal)), Throws.TypeOf<JsonException>());
-            Assert.That(() => IbgeNominalUBootstrapEstimator.ReplayPairs(
-                Published, new IbgeNominalUBootstrapOptions(42, 100_001)),
+                    StringComparison.Ordinal))), Throws.TypeOf<JsonException>());
+            Assert.That((Func<object?>)(() => IbgeNominalUBootstrapEstimator.ReplayPairs(
+                Published, new IbgeNominalUBootstrapOptions(42, 100_001))),
                 Throws.TypeOf<ArgumentOutOfRangeException>());
-        });
+        }));
     }
 
     [Test]
@@ -70,7 +70,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var forced = source.Pairs[0].CSharpState == "LOW" ? "EXACT" : "LOW";
         var different = ExternalJson(source, input, 0, forced);
         var divergent = SplinkIbgeReplayContract.Diagnose(input, different);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(identical.Status, Is.EqualTo("ESTADOS_IDENTICOS_DIAGNOSTICO"));
             Assert.That(identical.PairwiseDisagreements, Is.Zero);
@@ -79,7 +79,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
             Assert.That(divergent.Status, Is.EqualTo("ESTADOS_DIVERGENTES_DIAGNOSTICO"));
             Assert.That(divergent.PairwiseDisagreements, Is.EqualTo(1));
             Assert.That(divergent.TotalVariation, Is.GreaterThan(0m));
-        });
+        }));
     }
 
     [Test]
@@ -88,26 +88,26 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var source = CreateReplay(10);
         var input = SplinkIbgeReplayContract.SerializeInput(source);
         var valid = ExternalJson(source, input);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(
                 input, valid.Replace("\"input_sha256\"", "\"unexpected\":1,\"input_sha256\"",
-                    StringComparison.Ordinal)), Throws.TypeOf<JsonException>());
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(
+                    StringComparison.Ordinal))), Throws.TypeOf<JsonException>());
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(
                 input, valid.Replace(source.ReferenceContentSha256,
-                    new string('b', 64), StringComparison.Ordinal)),
+                    new string('b', 64), StringComparison.Ordinal))),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(
                 input, valid.Replace("WHOLE_NAME_JARO_WINKLER_V1",
-                    "OTHER_COMPARATOR", StringComparison.Ordinal)),
+                    "OTHER_COMPARATOR", StringComparison.Ordinal))),
                 Throws.TypeOf<InvalidDataException>());
             var parsed = JsonSerializer.Deserialize<SplinkIbgeReplayExternalResult>(
                 valid, SplinkIbgeReplayContract.JsonOptions)!;
             var dropped = parsed with { Pairs = parsed.Pairs.Take(9).ToArray() };
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(
-                input, JsonSerializer.Serialize(dropped, SplinkIbgeReplayContract.JsonOptions)),
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(
+                input, JsonSerializer.Serialize(dropped, SplinkIbgeReplayContract.JsonOptions))),
                 Throws.TypeOf<InvalidDataException>());
-        });
+        }));
     }
 
     [Test]
@@ -121,7 +121,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var actualOrder = unchanged.Transitions
             .Select(cell => (cell.CSharpState, cell.SplinkState)).ToArray();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(SplinkIbgeReplayContract.LegacyReportSchema,
                 Is.EqualTo("JORNADA_SPLINK_IBGE_U_REPLAY_DIAGNOSTIC_V1"));
@@ -141,12 +141,12 @@ public sealed class SplinkIbgeBootstrapReplayTests
                 Assert.That(unchanged.Transitions.Where(cell => cell.SplinkState == state.State)
                     .Sum(cell => cell.Support), Is.EqualTo(state.SplinkSupport));
             }
-        });
+        }));
 
         using var document = JsonDocument.Parse(
             SplinkIbgeReplayContract.SerializeDiagnostic(unchanged));
         var root = document.RootElement;
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(root.GetProperty("schema_version").GetString(),
                 Is.EqualTo(SplinkIbgeReplayContract.ReportSchema));
@@ -155,7 +155,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
                 .GetProperty("c_sharp_state").GetString(), Is.EqualTo("EXACT"));
             Assert.That(root.GetProperty("transitions")[0]
                 .GetProperty("splink_state").GetString(), Is.EqualTo("EXACT"));
-        });
+        }));
     }
 
     [Test]
@@ -191,7 +191,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var reverse = report.Transitions.Single(cell =>
             cell.CSharpState == selected[1].CSharpState &&
             cell.SplinkState == selected[0].CSharpState);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.PairwiseDisagreements, Is.EqualTo(2));
             Assert.That(report.TotalVariation, Is.Zero,
@@ -203,7 +203,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
                 cell.CSharpState != cell.SplinkState).Sum(cell => cell.Support),
                 Is.EqualTo(report.PairwiseDisagreements));
             Assert.That(report.Transitions.Sum(cell => cell.Support), Is.EqualTo(512));
-        });
+        }));
 
         // Rejeitar pares repetidos/estados inválidos antes de emitir matriz parcial.
         var repeated = swapped with
@@ -216,15 +216,15 @@ public sealed class SplinkIbgeBootstrapReplayTests
             Pairs = swapped.Pairs.Select((pair, i) =>
                 i == 0 ? pair with { SplinkState = "UNKNOWN" } : pair).ToArray()
         };
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(input,
-                JsonSerializer.Serialize(repeated, SplinkIbgeReplayContract.JsonOptions)),
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(input,
+                JsonSerializer.Serialize(repeated, SplinkIbgeReplayContract.JsonOptions))),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => SplinkIbgeReplayContract.Diagnose(input,
-                JsonSerializer.Serialize(unknown, SplinkIbgeReplayContract.JsonOptions)),
+            Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.Diagnose(input,
+                JsonSerializer.Serialize(unknown, SplinkIbgeReplayContract.JsonOptions))),
                 Throws.TypeOf<InvalidDataException>());
-        });
+        }));
     }
 
     [Test]
@@ -236,7 +236,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var external = ExternalJson(source, input, 3, changed);
         var csv = SplinkIbgeReplayContract.ExportDisagreementsCsv(input, external);
         var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(lines, Has.Length.EqualTo(2));
             Assert.That(lines[0], Is.EqualTo(
@@ -246,7 +246,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
             Assert.That(SplinkIbgeReplayContract.ExportDisagreementsCsv(
                 input, ExternalJson(source, input)).Split('\n',
                     StringSplitOptions.RemoveEmptyEntries), Has.Length.EqualTo(1));
-        });
+        }));
     }
 
     [Test]
@@ -255,9 +255,9 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var source = CreateReplay(10);
         var input = SplinkIbgeReplayContract.SerializeInput(source);
         var external = ExternalJson(source, input);
-        Assert.That(() => SplinkIbgeReplayContract.ExportDisagreementsCsv(
+        Assert.That((Func<object?>)(() => SplinkIbgeReplayContract.ExportDisagreementsCsv(
             input, external.Replace(SplinkIbgeReplayContract.Sha(input),
-                new string('0', 64), StringComparison.Ordinal)),
+                new string('0', 64), StringComparison.Ordinal))),
             Throws.TypeOf<InvalidDataException>());
     }
 

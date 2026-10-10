@@ -12,14 +12,14 @@ public sealed class LocalClusterDiagnosisContractTests
         var root = FindRepositoryRoot();
         var script = File.ReadAllText(Path.Combine(root, "Solution", relativePath.Replace('/', Path.DirectorySeparatorChar)));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(script, Does.Contain("status='ATIVO'"));
             Assert.That(script, Does.Contain("SEED_DEV_FIXO_NAO_TREINADO"));
             Assert.That(script, Does.Contain("AND modelo_id="));
             Assert.That(script, Does.Contain("Execute primeiro"));
             Assert.That(script, Does.Contain("linkage"));
-        });
+        }));
     }
 
     [TestCase("scripts/local-cluster.ps1")]
@@ -29,7 +29,7 @@ public sealed class LocalClusterDiagnosisContractTests
         var root = FindRepositoryRoot();
         var script = File.ReadAllText(Path.Combine(root, "Solution", relativePath.Replace('/', Path.DirectorySeparatorChar)));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(script, Does.Contain("IBGE"));
             Assert.That(script, Does.Contain("bootstrap nominal obrigatório"));
@@ -38,7 +38,7 @@ public sealed class LocalClusterDiagnosisContractTests
             Assert.That(script, Does.Contain("u nominal"));
             Assert.That(script, Does.Contain("blocking"));
             Assert.That(script, Does.Not.Contain("Se a referência IBGE ainda não estiver materializada"));
-        });
+        }));
     }
 
     [TestCase("Documentos/ADR/ADR-002-calibrador-fs-u-condicionado.md")]
@@ -50,7 +50,7 @@ public sealed class LocalClusterDiagnosisContractTests
         var root = FindRepositoryRoot();
         var document = File.ReadAllText(Path.Combine(root, relativePath.Replace('/', Path.DirectorySeparatorChar)));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(document, Does.Contain("IBGE"));
             Assert.That(document, Does.Contain("bootstrap"));
@@ -64,7 +64,7 @@ public sealed class LocalClusterDiagnosisContractTests
             Assert.That(document, Does.Not.Contain("sem referência ativa, GENERATE_DRAFT falha explicitamente"));
             Assert.That(document, Does.Not.Contain("bootstrap/fallback"));
             Assert.That(document, Does.Not.Contain("fallback versionado"));
-        });
+        }));
     }
 
     [Test]
@@ -74,14 +74,14 @@ public sealed class LocalClusterDiagnosisContractTests
         var historical = File.ReadAllText(Path.Combine(root, "Documentos", "Requisitos",
             "Historico", "02_Requisitos_Funcionais_Jornada_Aditivo_v1.1.md"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(historical, Does.Contain("redação original de 09/09/2026"));
             Assert.That(historical, Does.Contain("superada em 28/09/2026"));
             Assert.That(historical, Does.Contain("Nota de atualização normativa"));
             Assert.That(historical, Does.Contain("GENERATE_DRAFT deve falhar explicitamente"));
             Assert.That(historical, Does.Contain("fonte substituta"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

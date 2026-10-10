@@ -67,13 +67,13 @@ public sealed class DeliveryBronzeRetentionTests
             verify.Parameters.AddWithValue("@id", entregaId);
             await using var reader = await verify.ExecuteReaderAsync();
             Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetString(0), Is.EqualTo("EXPURGADO"));
                 Assert.That(reader.IsDBNull(1), Is.False);
                 Assert.That(reader.GetInt32(2), Is.EqualTo(1), "A Entrega permanece no SQL para auditoria/linhagem.");
-            });
-            Assert.ThrowsAsync<BronzeObjectNotFoundException>(async () => await objectStore.OpenReadAsync(objectKey, CancellationToken.None));
+            }));
+            Assert.ThrowsAsync<BronzeObjectNotFoundException>((Func<Task>)(async () => await objectStore.OpenReadAsync(objectKey, CancellationToken.None)));
         }
         finally { try { Directory.Delete(tempRoot, true); } catch { } }
     }

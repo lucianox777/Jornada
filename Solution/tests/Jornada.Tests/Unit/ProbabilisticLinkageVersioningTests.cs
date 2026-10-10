@@ -23,14 +23,14 @@ public sealed class ProbabilisticLinkageVersioningTests
             modelId,
             "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(decision.ModeloId, Is.EqualTo(modelId));
             Assert.That(decision.MelhorCandidatoUuid, Is.EqualTo(best));
             Assert.That(decision.SegundoCandidatoUuid, Is.EqualTo(second));
             Assert.That(decision.Margem, Is.EqualTo(0.01m));
             Assert.That(decision.PessoaUuidResolvido, Is.Null);
-        });
+        }));
     }
 
     [Test]

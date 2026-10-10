@@ -15,7 +15,7 @@ public sealed class ModelGovernanceReadOnlyTests
     {
         var result = ModelGovernanceReadOnlyService.EvaluateEvidence(
             Measurements(ActiveId.ToString("N")), Active());
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Status, Is.EqualTo("COMPARAVEL_APENAS_BLOCKING_TREINO"));
             Assert.That(result.MatchedPairWeight, Is.EqualTo(30m));
@@ -27,7 +27,7 @@ public sealed class ModelGovernanceReadOnlyTests
             Assert.That(result.DraftReduction, Is.EqualTo(.94m));
             Assert.That(result.Delta.Reduction, Is.EqualTo(.03m));
             Assert.That(result.Explanation, Does.Contain("não constitui dossiê FS"));
-        });
+        }));
     }
 
     [Test]
@@ -35,13 +35,13 @@ public sealed class ModelGovernanceReadOnlyTests
     {
         var result = ModelGovernanceReadOnlyService.EvaluateEvidence(
             Measurements(Guid.NewGuid().ToString("N")), Active());
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Status, Is.EqualTo("EVIDENCIA_OBSOLETA"));
             Assert.That(result.ActiveRecall, Is.Null);
             Assert.That(result.DraftRecall, Is.Null);
             Assert.That(result.Delta, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -56,7 +56,7 @@ public sealed class ModelGovernanceReadOnlyTests
         missingDenominator.Remove("DT15_BLOCKING_PAIR_M_WEIGHT");
         var missingDenominatorResult = ModelGovernanceReadOnlyService.EvaluateEvidence(
             missingDenominator, Active());
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(missingActive.Status, Is.EqualTo("NAO_COMPARAVEL"));
             Assert.That(missingActive.DraftRecall, Is.EqualTo(.97m));
@@ -69,7 +69,7 @@ public sealed class ModelGovernanceReadOnlyTests
             Assert.That(ModelGovernanceReadOnlyService.EvaluateEvidence(
                 new Dictionary<string, (decimal, string)>(), Active()).Status,
                 Is.EqualTo("AGUARDA_EVIDENCIA"));
-        });
+        }));
     }
 
     [Test]
@@ -80,13 +80,13 @@ public sealed class ModelGovernanceReadOnlyTests
             (0.99m, ModelGovernanceReadOnlyService.PartialMethod + ":" + ActiveId.ToString("N"));
         var mixed = Measurements(ActiveId.ToString("N"));
         mixed["DT15_BLOCKING_DRAFT_RECALL"] = (.97m, "UNVERIFIED_METHOD");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(ModelGovernanceReadOnlyService.EvaluateEvidence(
                 tampered, Active()).Status, Is.EqualTo("NAO_COMPARAVEL"));
             Assert.That(ModelGovernanceReadOnlyService.EvaluateEvidence(
                 mixed, Active()).Status, Is.EqualTo("NAO_COMPARAVEL"));
-        });
+        }));
     }
 
     [Test]
@@ -107,7 +107,7 @@ public sealed class ModelGovernanceReadOnlyTests
             .Single(x => x.GetProperty("publicCode").GetString() == "MASTER_DEV");
         var scopes = master.GetProperty("scopes").EnumerateArray()
             .Select(x => x.GetString()).ToArray();
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(security, Does.Contain("(\"jornada.modelos.governanca.read\", false)"));
             Assert.That(scopes, Is.EquivalentTo(new[] { "jornada.modelos.governanca.read" }));
@@ -130,7 +130,7 @@ public sealed class ModelGovernanceReadOnlyTests
             Assert.That(html, Does.Contain("Credenciais não são gravadas no navegador"));
             Assert.That(html, Does.Not.Contain("localStorage.setItem"));
             Assert.That(html, Does.Not.Contain("sessionStorage.setItem"));
-        });
+        }));
     }
 
     private static GovernanceModel Active() =>

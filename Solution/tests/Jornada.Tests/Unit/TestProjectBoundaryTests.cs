@@ -51,13 +51,13 @@ public sealed class TestProjectBoundaryTests
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(unclassified, Is.Empty,
                 "Todo TestFixture do projeto Integration deve declarar Integration ou ExternalRealData: " + string.Join(", ", unclassified));
             Assert.That(externalOutsideDedicatedFolder, Is.Empty,
                 "ExternalRealData deve permanecer fisicamente isolado em pasta própria: " + string.Join(", ", externalOutsideDedicatedFolder));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

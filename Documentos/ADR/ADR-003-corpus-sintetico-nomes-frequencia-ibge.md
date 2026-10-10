@@ -93,3 +93,6 @@ O harness passa a compilar o worker antes de gerar a massa porque a carga canôn
 ## Critério de manutenção
 
 Uma nova versão da referência IBGE pode alterar a distribuição do corpus somente de forma explícita e versionada. Mudanças futuras nas proporções sintéticas de composição do nome completo devem ser documentadas como mudanças de fixture, nunca como atualização de frequência populacional do IBGE sem evidência correspondente.
+
+
+> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](../../Solution/docs/Decisoes_Canonicas_Identidade_Linkage_20260929.md). Peso TF zero é neutro; peso 1 aplica ajuste integral. O Calibrador deve estimar pesos e m/u usando bootstrap sintético IBGE e depois evidência real. Primeiro nome e último sobrenome significativo da pessoa e da mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Esta remissão não certifica implementação concluída.

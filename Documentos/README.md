@@ -55,3 +55,6 @@ Nenhum item deste índice implica aprovação institucional, implantação em HM
 ## Registro de integração DT-10 (09/10/2026)
 
 A primeira extração do gate SQL de evidência para workflow reutilizável foi integrada por squash merge na PR [#858](https://github.com/lucianox777/Jornada/pull/858), commit `97efa6e3261d84d14c8d9553e7f83f76eaed7e5d`, após [CI #9796](https://github.com/lucianox777/Jornada/actions/runs/37970495157) bem-sucedida. O registro técnico e as ressalvas de escopo estão em `Solution/docs/DT10_CI_Extracao_Reutilizavel.md`; a especificação v5.00 candidata contém somente anexo informativo sobre a evidência. Esta atualização **não** publica uma nova versão normativa e não altera os artefatos v3.62 publicados.
+
+
+> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](../../Solution/docs/Decisoes_Canonicas_Identidade_Linkage_20260929.md). Peso TF zero é neutro; peso 1 aplica ajuste integral. O Calibrador deve estimar pesos e m/u usando bootstrap sintético IBGE e depois evidência real. Primeiro nome e último sobrenome significativo da pessoa e da mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Esta remissão não certifica implementação concluída.

@@ -13,14 +13,14 @@ public sealed class CombinedIdentityCandidatePlannerTests
             "Jose da Silva", new DateOnly(1975, 2, 11), "Maria da Silva");
         var passes = CombinedIdentityCandidatePlanner.Plan(observation);
         var byId = passes.ToDictionary(p => p.PassId, StringComparer.Ordinal);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(byId.Keys, Does.Contain("combined-exact"));
             Assert.That(byId.Keys, Does.Contain("combined-day-month-transpose"));
             Assert.That(byId.Keys, Does.Contain("combined-neighbor-year"));
             Assert.That(byId.Keys, Does.Contain("combined-name-phonetic"));
             Assert.That(byId.Keys, Does.Contain("combined-mother-phonetic"));
-        });
+        }));
         var transposed = byId["combined-day-month-transpose"].Clauses
             .ToDictionary(c => c.Feature, c => c.Values);
         Assert.That(transposed[BlockingFeatureNames.BirthMonth], Is.EquivalentTo(new[] { "11" }));
@@ -51,8 +51,8 @@ public sealed class CombinedIdentityCandidatePlannerTests
             null, "NAO_INFORMADO", "Jose Silva", new DateOnly(1975, 2, 11), null)), Is.Empty);
         Assert.That(CombinedIdentityCandidatePlanner.Plan(new IdentityObservation(
             null, "NAO_INFORMADO", "Jose Silva", null, "Maria Silva")), Is.Empty);
-        Assert.That(() => CombinedIdentityCandidatePlanner.Plan(new IdentityObservation(
+        Assert.That((Func<object?>)(() => CombinedIdentityCandidatePlanner.Plan(new IdentityObservation(
             "12345678909", "NAO_INFORMADO", "Jose Silva",
-            new DateOnly(1975, 2, 11), "Maria Silva")), Throws.InvalidOperationException);
+            new DateOnly(1975, 2, 11), "Maria Silva"))), Throws.InvalidOperationException);
     }
 }

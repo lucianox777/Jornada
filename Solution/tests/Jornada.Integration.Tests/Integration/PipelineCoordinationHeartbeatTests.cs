@@ -23,13 +23,13 @@ public sealed class PipelineCoordinationHeartbeatTests
 
         await Task.Delay(TimeSpan.FromMilliseconds(650));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(lease.IsLost, Is.False,
                 "Um lease com sessão e applocks íntegros não pode ser invalidado pelo próprio heartbeat.");
             Assert.That(lease.LostToken.IsCancellationRequested, Is.False,
                 "O token fail-closed só deve ser cancelado quando a sessão ou os locks forem realmente perdidos.");
-        });
+        }));
     }
 
     private static string RequireIntegrationConnection()

@@ -30,7 +30,7 @@ public sealed class DocumentationDriftContractTests
         var target = candidate.RootElement.GetProperty("candidate");
         var rc = target.GetProperty("technical_rc");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(release, Does.Contain("solution_engenharia=v4.05"));
             Assert.That(release, Does.Contain("schema_solution=v3.69"));
@@ -57,7 +57,7 @@ public sealed class DocumentationDriftContractTests
             Assert.That(evidence, Does.Contain("DT-07 — conferência de drift"));
             Assert.That(docsReadme, Does.Contain("Separação técnica antes do Ensaio — implementada"));
             Assert.That(docsReadme, Does.Contain("tolerância técnica V1 **FROZEN**"));
-        });
+        }));
     }
 
     [Test]
@@ -73,7 +73,7 @@ public sealed class DocumentationDriftContractTests
         const string version = "GITLEAKS_VERSION: '8.30.1'";
         const string hash = "GITLEAKS_LINUX_X64_SHA256: " +
             "'551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb'";
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(workflow, Does.Contain(version));
             Assert.That(workflow, Does.Contain(hash));
@@ -91,7 +91,7 @@ public sealed class DocumentationDriftContractTests
             Assert.That(gitleaks, Does.Contain("id = \"generic-api-key\""));
             Assert.That(gitleaks, Does.Contain("[[rules.allowlists]]"));
             Assert.That(scan, Does.Contain("histórica completa"));
-        });
+        }));
     }
 
     [Test]
@@ -132,12 +132,12 @@ public sealed class DocumentationDriftContractTests
         var core = File.ReadAllText(Path.Combine(coreDir, "Jornada.Linkage.Core.csproj"));
         var runner = Read(root, "Solution/src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj");
         var evidence = Read(root, "Solution/docs/DT07_Conferencia_Drift_20260928.md");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(core, Does.Contain("Jornada.Contracts.csproj"));
             Assert.That(runner, Does.Contain("Jornada.Linkage.Core.csproj"));
             Assert.That(evidence, Does.Contain("DT-08 já entregue"));
-        });
+        }));
     }
 
     private static string Read(string root, string relative)

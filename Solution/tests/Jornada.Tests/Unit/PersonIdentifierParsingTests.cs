@@ -37,12 +37,12 @@ public sealed class PersonIdentifierParsingTests
 
         Assert.That(identifiers, Has.Count.EqualTo(1));
         var cpf = identifiers.Single();
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(cpf.Tipo, Is.EqualTo("CPF"));
             Assert.That(cpf.Namespace, Is.EqualTo("BR"));
             Assert.That(cpf.ValorNormalizado, Is.EqualTo(cpfValue));
-        });
+        }));
     }
 
     [Test]
@@ -58,8 +58,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, legacyCpf, null, null));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, legacyCpf, null, null)));
 
         Assert.That(error!.Message, Does.Contain("diverge").IgnoreCase);
     }
@@ -78,8 +78,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, null, null));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, null)));
 
         Assert.That(error!.Message, Does.Contain("CPFs distintos").IgnoreCase);
     }
@@ -91,11 +91,11 @@ public sealed class PersonIdentifierParsingTests
 
         var identifiers = PersonIdentifierParsing.Parse(document.RootElement, SyntheticCpfA(), null, "CADASTRO_SMADS");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(identifiers, Has.Count.EqualTo(1));
             Assert.That(identifiers.Any(i => i.Tipo == "CODIGO_BASE_ORIGEM"), Is.False);
-        });
+        }));
     }
 
     [Test]
@@ -109,8 +109,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A"));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A")));
 
         Assert.That(error!.Message, Does.Contain("diverge").IgnoreCase);
     }
@@ -127,8 +127,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A"));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, "BASE_A")));
 
         Assert.That(error!.Message, Does.Contain("mais de um CODIGO_BASE_ORIGEM").IgnoreCase);
     }
@@ -144,8 +144,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, "P-SYNTH-1", null));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, "P-SYNTH-1", null)));
 
         Assert.That(error!.Message, Does.Contain("exige codigoBasePessoaOrigem").IgnoreCase);
     }
@@ -167,13 +167,13 @@ public sealed class PersonIdentifierParsingTests
 
         var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(identifier.Tipo, Is.EqualTo("NIS"));
             Assert.That(identifier.Namespace, Is.EqualTo(ns));
             Assert.That(identifier.ValorNormalizado, Is.EqualTo("12000000004"));
             Assert.That(identifier.StatusEvidencia, Is.EqualTo("COMPROVADO"));
-        });
+        }));
     }
 
     [Test]
@@ -187,8 +187,8 @@ public sealed class PersonIdentifierParsingTests
             }
             """);
 
-        var error = Assert.Throws<InvalidDataException>(() =>
-            PersonIdentifierParsing.Parse(document.RootElement, null, null, null));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            PersonIdentifierParsing.Parse(document.RootElement, null, null, null)));
 
         Assert.That(error!.Message, Does.Contain("namespace NIS, PIS, PASEP ou NIT"));
     }
@@ -206,13 +206,13 @@ public sealed class PersonIdentifierParsingTests
 
         var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(identifier.Tipo, Is.EqualTo("RG"));
             Assert.That(identifier.ValorNormalizado, Is.EqualTo("001234567"));
             Assert.That(identifier.Emissor, Is.Null);
             Assert.That(identifier.UfEmissor, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -228,12 +228,12 @@ public sealed class PersonIdentifierParsingTests
 
         var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(identifier.ValorNormalizado, Is.EqualTo("12345678X"));
             Assert.That(identifier.Emissor, Is.Null);
             Assert.That(identifier.UfEmissor, Is.EqualTo("SP"));
-        });
+        }));
     }
 
     [Test]
@@ -249,12 +249,12 @@ public sealed class PersonIdentifierParsingTests
 
         var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(identifier.ValorNormalizado, Is.EqualTo("123456789"));
             Assert.That(identifier.Emissor, Is.EqualTo("SSP"));
             Assert.That(identifier.UfEmissor, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -270,12 +270,12 @@ public sealed class PersonIdentifierParsingTests
 
         var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(identifier.ValorOriginal, Is.EqualTo("00.123.456-X"));
             Assert.That(identifier.ValorNormalizado, Is.EqualTo("00123456X"));
             Assert.That(identifier.UfEmissor, Is.EqualTo("SP"));
-        });
+        }));
     }
 
     [Test]
@@ -291,14 +291,14 @@ public sealed class PersonIdentifierParsingTests
 
         var identifier = PersonIdentifierParsing.Parse(document.RootElement, null, null, null).Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(identifier.Tipo, Is.EqualTo("CNH"));
             Assert.That(identifier.Namespace, Is.EqualTo("BR"));
             Assert.That(identifier.ValorOriginal, Is.EqualTo("001.234.567-89"));
             Assert.That(identifier.ValorNormalizado, Is.EqualTo("00123456789"));
             Assert.That(identifier.StatusEvidencia, Is.EqualTo("DECLARADO"));
-        });
+        }));
     }
 
     [Test]
@@ -317,10 +317,10 @@ public sealed class PersonIdentifierParsingTests
         Assert.That(identifiers, Has.Count.EqualTo(1));
         var identifier = identifiers.Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(identifier.Tipo, Is.EqualTo("UUID_JORNADA"));
             Assert.That(identifier.ValorNormalizado, Is.EqualTo(uuid.ToString("D")));
-        });
+        }));
     }
 }

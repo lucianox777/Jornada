@@ -159,30 +159,30 @@ public sealed class SemiblindIdentitySearchTests
     {
         var service = new SemiblindIdentitySearchService(
             new FakeRetriever(Candidate(1)), new FailingPolicy());
-        Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
             await service.SearchAsync(Context(),
                 new SemiblindIdentitySearchRequest("Pessoa", null, null),
-                Guid.NewGuid(), CancellationToken.None));
+                Guid.NewGuid(), CancellationToken.None)));
     }
 
     [Test]
     public void Overlong_name_is_rejected()
     {
         var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
-        Assert.ThrowsAsync<ArgumentException>(async () =>
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () =>
             await service.SearchAsync(Context(),
                 new SemiblindIdentitySearchRequest(new string('A', 201), null, null),
-                Guid.NewGuid(), CancellationToken.None));
+                Guid.NewGuid(), CancellationToken.None)));
     }
 
     [Test]
     public void Overlong_mother_name_is_rejected()
     {
         var service = new SemiblindIdentitySearchService(new FakeRetriever(), new FakePolicy());
-        Assert.ThrowsAsync<ArgumentException>(async () =>
+        Assert.ThrowsAsync<ArgumentException>((Func<Task>)(async () =>
             await service.SearchAsync(Context(),
                 new SemiblindIdentitySearchRequest("Pessoa", null, new string('A', 201)),
-                Guid.NewGuid(), CancellationToken.None));
+                Guid.NewGuid(), CancellationToken.None)));
     }
 
     [Test]

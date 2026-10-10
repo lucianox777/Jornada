@@ -21,14 +21,14 @@ public sealed class BlockingFeatureDiagnosticTests
 
         var report = BlockingFeatureDiagnostic.Analyze(observations);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.MethodVersion, Is.EqualTo(BlockingFeatureDiagnostic.MethodVersion));
             Assert.That(report.Fields[0].Field, Is.EqualTo("nome"));
             Assert.That(report.Fields.Single(x => x.Field == "nome").TrueMatchRecall, Is.EqualTo(0.75d).Within(1e-12));
             Assert.That(report.Fields.Single(x => x.Field == "nome").NonMatchRetention, Is.EqualTo(0.25d).Within(1e-12));
             Assert.That(report.Fields.Single(x => x.Field == "nome").ReductionRatio, Is.EqualTo(0.75d).Within(1e-12));
-        });
+        }));
     }
 
     [Test]
@@ -60,12 +60,12 @@ public sealed class BlockingFeatureDiagnosticTests
 
         var field = BlockingFeatureDiagnostic.Analyze(observations).Fields.Single();
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(field.TrueMatchRecall, Is.EqualTo(0.5d).Within(1e-12));
             Assert.That(field.MissingRate, Is.EqualTo(0.5d).Within(1e-12));
             Assert.That(field.NonMatchRetention, Is.EqualTo(0d).Within(1e-12));
-        });
+        }));
     }
 
     [Test]
@@ -77,8 +77,7 @@ public sealed class BlockingFeatureDiagnosticTests
             Obs(true, ("nome", false))
         };
 
-        Assert.That(
-            () => BlockingFeatureDiagnostic.Analyze(observations),
+        Assert.That((Func<object?>)(() => BlockingFeatureDiagnostic.Analyze(observations)),
             Throws.TypeOf<ArgumentException>());
     }
 

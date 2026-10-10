@@ -39,7 +39,7 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
     {
         var sql = ReadMigration("20260921_Nis_Rg_Identificadores_Secundarios.sql");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("NIS_BR_11_V1"));
             Assert.That(sql, Does.Contain("N'NAO_AUTOMATICA',N'NAO_HIERARQUICO'"));
@@ -49,7 +49,7 @@ public sealed class PersonOriginIdentitySchemaMigrationTests
             Assert.That(sql, Does.Not.Contain("NIS_DETERMINISTICO"));
             Assert.That(sql, Does.Not.Contain("INSERT identidade.identity_map").IgnoreCase);
             Assert.That(sql, Does.Not.Contain("CREATE UNIQUE INDEX UX_identidade_identity_map_nis").IgnoreCase);
-        });
+        }));
     }
 
     [Test]

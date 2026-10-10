@@ -19,10 +19,10 @@ public sealed class JornadaExitCodesTests
             JornadaExitCodes.INVALID_ARGS,
             JornadaExitCodes.CANCELLED
         };
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(observed, Is.EqualTo(new[] { 0, 1, 2, 3, 4, 64, 130 }));
             Assert.That(observed.Distinct().Count(), Is.EqualTo(observed.Length));
-        });
+        }));
     }
 }

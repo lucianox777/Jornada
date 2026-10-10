@@ -19,7 +19,7 @@ public sealed class Dt05CandidateStateSqlBindingContractTests
         var sql = File.ReadAllText(Path.Combine(root, "src", "Jornada.Linkage.Runner", "Dt05ReplaySql.cs"));
         var runner = File.ReadAllText(Path.Combine(root, "src", "Jornada.Linkage.Runner", "ProbabilisticLinkageBatchRunner.cs"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(manifest, Does.Contain("migrations/20261002_Linkage_Replay_Candidate_State_Binding_DT05.sql"));
             Assert.That(migration, Does.Contain("candidate_state_caminho_logico"));
@@ -32,6 +32,6 @@ public sealed class Dt05CandidateStateSqlBindingContractTests
             Assert.That(sql, Does.Contain("candidateState.ManifestSha256"));
             Assert.That(sql, Does.Contain("candidateState.PartitionSetSha256"));
             Assert.That(runner, Does.Contain("identity, candidateState, blockingProjection, workCt"));
-        });
+        }));
     }
 }

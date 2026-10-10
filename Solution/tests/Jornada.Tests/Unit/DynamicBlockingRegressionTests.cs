@@ -12,7 +12,7 @@ public sealed class DynamicBlockingRegressionTests
         var withoutInitials = BirthBlockingPlan.Create(new DateOnly(1982, 4, 10), " ", null, true, 1);
         var withInitialsMask = withInitials.Match(new DateOnly(1982, 4, 11), "Maria", "Outra");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That((withInitialsMask & BirthBlockingPass.MonthYearWithInitial) != 0, Is.True);
             Assert.That(withoutInitials.Match(new DateOnly(1982, 4, 11), "Maria", "Ana"),
@@ -21,6 +21,6 @@ public sealed class DynamicBlockingRegressionTests
                 Is.EqualTo(BirthBlockingPass.TransposedDayMonth));
             Assert.That(withoutInitials.Match(new DateOnly(1983, 4, 10), "", ""),
                 Is.EqualTo(BirthBlockingPass.NeighborYear));
-        });
+        }));
     }
 }

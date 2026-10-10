@@ -36,7 +36,7 @@ public sealed class SqlGovernanceArtifactTests
         })
         {
             var block = LastProcedureBlock(sql, procedure);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 StringAssert.Contains("SET XACT_ABORT ON", block, procedure);
                 StringAssert.Contains("DECLARE @jornada_own_tran BIT=CASE WHEN @@TRANCOUNT=0 THEN 1 ELSE 0 END", block, procedure);
@@ -46,7 +46,7 @@ public sealed class SqlGovernanceArtifactTests
                 StringAssert.Contains("IF @jornada_own_tran=1 AND XACT_STATE()<>0 ROLLBACK TRANSACTION", block, procedure);
                 StringAssert.Contains("BEGIN CATCH", block, procedure);
                 StringAssert.Contains("THROW;", block, procedure);
-            });
+            }));
         }
     }
 
@@ -59,7 +59,7 @@ public sealed class SqlGovernanceArtifactTests
         Assert.That(mergePosition, Is.GreaterThan(0));
         var afterMerge = block[mergePosition..];
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             StringAssert.Contains("SET XACT_ABORT ON", block);
             StringAssert.Contains("DECLARE @jornada_own_tran BIT=CASE WHEN @@TRANCOUNT=0 THEN 1 ELSE 0 END", block);
@@ -68,7 +68,7 @@ public sealed class SqlGovernanceArtifactTests
             StringAssert.Contains("MERGE gold.pessoa WITH (HOLDLOCK)", block);
             StringAssert.Contains("IF NOT EXISTS(SELECT 1 FROM @src)", afterMerge);
             StringAssert.DoesNotContain("FROM obs", afterMerge);
-        });
+        }));
     }
 
     [Test]
@@ -94,19 +94,19 @@ public sealed class SqlGovernanceArtifactTests
 
         var throw51114 = block.IndexOf("THROW 51114", StringComparison.Ordinal);
         var insertO = block.IndexOf("INSERT @o", StringComparison.Ordinal);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(throw51114, Is.GreaterThan(0));
             Assert.That(insertO, Is.GreaterThan(0));
             Assert.That(throw51114, Is.LessThan(insertO), "51114 deve ser alcançável antes da PK(obs) de @o.");
-        });
+        }));
     }
 
     [Test]
     public void Email_v2_upgrade_is_fail_closed_and_schema_marker_is_exact()
     {
         var sql = LoadDdl();
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             StringAssert.Contains("CREATE OR ALTER FUNCTION ref.fn_email_canonico_v2", sql);
             StringAssert.Contains("Upgrade de EMAIL_CONTATO encontrou valor legado incompatível com EMAIL_CANONICO_V2", sql);
@@ -116,7 +116,7 @@ public sealed class SqlGovernanceArtifactTests
             StringAssert.Contains("@value=N'3.62'", sql);
             StringAssert.Contains("Jornada.SolutionSchema", sql);
             StringAssert.Contains("@value=N'3.69'", sql);
-        });
+        }));
     }
 
     private static string LastProcedureBlock(string sql, string name)

@@ -12,7 +12,7 @@ public sealed class LinkageParameterCatalogTests
     [Test]
     public void Catalog_has_unique_parameter_names()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(LinkageParameterCatalog.CoreScoringRequired.Distinct(StringComparer.Ordinal).Count(),
                 Is.EqualTo(LinkageParameterCatalog.CoreScoringRequired.Count));
@@ -28,7 +28,7 @@ public sealed class LinkageParameterCatalogTests
                 Is.EqualTo(LinkageParameterCatalog.BirthComponentRequired.Count));
             Assert.That(LinkageParameterCatalog.CalibrationValidationRequired.Distinct(StringComparer.Ordinal).Count(),
                 Is.EqualTo(LinkageParameterCatalog.CalibrationValidationRequired.Count));
-        });
+        }));
     }
 
     [Test]
@@ -70,7 +70,7 @@ public sealed class LinkageParameterCatalogTests
 
         var parameters = LinkageParameterEstimator.Estimate(matched, unmatched, 100, 50, 0.5m, 0.95m, 0.03m);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             foreach (var name in LinkageParameterCatalog.CoreScoringRequired)
                 Assert.That(parameters.ContainsKey(name), Is.True, $"Estimator não emitiu {name}.");
@@ -86,7 +86,7 @@ public sealed class LinkageParameterCatalogTests
             Assert.That(parameters.ContainsKey(LinkageParameterCatalog.BirthJointEvidenceScoring), Is.False);
             Assert.That(parameters.ContainsKey(LinkageParameterCatalog.BirthSingleEvidenceScoring), Is.False);
             Assert.That(parameters.ContainsKey(LinkageParameterCatalog.BirthComponentScoring), Is.False);
-        });
+        }));
     }
 
     [Test]

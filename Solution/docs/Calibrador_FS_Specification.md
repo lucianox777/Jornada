@@ -89,3 +89,127 @@ Abreviação é fenômeno do processo de registro. Um estado `ABBREV_COMPATIBLE`
 ## 9. Promoção
 
 CI verde não equivale a homologação estatística. Antes de ativação probabilística real em HML/Produção continuam necessários corpus representativo, avaliação independente por estrato e aprovação institucional aplicável. A issue #31 concentra esse gate.
+
+
+> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-tf--norma-vigente-de-frequência-nominal-fs-e-calibrador-09102026). O peso TF zero é neutro (peso 1 aplica ajuste integral); os pesos e m/u devem ser estimados pelo Calibrador a partir do bootstrap sintético IBGE e, progressivamente, de evidência histórica real. Primeiro nome e último sobrenome significativo de pessoa e mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Em caso de divergência, prevalece a decisão canônica; este documento não certifica implementação concluída.
+
+
+## 10. Nome completo e componentes nominais (decisão vigente)
+
+A comparação FS principal preserva o **nome completo** da pessoa e da mãe. Primeiro nome e último sobrenome significativo são componentes auxiliares, não substitutos do nome completo. Exemplo: MARIA APARECIDA DE OLIVEIRA SANTOS continua integral; MARIA e SANTOS qualificam sua evidência.
+
+O Calibrador deve estimar níveis nominais compostos ou distribuições conjuntas, evitando somar como independentes as evidências do nome completo e de seus componentes. O mesmo vale para o nome materno. A TF por componente e seu peso, incluindo zero, devem ser estimados e avaliados com partições TRAIN/VALIDATION/TEST; o scorer somente aplica o snapshot aprovado.
+
+O IBGE fornece marginais iniciais: frequência de sobrenome em qualquer posição é **proxy**, não frequência observada do último sobrenome. A transição para dados municipais depende de suficiência e proveniência. Não inferir famílias a partir das marginais sintéticas.
+
+**Estado atual:** o código compara nomes completos e ajusta TF de primeiros nomes nos estados EXACT; TF de último sobrenome, níveis compostos e seleção automática do peso ainda exigem implementação e testes. Consultar a norma DC-LK-TF no documento de decisões canônicas.
+
+
+### Diagnóstico de implementação para a próxima frente (09/10/2026)
+
+A geração de rascunho em `LinkageParametersWorker.GenerateDraftFromGoldAsync` ainda define explicitamente `TERM_FREQUENCY_WEIGHT = 1m` após preparar `NominalTermFrequencyReferenceStore`. Portanto, a presença do parâmetro e a correção para aceitar zero **não significam estimação automática**. A próxima implementação deve remover a atribuição fixa e selecionar o peso com dados de calibração, sem consultar TEST para ajuste. É obrigatório conservar a referência do snapshot e evidências de seleção.
+
+A preparação atual (`NominalTermFrequencyReferenceStore`) publica apenas prenomes da pessoa e mãe; o suporte de sobrenome em `NominalTermFrequencySnapshot` está em evolução separada, e não deve ser habilitado no score antes de haver frequências governadas, calibração conjunta e validação contra dupla contagem. Na falta de evidência suficiente, não substituir um valor fixo por outro peso arbitrário. O corpus sintético de 30 mil pessoas é bootstrap metodológico, não prova de FDR real.
+
+
+## 11. Avaliação de dependências condicionais pelo Calibrador (decisão vigente)
+
+O Calibrador é responsável por avaliar dependências **condicionadas à classe de par** (match / non-match) e ao **universo de candidatos após blocking**. A hipótese de independência condicional do FS clássico não deve ser tomada como fato. A avaliação abrange: (a) nome integral, primeiro nome e último sobrenome significativo da pessoa; (b) os mesmos componentes da mãe; (c) dependências entre nome da pessoa e da mãe; (d) nome e nascimento; e (e) dependências e viés de seleção induzidos pelos passes de blocking.
+
+### Método e governança
+
+1. Em TRAIN, estimar distribuições conjuntas e marginais de níveis de comparação, separadas por classe, estrato e passe quando houver suporte; quantificar associação por medidas apropriadas a dados categóricos (informação mútua condicional, razões de probabilidades ou tabelas conjuntas com suavização), não presumir que Pearson seja apropriado.
+2. Comparar um FS básico, níveis nominais mutuamente exclusivos e correções condicionais parcimoniosas. **Nunca somar evidência do nome integral e de seus componentes como se fossem independentes.** A TF deve ser estimada no mesmo procedimento, com peso zero elegível e sem contagem dupla.
+3. Selecionar em VALIDATION, com os mesmos gates de suporte, FDR e minimização de FN estabelecidos para a fronteira de decisão. Usar TEST apenas para certificação independente, sem ajustar estrutura, pesos ou limiares depois de consultar seus resultados.
+4. Persistir estrutura selecionada, parâmetros, suporte amostral, métricas por estrato, proveniência de dados e razões para manter ou descartar cada dependência. Se o suporte for insuficiente, manter representação mais simples e declarar a dependência **não identificável**, não assumir independência comprovada.
+5. O runtime permanece com **um único scorer FS**, que aplica o snapshot calibrado; nenhuma segunda implementação de decisão, nem aprendizado em produção durante a resolução.
+
+### Limite da referência IBGE e dados reais
+
+Marginais publicadas de prenomes e sobrenomes **não identificam distribuições conjuntas** de nome, sobrenome, mãe e nascimento. O corpus sintético de 30 mil registros pode avaliar robustez sob hipóteses explícitas e correlações estruturais conhecidas, mas não autoriza inferir correlação familiar ou FDR real. Separar resultados `SINTETICO_HIPOTESE` de `REAL_OBSERVADO`; promover modelos dependentes de correlações populacionais apenas quando houver evidência municipal independente e suficiente. Amostragem de pares não-match deve refletir o blocking efetivo, evitando estimativas `u` da população irrestrita.
+
+**Situação de implementação:** requisito aprovado e documentado; a seleção automática de estrutura conjunta e a correção de dependências ainda não estão implementadas no Calibrador. Não confundir este contrato com funcionalidade entregue.
+
+
+## 12. Nascimento sintético por distribuição demográfica (decisão vigente)
+
+**Obrigatório:** gerar a data de nascimento da pessoa sintética a partir de uma distribuição demográfica de idades/datas, nunca por sorteio uniforme de anos ou datas como aproximação de população real. A referência inicial versionada está em `data/reference/synthetic-birth-sp/`: projeção IBGE Revisão 2024 para SP (2026), com benchmark auxiliar do Censo 2022 para cauda 100+, distribuição diária derivada e manifesto com SHA-256, período, geografia, hipótese de uniformidade intrajanela etária e tratamento de idades 90+. O arquivo diário possui 39.268 linhas segundo o manifesto. São **pesos demográficos derivados**, não contagens observadas de nascimentos por dia.
+
+O código `SyntheticDailyBirthDistribution.LoadAsync` valida esquema, datas, contagens positivas e duplicatas e `Draw` amostra pela distribuição cumulativa; `SyntheticCorpusGenerator.MakePerson` usa esse sorteio quando configurado em modo `demographicPrimary`. Entretanto, o construtor legado sem `dailyBirths` ainda cai em sorteio uniforme de anos 1935–2020. **A existência da distribuição não prova que todo fluxo de geração a utilize.** O fluxo de bootstrap/calibração deve exigir a referência demográfica versionada e falhar fechado se ausente, evitando fallback uniforme silencioso.
+
+Preservar a mesma data de nascimento verdadeira entre observações da mesma identidade, aplicando degradações de data somente no modelo de erros observacionais. Separar a distribuição etária marginal da dependência entre nascimento e nomes: marginais IBGE não identificam automaticamente a distribuição conjunta. Testar distribuição empírica gerada versus pesos de referência por faixas etárias, cobertura de extremos, determinismo por seed, integridade SHA-256 e separação TRAIN/VALIDATION/TEST por identidade. Registrar fonte, transformação, hipótese intrafaixa, seed e desvios no relatório do Calibrador.
+
+**Situação:** o amostrador demográfico e referência já existem; a eliminação/isolamento do fallback uniforme e os gates de cobertura de todos os caminhos de bootstrap ainda devem ser verificados/implementados. Não declarar esses gates concluídos.
+
+
+## 13. Tabelas FS consolidadas e bootstrap inicial congelado em `ref` (decisão vigente)
+
+A **primeira calibração de blocking e FS** é um bootstrap governado a partir da camada `ref` (frequências nominais IBGE, distribuição demográfica de nascimento e políticas de calibração). Seu **snapshot publicado é congelado**: não recalcular ou sobrescrever silenciosamente pesos, `m/u`, passes, limiares, TF, estrutura de dependências, proveniência ou fingerprints. Mudanças posteriores, inclusive substituição por evidência municipal real, criam **nova versão/modelo** e seguem VALIDATION, TEST, gates e promoção auditada. O congelamento refere-se ao snapshot publicado e seus vínculos, **não** à impossibilidade de publicar uma versão nova de `ref`.
+
+### Mapa lógico consolidado das tabelas e evidências FS
+
+| Conjunto lógico | Persistência atual ou referência | Fonte inicial | Regra de publicação |
+| --- | --- | --- | --- |
+| Frequências de nomes e sobrenomes | `ref.frequencia_nome_versao`, `ref.frequencia_nome` | IBGE versionado | Versão publicada imutável; novo modelo fixa ID da referência. |
+| Distribuição demográfica de nascimento | `data/reference/synthetic-birth-sp/` (artefato versionado com manifesto e SHA-256) | Projeção IBGE SP 2026, cauda Censo 2022 | Fixar fingerprint e transformação no bootstrap; **não afirmar** que já existe tabela SQL em `ref` para nascimento. |
+| Identidade e parâmetros FS | `identidade.modelo_linkage` e parâmetros associados ao modelo | Bootstrap calibrado | Modelo/snapshot versionado, sem mutação do publicado. |
+| Blocking | `identidade.linkage_ruleset`, `identidade.linkage_ruleset_passe`, `identidade.linkage_ruleset_passe_campo` | Calibração inicial governada | Ruleset e passes imutáveis; mudança gera novo modelo. |
+| TF materializada por modelo | `identidade.frequencia_linkage` | Frequências da versão `ref` fixada | Materialização vinculada ao modelo, sem consultar a referência ATIVA dinamicamente no score. |
+| Dependências condicionais, pesos TF selecionados e diagnóstico | **Extensão de contrato pendente** | Treino sintético com hipóteses identificadas; dados reais quando suficientes | Não declarar persistência implementada; adicionar ao snapshot governado sem criar fonte concorrente. |
+
+A expressão **“juntar tudo nas tabelas FS”** significa unificar a **visão lógica, as chaves de versão e a rastreabilidade do modelo**, sem copiar indiscriminadamente dados de referência para tabelas de decisão nem misturar referências imutáveis com métricas de execução. Referência `ref` → modelo FS/ruleset → evidências de validação → ativação → runs devem compartilhar IDs/fingerprints verificáveis.
+
+### Invariantes e verificação
+
+- Um bootstrap só é publicável com referência fixada, conteúdo verificável e configuração de blocking/FS coerente. A referência inicial não é recalibrada retroativamente quando chegarem novos lotes.
+- Em caso de atualização de dados reais, criar candidato novo; não alterar `ref` nem modelo já publicado. Reproduzir uma decisão histórica deve utilizar **exatamente** o snapshot vigente naquele run.
+- Conferir no código/migrações os gates de imutabilidade existentes e adicionar os que faltarem para nascimento e estrutura estatística conjunta. O banco já protege frequências publicadas em `ref` e rulesets de blocking, mas isso **não comprova** congelamento integral do bootstrap multidimensional.
+
+
+### Precisão da fonte e do horizonte da projeção (09/10/2026)
+
+A limitação de cobertura de nomes por **período de nascimento** no Censo 2022 não deve ser confundida com o horizonte da distribuição de **idades/datas de nascimento**. O usuário relembrou a discussão sobre projeção devido a cobertura histórica até aproximadamente 2002; esse ano exato **não foi confirmado** nos artefatos auditados e não deve constar como limite factual do IBGE. O produto Nomes no Brasil baseado no Censo 2022 informa frequências por período de nascimento; o recorte da fonte de nomes é distinto da projeção populacional utilizada para datas.
+
+A distribuição diária efetivamente implementada está congelada em `data/reference/synthetic-birth-sp/manifest.json`: fonte `IBGE_PROJECAO_POPULACAO_REVISAO_2024`, geografia `UF_SP`, referência `2026-07-01`, população projetada `46.179.008`, com benchmark auxiliar `IBGE_CENSO_2022_SIDRA_9514_TAIL_BENCHMARK` para cauda 100+; idade 90+ modelada por decaimento geométrico e datas intrafaixa distribuídas uniformemente por dia. A uniformidade **intrafaixa** é hipótese de interpolação, não sorteio uniforme de anos nem série diária observada. A projeção é da UF São Paulo, enquanto frequências nominais da pessoa usam o município 3550308; declarar essa diferença de geografia em cada modelo.
+
+A amostra gerada representa uma **distribuição etária projetada da população viva em 2026**, não uma série de nascimentos anuais nem uma previsão de nomes de recém-nascidos. Para associações entre prenomes e coortes de nascimento após a cobertura observada, não extrapolar frequências como se fossem medidas; marcar `PROJETADO/HIPOTESE` e aguardar fonte adicional verificável. Manter referência, método, fingerprint, recorte temporal, limites de extrapolação e validação empírica no snapshot FS congelado.
+
+
+### Matriz de implementação do congelamento FS — revisão de código (09/10/2026)
+
+A revisão das migrações `20260912_Frequencia_Nomes_Referencia.sql` e `20260910_Linkage_RuleSet_Passes.sql` comprova mecanismos **já implementados**, mas não comprova ainda o congelamento integral do bootstrap FS:
+
+| Invariante | Evidência existente | Situação |
+|---|---|---|
+| Referência nominal `ref` versionada | `ref.frequencia_nome_versao` e `ref.frequencia_nome`, publicação ATIVA | Implementado |
+| Versão nominal capturada atomicamente na criação do modelo | `identidade.tr_modelo_linkage_fixa_frequencia_nome_versao` com `HOLDLOCK` | Implementado |
+| Versão nominal do modelo imutável | Mesmo trigger proíbe troca de `frequencia_nome_versao_id` | Implementado |
+| Passes e campos de blocking vinculados a modelo | `identidade.linkage_ruleset*` | Implementado |
+| Alteração/remoção de ruleset e passes impedida | Triggers `INSTEAD OF UPDATE, DELETE` | Implementado |
+| Distribuição diária de nascimento em tabela `ref` versionada e vinculada ao modelo | Apenas arquivo + manifesto em `data/reference/synthetic-birth-sp` identificados | **Pendente** |
+| Snapshot único de todos os parâmetros FS (m/u/TF/prior/limiares) com fingerprint verificável | Não comprovado pelas duas migrações auditadas | **Pendente de implementação/auditoria** |
+| Validação das correlações condicionais por blocking e congelamento do resultado | Não comprovado pelas duas migrações auditadas | **Pendente** |
+
+**Critério de aceite para fechamento:** publicar modelo inicial somente com todas as referências requeridas fixadas e fingerprints consistentes; proibir mutação posterior; permitir recalibração apenas por nova versão; teste de tentativa de alteração rejeitada e teste de replay determinístico com referências antigas. Não introduzir cópias redundantes de `ref.frequencia_nome` em tabelas FS: armazenar FKs e fingerprints de origem, além dos parâmetros FS efetivamente estimados.
+
+
+### Retificação da auditoria de fingerprint (09/10/2026)
+
+**Evidência adicional encontrada após a matriz anterior:** `database/migrations/20260930_Linkage_Z_Model_Config_Bundle_Fingerprint.sql` já redefine `auditoria.sp_calcular_fingerprint_modelo_linkage`, incluindo identidade do modelo, versão/fingerprint do bundle Base+Blocking+FS, `identidade.parametro_linkage`, `identidade.estatistica_linkage`, ruleset/passes/campos e `identidade.frequencia_linkage`. A migração `20260930_Linkage_TF_Conference_Fingerprint.sql` também cobre TF, porém a migração `Z_Model_Config_Bundle_Fingerprint` é a definição posterior a observar na ordem de aplicação. **Portanto, o fingerprint agregado FS/TF não está ausente**: existe código SQL para calculá-lo. Ainda requerem comprovação por testes a abrangência de todas as referências demográficas, a obrigatoriedade dos pins na publicação e a rejeição de mutações após a publicação. Esta retificação prevalece sobre qualquer leitura da matriz acima que sugira inexistência do cálculo de fingerprint agregado.
+
+
+### Gate de conferência contra snapshot mutado — verificado em SQL (09/10/2026)
+
+`database/migrations/20260920_Linkage_Implementation_Conference_Evidence.sql` já define `auditoria.sp_assert_conferencia_linkage_conforme`: exige última evidência `CONFORME` para método/tolerância, gates primários consistentes, modelo na versão e estado esperados e **recalcula** `auditoria.sp_calcular_fingerprint_modelo_linkage`; quando o hash difere da evidência, lança erro `51989`. `20260920_Linkage_Conference_Command_Governance.sql` mantém registro governado. Portanto **há proteção existente contra reutilização de evidência de conferência após alteração do snapshot**. Falta verificar em teste de integração os pontos de chamada desse assert em todas as transições de publicação, inclusive estados posteriores, e garantir que fontes demográficas estejam incluídas no snapshot; não criar um segundo verificador paralelo.
+
+
+### Política DEV v1: testes atuais e preservação histórica de branches (09/10/2026)
+
+Durante o desenvolvimento da primeira versão, **retrocompatibilidade com implementações anteriores não é gate prioritário**. A suíte de testes deve priorizar comportamento vigente, invariantes de identidade, regressão funcional, integração, E2E, reprodutibilidade e evidência de publicação. Não confundir dispensa de retrocompatibilidade com permissão para modificar referências ou modelos já publicados: snapshots de `ref`, rulesets, fingerprints e decisões históricas permanecem auditáveis e imutáveis.
+
+É permitido manter **branches históricos selecionados**, PRs e commits para compreender a evolução das interações; não apagar automaticamente branches antigas como parte desta mudança. Branches históricos não são fonte normativa, nem justificam duplicação do runtime ou compatibilidade obrigatória. A decisão atual prevalece na `master` e na especificação vigente.
+
+O teste de equivalência Python/C# pode usar `--population-profile legacy` explicitamente enquanto tiver valor como diagnóstico de migração; sua execução não deve bloquear indefinidamente a remoção futura do legado quando houver cobertura equivalente da implementação demográfica. Para bootstrap atual, exigir `demographic-primary` e referência diária versionada.
+
+
+**Auditoria de chamadas do gerador (09/10/2026):** `scripts/dev-console-gold-synthetic.ps1` já fornece explicitamente `--population-profile demographic-primary` e `--birth-daily-source` com o artefato versionado. `scripts/local-synthetic-calibration.ps1` e `.sh` não invocam diretamente o comando `generate` do executável C#; portanto não precisam receber esses parâmetros. O gate `scripts/synthetic-corpus-equivalence-gate.py` foi adaptado para solicitar `legacy` de forma explícita. Esta inspeção cobre esses caminhos conhecidos, **não constitui varredura exaustiva de todas as invocações do repositório**.

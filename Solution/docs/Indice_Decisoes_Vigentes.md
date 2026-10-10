@@ -38,3 +38,6 @@
 ## Publicação manual de regras e página de calibração
 
 A [DT-15](DT15_Governanca_Decisao_Modelo.md) especifica comparação pareada ATIVO × RASCUNHO, revisão humana explícita e publicação atômica do bundle **lógico** (parâmetros/política, blocking, execução/validação), sem fingir que já existem três artefatos físicos ou manifesto completo implementado. Conferência de implementação não substitui a avaliação estatística da issue #31.
+
+
+> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-tf--norma-vigente-de-frequência-nominal-fs-e-calibrador-09102026). O peso TF zero é neutro (peso 1 aplica ajuste integral); os pesos e m/u devem ser estimados pelo Calibrador a partir do bootstrap sintético IBGE e, progressivamente, de evidência histórica real. Primeiro nome e último sobrenome significativo de pessoa e mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Em caso de divergência, prevalece a decisão canônica; este documento não certifica implementação concluída.

@@ -10,7 +10,7 @@ public sealed class Dt05BlockingProjectionSnapshotContractTests
         var src=Path.GetFullPath(Path.Combine(root,"..","..","..","..","..","src","Jornada.Linkage.Runner"));
         var publisher=File.ReadAllText(Path.Combine(src,"Dt05BlockingProjectionSnapshotPublisher.cs"));
         var runner=File.ReadAllText(Path.Combine(src,"ProbabilisticLinkageBatchRunner.cs"));
-        Assert.Multiple(() => {
+        Assert.Multiple((Action)(() => {
             Assert.That(publisher,Does.Contain("FROM identidade.blocking_chave WITH(HOLDLOCK)"));
             Assert.That(publisher,Does.Contain("normalizacao_versao=@normalizacao"));
             Assert.That(publisher,Does.Contain("projection_schema_version=@schema"));
@@ -21,6 +21,6 @@ public sealed class Dt05BlockingProjectionSnapshotContractTests
             Assert.That(publisher,Does.Contain("objects/{payloadSha[..2]}/{payloadSha}.json"));
             Assert.That(runner.IndexOf("blockingProjectionSnapshotPublisher.CaptureAsync",StringComparison.Ordinal),
                 Is.LessThan(runner.IndexOf("ScoreBatchAsync(batch",StringComparison.Ordinal)));
-        });
+        }));
     }
 }

@@ -19,7 +19,7 @@ public sealed class HmlScaleEvidenceContractTests
         var runbook = File.ReadAllText(Path.Combine(
             root, "Solution", "docs", "Runbook_HML_Volumetria.md"));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(program, Does.Contain("HML_SCALE_EVIDENCE"));
             Assert.That(source, Does.Contain("AllowNonProductionWrites"));
@@ -52,7 +52,7 @@ public sealed class HmlScaleEvidenceContractTests
             Assert.That(runbook, Does.Contain("Jornada.EnvironmentProfile"));
             Assert.That(canonicalDdl, Does.Not.Contain("Jornada.EnvironmentProfile"),
                 "O marcador HML deve ser provisionado por ambiente, nunca embutido no DDL canônico.");
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

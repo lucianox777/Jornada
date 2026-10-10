@@ -27,14 +27,14 @@ public sealed class GoldNamePublicationSqlServerTests
         Assert.That(projected, Is.Not.Null);
         var silverFirstToken = sample.NomeCmp.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0];
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(sample.NomePublicacaoNormalizado, Is.EqualTo(projected!.FirstNameNormalized));
             Assert.That(sample.NomePublicacaoNormalizado, Is.EqualTo(silverFirstToken),
                 "Gold deve reutilizar nome_cmp canônico, sem reimplementar normalização em T-SQL.");
             Assert.That(sample.MetodoVersao, Is.EqualTo(IbgeNamePublicationSemantics.MethodVersion));
             Assert.That(sample.NormalizacaoVersao, Is.EqualTo(IdentityComparison.NormalizationVersion));
-        });
+        }));
 
         await using (var drift = connection.CreateCommand())
         {
@@ -59,12 +59,12 @@ public sealed class GoldNamePublicationSqlServerTests
         }
 
         var afterRecomposition = await ReadGoldKeyAsync(connection, sample.PessoaUuid);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(afterRecomposition.Key, Is.EqualTo(projected.FirstNameNormalized));
             Assert.That(afterRecomposition.MethodVersion, Is.EqualTo(IbgeNamePublicationSemantics.MethodVersion));
             Assert.That(afterRecomposition.NormalizationVersion, Is.EqualTo(IdentityComparison.NormalizationVersion));
-        });
+        }));
     }
 
     private static async Task<Sample?> ReadSampleAsync(SqlConnection connection)

@@ -14,7 +14,7 @@ public sealed class RequirementsCurrentMapTests
         using var baseline = JsonDocument.Parse(File.ReadAllText(Path.Combine(requirements, "requirements-map.json")));
         using var current = JsonDocument.Parse(File.ReadAllText(Path.Combine(requirements, "requirements-map-v1.1.json")));
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(baseline.RootElement.GetProperty("counts").GetProperty("RF").GetInt32(), Is.EqualTo(50));
             Assert.That(baseline.RootElement.GetProperty("counts").GetProperty("RNF").GetInt32(), Is.EqualTo(33));
@@ -24,7 +24,7 @@ public sealed class RequirementsCurrentMapTests
             Assert.That(current.RootElement.GetProperty("counts").GetProperty("RF").GetInt32(), Is.EqualTo(56));
             Assert.That(current.RootElement.GetProperty("counts").GetProperty("RNF").GetInt32(), Is.EqualTo(37));
             Assert.That(current.RootElement.GetProperty("counts").GetProperty("RT").GetInt32(), Is.EqualTo(65));
-        });
+        }));
 
         var additiveRf = current.RootElement.GetProperty("additiveRf");
         var expectedRf = Enumerable.Range(51, 6).Select(n => $"RF-{n:000}").ToArray();
@@ -45,12 +45,12 @@ public sealed class RequirementsCurrentMapTests
             Assert.That(rnfText, Does.Contain($"## {id} "), $"RNF aditivo consolidado ausente: {id}");
 
         var indexText = File.ReadAllText(Path.Combine(requirements, "00_Indice_Mestre_Requisitos_Jornada_v1.1.md"));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(indexText, Does.Contain("um único documento por número"));
             Assert.That(indexText, Does.Contain("não devem ser lidos cumulativamente"));
             Assert.That(indexText, Does.Contain("RNF-001` a `RNF-033"));
-        });
+        }));
 
         var superseded = current.RootElement.GetProperty("supersededDocuments")
             .EnumerateArray()
@@ -59,11 +59,11 @@ public sealed class RequirementsCurrentMapTests
         Assert.That(superseded, Does.Contain("06_Adendo_RF_RNF_Linkage_Calibracao_Avaliacao_v1.0.md"));
 
         var adendum = File.ReadAllText(Path.Combine(requirements, "06_Adendo_RF_RNF_Linkage_Calibracao_Avaliacao_v1.0.md"));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(adendum, Does.Contain("HISTÓRICO — SUPERADO PELA CONSOLIDAÇÃO RF/RNF v1.1"));
             Assert.That(adendum, Does.Contain("não é fonte normativa concorrente"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()

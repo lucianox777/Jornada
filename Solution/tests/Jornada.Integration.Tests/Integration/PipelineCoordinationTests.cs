@@ -90,11 +90,11 @@ public sealed class PipelineCoordinationTests
         await using var holder = await holderCoordinator.AcquireExclusiveJobAsync(
             "TEST_EXCLUSIVE_HOLDER", TimeSpan.FromSeconds(5), CancellationToken.None);
 
-        Assert.ThrowsAsync<PipelineCoordinationBusyException>(async () =>
+        Assert.ThrowsAsync<PipelineCoordinationBusyException>((Func<Task>)(async () =>
         {
             await using var _ = await contenderCoordinator.AcquireExclusiveJobAsync(
                 "TEST_EXCLUSIVE_CONTENDER", TimeSpan.FromSeconds(5), CancellationToken.None);
-        });
+        }));
     }
 
     [Test]
@@ -109,11 +109,11 @@ public sealed class PipelineCoordinationTests
         await using var currentBatch = await coordinator.TryAcquireProcessorBatchAsync(CancellationToken.None);
         Assert.That(currentBatch, Is.Not.Null);
 
-        Assert.ThrowsAsync<PipelineCoordinationBusyException>(async () =>
+        Assert.ThrowsAsync<PipelineCoordinationBusyException>((Func<Task>)(async () =>
         {
             await using var _ = await coordinator.AcquireExclusiveJobAsync(
                 "TEST_DRAIN_TIMEOUT", TimeSpan.FromMilliseconds(250), CancellationToken.None);
-        });
+        }));
 
         await currentBatch!.DisposeAsync();
         await using var resumed = await coordinator.TryAcquireProcessorBatchAsync(CancellationToken.None);

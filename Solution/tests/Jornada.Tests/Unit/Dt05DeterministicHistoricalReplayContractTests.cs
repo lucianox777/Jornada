@@ -10,7 +10,7 @@ public sealed class Dt05DeterministicHistoricalReplayContractTests
         var root=Root();
         var runner=File.ReadAllText(Path.Combine(root,"src","Jornada.Linkage.Runner","ProbabilisticLinkageBatchRunner.cs"));
         var sql=File.ReadAllText(Path.Combine(root,"src","Jornada.Linkage.Runner","Dt05ReplaySql.cs"));
-        Assert.Multiple(()=>{
+        Assert.Multiple((Action)(()=>{
             Assert.That(sql,Does.Contain("ReadHistoricalRunIdentityAsync"));
             Assert.That(sql,Does.Contain("source run precisa estar PUBLICADO"));
             Assert.That(runner,Does.Contain("replayIdentity.ModelVersion"));
@@ -18,6 +18,6 @@ public sealed class Dt05DeterministicHistoricalReplayContractTests
             Assert.That(runner,Does.Contain("li.linkage_run_id=@replay_source_run_id"));
             Assert.That(runner,Does.Contain("REPLAY histórico não aceita filtros que alterem o universo"));
             Assert.That(runner,Does.Contain("request.Mode != LinkageRunType.REPLAY"));
-        });
+        }));
     }
 }

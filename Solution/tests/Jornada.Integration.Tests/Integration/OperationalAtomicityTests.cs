@@ -56,7 +56,7 @@ public sealed class OperationalAtomicityTests
             command.CommandType = CommandType.StoredProcedure;
             command.CommandText = "ingestao.sp_recalcular_entrega";
             command.Parameters.AddWithValue("@entrega_id", entregaId);
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await command.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await command.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(51983));
 
             await using var verify = connection.CreateCommand();
@@ -118,7 +118,7 @@ public sealed class OperationalAtomicityTests
             command.CommandType = CommandType.StoredProcedure;
             command.CommandText = "identidade.sp_sincronizar_atribuicao_fatos";
             command.Parameters.AddWithValue("@pessoa_observacao_id", observationId);
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await command.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await command.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(51984));
 
             await using var verify = connection.CreateCommand();

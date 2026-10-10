@@ -107,14 +107,14 @@ public sealed class IdentityGovernanceTests
                 verify.Parameters.AddWithValue("@u1", observations[0].Uuid); verify.Parameters.AddWithValue("@u2", observations[1].Uuid);
                 verify.Parameters.AddWithValue("@case", caseId);
                 await using var reader = await verify.ExecuteReaderAsync(); Assert.That(await reader.ReadAsync(), Is.True);
-                Assert.Multiple(() =>
+                Assert.Multiple((Action)(() =>
                 {
                     Assert.That(reader.GetInt32(0), Is.EqualTo(2));
                     Assert.That(reader.GetInt32(1), Is.GreaterThanOrEqualTo(2));
                     Assert.That(reader.GetInt32(2), Is.EqualTo(1));
                     Assert.That(reader.GetInt32(3), Is.GreaterThanOrEqualTo(1), "A correção muda atribuição e não reabre lote.");
                     Assert.That(reader.GetInt32(4), Is.EqualTo(2), "Os núcleos Gold de destino são recompostos na mesma correção.");
-                });
+                }));
             }
         }
         finally { await tx.RollbackAsync(); }
@@ -203,7 +203,7 @@ public sealed class IdentityGovernanceTests
             verify.Parameters.AddWithValue("@absorbed", absorbed); verify.Parameters.AddWithValue("@canonical", canonical);
             verify.Parameters.AddWithValue("@obs", JsonSerializer.Serialize(observations)); verify.Parameters.AddWithValue("@case", caseId);
             await using var result = await verify.ExecuteReaderAsync(); Assert.That(await result.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(result.GetInt32(0), Is.EqualTo(1));
                 Assert.That(result.GetInt32(1), Is.EqualTo(1));
@@ -214,7 +214,7 @@ public sealed class IdentityGovernanceTests
                 Assert.That(result.GetInt32(6), Is.EqualTo(1));
                 Assert.That(result.GetInt32(7), Is.GreaterThanOrEqualTo(1));
                 Assert.That(result.GetInt32(8), Is.GreaterThanOrEqualTo(1));
-            });
+            }));
         }
         finally { await tx.RollbackAsync(); }
     }
@@ -272,7 +272,7 @@ public sealed class IdentityGovernanceTests
             apply.Transaction = tx; apply.CommandType = CommandType.StoredProcedure; apply.CommandText = "identidade.sp_aplicar_caso_conflito_identidade";
             apply.Parameters.AddWithValue("@gestor_codigo", "SMADS"); apply.Parameters.AddWithValue("@caso_id", caseId);
             apply.Parameters.AddWithValue("@grupos_json", groups); apply.Parameters.AddWithValue("@correlation_id", Guid.NewGuid());
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await apply.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await apply.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(51119));
         }
         finally { await tx.RollbackAsync(); }
@@ -333,7 +333,7 @@ public sealed class IdentityGovernanceTests
             apply.Transaction = tx; apply.CommandType = CommandType.StoredProcedure; apply.CommandText = "identidade.sp_aplicar_caso_conflito_identidade";
             apply.Parameters.AddWithValue("@gestor_codigo", "SMADS"); apply.Parameters.AddWithValue("@caso_id", caseId);
             apply.Parameters.AddWithValue("@grupos_json", groups); apply.Parameters.AddWithValue("@correlation_id", Guid.NewGuid());
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await apply.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await apply.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(51119));
         }
         finally { await tx.RollbackAsync(); }
@@ -387,7 +387,7 @@ public sealed class IdentityGovernanceTests
             open.Parameters.AddWithValue("@justificativa", "Prova de atomicidade sem transação externa.");
             open.Parameters.AddWithValue("@correlation_id", Guid.NewGuid());
             var output = open.Parameters.Add("@caso_id", SqlDbType.UniqueIdentifier); output.Direction = ParameterDirection.Output;
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await open.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await open.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(51980));
 
             await using var verify = connection.CreateCommand();
@@ -399,12 +399,12 @@ public sealed class IdentityGovernanceTests
                 """;
             verify.Parameters.AddWithValue("@ato", ato); verify.Parameters.AddWithValue("@obs", observation); verify.Parameters.AddWithValue("@uuid", originalUuid);
             await using var reader = await verify.ExecuteReaderAsync(); Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(reader.GetInt32(0), Is.EqualTo(0), "Cabeçalho do caso deve ser revertido.");
                 Assert.That(reader.GetInt32(1), Is.EqualTo(1), "Vínculo corrente original deve ser preservado.");
                 Assert.That(reader.GetInt32(2), Is.EqualTo(1), "Status da Pessoa deve ser preservado.");
-            });
+            }));
         }
         finally { await DropTriggerAsync(connection, trigger); }
     }
@@ -458,7 +458,7 @@ public sealed class IdentityGovernanceTests
             apply.CommandType = CommandType.StoredProcedure; apply.CommandText = "identidade.sp_aplicar_caso_conflito_identidade";
             apply.Parameters.AddWithValue("@gestor_codigo", "SMADS"); apply.Parameters.AddWithValue("@caso_id", caseId);
             apply.Parameters.AddWithValue("@grupos_json", groups); apply.Parameters.AddWithValue("@correlation_id", Guid.NewGuid());
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await apply.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await apply.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(51981));
 
             await using var verify = connection.CreateCommand();
@@ -551,7 +551,7 @@ public sealed class IdentityGovernanceTests
             apply.Parameters.AddWithValue("@correlation_id", Guid.NewGuid());
             var correction = apply.Parameters.Add("@correcao_id", SqlDbType.UniqueIdentifier); correction.Direction = ParameterDirection.Output;
             var titular = apply.Parameters.Add("@pessoa_uuid_titular", SqlDbType.UniqueIdentifier); titular.Direction = ParameterDirection.Output;
-            var ex = Assert.ThrowsAsync<SqlException>(async () => await apply.ExecuteNonQueryAsync());
+            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await apply.ExecuteNonQueryAsync()));
             Assert.That(ex!.Number, Is.EqualTo(51982));
 
             var peopleAfter = Convert.ToInt32(await ExecuteScalarAsync(connection, "SELECT COUNT(*) FROM identidade.pessoa;"), System.Globalization.CultureInfo.InvariantCulture);
@@ -559,12 +559,12 @@ public sealed class IdentityGovernanceTests
             verify.CommandText = "SELECT (SELECT COUNT(*) FROM identidade.correcao_identidade WHERE ato_referencia=@ato),(SELECT COUNT(*) FROM identidade.identity_map WHERE identity_map_id=@map AND estado='EM_CONFLITO');";
             verify.Parameters.AddWithValue("@ato", ato); verify.Parameters.AddWithValue("@map", mapId);
             await using var reader = await verify.ExecuteReaderAsync(); Assert.That(await reader.ReadAsync(), Is.True);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(peopleAfter, Is.EqualTo(peopleBefore), "Falha injetada não pode alterar o conjunto de Pessoas.");
                 Assert.That(reader.GetInt32(0), Is.EqualTo(0), "Cabeçalho da correção deve ser revertido.");
                 Assert.That(reader.GetInt32(1), Is.EqualTo(1), "Mapa CPF original deve permanecer no estado de entrada da procedure.");
-            });
+            }));
         }
         finally
         {
@@ -675,7 +675,7 @@ public sealed class IdentityGovernanceTests
                 wrong.Parameters.AddWithValue("@gestor_codigo", "SEHAB"); wrong.Parameters.AddWithValue("@divergencia_id", id);
                 wrong.Parameters.AddWithValue("@status", "RESOLVIDA"); wrong.Parameters.AddWithValue("@desfecho", "NAO_DEVERIA");
                 wrong.Parameters.AddWithValue("@observacao", DBNull.Value); wrong.Parameters.AddWithValue("@correlation_id", DBNull.Value);
-                var ex = Assert.ThrowsAsync<SqlException>(async () => await wrong.ExecuteNonQueryAsync());
+                var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await wrong.ExecuteNonQueryAsync()));
                 Assert.That(ex!.Number, Is.EqualTo(51121));
             }
 

@@ -23,7 +23,7 @@
   "storage": {"bronzeRoot": "\\\\NASPROD\\Jornada\\Bronze"},
   "dotnet": {
     "installIfMissing": true,
-    "hostingBundleUrl": "https://aka.ms/dotnet/8.0/dotnet-hosting-win.exe"
+    "hostingBundleUrl": "https://aka.ms/dotnet/10.0/dotnet-hosting-win.exe"
   },
   "docker": {
     "mode": "None",

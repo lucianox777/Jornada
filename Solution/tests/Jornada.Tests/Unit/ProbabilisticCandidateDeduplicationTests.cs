@@ -20,14 +20,14 @@ public sealed class ProbabilisticCandidateDeduplicationTests
 
         var decision = ProbabilisticLinkageDecisions.Resolve(model, observation, [duplicate, duplicate]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(decision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
             Assert.That(decision.MelhorCandidatoUuid, Is.EqualTo(CandidateA));
             Assert.That(decision.SegundoCandidatoUuid, Is.Null);
             Assert.That(decision.SegundoScore, Is.Null);
             Assert.That(decision.Margem, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -36,13 +36,13 @@ public sealed class ProbabilisticCandidateDeduplicationTests
         var model = LinkageModelPolicy.Create(ModelId, 1, "FELLEGI_SUNTER_V1", Parameters());
         var observation = Observation();
 
-        var error = Assert.Throws<InvalidOperationException>(() => ProbabilisticLinkageDecisions.Resolve(
+        var error = Assert.Throws<InvalidOperationException>((Action)(() => ProbabilisticLinkageDecisions.Resolve(
             model,
             observation,
             [
                 new LinkageCandidate(CandidateA, observation.NomeCompleto, Birth, observation.NomeMae),
                 new LinkageCandidate(CandidateA, "Outro Nome", Birth, observation.NomeMae)
-            ]));
+            ])));
 
         Assert.That(error!.Message, Does.Contain("atributos divergentes"));
     }
@@ -61,13 +61,13 @@ public sealed class ProbabilisticCandidateDeduplicationTests
                 new LinkageCandidate(CandidateA, observation.NomeCompleto, Birth, observation.NomeMae)
             ]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(decision.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
             Assert.That(decision.MelhorCandidatoUuid, Is.EqualTo(CandidateA));
             Assert.That(decision.SegundoCandidatoUuid, Is.EqualTo(CandidateB));
             Assert.That(decision.MelhorCandidatoUuid, Is.Not.EqualTo(decision.SegundoCandidatoUuid));
-        });
+        }));
     }
 
     private static IdentityObservation Observation() =>

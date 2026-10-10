@@ -17,7 +17,7 @@ public sealed class IbgeTypedNameFrequencySnapshotTests
                 new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.Surname, "Silva", 100)
             });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(IbgeCalibrationAttributeCatalog.TryGetOccurrences(
                 snapshot, BlockingCandidateFeatureCatalog.FirstName, "silva", out var first), Is.True);
@@ -30,18 +30,17 @@ public sealed class IbgeTypedNameFrequencySnapshotTests
             Assert.That(IbgeCalibrationAttributeCatalog.TryGetOccurrences(
                 snapshot, BlockingCandidateFeatureCatalog.LastName, "SILVA", out var heuristicLastName), Is.False);
             Assert.That(heuristicLastName, Is.Zero);
-        });
+        }));
     }
 
     [Test]
     public void Snapshot_RequiresTerritorialCodeOutsideBrazil()
     {
-        Assert.That(
-            () => IbgeTypedNameFrequencyCatalog.Create(
+        Assert.That((Func<object?>)(() => IbgeTypedNameFrequencyCatalog.Create(
                 "v1",
                 IbgeGeographicScope.Municipality,
                 null,
-                new[] { new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.FirstName, "ANA", 1) }),
+                new[] { new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.FirstName, "ANA", 1) })),
             Throws.ArgumentException);
     }
 
@@ -64,11 +63,11 @@ public sealed class IbgeTypedNameFrequencySnapshotTests
             "3550308",
             new[] { new IbgeTypedNameFrequencyEntry(IbgeNameStatisticKind.FirstName, "ANA", 5) });
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(firstName.FingerprintSha256, Is.Not.EqualTo(surname.FingerprintSha256));
             Assert.That(firstName.FingerprintSha256, Is.Not.EqualTo(municipality.FingerprintSha256));
-        });
+        }));
     }
 
     [Test]

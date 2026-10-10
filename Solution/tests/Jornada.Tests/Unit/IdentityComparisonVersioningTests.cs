@@ -12,7 +12,7 @@ public sealed class IdentityComparisonVersioningTests
         const string left = "MARIA APARECIDA DA SILVA VALIDACAO UNICA";
         const string right = "MARIA APARECIDA DA SOUZA VALIDACAO UNICA";
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(IdentityComparison.CompareName(left, right),
                 Is.EqualTo(IdentityComparison.CompareNameV1(left, right)));
@@ -21,7 +21,7 @@ public sealed class IdentityComparisonVersioningTests
                 Is.EqualTo(IdentityComparison.CompareNameV1(left, right)));
             Assert.That(IdentityComparison.CompareNameV1(left, right),
                 Is.EqualTo(NameComparisonState.HIGH));
-        });
+        }));
     }
 
     [Test]
@@ -30,7 +30,7 @@ public sealed class IdentityComparisonVersioningTests
         const string left = "MARIA APARECIDA DA SILVA VALIDACAO UNICA";
         const string right = "MARIA APARECIDA DA SOUZA VALIDACAO UNICA";
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(IdentityComparison.JaroWinkler(
                     IdentityComparison.NormalizeText(left)!,
@@ -38,7 +38,7 @@ public sealed class IdentityComparisonVersioningTests
                 Is.GreaterThanOrEqualTo(0.92d));
             Assert.That(IdentityComparison.CompareNameV2(left, right),
                 Is.EqualTo(NameComparisonState.LOW));
-        });
+        }));
     }
 
     [Test]
@@ -47,25 +47,25 @@ public sealed class IdentityComparisonVersioningTests
         const string left = "GABRIEL OLIVEIRA LIMA VALIDACAO UNICA";
         const string right = "GABRIELA OLIVEIRA LIMA VALIDACAO UNICA";
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(IdentityComparison.CompareNameV1(left, right),
                 Is.EqualTo(NameComparisonState.MEDIUM));
             Assert.That(IdentityComparison.CompareNameV2(left, right),
                 Is.EqualTo(NameComparisonState.MEDIUM));
-        });
+        }));
     }
 
     [Test]
     public void V2_reuses_versioned_ptbr_particle_boundary_in_structural_guard()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(IdentityComparison.CompareNameV2("MARIA DA SILVA", "MARIA DE SILVA"),
                 Is.EqualTo(NameComparisonState.HIGH));
             Assert.That(IdentityComparison.CompareNameV2("MARIA SILVA", "MARIA DE SILVA"),
                 Is.EqualTo(NameComparisonState.HIGH));
-        });
+        }));
     }
 
     [Test]

@@ -16,13 +16,13 @@ public sealed class PossibilityRuleEngineTests
         var compatible = PossibilityRuleEngine.Evaluate(rule, Snapshot(("IDADE","20"),("MUNICIPIO","SAO_PAULO")), At);
         var incompatible = PossibilityRuleEngine.Evaluate(rule, Snapshot(("IDADE","17"),("MUNICIPIO","SAO_PAULO")), At);
         var missing = PossibilityRuleEngine.Evaluate(rule, Snapshot(("MUNICIPIO","SAO_PAULO")), At);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(compatible.Resultado, Is.EqualTo(PossibilityResult.COMPATIVEL));
             Assert.That(incompatible.Resultado, Is.EqualTo(PossibilityResult.NAO_COMPATIVEL));
             Assert.That(missing.Resultado, Is.EqualTo(PossibilityResult.NAO_AVALIAVEL));
             Assert.That(missing.Motivo, Is.EqualTo("DADO_AUSENTE:IDADE"));
-        });
+        }));
     }
 
     [Test]
@@ -38,7 +38,7 @@ public sealed class PossibilityRuleEngineTests
             [Guid.NewGuid()] = Snapshot()
         };
         var impact = PossibilityImpactSimulator.Compare(current, candidate, population, At);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(impact.Population, Is.EqualTo(4));
             Assert.That(impact.CurrentCompatible, Is.EqualTo(2));
@@ -47,16 +47,16 @@ public sealed class PossibilityRuleEngineTests
             Assert.That(impact.Exited, Is.EqualTo(1));
             Assert.That(impact.CurrentNotEvaluable, Is.EqualTo(1));
             Assert.That(impact.CandidateNotEvaluable, Is.EqualTo(1));
-        });
+        }));
     }
 
     [Test]
     public void Invalid_or_empty_published_rule_fails_closed()
     {
         var empty = new PossibilityRuleSet("SERVICO", "TEST", 1, "TEST.v1", []);
-        Assert.Throws<InvalidDataException>(() => PossibilityRuleValidator.Validate(empty));
+        Assert.Throws<InvalidDataException>((Action)(() => PossibilityRuleValidator.Validate(empty)));
         var invalid = new PossibilityRuleSet("SERVICO", "TEST", 1, "TEST.v1", [new("DATA", PossibilityRuleOperator.DATA_MAIOR_IGUAL, null)]);
-        Assert.Throws<InvalidDataException>(() => PossibilityRuleValidator.Validate(invalid));
+        Assert.Throws<InvalidDataException>((Action)(() => PossibilityRuleValidator.Validate(invalid)));
     }
 
     [Test]
@@ -65,20 +65,20 @@ public sealed class PossibilityRuleEngineTests
         var rule = new PossibilityRuleSet("SERVICO", "TEST", 3, "TEST.v3", [new("ATIVO", PossibilityRuleOperator.IGUAL, "SIM")]);
         var evaluator = new ConfiguredPossibilityEvaluator(rule, (_, _) => Task.FromResult(Snapshot(("ATIVO", "SIM"))));
         var result = await evaluator.EvaluateAsync(Guid.NewGuid(), CancellationToken.None);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(evaluator.Natureza, Is.EqualTo("SERVICO"));
             Assert.That(evaluator.Codigo, Is.EqualTo("TEST"));
             Assert.That(evaluator.Versao, Is.EqualTo(3));
             Assert.That(result.Resultado, Is.EqualTo(PossibilityResult.COMPATIVEL));
-        });
+        }));
     }
 
     [Test]
     public void Pending_catalog_cannot_be_loaded_for_execution()
     {
         const string json = """{"schemaVersion":1,"status":"PENDENTE","catalogVersion":"v1","rules":[],"approval":null}""";
-        Assert.Throws<InvalidDataException>(() => PossibilityRuleCatalogLoader.Load(json, requireApproved: true));
+        Assert.Throws<InvalidDataException>((Action)(() => PossibilityRuleCatalogLoader.Load(json, requireApproved: true)));
         var catalog = PossibilityRuleCatalogLoader.Load(json, requireApproved: false);
         Assert.That(catalog.Rules, Is.Empty);
     }
@@ -87,7 +87,7 @@ public sealed class PossibilityRuleEngineTests
     public void Approved_catalog_requires_complete_approval_metadata()
     {
         const string missingApproval = """{"schemaVersion":1,"status":"APROVADO","catalogVersion":"v1","rules":[{"natureza":"SERVICO","codigo":"TEST","versao":1,"implementacaoVersao":"TEST.v1","allOf":[{"fact":"ATIVO","operator":"PRESENTE"}]}],"approval":null}""";
-        Assert.Throws<InvalidDataException>(() => PossibilityRuleCatalogLoader.Load(missingApproval, requireApproved: true));
+        Assert.Throws<InvalidDataException>((Action)(() => PossibilityRuleCatalogLoader.Load(missingApproval, requireApproved: true)));
     }
 
     [Test]
@@ -105,7 +105,7 @@ public sealed class PossibilityRuleEngineTests
             File.WriteAllText(catalogPath, json);
             Assert.That(PossibilityRuleCatalogLoader.LoadFromFile(catalogPath, root).Status, Is.EqualTo("APROVADO"));
             File.AppendAllText(evidence, "tampered");
-            Assert.Throws<InvalidDataException>(() => PossibilityRuleCatalogLoader.LoadFromFile(catalogPath, root));
+            Assert.Throws<InvalidDataException>((Action)(() => PossibilityRuleCatalogLoader.LoadFromFile(catalogPath, root)));
         }
         finally
         {

@@ -41,12 +41,12 @@ public sealed class MetaphoneBrTests
         var accented = MetaphoneBr.Encode("João Gonçalves");
         var ascii = MetaphoneBr.Encode("Joao Goncalves");
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(accented, Is.Not.Null.And.Not.Empty);
             Assert.That(ascii, Is.EqualTo(accented));
             Assert.That(MetaphoneBr.Encode("João Gonçalves"), Is.EqualTo(accented));
-        });
+        }));
     }
 
     [TestCase(null)]

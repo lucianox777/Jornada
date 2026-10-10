@@ -23,12 +23,12 @@ public sealed class LinkageHandcraftedBoundaryConferenceTests
         var tolerance = ImplementationConferenceToleranceConfiguration.Load(
             Path.Combine(FindRepositoryRoot(), "Solution", "config", "linkage",
                 "implementation-conference-tolerance.json")).ToContract();
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(tolerance.Status, Is.EqualTo("FROZEN"));
             Assert.That(tolerance.Version, Is.EqualTo("V1_2026-09-26"));
             Assert.That(tolerance.MaxAbsolutePairLlrDifference, Is.EqualTo(0.01m));
-        });
+        }));
 
         // Cada indice representa um par deliberadamente escolhido, nao uma amostra.
         foreach (var scenario in BoundaryCases())
@@ -60,7 +60,7 @@ public sealed class LinkageHandcraftedBoundaryConferenceTests
                 $"canonical={request.CanonicalDecision.Status}, independent={report.IndependentDecision?.Status}, " +
                 $"maxPairLlrDiff={report.MaxObservedPairLlrDifference}, reason={report.Reason ?? "NONE"}");
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(request.CanonicalDecision.Status, Is.EqualTo(scenario.Expected),
                     $"{scenario.Mode}: fixture deixou de exercitar a decisao planejada.");
@@ -74,7 +74,7 @@ public sealed class LinkageHandcraftedBoundaryConferenceTests
                     row.AbsoluteLlrDifference <= tolerance.MaxAbsolutePairLlrDifference!.Value),
                     Is.True, scenario.Mode);
                 Assert.That(report.StatisticalValidation, Is.EqualTo("NOT_ASSESSED_ISSUE_31"));
-            });
+            }));
             if (scenario.Mode != "SATURATED_THREE_LLR")
                 Assert.That(Math.Abs(first.Breakdown.Score.Posterior - parameters[LinkageParameterCatalog.Threshold]),
                     Is.LessThan(0.000001m), $"{scenario.Mode} precisa permanecer na fronteira de T_LINKAGE.");
@@ -136,7 +136,7 @@ public sealed class LinkageHandcraftedBoundaryConferenceTests
             $"DT-01 handcrafted legacy five terms: posterior decimal={breakdown.Score.Posterior}, " +
             $"double={independentPosterior}, llr diff=" +
             $"{Math.Abs(breakdown.Contributions.Sum(c => c.LogLikelihoodRatio) - (decimal)independentLlr)}");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(breakdown.Contributions.Count, Is.EqualTo(5));
             Assert.That(Math.Abs(breakdown.Contributions.Sum(c => c.LogLikelihoodRatio) -
@@ -145,7 +145,7 @@ public sealed class LinkageHandcraftedBoundaryConferenceTests
             Assert.That(runtimeDecision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
             Assert.That(independentStatus, Is.EqualTo(runtimeDecision.Status));
             Assert.That(Math.Abs(breakdown.Score.Posterior - .9m), Is.LessThan(.000001m));
-        });
+        }));
     }
 
     private static readonly BoundaryCase[] Cases =
