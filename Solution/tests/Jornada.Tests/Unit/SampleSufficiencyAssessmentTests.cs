@@ -140,16 +140,46 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.That(result.Counts.Single().U, Is.Zero);
     }
     [Test]
+    public void UnmatchedGroupDiversityCannotCompensateForMatchedGroupDeficit()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "person-A"),
+            new Evidence("SP", "m2", true, true, "person-A"),
+            new Evidence("SP", "u1", true, false, "person-B"),
+            new Evidence("SP", "u2", true, false, "person-C")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 2, 2, 2);
+        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
+        Assert.That(result.Reasons.Any(r => r.Contains("independent groups m=1, u=2", StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
+    public void MatchedGroupDiversityCannotCompensateForUnmatchedGroupDeficit()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "person-A"),
+            new Evidence("SP", "m2", true, true, "person-B"),
+            new Evidence("SP", "u1", true, false, "person-C"),
+            new Evidence("SP", "u2", true, false, "person-C")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 2, 2, 2);
+        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
+        Assert.That(result.Reasons.Any(r => r.Contains("independent groups m=2, u=1", StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
     public void SingleUseEvidenceSequenceIsNotEnumeratedTwice()
     {
         var observations = new SingleUseEvidence(new[] {
             new Evidence("SP", "m1", true, true, "g1"),
-            new Evidence("SP", "u1", true, false, "g2")
+            new Evidence("SP", "m2", true, true, "g2"),
+            new Evidence("SP", "u1", true, false, "g3"),
+            new Evidence("SP", "u2", true, false, "g4")
         });
-        var result = Evaluate(observations, new[] { "SP" }, 1, 1, 2);
+        var result = Evaluate(observations, new[] { "SP" }, 2, 2, 2);
         Assert.That(result.State, Is.EqualTo(Status.Sufficient));
-        Assert.That(result.Counts.Single().M, Is.EqualTo(1));
-        Assert.That(result.Counts.Single().U, Is.EqualTo(1));
+        Assert.That(result.Counts.Single().M, Is.EqualTo(2));
+        Assert.That(result.Counts.Single().U, Is.EqualTo(2));
     }
 
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
