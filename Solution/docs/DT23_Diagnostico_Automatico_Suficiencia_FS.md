@@ -2,7 +2,7 @@
 
 **Decisão confirmada:** 09/10/2026 · **Estado:** ABERTA / NÃO IMPLEMENTADA · **Prioridade:** após estabilização do bootstrap congelado de referências da PR #883 · **Natureza:** diagnóstico read-only, sem execução de calibração.
 
-> **Estado de implementação (10/10/2026):** o avaliador puro `SampleSufficiencyAssessment` e testes unitários foram integrados pela PR #900. Isso **não** implementa coleta automática, contadores persistidos, política versionada, agendamento, semáforo no Monitor nem alertas. A DT-23 permanece aberta; calibração e ativação continuam manuais/governadas. A PR #904 propõe corrigir o filtro de estratos exigidos (aguarda CI/merge).
+> **Estado de implementação (10/10/2026):** o avaliador puro `SampleSufficiencyAssessment` e testes unitários foram integrados pela PR #900. Isso **não** implementa coleta automática, contadores persistidos, política versionada, agendamento, semáforo no Monitor nem alertas. A DT-23 permanece aberta; calibração e ativação continuam manuais/governadas. O filtro de estratos exigidos da PR #904 já foi incorporado. A PR #915 (ainda draft) acrescenta a verificação de diversidade de grupos independentes separadamente em `m` e `u` por estrato; seus testes e workflows aprovados não equivalem à implementação integral da DT-23.
 
 ## Fronteira obrigatória
 
