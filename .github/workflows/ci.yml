@@ -57,6 +57,8 @@ jobs:
           python3 Solution/scripts/ci-impact-classifier.py --files-from changed-files.txt --summary impact.json | tee impact.env
           grep -E '^(run_full|run_dt10)=' impact.env >> "$GITHUB_OUTPUT"
       - run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_dt12_branch_cleanup.py Solution/tests/scripts/test_dt12_merged_branch_cleanup.py Solution/tests/scripts/test_ci_required_gates.py
+      - name: Verify lock-hashed NuGet cache cannot bypass required gates
+        run: python3 Solution/scripts/test-ci-locked-nuget-cache-contract.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: ci-impact
@@ -78,6 +80,10 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.112'
+          # Packages are cached by the hash of every committed project lockfile.
+          # Locked restore and the dependency-lock artifact remain mandatory.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
       - name: Generate and validate NuGet lock files on branches and PRs
         if: github.ref_type != 'tag'
         run: ./scripts/nuget-lock-bootstrap.sh
@@ -118,6 +124,10 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.112'
+          # Packages are cached by the hash of every committed project lockfile.
+          # Locked restore and the dependency-lock artifact remain mandatory.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -340,6 +350,10 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.112'
+          # Packages are cached by the hash of every committed project lockfile.
+          # Locked restore and the dependency-lock artifact remain mandatory.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -378,6 +392,10 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.112'
+          # Packages are cached by the hash of every committed project lockfile.
+          # Locked restore and the dependency-lock artifact remain mandatory.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -509,6 +527,10 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.112'
+          # Packages are cached by the hash of every committed project lockfile.
+          # Locked restore and the dependency-lock artifact remain mandatory.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -614,6 +636,10 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.112'
+          # Packages are cached by the hash of every committed project lockfile.
+          # Locked restore and the dependency-lock artifact remain mandatory.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -816,6 +842,10 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.112'
+          # Packages are cached by the hash of every committed project lockfile.
+          # Locked restore and the dependency-lock artifact remain mandatory.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
       - name: Validate DDL upgrade and idempotency
         run: ./scripts/local-ddl-upgrade.sh
       - name: Execute DT-06 historical upgrade and rollback acceptance
@@ -878,6 +908,10 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.112'
+          # Packages are cached by the hash of every committed project lockfile.
+          # Locked restore and the dependency-lock artifact remain mandatory.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -932,6 +966,10 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.112'
+          # Packages are cached by the hash of every committed project lockfile.
+          # Locked restore and the dependency-lock artifact remain mandatory.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
@@ -970,6 +1008,10 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.112'
+          # Packages are cached by the hash of every committed project lockfile.
+          # Locked restore and the dependency-lock artifact remain mandatory.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
       - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
         with:
           name: nuget-lockfiles
