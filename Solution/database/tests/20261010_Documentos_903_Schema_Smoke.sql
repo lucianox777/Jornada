@@ -51,6 +51,11 @@ BEGIN TRY
      AND parent_id=OBJECT_ID(N'silver.documento_evidencia_valor'))
     THROW 52319,'Trigger de admissibilidade documental ausente.',1;
 
+ IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE name=N'ck_documento_evidencia_classe' AND parent_object_id=OBJECT_ID(N'silver.documento_evidencia_observacao')) THROW 52320,'Classe de evidencia sem dominio validado.',1;
+ IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE name=N'ck_documento_evidencia_status' AND parent_object_id=OBJECT_ID(N'silver.documento_evidencia_observacao')) THROW 52321,'Status documental sem dominio validado.',1;
+ IF NOT EXISTS(SELECT 1 FROM sys.key_constraints WHERE name=N'uq_documento_evidencia_origem' AND parent_object_id=OBJECT_ID(N'silver.documento_evidencia_observacao')) THROW 52322,'Idempotencia de origem documental ausente.',1;
+ IF NOT EXISTS(SELECT 1 FROM sys.columns WHERE object_id=OBJECT_ID(N'silver.documento_evidencia_observacao') AND name=N'data_evidencia' AND is_nullable=1) THROW 52323,'Data propria opcional nao preservada.',1;
+
  PRINT N'PASSOU: estruturas, RG/CIN, FKs, imutabilidade e data na instancia.';
  ROLLBACK TRANSACTION;
 END TRY
