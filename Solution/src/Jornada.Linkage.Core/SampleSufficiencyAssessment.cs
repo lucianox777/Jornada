@@ -12,7 +12,9 @@ public static class SampleSufficiencyAssessment
     {
         ArgumentNullException.ThrowIfNull(evidence);
         ArgumentNullException.ThrowIfNull(strata);
-        if (minimumM < 1 || minimumU < 1 || minimumIndependentGroups < 1) throw new ArgumentOutOfRangeException(nameof(minimumM));
+        if (minimumM < 1) throw new ArgumentOutOfRangeException(nameof(minimumM));
+        if (minimumU < 1) throw new ArgumentOutOfRangeException(nameof(minimumU));
+        if (minimumIndependentGroups < 1) throw new ArgumentOutOfRangeException(nameof(minimumIndependentGroups));
         // A malformed policy scope must never certify a sample under a different
         // stratum spelling or count a duplicated required stratum as independent.
         if (strata.Count == 0 || strata.Any(s => string.IsNullOrWhiteSpace(s) ||
