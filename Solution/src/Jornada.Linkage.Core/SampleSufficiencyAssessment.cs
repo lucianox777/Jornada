@@ -21,8 +21,10 @@ public static class SampleSufficiencyAssessment
         // eligibility counts and contradiction checks.
         // Normalize surrounding whitespace before deduplication: the same pair or
         // group must never inflate effective sample size through formatting alone.
-        var independentPairs = evidence.Where(e => requiredStrata.Contains(e.Stratum) && e.IndependentTruth
-                && !string.IsNullOrWhiteSpace(e.PairKey))
+        var independentEvidence = evidence.Where(e => requiredStrata.Contains(e.Stratum) && e.IndependentTruth).ToArray();
+        var missingPairKeyStrata = independentEvidence.Where(e => string.IsNullOrWhiteSpace(e.PairKey))
+            .Select(e => e.Stratum).Distinct(StringComparer.Ordinal).OrderBy(s => s, StringComparer.Ordinal).ToArray();
+        var independentPairs = independentEvidence.Where(e => !string.IsNullOrWhiteSpace(e.PairKey))
             .Select(e => e with {
                 PairKey = e.PairKey.Trim(),
                 IndependentGroupKey = e.IndependentGroupKey?.Trim()
@@ -70,11 +72,12 @@ public static class SampleSufficiencyAssessment
             .Where(g => g.Missing || g.MGroups < minimumIndependentGroups || g.UGroups < minimumIndependentGroups)
             .Select(g => $"Stratum {g.Stratum}: independent groups m={g.MGroups}, u={g.UGroups}; required per class={minimumIndependentGroups}; missing group identifiers block certification.")
             .ToArray();
-        if (contradictions.Length > 0 || provenanceConflicts.Length > 0)
+        if (contradictions.Length > 0 || provenanceConflicts.Length > 0 || missingPairKeyStrata.Length > 0)
             return new Result(Status.Indeterminate, counts,
                 reasons.Concat(groupReasons)
                     .Concat(contradictions.Select(s => $"Stratum {s}: contradictory independent labels block certification; investigate source integrity."))
                     .Concat(provenanceConflicts.Select(s => $"Stratum {s}: contradictory independent group provenance blocks certification; investigate source integrity."))
+                    .Concat(missingPairKeyStrata.Select(s => $"Stratum {s}: missing independent pair key blocks certification; investigate source integrity."))
                     .ToArray());
         return new Result(eligible.Length == 0 ? Status.Indeterminate :
             reasons.Length == 0 && groupReasons.Length == 0 ? Status.Sufficient : Status.Insufficient, counts, reasons.Concat(groupReasons).ToArray());
