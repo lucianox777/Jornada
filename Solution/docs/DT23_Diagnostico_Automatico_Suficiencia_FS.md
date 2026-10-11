@@ -4,6 +4,10 @@
 
 > **Estado de implementação (10/10/2026):** o avaliador puro `SampleSufficiencyAssessment` e testes unitários foram integrados pela PR #900. Isso **não** implementa coleta automática, contadores persistidos, política versionada, agendamento, semáforo no Monitor nem alertas. A DT-23 permanece aberta; calibração e ativação continuam manuais/governadas. O filtro de estratos exigidos da PR #904 já foi incorporado. A PR #915 (ainda draft) acrescenta a verificação de diversidade de grupos independentes separadamente em `m` e `u` por estrato; seus testes e workflows aprovados não equivalem à implementação integral da DT-23.
 
+## Critérios para encerrar a DT-23 (não satisfeitos pela PR #915)
+
+A aprovação dos testes do avaliador puro não significa que exista diagnóstico automático em operação. Antes do encerramento, demonstrar em ambiente descartável: (1) coletor de evidências reais independentes com origem auditável, exclusão de pares repetidos e escopo de estratos explícito; (2) persistência e versionamento da política e dos contadores por estrato e classe m/u; (3) execução periódica do diagnóstico com estados e justificativas visíveis no Monitor; (4) testes de insuficiência, ausência de verdade independente, contradição, dados malformados e mudança de versão; (5) prova negativa de que o diagnóstico jamais invoca geração, validação ou ativação de modelo. Registrar artefatos e execução antes de marcar a dívida como concluída.
+
 ## Fronteira obrigatória
 
 - **Automático:** acumular/consultar evidência real independente, calcular suficiência e emitir diagnóstico periódico com semáforo **VERDE / AMARELO / VERMELHO**, suportes e justificativas.
