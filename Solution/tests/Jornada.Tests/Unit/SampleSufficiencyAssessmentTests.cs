@@ -445,6 +445,23 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.That(Evaluate(evidence, new[] { "SP" }, 1, 1).State, Is.EqualTo(Status.Sufficient));
     }
 
+    [Test]
+    public void IndependentEvidenceFromAnotherStratumCannotInflateEffectiveSample()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "sp-m", true, true, "sp-person-m"),
+            new Evidence("SP", "sp-u", true, false, "sp-person-u"),
+            new Evidence("RJ", "rj-m1", true, true, "rj-person-m1"),
+            new Evidence("RJ", "rj-m2", true, true, "rj-person-m2"),
+            new Evidence("RJ", "rj-u1", true, false, "rj-person-u1"),
+            new Evidence("RJ", "rj-u2", true, false, "rj-person-u2")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 2, 2, 2);
+        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
+        Assert.That(result.Counts.Single().M, Is.EqualTo(1));
+        Assert.That(result.Counts.Single().U, Is.EqualTo(1));
+    }
+
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
     {
         private readonly Evidence[] _items;
