@@ -45,11 +45,25 @@ BEGIN TRY
     DECLARE @novo UNIQUEIDENTIFIER = NEWID();
     INSERT ref.dt23_diagnostico_suficiencia
         (diagnostico_id, politica_id, data_corte, estado, contadores_json, justificativas_json, proveniencia_json, registrado_em)
-    VALUES (@novo, @politica, SYSUTCDATETIME(), 'AMARELO', N'{"m":1,"u":0}', N'["suporte insuficiente"]', N'{"fonte":"smoke"}', DATEADD(SECOND,1,SYSUTCDATETIME()));
+    VALUES (@novo, @politica, DATEADD(SECOND,1,SYSUTCDATETIME()), 'AMARELO', N'{"m":1,"u":0}', N'["suporte insuficiente"]', N'{"fonte":"smoke"}', DATEADD(SECOND,1,SYSUTCDATETIME()));
     IF (SELECT COUNT(*) FROM ref.vw_dt23_ultimo_diagnostico WHERE politica_id=@politica) <> 1
        OR NOT EXISTS (SELECT 1 FROM ref.vw_dt23_ultimo_diagnostico
                       WHERE diagnostico_id=@novo AND estado='AMARELO')
         THROW 52307, 'Visão não escolhe o diagnóstico mais recente da política', 1;
+    -- Retry do mesmo corte deve falhar fechado sem produzir novo diagnóstico.
+    DECLARE @corte DATETIME2(3) = (SELECT data_corte FROM ref.dt23_diagnostico_suficiencia WHERE diagnostico_id=@novo);
+    DECLARE @duplicata_bloqueada BIT = 0;
+    BEGIN TRY
+        INSERT ref.dt23_diagnostico_suficiencia
+            (diagnostico_id, politica_id, data_corte, estado, contadores_json, justificativas_json, proveniencia_json)
+        VALUES (NEWID(), @politica, @corte, 'VERDE', N'{}', N'[]', N'{}');
+    END TRY
+    BEGIN CATCH
+        IF ERROR_NUMBER() IN (2601,2627) SET @duplicata_bloqueada = 1;
+        ELSE THROW;
+    END CATCH;
+    IF @duplicata_bloqueada <> 1
+        THROW 52310, 'Retry com mesmo corte não foi bloqueado', 1;
     ROLLBACK TRANSACTION;
 END TRY
 BEGIN CATCH
