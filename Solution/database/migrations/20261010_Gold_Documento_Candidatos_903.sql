@@ -117,7 +117,9 @@ GO
 -- Nao escolher primeiro/ultimo registro; preservar modelo, datas e origem.
 CREATE OR ALTER VIEW gold.vw_rg_documento_proveniencia
 AS
-SELECT d.pessoa_uuid, d.tipo_documento_codigo, d.numero_rg,
+-- A mesma evidencia pode repetir a linha de valor admissivel; nao inflar
+-- proveniencia por multiplicidade do JOIN, preservando IDs distintos.
+SELECT DISTINCT d.pessoa_uuid, d.tipo_documento_codigo, d.numero_rg,
        d.emissor_codigo, d.uf_emissor, d.quantidade_ocorrencias,
        c.documento_evidencia_id, c.pessoa_observacao_id, c.modelo_documento_id,
        c.data_evidencia, c.base_origem_codigo, c.ocorrencia_origem_codigo
