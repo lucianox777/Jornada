@@ -47,5 +47,20 @@ IF OBJECT_ID(N'gold.vw_documento_evidencia_candidato_uuid',N'V') IS NULL
  THROW 52337,'View documental por UUID nao instalada.',1;
 IF COL_LENGTH(N'gold.vw_documento_evidencia_candidato_uuid',N'pessoa_uuid') IS NULL
  THROW 52338,'View documental nao expoe UUID.',1;
+-- A projecao UUID deve preservar os qualificadores e a proveniencia.
+IF (SELECT COUNT(*) FROM sys.columns
+ WHERE object_id=OBJECT_ID(N'gold.vw_documento_evidencia_candidato_uuid')
+   AND name IN(N'pessoa_uuid',N'pessoa_observacao_id',N'tipo_documento_codigo',
+       N'documento_evidencia_id',N'modelo_documento_id',N'emissor_codigo',
+       N'uf_emissor',N'classe_evidencia',N'data_evidencia',
+       N'base_origem_codigo',N'ocorrencia_origem_codigo',
+       N'atributo_codigo',N'valor_original'))<>13
+ THROW 52339,'Projecao UUID perdeu atributos ou proveniencia documental.',1;
+IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
+ WHERE object_id=OBJECT_ID(N'gold.vw_documento_evidencia_candidato_uuid')
+   AND definition LIKE N'%mapeamentos_sem_ambiguidade%'
+   AND definition LIKE N'%outro.pessoa_uuid<>m.pessoa_uuid%')
+ THROW 52340,'Projecao UUID deve abster-se diante de vinculos ambiguos.',1;
+
 PRINT N'GOLD DOCUMENTARY CANDIDATE VIEW SCHEMA: OK';
 GO
