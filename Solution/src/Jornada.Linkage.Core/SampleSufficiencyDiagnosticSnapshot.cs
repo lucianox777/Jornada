@@ -19,8 +19,9 @@ public static class SampleSufficiencyDiagnosticSnapshot
             throw new ArgumentException("Canonical policy version required.", nameof(policyVersion));
         if (cutoffUtc == default || cutoffUtc.Offset != TimeSpan.Zero)
             throw new ArgumentException("A non-default UTC cutoff is required.", nameof(cutoffUtc));
-        if (string.IsNullOrWhiteSpace(sourceKind) || sourceKind != sourceKind.Trim())
-            throw new ArgumentException("Canonical evidence source kind required.", nameof(sourceKind));
+        // Unknown or malformed provenance is an observation, not an exception:
+        // it must produce INDETERMINADO and can never certify sufficiency.
+        // This includes null, blank and padded source kinds.
         // Never treat synthetic or unverified source data as sufficient REAL evidence.
         var verified = string.Equals(sourceKind, "INDEPENDENT_REAL", StringComparison.Ordinal);
         var state = !verified ? "INDETERMINADO" : assessment.State switch
