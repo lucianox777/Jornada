@@ -128,6 +128,34 @@ IF (SELECT COUNT(*) FROM #rg_result)<>4
      WHERE numero_rg=N'00123X' AND emissor_codigo=N'SSP' AND uf_emissor=N'SP')<>2
  THROW 52347,'Regressao de chave RG: repeticoes devem unir e qualificadores distintos permanecer separados.',1;
 DROP TABLE #rg_result;
+-- Isolamento 1:N entre pessoas: mesmo numero e qualificadores em UUIDs
+-- diferentes nao podem ser fundidos em um documento global.
+DECLARE @uuid_outro UNIQUEIDENTIFIER='22222222-2222-2222-2222-222222222222';
+INSERT @rg VALUES (@uuid_outro,N'00123X',N'SSP',N'SP',6);
+;WITH normalized AS (
+ SELECT pessoa_uuid, UPPER(LTRIM(RTRIM(numero_rg))) AS numero_rg,
+        UPPER(LTRIM(RTRIM(emissor_codigo))) AS emissor_codigo,
+        UPPER(LTRIM(RTRIM(uf_emissor))) AS uf_emissor,
+        documento_evidencia_id
+ FROM @rg
+), distinct_rg AS (
+ SELECT pessoa_uuid, numero_rg, emissor_codigo, uf_emissor,
+        COUNT_BIG(DISTINCT documento_evidencia_id) AS quantidade_ocorrencias
+ FROM normalized
+ GROUP BY pessoa_uuid, numero_rg, emissor_codigo, uf_emissor
+)
+SELECT pessoa_uuid, numero_rg, emissor_codigo, uf_emissor, quantidade_ocorrencias
+INTO #rg_multi_uuid
+FROM distinct_rg;
+IF (SELECT COUNT(*) FROM #rg_multi_uuid)<>5
+ OR (SELECT COUNT(*) FROM #rg_multi_uuid WHERE numero_rg=N'00123X'
+     AND emissor_codigo=N'SSP' AND uf_emissor=N'SP')<>2
+ OR (SELECT quantidade_ocorrencias FROM #rg_multi_uuid
+     WHERE pessoa_uuid=@uuid_outro AND numero_rg=N'00123X'
+       AND emissor_codigo=N'SSP' AND uf_emissor=N'SP')<>1
+ THROW 52348,'Regressao RG: mesma chave documental em UUIDs distintos nao pode ser fundida.',1;
+DROP TABLE #rg_multi_uuid;
+
 
 PRINT N'GOLD DOCUMENTARY CANDIDATE VIEW SCHEMA: OK';
 GO
