@@ -293,6 +293,24 @@ IF @gold_rg_rows>0 AND NOT EXISTS (
 )
  PRINT N'GOLD DOCUMENTARY BEHAVIOR: NO MULTIPLE DISTINCT RG PER UUID; 1:N collection fixture still required.';
 
+-- Evidencia obrigatoria no modo de aceite: nunca transformar ausencia de
+-- fixture instalada em falso positivo de teste comportamental.
+-- O pipeline que preparar uma massa sintética deve habilitar explicitamente
+-- SESSION_CONTEXT('gold_rg_fixture_required') = 1 antes de executar o smoke.
+IF TRY_CONVERT(INT,SESSION_CONTEXT(N'gold_rg_fixture_required'))=1
+BEGIN
+ IF NOT EXISTS (
+   SELECT 1 FROM gold.vw_rg_documento_distinto
+   GROUP BY pessoa_uuid HAVING COUNT_BIG(*)>=2
+ )
+  THROW 52360,'Fixture obrigatoria: nenhum UUID com dois RGs distintos na Gold instalada.',1;
+ IF NOT EXISTS (
+   SELECT 1 FROM gold.vw_rg_documento_distinto
+   WHERE quantidade_ocorrencias>=2
+ )
+  THROW 52361,'Fixture obrigatoria: nenhum RG com duas evidencias distintas.',1;
+END;
+
 -- Assert against the INSTALLED views, not only the table-variable model.
 -- These read-only checks catch duplicated Gold RG keys and provenance drift
 -- when the disposable E2E database contains documentary fixtures.
