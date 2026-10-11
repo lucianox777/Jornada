@@ -2,11 +2,11 @@ SET NOCOUNT ON;
 SET XACT_ABORT ON;
 GO
 -- #903 fase 3: smoke sem fixture e sem mutacao de dados.
+IF DB_NAME() NOT IN(N'JornadaE2E',N'JornadaSyntheticDev')
+ THROW 52329,'Somente SQL descartavel JornadaE2E/JornadaSyntheticDev.',1;
 IF OBJECT_ID(N'silver.vw_documento_evidencia_candidato_gold',N'V') IS NULL
  THROW 52330,'View de candidatos documentais Gold ausente.',1;
 -- Evidencias documentais nao elegem vencedor por classe ou data.
-IF DB_NAME() NOT IN(N'JornadaE2E',N'JornadaSyntheticDev')
- THROW 52329,'Somente SQL descartavel JornadaE2E/JornadaSyntheticDev.',1;
 IF EXISTS (SELECT 1 FROM sys.columns
  WHERE object_id=OBJECT_ID(N'silver.vw_documento_evidencia_candidato_gold')
  AND name IN(N'ordem_candidata',N'situacao_candidata',N'quantidade_mesma_classe_data',N'data_atendimento',N'capturado_em'))
@@ -24,6 +24,17 @@ IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
  AND definition LIKE N'%estado=N''PUBLICADO''%'
  AND definition LIKE N'%comprovacao_admissivel=1%')
  THROW 52333,'VIEW nao filtra somente evidencias validas, publicadas e admissiveis.',1;
+
+-- Regressao estrutural: nao escolher um documento unico por ranking temporal.
+-- A view deve preservar todas as ocorrencias admissiveis para consolidacao 1:N.
+IF EXISTS (SELECT 1 FROM sys.sql_modules
+ WHERE object_id=OBJECT_ID(N'silver.vw_documento_evidencia_candidato_gold')
+   AND (UPPER(definition) LIKE N'%ROW_NUMBER(%'
+     OR UPPER(definition) LIKE N'%ROW_NUMBER (%'
+     OR UPPER(definition) LIKE N'%TOP (1)%'
+     OR UPPER(definition) LIKE N'%TOP 1 %'
+     OR UPPER(definition) LIKE N'%ORDER BY%'))
+ THROW 52334,'VIEW nao pode eleger documento por ranking, TOP ou ordenacao.',1;
 
 -- Regressao estrutural: a selecao nunca deve atualizar Gold automaticamente.
 IF EXISTS (
