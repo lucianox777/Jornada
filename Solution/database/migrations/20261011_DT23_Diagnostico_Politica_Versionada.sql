@@ -42,6 +42,23 @@ BEGIN
         ON ref.dt23_diagnostico_suficiencia (data_corte DESC, registrado_em DESC);
 END;
 GO
+-- Reentry must validate existing policy records, not only fresh installations.
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints
+               WHERE parent_object_id = OBJECT_ID(N'ref.dt23_politica_suficiencia')
+                 AND name = N'CK_dt23_politica_json')
+    ALTER TABLE ref.dt23_politica_suficiencia WITH CHECK
+        ADD CONSTRAINT CK_dt23_politica_json CHECK (ISJSON(configuracao_json) = 1);
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints
+               WHERE parent_object_id = OBJECT_ID(N'ref.dt23_politica_suficiencia')
+                 AND name = N'CK_dt23_politica_versao')
+    ALTER TABLE ref.dt23_politica_suficiencia WITH CHECK
+        ADD CONSTRAINT CK_dt23_politica_versao CHECK (LEN(TRIM(versao)) > 0);
+IF EXISTS (SELECT 1 FROM sys.check_constraints
+           WHERE parent_object_id = OBJECT_ID(N'ref.dt23_politica_suficiencia')
+             AND name IN (N'CK_dt23_politica_json', N'CK_dt23_politica_versao')
+             AND (is_disabled = 1 OR is_not_trusted = 1))
+    THROW 52303, 'DT23 policy CHECK constraint disabled or untrusted; reconcile schema', 1;
+GO
 -- A repetição do mesmo ciclo não deve criar snapshots divergentes.
 -- Falha fechada quando a mesma política/corte já existe: o produtor deve
 -- comparar o snapshot existente antes de decidir reutilizá-lo.
