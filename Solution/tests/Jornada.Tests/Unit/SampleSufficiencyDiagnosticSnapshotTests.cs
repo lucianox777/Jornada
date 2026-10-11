@@ -22,6 +22,8 @@ public sealed class SampleSufficiencyDiagnosticSnapshotTests
         Assert.That(snapshot.State, Is.EqualTo("INDETERMINADO"));
         Assert.That(snapshot.ReasonsJson, Does.Contain("provenance not verified"));
         Assert.That(snapshot.ProvenanceJson, Does.Not.Contain("p1"));
+        using var counters = JsonDocument.Parse(snapshot.CountersJson);
+        Assert.That(counters.RootElement.GetArrayLength(), Is.Zero, "Unverified evidence must not report eligible counts.");
     }
 
     [Test]
