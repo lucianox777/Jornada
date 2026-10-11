@@ -43,5 +43,9 @@ IF EXISTS (
    AND (definition LIKE N'%UPDATE%gold.%' OR definition LIKE N'%MERGE%gold.%')
 )
  THROW 52336,'A view de candidatos nao pode escrever em Gold.',1;
+IF OBJECT_ID(N'gold.vw_documento_evidencia_candidato_uuid',N'V') IS NULL
+ THROW 52337,'View documental por UUID nao instalada.',1;
+IF COL_LENGTH(N'gold.vw_documento_evidencia_candidato_uuid',N'pessoa_uuid') IS NULL
+ THROW 52338,'View documental nao expoe UUID.',1;
 PRINT N'GOLD DOCUMENTARY CANDIDATE VIEW SCHEMA: OK';
 GO
