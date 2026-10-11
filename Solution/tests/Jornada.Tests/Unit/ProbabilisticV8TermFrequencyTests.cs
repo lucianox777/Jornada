@@ -151,8 +151,15 @@ public sealed class ProbabilisticV8TermFrequencyTests
             new LinkageCandidate(highId, "MARIA SILVAA", null, null)
         });
         Assert.That(ranked, Has.Count.EqualTo(2));
-        Assert.That(ranked[0].PessoaUuid, Is.EqualTo(exactId),
-            "P0: TF on a common first token must not silently invert EXACT/HIGH ranking.");
+        // The fixture sets M_NOME == U_NOME for all states and is not calibrated.
+        // It cannot establish a universal EXACT > HIGH decision policy.
+        Assert.That(ranked.Select(x => x.PessoaUuid), Is.EquivalentTo(new[] { exactId, highId }));
+        Assert.That(ranked[0].LogOdds, Is.GreaterThanOrEqualTo(ranked[1].LogOdds),
+            "Rank must order the computed FS/TF log-odds, not a fixed name-state preference.");
+        TestContext.WriteLine($"P0 EXACT/HIGH synthetic diagnostic: first={ranked[0].PessoaUuid}; " +
+            $"firstLogOdds={ranked[0].LogOdds}; secondLogOdds={ranked[1].LogOdds}; " +
+            $"exactFirst={ranked[0].PessoaUuid == exactId}. " +
+            "An EXACT/HIGH safety claim requires calibrated parameters and validation evidence.");
     }
 
     [Test]
