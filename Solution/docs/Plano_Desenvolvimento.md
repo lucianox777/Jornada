@@ -84,3 +84,8 @@ As três frentes são distintas de DT-05 (replay histórico NAS), DT-15 (decisã
 **Governança documental:** este plano define prioridades e dependências; [Dívidas técnicas](Dividas_Tecnicas.md) detalha critérios verificáveis, e as issues/PRs registram execução e evidências. IDs DT relacionados não são etapas adicionais nem comprovam implementação. A [matriz de regressão DT-17](Dividas_Tecnicas.md#ordem-proposta-e-critérios-de-aceite) é transversal a todas as entregas.
 
 A Gold é a melhor representação revisável, não certificação civil. Não inferir qualidade a partir da Secretaria ou da presença de CPF. Ver [diretrizes](Diretrizes_Identidade_Progressiva_Apoio_Decisao.md), [Ensaio único](Ensaio_Unico_Paridade_HML.md) e [testes](Testes_Operacao_Indice.md).
+
+
+### Console DEV — comandos independentes (PR #919, em revisão — 11/10/2026)
+
+A execução manual de comandos da Console DEV não deve ser bloqueada apenas por ausência de histórico de outras ações **na sessão atual**. Por exemplo, o operador pode solicitar carga Gold sintética sem ter executado ingestão na página. Pré-requisitos técnicos reais (infraestrutura, credenciais, modelo ativo e disponibilidade de serviços) continuam sendo verificados pelo executor e devem produzir erro explícito e observável, sem transformar a ordem visual dos botões em dependência funcional. A PR #919 altera a habilitação no catálogo e atualiza os testes HTTP e Chromium; enquanto não integrada e validada na CI, não declarar esse comportamento disponível na master. A execução de Linkage continua sob responsabilidade do Linkage, sem seleção manual de campos ou identidades por canal.
