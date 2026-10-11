@@ -243,6 +243,34 @@ IF EXISTS (
 )
  THROW 52358,'Gold RG tem proveniencia sem evidencia ou identificacao.',1;
 
+-- Contrato 1:N sobre a mesma forma relacional das views: dois RGs
+-- distintos por UUID, com repeticao do primeiro, sem escolher vencedor.
+DECLARE @rg_behavior TABLE (
+ pessoa_uuid UNIQUEIDENTIFIER NOT NULL,
+ numero_rg NVARCHAR(50) NOT NULL,
+ emissor_codigo NVARCHAR(50) NOT NULL,
+ uf_emissor NVARCHAR(8) NOT NULL,
+ documento_evidencia_id BIGINT NOT NULL,
+ data_evidencia DATE NULL
+);
+INSERT @rg_behavior VALUES
+ (@uuid,N'123',N'SSP',N'SP',101,'2020-01-01'),
+ (@uuid,N'123',N'SSP',N'SP',102,'2025-01-01'),
+ (@uuid,N'456',N'SSP',N'SP',103,'2018-01-01');
+;WITH documents AS (
+ SELECT pessoa_uuid,numero_rg,emissor_codigo,uf_emissor,
+        COUNT_BIG(DISTINCT documento_evidencia_id) AS ocorrencias
+ FROM @rg_behavior
+ GROUP BY pessoa_uuid,numero_rg,emissor_codigo,uf_emissor
+)
+SELECT pessoa_uuid,numero_rg,emissor_codigo,uf_emissor,ocorrencias
+INTO #rg_behavior_documents FROM documents;
+IF (SELECT COUNT(*) FROM #rg_behavior_documents WHERE pessoa_uuid=@uuid)<>2
+ OR (SELECT ocorrencias FROM #rg_behavior_documents WHERE numero_rg=N'123')<>2
+ OR (SELECT ocorrencias FROM #rg_behavior_documents WHERE numero_rg=N'456')<>1
+ THROW 52359,'Regressao RG 1:N: datas distintas nao podem eleger vencedor nem apagar RG.',1;
+DROP TABLE #rg_behavior_documents;
+
 -- Empty fixture sets must not count as behavioral proof. This smoke can
 -- still verify schema/invariants on an empty disposable database; a separate
 -- populated fixture run is required before declaring end-to-end coverage.
