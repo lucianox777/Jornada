@@ -293,7 +293,7 @@ public sealed class SampleSufficiencyAssessmentTests
             new Evidence(requestedStratum, "m1", true, true, "group-A"),
             new Evidence(requestedStratum, "u1", true, false, "group-B")
         };
-        Assert.Throws<ArgumentException>(() => Evaluate(evidence, new[] { requestedStratum }, 1, 1));
+        Assert.Throws<ArgumentException>((System.Action)(() => Evaluate(evidence, new[] { requestedStratum }, 1, 1)));
     }
 
     [Test]
@@ -303,7 +303,7 @@ public sealed class SampleSufficiencyAssessmentTests
             new Evidence("SP", "m1", true, true, "group-A"),
             new Evidence("SP", "u1", true, false, "group-B")
         };
-        Assert.Throws<ArgumentException>(() => Evaluate(evidence, new[] { "SP", "SP" }, 1, 1));
+        Assert.Throws<ArgumentException>((System.Action)(() => Evaluate(evidence, new[] { "SP", "SP" }, 1, 1)));
     }
 
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
