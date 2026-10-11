@@ -100,6 +100,15 @@ IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
    AND UPPER(definition) LIKE N'%SELECT DISTINCT D.PESSOA_UUID%')
  THROW 52351,'Proveniencia RG deve deduplicar linhas repetidas da mesma evidencia.',1;
 
+-- Fail-closed: RG sem numero, emissor ou UF nao pode entrar na colecao
+-- deduplicada. Permanecera disponivel apenas como candidato documental.
+IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
+ WHERE object_id=OBJECT_ID(N'gold.vw_rg_documento_distinto')
+   AND definition LIKE N'%NULLIF(LTRIM(RTRIM(c.valor_original)),N'''') IS NOT NULL%'
+   AND definition LIKE N'%NULLIF(LTRIM(RTRIM(c.emissor_codigo)),N'''') IS NOT NULL%'
+   AND definition LIKE N'%NULLIF(LTRIM(RTRIM(c.uf_emissor)),N'''') IS NOT NULL%')
+ THROW 52352,'RG sem qualificadores completos nao pode ser deduplicado como documento identificado.',1;
+
 -- Verifica por comportamento, sem tocar tabelas permanentes, a chave documental
 -- (UUID, numero, emissor, UF), repeticoes e qualificadores distintos.
 DECLARE @rg TABLE (
