@@ -21,6 +21,19 @@ public sealed class SampleSufficiencyAssessmentTests
     }
 
     [Test]
+    public void NonIndependentObservationsCannotCertifyEvenWithGroupIdentifiers()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", false, true, "group-A"),
+            new Evidence("SP", "u1", false, false, "group-B")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Counts.Single().M, Is.Zero);
+        Assert.That(result.Counts.Single().U, Is.Zero);
+    }
+
+    [Test]
     public void RepeatedPairsWithoutIndependentGroupIdentifiersCannotCertify()
     {
         var evidence = new[] {
