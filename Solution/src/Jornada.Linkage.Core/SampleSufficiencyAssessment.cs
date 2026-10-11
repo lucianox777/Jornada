@@ -112,7 +112,8 @@ public static class SampleSufficiencyAssessment
                     .Concat(provenanceConflicts.Select(s => $"Stratum {s}: contradictory independent group provenance blocks certification; investigate source integrity."))
                     .Concat(missingPairKeyStrata.Select(s => $"Stratum {s}: missing independent pair key blocks certification; investigate source integrity."))
                     .Concat(selfDerivedGroups.Select(s => $"Stratum {s}: independent group identifier equals pair key; provenance is not independent."))
-                    .Concat(crossStratumPairs.Select(key => $"Independent pair {key} appears in multiple required strata; certification blocked."))
+                    // PairKey may contain source identifiers or personal data: never emit it in diagnostics/logs.
+                    .Concat(crossStratumPairs.Length > 0 ? new[] { $"Independent pairs assigned to multiple required strata: {crossStratumPairs.Length}; certification blocked." } : Array.Empty<string>())
                     .Concat(malformedStrata ? new[] { "Independent evidence has a missing or noncanonical required stratum; certification blocked." } : Array.Empty<string>())
                     .ToArray());
         return new Result(eligible.Length == 0 ? Status.Indeterminate :
