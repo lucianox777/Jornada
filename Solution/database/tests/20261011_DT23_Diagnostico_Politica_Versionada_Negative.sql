@@ -72,3 +72,56 @@ BEGIN CATCH
 END CATCH;
 IF @invalid_green_rejected <> 1
     THROW 52328, 'Synthetic provenance was incorrectly accepted as VERDE', 1;
+
+-- Exhaustive fail-closed negative matrix for persisted state/provenance declarations.
+-- Each attempted write uses a fresh synthetic policy and a rolled-back transaction.
+-- These checks do not authenticate the real-world origin of evidence.
+DECLARE @invalid_cases TABLE (case_id INT PRIMARY KEY, bad_state VARCHAR(20), bad_provenance NVARCHAR(MAX));
+INSERT INTO @invalid_cases (case_id, bad_state, bad_provenance) VALUES
+(1, 'VERDE', N'{"sourceKind":"INDEPENDENT_REAL","verified":false}'),
+(2, 'VERDE', N'{"sourceKind":"INDEPENDENT_REAL"}'),
+(3, 'VERDE', N'{"sourceKind":"SYNTHETIC","verified":true}'),
+(4, 'INVALID', N'{"sourceKind":"INDEPENDENT_REAL","verified":true}');
+DECLARE @case INT = 1;
+WHILE @case <= 4
+BEGIN
+    DECLARE @bad_state VARCHAR(20), @bad_provenance NVARCHAR(MAX), @case_rejected BIT = 0;
+    SELECT @bad_state = bad_state, @bad_provenance = bad_provenance
+    FROM @invalid_cases WHERE case_id = @case;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        DECLARE @case_policy UNIQUEIDENTIFIER = NEWID();
+        INSERT INTO ref.dt23_politica_suficiencia(politica_id, versao, configuracao_json)
+        VALUES (@case_policy, CONVERT(NVARCHAR(36), @case_policy), N'{}');
+        INSERT INTO ref.dt23_diagnostico_suficiencia
+            (diagnostico_id, politica_id, data_corte, estado, contadores_json, justificativas_json, proveniencia_json)
+        VALUES (NEWID(), @case_policy, SYSUTCDATETIME(), @bad_state, N'[]', N'[]', @bad_provenance);
+        ROLLBACK TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+        IF ERROR_NUMBER() <> 547 THROW;
+        SET @case_rejected = 1;
+    END CATCH;
+    IF @case_rejected <> 1
+        THROW 52329, 'DT23 persisted invalid state/provenance declaration', 1;
+    SET @case += 1;
+END;
+
+-- Positive control: the SQL structural guard must not reject the expected JSON
+-- shape. This does NOT establish that the independent evidence is authentic.
+BEGIN TRY
+    BEGIN TRANSACTION;
+    DECLARE @positive_policy UNIQUEIDENTIFIER = NEWID();
+    INSERT INTO ref.dt23_politica_suficiencia(politica_id, versao, configuracao_json)
+    VALUES (@positive_policy, CONVERT(NVARCHAR(36), @positive_policy), N'{}');
+    INSERT INTO ref.dt23_diagnostico_suficiencia
+        (diagnostico_id, politica_id, data_corte, estado, contadores_json, justificativas_json, proveniencia_json)
+    VALUES (NEWID(), @positive_policy, SYSUTCDATETIME(), 'VERDE', N'[]', N'[]',
+            N'{"sourceKind":"INDEPENDENT_REAL","verified":true}');
+    ROLLBACK TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
