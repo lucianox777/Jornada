@@ -62,5 +62,35 @@ IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
    AND definition LIKE N'%outro.pessoa_uuid<>m.pessoa_uuid%')
  THROW 52340,'Projecao UUID deve abster-se diante de vinculos ambiguos.',1;
 
+-- Colecao RG distinta e relacao de proveniencia sao partes obrigatorias
+-- do incremento; uma CI verde nao pode ignorar views ausentes ou perder a
+-- identidade (UUID, numero, emissor, UF) ao consolidar ocorrencias.
+IF OBJECT_ID(N'gold.vw_rg_documento_distinto',N'V') IS NULL
+ THROW 52341,'View da colecao RG 1:N ausente.',1;
+IF OBJECT_ID(N'gold.vw_rg_documento_proveniencia',N'V') IS NULL
+ THROW 52342,'View de proveniencia dos RGs ausente.',1;
+IF (SELECT COUNT(*) FROM sys.columns
+ WHERE object_id=OBJECT_ID(N'gold.vw_rg_documento_distinto')
+   AND name IN(N'pessoa_uuid',N'tipo_documento_codigo',N'numero_rg',
+               N'emissor_codigo',N'uf_emissor',N'quantidade_ocorrencias'))<>6
+ THROW 52343,'Colecao RG perdeu chave documental ou contagem.',1;
+IF (SELECT COUNT(*) FROM sys.columns
+ WHERE object_id=OBJECT_ID(N'gold.vw_rg_documento_proveniencia')
+   AND name IN(N'pessoa_uuid',N'numero_rg',N'emissor_codigo',N'uf_emissor',
+               N'documento_evidencia_id',N'pessoa_observacao_id',
+               N'modelo_documento_id',N'data_evidencia',
+               N'base_origem_codigo',N'ocorrencia_origem_codigo'))<>10
+ THROW 52344,'Proveniencia RG perdeu identificadores ou origem.',1;
+IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
+ WHERE object_id=OBJECT_ID(N'gold.vw_rg_documento_distinto')
+   AND definition LIKE N'%COUNT_BIG(DISTINCT documento_evidencia_id)%'
+   AND definition LIKE N'%GROUP BY pessoa_uuid, numero_rg, emissor_codigo, uf_emissor%')
+ THROW 52345,'RG distinto deve deduplicar ocorrencias por chave completa.',1;
+IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
+ WHERE object_id=OBJECT_ID(N'gold.vw_rg_documento_proveniencia')
+   AND definition LIKE N'%c.documento_evidencia_id%'
+   AND definition LIKE N'%c.ocorrencia_origem_codigo%')
+ THROW 52346,'Relacao RG deve preservar todas as ocorrencias e suas origens.',1;
+
 PRINT N'GOLD DOCUMENTARY CANDIDATE VIEW SCHEMA: OK';
 GO
