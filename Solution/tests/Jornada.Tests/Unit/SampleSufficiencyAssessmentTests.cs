@@ -411,6 +411,22 @@ public sealed class SampleSufficiencyAssessmentTests
     }
 
     [Test]
+    public void CrossStratumIntegrityDiagnosticDoesNotExposePairIdentifiers()
+    {
+        const string sensitivePair = "cpf-12345678901";
+        var evidence = new[] {
+            new Evidence("SP", sensitivePair, true, true, "person-A"),
+            new Evidence("SP", "sp-u", true, false, "person-B"),
+            new Evidence("RJ", sensitivePair, true, true, "person-C"),
+            new Evidence("RJ", "rj-u", true, false, "person-D")
+        };
+        var result = Evaluate(evidence, new[] { "SP", "RJ" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(r => r.Contains("multiple required strata", StringComparison.Ordinal)), Is.True);
+        Assert.That(result.Reasons.All(r => !r.Contains(sensitivePair, StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
     public void DistinctPairsAcrossRequiredStrataRemainCertifiable()
     {
         var evidence = new[] {
