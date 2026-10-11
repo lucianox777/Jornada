@@ -42,3 +42,33 @@ BEGIN CATCH
     IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION;
     THROW;
 END CATCH;
+
+-- Both domain and provenance guards must be enforced (not merely declared).
+IF (SELECT COUNT(*) FROM sys.check_constraints
+    WHERE parent_object_id=OBJECT_ID(N'ref.dt23_diagnostico_suficiencia')
+      AND name IN (N'CK_dt23_diagnostico_estado', N'CK_dt23_diagnostico_verde_proveniencia')
+      AND is_disabled=0 AND is_not_trusted=0) <> 2
+    THROW 52327, 'DT23 diagnostic state/provenance CHECK constraints not trusted', 1;
+
+-- A green status with synthetic provenance is forbidden by the database itself.
+-- This is a structural guard, NOT independent verification of a REAL source.
+SET XACT_ABORT OFF;
+DECLARE @invalid_green_rejected BIT = 0;
+BEGIN TRY
+    BEGIN TRANSACTION;
+    DECLARE @invalid_green_policy UNIQUEIDENTIFIER = NEWID();
+    INSERT INTO ref.dt23_politica_suficiencia(politica_id, versao, configuracao_json)
+    VALUES (@invalid_green_policy, CONVERT(NVARCHAR(36), @invalid_green_policy), N'{}');
+    INSERT INTO ref.dt23_diagnostico_suficiencia
+        (diagnostico_id, politica_id, data_corte, estado, contadores_json, justificativas_json, proveniencia_json)
+    VALUES (NEWID(), @invalid_green_policy, SYSUTCDATETIME(), 'VERDE',
+            N'[]', N'[]', N'{"sourceKind":"SYNTHETIC","verified":false}');
+    ROLLBACK TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+    IF ERROR_NUMBER() <> 547 THROW;
+    SET @invalid_green_rejected = 1;
+END CATCH;
+IF @invalid_green_rejected <> 1
+    THROW 52328, 'Synthetic provenance was incorrectly accepted as VERDE', 1;

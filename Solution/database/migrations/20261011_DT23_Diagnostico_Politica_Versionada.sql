@@ -31,6 +31,7 @@ BEGIN
         CONSTRAINT FK_dt23_diagnostico_politica FOREIGN KEY (politica_id)
             REFERENCES ref.dt23_politica_suficiencia(politica_id),
         CONSTRAINT CK_dt23_diagnostico_estado CHECK (estado IN ('VERDE','AMARELO','VERMELHO','INDETERMINADO')),
+        CONSTRAINT CK_dt23_diagnostico_verde_proveniencia CHECK (estado <> 'VERDE' OR (ISNULL(JSON_VALUE(proveniencia_json, '$.sourceKind'), N'') = N'INDEPENDENT_REAL' AND ISNULL(JSON_VALUE(proveniencia_json, '$.verified'), N'') = N'true')),
         CONSTRAINT UQ_dt23_diagnostico_politica_corte UNIQUE (politica_id, data_corte),
         CONSTRAINT CK_dt23_diagnostico_json CHECK (
             ISJSON(contadores_json) = 1 AND
@@ -50,6 +51,25 @@ BEGIN
         THROW 52301, 'Diagnosticos duplicados por politica e corte; reconciliar antes de instalar unicidade', 1;
     ALTER TABLE ref.dt23_diagnostico_suficiencia ADD CONSTRAINT UQ_dt23_diagnostico_politica_corte UNIQUE (politica_id, data_corte);
 END;
+GO
+-- Reentry on an existing DT23 schema must not silently retain an unchecked state
+-- domain or accept a VERDE declaration explicitly marked synthetic/unverified.
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints
+               WHERE parent_object_id=OBJECT_ID(N'ref.dt23_diagnostico_suficiencia')
+                 AND name=N'CK_dt23_diagnostico_estado')
+    ALTER TABLE ref.dt23_diagnostico_suficiencia WITH CHECK
+        ADD CONSTRAINT CK_dt23_diagnostico_estado
+        CHECK (estado IN ('VERDE','AMARELO','VERMELHO','INDETERMINADO'));
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints
+               WHERE parent_object_id=OBJECT_ID(N'ref.dt23_diagnostico_suficiencia')
+                 AND name=N'CK_dt23_diagnostico_verde_proveniencia')
+    ALTER TABLE ref.dt23_diagnostico_suficiencia WITH CHECK
+        ADD CONSTRAINT CK_dt23_diagnostico_verde_proveniencia CHECK (estado <> 'VERDE' OR (ISNULL(JSON_VALUE(proveniencia_json, '$.sourceKind'), N'') = N'INDEPENDENT_REAL' AND ISNULL(JSON_VALUE(proveniencia_json, '$.verified'), N'') = N'true'));
+IF EXISTS (SELECT 1 FROM sys.check_constraints
+           WHERE parent_object_id=OBJECT_ID(N'ref.dt23_diagnostico_suficiencia')
+             AND name IN (N'CK_dt23_diagnostico_estado', N'CK_dt23_diagnostico_verde_proveniencia')
+             AND (is_disabled=1 OR is_not_trusted=1))
+    THROW 52302, 'DT23 diagnostic CHECK constraint disabled or untrusted; reconcile schema', 1;
 GO
 -- Consultas periódicas por política e corte não devem varrer todo o histórico.
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'ref.dt23_diagnostico_suficiencia') AND name=N'IX_dt23_diagnostico_politica_recente')
