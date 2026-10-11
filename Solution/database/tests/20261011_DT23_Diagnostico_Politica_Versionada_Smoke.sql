@@ -86,6 +86,22 @@ BEGIN TRY
        OR NOT EXISTS (SELECT 1 FROM ref.vw_dt23_ultimo_diagnostico
                       WHERE politica_id=@politica AND diagnostico_id=@novo AND estado='AMARELO')
         THROW 52313, 'Diagnosticos de politicas distintas foram misturados', 1;
+    -- A versão de política é parte da identidade de auditoria retornada pela visão.
+    IF NOT EXISTS (
+        SELECT 1 FROM ref.vw_dt23_ultimo_diagnostico AS v
+        INNER JOIN ref.dt23_politica_suficiencia AS p ON p.politica_id = v.politica_id
+        WHERE v.politica_id = @politica AND v.diagnostico_id = @novo
+          AND v.politica_versao = p.versao
+          AND v.data_corte = @corte
+          AND ISJSON(v.contadores_json) = 1
+          AND ISJSON(v.justificativas_json) = 1
+          AND ISJSON(v.proveniencia_json) = 1
+    ) THROW 52314, 'Visao nao preserva versao, corte ou JSON auditavel', 1;
+    -- Não é permitido alterar o estado de uma política por herança de outra.
+    IF EXISTS (
+        SELECT 1 FROM ref.vw_dt23_ultimo_diagnostico
+        WHERE politica_id = @politica_sem_snapshot AND estado = 'AMARELO'
+    ) THROW 52315, 'Diagnostico de politica alheia contaminou a visao', 1;
     ROLLBACK TRANSACTION;
 END TRY
 BEGIN CATCH
