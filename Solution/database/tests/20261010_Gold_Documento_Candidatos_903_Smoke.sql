@@ -224,6 +224,15 @@ DROP TABLE #rg_provenance;
 
 DROP TABLE #rg_repeat;
 
+-- Empty fixture sets must not count as behavioral proof. This smoke can
+-- still verify schema/invariants on an empty disposable database; a separate
+-- populated fixture run is required before declaring end-to-end coverage.
+DECLARE @gold_rg_rows BIGINT = (SELECT COUNT_BIG(*) FROM gold.vw_rg_documento_distinto);
+IF @gold_rg_rows=0
+ PRINT N'GOLD DOCUMENTARY BEHAVIOR: NO RG FIXTURES; view checks are vacuous (E2E fixture required).';
+ELSE
+ PRINT CONCAT(N'GOLD DOCUMENTARY BEHAVIOR: checked ',@gold_rg_rows,N' RG rows in installed views.');
+
 -- Assert against the INSTALLED views, not only the table-variable model.
 -- These read-only checks catch duplicated Gold RG keys and provenance drift
 -- when the disposable E2E database contains documentary fixtures.
