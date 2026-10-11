@@ -396,6 +396,32 @@ public sealed class SampleSufficiencyAssessmentTests
         }));
     }
 
+    [Test]
+    public void ReusedPairAcrossRequiredStrataBlocksCertification()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "shared", true, true, "sp-m"),
+            new Evidence("SP", "sp-u", true, false, "sp-u-group"),
+            new Evidence("RJ", " shared ", true, true, "rj-m"),
+            new Evidence("RJ", "rj-u", true, false, "rj-u-group")
+        };
+        var result = Evaluate(evidence, new[] { "SP", "RJ" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(r => r.Contains("multiple required strata", StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
+    public void DistinctPairsAcrossRequiredStrataRemainCertifiable()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "sp-m", true, true, "sp-g1"),
+            new Evidence("SP", "sp-u", true, false, "sp-g2"),
+            new Evidence("RJ", "rj-m", true, true, "rj-g1"),
+            new Evidence("RJ", "rj-u", true, false, "rj-g2")
+        };
+        Assert.That(Evaluate(evidence, new[] { "SP", "RJ" }, 1, 1).State, Is.EqualTo(Status.Sufficient));
+    }
+
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
     {
         private readonly Evidence[] _items;
