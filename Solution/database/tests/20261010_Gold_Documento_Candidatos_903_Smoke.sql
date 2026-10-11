@@ -92,6 +92,14 @@ IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
    AND definition LIKE N'%c.ocorrencia_origem_codigo%')
  THROW 52346,'Relacao RG deve preservar todas as ocorrencias e suas origens.',1;
 
+-- A VIEW de proveniencia nao deve multiplicar uma evidencia quando o JOIN
+-- com atributos admissiveis produz linhas repetidas para o mesmo documento.
+-- Esta verificacao incide sobre a definicao instalada, nao apenas a simulacao.
+IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
+ WHERE object_id=OBJECT_ID(N'gold.vw_rg_documento_proveniencia')
+   AND UPPER(definition) LIKE N'%SELECT DISTINCT D.PESSOA_UUID%')
+ THROW 52351,'Proveniencia RG deve deduplicar linhas repetidas da mesma evidencia.',1;
+
 -- Verifica por comportamento, sem tocar tabelas permanentes, a chave documental
 -- (UUID, numero, emissor, UF), repeticoes e qualificadores distintos.
 DECLARE @rg TABLE (
