@@ -70,8 +70,10 @@ INNER JOIN ref.dt23_politica_suficiencia AS p ON p.politica_id = d.politica_id
 WHERE NOT EXISTS (
     SELECT 1 FROM ref.dt23_diagnostico_suficiencia AS mais_recente
     WHERE mais_recente.politica_id = d.politica_id
-      AND (mais_recente.registrado_em > d.registrado_em
-        OR (mais_recente.registrado_em = d.registrado_em
-          AND mais_recente.diagnostico_id > d.diagnostico_id))
+      AND (mais_recente.data_corte > d.data_corte
+        OR (mais_recente.data_corte = d.data_corte
+          AND (mais_recente.registrado_em > d.registrado_em
+            OR (mais_recente.registrado_em = d.registrado_em
+              AND mais_recente.diagnostico_id > d.diagnostico_id))))
 );
 GO
