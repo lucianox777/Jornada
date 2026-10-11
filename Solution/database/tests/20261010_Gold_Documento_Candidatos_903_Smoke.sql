@@ -233,6 +233,19 @@ IF @gold_rg_rows=0
 ELSE
  PRINT CONCAT(N'GOLD DOCUMENTARY BEHAVIOR: checked ',@gold_rg_rows,N' RG rows in installed views.');
 
+-- A nonempty fixture is only meaningful when at least one RG carries
+-- multiple distinct evidence records. Report the coverage gap explicitly.
+IF @gold_rg_rows>0 AND NOT EXISTS (
+ SELECT 1 FROM gold.vw_rg_documento_distinto
+ WHERE quantidade_ocorrencias>=2
+)
+ PRINT N'GOLD DOCUMENTARY BEHAVIOR: NO REPEATED RG EVIDENCE; 1:N provenance fixture still required.';
+IF @gold_rg_rows>0 AND NOT EXISTS (
+ SELECT 1 FROM gold.vw_rg_documento_distinto
+ GROUP BY pessoa_uuid HAVING COUNT_BIG(*)>=2
+)
+ PRINT N'GOLD DOCUMENTARY BEHAVIOR: NO MULTIPLE DISTINCT RG PER UUID; 1:N collection fixture still required.';
+
 -- Assert against the INSTALLED views, not only the table-variable model.
 -- These read-only checks catch duplicated Gold RG keys and provenance drift
 -- when the disposable E2E database contains documentary fixtures.
