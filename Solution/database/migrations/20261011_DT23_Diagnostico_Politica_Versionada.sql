@@ -109,7 +109,9 @@ AS
 BEGIN
     SET NOCOUNT ON;
     SET XACT_ABORT ON;
-    BEGIN TRANSACTION;
+    DECLARE @ambient_transaction BIT = CASE WHEN @@TRANCOUNT > 0 THEN 1 ELSE 0 END;
+    IF @ambient_transaction = 1 SAVE TRANSACTION dt23_diagnostic_write;
+    ELSE BEGIN TRANSACTION;
     DECLARE @existing UNIQUEIDENTIFIER;
     SELECT @existing = diagnostico_id
     FROM ref.dt23_diagnostico_suficiencia WITH (UPDLOCK, HOLDLOCK)
@@ -124,10 +126,11 @@ BEGIN
               AND proveniencia_json = @proveniencia_json
         )
         BEGIN
-            COMMIT TRANSACTION;
+            IF @ambient_transaction = 0 COMMIT TRANSACTION;
             RETURN;
         END;
-        ROLLBACK TRANSACTION;
+        IF @ambient_transaction = 1 ROLLBACK TRANSACTION dt23_diagnostic_write;
+        ELSE ROLLBACK TRANSACTION;
         THROW 52304, 'DT23 cutoff already has a different immutable diagnostic', 1;
     END;
     INSERT INTO ref.dt23_diagnostico_suficiencia
@@ -135,7 +138,7 @@ BEGIN
          justificativas_json, proveniencia_json)
     VALUES (@diagnostico_id, @politica_id, @data_corte, @estado, @contadores_json,
             @justificativas_json, @proveniencia_json);
-    COMMIT TRANSACTION;
+    IF @ambient_transaction = 0 COMMIT TRANSACTION;
 END;
 GO
 -- A persistência não constitui autorização para gerar, validar ou ativar modelos.
