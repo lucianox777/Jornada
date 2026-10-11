@@ -23,6 +23,17 @@ IF EXISTS (
         OR UPPER(definition) LIKE '%VALIDATE%')
 )
     THROW 52324, 'DT23 view must not invoke calibration', 1;
+-- The operational writer must remain observational even when retried.
+IF OBJECT_ID(N'ref.sp_dt23_registrar_diagnostico', N'P') IS NULL
+    THROW 52330, 'DT23 idempotent diagnostic writer missing', 1;
+IF EXISTS (
+    SELECT 1 FROM sys.sql_modules
+    WHERE object_id = OBJECT_ID(N'ref.sp_dt23_registrar_diagnostico')
+      AND (UPPER(definition) LIKE '%GENERATE_DRAFT%'
+        OR UPPER(definition) LIKE '%ACTIVATE%'
+        OR UPPER(definition) LIKE '%VALIDATE%')
+)
+    THROW 52331, 'DT23 writer must not invoke calibration', 1;
 -- A policy without a diagnostic must not be presented as certified.
 BEGIN TRANSACTION;
 BEGIN TRY
