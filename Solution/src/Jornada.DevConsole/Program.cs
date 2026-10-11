@@ -108,7 +108,6 @@ app.MapGet("/api/commands",async(HttpResponse response,ConsoleRuntimeMode runtim
 
     return Results.Ok(CommandCatalog.All.Select(x=>{
         latest.TryGetValue(x.Id,out var last);
-        var flowBlockedReason=FlowBlockedReason(x,latest);
         var runtimeDisabledReason=runtime.DisabledReason(x);
         return new{
             x.Id,x.Title,x.Description,x.Implemented,x.CommandLine,x.DisplayCommand,x.Dependencies,x.DependencyNote,x.Surface,x.Stage,
@@ -116,8 +115,8 @@ app.MapGet("/api/commands",async(HttpResponse response,ConsoleRuntimeMode runtim
             order=Array.IndexOf(CommandCatalog.All,x),
             visible=x.Visible,
             destructive=x.Destructive,
-            disabled=runtime.IsDisabled(x)||flowBlockedReason is not null,
-            disabledReason=runtimeDisabledReason??flowBlockedReason,
+            disabled=runtime.IsDisabled(x),
+            disabledReason=runtimeDisabledReason,
             executionCount=counts.GetValueOrDefault(x.Id),
             executionState=ExecutionState(x),
             lastStatus=last?.Status,
@@ -310,10 +309,6 @@ app.MapPost("/api/commands/{command}/start",async(string command,[FromServices] 
         return Results.Conflict(new{error="RunOnce isolado ainda não implementado; execução canônica bloqueada."});
     if(runtime.IsDisabled(definition))
         return Results.Conflict(new{error=runtime.DisabledReason(definition),mode=runtime.Mode});
-    var latest=await store.LatestByCommandAsync(ct);
-    var flowBlockedReason=FlowBlockedReason(definition,latest);
-    if(flowBlockedReason is not null)
-        return Results.Conflict(new{error=flowBlockedReason,mode=runtime.Mode});
     var started=live.StartCommand(definition);
     activity.Add("EXECUCAO",definition.Id,"INICIADA",$"{definition.Title} #{started.ExecutionNumber}");
     return Results.Accepted($"/api/runs/{started.Id}",started);
@@ -423,22 +418,6 @@ app.MapGet("/api/runs/{id:guid}/artifacts/{index:int}/html",async(Guid id,int in
     if(index<0||index>=artifacts.Count)return Results.NotFound();
     return ServeArtifact(artifacts[index],env,true);
 });
-
-static string? FlowBlockedReason(CommandDefinition command,IReadOnlyDictionary<string,RunSummary> latest)
-{
-    if(!string.Equals(command.Id,"linkage",StringComparison.OrdinalIgnoreCase))return null;
-
-    if(!latest.TryGetValue("ingestion",out var ingestion)
-       ||!string.Equals(ingestion.Status,"SUCESSO",StringComparison.Ordinal))
-        return "Envie um arquivo de ingestão antes de executar Identidade e Linkage.";
-
-    if(!latest.TryGetValue("silver",out var silver)
-       ||!string.Equals(silver.Status,"SUCESSO",StringComparison.Ordinal)
-       ||silver.FinishedAt<ingestion.FinishedAt)
-        return "A última Entrega ainda não concluiu Bronze → Silver. Execute primeiro 'Processar Bronze → Silver' e aguarde SUCESSO.";
-
-    return null;
-}
 
 static IResult ServeArtifact(string path,IWebHostEnvironment env,bool html)
 {
