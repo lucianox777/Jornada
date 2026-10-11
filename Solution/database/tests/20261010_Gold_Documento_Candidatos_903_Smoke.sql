@@ -309,6 +309,20 @@ BEGIN
    WHERE quantidade_ocorrencias>=2
  )
   THROW 52361,'Fixture obrigatoria: nenhum RG com duas evidencias distintas.',1;
+ -- A mesma pessoa precisa ter dois documentos, sendo um deles repetido;
+ -- evidencias de pessoas diferentes nao podem satisfazer o gate.
+ IF NOT EXISTS (
+   SELECT 1 FROM gold.vw_rg_documento_distinto AS d
+   WHERE d.quantidade_ocorrencias>=2
+     AND EXISTS (
+       SELECT 1 FROM gold.vw_rg_documento_distinto AS outro
+       WHERE outro.pessoa_uuid=d.pessoa_uuid
+         AND (outro.numero_rg<>d.numero_rg
+           OR outro.emissor_codigo<>d.emissor_codigo
+           OR outro.uf_emissor<>d.uf_emissor)
+     )
+ )
+  THROW 52362,'Fixture obrigatoria: dois RGs e evidencia repetida devem pertencer ao mesmo UUID.',1;
 END;
 
 -- Assert against the INSTALLED views, not only the table-variable model.
