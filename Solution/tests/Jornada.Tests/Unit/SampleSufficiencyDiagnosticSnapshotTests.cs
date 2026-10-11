@@ -73,6 +73,26 @@ public sealed class SampleSufficiencyDiagnosticSnapshotTests
     }
 
     [Test]
+    public void RejectsDefaultCutoffWithoutInventingDiagnosticPeriod()
+    {
+        var result = Evaluate(Array.Empty<Evidence>(), new[] { "SP" }, 1, 1);
+        Assert.Throws<ArgumentException>((System.Action)(() =>
+            SampleSufficiencyDiagnosticSnapshot.Create(result, "v1", default, "INDEPENDENT_REAL")));
+    }
+
+    [Test]
+    public void NullProvenanceFailsClosedInsteadOfCertifyingEvidence()
+    {
+        var result = Evaluate(new[] {
+            new Evidence("SP", "m1", true, true, "g1"),
+            new Evidence("SP", "u1", true, false, "g2")
+        }, new[] { "SP" }, 1, 1);
+        var snapshot = SampleSufficiencyDiagnosticSnapshot.Create(result, "v1", Cutoff, null!);
+        Assert.That(snapshot.State, Is.EqualTo("INDETERMINADO"));
+        Assert.That(snapshot.ProvenanceJson, Does.Contain("UNVERIFIED"));
+    }
+
+    [Test]
     public void RejectsNonUtcCutoffAndMissingPolicyVersion()
     {
         var result = Evaluate(Array.Empty<Evidence>(), new[] { "SP" }, 1, 1);
