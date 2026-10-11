@@ -422,6 +422,29 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.That(Evaluate(evidence, new[] { "SP", "RJ" }, 1, 1).State, Is.EqualTo(Status.Sufficient));
     }
 
+    [Test]
+    public void WhitespaceCannotDisguiseSelfDerivedIndependentGroup()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, " m1 "),
+            new Evidence("SP", "u1", true, false, "u1")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(r => r.Contains("equals pair key", StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
+    public void SelfDerivedGroupInUnrequestedStratumDoesNotBlockCertification()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "person-A"),
+            new Evidence("SP", "u1", true, false, "person-B"),
+            new Evidence("RJ", "rj-m", true, true, "rj-m")
+        };
+        Assert.That(Evaluate(evidence, new[] { "SP" }, 1, 1).State, Is.EqualTo(Status.Sufficient));
+    }
+
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
     {
         private readonly Evidence[] _items;
