@@ -1,3 +1,6 @@
+-- Fail closed: tests may mutate only dedicated disposable CI databases.
+IF DB_NAME() NOT IN (N'JornadaE2E', N'JornadaSyntheticDev')
+    THROW 52399, 'DT23 SQL tests require disposable JornadaE2E or JornadaSyntheticDev.', 1;
 -- DT-23: contrato de persistência e ausência de automação de calibração.
 IF OBJECT_ID(N'ref.dt23_politica_suficiencia', N'U') IS NULL
     THROW 52301, 'Tabela de política DT23 não instalada', 1;
