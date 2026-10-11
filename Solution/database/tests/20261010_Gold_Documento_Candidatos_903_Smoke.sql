@@ -92,5 +92,42 @@ IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
    AND definition LIKE N'%c.ocorrencia_origem_codigo%')
  THROW 52346,'Relacao RG deve preservar todas as ocorrencias e suas origens.',1;
 
+-- Verifica por comportamento, sem tocar tabelas permanentes, a chave documental
+-- (UUID, numero, emissor, UF), repeticoes e qualificadores distintos.
+DECLARE @rg TABLE (
+ pessoa_uuid UNIQUEIDENTIFIER NOT NULL,
+ numero_rg NVARCHAR(50) NOT NULL,
+ emissor_codigo NVARCHAR(50) NOT NULL,
+ uf_emissor NVARCHAR(2) NOT NULL,
+ documento_evidencia_id BIGINT NOT NULL
+);
+DECLARE @uuid UNIQUEIDENTIFIER='11111111-1111-1111-1111-111111111111';
+INSERT @rg VALUES
+ (@uuid,N' 00123x ',N' ssp ',N' sp ',1),
+ (@uuid,N'00123X',N'SSP',N'SP',2),
+ (@uuid,N'00123X',N'OUTRO',N'SP',3),
+ (@uuid,N'00123X',N'SSP',N'RJ',4),
+ (@uuid,N'99999',N'SSP',N'SP',5);
+;WITH normalized AS (
+ SELECT pessoa_uuid, UPPER(LTRIM(RTRIM(numero_rg))) numero_rg,
+        UPPER(LTRIM(RTRIM(emissor_codigo))) emissor_codigo,
+        UPPER(LTRIM(RTRIM(uf_emissor))) uf_emissor,
+        documento_evidencia_id
+ FROM @rg
+), distinct_rg AS (
+ SELECT pessoa_uuid,numero_rg,emissor_codigo,uf_emissor,
+        COUNT_BIG(DISTINCT documento_evidencia_id) quantidade_ocorrencias
+ FROM normalized
+ GROUP BY pessoa_uuid,numero_rg,emissor_codigo,uf_emissor
+)
+SELECT pessoa_uuid,numero_rg,emissor_codigo,uf_emissor,quantidade_ocorrencias
+INTO #rg_result
+FROM distinct_rg;
+IF (SELECT COUNT(*) FROM #rg_result)<>4
+ OR (SELECT quantidade_ocorrencias FROM #rg_result
+     WHERE numero_rg=N'00123X' AND emissor_codigo=N'SSP' AND uf_emissor=N'SP')<>2
+ THROW 52347,'Regressao de chave RG: repeticoes devem unir e qualificadores distintos permanecer separados.',1;
+DROP TABLE #rg_result;
+
 PRINT N'GOLD DOCUMENTARY CANDIDATE VIEW SCHEMA: OK';
 GO
