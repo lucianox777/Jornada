@@ -93,6 +93,51 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'ref.dt23_di
     CREATE INDEX IX_dt23_diagnostico_politica_recente
         ON ref.dt23_diagnostico_suficiencia (politica_id, registrado_em DESC, diagnostico_id DESC);
 GO
+-- Operational cycles must not overwrite a previous cutoff, including concurrent retries.
+-- Writers compare an existing snapshot with their proposed immutable payload and
+-- return an explicit conflict rather than replacing an earlier observation.
+GO
+CREATE OR ALTER PROCEDURE ref.sp_dt23_registrar_diagnostico
+    @diagnostico_id UNIQUEIDENTIFIER,
+    @politica_id UNIQUEIDENTIFIER,
+    @data_corte DATETIME2(3),
+    @estado VARCHAR(20),
+    @contadores_json NVARCHAR(MAX),
+    @justificativas_json NVARCHAR(MAX),
+    @proveniencia_json NVARCHAR(MAX)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    BEGIN TRANSACTION;
+    DECLARE @existing UNIQUEIDENTIFIER;
+    SELECT @existing = diagnostico_id
+    FROM ref.dt23_diagnostico_suficiencia WITH (UPDLOCK, HOLDLOCK)
+    WHERE politica_id = @politica_id AND data_corte = @data_corte;
+    IF @existing IS NOT NULL
+    BEGIN
+        IF EXISTS (
+            SELECT 1 FROM ref.dt23_diagnostico_suficiencia
+            WHERE diagnostico_id = @existing AND diagnostico_id = @diagnostico_id
+              AND estado = @estado AND contadores_json = @contadores_json
+              AND justificativas_json = @justificativas_json
+              AND proveniencia_json = @proveniencia_json
+        )
+        BEGIN
+            COMMIT TRANSACTION;
+            RETURN;
+        END;
+        ROLLBACK TRANSACTION;
+        THROW 52304, 'DT23 cutoff already has a different immutable diagnostic', 1;
+    END;
+    INSERT INTO ref.dt23_diagnostico_suficiencia
+        (diagnostico_id, politica_id, data_corte, estado, contadores_json,
+         justificativas_json, proveniencia_json)
+    VALUES (@diagnostico_id, @politica_id, @data_corte, @estado, @contadores_json,
+            @justificativas_json, @proveniencia_json);
+    COMMIT TRANSACTION;
+END;
+GO
 -- A persistência não constitui autorização para gerar, validar ou ativar modelos.
 
 -- Snapshot mais recente por política: projeção estritamente read-only para consumidores operacionais.
