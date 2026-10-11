@@ -132,6 +132,49 @@ public sealed class ProbabilisticV8TermFrequencyTests
             Throws.InvalidOperationException.With.Message.Contains("guard demográfico"));
     }
 
+    [Test]
+    public void P0_RuntimeRanking_ExactVersusHigh_WithCommonFirstNameAndTF()
+    {
+        // Operational decision path: Rank applies TF after the base FS score.
+        // Illustrative fixture, not a certified calibrated model.
+        var model = LinkageModelPolicy.Create(ModelId, 9,
+            LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
+            Parameters(withTf: true), Snapshot());
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, null);
+        var exactId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        var highId = Guid.Parse("22222222-2222-4222-8222-222222222222");
+        Assert.That(IdentityComparison.CompareName("MARIA SILVA", "MARIA SILVAA",
+            LinkageParameterCatalog.NameComparisonContractForAlgorithm(model.AlgorithmVersion)),
+            Is.EqualTo(NameComparisonState.HIGH));
+        var ranked = ProbabilisticLinkageDecisions.Rank(model, observation, new[] {
+            new LinkageCandidate(exactId, "MARIA SILVA", null, null),
+            new LinkageCandidate(highId, "MARIA SILVAA", null, null)
+        });
+        Assert.That(ranked, Has.Count.EqualTo(2));
+        Assert.That(ranked[0].PessoaUuid, Is.EqualTo(exactId),
+            "P0: TF on a common first token must not silently invert EXACT/HIGH ranking.");
+    }
+
+    [Test]
+    public void P0_NameOnly_RareExact_ReportsActualResolveStatus()
+    {
+        var model = LinkageModelPolicy.Create(ModelId, 9,
+            LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
+            Parameters(withTf: true), Snapshot());
+        var candidateId = Guid.Parse("33333333-3333-4333-8333-333333333333");
+        var observation = new IdentityObservation(null, "SEM_CPF", "ZULEICA KRAUSE", null, null);
+        var decision = ProbabilisticLinkageDecisions.Resolve(model, observation,
+            new[] { new LinkageCandidate(candidateId, "ZULEICA KRAUSE", null, null) });
+        // Capture actual production decision instead of assuming a score implies RESOLVIDO.
+        Assert.That(decision.Status, Is.AnyOf(ResolutionStatus.RESOLVIDO,
+            ResolutionStatus.CONFLITO, ResolutionStatus.NAO_RESOLVIDO));
+        TestContext.WriteLine($"P0 name-only rare exact: status={decision.Status}; score={decision.MelhorScore}; reason={decision.Motivo}");
+        if (decision.Status == ResolutionStatus.RESOLVIDO)
+            Assert.That(decision.PessoaUuidResolvido, Is.EqualTo(candidateId));
+        else
+            Assert.That(decision.PessoaUuidResolvido, Is.Null);
+    }
+
     private static NominalTermFrequencySnapshot Snapshot()
         => NominalTermFrequencySnapshot.Create(new[]
         {
