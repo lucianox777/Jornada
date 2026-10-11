@@ -21,7 +21,15 @@ public static class SampleSufficiencyAssessment
         // eligibility counts and contradiction checks.
         // Normalize surrounding whitespace before deduplication: the same pair or
         // group must never inflate effective sample size through formatting alone.
-        var independentEvidence = evidence.Where(e => requiredStrata.Contains(e.Stratum) && e.IndependentTruth).ToArray();
+        // Independent evidence with an unassigned stratum or a whitespace-variant
+        // of a requested stratum cannot disappear from the denominator silently.
+        // Evidence from unrelated strata remains outside this assessment.
+        var relevantEvidence = evidence.Where(e => e.IndependentTruth &&
+            (string.IsNullOrWhiteSpace(e.Stratum) ||
+             requiredStrata.Contains(e.Stratum) ||
+             requiredStrata.Contains(e.Stratum.Trim()))).ToArray();
+        var malformedStrata = relevantEvidence.Any(e => !requiredStrata.Contains(e.Stratum));
+        var independentEvidence = relevantEvidence.Where(e => requiredStrata.Contains(e.Stratum)).ToArray();
         var missingPairKeyStrata = independentEvidence.Where(e => string.IsNullOrWhiteSpace(e.PairKey))
             .Select(e => e.Stratum).Distinct(StringComparer.Ordinal).OrderBy(s => s, StringComparer.Ordinal).ToArray();
         var independentPairs = independentEvidence.Where(e => !string.IsNullOrWhiteSpace(e.PairKey))
@@ -72,12 +80,13 @@ public static class SampleSufficiencyAssessment
             .Where(g => g.Missing || g.MGroups < minimumIndependentGroups || g.UGroups < minimumIndependentGroups)
             .Select(g => $"Stratum {g.Stratum}: independent groups m={g.MGroups}, u={g.UGroups}; required per class={minimumIndependentGroups}; missing group identifiers block certification.")
             .ToArray();
-        if (contradictions.Length > 0 || provenanceConflicts.Length > 0 || missingPairKeyStrata.Length > 0)
+        if (contradictions.Length > 0 || provenanceConflicts.Length > 0 || missingPairKeyStrata.Length > 0 || malformedStrata)
             return new Result(Status.Indeterminate, counts,
                 reasons.Concat(groupReasons)
                     .Concat(contradictions.Select(s => $"Stratum {s}: contradictory independent labels block certification; investigate source integrity."))
                     .Concat(provenanceConflicts.Select(s => $"Stratum {s}: contradictory independent group provenance blocks certification; investigate source integrity."))
                     .Concat(missingPairKeyStrata.Select(s => $"Stratum {s}: missing independent pair key blocks certification; investigate source integrity."))
+                    .Concat(malformedStrata ? new[] { "Independent evidence has a missing or noncanonical required stratum; certification blocked." } : Array.Empty<string>())
                     .ToArray());
         return new Result(eligible.Length == 0 ? Status.Indeterminate :
             reasons.Length == 0 && groupReasons.Length == 0 ? Status.Sufficient : Status.Insufficient, counts, reasons.Concat(groupReasons).ToArray());
