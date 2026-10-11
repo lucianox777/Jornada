@@ -73,6 +73,13 @@ public static class SampleSufficiencyAssessment
             .Select(g => g.Key.Stratum)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(s => s, StringComparer.Ordinal).ToArray();
+        // One independent pair cannot certify multiple required strata: a global
+        // pair identity reused across strata is an ambiguous sampling assignment.
+        var crossStratumPairs = independentPairs
+            .GroupBy(g => g.Key.PairKey, StringComparer.Ordinal)
+            .Where(g => g.Select(pair => pair.Key.Stratum)
+                .Distinct(StringComparer.Ordinal).Skip(1).Any())
+            .Select(g => g.Key).OrderBy(key => key, StringComparer.Ordinal).ToArray();
         var counts = strata.Distinct(StringComparer.Ordinal).OrderBy(s => s, StringComparer.Ordinal)
             .Select(s => new Count(s, eligible.Count(e => e.Stratum == s && e.Match),
                 eligible.Count(e => e.Stratum == s && !e.Match))).ToArray();
@@ -98,13 +105,14 @@ public static class SampleSufficiencyAssessment
                 || g.UGroups < Math.Max(minimumIndependentGroups, minimumU))
             .Select(g => $"Stratum {g.Stratum}: independent groups m={g.MGroups}, u={g.UGroups}; required m={Math.Max(minimumIndependentGroups, minimumM)}, u={Math.Max(minimumIndependentGroups, minimumU)}; missing group identifiers block certification.")
             .ToArray();
-        if (contradictions.Length > 0 || provenanceConflicts.Length > 0 || missingPairKeyStrata.Length > 0 || selfDerivedGroups.Length > 0 || malformedStrata)
+        if (contradictions.Length > 0 || provenanceConflicts.Length > 0 || missingPairKeyStrata.Length > 0 || selfDerivedGroups.Length > 0 || crossStratumPairs.Length > 0 || malformedStrata)
             return new Result(Status.Indeterminate, counts,
                 reasons.Concat(groupReasons)
                     .Concat(contradictions.Select(s => $"Stratum {s}: contradictory independent labels block certification; investigate source integrity."))
                     .Concat(provenanceConflicts.Select(s => $"Stratum {s}: contradictory independent group provenance blocks certification; investigate source integrity."))
                     .Concat(missingPairKeyStrata.Select(s => $"Stratum {s}: missing independent pair key blocks certification; investigate source integrity."))
                     .Concat(selfDerivedGroups.Select(s => $"Stratum {s}: independent group identifier equals pair key; provenance is not independent."))
+                    .Concat(crossStratumPairs.Select(key => $"Independent pair {key} appears in multiple required strata; certification blocked."))
                     .Concat(malformedStrata ? new[] { "Independent evidence has a missing or noncanonical required stratum; certification blocked." } : Array.Empty<string>())
                     .ToArray());
         return new Result(eligible.Length == 0 ? Status.Indeterminate :
