@@ -17,8 +17,10 @@ public static class SampleSufficiencyDiagnosticSnapshot
         ArgumentNullException.ThrowIfNull(assessment);
         if (string.IsNullOrWhiteSpace(policyVersion) || policyVersion != policyVersion.Trim())
             throw new ArgumentException("Canonical policy version required.", nameof(policyVersion));
-        if (cutoffUtc.Offset != TimeSpan.Zero)
-            throw new ArgumentException("Cutoff must be expressed in UTC.", nameof(cutoffUtc));
+        if (cutoffUtc == default || cutoffUtc.Offset != TimeSpan.Zero)
+            throw new ArgumentException("A non-default UTC cutoff is required.", nameof(cutoffUtc));
+        if (string.IsNullOrWhiteSpace(sourceKind) || sourceKind != sourceKind.Trim())
+            throw new ArgumentException("Canonical evidence source kind required.", nameof(sourceKind));
         // Never treat synthetic or unverified source data as sufficient REAL evidence.
         var verified = string.Equals(sourceKind, "INDEPENDENT_REAL", StringComparison.Ordinal);
         var state = !verified ? "INDETERMINADO" : assessment.State switch
