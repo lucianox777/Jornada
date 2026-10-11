@@ -156,18 +156,21 @@ public sealed class ProbabilisticV8TermFrequencyTests
     }
 
     [Test]
-    public void P0_NameOnly_RareExact_ReportsActualResolveStatus()
+    public void P0_NameOnly_RareExact_UsesRealResolveAndReportsDecision()
     {
+        // Diagnostic only: canonical policy does not impose an uncalibrated
+        // two-attribute gate. This test must not invent a RESOLVIDO requirement.
         var model = LinkageModelPolicy.Create(ModelId, 9,
             LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
             Parameters(withTf: true), Snapshot());
         var candidateId = Guid.Parse("33333333-3333-4333-8333-333333333333");
         var observation = new IdentityObservation(null, "SEM_CPF", "ZULEICA KRAUSE", null, null);
-        var decision = ProbabilisticLinkageDecisions.Resolve(model, observation,
-            new[] { new LinkageCandidate(candidateId, "ZULEICA KRAUSE", null, null) });
-        // Capture actual production decision instead of assuming a score implies RESOLVIDO.
-        Assert.That(decision.Status, Is.AnyOf(ResolutionStatus.RESOLVIDO,
-            ResolutionStatus.CONFLITO, ResolutionStatus.NAO_RESOLVIDO));
+        var candidate = new LinkageCandidate(candidateId, "ZULEICA KRAUSE", null, null);
+        var ranked = ProbabilisticLinkageDecisions.Rank(model, observation, new[] { candidate });
+        var decision = ProbabilisticLinkageDecisions.Resolve(model, observation, new[] { candidate });
+        Assert.That(ranked, Has.Count.EqualTo(1));
+        Assert.That(decision.MelhorScore, Is.EqualTo(ranked[0].Score),
+            "Resolve must use the same TF-adjusted score as Rank.");
         TestContext.WriteLine($"P0 name-only rare exact: status={decision.Status}; score={decision.MelhorScore}; reason={decision.Motivo}");
         if (decision.Status == ResolutionStatus.RESOLVIDO)
             Assert.That(decision.PessoaUuidResolvido, Is.EqualTo(candidateId));
