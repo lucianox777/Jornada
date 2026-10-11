@@ -84,3 +84,7 @@ A PR #920 introduz, **ainda em draft**, as tabelas `ref.dt23_politica_suficienci
 ### Projeção observacional acrescentada à PR #920
 
 A migração também expõe `ref.vw_dt23_ultimo_diagnostico`, com **uma linha por política que já tenha diagnóstico persistido**. A seleção usa `registrado_em` e desempate determinístico por `diagnostico_id`, preserva a versão da política e retorna `INDETERMINADO` quando esse foi o estado efetivamente registrado. Política sem diagnóstico não recebe VERDE sintético. O smoke SQL exercita inserção de duas observações e seleção da mais recente, com rollback. **Esta visão não constitui endpoint do Monitor, coletor, agendamento nem gatilho de calibração**; esses itens continuam pendentes.
+
+### Testes negativos incrementais (11/10/2026)
+
+O arquivo `database/tests/20261011_DT23_Diagnostico_Politica_Versionada_Negative.sql` verifica a ausência de triggers nas tabelas observacionais, referências a comandos de calibração na definição da visão e certificação indevida de política sem diagnóstico. Utiliza apenas política sintética em transação revertida por rollback. **A existência do arquivo não demonstra que o teste esteja incluído no job SQL da CI**: verificar explicitamente a invocação e o resultado antes de considerar esse aceite cumprido. O teste não substitui coletor independente, avaliação periódica, idempotência operacional nem integração read-only no Monitor.
