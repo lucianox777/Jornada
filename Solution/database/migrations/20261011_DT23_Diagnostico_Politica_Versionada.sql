@@ -41,3 +41,21 @@ BEGIN
 END;
 GO
 -- A persistência não constitui autorização para gerar, validar ou ativar modelos.
+
+-- Snapshot mais recente por política: projeção estritamente read-only para consumidores operacionais.
+-- Sem diagnóstico registrado, nenhuma linha é emitida (não sintetizar VERDE).
+CREATE OR ALTER VIEW ref.vw_dt23_ultimo_diagnostico
+AS
+SELECT d.diagnostico_id, d.politica_id, p.versao AS politica_versao,
+       d.data_corte, d.estado, d.contadores_json, d.justificativas_json,
+       d.proveniencia_json, d.registrado_em
+FROM ref.dt23_diagnostico_suficiencia AS d
+INNER JOIN ref.dt23_politica_suficiencia AS p ON p.politica_id = d.politica_id
+WHERE NOT EXISTS (
+    SELECT 1 FROM ref.dt23_diagnostico_suficiencia AS mais_recente
+    WHERE mais_recente.politica_id = d.politica_id
+      AND (mais_recente.registrado_em > d.registrado_em
+        OR (mais_recente.registrado_em = d.registrado_em
+          AND mais_recente.diagnostico_id > d.diagnostico_id))
+);
+GO
