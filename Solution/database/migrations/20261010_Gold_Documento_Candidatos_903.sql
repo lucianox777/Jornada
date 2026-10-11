@@ -81,6 +81,9 @@ JOIN gold.pessoa gp ON gp.pessoa_uuid=m.pessoa_uuid;
 GO
 
 -- Colecao RG 1:N somente leitura: uma linha por RG distinto por UUID.
+-- Nota de integridade: valores com espacos externos e caixa diferente sao
+-- normalizados na chave de RG, sem alterar a ocorrencia Silver original.
+-- Identificadores sem emissor ou UF permanecem candidatos nao consolidados.
 -- A identidade documental e (tipo, numero, orgao emissor, UF), NAO a
 -- observacao, data de expedicao, modelo ou posicao temporal. Repeticoes do
 -- mesmo RG se unem sem apagar suas ocorrencias/proveniencias Silver.
