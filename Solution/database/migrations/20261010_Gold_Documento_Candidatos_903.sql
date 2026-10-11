@@ -3,7 +3,7 @@ SET QUOTED_IDENTIFIER ON;
 GO
 -- #903: exposicao read-only de todas as ocorrencias documentais admissiveis.
 -- Nao elege documento vencedor por data/classe e nao deduplica por observacao.
--- Deduplicacao 1:N por UUID e proveniencia serao tratadas no consolidador Gold.
+-- As views Gold abaixo materializam logicamente a relacao 1:N por UUID e a proveniencia em leitura; persistencia fisica, se exigida, permanece fora desta migracao.
 CREATE OR ALTER VIEW silver.vw_documento_evidencia_candidato_gold
 AS
 SELECT e.pessoa_observacao_id,
