@@ -17,3 +17,7 @@ Smoke: `database/tests/20261010_Gold_Documento_Candidatos_903_Smoke.sql`, soment
 ## Limites
 
 Não existe alteração automática de vínculo, calibração, escolha manual de campos por canal nem persistência física de coleção RG neste incremento. Outros tipos documentais exigem política de chave própria; não generalizar a chave de RG.
+
+## Gate SQL descartável para views Silver/Gold (incremento de CI)
+
+O job `integration-sql` passa a instalar a migração `20261010_Gold_Documento_Candidatos_903.sql` depois das migrações Silver e a verificar a existência e a definição das views de candidatos, coleção RG 1:N e proveniência. Antes, a CI instalava somente as migrações de catálogo/Silver, portanto a compilação da migração Gold não era exercitada nesse job. A verificação ocorre em `JornadaTest`, banco descartável do job; **é smoke estrutural, não ensaio comportamental E2E**. O teste com fixture realista de dois RGs e evidências repetidas, sob `JornadaE2E`/`JornadaSyntheticDev`, continua pendente e não pode ser substituído por views vazias.
