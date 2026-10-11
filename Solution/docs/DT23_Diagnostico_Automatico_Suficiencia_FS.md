@@ -74,3 +74,9 @@ O avaliador puro passa a aceitar `IndependentGroupKey` por evidência e um limit
 - **Não implementado:** fonte de verdade independente auditável, extração automática de pares pós-blocking, persistência dos contadores por estrato, política versionada, ciclo periódico e painel de diagnóstico no Monitor.
 - **Aceite obrigatório:** uma execução reprodutível em SQL descartável com dados sintéticos que demonstre estados, motivos e versão da política; evidência negativa de nenhuma chamada a `GENERATE_DRAFT`, `VALIDATE` ou `ACTIVATE`.
 - **Governança:** a recalibração e a ativação de modelos permanecem exclusivamente manuais. A DT-23 continua aberta até a implementação e validação operacional.
+
+## Implementação incremental em revisão — PR #920 (11/10/2026)
+
+A PR #920 introduz, **ainda em draft**, as tabelas `ref.dt23_politica_suficiencia` (versão única, JSON de configuração e timestamp) e `ref.dt23_diagnostico_suficiencia` (referência à política, data de corte, estado, contadores, justificativas e proveniência JSON). O smoke SQL associado verifica escrita e leitura em transação com rollback; não instala scheduler, triggers nem comandos de calibração. O estado `INDETERMINADO` permite representar falta de verdade independente sem emitir falso sinal verde.
+
+**Importante:** enquanto a PR #920 não estiver integrada, essas tabelas **não existem como funcionalidade garantida na master**. Mesmo após eventual merge, a existência de tabelas e smoke não prova coleta real independente, política homologada, deduplicação pós-blocking, execução periódica, integração read-only no Monitor ou proteção operacional contra disparos de calibração. A DT-23 permanece **ABERTA**. O teste transacional precisa ser executado em SQL descartável na CI antes de promover a PR.
