@@ -89,8 +89,12 @@ public static class SampleSufficiencyAssessment
             var missing = stratumEvidence.Any(e => string.IsNullOrWhiteSpace(e.IndependentGroupKey));
             return new { c.Stratum, MGroups = mGroups, UGroups = uGroups, Missing = missing };
         })
-            .Where(g => g.Missing || g.MGroups < minimumIndependentGroups || g.UGroups < minimumIndependentGroups)
-            .Select(g => $"Stratum {g.Stratum}: independent groups m={g.MGroups}, u={g.UGroups}; required per class={minimumIndependentGroups}; missing group identifiers block certification.")
+            // Numeric pair counts alone are not effective independent sample sizes.
+            // The group floor must meet both the policy's diversity requirement and
+            // the class-specific sample minimum, without cross-class compensation.
+            .Where(g => g.Missing || g.MGroups < Math.Max(minimumIndependentGroups, minimumM)
+                || g.UGroups < Math.Max(minimumIndependentGroups, minimumU))
+            .Select(g => $"Stratum {g.Stratum}: independent groups m={g.MGroups}, u={g.UGroups}; required m={Math.Max(minimumIndependentGroups, minimumM)}, u={Math.Max(minimumIndependentGroups, minimumU)}; missing group identifiers block certification.")
             .ToArray();
         if (contradictions.Length > 0 || provenanceConflicts.Length > 0 || missingPairKeyStrata.Length > 0 || selfDerivedGroups.Length > 0 || malformedStrata)
             return new Result(Status.Indeterminate, counts,
