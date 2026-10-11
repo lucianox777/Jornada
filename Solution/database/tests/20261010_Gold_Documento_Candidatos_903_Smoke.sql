@@ -176,6 +176,35 @@ IF (SELECT quantidade_ocorrencias FROM #rg_repeat
     WHERE pessoa_uuid=@uuid AND numero_rg=N'00123X'
       AND emissor_codigo=N'SSP' AND uf_emissor=N'SP')<>2
  THROW 52349,'Repeticao da mesma evidencia RG inflou a contagem de ocorrencias.',1;
+-- A contagem de proveniencia nao pode ser perdida na projecao de RG:
+-- toda evidencia distinta deve apontar para exatamente um documento da colecao.
+;WITH normalized AS (
+ SELECT pessoa_uuid, UPPER(LTRIM(RTRIM(numero_rg))) AS numero_rg,
+        UPPER(LTRIM(RTRIM(emissor_codigo))) AS emissor_codigo,
+        UPPER(LTRIM(RTRIM(uf_emissor))) AS uf_emissor,
+        documento_evidencia_id
+ FROM @rg
+), distinct_evidence AS (
+ SELECT DISTINCT pessoa_uuid,numero_rg,emissor_codigo,uf_emissor,
+                 documento_evidencia_id
+ FROM normalized
+)
+SELECT e.pessoa_uuid,e.numero_rg,e.emissor_codigo,e.uf_emissor,
+       COUNT_BIG(*) AS proveniencias
+INTO #rg_provenance
+FROM distinct_evidence e
+GROUP BY e.pessoa_uuid,e.numero_rg,e.emissor_codigo,e.uf_emissor;
+IF EXISTS (
+ SELECT 1 FROM #rg_provenance p
+ FULL JOIN #rg_repeat d
+   ON d.pessoa_uuid=p.pessoa_uuid AND d.numero_rg=p.numero_rg
+  AND d.emissor_codigo=p.emissor_codigo AND d.uf_emissor=p.uf_emissor
+ WHERE p.pessoa_uuid IS NULL OR d.pessoa_uuid IS NULL
+    OR p.proveniencias<>d.quantidade_ocorrencias
+)
+ THROW 52350,'RG: contagem documental nao corresponde as evidencias distintas de proveniencia.',1;
+DROP TABLE #rg_provenance;
+
 DROP TABLE #rg_repeat;
 
 PRINT N'GOLD DOCUMENTARY CANDIDATE VIEW SCHEMA: OK';
