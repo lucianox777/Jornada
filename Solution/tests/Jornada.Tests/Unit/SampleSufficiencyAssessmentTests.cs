@@ -346,16 +346,14 @@ public sealed class SampleSufficiencyAssessmentTests
     }
 
     [Test]
-    public void DuplicateRequiredStrataCannotDoubleCountOrCertifyMissingClass()
+    public void DuplicateRequiredStrataAreRejectedAsMalformedPolicy()
     {
         var evidence = new[] {
             new Evidence("SP", "m1", true, true, "person-A"),
             new Evidence("SP", "u1", true, false, "person-B")
         };
-        var result = Evaluate(evidence, new[] { "SP", "SP" }, 2, 1);
-        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
-        Assert.That(result.Counts.Count, Is.EqualTo(1));
-        Assert.That(result.Counts.Single().M, Is.EqualTo(1));
+        Assert.Throws<ArgumentException>((System.Action)(() =>
+            Evaluate(evidence, new[] { "SP", "SP" }, 2, 1)));
     }
 
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
