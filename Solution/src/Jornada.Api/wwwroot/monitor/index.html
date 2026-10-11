@@ -46,6 +46,7 @@
     <article class="card span4"><h2>Bronze · manutenção</h2><div id="bronze"></div></article>
     <article class="card span12"><h2>Linkage · Calibrador e referência IBGE</h2><div id="calibration"></div></article>
     <article class="card span12"><h2>Linkage · governança do modelo</h2><div id="modelGovernance"></div></article>
+    <article class="card span12"><h2>DT23 · suficiência amostral (somente leitura)</h2><div id="sampleSufficiency"></div></article>
     <article class="card span12"><h2>Linkage · últimas execuções</h2><div id="linkage" class="scroll"></div></article>
   </section>
 </main>
@@ -149,6 +150,24 @@
       '<p class="muted">Orçamento FP calculado sobre positivos, mas também conta associações indevidas leave-truth-out. Não é FPR clássica nem validação populacional. Valores ausentes em modelos legados/FALHOU não são interpretados como zero. Estado: '+esc(nominal)+'. O Monitor é somente leitura e não aciona calibração.</p>';
   }
 
+  function renderSampleSufficiency(diagnostic){
+    const out=$('sampleSufficiency');
+    // An absent/unavailable snapshot must never be presented as sufficient.
+    if(!diagnostic || typeof diagnostic !== 'object'){
+      out.innerHTML='<div class="bundle-head"><span class="badge ATENCAO">INDETERMINADO</span><span class="muted">Sem diagnóstico DT23 disponível na API. Coleta operacional ainda não comprovada; nenhuma calibração é iniciada.</span></div>';
+      return;
+    }
+    const provenance=diagnostic.provenance || {};
+    const verified=provenance.sourceKind==='INDEPENDENT_REAL' && provenance.verified===true;
+    const state=verified && ['VERDE','AMARELO','VERMELHO'].includes(diagnostic.state) ? diagnostic.state : 'INDETERMINADO';
+    const reasons=Array.isArray(diagnostic.reasons) ? diagnostic.reasons : [];
+    out.innerHTML='<div class="bundle-head"><span class="badge '+(state==='VERDE'?'OK':state==='VERMELHO'?'FALHA':'ATENCAO')+'">'+esc(state)+'</span><span class="muted">Diagnóstico observacional; VERDE não autoriza calibrar nem ativar modelos.</span></div>'+
+      '<div class="bundle-grid"><div class="bundle-cell"><span class="muted">Política</span><b>'+esc(diagnostic.policyVersion || 'não informada')+'</b></div>'+
+      '<div class="bundle-cell"><span class="muted">Corte</span><b>'+esc(dt(diagnostic.cutoffUtc))+'</b></div>'+
+      '<div class="bundle-cell"><span class="muted">Proveniência</span><b>'+esc(verified?'INDEPENDENT_REAL verificada':'não verificada')+'</b></div></div>'+
+      (verified && reasons.length ? '<p class="muted">'+reasons.map(x=>esc(String(x))).join(' · ')+'</p>' : '<p class="muted">Sem justificativas verificadas para exibição.</p>');
+  }
+
   function renderModelGovernance(model, conference, passSupport, transitions){
     if(!model){ $('modelGovernance').innerHTML='<div class="empty">Sem informação de governança do modelo.</div>'; return; }
     const status=model.status || 'SEM_MODELO_ATIVO';
@@ -207,7 +226,7 @@
       const data=await response.json(); const m=data.monitor;
       showError(''); setOverall(m.overallStatus); state.lastGenerated=new Date(m.generatedAt);
       $('login').classList.add('hidden'); $('dashboard').classList.remove('hidden');
-      renderNodes(m.components); renderReadiness(data.readiness); renderConfiguration(m.configurationHealth); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderCalibration(m.linkageCalibration,m.ibgeReference); renderModelGovernance(m.linkageModelGovernance,m.linkageConferenceGovernance,m.linkageBlockingPassSupport,m.linkageModelTransitions); renderLinkage(m.linkageRuns);
+      renderNodes(m.components); renderReadiness(data.readiness); renderConfiguration(m.configurationHealth); renderQueue(m.queue); renderProcessing(m.processing); renderDeliveries(m.recentDeliveries); renderBronze(m.bronzeMaintenance); renderCalibration(m.linkageCalibration,m.ibgeReference); renderModelGovernance(m.linkageModelGovernance,m.linkageConferenceGovernance,m.linkageBlockingPassSupport,m.linkageModelTransitions); renderSampleSufficiency(m.sampleSufficiencyDiagnostic); renderLinkage(m.linkageRuns);
       $('updated').textContent='atualizado '+dt(m.generatedAt);
     }catch(error){ showError(error.message || 'Falha ao atualizar o monitor.'); setOverall('FALHA'); $('login').classList.remove('hidden'); }
   }
