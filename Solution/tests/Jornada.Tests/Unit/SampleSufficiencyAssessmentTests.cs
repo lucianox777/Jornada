@@ -222,6 +222,30 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.That(result.Reasons.Any(r => r.Contains("contradictory independent group provenance", StringComparison.Ordinal)), Is.True);
     }
 
+    [Test]
+    public void MissingIndependentPairKeyBlocksCertificationEvenWhenOtherCountsPass()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "group-A"),
+            new Evidence("SP", "u1", true, false, "group-B"),
+            new Evidence("SP", "  ", true, true, "group-C")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(r => r.Contains("missing independent pair key", StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
+    public void MissingPairKeyInUnrequestedStratumDoesNotBlockRequestedStratum()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "group-A"),
+            new Evidence("SP", "u1", true, false, "group-B"),
+            new Evidence("RJ", "", true, true, "group-C")
+        };
+        Assert.That(Evaluate(evidence, new[] { "SP" }, 1, 1).State, Is.EqualTo(Status.Sufficient));
+    }
+
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
     {
         private readonly Evidence[] _items;
