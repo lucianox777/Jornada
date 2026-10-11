@@ -306,6 +306,38 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.Throws<ArgumentException>((System.Action)(() => Evaluate(evidence, new[] { "SP", "SP" }, 1, 1)));
     }
 
+    [Test]
+    public void ManyPairsFromOnlyTwoGroupsCannotMeetEffectiveSampleMinimum()
+    {
+        // Pair count alone is not the effective independent sample size.
+        var evidence = Enumerable.Range(0, 100)
+            .Select(i => new Evidence("SP", $"m-{i}", true, true, $"m-group-{i % 2}"))
+            .Concat(Enumerable.Range(0, 100)
+                .Select(i => new Evidence("SP", $"u-{i}", true, false, $"u-group-{i % 2}")))
+            .ToArray();
+
+        var result = Evaluate(evidence, new[] { "SP" }, 100, 100, 2);
+
+        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
+        Assert.That(result.Counts.Single().M, Is.EqualTo(100));
+        Assert.That(result.Counts.Single().U, Is.EqualTo(100));
+        Assert.That(result.Reasons.Any(r => r.Contains(
+            "independent groups m=2, u=2; required m=100, u=100",
+            StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
+    public void IndependentGroupsMeetingBothClassMinimumsCanPass()
+    {
+        var evidence = Enumerable.Range(0, 3)
+            .Select(i => new Evidence("SP", $"m-{i}", true, true, $"m-person-{i}"))
+            .Concat(Enumerable.Range(0, 3)
+                .Select(i => new Evidence("SP", $"u-{i}", true, false, $"u-person-{i}")));
+
+        var result = Evaluate(evidence, new[] { "SP" }, 3, 3, 2);
+        Assert.That(result.State, Is.EqualTo(Status.Sufficient));
+    }
+
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
     {
         private readonly Evidence[] _items;
