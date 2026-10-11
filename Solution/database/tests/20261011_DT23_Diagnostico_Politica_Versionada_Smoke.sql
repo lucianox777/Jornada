@@ -64,6 +64,14 @@ BEGIN TRY
     END CATCH;
     IF @duplicata_bloqueada <> 1
         THROW 52310, 'Retry com mesmo corte não foi bloqueado', 1;
+    -- Backfill inserido depois não pode substituir um corte mais novo.
+    DECLARE @backfill UNIQUEIDENTIFIER = NEWID();
+    INSERT ref.dt23_diagnostico_suficiencia
+        (diagnostico_id, politica_id, data_corte, estado, contadores_json, justificativas_json, proveniencia_json, registrado_em)
+    VALUES (@backfill, @politica, DATEADD(DAY,-1,@corte), 'VERMELHO', N'{"m":0}', N'["backfill"]', N'{"fonte":"smoke"}', DATEADD(DAY,1,SYSUTCDATETIME()));
+    IF NOT EXISTS (SELECT 1 FROM ref.vw_dt23_ultimo_diagnostico
+                   WHERE politica_id=@politica AND diagnostico_id=@novo AND estado='AMARELO')
+        THROW 52311, 'Backfill antigo substituiu diagnostico de corte mais recente', 1;
     ROLLBACK TRANSACTION;
 END TRY
 BEGIN CATCH
