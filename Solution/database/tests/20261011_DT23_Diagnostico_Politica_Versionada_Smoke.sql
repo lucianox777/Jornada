@@ -68,6 +68,24 @@ BEGIN TRY
     IF NOT EXISTS (SELECT 1 FROM ref.vw_dt23_ultimo_diagnostico
                    WHERE politica_id=@politica AND diagnostico_id=@novo AND estado='AMARELO')
         THROW 52311, 'Backfill antigo substituiu diagnostico de corte mais recente', 1;
+    -- Isolamento: uma política sem evidência não herda o diagnóstico de outra.
+    DECLARE @politica_sem_snapshot UNIQUEIDENTIFIER = NEWID();
+    INSERT ref.dt23_politica_suficiencia (politica_id, versao, configuracao_json)
+    VALUES (@politica_sem_snapshot, CONCAT('smoke-empty-',CONVERT(VARCHAR(36),@politica_sem_snapshot)), N'{"minimumM":2,"minimumU":2}');
+    IF EXISTS (SELECT 1 FROM ref.vw_dt23_ultimo_diagnostico WHERE politica_id=@politica_sem_snapshot)
+        THROW 52312, 'Politica sem evidencias recebeu diagnostico indevido', 1;
+    DECLARE @outro_diagnostico UNIQUEIDENTIFIER = NEWID();
+    INSERT ref.dt23_diagnostico_suficiencia
+        (diagnostico_id, politica_id, data_corte, estado, contadores_json, justificativas_json, proveniencia_json)
+    VALUES (@outro_diagnostico, @politica_sem_snapshot, DATEADD(DAY,-10,@corte), 'VERMELHO',
+            N'{"m":0,"u":0}', N'["sem amostra"]', N'{"fonte":"smoke"}');
+    IF (SELECT COUNT(*) FROM ref.vw_dt23_ultimo_diagnostico
+        WHERE politica_id IN (@politica,@politica_sem_snapshot)) <> 2
+       OR NOT EXISTS (SELECT 1 FROM ref.vw_dt23_ultimo_diagnostico
+                      WHERE politica_id=@politica_sem_snapshot AND diagnostico_id=@outro_diagnostico AND estado='VERMELHO')
+       OR NOT EXISTS (SELECT 1 FROM ref.vw_dt23_ultimo_diagnostico
+                      WHERE politica_id=@politica AND diagnostico_id=@novo AND estado='AMARELO')
+        THROW 52313, 'Diagnosticos de politicas distintas foram misturados', 1;
     ROLLBACK TRANSACTION;
 END TRY
 BEGIN CATCH
