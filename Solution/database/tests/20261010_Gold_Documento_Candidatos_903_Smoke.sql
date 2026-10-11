@@ -224,6 +224,25 @@ DROP TABLE #rg_provenance;
 
 DROP TABLE #rg_repeat;
 
+-- Qualificadores nao identificados nao podem aparecer como RG consolidado.
+-- Verifica a view instalada inclusive quando a base descartavel esta vazia.
+IF EXISTS (
+ SELECT 1 FROM gold.vw_rg_documento_distinto
+ WHERE NULLIF(LTRIM(RTRIM(numero_rg)),N'') IS NULL
+    OR NULLIF(LTRIM(RTRIM(emissor_codigo)),N'') IS NULL
+    OR NULLIF(LTRIM(RTRIM(uf_emissor)),N'') IS NULL
+)
+ THROW 52357,'Gold RG consolidou documento sem chave completa.',1;
+
+-- A proveniencia deve apontar somente para documentos da mesma identidade
+-- e conter evidencia documental identificavel.
+IF EXISTS (
+ SELECT 1 FROM gold.vw_rg_documento_proveniencia
+ WHERE documento_evidencia_id IS NULL OR pessoa_observacao_id IS NULL
+    OR NULLIF(LTRIM(RTRIM(numero_rg)),N'') IS NULL
+)
+ THROW 52358,'Gold RG tem proveniencia sem evidencia ou identificacao.',1;
+
 -- Empty fixture sets must not count as behavioral proof. This smoke can
 -- still verify schema/invariants on an empty disposable database; a separate
 -- populated fixture run is required before declaring end-to-end coverage.
