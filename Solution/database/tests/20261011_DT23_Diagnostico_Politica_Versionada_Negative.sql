@@ -1,3 +1,6 @@
+-- Fail closed: tests may mutate only dedicated disposable CI databases.
+IF DB_NAME() NOT IN (N'JornadaE2E', N'JornadaSyntheticDev')
+    THROW 52399, 'DT23 SQL tests require disposable JornadaE2E or JornadaSyntheticDev.', 1;
 -- DT23: negative contract checks; run only in disposable SQL CI.
 SET NOCOUNT ON;
 IF OBJECT_ID(N'ref.dt23_politica_suficiencia', N'U') IS NULL
