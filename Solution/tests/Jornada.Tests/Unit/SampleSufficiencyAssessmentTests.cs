@@ -246,6 +246,45 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.That(Evaluate(evidence, new[] { "SP" }, 1, 1).State, Is.EqualTo(Status.Sufficient));
     }
 
+    [Test]
+    public void WhitespaceVariantOfRequiredStratumCannotBeSilentlyExcluded()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "group-A"),
+            new Evidence("SP", "u1", true, false, "group-B"),
+            new Evidence(" SP ", "m2", true, true, "group-C")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(r => r.Contains("noncanonical required stratum", StringComparison.Ordinal)), Is.True);
+        Assert.That(result.Counts.Single().M, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void MissingIndependentStratumCannotBeSilentlyExcluded()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "group-A"),
+            new Evidence("SP", "u1", true, false, "group-B"),
+            new Evidence("", "m2", true, true, "group-C")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(r => r.Contains("missing or noncanonical required stratum", StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
+    public void UnrelatedStratumAndNonIndependentWhitespaceDoNotContaminateRequiredStratum()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "group-A"),
+            new Evidence("SP", "u1", true, false, "group-B"),
+            new Evidence(" RJ ", "m2", true, true, "group-C"),
+            new Evidence(" SP ", "m3", false, true, "group-D")
+        };
+        Assert.That(Evaluate(evidence, new[] { "SP" }, 1, 1).State, Is.EqualTo(Status.Sufficient));
+    }
+
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
     {
         private readonly Evidence[] _items;
