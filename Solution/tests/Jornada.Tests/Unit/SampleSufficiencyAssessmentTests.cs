@@ -379,6 +379,23 @@ public sealed class SampleSufficiencyAssessmentTests
             Evaluate(evidence, new[] { " SP " }, 1, 1)));
     }
 
+    [Test]
+    public void InvalidPolicyReportsTheCorrectParameterName()
+    {
+        var evidence = Array.Empty<Evidence>();
+        var m = Assert.Throws<ArgumentOutOfRangeException>((System.Action)(() =>
+            Evaluate(evidence, new[] { "SP" }, 0, 1)));
+        var u = Assert.Throws<ArgumentOutOfRangeException>((System.Action)(() =>
+            Evaluate(evidence, new[] { "SP" }, 1, 0)));
+        var groups = Assert.Throws<ArgumentOutOfRangeException>((System.Action)(() =>
+            Evaluate(evidence, new[] { "SP" }, 1, 1, 0)));
+        Assert.Multiple((System.Action)(() => {
+            Assert.That(m!.ParamName, Is.EqualTo("minimumM"));
+            Assert.That(u!.ParamName, Is.EqualTo("minimumU"));
+            Assert.That(groups!.ParamName, Is.EqualTo("minimumIndependentGroups"));
+        }));
+    }
+
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
     {
         private readonly Evidence[] _items;
