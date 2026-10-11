@@ -34,7 +34,7 @@ public static class SampleSufficiencyDiagnosticSnapshot
         if (!verified)
             reasons.Add("Independent real evidence provenance not verified; certification blocked.");
         return new Snapshot(policyVersion, cutoffUtc, state,
-            JsonSerializer.Serialize(assessment.Counts.OrderBy(c => c.Stratum, StringComparer.Ordinal)),
+            JsonSerializer.Serialize(verified ? assessment.Counts.OrderBy(c => c.Stratum, StringComparer.Ordinal) : Enumerable.Empty<object>()),
             JsonSerializer.Serialize(reasons),
             JsonSerializer.Serialize(new { sourceKind = verified ? "INDEPENDENT_REAL" : "UNVERIFIED", verified }));
     }
