@@ -42,6 +42,37 @@ public sealed class SampleSufficiencyDiagnosticSnapshotTests
     }
 
     [Test]
+    public void VerifiedButUndersizedEvidenceIsYellowWithAuditableCounts()
+    {
+        var result = Evaluate(new[] {
+            new Evidence("SP", "m1", true, true, "g1"),
+            new Evidence("SP", "u1", true, false, "g2")
+        }, new[] { "SP" }, 2, 2);
+        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
+        var snapshot = SampleSufficiencyDiagnosticSnapshot.Create(result, "policy-v3", Cutoff, "INDEPENDENT_REAL");
+        Assert.That(snapshot.State, Is.EqualTo("AMARELO"));
+        Assert.That(snapshot.ReasonsJson, Does.Contain("minimum m=2, u=2"));
+        using var counts = JsonDocument.Parse(snapshot.CountersJson);
+        Assert.That(counts.RootElement[0].GetProperty("M").GetInt32(), Is.EqualTo(1));
+        Assert.That(counts.RootElement[0].GetProperty("U").GetInt32(), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void UnrecognizedProvenanceCannotTurnGreen()
+    {
+        var result = Evaluate(new[] {
+            new Evidence("SP", "m1", true, true, "g1"),
+            new Evidence("SP", "u1", true, false, "g2")
+        }, new[] { "SP" }, 1, 1);
+        foreach (var kind in new[] { "independent_real", "INDEPENDENT_REAL ", "", "LINKAGE_DERIVED" })
+        {
+            var snapshot = SampleSufficiencyDiagnosticSnapshot.Create(result, "policy-v3", Cutoff, kind);
+            Assert.That(snapshot.State, Is.EqualTo("INDETERMINADO"));
+            Assert.That(snapshot.ProvenanceJson, Does.Contain("UNVERIFIED"));
+        }
+    }
+
+    [Test]
     public void RejectsNonUtcCutoffAndMissingPolicyVersion()
     {
         var result = Evaluate(Array.Empty<Evidence>(), new[] { "SP" }, 1, 1);
