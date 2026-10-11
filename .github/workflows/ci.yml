@@ -577,6 +577,8 @@ jobs:
             SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i "$migration"
           done
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/tests/20261010_Documentos_903_Schema_Smoke.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/tests/20261011_DT23_Diagnostico_Politica_Versionada_Smoke.sql
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaTest -i database/tests/20261011_DT23_Diagnostico_Politica_Versionada_Negative.sql
       - name: Integration tests must execute without skips
         run: |
           mkdir -p .local/test-evidence/integration
