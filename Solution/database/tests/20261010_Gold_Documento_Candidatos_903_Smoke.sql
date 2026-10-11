@@ -270,5 +270,30 @@ IF EXISTS (
 )
  THROW 52354,'Gold RG provenance does not match distinct documentary evidence.',1;
 
+-- Every provenance record must correspond to an identified RG in the
+-- collection. Check both directions, including orphan rows, not just counts.
+IF EXISTS (
+ SELECT 1 FROM gold.vw_rg_documento_proveniencia p
+ WHERE NOT EXISTS (
+   SELECT 1 FROM gold.vw_rg_documento_distinto d
+   WHERE d.pessoa_uuid=p.pessoa_uuid
+     AND d.numero_rg=p.numero_rg
+     AND d.emissor_codigo=p.emissor_codigo
+     AND d.uf_emissor=p.uf_emissor
+ )
+)
+ THROW 52355,'Orphan RG provenance row without identified Gold document.',1;
+IF EXISTS (
+ SELECT 1 FROM gold.vw_rg_documento_distinto d
+ WHERE NOT EXISTS (
+   SELECT 1 FROM gold.vw_rg_documento_proveniencia p
+   WHERE p.pessoa_uuid=d.pessoa_uuid
+     AND p.numero_rg=d.numero_rg
+     AND p.emissor_codigo=d.emissor_codigo
+     AND p.uf_emissor=d.uf_emissor
+ )
+)
+ THROW 52356,'Identified Gold RG document without provenance.',1;
+
 PRINT N'GOLD DOCUMENTARY CANDIDATE VIEW SCHEMA: OK';
 GO
