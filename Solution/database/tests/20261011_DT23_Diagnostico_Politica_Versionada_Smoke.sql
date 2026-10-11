@@ -53,6 +53,25 @@ BEGIN TRY
        OR NOT EXISTS (SELECT 1 FROM ref.vw_dt23_ultimo_diagnostico
                       WHERE diagnostico_id=@novo AND estado='AMARELO')
         THROW 52307, 'Visão não escolhe o diagnóstico mais recente da política', 1;
+    -- Exercise the operational writer twice with an identical payload.
+    -- Both calls must retain a single immutable snapshot at the cutoff.
+    DECLARE @writer_policy UNIQUEIDENTIFIER = NEWID(), @writer_diagnostic UNIQUEIDENTIFIER = NEWID();
+    DECLARE @writer_cutoff DATETIME2(3) = DATEADD(DAY, -2, SYSUTCDATETIME());
+    INSERT ref.dt23_politica_suficiencia (politica_id, versao, configuracao_json)
+    VALUES (@writer_policy, CONCAT('writer-', CONVERT(VARCHAR(36), @writer_policy)), N'{}');
+    EXEC ref.sp_dt23_registrar_diagnostico
+        @diagnostico_id = @writer_diagnostic, @politica_id = @writer_policy,
+        @data_corte = @writer_cutoff, @estado = 'INDETERMINADO',
+        @contadores_json = N'[]', @justificativas_json = N'["sem evidencia"]',
+        @proveniencia_json = N'{"sourceKind":"UNVERIFIED","verified":false}';
+    EXEC ref.sp_dt23_registrar_diagnostico
+        @diagnostico_id = @writer_diagnostic, @politica_id = @writer_policy,
+        @data_corte = @writer_cutoff, @estado = 'INDETERMINADO',
+        @contadores_json = N'[]', @justificativas_json = N'["sem evidencia"]',
+        @proveniencia_json = N'{"sourceKind":"UNVERIFIED","verified":false}';
+    IF (SELECT COUNT(*) FROM ref.dt23_diagnostico_suficiencia
+        WHERE politica_id = @writer_policy AND data_corte = @writer_cutoff) <> 1
+        THROW 52332, 'DT23 repeated identical cycle created multiple snapshots', 1;
     -- Verifica a restrição sem provocar erro 2627 dentro da transação:
     -- em sessões XACT_ABORT ON a violação invalidaria a transação inteira.
     DECLARE @corte DATETIME2(3) = (SELECT data_corte FROM ref.dt23_diagnostico_suficiencia WHERE diagnostico_id=@novo);
