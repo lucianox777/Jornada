@@ -285,6 +285,27 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.That(Evaluate(evidence, new[] { "SP" }, 1, 1).State, Is.EqualTo(Status.Sufficient));
     }
 
+    [TestCase(" SP ")]
+    [TestCase("  ")]
+    public void NoncanonicalRequiredStratumPolicyIsRejected(string requestedStratum)
+    {
+        var evidence = new[] {
+            new Evidence(requestedStratum, "m1", true, true, "group-A"),
+            new Evidence(requestedStratum, "u1", true, false, "group-B")
+        };
+        Assert.Throws<ArgumentException>(() => Evaluate(evidence, new[] { requestedStratum }, 1, 1));
+    }
+
+    [Test]
+    public void DuplicateRequiredStratumPolicyIsRejectedRatherThanCertified()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "group-A"),
+            new Evidence("SP", "u1", true, false, "group-B")
+        };
+        Assert.Throws<ArgumentException>(() => Evaluate(evidence, new[] { "SP", "SP" }, 1, 1));
+    }
+
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
     {
         private readonly Evidence[] _items;

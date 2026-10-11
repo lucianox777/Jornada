@@ -13,8 +13,12 @@ public static class SampleSufficiencyAssessment
         ArgumentNullException.ThrowIfNull(evidence);
         ArgumentNullException.ThrowIfNull(strata);
         if (minimumM < 1 || minimumU < 1 || minimumIndependentGroups < 1) throw new ArgumentOutOfRangeException(nameof(minimumM));
-        if (strata.Count == 0 || strata.Any(string.IsNullOrWhiteSpace))
-            throw new ArgumentException("At least one stratum is required.", nameof(strata));
+        // A malformed policy scope must never certify a sample under a different
+        // stratum spelling or count a duplicated required stratum as independent.
+        if (strata.Count == 0 || strata.Any(s => string.IsNullOrWhiteSpace(s) ||
+            !string.Equals(s, s.Trim(), StringComparison.Ordinal)) ||
+            strata.Distinct(StringComparer.Ordinal).Count() != strata.Count)
+            throw new ArgumentException("Required strata must be unique, nonempty and canonical.", nameof(strata));
 
         var requiredStrata = strata.ToHashSet(StringComparer.Ordinal);
         // Group the independent pairs once so a streaming source cannot change between
