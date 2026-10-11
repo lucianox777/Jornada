@@ -5,6 +5,23 @@ IF OBJECT_ID(N'ref.dt23_diagnostico_suficiencia', N'U') IS NULL
     THROW 52302, 'Tabela de diagnóstico DT23 não instalada', 1;
 IF OBJECT_ID(N'ref.vw_dt23_ultimo_diagnostico', N'V') IS NULL
     THROW 52305, 'Visão read-only do diagnóstico DT23 não instalada', 1;
+-- Prova negativa: objetos DT-23 não podem instalar gatilhos de geração,
+-- validação ou ativação de modelos. A consulta permanece somente leitura.
+IF EXISTS (
+    SELECT 1 FROM sys.triggers AS t
+    WHERE t.parent_id IN (
+        OBJECT_ID(N'ref.dt23_politica_suficiencia'),
+        OBJECT_ID(N'ref.dt23_diagnostico_suficiencia'))
+)
+    THROW 52308, 'DT23 não pode possuir triggers nas tabelas observacionais', 1;
+IF EXISTS (
+    SELECT 1 FROM sys.sql_modules AS m
+    WHERE m.object_id = OBJECT_ID(N'ref.vw_dt23_ultimo_diagnostico')
+      AND (UPPER(m.definition) LIKE N'%GENERATE_DRAFT%'
+        OR UPPER(m.definition) LIKE N'%ACTIVATE%'
+        OR UPPER(m.definition) LIKE N'%VALIDATE%')
+)
+    THROW 52309, 'Visão DT23 não pode referenciar comandos de calibração', 1;
 BEGIN TRANSACTION;
 BEGIN TRY
     DECLARE @politica UNIQUEIDENTIFIER = NEWID(), @diagnostico UNIQUEIDENTIFIER = NEWID();
