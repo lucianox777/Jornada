@@ -319,15 +319,14 @@ def run_mode(mode: str) -> dict:
 
 
                 if mode == "DEV":
-                    assert_true(by_id["linkage"]["disabled"] is True,
-                                "Linkage without Silver is not blocked in catalog")
-                    status, blocked = http(base, "POST", "/api/commands/linkage/start")
-                    assert_true(status == 409 and isinstance(blocked, dict)
-                                and "Envie um arquivo de ingestão" in blocked.get("error", ""),
-                                "Linkage accepted before ingest/Silver")
+                    assert_true(by_id["linkage"]["disabled"] is False,
+                                "Linkage should not be blocked by missing session history")
+                    # Do not start Linkage here: it can invoke a real worker.
+                    # The catalog check proves the session-history gate is gone;
+                    # runtime prerequisites remain the executor's responsibility.
                     status, _ = http(base, "POST", "/api/session-counts/reset", ["silver"])
                     assert_true(status == 200, "session counter reset failed")
-                    checks.append("precondition enforcement + in-memory counter reset")
+                    checks.append("independent linkage catalog + in-memory counter reset")
                     # Exercise the real Console -> local ZIP -> HTTP download chain,
                     # without invoking the ingest API or touching shared SQL/IBGE.
                     test_manual_zip(base, "AA01_SEM_FATOS_v2", expect_facts=False)
