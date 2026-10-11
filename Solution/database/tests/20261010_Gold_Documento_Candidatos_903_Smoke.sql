@@ -224,5 +224,29 @@ DROP TABLE #rg_provenance;
 
 DROP TABLE #rg_repeat;
 
+-- Assert against the INSTALLED views, not only the table-variable model.
+-- These read-only checks catch duplicated Gold RG keys and provenance drift
+-- when the disposable E2E database contains documentary fixtures.
+IF EXISTS (
+ SELECT 1 FROM gold.vw_rg_documento_distinto
+ GROUP BY pessoa_uuid, numero_rg, emissor_codigo, uf_emissor
+ HAVING COUNT_BIG(*)<>1
+)
+ THROW 52353,'Gold RG view emitted duplicate document keys.',1;
+IF EXISTS (
+ SELECT 1
+ FROM gold.vw_rg_documento_distinto d
+ OUTER APPLY (
+   SELECT COUNT_BIG(DISTINCT p.documento_evidencia_id) AS n
+   FROM gold.vw_rg_documento_proveniencia p
+   WHERE p.pessoa_uuid=d.pessoa_uuid
+     AND p.numero_rg=d.numero_rg
+     AND p.emissor_codigo=d.emissor_codigo
+     AND p.uf_emissor=d.uf_emissor
+ ) provenance
+ WHERE provenance.n<>d.quantidade_ocorrencias
+)
+ THROW 52354,'Gold RG provenance does not match distinct documentary evidence.',1;
+
 PRINT N'GOLD DOCUMENTARY CANDIDATE VIEW SCHEMA: OK';
 GO
