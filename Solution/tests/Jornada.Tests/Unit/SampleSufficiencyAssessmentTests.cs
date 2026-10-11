@@ -356,6 +356,29 @@ public sealed class SampleSufficiencyAssessmentTests
             Evaluate(evidence, new[] { "SP", "SP" }, 2, 1)));
     }
 
+    [Test]
+    public void SelfDerivedIndependentGroupCannotCertify()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "m1"),
+            new Evidence("SP", "u1", true, false, "u1")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(r => r.Contains("equals pair key", StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
+    public void NoncanonicalRequestedStratumIsRejectedAsInvalidPolicy()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "person-A"),
+            new Evidence("SP", "u1", true, false, "person-B")
+        };
+        Assert.Throws<ArgumentException>((System.Action)(() =>
+            Evaluate(evidence, new[] { " SP " }, 1, 1)));
+    }
+
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
     {
         private readonly Evidence[] _items;
