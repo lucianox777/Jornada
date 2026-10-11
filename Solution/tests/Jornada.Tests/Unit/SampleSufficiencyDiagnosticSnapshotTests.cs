@@ -45,7 +45,7 @@ public sealed class SampleSufficiencyDiagnosticSnapshotTests
     public void RejectsNonUtcCutoffAndMissingPolicyVersion()
     {
         var result = Evaluate(Array.Empty<Evidence>(), new[] { "SP" }, 1, 1);
-        Assert.Throws<ArgumentException>(() => SampleSufficiencyDiagnosticSnapshot.Create(result, " ", Cutoff, "INDEPENDENT_REAL"));
-        Assert.Throws<ArgumentException>(() => SampleSufficiencyDiagnosticSnapshot.Create(result, "v1", Cutoff.ToOffset(TimeSpan.FromHours(-3)), "INDEPENDENT_REAL"));
+        Assert.Throws<ArgumentException>((System.Action)(() => SampleSufficiencyDiagnosticSnapshot.Create(result, " ", Cutoff, "INDEPENDENT_REAL")));
+        Assert.Throws<ArgumentException>((System.Action)(() => SampleSufficiencyDiagnosticSnapshot.Create(result, "v1", Cutoff.ToOffset(TimeSpan.FromHours(-3)), "INDEPENDENT_REAL")));
     }
 }
