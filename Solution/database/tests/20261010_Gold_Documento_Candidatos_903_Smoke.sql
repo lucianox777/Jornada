@@ -157,5 +157,26 @@ IF (SELECT COUNT(*) FROM #rg_multi_uuid)<>5
 DROP TABLE #rg_multi_uuid;
 
 
+-- Repeticao exata da mesma evidencia nao aumenta o numero de ocorrencias
+-- documentais; evidencia distinta do mesmo RG deve continuar contabilizada.
+INSERT @rg VALUES (@uuid,N'00123X',N'SSP',N'SP',1);
+;WITH normalized AS (
+ SELECT pessoa_uuid, UPPER(LTRIM(RTRIM(numero_rg))) AS numero_rg,
+        UPPER(LTRIM(RTRIM(emissor_codigo))) AS emissor_codigo,
+        UPPER(LTRIM(RTRIM(uf_emissor))) AS uf_emissor,
+        documento_evidencia_id
+ FROM @rg
+)
+SELECT pessoa_uuid,numero_rg,emissor_codigo,uf_emissor,
+       COUNT_BIG(DISTINCT documento_evidencia_id) AS quantidade_ocorrencias
+INTO #rg_repeat
+FROM normalized
+GROUP BY pessoa_uuid,numero_rg,emissor_codigo,uf_emissor;
+IF (SELECT quantidade_ocorrencias FROM #rg_repeat
+    WHERE pessoa_uuid=@uuid AND numero_rg=N'00123X'
+      AND emissor_codigo=N'SSP' AND uf_emissor=N'SP')<>2
+ THROW 52349,'Repeticao da mesma evidencia RG inflou a contagem de ocorrencias.',1;
+DROP TABLE #rg_repeat;
+
 PRINT N'GOLD DOCUMENTARY CANDIDATE VIEW SCHEMA: OK';
 GO
