@@ -8,6 +8,19 @@ namespace Jornada.Tests.Unit;
 public sealed class SampleSufficiencyAssessmentTests
 {
     [Test]
+    public void NullEvidenceRecordBlocksCertificationWithoutLeakingData()
+    {
+        var evidence = new Evidence[] {
+            new("SP", "m1", true, true, "group-A"),
+            null!,
+            new("SP", "u1", true, false, "group-B")
+        };
+        var result = Evaluate(evidence, new[] { "SP" }, 1, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Indeterminate));
+        Assert.That(result.Reasons.Any(r => r.Contains("Null independent evidence record", StringComparison.Ordinal)), Is.True);
+    }
+
+    [Test]
     public void RepeatedPairsWithoutIndependentGroupIdentifiersCannotCertify()
     {
         var evidence = new[] {
