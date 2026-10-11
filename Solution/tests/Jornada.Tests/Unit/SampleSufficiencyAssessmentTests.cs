@@ -338,6 +338,26 @@ public sealed class SampleSufficiencyAssessmentTests
         Assert.That(result.State, Is.EqualTo(Status.Sufficient));
     }
 
+    [Test]
+    public void InvalidIndependentGroupMinimumCannotDisableDiversityGate()
+    {
+        Assert.Throws<ArgumentOutOfRangeException>((System.Action)(() =>
+            Evaluate(Array.Empty<Evidence>(), new[] { "SP" }, 1, 1, 0)));
+    }
+
+    [Test]
+    public void DuplicateRequiredStrataCannotDoubleCountOrCertifyMissingClass()
+    {
+        var evidence = new[] {
+            new Evidence("SP", "m1", true, true, "person-A"),
+            new Evidence("SP", "u1", true, false, "person-B")
+        };
+        var result = Evaluate(evidence, new[] { "SP", "SP" }, 2, 1);
+        Assert.That(result.State, Is.EqualTo(Status.Insufficient));
+        Assert.That(result.Counts.Count, Is.EqualTo(1));
+        Assert.That(result.Counts.Single().M, Is.EqualTo(1));
+    }
+
     private sealed class SingleUseEvidence : IEnumerable<Evidence>
     {
         private readonly Evidence[] _items;
