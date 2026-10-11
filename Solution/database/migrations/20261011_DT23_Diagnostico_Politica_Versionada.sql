@@ -31,6 +31,7 @@ BEGIN
         CONSTRAINT FK_dt23_diagnostico_politica FOREIGN KEY (politica_id)
             REFERENCES ref.dt23_politica_suficiencia(politica_id),
         CONSTRAINT CK_dt23_diagnostico_estado CHECK (estado IN ('VERDE','AMARELO','VERMELHO','INDETERMINADO')),
+        CONSTRAINT UQ_dt23_diagnostico_politica_corte UNIQUE (politica_id, data_corte),
         CONSTRAINT CK_dt23_diagnostico_json CHECK (
             ISJSON(contadores_json) = 1 AND
             ISJSON(justificativas_json) = 1 AND
@@ -38,6 +39,16 @@ BEGIN
     );
     CREATE INDEX IX_dt23_diagnostico_corte
         ON ref.dt23_diagnostico_suficiencia (data_corte DESC, registrado_em DESC);
+END;
+GO
+-- A repetição do mesmo ciclo não deve criar snapshots divergentes.
+-- Falha fechada quando a mesma política/corte já existe: o produtor deve
+-- comparar o snapshot existente antes de decidir reutilizá-lo.
+IF NOT EXISTS (SELECT 1 FROM sys.key_constraints WHERE parent_object_id=OBJECT_ID(N'ref.dt23_diagnostico_suficiencia') AND name=N'UQ_dt23_diagnostico_politica_corte')
+BEGIN
+    IF EXISTS (SELECT 1 FROM ref.dt23_diagnostico_suficiencia GROUP BY politica_id, data_corte HAVING COUNT_BIG(*)>1)
+        THROW 52301, 'Diagnosticos duplicados por politica e corte; reconciliar antes de instalar unicidade', 1;
+    ALTER TABLE ref.dt23_diagnostico_suficiencia ADD CONSTRAINT UQ_dt23_diagnostico_politica_corte UNIQUE (politica_id, data_corte);
 END;
 GO
 -- Consultas periódicas por política e corte não devem varrer todo o histórico.
