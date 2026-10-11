@@ -30,7 +30,13 @@ public static class SampleSufficiencyAssessment
         // Independent evidence with an unassigned stratum or a whitespace-variant
         // of a requested stratum cannot disappear from the denominator silently.
         // Evidence from unrelated strata remains outside this assessment.
-        var relevantEvidence = evidence.Where(e => e.IndependentTruth &&
+        var snapshot = evidence.ToArray();
+        // An invalid record from an upstream collector must not be silently skipped
+        // or accidentally treated as sufficient independent truth.
+        if (snapshot.Any(e => e is null))
+            return new Result(Status.Indeterminate, Array.Empty<Count>(),
+                new[] { "Null independent evidence record; certification blocked." });
+        var relevantEvidence = snapshot.Where(e => e.IndependentTruth &&
             (string.IsNullOrWhiteSpace(e.Stratum) ||
              requiredStrata.Contains(e.Stratum) ||
              requiredStrata.Contains(e.Stratum.Trim()))).ToArray();
