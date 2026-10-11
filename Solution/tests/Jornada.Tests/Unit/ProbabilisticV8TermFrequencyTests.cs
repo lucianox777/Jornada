@@ -132,6 +132,59 @@ public sealed class ProbabilisticV8TermFrequencyTests
             Throws.InvalidOperationException.With.Message.Contains("guard demográfico"));
     }
 
+    [Test]
+    public void P0_RuntimeRanking_ExactVersusHigh_WithCommonFirstNameAndTF()
+    {
+        // Operational decision path: Rank applies TF after the base FS score.
+        // Illustrative fixture, not a certified calibrated model.
+        var model = LinkageModelPolicy.Create(ModelId, 9,
+            LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
+            Parameters(withTf: true), Snapshot());
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, null);
+        var exactId = Guid.Parse("11111111-1111-4111-8111-111111111111");
+        var highId = Guid.Parse("22222222-2222-4222-8222-222222222222");
+        Assert.That(IdentityComparison.CompareName("MARIA SILVA", "MARIA SILVAA",
+            LinkageParameterCatalog.NameComparisonContractForAlgorithm(model.AlgorithmVersion)),
+            Is.EqualTo(NameComparisonState.HIGH));
+        var ranked = ProbabilisticLinkageDecisions.Rank(model, observation, new[] {
+            new LinkageCandidate(exactId, "MARIA SILVA", null, null),
+            new LinkageCandidate(highId, "MARIA SILVAA", null, null)
+        });
+        Assert.That(ranked, Has.Count.EqualTo(2));
+        // The fixture sets M_NOME == U_NOME for all states and is not calibrated.
+        // It cannot establish a universal EXACT > HIGH decision policy.
+        Assert.That(ranked.Select(x => x.PessoaUuid), Is.EquivalentTo(new[] { exactId, highId }));
+        Assert.That(ranked[0].LogOdds, Is.GreaterThanOrEqualTo(ranked[1].LogOdds),
+            "Rank must order the computed FS/TF log-odds, not a fixed name-state preference.");
+        TestContext.WriteLine($"P0 EXACT/HIGH synthetic diagnostic: first={ranked[0].PessoaUuid}; " +
+            $"firstLogOdds={ranked[0].LogOdds}; secondLogOdds={ranked[1].LogOdds}; " +
+            $"exactFirst={ranked[0].PessoaUuid == exactId}. " +
+            "An EXACT/HIGH safety claim requires calibrated parameters and validation evidence.");
+    }
+
+    [Test]
+    public void P0_NameOnly_RareExact_UsesRealResolveAndReportsDecision()
+    {
+        // Diagnostic only: canonical policy does not impose an uncalibrated
+        // two-attribute gate. This test must not invent a RESOLVIDO requirement.
+        var model = LinkageModelPolicy.Create(ModelId, 9,
+            LinkageParameterCatalog.NeutralMissingDecisionEvidenceAlgorithmVersion,
+            Parameters(withTf: true), Snapshot());
+        var candidateId = Guid.Parse("33333333-3333-4333-8333-333333333333");
+        var observation = new IdentityObservation(null, "SEM_CPF", "ZULEICA KRAUSE", null, null);
+        var candidate = new LinkageCandidate(candidateId, "ZULEICA KRAUSE", null, null);
+        var ranked = ProbabilisticLinkageDecisions.Rank(model, observation, new[] { candidate });
+        var decision = ProbabilisticLinkageDecisions.Resolve(model, observation, new[] { candidate });
+        Assert.That(ranked, Has.Count.EqualTo(1));
+        Assert.That(decision.MelhorScore, Is.EqualTo(ranked[0].Score),
+            "Resolve must use the same TF-adjusted score as Rank.");
+        TestContext.WriteLine($"P0 name-only rare exact: status={decision.Status}; score={decision.MelhorScore}; reason={decision.Motivo}");
+        if (decision.Status == ResolutionStatus.RESOLVIDO)
+            Assert.That(decision.PessoaUuidResolvido, Is.EqualTo(candidateId));
+        else
+            Assert.That(decision.PessoaUuidResolvido, Is.Null);
+    }
+
     private static NominalTermFrequencySnapshot Snapshot()
         => NominalTermFrequencySnapshot.Create(new[]
         {
