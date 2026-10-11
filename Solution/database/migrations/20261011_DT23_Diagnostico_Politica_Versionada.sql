@@ -40,6 +40,11 @@ BEGIN
         ON ref.dt23_diagnostico_suficiencia (data_corte DESC, registrado_em DESC);
 END;
 GO
+-- Consultas periódicas por política e corte não devem varrer todo o histórico.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'ref.dt23_diagnostico_suficiencia') AND name=N'IX_dt23_diagnostico_politica_recente')
+    CREATE INDEX IX_dt23_diagnostico_politica_recente
+        ON ref.dt23_diagnostico_suficiencia (politica_id, registrado_em DESC, diagnostico_id DESC);
+GO
 -- A persistência não constitui autorização para gerar, validar ou ativar modelos.
 
 -- Snapshot mais recente por política: projeção estritamente read-only para consumidores operacionais.
