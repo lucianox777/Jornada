@@ -82,9 +82,16 @@ IF NOT EXISTS (SELECT 1 FROM sys.check_constraints
                  AND name=N'CK_dt23_diagnostico_verde_proveniencia')
     ALTER TABLE ref.dt23_diagnostico_suficiencia WITH CHECK
         ADD CONSTRAINT CK_dt23_diagnostico_verde_proveniencia CHECK (estado <> 'VERDE' OR (ISNULL(JSON_VALUE(proveniencia_json, '$.sourceKind'), N'') = N'INDEPENDENT_REAL' AND ISNULL(JSON_VALUE(proveniencia_json, '$.verified'), N'') = N'true'));
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints
+               WHERE parent_object_id=OBJECT_ID(N'ref.dt23_diagnostico_suficiencia')
+                 AND name=N'CK_dt23_diagnostico_json')
+    ALTER TABLE ref.dt23_diagnostico_suficiencia WITH CHECK
+        ADD CONSTRAINT CK_dt23_diagnostico_json CHECK (
+            ISJSON(contadores_json)=1 AND ISJSON(justificativas_json)=1
+            AND ISJSON(proveniencia_json)=1);
 IF EXISTS (SELECT 1 FROM sys.check_constraints
            WHERE parent_object_id=OBJECT_ID(N'ref.dt23_diagnostico_suficiencia')
-             AND name IN (N'CK_dt23_diagnostico_estado', N'CK_dt23_diagnostico_verde_proveniencia')
+             AND name IN (N'CK_dt23_diagnostico_estado', N'CK_dt23_diagnostico_verde_proveniencia', N'CK_dt23_diagnostico_json')
              AND (is_disabled=1 OR is_not_trusted=1))
     THROW 52302, 'DT23 diagnostic CHECK constraint disabled or untrusted; reconcile schema', 1;
 GO
