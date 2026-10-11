@@ -28,6 +28,23 @@ BEGIN TRY
     VALUES (@id, CONVERT(NVARCHAR(36), @id), N'{}');
     IF EXISTS (SELECT 1 FROM ref.vw_dt23_ultimo_diagnostico WHERE politica_id = @id)
         THROW 52325, 'Policy without evidence cannot produce a diagnostic', 1;
+    -- Replaying the same policy/cutoff must be rejected by the database.
+    DECLARE @cutoff DATETIME2(3) = SYSUTCDATETIME();
+    INSERT INTO ref.dt23_diagnostico_suficiencia
+        (diagnostico_id, politica_id, data_corte, estado, contadores_json, justificativas_json, proveniencia_json)
+    VALUES (NEWID(), @id, @cutoff, 'INDETERMINADO', N'{}', N'[]', N'{}');
+    DECLARE @duplicate_rejected BIT = 0;
+    BEGIN TRY
+        INSERT INTO ref.dt23_diagnostico_suficiencia
+            (diagnostico_id, politica_id, data_corte, estado, contadores_json, justificativas_json, proveniencia_json)
+        VALUES (NEWID(), @id, @cutoff, 'VERDE', N'{}', N'[]', N'{}');
+    END TRY
+    BEGIN CATCH
+        IF ERROR_NUMBER() IN (2601, 2627) SET @duplicate_rejected = 1;
+        ELSE THROW;
+    END CATCH;
+    IF @duplicate_rejected = 0
+        THROW 52326, 'Duplicate policy/cutoff was accepted', 1;
     ROLLBACK TRANSACTION;
 END TRY
 BEGIN CATCH
