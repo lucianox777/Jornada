@@ -79,3 +79,52 @@ JOIN mapeamentos_sem_ambiguidade m
   ON m.pessoa_observacao_id=c.pessoa_observacao_id
 JOIN gold.pessoa gp ON gp.pessoa_uuid=m.pessoa_uuid;
 GO
+
+-- Colecao RG 1:N somente leitura: uma linha por RG distinto por UUID.
+-- A identidade documental e (tipo, numero, orgao emissor, UF), NAO a
+-- observacao, data de expedicao, modelo ou posicao temporal. Repeticoes do
+-- mesmo RG se unem sem apagar suas ocorrencias/proveniencias Silver.
+-- Ausencia de numero/emissor/UF impede deduplicacao segura: a ocorrencia
+-- continua visivel na view de candidatos e NAO e inventada aqui.
+-- Outros tipos exigem politica de chave especifica, nao generalizar RG.
+CREATE OR ALTER VIEW gold.vw_rg_documento_distinto
+AS
+WITH rg_identificado AS (
+    SELECT c.pessoa_uuid,
+           UPPER(LTRIM(RTRIM(c.valor_original))) AS numero_rg,
+           UPPER(LTRIM(RTRIM(c.emissor_codigo))) AS emissor_codigo,
+           UPPER(LTRIM(RTRIM(c.uf_emissor))) AS uf_emissor,
+           c.documento_evidencia_id
+    FROM gold.vw_documento_evidencia_candidato_uuid c
+    WHERE c.tipo_documento_codigo=N'RG'
+      AND c.atributo_codigo=N'RG'
+      AND c.classe_evidencia=N'DOCUMENTO'
+      AND NULLIF(LTRIM(RTRIM(c.valor_original)),N'') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(c.emissor_codigo)),N'') IS NOT NULL
+      AND NULLIF(LTRIM(RTRIM(c.uf_emissor)),N'') IS NOT NULL
+)
+SELECT pessoa_uuid, CAST(N'RG' AS NVARCHAR(40)) AS tipo_documento_codigo,
+       numero_rg, emissor_codigo, uf_emissor,
+       COUNT_BIG(DISTINCT documento_evidencia_id) AS quantidade_ocorrencias
+FROM rg_identificado
+GROUP BY pessoa_uuid, numero_rg, emissor_codigo, uf_emissor;
+GO
+
+-- Relacao 1:N inversa: TODAS as ocorrencias que fundamentam cada RG distinto.
+-- Nao escolher primeiro/ultimo registro; preservar modelo, datas e origem.
+CREATE OR ALTER VIEW gold.vw_rg_documento_proveniencia
+AS
+SELECT d.pessoa_uuid, d.tipo_documento_codigo, d.numero_rg,
+       d.emissor_codigo, d.uf_emissor, d.quantidade_ocorrencias,
+       c.documento_evidencia_id, c.pessoa_observacao_id, c.modelo_documento_id,
+       c.data_evidencia, c.base_origem_codigo, c.ocorrencia_origem_codigo
+FROM gold.vw_rg_documento_distinto d
+JOIN gold.vw_documento_evidencia_candidato_uuid c
+  ON c.pessoa_uuid=d.pessoa_uuid
+ AND c.tipo_documento_codigo=N'RG'
+ AND c.atributo_codigo=N'RG'
+ AND c.classe_evidencia=N'DOCUMENTO'
+ AND UPPER(LTRIM(RTRIM(c.valor_original)))=d.numero_rg
+ AND UPPER(LTRIM(RTRIM(c.emissor_codigo)))=d.emissor_codigo
+ AND UPPER(LTRIM(RTRIM(c.uf_emissor)))=d.uf_emissor;
+GO
