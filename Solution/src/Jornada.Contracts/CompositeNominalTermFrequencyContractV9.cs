@@ -74,13 +74,14 @@ public static class CompositeNominalTermFrequencyContractV9
             throw new InvalidOperationException(
                 $"TF V9 rejeitada: nível {level} exige unidade {expectedUnit}, recebida {reference.Unit}.");
 
-        // The IBGE published first/surname marginal cannot attest a full
-        // name or joint first+last distribution by multiplication.
+        // The published IBGE name marginal covers FIRST name. The published
+        // surname marginal includes ANY surname position, and is NOT a
+        // LAST-content-surname distribution. Neither provides a full-name
+        // distribution nor an observed joint first+last frequency.
         if (reference.Source == NominalFrequencySourceV9.IbgePublishedMarginal
-            && expectedUnit is NominalFrequencyUnitV9.FullName
-                or NominalFrequencyUnitV9.FirstLastJoint)
+            && expectedUnit != NominalFrequencyUnitV9.FirstName)
             throw new InvalidOperationException(
-                "Marginais publicadas do IBGE não constituem distribuição conjunta ou nome integral.");
+                "Marginais publicadas do IBGE não atestam nome integral, par conjunto ou último sobrenome.");
 
         if (string.IsNullOrWhiteSpace(reference.PopulationFrameFingerprint)
             || string.IsNullOrWhiteSpace(reference.BlockingFrameFingerprint)
