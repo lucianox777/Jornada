@@ -44,6 +44,14 @@ O método `FellegiSunterScoring.CalculateCompositeNominalJointV9` já está **no
 
 **Limite de integração:** esta rotina implementa o **termo matemático nominal** no FS C#, não liga uma `AlgorithmVersion=V9` ao `Rank/Resolve`, não seleciona um modelo/TF, não prova que as 81 probabilidades foram certificadas e não altera parâmetros já ativos. Para usá-la operacionalmente ainda é necessário conectar o snapshot V9 governado ao `Evaluate` do FS, em substituição — e não em soma — às contribuições nominais legadas, e passar pelos gates de promoção abaixo. A prioridade é concluir essa integração e a calibração V9; **otimizações adicionais de censo opcional de pares no SQL não são pré-requisito para criar o scorer nominal**.
 
+## Conexão com a matemática integral do FS C# — preview V9 (etapa seguinte)
+
+A evolução `FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown` executa, **na mesma função interna `Evaluate` do scorer FS existente**, prior e evidência de nascimento **mais uma única contribuição nominal conjunta de pessoa × mãe**. A entrada V9 recebe os 81 estados `(m,u)`, classifica o par e exige versão, distribuição normalizada e 81 estados exclusivos; calcula `ln(m/u)` e passa essa evidência ao mesmo acumulador/logit/breakdown usado no runtime. **Não executa `NOME` e `NOME_MAE` legados quando existe estado nominal conjunto V9**, o que previne a dupla contagem. O nascimento continua com seus próprios parâmetros e cálculo padrão; ausência nominal da mãe é estado conjunto explícito, **não neutro por definição**.
+
+A função é **preview matemático explícito**, não um novo scorer de produção nem `AlgorithmVersion=V9` ativado. Não altera `Rank/Resolve`, não consome dados do atendente, não publica nem altera modelo persistido e **não aplica TF** até que uma referência por unidade/nível seja calibrada. O fato de uma tabela somar 1 e produzir score finito não certifica os `m/u`: a verificação do corpus, fonte IBGE/proxy ou histórico real, condicionamento ao blocking, partições independentes, suporte, FDR/FP/recall e paridade com Splink continuam obrigatórios antes de permitir persistência/promoção.
+
+Os testes verificam numericamente `logit(prior) + ln(m_j/u_j) + ln(m_nasc/u_nasc)`, a ausência de `NOME`/`NOME_MAE` duplos, mãe e nascimento ausentes, falhas de contrato, e que parâmetros marginais legados adicionais **não alteram o score V9**. Nenhum censo opcional de pares SQL é pré-requisito do preview; priorizar o **snapshot V9 governado e o dispatch seguro no mesmo scorer**.
+
 ## Critérios de promoção (não concluídos por esta PR)
 
 1. Capturar estados V9 do TRAIN e dos pares U **condicionados ao blocking**; estimar distribuições `m/u` por nível com suavização, suporte e incerteza explícitos.

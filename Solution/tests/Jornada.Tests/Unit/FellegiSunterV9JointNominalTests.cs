@@ -116,6 +116,113 @@ public sealed class FellegiSunterV9JointNominalTests
         }));
     }
 
+    private static readonly DateOnly Birth = new(1990, 5, 6);
+
+    private static IReadOnlyDictionary<string, decimal> PreviewParameters() =>
+        new Dictionary<string, decimal>
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] = 0.01m,
+            [LinkageParameterCatalog.DecisionEvidenceScoring] = 1m,
+            [LinkageParameterCatalog.NeutralMissingEvidenceScoring] = 1m,
+            [LinkageParameterCatalog.BirthSingleEvidenceScoring] = 1m,
+            ["M_DATA_NASCIMENTO_EXACT"] = 0.8m,
+            ["U_DATA_NASCIMENTO_EXACT"] = 0.2m,
+            ["M_DATA_NASCIMENTO_DIFF"] = 0.2m,
+            ["U_DATA_NASCIMENTO_DIFF"] = 0.8m
+        };
+
+    [Test]
+    public void PreviewCombinesOneJointNominalLlrWithBirthAndPriorInsideSameFsKernel()
+    {
+        var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.ExactFull, 0.20m, 0.05m);
+        var result = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            PreviewParameters(),
+            "Maria Silva", "MARIA SILVA", "Ana Costa", "ANA COSTA",
+            cells, CompositeNominalComparisonV9.ContractVersion,
+            leftBirthDate: Birth, rightBirthDate: Birth);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.Contributions, Has.Count.EqualTo(2));
+            Assert.That(result.Contributions.Count(c => c.Evidence == "NOMINAL_CONJUNTO_V9"),
+                Is.EqualTo(1));
+            Assert.That(result.Contributions.Any(c => c.Evidence is "NOME" or "NOME_MAE"),
+                Is.False);
+            Assert.That(result.Contributions.Single(c => c.Evidence == "NOMINAL_CONJUNTO_V9")
+                .MProbability, Is.EqualTo(.20m));
+            Assert.That(result.Contributions.Single(c => c.Evidence == "NOMINAL_CONJUNTO_V9")
+                .UProbability, Is.EqualTo(.05m));
+            Assert.That(result.Contributions.Single(c => c.Evidence == "DATA_NASCIMENTO")
+                .LogLikelihoodRatio, Is.EqualTo((decimal)Math.Log(4d)).Within(0.000000001m));
+            Assert.That(result.Score.LogOdds,
+                Is.EqualTo((decimal)(Math.Log(.01d/.99d) + 2*Math.Log(4d)))
+                    .Within(0.00000001m));
+            Assert.That(result.PriorKind, Is.EqualTo("MODEL_PRIOR"));
+            Assert.That(result.PriorProbability, Is.EqualTo(.01m));
+        }));
+    }
+
+    [Test]
+    public void PreviewMissingMotherIsNotSilentlyNeutralizedAndMissingBirthRemainsNeutral()
+    {
+        var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.Missing, 0.10m, 0.20m);
+        var result = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            PreviewParameters(),
+            "Maria Silva", "Maria Silva", null, "Ana Costa",
+            cells, CompositeNominalComparisonV9.ContractVersion);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.Contributions, Has.Count.EqualTo(2));
+            Assert.That(result.Contributions[0].Evidence, Is.EqualTo("NOMINAL_CONJUNTO_V9"));
+            Assert.That(result.Contributions[0].State, Does.Contain("Missing"));
+            Assert.That(result.Contributions[0].LogLikelihoodRatio,
+                Is.EqualTo((decimal)-Math.Log(2d)).Within(0.000000001m));
+            Assert.That(result.Contributions[1].Evidence, Is.EqualTo("NASCIMENTO"));
+            Assert.That(result.Contributions[1].LogLikelihoodRatio, Is.Zero);
+            Assert.That(result.Score.LogOdds,
+                Is.EqualTo((decimal)(Math.Log(.01d/.99d)-Math.Log(2d)))
+                    .Within(0.00000001m));
+        }));
+    }
+
+    [Test]
+    public void PreviewIsFailClosedAndDoesNotAccidentallyUseHistoricalMarginalParameters()
+    {
+        var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.ExactFull, .2m, .05m);
+        var parameters = PreviewParameters();
+        var oldOnly = new Dictionary<string, decimal>(parameters)
+        {
+            ["M_NOME_EXACT"] = 0.01m,
+            ["U_NOME_EXACT"] = 0.90m,
+            ["M_NOME_MAE_EXACT"] = 0.01m,
+            ["U_NOME_MAE_EXACT"] = 0.90m
+        };
+        var baseline = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            parameters, "Maria Silva", "Maria Silva", "Ana Costa", "Ana Costa",
+            cells, CompositeNominalComparisonV9.ContractVersion);
+        var withMarginals = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            oldOnly, "Maria Silva", "Maria Silva", "Ana Costa", "Ana Costa",
+            cells, CompositeNominalComparisonV9.ContractVersion);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(baseline.Score, Is.EqualTo(withMarginals.Score));
+            Assert.That(baseline.Contributions, Is.EqualTo(withMarginals.Contributions));
+            Assert.That((Action)(() =>
+                FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                    new Dictionary<string, decimal> { [LinkageParameterCatalog.PriorMatchProbability] = .01m },
+                    "Maria Silva", "Maria Silva", "Ana Costa", "Ana Costa",
+                    cells, CompositeNominalComparisonV9.ContractVersion)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                    parameters, "Maria Silva", "Maria Silva", "Ana Costa", "Ana Costa",
+                    cells.Skip(1).ToArray(), CompositeNominalComparisonV9.ContractVersion)),
+                Throws.InvalidOperationException);
+        }));
+    }
+
     [Test]
     public void ReorderingCellsDoesNotChangeFrozenJointLikelihoodRatio()
     {
