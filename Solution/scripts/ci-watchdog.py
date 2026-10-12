@@ -30,6 +30,37 @@ INFRA_LOG_MARKERS = (
     "the runner lost communication with the server",
     "runner is disconnected from the server",
 )
+# Strictly recognized synthetic dependents. An aggregator is NOT independently
+# "infra": its only tolerated failing step is the initial assertion that its
+# required child jobs succeeded. The children must contain positive runner
+# failure evidence; no code/test/SARIF failure can be retried through this path.
+AGGREGATE_DEPENDENCIES = {
+    "unit": (
+        "Verify contractual and runtime tests both passed",
+        ("unit-contracts", "unit-runtime"),
+    ),
+    "e2e": (
+        "Both independent E2E suites are mandatory",
+        ("e2e-console", "e2e-private-sql"),
+    ),
+    "security-analysis": (
+        "Fail closed unless static security and CodeQL both succeeded",
+        ("security-guards", "security-codeql"),
+    ),
+}
+
+
+def failed_dependency_assertion(job: dict) -> bool:
+    expected = AGGREGATE_DEPENDENCIES.get(job.get("name"))
+    if not expected:
+        return False
+    steps = job.get("steps")
+    if not isinstance(steps, list):
+        return False
+    failed = [step.get("name") for step in steps if step.get("conclusion") == "failure"]
+    return failed == [expected[0]]
+
+
 ALLOWED_LOG_HOST_SUFFIXES = (
     ".actions.githubusercontent.com",
     ".blob.core.windows.net",
@@ -154,11 +185,39 @@ def retryable_jobs(payload: dict, logs) -> tuple[bool, str]:
         return False, "no failed jobs"
     if any(j.get("conclusion") != "failure" for j in failed):
         return False, "cancelled, timed-out or approval-blocked job"
+    by_name = {job.get("name"): job for job in jobs}
+    if len(by_name) != len(jobs):
+        return False, "duplicate or missing job name"
+    infra_failed: set[str] = set()
+    dependent_assertions: list[dict] = []
     for job in failed:
+        name = job.get("name")
+        if not isinstance(job.get("id"), int):
+            return False, "invalid failed job id"
         text = logs(job["id"]).lower()
-        if not any(marker in text for marker in INFRA_LOG_MARKERS):
+        if any(marker in text for marker in INFRA_LOG_MARKERS):
+            infra_failed.add(name)
+        elif failed_dependency_assertion(job):
+            dependent_assertions.append(job)
+        else:
             return False, "no explicit runner-infrastructure evidence"
-    return True, f"{len(failed)} runner-infrastructure failure(s)"
+    if not infra_failed:
+        return False, "no direct runner-infrastructure failure"
+    for aggregate in dependent_assertions:
+        _, parents = AGGREGATE_DEPENDENCIES[aggregate["name"]]
+        # All declared producers must exist and be finished, exactly as GitHub
+        # reports their status. A synthetic failure with no direct infra parent
+        # is a genuine product/contract failure and must stay blocked.
+        if any(parent not in by_name or by_name[parent].get("status") != "completed" for parent in parents):
+            return False, "aggregate dependency set incomplete"
+        if not any(parent in infra_failed for parent in parents):
+            return False, "aggregate failure has no proven infra parent"
+        if any(by_name[parent].get("conclusion") not in ("success", "failure") for parent in parents):
+            return False, "aggregate has skipped, timed-out or blocked parent"
+    return True, (
+        f"{len(infra_failed)} proven runner-infrastructure failure(s); "
+        f"{len(dependent_assertions)} dependent aggregate failure(s)"
+    )
 
 
 def summarize_checkpoint(payload: dict) -> str:
