@@ -19,7 +19,8 @@ public sealed record CompositeNominalBlockingAuditV9(
     long MatchedInputCount,
     long UnmatchedSampleCount,
     IReadOnlyList<CompositeNominalAttributeEstimateV9> Attributes,
-    long MatchedLogicallyRetained = 0)
+    long MatchedLogicallyRetained = 0,
+    CompositeNominalJointCalibrationV9? Joint = null)
 {
     public bool Available => Status is "DIAGNOSTIC_ONLY_M_NOT_BLOCK_CONDITIONED"
         or CompositeNominalBlockingAuditBuilderV9.LogicalConditioningStatus;
@@ -118,6 +119,10 @@ public static class CompositeNominalBlockingAuditBuilderV9
                     : "M_INTERMANAGER_INDEPENDENT_CPF_AND_U_BLOCKING_CONDITIONED_DIAGNOSTIC_ONLY",
                 "SAMPLED_TRAIN_UPSTREAM_PARTITION_NOT_A_CERTIFICATION");
             var estimate = CompositeNominalCalibrationEstimatorV9.Estimate(frame, smoothingAlpha);
+            // The joint 9x9 levels retain empirical dependence between the
+            // person's name and the mother's name. Diagnostic only: M is
+            // not yet attested against SQL materialized historical aliases.
+            var joint = CompositeNominalJointCalibrationEstimatorV9.Estimate(frame, smoothingAlpha);
             return new CompositeNominalBlockingAuditV9(
                 conditionMatchedPairsOnLogicalBlocking
                     ? LogicalConditioningStatus : "DIAGNOSTIC_ONLY_M_NOT_BLOCK_CONDITIONED",
@@ -128,7 +133,8 @@ public static class CompositeNominalBlockingAuditBuilderV9
                 unmatched.Pairs.Count,
                 estimate.Attributes,
                 MatchedLogicallyRetained: conditionMatchedPairsOnLogicalBlocking
-                    ? matchesForEstimate.Count : 0);
+                    ? matchesForEstimate.Count : 0,
+                Joint: joint);
         }
         catch (InvalidOperationException ex) when (
             ex.Message.Contains("suporte observado", StringComparison.Ordinal))
