@@ -1000,6 +1000,10 @@ jobs:
           tar -xzf .local/nuget-lock-input/packages-locks.tar.gz -C .
           python3 scripts/nuget-lock-gate.py --root . --summary .local/nuget-lock-input/private-sql-summary.json
           dotnet restore Jornada.sln --locked-mode
+      # The private supervisor invokes an existing Release DevConsole DLL.
+      # Build only its project/dependencies; avoid recompiling the whole solution.
+      - name: Compile DevConsole prerequisite without rebuilding full solution
+        run: dotnet build src/Jornada.DevConsole/Jornada.DevConsole.csproj --configuration Release --no-restore
       - name: C3.2d real isolated SQL create-only acceptance (ephemeral Compose; no workers)
         env:
           JORNADA_WORKERS_E2E_RUNTIME_TEST: 'true'
