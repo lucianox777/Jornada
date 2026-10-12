@@ -139,3 +139,32 @@ BEGIN CATCH
     IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
     THROW;
 END CATCH;
+
+-- Operational retry regression: identical immutable payload and identifier must be
+-- idempotent, including when the caller owns the transaction. Disposable CI only.
+BEGIN TRY
+    BEGIN TRANSACTION;
+    DECLARE @retry_policy UNIQUEIDENTIFIER = NEWID();
+    DECLARE @retry_diagnostic UNIQUEIDENTIFIER = NEWID();
+    DECLARE @retry_cutoff DATETIME2(3) = '2026-10-11T12:00:00.000';
+    INSERT INTO ref.dt23_politica_suficiencia(politica_id, versao, configuracao_json)
+    VALUES (@retry_policy, CONVERT(NVARCHAR(36), @retry_policy), N'{}');
+    EXEC ref.sp_dt23_registrar_diagnostico
+        @diagnostico_id=@retry_diagnostic, @politica_id=@retry_policy,
+        @data_corte=@retry_cutoff, @estado='INDETERMINADO',
+        @contadores_json=N'[]', @justificativas_json=N'["unverified"]',
+        @proveniencia_json=N'{"sourceKind":"UNVERIFIED","verified":false}';
+    EXEC ref.sp_dt23_registrar_diagnostico
+        @diagnostico_id=@retry_diagnostic, @politica_id=@retry_policy,
+        @data_corte=@retry_cutoff, @estado='INDETERMINADO',
+        @contadores_json=N'[]', @justificativas_json=N'["unverified"]',
+        @proveniencia_json=N'{"sourceKind":"UNVERIFIED","verified":false}';
+    IF (SELECT COUNT_BIG(*) FROM ref.dt23_diagnostico_suficiencia
+        WHERE politica_id=@retry_policy AND data_corte=@retry_cutoff) <> 1
+        THROW 52332, 'DT23 identical retry created duplicate or lost diagnostic', 1;
+    ROLLBACK TRANSACTION;
+END TRY
+BEGIN CATCH
+    IF XACT_STATE() <> 0 ROLLBACK TRANSACTION;
+    THROW;
+END CATCH;
