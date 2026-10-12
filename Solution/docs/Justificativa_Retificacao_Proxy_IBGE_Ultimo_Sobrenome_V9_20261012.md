@@ -48,6 +48,12 @@ A origem genérica `IbgePublishedMarginal` **não passou a autorizar implicitame
 
 **Importante:** `RequireMatchingReference` só valida a **elegibilidade declarada do contrato** e ainda exige fingerprints, suporte mínimo e sinalizador de validação populacional. Esses metadados não comprovam por si só procedência, representatividade, independência, significância estatística ou qualidade dos valores. No *bootstrap*, não transformar o nome desses campos em alegação de que a frequência por último sobrenome foi medida: a origem permanece **proxy**.
 
+## 3-A. Complemento posterior: distinguir a aprovação sintética do suporte real (V3)
+
+A especificação acima descreve historicamente o guard **V2 da PR #955**. A decisão canônica já documentava o bootstrap inicial `SINTETICO_IBGE` de **30.000 pessoas**, com origem, versão/seed de gerador, hipóteses e fingerprints; esse corpus **não é amostra observada municipal**. Portanto não se deve exigir contagem de suporte **real observado** nem atestado de validação **populacional real** para admitir sua referência IBGE inicial. A fonte real, que progressivamente substitui o bootstrap, deve continuar sujeita a esses dois gates.
+
+A [evolução V3 do contrato](Linkage_V9_TF_Unit_Safety_Audit_20261012.md) exige proveniência sintética explícita, 30.000 pessoas e identidade/versionamento do corpus gerado para fontes IBGE; **rejeita misturar o marcador `SINTETICO_IBGE` com alegações de suporte/validação reais**. Fontes observadas reais continuam exigindo suporte e validação independentes, sem marcador sintético. Não se altera a distinção normativa entre marginal IBGE de sobrenome em qualquer posição e frequência da posição final; nenhuma dessas verificações declarativas comprova fidelidade real do corpus, nem autoriza aplicar TF ou ativar V9.
+
 ## 4. Alternativas consideradas e rejeitadas
 
 1. **Manter a rejeição absoluta da PR #951:** descartaria um bootstrap permitido pela DC-LK-TF, sem emenda formal, mesmo quando a fonte fosse explicitamente rotulada como proxy.

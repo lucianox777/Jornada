@@ -26,13 +26,27 @@ public enum NominalFrequencySourceV9
     IbgeSurnameAnyPositionProxy
 }
 
+/// <summary>
+/// Explicit synthetic evidence provenance for the canonical 30,000-person
+/// IBGE bootstrap. This is declarative metadata, not empirical validation.
+/// Hypotheses, generator, seed and corpus identity must remain traceable.
+/// </summary>
+public sealed record NominalSyntheticIbgeBootstrapV9(
+    string Provenance,
+    int People,
+    string CorpusFingerprint,
+    string GeneratorVersion,
+    ulong GeneratorSeed,
+    string GenerationHypothesesFingerprint);
+
 public sealed record NominalFrequencyReferenceContractV9(
     NominalFrequencyUnitV9 Unit,
     NominalFrequencySourceV9 Source,
     string PopulationFrameFingerprint,
     string BlockingFrameFingerprint,
     long IndependentObservedSupport,
-    bool IndependentPopulationValidationApproved);
+    bool IndependentPopulationValidationApproved,
+    NominalSyntheticIbgeBootstrapV9? SyntheticBootstrap = null);
 
 /// <summary>
 /// Fail-closed guard against the V8 error of applying marginal first-name
@@ -41,7 +55,9 @@ public sealed record NominalFrequencyReferenceContractV9(
 /// </summary>
 public static class CompositeNominalTermFrequencyContractV9
 {
-    public const string Version = "V9_NOMINAL_TF_UNIT_GUARD_V2";
+    public const string Version = "V9_NOMINAL_TF_UNIT_GUARD_V3";
+    public const string SyntheticIbgeProvenance = "SINTETICO_IBGE";
+    public const int CanonicalBootstrapPeople = 30_000;
 
     public static NominalFrequencyUnitV9? RequiredUnit(CompositeNominalLevelV9 level) =>
         level switch
@@ -59,9 +75,12 @@ public static class CompositeNominalTermFrequencyContractV9
         };
 
     /// <summary>
-    /// Gates the *eligibility of a reference contract only*; an upstream
-    /// certifier must prove the attested frame and independence. No frequency
-    /// or correction is returned. Missing/approximate levels are TF-neutral.
+    /// Gates the *eligibility of a reference contract only*; the canonical
+    /// SINTETICO_IBGE bootstrap uses a versioned 30k synthetic corpus and
+    /// does not require real observed support or population validation.
+    /// Real observed references still need independent support/validation.
+    /// Declared metadata does NOT prove either source's authenticity.
+    /// No frequency or correction is returned. Missing levels are TF-neutral.
     /// </summary>
     public static void RequireMatchingReference(
         CompositeNominalLevelV9 level,
@@ -94,11 +113,42 @@ public static class CompositeNominalTermFrequencyContractV9
             throw new InvalidOperationException(
                 "Proxy IBGE de sobrenome em qualquer posição só é compatível com LastContentSurname.");
 
+        // Frame/projection identity is required for either provenance path;
+        // it is a traceable declaration, not a certificate of representativity.
         if (string.IsNullOrWhiteSpace(reference.PopulationFrameFingerprint)
-            || string.IsNullOrWhiteSpace(reference.BlockingFrameFingerprint)
+            || string.IsNullOrWhiteSpace(reference.BlockingFrameFingerprint))
+            throw new InvalidOperationException(
+                "TF V9 exige fingerprints de frame e blocking para qualquer referência.");
+
+        if (reference.Source is NominalFrequencySourceV9.IbgePublishedMarginal
+            or NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy)
+        {
+            // DC-LK-TF / canonical 09-10 bootstrap: the 30k synthetic
+            // reference has known simulated identities, not real-person
+            // independent observations. Do not demand fake observed support
+            // or fake population approval just to admit its initial proxy.
+            var bootstrap = reference.SyntheticBootstrap;
+            if (bootstrap is null
+                || !string.Equals(bootstrap.Provenance, SyntheticIbgeProvenance,
+                    StringComparison.Ordinal)
+                || bootstrap.People != CanonicalBootstrapPeople
+                || string.IsNullOrWhiteSpace(bootstrap.CorpusFingerprint)
+                || string.IsNullOrWhiteSpace(bootstrap.GeneratorVersion)
+                || string.IsNullOrWhiteSpace(bootstrap.GenerationHypothesesFingerprint)
+                || reference.IndependentObservedSupport != 0
+                || reference.IndependentPopulationValidationApproved)
+                throw new InvalidOperationException(
+                    "TF V9 bootstrap exige SINTETICO_IBGE de 30.000 pessoas, gerador, seed, " +
+                    "hipóteses, corpus e proveniência; sem declarar evidência real fictícia.");
+            return;
+        }
+
+        if (reference.SyntheticBootstrap is not null
             || reference.IndependentObservedSupport < minimumIndependentSupport
             || !reference.IndependentPopulationValidationApproved)
             throw new InvalidOperationException(
-                "TF V9 exige referência com frame, blocking, suporte independente e validação populacional aprovada.");
+                "TF V9 fonte observada exige suporte real independente e validação populacional; " +
+                "não aceita proveniência sintética.");
+
     }
 }
