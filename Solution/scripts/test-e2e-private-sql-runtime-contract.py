@@ -73,7 +73,7 @@ def main() -> None:
         marker = "phase_advance " + phase + "\n"
         assert content.count(marker) == 1, "missing/duplicated phase: " + phase
         assert content.index(marker) < content.index(real_command), phase
-    assert content.count("\nphase_advance ") == len(phase_starts) - 1
+    assert content.count("\nphase_advance ") == len(phase_starts)
 
     assert "jornada-local" not in content
     for unsafe in ("local-db.ps1", "local-db.sh", "docker compose down",
