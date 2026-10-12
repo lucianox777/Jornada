@@ -388,6 +388,116 @@ public sealed class CandidateWeightedEstimatorTests
             Is.EqualTo("CALLER_LEVEL_SIDECAR_UNATTESTED"));
     }
 
+    [Test]
+    public async Task V9IndependentHoldoutMeasuresWeightedJointSupportWithoutTrainingLeakage()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var audit = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, raw, 0.5m);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(audit.Version, Is.EqualTo(CandidateWeightedJointHoldoutAuditBuilderV9.Version));
+            Assert.That(audit.Status, Does.Contain("NOT_SQL_CERTIFIED"));
+            Assert.That(audit.EvaluationCells, Has.Count.EqualTo(81));
+            Assert.That(audit.Training.Cells, Has.Count.EqualTo(81));
+            Assert.That(audit.Training.EvidenceGeneration,
+                Is.EqualTo(CandidateNominalV9EvidenceExtractor.Version));
+            Assert.That(audit.Training.Matched.TrainingPairCount, Is.EqualTo(4));
+            Assert.That(audit.Training.Unmatched.TrainingPairCount, Is.EqualTo(8));
+            Assert.That(audit.MatchedEvaluation.EvaluationPairCount, Is.EqualTo(2));
+            Assert.That(audit.UnmatchedEvaluation.EvaluationPairCount, Is.EqualTo(4));
+            Assert.That(audit.MatchedEvaluation.IndependentEvaluationGroups, Is.EqualTo(2));
+            Assert.That(audit.UnmatchedEvaluation.IndependentEvaluationGroups, Is.EqualTo(2));
+            Assert.That(audit.MatchedEvaluation.TotalDesignWeight, Is.EqualTo(4m));
+            Assert.That(audit.UnmatchedEvaluation.TotalDesignWeight, Is.EqualTo(4m));
+            Assert.That(audit.MatchedEvaluation.KishEffectiveSampleSize, Is.EqualTo(2m));
+            Assert.That(audit.UnmatchedEvaluation.KishEffectiveSampleSize, Is.EqualTo(4m));
+            Assert.That(audit.EvaluationCells.Sum(x => x.MatchedObservedPairs), Is.EqualTo(2));
+            Assert.That(audit.EvaluationCells.Sum(x => x.UnmatchedObservedPairs), Is.EqualTo(4));
+            Assert.That(audit.EvaluationCells.Sum(x => x.MatchedObservedWeight), Is.EqualTo(4m));
+            Assert.That(audit.EvaluationCells.Sum(x => x.UnmatchedObservedWeight), Is.EqualTo(4m));
+            Assert.That(audit.MatchedEvaluation.TotalVariationFromTrainingObserved,
+                Is.EqualTo(0m).Within(0.000000000001m));
+            Assert.That(audit.UnmatchedEvaluation.TotalVariationFromTrainingObserved,
+                Is.EqualTo(0m).Within(0.000000000001m));
+        }));
+    }
+
+    [Test]
+    public async Task V9EvaluationDifferencesChangeHoldoutButNeverRefitTraining()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var modified = raw.Select(e => Sources.Skip(4).Contains(e.SourceId)
+            && e.Values.LeftName == "Maria Silva"
+            ? e with { Values = e.Values with { RightName = "Nome Totalmente Diferente" } }
+            : e).ToArray();
+        var first = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, raw, 0.5m);
+        var changed = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, modified, 0.5m);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(System.Text.Json.JsonSerializer.Serialize(changed.Training),
+                Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(first.Training)));
+            Assert.That(changed.MatchedEvaluation.TotalVariationFromTrainingObserved,
+                Is.GreaterThan(first.MatchedEvaluation.TotalVariationFromTrainingObserved));
+            Assert.That(changed.MatchedEvaluation.EvaluationWeightInUnseenTrainingCells,
+                Is.GreaterThan(0m));
+            Assert.That(changed.UnmatchedEvaluation.TotalVariationFromTrainingObserved,
+                Is.EqualTo(first.UnmatchedEvaluation.TotalVariationFromTrainingObserved));
+        }));
+    }
+
+    [Test]
+    public async Task V9HoldoutRefusesInsufficientIndependentEvaluationSupport()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That((Action)(() =>
+                CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+                    corpus, raw, 1m, minimumEffectiveSampleSize: 3m)),
+                Throws.InvalidOperationException.With.Message.Contains("holdout"));
+            Assert.That((Action)(() =>
+                CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+                    corpus, raw.Skip(1).ToArray(), 1m)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+                    corpus, raw, 0m)),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+        }));
+    }
+
+    [Test]
+    public async Task V9HoldoutOutputContainsOnlyAggregateNominalStatesAndNoPersonalData()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var audit = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, V9RawEvidence(capture), 0.5m);
+        var json = System.Text.Json.JsonSerializer.Serialize(audit);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(json, Does.Not.Contain("MARIA SILVA"));
+            Assert.That(json, Does.Not.Contain("APARECIDA"));
+            Assert.That(json, Does.Not.Contain("SourceId"));
+            Assert.That(json, Does.Not.Contain("CandidateId"));
+            Assert.That(json, Does.Not.Contain("IndependenceGroupId"));
+            Assert.That(json, Does.Not.Contain(Sources[0].ToString("D")));
+            Assert.That(json, Does.Not.Contain(Candidates[0].ToString("D")));
+            Assert.That(json, Does.Not.Contain("RawEvidence"));
+        }));
+    }
+
     private static IReadOnlyList<CandidateNominalV9RawEvidence> V9RawEvidence(
         CandidateSamplingCapture capture) =>
         capture.Pairs.Select(pair =>
