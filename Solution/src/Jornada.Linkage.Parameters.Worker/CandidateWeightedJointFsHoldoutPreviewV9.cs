@@ -144,9 +144,10 @@ public static class CandidateWeightedJointFsHoldoutPreviewV9
 
         CandidateFsHoldoutGroupSensitivityV9 GroupSensitivity()
         {
-            // A 2-group sample cannot lose one group and still retain two
-            // independent groups. Report unavailability, never false stability.
-            if (byGroup.Count < 3)
+            // Each label needs >=3 groups: deleting a group must retain >=2
+            // independent groups in BOTH classes, not just in the union.
+            if (audit.MatchedEvaluation.IndependentEvaluationGroups < 3
+                || audit.UnmatchedEvaluation.IndependentEvaluationGroups < 3)
                 return new CandidateFsHoldoutGroupSensitivityV9(
                     InsufficientGroupsStatus, byGroup.Count, 0,
                     null, null, null, null, 0);
