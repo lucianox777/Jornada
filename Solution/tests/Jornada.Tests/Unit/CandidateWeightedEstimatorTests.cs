@@ -498,6 +498,89 @@ public sealed class CandidateWeightedEstimatorTests
         }));
     }
 
+    [Test]
+    public async Task V9HoldoutTwoEvaluationGroupsCannotClaimRobustGroupInfluence()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var result = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, V9RawEvidence(capture), 0.5m);
+        foreach (var profile in new[] { result.MatchedEvaluation, result.UnmatchedEvaluation })
+        {
+            var sensitivity = profile.GroupSensitivity;
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(sensitivity.Status, Is.EqualTo(
+                    CandidateWeightedJointHoldoutAuditBuilderV9.InsufficientGroupsStatus));
+                Assert.That(sensitivity.IndependentGroups, Is.EqualTo(2));
+                Assert.That(sensitivity.RemovalsEvaluated, Is.Zero);
+                Assert.That(sensitivity.MinimumLeaveOneGroupOutTvd, Is.Null);
+                Assert.That(sensitivity.MaximumLeaveOneGroupOutTvd, Is.Null);
+                Assert.That(sensitivity.MaximumAbsoluteTvdChange, Is.Null);
+                Assert.That(sensitivity.MaximumUnseenTrainingWeightShare, Is.Null);
+            }));
+        }
+    }
+
+    [Test]
+    public async Task V9HoldoutThreeGroupsRevealSingleGroupInstabilityWithoutLeakingEvaluationIntoTraining()
+    {
+        var capture = await CaptureAsync();
+        var original = Corpus(capture);
+        var partitions = original.Partitions.Select(p => p.SourceId == Sources[3]
+            ? p with { Partition = CandidateCorpusPartition.Evaluation }
+            : p).ToArray();
+        var corpus = CandidateLabeling.Validate(
+            capture, original with { Partitions = partitions });
+        var raw = V9RawEvidence(capture);
+        var perturbed = raw.Select(pair =>
+            pair.SourceId == Sources[3] && pair.Values.LeftName == "Maria Silva"
+                ? pair with { Values = pair.Values with { RightName = "Nome Totalmente Diferente" } }
+                : pair).ToArray();
+
+        var baseline = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, raw, 0.5m);
+        var changed = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, perturbed.Reverse().ToArray(), 0.5m);
+        var m = changed.MatchedEvaluation;
+        var u = changed.UnmatchedEvaluation;
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(System.Text.Json.JsonSerializer.Serialize(changed.Training),
+                Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(baseline.Training)));
+            Assert.That(m.EvaluationPairCount, Is.EqualTo(3));
+            Assert.That(m.IndependentEvaluationGroups, Is.EqualTo(3));
+            Assert.That(m.TotalDesignWeight, Is.EqualTo(6m));
+            Assert.That(m.KishEffectiveSampleSize, Is.EqualTo(3m));
+            Assert.That(m.TotalVariationFromTrainingObserved,
+                Is.EqualTo(1m / 3m).Within(0.000000000001m));
+            Assert.That(m.EvaluationWeightInUnseenTrainingCells, Is.EqualTo(2m));
+            Assert.That(m.GroupSensitivity.Status, Is.EqualTo(
+                CandidateWeightedJointHoldoutAuditBuilderV9.SensitivityStatus));
+            Assert.That(m.GroupSensitivity.IndependentGroups, Is.EqualTo(3));
+            Assert.That(m.GroupSensitivity.RemovalsEvaluated, Is.EqualTo(3));
+            Assert.That(m.GroupSensitivity.MinimumLeaveOneGroupOutTvd, Is.EqualTo(0m));
+            Assert.That(m.GroupSensitivity.MaximumLeaveOneGroupOutTvd, Is.EqualTo(0.5m));
+            Assert.That(m.GroupSensitivity.MaximumAbsoluteTvdChange,
+                Is.EqualTo(1m / 3m).Within(0.000000000001m));
+            Assert.That(m.GroupSensitivity.MaximumUnseenTrainingWeightShare, Is.EqualTo(0.5m));
+            Assert.That(u.GroupSensitivity.Status, Is.EqualTo(
+                CandidateWeightedJointHoldoutAuditBuilderV9.SensitivityStatus));
+            Assert.That(u.GroupSensitivity.RemovalsEvaluated, Is.EqualTo(3));
+            Assert.That(u.TotalVariationFromTrainingObserved, Is.EqualTo(0m));
+            Assert.That(u.GroupSensitivity.MaximumAbsoluteTvdChange, Is.EqualTo(0m));
+            Assert.That(baseline.MatchedEvaluation.GroupSensitivity.MaximumAbsoluteTvdChange,
+                Is.EqualTo(0m));
+            Assert.That(changed.EvaluationCells.Sum(c => c.MatchedObservedPairs), Is.EqualTo(3));
+            Assert.That(changed.EvaluationCells.Sum(c => c.UnmatchedObservedPairs), Is.EqualTo(6));
+        }));
+        var json = System.Text.Json.JsonSerializer.Serialize(changed);
+        Assert.That(json, Does.Not.Contain("IndependenceGroupId"));
+        Assert.That(json, Does.Not.Contain(Sources[3].ToString("D")));
+        Assert.That(json, Does.Not.Contain("Nome Totalmente Diferente"));
+    }
+
     private static IReadOnlyList<CandidateNominalV9RawEvidence> V9RawEvidence(
         CandidateSamplingCapture capture) =>
         capture.Pairs.Select(pair =>
