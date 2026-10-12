@@ -1,6 +1,11 @@
 name: jornada-ci-watchdog
 
 on:
+  # A failed CI run is a checkpoint: replay only failed jobs of that run.
+  # workflow_run executes trusted default-branch code, never PR code.
+  workflow_run:
+    workflows: [jornada-ci]
+    types: [completed]
   schedule:
     - cron: '17 * * * *'
   workflow_dispatch:
@@ -22,18 +27,19 @@ concurrency:
 
 jobs:
   supervise:
-    if: github.repository == 'lucianox777/Jornada' && github.ref == 'refs/heads/master'
+    if: github.repository == 'lucianox777/Jornada' && github.ref == 'refs/heads/master' && (github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'failure')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
+          ref: master
       - name: Test fail-closed retry policy
         run: python3 -m unittest discover -s Solution/tests/scripts -p 'test_ci_watchdog.py'
       - name: Inspect CI, retry infra-only failures at most once
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          WATCHDOG_APPLY: ${{ github.event_name == 'schedule' || inputs.apply == true }}
+          WATCHDOG_APPLY: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'failure') || inputs.apply == true }}
         run: python3 Solution/scripts/ci-watchdog.py

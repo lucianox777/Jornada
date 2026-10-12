@@ -161,6 +161,22 @@ def retryable_jobs(payload: dict, logs) -> tuple[bool, str]:
     return True, f"{len(failed)} runner-infrastructure failure(s)"
 
 
+def summarize_checkpoint(payload: dict) -> str:
+    """Successful jobs are the durable checkpoint in the *original* Actions run.
+
+    A new commit is NOT an equivalent checkpoint: it must pass its own gates.
+    """
+    jobs = payload.get("jobs")
+    if not isinstance(jobs, list) or type(payload.get("total_count")) is not int:
+        return "checkpoint unverified"
+    if len(jobs) != payload["total_count"]:
+        return "checkpoint incomplete"
+    passed = sum(j.get("conclusion") == "success" for j in jobs)
+    failed = sum(j.get("conclusion") in ("failure", "timed_out", "cancelled", "action_required") for j in jobs)
+    skipped = sum(j.get("conclusion") == "skipped" for j in jobs)
+    return f"checkpoint: {passed} succeeded, {failed} failed/blocked, {skipped} skipped in same run"
+
+
 def supervise(api: Any, apply: bool, now: dt.datetime) -> list[str]:
     lines = [
         "## Jornada CI watchdog",
@@ -188,6 +204,7 @@ def supervise(api: Any, apply: bool, now: dt.datetime) -> list[str]:
         run_id = run["id"]
         jobs = api.request(f"/actions/runs/{int(run_id)}/jobs?per_page=100&filter=latest")
         retry, why = retryable_jobs(jobs, api.job_logs)
+        checkpoint = summarize_checkpoint(jobs)
         if retry and apply:
             api.request(f"/actions/runs/{int(run_id)}/rerun-failed-jobs", method="POST")
             action = "retried failed jobs once"
@@ -195,11 +212,13 @@ def supervise(api: Any, apply: bool, now: dt.datetime) -> list[str]:
             action = "eligible (dry run)"
         else:
             action = "no retry"
-        lines.append(f"- Run {run_id} ({str(run.get('head_sha', ''))[:12]}): {action}; {why}.")
+        lines.append(f"- Run {run_id} ({str(run.get('head_sha', ''))[:12]}): {action}; {why}; {checkpoint}.")
     if candidates == 0:
         lines.append("- No eligible failed runs on a current HEAD.")
     lines += [
         "",
+        "Selective rerun uses the original Actions run ID and SHA: completed green jobs stay checkpoints.",
+        "A changed commit SHA requires fresh exact-HEAD CI verification; no cross-SHA reuse is certified.",
         "Never cancels an active run, suppresses a gate, edits a PR, or merges.",
     ]
     return lines
