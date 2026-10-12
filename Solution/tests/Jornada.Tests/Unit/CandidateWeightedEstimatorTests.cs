@@ -865,6 +865,31 @@ public sealed class CandidateWeightedEstimatorTests
         Assert.That(json, Does.Not.Contain("Maria Aparecida Silva"));
     }
 
+    [Test]
+    public async Task V9FsHoldoutGroupDeletionRequiresThreeEvaluationGroupsInEachClass()
+    {
+        var capture = await CaptureAsync();
+        var baseCorpus = Corpus(capture);
+        var moved = baseCorpus.Partitions.Select(p => p.SourceId == Sources[3]
+            ? p with { Partition = CandidateCorpusPartition.Evaluation } : p).ToArray();
+        // Three total EVALUATION groups, but only TWO with a Match label.
+        var labels = baseCorpus.Labels.Select(l => l.SourceId == Sources[3]
+            && l.Decision == IndependentMatchLabel.Match
+            ? l with { Decision = IndependentMatchLabel.NonMatch } : l).ToArray();
+        var validated = CandidateLabeling.Validate(capture,
+            baseCorpus with { Partitions = moved, Labels = labels });
+        var result = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            validated, V9RawEvidence(capture), V9FsPreviewParameters(), .5m, .5m);
+
+        Assert.That(result.MatchedEvaluationGroups, Is.EqualTo(2));
+        Assert.That(result.UnmatchedEvaluationGroups, Is.EqualTo(3));
+        Assert.That(result.GroupSensitivity.IndependentGroups, Is.EqualTo(3));
+        Assert.That(result.GroupSensitivity.Status, Is.EqualTo(
+            CandidateWeightedJointFsHoldoutPreviewV9.InsufficientGroupsStatus));
+        Assert.That(result.GroupSensitivity.RemovalsEvaluated, Is.Zero);
+        Assert.That(result.GroupSensitivity.MaximumObservedRecallShare, Is.Null);
+    }
+
     private static IReadOnlyList<CandidateNominalV9RawEvidence> V9RawEvidence(
         CandidateSamplingCapture capture) =>
         capture.Pairs.Select(pair =>
