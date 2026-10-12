@@ -88,6 +88,28 @@ positivo com contratos atestados no **mesmo SHA/modelo**.
 Nenhuma lógica nominal V8 de replay, o modelo ATIVO, o SQL, o banco DEV
 ou o roteamento de atendimento foram modificados. **DT10 fica por último.**
 
+## Identidade canônica de conteúdo dos 81 m/u V9 (incremento pré-certificação)
+
+A cópia imutável `FrozenFellegiSunterJointNominalV9` passa a oferecer
+`ContentFingerprint` (SHA-256 hexadecimal minúsculo) **somente após** validar
+versão do classificador, integralidade/uniqueness das 81 células, m/u positivos
+e normalização. A entrada canônica contém marca de domínio
+`JORNADA_V9_JOINT_NOMINAL_MU_81_V1`, versão do classificador e as 81
+probabilidades ordenadas por enum pessoa × mãe, com formato decimal
+invariante `G29`. Portanto, trocar a ordem de entrada, o locale do processo
+ou a escala decimal sem mudar o valor matemático não altera a identidade;
+alterar uma probabilidade, mesmo conservando a normalização, altera a
+identidade. Não entram CPF, nomes, UUIDs nem identificadores de pessoas.
+
+**Limite de confiança:** esse digest identifica apenas **o conteúdo numérico
+in-memory** recebido pelo scorer de preview. **Não** é assinatura digital,
+atestado de origem, vínculo a `ModelId`/`Version`, certificado de
+TRAIN/VALIDATION/TEST, evidência de representatividade do blocking SQL,
+TF calibrada ou autorização de `AlgorithmVersion=V9`. O Calibrador deverá
+vincular explicitamente esse digest à versão de modelo e a um manifesto
+imutável de proveniência e decisões DT-15; tal vínculo ainda não existe
+e o guard operacional V9 continua bloqueando qualquer fallback para V8.
+
 ## Critérios de promoção (não concluídos por esta PR)
 
 1. Capturar estados V9 do TRAIN e dos pares U **condicionados ao blocking**; estimar distribuições `m/u` por nível com suavização, suporte e incerteza explícitos.
