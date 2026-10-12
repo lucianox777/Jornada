@@ -35,6 +35,16 @@ Os testes unitários cobrem `n=0,1,2,3,4,5,6`, múltiplos tamanhos de grupos, ri
 
 **Limite de evidência dos gates:** por ser opt-in, a execução padrão dos testes/CI verifica compilação, regressões e o contrato matemático, **não comprova a execução do terceiro result set em um banco de produção**. É necessária homologação SQL com `EnableV9BlockingPairIncidenceCensus=true` para atestar sua viabilidade, performance e semântica histórica.
 
+## Complemento V9 — censo exato limitado de pares físicos distintos
+
+O censo da PR #960 mede **incidências** que podem duplicar a mesma dupla entre diferentes assinaturas ou passes. O novo modo opcional `LinkageParameters:EnableV9ExactUniquePairCensus=true` também habilita o censo de incidências e, **somente quando a soma de incidências completas passa pelo limite**, executa uma segunda consulta read-only sobre as mesmas definições de `gold_sample`, `eligible_keys` e `pass_X_keys`. Para cada assinatura, cria pares **não ordenados canônicos** com `a.pessoa_uuid < b.pessoa_uuid` e, pela união dos passes, faz `GROUP BY (left_uuid,right_uuid)` para obter **`COUNT_BIG(*)` de duplas físicas distintas**. IDs e assinaturas não são retornados; somente a cardinalidade agregada.
+
+**Custo e guardas:** desabilitado por padrão. Limite configurável `LinkageParameters:V9ExactPairCensusMaxIncidences` (default **100.000**, teto rígido **1.000.000**), aplicado à **soma de incidências**, antes de disparar qualquer junção completa de pares. Acima do limite, o sistema **não executa o censo quadrático**, informa `SKIPPED_FULL_PAIR_INCIDENCE_CAP` e mantém os relatórios adjacentes/por passe. Abaixo do limite, retorna `DistinctPairs` e `DuplicateIncidences = Σ C(n,2) - DistinctPairs` com status `DIAGNOSTIC_ONLY_UNIQUE_GOLD_SUBFRAME_NOT_OPERATIONAL_FRAME`. Contagens negativas, acima das incidências e configurações fora dos limites provocam recusa. Nenhum par ou hash é colocado em log.
+
+**O que NÃO está comprovado:** este censo é exato **somente para o subframe Gold TRAIN e as chaves SQL físicas que a consulta leu**. Executa duas consultas sequenciais com reconstrução dos CTEs, **sem snapshot SQL atômico**, portanto mutações entre as leituras podem modificar os totais; inconsistências detectadas falham fechado, mas consistência não equivale a prova de snapshot. O resultado não demonstra que o subframe contém todos os candidatos de produção, que um par recebe probabilidade de inclusão conhecida, que M independente integra o mesmo frame, nem que U é representativo. Ainda requer homologação com o modo explicitamente habilitado em SQL, com monitoramento de tempo e concorrência; a CI padrão **não exerce essa consulta opcional**.
+
+A distinção é fundamental: `CandidatePoolSize` permanece a contagem dos pares **adjacentes únicos**; `Σ FullPairIncidences` conta **incidências com duplicações**; `ExactUniquePairCensus.DistinctPairs`, quando presente, conta as **duplas únicas reais no subframe**, sob o limite. **Nenhum desses números por si certifica o desenho de amostragem ou habilita o scorer V9.**
+
 ## Próximos gates até a V9 operacional
 
 1. Definir e provar o universo de **pares distintos** recuperáveis por todos os passes SQL materializados com semântica temporal, deduplicando assinaturas e evitando viés do pareamento adjacente.
