@@ -103,6 +103,57 @@ public sealed class ProbabilisticV9CandidateRankingPreviewTests
     }
 
     [Test]
+    public void EvenWithoutCandidatesInvalidJointSnapshotFailsClosed()
+    {
+        var invalid = Cells().Skip(1).ToArray();
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That((Action)(() =>
+                ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+                    Parameters, Observation(),
+                    Array.Empty<LinkageCandidate>(), invalid,
+                    CompositeNominalComparisonV9.ContractVersion)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+                    Parameters, Observation(),
+                    Array.Empty<LinkageCandidate>(), Cells(),
+                    "LEGACY_V8_COMPARISON")),
+                Throws.InvalidOperationException);
+        }));
+    }
+
+    [Test]
+    public void FrozenSnapshotAndLegacyCollectionPreviewGiveIdenticalScoresPerCandidate()
+    {
+        var cells = Cells();
+        var frozen = FrozenFellegiSunterJointNominalV9.Freeze(
+            cells, CompositeNominalComparisonV9.ContractVersion);
+        var ranked = ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+            Parameters, Observation(), Candidates(),
+            cells, CompositeNominalComparisonV9.ContractVersion);
+        foreach (var candidate in Candidates())
+        {
+            var single = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                Parameters, Observation().NomeCompleto, candidate.NomeCompleto,
+                Observation().NomeMae, candidate.NomeMae,
+                cells, CompositeNominalComparisonV9.ContractVersion,
+                2, Birth, candidate.DataNascimento);
+            var precompiled = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewWithBreakdown(
+                Parameters, Observation().NomeCompleto, candidate.NomeCompleto,
+                Observation().NomeMae, candidate.NomeMae,
+                frozen, 2, Birth, candidate.DataNascimento);
+            var actual = ranked.Single(c => c.PessoaUuid == candidate.PessoaUuid);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(actual.LogOdds, Is.EqualTo(single.Score.LogOdds));
+                Assert.That(actual.Score, Is.EqualTo(single.Score.Posterior));
+                Assert.That(precompiled, Is.EqualTo(single));
+            }));
+        }
+    }
+
+    [Test]
     public void PreviewWithNoCandidatesProducesNoInferenceOrAutomatedResolution()
     {
         var noMatches = ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
