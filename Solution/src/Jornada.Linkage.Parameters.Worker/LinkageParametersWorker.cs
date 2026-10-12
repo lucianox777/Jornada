@@ -229,10 +229,31 @@ public sealed class LinkageParametersWorker(
             var unmatchedSample = await BlockingConditionedUnmatchedPairReader.ReadAsync(
                 connection, normalizationVersion, blocking.Passes, sampleSize, samplePoolSize,
                 decisionCalibrationSeed, decisionValidationBasisPoints, decisionTestBasisPoints,
-                readCommandTimeoutSeconds, workCt);
+                readCommandTimeoutSeconds, workCt,
+                collectPassPairIncidenceCensus: configuration.GetValue<bool>(
+                    "LinkageParameters:EnableV9BlockingPairIncidenceCensus"));
             var unmatchedPairs = unmatchedSample.Pairs;
             if (unmatchedPairs.Count == 0)
                 throw new InvalidOperationException("Amostra u vazia no universo do ruleset vencedor. O modelo permanece sem publicação.");
+
+            // Diagnose coverage of SQL materialized blocking signatures
+            // WITHOUT mistaking the deterministic, disjoint-adjacent U sample
+            // for a census or known-probability sample of ALL candidate pairs.
+            // Incidences may duplicate a physical pair across passes/aliases.
+            foreach (var incidence in unmatchedSample.PassPairIncidences
+                         ?? Array.Empty<BlockingPassPairIncidenceV9>())
+                logger.LogInformation(
+                    "Linkage V9 SQL blocking incidence census: " +
+                    "pass={PassId}; signatureGroups={SignatureGroups}; " +
+                    "recoverableGroups={RecoverableGroups}; " +
+                    "fullPairIncidences={FullIncidences}; " +
+                    "adjacentPairIncidences={AdjacentIncidences}; " +
+                    "sampledUniqueAdjacentPool={SampledPool}; " +
+                    "uniqueFullPairPopulationKnown=false; " +
+                    "pairInclusionProbabilityKnown=false; certified=false; published=false",
+                    incidence.PassId, incidence.SignatureGroups,
+                    incidence.RecoverableSignatureGroups, incidence.FullPairIncidences,
+                    incidence.AdjacentPairIncidences, unmatchedSample.CandidatePoolSize);
 
             // V9 forward-only, read-only TRAIN evidence using the ACTUAL SQL
             // blocking-conditioned U sample. M pairs are CPF/inter-manager
