@@ -148,7 +148,8 @@ public sealed class ProbabilisticV9CandidateRankingPreviewTests
             {
                 Assert.That(actual.LogOdds, Is.EqualTo(single.Score.LogOdds));
                 Assert.That(actual.Score, Is.EqualTo(single.Score.Posterior));
-                Assert.That(precompiled, Is.EqualTo(single));
+                Assert.That(System.Text.Json.JsonSerializer.Serialize(precompiled),
+                    Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(single)));
             }));
         }
     }
