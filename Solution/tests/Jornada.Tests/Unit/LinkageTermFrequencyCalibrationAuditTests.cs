@@ -77,7 +77,7 @@ public sealed class LinkageTermFrequencyCalibrationAuditTests
                        personMHigh: .1m, personUHigh: .1m), Snapshot());
         Assert.That(result, Is.Not.Null);
         Assert.That(result!.Single(x => x.Attribute == "NOME").CouldInvert, Is.False);
-        Assert.That(result.Single(x => x.Attribute == "NOME_MAE").CouldInvert, Is.False);
+        Assert.That(result!.Single(x => x.Attribute == "NOME_MAE").CouldInvert, Is.False);
     }
 
     [Test]
@@ -90,7 +90,7 @@ public sealed class LinkageTermFrequencyCalibrationAuditTests
                        motherMHigh: .2m, motherUHigh: .2m), Snapshot());
         Assert.That(result, Is.Not.Null);
         Assert.That(result!.Single(x => x.Attribute == "NOME").CouldInvert, Is.False);
-        var mother = result.Single(x => x.Attribute == "NOME_MAE");
+        var mother = result!.Single(x => x.Attribute == "NOME_MAE");
         Assert.That(mother.CouldInvert, Is.True);
         Assert.That(mother.WorstTfAdjustment,
             Is.EqualTo(Math.Log(.2d / .5d)).Within(1e-12));
