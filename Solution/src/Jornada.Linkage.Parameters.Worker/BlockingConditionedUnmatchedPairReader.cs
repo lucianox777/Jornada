@@ -15,7 +15,71 @@ public sealed record BlockingConditionedUnmatchedPairSample(
     IReadOnlyDictionary<string, long> SemanticBirthPoolSupport,
     long CandidatePoolSize,
     IReadOnlyList<BlockingPassNominalUSupport> PassNominalSupport,
-    IReadOnlyList<BlockingPassPairIncidenceV9>? PassPairIncidences = null);
+    IReadOnlyList<BlockingPassPairIncidenceV9>? PassPairIncidences = null,
+    BlockingExactUniquePairCensusV9? ExactUniquePairCensus = null);
+
+/// <summary>
+/// Bounded, read-only census of DISTINCT unordered physical candidate pairs
+/// in the selected TRAIN Gold subframe. Does not establish a sampling design,
+/// independent labels or the full operational SQL candidate population.
+/// </summary>
+public sealed record BlockingExactUniquePairCensusV9(
+    string Status,
+    decimal PairIncidences,
+    long? DistinctPairs,
+    decimal? DuplicateIncidences,
+    int MaximumAllowedIncidences);
+
+public static class BlockingExactUniquePairCensusGateV9
+{
+    public const int HardMaximumIncidences = 1_000_000;
+    public const string CapExceeded = "SKIPPED_FULL_PAIR_INCIDENCE_CAP";
+    public const string Ready = "READY_FOR_BOUNDED_SQL_DISTINCT_QUERY";
+    public const string DiagnosticOnly = "DIAGNOSTIC_ONLY_UNIQUE_GOLD_SUBFRAME_NOT_OPERATIONAL_FRAME";
+
+    public static BlockingExactUniquePairCensusV9 Preflight(
+        IReadOnlyCollection<BlockingPassPairIncidenceV9> passes,
+        int maximumAllowedIncidences)
+    {
+        ArgumentNullException.ThrowIfNull(passes);
+        if (maximumAllowedIncidences <= 0 || maximumAllowedIncidences > HardMaximumIncidences)
+            throw new ArgumentOutOfRangeException(nameof(maximumAllowedIncidences));
+        var all = 0m;
+        var observedPasses = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var pass in passes)
+        {
+            if (pass is null || string.IsNullOrWhiteSpace(pass.PassId)
+                || !observedPasses.Add(pass.PassId) || pass.FullPairIncidences < 0
+                || pass.AdjacentPairIncidences < 0 || pass.FullPairIncidences < pass.AdjacentPairIncidences
+                || pass.SignatureGroups < 0 || pass.RecoverableSignatureGroups < 0
+                || pass.RecoverableSignatureGroups > pass.SignatureGroups)
+                throw new InvalidOperationException("Censo SQL V9 contém passe ou incidências inválidas.");
+            checked { all += pass.FullPairIncidences; }
+        }
+        if (passes.Count == 0)
+            throw new InvalidOperationException("Censo SQL V9 sem passes.");
+        return new BlockingExactUniquePairCensusV9(
+            all > maximumAllowedIncidences ? CapExceeded : Ready,
+            all, null, null, maximumAllowedIncidences);
+    }
+
+    public static BlockingExactUniquePairCensusV9 WithDistinctCount(
+        BlockingExactUniquePairCensusV9 planned,
+        long exactDistinctPairs)
+    {
+        ArgumentNullException.ThrowIfNull(planned);
+        if (planned.Status != Ready || planned.DistinctPairs is not null
+            || exactDistinctPairs < 0 || (decimal)exactDistinctPairs > planned.PairIncidences)
+            throw new InvalidOperationException("Censo SQL V9 inconsistente; contagem distinta não comprovada.");
+        return planned with
+        {
+            Status = DiagnosticOnly,
+            DistinctPairs = exactDistinctPairs,
+            DuplicateIncidences = planned.PairIncidences - exactDistinctPairs
+        };
+    }
+}
+
 
 /// <summary>
 /// Aggregate incidence census over selected physical SQL blocking signatures.
@@ -86,7 +150,9 @@ public static class BlockingConditionedUnmatchedPairReader
         int testBasisPoints,
         int commandTimeoutSeconds,
         CancellationToken cancellationToken,
-        bool collectPassPairIncidenceCensus = false)
+        bool collectPassPairIncidenceCensus = false,
+        bool collectExactUniquePairCensus = false,
+        int maxExactPairIncidences = 100_000)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalizationVersion);
@@ -95,6 +161,11 @@ public static class BlockingConditionedUnmatchedPairReader
             throw new ArgumentException("Ao menos um passe de blocking é obrigatório.", nameof(passes));
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sampleSize);
         ArgumentOutOfRangeException.ThrowIfLessThan(samplePoolSize, sampleSize);
+        if (collectExactUniquePairCensus && !collectPassPairIncidenceCensus)
+            throw new InvalidOperationException("Censo exato V9 exige primeiro o censo agregado de incidências SQL.");
+        if (collectExactUniquePairCensus &&
+            (maxExactPairIncidences <= 0 || maxExactPairIncidences > BlockingExactUniquePairCensusGateV9.HardMaximumIncidences))
+            throw new ArgumentOutOfRangeException(nameof(maxExactPairIncidences));
 
         var canonicalPasses = passes
             .Select(pass => LinkageBlockingPass.Create(pass.PassId, pass.Fields))
@@ -120,6 +191,7 @@ public static class BlockingConditionedUnmatchedPairReader
         var ctes = new List<string>();
         var pairSources = new List<string>();
         var signatureSources = new List<string>();
+        var fullPairSources = new List<string>();
         var command = new SqlCommand { Connection = connection, CommandTimeout = Math.Max(30, commandTimeoutSeconds) };
 
         command.Parameters.Add("@sample_size", SqlDbType.Int).Value = sampleSize;
@@ -227,6 +299,13 @@ public static class BlockingConditionedUnmatchedPairReader
             command.Parameters.Add(passIdParameter, SqlDbType.NVarChar, 80).Value = pass.PassId;
             pairSources.Add($"SELECT {passIdParameter} AS pass_id,a_uuid,b_uuid FROM {pairsCte}");
             signatureSources.Add($"SELECT {passIdParameter} AS pass_id,assinatura FROM {keysCte}");
+            // Canonicalize the unordered UUID pair within each signature;
+            // GROUP BY over UNION ALL will dedupe aliases and different passes.
+            fullPairSources.Add($"""
+SELECT a.pessoa_uuid AS left_uuid,b.pessoa_uuid AS right_uuid
+FROM {keysCte} a
+JOIN {keysCte} b ON b.assinatura=a.assinatura AND a.pessoa_uuid<b.pessoa_uuid
+""");
         }
 
         var commonCtes = $"""
@@ -419,6 +498,36 @@ ORDER BY s.pass_id;
                 passId, totalGroups, recoverableGroups, full, adjacent);
         }
 
+        BlockingExactUniquePairCensusV9? exactCensus = null;
+        if (collectExactUniquePairCensus)
+        {
+            var preflight = BlockingExactUniquePairCensusGateV9.Preflight(
+                incidenceByPass.Values.ToArray(), maxExactPairIncidences);
+            exactCensus = preflight;
+            if (preflight.Status == BlockingExactUniquePairCensusGateV9.Ready)
+            {
+                // This is intentionally a SECOND, opt-in query issued only
+                // after the cheap signature-incidence preflight. Never run
+                // the quadratic join when the incidence cap is exceeded.
+                await reader.DisposeAsync();
+                command.CommandText = $"""
+{commonCtes},
+full_pair_incidence AS (
+    {string.Join("\n    UNION ALL\n    ", fullPairSources)}
+), unique_candidate_pairs AS (
+    SELECT left_uuid,right_uuid FROM full_pair_incidence
+    GROUP BY left_uuid,right_uuid
+)
+SELECT COUNT_BIG(*) FROM unique_candidate_pairs;
+""";
+                var value = await command.ExecuteScalarAsync(cancellationToken);
+                if (value is not long exactCount)
+                    throw new InvalidOperationException("Censo SQL V9 não retornou COUNT_BIG de pares distintos.");
+                exactCensus = BlockingExactUniquePairCensusGateV9.WithDistinctCount(
+                    preflight, exactCount);
+            }
+        }
+
         // candidate_pairs é construído exclusivamente dos CTEs de cada passe sobre
         // blocking_chave com a mesma semântica temporal do Runner. Reprojetar a Gold
         // corrente aqui seria incorreto: VERSIONED_ALIAS preserva valores históricos
@@ -441,7 +550,8 @@ ORDER BY s.pass_id;
                 .ToArray(),
             collectPassPairIncidenceCensus
                 ? incidenceByPass.Values.OrderBy(v => v.PassId, StringComparer.Ordinal).ToArray()
-                : null);
+                : null,
+            exactCensus);
     }
 
     private sealed class PassSupportBuilder(

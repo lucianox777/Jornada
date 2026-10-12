@@ -226,12 +226,20 @@ public sealed class LinkageParametersWorker(
                 readCommandTimeoutSeconds,
                 workCt);
 
+            // Full DISTINCT-pair census is a separate optional heavy SQL
+            // read. Enabling it also enables the inexpensive signature
+            // incidence preflight used to bound its quadratic work.
+            var collectExactV9Pairs = configuration.GetValue<bool>(
+                "LinkageParameters:EnableV9ExactUniquePairCensus");
             var unmatchedSample = await BlockingConditionedUnmatchedPairReader.ReadAsync(
                 connection, normalizationVersion, blocking.Passes, sampleSize, samplePoolSize,
                 decisionCalibrationSeed, decisionValidationBasisPoints, decisionTestBasisPoints,
                 readCommandTimeoutSeconds, workCt,
-                collectPassPairIncidenceCensus: configuration.GetValue<bool>(
-                    "LinkageParameters:EnableV9BlockingPairIncidenceCensus"));
+                collectPassPairIncidenceCensus: collectExactV9Pairs ||
+                    configuration.GetValue<bool>("LinkageParameters:EnableV9BlockingPairIncidenceCensus"),
+                collectExactUniquePairCensus: collectExactV9Pairs,
+                maxExactPairIncidences: configuration.GetValue<int>(
+                    "LinkageParameters:V9ExactPairCensusMaxIncidences", 100_000));
             var unmatchedPairs = unmatchedSample.Pairs;
             if (unmatchedPairs.Count == 0)
                 throw new InvalidOperationException("Amostra u vazia no universo do ruleset vencedor. O modelo permanece sem publicação.");
@@ -254,6 +262,18 @@ public sealed class LinkageParametersWorker(
                     incidence.PassId, incidence.SignatureGroups,
                     incidence.RecoverableSignatureGroups, incidence.FullPairIncidences,
                     incidence.AdjacentPairIncidences, unmatchedSample.CandidatePoolSize);
+
+            if (unmatchedSample.ExactUniquePairCensus is { } exactV9Census)
+                logger.LogInformation(
+                    "Linkage V9 unique SQL candidate-pair subframe census: " +
+                    "status={Status}; fullPairIncidences={Incidences}; " +
+                    "distinctPhysicalPairs={DistinctPairs}; duplicateIncidences={Duplicates}; " +
+                    "maxIncidences={Cap}; inclusionProbabilitiesKnown=false; " +
+                    "sqlSnapshotAtomic=false; operationalPopulationCertified=false; " +
+                    "scoringChanged=false; published=false",
+                    exactV9Census.Status, exactV9Census.PairIncidences,
+                    exactV9Census.DistinctPairs, exactV9Census.DuplicateIncidences,
+                    exactV9Census.MaximumAllowedIncidences);
 
             // V9 forward-only, read-only TRAIN evidence using the ACTUAL SQL
             // blocking-conditioned U sample. M pairs are CPF/inter-manager
