@@ -77,6 +77,12 @@ public sealed class CompositeNominalFrequencyV9Tests
                     Reference(NominalFrequencyUnitV9.FirstLastJoint,
                         NominalFrequencySourceV9.IbgePublishedMarginal), 100)),
                 Throws.InvalidOperationException.With.Message.Contains("Marginais"));
+            Assert.That((Action)(() =>
+                CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                    CompositeNominalLevelV9.ExactLast,
+                    Reference(NominalFrequencyUnitV9.LastContentSurname,
+                        NominalFrequencySourceV9.IbgePublishedMarginal), 100)),
+                Throws.InvalidOperationException.With.Message.Contains("Marginais"));
         }));
     }
 
