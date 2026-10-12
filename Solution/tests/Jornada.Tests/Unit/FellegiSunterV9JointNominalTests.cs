@@ -266,7 +266,8 @@ public sealed class FellegiSunterV9JointNominalTests
         var viaFrozen = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewWithBreakdown(
             parameters, "Maria Silva", "MARIA SILVA", "Ana Costa", "ANA COSTA",
             frozen, leftBirthDate: Birth, rightBirthDate: Birth);
-        Assert.That(viaFrozen, Is.EqualTo(viaPublic));
+        Assert.That(System.Text.Json.JsonSerializer.Serialize(viaFrozen),
+            Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(viaPublic)));
     }
 
     [Test]
