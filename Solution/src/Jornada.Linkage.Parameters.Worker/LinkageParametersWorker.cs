@@ -234,6 +234,43 @@ public sealed class LinkageParametersWorker(
             if (unmatchedPairs.Count == 0)
                 throw new InvalidOperationException("Amostra u vazia no universo do ruleset vencedor. O modelo permanece sem publicação.");
 
+            // V9 forward-only, read-only TRAIN evidence using the ACTUAL SQL
+            // blocking-conditioned U sample. M pairs are CPF/inter-manager
+            // independent but NOT yet conditioned to the selected blocking:
+            // these numbers cannot be published as V9 model parameters.
+            // No raw names, tokens, candidate identifiers or hashes of names
+            // leave this process; only configuration SHA and aggregate support.
+            var v9Projection = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
+            var v9Audit = CompositeNominalBlockingAuditBuilderV9.Build(
+                matchedPairs, unmatchedSample, blocking.Passes,
+                normalizationVersion, v9Projection.SchemaVersion,
+                v9Projection.Fingerprint, smoothingAlpha);
+            logger.LogInformation(
+                "Linkage V9 nominal TRAIN audit: status={Status}; " +
+                "rulesetConfigurationSha256={RulesetConfiguration}; " +
+                "contract={NominalContract}; " +
+                "mInput={MatchedInput}; uSample={UnmatchedSample}; " +
+                "candidatePool={CandidatePool}; " +
+                "scoringChanged=false; modelActivated=false; mBlockingConditioned=false",
+                v9Audit.Status, v9Audit.BlockingConfigurationSha256,
+                v9Audit.NominalContractVersion,
+                v9Audit.MatchedInputCount, v9Audit.UnmatchedSampleCount,
+                v9Audit.CandidatePoolSize);
+            foreach (var attribute in v9Audit.Attributes)
+            {
+                var exactM = attribute.M[CompositeNominalLevelV9.ExactFull];
+                var exactU = attribute.U[CompositeNominalLevelV9.ExactFull];
+                logger.LogInformation(
+                    "Linkage V9 nominal TRAIN aggregate: attribute={Attribute}; " +
+                    "observedM={ObservedM}; observedU={ObservedU}; " +
+                    "missingM={MissingM}; missingU={MissingU}; " +
+                    "exactFullM={ExactFullM}; exactFullU={ExactFullU}; " +
+                    "certified=false; published=false",
+                    attribute.Attribute, attribute.MatchedObserved,
+                    attribute.UnmatchedObserved, attribute.MatchedMissing,
+                    attribute.UnmatchedMissing, exactM, exactU);
+            }
+
             // O estimador base já mede u no universo deduplicado que sobrevive ao ruleset.
             // IBGE permanece bootstrap externo para NOME/NOME_MAE enquanto a amostra
             // candidato-condicionada (inclusive por passe) não atinge suficiência explícita.
