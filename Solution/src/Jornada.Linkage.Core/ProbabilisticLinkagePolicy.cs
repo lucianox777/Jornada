@@ -28,6 +28,16 @@ internal sealed record CandidateScore(Guid PessoaUuid, decimal Score, decimal Lo
 
 internal static class LinkageModelPolicy
 {
+    // No operational V9 model may be built or scored until certified joint
+    // nominal M/U snapshots, versioned model provenance and DT-15 approval
+    // are wired into the same FS runtime. Reject BEFORE reading V8 parameters.
+    internal static void RequireCertifiedOperationalAlgorithm(string algorithm)
+    {
+        if (LinkageParameterCatalog.IsCompositeNominalV9(algorithm))
+            throw new InvalidOperationException(
+                "V9 não habilitada operacionalmente: faltam snapshot nominal conjunto certificado, proveniência do modelo e gates DT-15; fallback para V8 proibido.");
+    }
+
     internal static LinkageModel Create(
         Guid modelId,
         int version,
@@ -35,6 +45,7 @@ internal static class LinkageModelPolicy
         IReadOnlyDictionary<string, decimal> parameters,
         NominalTermFrequencySnapshot? termFrequency = null)
     {
+        RequireCertifiedOperationalAlgorithm(algorithm);
         var missing = LinkageParameterCatalog.CoreScoringRequired.Where(x => !parameters.ContainsKey(x)).ToArray();
         if (missing.Length > 0) throw new InvalidOperationException($"Modelo incompleto. Parâmetros ausentes: {string.Join(", ", missing)}");
         var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(algorithm);
@@ -202,6 +213,7 @@ internal static class ProbabilisticLinkageDecisions
         IdentityObservation observation,
         IReadOnlyList<LinkageCandidate> candidates)
     {
+        LinkageModelPolicy.RequireCertifiedOperationalAlgorithm(model.AlgorithmVersion);
         if (!string.IsNullOrWhiteSpace(observation.Cpf))
             throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
 
@@ -316,6 +328,7 @@ internal static class ProbabilisticLinkageDecisions
 
     internal static ProbabilisticLinkageDecision Resolve(LinkageModel model, IdentityObservation observation, IReadOnlyList<LinkageCandidate> candidates)
     {
+        LinkageModelPolicy.RequireCertifiedOperationalAlgorithm(model.AlgorithmVersion);
         if (!string.IsNullOrWhiteSpace(observation.Cpf)) throw new InvalidOperationException("O score probabilístico é exclusivo para observação sem CPF.");
         var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(model.AlgorithmVersion);
         var noCandidateReason = decisionEvidence
@@ -331,6 +344,7 @@ internal static class ProbabilisticLinkageDecisions
         IReadOnlyList<CandidateScore> scored,
         string noCandidateReason)
     {
+        LinkageModelPolicy.RequireCertifiedOperationalAlgorithm(model.AlgorithmVersion);
         ArgumentException.ThrowIfNullOrWhiteSpace(noCandidateReason);
         var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(model.AlgorithmVersion);
         if (scored.Count == 0)

@@ -66,6 +66,28 @@ A API pública `CalculateCompositeNominalJointV9` e o preview matemático contin
 
 **Limites inalterados:** congelamento de parâmetros **não prova a origem dos 81 m/u, nem certifica sua calibração, TF, probabilidades de inclusão ou FDR**. O preview continua interno e **não é roteado por `AlgorithmVersion=V9`**; nenhuma alteração operacional no `Rank/Resolve`, modelos ATIVOS, bancos ou V8 para replay. Esta etapa remove uma repetição matemática desnecessária sem exigir nova análise de blocking ou censo SQL. Prioridade subsequente: governar o snapshot persistido e conectar o dispatch sob gates reais, validar Splink e testes estatísticos.
 
+## Proteção fail-closed do roteamento operacional V9 (incremento de continuidade)
+
+O identificador `FELLEGI_SUNTER_DECISION_EVIDENCE_COMPOSITE_NOMINAL_V9`
+está **reservado**, mas **não ativado**. Enquanto não houver 81 estados
+`m/u` conjuntos certificados, proveniência versionada, TF por unidade
+compatível, paridade Splink e autorização DT-15, `LinkageModelPolicy.Create`
+rejeita explicitamente `V9` e qualquer versão de algoritmo terminada em
+`_V9`. O objetivo é impedir que uma nova versão nominal seja carregada
+com os parâmetros `M_NOME`/`M_NOME_MAE` antigos por fallback implícito.
+
+As entradas operacionais `Rank`, `Resolve` e `ResolveRanked` repetem
+o bloqueio, inclusive para listas vazias, protegendo contra chamadores
+internos que construam diretamente `LinkageModel`. O preview matemático
+`RankCompositeNominalV9Preview` permanece isolado, sem dispatch pelo
+`AlgorithmVersion`, persistência, TF presumida ou ativação. Esta proteção
+**não substitui** a futura integração do snapshot certificado ao scorer
+FS único: antes dessa liberação o guard deverá ser trocado por preflight
+positivo com contratos atestados no **mesmo SHA/modelo**.
+
+Nenhuma lógica nominal V8 de replay, o modelo ATIVO, o SQL, o banco DEV
+ou o roteamento de atendimento foram modificados. **DT10 fica por último.**
+
 ## Critérios de promoção (não concluídos por esta PR)
 
 1. Capturar estados V9 do TRAIN e dos pares U **condicionados ao blocking**; estimar distribuições `m/u` por nível com suavização, suporte e incerteza explícitos.

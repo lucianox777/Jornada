@@ -6,6 +6,8 @@ public static class LinkageParameterCatalog
     // V8 se aplica a novos modelos; V6/V7 continuam reproduzíveis.
     public const string NeutralMissingDecisionEvidenceAlgorithmVersion = "FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8";
     public const string OperationalDecisionEvidenceAlgorithmVersion = NeutralMissingDecisionEvidenceAlgorithmVersion;
+    // Reserved for a future certified V9 model. This does NOT change the operational V8 default.
+    public const string CompositeNominalDecisionEvidenceAlgorithmVersion = "FELLEGI_SUNTER_DECISION_EVIDENCE_COMPOSITE_NOMINAL_V9";
     public const string NominalGuardDecisionEvidenceAlgorithmVersion = "FELLEGI_SUNTER_DECISION_EVIDENCE_NOMINAL_V2_V7";
     public const string SemanticBirthAlgorithmVersion = DecisionEvidenceAlgorithmVersion;
     public const string LegacySemanticBirthAlgorithmVersion = "FELLEGI_SUNTER_SEMANTIC_BIRTH_V5";
@@ -52,6 +54,13 @@ public static class LinkageParameterCatalog
     public static readonly IReadOnlyList<string> BirthSingleEvidenceRequired = [.. BinaryDistribution("M_DATA_NASCIMENTO"), .. BinaryDistribution("U_DATA_NASCIMENTO")];
     public static readonly IReadOnlyList<string> BirthComponentRequired = [.. BinaryDistribution("M_NASC_DIA"), .. BinaryDistribution("U_NASC_DIA"), .. BinaryDistribution("M_NASC_MES"), .. BinaryDistribution("U_NASC_MES"), .. BinaryDistribution("M_NASC_ANO"), .. BinaryDistribution("U_NASC_ANO")];
     public static readonly IReadOnlyList<string> CalibrationValidationRequired = [.. CoreScoringRequired, MatchedSampleSize, UnmatchedSampleSize, PopulationSize, DistinctBirthDate];
+    // Until the 81 joint m/u cells and model provenance are certified, every
+    // explicitly V9-suffixed algorithm (including experimental identifiers)
+    // must fail closed instead of silently executing the V8 name path.
+    public static bool IsCompositeNominalV9(string? algorithmVersion) =>
+        string.Equals(algorithmVersion, "V9", StringComparison.Ordinal)
+        || (algorithmVersion?.EndsWith("_V9", StringComparison.Ordinal) ?? false);
+
     public static bool UsesDecisionEvidence(string algorithmVersion) =>
         string.Equals(algorithmVersion, DecisionEvidenceAlgorithmVersion, StringComparison.Ordinal) ||
         string.Equals(algorithmVersion, NominalGuardDecisionEvidenceAlgorithmVersion, StringComparison.Ordinal) ||
