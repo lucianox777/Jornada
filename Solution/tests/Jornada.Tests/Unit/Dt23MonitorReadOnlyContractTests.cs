@@ -7,11 +7,8 @@ namespace Jornada.Tests.Unit;
 [Category("Unit")]
 public sealed class Dt23MonitorReadOnlyContractTests
 {
-    [TestCase("VERDE")]
-    [TestCase("AMARELO")]
-    [TestCase("VERMELHO")]
-    [TestCase("INDETERMINADO")]
-    public void Unverified_persisted_states_cannot_certify_evidence(string ignoredDatabaseState)
+    [Test]
+    public void Unverified_database_metadata_cannot_certify_evidence()
     {
         // DB status is deliberately absent from the projection constructor:
         // raw SQL declarations are never authentication of independent truth.
@@ -54,6 +51,7 @@ public sealed class Dt23MonitorReadOnlyContractTests
             Assert.That(api, Does.Contain("RequireAuthorization(Permission)"));
             Assert.That(api, Does.Contain("Dt23MonitorReadOnlyService.GetAsync(operationalSql, ct)"));
             Assert.That(reader, Does.Contain("SELECT TOP (1)"));
+            Assert.That(reader, Does.Not.Contain("s.estado"), "The SQL preview must not load declarative certification.");
             Assert.That(reader, Does.Not.Contain("INSERT INTO"));
             Assert.That(reader, Does.Not.Contain("GENERATE_DRAFT"));
             Assert.That(reader, Does.Not.Contain("ACTIVATE"));
