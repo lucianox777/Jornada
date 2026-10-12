@@ -55,7 +55,7 @@ public sealed class FellegiSunterV9JointNominalTests
             CompositeNominalLevelV9.ExactFull,
             CompositeNominalLevelV9.ExactFull,
             .05m, .05m);
-        Assert.That(Evaluate(c), Is.Zero.Within(1e-12));
+        Assert.That(Evaluate(c), Is.EqualTo(0d).Within(1e-12));
     }
 
     [Test]
@@ -100,15 +100,15 @@ public sealed class FellegiSunterV9JointNominalTests
 
         Assert.Multiple((Action)(() =>
         {
-            Assert.That((Action)(() => Evaluate(cells.Skip(1).ToArray()),
+            Assert.That((Action)(() => Evaluate(cells.Skip(1).ToArray())),
                 Throws.InvalidOperationException);
-            Assert.That((Action)(() => Evaluate(duplicate),
+            Assert.That((Action)(() => Evaluate(duplicate)),
                 Throws.InvalidOperationException);
-            Assert.That((Action)(() => Evaluate(invalid),
+            Assert.That((Action)(() => Evaluate(invalid)),
                 Throws.InvalidOperationException);
-            Assert.That((Action)(() => Evaluate(invalidEnum),
+            Assert.That((Action)(() => Evaluate(invalidEnum)),
                 Throws.InvalidOperationException);
-            Assert.That((Action)(() => Evaluate(unnormalized),
+            Assert.That((Action)(() => Evaluate(unnormalized)),
                 Throws.InvalidOperationException);
             Assert.That((Action)(() => Evaluate(cells,
                 version: "CONTRACT_V8")),
