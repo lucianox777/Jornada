@@ -224,6 +224,52 @@ public sealed class FellegiSunterV9JointNominalTests
     }
 
     [Test]
+    public void FrozenSnapshotDefensivelyCopiesCallerCellsAndKeepsExactJointLlr()
+    {
+        var callerOwned = FullFrame(
+            CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.ExactFull,
+            .20m, .05m).ToArray();
+        var frozen = FrozenFellegiSunterJointNominalV9.Freeze(
+            callerOwned, CompositeNominalComparisonV9.ContractVersion);
+        var before = frozen.Classify("Maria Silva", "MARIA SILVA",
+            "Ana Costa", "ANA COSTA");
+        callerOwned[0] = callerOwned[0] with { M = 0m, U = 0m };
+        var after = frozen.Classify("Maria Silva", "MARIA SILVA",
+            "Ana Costa", "ANA COSTA");
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(after, Is.EqualTo(before));
+            Assert.That(after.LogLikelihoodRatio, Is.EqualTo(Math.Log(4d)).Within(1e-12));
+            Assert.That(after.M, Is.EqualTo(.20m));
+            Assert.That(after.U, Is.EqualTo(.05m));
+            Assert.That((Action)(() => FrozenFellegiSunterJointNominalV9.Freeze(
+                callerOwned, CompositeNominalComparisonV9.ContractVersion)),
+                Throws.InvalidOperationException);
+        }));
+    }
+
+    [Test]
+    public void FrozenScorerAndPublicPreviewHaveNumericallyIdenticalBirthAndJointBreakdowns()
+    {
+        var cells = FullFrame(
+            CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.ExactFull,
+            .35m, .07m).ToArray();
+        var frozen = FrozenFellegiSunterJointNominalV9.Freeze(
+            cells.Reverse().ToArray(), CompositeNominalComparisonV9.ContractVersion);
+        var parameters = PreviewParameters();
+        var viaPublic = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            parameters, "Maria Silva", "MARIA SILVA", "Ana Costa", "ANA COSTA",
+            cells, CompositeNominalComparisonV9.ContractVersion,
+            leftBirthDate: Birth, rightBirthDate: Birth);
+        var viaFrozen = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewWithBreakdown(
+            parameters, "Maria Silva", "MARIA SILVA", "Ana Costa", "ANA COSTA",
+            frozen, leftBirthDate: Birth, rightBirthDate: Birth);
+        Assert.That(viaFrozen, Is.EqualTo(viaPublic));
+    }
+
+    [Test]
     public void ReorderingCellsDoesNotChangeFrozenJointLikelihoodRatio()
     {
         var cells = FullFrame(
