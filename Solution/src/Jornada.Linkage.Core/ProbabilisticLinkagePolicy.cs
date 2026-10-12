@@ -165,17 +165,22 @@ internal static class ProbabilisticLinkageDecisions
             throw new InvalidOperationException(
                 "Ranking probabilístico V9 só é permitido quando observação não possui CPF.");
 
+        // Freeze and fully validate the complete 81-cell snapshot ONCE
+        // before examining any candidate. Even an empty candidate list
+        // cannot conceal an invalid nominal probability table.
+        var frozen = FrozenFellegiSunterJointNominalV9.Freeze(
+            jointCells, nominalContractVersion);
         var unique = DeduplicateCandidates(candidates);
         if (unique.Count == 0)
             return Array.Empty<CandidateScore>();
 
         return unique.Select(candidate =>
             {
-                var breakdown = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                var breakdown = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewWithBreakdown(
                     parameters,
                     observation.NomeCompleto, candidate.NomeCompleto,
                     observation.NomeMae, candidate.NomeMae,
-                    jointCells, nominalContractVersion,
+                    frozen,
                     unique.Count,
                     observation.DataNascimento, candidate.DataNascimento);
                 var fullExact = CompositeNominalComparisonV9.Classify(

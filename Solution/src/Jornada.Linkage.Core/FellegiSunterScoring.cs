@@ -51,46 +51,10 @@ public static class FellegiSunterScoring
         string? leftMotherName,
         string? rightMotherName,
         IReadOnlyCollection<FellegiSunterJointNominalCellV9> jointCells,
-        string nominalContractVersion)
-    {
-        ArgumentNullException.ThrowIfNull(jointCells);
-        if (!string.Equals(nominalContractVersion,
-            CompositeNominalComparisonV9.ContractVersion, StringComparison.Ordinal))
-            throw new InvalidOperationException("Contrato de comparação nominal V9 não é compatível.");
-
-        var levels = Enum.GetValues<CompositeNominalLevelV9>();
-        if (jointCells.Count != levels.Length * levels.Length)
-            throw new InvalidOperationException("V9 exige os 81 estados conjuntos nominais completos.");
-
-        var visited = new HashSet<(CompositeNominalLevelV9 Person, CompositeNominalLevelV9 Mother)>();
-        decimal sumM = 0m, sumU = 0m;
-        FellegiSunterJointNominalCellV9? selected = null;
-        var observedPerson = CompositeNominalComparisonV9.Classify(leftPersonName, rightPersonName);
-        var observedMother = CompositeNominalComparisonV9.Classify(leftMotherName, rightMotherName);
-
-        foreach (var cell in jointCells)
-        {
-            if (cell is null || !Enum.IsDefined(cell.Person) || !Enum.IsDefined(cell.Mother)
-                || !visited.Add((cell.Person, cell.Mother))
-                || cell.M <= 0m || cell.M > 1m || cell.U <= 0m || cell.U > 1m)
-                throw new InvalidOperationException("V9 exige estados exclusivos e probabilidades válidas em M/U.");
-
-            sumM += cell.M;
-            sumU += cell.U;
-            if (cell.Person == observedPerson && cell.Mother == observedMother)
-                selected = cell;
-        }
-
-        if (selected is null || Math.Abs(sumM - 1m) > 0.000001m
-            || Math.Abs(sumU - 1m) > 0.000001m)
-            throw new InvalidOperationException("V9 exige distribuições conjuntas M/U normalizadas.");
-
-        // Same float64 natural-log convention as the existing FS kernel.
-        var llr = Math.Log((double)selected.M / (double)selected.U);
-        if (!double.IsFinite(llr))
-            throw new InvalidOperationException("V9 nominal produziu contribuição não finita.");
-        return llr;
-    }
+        string nominalContractVersion) =>
+        FrozenFellegiSunterJointNominalV9.Freeze(jointCells, nominalContractVersion)
+            .Classify(leftPersonName, rightPersonName, leftMotherName, rightMotherName)
+            .LogLikelihoodRatio;
 
     /// <summary>
     /// Explicit PREVIEW-only V9 entry into the same Fellegi-Sunter evidence
@@ -109,29 +73,48 @@ public static class FellegiSunterScoring
         string nominalContractVersion,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
+        DateOnly? rightBirthDate = null) =>
+        CalculateFrozenCompositeNominalV9PreviewWithBreakdown(
+            parameters,
+            leftPersonName, rightPersonName, leftMotherName, rightMotherName,
+            FrozenFellegiSunterJointNominalV9.Freeze(jointCells, nominalContractVersion),
+            blockCandidateCount, leftBirthDate, rightBirthDate);
+
+    /// <summary>
+    /// Reuses the shared FS Evaluate implementation without traversing all
+    /// 81 nominal cells for each of 120+ candidate comparisons. This remains
+    /// preview-only: not used by operational Rank/Resolve or active models.
+    /// </summary>
+    internal static FellegiSunterScoreBreakdown CalculateFrozenCompositeNominalV9PreviewWithBreakdown(
+        IReadOnlyDictionary<string, decimal> parameters,
+        string? leftPersonName,
+        string? rightPersonName,
+        string? leftMotherName,
+        string? rightMotherName,
+        FrozenFellegiSunterJointNominalV9 frozen,
+        int? blockCandidateCount = null,
+        DateOnly? leftBirthDate = null,
         DateOnly? rightBirthDate = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(frozen);
         if (!parameters.TryGetValue(LinkageParameterCatalog.DecisionEvidenceScoring, out var enabled)
             || enabled < 1m)
             throw new InvalidOperationException(
                 "Preview V9 exige o contrato FS decision-evidence habilitado.");
 
-        // Validate all 81 cells, their exclusivity and normalization before
-        // evaluating birth, so invalid pseudo-models never return a score.
-        var llr = CalculateCompositeNominalJointV9(
-            leftPersonName, rightPersonName, leftMotherName, rightMotherName,
-            jointCells, nominalContractVersion);
-        var person = CompositeNominalComparisonV9.Classify(leftPersonName, rightPersonName);
-        var mother = CompositeNominalComparisonV9.Classify(leftMotherName, rightMotherName);
-        var selected = jointCells.Single(x => x.Person == person && x.Mother == mother);
+        var selected = frozen.Classify(
+            leftPersonName, rightPersonName, leftMotherName, rightMotherName);
         var raw = Evaluate(
             ToDoubleParameters(parameters),
             nameState: null, motherNameState: null,
             blockCandidateCount, leftBirthDate, rightBirthDate,
             captureBreakdown: true,
-            v9Joint: ($"{person}:{mother}", (double)selected.M, (double)selected.U, llr));
-        return RenderBreakdown(parameters, raw, selected);
+            v9Joint: ($"{selected.Person}:{selected.Mother}",
+                (double)selected.M, (double)selected.U, selected.LogLikelihoodRatio));
+        return RenderBreakdown(parameters, raw,
+            new FellegiSunterJointNominalCellV9(
+                selected.Person, selected.Mother, selected.M, selected.U));
     }
 
     public static decimal CalculatePosterior(
