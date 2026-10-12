@@ -108,3 +108,10 @@ A migração passa a exigir que uma linha `VERDE` declare `sourceKind=INDEPENDEN
 
 
 **Matriz SQL adicional de proveniência (11/10/2026, em revisão na PR #920):** o teste negativo exercita declarações `VERDE` com `verified=false`, `verified` ausente, `sourceKind=SYNTHETIC` mesmo com `verified=true`, e estado fora do domínio. Cada tentativa é revertida; um controle positivo verifica que o formato nominal aceito não é bloqueado. Essa matriz valida somente restrições estruturais do banco em SQL descartável: um JSON declarado `INDEPENDENT_REAL`/`verified=true` **não comprova** independência, origem, autenticidade ou certificação estatística. A coleta e a verificação de proveniência reais seguem pendentes; calibração exclusivamente manual.
+
+
+## Incremento de integração protegida ao Monitor — 11/10/2026 (PR #920)
+
+O endpoint já autorizado `GET /api/v1/monitor/status` pode incorporar o campo opcional `monitor.sampleSufficiencyDiagnostic`, consultando apenas **versão de política e data de corte** por meio de `Dt23MonitorReadOnlyService`. A consulta é read-only, tem timeout curto, usa a permissão atual `jornada.monitor.read` e não altera os gates de prontidão. Sem migração, indisponibilidade do SQL, política ou snapshot, o painel permanece **INDETERMINADO/SEM DADOS**, sem simular uma amostra suficiente.
+
+**Limite deliberado de confiança:** `sourceKind=INDEPENDENT_REAL` armazenado em JSON não é autenticação da proveniência. Até haver coletor operacional auditável, a API converte o preview para `INDETERMINADO` com `verified=false`, mesmo quando um registro SQL declara `VERDE`; a UI não deve promover este registro a sinal verde. Não são expostas contagens, pares, identificadores nem justificativas livres do banco neste preview. Testes de unidade exercitam o fail-closed e a autorização reutilizada. A DT-23 continua **ABERTA**: coleta pós-blocking, deduplicação e estratos, agendamento, alertas, validação SQL descartável e CI completa ainda precisam de evidência. Calibração/ativação continuam manuais.
