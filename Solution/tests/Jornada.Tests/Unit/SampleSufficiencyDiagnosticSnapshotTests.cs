@@ -27,7 +27,7 @@ public sealed class SampleSufficiencyDiagnosticSnapshotTests
     }
 
     [Test]
-    public void VerifiedIndependentEvidenceMapsOnlyEvaluatorStatus()
+    public void UnattestedIndependentLabelCannotCertifySufficientEvidence()
     {
         var sufficient = Evaluate(new[] {
             new Evidence("SP", "m1", true, true, "g1"),
@@ -35,16 +35,16 @@ public sealed class SampleSufficiencyDiagnosticSnapshotTests
         }, new[] { "SP" }, 1, 1);
         var insufficient = Evaluate(Array.Empty<Evidence>(), new[] { "SP" }, 1, 1);
         Assert.That(SampleSufficiencyDiagnosticSnapshot.Create(sufficient, "v2", Cutoff, "INDEPENDENT_REAL").State,
-            Is.EqualTo("VERDE"));
+            Is.EqualTo("INDETERMINADO"));
         Assert.That(SampleSufficiencyDiagnosticSnapshot.Create(insufficient, "v2", Cutoff, "INDEPENDENT_REAL").State,
             Is.EqualTo("INDETERMINADO"));
         var snapshot = SampleSufficiencyDiagnosticSnapshot.Create(sufficient, "v2", Cutoff, "INDEPENDENT_REAL");
-        Assert.That(JsonDocument.Parse(snapshot.CountersJson).RootElement.GetArrayLength(), Is.EqualTo(1));
+        Assert.That(JsonDocument.Parse(snapshot.CountersJson).RootElement.GetArrayLength(), Is.Zero);
         Assert.That(snapshot.PolicyVersion, Is.EqualTo("v2"));
     }
 
     [Test]
-    public void VerifiedButUndersizedEvidenceIsYellowWithAuditableCounts()
+    public void UnattestedUndersizedEvidenceCannotPublishEligibleCounts()
     {
         var result = Evaluate(new[] {
             new Evidence("SP", "m1", true, true, "g1"),
@@ -52,11 +52,10 @@ public sealed class SampleSufficiencyDiagnosticSnapshotTests
         }, new[] { "SP" }, 2, 2);
         Assert.That(result.State, Is.EqualTo(Status.Insufficient));
         var snapshot = SampleSufficiencyDiagnosticSnapshot.Create(result, "policy-v3", Cutoff, "INDEPENDENT_REAL");
-        Assert.That(snapshot.State, Is.EqualTo("AMARELO"));
+        Assert.That(snapshot.State, Is.EqualTo("INDETERMINADO"));
         Assert.That(snapshot.ReasonsJson, Does.Contain("minimum m=2, u=2"));
         using var counts = JsonDocument.Parse(snapshot.CountersJson);
-        Assert.That(counts.RootElement[0].GetProperty("M").GetInt32(), Is.EqualTo(1));
-        Assert.That(counts.RootElement[0].GetProperty("U").GetInt32(), Is.EqualTo(1));
+        Assert.That(counts.RootElement.GetArrayLength(), Is.Zero);
     }
 
     [Test]
