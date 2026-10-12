@@ -79,6 +79,45 @@ def test_dt10_reusable_job_has_same_gate_and_real_sql_acceptance():
     )
 
 
+
+def test_parallel_e2e_keeps_both_real_suites_and_aggregated_gate():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    def block(name):
+        found = re.search(
+            rf"(?ms)^  {re.escape(name)}:\s*\n(.*?)(?=^  [a-z][a-z0-9-]*:\s*$|\Z)",
+            workflow,
+        )
+        assert found, f"Missing E2E job {name}"
+        return found.group(1)
+
+    console = block("e2e-console")
+    private = block("e2e-private-sql")
+    gate = block("e2e")
+    for item in (console, private):
+        assert "needs: [impact, dependency-lock]" in item
+        assert "needs.impact.outputs.run_full == 'true'" in item
+        assert "needs.dependency-lock.result == 'success'" in item
+        assert "runs-on: ubuntu-latest" in item
+        assert "name: nuget-lockfiles" in item
+    assert "jornada-runner.py --profile e2e --allow-reset e2e" in console
+    assert "JORNADA_E2E_LOCKED_RESTORE: 'true'" in console
+    assert "name: local-e2e-evidence" in console
+    assert "scripts/e2e-private-sql-bootstrap-runtime.sh" in private
+    assert "JORNADA_WORKERS_E2E_RUNTIME_TEST: 'true'" in private
+    assert "dotnet restore Jornada.sln --locked-mode" in private
+    assert "name: e2e-private-sql-evidence" in private
+    assert "if-no-files-found: error" in private
+    assert "needs: [impact, e2e-console, e2e-private-sql]" in gate
+    assert "always() && needs.impact.outputs.run_full == 'true'" in gate
+    assert 'test "$ZIP_RESULT" = success' in gate
+    assert 'test "$PRIVATE_RESULT" = success' in gate
+    assert "name: local-e2e-evidence" in gate
+    assert "name: e2e-private-sql-evidence" in gate
+    assert "c3-2d-sql-bootstrap/summary.json" in gate
+    assert "permissions:\n      actions: read\n      contents: read" in gate
+
+
+
 import unittest
 
 class CiGateContractTests(unittest.TestCase):
@@ -87,6 +126,9 @@ class CiGateContractTests(unittest.TestCase):
 
     def test_dependencies(self):
         test_full_gate_is_fail_closed()
+
+    def test_parallel_e2e(self):
+        test_parallel_e2e_keeps_both_real_suites_and_aggregated_gate()
 
     def test_dt10_reusable(self):
         test_dt10_reusable_job_has_same_gate_and_real_sql_acceptance()
