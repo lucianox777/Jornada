@@ -87,7 +87,7 @@ public static class CompositeNominalTermFrequencyContractV9
         if (reference.Source == NominalFrequencySourceV9.IbgePublishedMarginal
             && expectedUnit != NominalFrequencyUnitV9.FirstName)
             throw new InvalidOperationException(
-                "Marginal IBGE de prenome somente é compatível com FirstName; sobrenome exige fonte proxy explícita.");
+                "Marginais publicadas do IBGE de prenome somente são compatíveis com FirstName; sobrenome exige fonte proxy explícita.");
 
         if (reference.Source == NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
             && expectedUnit != NominalFrequencyUnitV9.LastContentSurname)
