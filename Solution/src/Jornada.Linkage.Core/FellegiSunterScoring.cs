@@ -92,6 +92,48 @@ public static class FellegiSunterScoring
         return llr;
     }
 
+    /// <summary>
+    /// Explicit PREVIEW-only V9 entry into the same Fellegi-Sunter evidence
+    /// aggregation as the runtime: one joint person/mother nominal LLR plus
+    /// the existing birth evidence and prior, without adding old nominal LLRs.
+    /// This does NOT dispatch AlgorithmVersion=V9 or activate a model.
+    /// The caller's probability table still requires external certification.
+    /// </summary>
+    public static FellegiSunterScoreBreakdown CalculateCompositeNominalV9PreviewWithBreakdown(
+        IReadOnlyDictionary<string, decimal> parameters,
+        string? leftPersonName,
+        string? rightPersonName,
+        string? leftMotherName,
+        string? rightMotherName,
+        IReadOnlyCollection<FellegiSunterJointNominalCellV9> jointCells,
+        string nominalContractVersion,
+        int? blockCandidateCount = null,
+        DateOnly? leftBirthDate = null,
+        DateOnly? rightBirthDate = null)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        if (!parameters.TryGetValue(LinkageParameterCatalog.DecisionEvidenceScoring, out var enabled)
+            || enabled < 1m)
+            throw new InvalidOperationException(
+                "Preview V9 exige o contrato FS decision-evidence habilitado.");
+
+        // Validate all 81 cells, their exclusivity and normalization before
+        // evaluating birth, so invalid pseudo-models never return a score.
+        var llr = CalculateCompositeNominalJointV9(
+            leftPersonName, rightPersonName, leftMotherName, rightMotherName,
+            jointCells, nominalContractVersion);
+        var person = CompositeNominalComparisonV9.Classify(leftPersonName, rightPersonName);
+        var mother = CompositeNominalComparisonV9.Classify(leftMotherName, rightMotherName);
+        var selected = jointCells.Single(x => x.Person == person && x.Mother == mother);
+        var raw = Evaluate(
+            ToDoubleParameters(parameters),
+            nameState: null, motherNameState: null,
+            blockCandidateCount, leftBirthDate, rightBirthDate,
+            captureBreakdown: true,
+            v9Joint: ($"{person}:{mother}", (double)selected.M, (double)selected.U, llr));
+        return RenderBreakdown(parameters, raw, selected);
+    }
+
     public static decimal CalculatePosterior(
         IReadOnlyDictionary<string, decimal> parameters,
         NameComparisonState? nameState,
@@ -154,16 +196,27 @@ public static class FellegiSunterScoring
     {
         var result = Evaluate(ToDoubleParameters(parameters), nameState, motherNameState,
             blockCandidateCount, leftBirthDate, rightBirthDate, captureBreakdown: true);
-        // O breakdown expõe as probabilidades persistidas em precisão decimal exata;
-        // só o cálculo matemático percorre o snapshot convertido para double.
+        return RenderBreakdown(parameters, result);
+    }
+
+    private static FellegiSunterScoreBreakdown RenderBreakdown(
+        IReadOnlyDictionary<string, decimal> parameters,
+        RawEvaluation result,
+        FellegiSunterJointNominalCellV9? jointV9 = null)
+    {
+        // Existing parameters retain their exact persisted decimal values.
+        // The explicit V9 preview has no separate M_NOME*/U_NOME* marginals:
+        // its single joint nominal cell is the source of truth.
         var contributions = result.Contributions!
             .Select(item => new FellegiSunterEvidenceContribution(
                 item.Evidence,
                 item.State,
-                item.M is null ? null : Math.Clamp(
-                    parameters[$"M_{item.Evidence}_{item.State}"], 0.000000001m, 0.999999999m),
-                item.U is null ? null : Math.Clamp(
-                    parameters[$"U_{item.Evidence}_{item.State}"], 0.000000001m, 0.999999999m),
+                item.M is null ? null : jointV9 is not null && item.Evidence == "NOMINAL_CONJUNTO_V9"
+                    ? jointV9.M : Math.Clamp(
+                        parameters[$"M_{item.Evidence}_{item.State}"], 0.000000001m, 0.999999999m),
+                item.U is null ? null : jointV9 is not null && item.Evidence == "NOMINAL_CONJUNTO_V9"
+                    ? jointV9.U : Math.Clamp(
+                        parameters[$"U_{item.Evidence}_{item.State}"], 0.000000001m, 0.999999999m),
                 (decimal)item.LogLikelihoodRatio))
             .ToArray();
         return new FellegiSunterScoreBreakdown(
@@ -191,7 +244,8 @@ public static class FellegiSunterScoring
         int? blockCandidateCount,
         DateOnly? leftBirthDate,
         DateOnly? rightBirthDate,
-        bool captureBreakdown)
+        bool captureBreakdown,
+        (string State, double M, double U, double Llr)? v9Joint = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         if (blockCandidateCount is <= 0)
@@ -221,31 +275,39 @@ public static class FellegiSunterScoring
                 value.LogLikelihoodRatio));
         }
 
-        if (nameState is { } observedNameState)
+        if (v9Joint is { } joint)
         {
-            Add("NOME", observedNameState.ToString(),
-                RequiredLikelihoodRatio(parameters, "NOME", observedNameState.ToString()));
+            // Exactly ONE nominal LLR in V9, including a calibrated Missing
+            // mother state. No legacy NOME or NOME_MAE terms are evaluated.
+            Add("NOMINAL_CONJUNTO_V9", joint.State,
+                (joint.M, joint.U, joint.Llr));
         }
         else
         {
-            // Não existe distribuição calibrada NOME_MISSING no modelo corrente.
-            // Até sua calibração explícita, ausência é evidência indisponível/neutra.
-            Add("NOME", "MISSING_NEUTRAL", (null, null, 0d));
-        }
+            if (nameState is { } observedNameState)
+            {
+                Add("NOME", observedNameState.ToString(),
+                    RequiredLikelihoodRatio(parameters, "NOME", observedNameState.ToString()));
+            }
+            else
+            {
+                // No calibrated NOME_MISSING in existing V8 scoring.
+                Add("NOME", "MISSING_NEUTRAL", (null, null, 0d));
+            }
 
-        if (motherNameState is { } observedMotherNameState)
-        {
-            Add("NOME_MAE", observedMotherNameState.ToString(),
-                RequiredLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState.ToString()));
-        }
-        else if (decisionV6 && !neutralMissing)
-        {
-            // Replay histórico V6/V7: ausência da mãe é estado calibrado.
-            Add("NOME_MAE", "MISSING", RequiredLikelihoodRatio(parameters, "NOME_MAE", "MISSING"));
-        }
-        else
-        {
-            Add("NOME_MAE", "MISSING_NEUTRAL", (null, null, 0d));
+            if (motherNameState is { } observedMotherNameState)
+            {
+                Add("NOME_MAE", observedMotherNameState.ToString(),
+                    RequiredLikelihoodRatio(parameters, "NOME_MAE", observedMotherNameState.ToString()));
+            }
+            else if (decisionV6 && !neutralMissing)
+            {
+                Add("NOME_MAE", "MISSING", RequiredLikelihoodRatio(parameters, "NOME_MAE", "MISSING"));
+            }
+            else
+            {
+                Add("NOME_MAE", "MISSING_NEUTRAL", (null, null, 0d));
+            }
         }
 
         if (leftBirthDate is { } left && rightBirthDate is { } right)
