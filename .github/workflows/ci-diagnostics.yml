@@ -44,7 +44,15 @@ jobs:
             echo
             echo '| Job | Status | Conclusion |'
             echo '| --- | --- | --- |'
-            while IFS=$'\\t' read -r name status conclusion url; do
+            while IFS= read -r name status conclusion url; do
+              # Keep untrusted job names out of Markdown formatting.
+              name="${name//|/\\|}"
+              printf '| %s | %s | %s |\n' "$name" "$status" "$conclusion"
+            done < jobs.tsv
+            echo
+            echo 'This report is observational only. It does not rerun, cancel, merge, or modify any PR.'
+          } >> "$GITHUB_STEP_SUMMARY"
+\t' read -r name status conclusion url; do
               # Keep untrusted job names out of Markdown formatting.
               name="${name//|/\\|}"
               printf '| %s | %s | %s |\\n' "$name" "$status" "$conclusion"
