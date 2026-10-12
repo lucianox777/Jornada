@@ -58,7 +58,26 @@ BEGIN TRY
 
  IF NOT EXISTS(SELECT 1 FROM sys.triggers WHERE name=N'tr_documento_evidencia_modelo_publicado' AND parent_id=OBJECT_ID(N'silver.documento_evidencia_observacao')) THROW 52325,'Gate de modelo documental publicado ausente.',1;
 
- PRINT N'PASSOU: estruturas, RG/CIN, FKs, imutabilidade e data na instancia.';
+ -- Gate de compilacao e estrutura das views RG 1:N instaladas. Este smoke
+ -- NAO substitui fixture comportamental com registros reais de CI descartavel.
+ IF OBJECT_ID(N'silver.vw_documento_evidencia_candidato_gold',N'V') IS NULL
+    OR OBJECT_ID(N'gold.vw_documento_evidencia_candidato_uuid',N'V') IS NULL
+    OR OBJECT_ID(N'gold.vw_rg_documento_distinto',N'V') IS NULL
+    OR OBJECT_ID(N'gold.vw_rg_documento_proveniencia',N'V') IS NULL
+    THROW 52326,'Views Silver/Gold documentais nao instaladas na CI SQL.',1;
+ IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
+    WHERE object_id=OBJECT_ID(N'gold.vw_rg_documento_distinto')
+      AND definition LIKE N'%COUNT_BIG(DISTINCT documento_evidencia_id)%'
+      AND definition LIKE N'%GROUP BY pessoa_uuid, numero_rg, emissor_codigo, uf_emissor%')
+    THROW 52327,'Colecao RG nao preserva chave 1:N e deduplicacao de ocorrencias.',1;
+ IF NOT EXISTS (SELECT 1 FROM sys.sql_modules
+    WHERE object_id=OBJECT_ID(N'gold.vw_rg_documento_proveniencia')
+      AND UPPER(definition) LIKE N'%SELECT DISTINCT D.PESSOA_UUID%'
+      AND definition LIKE N'%c.documento_evidencia_id%'
+      AND definition LIKE N'%c.ocorrencia_origem_codigo%')
+    THROW 52328,'Proveniencia RG nao preserva ocorrencias distintas.',1;
+
+ PRINT N'PASSOU: estruturas, RG/CIN, FKs, views Gold 1:N e proveniencia (smoke estrutural, nao E2E).';
  ROLLBACK TRANSACTION;
 END TRY
 BEGIN CATCH

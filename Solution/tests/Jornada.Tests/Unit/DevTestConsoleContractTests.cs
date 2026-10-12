@@ -139,12 +139,9 @@ public sealed class DevTestConsoleContractTests
             Assert.That(program,Does.Contain("LatestSuccess(\"infra-blocking\",\"blocking\",\"infra-model\",\"calibration\",\"gold-synthetic\",\"infrastructure\")"));
             Assert.That(program,Does.Contain("corpus.FinishedAt>evidence.FinishedAt"));
             Assert.That(program,Does.Contain("lastExecutionNumber=counts.GetValueOrDefault(x.Id)"));
-            Assert.That(program,Does.Contain("FlowBlockedReason"));
-            Assert.That(program,Does.Contain("latest.TryGetValue(\"ingestion\""));
-            Assert.That(program,Does.Contain("latest.TryGetValue(\"silver\""));
-            Assert.That(program,Does.Contain("silver.FinishedAt<ingestion.FinishedAt"));
-            Assert.That(program,Does.Contain("A última Entrega ainda não concluiu Bronze → Silver"));
-            Assert.That(program,Does.Contain("Results.Conflict(new{error=flowBlockedReason"));
+            // A sessão não impõe ordem de execução entre comandos independentes.
+            Assert.That(program,Does.Not.Contain("FlowBlockedReason"));
+            Assert.That(program,Does.Not.Contain("Results.Conflict(new{error=flowBlockedReason"));
             Assert.That(program,Does.Contain("[FromServices] RunStore store"));
             Assert.That(program,Does.Contain("[FromServices] LiveExecutionService live"));
             Assert.That(program,Does.Contain("[FromBody] ManualZipRequest request"));

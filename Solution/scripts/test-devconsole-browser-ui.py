@@ -204,9 +204,9 @@ def main() -> int:
                         require(page.locator("#commands .exec-badge").filter(
                             has_text="RunOnce").count() > 0,
                             "Browser did not render RunOnce badge")
-                        require(page.get_by_role("button", name="Executar one shot").is_disabled(),
-                                "Linkage browser button enabled before ingest/Silver")
-                        checked.append("desktop navigation and precondition rendering")
+                        require(page.get_by_role("button", name="Executar one shot").is_enabled(),
+                                "Linkage browser button blocked by missing session history")
+                        checked.append("desktop navigation and independent command rendering")
 
                         # Verify the actual click dispatches the ingestion command.
                         # Intercept the POST before it can reach a real API or SQL.
