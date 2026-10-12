@@ -207,6 +207,10 @@ public sealed class CandidateWeightedEstimatorTests
             Assert.That(result.Status, Is.EqualTo(CandidateWeightedJointNominalEstimatorV9.Status));
             Assert.That(result.NominalContractVersion, Is.EqualTo(CompositeNominalComparisonV9.ContractVersion));
             Assert.That(result.SamplingDesignVersion, Is.EqualTo(CandidateSamplingDesign.Version));
+            Assert.That(result.SmoothingBasis, Is.EqualTo(
+                CandidateWeightedJointNominalEstimatorV9.SmoothingBasis));
+            Assert.That(result.Version, Is.EqualTo(
+                CandidateWeightedJointNominalEstimatorV9.Version));
             Assert.That(result.Cells, Has.Count.EqualTo(81));
             Assert.That(result.Matched.TrainingPairCount, Is.EqualTo(4));
             Assert.That(result.Unmatched.TrainingPairCount, Is.EqualTo(8));
@@ -218,7 +222,7 @@ public sealed class CandidateWeightedEstimatorTests
             Assert.That(exact.MatchedObservedPairs, Is.EqualTo(4));
             Assert.That(exact.MatchedObservedWeight, Is.EqualTo(8m));
             Assert.That(exact.UnmatchedObservedPairs, Is.Zero);
-            Assert.That(exact.M, Is.EqualTo(8.5m / 48.5m));
+            Assert.That(exact.M, Is.EqualTo(4.5m / 44.5m));
             Assert.That(exact.U, Is.EqualTo(0.5m / 48.5m));
             Assert.That(result.Cells.Sum(c => c.MatchedObservedPairs), Is.EqualTo(4));
             Assert.That(result.Cells.Sum(c => c.UnmatchedObservedPairs), Is.EqualTo(8));
@@ -233,6 +237,43 @@ public sealed class CandidateWeightedEstimatorTests
         Assert.That(json, Does.Not.Contain(Candidates[0].ToString("D")));
         Assert.That(json, Does.Not.Contain("SourceId"));
         Assert.That(json, Does.Not.Contain("CandidateId"));
+    }
+
+    [Test]
+    public void V9EssNormalizedSmoothingDoesNotChangeWhenAllDesignWeightsAreRescaled()
+    {
+        static decimal P(decimal cell, decimal total, decimal ess, decimal alpha) =>
+            CandidateWeightedJointNominalEstimatorV9.EssNormalizedSmoothedProbability(
+                cell, total, ess, alpha, 81);
+
+        var baseline = P(8m, 10m, 5m, 0.5m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(baseline, Is.EqualTo(4.5m / 45.5m));
+            Assert.That(P(80m, 100m, 5m, 0.5m), Is.EqualTo(baseline));
+            Assert.That(P(0.8m, 1m, 5m, 0.5m), Is.EqualTo(baseline));
+            Assert.That(P(0m, 10m, 5m, 0.5m), Is.EqualTo(0.5m / 45.5m));
+            Assert.That(P(10m, 10m, 5m, 0.5m), Is.EqualTo(5.5m / 45.5m));
+            Assert.That(P(8m, 10m, 10m, 0.5m), Is.Not.EqualTo(baseline));
+        }));
+    }
+
+    [Test]
+    public void V9EssNormalizedSmoothingRejectsInvalidWeightsRatherThanFabricatingProbabilities()
+    {
+        static decimal P(decimal cell, decimal total, decimal ess, decimal alpha, int cells = 81) =>
+            CandidateWeightedJointNominalEstimatorV9.EssNormalizedSmoothedProbability(
+                cell, total, ess, alpha, cells);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That((Action)(() => P(-1m, 5m, 3m, 1m)), Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() => P(6m, 5m, 3m, 1m)), Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() => P(1m, 0m, 3m, 1m)), Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() => P(1m, 5m, 0m, 1m)), Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() => P(1m, 5m, 3m, 0m)), Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() => P(1m, 5m, 3m, 1m, 0)), Throws.TypeOf<ArgumentOutOfRangeException>());
+        }));
     }
 
     [Test]
