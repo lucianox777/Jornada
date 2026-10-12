@@ -29,7 +29,8 @@ permissions:
 
 concurrency:
   group: jornada-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # Preserve in-flight SQL/E2E evidence; superseded runs must finish normally.
+  cancel-in-progress: false
 
 env:
   DOTNET_SDK_VERSION: '10.0.112'
