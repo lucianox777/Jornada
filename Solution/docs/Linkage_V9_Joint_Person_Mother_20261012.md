@@ -51,3 +51,36 @@ na V9. Continuam faltando suporte populacional por célula, segurança TF,
 splits e testes adversariais cegos, FDR/FP/recall, vinculação de manifesto
 a um modelo e decisão DT-15. O roteamento V9 permanece explicitamente
 bloqueado. O histórico V8 segue inalterado.
+
+## Diagnóstico ponderado de decisões FS no holdout independente — preview V9
+
+`CandidateWeightedJointFsHoldoutPreviewV9.Analyze` integra o caminho
+`ValidatedCandidateCorpus` + nomes brutos restritos + `EstimateFromRawEvidence`
+(TRAIN) + `CandidateWeightedJointPreviewAdapterV9` + **o mesmo
+`FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown` C#**
+sobre a partição **EVALUATION** congelada. O limiar de decisão é um
+**parâmetro explícito externo**, validado no intervalo (0,1); a rotina
+**não otimiza o limiar** nem altera o modelo.
+
+A matriz 2×2 registra contagens e somas de `DesignWeight` para VP,
+FP, FN e VN. Apresenta `ObservedWeightedFalseDiscoveryShare =
+W_FP/(W_FP+W_VP)` (valor **nulo** quando nenhuma previsão é positiva)
+e `ObservedWeightedRecallShare = W_VP/(W_VP+W_FN)`.
+Exige no mínimo dois grupos independentes por classe de EVALUATION e ESS
+de Kish suficiente, reutilizando as verificações de holdout da V9. O
+resultado só contém agregados, nunca UUIDs, nomes, rótulos ou
+posteriores individuais. Os testes demonstram que um par negativo com
+nome alterado para concordância pode aumentar o FP observado, **sem
+alterar m/u TRAIN**. O uso de limiar .99 demonstra que ausência de
+previsões positivas **não é FDR observado igual a zero**.
+
+**Limite estatístico e de produto:** essas frações observadas são
+**diagnósticas no frame `BirthBlockingPlan` amostrado**; não são
+estimativas certificadas de FP/FDR/recall do universo do blocking SQL,
+nem um conjunto `TEST` independente e intocado. Pesos de pares não
+substituem inferência por conglomerados, a classe de calibração ainda
+é sujeita a suporte e viés do frame, e escolher um limiar olhando
+EVALUATION invalida tratá-la depois como TEST cego. O relatório não
+publica/ativa V9, não altera TF, `Rank/Resolve`, DT-15 ou V8 replay.
+Faltam dados históricos representativos de pares, Splink em mesmos
+pares, modelo governado e testes cegos antes da promoção.

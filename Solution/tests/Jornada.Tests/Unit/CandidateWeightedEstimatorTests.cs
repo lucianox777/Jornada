@@ -690,6 +690,126 @@ public sealed class CandidateWeightedEstimatorTests
         }));
     }
 
+    private static IReadOnlyDictionary<string, decimal> V9FsPreviewParameters() =>
+        new Dictionary<string, decimal>
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] = .20m,
+            [LinkageParameterCatalog.DecisionEvidenceScoring] = 1m
+        };
+
+    [Test]
+    public async Task V9IndependentFsHoldoutClassifiesEvaluationPairsWithoutUsingTheirLabelsForTraining()
+    {
+        var capture = await CaptureAsync();
+        var validated = CandidateLabeling.Validate(capture, Corpus(capture));
+        var evidence = V9RawEvidence(capture);
+        var result = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            validated, evidence, V9FsPreviewParameters(), .5m, .5m);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.Version, Is.EqualTo(CandidateWeightedJointFsHoldoutPreviewV9.Version));
+            Assert.That(result.Status, Does.Contain("NOT_OPERATIONAL_TEST_FDR"));
+            Assert.That(result.EvaluationPairs, Is.EqualTo(6));
+            Assert.That(result.MatchedEvaluationGroups, Is.EqualTo(2));
+            Assert.That(result.UnmatchedEvaluationGroups, Is.EqualTo(2));
+            Assert.That(result.TruePositivePairs, Is.EqualTo(2));
+            Assert.That(result.FalsePositivePairs, Is.Zero);
+            Assert.That(result.FalseNegativePairs, Is.Zero);
+            Assert.That(result.TrueNegativePairs, Is.EqualTo(4));
+            Assert.That(result.TruePositiveDesignWeight, Is.EqualTo(4m));
+            Assert.That(result.TrueNegativeDesignWeight, Is.EqualTo(4m));
+            Assert.That(result.ObservedWeightedFalseDiscoveryShare, Is.EqualTo(0m));
+            Assert.That(result.ObservedWeightedRecallShare, Is.EqualTo(1m));
+            Assert.That(result.MatchedEvaluationEffectiveSampleSize, Is.EqualTo(2m));
+            Assert.That(result.UnmatchedEvaluationEffectiveSampleSize, Is.EqualTo(4m));
+        }));
+        var json = System.Text.Json.JsonSerializer.Serialize(result);
+        Assert.That(json, Does.Not.Contain("SourceId"));
+        Assert.That(json, Does.Not.Contain("CandidateId"));
+        Assert.That(json, Does.Not.Contain(Sources[0].ToString("D")));
+        Assert.That(json, Does.Not.Contain("Maria Silva"));
+    }
+
+    [Test]
+    public async Task V9FsHoldoutSeparatesEmptyPredictedPositiveSetFromZeroObservedFalseDiscoveries()
+    {
+        var capture = await CaptureAsync();
+        var validated = CandidateLabeling.Validate(capture, Corpus(capture));
+        var report = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            validated, V9RawEvidence(capture), V9FsPreviewParameters(), .99m, .5m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(report.TruePositivePairs, Is.Zero);
+            Assert.That(report.FalsePositivePairs, Is.Zero);
+            Assert.That(report.FalseNegativePairs, Is.EqualTo(2));
+            Assert.That(report.TrueNegativePairs, Is.EqualTo(4));
+            Assert.That(report.ObservedWeightedFalseDiscoveryShare, Is.Null);
+            Assert.That(report.ObservedWeightedRecallShare, Is.Zero);
+            Assert.That(report.FalseNegativeDesignWeight, Is.EqualTo(4m));
+        }));
+    }
+
+    [Test]
+    public async Task V9FsHoldoutChangesWhenIndependentNegativeEvidenceIsMadeToAgreeButTrainingDoesNot()
+    {
+        var capture = await CaptureAsync();
+        var validated = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var target = raw.First(x => Sources.Skip(4).Contains(x.SourceId)
+            && x.Values.LeftName == "Maria Aparecida Silva"
+            && x.Values.LeftMother is not null);
+        var edited = raw.Select(x => x == target
+            ? x with { Values = x.Values with
+                { RightName = x.Values.LeftName, RightMother = x.Values.LeftMother } }
+            : x).ToArray();
+
+        var originalTrain = CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+            validated, raw, .5m);
+        var changedTrain = CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+            validated, edited, .5m);
+        var baseResult = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            validated, raw, V9FsPreviewParameters(), .5m, .5m);
+        var revised = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            validated, edited, V9FsPreviewParameters(), .5m, .5m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(System.Text.Json.JsonSerializer.Serialize(changedTrain),
+                Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(originalTrain)));
+            Assert.That(baseResult.FalsePositivePairs, Is.Zero);
+            Assert.That(revised.FalsePositivePairs, Is.GreaterThan(0));
+            Assert.That(revised.ObservedWeightedFalseDiscoveryShare, Is.GreaterThan(0m));
+            Assert.That(revised.TruePositivePairs, Is.EqualTo(baseResult.TruePositivePairs));
+        }));
+    }
+
+    [Test]
+    public async Task V9FsHoldoutRejectsInvalidThresholdsAndIncompleteSourceEvidence()
+    {
+        var capture = await CaptureAsync();
+        var validated = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That((Action)(() =>
+                CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+                    validated, raw, V9FsPreviewParameters(), 0m, .5m)),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() =>
+                CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+                    validated, raw, V9FsPreviewParameters(), 1m, .5m)),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() =>
+                CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+                    validated, raw.Skip(1).ToArray(), V9FsPreviewParameters(), .5m, .5m)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+                    validated, raw, new Dictionary<string, decimal>(), .5m, .5m)),
+                Throws.InvalidOperationException);
+        }));
+    }
+
     private static IReadOnlyList<CandidateNominalV9RawEvidence> V9RawEvidence(
         CandidateSamplingCapture capture) =>
         capture.Pairs.Select(pair =>
