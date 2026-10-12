@@ -1,0 +1,54 @@
+name: jornada-ci-diagnostics
+
+on:
+  workflow_run:
+    workflows: [jornada-ci]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Summarize completed CI jobs without changing PRs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          RUN_HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          RUN_CONCLUSION: ${{ github.event.workflow_run.conclusion }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" != "workflow_run" ]]; then
+            echo "Manual run: no completed CI run was provided." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # Read-only, event data passed via env to avoid expression/script injection.
+          gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
+            --jq '.jobs[] | [.name, .status, (.conclusion // "pending"), (.html_url // "")] | @tsv' > jobs.tsv
+          {
+            echo "## Jornada CI diagnostic"
+            echo
+            echo "Run: $RUN_ID"
+            echo
+            echo "Head SHA: \`$RUN_HEAD_SHA\`"
+            echo
+            echo "Conclusion: $RUN_CONCLUSION"
+            echo
+            echo '| Job | Status | Conclusion |'
+            echo '| --- | --- | --- |'
+            while IFS=$'\\t' read -r name status conclusion url; do
+              # Keep untrusted job names out of Markdown formatting.
+              name="${name//|/\\|}"
+              printf '| %s | %s | %s |\\n' "$name" "$status" "$conclusion"
+            done < jobs.tsv
+            echo
+            echo 'This report is observational only. It does not rerun, cancel, merge, or modify any PR.'
+          } >> "$GITHUB_STEP_SUMMARY"
