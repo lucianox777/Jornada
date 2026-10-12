@@ -289,6 +289,32 @@ public sealed class LinkageParametersWorker(
                 [LinkageParameterCatalog.TermFrequencyFirstTokenContract] = 1m
             };
 
+            // Read-only P0 calibration evidence: record AGGREGATE dimensions,
+            // never tokens/names/identifiers, and never alter selected m/u,
+            // term-frequency weights, thresholds or the publication decision.
+            // The reference u_EXACT describes whole-name exact agreement while
+            // the frequency sample describes only a FIRST TOKEN; an adverse
+            // ordering margin is a diagnostic, not an automatic model veto.
+            var tfCalibrationAudit = LinkageTermFrequencyCalibrationAudit.TryAssess(
+                modelParameters, termFrequency.Snapshot);
+            if (tfCalibrationAudit is null)
+                logger.LogWarning("Linkage V8 TF LLR audit unavailable; no model decision changed.");
+            else
+                foreach (var factor in tfCalibrationAudit)
+                    logger.LogInformation(
+                        "Linkage V8 TF LLR diagnostic: attribute={Attribute}; " +
+                        "mExact={MExact}; uExact={UExact}; mHigh={MHigh}; uHigh={UHigh}; " +
+                        "maxPublishedFirstNameFrequency={MaxFirstNameFrequency}; " +
+                        "tfWeight={Weight}; minimumU={MinimumU}; " +
+                        "exactBaseLlr={ExactBaseLlr}; highBaseLlr={HighBaseLlr}; " +
+                        "worstTfAdjustment={WorstTfAdjustment}; worstExactLlr={WorstExactLlr}; " +
+                        "worstExactMinusHigh={WorstMargin}; couldInvert={CouldInvert}; " +
+                        "policyChanged=false; scoringChanged=false",
+                        factor.Attribute, factor.MExact, factor.UExact, factor.MHigh, factor.UHigh,
+                        factor.MaximumPublishedFirstNameFrequency, factor.Weight, factor.MinimumU,
+                        factor.ExactBaseLogOdds, factor.HighBaseLogOdds, factor.WorstTfAdjustment,
+                        factor.WorstExactLogOdds, factor.WorstExactMinusHigh, factor.CouldInvert);
+
             var decisionCalibrationScenarios = await BlockingDecisionThresholdCalibrationReader.ReadAsync(
                 connection,
                 normalizationVersion,
