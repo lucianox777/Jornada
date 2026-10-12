@@ -27,14 +27,22 @@ class ReuseTests(unittest.TestCase):
             path.write_text('{"version":1}', encoding="utf-8")
         self.original = {}
         for i in range(22):
-            path = self.root / "src" / "sample" / "bin" / "Release" / "net10.0" / f"binary{i}.dll"
+            path = self.root / "tests" / "Jornada.Integration.Tests" / "bin" / "Release" / "net10.0" / f"binary{i}.dll"
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(f"build artifact {i}".encode())
             self.original[path.name] = path.read_bytes()
-        executable = self.root / "src" / "sample" / "bin" / "Release" / "net10.0" / "binary0.dll"
+        for required, body in (
+            ("Jornada.Integration.Tests.dll", b"test assembly"),
+            ("Jornada.Integration.Tests.deps.json", b"{}"),
+            ("Jornada.Integration.Tests.runtimeconfig.json", b"{}"),
+        ):
+            location = self.root / "tests" / "Jornada.Integration.Tests" / "bin" / "Release" / "net10.0" / required
+            location.write_bytes(body)
+            self.original[required] = body
+        executable = self.root / "tests" / "Jornada.Integration.Tests" / "bin" / "Release" / "net10.0" / "binary0.dll"
         executable.chmod(0o755)
         self.context = {
-            "schema": 1, "repository": "lucianox777/Jornada",
+            "schema": 2, "repository": "lucianox777/Jornada",
             "gitSha": "a"*40, "gitTree": "b"*40, "runId": "42",
             "sdk": "10.0.112", "os": "Linux", "machine": "x86_64",
             "locksSha256": gate.lock_digest(self.root),
@@ -47,16 +55,16 @@ class ReuseTests(unittest.TestCase):
 
     def test_hash_bind_and_permissions_roundtrip(self):
         summary = self.create()
-        self.assertEqual(summary["artifactCount"], 22)
-        destination = self.root / "src" / "sample" / "bin" / "Release" / "net10.0" / "binary0.dll"
+        self.assertEqual(summary["artifactCount"], 25)
+        destination = self.root / "tests" / "Jornada.Integration.Tests" / "bin" / "Release" / "net10.0" / "binary0.dll"
         destination.unlink()
-        self.assertEqual(gate.consume(self.root, self.manifest, self.archive, self.context), 22)
+        self.assertEqual(gate.consume(self.root, self.manifest, self.archive, self.context), 25)
         self.assertEqual(destination.read_bytes(), self.original["binary0.dll"])
         self.assertEqual(destination.stat().st_mode & 0o111, 0o111)
 
     def test_wrong_sha_fails_without_touching_binary(self):
         self.create()
-        dest = self.root / "src" / "sample" / "bin" / "Release" / "net10.0" / "binary1.dll"
+        dest = self.root / "tests" / "Jornada.Integration.Tests" / "bin" / "Release" / "net10.0" / "binary1.dll"
         dest.write_bytes(b"sentinel")
         with self.assertRaisesRegex(ValueError, "gitSha"):
             gate.consume(self.root, self.manifest, self.archive, {**self.context, "gitSha":"f"*40})
@@ -75,7 +83,7 @@ class ReuseTests(unittest.TestCase):
         self.create()
         with self.archive.open("ab") as f:
             f.write(b"malicious")
-        target = self.root / "src" / "sample" / "bin" / "Release" / "net10.0" / "binary2.dll"
+        target = self.root / "tests" / "Jornada.Integration.Tests" / "bin" / "Release" / "net10.0" / "binary2.dll"
         target.write_bytes(b"sentinel")
         with self.assertRaisesRegex(ValueError, "archive SHA-256"):
             gate.consume(self.root, self.manifest, self.archive, self.context)
@@ -91,12 +99,37 @@ class ReuseTests(unittest.TestCase):
             gate.consume(self.root, self.manifest, self.archive, self.context)
 
     def test_bad_tar_paths_are_rejected(self):
-        for bad in ("../bad", "src/x/bin/Release/../../escape", "src/x/bin/Debug/a",
-                    "/etc/passwd", "src/x/bin/Release/link\\evil"):
+        for bad in ("../bad", "tests/Jornada.Integration.Tests/bin/Release/../../escape", "tests/Jornada.Integration.Tests/bin/Debug/a",
+                    "/etc/passwd", "tests/Jornada.Integration.Tests/bin/Release/net10.0/link\\evil"):
             self.assertFalse(gate.valid_path(bad), bad)
 
+    def test_minimal_payload_excludes_other_projects_and_requires_test_runtime(self):
+        extraneous = self.root / "src" / "sample" / "bin" / "Release" / "net10.0" / "unrelated.dll"
+        extraneous.parent.mkdir(parents=True, exist_ok=True)
+        extraneous.write_bytes(b"do not export duplicate bin outputs")
+        summary = self.create()
+        self.assertEqual(summary["artifactCount"], 25)
+        self.assertNotIn("src/sample/bin/Release/net10.0/unrelated.dll",
+                         [row["path"] for row in summary["files"]])
+        self.assertFalse(gate.valid_path("src/sample/bin/Release/net10.0/unrelated.dll"))
+        self.assertTrue(gate.valid_path(
+            "tests/Jornada.Integration.Tests/bin/Release/net10.0/fixtures/test.json"))
+        required = self.root / gate.REQUIRED_OUTPUTS[0]
+        required.unlink()
+        with self.assertRaisesRegex(ValueError, "runtimeconfig.json required"):
+            self.create()
+
+    def test_consumer_rejects_manifest_without_runtime_assembly(self):
+        self.create()
+        payload = json.loads(self.manifest.read_text())
+        payload["files"] = [r for r in payload["files"] if r["path"] != gate.REQUIRED_OUTPUTS[0]]
+        payload["artifactCount"] = len(payload["files"])
+        self.manifest.write_text(json.dumps(payload))
+        with self.assertRaisesRegex(ValueError, "runtime manifests missing"):
+            gate.consume(self.root, self.manifest, self.archive, self.context)
+
     def test_symlinked_source_refused(self):
-        target = self.root / "src" / "sample" / "bin" / "Release" / "net10.0" / "binary3.dll"
+        target = self.root / "tests" / "Jornada.Integration.Tests" / "bin" / "Release" / "net10.0" / "binary3.dll"
         outside = self.root / "secret.txt"
         outside.write_text("secret")
         target.unlink()
