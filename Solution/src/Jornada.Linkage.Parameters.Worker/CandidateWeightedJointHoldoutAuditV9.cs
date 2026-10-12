@@ -15,7 +15,22 @@ public sealed record CandidateJointHoldoutClassV9(
     decimal TotalDesignWeight,
     decimal KishEffectiveSampleSize,
     decimal TotalVariationFromTrainingObserved,
-    decimal EvaluationWeightInUnseenTrainingCells);
+    decimal EvaluationWeightInUnseenTrainingCells,
+    CandidateJointHoldoutGroupSensitivityV9 GroupSensitivity);
+
+/// <summary>
+/// Deterministic leave-one-independent-group-out influence, not a confidence
+/// interval. No group identity or per-group output is retained in this DTO.
+/// At least 3 groups are needed to leave >=2 independent groups after deletion.
+/// </summary>
+public sealed record CandidateJointHoldoutGroupSensitivityV9(
+    string Status,
+    int IndependentGroups,
+    int RemovalsEvaluated,
+    decimal? MinimumLeaveOneGroupOutTvd,
+    decimal? MaximumLeaveOneGroupOutTvd,
+    decimal? MaximumAbsoluteTvdChange,
+    decimal? MaximumUnseenTrainingWeightShare);
 
 public sealed record CandidateJointHoldoutCellV9(
     CompositeNominalLevelV9 Person,
@@ -47,6 +62,8 @@ public static class CandidateWeightedJointHoldoutAuditBuilderV9
 {
     public const string Version = "V9_WEIGHTED_JOINT_INDEPENDENT_HOLDOUT_AUDIT_1";
     public const string Status = "DIAGNOSTIC_ONLY_EVALUATION_BIRTH_BLOCKING_NOT_SQL_CERTIFIED";
+    public const string InsufficientGroupsStatus = "UNAVAILABLE_LT_3_INDEPENDENT_EVALUATION_GROUPS";
+    public const string SensitivityStatus = "DIAGNOSTIC_ONLY_GROUP_INFLUENCE_NOT_CI";
 
     public static CandidateWeightedJointHoldoutAuditV9 AnalyzeFromRawEvidence(
         ValidatedCandidateCorpus corpus,
@@ -94,6 +111,9 @@ public static class CandidateWeightedJointHoldoutAuditBuilderV9
                     "V9 holdout requer pelo menos dois grupos independentes de EVALUATION por classe.");
 
             var support = new Dictionary<(CompositeNominalLevelV9, CompositeNominalLevelV9), (int Count, decimal Weight)>();
+            // Group contribution dictionaries are transient. Only aggregate
+            // extrema leave the function; no group UUIDs appear in output.
+            var byGroup = new Dictionary<Guid, Dictionary<(CompositeNominalLevelV9, CompositeNominalLevelV9), decimal>>();
             decimal total = 0m, squared = 0m;
             foreach (var row in selected)
             {
@@ -102,6 +122,12 @@ public static class CandidateWeightedJointHoldoutAuditBuilderV9
                 var key = (state.Person, state.Mother);
                 support.TryGetValue(key, out var prior);
                 support[key] = (checked(prior.Count + 1), prior.Weight + w);
+                if (!byGroup.TryGetValue(row.IndependenceGroupId, out var contribution))
+                {
+                    contribution = new Dictionary<(CompositeNominalLevelV9, CompositeNominalLevelV9), decimal>();
+                    byGroup.Add(row.IndependenceGroupId, contribution);
+                }
+                contribution[key] = contribution.GetValueOrDefault(key) + w;
                 total += w;
                 squared += w * w;
             }
@@ -126,9 +152,52 @@ public static class CandidateWeightedJointHoldoutAuditBuilderV9
                 if (trainWeight == 0m) unseenWeight += observed;
             }
 
+            var fullTvd = sumAbsolute / 2m;
+            var influence = Sensitivity();
             return (new CandidateJointHoldoutClassV9(
                 label, selected.Length, groups, total, ess,
-                sumAbsolute / 2m, unseenWeight), support);
+                fullTvd, unseenWeight, influence), support);
+
+            CandidateJointHoldoutGroupSensitivityV9 Sensitivity()
+            {
+                if (groups < 3)
+                    return new CandidateJointHoldoutGroupSensitivityV9(
+                        InsufficientGroupsStatus, groups, 0, null, null, null, null);
+
+                var minTvd = decimal.MaxValue;
+                var maxTvd = decimal.MinValue;
+                var largestChange = 0m;
+                var highestUnseenShare = 0m;
+                foreach (var contribution in byGroup.Values)
+                {
+                    var removed = contribution.Values.Sum();
+                    var remaining = total - removed;
+                    if (remaining <= 0m)
+                        throw new InvalidOperationException("V9 holdout: remoção de grupo esvaziou a classe.");
+                    var difference = 0m;
+                    var unseen = 0m;
+                    foreach (var cell in training.Cells)
+                    {
+                        var key = (cell.Person, cell.Mother);
+                        var observed = support.GetValueOrDefault(key).Weight
+                            - contribution.GetValueOrDefault(key);
+                        var trainWeight = label == IndependentMatchLabel.Match
+                            ? cell.MatchedObservedWeight : cell.UnmatchedObservedWeight;
+                        var trainTotal = label == IndependentMatchLabel.Match
+                            ? training.Matched.TotalDesignWeight : training.Unmatched.TotalDesignWeight;
+                        difference += Math.Abs(observed / remaining - trainWeight / trainTotal);
+                        if (trainWeight == 0m) unseen += observed;
+                    }
+                    var tvd = difference / 2m;
+                    minTvd = Math.Min(minTvd, tvd);
+                    maxTvd = Math.Max(maxTvd, tvd);
+                    largestChange = Math.Max(largestChange, Math.Abs(tvd - fullTvd));
+                    highestUnseenShare = Math.Max(highestUnseenShare, unseen / remaining);
+                }
+                return new CandidateJointHoldoutGroupSensitivityV9(
+                    SensitivityStatus, groups, byGroup.Count, minTvd, maxTvd,
+                    largestChange, highestUnseenShare);
+            }
         }
     }
 }
