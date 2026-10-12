@@ -71,4 +71,16 @@ jobs:
           gh api "repos/$REPO/actions/runs/$RUN_ID" > ci-run.json
           gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100&filter=latest" > ci-jobs.json
           python3 Solution/scripts/ci-run-profile.py --run ci-run.json --jobs ci-jobs.json >> "$GITHUB_STEP_SUMMARY"
+          python3 Solution/scripts/ci-failure-checkpoint.py --run ci-run.json --jobs ci-jobs.json \
+            --out Solution/.local/ci-diagnostics/incident.json >> "$GITHUB_STEP_SUMMARY"
           rm -f ci-run.json ci-jobs.json
+
+      - name: Publish read-only SHA-scoped failure checkpoint
+        if: github.event_name == 'workflow_run'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-failure-checkpoints
+          path: Solution/.local/ci-diagnostics/incident.json
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
