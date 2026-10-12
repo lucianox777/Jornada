@@ -84,3 +84,31 @@ EVALUATION invalida tratá-la depois como TEST cego. O relatório não
 publica/ativa V9, não altera TF, `Rank/Resolve`, DT-15 ou V8 replay.
 Faltam dados históricos representativos de pares, Splink em mesmos
 pares, modelo governado e testes cegos antes da promoção.
+
+## Sensibilidade de decisões FS por exclusão de grupo — preview V9
+
+`CandidateWeightedJointFsHoldoutPreviewV9.Analyze` também relata
+`GroupSensitivity` para o **mesmo limiar fixo fornecido pelo chamador**.
+Uma vez calculados os posteriores dos pares EVALUATION, soma VP/FP/FN
+por `IndependenceGroupId` apenas em memória, remove cada grupo completo
+(da classe M e U simultaneamente) e recalcula **participação ponderada
+observada de falsas descobertas** e **recall ponderado observado** no
+restante. Expõe só extremos agregados de exclusões, quantidade de remoções
+e de casos sem previsão positiva: nenhuma chave de grupo, par, score ou
+nome é exportada.
+
+Com menos de **3 grupos independentes** no conjunto EVALUATION a
+sensibilidade é marcada `UNAVAILABLE_LT_3_INDEPENDENT_EVALUATION_GROUPS`;
+com pelo menos 3, cada exclusão deixa dois grupos. A participação falsa
+permanece **nula/indefinida** se não há positivos previstos. Os extremos
+não devem mascarar a contagem de exclusões sem positivos: o mínimo/máximo
+ignora somente exclusões com denominador nulo e ambos ficam nulos se
+**todas** elas estiverem indefinidas. Testes incluem perturbação
+adversarial confinada a uma fonte, cuja exclusão apaga o FP, e cenário
+sem previsões positivas.
+
+**Interpretação estritamente diagnóstica:** ranges leave-one-group-out
+não são intervalos de confiança, não certificam FDR nem corrigem pesos
+por conglomerado, não autorizam seleção de limiar olhando EVALUATION e
+não conferem representatividade SQL temporal ao frame `BirthBlockingPlan`.
+Nenhum gate operacional V9 ou decisão DT-15 é alterado.
