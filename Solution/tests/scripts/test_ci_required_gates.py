@@ -105,6 +105,7 @@ def test_parallel_e2e_keeps_both_real_suites_and_aggregated_gate():
     assert "scripts/e2e-private-sql-bootstrap-runtime.sh" in private
     assert "JORNADA_WORKERS_E2E_RUNTIME_TEST: 'true'" in private
     assert "dotnet restore Jornada.sln --locked-mode" in private
+    assert "dotnet build src/Jornada.DevConsole/Jornada.DevConsole.csproj --configuration Release --no-restore" in private
     assert "name: e2e-private-sql-evidence" in private
     assert "if-no-files-found: error" in private
     assert "needs: [impact, e2e-console, e2e-private-sql]" in gate
