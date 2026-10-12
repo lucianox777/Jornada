@@ -32,7 +32,11 @@ internal static class Dt23MonitorReadOnlyService
     {
         try
         {
-            await using var connection = await sql.OpenAsync(ct);
+            // Bound both connection acquisition and the SQL command; the optional
+            // diagnostic must not hold the Monitor request indefinitely.
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            timeout.CancelAfter(TimeSpan.FromSeconds(5));
+            await using var connection = await sql.OpenAsync(timeout.Token);
             await using var command = new SqlCommand("""
                 SELECT TOP (1) p.versao, d.data_corte
                 FROM ref.dt23_politica_suficiencia AS p
@@ -45,12 +49,17 @@ internal static class Dt23MonitorReadOnlyService
                 ORDER BY p.criada_em DESC, p.politica_id DESC;
                 """, connection) { CommandTimeout = 3 };
 
-            await using var reader = await command.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct)) return null;
+            await using var reader = await command.ExecuteReaderAsync(timeout.Token);
+            if (!await reader.ReadAsync(timeout.Token)) return null;
 
             var cutoff = reader.IsDBNull(1) ? (DateTimeOffset?)null :
                 new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(1), DateTimeKind.Utc));
             return Unverified(reader.GetString(0), cutoff);
+        }
+        catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+        {
+            // The internal timeout is not a caller cancellation.
+            return null;
         }
         catch (SqlException) when (!ct.IsCancellationRequested)
         {
