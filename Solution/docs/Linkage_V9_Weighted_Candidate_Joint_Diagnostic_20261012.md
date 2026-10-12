@@ -21,6 +21,10 @@ Os gates obrigatórios são:
 
 O resultado é `DIAGNOSTIC_ONLY_BIRTH_BLOCKING_NOT_RUNTIME_SQL_CERTIFIED`: a amostragem validada usa o blocking `BirthBlockingPlan` do contrato de pesquisa, **não** os passes dinâmicos/chaves SQL históricas `VERSIONED_ALIAS` da Jornada em operação. Logo, não combinar numeradores desse diagnóstico com os denominadores de outra população, não ativar `AlgorithmVersion=V9`, não calcular TF ou LLR operacional com essas tabelas, não assumir independência nome/mãe.
 
+## Correção posterior — convenção de suavização V2
+
+A expressão V1 suavizava os **totais de pesos inversos de inclusão**, produzindo pseudocontagens sensíveis à escala absoluta do frame. A [correção V2 por ESS de Kish](Linkage_V9_ESS_Normalized_Joint_Smoothing_20261012.md) normaliza a massa observada à escala do ESS **somente ao aplicar** `alpha`, sem alterar os pesos brutos da evidência; a versão do estimador e a `SmoothingBasis` no DTO diferenciam resultados históricos V1 e V2. **Isso é uma convenção diagnóstica, não calibração operacional aprovada.**
+
 ## Antes de eventual promoção
 
 1. Capturar e certificar um frame amostral ponderado que use o **mesmo universo de blocking dinâmico materializado SQL** com tratamento temporal e garantia de inclusão para M e U, ou demonstrar matematicamente o transporte de desenho.

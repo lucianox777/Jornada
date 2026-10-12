@@ -50,7 +50,8 @@ public sealed record CandidateWeightedJointDiagnosticV9(
     CandidateWeightedJointClassV9 Unmatched,
     int BothClassesObservedCells,
     IReadOnlyList<CandidateWeightedJointCellV9> Cells,
-    string EvidenceGeneration = "CALLER_LEVEL_SIDECAR_UNATTESTED");
+    string EvidenceGeneration = "CALLER_LEVEL_SIDECAR_UNATTESTED",
+    string SmoothingBasis = "LEGACY_RAW_DESIGN_WEIGHT_SCALE");
 
 /// <summary>
 /// Design-weighted 9x9 joint person/mother *diagnostic* using the existing
@@ -60,11 +61,38 @@ public sealed record CandidateWeightedJointDiagnosticV9(
 /// </summary>
 public static class CandidateWeightedJointNominalEstimatorV9
 {
-    public const string Version = "CANDIDATE_WEIGHTED_NOMINAL_JOINT_V9_DIAGNOSTIC_1";
+    public const string Version = "CANDIDATE_WEIGHTED_NOMINAL_JOINT_V9_DIAGNOSTIC_2";
+    public const string SmoothingBasis = "KISH_EFFECTIVE_SAMPLE_SIZE";
     public const string Status = "DIAGNOSTIC_ONLY_BIRTH_BLOCKING_NOT_RUNTIME_SQL_CERTIFIED";
 
     private static readonly CompositeNominalLevelV9[] Levels =
         Enum.GetValues<CompositeNominalLevelV9>();
+
+    /// <summary>
+    /// Explicit descriptive pseudocount convention for weighted diagnostics:
+    /// the observed empirical probability is unchanged, but smoothing alpha
+    /// acts in units of Kish effective observations, not design-weight totals.
+    /// Therefore multiplying every design weight by a constant cannot change
+    /// the smoothed probability. This is NOT design-based uncertainty,
+    /// empirical Bayes calibration or operational authority.
+    /// </summary>
+    public static decimal EssNormalizedSmoothedProbability(
+        decimal observedCellWeight,
+        decimal totalClassWeight,
+        decimal kishEffectiveSampleSize,
+        decimal smoothingAlpha,
+        int exclusiveCellCount)
+    {
+        if (observedCellWeight < 0m || totalClassWeight <= 0m ||
+            observedCellWeight > totalClassWeight || kishEffectiveSampleSize <= 0m ||
+            smoothingAlpha <= 0m || smoothingAlpha > 1000m || exclusiveCellCount <= 0)
+            throw new ArgumentOutOfRangeException(nameof(observedCellWeight),
+                "Peso, ESS, suavização ou cardinalidade de estados inválidos.");
+
+        var normalizedObserved = observedCellWeight / totalClassWeight * kishEffectiveSampleSize;
+        return (normalizedObserved + smoothingAlpha) /
+            (kishEffectiveSampleSize + smoothingAlpha * exclusiveCellCount);
+    }
 
     /// <summary>
     /// Preferred V9 diagnostic path: calculate both nominal levels from the
@@ -170,8 +198,9 @@ public static class CandidateWeightedJointNominalEstimatorV9
         var (matched, supportM) = WeightedClass(IndependentMatchLabel.Match);
         var (unmatched, supportU) = WeightedClass(IndependentMatchLabel.NonMatch);
 
-        var denominatorM = matched.TotalDesignWeight + smoothingAlpha * Levels.Length * Levels.Length;
-        var denominatorU = unmatched.TotalDesignWeight + smoothingAlpha * Levels.Length * Levels.Length;
+        // Pseudocounts belong to the effective-observation scale, not the
+        // arbitrary inverse-inclusion weight scale. Retain raw observed
+        // design weights unmodified in the diagnostic support columns.
         var cells = new List<CandidateWeightedJointCellV9>(Levels.Length * Levels.Length);
         foreach (var person in Levels)
         foreach (var mother in Levels)
@@ -182,8 +211,12 @@ public static class CandidateWeightedJointNominalEstimatorV9
             cells.Add(new CandidateWeightedJointCellV9(
                 person, mother, m.Count, u.Count,
                 m.Weight, u.Weight,
-                (m.Weight + smoothingAlpha) / denominatorM,
-                (u.Weight + smoothingAlpha) / denominatorU));
+                EssNormalizedSmoothedProbability(
+                    m.Weight, matched.TotalDesignWeight,
+                    matched.EffectiveSampleSize, smoothingAlpha, Levels.Length * Levels.Length),
+                EssNormalizedSmoothedProbability(
+                    u.Weight, unmatched.TotalDesignWeight,
+                    unmatched.EffectiveSampleSize, smoothingAlpha, Levels.Length * Levels.Length)));
         }
 
         return new CandidateWeightedJointDiagnosticV9(
@@ -192,7 +225,7 @@ public static class CandidateWeightedJointNominalEstimatorV9
             capture.SelectionFingerprint, manifest.Reference, manifest.PartitionReference,
             evaluation.Count, smoothingAlpha, matched, unmatched,
             cells.Count(c => c.MatchedObservedPairs > 0 && c.UnmatchedObservedPairs > 0),
-            Array.AsReadOnly(cells.ToArray()));
+            Array.AsReadOnly(cells.ToArray()), SmoothingBasis: SmoothingBasis);
 
         (CandidateWeightedJointClassV9 Summary,
          Dictionary<(CompositeNominalLevelV9, CompositeNominalLevelV9), (int Count, decimal Weight)> Support)
