@@ -185,10 +185,11 @@ def retryable_jobs(payload: dict, logs) -> tuple[bool, str]:
         return False, "no failed jobs"
     if any(j.get("conclusion") != "failure" for j in failed):
         return False, "cancelled, timed-out or approval-blocked job"
-    by_name = {job.get("name"): job for job in jobs}
-    if len(by_name) != len(jobs):
-        return False, "duplicate or missing job name"
-    infra_failed: set[str] = set()
+    named_jobs = [job["name"] for job in jobs if isinstance(job.get("name"), str)]
+    if len(named_jobs) != len(set(named_jobs)):
+        return False, "duplicate job name"
+    by_name = {job["name"]: job for job in jobs if isinstance(job.get("name"), str)}
+    infra_failed: set[int] = set()
     dependent_assertions: list[dict] = []
     for job in failed:
         name = job.get("name")
@@ -196,7 +197,7 @@ def retryable_jobs(payload: dict, logs) -> tuple[bool, str]:
             return False, "invalid failed job id"
         text = logs(job["id"]).lower()
         if any(marker in text for marker in INFRA_LOG_MARKERS):
-            infra_failed.add(name)
+            infra_failed.add(job["id"])
         elif failed_dependency_assertion(job):
             dependent_assertions.append(job)
         else:
@@ -210,7 +211,7 @@ def retryable_jobs(payload: dict, logs) -> tuple[bool, str]:
         # is a genuine product/contract failure and must stay blocked.
         if any(parent not in by_name or by_name[parent].get("status") != "completed" for parent in parents):
             return False, "aggregate dependency set incomplete"
-        if not any(parent in infra_failed for parent in parents):
+        if not any(by_name[parent]["id"] in infra_failed for parent in parents):
             return False, "aggregate failure has no proven infra parent"
         if any(by_name[parent].get("conclusion") not in ("success", "failure") for parent in parents):
             return False, "aggregate has skipped, timed-out or blocked parent"
