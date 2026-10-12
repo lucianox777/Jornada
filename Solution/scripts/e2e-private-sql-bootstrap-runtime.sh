@@ -20,6 +20,44 @@ PROJECT="jornada-workers-e2e-${JORNADA_WORKERS_E2E_ID}"
 COMPOSE="$ROOT/install/console-dev-e2e/docker-compose.workers.yml"
 OUT="$ROOT/.local/e2e/c3-2d-sql-bootstrap"
 mkdir -p "$OUT"
+# Diagnostic-only, secret-free phase ledger. Never changes test semantics.
+# Recorded under the existing E2E artifact; no database or Docker operations.
+E2E_PHASE_LEDGER="$OUT/phase-timeline.jsonl"
+E2E_PHASE_NAME=""
+E2E_PHASE_START=0
+phase_advance() {
+  local next="$1"
+  case "$next" in
+    sql-bootstrap|api-start-readiness|console-off|worker-sigkill|ingestion-baseline|transaction-recovery|console-on|supervisor-toggle|three-worker-runonce|client-disconnect|individual-stop|audit-journal|summary) ;;
+    *) die 'unexpected private E2E phase label' ;;
+  esac
+  local now utc duration
+  now="$(date +%s)"
+  utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  if [[ -n "$E2E_PHASE_NAME" ]]; then
+    duration=$((now - E2E_PHASE_START))
+    printf '{"phase":"%s","status":"PASS","seconds":%d,"utc":"%s"}\n' "$E2E_PHASE_NAME" "$duration" "$utc" >> "$E2E_PHASE_LEDGER"
+    printf 'PRIVATE E2E phase PASS: %s (%ds)\n' "$E2E_PHASE_NAME" "$duration"
+  fi
+  E2E_PHASE_NAME="$next"
+  E2E_PHASE_START="$now"
+  printf '{"phase":"%s","status":"START","utc":"%s"}\n' "$next" "$utc" >> "$E2E_PHASE_LEDGER"
+  printf 'PRIVATE E2E phase START: %s\n' "$next"
+}
+phase_exit() {
+  local code="$1" state="PASS" now utc duration
+  [[ "$code" -eq 0 ]] || state="FAIL"
+  if [[ -n "$E2E_PHASE_NAME" ]]; then
+    now="$(date +%s)"
+    utc="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    duration=$((now - E2E_PHASE_START))
+    printf '{"phase":"%s","status":"%s","seconds":%d,"utc":"%s"}\n' "$E2E_PHASE_NAME" "$state" "$duration" "$utc" >> "$E2E_PHASE_LEDGER"
+    printf 'PRIVATE E2E phase %s: %s (%ds)\n' "$state" "$E2E_PHASE_NAME" "$duration"
+  fi
+}
+trap 'phase_exit "$?"' EXIT
+phase_advance sql-bootstrap
+
 compose() { docker compose --env-file /dev/null -p "$PROJECT" -f "$COMPOSE" "$@"; }
 
 # A pre-existing resource with this Compose label means a collision. Fail closed.
@@ -86,6 +124,7 @@ grep -F 'banco JornadaE2E já existe' "$OUT/replay-denial.log" >/dev/null ||
 after="$(sql -W -h -1 -Q 'SET NOCOUNT ON; SELECT COUNT_BIG(*) FROM ref.gestor;' | tr -d '[:space:]\r')"
 [[ "$before" == "$after" ]] || die 'second bootstrap modified seed'
 
+phase_advance api-start-readiness
 # C3.2e: build only the app image from the canonical Dockerfile and start
 # the TWO APIs in the SAME private E2E project. The three workers remain OFF.
 # --no-deps is permitted because this script already checked SQL bootstrap.
@@ -145,47 +184,57 @@ resultado_pid="$(docker inspect -f '{{.State.Pid}}' "$resultado_cid")"
    "$api_pid" != "$resultado_pid" && "$api_pid" -gt 1 && "$resultado_pid" -gt 1 ]] ||
   die 'independent resident API PID1 evidence missing'
 
+phase_advance console-off
 # C3.3a: initial OFF must be visible through the real DevConsole HTTP GET
 # reading private Docker labels/PIDs, SQL heartbeat and API readiness.
 # Starts only a short-lived local Console observer; no Docker build or mutation.
 python3 scripts/e2e-console-worker-supervisor-status.py OFF
 
+phase_advance worker-sigkill
 # C3.2f1: after private SQL and two APIs are ready, exercise only
 # the three independent resident workers; this is NOT the lot-recovery gate.
 bash scripts/e2e-private-worker-restart-runtime.sh
 
+phase_advance ingestion-baseline
 # C3.2f2b: real API→Processor→SQL synthetic ZIP and idempotency baseline.
 # No crash/transaction rollback exercised here: those require separate C3.2f2c.
 bash scripts/e2e-private-api-ingestion-baseline-runtime.sh
 
+phase_advance transaction-recovery
 # C3.2f2c: actual interrupted SQL Serializable transaction/lease recovery,
 # confined to THIS already validated disposable Compose project. No new build.
 python3 scripts/e2e-private-recovery-runtime.py
 
+phase_advance console-on
 # The same read-only endpoint must report all three live workers after
 # SIGKILL/restart/real rollback recovery without losing the APIs.
 python3 scripts/e2e-console-worker-supervisor-status.py ON
 
+phase_advance supervisor-toggle
 # C3.3b1: ON→OFF→ON only through the loopback Console backend using the
 # existing private Compose image/network. OFF DISARMS restart before stop;
 # ON recreates only the three workers, SQL/2 APIs keep their PIDs.
 python3 scripts/e2e-console-supervisor-global-toggle.py
 
+phase_advance three-worker-runonce
 # C3.3b2: with supervisor ON, verify all finite commands are rejected.
 # Switch OFF, execute exactly one isolated job for each worker, confirm zero
 # residents and independent SQL/APIs, then restore ON; no new build/container
 # other than disposable oneoff worker jobs in this same private project.
 python3 scripts/e2e-console-supervisor-three-runonce.py
 
+phase_advance client-disconnect
 # C3.3b3a: losing the browser TCP connection must NOT kill/untrack a
 # live private oneoff. Observe actual oneoff=True then abort the HTTP
 # client; ON must remain blocked until finite exit and --rm verified.
 python3 scripts/e2e-console-runonce-disconnect-proof.py
 
+phase_advance individual-stop
 # C3.3c: reject stale/foreign identities; stop only one private resident.
 # Runs LAST because it intentionally leaves Processor stopped.
 python3 scripts/e2e-console-worker-stop-proof.py
 
+phase_advance audit-journal
 # C3.3d: multiple transient Console processes have exited. The independent,
 # write-through append-only journal must retain each worker's real events.
 # No arbitrary request payload, secret, CPF or SQL data is logged.
@@ -211,6 +260,7 @@ assert any(e["outcome"]=="ADMITIDO" for e in events), "C3.3d pre-mutation audit 
 print("C3.3d: PASS private write-through journal survived Console processes; ON/OFF, 3 RunOnce and individual stop recorded")
 PY
 
+phase_advance summary
 python3 - "$OUT/summary.json" "$PROJECT" "$before" <<'PY'
 import json, pathlib, sys
 output, project, seed_count = sys.argv[1:]
