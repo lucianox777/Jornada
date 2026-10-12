@@ -62,7 +62,7 @@ public static class CandidateWeightedJointHoldoutAuditBuilderV9
 {
     public const string Version = "V9_WEIGHTED_JOINT_INDEPENDENT_HOLDOUT_AUDIT_1";
     public const string Status = "DIAGNOSTIC_ONLY_EVALUATION_BIRTH_BLOCKING_NOT_SQL_CERTIFIED";
-    public const string InsufficientGroupsStatus = "UNAVAILABLE_FWER_LT_3_INDEPENDENT_EVALUATION_GROUPS";
+    public const string InsufficientGroupsStatus = "UNAVAILABLE_LT_3_INDEPENDENT_EVALUATION_GROUPS";
     public const string SensitivityStatus = "DIAGNOSTIC_ONLY_GROUP_INFLUENCE_NOT_CI";
 
     public static CandidateWeightedJointHoldoutAuditV9 AnalyzeFromRawEvidence(
