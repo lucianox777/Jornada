@@ -52,6 +52,12 @@ A função é **preview matemático explícito**, não um novo scorer de produç
 
 Os testes verificam numericamente `logit(prior) + ln(m_j/u_j) + ln(m_nasc/u_nasc)`, a ausência de `NOME`/`NOME_MAE` duplos, mãe e nascimento ausentes, falhas de contrato, e que parâmetros marginais legados adicionais **não alteram o score V9**. Nenhum censo opcional de pares SQL é pré-requisito do preview; priorizar o **snapshot V9 governado e o dispatch seguro no mesmo scorer**.
 
+## Ranking de candidatos V9 em preview, com deduplicação idêntica ao runtime
+
+`ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview` percorre **objetos reais de candidato** com os mesmos campos do runtime e faz a mesma deduplicação determinística por `PessoaUuid` usada em `Rank`. Em cada dupla, utiliza **o mesmo método FS C#** `CalculateCompositeNominalV9PreviewWithBreakdown`, que compõe os `m/u` conjuntos nominais pessoa×mãe com nascimento e prior e ordena por log-odds, desempate por UUID. Preserva a marca diagnóstica de colisão exata de nome integral+nascimento e falha fechado para observações com CPF, snapshots nominais inválidos e duplicações contraditórias de candidatos.
+
+**Escopo deliberadamente limitado:** é uma entrada `internal` para **ranking pré-operacional**, sem `AlgorithmVersion=V9`, sem persistência de modelo V9, sem `Resolve/ACTIVATE`, sem chamada a partir do executor SQL/HTTP e sem aplicação ao atendimento. Não cria um motor paralelo: o cálculo é o mesmo `FellegiSunterScoring.Evaluate` da V8, com os termos nominais substituídos em vez de somados. Não há alegação de TF conjunta, inferência FDR, validação em Splink ou seleção de threshold. Com o preview de ranking montado, a próxima integração V9 é **snapshot certificado + roteamento seguro por versão no único scorer**, seguido de TF, paridade numérica e DT-15. O censo SQL de pares opt-in não precisa ser ampliado para esta etapa.
+
 ## Critérios de promoção (não concluídos por esta PR)
 
 1. Capturar estados V9 do TRAIN e dos pares U **condicionados ao blocking**; estimar distribuições `m/u` por nível com suavização, suporte e incerteza explícitos.
