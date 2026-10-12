@@ -31,9 +31,7 @@ public static class SampleSufficiencyDiagnosticSnapshot
             SampleSufficiencyAssessment.Status.Insufficient => "AMARELO",
             _ => "INDETERMINADO"
         };
-        var reasons = assessment.Reasons.ToList();
-        if (!verified)
-            reasons.Add("Independent real evidence provenance not verified; certification blocked.");
+        var reasons = new[] { "Independent real evidence provenance not verified; certification blocked." };
         return new Snapshot(policyVersion, cutoffUtc, state,
             JsonSerializer.Serialize(verified ? assessment.Counts.OrderBy(c => c.Stratum, StringComparer.Ordinal) : Enumerable.Empty<object>()),
             JsonSerializer.Serialize(reasons),
