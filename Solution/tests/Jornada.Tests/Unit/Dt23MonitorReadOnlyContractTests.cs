@@ -16,7 +16,7 @@ public sealed class Dt23MonitorReadOnlyContractTests
         // raw SQL declarations are never authentication of independent truth.
         var cutoff = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
         var preview = Dt23MonitorReadOnlyService.Unverified("DT23_DEV_V1", cutoff);
-        Assert.Multiple((NUnit.Framework.TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(preview.State, Is.EqualTo("INDETERMINADO"));
             Assert.That(preview.Provenance.SourceKind, Is.EqualTo("UNVERIFIED"));
@@ -34,7 +34,7 @@ public sealed class Dt23MonitorReadOnlyContractTests
         var json = JsonSerializer.Serialize(preview,
             WebJsonOptions);
         using var doc = JsonDocument.Parse(json);
-        Assert.Multiple((NUnit.Framework.TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(doc.RootElement.GetProperty("cutoffUtc").ValueKind, Is.EqualTo(JsonValueKind.Null));
             Assert.That(doc.RootElement.GetProperty("state").GetString(), Is.EqualTo("INDETERMINADO"));
@@ -48,7 +48,7 @@ public sealed class Dt23MonitorReadOnlyContractTests
         var root = FindRepositoryRoot();
         var api = File.ReadAllText(Path.Combine(root, "Solution", "src", "Jornada.Api", "OperationalMonitorApi.cs"));
         var reader = File.ReadAllText(Path.Combine(root, "Solution", "src", "Jornada.Api", "Dt23MonitorReadOnlyService.cs"));
-        Assert.Multiple((NUnit.Framework.TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(api, Does.Contain("RequireAuthorization(Permission)"));
             Assert.That(api, Does.Contain("Dt23MonitorReadOnlyService.GetAsync(operationalSql, ct)"));
