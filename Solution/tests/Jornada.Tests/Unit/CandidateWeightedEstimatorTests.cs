@@ -291,6 +291,119 @@ public sealed class CandidateWeightedEstimatorTests
                     ? CompositeNominalLevelV9.Missing
                     : CompositeNominalLevelV9.ExactLast)).ToArray();
 
+    [Test]
+    public async Task V9RawEvidenceRecomputesCompleteWeightedNominalLevels()
+    {
+        var capture = await CaptureAsync();
+        var validated = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var computed = CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+            validated, raw, 0.5m);
+        var reversed = CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+            validated, raw.Reverse().ToArray(), 0.5m);
+        var exact = computed.Cells.Single(c =>
+            c.Person == CompositeNominalLevelV9.ExactFull &&
+            c.Mother == CompositeNominalLevelV9.ExactFull);
+        var missing = computed.Cells.Where(c =>
+            c.Mother == CompositeNominalLevelV9.Missing).Sum(c => c.UnmatchedObservedPairs);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(computed.EvidenceGeneration,
+                Is.EqualTo(CandidateNominalV9EvidenceExtractor.Version));
+            Assert.That(computed.SamplingDesignVersion,
+                Is.EqualTo(CandidateSamplingDesign.Version));
+            Assert.That(computed.Matched.TrainingPairCount, Is.EqualTo(4));
+            Assert.That(computed.Unmatched.TrainingPairCount, Is.EqualTo(8));
+            Assert.That(exact.MatchedObservedPairs, Is.EqualTo(4));
+            Assert.That(exact.MatchedObservedWeight, Is.EqualTo(8m));
+            Assert.That(missing, Is.GreaterThan(0));
+            Assert.That(computed.Cells.Sum(c => c.MatchedObservedPairs), Is.EqualTo(4));
+            Assert.That(computed.Cells.Sum(c => c.UnmatchedObservedPairs), Is.EqualTo(8));
+            Assert.That(System.Text.Json.JsonSerializer.Serialize(reversed),
+                Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(computed)));
+        }));
+        var json = System.Text.Json.JsonSerializer.Serialize(computed);
+        Assert.That(json, Does.Not.Contain("MARIA"));
+        Assert.That(json, Does.Not.Contain("SILVA"));
+        Assert.That(json, Does.Not.Contain("SourceId"));
+        Assert.That(json, Does.Not.Contain(Sources[0].ToString("D")));
+    }
+
+    [Test]
+    public async Task V9RawEvidenceRequiresExactSelectedPairInventory()
+    {
+        var capture = await CaptureAsync();
+        var validated = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var changed = raw.ToArray();
+        changed[0] = changed[0] with { CandidateId = Id(999) };
+        var missing = raw.Skip(1).ToArray();
+        var duplicated = raw.Concat(raw.Take(1)).ToArray();
+        var nullPair = raw.ToArray();
+        nullPair[0] = nullPair[0] with { Values = null! };
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That((Action)(() =>
+                CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+                    validated, missing, 1m)), Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+                    validated, duplicated, 1m)), Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+                    validated, changed, 1m)), Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+                    validated, nullPair, 1m)), Throws.InvalidOperationException);
+        }));
+    }
+
+    [Test]
+    public async Task V9RawRecomputationDoesNotTrustClaimedNominalStates()
+    {
+        var capture = await CaptureAsync();
+        var validated = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var original = CandidateNominalV9EvidenceExtractor.Extract(validated, raw);
+        var changed = raw.ToArray();
+        var target = changed.First(x => x.CandidateId == Candidates[0]);
+        changed[Array.IndexOf(changed, target)] = target with
+        {
+            Values = target.Values with { RightName = "Nome Diferente Santos" }
+        };
+        var recomputed = CandidateNominalV9EvidenceExtractor.Extract(validated, changed);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(original.Select(x => x.Person),
+                Is.Not.EqualTo(recomputed.Select(x => x.Person)));
+            Assert.That(original.All(x => Enum.IsDefined(x.Person) && Enum.IsDefined(x.Mother)),
+                Is.True);
+        }));
+        var viaRaw = CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+            validated, raw, 1m);
+        var viaSidecar = CandidateWeightedJointNominalEstimatorV9.Estimate(
+            validated, original, 1m);
+        Assert.That(viaRaw.Cells, Is.EqualTo(viaSidecar.Cells));
+        Assert.That(viaSidecar.EvidenceGeneration,
+            Is.EqualTo("CALLER_LEVEL_SIDECAR_UNATTESTED"));
+    }
+
+    private static IReadOnlyList<CandidateNominalV9RawEvidence> V9RawEvidence(
+        CandidateSamplingCapture capture) =>
+        capture.Pairs.Select(pair =>
+        {
+            var match = pair.PrimaryPass == BirthBlockingPass.ExactDate;
+            var values = match
+                ? new CandidateEvidencePair("Maria Silva", null, "Ana Costa",
+                    "MARIA SILVA", null, "ANA COSTA")
+                : new CandidateEvidencePair("Maria Aparecida Silva", null,
+                    pair.CandidateId == Candidates[2] ? null : "Ana Costa",
+                    "Maria Cecilia Silva", null,
+                    pair.CandidateId == Candidates[2] ? "Ana Costa" : "Bruna Costa");
+            return new CandidateNominalV9RawEvidence(
+                pair.SourceId, pair.CandidateId, values);
+        }).ToArray();
+
     private static async Task<CandidateSamplingCapture> CaptureAsync()
     {
         var sources = Sources.Select(id => new CandidateUniverseSource(id, new DateOnly(1982, 4, 10), "Maria", "Ana")).ToArray();
