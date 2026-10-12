@@ -19,8 +19,17 @@ from typing import Any
 
 MAX_FILES = 20000
 MAX_BYTES = 1_000_000_000
-BINARY_PATH = re.compile(r"^(src|tests)/[^/]+/bin/Release/(?!/).+")
-SCHEMA = 1
+# Runtime dependencies and fixtures copied into the test project's output folder
+# are sufficient for dotnet test --no-build. Do not package every project's
+# duplicate transitive outputs (previously ~379 MB compressed).
+INTEGRATION_OUTPUT = "tests/Jornada.Integration.Tests/bin/Release/net10.0"
+BINARY_PATH = re.compile(r"^" + re.escape(INTEGRATION_OUTPUT) + r"/[^/].+")
+REQUIRED_OUTPUTS = tuple(INTEGRATION_OUTPUT + "/" + name for name in (
+    "Jornada.Integration.Tests.dll",
+    "Jornada.Integration.Tests.deps.json",
+    "Jornada.Integration.Tests.runtimeconfig.json",
+))
+SCHEMA = 2
 
 
 def digest(path: Path) -> str:
@@ -84,18 +93,23 @@ def identity(root: Path) -> dict[str, Any]:
 
 def release_files(root: Path) -> list[Path]:
     files: list[Path] = []
-    for base in (root / "src", root / "tests"):
-        for path in base.glob("*/bin/Release/**/*"):
-            if path.is_symlink():
-                raise ValueError("Refusing symlinked compiled output")
-            if path.is_file():
-                relative = path.relative_to(root).as_posix()
-                if not valid_path(relative):
-                    raise ValueError(f"Invalid compiled file location: {relative}")
-                files.append(path)
+    base = root / INTEGRATION_OUTPUT
+    if base.is_symlink():
+        raise ValueError("Refusing symlinked integration output directory")
+    for path in base.rglob("*"):
+        if path.is_symlink():
+            raise ValueError("Refusing symlinked integration test output")
+        if path.is_file():
+            relative = path.relative_to(root).as_posix()
+            if not valid_path(relative):
+                raise ValueError(f"Invalid integration test output location: {relative}")
+            files.append(path)
     files.sort(key=lambda p: p.relative_to(root).as_posix())
-    if len(files) < 22 or len(files) > MAX_FILES:
-        raise ValueError("Unexpected number of compiled solution artifacts")
+    if len(files) < len(REQUIRED_OUTPUTS) or len(files) > MAX_FILES:
+        raise ValueError("Unexpected integration test output file count")
+    names = {p.relative_to(root).as_posix() for p in files}
+    if any(required not in names for required in REQUIRED_OUTPUTS):
+        raise ValueError("Integration test DLL, deps.json and runtimeconfig.json required")
     if sum(p.stat().st_size for p in files) > MAX_BYTES:
         raise ValueError("Compiled release artifacts exceed safety limit")
     return files
@@ -139,7 +153,7 @@ def check_payload(root: Path, manifest: Path, archive: Path, context: dict[str, 
     if payload.get("archiveSha256") != digest(archive):
         raise ValueError("Compiled archive SHA-256 mismatch")
     rows = payload.get("files")
-    if not isinstance(rows, list) or not 22 <= len(rows) <= MAX_FILES or payload.get("artifactCount") != len(rows):
+    if not isinstance(rows, list) or not len(REQUIRED_OUTPUTS) <= len(rows) <= MAX_FILES or payload.get("artifactCount") != len(rows):
         raise ValueError("Compiled artifact manifest size invalid")
     entries = {}
     total_size = 0
@@ -155,6 +169,8 @@ def check_payload(root: Path, manifest: Path, archive: Path, context: dict[str, 
         entries[name] = (size, sha)
     if total_size > MAX_BYTES:
         raise ValueError("Compiled artifacts exceed safety limit")
+    if any(name not in entries for name in REQUIRED_OUTPUTS):
+        raise ValueError("Integration test binary and runtime manifests missing")
     selected = []
     with tarfile.open(archive, "r:gz") as tar:
         members = tar.getmembers()
