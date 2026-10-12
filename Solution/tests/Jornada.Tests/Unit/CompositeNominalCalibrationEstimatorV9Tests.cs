@@ -73,13 +73,9 @@ public sealed class CompositeNominalCalibrationEstimatorV9Tests
             new[] { Pair("Maria Silva", "Maria Silva") },
             new[] { Pair("Maria Silva", "Ana Costa") },
             "blocking", "independent-labels", "train");
-        var estimate = CompositeNominalCalibrationEstimatorV9.Estimate(frame, 0.5m);
-        var mother = new CompositeNominalTrainingFrameV9(
-            frame.MatchedPairs, frame.UnmatchedPairs,
-            frame.BlockingFrameFingerprint, frame.LabelProvenance,
-            frame.TrainingPartitionFingerprint);
-        Assert.That(estimate, Is.Not.Null);
-        Assert.That((Action)(() => CompositeNominalCalibrationEstimatorV9.Estimate(mother, 0.5m)),
+        // Neither class supplies a mother's name. An apparent zero contribution
+        // must not be fabricated by smoothing an entirely missing field.
+        Assert.That((Action)(() => CompositeNominalCalibrationEstimatorV9.Estimate(frame, 0.5m)),
             Throws.InvalidOperationException.With.Message.Contains("suporte observado"));
     }
 
