@@ -18,15 +18,21 @@ public sealed record CompositeNominalBlockingAuditV9(
     long CandidatePoolSize,
     long MatchedInputCount,
     long UnmatchedSampleCount,
-    IReadOnlyList<CompositeNominalAttributeEstimateV9> Attributes)
+    IReadOnlyList<CompositeNominalAttributeEstimateV9> Attributes,
+    long MatchedLogicallyRetained = 0)
 {
-    public bool Available => Status == "DIAGNOSTIC_ONLY_M_NOT_BLOCK_CONDITIONED";
+    public bool Available => Status is "DIAGNOSTIC_ONLY_M_NOT_BLOCK_CONDITIONED"
+        or CompositeNominalBlockingAuditBuilderV9.LogicalConditioningStatus;
 }
 
 public static class CompositeNominalBlockingAuditBuilderV9
 {
     public const string Version = "COMPOSITE_NOMINAL_BLOCKING_TRAIN_AUDIT_V9_1";
     public const string MissingSupportStatus = "UNAVAILABLE_INSUFFICIENT_NOMINAL_SUPPORT";
+    public const string MissingMatchedSupportStatus = "UNAVAILABLE_NO_LOGICALLY_RETAINED_MATCHES";
+    // SQL gold blocking keys may include historical VERSIONED_ALIAS values which
+    // cannot be attested by the current-value in-memory projection alone.
+    public const string LogicalConditioningStatus = "DIAGNOSTIC_ONLY_M_LOGICAL_RULESET_U_SQL_CONDITIONED";
 
     public static CompositeNominalBlockingAuditV9 Build(
         IReadOnlyList<IdentityTrainingPair> independentlyMatchedPairs,
@@ -35,7 +41,8 @@ public static class CompositeNominalBlockingAuditBuilderV9
         string normalizationVersion,
         string projectionSchema,
         string projectionFingerprint,
-        decimal smoothingAlpha)
+        decimal smoothingAlpha,
+        bool conditionMatchedPairsOnLogicalBlocking = false)
     {
         ArgumentNullException.ThrowIfNull(independentlyMatchedPairs);
         ArgumentNullException.ThrowIfNull(unmatched);
@@ -58,6 +65,22 @@ public static class CompositeNominalBlockingAuditBuilderV9
             .OrderBy(p => p.PassId, StringComparer.Ordinal).ToArray();
         if (passes.Select(p => p.PassId).Distinct(StringComparer.Ordinal).Count() != passes.Length)
             throw new InvalidOperationException("Pass IDs duplicados no ruleset V9.");
+        var allowed = BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates.ToHashSet(StringComparer.Ordinal);
+        if (passes.SelectMany(p => p.Fields).Any(feature => !allowed.Contains(feature)))
+            throw new InvalidOperationException("Feature V9 fora da projeção canônica do calibrador.");
+
+        // This is the same AND-within-pass, OR-between-passes algebra as the
+        // optimizer/runner. Current-value projections approximate logical
+        // recovery but DO NOT prove physical SQL blocking-key membership.
+        // Neither positive/negative class labels nor scores affect retention.
+        var matchesForEstimate = conditionMatchedPairsOnLogicalBlocking
+            ? independentlyMatchedPairs.Where(pair =>
+            {
+                var observation = BlockingFeatureObservationFactory.Create(pair, isReferenceMatch: true);
+                return passes.Any(pass => pass.Fields.All(field =>
+                    observation.Agreements.TryGetValue(field, out var agreement) && agreement is true));
+            }).ToArray()
+            : independentlyMatchedPairs;
 
         // SHA of the intended ruleset configuration ONLY, never of names/PII.
         // Does not attest that the M pairs satisfy these passes.
@@ -76,23 +99,36 @@ public static class CompositeNominalBlockingAuditBuilderV9
             SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString())))
             .ToLowerInvariant();
 
+        if (matchesForEstimate.Count == 0)
+            return new CompositeNominalBlockingAuditV9(
+                MissingMatchedSupportStatus, fingerprint,
+                CompositeNominalComparisonV9.ContractVersion,
+                unmatched.CandidatePoolSize, independentlyMatchedPairs.Count,
+                unmatched.Pairs.Count, Array.Empty<CompositeNominalAttributeEstimateV9>(),
+                MatchedLogicallyRetained: 0);
+
         try
         {
             var frame = new CompositeNominalTrainingFrameV9(
-                independentlyMatchedPairs,
+                matchesForEstimate,
                 unmatched.Pairs,
                 fingerprint,
-                "M_INTERMANAGER_INDEPENDENT_CPF_AND_U_BLOCKING_CONDITIONED_DIAGNOSTIC_ONLY",
+                conditionMatchedPairsOnLogicalBlocking
+                    ? "M_INTERMANAGER_INDEPENDENT_CPF_LOGICAL_BLOCKING_ONLY_U_SQL_CONDITIONED_DIAGNOSTIC"
+                    : "M_INTERMANAGER_INDEPENDENT_CPF_AND_U_BLOCKING_CONDITIONED_DIAGNOSTIC_ONLY",
                 "SAMPLED_TRAIN_UPSTREAM_PARTITION_NOT_A_CERTIFICATION");
             var estimate = CompositeNominalCalibrationEstimatorV9.Estimate(frame, smoothingAlpha);
             return new CompositeNominalBlockingAuditV9(
-                "DIAGNOSTIC_ONLY_M_NOT_BLOCK_CONDITIONED",
+                conditionMatchedPairsOnLogicalBlocking
+                    ? LogicalConditioningStatus : "DIAGNOSTIC_ONLY_M_NOT_BLOCK_CONDITIONED",
                 fingerprint,
                 estimate.NominalContractVersion,
                 unmatched.CandidatePoolSize,
                 independentlyMatchedPairs.Count,
                 unmatched.Pairs.Count,
-                estimate.Attributes);
+                estimate.Attributes,
+                MatchedLogicallyRetained: conditionMatchedPairsOnLogicalBlocking
+                    ? matchesForEstimate.Count : 0);
         }
         catch (InvalidOperationException ex) when (
             ex.Message.Contains("suporte observado", StringComparison.Ordinal))
@@ -105,7 +141,9 @@ public static class CompositeNominalBlockingAuditBuilderV9
                 unmatched.CandidatePoolSize,
                 independentlyMatchedPairs.Count,
                 unmatched.Pairs.Count,
-                Array.Empty<CompositeNominalAttributeEstimateV9>());
+                Array.Empty<CompositeNominalAttributeEstimateV9>(),
+                MatchedLogicallyRetained: conditionMatchedPairsOnLogicalBlocking
+                    ? matchesForEstimate.Count : 0);
         }
     }
 }

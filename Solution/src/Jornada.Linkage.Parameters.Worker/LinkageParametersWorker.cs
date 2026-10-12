@@ -244,18 +244,19 @@ public sealed class LinkageParametersWorker(
             var v9Audit = CompositeNominalBlockingAuditBuilderV9.Build(
                 matchedPairs, unmatchedSample, blocking.Passes,
                 normalizationVersion, v9Projection.SchemaVersion,
-                v9Projection.Fingerprint, smoothingAlpha);
+                v9Projection.Fingerprint, smoothingAlpha,
+                conditionMatchedPairsOnLogicalBlocking: true);
             logger.LogInformation(
                 "Linkage V9 nominal TRAIN audit: status={Status}; " +
                 "rulesetConfigurationSha256={RulesetConfiguration}; " +
                 "contract={NominalContract}; " +
-                "mInput={MatchedInput}; uSample={UnmatchedSample}; " +
-                "candidatePool={CandidatePool}; " +
-                "scoringChanged=false; modelActivated=false; mBlockingConditioned=false",
+                "mInput={MatchedInput}; mLogicallyRetained={MatchedLogicallyRetained}; " +
+                "uSample={UnmatchedSample}; candidatePool={CandidatePool}; " +
+                "scoringChanged=false; modelActivated=false; mSqlMembershipCertified=false",
                 v9Audit.Status, v9Audit.BlockingConfigurationSha256,
                 v9Audit.NominalContractVersion,
-                v9Audit.MatchedInputCount, v9Audit.UnmatchedSampleCount,
-                v9Audit.CandidatePoolSize);
+                v9Audit.MatchedInputCount, v9Audit.MatchedLogicallyRetained,
+                v9Audit.UnmatchedSampleCount, v9Audit.CandidatePoolSize);
             foreach (var attribute in v9Audit.Attributes)
             {
                 var exactM = attribute.M[CompositeNominalLevelV9.ExactFull];
