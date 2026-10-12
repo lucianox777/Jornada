@@ -52,3 +52,23 @@ jobs:
             echo
             echo 'Read-only report: no reruns, cancellations, PR edits or merges.'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Checkout trusted master profiler (never PR event code)
+        if: github.event_name == 'workflow_run'
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          ref: master
+      - name: Profile runtime and repeated builds from completed jobs
+        if: github.event_name == 'workflow_run'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api "repos/$REPO/actions/runs/$RUN_ID" > ci-run.json
+          gh api "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100&filter=latest" > ci-jobs.json
+          python3 Solution/scripts/ci-run-profile.py --run ci-run.json --jobs ci-jobs.json >> "$GITHUB_STEP_SUMMARY"
+          rm -f ci-run.json ci-jobs.json
