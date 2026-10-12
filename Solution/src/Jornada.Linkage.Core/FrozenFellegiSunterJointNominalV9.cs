@@ -1,3 +1,6 @@
+using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using Jornada.Contracts;
 
 namespace Jornada.Linkage.Runner;
@@ -14,10 +17,16 @@ internal sealed class FrozenFellegiSunterJointNominalV9
     private readonly Dictionary<(CompositeNominalLevelV9 Person, CompositeNominalLevelV9 Mother),
         FrozenNominalStateV9> _states;
 
+    // Content identity ONLY, not proof of training, sampling, provenance or DT-15 certification.
+    // Intentionally contains no personal names or candidate identifiers.
+    internal string ContentFingerprint { get; }
+
     private FrozenFellegiSunterJointNominalV9(
-        Dictionary<(CompositeNominalLevelV9, CompositeNominalLevelV9), FrozenNominalStateV9> states)
+        Dictionary<(CompositeNominalLevelV9, CompositeNominalLevelV9), FrozenNominalStateV9> states,
+        string contentFingerprint)
     {
         _states = states;
+        ContentFingerprint = contentFingerprint;
     }
 
     internal static FrozenFellegiSunterJointNominalV9 Freeze(
@@ -61,7 +70,25 @@ internal sealed class FrozenFellegiSunterJointNominalV9
             throw new InvalidOperationException(
                 "V9 exige distribuições conjuntas M/U normalizadas e completas.");
 
-        return new FrozenFellegiSunterJointNominalV9(states);
+        // Stable across input enumeration order, decimal scale and process locale.
+        // Domain tag and classifier version prevent cross-contract collisions.
+        // A digest is NOT an attestation that M/U was calibrated or certified.
+        var canonical = new StringBuilder("JORNADA_V9_JOINT_NOMINAL_MU_81_V1").Append('\n');
+        canonical.Append(nominalContractVersion).Append('\n');
+        foreach (var person in levels)
+        {
+            foreach (var mother in levels)
+            {
+                var cell = states[(person, mother)];
+                canonical.Append(((int)person).ToString(CultureInfo.InvariantCulture)).Append(':')
+                    .Append(((int)mother).ToString(CultureInfo.InvariantCulture)).Append(':')
+                    .Append(cell.M.ToString("G29", CultureInfo.InvariantCulture)).Append(':')
+                    .Append(cell.U.ToString("G29", CultureInfo.InvariantCulture)).Append('\n');
+            }
+        }
+        var fingerprint = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
+        return new FrozenFellegiSunterJointNominalV9(states, fingerprint);
     }
 
     internal FrozenNominalStateV9 Classify(
