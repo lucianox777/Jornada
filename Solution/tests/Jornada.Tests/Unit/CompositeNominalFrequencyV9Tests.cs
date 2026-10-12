@@ -115,10 +115,10 @@ public sealed class CompositeNominalFrequencyV9Tests
                     }, 100)),
                 Throws.InvalidOperationException);
         }));
-        Assert.DoesNotThrow(() =>
+        Assert.DoesNotThrow((Action)(() =>
             CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
                 CompositeNominalLevelV9.ExactFull,
-                Reference(NominalFrequencyUnitV9.FullName), 100));
+                Reference(NominalFrequencyUnitV9.FullName), 100)));
     }
 
     [Test]
