@@ -65,8 +65,8 @@ public sealed class LinkageTermFrequencyCalibrationAuditTests
         }));
         // No term values or personal identifiers become diagnostic fields.
         Assert.That(typeof(LinkageTermFrequencyCalibrationAudit.AttributeAssessment)
-            .GetProperties().Select(p => p.Name),
-            Has.None.Matches<string>(p => p.Contains("Token") || p.Contains("Person")));
+            .GetProperties().Any(p => p.Name.Contains("Token", StringComparison.Ordinal)
+                                   || p.Name.Contains("Person", StringComparison.Ordinal)), Is.False);
     }
 
     [Test]
