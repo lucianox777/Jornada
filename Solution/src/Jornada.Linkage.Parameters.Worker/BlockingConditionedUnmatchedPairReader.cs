@@ -64,11 +64,14 @@ public static class BlockingPassPairIncidenceCalculatorV9
 }
 
 /// <summary>
-/// Amostra não-vínculos diretamente do universo que sobreviveria ao ruleset vencedor.
-/// Cada passe é materializado como uma assinatura determinística das suas chaves canônicas;
-/// Pessoas distintas com a mesma assinatura formam pares candidatos. Além da amostra u,
-/// percorre o pool candidato apenas com as datas para medir suporte semântico sem carregar
-/// o universo inteiro em memória.
+/// Amostra U a partir de PARES ADJACENTES DETERMINÍSTICOS de chaves SQL
+/// que sobreviveriam ao ruleset vencedor, não de todos os pares combinatórios.
+/// Pessoas distintas com uma mesma assinatura formam um bloco; a consulta
+/// emparelha posições (1,2),(3,4) etc., portanto o pool U não é um frame
+/// probabilístico representativo dos pares candidatos completos. Além da
+/// amostra, percorre o pool ADJACENTE com datas para suporte semântico.
+/// O censo opcional V9 mede incidências de pares completos por assinatura
+/// sem afirmar unicidade entre passes, nem estimar probabilidades de inclusão.
 /// </summary>
 public static class BlockingConditionedUnmatchedPairReader
 {
