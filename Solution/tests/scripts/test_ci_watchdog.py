@@ -117,6 +117,81 @@ class CiWatchdogTests(unittest.TestCase):
         watch.supervise(dry, False, NOW)
         self.assertEqual(dry.posts, [])
 
+
+    def test_verified_runner_failure_can_resume_only_dependent_unit_aggregate(self):
+        items = [
+            {"id": 5, "name": "unit-runtime", "status": "completed", "conclusion": "failure"},
+            {"id": 6, "name": "unit-contracts", "status": "completed", "conclusion": "success"},
+            {"id": 7, "name": "unit", "status": "completed", "conclusion": "failure",
+             "steps": [{"name": "Verify contractual and runtime tests both passed",
+                        "conclusion": "failure"}]},
+            {"id": 8, "name": "dependency-lock", "status": "completed", "conclusion": "success"},
+        ]
+        payload = {"total_count": len(items), "jobs": items}
+        logs = {5: watch.INFRA_LOG_MARKERS[0], 7: "UNIT: FAIL contracts=success runtime=failure"}
+        retry, explanation = watch.retryable_jobs(payload, lambda job_id: logs.get(job_id, ""))
+        self.assertTrue(retry, explanation)
+        self.assertIn("1 dependent aggregate", explanation)
+        api = FakeApi(job_results=payload, logs=logs)
+        summary = watch.supervise(api, True, NOW)
+        self.assertEqual(api.posts, ["/actions/runs/123/rerun-failed-jobs"])
+        self.assertIn("dependent aggregate", "\n".join(summary))
+
+    def test_e2e_and_security_aggregators_do_not_hide_real_failures(self):
+        examples = [
+            ("e2e", "e2e-private-sql", "e2e-console",
+             "Both independent E2E suites are mandatory"),
+            ("security-analysis", "security-codeql", "security-guards",
+             "Fail closed unless static security and CodeQL both succeeded"),
+        ]
+        for aggregate_name, broken, good, assertion in examples:
+            with self.subTest(aggregate=aggregate_name):
+                items = [
+                    {"id": 5, "name": broken, "status": "completed", "conclusion": "failure"},
+                    {"id": 6, "name": good, "status": "completed", "conclusion": "success"},
+                    {"id": 7, "name": aggregate_name, "status": "completed", "conclusion": "failure",
+                     "steps": [{"name": assertion, "conclusion": "failure"}]},
+                ]
+                payload = {"total_count": len(items), "jobs": items}
+                log = {5: watch.INFRA_LOG_MARKERS[0]}
+                self.assertTrue(watch.retryable_jobs(
+                    payload, lambda job_id: log.get(job_id, ""))[0])
+                self.assertFalse(watch.retryable_jobs(
+                    payload, lambda job_id: "AssertionError: bad prediction")[0])
+
+    def test_aggregates_fail_closed_without_verified_direct_infra_parent(self):
+        base = [
+            {"id": 5, "name": "unit-runtime", "status": "completed", "conclusion": "failure"},
+            {"id": 6, "name": "unit-contracts", "status": "completed", "conclusion": "success"},
+            {"id": 7, "name": "unit", "status": "completed", "conclusion": "failure",
+             "steps": [{"name": "Verify contractual and runtime tests both passed",
+                        "conclusion": "failure"}]},
+        ]
+        payload = lambda items: {"total_count": len(items), "jobs": items}
+        marker = lambda job_id: watch.INFRA_LOG_MARKERS[0] if job_id == 5 else ""
+        # No runner evidence: functional failures remain blocked.
+        self.assertFalse(watch.retryable_jobs(payload(base), lambda _: "")[0])
+        # No known child failure: synthetic aggregate alone cannot be retried.
+        self.assertFalse(watch.retryable_jobs(payload(base[1:]), marker)[0])
+        # A failure in SARIF/coverage artifact validation is NOT dependency-only.
+        different = [dict(job) for job in base]
+        different[-1]["steps"] = [{"name": "Fail closed if runtime evidence is absent",
+                                 "conclusion": "failure"}]
+        self.assertFalse(watch.retryable_jobs(payload(different), marker)[0])
+        # Missing producer or skipped producer makes the evidence ambiguous.
+        self.assertFalse(watch.retryable_jobs(payload([base[0], base[2]]), marker)[0])
+        skip = [dict(job) for job in base]
+        skip[1]["conclusion"] = "skipped"
+        self.assertFalse(watch.retryable_jobs(payload(skip), marker)[0])
+        # Another unrelated failed job means program failure cannot be laundered.
+        unrelated = [*base, {"id": 8, "name": "ddl-upgrade",
+                             "status": "completed", "conclusion": "failure"}]
+        self.assertFalse(watch.retryable_jobs(payload(unrelated), marker)[0])
+        # An unknown or malformed aggregate step is not eligible.
+        bad = [dict(job) for job in base]
+        bad[-1]["steps"] = [{"name": "Unknown assertion", "conclusion": "failure"}]
+        self.assertFalse(watch.retryable_jobs(payload(bad), marker)[0])
+
     def test_newer_success_prevents_replay_of_older_failed_run(self):
         succeeded = run(id=124, conclusion="success")
         api = FakeApi(runs=[succeeded, run()])
