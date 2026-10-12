@@ -14,7 +14,54 @@ public sealed record BlockingConditionedUnmatchedPairSample(
     IReadOnlyList<IdentityTrainingPair> Pairs,
     IReadOnlyDictionary<string, long> SemanticBirthPoolSupport,
     long CandidatePoolSize,
-    IReadOnlyList<BlockingPassNominalUSupport> PassNominalSupport);
+    IReadOnlyList<BlockingPassNominalUSupport> PassNominalSupport,
+    IReadOnlyList<BlockingPassPairIncidenceV9>? PassPairIncidences = null);
+
+/// <summary>
+/// Aggregate incidence census over selected physical SQL blocking signatures.
+/// A pair may share several signatures/passes; incidences are NOT unique pairs.
+/// AdjacentPairIncidences are the deterministic disjoint pairings emitted by
+/// the current U diagnostic reader BEFORE deduplication across passes.
+/// </summary>
+public sealed record BlockingPassPairIncidenceV9(
+    string PassId,
+    long SignatureGroups,
+    long RecoverableSignatureGroups,
+    decimal FullPairIncidences,
+    decimal AdjacentPairIncidences);
+
+/// <summary>
+/// Descriptive combinatorics of one blocking-signature bucket. This is NOT
+/// an inclusion-probability model or a population candidate-pair estimator.
+/// </summary>
+public static class BlockingPassPairIncidenceCalculatorV9
+{
+    public static (decimal FullPairs, decimal AdjacentPairs) ForGroup(long uniquePeople)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(uniquePeople);
+        var n = (decimal)uniquePeople;
+        return (n * (n - 1m) / 2m, (decimal)(uniquePeople / 2L));
+    }
+
+    public static BlockingPassPairIncidenceV9 Aggregate(
+        string passId,
+        IReadOnlyCollection<long> signatureGroupSizes)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(passId);
+        ArgumentNullException.ThrowIfNull(signatureGroupSizes);
+        long recoverable = 0;
+        decimal full = 0m, adjacent = 0m;
+        foreach (var size in signatureGroupSizes)
+        {
+            if (size == 0) throw new InvalidOperationException("Grupo sem pessoas não é assinatura materializada.");
+            if (size >= 2) checked { recoverable++; }
+            var count = ForGroup(size);
+            checked { full += count.FullPairs; adjacent += count.AdjacentPairs; }
+        }
+        return new BlockingPassPairIncidenceV9(
+            passId, signatureGroupSizes.Count, recoverable, full, adjacent);
+    }
+}
 
 /// <summary>
 /// Amostra não-vínculos diretamente do universo que sobreviveria ao ruleset vencedor.
@@ -68,6 +115,7 @@ public static class BlockingConditionedUnmatchedPairReader
         var projection = BlockingCandidateFeatureCatalog.CurrentResolutionProjectionPlan;
         var ctes = new List<string>();
         var pairSources = new List<string>();
+        var signatureSources = new List<string>();
         var command = new SqlCommand { Connection = connection, CommandTimeout = Math.Max(30, commandTimeoutSeconds) };
 
         command.Parameters.Add("@sample_size", SqlDbType.Int).Value = sampleSize;
@@ -174,6 +222,7 @@ public static class BlockingConditionedUnmatchedPairReader
             var passIdParameter = $"@pass_id_{passIndex}";
             command.Parameters.Add(passIdParameter, SqlDbType.NVarChar, 80).Value = pass.PassId;
             pairSources.Add($"SELECT {passIdParameter} AS pass_id,a_uuid,b_uuid FROM {pairsCte}");
+            signatureSources.Add($"SELECT {passIdParameter} AS pass_id,assinatura FROM {keysCte}");
         }
 
         var commonCtes = $"""
@@ -253,6 +302,29 @@ JOIN gold_sample a ON a.pessoa_uuid=p.a_uuid
 JOIN gold_sample b ON b.pessoa_uuid=p.b_uuid
 WHERE p.pass_sample_rank<=@sample_size
 ORDER BY p.pass_id,p.pass_sample_rank;
+
+-- Signature census: unlike disjoint-adjacent pairs, count the true number
+-- of pair INCIDENCES by bucket without constructing the quadratic pair join.
+-- A physical pair can recur in multiple signatures or passes: these sums
+-- do NOT claim unique candidate pairs or known inclusion probabilities.
+{commonCtes},
+signature_groups AS (
+    SELECT k.pass_id,k.assinatura,COUNT_BIG(*) AS member_count
+    FROM (
+        {string.Join("\n        UNION ALL\n        ", signatureSources)}
+    ) k
+    GROUP BY k.pass_id,k.assinatura
+)
+SELECT s.pass_id,
+       COUNT_BIG(*) AS signature_groups,
+       SUM(CASE WHEN s.member_count>=2 THEN CONVERT(bigint,1) ELSE CONVERT(bigint,0) END) AS recoverable_groups,
+       SUM(CONVERT(decimal(38,0),s.member_count) *
+           (CONVERT(decimal(38,0),s.member_count)-CONVERT(decimal(38,0),1)) /
+           CONVERT(decimal(38,0),2)) AS full_pair_incidences,
+       SUM(CONVERT(decimal(38,0),s.member_count / CONVERT(bigint,2))) AS adjacent_pair_incidences
+FROM signature_groups s
+GROUP BY s.pass_id
+ORDER BY s.pass_id;
 """;
 
         var result = new List<IdentityTrainingPair>();
@@ -313,6 +385,30 @@ ORDER BY p.pass_id,p.pass_sample_rank;
             }
         }
 
+        // Third result: pass/signature totals are aggregated in SQL. Never
+        // transport raw signature hashes, names or citizen IDs in this DTO.
+        var incidenceByPass = canonicalPasses.ToDictionary(
+            pass => pass.PassId,
+            pass => new BlockingPassPairIncidenceV9(pass.PassId, 0L, 0L, 0m, 0m),
+            StringComparer.Ordinal);
+        if (!await reader.NextResultAsync(cancellationToken))
+            throw new InvalidOperationException("Censo V9 de incidências SQL não retornado.");
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var passId = reader.GetString(0);
+            if (!incidenceByPass.ContainsKey(passId))
+                throw new InvalidOperationException("Passe inesperado no censo SQL V9.");
+            var totalGroups = reader.GetInt64(1);
+            var recoverableGroups = reader.GetInt64(2);
+            var full = reader.GetDecimal(3);
+            var adjacent = reader.GetDecimal(4);
+            if (totalGroups < 0 || recoverableGroups < 0 || recoverableGroups > totalGroups ||
+                full < adjacent || adjacent < 0m)
+                throw new InvalidOperationException("Contagens de incidência V9 inválidas.");
+            incidenceByPass[passId] = new BlockingPassPairIncidenceV9(
+                passId, totalGroups, recoverableGroups, full, adjacent);
+        }
+
         // candidate_pairs é construído exclusivamente dos CTEs de cada passe sobre
         // blocking_chave com a mesma semântica temporal do Runner. Reprojetar a Gold
         // corrente aqui seria incorreto: VERSIONED_ALIAS preserva valores históricos
@@ -332,7 +428,8 @@ ORDER BY p.pass_id,p.pass_sample_rank;
                     item.SampleSize,
                     new Dictionary<string, long>(item.NameStateSupport, StringComparer.Ordinal),
                     new Dictionary<string, long>(item.MotherNameStateSupport, StringComparer.Ordinal)))
-                .ToArray());
+                .ToArray(),
+            incidenceByPass.Values.OrderBy(v => v.PassId, StringComparer.Ordinal).ToArray());
     }
 
     private sealed class PassSupportBuilder(
