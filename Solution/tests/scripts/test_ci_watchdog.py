@@ -141,7 +141,7 @@ class CiWatchdogTests(unittest.TestCase):
     def test_workflow_resumes_on_ci_failure_and_keeps_hourly_fallback(self):
         root = pathlib.Path(__file__).resolve().parents[3]
         workflow = (root / ".github" / "workflows" / "ci-watchdog.yml").read_text(encoding="utf-8")
-        self.assertIn("workflow_run:\\n    workflows: [jornada-ci]", workflow)
+        self.assertIn("workflow_run:\n    workflows: [jornada-ci]", workflow)
         self.assertIn("types: [completed]", workflow)
         self.assertIn("cron: '17 * * * *'", workflow)
         self.assertIn("ref: master", workflow)
@@ -153,7 +153,7 @@ class CiWatchdogTests(unittest.TestCase):
     def test_partial_resume_does_not_restart_all_successful_jobs(self):
         api = FakeApi(job_results=jobs("success", "failure", "skipped"),
                       logs={6: "The runner has received a shutdown signal"})
-        report = "\\n".join(watch.supervise(api, True, NOW))
+        report = "\n".join(watch.supervise(api, True, NOW))
         self.assertEqual(api.posts, ["/actions/runs/123/rerun-failed-jobs"])
         self.assertIn("checkpoint: 1 succeeded", report)
         self.assertIn("retried failed jobs once", report)
