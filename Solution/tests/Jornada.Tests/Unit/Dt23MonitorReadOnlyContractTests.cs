@@ -7,6 +7,8 @@ namespace Jornada.Tests.Unit;
 [Category("Unit")]
 public sealed class Dt23MonitorReadOnlyContractTests
 {
+    private static readonly JsonSerializerOptions WebJsonOptions = new(JsonSerializerDefaults.Web);
+
     [Test]
     public void Unverified_database_metadata_cannot_certify_evidence()
     {
@@ -14,7 +16,7 @@ public sealed class Dt23MonitorReadOnlyContractTests
         // raw SQL declarations are never authentication of independent truth.
         var cutoff = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
         var preview = Dt23MonitorReadOnlyService.Unverified("DT23_DEV_V1", cutoff);
-        Assert.Multiple(() =>
+        Assert.Multiple((NUnit.Framework.TestDelegate)(() =>
         {
             Assert.That(preview.State, Is.EqualTo("INDETERMINADO"));
             Assert.That(preview.Provenance.SourceKind, Is.EqualTo("UNVERIFIED"));
@@ -22,7 +24,7 @@ public sealed class Dt23MonitorReadOnlyContractTests
             Assert.That(preview.PolicyVersion, Is.EqualTo("DT23_DEV_V1"));
             Assert.That(preview.CutoffUtc, Is.EqualTo(cutoff));
             Assert.That(preview.Reasons, Is.Not.Empty);
-        });
+        }));
     }
 
     [Test]
@@ -30,14 +32,14 @@ public sealed class Dt23MonitorReadOnlyContractTests
     {
         var preview = Dt23MonitorReadOnlyService.Unverified("DT23_NEW", null);
         var json = JsonSerializer.Serialize(preview,
-            new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            WebJsonOptions);
         using var doc = JsonDocument.Parse(json);
-        Assert.Multiple(() =>
+        Assert.Multiple((NUnit.Framework.TestDelegate)(() =>
         {
             Assert.That(doc.RootElement.GetProperty("cutoffUtc").ValueKind, Is.EqualTo(JsonValueKind.Null));
             Assert.That(doc.RootElement.GetProperty("state").GetString(), Is.EqualTo("INDETERMINADO"));
             Assert.That(doc.RootElement.GetProperty("provenance").GetProperty("verified").GetBoolean(), Is.False);
-        });
+        }));
     }
 
     [Test]
@@ -46,7 +48,7 @@ public sealed class Dt23MonitorReadOnlyContractTests
         var root = FindRepositoryRoot();
         var api = File.ReadAllText(Path.Combine(root, "Solution", "src", "Jornada.Api", "OperationalMonitorApi.cs"));
         var reader = File.ReadAllText(Path.Combine(root, "Solution", "src", "Jornada.Api", "Dt23MonitorReadOnlyService.cs"));
-        Assert.Multiple(() =>
+        Assert.Multiple((NUnit.Framework.TestDelegate)(() =>
         {
             Assert.That(api, Does.Contain("RequireAuthorization(Permission)"));
             Assert.That(api, Does.Contain("Dt23MonitorReadOnlyService.GetAsync(operationalSql, ct)"));
@@ -55,7 +57,7 @@ public sealed class Dt23MonitorReadOnlyContractTests
             Assert.That(reader, Does.Not.Contain("INSERT INTO"));
             Assert.That(reader, Does.Not.Contain("GENERATE_DRAFT"));
             Assert.That(reader, Does.Not.Contain("ACTIVATE"));
-        });
+        }));
     }
 
     private static string FindRepositoryRoot()
