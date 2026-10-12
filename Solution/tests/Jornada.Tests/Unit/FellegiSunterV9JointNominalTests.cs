@@ -45,7 +45,7 @@ public sealed class FellegiSunterV9JointNominalTests
         Assert.That(Evaluate(c), Is.EqualTo(Math.Log(4d)).Within(1e-12));
         // Multiplying the same evidence twice would yield log(16),
         // forbidden by the V9 canonical no-double-counting decision.
-        Assert.That(Evaluate(c), Is.Not.EqualTo(Math.Log(16d)).Within(1e-12));
+        Assert.That(Math.Abs(Evaluate(c) - Math.Log(16d)), Is.GreaterThan(0.1d));
     }
 
     [Test]
