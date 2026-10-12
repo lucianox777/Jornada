@@ -77,12 +77,70 @@ public sealed class CompositeNominalFrequencyV9Tests
                     Reference(NominalFrequencyUnitV9.FirstLastJoint,
                         NominalFrequencySourceV9.IbgePublishedMarginal), 100)),
                 Throws.InvalidOperationException.With.Message.Contains("Marginais"));
+
+        }));
+    }
+
+    [Test]
+    public void AllowsCanonicalIbgeSurnameMarginalOnlyAsExplicitLastSurnameProxy()
+    {
+        // DC-LK-TF line 95 and Calibrador FS section 10 authorize an
+        // INITIAL proxy, not a measured last-position frequency.
+        var proxy = Reference(
+            NominalFrequencyUnitV9.LastContentSurname,
+            NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy);
+
+        Assert.That(CompositeNominalTermFrequencyContractV9.Version,
+            Is.EqualTo("V9_NOMINAL_TF_UNIT_GUARD_V2"));
+        Assert.DoesNotThrow((Action)(() =>
+            CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                CompositeNominalLevelV9.ExactLast, proxy, 100)));
+        Assert.Multiple((Action)(() =>
+        {
+            // An unqualified legacy marginal must NOT silently masquerade as
+            // measured LAST surname. The proxy provenance is mandatory.
             Assert.That((Action)(() =>
                 CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
                     CompositeNominalLevelV9.ExactLast,
-                    Reference(NominalFrequencyUnitV9.LastContentSurname,
-                        NominalFrequencySourceV9.IbgePublishedMarginal), 100)),
-                Throws.InvalidOperationException.With.Message.Contains("Marginais"));
+                    proxy with { Source = NominalFrequencySourceV9.IbgePublishedMarginal }, 100)),
+                Throws.InvalidOperationException.With.Message.Contains("proxy explícita"));
+            // A proxy is not a full-name or observed first+last joint rate.
+            Assert.That((Action)(() =>
+                CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                    CompositeNominalLevelV9.ExactFull,
+                    proxy with { Unit = NominalFrequencyUnitV9.FullName }, 100)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                    CompositeNominalLevelV9.ExactFirstLast,
+                    proxy with { Unit = NominalFrequencyUnitV9.FirstLastJoint }, 100)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                    CompositeNominalLevelV9.ExactFirst,
+                    proxy with { Unit = NominalFrequencyUnitV9.FirstName }, 100)),
+                Throws.InvalidOperationException);
+            // The ordinary provenance/support/validation gates still apply.
+            Assert.That((Action)(() =>
+                CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                    CompositeNominalLevelV9.ExactLast,
+                    proxy with { IndependentPopulationValidationApproved = false }, 100)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                    CompositeNominalLevelV9.ExactLast,
+                    proxy with { IndependentObservedSupport = 99 }, 100)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                    CompositeNominalLevelV9.ExactLast,
+                    proxy with { PopulationFrameFingerprint = "" }, 100)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                    CompositeNominalLevelV9.ExactLast,
+                    proxy with { BlockingFrameFingerprint = "" }, 100)),
+                Throws.InvalidOperationException);
         }));
     }
 
