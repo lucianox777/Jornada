@@ -46,6 +46,35 @@ def main() -> None:
     assert "http://api:5080/health/ready" in content
     assert "resultado_to_api_private_dns" in content
     assert "worker_residents':0" in content
+    # Existing real acceptance phases are NOT skipped; the phase ledger
+    # contains only fixed labels and timing, never Docker/SQL environment data.
+    assert 'E2E_PHASE_LEDGER="$OUT/phase-timeline.jsonl"' in content
+    assert "phase_exit()" in content and "trap 'phase_exit " in content
+    assert "PRIVATE E2E phase START:" in content
+    assert "PRIVATE E2E phase %s:" in content
+    assert '"status":"PASS"' in content
+    assert '"status":"%s"' in content
+    phase_starts = (
+        ("sql-bootstrap", "compose up -d --build sql-bootstrap"),
+        ("api-start-readiness", "compose build api"),
+        ("console-off", "python3 scripts/e2e-console-worker-supervisor-status.py OFF"),
+        ("worker-sigkill", "bash scripts/e2e-private-worker-restart-runtime.sh"),
+        ("ingestion-baseline", "bash scripts/e2e-private-api-ingestion-baseline-runtime.sh"),
+        ("transaction-recovery", "python3 scripts/e2e-private-recovery-runtime.py"),
+        ("console-on", "python3 scripts/e2e-console-worker-supervisor-status.py ON"),
+        ("supervisor-toggle", "python3 scripts/e2e-console-supervisor-global-toggle.py"),
+        ("three-worker-runonce", "python3 scripts/e2e-console-supervisor-three-runonce.py"),
+        ("client-disconnect", "python3 scripts/e2e-console-runonce-disconnect-proof.py"),
+        ("individual-stop", "python3 scripts/e2e-console-worker-stop-proof.py"),
+        ("audit-journal", "python3 - \"$PROJECT\" <<'PY'"),
+        ("summary", "python3 - \"$OUT/summary.json\""),
+    )
+    for phase, real_command in phase_starts:
+        marker = "phase_advance " + phase + "\n"
+        assert content.count(marker) == 1, "missing/duplicated phase: " + phase
+        assert content.index(marker) < content.index(real_command), phase
+    assert content.count("\nphase_advance ") == len(phase_starts)
+
     assert "jornada-local" not in content
     for unsafe in ("local-db.ps1", "local-db.sh", "docker compose down",
                    "compose down", "DROP DATABASE", "RESTORE DATABASE"):
