@@ -23,7 +23,8 @@ public static class SampleSufficiencyDiagnosticSnapshot
         // it must produce INDETERMINADO and can never certify sufficiency.
         // This includes null, blank and padded source kinds.
         // Never treat synthetic or unverified source data as sufficient REAL evidence.
-        var verified = string.Equals(sourceKind, "INDEPENDENT_REAL", StringComparison.Ordinal);
+        // A source label is not an independent audit receipt. Fail closed until an audited collector exists.
+        const bool verified = false;
         var state = !verified ? "INDETERMINADO" : assessment.State switch
         {
             SampleSufficiencyAssessment.Status.Sufficient => "VERDE",
