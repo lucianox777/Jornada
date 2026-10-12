@@ -272,6 +272,30 @@ public sealed class LinkageParametersWorker(
                     attribute.UnmatchedMissing, exactM, exactU);
             }
 
+            // TF V9: only an aggregate endpoint-support audit on the U sample.
+            // Endpoint frequencies of a pair-sampled, blocking-conditioned pool
+            // are NOT unbiased population f(value) estimates and cannot be
+            // plugged into the scorer. In particular IBGE marginal first-name
+            // frequency cannot correct full-name EXACT agreement.
+            var v9EndpointTf = CompositeNominalEndpointFrequencyAuditBuilderV9.Analyze(unmatchedPairs);
+            foreach (var unit in v9EndpointTf.Units)
+            {
+                if (unit.Unit is not (NominalFrequencyUnitV9.FullName
+                    or NominalFrequencyUnitV9.FirstLastJoint))
+                    continue;
+                logger.LogInformation(
+                    "Linkage V9 TF endpoint diagnostic: status={Status}; " +
+                    "attribute={Attribute}; unit={Unit}; " +
+                    "candidatePairs={CandidatePairs}; observedEndpoints={ObservedEndpoints}; " +
+                    "missingEndpoints={MissingEndpoints}; distinctValues={DistinctValues}; " +
+                    "maximumEndpointAppearances={MaximumAppearances}; pairUnitAgreements={Agreements}; " +
+                    "populationReference=false; tfWeightApplied=false; published=false",
+                    v9EndpointTf.Status, unit.Attribute, unit.Unit,
+                    unit.CandidatePairs, unit.ObservedEndpoints, unit.MissingEndpoints,
+                    unit.DistinctObservedValues, unit.MaximumEndpointAppearances,
+                    unit.PairUnitAgreements);
+            }
+
             // O estimador base já mede u no universo deduplicado que sobrevive ao ruleset.
             // IBGE permanece bootstrap externo para NOME/NOME_MAE enquanto a amostra
             // candidato-condicionada (inclusive por passe) não atinge suficiência explícita.
