@@ -42,7 +42,7 @@ jobs:
             printf 'Run: %s\n\n' "$RUN_ID"
             printf 'Head SHA: %s\n\n' "$RUN_HEAD_SHA"
             printf 'Conclusion: %s\n\n' "$RUN_CONCLUSION"
-            printf 'Failed or blocked jobs: %s\\n\\n' "$failed_count"
+            printf 'Failed or blocked jobs: %s\n\n' "$failed_count"
             echo '| Job | Status | Conclusion |'
             echo '| --- | --- | --- |'
             while IFS=$'\t' read -r name status conclusion; do
