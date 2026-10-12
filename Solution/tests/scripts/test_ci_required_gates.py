@@ -31,6 +31,61 @@ def test_full_gate_is_fail_closed():
         assert block, f"Missing CI job: {name}"
         assert "needs:" in block.group(1), f"CI job {name} must declare dependencies"
 
+def test_unit_parallel_contracts_and_runtime_are_both_mandatory():
+    """Both exhaustive static guards and compiled unit/coverage must be green."""
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+    def job(name):
+        match = re.search(
+            rf"(?ms)^  {re.escape(name)}:\s*\n(.*?)(?=^  [a-z][a-z0-9-]*:\s*$|\Z)",
+            workflow,
+        )
+        assert match, "Missing CI unit job: " + name
+        return match.group(1)
+    contracts = job("unit-contracts")
+    runtime = job("unit-runtime")
+    aggregate = job("unit")
+    for part in (contracts, runtime):
+        assert "needs: [impact, dependency-lock]" in part
+        assert "needs.dependency-lock.result == 'success'" in part
+        assert "dotnet restore Jornada.sln --locked-mode" in part
+        assert "name: nuget-lockfiles" in part
+        assert "dotnet-version: '10.0.112'" in part
+        assert "persist-credentials: false" in part
+    for protected in (
+        "Gate source sanity and pinned workflow actions",
+        "Gate destructive DDL changes",
+        "Gate authorization matrix and negative mutations",
+        "Gate security/data-minimization surface",
+        "Gate HML contracts without fabricating approvals",
+        "Gate architecture",
+    ):
+        if protected == "Gate architecture":
+            protected = "Gate project dependency architecture"
+        assert protected in contracts, "Contract removed: " + protected
+    for protected in (
+        "dotnet build Jornada.sln --configuration Release --no-restore",
+        "Unit tests must execute without skips",
+        "OpenAPI runtime conformance must execute for all 19 operations",
+        "Accept measured DT-05 synthetic snapshot cost and latency",
+        "T0.1e Console actual Chromium browser click acceptance",
+        "Upload CycloneDX SBOM",
+        "Audit transitive NuGet vulnerabilities",
+    ):
+        assert protected in runtime, "Runtime gate removed: " + protected
+    assert "dotnet build Jornada.sln" not in contracts
+    assert "Unit tests must execute without skips" not in contracts
+    assert "needs: [impact, unit-contracts, unit-runtime]" in aggregate
+    assert "if: always() && needs.impact.outputs.run_full == 'true'" in aggregate
+    assert '"$CONTRACT_RESULT" == success' in aggregate
+    assert '"$RUNTIME_RESULT" == success' in aggregate
+    for name in ("unit-test-evidence", "openapi-runtime-evidence", "sbom-cyclonedx"):
+        assert "name: " + name in aggregate
+        assert "name: " + name in runtime
+    for proof in ("unit-evidence/unit.trx", "coverage.cobertura.xml",
+                  "openapi-evidence/openapi-runtime.trx", "sbom-evidence/sbom.cdx.json"):
+        assert proof in aggregate, "Missing same-run evidence proof: " + proof
+
+
 def test_dt10_reusable_job_has_same_gate_and_real_sql_acceptance():
     """DT10 moves to a reusable job without erasing the mandatory CI contract."""
     caller = WORKFLOW.read_text(encoding="utf-8")
@@ -130,6 +185,9 @@ class CiGateContractTests(unittest.TestCase):
 
     def test_parallel_e2e(self):
         test_parallel_e2e_keeps_both_real_suites_and_aggregated_gate()
+
+    def test_unit_parallel(self):
+        test_unit_parallel_contracts_and_runtime_are_both_mandatory()
 
     def test_dt10_reusable(self):
         test_dt10_reusable_job_has_same_gate_and_real_sql_acceptance()
