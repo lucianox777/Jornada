@@ -49,7 +49,8 @@ public sealed record CandidateWeightedJointDiagnosticV9(
     CandidateWeightedJointClassV9 Matched,
     CandidateWeightedJointClassV9 Unmatched,
     int BothClassesObservedCells,
-    IReadOnlyList<CandidateWeightedJointCellV9> Cells);
+    IReadOnlyList<CandidateWeightedJointCellV9> Cells,
+    string EvidenceGeneration = "CALLER_LEVEL_SIDECAR_UNATTESTED");
 
 /// <summary>
 /// Design-weighted 9x9 joint person/mother *diagnostic* using the existing
@@ -64,6 +65,23 @@ public static class CandidateWeightedJointNominalEstimatorV9
 
     private static readonly CompositeNominalLevelV9[] Levels =
         Enum.GetValues<CompositeNominalLevelV9>();
+
+    /// <summary>
+    /// Preferred V9 diagnostic path: calculate both nominal levels from the
+    /// complete, restricted raw evidence inventory. Never trust a caller's
+    /// claimed V9 enum values when raw comparisons are available. This proves
+    /// deterministic recomputation, NOT the authenticity of the raw source.
+    /// </summary>
+    public static CandidateWeightedJointDiagnosticV9 EstimateFromRawEvidence(
+        ValidatedCandidateCorpus corpus,
+        IReadOnlyList<CandidateNominalV9RawEvidence> rawEvidence,
+        decimal smoothingAlpha,
+        decimal minimumEffectiveSampleSize = 2m)
+    {
+        var derived = CandidateNominalV9EvidenceExtractor.Extract(corpus, rawEvidence);
+        return Estimate(corpus, derived, smoothingAlpha, minimumEffectiveSampleSize)
+            with { EvidenceGeneration = CandidateNominalV9EvidenceExtractor.Version };
+    }
 
     public static CandidateWeightedJointDiagnosticV9 Estimate(
         ValidatedCandidateCorpus corpus,
