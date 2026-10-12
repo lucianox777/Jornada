@@ -282,8 +282,8 @@ public sealed class LinkageParametersWorker(
                     "exclusiveJointCells={Cells}; bothClassSupportedCells={BothSupported}; " +
                     "zeroClassSupportCells={SparseCells}; " +
                     "scoringChanged=false; independentValidationCertified=false; published=false",
-                    jointNominal.Status, jointNominal.MatchedPairs,
-                    jointNominal.UnmatchedPairs, jointNominal.Cells.Count,
+                    jointNominal.Status, jointNominal.MatchedPairCount,
+                    jointNominal.UnmatchedPairCount, jointNominal.Cells.Count,
                     jointNominal.BothClassesObservedCells, jointNominal.ZeroClassSupportCells);
 
             // TF V9: only an aggregate endpoint-support audit on the U sample.
