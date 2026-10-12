@@ -102,11 +102,11 @@ public sealed class CompositeNominalBlockingAuditV9Tests
             Assert.That((Action)(() => Build(unmatched: NonMatches() with
             {
                 CandidatePoolSize = 1
-            }), Throws.InvalidOperationException);
+            })), Throws.InvalidOperationException);
             Assert.That((Action)(() => Build(passes: [
                 LinkageBlockingPass.Create("x", ["birth_year"]),
                 LinkageBlockingPass.Create("x", ["name_first"])
-            ]), Throws.InvalidOperationException);
+            ])), Throws.InvalidOperationException);
         }));
     }
 
