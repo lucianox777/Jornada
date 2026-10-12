@@ -32,7 +32,8 @@ public sealed class CiTriggerPolicyTests
             Assert.That(ci, Does.Contain("  unit:"));
             Assert.That(ci, Does.Contain("  deterministic-build:"));
             Assert.That(ci, Does.Contain("dotnet build Jornada.sln"));
-            Assert.That(ci, Does.Contain("  cancel-in-progress: true"));
+            Assert.That(ci, Does.Contain("  cancel-in-progress: false"),
+                "Long-running SQL/E2E evidence must not be cancelled by newer commits.");
         }));
     }
 }
