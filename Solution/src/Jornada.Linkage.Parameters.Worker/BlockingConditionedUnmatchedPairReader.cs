@@ -82,7 +82,8 @@ public static class BlockingConditionedUnmatchedPairReader
         int validationBasisPoints,
         int testBasisPoints,
         int commandTimeoutSeconds,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool collectPassPairIncidenceCensus = false)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentException.ThrowIfNullOrWhiteSpace(normalizationVersion);
@@ -302,7 +303,12 @@ JOIN gold_sample a ON a.pessoa_uuid=p.a_uuid
 JOIN gold_sample b ON b.pessoa_uuid=p.b_uuid
 WHERE p.pass_sample_rank<=@sample_size
 ORDER BY p.pass_id,p.pass_sample_rank;
+""";
 
+        // Explicitly opt-in: a third SQL scan adds cost to historical
+        // GENERATE_DRAFT; default V8/replay behaviour and timing stay intact.
+        if (collectPassPairIncidenceCensus)
+            command.CommandText += $"""
 -- Signature census: unlike disjoint-adjacent pairs, count the true number
 -- of pair INCIDENCES by bucket without constructing the quadratic pair join.
 -- A physical pair can recur in multiple signatures or passes: these sums
@@ -391,9 +397,10 @@ ORDER BY s.pass_id;
             pass => pass.PassId,
             pass => new BlockingPassPairIncidenceV9(pass.PassId, 0L, 0L, 0m, 0m),
             StringComparer.Ordinal);
-        if (!await reader.NextResultAsync(cancellationToken))
+        if (collectPassPairIncidenceCensus &&
+            !await reader.NextResultAsync(cancellationToken))
             throw new InvalidOperationException("Censo V9 de incidências SQL não retornado.");
-        while (await reader.ReadAsync(cancellationToken))
+        while (collectPassPairIncidenceCensus && await reader.ReadAsync(cancellationToken))
         {
             var passId = reader.GetString(0);
             if (!incidenceByPass.ContainsKey(passId))
@@ -429,7 +436,9 @@ ORDER BY s.pass_id;
                     new Dictionary<string, long>(item.NameStateSupport, StringComparer.Ordinal),
                     new Dictionary<string, long>(item.MotherNameStateSupport, StringComparer.Ordinal)))
                 .ToArray(),
-            incidenceByPass.Values.OrderBy(v => v.PassId, StringComparer.Ordinal).ToArray());
+            collectPassPairIncidenceCensus
+                ? incidenceByPass.Values.OrderBy(v => v.PassId, StringComparer.Ordinal).ToArray()
+                : null);
     }
 
     private sealed class PassSupportBuilder(
