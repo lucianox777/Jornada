@@ -25,7 +25,7 @@ def main() -> None:
         data,
     ))
     setups = re.findall(r"(?m)^      - uses: actions/setup-dotnet@", data)
-    assert len(setups) == 10, f"expected all ten SDK setups, found {len(setups)}"
+    assert len(setups) == 11, f"expected all eleven SDK setups, found {len(setups)}"
     assert len(matches) == len(setups), (
         "each .NET setup must cache only NuGet using the complete lockfile set"
     )
@@ -49,7 +49,7 @@ def main() -> None:
     assert "TestCategory=DT10Evidence" in dt10
     assert "--forbid-skipped --minimum-tests 4" in dt10
     assert "name: Upload DT-10 evidence" in dt10
-    print("DT10 cache: PASS 11 SDK setups use hash-pinned NuGet package cache; "
+    print("DT10 cache: PASS 12 SDK setups use hash-pinned NuGet package cache; "
           "locked restore, build, evidence and all gates remain")
 
 
