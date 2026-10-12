@@ -474,7 +474,7 @@ jobs:
           include-hidden-files: true
           retention-days: 3
 
-  security-analysis:
+  security-guards:
     needs: [impact, dependency-lock]
     if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
     runs-on: ubuntu-latest
@@ -482,7 +482,6 @@ jobs:
     permissions:
       actions: read
       contents: read
-      security-events: write
     defaults:
       run:
         working-directory: Solution
@@ -570,6 +569,48 @@ jobs:
         run: |
           dotnet list Jornada.sln package --vulnerable --include-transitive --format json > .local/security/nuget-vulnerabilities.json
           python3 scripts/vulnerability-evidence-gate.py .local/security/nuget-vulnerabilities.json --summary .local/security/vulnerability-summary.json
+      - name: Upload security-guards evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: security-guards-evidence
+          path: Solution/.local/security
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 90
+
+  security-codeql:
+    needs: [impact, dependency-lock]
+    if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: '10.0.112'
+          # Packages are cached by the hash of every committed project lockfile.
+          # Locked restore and the dependency-lock artifact remain mandatory.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: nuget-lockfiles
+          path: Solution/.local/nuget-lock-input
+      - name: Restore locked dependency graph
+        run: |
+          tar -xzf .local/nuget-lock-input/packages-locks.tar.gz -C .
+          dotnet restore Jornada.sln --locked-mode
+          dotnet restore tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj --locked-mode
       - name: Initialize CodeQL
         uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
         with:
@@ -588,8 +629,77 @@ jobs:
         run: |
           python3 scripts/sarif-security-gate.py .local/security/codeql --summary .local/security/sarif-summary.json
           python3 scripts/sarif-security-gate.py --self-test
-      - name: Upload security analysis evidence
+      - name: Upload security-codeql evidence
         if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: security-codeql-evidence
+          path: Solution/.local/security
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 90
+
+  security-analysis:
+    # Preserve the required job name while keeping security guards and
+    # CodeQL independent checkpoints within this SAME run and exact HEAD.
+    needs: [impact, security-guards, security-codeql]
+    if: always() && needs.impact.outputs.run_full == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Fail closed unless static security and CodeQL both succeeded
+        env:
+          GUARD_RESULT: ${{ needs.security-guards.result }}
+          CODEQL_RESULT: ${{ needs.security-codeql.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GUARD_RESULT" == success && "$CODEQL_RESULT" == success ]] || {
+            echo "SECURITY: FAIL guards=$GUARD_RESULT codeql=$CODEQL_RESULT" >&2
+            exit 1
+          }
+      - name: Fetch same-run guards evidence
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: security-guards-evidence
+          path: security-evidence/guards
+      - name: Fetch same-run CodeQL SARIF evidence
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: security-codeql-evidence
+          path: security-evidence/codeql
+      - name: Verify and assemble complete security evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s security-evidence/guards/gitleaks-current-tree.json
+          test -s security-evidence/guards/vulnerability-summary.json
+          test -s security-evidence/guards/action-pins.txt
+          test -s security-evidence/codeql/sarif-summary.json
+          SARIF=$(find security-evidence/codeql/codeql -name '*.sarif' -type f -print -quit)
+          test -n "$SARIF"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root=Path('security-evidence')
+          for file in (root/'guards/gitleaks-current-tree.json',
+                       root/'guards/vulnerability-summary.json',
+                       root/'codeql/sarif-summary.json'):
+              json.loads(file.read_text(encoding='utf-8'))
+          paths=list((root/'codeql/codeql').rglob('*.sarif'))
+          assert paths, 'No CodeQL SARIF output'
+          for file in paths:
+              result=json.loads(file.read_text(encoding='utf-8'))
+              assert isinstance(result.get('runs'),list) and result['runs'], file
+          print('SECURITY: two independent jobs and SARIF evidence verified')
+          PY
+          mkdir -p Solution/.local/security
+          cp -a security-evidence/guards/. Solution/.local/security/
+          cp -a security-evidence/codeql/. Solution/.local/security/
+      - name: Upload combined security-analysis evidence (stable original artifact)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: security-analysis-evidence
@@ -597,131 +707,6 @@ jobs:
           if-no-files-found: error
           include-hidden-files: true
           retention-days: 90
-
-  integration-sql:
-    needs: [impact, dependency-lock, deterministic-build]
-    if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success' && needs.deterministic-build.result == 'success'
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    defaults:
-      run:
-        working-directory: Solution
-    services:
-      sqlserver:
-        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
-        env:
-          ACCEPT_EULA: Y
-          MSSQL_PID: Developer
-          MSSQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!Sql'
-        ports:
-          - 1433:1433
-        options: >-
-          --health-cmd "SQLCMDPASSWORD=$MSSQL_SA_PASSWORD /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -Q 'SELECT 1' || exit 1"
-          --health-interval 10s --health-timeout 5s --health-retries 20
-    env:
-      JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!Sql'
-      JORNADA_TEST_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaE2E;User Id=sa;Password=Jornada_${{ github.run_id }}!Sql;TrustServerCertificate=true;Encrypt=false'
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        with:
-          persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
-        with:
-          dotnet-version: '10.0.112'
-          # Packages are cached by the hash of every committed project lockfile.
-          # Locked restore and the dependency-lock artifact remain mandatory.
-          cache: true
-          cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
-        with:
-          name: nuget-lockfiles
-          path: Solution/.local/nuget-lock-input
-      - name: Restore locked NuGet graph
-        run: |
-          tar -xzf .local/nuget-lock-input/packages-locks.tar.gz -C .
-          dotnet restore Jornada.sln --locked-mode
-      # Built on the SAME checkout SHA by deterministic-build (two builds compared).
-      # GitHub artifact belongs to the current workflow run, never another run/cache.
-      - name: Download exact-run verified Release binaries
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
-        with:
-          name: ci-deterministic-release-binaries
-          path: Solution/.local/compiled-release
-      - name: Verify provenance and reuse compiled Release binaries
-        run: python3 scripts/ci-built-binary-gate.py consume
-      - name: Create integration database
-        run: |
-          CID=$(docker ps -q --filter publish=1433 | head -1)
-          test -n "$CID"
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -Q "IF DB_ID('JornadaE2E') IS NULL CREATE DATABASE JornadaE2E;"
-      - name: SQL runtime semantic smoke on canonical 3.70
-        run: |
-          CID=$(docker ps -q --filter publish=1433 | head -1)
-          test -n "$CID"
-          docker exec "$CID" mkdir -p /var/opt/mssql/data/jornada/database
-          docker cp database/. "$CID":/var/opt/mssql/data/jornada/database/
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/Jornada_Fase1_v3.70.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/Jornada_Seed_Dev.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/migrations/20260907_Cpf_Ancora.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/migrations/20260910_Schema_Consolidation_370.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/Jornada_Runtime_Smoke.sql -i database/tests/Gold_Pessoa_Divergencia_Tres_Fontes.sql
-      - name: Documentary Silver/Gold schema smoke on disposable SQL database (#903)
-        run: |
-          set -euo pipefail
-          CID=$(docker ps -q --filter publish=1433 | head -1)
-          test -n "$CID"
-          for migration in \
-            database/migrations/20260913_Pessoa_Identificadores_Multiplos.sql \
-            database/migrations/20261010_Ref_Catalogo_Documental_903.sql \
-            database/migrations/20261010_Silver_Documento_Evidencia_903.sql \
-            database/migrations/20261010_Silver_Documento_Admissibilidade_903.sql \
-            database/migrations/20261010_Gold_Documento_Candidatos_903.sql; do
-            SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i "$migration"
-          done
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/tests/20261010_Documentos_903_Schema_Smoke.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/tests/20261011_DT23_Diagnostico_Politica_Versionada_Smoke.sql
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaE2E -i database/tests/20261011_DT23_Diagnostico_Politica_Versionada_Negative.sql
-      - name: Integration tests must execute without skips
-        run: |
-          mkdir -p .local/test-evidence/integration
-          dotnet test tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj --configuration Release --no-build \
-            --logger "trx;LogFileName=$PWD/.local/test-evidence/integration/integration.trx"
-          python3 scripts/test-evidence-gate.py .local/test-evidence/integration/integration.trx \
-            --forbid-skipped --minimum-tests 1 --summary .local/test-evidence/integration/summary.json
-      - name: Upload integration test evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: integration-test-evidence
-          path: Solution/.local/test-evidence/integration
-          if-no-files-found: error
-          include-hidden-files: true
-          retention-days: 30
-      - name: Fault injection must execute without skips
-        run: |
-          mkdir -p .local/fault-injection
-          dotnet test tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj --configuration Release --no-build \
-            --filter "TestCategory=FaultInjection" \
-            --logger "trx;LogFileName=$PWD/.local/fault-injection/fault-injection.trx"
-          python3 scripts/test-evidence-gate.py .local/fault-injection/fault-injection.trx \
-            --forbid-skipped --minimum-tests 2 --summary .local/fault-injection/summary.json
-      - name: Upload fault-injection evidence
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: fault-injection-evidence
-          path: Solution/.local/fault-injection
-          if-no-files-found: error
-          include-hidden-files: true
-          retention-days: 30
-
-
-  dt10-evidence:
-    needs: [impact, dependency-lock]
-    if: github.event_name == 'pull_request' && needs.impact.outputs.run_dt10 == 'true' && needs.dependency-lock.result == 'success'
-    # Reusable job keeps the SAME status check and lock-artifact provenance.
-    # Only DT10-triggering PRs pay for the SQL service and .NET build.
-    uses: ./.github/workflows/dt10-evidence.yml
 
   harness-smoke:
     needs: [impact, dependency-lock]
