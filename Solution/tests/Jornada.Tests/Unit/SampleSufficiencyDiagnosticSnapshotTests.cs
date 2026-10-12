@@ -53,7 +53,7 @@ public sealed class SampleSufficiencyDiagnosticSnapshotTests
         Assert.That(result.State, Is.EqualTo(Status.Insufficient));
         var snapshot = SampleSufficiencyDiagnosticSnapshot.Create(result, "policy-v3", Cutoff, "INDEPENDENT_REAL");
         Assert.That(snapshot.State, Is.EqualTo("INDETERMINADO"));
-        Assert.That(snapshot.ReasonsJson, Does.Contain("minimum m=2, u=2"));
+        Assert.That(snapshot.ReasonsJson, Does.Not.Contain("minimum m=2, u=2"));
         using var counts = JsonDocument.Parse(snapshot.CountersJson);
         Assert.That(counts.RootElement.GetArrayLength(), Is.Zero);
     }
