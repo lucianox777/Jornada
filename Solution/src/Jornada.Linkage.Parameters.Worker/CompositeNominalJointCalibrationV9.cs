@@ -21,8 +21,8 @@ public sealed record CompositeNominalJointCalibrationV9(
     string BlockingFrameFingerprint,
     string LabelProvenance,
     string TrainingPartitionFingerprint,
-    long MatchedPairs,
-    long UnmatchedPairs,
+    long MatchedPairCount,
+    long UnmatchedPairCount,
     int BothClassesObservedCells,
     int ZeroClassSupportCells,
     IReadOnlyList<CompositeNominalJointCellV9> Cells);
