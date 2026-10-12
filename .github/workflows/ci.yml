@@ -57,7 +57,7 @@ jobs:
           fi
           python3 Solution/scripts/ci-impact-classifier.py --files-from changed-files.txt --summary impact.json | tee impact.env
           grep -E '^(run_full|run_dt10)=' impact.env >> "$GITHUB_OUTPUT"
-      - run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_dt12_branch_cleanup.py Solution/tests/scripts/test_dt12_merged_branch_cleanup.py Solution/tests/scripts/test_ci_required_gates.py Solution/tests/scripts/test_ci_watchdog.py Solution/tests/scripts/test_ci_run_profile.py
+      - run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_dt12_branch_cleanup.py Solution/tests/scripts/test_dt12_merged_branch_cleanup.py Solution/tests/scripts/test_ci_required_gates.py Solution/tests/scripts/test_ci_watchdog.py Solution/tests/scripts/test_ci_run_profile.py Solution/tests/scripts/test_ci_built_binary_gate.py
       - name: Verify lock-hashed NuGet cache cannot bypass required gates
         run: python3 Solution/scripts/test-ci-locked-nuget-cache-contract.py
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -382,6 +382,19 @@ jobs:
           include-hidden-files: true
           retention-days: 90
 
+      - name: Package SHA-provenanced Release files for same-run SQL reuse
+        run: python3 scripts/ci-built-binary-gate.py produce
+      - name: Upload exact-run Release binary evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ci-deterministic-release-binaries
+          path: |
+            Solution/.local/compiled-release/manifest.json
+            Solution/.local/compiled-release/release-binaries.tar.gz
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 3
+
   security-analysis:
     needs: [impact, dependency-lock]
     if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
@@ -507,8 +520,8 @@ jobs:
           retention-days: 90
 
   integration-sql:
-    needs: [impact, dependency-lock]
-    if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
+    needs: [impact, dependency-lock, deterministic-build]
+    if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success' && needs.deterministic-build.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     defaults:
@@ -548,7 +561,15 @@ jobs:
         run: |
           tar -xzf .local/nuget-lock-input/packages-locks.tar.gz -C .
           dotnet restore Jornada.sln --locked-mode
-      - run: dotnet build Jornada.sln --configuration Release --no-restore
+      # Built on the SAME checkout SHA by deterministic-build (two builds compared).
+      # GitHub artifact belongs to the current workflow run, never another run/cache.
+      - name: Download exact-run verified Release binaries
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        with:
+          name: ci-deterministic-release-binaries
+          path: Solution/.local/compiled-release
+      - name: Verify provenance and reuse compiled Release binaries
+        run: python3 scripts/ci-built-binary-gate.py consume
       - name: Create integration database
         run: |
           CID=$(docker ps -q --filter publish=1433 | head -1)
