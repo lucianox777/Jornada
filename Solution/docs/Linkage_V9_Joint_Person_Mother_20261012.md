@@ -97,9 +97,9 @@ restante. Expõe só extremos agregados de exclusões, quantidade de remoções
 e de casos sem previsão positiva: nenhuma chave de grupo, par, score ou
 nome é exportada.
 
-Com menos de **3 grupos independentes** no conjunto EVALUATION a
+Com menos de **3 grupos independentes por classe** em EVALUATION a
 sensibilidade é marcada `UNAVAILABLE_LT_3_INDEPENDENT_EVALUATION_GROUPS`;
-com pelo menos 3, cada exclusão deixa dois grupos. A participação falsa
+com pelo menos 3 em cada classe, cada exclusão deixa dois grupos por classe. A participação falsa
 permanece **nula/indefinida** se não há positivos previstos. Os extremos
 não devem mascarar a contagem de exclusões sem positivos: o mínimo/máximo
 ignora somente exclusões com denominador nulo e ambos ficam nulos se
