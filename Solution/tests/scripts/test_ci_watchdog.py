@@ -129,5 +129,35 @@ class CiWatchdogTests(unittest.TestCase):
         self.assertEqual(api.posts, [])
 
 
+    def test_checkpoint_counts_preserve_successful_jobs(self):
+        checkpoint = watch.summarize_checkpoint(jobs("success", "failure", "skipped"))
+        self.assertIn("1 succeeded", checkpoint)
+        self.assertIn("1 failed/blocked", checkpoint)
+        self.assertIn("1 skipped", checkpoint)
+        self.assertEqual(watch.summarize_checkpoint({
+            "total_count": 4, "jobs": jobs("success")["jobs"]
+        }), "checkpoint incomplete")
+
+    def test_workflow_resumes_on_ci_failure_and_keeps_hourly_fallback(self):
+        root = pathlib.Path(__file__).resolve().parents[3]
+        workflow = (root / ".github" / "workflows" / "ci-watchdog.yml").read_text(encoding="utf-8")
+        self.assertIn("workflow_run:\\n    workflows: [jornada-ci]", workflow)
+        self.assertIn("types: [completed]", workflow)
+        self.assertIn("cron: '17 * * * *'", workflow)
+        self.assertIn("ref: master", workflow)
+        self.assertIn("github.event.workflow_run.conclusion == 'failure'", workflow)
+        self.assertIn("actions: write", workflow)
+        self.assertIn("cancel-in-progress: false", workflow)
+        self.assertNotIn("contents: write", workflow)
+
+    def test_partial_resume_does_not_restart_all_successful_jobs(self):
+        api = FakeApi(job_results=jobs("success", "failure", "skipped"),
+                      logs={6: "The runner has received a shutdown signal"})
+        report = "\\n".join(watch.supervise(api, True, NOW))
+        self.assertEqual(api.posts, ["/actions/runs/123/rerun-failed-jobs"])
+        self.assertIn("checkpoint: 1 succeeded", report)
+        self.assertIn("retried failed jobs once", report)
+
+
 if __name__ == "__main__":
     unittest.main()
