@@ -34,12 +34,15 @@ jobs:
           # GitHub API access is read-only and event values enter via environment variables.
           gh api --paginate "repos/$REPO/actions/runs/$RUN_ID/jobs?per_page=100" \
             --jq '.jobs[] | [.name, .status, (.conclusion // "pending")] | @tsv' > jobs.tsv
+          # Failures are identified from job conclusions, not inferred from workflow status.
+          failed_count=$(awk -F '\t' '$3 == "failure" || $3 == "timed_out" || $3 == "action_required" { n++ } END { print n+0 }' jobs.tsv)
           {
             echo "## Jornada CI diagnostic"
             echo
             printf 'Run: %s\n\n' "$RUN_ID"
             printf 'Head SHA: %s\n\n' "$RUN_HEAD_SHA"
             printf 'Conclusion: %s\n\n' "$RUN_CONCLUSION"
+            printf 'Failed or blocked jobs: %s\\n\\n' "$failed_count"
             echo '| Job | Status | Conclusion |'
             echo '| --- | --- | --- |'
             while IFS=$'\t' read -r name status conclusion; do
