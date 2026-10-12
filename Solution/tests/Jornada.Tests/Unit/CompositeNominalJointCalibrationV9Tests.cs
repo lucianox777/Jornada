@@ -46,8 +46,8 @@ public sealed class CompositeNominalJointCalibrationV9Tests
             Assert.That(result.Status, Is.EqualTo(
                 CompositeNominalJointCalibrationEstimatorV9.Status));
             Assert.That(result.Cells, Has.Count.EqualTo(81));
-            Assert.That(result.MatchedPairs, Is.EqualTo(3));
-            Assert.That(result.UnmatchedPairs, Is.EqualTo(3));
+            Assert.That(result.MatchedPairCount, Is.EqualTo(3));
+            Assert.That(result.UnmatchedPairCount, Is.EqualTo(3));
             Assert.That(result.Cells.Sum(c => c.MatchedSupport), Is.EqualTo(3));
             Assert.That(result.Cells.Sum(c => c.UnmatchedSupport), Is.EqualTo(3));
             Assert.That(result.Cells.Sum(c => c.M), Is.EqualTo(1m).Within(0.000000000001m));
