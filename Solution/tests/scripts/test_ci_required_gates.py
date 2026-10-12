@@ -86,6 +86,79 @@ def test_unit_parallel_contracts_and_runtime_are_both_mandatory():
         assert proof in aggregate, "Missing same-run evidence proof: " + proof
 
 
+
+def test_security_guards_codeql_and_aggregate_are_independent_and_mandatory():
+    workflow = WORKFLOW.read_text(encoding="utf-8")
+
+    def job(name):
+        match = re.search(
+            rf"(?ms)^  {re.escape(name)}:\s*\n(.*?)(?=^  [a-z][a-z0-9-]*:\s*$|\Z)",
+            workflow,
+        )
+        assert match, "Missing security job: " + name
+        return match.group(1)
+
+    guards = job("security-guards")
+    codeql = job("security-codeql")
+    aggregate = job("security-analysis")
+
+    for part in (guards, codeql):
+        assert "needs: [impact, dependency-lock]" in part
+        assert "needs.dependency-lock.result == 'success'" in part
+        assert "dotnet restore Jornada.sln --locked-mode" in part
+        assert "dotnet restore tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj --locked-mode" in part
+        assert "dotnet-version: '10.0.112'" in part
+        assert "name: nuget-lockfiles" in part
+        assert "persist-credentials: false" in part
+        assert "if-no-files-found: error" in part
+
+    for item in (
+        "Test Bash SQL entrypoints keep local passwords out of argv",
+        "Gate source sanity and workflow action pins",
+        "Test secure local SQL credential bootstrap",
+        "Verify SQL credentials never enter CI Docker argv",
+        "Verify RC SQL commands use temporary environment credentials",
+        "Test Gitleaks scanner failure paths",
+        "GITLEAKS_LINUX_X64_SHA256",
+        "Scan current tree with Gitleaks",
+        "Audit NuGet vulnerabilities as structured evidence",
+        "vulnerability-evidence-gate.py",
+        "name: security-guards-evidence",
+    ):
+        assert item in guards, "Static security coverage dropped: " + item
+
+    for item in (
+        "security-events: write",
+        "github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2",
+        "github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2",
+        "queries: security-extended",
+        "build-mode: manual",
+        "dotnet build Jornada.sln --configuration Release --no-restore",
+        "upload: never",
+        "sarif-security-gate.py",
+        "name: security-codeql-evidence",
+    ):
+        assert item in codeql, "CodeQL protection dropped: " + item
+    assert "security-events: write" not in guards
+    assert "security-events: write" not in aggregate
+    assert "github/codeql-action" not in guards
+    assert "needs: [impact, security-guards, security-codeql]" in aggregate
+    assert "if: always() && needs.impact.outputs.run_full == 'true'" in aggregate
+    assert '"$GUARD_RESULT" == success' in aggregate
+    assert '"$CODEQL_RESULT" == success' in aggregate
+    for name in (
+        "security-guards-evidence", "security-codeql-evidence",
+        "security-analysis-evidence",
+    ):
+        assert "name: " + name in aggregate
+    for name in (
+        "gitleaks-current-tree.json", "vulnerability-summary.json",
+        "sarif-summary.json", "*.sarif",
+    ):
+        assert name in aggregate, "Missing same-run security evidence: " + name
+
+
+
 def test_dt10_reusable_job_has_same_gate_and_real_sql_acceptance():
     """DT10 moves to a reusable job without erasing the mandatory CI contract."""
     caller = WORKFLOW.read_text(encoding="utf-8")
@@ -185,6 +258,9 @@ class CiGateContractTests(unittest.TestCase):
 
     def test_parallel_e2e(self):
         test_parallel_e2e_keeps_both_real_suites_and_aggregated_gate()
+
+    def test_security_parallel(self):
+        test_security_guards_codeql_and_aggregate_are_independent_and_mandatory()
 
     def test_unit_parallel(self):
         test_unit_parallel_contracts_and_runtime_are_both_mandatory()
