@@ -40,7 +40,7 @@ A hipótese numérica de arredondamento ainda requer caracterização independen
 
 ## 3. Corpus: diversidade não é demonstrada apenas por N
 
-A proposta de **1.500.000 pessoas** é perfil de ensaio de escala **candidato**, não default pronto: o corpus corrente mantém **200.000** para iteração DEV enquanto processamento de lotes, memória e limite exato de pares não suportarem escala maior de modo comprovado.
+A proposta de **1.500.000 pessoas** é perfil de ensaio de escala **candidato**, não default pronto: o corpus primário vigente é de **30.000 pessoas** ([Decisões Canônicas, item 1](Decisoes_Canonicas_Identidade_Linkage_20260929.md)); 200.000 e 1.500.000 são apenas perfis opcionais de ensaio de escala.
 
 A fórmula `N / ln(130000)` estima aproximadamente a quantidade de prenomes cuja frequência esperada é >=1 no modelo Zipf simplificado, **não** o total de nomes distintos efetivamente observados. Exemplo hipotético com 130.000 categorias exatamente Zipf(1): com N=1.500.000, `soma_r [1-(1-p_r)^N]` corresponde a aproximadamente **109.000 / 84%**, não 127.000 / 98%. Não tratar 130.000, expoente 1 ou qualquer percentual como estatística medida do snapshot IBGE da Jornada. O `projection-manifest.json` corrente informa 330.059 linhas **somando prenomes e sobrenomes** no recorte `BRASIL_TOTAL`; o denominador de prenomes precisa ser medido na projeção tipada utilizada pelo gerador. Medir diversidade total, massa probabilística coberta, cauda por período/sexo/UF e convergência entre seeds, preservando pesos quando houver sobreamostragem.
 
