@@ -229,7 +229,9 @@ public sealed class LinkageParametersWorker(
             var unmatchedSample = await BlockingConditionedUnmatchedPairReader.ReadAsync(
                 connection, normalizationVersion, blocking.Passes, sampleSize, samplePoolSize,
                 decisionCalibrationSeed, decisionValidationBasisPoints, decisionTestBasisPoints,
-                readCommandTimeoutSeconds, workCt);
+                readCommandTimeoutSeconds, workCt,
+                collectPassPairIncidenceCensus: configuration.GetValue<bool>(
+                    "LinkageParameters:EnableV9BlockingPairIncidenceCensus"));
             var unmatchedPairs = unmatchedSample.Pairs;
             if (unmatchedPairs.Count == 0)
                 throw new InvalidOperationException("Amostra u vazia no universo do ruleset vencedor. O modelo permanece sem publicação.");
