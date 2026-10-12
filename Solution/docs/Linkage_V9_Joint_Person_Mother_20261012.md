@@ -23,3 +23,31 @@ Os 81 níveis têm frequências `M` e `U` *diagnósticas*, normalizadas separada
 5. A ausência da mãe pode ser informativa sobre mecanismos de coleta, mas **não** é uma evidência negativa automática; o tratamento decisório depende de calibração aprovada de ausências.
 
 **Status:** `DIAGNOSTIC_ONLY_JOINT_MU_NOT_CERTIFIED`. Esta PR integra apenas fundação estatística **não decisória**. V8, ativos, parâmetros persistidos, bancos, APIs e ledger seguem intocados.
+
+## Ponte matemática TRAIN → scorer FS V9 (preview somente, 12/10/2026)
+
+O adaptador `CandidateWeightedJointPreviewAdapterV9.FromTrainingDiagnostic`
+recebe o diagnóstico ponderado existente, **somente quando os estados foram
+recalculados de evidência bruta** pelo comparador V9 e o registro preserva
+a versão do desenho, partições, referências e suavização Kish ESS. Confere
+81 células exclusivas, probabilidades normalizadas, pesos/contagens com suas
+respectivas classes e grupos independentes. Copia as células para o DTO público
+`FellegiSunterJointNominalCellV9`, que o **mesmo scorer FS C#** aceita na
+API de pré-visualização matemática. A ponte não possui acesso a ativação,
+persistência de modelos, `Rank/Resolve` operacional nem decisões do cidadão.
+
+O teste usa `CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence`
+sobre corpus rotulado com partições TRAIN/EVALUATION, atravessa a ponte e
+executa `FellegiSunterScoring.CalculateCompositeNominalJointV9`. Rejeita
+sidecars de estados fornecidos pelo chamador, probabilidades alteradas,
+linhas duplicadas e metadados inconsistentes. Não infere paridade numérica
+com Splink nem melhora a representatividade do `BirthBlockingPlan`.
+
+**Importante:** o atributo `EvidenceGeneration` e os fingerprints são
+declarações do diagnóstico, **não assinatura da origem bruta ou certificação
+independente**. O desenho amostral atual não corresponde necessariamente ao
+blocking SQL temporal; a ponte não autoriza o uso operacional desses `m/u`
+na V9. Continuam faltando suporte populacional por célula, segurança TF,
+splits e testes adversariais cegos, FDR/FP/recall, vinculação de manifesto
+a um modelo e decisão DT-15. O roteamento V9 permanece explicitamente
+bloqueado. O histórico V8 segue inalterado.
