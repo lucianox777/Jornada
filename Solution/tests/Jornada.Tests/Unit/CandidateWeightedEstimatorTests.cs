@@ -1,5 +1,6 @@
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
+using Jornada.Linkage.Runner;
 
 namespace Jornada.Tests.Unit;
 
@@ -620,6 +621,73 @@ public sealed class CandidateWeightedEstimatorTests
         Assert.That(json, Does.Not.Contain("IndependenceGroupId"));
         Assert.That(json, Does.Not.Contain(Sources[3].ToString("D")));
         Assert.That(json, Does.Not.Contain("Nome Totalmente Diferente"));
+    }
+
+
+    [Test]
+    public async Task V9RawTrainingSnapshotFeedsExistingFsMathematicalPreviewWithoutActivation()
+    {
+        var capture = await CaptureAsync();
+        var validated = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var diagnostic = CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+            validated, raw, 0.5m);
+        var reverse = CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+            validated, raw.Reverse().ToArray(), 0.5m);
+
+        var snapshot = CandidateWeightedJointPreviewAdapterV9.FromTrainingDiagnostic(diagnostic);
+        var reordered = CandidateWeightedJointPreviewAdapterV9.FromTrainingDiagnostic(reverse);
+        var llr = FellegiSunterScoring.CalculateCompositeNominalJointV9(
+            "Maria Silva", "MARIA SILVA", "Ana Costa", "ANA COSTA",
+            snapshot, CompositeNominalComparisonV9.ContractVersion);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(snapshot, Has.Count.EqualTo(81));
+            Assert.That(reordered, Is.EqualTo(snapshot));
+            Assert.That(double.IsFinite(llr), Is.True);
+            Assert.That(diagnostic.Status, Is.EqualTo(
+                CandidateWeightedJointNominalEstimatorV9.Status));
+            Assert.That(System.Text.Json.JsonSerializer.Serialize(snapshot), Does.Not.Contain(
+                Sources[0].ToString("D")));
+            Assert.That(System.Text.Json.JsonSerializer.Serialize(snapshot),
+                Does.Not.Contain("Maria Silva"));
+        }));
+    }
+
+    [Test]
+    public async Task V9PreviewBridgeRejectsUnverifiedSidecarsAndInconsistentTrainingEvidence()
+    {
+        var capture = await CaptureAsync();
+        var validated = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var trustedDerivation = CandidateWeightedJointNominalEstimatorV9.EstimateFromRawEvidence(
+            validated, raw, 0.5m);
+        var sidecar = CandidateWeightedJointNominalEstimatorV9.Estimate(
+            validated, V9Levels(capture), 0.5m);
+
+        var changedProbabilities = trustedDerivation.Cells.ToArray();
+        changedProbabilities[0] = changedProbabilities[0] with { M = 0.9m };
+        var duplicatedCell = trustedDerivation.Cells.ToArray();
+        duplicatedCell[1] = duplicatedCell[0];
+
+        void Reject(CandidateWeightedJointDiagnosticV9 value) =>
+            Assert.That((Action)(() =>
+                CandidateWeightedJointPreviewAdapterV9.FromTrainingDiagnostic(value)),
+                Throws.InvalidOperationException);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Reject(sidecar);
+            Reject(trustedDerivation with { Cells = changedProbabilities });
+            Reject(trustedDerivation with { Cells = duplicatedCell });
+            Reject(trustedDerivation with { FrameFingerprint = "" });
+            Reject(trustedDerivation with { SamplingDesignVersion = "SQL_BLOCKING_UNATTESTED" });
+            Reject(trustedDerivation with { Matched = trustedDerivation.Matched with
+                { IndependentTrainingGroups = 1 } });
+            Reject(trustedDerivation with { Unmatched = trustedDerivation.Unmatched with
+                { TrainingPairCount = trustedDerivation.Unmatched.TrainingPairCount + 1 } });
+            Reject(trustedDerivation with { Status = "CERTIFIED" });
+        }));
     }
 
     private static IReadOnlyList<CandidateNominalV9RawEvidence> V9RawEvidence(
