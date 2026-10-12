@@ -48,7 +48,7 @@ Limitações aceitas e declaradas: não se modelam dia da semana, feriados, conc
 
 ## Tamanho do corpus demográfico primário
 
-O tamanho padrão é **30.000 pessoas** (substitui 9.596). Justificativa e limites: [Decisões Canônicas, item 1](Decisoes_Canonicas_Identidade_Linkage_20260929.md).
+O tamanho padrão é **30.000 pessoas** (substitui 9.596). **É um corpus sintético gerado a partir das frequências IBGE e das hipóteses explícitas do gerador; não é uma amostra aleatória simples de pessoas reais.** A fórmula clássica de margem amostral serviu somente como referência de dimensionamento. Justificativa e limites: [Decisões Canônicas, item 1](Decisoes_Canonicas_Identidade_Linkage_20260929.md).
 
 A seed padrão permanece 42 e participa do fingerprint. `--people` continua disponível para ensaios explícitos de sensibilidade/escala; o padrão reprodutível desta decisão é 30.000.
 

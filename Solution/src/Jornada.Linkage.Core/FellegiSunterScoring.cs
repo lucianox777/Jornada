@@ -21,8 +21,77 @@ public sealed record FellegiSunterScoreBreakdown(
     decimal PriorLogOdds,
     IReadOnlyList<FellegiSunterEvidenceContribution> Contributions);
 
+/// <summary>
+/// One frozen, mutually exclusive (person,mother) nominal state for V9.
+/// The 81-cell probability table comes from externally certified calibration;
+/// this type is NOT an authorization to publish or activate a model.
+/// </summary>
+public sealed record FellegiSunterJointNominalCellV9(
+    CompositeNominalLevelV9 Person,
+    CompositeNominalLevelV9 Mother,
+    decimal M,
+    decimal U);
+
 public static class FellegiSunterScoring
 {
+    /// <summary>
+    /// V9 nominal term inside the EXISTING C# Fellegi-Sunter math:
+    /// one exclusive joint state contributes ln(m/u) exactly once, rather
+    /// than separately adding person/full/first/last/mother marginal LLRs.
+    /// No thresholds, blocking, TF, prior, candidate ranking or model
+    /// activation are performed by this method.
+    ///
+    /// The Calibrador must separately attest TRAIN/VALIDATION/TEST support,
+    /// frame, source, confidence and model approval before it may persist
+    /// these 81 cells. This mathematical method cannot attest provenance.
+    /// </summary>
+    public static double CalculateCompositeNominalJointV9(
+        string? leftPersonName,
+        string? rightPersonName,
+        string? leftMotherName,
+        string? rightMotherName,
+        IReadOnlyCollection<FellegiSunterJointNominalCellV9> jointCells,
+        string nominalContractVersion)
+    {
+        ArgumentNullException.ThrowIfNull(jointCells);
+        if (!string.Equals(nominalContractVersion,
+            CompositeNominalComparisonV9.ContractVersion, StringComparison.Ordinal))
+            throw new InvalidOperationException("Contrato de comparação nominal V9 não é compatível.");
+
+        var levels = Enum.GetValues<CompositeNominalLevelV9>();
+        if (jointCells.Count != levels.Length * levels.Length)
+            throw new InvalidOperationException("V9 exige os 81 estados conjuntos nominais completos.");
+
+        var visited = new HashSet<(CompositeNominalLevelV9 Person, CompositeNominalLevelV9 Mother)>();
+        decimal sumM = 0m, sumU = 0m;
+        FellegiSunterJointNominalCellV9? selected = null;
+        var observedPerson = CompositeNominalComparisonV9.Classify(leftPersonName, rightPersonName);
+        var observedMother = CompositeNominalComparisonV9.Classify(leftMotherName, rightMotherName);
+
+        foreach (var cell in jointCells)
+        {
+            if (cell is null || !Enum.IsDefined(cell.Person) || !Enum.IsDefined(cell.Mother)
+                || !visited.Add((cell.Person, cell.Mother))
+                || cell.M <= 0m || cell.M > 1m || cell.U <= 0m || cell.U > 1m)
+                throw new InvalidOperationException("V9 exige estados exclusivos e probabilidades válidas em M/U.");
+
+            sumM += cell.M;
+            sumU += cell.U;
+            if (cell.Person == observedPerson && cell.Mother == observedMother)
+                selected = cell;
+        }
+
+        if (selected is null || Math.Abs(sumM - 1m) > 0.000001m
+            || Math.Abs(sumU - 1m) > 0.000001m)
+            throw new InvalidOperationException("V9 exige distribuições conjuntas M/U normalizadas.");
+
+        // Same float64 natural-log convention as the existing FS kernel.
+        var llr = Math.Log((double)selected.M / (double)selected.U);
+        if (!double.IsFinite(llr))
+            throw new InvalidOperationException("V9 nominal produziu contribuição não finita.");
+        return llr;
+    }
+
     public static decimal CalculatePosterior(
         IReadOnlyDictionary<string, decimal> parameters,
         NameComparisonState? nameState,

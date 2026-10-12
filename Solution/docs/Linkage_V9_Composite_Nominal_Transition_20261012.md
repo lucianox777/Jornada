@@ -38,6 +38,12 @@ A precedência elimina dupla contagem **dentro do campo**. Os níveis e threshol
 - Não acrescentar LLRs de nome completo, prenome e sobrenome independentes. Para um estado V9, usar um fator `ln(m_nivel/u_nivel)` calibrado por universo bloqueado e ajuste TF do mesmo contrato, se válido.
 - Correlação **entre pessoa e mãe** também precisa ser estudada: não interpretar dois fatores como independentes sem medição/validação.
 
+## Implementação no núcleo FS existente — termo conjunto V9 (etapa posterior)
+
+O método `FellegiSunterScoring.CalculateCompositeNominalJointV9` já está **no mesmo código C# do scorer Fellegi–Sunter utilizado pela Jornada**, e não em um segundo motor de decisão. Ele recebe os dois nomes de pessoa, os dois nomes de mãe, a versão congelada do comparador V9 e uma tabela completa de **81 estados conjuntos exclusivos** `(nível_pessoa, nível_mãe, m, u)`. Classifica os nomes com `CompositeNominalComparisonV9` e retorna a **única contribuição nominal** `ln(m/u)` daquele par de estados. Rejeita tabela parcial, duplicada, versão errada, probabilidades nulas/inválidas e distribuições `m/u` não normalizadas; não fabrica ausência neutra, porque `Missing` só será neutro quando o modelo calibrado assim determinar. Nome integral e componentes não geram LLRs nominais aditivos. Testes cobrem `m=u` (LLR zero), mãe ausente, primeiro+último com intermediário divergente e proteção contra duplicação de evidência.
+
+**Limite de integração:** esta rotina implementa o **termo matemático nominal** no FS C#, não liga uma `AlgorithmVersion=V9` ao `Rank/Resolve`, não seleciona um modelo/TF, não prova que as 81 probabilidades foram certificadas e não altera parâmetros já ativos. Para usá-la operacionalmente ainda é necessário conectar o snapshot V9 governado ao `Evaluate` do FS, em substituição — e não em soma — às contribuições nominais legadas, e passar pelos gates de promoção abaixo. A prioridade é concluir essa integração e a calibração V9; **otimizações adicionais de censo opcional de pares no SQL não são pré-requisito para criar o scorer nominal**.
+
 ## Critérios de promoção (não concluídos por esta PR)
 
 1. Capturar estados V9 do TRAIN e dos pares U **condicionados ao blocking**; estimar distribuições `m/u` por nível com suavização, suporte e incerteza explícitos.

@@ -1,5 +1,7 @@
 # V9 — auditoria do universo SQL: incidências completas versus pareamento adjacente
 
+**Esclarecimento de escopo (12/10/2026):** o termo *censo* deste documento refere-se **exclusivamente à contagem opcional de pares de candidatos das chaves materiais SQL dentro de um subframe Gold TRAIN**. **Não é o Censo Demográfico 2022 do IBGE**, cujas distribuições publicadas alimentam o corpus sintético de 30.000 pessoas. A camada de referência IBGE já existe no sistema; não se deve recriá-la nem condicionar a evolução V9 a este diagnóstico opcional. O modo SQL opt-in existe apenas para limitar consultas de custo quadrático e investigar deduplicação de pares; não é pré-requisito de operação de referência IBGE. Reduzir, por exemplo, **120 candidatos para 60** pode ajudar no desempenho, mas não demonstra, isoladamente, benefício material na resolução, na segurança ou na calibração. A prioridade volta a ser o **único scorer FS V9**, seus estados/TF corretamente calibrados e a validação contra Splink/FP/FDR/recall.
+
 **12/10/2026 — etapa 12 da issue #946.** Incremento diagnóstico **opcional e somente leitura**. Não altera V8 histórica, scorer, pesos FS, modelos ATIVOS, `Rank/Resolve`, `VALIDATE/ACTIVATE`, tabelas, índices, snapshots ou parâmetros publicados.
 
 ## Lacuna estatística identificada
