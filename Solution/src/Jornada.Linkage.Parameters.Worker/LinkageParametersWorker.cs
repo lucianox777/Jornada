@@ -272,6 +272,20 @@ public sealed class LinkageParametersWorker(
                     attribute.UnmatchedMissing, exactM, exactU);
             }
 
+            // Joint person+mother nominal states retain empirical dependence,
+            // including missing mother data. Never multiply name marginals
+            // or publish these unweighted, uncertified M/U probabilities.
+            if (v9Audit.Joint is { } jointNominal)
+                logger.LogInformation(
+                    "Linkage V9 joint nominal TRAIN audit: status={Status}; " +
+                    "matchedPairs={MatchedPairs}; unmatchedPairs={UnmatchedPairs}; " +
+                    "exclusiveJointCells={Cells}; bothClassSupportedCells={BothSupported}; " +
+                    "zeroClassSupportCells={SparseCells}; " +
+                    "scoringChanged=false; independentValidationCertified=false; published=false",
+                    jointNominal.Status, jointNominal.MatchedPairs,
+                    jointNominal.UnmatchedPairs, jointNominal.Cells.Count,
+                    jointNominal.BothClassesObservedCells, jointNominal.ZeroClassSupportCells);
+
             // TF V9: only an aggregate endpoint-support audit on the U sample.
             // Endpoint frequencies of a pair-sampled, blocking-conditioned pool
             // are NOT unbiased population f(value) estimates and cannot be
