@@ -723,6 +723,11 @@ public sealed class CandidateWeightedEstimatorTests
             Assert.That(result.ObservedWeightedRecallShare, Is.EqualTo(1m));
             Assert.That(result.MatchedEvaluationEffectiveSampleSize, Is.EqualTo(2m));
             Assert.That(result.UnmatchedEvaluationEffectiveSampleSize, Is.EqualTo(4m));
+            Assert.That(result.GroupSensitivity.Status, Is.EqualTo(
+                CandidateWeightedJointFsHoldoutPreviewV9.InsufficientGroupsStatus));
+            Assert.That(result.GroupSensitivity.IndependentGroups, Is.EqualTo(2));
+            Assert.That(result.GroupSensitivity.RemovalsEvaluated, Is.Zero);
+            Assert.That(result.GroupSensitivity.MinimumObservedFalseDiscoveryShare, Is.Null);
         }));
         var json = System.Text.Json.JsonSerializer.Serialize(result);
         Assert.That(json, Does.Not.Contain("SourceId"));
@@ -808,6 +813,56 @@ public sealed class CandidateWeightedEstimatorTests
                     validated, raw, new Dictionary<string, decimal>(), .5m, .5m)),
                 Throws.InvalidOperationException);
         }));
+    }
+
+    [Test]
+    public async Task V9FsHoldoutGroupDeletionShowsConcentratedFalsePositivesWithoutExposingGroupIdentity()
+    {
+        var capture = await CaptureAsync();
+        var baseCorpus = Corpus(capture);
+        // Three EVALUATION sources/groups, still three TRAIN groups in
+        // each class; a deletion leaves two independent EVALUATION groups.
+        var moved = baseCorpus.Partitions.Select(p => p.SourceId == Sources[3]
+            ? p with { Partition = CandidateCorpusPartition.Evaluation } : p).ToArray();
+        var validated = CandidateLabeling.Validate(capture,
+            baseCorpus with { Partitions = moved });
+        var raw = V9RawEvidence(capture);
+        var target = raw.First(x => x.SourceId == Sources[4]
+            && x.Values.LeftName == "Maria Aparecida Silva"
+            && x.Values.LeftMother is not null);
+        var edited = raw.Select(x => x == target
+            ? x with { Values = x.Values with
+                { RightName = x.Values.LeftName, RightMother = x.Values.LeftMother } }
+            : x).ToArray();
+
+        var baseline = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            validated, raw, V9FsPreviewParameters(), .5m, .5m);
+        var adversarial = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            validated, edited, V9FsPreviewParameters(), .5m, .5m);
+        var empty = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            validated, raw, V9FsPreviewParameters(), .99m, .5m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(baseline.GroupSensitivity.Status, Is.EqualTo(
+                CandidateWeightedJointFsHoldoutPreviewV9.SensitivityStatus));
+            Assert.That(baseline.GroupSensitivity.IndependentGroups, Is.EqualTo(3));
+            Assert.That(baseline.GroupSensitivity.RemovalsEvaluated, Is.EqualTo(3));
+            Assert.That(baseline.GroupSensitivity.MinimumObservedFalseDiscoveryShare, Is.EqualTo(0m));
+            Assert.That(baseline.GroupSensitivity.MaximumObservedFalseDiscoveryShare, Is.EqualTo(0m));
+            Assert.That(baseline.GroupSensitivity.MinimumObservedRecallShare, Is.EqualTo(1m));
+            Assert.That(adversarial.FalsePositivePairs, Is.GreaterThan(0));
+            Assert.That(adversarial.GroupSensitivity.MinimumObservedFalseDiscoveryShare, Is.EqualTo(0m));
+            Assert.That(adversarial.GroupSensitivity.MaximumObservedFalseDiscoveryShare, Is.GreaterThan(0m));
+            Assert.That(adversarial.GroupSensitivity.MinimumObservedRecallShare, Is.EqualTo(1m));
+            Assert.That(empty.GroupSensitivity.MinimumObservedFalseDiscoveryShare, Is.Null);
+            Assert.That(empty.GroupSensitivity.MaximumObservedFalseDiscoveryShare, Is.Null);
+            Assert.That(empty.GroupSensitivity.RemovalsWithNoPredictedPositivePairs, Is.EqualTo(3));
+            Assert.That(empty.GroupSensitivity.MaximumObservedRecallShare, Is.EqualTo(0m));
+        }));
+        var json = System.Text.Json.JsonSerializer.Serialize(adversarial);
+        Assert.That(json, Does.Not.Contain("IndependenceGroupId"));
+        Assert.That(json, Does.Not.Contain(Sources[4].ToString("D")));
+        Assert.That(json, Does.Not.Contain("Maria Aparecida Silva"));
     }
 
     private static IReadOnlyList<CandidateNominalV9RawEvidence> V9RawEvidence(
