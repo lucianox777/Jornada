@@ -190,7 +190,11 @@ internal sealed record OperationalMonitorSnapshot(
     IReadOnlyList<LinkageModelTransitionStatus> LinkageModelTransitions,
     IReadOnlyList<LinkageRunStatus> LinkageRuns,
     LinkageCalibrationSummary LinkageCalibration,
-    IbgeReferenceReadiness IbgeReference);
+    IbgeReferenceReadiness IbgeReference)
+{
+    // Optional, strictly observational DT23 panel. Never used in readiness gates.
+    public Dt23MonitorReadOnlyService.Preview? SampleSufficiencyDiagnostic { get; init; }
+}
 
 internal sealed class OperationalMonitorService(IOperationalSqlAdapter connections)
 {

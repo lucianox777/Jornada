@@ -85,6 +85,10 @@ public static class OperationalMonitorApi
             try
             {
                 var monitor = await new OperationalMonitorService(operationalSql).GetAsync(ct);
+                // DT23 is an optional, bounded, fail-closed read. A policy record
+                // cannot certify independent evidence or trigger calibration.
+                var preview = await Dt23MonitorReadOnlyService.GetAsync(operationalSql, ct);
+                monitor = monitor with { SampleSufficiencyDiagnostic = preview };
                 var ready = await readiness.CheckAsync(ct);
                 return Results.Ok(new
                 {

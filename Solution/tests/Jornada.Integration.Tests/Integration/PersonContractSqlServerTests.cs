@@ -170,11 +170,10 @@ public sealed class PersonContractSqlServerTests
 
         var builder = new SqlConnectionStringBuilder(connectionString);
         var database = builder.InitialCatalog ?? string.Empty;
-        if (!database.Contains("test", StringComparison.OrdinalIgnoreCase)
-            && !database.Contains("dev", StringComparison.OrdinalIgnoreCase)
-            && !database.Contains("local", StringComparison.OrdinalIgnoreCase))
+        if (!database.Equals("JornadaE2E", StringComparison.OrdinalIgnoreCase)
+            && !database.Equals("JornadaSyntheticDev", StringComparison.OrdinalIgnoreCase))
         {
-            Assert.Fail("Por segurança, o banco de integração deve conter 'Test', 'Dev' ou 'Local' no nome.");
+            Assert.Fail("Por segurança, somente os bancos descartáveis JornadaE2E e JornadaSyntheticDev são permitidos.");
         }
 
         return connectionString!;
