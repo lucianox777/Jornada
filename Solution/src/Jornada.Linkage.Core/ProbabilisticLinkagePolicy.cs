@@ -143,6 +143,55 @@ internal static class LinkageModelPolicy
 
 internal static class ProbabilisticLinkageDecisions
 {
+    /// <summary>
+    /// Development-only end-to-end V9 candidate-ranking preview on the SAME
+    /// C# FS scorer and same candidate deduplication as operational Rank.
+    /// There is deliberately no AlgorithmVersion dispatch, persistence, or
+    /// Resolve/ACTIVATE route. No score is released to an attendant.
+    /// A certified joint-m/u snapshot and TF weights remain prerequisites.
+    /// </summary>
+    internal static IReadOnlyList<CandidateScore> RankCompositeNominalV9Preview(
+        IReadOnlyDictionary<string, decimal> parameters,
+        IdentityObservation observation,
+        IReadOnlyList<LinkageCandidate> candidates,
+        IReadOnlyCollection<FellegiSunterJointNominalCellV9> jointCells,
+        string nominalContractVersion)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(observation);
+        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(jointCells);
+        if (!string.IsNullOrWhiteSpace(observation.Cpf))
+            throw new InvalidOperationException(
+                "Ranking probabilístico V9 só é permitido quando observação não possui CPF.");
+
+        var unique = DeduplicateCandidates(candidates);
+        if (unique.Count == 0)
+            return Array.Empty<CandidateScore>();
+
+        return unique.Select(candidate =>
+            {
+                var breakdown = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                    parameters,
+                    observation.NomeCompleto, candidate.NomeCompleto,
+                    observation.NomeMae, candidate.NomeMae,
+                    jointCells, nominalContractVersion,
+                    unique.Count,
+                    observation.DataNascimento, candidate.DataNascimento);
+                var fullExact = CompositeNominalComparisonV9.Classify(
+                    observation.NomeCompleto, candidate.NomeCompleto)
+                    == CompositeNominalLevelV9.ExactFull;
+                var exactBirth = observation.DataNascimento is { } birth
+                    && candidate.DataNascimento == birth;
+                return new CandidateScore(
+                    candidate.PessoaUuid, breakdown.Score.Posterior,
+                    breakdown.Score.LogOdds, fullExact && exactBirth);
+            })
+            .OrderByDescending(x => x.LogOdds)
+            .ThenBy(x => x.PessoaUuid)
+            .ToArray();
+    }
+
     internal static IReadOnlyList<CandidateScore> Rank(
         LinkageModel model,
         IdentityObservation observation,
