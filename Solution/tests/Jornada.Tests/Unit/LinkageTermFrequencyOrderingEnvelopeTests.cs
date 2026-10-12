@@ -50,7 +50,7 @@ public sealed class LinkageTermFrequencyOrderingEnvelopeTests
                 Is.EqualTo(Math.Log(.25d / .6d)).Within(1e-12));
             Assert.That(result.IsStrictlyOrdered, Is.False);
         }));
-        Assert.That((TestDelegate)(() =>
+        Assert.That((Action)(() =>
                 LinkageTermFrequencyOrderingEnvelope.RequireStrictOrdering(Parameters(), Snapshot())),
             Throws.InvalidOperationException.With.Message.Contains("EXACT pode ficar abaixo/empatar HIGH"));
     }
@@ -64,7 +64,7 @@ public sealed class LinkageTermFrequencyOrderingEnvelopeTests
         var results = LinkageTermFrequencyOrderingEnvelope.Assess(parameters, Snapshot());
         Assert.That(results, Has.Count.EqualTo(2));
         Assert.That(results.All(x => x.IsStrictlyOrdered), Is.True);
-        Assert.DoesNotThrow((TestDelegate)(() =>
+        Assert.DoesNotThrow((Action)(() =>
             LinkageTermFrequencyOrderingEnvelope.RequireStrictOrdering(parameters, Snapshot())));
         // TF math is unchanged; verification is pre-publish only.
         var exact = results.Single(x => x.Attribute == "NOME");
@@ -85,7 +85,7 @@ public sealed class LinkageTermFrequencyOrderingEnvelopeTests
         var results = LinkageTermFrequencyOrderingEnvelope.Assess(parameters, Snapshot());
         Assert.That(results.Single(x => x.Attribute == "NOME").IsStrictlyOrdered, Is.True);
         Assert.That(results.Single(x => x.Attribute == "NOME_MAE").IsStrictlyOrdered, Is.False);
-        Assert.That((TestDelegate)(() =>
+        Assert.That((Action)(() =>
                 LinkageTermFrequencyOrderingEnvelope.RequireStrictOrdering(parameters, Snapshot())),
             Throws.InvalidOperationException.With.Message.Contains("NOME_MAE"));
     }
@@ -117,15 +117,15 @@ public sealed class LinkageTermFrequencyOrderingEnvelopeTests
     {
         var p = Parameters();
         p.Remove("U_NOME_HIGH");
-        Assert.That((TestDelegate)(() => LinkageTermFrequencyOrderingEnvelope.Assess(p, Snapshot())),
+        Assert.That((Action)(() => LinkageTermFrequencyOrderingEnvelope.Assess(p, Snapshot())),
             Throws.InvalidOperationException.With.Message.Contains("U_NOME_HIGH"));
         p = Parameters();
         p[LinkageParameterCatalog.TermFrequencyMinimumU] = 0m;
-        Assert.That((TestDelegate)(() => LinkageTermFrequencyOrderingEnvelope.Assess(p, Snapshot())),
+        Assert.That((Action)(() => LinkageTermFrequencyOrderingEnvelope.Assess(p, Snapshot())),
             Throws.InvalidOperationException.With.Message.Contains("Peso ou piso TF"));
         p = Parameters();
         p[LinkageParameterCatalog.TermFrequencyWeight] = -1m;
-        Assert.That((TestDelegate)(() => LinkageTermFrequencyOrderingEnvelope.Assess(p, Snapshot())),
+        Assert.That((Action)(() => LinkageTermFrequencyOrderingEnvelope.Assess(p, Snapshot())),
             Throws.InvalidOperationException.With.Message.Contains("Peso ou piso TF"));
     }
 }
