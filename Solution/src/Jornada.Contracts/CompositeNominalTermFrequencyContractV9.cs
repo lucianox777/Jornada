@@ -19,7 +19,11 @@ public enum NominalFrequencyUnitV9
 public enum NominalFrequencySourceV9
 {
     IndependentlyObservedPopulation,
-    IbgePublishedMarginal
+    IbgePublishedMarginal,
+    // DC-LK-TF: surname counted in ANY position is allowed only as an
+    // explicitly identified INITIAL PROXY for the last content surname.
+    // Never mislabel this as the empirically observed last-position rate.
+    IbgeSurnameAnyPositionProxy
 }
 
 public sealed record NominalFrequencyReferenceContractV9(
@@ -37,7 +41,7 @@ public sealed record NominalFrequencyReferenceContractV9(
 /// </summary>
 public static class CompositeNominalTermFrequencyContractV9
 {
-    public const string Version = "V9_NOMINAL_TF_UNIT_GUARD_V1";
+    public const string Version = "V9_NOMINAL_TF_UNIT_GUARD_V2";
 
     public static NominalFrequencyUnitV9? RequiredUnit(CompositeNominalLevelV9 level) =>
         level switch
@@ -74,14 +78,21 @@ public static class CompositeNominalTermFrequencyContractV9
             throw new InvalidOperationException(
                 $"TF V9 rejeitada: nível {level} exige unidade {expectedUnit}, recebida {reference.Unit}.");
 
-        // The published IBGE name marginal covers FIRST name. The published
-        // surname marginal includes ANY surname position, and is NOT a
-        // LAST-content-surname distribution. Neither provides a full-name
-        // distribution nor an observed joint first+last frequency.
+        // DC-LK-TF, Decisoes_Canonicas_Identidade_Linkage_20260929.md:95:
+        // the published surname frequency covers ANY surname position, so
+        // it is an authorized initial PROXY for LastContentSurname, NOT the
+        // observed last-position distribution. Require explicit proxy source
+        // to avoid silently treating the IBGE marginal as empirically exact.
+        // Neither IBGE marginal supports full-name or first+last JOINT TF.
         if (reference.Source == NominalFrequencySourceV9.IbgePublishedMarginal
             && expectedUnit != NominalFrequencyUnitV9.FirstName)
             throw new InvalidOperationException(
-                "Marginais publicadas do IBGE não atestam nome integral, par conjunto ou último sobrenome.");
+                "Marginal IBGE de prenome somente é compatível com FirstName; sobrenome exige fonte proxy explícita.");
+
+        if (reference.Source == NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
+            && expectedUnit != NominalFrequencyUnitV9.LastContentSurname)
+            throw new InvalidOperationException(
+                "Proxy IBGE de sobrenome em qualquer posição só é compatível com LastContentSurname.");
 
         if (string.IsNullOrWhiteSpace(reference.PopulationFrameFingerprint)
             || string.IsNullOrWhiteSpace(reference.BlockingFrameFingerprint)
