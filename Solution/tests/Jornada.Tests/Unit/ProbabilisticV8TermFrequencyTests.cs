@@ -154,8 +154,12 @@ public sealed class ProbabilisticV8TermFrequencyTests
         // The fixture sets M_NOME == U_NOME for all states and is not calibrated.
         // It cannot establish a universal EXACT > HIGH decision policy.
         Assert.That(ranked.Select(x => x.PessoaUuid), Is.EquivalentTo(new[] { exactId, highId }));
-        Assert.That(ranked[0].LogOdds, Is.GreaterThanOrEqualTo(ranked[1].LogOdds),
-            "Rank must order the computed FS/TF log-odds, not a fixed name-state preference.");
+        // Red regression: in an otherwise identical context, the TF correction
+        // must not promote a HIGH near-match over the EXACT candidate.
+        // This exposes the common-name TF inversion; do not mask it by
+        // changing the fixture, weakening the assertion or bypassing CI.
+        Assert.That(ranked[0].PessoaUuid, Is.EqualTo(exactId),
+            "TF inverted EXACT/HIGH ordering for the same observation and context.");
         TestContext.WriteLine($"P0 EXACT/HIGH synthetic diagnostic: first={ranked[0].PessoaUuid}; " +
             $"firstLogOdds={ranked[0].LogOdds}; secondLogOdds={ranked[1].LogOdds}; " +
             $"exactFirst={ranked[0].PessoaUuid == exactId}. " +
