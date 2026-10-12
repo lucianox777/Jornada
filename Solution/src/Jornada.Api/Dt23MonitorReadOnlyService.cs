@@ -58,5 +58,15 @@ internal static class Dt23MonitorReadOnlyService
             // diagnostic must not take down the existing operational Monitor.
             return null;
         }
+        catch (TimeoutException) when (!ct.IsCancellationRequested)
+        {
+            // A timed-out optional diagnostic is unavailable, never certified.
+            return null;
+        }
+        catch (InvalidOperationException) when (!ct.IsCancellationRequested)
+        {
+            // Connection/reader state failures must not interrupt core monitoring.
+            return null;
+        }
     }
 }
