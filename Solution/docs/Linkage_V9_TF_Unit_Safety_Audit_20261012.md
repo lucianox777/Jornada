@@ -14,7 +14,7 @@ A nova biblioteca `CompositeNominalTermFrequencyContractV9` associa cada estado 
 | `ExactLast` | `LastContentSurname` |
 | `Missing`, `Other`, `HighFull`, `HighFirstLast`, `ReversedFirstLast` | **Nenhuma**: TF fica neutra até contrato específico validado |
 
-`RequireMatchingReference` falha fechado para unidade incompatível, fonte desconhecida, ausência de fingerprint de frame/seleção, suporte abaixo do mínimo e ausência de atestado de validação independente do universo. Em particular, proíbe usar a marginal publicada de primeiro nome para corrigir o `ExactFull`, ou criar a frequência `FirstLastJoint` a partir de marginais IBGE. Os metadados passados pelo chamador **não são prova** de representatividade; o gate não estima `f(value)` nem autentica um atestado externo.
+`RequireMatchingReference` falha fechado para unidade incompatível, fonte desconhecida, ausência de fingerprint de frame/seleção, suporte abaixo do mínimo e ausência de atestado de validação independente do universo. Em particular, proíbe usar a marginal publicada de primeiro nome para corrigir o `ExactFull`, ou criar a frequência `FirstLastJoint` a partir de marginais IBGE. Também rejeita a marginal IBGE de sobrenomes para `LastContentSurname`, pois a frequência publicada cobre sobrenomes em **qualquer posição**, não especificamente o último sobrenome significativo. Os metadados passados pelo chamador **não são prova** de representatividade; o gate não estima `f(value)` nem autentica um atestado externo.
 
 ## Evidência agregada no TRAIN
 
