@@ -289,6 +289,13 @@ public sealed class LinkageParametersWorker(
                 [LinkageParameterCatalog.TermFrequencyFirstTokenContract] = 1m
             };
 
+            // V8/TF pre-publication safety: reject a NEW uncalibrated draft if
+            // any published high-frequency first name can make EXACT rank below
+            // HIGH with otherwise equal evidence. Do not alter posterior, LLR
+            // or replay of existing/persisted models. Requires recalibration.
+            LinkageTermFrequencyOrderingEnvelope.RequireStrictOrdering(
+                modelParameters, termFrequency.Snapshot);
+
             var decisionCalibrationScenarios = await BlockingDecisionThresholdCalibrationReader.ReadAsync(
                 connection,
                 normalizationVersion,
