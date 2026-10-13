@@ -67,9 +67,9 @@ public sealed class V9BlockingTruthLossAuditTests
         [
             new(0, 1, "TRAIN", false, true, false, true, true)
         ];
-        Assert.Throws<InvalidDataException>(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9BlockingTruthLossAudit.Analyze(
-                eligible, new HashSet<(int A, int B)> { (0, 2) }));
+                eligible, new HashSet<(int A, int B)> { (0, 2) })));
     }
 
     [Test]
@@ -77,14 +77,14 @@ public sealed class V9BlockingTruthLossAuditTests
     {
         var pair = new V9BlockingTruthLossAudit.Pair(
             0, 1, "TEST", false, true, false, true, true);
-        Assert.Throws<InvalidDataException>(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9BlockingTruthLossAudit.Analyze([pair, pair],
-                new HashSet<(int A, int B)>()));
-        Assert.Throws<InvalidDataException>(() =>
+                new HashSet<(int A, int B)>())));
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9BlockingTruthLossAudit.Analyze([pair with { NameMissing = true }],
-                new HashSet<(int A, int B)>()));
-        Assert.Throws<InvalidDataException>(() =>
+                new HashSet<(int A, int B)>())));
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9BlockingTruthLossAudit.Analyze([pair with { Partition = "OTHER" }],
-                new HashSet<(int A, int B)>()));
+                new HashSet<(int A, int B)>())));
     }
 }
