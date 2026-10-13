@@ -240,7 +240,7 @@ public sealed class BlockingRuleSetSearchTests
     [Test]
     public void SearchBest_FailsClosedInsteadOfSilentlyTruncatingLargeUnionSpace()
     {
-        var features = Enumerable.Range(0, 26).Select(i => "f" + i.ToString("D2")).ToArray();
+        var features = Enumerable.Range(0, 26).Select(i => "f" + i.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)).ToArray();
         var observations = new[]
         {
             new BlockingFeatureObservation(true,
