@@ -7,7 +7,7 @@ namespace Jornada.Tests.Unit;
 [TestFixture, Category("Unit")]
 public sealed class FrozenIbgeNominalTfV9Tests
 {
-    private const string FullPublishedSha = "A1B2C3D4E5F60718293A4B5C6D7E8F90123456789ABCDEF001122334455667788";
+    private const string FullPublishedSha = "A1B2C3D4E5F60718293A4B5C6D7E8F90123456789ABCDEF00112233445566778";
     private static readonly NominalSyntheticIbgeBootstrapV9 Bootstrap = new(
         CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance,
         30_000, "CORPUS_30000_SHA256", "GENERATOR_V1", 42UL, "HYPOTHESES_V1");
