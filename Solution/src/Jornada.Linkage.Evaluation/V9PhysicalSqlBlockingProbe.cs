@@ -55,7 +55,7 @@ public static class V9PhysicalSqlBlockingProbe
         decimal? ExtraFalseCandidatesPerTrue,
         decimal? ExtraWrongLinkShareAmongAccepted);
 
-    public const string BlockingAblationVersion = "V9_SQL_HARNESS_FIVE_PASSES_V1_BASELINE_UNCHANGED";
+    public const string BlockingAblationVersion = "V9_SQL_HARNESS_SIX_PASSES_V1_BASELINE_UNCHANGED";
 
     public sealed record Result(
         string Version, string Scope, string BlockingPolicy, string ProjectionVersion,
@@ -275,7 +275,7 @@ public static class V9PhysicalSqlBlockingProbe
         }
         var metrics = bySplit.Values.Select(x => x.Build()).ToArray();
         // Report incremental candidate coverage and accepted-link risk for
-        // 5 PRE-REGISTERED SQL alternatives. Do not add to the baseline:
+        // 6 PRE-REGISTERED SQL alternatives. Do not add to the baseline:
         // the frozen proxy-calibrated FS model has NOT been refit on SQL.
         var passSensitivity = await MeasurePreRegisteredPassesAsync(
             connection, observationRows, frozen, ct);
@@ -335,14 +335,16 @@ public static class V9PhysicalSqlBlockingProbe
             ("PERSON_PHONETIC_PLUS_BIRTH_EXACT",
                 "a.nome_fon=b.nome_fon AND a.nascimento=b.nascimento"),
             ("MOTHER_PHONETIC_PLUS_BIRTH_EXACT",
-                "a.mae_fon=b.mae_fon AND a.nascimento=b.nascimento")
+                "a.mae_fon=b.mae_fon AND a.nascimento=b.nascimento"),
+            ("PERSON_AND_MOTHER_PHONETIC_PLUS_BIRTH_EXACT",
+                "a.nome_fon=b.nome_fon AND a.mae_fon=b.mae_fon AND a.nascimento=b.nascimento")
         ];
         await using (var create = new SqlCommand(
             """
             CREATE TABLE #v9opt(
                 a INT NOT NULL, b INT NOT NULL,
                 part VARCHAR(12) COLLATE Latin1_General_100_BIN2 NOT NULL,
-                CONSTRAINT PK_v9opt PRIMARY KEY CLUSTERED(a,b)
+                PRIMARY KEY CLUSTERED(a,b)
             );
             """,connection) { CommandTimeout = 90 })
             await create.ExecuteNonQueryAsync(ct);
@@ -413,7 +415,7 @@ public static class V9PhysicalSqlBlockingProbe
             await using var clear = new SqlCommand("TRUNCATE TABLE #v9opt;", connection);
             await clear.ExecuteNonQueryAsync(ct);
         }
-        if (results.Count != 15 ||
+        if (results.Count != 18 ||
             results.Any(x => x.ExtraTruePairs < 0 || x.ExtraFalsePairs < 0
                 || x.ExtraAcceptedTruePairs > x.ExtraTruePairs
                 || x.ExtraAcceptedWrongPairs > x.ExtraFalsePairs))
