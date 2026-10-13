@@ -1151,6 +1151,7 @@ jobs:
           ablation_agg={p:dict(extra_true=0,extra_false=0,extra_tp=0,extra_fp=0) for p in ablation_names}
           ablation_by_seed=[]
           loss_by_seed=[]
+          parity_by_seed=[]
           for d in docs:
               assert d["Version"]=="V9_PHYSICAL_SQL_ACTIVE_DYNAMIC_PLUS_C1_FULL_CANDIDATE_CENSUS_V1"
               assert d["BlockingPolicy"]=="ACTIVE_LINKAGE_RULESET_SQL_UNION_COMBINED_IDENTITY_CANDIDATES_V1"
@@ -1192,6 +1193,29 @@ jobs:
                   assert 0<=triple["LostTruePairs"]<=l["LostTruePairs"]
               loss_by_seed.append({"seed":d["Seed"],"test":loss["Partitions"][2],
                   "testCells":[x for x in cells if x["Partition"]=="TEST"]})
+              # Actual SQL ACTIVE+C1 must equal logical OR of the SAME
+              # published active passes on exactly the SAME eligible M frame.
+              parity=d["ActiveSameFrameParityAudit"]
+              assert parity["Version"]=="V9_ACTIVE_RULESET_SAME_FRAME_M_SQL_PARITY_V1"
+              assert parity["Status"]=="ACTIVE_SQL_VS_LOGICAL_ON_ELIGIBLE_SYNTHETIC_M_NOT_CALIBRATOR_GATE"
+              parts=parity["Partitions"]
+              assert [x["Name"] for x in parts]==["TRAIN","VALIDATION","TEST"]
+              coverages=parity["Passes"]
+              assert len(coverages)==3*d["ActiveRulesetPassCount"]
+              assert len({(x["Partition"],x["PassId"]) for x in coverages})==len(coverages)
+              assert all(x["PassId"] and x["RetainedM"]>=x["ExclusiveOutsideC1M"]>=0 for x in coverages)
+              for p in parts:
+                  split=next(x for x in d["Splits"] if x["Partition"]==p["Name"])
+                  assert p["EligibleM"]==split["EligibleTrueInterGestorNoCpfPairs"]
+                  assert p["LogicalUnionM"]==p["PhysicalSqlUnionM"]==split["SqlCandidateTruePairs"]
+                  assert p["NotRecoveredM"]==split["TruePairsLostBySqlBlocking"]
+                  assert p["C1M"]==p["C1OnlyM"]+p["BothC1AndActiveM"]
+                  assert p["ActiveLogicalM"]==p["ActiveOnlyM"]+p["BothC1AndActiveM"]
+                  assert p["LogicalUnionM"]==p["C1OnlyM"]+p["ActiveOnlyM"]+p["BothC1AndActiveM"]
+                  assert p["EligibleM"]==p["LogicalUnionM"]+p["NotRecoveredM"]
+                  assert sum(x["ExclusiveOutsideC1M"] for x in coverages if x["Partition"]==p["Name"])<=p["ActiveOnlyM"]
+              parity_by_seed.append({"seed":d["Seed"],"test":parts[2],
+                  "passCoverageTest":[x for x in coverages if x["Partition"]=="TEST"]})
               for r in d["Splits"]:
                   m=r["SqlCandidateTruePairs"];u=r["SqlCandidateFalsePairs"];e=r["EligibleTrueInterGestorNoCpfPairs"]
                   tp=r["AcceptedTruePairs"];fp=r["AcceptedWrongPairs"]
@@ -1270,6 +1294,8 @@ jobs:
                    "truePairLossDiagnosticVersion":"V9_SQL_ELIGIBLE_TRUE_PAIR_LOSS_BY_OBSERVED_AGREEMENT_V1",
                    "truePairLossTestBySeed":loss_by_seed,
                    "truePairLossTestTripleDifferentTotal":sum(x["test"]["SimultaneousNameMotherBirthDisagreementLost"] for x in loss_by_seed),
+                   "sameFrameActivePlusC1ParityVersion":"V9_ACTIVE_RULESET_SAME_FRAME_M_SQL_PARITY_V1",
+                   "sameFrameActivePlusC1ParityTestBySeed":parity_by_seed,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))
