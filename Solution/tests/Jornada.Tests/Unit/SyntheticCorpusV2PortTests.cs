@@ -257,6 +257,17 @@ public sealed class SyntheticCorpusV2PortTests
                 Assert.That(matrix.EnumerateArray().All(x =>
                     x.GetProperty("distinct_training_people").GetInt32() <=
                     x.GetProperty("observation_count").GetInt32()), Is.True);
+                var sourceProfiles = birthAudit.GetProperty("source_profiles");
+                Assert.That(sourceProfiles.GetArrayLength(), Is.GreaterThan(0));
+                Assert.That(sourceProfiles.EnumerateArray().Sum(x =>
+                    x.GetProperty("observations").GetInt32()),
+                    Is.EqualTo(birthAudit.GetProperty("training_observations").GetInt32()));
+                Assert.That(sourceProfiles.EnumerateArray().All(x =>
+                    x.GetProperty("semantic_distance_cells").GetArrayLength() == 63
+                    && x.GetProperty("distinct_training_people").GetInt32() <=
+                       x.GetProperty("observations").GetInt32()), Is.True);
+                Assert.That(sourceProfiles.EnumerateArray().All(x =>
+                    !x.TryGetProperty("base_person_id", out _)), Is.True);
             }));
         }
         finally
