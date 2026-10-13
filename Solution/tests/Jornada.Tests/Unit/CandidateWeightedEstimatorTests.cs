@@ -1094,6 +1094,121 @@ public sealed class CandidateWeightedEstimatorTests
         Assert.That(demanding.EvaluationCellsWithMinimumGroupsInBothClasses, Is.Zero);
     }
 
+
+    [Test]
+    public async Task V9JointCellGroupWeightEssIsClusterAggregatedAndDoesNotMintSmoothedSupport()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var holdout = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, raw, .5m);
+        var groups = CandidateJointGroupSupportAuditBuilderV9.Analyze(corpus, raw, holdout);
+        var audit = CandidateJointCellGroupWeightAuditBuilderV9.Analyze(corpus, raw, holdout);
+        var observed = CandidateJointSupportAuditBuilderV9.Analyze(holdout);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(audit.Version, Is.EqualTo(CandidateJointCellGroupWeightAuditBuilderV9.Version));
+            Assert.That(audit.Status, Does.Contain("NOT_INDEPENDENCE_CI_OR_SQL_CERTIFICATION"));
+            Assert.That(audit.JointCellCount, Is.EqualTo(81));
+            Assert.That(audit.Cells, Has.Count.EqualTo(81));
+            Assert.That(audit.FrameFingerprint, Is.EqualTo(observed.FrameFingerprint));
+            Assert.That(audit.SelectionFingerprint, Is.EqualTo(observed.SelectionFingerprint));
+            Assert.That(audit.TrainingCellsWithGroupWeightEssAtLeastTwoInBothClasses,
+                Is.LessThanOrEqualTo(groups.TrainingCellsWithMinimumGroupsInBothClasses));
+            Assert.That(audit.EvaluationCellsWithGroupWeightEssAtLeastTwoInBothClasses,
+                Is.LessThanOrEqualTo(groups.EvaluationCellsWithMinimumGroupsInBothClasses));
+            Assert.That(audit.Cells.All(x =>
+            {
+                var counts = groups.Cells.Single(y =>
+                    y.Person == x.Person && y.Mother == x.Mother);
+                var pairs = observed.Cells.Single(y =>
+                    y.Person == x.Person && y.Mother == x.Mother);
+                return Check(x.TrainingMatchedGroupWeightEss, counts.TrainingMatchedGroups,
+                        pairs.TrainingMatchedPairs)
+                    && Check(x.TrainingUnmatchedGroupWeightEss, counts.TrainingUnmatchedGroups,
+                        pairs.TrainingUnmatchedPairs)
+                    && Check(x.EvaluationMatchedGroupWeightEss, counts.EvaluationMatchedGroups,
+                        pairs.EvaluationMatchedPairs)
+                    && Check(x.EvaluationUnmatchedGroupWeightEss, counts.EvaluationUnmatchedGroups,
+                        pairs.EvaluationUnmatchedPairs);
+            }), Is.True);
+        }));
+
+        var preview = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            corpus, raw, V9FsPreviewParameters(), .5m, .5m);
+        Assert.That(preview.IndependentJointCellGroupWeightEss, Is.Not.Null);
+        Assert.That(preview.IndependentJointCellGroupWeightEss!.Cells,
+            Is.EqualTo(audit.Cells));
+        var serialized = System.Text.Json.JsonSerializer.Serialize(preview);
+        Assert.That(serialized, Does.Not.Contain("IndependenceGroupId"));
+        Assert.That(serialized, Does.Not.Contain("SourceId"));
+        Assert.That(serialized, Does.Not.Contain(Sources[0].ToString("D")));
+
+        static bool Check(decimal? ess, int groups, int pairs) =>
+            groups == 0
+                ? ess is null && pairs == 0
+                : ess is >= 1m && ess <= groups && groups <= pairs;
+    }
+
+    [Test]
+    public async Task V9JointCellGroupWeightEssDoesNotTreatRepeatedPairsAsIndependent()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        // Consolidate one observed NonMatch state where the same source
+        // creates several pairs. Identical pairs must not mint group support.
+        var repeated = raw.Select(x => x.Values.LeftMother is null
+            ? x with { Values = x.Values with
+                { LeftMother = "Ana Costa", RightMother = "Bruna Costa" } }
+            : x).ToArray();
+        var holdout = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, repeated, .5m);
+        var groups = CandidateJointGroupSupportAuditBuilderV9.Analyze(
+            corpus, repeated, holdout);
+        var observed = CandidateJointSupportAuditBuilderV9.Analyze(holdout);
+        var ess = CandidateJointCellGroupWeightAuditBuilderV9.Analyze(
+            corpus, repeated, holdout);
+
+        Assert.That(ess.Cells.Any(c =>
+        {
+            var group = groups.Cells.Single(x =>
+                x.Person == c.Person && x.Mother == c.Mother);
+            var pair = observed.Cells.Single(x =>
+                x.Person == c.Person && x.Mother == c.Mother);
+            return pair.TrainingUnmatchedPairs > group.TrainingUnmatchedGroups
+                && c.TrainingUnmatchedGroupWeightEss is >= 1m
+                && c.TrainingUnmatchedGroupWeightEss <= group.TrainingUnmatchedGroups;
+        }), Is.True);
+
+        var missing = repeated.Skip(1).ToArray();
+        var altered = repeated.ToArray();
+        var target = capture.Pairs.First(p => Sources.Skip(4).Contains(p.SourceId));
+        var index = Array.FindIndex(altered, row => row.SourceId == target.SourceId
+            && row.CandidateId == target.CandidateId);
+        altered[index] = altered[index] with
+        {
+            Values = altered[index].Values with { RightName = "INCOMPARAVEL TESTE" }
+        };
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That((Action)(() => CandidateJointCellGroupWeightAuditBuilderV9.Analyze(
+                corpus, missing, holdout)), Throws.InvalidOperationException);
+            Assert.That((Action)(() => CandidateJointCellGroupWeightAuditBuilderV9.Analyze(
+                corpus, altered, holdout)), Throws.InvalidOperationException);
+            Assert.That((Action)(() => CandidateJointCellGroupWeightAuditBuilderV9.Analyze(
+                corpus, repeated, holdout with
+                {
+                    MatchedEvaluation = holdout.MatchedEvaluation with
+                    {
+                        IndependentEvaluationGroups = 100
+                    }
+                })), Throws.InvalidOperationException);
+        }));
+    }
+
     [Test]
     public async Task V9IndependentGroupSupportRejectsAlteredEvaluationOrForgedGroupTotals()
     {
