@@ -72,7 +72,7 @@ O comportamento lógico deve permanecer equivalente entre os ambientes SQL Serve
 
 ## Busca do ruleset
 
-`BlockingRuleSetSearch` V2 continua bounded e determinístico: avalia passes primitivos, retém pool limitado preservando explicitamente alternativas fortes em recall e em redução e testa complementaridade entre passes. Não existe score composto ou peso oculto na busca.
+`BlockingRuleSetSearch` V3 continua bounded e determinístico: avalia passes primitivos, retém pool limitado preservando explicitamente alternativas fortes em recall e em redução e testa complementaridade entre passes. A configuração padrão ainda permite até **dois** passes; opt-in explícito autoriza até **quatro**, enumerando todas as uniões no pool limitado ou **falhando fechado** quando o espaço ultrapassa 2.048 regras candidatas (sem truncar). Não existe score composto ou peso oculto na busca. Ver [ensaio multipasses V9](V9_Busca_Bloqueio_Multipasses_20261013.md).
 
 O recall mínimo é uma **restrição fail-closed**, não o objetivo a ser maximizado sem limite. Depois que uma alternativa satisfaz esse piso e, quando exigido, mantém suporte observado de não-vínculos, `BlockingRuleSetOptimizer` V2 prioriza a maior redução do universo candidato; recall é o primeiro desempate, seguido por cobertura e menor custo estrutural. Isso impede que uma regra quase universal de recall 100% vença uma regra discriminante que já atende ao recall mínimo.
 

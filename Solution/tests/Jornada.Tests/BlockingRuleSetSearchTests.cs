@@ -178,12 +178,92 @@ public sealed class BlockingRuleSetSearchTests
     }
 
     [Test]
+    public void SearchBest_ThreeComplementaryPassesRecoverMatchesThatNoPairCanRecover()
+    {
+        var observations = new[]
+        {
+            Obs(true, ("a", true),  ("b", false), ("c", false)),
+            Obs(true, ("a", false), ("b", true),  ("c", false)),
+            Obs(true, ("a", false), ("b", false), ("c", true)),
+            Obs(false,("a", true),  ("b", false), ("c", false)),
+            Obs(false,("a", false), ("b", false), ("c", false))
+        };
+        var twoPass = new BlockingRuleSetSearchOptions(
+            MaxFieldsPerPass: 1, MaxPasses: 2, PrimitivePoolSize: 3,
+            MinimumTrueMatchRecall: 0.95d, RequireObservedNonMatchSupport: true);
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            BlockingRuleSetSearch.SearchBest(observations, new[] { "c", "a", "b" }, twoPass)));
+
+        var threePass = twoPass with { MaxPasses = 3 };
+        var result = BlockingRuleSetSearch.SearchBest(
+            observations, new[] { "c", "a", "b" }, threePass);
+        var reordered = BlockingRuleSetSearch.SearchBest(
+            observations, new[] { "b", "c", "a" }, threePass);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.Passes, Has.Count.EqualTo(3));
+            Assert.That(result.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
+            Assert.That(result.Diagnostic.NonMatchRetention, Is.EqualTo(0.5d));
+            Assert.That(result.PassContributions,
+                Has.All.Matches<BlockingPassMarginalContribution>(
+                    contribution => contribution.IncrementalTrueMatchWeight > 0m));
+            Assert.That(reordered.CanonicalSignature, Is.EqualTo(result.CanonicalSignature));
+        }));
+    }
+
+    [Test]
+    public void SearchBest_FourPassUnionsAreSupportedWithoutChangingTwoPassDefaults()
+    {
+        var observations = new[]
+        {
+            Obs(true,  ("a", true), ("b", false), ("c", false), ("d", false)),
+            Obs(true,  ("a", false), ("b", true), ("c", false), ("d", false)),
+            Obs(true,  ("a", false), ("b", false), ("c", true), ("d", false)),
+            Obs(true,  ("a", false), ("b", false), ("c", false), ("d", true)),
+            Obs(false, ("a", true), ("b", false), ("c", false), ("d", false)),
+            Obs(false, ("a", false), ("b", false), ("c", false), ("d", false))
+        };
+        var options = new BlockingRuleSetSearchOptions(
+            MaxFieldsPerPass: 1, MaxPasses: 4, PrimitivePoolSize: 4,
+            MinimumTrueMatchRecall: .95d, RequireObservedNonMatchSupport: true);
+        var result = BlockingRuleSetSearch.SearchBest(
+            observations, new[] { "d", "b", "a", "c" }, options);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.Passes, Has.Count.EqualTo(4));
+            Assert.That(result.Diagnostic.TrueMatchRecall, Is.EqualTo(1d));
+            Assert.That(result.Diagnostic.NonMatchRetention, Is.EqualTo(0.5d));
+        }));
+    }
+
+    [Test]
+    public void SearchBest_FailsClosedInsteadOfSilentlyTruncatingLargeUnionSpace()
+    {
+        var features = Enumerable.Range(0, 26).Select(i => "f" + i.ToString("D2", System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+        var observations = new[]
+        {
+            new BlockingFeatureObservation(true,
+                features.ToDictionary(x => x, _ => (bool?)true, StringComparer.Ordinal)),
+            new BlockingFeatureObservation(false,
+                features.ToDictionary(x => x, _ => (bool?)false, StringComparer.Ordinal))
+        };
+        var options = new BlockingRuleSetSearchOptions(
+            MaxFieldsPerPass: 1, MaxPasses: 4, PrimitivePoolSize: 26,
+            MinimumTrueMatchRecall: .95d);
+
+        var error = Assert.Throws<InvalidOperationException>((Action)(() =>
+            BlockingRuleSetSearch.SearchBest(observations, features, options)));
+        Assert.That(error!.Message, Does.Contain("cap="));
+    }
+
+    [Test]
     public void SearchOptions_RejectUnboundedValues()
     {
         Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
             new BlockingRuleSetSearchOptions(MaxFieldsPerPass: 4).Validate()));
         Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
-            new BlockingRuleSetSearchOptions(MaxPasses: 3).Validate()));
+            new BlockingRuleSetSearchOptions(MaxPasses: 5).Validate()));
     }
 
     private static BlockingFeatureObservation Obs(
