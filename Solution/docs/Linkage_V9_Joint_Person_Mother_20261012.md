@@ -17,7 +17,7 @@ Os 81 níveis têm frequências `M` e `U` *diagnósticas*, normalizadas separada
 ## Por que ainda NÃO publicar parâmetros V9
 
 1. Pares M são recuperados pela projeção lógica atual, mas não têm pertencimento SQL histórico materializado `VERSIONED_ALIAS` certificado; pares U vêm de uma amostra do pool candidato SQL.
-2. Não há pesos de inclusão ou representação de indivíduos em universo populacional demonstrados, nem intervalos de incerteza. Cada uma das 81 células exigirá suporte suficiente ou tratamento rigoroso de esparsidade; estimar 81 probabilidades com uma amostra pequena pode produzir evidência espúria.
+2. Não há pesos de inclusão ou representação de indivíduos em universo populacional demonstrados, nem intervalos de incerteza. Cada célula que influencie decisões exige suporte suficiente ou tratamento rigoroso e **versionado** de esparsidade, incluindo colapso calibrado de níveis, restrição/abstenção ou neutralidade explicitamente prevista. **Não exigir suporte independente em todas as 81 células como bloqueio global da calibração inicial**, mas tampouco promover uma célula só porque a suavização lhe deu probabilidade positiva. Estimar 81 probabilidades com amostra pequena pode produzir evidência espúria.
 3. Não há estimativa independente de TF para `FullName`/`FirstLastJoint` na população compatível. O produto das marginais IBGE continua proibido.
 4. Não há calibração condicional ao blocking e critérios auditáveis de `TRAIN/VALIDATION/TEST`, conferência matemática independente conforme DT-01/09/14, orçamento de FP/FDR/recall ou DT-15 concluídos. A paridade externa **C# × Splink permanece opcional/diagnóstica**, conforme decisão de avaliação sintética primária de 29/09; não constitui gate obrigatório do Ensaio.
 5. A ausência da mãe pode ser informativa sobre mecanismos de coleta, mas **não** é uma evidência negativa automática; o tratamento decisório depende de calibração aprovada de ausências.
@@ -112,3 +112,7 @@ não são intervalos de confiança, não certificam FDR nem corrigem pesos
 por conglomerado, não autorizam seleção de limiar olhando EVALUATION e
 não conferem representatividade SQL temporal ao frame `BirthBlockingPlan`.
 Nenhum gate operacional V9 ou decisão DT-15 é alterado.
+
+## Decisão sobre tamanho do bootstrap (12/10/2026)
+
+Os **30 mil indivíduos sintéticos** são suficientes **para iniciar o treino/ensaio controlado** do modelo nominal V9; **não foi medida nem demonstrada a suficiência em cada célula M/U, estrato, passe ou grupo independente**. A contagem de indivíduos não é a contagem de pares independentes e a matriz 81×(M,U) terá estados rarefeitos. Não transformar a exigência de cautela em obrigação de aumentar a massa para 200 mil ou 1,5 milhão sem diagnóstico, nem exigir dados municipais reais para **iniciar** o bootstrap. Registrar por célula suporte bruto, peso, ESS, grupos, perdas por partição e `BothClassesObservedCells/ZeroClassSupportCells`, com hipóteses e fingerprints; [parecer de suficiência](Parecer_Suficiencia_Bootstrap_30mil_V9_20261012.md). O Splink externo continua opcional; o TEST e a matemática independente continuam necessários antes da promoção.
