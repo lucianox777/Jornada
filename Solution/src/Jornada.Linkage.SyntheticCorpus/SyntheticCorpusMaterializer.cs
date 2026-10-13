@@ -384,6 +384,21 @@ public static class SyntheticCorpusMaterializer
                     observation_count = cell.ObservationCount,
                     distinct_training_people = cell.DistinctTrainingPeople
                 }).ToArray()
+            }).ToArray(),
+            // TRAIN-only source sharing: report only anonymous aggregates.
+            // Not a measure of statistical independence or effective sample size.
+            training_people_with_observations = birthAudit.TrainingPeopleWithObservations,
+            training_people_in_multiple_sources = birthAudit.TrainingPeopleInMultipleSources,
+            source_multiplicity = birthAudit.SourceMultiplicity.Select(cell => new
+            {
+                distinct_sources = cell.DistinctSources,
+                distinct_training_people = cell.DistinctTrainingPeople
+            }).ToArray(),
+            source_overlaps = birthAudit.SourceOverlaps.Select(pair => new
+            {
+                left_source = pair.LeftSource,
+                right_source = pair.RightSource,
+                shared_training_people = pair.SharedTrainingPeople
             }).ToArray()
         });
         return JsonSerializer.Serialize(withBirthAudit, IndentedJsonOptions) + "\n";

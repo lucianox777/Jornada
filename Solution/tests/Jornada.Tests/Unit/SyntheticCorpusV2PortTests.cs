@@ -268,6 +268,26 @@ public sealed class SyntheticCorpusV2PortTests
                        x.GetProperty("observations").GetInt32()), Is.True);
                 Assert.That(sourceProfiles.EnumerateArray().All(x =>
                     !x.TryGetProperty("base_person_id", out _)), Is.True);
+                var sourceMultiplicity = birthAudit.GetProperty("source_multiplicity");
+                Assert.That(sourceMultiplicity.EnumerateArray().Sum(x =>
+                    x.GetProperty("distinct_training_people").GetInt32()),
+                    Is.EqualTo(birthAudit.GetProperty("training_base_people").GetInt32()));
+                Assert.That(sourceMultiplicity.EnumerateArray().Sum(x =>
+                    x.GetProperty("distinct_sources").GetInt32() *
+                    x.GetProperty("distinct_training_people").GetInt32()),
+                    Is.EqualTo(sourceProfiles.EnumerateArray().Sum(x =>
+                        x.GetProperty("distinct_training_people").GetInt32())));
+                Assert.That(birthAudit.GetProperty("training_people_in_multiple_sources").GetInt32(),
+                    Is.EqualTo(sourceMultiplicity.EnumerateArray()
+                        .Where(x => x.GetProperty("distinct_sources").GetInt32() > 1)
+                        .Sum(x => x.GetProperty("distinct_training_people").GetInt32())));
+                Assert.That(birthAudit.GetProperty("source_overlaps").EnumerateArray().All(x =>
+                    x.GetProperty("left_source").GetString() !=
+                    x.GetProperty("right_source").GetString()
+                    && x.GetProperty("shared_training_people").GetInt32() >= 0), Is.True);
+                Assert.That(birthAudit.GetProperty("training_people_with_observations").GetInt32(),
+                    Is.LessThanOrEqualTo(
+                        birthAudit.GetProperty("training_base_people").GetInt32()));
             }));
         }
         finally

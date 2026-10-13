@@ -31,6 +31,23 @@ public sealed record SyntheticBirthSourceProfileV9(
     int DistinctTrainingPeople,
     IReadOnlyList<SyntheticBirthSemanticDistanceCellV9> SemanticDistanceCells);
 
+/// <summary>
+/// Overlap of distinct synthetic TRAIN people appearing in both sources.
+/// Cross-source identity sharing is descriptive, not a claim of source independence.
+/// </summary>
+public sealed record SyntheticBirthSourceOverlapV9(
+    string LeftSource,
+    string RightSource,
+    int SharedTrainingPeople);
+
+/// <summary>
+/// Number of synthetic TRAIN people occurring in exactly N source labels.
+/// Includes N=0 (TRAIN people with no observations). Not an ESS.
+/// </summary>
+public sealed record SyntheticBirthSourceMultiplicityV9(
+    int DistinctSources,
+    int DistinctTrainingPeople);
+
 public sealed record SyntheticBirthDistanceAuditV9(
     string Version,
     string Status,
@@ -48,11 +65,15 @@ public sealed record SyntheticBirthDistanceAuditV9(
     IReadOnlyDictionary<string, int> SemanticStates,
     IReadOnlyDictionary<string, int> ComponentAgreementMasks,
     IReadOnlyList<SyntheticBirthSemanticDistanceCellV9> SemanticDistanceCells,
-    IReadOnlyList<SyntheticBirthSourceProfileV9> SourceProfiles);
+    IReadOnlyList<SyntheticBirthSourceProfileV9> SourceProfiles,
+    int TrainingPeopleWithObservations,
+    int TrainingPeopleInMultipleSources,
+    IReadOnlyList<SyntheticBirthSourceMultiplicityV9> SourceMultiplicity,
+    IReadOnlyList<SyntheticBirthSourceOverlapV9> SourceOverlaps);
 
 public static class SyntheticBirthDistanceAuditBuilderV9
 {
-    public const string Version = "V9_SYNTH_BIRTH_DATE_DISTANCE_TRAIN_AUDIT_4";
+    public const string Version = "V9_SYNTH_BIRTH_DATE_DISTANCE_TRAIN_AUDIT_5";
     public const string Status =
         "SYNTHETIC_TRAIN_DIAGNOSTIC_NOT_EMPIRICAL_ERROR_RATES_OR_FS_MU";
     public const string Partition = "TRAIN";
@@ -210,6 +231,61 @@ public static class SyntheticBirthDistanceAuditBuilderV9
                     source.Differing, source.People.Count, Array.AsReadOnly(sourceCells));
             }).ToArray();
 
+        // Each synthetic person may appear in several Gestores. Count
+        // unique source labels per TRAIN person without exporting identities.
+        var sourceKeys = sources.Select(x => x.Source).ToArray();
+        var sourceMembershipCounts = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var profile in sourceProfiles.Values)
+            foreach (var personId in profile.People)
+            {
+                sourceMembershipCounts.TryGetValue(personId, out var count);
+                sourceMembershipCounts[personId] = count + 1;
+            }
+
+        var withObservations = sourceMembershipCounts.Count;
+        var inMultipleSources = sourceMembershipCounts.Values.Count(count => count > 1);
+        var sourceMultiplicity = Enumerable.Range(0, sourceKeys.Length + 1)
+            .Select(sourceCount => new SyntheticBirthSourceMultiplicityV9(
+                sourceCount,
+                sourceCount == 0
+                    ? trainCount - withObservations
+                    : sourceMembershipCounts.Values.Count(value => value == sourceCount)))
+            .ToArray();
+
+        // Only unordered distinct-source pairs; omit repeated observations
+        // within a source, use a deterministic lexical ordering including zero.
+        var overlaps = new List<SyntheticBirthSourceOverlapV9>();
+        for (var i = 0; i < sourceKeys.Length; i++)
+            for (var j = i + 1; j < sourceKeys.Length; j++)
+            {
+                var left = sourceProfiles[sourceKeys[i]].People;
+                var right = sourceProfiles[sourceKeys[j]].People;
+                var shared = left.Count(right.Contains);
+                overlaps.Add(new SyntheticBirthSourceOverlapV9(
+                    sourceKeys[i], sourceKeys[j], shared));
+            }
+
+        // TRAIN-only metadata: this audit is intentionally not a post-blocking
+        // paired M/U sample and does not estimate independence or Kish ESS.
+        if (sourceMembershipCounts.Keys.Any(id =>
+                !people.TryGetValue(id, out var person) || person.Partition != Partition)
+            || withObservations > trainCount
+            || sources.Sum(x => x.DistinctTrainingPeople) !=
+                sourceMembershipCounts.Values.Sum()
+            || sourceMultiplicity.Sum(x => x.DistinctTrainingPeople) != trainCount
+            || sourceMultiplicity.Sum(x => x.DistinctSources * x.DistinctTrainingPeople)
+                != sources.Sum(x => x.DistinctTrainingPeople)
+            || sourceMultiplicity.Skip(2).Sum(x => x.DistinctTrainingPeople)
+                != inMultipleSources
+            || overlaps.Count != sourceKeys.Length * (sourceKeys.Length - 1) / 2
+            || overlaps.Any(pair =>
+                pair.SharedTrainingPeople < 0
+                || pair.SharedTrainingPeople >
+                    Math.Min(sourceProfiles[pair.LeftSource].People.Count,
+                        sourceProfiles[pair.RightSource].People.Count)))
+            throw new InvalidOperationException(
+                "Sobreposições de fontes do TRAIN não reconciliam com a base sintética.");
+
         // Each observed TRAIN record contributes to exactly one source/cell.
         // Distinct people may appear in multiple sources and MUST NOT be summed.
         if (sources.Sum(x => x.Observations) != total
@@ -251,6 +327,10 @@ public static class SyntheticBirthDistanceAuditBuilderV9
             new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(states),
             new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(masks),
             Array.AsReadOnly(cells),
-            Array.AsReadOnly(sources));
+            Array.AsReadOnly(sources),
+            withObservations,
+            inMultipleSources,
+            Array.AsReadOnly(sourceMultiplicity),
+            Array.AsReadOnly(overlaps.ToArray()));
     }
 }
