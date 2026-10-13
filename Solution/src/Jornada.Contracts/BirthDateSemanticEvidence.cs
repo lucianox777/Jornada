@@ -72,7 +72,11 @@ public static class BirthDateSemanticEvidence
         (left.Month == right.Month ? 1 : 0) +
         (left.Year == right.Year ? 1 : 0);
 
-    private static int DigitDistance(DateOnly left, DateOnly right)
+    /// <summary>
+    /// Position-wise Hamming distance on the canonical ddMMyyyy representation
+    /// (0..8). This is descriptive; never a likelihood ratio by itself.
+    /// </summary>
+    public static int DigitDistance(DateOnly left, DateOnly right)
     {
         var leftText = left.ToString("ddMMyyyy", CultureInfo.InvariantCulture);
         var rightText = right.ToString("ddMMyyyy", CultureInfo.InvariantCulture);

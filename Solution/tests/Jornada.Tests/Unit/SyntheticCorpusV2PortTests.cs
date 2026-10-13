@@ -239,6 +239,12 @@ public sealed class SyntheticCorpusV2PortTests
                 Assert.That(truth.RootElement.GetProperty("ruleset_version").GetString(),
                     Is.EqualTo(SyntheticCorpusV2Rules.RulesetVersion));
                 Assert.That(truth.RootElement.GetProperty("empirical_m_exact").TryGetProperty("NOME", out _), Is.True);
+                var birthAudit = truth.RootElement.GetProperty("birth_date_distance_train_audit");
+                Assert.That(birthAudit.GetProperty("partition").GetString(), Is.EqualTo("TRAIN"));
+                Assert.That(birthAudit.GetProperty("status").GetString(),
+                    Does.Contain("NOT_EMPIRICAL_ERROR_RATES_OR_FS_MU"));
+                Assert.That(birthAudit.GetProperty("digit_distances").TryGetProperty("0", out _), Is.True);
+                Assert.That(birthAudit.GetProperty("semantic_states").TryGetProperty("EXACT", out _), Is.True);
             }));
         }
         finally

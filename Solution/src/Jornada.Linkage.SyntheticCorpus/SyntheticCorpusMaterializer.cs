@@ -334,7 +334,32 @@ public static class SyntheticCorpusMaterializer
             annotated["stratified_error_realized_label_counts"] = JsonSerializer.SerializeToNode(counts);
             truthJson = JsonSerializer.Serialize(annotated, IndentedJsonOptions) + "\n";
         }
-        return truthJson;
+        // This diagnostic is truth-only. No training labels or base identifiers
+        // appear in the generated observation payloads or runtime FS inputs.
+        // VALIDATION and TEST remain untouched by this diagnostic.
+        var birthAudit = SyntheticBirthDistanceAuditBuilderV9.Analyze(generation);
+        var withBirthAudit = JsonNode.Parse(truthJson)!.AsObject();
+        withBirthAudit["birth_date_distance_train_audit"] = JsonSerializer.SerializeToNode(new
+        {
+            version = birthAudit.Version,
+            status = birthAudit.Status,
+            partition = birthAudit.Partition,
+            training_base_people = birthAudit.BasePeopleInTraining,
+            training_observations = birthAudit.ObservationsInTraining,
+            missing_birth_observations = birthAudit.MissingBirthObservations,
+            exact_birth_observations = birthAudit.ExactBirthObservations,
+            differing_birth_observations = birthAudit.DifferingBirthObservations,
+            same_day_month_different_year = birthAudit.SameDayMonthDifferentYear,
+            adjacent_year_same_day_month = birthAudit.AdjacentYearSameDayMonth,
+            last_two_year_digits_swapped_same_day_month =
+                birthAudit.LastTwoYearDigitsSwappedSameDayMonth,
+            conventional_day_one_or_fifteen_from_different_truth =
+                birthAudit.ConventionalDayOneOrFifteenFromDifferentTruth,
+            digit_distances = birthAudit.DigitDistances,
+            semantic_states = birthAudit.SemanticStates,
+            component_agreement_masks = birthAudit.ComponentAgreementMasks
+        });
+        return JsonSerializer.Serialize(withBirthAudit, IndentedJsonOptions) + "\n";
     }
 
     private static void AppendCsvRow(StringBuilder builder, params string?[] fields)
