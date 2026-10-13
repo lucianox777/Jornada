@@ -1133,7 +1133,7 @@ jobs:
           import json, decimal
           from pathlib import Path
           D=decimal.Decimal
-          docs=[json.loads(Path(f".local/v9-sql-physical-seed-{seed}.json").read_text()) for seed in (42,43,44)]
+          docs=[json.loads(Path(f".local/v9-sql-physical-seed-{seed}.json").read_text(),parse_float=D) for seed in (42,43,44)]
           assert [d["Seed"] for d in docs]==[42,43,44]
           assert len({d["FrozenModelSha256"] for d in docs})==1
           assert len({d["FrozenThresholdLogOdds"] for d in docs})==1
@@ -1179,8 +1179,8 @@ jobs:
                    "testAggregated":agg,
                    "testBySeed":[{"seed":d["Seed"],**d["Splits"][2]} for d in docs],
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
-          Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2)+"\n")
-          print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True))
+          Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
+          print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))
           PY
       - name: Upload physical SQL active-ruleset and C1 wrong-link evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
