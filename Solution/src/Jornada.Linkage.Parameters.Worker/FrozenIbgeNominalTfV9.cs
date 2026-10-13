@@ -60,8 +60,7 @@ public sealed class FrozenIbgeNominalTfV9
         CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(connection);
-        if (referenceVersionId <= 0)
-            throw new ArgumentOutOfRangeException(nameof(referenceVersionId));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(referenceVersionId);
 
         string code;
         string hash;
