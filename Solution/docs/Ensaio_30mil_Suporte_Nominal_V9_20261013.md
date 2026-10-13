@@ -1,3 +1,12 @@
+> **Decisão V9, 13/10/2026:** não exigir comparação V8×V9
+> como requisito para desenvolver, calibrar ou julgar se a V9
+> funciona. A V8 só permanece para replay histórico.
+> A V9 será avaliada diretamente por gabarito, TRAIN/VALIDATION/TEST,
+> falsos vínculos, recall, suporte e modelo estatístico. A DT-15
+> conserva exclusivamente o dossiê de substituição ATIVO × PROPOSTO
+> quando houver uma decisão de ativação; esse dossiê não obriga
+> superioridade da V9 em relação à versão histórica ativa.
+
 # V9 — medição efetiva do bootstrap sintético 30 mil (13/10/2026)
 
 Esta etapa liga a geração **já existente** de 30.000 pessoas (seed 42, perfil `DEMOGRAPHIC_PRIMARY_V1`, marginais IBGE versionadas e nascimento diário versionado) a um relatório **efetivamente calculado sobre as observações geradas**: `v9-joint-support.json`. O relatório não contém nomes, CPFs, mães ou IDs individuais, somente contagens agregadas, método, versão e fingerprint de insumos; a execução da CI publica o arquivo como evidência. A mera existência do código não equivale à observação dos números: conferir o artefato e os logs do run associado ao HEAD.
@@ -12,7 +21,7 @@ Esta etapa liga a geração **já existente** de 30.000 pessoas (seed 42, perfil
 ## O que ainda NÃO está demonstrado
 
 - A seleção U por primeira inicial/adjacência **não equivale** aos passes SQL `VERSIONED_ALIAS` nem fornece probabilidades de inclusão; por isso **não calcular m/u populacional, ESS, intervalo, FDR nem limites de ativação** a partir desta seleção. Contagens de pares não são contagens de grupos independentes.
-- Não há nesta rodada comparação do scorer C# V8 × V9 no **mesmo holdout SQL**, calibração TF por snapshot congelado, seleção de limiares, relatório de FP/recall ou certificado TEST. A suficiência estatística dos 30 mil para as 81 células **não é afirmada**, qualquer que seja o número observado.
+- Não há nesta rodada avaliação da V9 no **blocking SQL real**, calibração TF governada, seleção de limiares, relatório de FP/recall ou certificado TEST. A suficiência estatística dos 30 mil para as 81 células **não é afirmada**, qualquer que seja o número observado.
 - Nenhuma execução ativa `V9` ou altera o modelo V8 histórico. DT-15, HML e produção continuam fora do escopo.
 
 **Condição de avanço:** a próxima rodada deve usar as mesmas identidades/partições e os passes SQL reais e confrontar esse diagnóstico proxy com o frame elegível materializado, antes de concluir suficiência por estrato, pesos TF ou decisões.

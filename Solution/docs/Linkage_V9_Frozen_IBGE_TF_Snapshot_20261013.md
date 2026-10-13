@@ -1,3 +1,12 @@
+> **Decisão V9, 13/10/2026:** não exigir comparação V8×V9
+> como requisito para desenvolver, calibrar ou julgar se a V9
+> funciona. A V8 só permanece para replay histórico.
+> A V9 será avaliada diretamente por gabarito, TRAIN/VALIDATION/TEST,
+> falsos vínculos, recall, suporte e modelo estatístico. A DT-15
+> conserva exclusivamente o dossiê de substituição ATIVO × PROPOSTO
+> quando houver uma decisão de ativação; esse dossiê não obriga
+> superioridade da V9 em relação à versão histórica ativa.
+
 # V9 — ligação read-only de TF de prenomes à referência IBGE publicada e fixada (13/10/2026)
 
 ## Entrega
