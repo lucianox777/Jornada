@@ -15,6 +15,12 @@ A classificação verdadeira de cada par vem exclusivamente de `base_person_id` 
 
 A saída `v9-sql-physical-seed-{42,43,44}.json` contém por split somente contagens e taxas agregadas. O resumo combina apenas os TESTs das três seeds, soma numeradores/denominadores **antes de calcular** as taxas e nunca tira uma média ingênua das taxas. Há dupla conferência independente em Python de identidades de contagem, aritmética de cada divisão, modelo congelado e cobertura dos três splits.
 
+### Suficiência e significado de 30 mil pessoas
+
+Os **30.000 indivíduos sintéticos por seed** são um tamanho fixo e reproduzível para exercer todas as etapas desse *frame* e comparar seeds sem recalibrar o modelo. **Não constituem prova de suficiência estatística para homologação municipal**, principalmente para erros raros, caudas de homônimos, subgrupos com mãe/nascimento ausentes ou razões de erro de ordem muito menor que 1%. O denominador relevante para a taxa de vínculos errados é o número efetivo de **pares aceitos**, não 30.000 pessoas. Mesmo zero `FP` observado exige intervalo de incerteza (aproximadamente limite superior unilateral 95% de `3/N` com `N` pares aceitos independentes), e dependência entre pares reduz a informação efetiva. Para decisão DT-15 serão necessários orçamentos por risco, estratos, incerteza/intervalos e testes independentes com maior cobertura e massas sintéticas adversariais; nunca declarar a V9 validada só por 3 seeds de 30 mil.
+
+O núcleo de identidade permanece progressivo: **CPF, nome completo, nome da mãe e data de nascimento não são campos universalmente obrigatórios de uma pessoa nova**. Ausência de atributo não autoriza fabricar valor nem converter busca incompleta em `NOVA_IDENTIDADE`; a obrigatoriedade é decidida pelo **contrato versionado de cada origem/cliente** e a suficiência de candidatos pela seletividade dos passes. Este experimento intencionalmente restringe sua mensuração a observações **sem CPF e com nascimento presente**: seus resultados não demonstram desempenho quando mãe, nome ou nascimento estão ausentes, nem alteram as regras da borda/contrato. Ver também a issue #612 e `Gold_Pessoa_Universo_CPF.md`.
+
 ### Limite de equivalência com o bloqueio operacional
 
 **É blocking físico SQL Server com regras do ruleset ATIVO + C1, mas não reproduz todo o histórico de aliases `VERSIONED_ALIAS` da tabela `identidade.blocking_chave`.** Os passes do ruleset ATIVO são lidos diretamente das tabelas SQL `identidade.linkage_ruleset_passe` e `identidade.linkage_ruleset_passe_campo` após a ativação controlada no banco CI, e submetidos a consultas físicas indexadas para cada cláusula; as regras C1 são adicionadas à união, como previsto no catálogo. O relatório guarda fingerprint e quantidade de passes ativos. Contudo, não há a materialização de **todas as versões históricas de chaves** da tabela `identidade.blocking_chave`: a projeção está limitada às observações atuais do corpus sintético; não equivale à recuperação completa de aliases históricos. Este teste usa o blocking de um modelo de CI para **gerar candidatos** e aplica neles apenas o FS V9 congelado: não compara escores V8 e V9. Nesta massa sintética não existem históricos completos de alias por cidadão. Além disso, o subframe sem CPF exclui vínculos pela rota determinística. Portanto, o relatório sinaliza `NOT_OPERATIONAL_ACTIVE_VERSIONED_ALIAS_OR_CALIBRATED_TF` mesmo se a taxa observada for baixa. A comparação V8×V9 continua **fora** da aceitação da V9.
@@ -35,7 +41,7 @@ O comando `generate --people 30000 --seed 42 --population-profile demographic-pr
 
 **Conclusão a extrair:** o artefato da execução CI indica objetivamente **se a implementação V9 passou ou não passou no teste sintético proxy**, com contagens. Isso **não é suficiente** para afirmar que o algoritmo completo, incluindo blocking SQL real e TF calibrada, funciona na Jornada. O gate CI valida execução, integridade e relatório, **não exige PASS** e nunca ajusta TEST até passar.
 
-Para responder sobre o **algoritmo operacional completo**, a próxima prova indispensável é repetir o ensaio com união de passes SQL real na massa sintética, TF selecionado em VALIDATION, orçamento por estrato, abstenção e TEST congelado. Não extrapolar precisão/FDR de pares proxy para pares elegíveis do SQL, nem converter 59/81 células sem suporte bilateral de TRAIN em evidência por suavização.
+**Atualização após a rodada física desta página:** a união SQL de passes ativos + C1 **já é medida** no ensaio descrito no topo, com todos os candidatos desse recorte, mas **não** com todo o histórico `VERSIONED_ALIAS`. Para responder sobre o **algoritmo operacional completo**, ainda faltam aliases históricos, TF estatisticamente calibrada na mesma unidade, orçamento de risco por estrato, abstenção para células sem suporte e avaliação congelada sobre universo operacional representativo. Não extrapolar precisão/FDR de pares proxy ou do SQL sintético para população municipal, nem converter 59/81 células sem suporte bilateral de TRAIN em evidência por suavização.
 
 Nenhuma execução deste ensaio publica/ativa V9, altera V8, DT-15, banco, referências IBGE ou JornadaLocal.
 
@@ -80,7 +86,8 @@ mesmo com CI verde — a CI valida a **honestidade do relatório**, não
 mascara fracassos de desempenho. O julgamento final dependerá
 de análise humana dos próprios números, nunca de um PASS artificial.
 
-**P0 subsequente:** reutilizar exatamente esse gabarito por pessoa-base no
-*blocking* SQL real e avaliar o FS V9 com TF calibrada e política explícita
-de abstenção por célula sem suporte bilateral. Nenhum comparativo V8×V9
-é requisito dessa validação.
+**P0 subsequente à rodada física deste documento:** estender a prova SQL aos
+aliases históricos `VERSIONED_ALIAS` e depois avaliar o FS V9 com TF calibrada
+na mesma unidade e política explícita de abstenção por célula sem suporte
+bilateral. A rodada física atual **não** executa TF nem valida a união histórica
+completa. Nenhum comparativo V8×V9 é requisito dessa validação.
