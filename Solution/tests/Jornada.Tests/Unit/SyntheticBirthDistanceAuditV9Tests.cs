@@ -77,6 +77,11 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
             Assert.That(audit.SourceProfiles[0].MissingBirthObservations, Is.EqualTo(1));
             Assert.That(audit.SourceProfiles[0].DistinctTrainingPeople, Is.EqualTo(1));
             Assert.That(audit.SourceProfiles[0].SemanticDistanceCells, Has.Count.EqualTo(63));
+            Assert.That(audit.TrainingPeopleWithObservations, Is.EqualTo(1));
+            Assert.That(audit.TrainingPeopleInMultipleSources, Is.Zero);
+            Assert.That(audit.SourceMultiplicity.Select(x => x.DistinctTrainingPeople),
+                Is.EqualTo(new[] { 0, 1 }));
+            Assert.That(audit.SourceOverlaps, Is.Empty);
         }));
 
         var changedTest = Fixture();
@@ -107,6 +112,13 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
             Assert.That(audit.SourceProfiles.Sum(x => x.DistinctTrainingPeople), Is.EqualTo(2),
                 "A mesma pessoa presente em duas fontes não representa duas pessoas únicas globalmente.");
             Assert.That(audit.BasePeopleInTraining, Is.EqualTo(1));
+            Assert.That(audit.TrainingPeopleWithObservations, Is.EqualTo(1));
+            Assert.That(audit.TrainingPeopleInMultipleSources, Is.EqualTo(1));
+            Assert.That(audit.SourceMultiplicity.Select(x => x.DistinctTrainingPeople),
+                Is.EqualTo(new[] { 0, 0, 1 }));
+            Assert.That(audit.SourceOverlaps, Has.Count.EqualTo(1));
+            Assert.That(audit.SourceOverlaps[0], Is.EqualTo(
+                new SyntheticBirthSourceOverlapV9("G0", "G1", 1)));
 
             var cell = audit.SemanticDistanceCells.Single(x =>
                 x.SemanticState == BirthDateSemanticEvidence.PartialComponentAgreement
@@ -120,6 +132,53 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
                     && x.DigitDistance == 2)).ToArray();
             Assert.That(sourceCells.Select(x => x.ObservationCount), Is.EqualTo(new[] { 1, 1 }));
             Assert.That(sourceCells.Select(x => x.DistinctTrainingPeople), Is.EqualTo(new[] { 1, 1 }));
+        }));
+    }
+
+    [Test]
+    public void Multiplicity_counts_train_people_without_observations_and_disjoint_sources()
+    {
+        var baseCorpus = Fixture();
+        var extraTrain = new SyntheticPerson
+        {
+            BasePersonId = "C", Partition = "TRAIN", Name = "JOSE LIMA",
+            MotherName = "ANA SANTOS", BirthDate = new DateOnly(1990, 8, 2),
+            Sex = "M", EvaluationWeight = 1
+        };
+        var unseenTrain = new SyntheticPerson
+        {
+            BasePersonId = "D", Partition = "TRAIN", Name = "PAULA SOUZA",
+            MotherName = "ANA SANTOS", BirthDate = new DateOnly(1998, 2, 1),
+            Sex = "F", EvaluationWeight = 1
+        };
+        var observations = baseCorpus.Observations.ToList();
+        observations[1] = Observation("A1", "A", "TRAIN", new DateOnly(1987, 3, 15), "G1");
+        observations.Add(Observation("C0", "C", "TRAIN", new DateOnly(1990, 8, 2), "G2"));
+        var corpus = baseCorpus with
+        {
+            People = [.. baseCorpus.People, extraTrain, unseenTrain],
+            Observations = observations
+        };
+
+        var audit = SyntheticBirthDistanceAuditBuilderV9.Analyze(corpus);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(audit.BasePeopleInTraining, Is.EqualTo(3));
+            Assert.That(audit.TrainingPeopleWithObservations, Is.EqualTo(2));
+            Assert.That(audit.TrainingPeopleInMultipleSources, Is.EqualTo(1));
+            Assert.That(audit.SourceProfiles.Select(x => x.Source),
+                Is.EqualTo(new[] { "G0", "G1", "G2" }));
+            Assert.That(audit.SourceProfiles.Sum(x => x.DistinctTrainingPeople), Is.EqualTo(3));
+            Assert.That(audit.SourceMultiplicity.Select(x => x.DistinctTrainingPeople),
+                Is.EqualTo(new[] { 1, 1, 1, 0 }));
+            Assert.That(audit.SourceOverlaps, Is.EqualTo(new[]
+            {
+                new SyntheticBirthSourceOverlapV9("G0", "G1", 1),
+                new SyntheticBirthSourceOverlapV9("G0", "G2", 0),
+                new SyntheticBirthSourceOverlapV9("G1", "G2", 0)
+            }));
+            Assert.That(audit.SourceOverlaps.Sum(x => x.SharedTrainingPeople),
+                Is.EqualTo(1));
         }));
     }
 
