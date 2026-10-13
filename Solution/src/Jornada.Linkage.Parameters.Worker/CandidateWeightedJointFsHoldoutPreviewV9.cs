@@ -31,7 +31,11 @@ public sealed record CandidateWeightedJointFsHoldoutOutcomeV9(
     decimal TrueNegativeDesignWeight,
     decimal? ObservedWeightedFalseDiscoveryShare,
     decimal ObservedWeightedRecallShare,
-    CandidateFsHoldoutGroupSensitivityV9 GroupSensitivity);
+    CandidateFsHoldoutGroupSensitivityV9 GroupSensitivity)
+{
+    /// <summary>Descriptive 81-cell M/U observed support; NOT a certification.</summary>
+    public CandidateJointSupportAuditV9? ObservedJointSupport { get; init; }
+}
 
 /// <summary>
 /// Leave-one-independent-EVALUATION-group-out descriptive ranges for the
@@ -140,7 +144,10 @@ public static class CandidateWeightedJointFsHoldoutPreviewV9
             audit.UnmatchedEvaluation.KishEffectiveSampleSize,
             tp, fp, fn, tn, tpWeight, fpWeight, fnWeight, tnWeight,
             positiveWeight == 0m ? null : fpWeight / positiveWeight,
-            tpWeight / actualMatchWeight, GroupSensitivity());
+            tpWeight / actualMatchWeight, GroupSensitivity())
+        {
+            ObservedJointSupport = CandidateJointSupportAuditBuilderV9.Analyze(audit)
+        };
 
         CandidateFsHoldoutGroupSensitivityV9 GroupSensitivity()
         {
