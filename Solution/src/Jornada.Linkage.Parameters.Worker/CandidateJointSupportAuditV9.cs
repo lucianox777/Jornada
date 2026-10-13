@@ -75,8 +75,7 @@ public static class CandidateJointSupportAuditBuilderV9
         int minimumObservedPairsPerClass = 1)
     {
         ArgumentNullException.ThrowIfNull(audit);
-        if (minimumObservedPairsPerClass <= 0)
-            throw new ArgumentOutOfRangeException(nameof(minimumObservedPairsPerClass));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(minimumObservedPairsPerClass);
         if (audit.Version != CandidateWeightedJointHoldoutAuditBuilderV9.Version
             || audit.Status != CandidateWeightedJointHoldoutAuditBuilderV9.Status)
             throw new InvalidOperationException("Auditoria de suporte V9 exige holdout conjunto versionado.");
