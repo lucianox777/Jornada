@@ -219,7 +219,7 @@
     "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole permanece como host DEV independente, sem dependência de domínio; o lock vazio foi force-evaluated no mesmo gate. Atualização 2026-10-04: dependências de teste compatíveis e ações GitHub consolidadas; NUnit 4.6.1 foi descartado após ambiguidade de overloads em Assert.* e mantido em 4.2.2; locks regenerados pelo grafo corrente.",
     "lockCount": 22,
     "changedLockCount": 22,
-    "combinedSha256": "47374e5f88fab440d8dc4a7b8c0996261f36d0f56ffb255b1c93a149075249e6",
+    "combinedSha256": "4770ce79d3bf94ee5f632e9e8bb9638af0bf28eb6c2b656f5ebab0d63a464cf6",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -279,7 +279,7 @@
       },
       {
         "path": "src/Jornada.Linkage.SyntheticCorpus/packages.lock.json",
-        "sha256": "230682764e47f98929b3a77d325c2a18db5b97a96dd1b356abe25212f96164ad"
+        "sha256": "6c8fe1daeb9109f03ec2a01e0557407ec113f5aded2c98fd3836198786aa5a58"
       },
       {
         "path": "src/Jornada.Operational.Sql/packages.lock.json",
@@ -307,7 +307,7 @@
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "3ac7bff866b58ec9a2063d02ce6af5fafb8152ef386893b7c9d667c3346343d1"
+        "sha256": "a6bee8123633e13f9154f8c8b095dd55007b283fe77a4886b1daf69b0c5e5ee8"
       }
     ]
   }
