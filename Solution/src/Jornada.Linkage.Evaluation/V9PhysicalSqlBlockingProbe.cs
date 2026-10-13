@@ -69,6 +69,7 @@ public static class V9PhysicalSqlBlockingProbe
         public string? ActiveRulesetFingerprint { get; init; }
         public int ActiveRulesetPassCount { get; init; }
         public long ActiveRulesetNewCandidatePairs { get; init; }
+        public V9SyntheticBaseFrequencyAudit.Report? TrainBaseFrequencyAudit { get; init; }
         public string? BlockingAblationContract { get; init; }
         public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
     }
@@ -123,10 +124,27 @@ public static class V9PhysicalSqlBlockingProbe
         var observationRows = ReadObservations(Encoding.UTF8.GetString(observationBytes));
         if (observationRows.Length <= 30000)
             throw new InvalidDataException("Corpus exige observações de 30.000 bases.");
-        var people = File.ReadLines(Path.Combine(corpusRoot, "pessoas_verdade.csv"))
-            .Skip(1).LongCount();
-        if (people != 30000)
-            throw new InvalidDataException("Verificação de pessoas sintéticas exige exatamente 30.000.");
+        var expectedPeopleSha = outputs.EnumerateArray()
+            .Single(x => x.GetProperty("path").GetString() == "pessoas_verdade.csv")
+            .GetProperty("sha256").GetString()!;
+        var peopleBytes = await File.ReadAllBytesAsync(
+            Path.Combine(corpusRoot, "pessoas_verdade.csv"), ct);
+        var peopleSha = Convert.ToHexString(SHA256.HashData(peopleBytes));
+        if (!string.Equals(expectedPeopleSha, peopleSha, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("SHA-256 da massa-base diverge do manifesto.");
+        var basePeople = ReadBasePeople(Encoding.UTF8.GetString(peopleBytes));
+        if (basePeople.Length != 30000)
+            throw new InvalidDataException("Verificação da massa-base sintética exige exatamente 30.000 pessoas.");
+        var basePartition = basePeople.ToDictionary(
+            x => x.BasePersonId, x => x.Partition, StringComparer.Ordinal);
+        if (observationRows.Any(x => !basePartition.TryGetValue(x.Base, out var partition)
+                || partition != x.Partition))
+            throw new InvalidDataException("Observação sintética sem pessoa-base ou com split divergente.");
+        // Source is the *unique synthetic BASE PEOPLE population* in TRAIN,
+        // not repeated candidate endpoints or noise-corrupted observations.
+        // No TF U baseline or calibrated weight can be inferred from this audit.
+        var tfBaseAudit = V9SyntheticBaseFrequencyAudit.Analyze(
+            basePeople, string.Concat(fingerprint, ":", peopleSha));
 
         await using (var create = new SqlCommand(
             """
@@ -173,6 +191,7 @@ public static class V9PhysicalSqlBlockingProbe
             CREATE INDEX IX_v9_name ON #v9obs(part,nome,mae,nascimento);
             CREATE INDEX IX_v9_namefon ON #v9obs(part,nome_fon,mae,nascimento);
             CREATE INDEX IX_v9_maefon ON #v9obs(part,nome,mae_fon,nascimento);
+
             -- Temporary supporting indexes for the pre-registered ablation JOINs;
             -- no index or SQL schema outside JornadaHarness is changed.
             CREATE INDEX IX_v9_person_birth ON #v9obs(part,nome,nascimento);
@@ -301,11 +320,11 @@ public static class V9PhysicalSqlBlockingProbe
             ActiveRulesetFingerprint = activeRules.Fingerprint,
             ActiveRulesetPassCount = activeRules.PassCount,
             ActiveRulesetNewCandidatePairs = activeRules.NewPairs,
+            TrainBaseFrequencyAudit = tfBaseAudit,
             BlockingAblationContract = BlockingAblationVersion,
             PreRegisteredPassSensitivity = passSensitivity
         };
     }
-
 
 
     private sealed class AblationAcc(string pass, string split)
@@ -597,6 +616,29 @@ public static class V9PhysicalSqlBlockingProbe
                 accepted == 0 ? null : (decimal)Fp / accepted,
                 Tp == 0 ? null : (decimal)Fp / Tp);
         }
+    }
+
+    private static V9SyntheticBaseFrequencyAudit.BasePerson[] ReadBasePeople(string csv)
+    {
+        using var source = new StringReader(csv);
+        var header = SplitCsv(source.ReadLine() ?? throw new InvalidDataException("Massa-base vazia."));
+        var indexes = header.Select((name, pos) => (name, pos))
+            .ToDictionary(x => x.name, x => x.pos, StringComparer.Ordinal);
+        foreach (var required in new[] { "base_person_id", "particao", "nome", "nome_mae" })
+            if (!indexes.ContainsKey(required))
+                throw new InvalidDataException("Massa-base sem coluna: " + required);
+        var rows = new List<V9SyntheticBaseFrequencyAudit.BasePerson>();
+        string? line;
+        while ((line = source.ReadLine()) is not null)
+        {
+            if (line.Length == 0) continue;
+            var cells = SplitCsv(line);
+            string C(string name) => cells[indexes[name]];
+            rows.Add(new V9SyntheticBaseFrequencyAudit.BasePerson(
+                C("base_person_id"), C("particao"),
+                Empty(C("nome")), Empty(C("nome_mae"))));
+        }
+        return rows.ToArray();
     }
 
     private static Observation[] ReadObservations(string csv)
