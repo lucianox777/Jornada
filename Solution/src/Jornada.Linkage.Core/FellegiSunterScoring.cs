@@ -240,6 +240,8 @@ public static class FellegiSunterScoring
         (string State, double M, double U, double Llr)? v9Joint = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
+        if (v9Joint is not null)
+            RequireDeclaredV9BirthDistribution(parameters);
         if (blockCandidateCount is <= 0)
             throw new ArgumentOutOfRangeException(
                 nameof(blockCandidateCount),
@@ -320,7 +322,9 @@ public static class FellegiSunterScoring
             else if (parameters.TryGetValue(LinkageParameterCatalog.BirthSingleEvidenceScoring, out var singleBirth) && singleBirth >= 1d)
             {
                 var state = left == right ? "EXACT" : "DIFF";
-                Add("DATA_NASCIMENTO", state, OptionalLikelihoodRatio(parameters, "DATA_NASCIMENTO", state));
+                Add("DATA_NASCIMENTO", state, v9Joint is not null
+                    ? RequiredLikelihoodRatio(parameters, "DATA_NASCIMENTO", state)
+                    : OptionalLikelihoodRatio(parameters, "DATA_NASCIMENTO", state));
             }
             else
             {
@@ -342,7 +346,44 @@ public static class FellegiSunterScoring
         void AddBinary(string attribute, bool exact)
         {
             var state = exact ? "EXACT" : "DIFF";
-            Add(attribute, state, OptionalLikelihoodRatio(parameters, attribute, state));
+            Add(attribute, state, v9Joint is not null
+                ? RequiredLikelihoodRatio(parameters, attribute, state)
+                : OptionalLikelihoodRatio(parameters, attribute, state));
+        }
+    }
+
+    /// <summary>
+    /// In V9 a declared birth strategy must contain the complete m/u
+    /// distribution, even if this specific observation is missing birth.
+    /// Unlike the historical OptionalLikelihoodRatio in V1/V2/V3 replay,
+    /// a missing calibrated probability cannot silently become Bayes factor 1.
+    /// An undeclared birth strategy remains outside this preview contract;
+    /// source-field optionality is governed separately by ingestion schemas.
+    /// </summary>
+    private static void RequireDeclaredV9BirthDistribution(
+        IReadOnlyDictionary<string, double> parameters)
+    {
+        static bool Enabled(IReadOnlyDictionary<string, double> p, string flag) =>
+            p.TryGetValue(flag, out var enabled) && enabled >= 1d;
+        IReadOnlyList<string>? required;
+        if (Enabled(parameters, LinkageParameterCatalog.BirthSemanticEvidenceScoring))
+            required = LinkageParameterCatalog.BirthSemanticEvidenceRequired;
+        else if (Enabled(parameters, LinkageParameterCatalog.BirthJointEvidenceScoring))
+            required = LinkageParameterCatalog.BirthJointEvidenceRequired;
+        else if (Enabled(parameters, LinkageParameterCatalog.BirthSingleEvidenceScoring))
+            required = LinkageParameterCatalog.BirthSingleEvidenceRequired;
+        else if (Enabled(parameters, LinkageParameterCatalog.BirthComponentScoring) ||
+                 Enabled(parameters, LinkageParameterCatalog.LegacyBirthComponentScoring))
+            required = LinkageParameterCatalog.BirthComponentRequired;
+        else
+            return;
+
+        foreach (var key in required)
+        {
+            if (!parameters.TryGetValue(key, out var value) ||
+                !double.IsFinite(value) || value <= 0d || value > 1d)
+                throw new InvalidOperationException(
+                    $"V9 exige parâmetro de nascimento declarado, finito e positivo: {key}.");
         }
     }
 
