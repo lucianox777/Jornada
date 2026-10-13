@@ -9,7 +9,7 @@ Issue de execução: #946. Incidente motivador: #944; reprodução de ranking: #
 - Splink, `ForenameSurnameComparison`: https://moj-analytical-services.github.io/splink/topic_guides/comparisons/out_of_the_box_comparisons.html
 - Splink, TF e comparação por níveis: https://moj-analytical-services.github.io/splink/topic_guides/comparisons/term-frequency.html
 
-Splink explica que o modelo FS não deve presumir independência entre prenome e sobrenome: comparação única permite níveis mutuamente exclusivos e, quando disponível, frequência **conjunta** da combinação. A implementação da Jornada continua sendo **um único scorer FS C#**, com conferência independente em Splink. Uma string composta `primeiro + último` **não representa todo o nome**: nomes intermediários e agnomes continuam na comparação integral.
+Splink explica que o modelo FS não deve presumir independência entre prenome e sobrenome: comparação única permite níveis mutuamente exclusivos e, quando disponível, frequência **conjunta** da combinação. A implementação da Jornada continua sendo **um único scorer FS C#**, com conferência matemática independente obrigatória; a comparação externa com Splink é **opcional/diagnóstica**, conforme decisão de 29/09/2026. Uma string composta `primeiro + último` **não representa todo o nome**: nomes intermediários e agnomes continuam na comparação integral.
 
 ## Contrato proposto — estágio 1 (ainda não operacional)
 
@@ -48,7 +48,7 @@ O método `FellegiSunterScoring.CalculateCompositeNominalJointV9` já está **no
 
 A evolução `FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown` executa, **na mesma função interna `Evaluate` do scorer FS existente**, prior e evidência de nascimento **mais uma única contribuição nominal conjunta de pessoa × mãe**. A entrada V9 recebe os 81 estados `(m,u)`, classifica o par e exige versão, distribuição normalizada e 81 estados exclusivos; calcula `ln(m/u)` e passa essa evidência ao mesmo acumulador/logit/breakdown usado no runtime. **Não executa `NOME` e `NOME_MAE` legados quando existe estado nominal conjunto V9**, o que previne a dupla contagem. O nascimento continua com seus próprios parâmetros e cálculo padrão; ausência nominal da mãe é estado conjunto explícito, **não neutro por definição**.
 
-A função é **preview matemático explícito**, não um novo scorer de produção nem `AlgorithmVersion=V9` ativado. Não altera `Rank/Resolve`, não consome dados do atendente, não publica nem altera modelo persistido e **não aplica TF** até que uma referência por unidade/nível seja calibrada. O fato de uma tabela somar 1 e produzir score finito não certifica os `m/u`: a verificação do corpus, fonte IBGE/proxy ou histórico real, condicionamento ao blocking, partições independentes, suporte, FDR/FP/recall e paridade com Splink continuam obrigatórios antes de permitir persistência/promoção.
+A função é **preview matemático explícito**, não um novo scorer de produção nem `AlgorithmVersion=V9` ativado. Não altera `Rank/Resolve`, não consome dados do atendente, não publica nem altera modelo persistido e **não aplicava TF nessa etapa histórica**; a PR #974 passou a aceitar um único ajuste TF por unidade em **preview**, ainda sem estimativa/governança completa do Calibrador. O fato de uma tabela somar 1 e produzir score finito não certifica os `m/u`: a verificação do corpus, fonte IBGE/proxy ou histórico real, condicionamento ao blocking, partições independentes, suporte, FDR/FP/recall e **conferência matemática independente** continuam obrigatórios antes de permitir persistência/promoção; a paridade externa C# × Splink é diagnóstico opcional, **não** gate do Ensaio.
 
 Os testes verificam numericamente `logit(prior) + ln(m_j/u_j) + ln(m_nasc/u_nasc)`, a ausência de `NOME`/`NOME_MAE` duplos, mãe e nascimento ausentes, falhas de contrato, e que parâmetros marginais legados adicionais **não alteram o score V9**. Nenhum censo opcional de pares SQL é pré-requisito do preview; priorizar o **snapshot V9 governado e o dispatch seguro no mesmo scorer**.
 
@@ -64,14 +64,14 @@ Após a PR #967, a avaliação de um bloco de candidatos na V9 percorria e valid
 
 A API pública `CalculateCompositeNominalJointV9` e o preview matemático continuam aceitando a coleção completa e passam pelo mesmo validador. Já `ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview` congela e valida essa coleção **antes** de verificar a existência de candidatos, e reutiliza o mesmo snapshot validado ao visitar cada candidato. O cálculo continua no **único `FellegiSunterScoring.Evaluate`** do runtime; preserva prior, nascimento, estado `Missing` materno e substituição das contribuições `NOME`/`NOME_MAE` por um único estado nominal V9. Testes comprovam equivalência matemática completa entre a rota pública e a pré-congelada, integridade frente a alterações do input, invalidação de tabelas incompletas e recusa mesmo quando o bloco não contém candidatos.
 
-**Limites inalterados:** congelamento de parâmetros **não prova a origem dos 81 m/u, nem certifica sua calibração, TF, probabilidades de inclusão ou FDR**. O preview continua interno e **não é roteado por `AlgorithmVersion=V9`**; nenhuma alteração operacional no `Rank/Resolve`, modelos ATIVOS, bancos ou V8 para replay. Esta etapa remove uma repetição matemática desnecessária sem exigir nova análise de blocking ou censo SQL. Prioridade subsequente: governar o snapshot persistido e conectar o dispatch sob gates reais, validar Splink e testes estatísticos.
+**Limites inalterados:** congelamento de parâmetros **não prova a origem dos 81 m/u, nem certifica sua calibração, TF, probabilidades de inclusão ou FDR**. O preview continua interno e **não é roteado por `AlgorithmVersion=V9`**; nenhuma alteração operacional no `Rank/Resolve`, modelos ATIVOS, bancos ou V8 para replay. Esta etapa remove uma repetição matemática desnecessária sem exigir nova análise de blocking ou censo SQL. Prioridade subsequente: governar o snapshot persistido e conectar o dispatch sob gates reais, executar conferência matemática independente e testes estatísticos; Splink externo pode auxiliar como diagnóstico opcional.
 
 ## Proteção fail-closed do roteamento operacional V9 (incremento de continuidade)
 
 O identificador `FELLEGI_SUNTER_DECISION_EVIDENCE_COMPOSITE_NOMINAL_V9`
 está **reservado**, mas **não ativado**. Enquanto não houver 81 estados
 `m/u` conjuntos certificados, proveniência versionada, TF por unidade
-compatível, paridade Splink e autorização DT-15, `LinkageModelPolicy.Create`
+compatível, conferência matemática independente e autorização DT-15, `LinkageModelPolicy.Create`
 rejeita explicitamente `V9` e qualquer versão de algoritmo terminada em
 `_V9`. O objetivo é impedir que uma nova versão nominal seja carregada
 com os parâmetros `M_NOME`/`M_NOME_MAE` antigos por fallback implícito.
@@ -110,12 +110,15 @@ vincular explicitamente esse digest à versão de modelo e a um manifesto
 imutável de proveniência e decisões DT-15; tal vínculo ainda não existe
 e o guard operacional V9 continua bloqueando qualquer fallback para V8.
 
+
+**Precedência da conferência:** a [decisão de avaliação sintética primária de 29/09](Decisao_Avaliacao_Sintetica_Primaria_20260929.md) tornou o Splink externo opcional como prova de equivalência de implementação; **não** dispensou TEST independente congelado, conferência matemática obrigatória nem validação representativa antes de HML/Produção. Os trechos das etapas V9 acima são fotografias históricas do momento de cada PR, não veto novo de executar o bootstrap sobre 30.000 pessoas sintéticas.
+
 ## Critérios de promoção (não concluídos por esta PR)
 
 1. Capturar estados V9 do TRAIN e dos pares U **condicionados ao blocking**; estimar distribuições `m/u` por nível com suavização, suporte e incerteza explícitos.
 2. Persistir versão das classes, extrator, snapshots nominais conjuntos quando existirem e proveniência. Preservar reprodutibilidade exata de modelos V8 históricos.
 3. Integrar `AlgorithmVersion=V9` no mesmo scorer; ausências neutras apenas se calibradas; thresholds e margens versionados; nenhum fallback silencioso ao scorer V8.
-4. Confrontar o cálculo par-a-par C# vs Splink sob os mesmos dados, níveis, parâmetros e numerador/denominador; não afirmar equivalência antes de medir.
+4. Conferir o cálculo par-a-par C# contra **vetores com resultados independentes**, incluindo níveis, prior, m/u, TF, LLR e decisões de fronteira conforme DT-01/09/14. Comparação C# × Splink sobre os mesmos dados é **opcional/diagnóstica** (não gate de Ensaio ou promoção) e não se deve afirmar paridade Splink sem executá-la.
 5. Executar TRAIN/VALIDATION/TEST independentes, adversários (MARIA SILVA / MARIA SILVAA, homônimos, mães ausentes, agnomes, nomes compostos), comparação com V8 e orçamento de FP/FDR + recall. Não ajustar TEST para torná-lo verde.
 6. Somente após os gates, decidir `VALIDATE/ACTIVATE` em DT-15. Ensaio DEV/HML é evidência separada, não substituída por CI.
 
@@ -156,6 +159,6 @@ modelo completo de múltiplos ajustes Splink/Calibrador.
 **Pendente para V9 operacional:** aprender/calibrar unidades e pesos
 adequados inclusive combinações dependentes e estados fuzzy; ampliar
 representações sem somar sinais correlacionados; comparar sobre mesmos
-pares com Splink externo, certificar VALIDATION/TEST, anexar snapshot
+pares mediante conferência matemática independente (Splink externo opcional), certificar VALIDATION/TEST, anexar snapshot
 governado e aprovar DT-15. Nada muda em `Rank/Resolve` operacional,
 `GENERATE_DRAFT`, TF V8, ledger ou modelos ATIVOS.
