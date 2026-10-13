@@ -15,7 +15,8 @@ namespace Jornada.Linkage.SyntheticCorpus;
 public sealed record SyntheticBirthSemanticDistanceCellV9(
     string SemanticState,
     int DigitDistance,
-    int ObservationCount);
+    int ObservationCount,
+    int DistinctTrainingPeople);
 
 public sealed record SyntheticBirthDistanceAuditV9(
     string Version,
@@ -37,7 +38,7 @@ public sealed record SyntheticBirthDistanceAuditV9(
 
 public static class SyntheticBirthDistanceAuditBuilderV9
 {
-    public const string Version = "V9_SYNTH_BIRTH_DATE_DISTANCE_TRAIN_AUDIT_2";
+    public const string Version = "V9_SYNTH_BIRTH_DATE_DISTANCE_TRAIN_AUDIT_3";
     public const string Status =
         "SYNTHETIC_TRAIN_DIAGNOSTIC_NOT_EMPIRICAL_ERROR_RATES_OR_FS_MU";
     public const string Partition = "TRAIN";
@@ -67,6 +68,9 @@ public static class SyntheticBirthDistanceAuditBuilderV9
             .SelectMany(state => Enumerable.Range(0, 9)
                 .Select(distance => (State: state, Distance: distance)))
             .ToDictionary(cell => cell, _ => 0);
+        // Repeated observations of a single synthetic person are NOT
+        // independent population draws. This inventory never leaves TRAIN.
+        var distinctPersonIds = new Dictionary<(string State, int Distance), HashSet<string>>();
         var seenObservations = new HashSet<string>(StringComparer.Ordinal);
         int total = 0, missing = 0, exact = 0, different = 0;
         int dayMonthYearDifference = 0, adjacent = 0, swapped = 0, conventional = 0;
@@ -95,6 +99,10 @@ public static class SyntheticBirthDistanceAuditBuilderV9
             var state = BirthDateSemanticEvidence.Classify(truth, observed);
             states[state]++;
             stateDistances[(state, digitDistance)]++;
+            var cellKey = (state, digitDistance);
+            if (!distinctPersonIds.TryGetValue(cellKey, out var personIds))
+                distinctPersonIds[cellKey] = personIds = new HashSet<string>(StringComparer.Ordinal);
+            personIds.Add(person.BasePersonId);
 
             var mask = ((truth.Day == observed.Day ? 1 : 0) |
                         (truth.Month == observed.Month ? 2 : 0) |
@@ -129,13 +137,19 @@ public static class SyntheticBirthDistanceAuditBuilderV9
         var cells = BirthDateSemanticEvidence.States
             .SelectMany(state => Enumerable.Range(0, 9)
                 .Select(distance => new SyntheticBirthSemanticDistanceCellV9(
-                    state, distance, stateDistances[(state, distance)])))
+                    state, distance, stateDistances[(state, distance)],
+                    distinctPersonIds.TryGetValue((state, distance), out var peopleInCell)
+                        ? peopleInCell.Count : 0)))
             .ToArray();
 
         // Reconcile the actual joint distribution with BOTH legacy marginal
         // histograms; frequency-by-state and frequency-by-distance alone do
         // not reveal where V5 semantic precedence compresses distinct errors.
-        if (cells.Length != BirthDateSemanticEvidence.States.Count * 9
+        if (cells.Any(cell => cell.DistinctTrainingPeople < 0
+                || cell.DistinctTrainingPeople > cell.ObservationCount
+                || (cell.ObservationCount == 0) != (cell.DistinctTrainingPeople == 0)
+                || cell.DistinctTrainingPeople > trainCount)
+            || cells.Length != BirthDateSemanticEvidence.States.Count * 9
             || BirthDateSemanticEvidence.States.Any(state =>
                 cells.Where(c => c.SemanticState == state).Sum(c => c.ObservationCount)
                     != states[state])
