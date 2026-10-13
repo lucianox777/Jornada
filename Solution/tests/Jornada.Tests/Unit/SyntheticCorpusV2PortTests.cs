@@ -245,6 +245,15 @@ public sealed class SyntheticCorpusV2PortTests
                     Does.Contain("NOT_EMPIRICAL_ERROR_RATES_OR_FS_MU"));
                 Assert.That(birthAudit.GetProperty("digit_distances").TryGetProperty("0", out _), Is.True);
                 Assert.That(birthAudit.GetProperty("semantic_states").TryGetProperty("EXACT", out _), Is.True);
+                var matrix = birthAudit.GetProperty("semantic_distance_cells");
+                Assert.That(matrix.GetArrayLength(), Is.EqualTo(63));
+                Assert.That(matrix.EnumerateArray().Sum(x =>
+                    x.GetProperty("observation_count").GetInt32()),
+                    Is.EqualTo(birthAudit.GetProperty("exact_birth_observations").GetInt32()
+                        + birthAudit.GetProperty("differing_birth_observations").GetInt32()));
+                Assert.That(matrix.EnumerateArray().Any(x =>
+                    x.GetProperty("semantic_state").GetString() == "EXACT"
+                    && x.GetProperty("digit_distance").GetInt32() == 0), Is.True);
             }));
         }
         finally
