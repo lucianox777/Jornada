@@ -1139,6 +1139,17 @@ jobs:
           assert len({d["FrozenThresholdLogOdds"] for d in docs})==1
           assert all(d["FrozenSourceSeed"]==42 and d["FrozenSourceInputFingerprint"].upper()==docs[0]["CorpusInputFingerprint"].upper() for d in docs)
           agg=dict(eligible=0, retrieved_true=0, false_candidates=0, accepted_correct=0, accepted_wrong=0)
+          # Diagnostic ablations are PRE-REGISTERED and independent of one
+          # another. Each row is additional to the same baseline, never a
+          # reason to select a SQL policy based on blind TEST results.
+          ablation_names=("PERSON_EXACT_PLUS_BIRTH_EXACT",
+              "MOTHER_EXACT_PLUS_BIRTH_EXACT",
+              "PERSON_EXACT_PLUS_MOTHER_EXACT_ANY_BIRTH",
+              "PERSON_PHONETIC_PLUS_BIRTH_EXACT",
+              "MOTHER_PHONETIC_PLUS_BIRTH_EXACT",
+              "PERSON_AND_MOTHER_PHONETIC_PLUS_BIRTH_EXACT")
+          ablation_agg={p:dict(extra_true=0,extra_false=0,extra_tp=0,extra_fp=0) for p in ablation_names}
+          ablation_by_seed=[]
           for d in docs:
               assert d["Version"]=="V9_PHYSICAL_SQL_ACTIVE_DYNAMIC_PLUS_C1_FULL_CANDIDATE_CENSUS_V1"
               assert d["BlockingPolicy"]=="ACTIVE_LINKAGE_RULESET_SQL_UNION_COMBINED_IDENTITY_CANDIDATES_V1"
@@ -1174,6 +1185,33 @@ jobs:
                   check("WrongLinksPerCorrectLink",fp,tp)
                   check("RecallAgainstEligibleTrue",tp,e)
                   check("ConditionalFalsePositiveRateAmongFalseCandidates",fp,u)
+              assert d["BlockingAblationContract"]=="V9_SQL_HARNESS_SIX_PASSES_V1_BASELINE_UNCHANGED"
+              alt=d["PreRegisteredPassSensitivity"]
+              assert len(alt)==len(ablation_names)*3
+              assert len({(a["PassId"],a["Partition"]) for a in alt})==len(alt)
+              assert {(a["PassId"],a["Partition"]) for a in alt}=={
+                  (p,partition) for p in ablation_names for partition in ("TRAIN","VALIDATION","TEST")}
+              for a in alt:
+                  split=next(r for r in d["Splits"] if r["Partition"]==a["Partition"])
+                  mt=a["ExtraTruePairs"];u=a["ExtraFalsePairs"]
+                  tp=a["ExtraAcceptedTruePairs"];fp=a["ExtraAcceptedWrongPairs"]
+                  assert 0<=tp<=mt<=split["TruePairsLostBySqlBlocking"], (d["Seed"],a)
+                  assert 0<=fp<=u and mt+u<=d["CandidatePairHardCap"]
+                  def matching(key,numerator,denominator):
+                      actual=a[key]
+                      expected=None if not denominator else D(numerator)/D(denominator)
+                      assert (actual is None and expected is None) or (
+                          actual is not None and expected is not None and
+                          abs(D(str(actual))-expected)<D("0.00000000000000001")), (key,actual,expected)
+                  matching("ExtraFalseCandidatesPerTrue",u,mt)
+                  matching("ExtraWrongLinkShareAmongAccepted",fp,tp+fp)
+                  if a["Partition"]=="TEST":
+                      row=ablation_agg[a["PassId"]]
+                      row["extra_true"]+=mt
+                      row["extra_false"]+=u
+                      row["extra_tp"]+=tp
+                      row["extra_fp"]+=fp
+              ablation_by_seed.append({"seed":d["Seed"],"test":[a for a in alt if a["Partition"]=="TEST"]})
               t=d["Splits"][2]
               for key,field in (("eligible","EligibleTrueInterGestorNoCpfPairs"),("retrieved_true","SqlCandidateTruePairs"),("false_candidates","SqlCandidateFalsePairs"),("accepted_correct","AcceptedTruePairs"),("accepted_wrong","AcceptedWrongPairs")):
                   agg[key]+=t[field]
@@ -1181,11 +1219,29 @@ jobs:
           agg["falseCandidatesPerRetrievedTrue"]=rate(agg["false_candidates"],agg["retrieved_true"])
           agg["wrongLinkRateAmongAccepted"]=rate(agg["accepted_wrong"],agg["accepted_correct"]+agg["accepted_wrong"])
           agg["wrongLinksPerCorrectLink"]=rate(agg["accepted_wrong"],agg["accepted_correct"])
+          ablation_summary=[]
+          for pass_id,c in ablation_agg.items():
+              mt=agg["retrieved_true"]+c["extra_true"]
+              u=agg["false_candidates"]+c["extra_false"]
+              tp=agg["accepted_correct"]+c["extra_tp"]
+              fp=agg["accepted_wrong"]+c["extra_fp"]
+              ablation_summary.append({"passId":pass_id,**c,
+                  "hypotheticalUnionTrueCandidates":mt,
+                  "hypotheticalUnionFalseCandidates":u,
+                  "hypotheticalUnionAcceptedCorrect":tp,
+                  "hypotheticalUnionAcceptedWrong":fp,
+                  "hypotheticalUnionRecall":rate(tp,agg["eligible"]),
+                  "hypotheticalUnionWrongLinkRate":rate(fp,tp+fp),
+                  "hypotheticalUnionFalseCandidatesPerTrue":rate(u,mt),
+                  "status":"DIAGNOSTIC_ONLY_NO_TEST_BASED_POLICY_SELECTION"})
           summary={"version":"V9_SQL_C1_REAL_CANDIDATES_THREE_SEEDS_V1",
                    "physicalFrame":"ACTIVE_DYNAMIC_SQL_PLUS_C1_CANONICAL_KEYS_NO_HISTORICAL_ALIASES",
                    "seed42FrozenModelSha256":docs[0]["FrozenModelSha256"],
                    "testAggregated":agg,
                    "testBySeed":[{"seed":d["Seed"],**d["Splits"][2]} for d in docs],
+                   "preRegisteredAblationContract":"V9_SQL_HARNESS_SIX_PASSES_V1_BASELINE_UNCHANGED",
+                   "preRegisteredAblationTestBySeed":ablation_by_seed,
+                   "preRegisteredAblationHypotheticalUnionDiagnostics":ablation_summary,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))
