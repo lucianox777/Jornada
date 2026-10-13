@@ -39,7 +39,7 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
         }));
 
         var changedTest = Fixture();
-        changedTest.Observations[^1].BirthDate = new DateOnly(1826, 1, 1);
+        changedTest.Observations.Last().BirthDate = new DateOnly(1826, 1, 1);
         var independentlyAudited = SyntheticBirthDistanceAuditBuilderV9.Analyze(changedTest);
         Assert.That(independentlyAudited, Is.EqualTo(audit));
     }
@@ -69,12 +69,18 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
         var fixture = Fixture();
         var duplicate = fixture with { People = [fixture.People[0], fixture.People[0]] };
         var unknown = Fixture();
-        unknown.Observations[0].BasePersonId = "NOT_SELECTED";
+        unknown = unknown with { Observations = unknown.Observations.Select((o, i) =>
+            i == 0 ? Observation("A0", "NOT_SELECTED", "TRAIN", Truth) : o).ToArray() };
         var partitionLeak = Fixture();
-        partitionLeak.Observations[0].Partition = "TEST";
+        partitionLeak = partitionLeak with { Observations = partitionLeak.Observations.Select((o, i) =>
+            i == 0 ? Observation("A0", "A", "TEST", Truth) : o).ToArray() };
         var duplicateObservation = Fixture();
-        duplicateObservation.Observations[1].ObservationId =
-            duplicateObservation.Observations[0].ObservationId;
+        duplicateObservation = duplicateObservation with
+        {
+            Observations = duplicateObservation.Observations.Select((o, i) =>
+                i == 1 ? Observation("A0", "A", "TRAIN", new DateOnly(1987, 3, 15))
+                    : o).ToArray()
+        };
 
         Assert.Multiple((Action)(() =>
         {
