@@ -138,9 +138,8 @@ public sealed class NameFrequencyCoverageSqlServerTests
         var bootstrap = new Jornada.Contracts.NominalSyntheticIbgeBootstrapV9(
             Jornada.Contracts.CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance,
             30_000, "TEST_CORPUS", "GENERATOR_V1", 42UL, "TEST_HYPOTHESES");
-        Assert.That(async () => await FrozenIbgeNominalTfV9.LoadAsync(
-            connection, versionId, "BLOCKING_SQL_FRAME", bootstrap),
-            Throws.InvalidOperationException);
+        Assert.ThrowsAsync<InvalidOperationException>(async () => await FrozenIbgeNominalTfV9.LoadAsync(
+            connection, versionId, "BLOCKING_SQL_FRAME", bootstrap));
 
         Assert.Multiple((Action)(() =>
         {

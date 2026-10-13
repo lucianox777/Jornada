@@ -93,7 +93,7 @@ public sealed class FrozenIbgeNominalTfV9Tests
                 Is.EqualTo((decimal)Math.Log(1d / 6d)).Within(.000000001m));
             Assert.That(withRare.Score.LogOdds - noTf.Score.LogOdds,
                 Is.EqualTo((decimal)Math.Log(2d)).Within(.000000001m));
-        });
+        }));
     }
 
     [Test]
@@ -163,12 +163,12 @@ public sealed class FrozenIbgeNominalTfV9Tests
         };
         Assert.Multiple((Action)(() =>
         {
-            Assert.That((Action)(() => Bind(prepared, "F00"), Throws.InvalidOperationException);
-            Assert.That((Action)(() => Bind(prepared with { ReferenceVersionId = 0 }),
+            Assert.That((Action)(() => Bind(prepared, "F00")), Throws.InvalidOperationException);
+            Assert.That((Action)(() => Bind(prepared with { ReferenceVersionId = 0 })),
                 Throws.InvalidOperationException);
-            Assert.That((Action)(() => Bind(prepared, bootstrap: Bootstrap with { People = 29_999 }),
+            Assert.That((Action)(() => Bind(prepared, bootstrap: Bootstrap with { People = 29_999 })),
                 Throws.InvalidOperationException);
-            Assert.That((Action)(() => Bind(tampered), Throws.InvalidOperationException);
+            Assert.That((Action)(() => Bind(tampered)), Throws.InvalidOperationException);
         }));
     }
 
