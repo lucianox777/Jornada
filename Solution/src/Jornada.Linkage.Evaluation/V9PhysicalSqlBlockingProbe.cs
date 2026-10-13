@@ -173,6 +173,12 @@ public static class V9PhysicalSqlBlockingProbe
             CREATE INDEX IX_v9_name ON #v9obs(part,nome,mae,nascimento);
             CREATE INDEX IX_v9_namefon ON #v9obs(part,nome_fon,mae,nascimento);
             CREATE INDEX IX_v9_maefon ON #v9obs(part,nome,mae_fon,nascimento);
+            -- Temporary supporting indexes for the pre-registered ablation JOINs;
+            -- no index or SQL schema outside JornadaHarness is changed.
+            CREATE INDEX IX_v9_person_birth ON #v9obs(part,nome,nascimento);
+            CREATE INDEX IX_v9_mother_birth ON #v9obs(part,mae,nascimento);
+            CREATE INDEX IX_v9_personfon_birth ON #v9obs(part,nome_fon,nascimento);
+            CREATE INDEX IX_v9_motherfon_birth ON #v9obs(part,mae_fon,nascimento);
 
             SELECT DISTINCT q.a, q.b, q.part
             INTO #v9pairs
