@@ -71,6 +71,12 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
                 && x.DigitDistance == 0).DistinctTrainingPeople, Is.EqualTo(1));
             Assert.That(audit.SemanticDistanceCells.Count(x =>
                 x.ObservationCount == 0 && x.DistinctTrainingPeople == 0), Is.EqualTo(60));
+            Assert.That(audit.SourceProfiles, Has.Count.EqualTo(1));
+            Assert.That(audit.SourceProfiles[0].Source, Is.EqualTo("G0"));
+            Assert.That(audit.SourceProfiles[0].Observations, Is.EqualTo(5));
+            Assert.That(audit.SourceProfiles[0].MissingBirthObservations, Is.EqualTo(1));
+            Assert.That(audit.SourceProfiles[0].DistinctTrainingPeople, Is.EqualTo(1));
+            Assert.That(audit.SourceProfiles[0].SemanticDistanceCells, Has.Count.EqualTo(63));
         }));
 
         var changedTest = Fixture();
@@ -78,6 +84,53 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
         var independentlyAudited = SyntheticBirthDistanceAuditBuilderV9.Analyze(changedTest);
         Assert.That(System.Text.Json.JsonSerializer.Serialize(independentlyAudited),
             Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(audit)));
+    }
+
+    [Test]
+    public void Sources_reconcile_without_double_counting_people_in_global_cells()
+    {
+        var corpus = Fixture();
+        var observations = corpus.Observations.ToArray();
+        observations[1] = Observation("A1", "A", "TRAIN", new DateOnly(1987, 3, 15), "G1");
+        var audit = SyntheticBirthDistanceAuditBuilderV9.Analyze(
+            corpus with { Observations = observations });
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(audit.SourceProfiles.Select(x => x.Source), Is.EqualTo(new[] { "G0", "G1" }));
+            Assert.That(audit.SourceProfiles.Sum(x => x.Observations), Is.EqualTo(5));
+            Assert.That(audit.SourceProfiles.Sum(x => x.ExactBirthObservations),
+                Is.EqualTo(audit.ExactBirthObservations));
+            Assert.That(audit.SourceProfiles.Sum(x => x.DifferingBirthObservations),
+                Is.EqualTo(audit.DifferingBirthObservations));
+            Assert.That(audit.SourceProfiles.Sum(x => x.MissingBirthObservations),
+                Is.EqualTo(audit.MissingBirthObservations));
+            Assert.That(audit.SourceProfiles.Sum(x => x.DistinctTrainingPeople), Is.EqualTo(2),
+                "A mesma pessoa presente em duas fontes não representa duas pessoas únicas globalmente.");
+            Assert.That(audit.BasePeopleInTraining, Is.EqualTo(1));
+
+            var cell = audit.SemanticDistanceCells.Single(x =>
+                x.SemanticState == BirthDateSemanticEvidence.PartialComponentAgreement
+                && x.DigitDistance == 2);
+            Assert.That(cell.ObservationCount, Is.EqualTo(2));
+            Assert.That(cell.DistinctTrainingPeople, Is.EqualTo(1));
+
+            var sourceCells = audit.SourceProfiles.Select(source =>
+                source.SemanticDistanceCells.Single(x =>
+                    x.SemanticState == BirthDateSemanticEvidence.PartialComponentAgreement
+                    && x.DigitDistance == 2)).ToArray();
+            Assert.That(sourceCells.Select(x => x.ObservationCount), Is.EqualTo(new[] { 1, 1 }));
+            Assert.That(sourceCells.Select(x => x.DistinctTrainingPeople), Is.EqualTo(new[] { 1, 1 }));
+        }));
+    }
+
+    [Test]
+    public void Source_profile_rejects_missing_gestor_on_training_observation()
+    {
+        var corpus = Fixture();
+        var observations = corpus.Observations.ToArray();
+        observations[0] = Observation("A0", "A", "TRAIN", Truth, string.Empty);
+        Assert.That((Action)(() => SyntheticBirthDistanceAuditBuilderV9.Analyze(
+            corpus with { Observations = observations })), Throws.InvalidOperationException);
     }
 
     [Test]
@@ -188,12 +241,13 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
     }
 
     private static SyntheticObservation Observation(
-        string id, string person, string partition, DateOnly? birthDate) => new()
+        string id, string person, string partition, DateOnly? birthDate,
+        string gestor = "G0") => new()
     {
         ObservationId = id,
         BasePersonId = person,
         Partition = partition,
-        Gestor = "G0",
+        Gestor = gestor,
         Name = "Maria Silva",
         MotherName = "Ana Souza",
         BirthDate = birthDate,

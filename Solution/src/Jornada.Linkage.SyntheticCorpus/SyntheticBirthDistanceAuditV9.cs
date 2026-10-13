@@ -18,6 +18,19 @@ public sealed record SyntheticBirthSemanticDistanceCellV9(
     int ObservationCount,
     int DistinctTrainingPeople);
 
+/// <summary>
+/// Counts in one synthetic source (Gestor) from TRAIN, never validated TEST.
+/// Same person can contribute to multiple sources and cells; no ESS claim.
+/// </summary>
+public sealed record SyntheticBirthSourceProfileV9(
+    string Source,
+    int Observations,
+    int MissingBirthObservations,
+    int ExactBirthObservations,
+    int DifferingBirthObservations,
+    int DistinctTrainingPeople,
+    IReadOnlyList<SyntheticBirthSemanticDistanceCellV9> SemanticDistanceCells);
+
 public sealed record SyntheticBirthDistanceAuditV9(
     string Version,
     string Status,
@@ -34,14 +47,26 @@ public sealed record SyntheticBirthDistanceAuditV9(
     IReadOnlyDictionary<int, int> DigitDistances,
     IReadOnlyDictionary<string, int> SemanticStates,
     IReadOnlyDictionary<string, int> ComponentAgreementMasks,
-    IReadOnlyList<SyntheticBirthSemanticDistanceCellV9> SemanticDistanceCells);
+    IReadOnlyList<SyntheticBirthSemanticDistanceCellV9> SemanticDistanceCells,
+    IReadOnlyList<SyntheticBirthSourceProfileV9> SourceProfiles);
 
 public static class SyntheticBirthDistanceAuditBuilderV9
 {
-    public const string Version = "V9_SYNTH_BIRTH_DATE_DISTANCE_TRAIN_AUDIT_3";
+    public const string Version = "V9_SYNTH_BIRTH_DATE_DISTANCE_TRAIN_AUDIT_4";
     public const string Status =
         "SYNTHETIC_TRAIN_DIAGNOSTIC_NOT_EMPIRICAL_ERROR_RATES_OR_FS_MU";
     public const string Partition = "TRAIN";
+
+    private sealed class SourceAccumulator
+    {
+        public int Observations;
+        public int Missing;
+        public int Exact;
+        public int Differing;
+        public HashSet<string> People { get; } = new(StringComparer.Ordinal);
+        public Dictionary<(string State, int Distance), HashSet<string>> PeopleInCells { get; } = [];
+        public Dictionary<(string State, int Distance), int> CellCounts { get; } = [];
+    }
 
     public static SyntheticBirthDistanceAuditV9 Analyze(SyntheticCorpusGeneration generation)
     {
@@ -71,6 +96,7 @@ public static class SyntheticBirthDistanceAuditBuilderV9
         // Repeated observations of a single synthetic person are NOT
         // independent population draws. This inventory never leaves TRAIN.
         var distinctPersonIds = new Dictionary<(string State, int Distance), HashSet<string>>();
+        var sourceProfiles = new Dictionary<string, SourceAccumulator>(StringComparer.Ordinal);
         var seenObservations = new HashSet<string>(StringComparer.Ordinal);
         int total = 0, missing = 0, exact = 0, different = 0;
         int dayMonthYearDifference = 0, adjacent = 0, swapped = 0, conventional = 0;
@@ -86,10 +112,18 @@ public static class SyntheticBirthDistanceAuditBuilderV9
 
             // This is a training diagnostic, not a validation/TEST leak.
             if (person.Partition != Partition) continue;
+            if (string.IsNullOrWhiteSpace(observation.Gestor))
+                throw new InvalidOperationException("Observação TRAIN sem fonte sintética Gestor.");
+            if (!sourceProfiles.TryGetValue(observation.Gestor, out var source))
+                sourceProfiles[observation.Gestor] = source = new SourceAccumulator();
+            source.Observations++;
+            source.People.Add(person.BasePersonId);
+
             total++;
             if (observation.BirthDate is not { } observed)
             {
                 missing++;
+                source.Missing++;
                 continue;
             }
 
@@ -100,6 +134,12 @@ public static class SyntheticBirthDistanceAuditBuilderV9
             states[state]++;
             stateDistances[(state, digitDistance)]++;
             var cellKey = (state, digitDistance);
+            source.CellCounts.TryGetValue(cellKey, out var sourceCount);
+            source.CellCounts[cellKey] = sourceCount + 1;
+            if (!source.PeopleInCells.TryGetValue(cellKey, out var sourcePeople))
+                source.PeopleInCells[cellKey] = sourcePeople =
+                    new HashSet<string>(StringComparer.Ordinal);
+            sourcePeople.Add(person.BasePersonId);
             if (!distinctPersonIds.TryGetValue(cellKey, out var personIds))
                 distinctPersonIds[cellKey] = personIds = new HashSet<string>(StringComparer.Ordinal);
             personIds.Add(person.BasePersonId);
@@ -112,10 +152,12 @@ public static class SyntheticBirthDistanceAuditBuilderV9
             if (truth == observed)
             {
                 exact++;
+                source.Exact++;
                 continue;
             }
 
             different++;
+            source.Differing++;
             if ((observed.Day is 1 or 15) && truth.Day != observed.Day)
                 conventional++;
             if (truth.Day != observed.Day || truth.Month != observed.Month
@@ -141,6 +183,46 @@ public static class SyntheticBirthDistanceAuditBuilderV9
                     distinctPersonIds.TryGetValue((state, distance), out var peopleInCell)
                         ? peopleInCell.Count : 0)))
             .ToArray();
+
+        var sources = sourceProfiles.OrderBy(x => x.Key, StringComparer.Ordinal)
+            .Select(sourceEntry =>
+            {
+                var source = sourceEntry.Value;
+                var sourceCells = BirthDateSemanticEvidence.States
+                    .SelectMany(state => Enumerable.Range(0, 9).Select(distance =>
+                    {
+                        var key = (state, distance);
+                        source.CellCounts.TryGetValue(key, out var count);
+                        var peopleCount = source.PeopleInCells.TryGetValue(key, out var group)
+                            ? group.Count : 0;
+                        return new SyntheticBirthSemanticDistanceCellV9(
+                            state, distance, count, peopleCount);
+                    })).ToArray();
+                if (source.Observations != source.Missing + source.Exact + source.Differing
+                    || sourceCells.Sum(x => x.ObservationCount) != source.Exact + source.Differing
+                    || sourceCells.Any(x => x.DistinctTrainingPeople > x.ObservationCount
+                        || x.DistinctTrainingPeople > source.People.Count))
+                    throw new InvalidOperationException(
+                        "Auditoria TRAIN por fonte sintética não fecha seus denominadores.");
+
+                return new SyntheticBirthSourceProfileV9(
+                    sourceEntry.Key, source.Observations, source.Missing, source.Exact,
+                    source.Differing, source.People.Count, Array.AsReadOnly(sourceCells));
+            }).ToArray();
+
+        // Each observed TRAIN record contributes to exactly one source/cell.
+        // Distinct people may appear in multiple sources and MUST NOT be summed.
+        if (sources.Sum(x => x.Observations) != total
+            || sources.Sum(x => x.MissingBirthObservations) != missing
+            || sources.Sum(x => x.ExactBirthObservations) != exact
+            || sources.Sum(x => x.DifferingBirthObservations) != different
+            || cells.Any(cell =>
+                sources.Sum(x => x.SemanticDistanceCells
+                    .Where(c => c.SemanticState == cell.SemanticState
+                        && c.DigitDistance == cell.DigitDistance)
+                    .Sum(c => c.ObservationCount)) != cell.ObservationCount))
+            throw new InvalidOperationException(
+                "Auditoria TRAIN por fonte não reconcilia com o agregado global.");
 
         // Reconcile the actual joint distribution with BOTH legacy marginal
         // histograms; frequency-by-state and frequency-by-distance alone do
@@ -168,6 +250,7 @@ public static class SyntheticBirthDistanceAuditBuilderV9
             new System.Collections.ObjectModel.ReadOnlyDictionary<int, int>(distances),
             new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(states),
             new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(masks),
-            Array.AsReadOnly(cells));
+            Array.AsReadOnly(cells),
+            Array.AsReadOnly(sources));
     }
 }

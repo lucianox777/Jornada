@@ -366,6 +366,24 @@ public static class SyntheticCorpusMaterializer
                 observation_count = cell.ObservationCount,
                 // Distinct synthetic people, not inferred independence or ESS.
                 distinct_training_people = cell.DistinctTrainingPeople
+            }).ToArray(),
+            // Source-conditioned diagnostics stay only in this truth sidecar.
+            // No names, identifiers, CPF, or population error-rate claims.
+            source_profiles = birthAudit.SourceProfiles.Select(profile => new
+            {
+                source = profile.Source,
+                observations = profile.Observations,
+                missing_birth_observations = profile.MissingBirthObservations,
+                exact_birth_observations = profile.ExactBirthObservations,
+                differing_birth_observations = profile.DifferingBirthObservations,
+                distinct_training_people = profile.DistinctTrainingPeople,
+                semantic_distance_cells = profile.SemanticDistanceCells.Select(cell => new
+                {
+                    semantic_state = cell.SemanticState,
+                    digit_distance = cell.DigitDistance,
+                    observation_count = cell.ObservationCount,
+                    distinct_training_people = cell.DistinctTrainingPeople
+                }).ToArray()
             }).ToArray()
         });
         return JsonSerializer.Serialize(withBirthAudit, IndentedJsonOptions) + "\n";
