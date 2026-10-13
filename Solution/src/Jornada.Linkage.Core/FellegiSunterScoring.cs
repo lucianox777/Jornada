@@ -61,6 +61,9 @@ public static class FellegiSunterScoring
     /// aggregation as the runtime: one joint person/mother nominal LLR plus
     /// the existing birth evidence and prior, without adding old nominal LLRs.
     /// This does NOT dispatch AlgorithmVersion=V9 or activate a model.
+    /// An optional single-unit TF correction (weight 0 = neutral) is admitted
+    /// ONLY in preview after verifying reference/unit/term compatibility.
+    /// Reference U and frequency remain unverified calibration inputs.
     /// The caller's probability table still requires external certification.
     /// </summary>
     public static FellegiSunterScoreBreakdown CalculateCompositeNominalV9PreviewWithBreakdown(
@@ -73,12 +76,13 @@ public static class FellegiSunterScoring
         string nominalContractVersion,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
-        DateOnly? rightBirthDate = null) =>
+        DateOnly? rightBirthDate = null,
+        CompositeNominalTfPreviewV9? nominalTf = null) =>
         CalculateFrozenCompositeNominalV9PreviewWithBreakdown(
             parameters,
             leftPersonName, rightPersonName, leftMotherName, rightMotherName,
             FrozenFellegiSunterJointNominalV9.Freeze(jointCells, nominalContractVersion),
-            blockCandidateCount, leftBirthDate, rightBirthDate);
+            blockCandidateCount, leftBirthDate, rightBirthDate, nominalTf);
 
     /// <summary>
     /// Reuses the shared FS Evaluate implementation without traversing all
@@ -94,7 +98,8 @@ public static class FellegiSunterScoring
         FrozenFellegiSunterJointNominalV9 frozen,
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
-        DateOnly? rightBirthDate = null)
+        DateOnly? rightBirthDate = null,
+        CompositeNominalTfPreviewV9? nominalTf = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(frozen);
@@ -105,13 +110,17 @@ public static class FellegiSunterScoring
 
         var selected = frozen.Classify(
             leftPersonName, rightPersonName, leftMotherName, rightMotherName);
+        var tfAdjustment = CompositeNominalTfPreviewEvaluatorV9.Calculate(
+            selected.Person, selected.Mother,
+            leftPersonName, rightPersonName, leftMotherName, rightMotherName,
+            nominalTf);
         var raw = Evaluate(
             ToDoubleParameters(parameters),
             nameState: null, motherNameState: null,
             blockCandidateCount, leftBirthDate, rightBirthDate,
             captureBreakdown: true,
             v9Joint: ($"{selected.Person}:{selected.Mother}",
-                (double)selected.M, (double)selected.U, selected.LogLikelihoodRatio));
+                (double)selected.M, (double)selected.U, selected.LogLikelihoodRatio + tfAdjustment));
         return RenderBreakdown(parameters, raw,
             new FellegiSunterJointNominalCellV9(
                 selected.Person, selected.Mother, selected.M, selected.U));
