@@ -670,6 +670,22 @@ public sealed class CandidateWeightedEstimatorTests
         var duplicatedCell = trustedDerivation.Cells.ToArray();
         duplicatedCell[1] = duplicatedCell[0];
 
+        // Preserve the global M/U normalization while falsifying the two
+        // affected cells. The previous sum-only guard incorrectly accepted
+        // this balanced perturbation and could change the FS ranking.
+        var balancedM = trustedDerivation.Cells.ToArray();
+        var deltaM = Math.Min(balancedM[0].M, balancedM[1].M) / 4m;
+        balancedM[0] = balancedM[0] with { M = balancedM[0].M + deltaM };
+        balancedM[1] = balancedM[1] with { M = balancedM[1].M - deltaM };
+        var balancedU = trustedDerivation.Cells.ToArray();
+        var deltaU = Math.Min(balancedU[0].U, balancedU[1].U) / 4m;
+        balancedU[0] = balancedU[0] with { U = balancedU[0].U + deltaU };
+        balancedU[1] = balancedU[1] with { U = balancedU[1].U - deltaU };
+        Assert.That(deltaM, Is.GreaterThan(0.000001m));
+        Assert.That(deltaU, Is.GreaterThan(0.000001m));
+        Assert.That(balancedM.Sum(x => x.M), Is.EqualTo(trustedDerivation.Cells.Sum(x => x.M)));
+        Assert.That(balancedU.Sum(x => x.U), Is.EqualTo(trustedDerivation.Cells.Sum(x => x.U)));
+
         void Reject(CandidateWeightedJointDiagnosticV9 value) =>
             Assert.That((Action)(() =>
                 CandidateWeightedJointPreviewAdapterV9.FromTrainingDiagnostic(value)),
@@ -679,6 +695,11 @@ public sealed class CandidateWeightedEstimatorTests
         {
             Reject(sidecar);
             Reject(trustedDerivation with { Cells = changedProbabilities });
+            Reject(trustedDerivation with { Cells = balancedM });
+            Reject(trustedDerivation with { Cells = balancedU });
+            Reject(trustedDerivation with { SmoothingAlpha = 0.75m });
+            Reject(trustedDerivation with { Matched = trustedDerivation.Matched with
+                { EffectiveSampleSize = trustedDerivation.Matched.EffectiveSampleSize + 1m } });
             Reject(trustedDerivation with { Cells = duplicatedCell });
             Reject(trustedDerivation with { FrameFingerprint = "" });
             Reject(trustedDerivation with { SamplingDesignVersion = "SQL_BLOCKING_UNATTESTED" });

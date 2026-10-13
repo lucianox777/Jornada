@@ -31,7 +31,14 @@ recebe o diagnóstico ponderado existente, **somente quando os estados foram
 recalculados de evidência bruta** pelo comparador V9 e o registro preserva
 a versão do desenho, partições, referências e suavização Kish ESS. Confere
 81 células exclusivas, probabilidades normalizadas, pesos/contagens com suas
-respectivas classes e grupos independentes. Copia as células para o DTO público
+respectivas classes e grupos independentes. **A ponte V9 _2 recalcula também
+cada probabilidade M/U a partir do peso observado na célula, do total por
+classe, ESS Kish, alpha e 81 estados, exigindo igualdade decimal exata com
+o estimador TRAIN.** Alterar duas células em sentidos opostos para preservar
+a soma 1, ou adulterar alpha/ESS sem refazer as probabilidades, passa a
+falhar fechado. Essa checagem garante **consistência matemática interna**,
+não autenticidade do frame/rotulação nem suficiência estatística.
+Copia as células para o DTO público
 `FellegiSunterJointNominalCellV9`, que o **mesmo scorer FS C#** aceita na
 API de pré-visualização matemática. A ponte não possui acesso a ativação,
 persistência de modelos, `Rank/Resolve` operacional nem decisões do cidadão.

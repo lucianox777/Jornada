@@ -11,7 +11,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static class CandidateWeightedJointPreviewAdapterV9
 {
-    public const string Version = "V9_JOINT_DIAGNOSTIC_TO_FS_PREVIEW_ONLY_1";
+    public const string Version = "V9_JOINT_DIAGNOSTIC_TO_FS_PREVIEW_ONLY_2";
 
     /// <summary>
     /// Copy all 81 joint M/U cells after validating the aggregate diagnostic
@@ -75,6 +75,21 @@ public static class CandidateWeightedJointPreviewAdapterV9
                 || (cell.MatchedObservedPairs > 0 && cell.MatchedObservedWeight <= 0m)
                 || (cell.UnmatchedObservedPairs > 0 && cell.UnmatchedObservedWeight <= 0m))
                 throw new InvalidOperationException("Snapshot V9 tem célula, probabilidade ou suporte inconsistente.");
+
+            // A normalized sum alone does NOT prove that probabilities came
+            // from the declared observations: two cells can be perturbed in
+            // opposite directions while retaining sum(M)=sum(U)=1.
+            // Recompute under the exact estimator's Kish-ESS smoothing
+            // convention before forwarding any cell to the FS preview.
+            var expectedM = CandidateWeightedJointNominalEstimatorV9.EssNormalizedSmoothedProbability(
+                cell.MatchedObservedWeight, matched.TotalDesignWeight,
+                matched.EffectiveSampleSize, diagnostic.SmoothingAlpha, diagnostic.Cells.Count);
+            var expectedU = CandidateWeightedJointNominalEstimatorV9.EssNormalizedSmoothedProbability(
+                cell.UnmatchedObservedWeight, unmatched.TotalDesignWeight,
+                unmatched.EffectiveSampleSize, diagnostic.SmoothingAlpha, diagnostic.Cells.Count);
+            if (cell.M != expectedM || cell.U != expectedU)
+                throw new InvalidOperationException(
+                    "Probabilidades V9 divergem de peso observado, ESS ou alpha TRAIN.");
 
             sumM += cell.M;
             sumU += cell.U;
