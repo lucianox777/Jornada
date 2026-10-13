@@ -120,3 +120,42 @@ e o guard operacional V9 continua bloqueando qualquer fallback para V8.
 6. Somente após os gates, decidir `VALIDATE/ACTIVATE` em DT-15. Ensaio DEV/HML é evidência separada, não substituída por CI.
 
 **Estado desta entrega:** somente biblioteca C# pura, enum experimental, testes unitários e especificação. O runtime V8, os modelos persistidos e o processo de decisão não mudam. Esta PR de fundação pode ser revisada isoladamente; **não** autoriza ativação V9.
+
+## Incremento de TF por unidade nominal no scorer único — PREVIEW V9
+
+`CompositeNominalTfPreviewV9` permite informar **uma** correção TF por
+avaliação conjunta V9 (pessoa **ou** mãe), sem somar outra evidência
+independente de `m/u`. O mesmo `FellegiSunterScoring.Evaluate` recebe
+a contribuição conjunta `ln(m_ij/u_ij) + w_TF × ln(u_referencia_unidade / f_termo)`,
+além de prior e nascimento. A função `SplinkCompatibleTermFrequency` é
+reutilizada. `w_TF=0` deixa o termo original inalterado (fator neutro 1);
+`w_TF=1` aplica o ajuste integral; apenas pesos dentro de [0,1] são
+aceitos nesta pré-visualização, sem fixação obrigatória do peso na arquitetura.
+
+A **unidade da referência** depende do nível selecionado: `ExactFull`
+exige `FullName`; `ExactFirstLast`, frequência conjunta observada;
+`ExactFirst`, prenome; `ExactLast`, último sobrenome significativo
+(proxy IBGE explicitamente identificado quando aplicável). O valor
+normalizado deve coincidir com os dois lados do par na unidade específica.
+A verificação de proveniência `RequireMatchingReference` (V3) bloqueia
+marginal IBGE usada como nome inteiro ou distribuição conjunta inventada;
+referência real exige suporte independente e aprovação. `Missing`,
+`High*`, `Other` e inversão não recebem TF não calibrada neste incremento.
+
+**Fronteira:** `UnitReferenceU` é informado separadamente, tendo de ser o
+`u` estimado para a **mesma unidade/nível e universo condicionado ao
+blocking**, não `u` de alguma célula conjunta de 81 estados nem
+`U_NOME_EXACT` histórico. Este código valida contrato/unidade e a
+correspondência textual, **não autentica nem estima** as frequências ou o
+`u` declarados, e não estima peso; esta é uma API de *preview* para
+experimentos reprodutíveis, não publicação de parâmetros. Um único
+ajuste foi implementado deliberadamente para impedir adição ingênua de
+TF da pessoa e da mãe sem calibrar a dependência. Não equivale ainda ao
+modelo completo de múltiplos ajustes Splink/Calibrador.
+
+**Pendente para V9 operacional:** aprender/calibrar unidades e pesos
+adequados inclusive combinações dependentes e estados fuzzy; ampliar
+representações sem somar sinais correlacionados; comparar sobre mesmos
+pares com Splink externo, certificar VALIDATION/TEST, anexar snapshot
+governado e aprovar DT-15. Nada muda em `Rank/Resolve` operacional,
+`GENERATE_DRAFT`, TF V8, ledger ou modelos ATIVOS.
