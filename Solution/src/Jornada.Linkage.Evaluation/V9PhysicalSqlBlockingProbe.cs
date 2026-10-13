@@ -340,9 +340,13 @@ public static class V9PhysicalSqlBlockingProbe
         keyTable.Columns.Add("obs_id", typeof(int));
         keyTable.Columns.Add("feature", typeof(string));
         keyTable.Columns.Add("value", typeof(string));
+        var availableFeatures = new HashSet<string>(StringComparer.Ordinal);
         foreach (var row in rows)
         foreach (var key in BlockingProjectionKeyProjector.Project(row.Name,row.Mother,row.Birth))
+        {
             keyTable.Rows.Add(row.Id,key.Feature,key.Value);
+            availableFeatures.Add(key.Feature);
+        }
         await using (var query = new SqlCommand(
             """
             CREATE TABLE #v9keys(
@@ -364,14 +368,12 @@ public static class V9PhysicalSqlBlockingProbe
         long before;
         await using (var q = new SqlCommand("SELECT COUNT_BIG(*) FROM #v9pairs;",connection))
             before = (long)(await q.ExecuteScalarAsync(ct) ?? 0L);
-        var features = rows.Take(10000).SelectMany(x => BlockingProjectionKeyProjector
-            .Project(x.Name,x.Mother,x.Birth).Select(k => k.Feature))
-            .ToHashSet(StringComparer.Ordinal);
+
         foreach (var pass in passes)
         {
             // A feature absent in the entire synthetic source frame cannot
             // recover any pair; this mirrors the Runner's incomplete clause.
-            if (pass.Fields.Any(x => !features.Contains(x)))
+            if (pass.Fields.Any(x => !availableFeatures.Contains(x)))
                 continue;
             // Anchor the SQL index probe with the most selective identity
             // feature; all other fields remain mandatory AND EXISTS clauses.
