@@ -747,6 +747,12 @@ public sealed class CandidateWeightedEstimatorTests
                 Is.EqualTo(1m));
             Assert.That(result.UnsupportedTrainingCellDecisions.ObservedFalseDiscoveryShareWithinUnsupportedPredictions,
                 Is.EqualTo(0m));
+            Assert.That(result.UnsupportedTrainingCellDecisions.FalseNegativePairsWithoutTrainBilateralEss,
+                Is.Zero);
+            Assert.That(result.UnsupportedTrainingCellDecisions.FalseNegativeDesignWeightShareWithoutTrainBilateralEss,
+                Is.Null);
+            Assert.That(result.UnsupportedTrainingCellDecisions.ObservedRecallWithinUnsupportedActualMatches,
+                Is.EqualTo(1m));
             Assert.That(result.ObservedWeightedFalseDiscoveryShare, Is.EqualTo(0m));
             Assert.That(result.ObservedWeightedRecallShare, Is.EqualTo(1m));
             Assert.That(result.MatchedEvaluationEffectiveSampleSize, Is.EqualTo(2m));
@@ -785,6 +791,14 @@ public sealed class CandidateWeightedEstimatorTests
                 Is.Null);
             Assert.That(report.UnsupportedTrainingCellDecisions.ObservedFalseDiscoveryShareWithinUnsupportedPredictions,
                 Is.Null);
+            Assert.That(report.UnsupportedTrainingCellDecisions.FalseNegativePairsWithoutTrainBilateralEss,
+                Is.EqualTo(report.FalseNegativePairs));
+            Assert.That(report.UnsupportedTrainingCellDecisions.FalseNegativeDesignWeightWithoutTrainBilateralEss,
+                Is.EqualTo(report.FalseNegativeDesignWeight));
+            Assert.That(report.UnsupportedTrainingCellDecisions.FalseNegativeDesignWeightShareWithoutTrainBilateralEss,
+                Is.EqualTo(1m));
+            Assert.That(report.UnsupportedTrainingCellDecisions.ObservedRecallWithinUnsupportedActualMatches,
+                Is.Zero);
             Assert.That(report.ObservedWeightedRecallShare, Is.Zero);
             Assert.That(report.FalseNegativeDesignWeight, Is.EqualTo(4m));
         }));
@@ -1278,6 +1292,12 @@ public sealed class CandidateWeightedEstimatorTests
         Assert.That(preview.UnsupportedTrainingCellDecisions.PredictedPositiveDesignWeightWithoutTrainBilateralEss,
             Is.Zero);
         Assert.That(preview.UnsupportedTrainingCellDecisions.ObservedFalseDiscoveryShareWithinUnsupportedPredictions,
+            Is.Null);
+        Assert.That(preview.UnsupportedTrainingCellDecisions.FalseNegativePairsWithoutTrainBilateralEss,
+            Is.Zero);
+        Assert.That(preview.UnsupportedTrainingCellDecisions.FalseNegativeDesignWeightShareWithoutTrainBilateralEss,
+            Is.EqualTo(preview.FalseNegativePairs == 0 ? null : 0m));
+        Assert.That(preview.UnsupportedTrainingCellDecisions.ObservedRecallWithinUnsupportedActualMatches,
             Is.Null);
     }
 
