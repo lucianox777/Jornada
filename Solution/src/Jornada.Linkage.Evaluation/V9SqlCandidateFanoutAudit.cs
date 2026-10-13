@@ -15,6 +15,8 @@ public static class V9SqlCandidateFanoutAudit
     public sealed record Observation(
         int Id, string Partition, string Gestor, string BasePersonId, bool Eligible);
 
+    public sealed record DegreeCount(int Degree, long Observations);
+
     public sealed record Split(
         string Partition,
         long EligibleObservations, long WithCandidates, long WithoutCandidates,
@@ -24,7 +26,9 @@ public static class V9SqlCandidateFanoutAudit
         int P50CandidatesPerObservation, int P95CandidatesPerObservation,
         int P99CandidatesPerObservation, int MaxCandidatesPerObservation,
         int P95FalseCandidatesPerObservation, int P99FalseCandidatesPerObservation,
-        int MaxFalseCandidatesPerObservation);
+        int MaxFalseCandidatesPerObservation,
+        IReadOnlyList<DegreeCount> CandidateDegreeHistogram,
+        IReadOnlyList<DegreeCount> FalseDegreeHistogram);
 
     public sealed record Report(
         string Version, string Status, string PercentileDefinition,
@@ -139,7 +143,8 @@ public static class V9SqlCandidateFanoutAudit
                     incidence, falseIncidence,
                     NearestRank(totals, 50), NearestRank(totals, 95),
                     NearestRank(totals, 99), totals[^1],
-                    NearestRank(falses, 95), NearestRank(falses, 99), falses[^1]));
+                    NearestRank(falses, 95), NearestRank(falses, 99), falses[^1],
+                    Histogram(totals), Histogram(falses)));
             }
             if (_seen.Count != splits.Sum(x => x.CandidateTruePairs + x.CandidateFalsePairs))
                 throw new InvalidDataException("Fan-out total incompatível com contagem SQL.");
@@ -147,6 +152,11 @@ public static class V9SqlCandidateFanoutAudit
                 "NEAREST_RANK_CEIL_P_N_SORTED_ALL_ELIGIBLE_ENDPOINTS_INCLUDING_ZERO",
                 splits);
         }
+
+        private static IReadOnlyList<DegreeCount> Histogram(int[] sorted) =>
+            Array.AsReadOnly(sorted.GroupBy(x => x)
+                .Select(group => new DegreeCount(group.Key, group.LongCount()))
+                .ToArray());
 
         private static int NearestRank(int[] ordered, int percentile)
         {
