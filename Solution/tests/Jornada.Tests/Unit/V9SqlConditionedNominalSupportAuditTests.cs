@@ -56,7 +56,7 @@ public sealed class V9SqlConditionedNominalSupportAuditTests
             Assert.That(serialized, Does.Not.Contain("base-1"));
             Assert.That(serialized, Does.Not.Contain("ANA SILVA"));
             Assert.That(serialized, Does.Not.Contain("MARIA SOUZA"));
-            Assert.That(serialized, Does.Not.Contain("Candidate"));
+            Assert.That(serialized, Does.Not.Contain("BaseA"));
         }));
     }
 
