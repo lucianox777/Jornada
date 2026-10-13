@@ -13,7 +13,7 @@ public sealed class SyntheticV9FunctionalProbeTests
             for(var i=0;i<135;i++)
             {
                 var id=$"PRIVATE-{split}-{i:D4}";
-                var birth=new DateOnly(1990,1,1).AddDays(i%25);
+                var birth=new DateOnly(1990,1,1); // deliberately indistinguishable M and U
                 people.Add(new SyntheticPerson
                 {
                     BasePersonId=id,Partition=split,Name="Maria Silva",
