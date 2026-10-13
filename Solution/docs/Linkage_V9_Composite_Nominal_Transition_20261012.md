@@ -162,3 +162,9 @@ representações sem somar sinais correlacionados; comparar sobre mesmos
 pares mediante conferência matemática independente (Splink externo opcional), certificar VALIDATION/TEST, anexar snapshot
 governado e aprovar DT-15. Nada muda em `Rank/Resolve` operacional,
 `GENERATE_DRAFT`, TF V8, ledger ou modelos ATIVOS.
+
+## Precedência do bootstrap de 30 mil e entradas parciais (12/10/2026)
+
+**30.000 Pessoas sintéticas = base inicial aprovada de calibração e comparação**, não demonstração automática de suporte para **81 células M/U**, nem FDR em SP. Não impedir a **execução inicial** por exigir evidência municipal real ou comparação externa Splink, ambas não obrigatórias para o bootstrap/Ensaio. O scorer só pode receber configurações sem parâmetros ausentes mascarados de neutros, com tratamento explícito de células raras e `Missing`. O Calibrador deve selecionar representação, `m/u` e pesos TF por evidência do corpus inicial, registrar células observadas, ESS/grupos, FP/FN/abstenções em partições independentes, e conservar o TEST isolado. A execução completa com relatório das 30 mil pessoas **ainda não foi comprovada** nesta revisão. [Parecer numérico/aceite](Parecer_Suficiencia_Bootstrap_30mil_V9_20261012.md).
+
+O contrato versionado de entrada controla a obrigatoriedade dos atributos: **nenhuma regra universal exige nome, mãe, nascimento e CPF todos simultaneamente**. Ausências válidas podem permanecer como `Missing` calibrado; evidência insuficiente leva à abstenção. Ausência de **parâmetro FS obrigatório** é problema de modelo, não dado opcional. A paridade externa com Splink é opcional pela decisão de 29/09; a conferência matemática independente, TRAIN/VALIDATION/TEST e DT-15 **não foram revogados**. Nenhuma dessas afirmações autoriza ativar V9 atualmente em preview.
