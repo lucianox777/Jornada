@@ -30,7 +30,7 @@ public sealed class BlockingRuleSetSearchConfigurationTests
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["LinkageParameters:BlockingSearch:MaxFieldsPerPass"] = "3",
-                ["LinkageParameters:BlockingSearch:MaxPasses"] = "1",
+                ["LinkageParameters:BlockingSearch:MaxPasses"] = "4",
                 ["LinkageParameters:BlockingSearch:PrimitivePoolSize"] = "16",
                 ["LinkageParameters:BlockingSearch:MinimumTrueMatchRecall"] = "0.975",
                 ["LinkageParameters:BlockingSearch:RequireObservedNonMatchSupport"] = "false"
@@ -42,7 +42,7 @@ public sealed class BlockingRuleSetSearchConfigurationTests
         Assert.Multiple((Action)(() =>
         {
             Assert.That(options.MaxFieldsPerPass, Is.EqualTo(3));
-            Assert.That(options.MaxPasses, Is.EqualTo(1));
+            Assert.That(options.MaxPasses, Is.EqualTo(4));
             Assert.That(options.PrimitivePoolSize, Is.EqualTo(16));
             Assert.That(options.MinimumTrueMatchRecall, Is.EqualTo(0.975d));
             Assert.That(options.RequireObservedNonMatchSupport, Is.False);
@@ -55,7 +55,7 @@ public sealed class BlockingRuleSetSearchConfigurationTests
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["LinkageParameters:BlockingSearch:MaxPasses"] = "3"
+                ["LinkageParameters:BlockingSearch:MaxPasses"] = "5"
             })
             .Build();
 
