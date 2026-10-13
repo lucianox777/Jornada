@@ -740,6 +740,13 @@ public sealed class CandidateWeightedEstimatorTests
             Assert.That(result.TrueNegativePairs, Is.EqualTo(4));
             Assert.That(result.TruePositiveDesignWeight, Is.EqualTo(4m));
             Assert.That(result.TrueNegativeDesignWeight, Is.EqualTo(4m));
+            Assert.That(result.UnsupportedTrainingCellDecisions, Is.Not.Null);
+            Assert.That(result.UnsupportedTrainingCellDecisions!.PredictedPositivePairsWithoutTrainBilateralEss,
+                Is.EqualTo(result.TruePositivePairs + result.FalsePositivePairs));
+            Assert.That(result.UnsupportedTrainingCellDecisions.PredictedPositiveDesignWeightShareWithoutTrainBilateralEss,
+                Is.EqualTo(1m));
+            Assert.That(result.UnsupportedTrainingCellDecisions.ObservedFalseDiscoveryShareWithinUnsupportedPredictions,
+                Is.EqualTo(0m));
             Assert.That(result.ObservedWeightedFalseDiscoveryShare, Is.EqualTo(0m));
             Assert.That(result.ObservedWeightedRecallShare, Is.EqualTo(1m));
             Assert.That(result.MatchedEvaluationEffectiveSampleSize, Is.EqualTo(2m));
@@ -771,6 +778,13 @@ public sealed class CandidateWeightedEstimatorTests
             Assert.That(report.FalseNegativePairs, Is.EqualTo(2));
             Assert.That(report.TrueNegativePairs, Is.EqualTo(4));
             Assert.That(report.ObservedWeightedFalseDiscoveryShare, Is.Null);
+            Assert.That(report.UnsupportedTrainingCellDecisions, Is.Not.Null);
+            Assert.That(report.UnsupportedTrainingCellDecisions!.PredictedPositivePairsWithoutTrainBilateralEss,
+                Is.Zero);
+            Assert.That(report.UnsupportedTrainingCellDecisions.PredictedPositiveDesignWeightShareWithoutTrainBilateralEss,
+                Is.Null);
+            Assert.That(report.UnsupportedTrainingCellDecisions.ObservedFalseDiscoveryShareWithinUnsupportedPredictions,
+                Is.Null);
             Assert.That(report.ObservedWeightedRecallShare, Is.Zero);
             Assert.That(report.FalseNegativeDesignWeight, Is.EqualTo(4m));
         }));
@@ -806,6 +820,11 @@ public sealed class CandidateWeightedEstimatorTests
             Assert.That(revised.FalsePositivePairs, Is.GreaterThan(0));
             Assert.That(revised.ObservedWeightedFalseDiscoveryShare, Is.GreaterThan(0m));
             Assert.That(revised.TruePositivePairs, Is.EqualTo(baseResult.TruePositivePairs));
+            Assert.That(revised.UnsupportedTrainingCellDecisions, Is.Not.Null);
+            Assert.That(revised.UnsupportedTrainingCellDecisions!.FalsePositivePairsWithoutTrainBilateralEss,
+                Is.EqualTo(revised.FalsePositivePairs));
+            Assert.That(revised.UnsupportedTrainingCellDecisions.ObservedFalseDiscoveryShareWithinUnsupportedPredictions,
+                Is.EqualTo(revised.ObservedWeightedFalseDiscoveryShare));
         }));
     }
 
@@ -1248,6 +1267,18 @@ public sealed class CandidateWeightedEstimatorTests
         Assert.That(preview.IndependentJointCellGroupWeightEss, Is.Not.Null);
         Assert.That(preview.IndependentJointCellGroupWeightEss!.UnsupportedDesignWeightExposure,
             Is.EqualTo(exposure));
+        // With both M and U supported in the one observed TRAIN cell,
+        // no EVALUATION positive decision can be attributed to unsupported
+        // TRAIN cells, regardless of the fixed threshold's predictions.
+        Assert.That(preview.UnsupportedTrainingCellDecisions, Is.Not.Null);
+        Assert.That(preview.UnsupportedTrainingCellDecisions!.PredictedPositivePairsWithoutTrainBilateralEss,
+            Is.Zero);
+        Assert.That(preview.UnsupportedTrainingCellDecisions.FalsePositivePairsWithoutTrainBilateralEss,
+            Is.Zero);
+        Assert.That(preview.UnsupportedTrainingCellDecisions.PredictedPositiveDesignWeightWithoutTrainBilateralEss,
+            Is.Zero);
+        Assert.That(preview.UnsupportedTrainingCellDecisions.ObservedFalseDiscoveryShareWithinUnsupportedPredictions,
+            Is.Null);
     }
 
     [Test]
