@@ -9,6 +9,14 @@ namespace Jornada.Linkage.SyntheticCorpus;
 /// TRAIN only: never inspect VALIDATION/TEST labels to tune errors/weights.
 /// Not a distribution of population birth dates, and not an M/U estimate.
 /// </summary>
+/// <summary>
+/// Aggregate cross-tabulation, including zero-count cells; no person IDs.
+/// </summary>
+public sealed record SyntheticBirthSemanticDistanceCellV9(
+    string SemanticState,
+    int DigitDistance,
+    int ObservationCount);
+
 public sealed record SyntheticBirthDistanceAuditV9(
     string Version,
     string Status,
@@ -24,11 +32,12 @@ public sealed record SyntheticBirthDistanceAuditV9(
     int ConventionalDayOneOrFifteenFromDifferentTruth,
     IReadOnlyDictionary<int, int> DigitDistances,
     IReadOnlyDictionary<string, int> SemanticStates,
-    IReadOnlyDictionary<string, int> ComponentAgreementMasks);
+    IReadOnlyDictionary<string, int> ComponentAgreementMasks,
+    IReadOnlyList<SyntheticBirthSemanticDistanceCellV9> SemanticDistanceCells);
 
 public static class SyntheticBirthDistanceAuditBuilderV9
 {
-    public const string Version = "V9_SYNTH_BIRTH_DATE_DISTANCE_TRAIN_AUDIT_1";
+    public const string Version = "V9_SYNTH_BIRTH_DATE_DISTANCE_TRAIN_AUDIT_2";
     public const string Status =
         "SYNTHETIC_TRAIN_DIAGNOSTIC_NOT_EMPIRICAL_ERROR_RATES_OR_FS_MU";
     public const string Partition = "TRAIN";
@@ -54,6 +63,10 @@ public static class SyntheticBirthDistanceAuditBuilderV9
             .ToDictionary(x => x, _ => 0, StringComparer.Ordinal);
         var masks = Enumerable.Range(0, 8).ToDictionary(x => x.ToString("B3", CultureInfo.InvariantCulture),
             _ => 0, StringComparer.Ordinal);
+        var stateDistances = BirthDateSemanticEvidence.States
+            .SelectMany(state => Enumerable.Range(0, 9)
+                .Select(distance => (State: state, Distance: distance)))
+            .ToDictionary(cell => cell, _ => 0);
         var seenObservations = new HashSet<string>(StringComparer.Ordinal);
         int total = 0, missing = 0, exact = 0, different = 0;
         int dayMonthYearDifference = 0, adjacent = 0, swapped = 0, conventional = 0;
@@ -81,6 +94,7 @@ public static class SyntheticBirthDistanceAuditBuilderV9
             distances[digitDistance]++;
             var state = BirthDateSemanticEvidence.Classify(truth, observed);
             states[state]++;
+            stateDistances[(state, digitDistance)]++;
 
             var mask = ((truth.Day == observed.Day ? 1 : 0) |
                         (truth.Month == observed.Month ? 2 : 0) |
@@ -112,7 +126,23 @@ public static class SyntheticBirthDistanceAuditBuilderV9
                 swapped++;
         }
 
-        if (total != missing + exact + different
+        var cells = BirthDateSemanticEvidence.States
+            .SelectMany(state => Enumerable.Range(0, 9)
+                .Select(distance => new SyntheticBirthSemanticDistanceCellV9(
+                    state, distance, stateDistances[(state, distance)])))
+            .ToArray();
+
+        // Reconcile the actual joint distribution with BOTH legacy marginal
+        // histograms; frequency-by-state and frequency-by-distance alone do
+        // not reveal where V5 semantic precedence compresses distinct errors.
+        if (cells.Length != BirthDateSemanticEvidence.States.Count * 9
+            || BirthDateSemanticEvidence.States.Any(state =>
+                cells.Where(c => c.SemanticState == state).Sum(c => c.ObservationCount)
+                    != states[state])
+            || Enumerable.Range(0, 9).Any(distance =>
+                cells.Where(c => c.DigitDistance == distance).Sum(c => c.ObservationCount)
+                    != distances[distance])
+            || total != missing + exact + different
             || distances.Values.Sum() != exact + different
             || states.Values.Sum() != exact + different
             || masks.Values.Sum() != exact + different)
@@ -123,6 +153,7 @@ public static class SyntheticBirthDistanceAuditBuilderV9
             dayMonthYearDifference, adjacent, swapped, conventional,
             new System.Collections.ObjectModel.ReadOnlyDictionary<int, int>(distances),
             new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(states),
-            new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(masks));
+            new System.Collections.ObjectModel.ReadOnlyDictionary<string, int>(masks),
+            Array.AsReadOnly(cells));
     }
 }
