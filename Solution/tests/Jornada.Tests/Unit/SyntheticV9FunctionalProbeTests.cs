@@ -59,10 +59,18 @@ public sealed class SyntheticV9FunctionalProbeTests
     public void Rejects_cross_partition_base_and_duplicate_truth()
     {
         var (people,observations)=Corpus();
-        observations[0].Partition="TEST";
+        var source=observations[0];
+        var invalid=observations.ToArray();
+        invalid[0]=new SyntheticObservation
+        {
+            ObservationId=source.ObservationId,BasePersonId=source.BasePersonId,
+            Partition="TEST",Gestor=source.Gestor,Name=source.Name,
+            MotherName=source.MotherName,BirthDate=source.BirthDate,
+            Sex=source.Sex,Corruptions=source.Corruptions,
+            EvaluationWeight=source.EvaluationWeight
+        };
         Assert.That((Action)(()=>SyntheticV9FunctionalProbe.Analyze(
-            people,observations,42,"FIXTURE")),Throws.InvalidOperationException);
-        observations[0].Partition="TRAIN";
+            people,invalid,42,"FIXTURE")),Throws.InvalidOperationException);
         Assert.That((Action)(()=>SyntheticV9FunctionalProbe.Analyze(
             people.Concat([people[0]]).ToArray(),observations,42,"FIXTURE")),
             Throws.InvalidOperationException);
