@@ -1,0 +1,70 @@
+using Jornada.Linkage.SyntheticCorpus;
+
+namespace Jornada.Tests.Unit;
+
+[TestFixture, Category("Unit")]
+public sealed class SyntheticV9FunctionalProbeTests
+{
+    private static (SyntheticPerson[] People, SyntheticObservation[] Observations) Corpus()
+    {
+        var people=new List<SyntheticPerson>();
+        var observations=new List<SyntheticObservation>();
+        foreach(var split in new[]{"TRAIN","VALIDATION","TEST"})
+            for(var i=0;i<135;i++)
+            {
+                var id=$"PRIVATE-{split}-{i:D4}";
+                var birth=new DateOnly(1990,1,1).AddDays(i%25);
+                people.Add(new SyntheticPerson
+                {
+                    BasePersonId=id,Partition=split,Name="Maria Silva",
+                    MotherName="Ana Costa",BirthDate=birth,Sex="F",
+                    EvaluationWeight=1d
+                });
+                foreach(var gestor in new[]{"G1","G2"})
+                    observations.Add(new SyntheticObservation
+                    {
+                        ObservationId=id+"-"+gestor,BasePersonId=id,
+                        Partition=split,Gestor=gestor,Name="Maria Silva",
+                        MotherName="Ana Costa",BirthDate=birth,Sex="F",
+                        Corruptions="",EvaluationWeight=1d
+                    });
+            }
+        return (people.ToArray(),observations.ToArray());
+    }
+
+    [Test]
+    public void A_real_FS_V9_probe_emits_only_aggregate_truth_metrics_and_can_fail()
+    {
+        var (people,observations)=Corpus();
+        var report=SyntheticV9FunctionalProbe.Analyze(people,observations,42,"FIXTURE");
+        var json=System.Text.Json.JsonSerializer.Serialize(report);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(report.People,Is.EqualTo(405));
+            Assert.That(report.TrainMatchedRetrieved,Is.EqualTo(135));
+            Assert.That(report.TrainUnmatchedSampled,Is.EqualTo(134));
+            Assert.That(report.Test.Tp+report.Test.Fn,Is.EqualTo(135));
+            Assert.That(report.Test.Fp+report.Test.Tn,Is.EqualTo(134));
+            Assert.That(report.Validation.Fpr,Is.LessThanOrEqualTo(report.ValidationFprBudget));
+            Assert.That(report.TrainCellsWithoutBilateralSupport,Is.GreaterThan(0));
+            Assert.That(report.SyntheticProxyVerdict,Is.EqualTo("FAIL_ON_SAMPLED_SYNTHETIC_PROXY"));
+            Assert.That(report.OperationalConclusion,Does.Contain("NOT_PROVEN"));
+            Assert.That(json,Does.Not.Contain("PRIVATE-"));
+            Assert.That(json,Does.Not.Contain("Maria Silva"));
+            Assert.That(json,Does.Not.Contain("Ana Costa"));
+        }));
+    }
+
+    [Test]
+    public void Rejects_cross_partition_base_and_duplicate_truth()
+    {
+        var (people,observations)=Corpus();
+        observations[0].Partition="TEST";
+        Assert.That((Action)(()=>SyntheticV9FunctionalProbe.Analyze(
+            people,observations,42,"FIXTURE")),Throws.InvalidOperationException);
+        observations[0].Partition="TRAIN";
+        Assert.That((Action)(()=>SyntheticV9FunctionalProbe.Analyze(
+            people.Concat([people[0]]).ToArray(),observations,42,"FIXTURE")),
+            Throws.InvalidOperationException);
+    }
+}
