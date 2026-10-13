@@ -107,6 +107,16 @@ public sealed class PersonDocumentEvidenceTests
         using var changed = JsonDocument.Parse(Example.Replace("2020-07-12", "2021-07-12"));
         Assert.That(CanonicalJsonHash.ComputePerson(original.RootElement),
             Is.Not.EqualTo(CanonicalJsonHash.ComputePerson(changed.RootElement)));
+        const string first = "{\"atributoCodigo\":\"NOME_COMPLETO\",\"valorOriginal\":\"Pessoa de Teste\"}";
+        const string second = "{\"atributoCodigo\":\"DATA_NASCIMENTO\",\"valorOriginal\":\"1980-01-01\"}";
+        var reversedJson = Example.Replace(first, "__TEMP_EVIDENCIA__",
+                StringComparison.Ordinal)
+            .Replace(second, first, StringComparison.Ordinal)
+            .Replace("__TEMP_EVIDENCIA__", second, StringComparison.Ordinal);
+        Assert.That(reversedJson, Is.Not.EqualTo(Example));
+        using var reversed = JsonDocument.Parse(reversedJson);
+        Assert.That(CanonicalJsonHash.ComputePerson(reversed.RootElement),
+            Is.EqualTo(CanonicalJsonHash.ComputePerson(original.RootElement)));
     }
 
     private static string FindRoot()
