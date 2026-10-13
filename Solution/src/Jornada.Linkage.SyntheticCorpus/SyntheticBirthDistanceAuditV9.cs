@@ -29,8 +29,7 @@ public sealed record SyntheticBirthSourceProfileV9(
     int ExactBirthObservations,
     int DifferingBirthObservations,
     int DistinctTrainingPeople,
-    IReadOnlyList<SyntheticBirthSemanticDistanceCellV9> SemanticDistanceCells,
-    IReadOnlyList<SyntheticBirthSourceProfileV9> SourceProfiles);
+    IReadOnlyList<SyntheticBirthSemanticDistanceCellV9> SemanticDistanceCells);
 
 public sealed record SyntheticBirthDistanceAuditV9(
     string Version,
@@ -48,7 +47,8 @@ public sealed record SyntheticBirthDistanceAuditV9(
     IReadOnlyDictionary<int, int> DigitDistances,
     IReadOnlyDictionary<string, int> SemanticStates,
     IReadOnlyDictionary<string, int> ComponentAgreementMasks,
-    IReadOnlyList<SyntheticBirthSemanticDistanceCellV9> SemanticDistanceCells);
+    IReadOnlyList<SyntheticBirthSemanticDistanceCellV9> SemanticDistanceCells,
+    IReadOnlyList<SyntheticBirthSourceProfileV9> SourceProfiles);
 
 public static class SyntheticBirthDistanceAuditBuilderV9
 {
