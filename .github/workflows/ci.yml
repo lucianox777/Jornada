@@ -1146,6 +1146,14 @@ jobs:
               assert d["Scope"]=="ACTUAL_SQL_ACTIVE_DYNAMIC_PASSES_PLUS_C1_CURRENT_KEYS_NO_ALIAS_HISTORY"
               assert d["ProjectionVersion"]=="BLOCKING_PROJECTION_KEY_PROJECTOR_V4"
               assert d["CorpusPeople"]==30000 and d["OperationalConclusion"]=="NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"
+              audit=d["TrainBaseFrequencyAudit"]
+              assert audit["Version"]=="V9_SYNTHETIC_BASE_TRAIN_FREQUENCY_AUDIT_V1"
+              assert audit["Status"]=="TRAIN_BASE_DISTRIBUTION_ONLY_NO_CONDITIONAL_U_OR_CALIBRATED_TF"
+              assert audit["Partition"]=="TRAIN" and audit["CorpusBasePeople"]==30000
+              assert 0<audit["TrainingBasePeople"]<30000 and len(audit["Units"])==8
+              assert audit["PopulationFrameFingerprint"].upper().startswith(d["CorpusInputFingerprint"].upper()+":")
+              assert all(u["TrainingBasePeople"]==audit["TrainingBasePeople"] and u["PresentTrainingBasePeople"]+u["MissingTrainingBasePeople"]==audit["TrainingBasePeople"] and u["BasesCoveredByValuesObservedAtLeastFive"]<=u["PresentTrainingBasePeople"] and 0<=u["ValuesObservedAtLeastFiveBases"]<=u["DistinctValues"] for u in audit["Units"])
+              assert {(u["Side"],u["Unit"]) for u in audit["Units"]}=={(side,unit) for side in ("PERSON","MOTHER") for unit in (0,1,2,3)}
               assert [x["Partition"] for x in d["Splits"]]==["TRAIN","VALIDATION","TEST"]
               assert sum(x["SqlCandidateTruePairs"]+x["SqlCandidateFalsePairs"] for x in d["Splits"])==d["SqlCandidatePairsTotal"]
               for r in d["Splits"]:
