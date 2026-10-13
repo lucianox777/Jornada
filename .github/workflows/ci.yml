@@ -1057,6 +1057,84 @@ jobs:
             Solution/.local/v9-synthetic-seed-44/v9-functional-probe.json
           if-no-files-found: error
           retention-days: 30
+      - name: Measure ALL physical SQL C1 candidate and wrong-link pairs for 3 frozen-model 30k corpora
+        env:
+          DOTNET_ENVIRONMENT: Development
+        run: |
+          set -euo pipefail
+          for seed in 42 43 44; do
+            case "$seed" in
+              42) root="$PWD/.local/e2-demographic-primary" ;;
+              *) root="$PWD/.local/v9-synthetic-seed-$seed" ;;
+            esac
+            dotnet run --project src/Jornada.Linkage.Evaluation --configuration Release --no-build -- \
+              --v9-physical-sql-blocking "$root" \
+              "$PWD/.local/e2-demographic-primary/v9-frozen-model.json" \
+              "$PWD/.local/v9-sql-physical-seed-$seed.json" "$seed"
+          done
+          python3 - <<'PY'
+          import json, decimal
+          from pathlib import Path
+          D=decimal.Decimal
+          docs=[json.loads(Path(f".local/v9-sql-physical-seed-{seed}.json").read_text()) for seed in (42,43,44)]
+          assert [d["Seed"] for d in docs]==[42,43,44]
+          assert len({d["FrozenModelSha256"] for d in docs})==1
+          assert len({d["FrozenThresholdLogOdds"] for d in docs})==1
+          assert all(d["FrozenSourceSeed"]==42 and d["FrozenSourceInputFingerprint"].upper()==docs[0]["CorpusInputFingerprint"].upper() for d in docs)
+          agg=dict(eligible=0, retrieved_true=0, false_candidates=0, accepted_correct=0, accepted_wrong=0)
+          for d in docs:
+              assert d["Version"]=="V9_PHYSICAL_SQL_COMBINED_IDENTITY_C1_FULL_CANDIDATE_CENSUS_V1"
+              assert d["BlockingPolicy"]=="COMBINED_IDENTITY_CANDIDATES_V1"
+              assert d["Scope"]=="ACTUAL_SQL_JOIN_CANONICAL_KEYS_COMBINED_C1_NOT_ACTIVE_VERSIONED_ALIAS"
+              assert d["ProjectionVersion"]=="BLOCKING_PROJECTION_KEY_PROJECTOR_V4"
+              assert d["CorpusPeople"]==30000 and d["OperationalConclusion"]=="NOT_OPERATIONAL_ACTIVE_VERSIONED_ALIAS_OR_CALIBRATED_TF"
+              assert [x["Partition"] for x in d["Splits"]]==["TRAIN","VALIDATION","TEST"]
+              assert sum(x["SqlCandidateTruePairs"]+x["SqlCandidateFalsePairs"] for x in d["Splits"])==d["SqlCandidatePairsTotal"]
+              for r in d["Splits"]:
+                  m=r["SqlCandidateTruePairs"];u=r["SqlCandidateFalsePairs"];e=r["EligibleTrueInterGestorNoCpfPairs"]
+                  tp=r["AcceptedTruePairs"];fp=r["AcceptedWrongPairs"]
+                  assert 0<m<=e and u>=0 and 0<=tp<=m and 0<=fp<=u
+                  assert r["TruePairsLostBySqlBlocking"]==e-m
+                  assert r["RejectedTruePairsIncludingLostByBlocking"]==e-tp
+                  assert r["RejectedFalseCandidates"]==u-fp
+                  def check(key,a,b):
+                      actual=r[key]
+                      expected=None if not b else D(a)/D(b)
+                      assert (actual is None and expected is None) or (actual is not None and expected is not None and abs(D(str(actual))-expected)<D("0.00000000000000001")), (key,actual,expected)
+                  check("FalseCandidatesPerRetrievedTrue",u,m)
+                  check("FalseCandidatesPerEligibleTrue",u,e)
+                  check("FalseCandidateShare",u,m+u)
+                  check("WrongLinkRateAmongAcceptedPairs",fp,tp+fp)
+                  check("WrongLinksPerCorrectLink",fp,tp)
+                  check("RecallAgainstEligibleTrue",tp,e)
+                  check("ConditionalFalsePositiveRateAmongFalseCandidates",fp,u)
+              t=d["Splits"][2]
+              for key,field in (("eligible","EligibleTrueInterGestorNoCpfPairs"),("retrieved_true","SqlCandidateTruePairs"),("false_candidates","SqlCandidateFalsePairs"),("accepted_correct","AcceptedTruePairs"),("accepted_wrong","AcceptedWrongPairs")):
+                  agg[key]+=t[field]
+          def rate(a,b): return None if not b else str(D(a)/D(b))
+          agg["falseCandidatesPerRetrievedTrue"]=rate(agg["false_candidates"],agg["retrieved_true"])
+          agg["wrongLinkRateAmongAccepted"]=rate(agg["accepted_wrong"],agg["accepted_correct"]+agg["accepted_wrong"])
+          agg["wrongLinksPerCorrectLink"]=rate(agg["accepted_wrong"],agg["accepted_correct"])
+          summary={"version":"V9_SQL_C1_REAL_CANDIDATES_THREE_SEEDS_V1",
+                   "physicalFrame":"COMBINED_IDENTITY_CANDIDATES_V1_SQL_NOT_ACTIVE_VERSIONED_ALIAS",
+                   "seed42FrozenModelSha256":docs[0]["FrozenModelSha256"],
+                   "testAggregated":agg,
+                   "testBySeed":[{"seed":d["Seed"],**d["Splits"][2]} for d in docs],
+                   "operationalConclusion":"NOT_OPERATIONAL_ACTIVE_VERSIONED_ALIAS_OR_CALIBRATED_TF"}
+          Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2)+"\n")
+          print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True))
+          PY
+      - name: Upload physical SQL C1 candidate and wrong-link evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: v9-physical-sql-c1-candidate-wrong-link-30k
+          path: |
+            Solution/.local/v9-sql-physical-seed-42.json
+            Solution/.local/v9-sql-physical-seed-43.json
+            Solution/.local/v9-sql-physical-seed-44.json
+            Solution/.local/v9-sql-physical-three-seed-summary.json
+          if-no-files-found: error
+          retention-days: 30
       - name: Materialize canonical blocking projection for synthetic harness
         env:
           DOTNET_ENVIRONMENT: Development
