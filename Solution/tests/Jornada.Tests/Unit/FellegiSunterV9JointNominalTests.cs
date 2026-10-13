@@ -471,7 +471,7 @@ public sealed class FellegiSunterV9JointNominalTests
             v2, "Maria Silva", "Maria Silva", "Ana Costa", "Ana Costa",
             cells, CompositeNominalComparisonV9.ContractVersion,
             leftBirthDate: Birth, rightBirthDate: Birth);
-        Assert.That(valid.Contributions.Count(c => c.Evidence.StartsWith("NASC_")), Is.EqualTo(3));
+        Assert.That(valid.Contributions.Count(c => c.Evidence.StartsWith("NASC_", StringComparison.Ordinal)), Is.EqualTo(3));
         v2.Remove("U_NASC_MES_DIFF");
         Assert.That((Action)(() =>
             FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
@@ -490,7 +490,7 @@ public sealed class FellegiSunterV9JointNominalTests
         var replay = FellegiSunterScoring.CalculateWithBreakdown(
             historical, NameComparisonState.EXACT, NameComparisonState.EXACT,
             leftBirthDate: Birth, rightBirthDate: Birth);
-        Assert.That(replay.Contributions.Where(c => c.Evidence.StartsWith("NASC_"))
+        Assert.That(replay.Contributions.Where(c => c.Evidence.StartsWith("NASC_", StringComparison.Ordinal))
             .All(c => c.LogLikelihoodRatio == 0m), Is.True);
     }
 }
