@@ -27,7 +27,7 @@ public sealed class V9SyntheticBaseFrequencyAuditTests
         var first = person.Single(x => x.Unit == NominalFrequencyUnitV9.FirstName);
         var mother = report.Units.Single(x => x.Side == "MOTHER" &&
             x.Unit == NominalFrequencyUnitV9.FirstName);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Status, Is.EqualTo(
                 V9SyntheticBaseFrequencyAudit.Status));
@@ -46,7 +46,7 @@ public sealed class V9SyntheticBaseFrequencyAuditTests
             Assert.That(mother.LargestValueCount, Is.EqualTo(3));
             Assert.That(first.ValuesObservedAtLeastFiveBases, Is.Zero);
             Assert.That(first.BasesCoveredByValuesObservedAtLeastFive, Is.Zero);
-        });
+        }));
     }
 
     [Test]
@@ -64,17 +64,17 @@ public sealed class V9SyntheticBaseFrequencyAuditTests
     public void Duplicate_base_or_wrong_split_fails_closed()
     {
         var original = Population();
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
-            Assert.That(() => V9SyntheticBaseFrequencyAudit.Analyze(
-                original.Concat([original[0]]).ToArray(), "FRAME_42"),
+            Assert.That((Action)(() => V9SyntheticBaseFrequencyAudit.Analyze(
+                original.Concat([original[0]]).ToArray(), "FRAME_42")),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => V9SyntheticBaseFrequencyAudit.Analyze(
-                [new("X", "OTHER", "Ana Lima", "Eva Costa")], "FRAME_42"),
+            Assert.That((Action)(() => V9SyntheticBaseFrequencyAudit.Analyze(
+                [new("X", "OTHER", "Ana Lima", "Eva Costa")], "FRAME_42")),
                 Throws.TypeOf<InvalidDataException>());
-            Assert.That(() => V9SyntheticBaseFrequencyAudit.Analyze(
-                [new("X", "TEST", "Ana Lima", "Eva Costa")], "FRAME_42"),
+            Assert.That((Action)(() => V9SyntheticBaseFrequencyAudit.Analyze(
+                [new("X", "TEST", "Ana Lima", "Eva Costa")], "FRAME_42")),
                 Throws.TypeOf<InvalidDataException>());
-        });
+        }));
     }
 }
