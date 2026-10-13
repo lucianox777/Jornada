@@ -1153,6 +1153,7 @@ jobs:
           loss_by_seed=[]
           parity_by_seed=[]
           sql_support_by_seed=[]
+          birth_support_by_seed=[]
           fanout_by_seed=[]
           for d in docs:
               assert d["Version"]=="V9_PHYSICAL_SQL_ACTIVE_DYNAMIC_PLUS_C1_FULL_CANDIDATE_CENSUS_V1"
@@ -1197,6 +1198,36 @@ jobs:
                   and (x["UCount"]==0 or x["DistinctUBasePeople"]>=2)
                   for x in joint)
               sql_support_by_seed.append({"seed":d["Seed"],"train":support})
+              # Independent Python reconciliation of seven semantic DOB
+              # states against both classes of the exact SQL TRAIN union.
+              birth=d["TrainSqlBirthSupportAudit"]
+              assert birth["Version"]=="V9_SQL_TRAIN_BIRTH_SEMANTIC_AND_BINARY_MU_SUPPORT_V1"
+              assert birth["Status"]=="TRAIN_SQL_OBSERVED_BIRTH_COUNTS_NOT_CALIBRATED_MU_PRIOR_ESS_OR_OPERATIONAL"
+              assert birth["Partition"]=="TRAIN"
+              assert birth["SqlCandidatePairs"]==support["SqlCandidatePairs"]
+              assert birth["SqlCandidateM"]==support["SqlCandidateM"]
+              assert birth["SqlCandidateU"]==support["SqlCandidateU"]
+              assert birth["BirthExactM"]+birth["BirthDifferentM"]==birth["SqlCandidateM"]
+              assert birth["BirthExactU"]+birth["BirthDifferentU"]==birth["SqlCandidateU"]
+              dob=birth["SemanticCells"]
+              dob_states={"EXACT","DAY_MONTH_SWAP","CENTURY_SHIFT",
+                  "ONE_DIGIT_ERROR","TWO_DIGIT_ERROR",
+                  "PARTIAL_COMPONENT_AGREEMENT","OTHER_DISAGREEMENT"}
+              assert len(dob)==7
+              assert {x["SemanticBirthState"] for x in dob}==dob_states
+              assert sum(x["MCount"] for x in dob)==birth["SqlCandidateM"]
+              assert sum(x["UCount"] for x in dob)==birth["SqlCandidateU"]
+              exact_birth=next(x for x in dob if x["SemanticBirthState"]=="EXACT")
+              assert birth["BirthExactM"]==exact_birth["MCount"]
+              assert birth["BirthExactU"]==exact_birth["UCount"]
+              assert birth["StatesWithObservedM"]==sum(x["MCount"]>0 for x in dob)
+              assert birth["StatesWithObservedU"]==sum(x["UCount"]>0 for x in dob)
+              assert birth["StatesWithBothMAndU"]==sum(x["MCount"]>0 and x["UCount"]>0 for x in dob)
+              assert all(0<=x["DistinctMBasePeople"]<=x["MCount"]
+                  and 0<=x["DistinctUBasePairs"]<=x["UCount"]
+                  and 0<=x["DistinctUBasePeople"]<=2*x["DistinctUBasePairs"]
+                  and (x["UCount"]==0 or x["DistinctUBasePeople"]>=2) for x in dob)
+              birth_support_by_seed.append({"seed":d["Seed"],"train":birth})
               # Verify all candidate edges are counted twice by endpoint,
               # while zero-hit observations remain in the denominator. The
               # histograms allow independent percentile recomputation.
@@ -1373,6 +1404,8 @@ jobs:
                    "sameFrameActivePlusC1ParityTestBySeed":parity_by_seed,
                    "trainSqlNominal81SupportBySeed":sql_support_by_seed,
                    "trainSqlNominalSupportDiagnosticOnly":True,
+                   "trainSqlBirth7StateSupportBySeed":birth_support_by_seed,
+                   "trainSqlBirthSupportDiagnosticOnly":True,
                    "candidateEndpointFanoutVersion":"V9_SQL_PHYSICAL_CANDIDATE_ENDPOINT_FANOUT_V1",
                    "candidateEndpointFanoutTestBySeed":fanout_by_seed,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
