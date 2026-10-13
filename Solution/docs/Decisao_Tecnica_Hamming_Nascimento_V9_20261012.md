@@ -33,7 +33,7 @@ O contrato `BirthDateSemanticEvidence.Classify` é mutuamente exclusivo e avalia
 | 07/06/1978 × 06/07/1978 | 2 | `DAY_MONTH_SWAP`: inversão dos componentes, não de dígitos do ano |
 | 15/03/1978 × 15/03/1878 | 1 | `CENTURY_SHIFT`: exceção estrutural com precedência sobre Hamming 1 |
 | 29/02/2000 × 28/02/2000 | 1 | `ONE_DIGIT_ERROR`: data válida; **29/02/2001 não existe** |
-| 31/12/1999 × 01/01/2000 | 8 | `OTHER_DISAGREEMENT`: datas com diferença civil de **um dia** e Hamming máximo |
+| 31/12/1999 × 01/01/2000 | 7 | `OTHER_DISAGREEMENT`: datas com diferença civil de **um dia** e Hamming elevado |
 
 O último exemplo demonstra uma **limitação decisiva**: Hamming **não é proximidade cronológica**. Da mesma forma, coincidência dia+mês com ano muito diferente não é necessariamente evidência favorável. Transposições e mudanças de formato exigem semântica separada quando justificadas por suporte observado; Hamming 2 também pode resultar de duas substituições independentes.
 
