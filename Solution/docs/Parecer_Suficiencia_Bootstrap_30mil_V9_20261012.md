@@ -1,3 +1,13 @@
+
+> **Complemento de robustez 13/10/2026 (PR #996):** a seed 42 mediu
+> funcionamento positivo do *scorer* FS V9 no *proxy* de primeira inicial,
+> porém TRAIN tem 59/81 células sem suporte bilateral. A CI agora replica
+> o ensaio em seeds independentes 43/44, gera um resumo verificável de
+> métricas absolutas e preserva explicitamente a possibilidade de falha.
+> Replicação não equivale a blocking SQL real, estimador ESS, nem validação
+> de TF e não prova suficiência das 81 células. A V8 continua fora
+> dos critérios de aceitação do calibrador V9; DT-15 governa transição.
+
 > **Decisão V9, 13/10/2026:** não exigir comparação V8×V9
 > como requisito para desenvolver, calibrar ou julgar se a V9
 > funciona. A V8 só permanece para replay histórico.
