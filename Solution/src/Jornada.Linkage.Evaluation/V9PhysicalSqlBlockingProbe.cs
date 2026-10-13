@@ -73,6 +73,7 @@ public static class V9PhysicalSqlBlockingProbe
         public V9BlockingTruthLossAudit.Report? TruePairLossAudit { get; init; }
         public V9SqlBlockingFrameParityAudit.Report? ActiveSameFrameParityAudit { get; init; }
         public V9SqlConditionedNominalSupportAudit.Report? TrainSqlNominalSupportAudit { get; init; }
+        public V9SqlCandidateFanoutAudit.Report? CandidateFanoutAudit { get; init; }
         public string? BlockingAblationContract { get; init; }
         public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
     }
@@ -309,6 +310,10 @@ public static class V9PhysicalSqlBlockingProbe
                 }
         }
         var recoveredTruePairs = new HashSet<(int A, int B)>();
+        var fanout = new V9SqlCandidateFanoutAudit.Collector(
+            observationRows.Select(x => new V9SqlCandidateFanoutAudit.Observation(
+                x.Id, x.Partition, x.Gestor, x.Base,
+                x.Cpf is null && x.Birth.HasValue)));
         // M/U support comes from the exact same SQL candidate frame as the
         // scorer, TRAIN only, not from the previously sampled proxy by initial.
         var trainSqlPairs = new List<V9SqlConditionedNominalSupportAudit.Candidate>();
@@ -330,6 +335,9 @@ public static class V9PhysicalSqlBlockingProbe
                     || a.Gestor == b.Gestor || a.Cpf is not null || b.Cpf is not null)
                     throw new InvalidDataException("SQL gerou par fora do frame elegível.");
                 var split = bySplit[partition];
+                // The SQL physical cursor is the single source of candidate
+                // edges; include zero-hit eligible observations in denominator.
+                fanout.AddCandidate(a.Id, b.Id, partition);
                 if (partition == "TRAIN")
                     trainSqlPairs.Add(new V9SqlConditionedNominalSupportAudit.Candidate(
                         a.Id, b.Id, partition, a.Base, b.Base,
@@ -354,6 +362,15 @@ public static class V9PhysicalSqlBlockingProbe
                     else split.Fp++;
                 }
             }
+        }
+        var fanoutReport = fanout.Build();
+        foreach (var endpointSplit in fanoutReport.Splits)
+        {
+            var pairSplit = bySplit[endpointSplit.Partition];
+            if (endpointSplit.CandidateTruePairs != pairSplit.TrueCandidate
+                || endpointSplit.CandidateFalsePairs != pairSplit.FalseCandidate)
+                throw new InvalidDataException(
+                    "Fan-out de pontas diverge dos pares SQL físicos.");
         }
         var trainNominalSupport = V9SqlConditionedNominalSupportAudit.Analyze(trainSqlPairs);
         if (trainNominalSupport.SqlCandidateM != bySplit["TRAIN"].TrueCandidate
@@ -414,6 +431,7 @@ public static class V9PhysicalSqlBlockingProbe
             TruePairLossAudit = lossAudit,
             ActiveSameFrameParityAudit = frameParity,
             TrainSqlNominalSupportAudit = trainNominalSupport,
+            CandidateFanoutAudit = fanoutReport,
             BlockingAblationContract = BlockingAblationVersion,
             PreRegisteredPassSensitivity = passSensitivity
         };

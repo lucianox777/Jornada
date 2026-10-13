@@ -1153,6 +1153,7 @@ jobs:
           loss_by_seed=[]
           parity_by_seed=[]
           sql_support_by_seed=[]
+          fanout_by_seed=[]
           for d in docs:
               assert d["Version"]=="V9_PHYSICAL_SQL_ACTIVE_DYNAMIC_PLUS_C1_FULL_CANDIDATE_CENSUS_V1"
               assert d["BlockingPolicy"]=="ACTIVE_LINKAGE_RULESET_SQL_UNION_COMBINED_IDENTITY_CANDIDATES_V1"
@@ -1196,6 +1197,53 @@ jobs:
                   and (x["UCount"]==0 or x["DistinctUBasePeople"]>=2)
                   for x in joint)
               sql_support_by_seed.append({"seed":d["Seed"],"train":support})
+              # Verify all candidate edges are counted twice by endpoint,
+              # while zero-hit observations remain in the denominator. The
+              # histograms allow independent percentile recomputation.
+              fanout=d["CandidateFanoutAudit"]
+              assert fanout["Version"]=="V9_SQL_PHYSICAL_CANDIDATE_ENDPOINT_FANOUT_V1"
+              assert fanout["Status"]=="DIAGNOSTIC_ONLY_ALL_ELIGIBLE_OBSERVATIONS_INCLUDING_ZERO_NO_SCALE_EXTRAPOLATION"
+              assert fanout["PercentileDefinition"]=="NEAREST_RANK_CEIL_P_N_SORTED_ALL_ELIGIBLE_ENDPOINTS_INCLUDING_ZERO"
+              assert [r["Partition"] for r in fanout["Splits"]]==["TRAIN","VALIDATION","TEST"]
+              for f in fanout["Splits"]:
+                  split=next(x for x in d["Splits"] if x["Partition"]==f["Partition"])
+                  n=f["EligibleObservations"]
+                  m=f["CandidateTruePairs"]
+                  u=f["CandidateFalsePairs"]
+                  assert n>0 and 0<=f["WithCandidates"]<=n
+                  assert f["WithoutCandidates"]==n-f["WithCandidates"]
+                  assert (m,u)==(split["SqlCandidateTruePairs"],split["SqlCandidateFalsePairs"])
+                  assert 0<=f["DistinctFalseBasePairs"]<=u
+                  assert f["TotalEndpointIncidences"]==2*(m+u)
+                  assert f["FalseEndpointIncidences"]==2*u
+                  def verify_hist(hist, total):
+                      assert hist and all(x["Degree"]>=0 and x["Observations"]>0 for x in hist)
+                      assert [x["Degree"] for x in hist]==sorted(set(x["Degree"] for x in hist))
+                      assert sum(x["Observations"] for x in hist)==n
+                      assert sum(x["Degree"]*x["Observations"] for x in hist)==total
+                      def percentile(p):
+                          target=(p*n+99)//100
+                          cumulative=0
+                          for x in hist:
+                              cumulative+=x["Observations"]
+                              if cumulative>=target:
+                                  return x["Degree"]
+                          raise AssertionError("missing nearest-rank percentile")
+                      return percentile
+                  pct=verify_hist(f["CandidateDegreeHistogram"],f["TotalEndpointIncidences"])
+                  fpct=verify_hist(f["FalseDegreeHistogram"],f["FalseEndpointIncidences"])
+                  assert f["WithoutCandidates"]==next((x["Observations"] for x in f["CandidateDegreeHistogram"] if x["Degree"]==0),0)
+                  assert f["P50CandidatesPerObservation"]==pct(50)
+                  assert f["P95CandidatesPerObservation"]==pct(95)
+                  assert f["P99CandidatesPerObservation"]==pct(99)
+                  assert f["MaxCandidatesPerObservation"]==f["CandidateDegreeHistogram"][-1]["Degree"]
+                  assert f["P95FalseCandidatesPerObservation"]==fpct(95)
+                  assert f["P99FalseCandidatesPerObservation"]==fpct(99)
+                  assert f["MaxFalseCandidatesPerObservation"]==f["FalseDegreeHistogram"][-1]["Degree"]
+                  assert f["MaxFalseCandidatesPerObservation"]<=f["MaxCandidatesPerObservation"]
+              fanout_by_seed.append({"seed":d["Seed"],"test":{
+                  k:v for k,v in fanout["Splits"][2].items()
+                  if k not in ("CandidateDegreeHistogram","FalseDegreeHistogram")}})
               # All eligible M classified before SQL; missing is not disagreement.
               loss=d["TruePairLossAudit"]
               assert loss["Version"]=="V9_SQL_ELIGIBLE_TRUE_PAIR_LOSS_BY_OBSERVED_AGREEMENT_V1"
@@ -1325,6 +1373,8 @@ jobs:
                    "sameFrameActivePlusC1ParityTestBySeed":parity_by_seed,
                    "trainSqlNominal81SupportBySeed":sql_support_by_seed,
                    "trainSqlNominalSupportDiagnosticOnly":True,
+                   "candidateEndpointFanoutVersion":"V9_SQL_PHYSICAL_CANDIDATE_ENDPOINT_FANOUT_V1",
+                   "candidateEndpointFanoutTestBySeed":fanout_by_seed,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))
