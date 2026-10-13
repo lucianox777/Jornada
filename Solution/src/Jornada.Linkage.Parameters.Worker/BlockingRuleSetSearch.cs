@@ -26,7 +26,9 @@ public sealed record BlockingRuleSetSearchOptions(
 /// Busca bounded e determinística. Primeiro avalia todos os passes primitivos com até N campos.
 /// O pool limitado preserva simultaneamente alternativas fortes em recall e em redução, evitando
 /// que variantes quase universais ocupem toda a busca. Quando habilitado, testa também pares dos
-/// passes retidos. O modo opt-in de 3/4 passes enumera uniões deduplicadas com orçamento\n/// estrito de candidatos (sem truncamento silencioso). A promoção é fail-closed: recall mínimo é\n/// restrição; entre alternativas que a
+/// passes retidos. O modo opt-in de 3/4 passes enumera uniões deduplicadas com orçamento
+/// estrito de candidatos (sem truncamento silencioso). A promoção é fail-closed: recall mínimo é
+/// restrição; entre alternativas que a
 /// satisfazem, a redução do universo é o objetivo primário. Quando a calibração exige suporte u
 /// observável, regras que retenham zero não-vínculos são descartadas antes da escolha final.
 /// </summary>
@@ -110,7 +112,7 @@ public static class BlockingRuleSetSearch
         }
 
         // Se um passe isolado já satisfaz a restrição, reserva a melhor solução de um passe
-        // segundo o objetivo V2. Isso também torna PrimitivePoolSize=1 semanticamente útil.
+        // segundo o objetivo vigente. Isso também torna PrimitivePoolSize=1 semanticamente útil.
         var bestEligibleSingle = evaluated
             .Where(result => result.Diagnostic.TrueMatchRecall >= options.MinimumTrueMatchRecall)
             .Where(result => !options.RequireObservedNonMatchSupport || result.Diagnostic.NonMatchRetention > 0d)
