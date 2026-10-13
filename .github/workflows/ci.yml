@@ -979,7 +979,7 @@ jobs:
           assert probe["FrozenModel"]["SourceInputFingerprint"].upper()==manifest["input_fingerprint_sha256"]
           assert len(probe["FrozenModel"]["Cells"])==81
           assert probe["FrozenModel"]["ThresholdLogOdds"]==probe["FrozenThresholdLogOdds"]
-          assert hashlib.sha256((root/"v9-frozen-model.json").read_bytes().rstrip(b"\\n")).hexdigest().upper()==probe["FrozenModelSha256"]
+          assert hashlib.sha256((root/"v9-frozen-model.json").read_bytes().rstrip(b"\n")).hexdigest().upper()==probe["FrozenModelSha256"]
           print("V9 30000 ACTUAL FS PREVIEW:",json.dumps({
               "verdict":probe["SyntheticProxyVerdict"],
               "operational":probe["OperationalConclusion"],
