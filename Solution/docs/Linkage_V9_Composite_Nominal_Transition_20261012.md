@@ -1,3 +1,12 @@
+> **Decisão V9, 13/10/2026:** não exigir comparação V8×V9
+> como requisito para desenvolver, calibrar ou julgar se a V9
+> funciona. A V8 só permanece para replay histórico.
+> A V9 será avaliada diretamente por gabarito, TRAIN/VALIDATION/TEST,
+> falsos vínculos, recall, suporte e modelo estatístico. A DT-15
+> conserva exclusivamente o dossiê de substituição ATIVO × PROPOSTO
+> quando houver uma decisão de ativação; esse dossiê não obriga
+> superioridade da V9 em relação à versão histórica ativa.
+
 # Linkage V9 — transição para comparação nominal composta
 
 **Decisão do proprietário: 12/10/2026.** A V9 substitui a V8 como **única arquitetura-alvo para novos modelos**; a V8 fica congelada como semântica histórica e não é mais objeto de correções conceituais. Isso **não** converte automaticamente modelos ATIVOS, não altera `VALIDATE/ACTIVATE`, não apaga snapshots, fingerprints nem evidências e não autoriza ativação V9 sem DT-15.
@@ -119,7 +128,7 @@ e o guard operacional V9 continua bloqueando qualquer fallback para V8.
 2. Persistir versão das classes, extrator, snapshots nominais conjuntos quando existirem e proveniência. Preservar reprodutibilidade exata de modelos V8 históricos.
 3. Integrar `AlgorithmVersion=V9` no mesmo scorer; ausências neutras apenas se calibradas; thresholds e margens versionados; nenhum fallback silencioso ao scorer V8.
 4. Conferir o cálculo par-a-par C# contra **vetores com resultados independentes**, incluindo níveis, prior, m/u, TF, LLR e decisões de fronteira conforme DT-01/09/14. Comparação C# × Splink sobre os mesmos dados é **opcional/diagnóstica** (não gate de Ensaio ou promoção) e não se deve afirmar paridade Splink sem executá-la.
-5. Executar TRAIN/VALIDATION/TEST independentes, adversários (MARIA SILVA / MARIA SILVAA, homônimos, mães ausentes, agnomes, nomes compostos), comparação com V8 e orçamento de FP/FDR + recall. Não ajustar TEST para torná-lo verde.
+5. Executar TRAIN/VALIDATION/TEST independentes, adversários (MARIA SILVA / MARIA SILVAA, homônimos, mães ausentes, agnomes, nomes compostos), métricas absolutas da V9 e orçamento de FP/FDR + recall. Não ajustar TEST para torná-lo verde.
 6. Somente após os gates, decidir `VALIDATE/ACTIVATE` em DT-15. Ensaio DEV/HML é evidência separada, não substituída por CI.
 
 **Estado desta entrega:** somente biblioteca C# pura, enum experimental, testes unitários e especificação. O runtime V8, os modelos persistidos e o processo de decisão não mudam. Esta PR de fundação pode ser revisada isoladamente; **não** autoriza ativação V9.

@@ -3,6 +3,9 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="..\Jornada.Linkage.Core\Jornada.Linkage.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
     <ProjectReference Include="..\Jornada.Ingestion\Jornada.Ingestion.csproj" />
   </ItemGroup>

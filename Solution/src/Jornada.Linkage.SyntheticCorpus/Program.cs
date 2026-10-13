@@ -66,7 +66,22 @@ if (string.Equals(args[0], "generate", StringComparison.Ordinal))
             loaded.InputFingerprint);
         await File.WriteAllTextAsync(Path.Combine(output, "v9-joint-support.json"),
             JsonSerializer.Serialize(support, SyntheticCorpusCliJson.Indented) + "\n");
+        if (string.Equals(Get(values, "v9-functional-probe"), "true", StringComparison.OrdinalIgnoreCase))
+    {
+        var probe = SyntheticV9FunctionalProbe.Analyze(
+            loaded.Generation.People, loaded.Generation.Observations,
+            options.Seed, loaded.InputFingerprint);
+        await File.WriteAllTextAsync(Path.Combine(output, "v9-functional-probe.json"),
+            JsonSerializer.Serialize(probe, SyntheticCorpusCliJson.Indented) + "\n");
         Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            probe.Version, probe.SyntheticProxyVerdict, probe.OperationalConclusion,
+            probe.Test.Tp, probe.Test.Fp, probe.Test.Fn, probe.Test.Tn,
+            probe.Test.Recall, probe.Test.Fpr, probe.Test.Precision, probe.Test.Fdr
+        }));
+    }
+
+    Console.WriteLine(JsonSerializer.Serialize(new
         {
             support.Version,
             support.Status,
