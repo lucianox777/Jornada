@@ -21,7 +21,7 @@ if (args.Length == 5 && args[0] == "--v9-physical-sql-blocking")
     var output = Path.GetFullPath(args[3]);
     Directory.CreateDirectory(Path.GetDirectoryName(output)!);
     await File.WriteAllTextAsync(output,
-        JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
+        JsonSerializer.Serialize(result));
     Console.WriteLine(JsonSerializer.Serialize(result));
     return;
 }
