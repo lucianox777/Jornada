@@ -26,6 +26,12 @@ O split é determinístico por pessoa-base e acontece antes da geração das amo
 
 CPF pode definir ground truth, mas é ocultado do blocking e do score.
 
+### Escopo e suficiência da massa inicial de 30 mil (decisão de 12/10/2026)
+
+O bootstrap **não é sinônimo de aguardar amostra real**: o Calibrador deve começar pela massa sintética IBGE de **30.000 pessoas**, seed 42 e hipóteses documentadas. Esta massa é **apta para iniciar a estimação/seleção sintética**, mas **não demonstrou suficiência para todas as 81 células da V9**, todas as classes M/U nem FDR real. [Parecer quantitativo, limites e métricas faltantes](Parecer_Suficiencia_Bootstrap_30mil_V9_20261012.md). A seleção da estrutura e dos pesos TF é uma escolha do Calibrador sobre parâmetros candidatos (não treinamento interno de um segundo motor Splink nem estimador analítico obrigatório de `w_TF`). Não aumentar a massa nem neutralizar células rarefeitas silenciosamente: inspecionar contagens, ESS, grupos/estratos, cobertura e incerteza.
+
+**Split não foi superado.** A dispensa de executar o Splink externo como gate (29/09) **não dispensa TRAIN/VALIDATION/TEST**, teste sintético principal no C#, conferência matemática independente nem aprovação aplicável. O contrato da fonte determina a obrigatoriedade dos campos no ingresso; nome, mãe, nascimento e CPF podem chegar **parcialmente**. Essa opcionalidade do dado de entrada **não** se aplica a parâmetros `m/u` obrigatórios do snapshot FS. O diagnóstico periódico DT-23 somente observa suficiência real; execução do Calibrador e promoção exigem comandos explícitos.
+
 ## 3. m
 
 m vem de pares positivos independentes, preferencialmente observações de Gestores distintos ligadas por identificador determinístico aceito como ground truth. Volume não substitui diversidade/representatividade dos erros cadastrais. Estados sem suporte observado permanecem dívida estatística e não devem ganhar interpretação forte apenas por suavização.
@@ -60,11 +66,11 @@ O bootstrap IBGE é calculado **uma única vez** e seus parâmetros iniciais e p
 
 ## 5. Term frequency
 
-`SPLINK_TERM_FREQUENCY_V1` é preservado apenas como matemática reutilizável. Ele **não é um estágio DF** e não está habilitado automaticamente no score corrente.
+`SPLINK_TERM_FREQUENCY_V1` é matemática reutilizável, **não é um estágio DF**. A V8 histórica usa TF em condições específicas; a PR #974 introduziu ajuste por unidade no **preview FS V9**, não ainda no `Rank/Resolve` operacional V9.
 
 O executável `Jornada.Linkage.Evaluation --export-calibration` expõe parâmetros, proveniência e vetores sintéticos da matemática TF em JSON, somente leitura. Essa superfície existe para conferência externa e **não participa do score**.
 
-Se TF vier a entrar no FS, deve:
+Ao integrar completamente o TF V9 ao scorer operacional FS, deve:
 
 - ser calibrada dentro do mesmo universo candidato;
 - ter peso/piso/versionamento explícitos;
@@ -91,7 +97,7 @@ Abreviação é fenômeno do processo de registro. Um estado `ABBREV_COMPATIBLE`
 CI verde não equivale a homologação estatística. Antes de ativação probabilística real em HML/Produção continuam necessários corpus representativo, avaliação independente por estrato e aprovação institucional aplicável. A issue #31 concentra esse gate.
 
 
-> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-tf--norma-vigente-de-frequência-nominal-fs-e-calibrador-09102026). O peso TF zero é neutro (peso 1 aplica ajuste integral); os pesos e m/u devem ser estimados pelo Calibrador a partir do bootstrap sintético IBGE e, progressivamente, de evidência histórica real. Primeiro nome e último sobrenome significativo de pessoa e mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Em caso de divergência, prevalece a decisão canônica; este documento não certifica implementação concluída.
+> **Norma vigente (09/10/2026) — FS, Splink, TF, IBGE e Calibrador:** consultar [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md#dc-lk-tf--norma-vigente-de-frequência-nominal-fs-e-calibrador-09102026). O peso TF zero é neutro (peso 1 aplica ajuste integral); os valores de m/u devem ser estimados e os **pesos TF selecionados entre candidatos** pelo Calibrador a partir do bootstrap sintético IBGE e, progressivamente, de evidência histórica real. Primeiro nome e último sobrenome significativo de pessoa e mãe devem participar do FS sem dupla contagem. V8 é referência histórica, não segunda implementação operacional. Em caso de divergência, prevalece a decisão canônica; este documento não certifica implementação concluída.
 
 
 ## 10. Nome completo e componentes nominais (decisão vigente)
@@ -107,7 +113,7 @@ O IBGE fornece marginais iniciais: frequência de sobrenome em qualquer posiçã
 
 ### Diagnóstico de implementação para a próxima frente (09/10/2026)
 
-A geração de rascunho em `LinkageParametersWorker.GenerateDraftFromGoldAsync` ainda define explicitamente `TERM_FREQUENCY_WEIGHT = 1m` após preparar `NominalTermFrequencyReferenceStore`. Portanto, a presença do parâmetro e a correção para aceitar zero **não significam estimação automática**. A próxima implementação deve remover a atribuição fixa e selecionar o peso com dados de calibração, sem consultar TEST para ajuste. É obrigatório conservar a referência do snapshot e evidências de seleção.
+A geração de rascunho em `LinkageParametersWorker.GenerateDraftFromGoldAsync` ainda define explicitamente `TERM_FREQUENCY_WEIGHT = 1m` após preparar `NominalTermFrequencyReferenceStore`. Portanto, a presença do parâmetro e a correção para aceitar zero **não significam estimação automática**. A próxima implementação deve remover a atribuição fixa e selecionar o peso **entre configurações candidatas** usando a massa sintética de 30 mil pessoas e VALIDATION, sem consultar TEST para ajuste. Não é necessário criar estimador analítico separado para o peso TF. É obrigatório conservar a referência do snapshot e evidências de seleção.
 
 A preparação atual (`NominalTermFrequencyReferenceStore`) publica apenas prenomes da pessoa e mãe; o suporte de sobrenome em `NominalTermFrequencySnapshot` está em evolução separada, e não deve ser habilitado no score antes de haver frequências governadas, calibração conjunta e validação contra dupla contagem. Na falta de evidência suficiente, não substituir um valor fixo por outro peso arbitrário. O corpus sintético de 30 mil pessoas é bootstrap metodológico, não prova de FDR real.
 

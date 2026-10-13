@@ -19,6 +19,12 @@ A **conferência matemática independente** permanece obrigatória conforme DT-0
 **Fronteira:** resultado sintético demonstra apenas os cenários modelados. Não declara representatividade de cadastros reais nem quita a issue #31; contratos institucionais, credenciais, controles de HML e autorização humana DT-15 permanecem independentes.
 
 
+## Dimensionamento: 30 mil pessoas não equivalem a suficiência universal
+
+O default de **30.000 pessoas sintéticas (seed 42)** está aprovado para iniciar a calibração do FS/TF e medir comportamento, sem aguardar dados municipais reais. **Apenas contar 30 mil não demonstra** suporte para 81 estados nominais conjuntos V9, eventos raros, classes M/U pós-blocking, intervalos por grupos independentes ou FDR real. A justificativa de ±0,57 p.p. pertence a um exercício teórico de amostra aleatória simples de pessoas reais e não pode ser atribuída a esse corpus sintético. A cada execução registrar suporte observado **por célula e por classe**, ESS, grupos, passes/estratos, ausências, abstenção e cenário, sem interpretar pseudocontagens como observação. Não declarar números de execução sem artefatos verificáveis. [Análise quantitativa e critérios de suficiência](Parecer_Suficiencia_Bootstrap_30mil_V9_20261012.md).
+
+A **paridade externa Splink é opcional**, conforme já decidido nesta especificação; a conferência **matemática independente** e o **TEST não contaminado** continuam obrigatórios. Observar campos opcionais definidos pelo contrato de cada fonte: uma Pessoa válida pode chegar com parte do núcleo, e o motor deve avaliar passes elegíveis ou abster, não rejeitar a remessa por requisito global inexistente.
+
 ## Robustez do corpus e independência da conferência
 
 - Publicar com cada resultado o manifesto versionado do gerador, parâmetros efetivos por perfil/Secretaria/estrato, seed, taxas nominais e observadas de erro, dependências entre erros, hashes e partições. Distinguir parâmetros baseados em evidência externa daqueles assumidos para exploração; ausência de taxas reais deve ser declarada, sem atribuir representatividade ao cenário.
