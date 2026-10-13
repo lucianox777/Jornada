@@ -412,4 +412,85 @@ public sealed class FellegiSunterV9JointNominalTests
                     { IndependentPopulationValidationApproved = false } })),
             Throws.InvalidOperationException);
     }
+
+    [Test]
+    public void V9DeclaredBirthEvidenceRequiresCompleteParametersEvenWhenBirthInputIsMissing()
+    {
+        var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.Missing, .20m, .05m);
+        var valid = new Dictionary<string, decimal>(PreviewParameters());
+        FellegiSunterScoreBreakdown Score(
+            IReadOnlyDictionary<string, decimal> p,
+            DateOnly? left = null, DateOnly? right = null) =>
+            FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                p, "Maria Silva", "Maria Silva", null, null,
+                cells, CompositeNominalComparisonV9.ContractVersion,
+                leftBirthDate: left, rightBirthDate: right);
+        var original = Score(valid, Birth, Birth);
+        var missingM = new Dictionary<string, decimal>(valid);
+        missingM.Remove("M_DATA_NASCIMENTO_DIFF");
+        var missingU = new Dictionary<string, decimal>(valid);
+        missingU.Remove("U_DATA_NASCIMENTO_EXACT");
+        var invalidU = new Dictionary<string, decimal>(valid)
+            { ["U_DATA_NASCIMENTO_EXACT"] = 0m };
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(original.Contributions.Single(x => x.Evidence == "DATA_NASCIMENTO")
+                .LogLikelihoodRatio, Is.EqualTo((decimal)Math.Log(4d)).Within(.00000001m));
+            // Missing values from a DECLARED birth model must not silently
+            // become BF=1 even when this pair has no observed birth date.
+            Assert.That((Action)(() => Score(missingM, Birth, Birth),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() => Score(missingU),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() => Score(invalidU, Birth, Birth),
+                Throws.InvalidOperationException);
+        }));
+        // Source data missing is a different situation: calibrated evidence
+        // is present in the model, but the observation is missing its value.
+        var absent = Score(valid);
+        Assert.That(absent.Contributions.Single(x => x.Evidence == "NASCIMENTO")
+            .LogLikelihoodRatio, Is.Zero);
+    }
+
+    [Test]
+    public void V9DeclaredBirthComponentsFailClosedWithoutChangingLegacyV1Neutrality()
+    {
+        var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.ExactFull, .20m, .05m);
+        var v2 = new Dictionary<string, decimal>(PreviewParameters());
+        v2.Remove(LinkageParameterCatalog.BirthSingleEvidenceScoring);
+        foreach (var component in new[] { "NASC_DIA", "NASC_MES", "NASC_ANO" })
+        foreach (var state in new[] { "EXACT", "DIFF" })
+        {
+            v2[$"M_{component}_{state}"] = .5m;
+            v2[$"U_{component}_{state}"] = .5m;
+        }
+        v2[LinkageParameterCatalog.BirthComponentScoring] = 1m;
+        var valid = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            v2, "Maria Silva", "Maria Silva", "Ana Costa", "Ana Costa",
+            cells, CompositeNominalComparisonV9.ContractVersion,
+            leftBirthDate: Birth, rightBirthDate: Birth);
+        Assert.That(valid.Contributions.Count(c => c.Evidence.StartsWith("NASC_")), Is.EqualTo(3));
+        v2.Remove("U_NASC_MES_DIFF");
+        Assert.That((Action)(() =>
+            FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                v2, "Maria Silva", "Maria Silva", "Ana Costa", "Ana Costa",
+                cells, CompositeNominalComparisonV9.ContractVersion,
+                leftBirthDate: Birth, rightBirthDate: Birth)),
+            Throws.InvalidOperationException);
+        // V1 historical replay deliberately omits birth parameters/flags and
+        // must retain its existing optional-neutral behavior.
+        var historical = new Dictionary<string, decimal>
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] = .01m,
+            ["M_NOME_EXACT"] = .90m, ["U_NOME_EXACT"] = .01m,
+            ["M_NOME_MAE_EXACT"] = .90m, ["U_NOME_MAE_EXACT"] = .01m
+        };
+        var replay = FellegiSunterScoring.CalculateWithBreakdown(
+            historical, NameComparisonState.EXACT, NameComparisonState.EXACT,
+            leftBirthDate: Birth, rightBirthDate: Birth);
+        Assert.That(replay.Contributions.Where(c => c.Evidence.StartsWith("NASC_"))
+            .All(c => c.LogLikelihoodRatio == 0m), Is.True);
+    }
 }
