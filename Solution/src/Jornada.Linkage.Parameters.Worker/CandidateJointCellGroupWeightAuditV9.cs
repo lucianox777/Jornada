@@ -15,6 +15,19 @@ public sealed record CandidateJointCellGroupWeightCellV9(
     decimal? EvaluationMatchedGroupWeightEss,
     decimal? EvaluationUnmatchedGroupWeightEss);
 
+/// <summary>
+/// Design-weighted mass in nominal cells without BOTH M and U class-specific
+/// independent-group Kish ESS >= 2. All denominators are class-local and
+/// partition-local. A high share is a diagnostic, NOT estimated FDR.
+/// </summary>
+public sealed record CandidateJointCellGroupWeightExposureV9(
+    decimal TrainingMatchedWeightShareWithoutTrainBothClassEss,
+    decimal TrainingUnmatchedWeightShareWithoutTrainBothClassEss,
+    decimal EvaluationMatchedWeightShareWithoutTrainBothClassEss,
+    decimal EvaluationUnmatchedWeightShareWithoutTrainBothClassEss,
+    decimal EvaluationMatchedWeightShareWithoutEvaluationBothClassEss,
+    decimal EvaluationUnmatchedWeightShareWithoutEvaluationBothClassEss);
+
 public sealed record CandidateJointCellGroupWeightAuditV9(
     string Version,
     string Status,
@@ -24,6 +37,7 @@ public sealed record CandidateJointCellGroupWeightAuditV9(
     int TrainingCellsWithGroupWeightEssAtLeastTwoInBothClasses,
     int EvaluationCellsWithGroupWeightEssAtLeastTwoInBothClasses,
     int CellsWithGroupWeightEssAtLeastTwoInBothPartitions,
+    CandidateJointCellGroupWeightExposureV9 UnsupportedDesignWeightExposure,
     IReadOnlyList<CandidateJointCellGroupWeightCellV9> Cells);
 
 /// <summary>
@@ -34,7 +48,7 @@ public sealed record CandidateJointCellGroupWeightAuditV9(
 /// </summary>
 public static class CandidateJointCellGroupWeightAuditBuilderV9
 {
-    public const string Version = "V9_JOINT_CELL_GROUP_WEIGHT_ESS_DIAGNOSTIC_1";
+    public const string Version = "V9_JOINT_CELL_GROUP_WEIGHT_ESS_DIAGNOSTIC_2";
     public const string Status =
         "DIAGNOSTIC_ONLY_GROUP_WEIGHT_KISH_NOT_INDEPENDENCE_CI_OR_SQL_CERTIFICATION";
 
@@ -133,6 +147,9 @@ public static class CandidateJointCellGroupWeightAuditBuilderV9
 
         var result = new List<CandidateJointCellGroupWeightCellV9>(observed.Cells.Count);
         int trainBoth = 0, evaluationBoth = 0, all = 0;
+        decimal trainingMatchedUnsupported = 0m, trainingUnmatchedUnsupported = 0m;
+        decimal evaluationMatchedTrainUnsupported = 0m, evaluationUnmatchedTrainUnsupported = 0m;
+        decimal evaluationMatchedSelfUnsupported = 0m, evaluationUnmatchedSelfUnsupported = 0m;
         foreach (var cell in observed.Cells)
         {
             var groupCell = groups.Cells.Single(x =>
@@ -152,7 +169,25 @@ public static class CandidateJointCellGroupWeightAuditBuilderV9
             var training = tm >= 2m && tu >= 2m;
             var evaluation = em >= 2m && eu >= 2m;
             if (training) trainBoth++;
+            else
+            {
+                trainingMatchedUnsupported = checked(trainingMatchedUnsupported + cell.TrainingMatchedWeight);
+                trainingUnmatchedUnsupported = checked(trainingUnmatchedUnsupported + cell.TrainingUnmatchedWeight);
+                // Independent EVALUATION only DESCRIBES mass in cells
+                // unsupported by TRAIN; it cannot adjust TRAIN estimates.
+                evaluationMatchedTrainUnsupported =
+                    checked(evaluationMatchedTrainUnsupported + cell.EvaluationMatchedWeight);
+                evaluationUnmatchedTrainUnsupported =
+                    checked(evaluationUnmatchedTrainUnsupported + cell.EvaluationUnmatchedWeight);
+            }
             if (evaluation) evaluationBoth++;
+            else
+            {
+                evaluationMatchedSelfUnsupported =
+                    checked(evaluationMatchedSelfUnsupported + cell.EvaluationMatchedWeight);
+                evaluationUnmatchedSelfUnsupported =
+                    checked(evaluationUnmatchedSelfUnsupported + cell.EvaluationUnmatchedWeight);
+            }
             if (training && evaluation) all++;
             result.Add(new CandidateJointCellGroupWeightCellV9(
                 cell.Person, cell.Mother, tm, tu, em, eu));
@@ -163,9 +198,40 @@ public static class CandidateJointCellGroupWeightAuditBuilderV9
             || all > groups.CellsWithMinimumGroupsInBothPartitions)
             throw new InvalidOperationException("ESS V9 por grupo excede o suporte de grupos observados.");
 
+        // All class totals must be strictly positive; the governed holdout
+        // and independent raw evidence inventories already validated them.
+        var trainingMatchedTotal = holdout.Training.Matched.TotalDesignWeight;
+        var trainingUnmatchedTotal = holdout.Training.Unmatched.TotalDesignWeight;
+        var evaluationMatchedTotal = holdout.MatchedEvaluation.TotalDesignWeight;
+        var evaluationUnmatchedTotal = holdout.UnmatchedEvaluation.TotalDesignWeight;
+        if (trainingMatchedTotal <= 0m || trainingUnmatchedTotal <= 0m
+            || evaluationMatchedTotal <= 0m || evaluationUnmatchedTotal <= 0m)
+            throw new InvalidOperationException(
+                "Exposição ponderada V9 exige denominadores positivos em todas as classes.");
+
+        var exposure = new CandidateJointCellGroupWeightExposureV9(
+            trainingMatchedUnsupported / trainingMatchedTotal,
+            trainingUnmatchedUnsupported / trainingUnmatchedTotal,
+            evaluationMatchedTrainUnsupported / evaluationMatchedTotal,
+            evaluationUnmatchedTrainUnsupported / evaluationUnmatchedTotal,
+            evaluationMatchedSelfUnsupported / evaluationMatchedTotal,
+            evaluationUnmatchedSelfUnsupported / evaluationUnmatchedTotal);
+        var shares = new[]
+        {
+            exposure.TrainingMatchedWeightShareWithoutTrainBothClassEss,
+            exposure.TrainingUnmatchedWeightShareWithoutTrainBothClassEss,
+            exposure.EvaluationMatchedWeightShareWithoutTrainBothClassEss,
+            exposure.EvaluationUnmatchedWeightShareWithoutTrainBothClassEss,
+            exposure.EvaluationMatchedWeightShareWithoutEvaluationBothClassEss,
+            exposure.EvaluationUnmatchedWeightShareWithoutEvaluationBothClassEss
+        };
+        if (shares.Any(share => share < 0m || share > 1m))
+            throw new InvalidOperationException(
+                "Exposição ponderada sem suporte por grupo fora de [0,1].");
+
         return new CandidateJointCellGroupWeightAuditV9(
             Version, Status, observed.FrameFingerprint, observed.SelectionFingerprint,
             result.Count, trainBoth, evaluationBoth, all,
-            Array.AsReadOnly(result.ToArray()));
+            exposure, Array.AsReadOnly(result.ToArray()));
     }
 }
