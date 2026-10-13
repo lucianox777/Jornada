@@ -932,7 +932,8 @@ jobs:
             --out "$PWD/.local/e2-demographic-primary" \
             --people 30000 \
             --seed 42 \
-            --v9-support-summary true
+            --v9-support-summary true \
+            --v9-functional-probe true
           python3 - <<'PY'
           import csv, hashlib, json
           from pathlib import Path
@@ -958,6 +959,27 @@ jobs:
               assert sum(c["UnmatchedPairs"] for c in partition["Cells"])==partition["UnmatchedProxyPairs"]
               assert partition["CellsWithoutBilateralObservation"]==sum(
                   1 for c in partition["Cells"] if c["MatchedPairs"]==0 or c["UnmatchedPairs"]==0)
+          probe=json.loads((root/"v9-functional-probe.json").read_text(encoding="utf-8"))
+          assert probe["Version"]=="V9_30000_FS_CSHARP_FUNCTIONAL_PROBE_V1"
+          assert probe["Scope"]=="FIRST_INITIAL_PROXY_NOT_REAL_SQL_BLOCKING"
+          assert probe["People"]==30000 and probe["Observations"]==observations
+          assert probe["Seed"]==42 and probe["InputFingerprint"].upper()==manifest["input_fingerprint_sha256"]
+          assert probe["Validation"]["Partition"]=="VALIDATION" and probe["Test"]["Partition"]=="TEST"
+          assert probe["TrainMatchedRetrieved"]>0 and probe["TrainUnmatchedSampled"]>0
+          assert probe["Validation"]["Fpr"]<=probe["ValidationFprBudget"]
+          for split in ("Validation","Test"):
+              row=probe[split]
+              assert row["Tp"]+row["Fn"]>0 and row["Fp"]+row["Tn"]>0
+              assert 0<=row["Recall"]<=1 and 0<=row["Fpr"]<=1
+          assert probe["SyntheticProxyVerdict"] in ("PASS_ON_SAMPLED_SYNTHETIC_PROXY","FAIL_ON_SAMPLED_SYNTHETIC_PROXY")
+          assert probe["OperationalConclusion"]=="NOT_PROVEN_ON_REAL_SQL_BLOCKING_OR_MUNICIPAL_POPULATION"
+          print("V9 30000 ACTUAL FS PREVIEW:",json.dumps({
+              "verdict":probe["SyntheticProxyVerdict"],
+              "operational":probe["OperationalConclusion"],
+              "train_supported_m":probe["TrainMatchedRetrieved"],
+              "train_unsupported_joint_cells":probe["TrainCellsWithoutBilateralSupport"],
+              "validation":probe["Validation"],"test":probe["Test"]
+          },sort_keys=True))
           print("V9 30K MEASURED PROXY:", json.dumps({
               p["Partition"]: {
                   "groups":p["BasePeople"],
@@ -990,6 +1012,7 @@ jobs:
             Solution/.local/e2-demographic-primary/generation-manifest.json
             Solution/.local/e2-demographic-primary/gabarito.json
             Solution/.local/e2-demographic-primary/v9-joint-support.json
+            Solution/.local/e2-demographic-primary/v9-functional-probe.json
           if-no-files-found: error
           retention-days: 30
       - name: Materialize canonical blocking projection for synthetic harness
