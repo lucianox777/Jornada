@@ -133,6 +133,16 @@ public sealed class NameFrequencyCoverageSqlServerTests
             versionId,
             CancellationToken.None);
 
+        // This reference is deliberately still CARREGANDO. Its frequencies
+        // exist but its provenance has not been published: V9 must fail closed.
+        var bootstrap = new Jornada.Contracts.NominalSyntheticIbgeBootstrapV9(
+            Jornada.Contracts.CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance,
+            30_000, "TEST_CORPUS", "GENERATOR_V1", 42UL, "TEST_HYPOTHESES");
+        Assert.ThrowsAsync<InvalidOperationException>(
+            (Func<Task>)(async () =>
+                await FrozenIbgeNominalTfV9.LoadAsync(
+                    connection, versionId, "BLOCKING_SQL_FRAME", bootstrap)));
+
         Assert.Multiple((Action)(() =>
         {
             Assert.That(prepared.Snapshot.PersonFirstNameCount, Is.EqualTo(2));
