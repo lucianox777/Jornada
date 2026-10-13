@@ -74,6 +74,7 @@ public static class V9PhysicalSqlBlockingProbe
         public V9SqlBlockingFrameParityAudit.Report? ActiveSameFrameParityAudit { get; init; }
         public V9SqlConditionedNominalSupportAudit.Report? TrainSqlNominalSupportAudit { get; init; }
         public V9SqlCandidateFanoutAudit.Report? CandidateFanoutAudit { get; init; }
+        public V9SqlConditionedBirthSupportAudit.Report? TrainSqlBirthSupportAudit { get; init; }
         public string? BlockingAblationContract { get; init; }
         public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
     }
@@ -317,6 +318,7 @@ public static class V9PhysicalSqlBlockingProbe
         // M/U support comes from the exact same SQL candidate frame as the
         // scorer, TRAIN only, not from the previously sampled proxy by initial.
         var trainSqlPairs = new List<V9SqlConditionedNominalSupportAudit.Candidate>();
+        var trainSqlBirthPairs = new List<V9SqlConditionedBirthSupportAudit.Candidate>();
         long allCandidate = 0;
         await using (var command = new SqlCommand(
             "SELECT a,b,part FROM #v9pairs ORDER BY a,b;", connection) {
@@ -339,9 +341,19 @@ public static class V9PhysicalSqlBlockingProbe
                 // edges; include zero-hit eligible observations in denominator.
                 fanout.AddCandidate(a.Id, b.Id, partition);
                 if (partition == "TRAIN")
+                {
                     trainSqlPairs.Add(new V9SqlConditionedNominalSupportAudit.Candidate(
                         a.Id, b.Id, partition, a.Base, b.Base,
                         a.Name, b.Name, a.Mother, b.Mother));
+                    // All SQL eligible endpoints in this diagnostic have a
+                    // date. Unknown birth dates remain out of this *specific*
+                    // frame, never a general contract requirement.
+                    if (a.Birth is not { } birthA || b.Birth is not { } birthB)
+                        throw new InvalidDataException(
+                            "Nascimento ausente em candidato TRAIN do frame SQL restrito.");
+                    trainSqlBirthPairs.Add(new V9SqlConditionedBirthSupportAudit.Candidate(
+                        a.Id, b.Id, partition, a.Base, b.Base, birthA, birthB));
+                }
                 var same = a.Base == b.Base;
                 if (same)
                 {
@@ -373,6 +385,11 @@ public static class V9PhysicalSqlBlockingProbe
                     "Fan-out de pontas diverge dos pares SQL físicos.");
         }
         var trainNominalSupport = V9SqlConditionedNominalSupportAudit.Analyze(trainSqlPairs);
+        var trainBirthSupport = V9SqlConditionedBirthSupportAudit.Analyze(trainSqlBirthPairs);
+        if (trainBirthSupport.SqlCandidateM != trainNominalSupport.SqlCandidateM
+            || trainBirthSupport.SqlCandidateU != trainNominalSupport.SqlCandidateU
+            || trainBirthSupport.SqlCandidatePairs != trainNominalSupport.SqlCandidatePairs)
+            throw new InvalidDataException("Nascimento e nome não conciliam no mesmo SQL TRAIN.");
         if (trainNominalSupport.SqlCandidateM != bySplit["TRAIN"].TrueCandidate
             || trainNominalSupport.SqlCandidateU != bySplit["TRAIN"].FalseCandidate)
             throw new InvalidDataException("Suporte m/u nominal TRAIN não concilia com SQL físico.");
@@ -432,6 +449,7 @@ public static class V9PhysicalSqlBlockingProbe
             ActiveSameFrameParityAudit = frameParity,
             TrainSqlNominalSupportAudit = trainNominalSupport,
             CandidateFanoutAudit = fanoutReport,
+            TrainSqlBirthSupportAudit = trainBirthSupport,
             BlockingAblationContract = BlockingAblationVersion,
             PreRegisteredPassSensitivity = passSensitivity
         };
