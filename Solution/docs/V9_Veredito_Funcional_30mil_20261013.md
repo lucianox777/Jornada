@@ -1,3 +1,24 @@
+## P0 — censo físico SQL do blocking C1 e taxa de vínculos errados (13/10/2026)
+
+Esta rodada responde à pergunta quantitativa sobre os **candidatos errados efetivamente produzidos pelo SQL**. No banco **isolado `JornadaHarness`**, o comando `Jornada.Linkage.Evaluation --v9-physical-sql-blocking` materializa em `#v9obs` 30 mil pessoas sintéticas e todas as observações geradas. Usa a **projeção canônica C#** `BlockingProjectionKeyProjector` e executa, por `JOIN` físico SQL Server com deduplicação `SELECT DISTINCT`, os **cinco passes C1 do catálogo `CombinedIdentityCandidatePlanner`**: nome+mãe+nascimento exato, transposição dia/mês, ano adjacente, fonética do nome e fonética do nome da mãe (com os outros campos exatos). Preserva a semântica de AND entre atributos e OR entre passes. O frame de avaliação é **por split, entre gestores, observações sem CPF, data presente**. Se o censo superar 1 milhão de candidatos, **falha explicitamente**; nunca substitui candidatos U por pares adjacentes amostrados.
+
+A classificação verdadeira de cada par vem exclusivamente de `base_person_id` do gabarito sintético. O scorer FS C# V9 é aplicado **a cada par retornado pelo SQL**, com o **mesmo modelo m/u+prior+nascimento+limiar da seed 42**, congelado inclusive para seeds 43 e 44. TF continua **explicitamente desligado** neste ensaio: não afirmar execução de TF calibrada.
+
+### Denominadores distintos: não confundir proporção de candidato falso com erro de vínculo
+
+- `M_eligible`: todos os pares verdadeiros intergestores, sem CPF e com data, **antes do blocking**.
+- `M_sql`: pares verdadeiros que apareceram na união deduplicada do SQL; `M_eligible-M_sql` são verdadeiros perdidos pelo blocking.
+- `U_sql`: pares SQL de **pessoas-base diferentes**, a contagem pedida de *candidatos falsos*.
+- **Candidatos falsos por verdadeiro recuperado** = `U_sql / M_sql` (relatar também `U_sql / M_eligible` e `U_sql/(M_sql+U_sql)`). É razão de candidatos, **não probabilidade de vínculo errado**.
+- `TP`: `M_sql` aceitos pelo limiar FS V9; `FP`: `U_sql` aceitos erroneamente. `FN=M_eligible-TP`, incluindo perda no blocking. `TN_sql=U_sql-FP` são apenas **falsos candidatos rejeitados**.
+- **Taxa observada de vínculos errados** = `FP/(TP+FP)` **dentre os pares aceitos**. Também relatar `FP/TP` (erros por acerto), `TP/M_eligible` (recall do pipeline no frame), e `FP/U_sql` (FPR condicional aos candidatos falsos SQL). **Nenhuma destas é FDR municipal estimada para produção**, nem garante identidade única em cluster.
+
+A saída `v9-sql-physical-seed-{42,43,44}.json` contém por split somente contagens e taxas agregadas. O resumo combina apenas os TESTs das três seeds, soma numeradores/denominadores **antes de calcular** as taxas e nunca tira uma média ingênua das taxas. Há dupla conferência independente em Python de identidades de contagem, aritmética de cada divisão, modelo congelado e cobertura dos três splits.
+
+### Limite de equivalência com o bloqueio operacional
+
+**É blocking físico SQL Server com a política de passes C1 do código, não o blocking ativo integral `identidade.blocking_chave` com aliases `VERSIONED_ALIAS` e ruleset publicado.** Os cinco passes C1 são uma política real versionada de *candidatos*, mas não devem ser apresentados como equivalentes à união atual de todas as regras do Runner nem à recuperação de aliases históricos. Nesta massa sintética não existem históricos completos de alias por cidadão. Além disso, o subframe sem CPF exclui vínculos pela rota determinística. Portanto, o relatório sinaliza `NOT_OPERATIONAL_ACTIVE_VERSIONED_ALIAS_OR_CALIBRATED_TF` mesmo se a taxa observada for baixa. A comparação V8×V9 continua **fora** da aceitação da V9.
+
 # Prioridade P0 — o FS nominal V9 funciona em 30 mil sintéticos?
 
 **Escopo 13/10/2026.** O termo "venom" foi interpretado como **V9** pelo contexto do projeto. Esta avaliação remove a comparação V8×V9 como dependência; a V8 é apenas replay histórico. DT-15 continua tratando de ATIVO×PROPOSTO quando houver substituição operacional, independentemente da versão.
