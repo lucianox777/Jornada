@@ -41,6 +41,13 @@ public sealed record CandidateWeightedJointFsHoldoutOutcomeV9(
     /// restricted inventory; NULL only for historical serialized outcomes.
     /// </summary>
     public CandidateJointGroupSupportAuditV9? IndependentJointGroupSupport { get; init; }
+
+    /// <summary>
+    /// Descriptive 81-cell Kish ESS AFTER grouping design-weight contributions
+    /// by IndependenceGroupId, not the existing pair-weight Kish ESS.
+    /// No IDs or group-level records are exported.
+    /// </summary>
+    public CandidateJointCellGroupWeightAuditV9? IndependentJointCellGroupWeightEss { get; init; }
 }
 
 /// <summary>
@@ -154,6 +161,8 @@ public static class CandidateWeightedJointFsHoldoutPreviewV9
         {
             ObservedJointSupport = CandidateJointSupportAuditBuilderV9.Analyze(audit),
             IndependentJointGroupSupport = CandidateJointGroupSupportAuditBuilderV9.Analyze(
+                corpus, rawEvidence, audit),
+            IndependentJointCellGroupWeightEss = CandidateJointCellGroupWeightAuditBuilderV9.Analyze(
                 corpus, rawEvidence, audit)
         };
 
