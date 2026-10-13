@@ -58,6 +58,19 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
                 Is.EqualTo(63));
             Assert.That(audit.SemanticDistanceCells.Count(x => x.ObservationCount == 0),
                 Is.EqualTo(60));
+            Assert.That(audit.SemanticDistanceCells.All(x =>
+                x.DistinctTrainingPeople <= x.ObservationCount
+                && x.DistinctTrainingPeople <= audit.BasePeopleInTraining), Is.True);
+            var repeated = audit.SemanticDistanceCells.Single(x =>
+                x.SemanticState == BirthDateSemanticEvidence.PartialComponentAgreement
+                && x.DigitDistance == 2);
+            Assert.That(repeated.ObservationCount, Is.EqualTo(2));
+            Assert.That(repeated.DistinctTrainingPeople, Is.EqualTo(1));
+            Assert.That(audit.SemanticDistanceCells.Single(x =>
+                x.SemanticState == BirthDateSemanticEvidence.Exact
+                && x.DigitDistance == 0).DistinctTrainingPeople, Is.EqualTo(1));
+            Assert.That(audit.SemanticDistanceCells.Count(x =>
+                x.ObservationCount == 0 && x.DistinctTrainingPeople == 0), Is.EqualTo(60));
         }));
 
         var changedTest = Fixture();
