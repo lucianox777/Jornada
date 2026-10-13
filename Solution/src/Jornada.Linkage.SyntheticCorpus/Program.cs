@@ -80,9 +80,24 @@ if (string.Equals(args[0], "generate", StringComparison.Ordinal))
     // run even when the optional 81-cell support summary is not requested.
     if (string.Equals(Get(values, "v9-functional-probe"), "true", StringComparison.OrdinalIgnoreCase))
     {
+        var frozenInput = Get(values, "v9-frozen-model-input");
+        SyntheticV9FrozenModelV1? frozen = null;
+        if (frozenInput is not null)
+        {
+            frozen = JsonSerializer.Deserialize<SyntheticV9FrozenModelV1>(
+                await File.ReadAllTextAsync(Path.GetFullPath(frozenInput)))
+                ?? throw new InvalidOperationException("Modelo congelado V9 não é um objeto válido.");
+        }
         var probe = SyntheticV9FunctionalProbe.Analyze(
             loaded.Generation.People, loaded.Generation.Observations,
-            options.Seed, loaded.InputFingerprint);
+            options.Seed, loaded.InputFingerprint, frozen);
+        if (frozen is null)
+        {
+            // Serialize the canonical unindented payload; the exact bytes,
+            // excluding trailing newline, are hashed in the scoring report.
+            await File.WriteAllTextAsync(Path.Combine(output, "v9-frozen-model.json"),
+                JsonSerializer.Serialize(probe.FrozenModel) + "\n");
+        }
         await File.WriteAllTextAsync(Path.Combine(output, "v9-functional-probe.json"),
             JsonSerializer.Serialize(probe, SyntheticCorpusCliJson.Indented) + "\n");
         Console.WriteLine(JsonSerializer.Serialize(new
