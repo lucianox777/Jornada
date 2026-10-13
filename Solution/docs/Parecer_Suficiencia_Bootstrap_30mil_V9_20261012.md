@@ -1,3 +1,10 @@
+> **13/10/2026 — Transferência congelada em 3 massas sintéticas:** as
+> réplicas #996 recalibravam por seed e não aferiam transportabilidade. A
+> rodada seguinte preserva um único snapshot FS V9 e limiar da seed 42,
+> aplica-os sem reajuste em seeds 43/44 e audita o SHA-256 do modelo.
+> Desempenho de TEST das sementes-alvo decide a robustez no proxy, sem
+> fabricar PASS. Ainda não há blocking SQL físico nem TF calibrada.
+
 
 > **Complemento de robustez 13/10/2026 (PR #996):** a seed 42 mediu
 > funcionamento positivo do *scorer* FS V9 no *proxy* de primeira inicial,

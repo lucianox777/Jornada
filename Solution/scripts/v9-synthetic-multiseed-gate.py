@@ -12,7 +12,10 @@ import hashlib
 import json
 from pathlib import Path
 
-VERSION = "SYNTHETIC_V9_MULTI_SEED_FS_PROXY_REPLICATION_V1"
+VERSION = "SYNTHETIC_V9_FROZEN_SOURCE42_CROSS_SEED_TRANSFER_V1"
+FROZEN_VERSION = "V9_SYNTHETIC_FROZEN_JOINT_FS_FROM_SEED42_V1"
+FIT = "FIT_TRAIN_AND_VALIDATION_FOR_SOURCE_SEED42"
+TRANSFERRED = "TRANSFER_SOURCE_SEED42_UNCHANGED_NO_REFIT_OR_RETHRESHOLD"
 SCORER_VERSION = "V9_30000_FS_CSHARP_FUNCTIONAL_PROBE_V1"
 SCOPE = "FIRST_INITIAL_PROXY_NOT_REAL_SQL_BLOCKING"
 UNKNOWN = "NOT_PROVEN_ON_REAL_SQL_BLOCKING_OR_MUNICIPAL_POPULATION"
@@ -100,8 +103,53 @@ def audit_directory(directory: Path, expected_seed: int) -> dict:
             "Invalid frozen validation threshold")
     validation = verify_metrics(report.get("Validation"), "VALIDATION")
     test = verify_metrics(report.get("Test"), "TEST")
-    require(dec(validation["Fpr"], "validation_fpr") <= Decimal("0.01"),
-            "VALIDATION threshold was not frozen within predeclared budget")
+    calibration_mode = report.get("CalibrationMode")
+    require(calibration_mode == (FIT if expected_seed == 42 else TRANSFERRED),
+            "Target seed refitted or thresholded itself instead of transferring seed42 model")
+    model = report.get("FrozenModel")
+    require(isinstance(model, dict) and model.get("Version") == FROZEN_VERSION
+            and model.get("SourceSeed") == 42,
+            "Missing or invalid frozen source seed42 model")
+    require(type(model.get("SourceInputFingerprint")) is str and
+            model["SourceInputFingerprint"],
+            "Frozen source corpus fingerprint absent")
+    require(isinstance(model.get("Cells"), list) and len(model["Cells"]) == 81,
+            "Frozen model must contain 81 joint nominal cells")
+    coordinates = {(cell.get("Person"), cell.get("Mother")) for cell in model["Cells"]}
+    require(len(coordinates) == 81 and
+            coordinates == {(a, b) for a in range(9) for b in range(9)},
+            "Frozen joint cell dimensions are incomplete or duplicated")
+    for axis in ("M", "U"):
+        prob = sum((dec(c.get(axis), axis) for c in model["Cells"]), Decimal(0))
+        require(abs(prob - Decimal(1)) <= Decimal("0.0000001"),
+                "Frozen nominal probability distribution is not normalized")
+        require(all(dec(c.get(axis), axis) > 0 for c in model["Cells"]),
+                "Frozen nominal probabilities must be positive")
+    require(isinstance(model.get("Parameters"), dict)
+            and len(model["Parameters"]) >= 8, "Frozen FS parameters absent")
+    model_sha = report.get("FrozenModelSha256")
+    require(isinstance(model_sha, str) and len(model_sha) == 64 and
+            all(c in "0123456789ABCDEF" for c in model_sha),
+            "Missing source model SHA-256")
+    require(dec(model.get("ThresholdLogOdds"), "source threshold") ==
+            dec(report.get("FrozenThresholdLogOdds"), "report threshold"),
+            "Threshold does not match source frozen model")
+    if expected_seed == 42:
+        source_file = directory / "v9-frozen-model.json"
+        source_bytes = source_file.read_bytes().rstrip(b"\n")
+        require(hashlib.sha256(source_bytes).hexdigest().upper() == model_sha,
+                "Frozen source model SHA-256 mismatch")
+        require(json.loads(source_bytes) == model,
+                "Embedded model changed from the pinned source snapshot")
+        require(model["SourceInputFingerprint"].upper() ==
+                report["InputFingerprint"].upper(),
+                "Seed42 source model does not match training corpus")
+        require(dec(validation["Fpr"], "validation_fpr") <= Decimal("0.01"),
+                "Source VALIDATION threshold exceeded predeclared budget")
+    else:
+        require(model["SourceInputFingerprint"].upper() !=
+                report["InputFingerprint"].upper(),
+                "Target seed reused source training population")
     passed = (test["Tp"] > 0 and dec(test["Recall"], "test_recall") >= Decimal("0.80")
               and dec(test["Fpr"], "test_fpr") <= Decimal("0.01"))
     require(report.get("SyntheticProxyVerdict") == (PASS if passed else FAIL),
@@ -126,6 +174,11 @@ def audit_directory(directory: Path, expected_seed: int) -> dict:
         "validation": validation,
         "test": test,
         "proxyVerdict": report["SyntheticProxyVerdict"],
+        "calibrationMode": calibration_mode,
+        "frozenModelSha256": model_sha,
+        "frozenModelSourceSeed": model["SourceSeed"],
+        "frozenModelSourceFingerprint": model["SourceInputFingerprint"].upper(),
+        "frozenThreshold": str(dec(model["ThresholdLogOdds"], "threshold")),
         "operationalConclusion": UNKNOWN,
     }
 
@@ -137,6 +190,19 @@ def aggregate(rows: list[dict]) -> dict:
             "Different seeds cannot share input fingerprints")
     require(len({row["corpusTruthSha256"] for row in rows}) == len(rows),
             "Different seeds cannot have identical generated truth")
+    by_seed = {row["seed"]: row for row in rows}
+    require(sorted(by_seed) == [42, 43, 44], "Frozen cross-seed transfer requires seeds42-44")
+    require(by_seed[42]["calibrationMode"] == FIT and
+            all(by_seed[s]["calibrationMode"] == TRANSFERRED for s in (43, 44)),
+            "Target model must be transferred, not refitted")
+    require(len({row["frozenModelSha256"] for row in rows}) == 1,
+            "Frozen model digest differs across target seeds")
+    require(len({row["frozenThreshold"] for row in rows}) == 1,
+            "Target threshold was silently retuned")
+    require(all(row["frozenModelSourceSeed"] == 42 and
+                row["frozenModelSourceFingerprint"] ==
+                    by_seed[42]["inputFingerprintSha256"] for row in rows),
+            "Frozen model source fingerprint not identical to seed42 truth")
     test_recalls = [dec(x["test"]["Recall"], "recall") for x in rows]
     test_fprs = [dec(x["test"]["Fpr"], "fpr") for x in rows]
     passed = sum(row["proxyVerdict"] == PASS for row in rows)
@@ -148,8 +214,12 @@ def aggregate(rows: list[dict]) -> dict:
         "replicationCount": len(rows),
         "passedProxySeeds": passed,
         "failedProxySeeds": len(rows) - passed,
-        "crossSeedProxyVerdict": "PASS_ALL_PROXY_REPLICATES" if passed == len(rows)
-                                 else "AT_LEAST_ONE_PROXY_REPLICATE_FAILED",
+        "crossSeedProxyVerdict": "PASS_ALL_FROZEN_MODEL_TRANSFER_REPLICATES"
+                                    if passed == len(rows)
+                                    else "AT_LEAST_ONE_FROZEN_MODEL_TRANSFER_FAILED",
+        "frozenModelSha256": by_seed[42]["frozenModelSha256"],
+        "frozenModelSourceSeed": 42,
+        "frozenModelSourceFingerprint": by_seed[42]["inputFingerprintSha256"],
         "testRecallMinimum": str(min(test_recalls)),
         "testRecallMaximum": str(max(test_recalls)),
         "testFprMinimum": str(min(test_fprs)),
@@ -160,6 +230,8 @@ def aggregate(rows: list[dict]) -> dict:
             "UNMATCHED_ADJACENT_PROXY_NOT_PROBABILITY_SAMPLE",
             "NO_CALIBRATED_TF",
             "NO_CLUSTER_INDEPENDENT_FDR_INTERVAL",
+            "SOURCE42_PRIOR_AND_THRESHOLD_FIXED_FOR_TARGET43_44",
+            "SOURCE42_TRAIN_81_CELL_SPARSITY_REMAINS",
             "NOT_APPROVED_BY_DT15",
         ],
         "runs": rows,

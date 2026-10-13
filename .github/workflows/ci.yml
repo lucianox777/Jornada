@@ -974,6 +974,12 @@ jobs:
               assert 0<=row["Recall"]<=1 and 0<=row["Fpr"]<=1
           assert probe["SyntheticProxyVerdict"] in ("PASS_ON_SAMPLED_SYNTHETIC_PROXY","FAIL_ON_SAMPLED_SYNTHETIC_PROXY")
           assert probe["OperationalConclusion"]=="NOT_PROVEN_ON_REAL_SQL_BLOCKING_OR_MUNICIPAL_POPULATION"
+          assert probe["CalibrationMode"]=="FIT_TRAIN_AND_VALIDATION_FOR_SOURCE_SEED42"
+          assert probe["FrozenModel"]["SourceSeed"]==42
+          assert probe["FrozenModel"]["SourceInputFingerprint"].upper()==manifest["input_fingerprint_sha256"]
+          assert len(probe["FrozenModel"]["Cells"])==81
+          assert probe["FrozenModel"]["ThresholdLogOdds"]==probe["FrozenThresholdLogOdds"]
+          assert hashlib.sha256((root/"v9-frozen-model.json").read_bytes().rstrip(b"\n")).hexdigest().upper()==probe["FrozenModelSha256"]
           print("V9 30000 ACTUAL FS PREVIEW:",json.dumps({
               "verdict":probe["SyntheticProxyVerdict"],
               "operational":probe["OperationalConclusion"],
@@ -1014,6 +1020,7 @@ jobs:
             Solution/.local/e2-demographic-primary/gabarito.json
             Solution/.local/e2-demographic-primary/v9-joint-support.json
             Solution/.local/e2-demographic-primary/v9-functional-probe.json
+            Solution/.local/e2-demographic-primary/v9-frozen-model.json
           if-no-files-found: error
           retention-days: 30
       - name: Replicate 30k V9 FS C# synthetic probe over independent seeds 43 and 44
@@ -1029,7 +1036,8 @@ jobs:
               --out "$output" \
               --people 30000 \
               --seed "$seed" \
-              --v9-functional-probe true
+              --v9-functional-probe true \
+              --v9-frozen-model-input "$PWD/.local/e2-demographic-primary/v9-frozen-model.json"
           done
           python3 scripts/v9-synthetic-multiseed-gate.py \
             --seed-dir 42 .local/e2-demographic-primary \
@@ -1044,6 +1052,7 @@ jobs:
             Solution/.local/v9-synthetic-multiseed-summary.json
             Solution/.local/v9-synthetic-seed-43/generation-manifest.json
             Solution/.local/v9-synthetic-seed-43/v9-functional-probe.json
+            Solution/.local/e2-demographic-primary/v9-frozen-model.json
             Solution/.local/v9-synthetic-seed-44/generation-manifest.json
             Solution/.local/v9-synthetic-seed-44/v9-functional-probe.json
           if-no-files-found: error

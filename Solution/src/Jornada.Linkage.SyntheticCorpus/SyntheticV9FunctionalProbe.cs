@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Linkage.Runner;
 
@@ -15,16 +18,63 @@ public static class SyntheticV9FunctionalProbe
     private const decimal Alpha = 0.5m;
     private const decimal FprBudget = 0.01m;
     private const decimal MinRecall = 0.80m;
+    public const string FrozenVersion = "V9_SYNTHETIC_FROZEN_JOINT_FS_FROM_SEED42_V1";
+    public const string FitLocally = "FIT_TRAIN_AND_VALIDATION_FOR_SOURCE_SEED42";
+    public const string Transferred = "TRANSFER_SOURCE_SEED42_UNCHANGED_NO_REFIT_OR_RETHRESHOLD";
+    public static string Digest(SyntheticV9FrozenModelV1 model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        return Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(JsonSerializer.Serialize(model))));
+    }
+
+    private static void RequireValidFrozen(SyntheticV9FrozenModelV1 model)
+    {
+        ArgumentNullException.ThrowIfNull(model);
+        if (model.Version != FrozenVersion || model.SourceSeed != 42UL
+            || string.IsNullOrWhiteSpace(model.SourceInputFingerprint)
+            || model.Cells is not { Length: 81 } || model.Parameters is null
+            || model.ThresholdLogOdds is < -1000m or > 1000m)
+            throw new InvalidOperationException("Modelo FS V9 congelado tem contrato ou proveniência inválida.");
+        var levels = Enum.GetValues<CompositeNominalLevelV9>();
+        if (model.Cells.Any(c => c is null || !Enum.IsDefined(c.Person)
+                            || !Enum.IsDefined(c.Mother) || c.M <= 0 || c.U <= 0)
+            || model.Cells.Select(c => (c.Person, c.Mother)).Distinct().Count() != levels.Length * levels.Length
+            || Math.Abs(model.Cells.Sum(c => c.M) - 1m) > 0.0000001m
+            || Math.Abs(model.Cells.Sum(c => c.U) - 1m) > 0.0000001m)
+            throw new InvalidOperationException("Modelo FS V9 congelado exige 81 células conjuntas válidas.");
+        // Shared production C# scorer validates the statistical parameters.
+        _ = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            model.Parameters, "Maria Silva", "Maria Silva", "Ana Costa", "Ana Costa",
+            model.Cells, CompositeNominalComparisonV9.ContractVersion,
+            leftBirthDate: new DateOnly(2000, 1, 1),
+            rightBirthDate: new DateOnly(2000, 1, 1));
+    }
     private sealed record Pair(SyntheticObservation A, SyntheticObservation B, bool Match, bool Retrieved);
     private sealed record Scored(bool Match, bool Retrieved, decimal? LogOdds);
 
     public static SyntheticV9ProbeReport Analyze(
         IReadOnlyList<SyntheticPerson> people, IReadOnlyList<SyntheticObservation> observations,
-        ulong seed, string fingerprint)
+        ulong seed, string fingerprint,
+        SyntheticV9FrozenModelV1? externalFrozenModel = null)
     {
         ArgumentNullException.ThrowIfNull(people);
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentException.ThrowIfNullOrWhiteSpace(fingerprint);
+        if (externalFrozenModel is not null)
+        {
+            RequireValidFrozen(externalFrozenModel);
+            if (seed == externalFrozenModel.SourceSeed
+                || string.Equals(fingerprint, externalFrozenModel.SourceInputFingerprint,
+                    StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Teste transferido exige seed e corpus diferentes da origem.");
+        }
+        else if (seed != 42UL)
+        {
+            // This experiment freezes a SINGLE source model on seed 42.
+            // Seed 43/44 must not silently refit their own TRAIN/VALIDATION.
+            throw new InvalidOperationException("Experimento V9 requer modelo da seed 42 para seeds externas.");
+        }
         if (people.Count == 0 || observations.Count == 0
             || people.Select(x => x.BasePersonId).Distinct(StringComparer.Ordinal).Count() != people.Count)
             throw new InvalidOperationException("Gabarito vazio ou bases duplicadas.");
@@ -102,6 +152,10 @@ public static class SyntheticV9FunctionalProbe
             ["M_DATA_NASCIMENTO_DIFF"] = 1m-bm,
             ["U_DATA_NASCIMENTO_DIFF"] = 1m-bu
         };
+        // Diagnostics of local support above are intentionally descriptive
+        // for transferred corpora; their fitted parameters NEVER enter scoring.
+        var scoringCells = externalFrozenModel?.Cells ?? cells;
+        var scoringParameters = externalFrozenModel?.Parameters ?? parameters;
         Scored[] Score(string partition) => frames[partition].Select(p =>
         {
             if (!p.Retrieved)
@@ -110,8 +164,8 @@ public static class SyntheticV9FunctionalProbe
                 return new Scored(true,false,null);
             }
             var outcome = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
-                parameters,p.A.Name,p.B.Name,p.A.MotherName,p.B.MotherName,
-                cells,CompositeNominalComparisonV9.ContractVersion,
+                scoringParameters,p.A.Name,p.B.Name,p.A.MotherName,p.B.MotherName,
+                scoringCells,CompositeNominalComparisonV9.ContractVersion,
                 leftBirthDate:p.A.BirthDate,rightBirthDate:p.B.BirthDate);
             if (outcome.Contributions.Count(x => x.Evidence=="NOMINAL_CONJUNTO_V9")!=1
                 || outcome.Contributions.Any(x => x.Evidence is "NOME" or "NOME_MAE"))
@@ -125,11 +179,18 @@ public static class SyntheticV9FunctionalProbe
         if (negatives.Length < 100) throw new InvalidOperationException("U VALIDATION insuficiente.");
         // Threshold is frozen using validation negatives ONLY. Scores must
         // be strictly greater; ties never count as permitted FPs.
-        var threshold=negatives[(int)decimal.Floor(negatives.Length*FprBudget)];
+        var threshold=externalFrozenModel?.ThresholdLogOdds
+            ?? negatives[(int)decimal.Floor(negatives.Length*FprBudget)];
         var validation=Metrics("VALIDATION",valScored,threshold);
-        if (validation.Fpr>FprBudget) throw new InvalidOperationException("FPR VALIDATION acima de 1%.");
+        // A transferred model is measured AS-IS: do not re-fit or retune
+        // even if its target VALIDATION exceeds the original error budget.
+        if (externalFrozenModel is null && validation.Fpr>FprBudget)
+            throw new InvalidOperationException("FPR VALIDATION acima de 1%.");
         var test=Metrics("TEST",Score("TEST"),threshold);
         var pass=test.Tp>0 && test.Recall>=MinRecall && test.Fpr<=FprBudget;
+        var frozen = externalFrozenModel ?? new SyntheticV9FrozenModelV1(
+            FrozenVersion, seed, fingerprint, threshold, cells, parameters);
+        RequireValidFrozen(frozen);
         return new SyntheticV9ProbeReport(
             Version,Scope,seed,fingerprint,people.Count,observations.Count,
             "REAL_CSHARP_FS_PREVIEW_SINGLE_JOINT_NOMINAL_AND_BIRTH",
@@ -139,7 +200,12 @@ public static class SyntheticV9FunctionalProbe
             counts.Values.Count(x=>x.M==0 || x.U==0),
             threshold,validation,test,
             pass?"PASS_ON_SAMPLED_SYNTHETIC_PROXY":"FAIL_ON_SAMPLED_SYNTHETIC_PROXY",
-            "NOT_PROVEN_ON_REAL_SQL_BLOCKING_OR_MUNICIPAL_POPULATION");
+            "NOT_PROVEN_ON_REAL_SQL_BLOCKING_OR_MUNICIPAL_POPULATION")
+        {
+            FrozenModel = frozen,
+            FrozenModelSha256 = Digest(frozen),
+            CalibrationMode = externalFrozenModel is null ? FitLocally : Transferred
+        };
     }
     private static SyntheticV9ProbeMetrics Metrics(
         string part,IReadOnlyList<Scored> rows,decimal threshold)
@@ -182,4 +248,16 @@ public sealed record SyntheticV9ProbeReport(
     int TrainMatchedRetrieved,int TrainUnmatchedSampled,int TrainMatchedNotRetrieved,
     int TrainCellsWithoutBilateralSupport,decimal FrozenThresholdLogOdds,
     SyntheticV9ProbeMetrics Validation,SyntheticV9ProbeMetrics Test,
-    string SyntheticProxyVerdict,string OperationalConclusion);
+    string SyntheticProxyVerdict,string OperationalConclusion)
+{
+    // Aggregate parameters only; NO PII. The same source model/digest must
+    // be bit-for-bit identical in the two independent target corpus reports.
+    public SyntheticV9FrozenModelV1? FrozenModel { get; init; }
+    public string? FrozenModelSha256 { get; init; }
+    public string? CalibrationMode { get; init; }
+}
+
+public sealed record SyntheticV9FrozenModelV1(
+    string Version, ulong SourceSeed, string SourceInputFingerprint,
+    decimal ThresholdLogOdds, FellegiSunterJointNominalCellV9[] Cells,
+    IReadOnlyDictionary<string, decimal> Parameters);

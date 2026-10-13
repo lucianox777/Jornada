@@ -30,8 +30,26 @@ def write_run(root: Path, seed: int, truth="TRUTH", bad=False):
             "MatchedNotRetrieved": missing, "Recall": tp/(tp+fn), "Fpr": fp/(fp+tn),
             "Precision": tp/(tp+fp), "Fdr": fp/(tp+fp)
         }
+    model = {
+        "Version": gate.FROZEN_VERSION,
+        "SourceSeed": 42,
+        "SourceInputFingerprint": "INPUT-42",
+        "ThresholdLogOdds": "-1.61074823",
+        "Cells": [{"Person": a, "Mother": b,
+                   "M": "0.012345679012345679012345679",
+                   "U": "0.012345679012345679012345679"}
+                  for a in range(9) for b in range(9)],
+        "Parameters": {str(i): "0.25" for i in range(8)}
+    }
+    raw_model = json.dumps(model, separators=(",", ":"), ensure_ascii=False)
+    model_sha = hashlib.sha256(raw_model.encode("utf-8")).hexdigest().upper()
+    if seed == 42:
+        (root / "v9-frozen-model.json").write_text(raw_model + "\n", encoding="utf-8")
     report = {
         "Version": gate.SCORER_VERSION, "Scope": gate.SCOPE,
+        "FrozenModel": model,
+        "FrozenModelSha256": model_sha,
+        "CalibrationMode": gate.FIT if seed == 42 else gate.TRANSFERRED,
         "Seed": seed, "People": 30000, "Observations": 58264,
         "InputFingerprint": f"INPUT-{seed}",
         "Scorer": "REAL_CSHARP_FS_PREVIEW_SINGLE_JOINT_NOMINAL_AND_BIRTH",
@@ -62,7 +80,13 @@ class V9IndependentSyntheticSeedsTest(unittest.TestCase):
             report = gate.aggregate(rows)
             self.assertEqual(report["replicationCount"], 3)
             self.assertEqual(report["passedProxySeeds"], 3)
-            self.assertEqual(report["crossSeedProxyVerdict"], "PASS_ALL_PROXY_REPLICATES")
+            self.assertEqual(report["crossSeedProxyVerdict"],
+                             "PASS_ALL_FROZEN_MODEL_TRANSFER_REPLICATES")
+            self.assertEqual(report["frozenModelSourceSeed"], 42)
+            self.assertEqual(report["frozenModelSha256"], rows[0]["frozenModelSha256"])
+            self.assertTrue(all(row["calibrationMode"] ==
+                                (gate.FIT if row["seed"] == 42 else gate.TRANSFERRED)
+                                for row in rows))
             self.assertEqual(report["operationalConclusion"], gate.UNKNOWN)
             serial = json.dumps(report)
             self.assertNotIn("MARIA", serial)
@@ -86,7 +110,35 @@ class V9IndependentSyntheticSeedsTest(unittest.TestCase):
                 rows.append(gate.audit_directory(path, seed))
             report = gate.aggregate(rows)
             self.assertEqual(report["failedProxySeeds"], 1)
-            self.assertEqual(report["crossSeedProxyVerdict"], "AT_LEAST_ONE_PROXY_REPLICATE_FAILED")
+            self.assertEqual(report["crossSeedProxyVerdict"],
+                             "AT_LEAST_ONE_FROZEN_MODEL_TRANSFER_FAILED")
+
+    def test_rejects_refitting_or_retuning_targets_and_source_model_tamper(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            rows = []
+            for seed in (42, 43, 44):
+                path = root / str(seed)
+                write_run(path, seed)
+                rows.append(gate.audit_directory(path, seed))
+            rows[1]["frozenThreshold"] = "-12"
+            with self.assertRaisesRegex(ValueError, "silently retuned"):
+                gate.aggregate(rows)
+            rows[1] = gate.audit_directory(root / "43", 43)
+            rows[2]["frozenModelSha256"] = "A" * 64
+            with self.assertRaisesRegex(ValueError, "digest differs"):
+                gate.aggregate(rows)
+            path = root / "42" / "v9-frozen-model.json"
+            path.write_text(path.read_text() + "TAMPER", encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "SHA-256 mismatch"):
+                gate.audit_directory(root / "42", 42)
+            write_run(root / "43", 43)
+            target = root / "43" / "v9-functional-probe.json"
+            doc = json.loads(target.read_text())
+            doc["CalibrationMode"] = gate.FIT
+            target.write_text(json.dumps(doc))
+            with self.assertRaisesRegex(ValueError, "Target seed refitted"):
+                gate.audit_directory(root / "43", 43)
 
     def test_rejects_tampered_fpr_or_raw_truth(self):
         with tempfile.TemporaryDirectory() as temp:
