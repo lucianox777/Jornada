@@ -19,7 +19,7 @@ Os 81 níveis têm frequências `M` e `U` *diagnósticas*, normalizadas separada
 1. Pares M são recuperados pela projeção lógica atual, mas não têm pertencimento SQL histórico materializado `VERSIONED_ALIAS` certificado; pares U vêm de uma amostra do pool candidato SQL.
 2. Não há pesos de inclusão ou representação de indivíduos em universo populacional demonstrados, nem intervalos de incerteza. Cada uma das 81 células exigirá suporte suficiente ou tratamento rigoroso de esparsidade; estimar 81 probabilidades com uma amostra pequena pode produzir evidência espúria.
 3. Não há estimativa independente de TF para `FullName`/`FirstLastJoint` na população compatível. O produto das marginais IBGE continua proibido.
-4. Não há calibração condicional ao blocking e critérios auditáveis de `TRAIN/VALIDATION/TEST`, comparação matemática com Splink, orçamento de FP/FDR/recall ou DT-15 concluídos.
+4. Não há calibração condicional ao blocking e critérios auditáveis de `TRAIN/VALIDATION/TEST`, conferência matemática independente conforme DT-01/09/14, orçamento de FP/FDR/recall ou DT-15 concluídos. A paridade externa **C# × Splink permanece opcional/diagnóstica**, conforme decisão de avaliação sintética primária de 29/09; não constitui gate obrigatório do Ensaio.
 5. A ausência da mãe pode ser informativa sobre mecanismos de coleta, mas **não** é uma evidência negativa automática; o tratamento decisório depende de calibração aprovada de ausências.
 
 **Status:** `DIAGNOSTIC_ONLY_JOINT_MU_NOT_CERTIFIED`. Esta PR integra apenas fundação estatística **não decisória**. V8, ativos, parâmetros persistidos, bancos, APIs e ledger seguem intocados.
