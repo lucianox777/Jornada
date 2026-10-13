@@ -363,7 +363,9 @@ public static class SyntheticCorpusMaterializer
             {
                 semantic_state = cell.SemanticState,
                 digit_distance = cell.DigitDistance,
-                observation_count = cell.ObservationCount
+                observation_count = cell.ObservationCount,
+                // Distinct synthetic people, not inferred independence or ESS.
+                distinct_training_people = cell.DistinctTrainingPeople
             }).ToArray()
         });
         return JsonSerializer.Serialize(withBirthAudit, IndentedJsonOptions) + "\n";
