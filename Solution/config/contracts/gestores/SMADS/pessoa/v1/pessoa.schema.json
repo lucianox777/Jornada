@@ -618,6 +618,100 @@
       ],
       "maxLength": 255
     },
+    "evidenciasDocumentais": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "description": "Coleção opcional de evidências: dataEvidencia pertence à ocorrência, jamais a cada atributo. Independe da conferência por campo.",
+      "items": {
+        "type": "object",
+        "required": [
+          "ocorrenciaOrigemCodigo",
+          "modeloDocumentoCodigo",
+          "modeloDocumentoVersao",
+          "classeEvidencia",
+          "valores"
+        ],
+        "properties": {
+          "ocorrenciaOrigemCodigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "description": "Código único por ocorrência da base de origem, não reutilizável entre observações."
+          },
+          "modeloDocumentoCodigo": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "modeloDocumentoVersao": {
+            "type": "integer"
+          },
+          "classeEvidencia": {
+            "type": "string",
+            "enum": [
+              "DOCUMENTO",
+              "AUTODECLARACAO"
+            ]
+          },
+          "dataEvidencia": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date",
+            "description": "Data própria do documento ou declaração, opcional quando desconhecida; sem fallback de dataAtendimento/verificadoEm."
+          },
+          "dataAtendimento": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "emissorCodigo": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 120
+          },
+          "ufEmissor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[A-Z]{2}$"
+          },
+          "valores": {
+            "type": "array",
+            "description": "Somente campos presentes no documento e cobertos pelo modelo publicado; não implica validação.",
+            "items": {
+              "type": "object",
+              "required": [
+                "atributoCodigo",
+                "valorOriginal"
+              ],
+              "properties": {
+                "atributoCodigo": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                },
+                "valorOriginal": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 2000
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
     "conferenciasDocumentais": {
       "type": [
         "array",

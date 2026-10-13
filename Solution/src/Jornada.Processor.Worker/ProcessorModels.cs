@@ -71,7 +71,8 @@ internal sealed record ParsedPerson(
     string? NomeMae,
     IReadOnlyList<ParsedTransversalAttribute> Atributos,
     IReadOnlyList<ParsedDocumentVerification> ConferenciasDocumentais,
-    IReadOnlyList<ParsedPersonIdentifier>? Identificadores = null);
+    IReadOnlyList<ParsedPersonIdentifier>? Identificadores = null,
+    IReadOnlyList<ParsedDocumentEvidence>? EvidenciasDocumentais = null);
 
 internal sealed record ParsedDocumentVerification(
     string CampoCodigo,
@@ -353,7 +354,8 @@ internal sealed class IngestionPackageParser(string repositoryRoot, ProcessorOpt
                 OptionalString(json, "nomeMae"),
                 attributes,
                 verifications,
-                identifiers));
+                identifiers,
+                PersonDocumentEvidenceParsing.Parse(json)));
         }
 
         if (result.Count == 0)
