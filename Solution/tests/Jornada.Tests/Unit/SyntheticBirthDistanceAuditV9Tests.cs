@@ -32,7 +32,9 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
             Assert.That(audit.DigitDistances[2], Is.EqualTo(2));
             Assert.That(audit.DigitDistances.Values.Sum(), Is.EqualTo(4));
             Assert.That(audit.SemanticStates[BirthDateSemanticEvidence.PartialComponentAgreement],
-                Is.EqualTo(3));
+                Is.EqualTo(2));
+            Assert.That(audit.SemanticStates[BirthDateSemanticEvidence.OneDigitError],
+                Is.EqualTo(1));
             Assert.That(audit.ComponentAgreementMasks["011"], Is.EqualTo(2));
             Assert.That(audit.ComponentAgreementMasks["110"], Is.EqualTo(1));
             Assert.That(audit.ComponentAgreementMasks["111"], Is.EqualTo(1));
@@ -58,7 +60,7 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
             Assert.That(BirthDateSemanticEvidence.Classify(Truth, yearSwap),
                 Is.EqualTo(BirthDateSemanticEvidence.PartialComponentAgreement));
             Assert.That(BirthDateSemanticEvidence.Classify(Truth, adjacent),
-                Is.EqualTo(BirthDateSemanticEvidence.PartialComponentAgreement));
+                Is.EqualTo(BirthDateSemanticEvidence.OneDigitError));
             Assert.That(BirthDateSemanticEvidence.Classify(Truth, Truth),
                 Is.EqualTo(BirthDateSemanticEvidence.Exact));
         }));
