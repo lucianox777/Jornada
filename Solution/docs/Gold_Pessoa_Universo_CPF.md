@@ -48,6 +48,9 @@ Por isso:
 
 ## 4. Contratos de fonte
 
+**Separação de responsabilidades (12/10/2026):** os campos básicos do linkage são **evidências potencialmente presentes**, não uma obrigação universal de simultaneidade na chegada da Pessoa. O schema de cada fonte determina sua obrigatoriedade; a Gold recebe atributos válidos parciais e o Linkage **se abstém** se não houver passe elegível. Isso não neutraliza parâmetros `m/u` de modelo sem calibração. A calibração V9 inicia no corpus sintético IBGE de 30 mil pessoas, que não determina quais campos cada Secretaria deve fornecer. [Justificativa e limites do bootstrap](Parecer_Suficiencia_Bootstrap_30mil_V9_20261012.md).
+
+
 Os schemas v4 atuais continuam exigindo `nomeCompleto` e `dataNascimento` onde já os exigiam; `nomeMae` permanece opcional.
 
 O Processor não replica mais essas obrigatoriedades em código depois da validação do JSON Schema. Assim, um contrato futuro específico de benefício/serviço pode admitir uma fonte parcial — por exemplo, uma folha de pagamento contendo CPF e concessão — sem alterar a ontologia, o DDL ou o runtime.
