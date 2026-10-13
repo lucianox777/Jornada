@@ -42,6 +42,21 @@ public static class V9PhysicalSqlBlockingProbe
         decimal? WrongLinkRateAmongAcceptedPairs,
         decimal? WrongLinksPerCorrectLink);
 
+    /// <summary>
+    /// Pre-registered alternative two-evidence SQL passes. Every count is
+    /// NEW against the unchanged ACTIVE + C1 baseline, NOT against the other
+    /// alternatives. These rows are diagnostic; NEVER merged into #v9pairs.
+    /// TEST is reporting-only; no policy selection from TEST.
+    /// </summary>
+    public sealed record BlockingPassSensitivity(
+        string PassId, string Partition,
+        long ExtraTruePairs, long ExtraFalsePairs,
+        long ExtraAcceptedTruePairs, long ExtraAcceptedWrongPairs,
+        decimal? ExtraFalseCandidatesPerTrue,
+        decimal? ExtraWrongLinkShareAmongAccepted);
+
+    public const string BlockingAblationVersion = "V9_SQL_HARNESS_FIVE_PASSES_V1_BASELINE_UNCHANGED";
+
     public sealed record Result(
         string Version, string Scope, string BlockingPolicy, string ProjectionVersion,
         ulong Seed, int CorpusPeople, int Observations, string CorpusInputFingerprint,
@@ -54,6 +69,8 @@ public static class V9PhysicalSqlBlockingProbe
         public string? ActiveRulesetFingerprint { get; init; }
         public int ActiveRulesetPassCount { get; init; }
         public long ActiveRulesetNewCandidatePairs { get; init; }
+        public string? BlockingAblationContract { get; init; }
+        public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
     }
 
     public static async Task<Result> RunAsync(
@@ -257,6 +274,11 @@ public static class V9PhysicalSqlBlockingProbe
             }
         }
         var metrics = bySplit.Values.Select(x => x.Build()).ToArray();
+        // Report incremental candidate coverage and accepted-link risk for
+        // 5 PRE-REGISTERED SQL alternatives. Do not add to the baseline:
+        // the frozen proxy-calibrated FS model has NOT been refit on SQL.
+        var passSensitivity = await MeasurePreRegisteredPassesAsync(
+            connection, observationRows, frozen, ct);
         if (metrics.Any(x => x.EligibleTrueInterGestorNoCpfPairs <= 0)
             || metrics.Any(x => x.SqlCandidateTruePairs > x.EligibleTrueInterGestorNoCpfPairs))
             throw new InvalidOperationException("Gabarito ou recuperação SQL M incompatíveis.");
@@ -272,10 +294,132 @@ public static class V9PhysicalSqlBlockingProbe
         {
             ActiveRulesetFingerprint = activeRules.Fingerprint,
             ActiveRulesetPassCount = activeRules.PassCount,
-            ActiveRulesetNewCandidatePairs = activeRules.NewPairs
+            ActiveRulesetNewCandidatePairs = activeRules.NewPairs,
+            BlockingAblationContract = BlockingAblationVersion,
+            PreRegisteredPassSensitivity = passSensitivity
         };
     }
 
+
+
+    private sealed class AblationAcc(string pass, string split)
+    {
+        public long M, U, Tp, Fp;
+        public BlockingPassSensitivity Report()
+        {
+            if (Tp > M || Fp > U)
+                throw new InvalidDataException("Ablation SQL: aceitos excedem recuperados.");
+            return new BlockingPassSensitivity(pass, split, M, U, Tp, Fp,
+                M == 0 ? null : (decimal)U / M,
+                Tp + Fp == 0 ? null : (decimal)Fp / (Tp + Fp));
+        }
+    }
+
+    private static async Task<BlockingPassSensitivity[]>
+        MeasurePreRegisteredPassesAsync(
+            SqlConnection connection, Observation[] observations, Frozen frozen,
+            CancellationToken ct)
+    {
+        // Separate, immutable exploratory alternatives. EACH pass is compared
+        // to the SAME #v9pairs baseline; their totals cannot be summed due to
+        // overlaps, nor used to retune the threshold on TEST. Two independent
+        // blocking attributes are required in every pass.
+        (string Name, string Condition)[] proposed =
+        [
+            ("PERSON_EXACT_PLUS_BIRTH_EXACT",
+                "a.nome=b.nome AND a.nascimento=b.nascimento"),
+            ("MOTHER_EXACT_PLUS_BIRTH_EXACT",
+                "a.mae=b.mae AND a.nascimento=b.nascimento"),
+            ("PERSON_EXACT_PLUS_MOTHER_EXACT_ANY_BIRTH",
+                "a.nome=b.nome AND a.mae=b.mae"),
+            ("PERSON_PHONETIC_PLUS_BIRTH_EXACT",
+                "a.nome_fon=b.nome_fon AND a.nascimento=b.nascimento"),
+            ("MOTHER_PHONETIC_PLUS_BIRTH_EXACT",
+                "a.mae_fon=b.mae_fon AND a.nascimento=b.nascimento")
+        ];
+        await using (var create = new SqlCommand(
+            """
+            CREATE TABLE #v9opt(
+                a INT NOT NULL, b INT NOT NULL,
+                part VARCHAR(12) COLLATE Latin1_General_100_BIN2 NOT NULL,
+                CONSTRAINT PK_v9opt PRIMARY KEY CLUSTERED(a,b)
+            );
+            """,connection) { CommandTimeout = 90 })
+            await create.ExecuteNonQueryAsync(ct);
+        var results = new List<BlockingPassSensitivity>(proposed.Length * 3);
+        foreach (var pass in proposed)
+        {
+            // SQL clauses are compile-time constants, never user input.
+            // Restriction to observed birth prevents a different eligible
+            // denominator from being mistaken for an apparent recall gain.
+            await using (var insert = new SqlCommand($"""
+                INSERT INTO #v9opt(a,b,part)
+                SELECT DISTINCT a.obs_id,b.obs_id,a.part
+                FROM #v9obs a JOIN #v9obs b
+                  ON a.part=b.part AND a.obs_id<b.obs_id
+                 AND {pass.Condition}
+                WHERE a.cpf IS NULL AND b.cpf IS NULL
+                  AND a.gestor<>b.gestor
+                  AND a.nascimento IS NOT NULL AND b.nascimento IS NOT NULL
+                  AND NOT EXISTS (
+                    SELECT 1 FROM #v9pairs current_pairs
+                    WHERE current_pairs.a=a.obs_id AND current_pairs.b=b.obs_id);
+                """,connection) { CommandTimeout = 600 })
+                await insert.ExecuteNonQueryAsync(ct);
+            long sqlCount;
+            await using (var count = new SqlCommand(
+                "SELECT COUNT_BIG(*) FROM #v9opt;",connection) { CommandTimeout = 90 })
+                sqlCount = (long)(await count.ExecuteScalarAsync(ct) ?? 0L);
+            if (sqlCount > HardPairCap)
+                throw new InvalidOperationException(
+                    "Ablation SQL excedeu limite de candidatos; não amostrar, truncar ou ativar passe.");
+            var byPartition = new[] { "TRAIN", "VALIDATION", "TEST" }
+                .ToDictionary(x => x, x => new AblationAcc(pass.Name, x),
+                    StringComparer.Ordinal);
+            long visited = 0;
+            await using (var command = new SqlCommand(
+                "SELECT a,b,part FROM #v9opt ORDER BY a,b;",connection) {
+                CommandTimeout = 600 })
+            await using (var reader = await command.ExecuteReaderAsync(ct))
+            {
+                while (await reader.ReadAsync(ct))
+                {
+                    if (++visited > HardPairCap)
+                        throw new InvalidOperationException(
+                            "Ablation SQL excedeu limite de leitura.");
+                    var a = observations[reader.GetInt32(0)];
+                    var b = observations[reader.GetInt32(1)];
+                    var part = reader.GetString(2);
+                    if (a.Partition != part || b.Partition != part
+                        || a.Gestor == b.Gestor || a.Cpf is not null || b.Cpf is not null
+                        || !a.Birth.HasValue || !b.Birth.HasValue)
+                        throw new InvalidDataException("Ablation SQL fora do frame.");
+                    var acc = byPartition[part];
+                    var match = a.Base == b.Base;
+                    if (match) acc.M++; else acc.U++;
+                    var score = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                        frozen.Parameters, a.Name,b.Name,a.Mother,b.Mother,
+                        frozen.Cells, CompositeNominalComparisonV9.ContractVersion,
+                        leftBirthDate:a.Birth,rightBirthDate:b.Birth);
+                    if (score.Score.LogOdds > frozen.ThresholdLogOdds)
+                    {
+                        if (match) acc.Tp++; else acc.Fp++;
+                    }
+                }
+            }
+            if (visited != sqlCount)
+                throw new InvalidDataException("Ablation SQL perdeu candidatos.");
+            results.AddRange(byPartition.Values.Select(x=>x.Report()));
+            await using var clear = new SqlCommand("TRUNCATE TABLE #v9opt;", connection);
+            await clear.ExecuteNonQueryAsync(ct);
+        }
+        if (results.Count != 15 ||
+            results.Any(x => x.ExtraTruePairs < 0 || x.ExtraFalsePairs < 0
+                || x.ExtraAcceptedTruePairs > x.ExtraTruePairs
+                || x.ExtraAcceptedWrongPairs > x.ExtraFalsePairs))
+            throw new InvalidDataException("Ablation SQL sem suporte íntegro por split.");
+        return results.ToArray();
+    }
 
     private sealed record ActivePass(string PassId, string[] Fields);
 
