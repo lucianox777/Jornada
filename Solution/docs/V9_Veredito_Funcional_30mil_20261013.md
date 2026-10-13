@@ -17,3 +17,41 @@ O comando `generate --people 30000 --seed 42 --population-profile demographic-pr
 Para responder sobre o **algoritmo operacional completo**, a próxima prova indispensável é repetir o ensaio com união de passes SQL real na massa sintética, TF selecionado em VALIDATION, orçamento por estrato, abstenção e TEST congelado. Não extrapolar precisão/FDR de pares proxy para pares elegíveis do SQL, nem converter 59/81 células sem suporte bilateral de TRAIN em evidência por suavização.
 
 Nenhuma execução deste ensaio publica/ativa V9, altera V8, DT-15, banco, referências IBGE ou JornadaLocal.
+
+## Rodada seguinte — réplica por sementes independentes (PR #996)
+
+A avaliação isolada da seed 42 já deu **3.414 TP, 39 FP, 67 FN e 5.833 TN**
+em TEST no *proxy por inicial*, recall 98,08% e FPR 0,664%.
+A reprodutibilidade num único conjunto não basta para atestar robustez da
+calibração. Por isso, a CI executa **mais duas massas independentes de 30.000
+pessoas cada**, seeds fixadas **43** e **44**, com o **mesmo código de geração,
+fonte IBGE, nascimento e contrato FS V9**, mantendo a execução original 42.
+
+O validador `scripts/v9-synthetic-multiseed-gate.py` confere, de forma
+independente do gerador, (a) a integridade criptográfica dos três manifestos
+e arquivos de dados; (b) unicidade de seed, fingerprint e verdade sintética;
+(c) impossibilidade de vazamento de TRAIN/VALIDATION/TEST e aritmética de
+TP/FP/FN/TN/recall/FPR/precisão/FDR; (d) critérios de PASS/FAIL originais
+por seed, sem converter FAIL em PASS; e (e) indicadores de faixa
+de recall/FPR em três réplicas. O arquivo agregado
+`v9-synthetic-multiseed-summary.json` informa `passedProxySeeds`,
+`failedProxySeeds`, `crossSeedProxyVerdict`, limites e resultados por seed.
+
+**Importante:** a seed 42 é original e 43/44 são **novas execuções**, mas
+cada seed recalibra seu próprio TRAIN e seleciona o limiar em sua própria
+VALIDATION. **Não** é validação de transportabilidade de um modelo
+congelado entre amostras, nem corrige o *proxy U* não aleatório. Um PASS
+em todas as réplicas comprova apenas repetibilidade funcional desse recorte;
+não comprova FDR operacional, suficiência das 81 células ou equivalência
+com passes SQL `VERSIONED_ALIAS`. Nenhuma execução publica/ativa V9.
+
+**Política de falha:** se qualquer réplica não alcançar os limiares
+exploratórios, o resumo marcará `AT_LEAST_ONE_PROXY_REPLICATE_FAILED`
+mesmo com CI verde — a CI valida a **honestidade do relatório**, não
+mascara fracassos de desempenho. O julgamento final dependerá
+de análise humana dos próprios números, nunca de um PASS artificial.
+
+**P0 subsequente:** reutilizar exatamente esse gabarito por pessoa-base no
+*blocking* SQL real e avaliar o FS V9 com TF calibrada e política explícita
+de abstenção por célula sem suporte bilateral. Nenhum comparativo V8×V9
+é requisito dessa validação.
