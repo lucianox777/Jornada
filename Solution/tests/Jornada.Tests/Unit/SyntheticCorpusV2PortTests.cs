@@ -254,6 +254,9 @@ public sealed class SyntheticCorpusV2PortTests
                 Assert.That(matrix.EnumerateArray().Any(x =>
                     x.GetProperty("semantic_state").GetString() == "EXACT"
                     && x.GetProperty("digit_distance").GetInt32() == 0), Is.True);
+                Assert.That(matrix.EnumerateArray().All(x =>
+                    x.GetProperty("distinct_training_people").GetInt32() <=
+                    x.GetProperty("observation_count").GetInt32()), Is.True);
             }));
         }
         finally
