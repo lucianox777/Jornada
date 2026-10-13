@@ -357,7 +357,14 @@ public static class SyntheticCorpusMaterializer
                 birthAudit.ConventionalDayOneOrFifteenFromDifferentTruth,
             digit_distances = birthAudit.DigitDistances,
             semantic_states = birthAudit.SemanticStates,
-            component_agreement_masks = birthAudit.ComponentAgreementMasks
+            component_agreement_masks = birthAudit.ComponentAgreementMasks,
+            // Full 7 x 9 aggregate, including zero-count cells, from TRAIN only.
+            semantic_distance_cells = birthAudit.SemanticDistanceCells.Select(cell => new
+            {
+                semantic_state = cell.SemanticState,
+                digit_distance = cell.DigitDistance,
+                observation_count = cell.ObservationCount
+            }).ToArray()
         });
         return JsonSerializer.Serialize(withBirthAudit, IndentedJsonOptions) + "\n";
     }

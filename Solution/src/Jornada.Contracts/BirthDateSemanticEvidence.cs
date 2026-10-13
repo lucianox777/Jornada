@@ -74,7 +74,11 @@ public static class BirthDateSemanticEvidence
 
     /// <summary>
     /// Position-wise Hamming distance on the canonical ddMMyyyy representation
-    /// (0..8). This is descriptive; never a likelihood ratio by itself.
+    /// (0..8). Each mismatched decimal digit counts as one; this is neither
+    /// chronological day difference nor a likelihood ratio. Swaps can cost 2;
+    /// a one-day calendar boundary can cost many. Classify retains structural
+    /// precedence and calibrated mutual-exclusion.
+    /// Technical rationale: docs/Decisao_Tecnica_Hamming_Nascimento_V9_20261012.md.
     /// </summary>
     public static int DigitDistance(DateOnly left, DateOnly right)
     {

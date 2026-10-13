@@ -38,6 +38,26 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
             Assert.That(audit.ComponentAgreementMasks["011"], Is.EqualTo(2));
             Assert.That(audit.ComponentAgreementMasks["110"], Is.EqualTo(1));
             Assert.That(audit.ComponentAgreementMasks["111"], Is.EqualTo(1));
+            Assert.That(audit.SemanticDistanceCells, Has.Count.EqualTo(63));
+            Assert.That(audit.SemanticDistanceCells.Sum(x => x.ObservationCount),
+                Is.EqualTo(4));
+            Assert.That(audit.SemanticDistanceCells
+                .Where(x => x.SemanticState == BirthDateSemanticEvidence.PartialComponentAgreement
+                    && x.DigitDistance == 2)
+                .Sum(x => x.ObservationCount), Is.EqualTo(2));
+            Assert.That(audit.SemanticDistanceCells
+                .Where(x => x.SemanticState == BirthDateSemanticEvidence.OneDigitError
+                    && x.DigitDistance == 1)
+                .Sum(x => x.ObservationCount), Is.EqualTo(1));
+            Assert.That(audit.SemanticDistanceCells
+                .Where(x => x.SemanticState == BirthDateSemanticEvidence.Exact
+                    && x.DigitDistance == 0)
+                .Sum(x => x.ObservationCount), Is.EqualTo(1));
+            Assert.That(audit.SemanticDistanceCells
+                .Select(x => (x.SemanticState, x.DigitDistance)).Distinct().Count(),
+                Is.EqualTo(63));
+            Assert.That(audit.SemanticDistanceCells.Count(x => x.ObservationCount == 0),
+                Is.EqualTo(60));
         }));
 
         var changedTest = Fixture();
@@ -63,6 +83,33 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
                 Is.EqualTo(BirthDateSemanticEvidence.OneDigitError));
             Assert.That(BirthDateSemanticEvidence.Classify(Truth, Truth),
                 Is.EqualTo(BirthDateSemanticEvidence.Exact));
+        }));
+    }
+
+    [TestCase("1978-03-15", "1987-03-15", 2, BirthDateSemanticEvidence.PartialComponentAgreement)]
+    [TestCase("1978-03-15", "1979-03-15", 1, BirthDateSemanticEvidence.OneDigitError)]
+    [TestCase("1978-03-15", "1878-03-15", 1, BirthDateSemanticEvidence.CenturyShift)]
+    [TestCase("1978-06-07", "1978-07-06", 2, BirthDateSemanticEvidence.DayMonthSwap)]
+    [TestCase("2000-02-29", "2000-02-28", 1, BirthDateSemanticEvidence.OneDigitError)]
+    [TestCase("1999-12-31", "2000-01-01", 7, BirthDateSemanticEvidence.OtherDisagreement)]
+    [TestCase("1978-03-15", "1978-03-01", 2, BirthDateSemanticEvidence.PartialComponentAgreement)]
+    public void Hamming_is_not_chronological_distance_or_a_separate_semantic_class(
+        string leftDate, string rightDate, int expectedDistance, string expectedState)
+    {
+        var left = DateOnly.ParseExact(leftDate, "yyyy-MM-dd",
+            System.Globalization.CultureInfo.InvariantCulture);
+        var right = DateOnly.ParseExact(rightDate, "yyyy-MM-dd",
+            System.Globalization.CultureInfo.InvariantCulture);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(BirthDateSemanticEvidence.DigitDistance(left, right),
+                Is.EqualTo(expectedDistance));
+            Assert.That(BirthDateSemanticEvidence.DigitDistance(right, left),
+                Is.EqualTo(expectedDistance));
+            Assert.That(BirthDateSemanticEvidence.Classify(left, right),
+                Is.EqualTo(expectedState));
+            Assert.That(BirthDateSemanticEvidence.Classify(right, left),
+                Is.EqualTo(expectedState));
         }));
     }
 
