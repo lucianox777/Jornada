@@ -66,7 +66,7 @@ public sealed class SyntheticJointSupportReportV9Tests
         var people = new[] { Person("P001", "TRAIN") };
         var bad = new[] { Observe("P001", "TEST", "G1", "Maria", "Ana") };
         Assert.That((Action)(() => SyntheticJointSupportReportV9.Build(
-            people, bad, 42, "INPUT"), Throws.InvalidOperationException);
+            people, bad, 42, "INPUT")), Throws.InvalidOperationException);
     }
 
     [Test]
