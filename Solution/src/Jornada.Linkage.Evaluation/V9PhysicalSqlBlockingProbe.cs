@@ -38,7 +38,7 @@ public static class V9PhysicalSqlBlockingProbe
         long AcceptedTruePairs, long AcceptedWrongPairs,
         long RejectedTruePairsIncludingLostByBlocking, long RejectedFalseCandidates,
         decimal RecallAgainstEligibleTrue,
-        decimal ConditionalFalsePositiveRateAmongFalseCandidates,
+        decimal? ConditionalFalsePositiveRateAmongFalseCandidates,
         decimal? WrongLinkRateAmongAcceptedPairs,
         decimal? WrongLinksPerCorrectLink);
 
@@ -254,7 +254,9 @@ public static class V9PhysicalSqlBlockingProbe
             seed, 30000, observationRows.Length, fingerprint, observationSha, modelSha,
             frozen.SourceSeed, frozen.SourceInputFingerprint, frozen.ThresholdLogOdds,
             allCandidate, HardPairCap, metrics,
-            "MEASURED_SQL_C1_CANDIDATE_AND_LINK_ERRORS_NO_PERFORMANCE_GATE",
+            metrics.All(x => x.SqlCandidateFalsePairs == 0)
+                ? "C1_NO_FALSE_CANDIDATES_AND_LOW_RECALL_NO_ERROR_RATE_VALIDATION"
+                : "MEASURED_SQL_C1_CANDIDATE_AND_LINK_ERRORS_NO_PERFORMANCE_GATE",
             "NOT_OPERATIONAL_ACTIVE_VERSIONED_ALIAS_OR_CALIBRATED_TF");
     }
 
@@ -272,7 +274,7 @@ public static class V9PhysicalSqlBlockingProbe
                     : (decimal)FalseCandidate / (TrueCandidate + FalseCandidate),
                 Tp, Fp, Eligible - Tp, FalseCandidate - Fp,
                 Eligible == 0 ? 0 : (decimal)Tp / Eligible,
-                FalseCandidate == 0 ? 0 : (decimal)Fp / FalseCandidate,
+                FalseCandidate == 0 ? null : (decimal)Fp / FalseCandidate,
                 accepted == 0 ? null : (decimal)Fp / accepted,
                 Tp == 0 ? null : (decimal)Fp / Tp);
         }
