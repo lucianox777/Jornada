@@ -58,12 +58,6 @@ public sealed record CandidateWeightedJointFsHoldoutOutcomeV9(
 }
 
 /// <summary>
-/// Leave-one-independent-EVALUATION-group-out descriptive ranges for the
-/// FIXED, caller-supplied threshold. Not a CI or certified FDR. No group IDs
-/// or per-group statistics are exposed. A null FDR bound means no positive
-/// predictions remained in any eligible deletion.
-/// </summary>
-/// <summary>
 /// Fixed-threshold EVALUATION decision mass in nominal cells where TRAIN does
 /// not have group-weight ESS >= 2 in BOTH M and U. This is a descriptive
 /// sensitivity signal, not a calibrated risk estimate, TEST, or a veto.
@@ -81,6 +75,12 @@ public sealed record CandidateFsUnsupportedTrainingCellDecisionAuditV9(
     decimal? PredictedPositiveDesignWeightShareWithoutTrainBilateralEss,
     decimal? ObservedFalseDiscoveryShareWithinUnsupportedPredictions);
 
+/// <summary>
+/// Leave-one-independent-EVALUATION-group-out descriptive ranges for the
+/// FIXED, caller-supplied threshold. Not a CI or certified FDR. No group IDs
+/// or per-group statistics are exposed. A null FDR bound means no positive
+/// predictions remained in any eligible deletion.
+/// </summary>
 public sealed record CandidateFsHoldoutGroupSensitivityV9(
     string Status,
     int IndependentGroups,
