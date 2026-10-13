@@ -38,7 +38,7 @@ internal static class PersonDocumentEvidenceParsing
                 throw new InvalidDataException("Ocorrência documental duplicada na Pessoa.");
             var model = Required(item, "modeloDocumentoCodigo");
             if (!item.TryGetProperty("modeloDocumentoVersao", out var version)
-                || !version.TryGetInt32(out var modelVersion) || modelVersion <= 0)
+                || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out var modelVersion) || modelVersion <= 0)
                 throw new InvalidDataException("Versão do modelo documental inválida.");
             var cls = Required(item, "classeEvidencia");
             if (cls is not ("DOCUMENTO" or "AUTODECLARACAO"))
