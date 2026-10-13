@@ -396,11 +396,12 @@ public static class V9PhysicalSqlBlockingProbe
                 JOIN #v9obs b ON b.obs_id=kb.obs_id
                 WHERE a.part=b.part AND a.gestor<>b.gestor
                   AND a.cpf IS NULL AND b.cpf IS NULL
+                  AND a.nascimento IS NOT NULL AND b.nascimento IS NOT NULL
                   AND NOT EXISTS (SELECT 1 FROM #v9pairs c
                     WHERE c.a=a.obs_id AND c.b=b.obs_id)
                 """);
             for(var i=1;i<ordered.Length;i++)
-                text.Append($"""
+                text.Append(CultureInfo.InvariantCulture, $"""
                 
                   AND EXISTS (
                     SELECT 1 FROM #v9keys x
