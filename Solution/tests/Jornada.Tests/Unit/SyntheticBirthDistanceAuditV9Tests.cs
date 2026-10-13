@@ -39,7 +39,7 @@ public sealed class SyntheticBirthDistanceAuditV9Tests
         }));
 
         var changedTest = Fixture();
-        changedTest.Observations.Last().BirthDate = new DateOnly(1826, 1, 1);
+        changedTest.Observations[changedTest.Observations.Count - 1].BirthDate = new DateOnly(1826, 1, 1);
         var independentlyAudited = SyntheticBirthDistanceAuditBuilderV9.Analyze(changedTest);
         Assert.That(System.Text.Json.JsonSerializer.Serialize(independentlyAudited),
             Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(audit)));
