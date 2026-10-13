@@ -1032,4 +1032,105 @@ public sealed class CandidateWeightedEstimatorTests
         }));
     }
 
+
+    [Test]
+    public async Task V9IndependentGroupSupportDistinguishesRepeatedPairsFromIndependentSources()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var holdout = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, raw, .5m);
+        var groups = CandidateJointGroupSupportAuditBuilderV9.Analyze(corpus, raw, holdout);
+        var pairs = CandidateJointSupportAuditBuilderV9.Analyze(holdout);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(groups.Version, Is.EqualTo(CandidateJointGroupSupportAuditBuilderV9.Version));
+            Assert.That(groups.Status, Does.Contain("NOT_CELL_CI_OR_SQL_CERTIFICATION"));
+            Assert.That(groups.Cells, Has.Count.EqualTo(81));
+            Assert.That(groups.FrameFingerprint, Is.EqualTo(pairs.FrameFingerprint));
+            Assert.That(groups.SelectionFingerprint, Is.EqualTo(pairs.SelectionFingerprint));
+            Assert.That(groups.MinimumIndependentGroupsPerClassAndCell, Is.EqualTo(2));
+            Assert.That(groups.Cells.Any(x => x.TrainingMatchedGroups > 0), Is.True);
+            Assert.That(groups.Cells.Any(x => x.TrainingUnmatchedGroups > 0), Is.True);
+            Assert.That(groups.TrainingCellsWithMinimumGroupsInBothClasses,
+                Is.LessThanOrEqualTo(pairs.TrainingCellsWithObservedBothClasses));
+            Assert.That(groups.EvaluationCellsWithMinimumGroupsInBothClasses,
+                Is.LessThanOrEqualTo(pairs.EvaluationCellsWithObservedBothClasses));
+            Assert.That(groups.Cells.All(c => c.TrainingMatchedGroups <=
+                pairs.Cells.Single(p => p.Person == c.Person && p.Mother == c.Mother)
+                    .TrainingMatchedPairs), Is.True);
+            Assert.That(groups.Cells.All(c => c.TrainingUnmatchedGroups <=
+                pairs.Cells.Single(p => p.Person == c.Person && p.Mother == c.Mother)
+                    .TrainingUnmatchedPairs), Is.True);
+        }));
+        var v9Score = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            corpus, raw, V9FsPreviewParameters(), .5m, .5m);
+        Assert.That(v9Score.IndependentJointGroupSupport, Is.Not.Null);
+        Assert.That(v9Score.IndependentJointGroupSupport!.Cells, Is.EqualTo(groups.Cells));
+        var serialized = System.Text.Json.JsonSerializer.Serialize(v9Score);
+        Assert.That(serialized, Does.Not.Contain("IndependenceGroupId"));
+        Assert.That(serialized, Does.Not.Contain("SourceId"));
+        Assert.That(serialized, Does.Not.Contain(Sources[0].ToString("D")));
+
+        // Two NonMatch pairs from the SAME source can occupy one state.
+        // They provide two PAIRS but just one independent GROUP.
+        var repeated = raw.Select(x => x.Values.LeftMother is null
+            ? x with { Values = x.Values with
+                { LeftMother = "Ana Costa", RightMother = "Bruna Costa" } }
+            : x).ToArray();
+        var repeatedHoldout = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, repeated, .5m);
+        var repeatedGroups = CandidateJointGroupSupportAuditBuilderV9.Analyze(
+            corpus, repeated, repeatedHoldout);
+        var repeatedPairs = CandidateJointSupportAuditBuilderV9.Analyze(repeatedHoldout);
+        Assert.That(repeatedGroups.Cells.Any(c => c.TrainingUnmatchedGroups <
+            repeatedPairs.Cells.Single(p => p.Person == c.Person && p.Mother == c.Mother)
+                .TrainingUnmatchedPairs), Is.True);
+
+        var demanding = CandidateJointGroupSupportAuditBuilderV9.Analyze(
+            corpus, raw, holdout, 5);
+        Assert.That(demanding.TrainingCellsWithMinimumGroupsInBothClasses, Is.Zero);
+        Assert.That(demanding.EvaluationCellsWithMinimumGroupsInBothClasses, Is.Zero);
+    }
+
+    [Test]
+    public async Task V9IndependentGroupSupportRejectsAlteredEvaluationOrForgedGroupTotals()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var holdout = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, raw, .5m);
+        var changed = raw.ToArray();
+        var evaluationKey = capture.Pairs.First(p => Sources.Skip(4).Contains(p.SourceId));
+        var index = Array.FindIndex(changed,
+            x => x.SourceId == evaluationKey.SourceId &&
+                 x.CandidateId == evaluationKey.CandidateId);
+        changed[index] = changed[index] with
+        {
+            Values = changed[index].Values with
+            {
+                RightName = "Completely Different Name"
+            }
+        };
+        var incomplete = raw.Skip(1).ToArray();
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That((Action)(() => CandidateJointGroupSupportAuditBuilderV9.Analyze(
+                corpus, raw, holdout, 0)), Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() => CandidateJointGroupSupportAuditBuilderV9.Analyze(
+                corpus, incomplete, holdout)), Throws.InvalidOperationException);
+            Assert.That((Action)(() => CandidateJointGroupSupportAuditBuilderV9.Analyze(
+                corpus, changed, holdout)), Throws.InvalidOperationException);
+            Assert.That((Action)(() => CandidateJointGroupSupportAuditBuilderV9.Analyze(
+                corpus, raw, holdout with
+                {
+                    MatchedEvaluation = holdout.MatchedEvaluation with
+                    {
+                        IndependentEvaluationGroups = 3
+                    }
+                })), Throws.InvalidOperationException);
+        }));
+    }
 }
