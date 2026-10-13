@@ -13,7 +13,7 @@ public sealed record BlockingRuleSetSearchOptions(
     {
         if (MaxFieldsPerPass is < 1 or > 3)
             throw new ArgumentOutOfRangeException(nameof(MaxFieldsPerPass));
-        if (MaxPasses is < 1 or > 2)
+        if (MaxPasses is < 1 or > 4)
             throw new ArgumentOutOfRangeException(nameof(MaxPasses));
         if (PrimitivePoolSize is < 1 or > 64)
             throw new ArgumentOutOfRangeException(nameof(PrimitivePoolSize));
@@ -26,13 +26,14 @@ public sealed record BlockingRuleSetSearchOptions(
 /// Busca bounded e determinística. Primeiro avalia todos os passes primitivos com até N campos.
 /// O pool limitado preserva simultaneamente alternativas fortes em recall e em redução, evitando
 /// que variantes quase universais ocupem toda a busca. Quando habilitado, testa também pares dos
-/// passes retidos. A promoção é fail-closed: recall mínimo é restrição; entre alternativas que a
+/// passes retidos. O modo opt-in de 3/4 passes enumera uniões deduplicadas com orçamento\n/// estrito de candidatos (sem truncamento silencioso). A promoção é fail-closed: recall mínimo é\n/// restrição; entre alternativas que a
 /// satisfazem, a redução do universo é o objetivo primário. Quando a calibração exige suporte u
 /// observável, regras que retenham zero não-vínculos são descartadas antes da escolha final.
 /// </summary>
 public static class BlockingRuleSetSearch
 {
-    public const string MethodVersion = "BLOCKING_RULESET_SEARCH_V2";
+    public const string MethodVersion = "BLOCKING_RULESET_SEARCH_V3";
+    public const int MaxCandidateRuleSets = 2048;
 
     public static BlockingRuleSetOptimizationResult SearchBest(
         IReadOnlyCollection<BlockingFeatureObservation> observations,
@@ -63,16 +64,30 @@ public static class BlockingRuleSetSearch
             .Select(static result => result.Passes[0])
             .ToArray();
 
-        var candidates = new List<IReadOnlyList<LinkageBlockingPass>>(ranked.Length * ranked.Length);
-        foreach (var primitive in ranked)
-            candidates.Add(new[] { primitive });
-
-        if (options.MaxPasses >= 2)
+        // Never clip combinations to make a workload appear successful.
+        // The complete set of unions up to MaxPasses is evaluated or the
+        // calibration explicitly fails. The cap bounds CPU/memory when an
+        // operator requests many primitives with four complementary passes.
+        long candidateCount = 0;
+        long combinations = 1;
+        for (var width = 1; width <= Math.Min(options.MaxPasses, ranked.Length); width++)
         {
-            for (var left = 0; left < ranked.Length; left++)
-            for (var right = left + 1; right < ranked.Length; right++)
-                candidates.Add(new[] { ranked[left], ranked[right] });
+            combinations = checked(combinations * (ranked.Length - width + 1) / width);
+            candidateCount = checked(candidateCount + combinations);
+            if (candidateCount > MaxCandidateRuleSets)
+                throw new InvalidOperationException(
+                    $"Blocking search requires {candidateCount}+ candidate unions; " +
+                    $"cap={MaxCandidateRuleSets}. Reduce PrimitivePoolSize/MaxPasses " +
+                    "explicitly instead of silently truncating the search.");
         }
+
+        var candidates = new List<IReadOnlyList<LinkageBlockingPass>>((int)candidateCount);
+        for (var width = 1; width <= Math.Min(options.MaxPasses, ranked.Length); width++)
+        foreach (var selected in Combinations(ranked, width))
+            candidates.Add(selected);
+
+        if (candidates.Count != candidateCount)
+            throw new InvalidOperationException("Blocking search incomplete candidate enumeration.");
 
         return BlockingRuleSetOptimizer.SelectBest(
             observations,
@@ -152,12 +167,12 @@ public static class BlockingRuleSetSearch
         }
     }
 
-    private static IEnumerable<IReadOnlyList<string>> Combinations(IReadOnlyList<string> values, int size)
+    private static IEnumerable<IReadOnlyList<T>> Combinations<T>(IReadOnlyList<T> values, int size)
     {
-        var buffer = new string[size];
+        var buffer = new T[size];
         return Recurse(0, 0);
 
-        IEnumerable<IReadOnlyList<string>> Recurse(int start, int depth)
+        IEnumerable<IReadOnlyList<T>> Recurse(int start, int depth)
         {
             if (depth == size)
             {
