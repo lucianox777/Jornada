@@ -1152,6 +1152,7 @@ jobs:
           ablation_by_seed=[]
           loss_by_seed=[]
           parity_by_seed=[]
+          sql_support_by_seed=[]
           for d in docs:
               assert d["Version"]=="V9_PHYSICAL_SQL_ACTIVE_DYNAMIC_PLUS_C1_FULL_CANDIDATE_CENSUS_V1"
               assert d["BlockingPolicy"]=="ACTIVE_LINKAGE_RULESET_SQL_UNION_COMBINED_IDENTITY_CANDIDATES_V1"
@@ -1169,6 +1170,32 @@ jobs:
               assert {(u["Side"],u["Unit"]) for u in audit["Units"]}=={(side,unit) for side in ("PERSON","MOTHER") for unit in (0,1,2,3)}
               assert [x["Partition"] for x in d["Splits"]]==["TRAIN","VALIDATION","TEST"]
               assert sum(x["SqlCandidateTruePairs"]+x["SqlCandidateFalsePairs"] for x in d["Splits"])==d["SqlCandidatePairsTotal"]
+              # SQL TRAIN support is counted on the ACTUAL candidate union,
+              # never on proxy negatives, repeated endpoints as base people,
+              # or synthetic marginal frequency histogram.
+              support=d["TrainSqlNominalSupportAudit"]
+              assert support["Version"]=="V9_SQL_TRAIN_CONDITIONED_JOINT_NOMINAL_81_SUPPORT_V1"
+              assert support["Status"]=="TRAIN_SQL_CANDIDATE_COUNTS_ONLY_NO_INDEPENDENT_MU_PRIOR_TF_OR_PRODUCTION"
+              assert support["Partition"]=="TRAIN"
+              train=d["Splits"][0]
+              assert support["SqlCandidateM"]==train["SqlCandidateTruePairs"]>0
+              assert support["SqlCandidateU"]==train["SqlCandidateFalsePairs"]>0
+              assert support["SqlCandidatePairs"]==support["SqlCandidateM"]+support["SqlCandidateU"]
+              joint=support["Cells"]
+              assert len(joint)==81
+              assert {(x["PersonLevel"],x["MotherLevel"]) for x in joint}=={
+                  (p,m) for p in range(9) for m in range(9)}
+              assert sum(x["MCount"] for x in joint)==support["SqlCandidateM"]
+              assert sum(x["UCount"] for x in joint)==support["SqlCandidateU"]
+              assert support["CellsWithObservedM"]==sum(x["MCount"]>0 for x in joint)
+              assert support["CellsWithObservedU"]==sum(x["UCount"]>0 for x in joint)
+              assert support["CellsWithBothMAndU"]==sum(x["MCount"]>0 and x["UCount"]>0 for x in joint)
+              assert all(0<=x["DistinctMBasePeople"]<=x["MCount"]
+                  and 0<=x["DistinctUBasePairs"]<=x["UCount"]
+                  and 0<=x["DistinctUBasePeople"]<=2*x["DistinctUBasePairs"]
+                  and (x["UCount"]==0 or x["DistinctUBasePeople"]>=2)
+                  for x in joint)
+              sql_support_by_seed.append({"seed":d["Seed"],"train":support})
               # All eligible M classified before SQL; missing is not disagreement.
               loss=d["TruePairLossAudit"]
               assert loss["Version"]=="V9_SQL_ELIGIBLE_TRUE_PAIR_LOSS_BY_OBSERVED_AGREEMENT_V1"
@@ -1296,6 +1323,8 @@ jobs:
                    "truePairLossTestTripleDifferentTotal":sum(x["test"]["SimultaneousNameMotherBirthDisagreementLost"] for x in loss_by_seed),
                    "sameFrameActivePlusC1ParityVersion":"V9_ACTIVE_RULESET_SAME_FRAME_M_SQL_PARITY_V1",
                    "sameFrameActivePlusC1ParityTestBySeed":parity_by_seed,
+                   "trainSqlNominal81SupportBySeed":sql_support_by_seed,
+                   "trainSqlNominalSupportDiagnosticOnly":True,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))

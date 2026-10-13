@@ -72,6 +72,7 @@ public static class V9PhysicalSqlBlockingProbe
         public V9SyntheticBaseFrequencyAudit.Report? TrainBaseFrequencyAudit { get; init; }
         public V9BlockingTruthLossAudit.Report? TruePairLossAudit { get; init; }
         public V9SqlBlockingFrameParityAudit.Report? ActiveSameFrameParityAudit { get; init; }
+        public V9SqlConditionedNominalSupportAudit.Report? TrainSqlNominalSupportAudit { get; init; }
         public string? BlockingAblationContract { get; init; }
         public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
     }
@@ -308,6 +309,9 @@ public static class V9PhysicalSqlBlockingProbe
                 }
         }
         var recoveredTruePairs = new HashSet<(int A, int B)>();
+        // M/U support comes from the exact same SQL candidate frame as the
+        // scorer, TRAIN only, not from the previously sampled proxy by initial.
+        var trainSqlPairs = new List<V9SqlConditionedNominalSupportAudit.Candidate>();
         long allCandidate = 0;
         await using (var command = new SqlCommand(
             "SELECT a,b,part FROM #v9pairs ORDER BY a,b;", connection) {
@@ -326,6 +330,10 @@ public static class V9PhysicalSqlBlockingProbe
                     || a.Gestor == b.Gestor || a.Cpf is not null || b.Cpf is not null)
                     throw new InvalidDataException("SQL gerou par fora do frame elegível.");
                 var split = bySplit[partition];
+                if (partition == "TRAIN")
+                    trainSqlPairs.Add(new V9SqlConditionedNominalSupportAudit.Candidate(
+                        a.Id, b.Id, partition, a.Base, b.Base,
+                        a.Name, b.Name, a.Mother, b.Mother));
                 var same = a.Base == b.Base;
                 if (same)
                 {
@@ -347,6 +355,10 @@ public static class V9PhysicalSqlBlockingProbe
                 }
             }
         }
+        var trainNominalSupport = V9SqlConditionedNominalSupportAudit.Analyze(trainSqlPairs);
+        if (trainNominalSupport.SqlCandidateM != bySplit["TRAIN"].TrueCandidate
+            || trainNominalSupport.SqlCandidateU != bySplit["TRAIN"].FalseCandidate)
+            throw new InvalidDataException("Suporte m/u nominal TRAIN não concilia com SQL físico.");
         var lossAudit = V9BlockingTruthLossAudit.Analyze(
             eligibleTruthPairs, recoveredTruePairs);
         var parityProjectionCache = new Dictionary<int, IReadOnlySet<BlockingProjectionKey>>();
@@ -401,6 +413,7 @@ public static class V9PhysicalSqlBlockingProbe
             TrainBaseFrequencyAudit = tfBaseAudit,
             TruePairLossAudit = lossAudit,
             ActiveSameFrameParityAudit = frameParity,
+            TrainSqlNominalSupportAudit = trainNominalSupport,
             BlockingAblationContract = BlockingAblationVersion,
             PreRegisteredPassSensitivity = passSensitivity
         };
