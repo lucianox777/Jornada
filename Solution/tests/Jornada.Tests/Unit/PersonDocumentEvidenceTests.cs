@@ -80,12 +80,20 @@ public sealed class PersonDocumentEvidenceTests
         using var duplicateValue = JsonDocument.Parse(Example.Replace(
             "\"atributoCodigo\":\"DATA_NASCIMENTO\"",
             "\"atributoCodigo\":\"NOME_COMPLETO\"", StringComparison.Ordinal));
-        using var empty = JsonDocument.Parse(Example.Replace(
-            "\"valores\":[\n      {\"atributoCodigo\":\"NOME_COMPLETO\",\"valorOriginal\":\"Pessoa de Teste\"},\n      {\"atributoCodigo\":\"DATA_NASCIMENTO\",\"valorOriginal\":\"1980-01-01\"}\n    ]",
-            "\"valores\":[]", StringComparison.Ordinal));
+        using var empty = JsonDocument.Parse("""
+            {"evidenciasDocumentais":[{
+              "ocorrenciaOrigemCodigo":"NEW-1",
+              "modeloDocumentoCodigo":"RG",
+              "modeloDocumentoVersao":1,
+              "classeEvidencia":"DOCUMENTO",
+              "valores":[]
+            }]}
+            """);
         Assert.That((Action)(() => PersonDocumentEvidenceParsing.Parse(duplicateOccurrence.RootElement)),
             Throws.TypeOf<InvalidDataException>());
         Assert.That((Action)(() => PersonDocumentEvidenceParsing.Parse(duplicateValue.RootElement)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => PersonDocumentEvidenceParsing.Parse(empty.RootElement)),
             Throws.TypeOf<InvalidDataException>());
         using var invalidDate = JsonDocument.Parse(Example.Replace("2020-07-12", "2020-13-12"));
         Assert.That((Action)(() => PersonDocumentEvidenceParsing.Parse(invalidDate.RootElement)),
