@@ -31,4 +31,6 @@ A avaliação positiva utiliza `DIAGNOSTIC_ONLY_GROUP_INFLUENCE_NOT_CI`. Um test
 
 A entrega modifica apenas a biblioteca de auditoria, testes e documentação. Não toca `GENERATE_DRAFT`, `Rank/Resolve`, parâmetros, `ACTIVATE`, banco ou modelos. A V8 segue exclusivamente para replay histórico e a V9 ainda não foi habilitada.
 
-Antes de eventual publicação: certificar o **mesmo frame SQL materializado para M e U** com inclusão/pesos e sem vazamento, validar versão/proveniência das evidências brutas, ampliar grupos/células e estimar incerteza por desenho, estimar TF no frame compatível, conferir C# contra Splink e avaliar em TEST FP/FDR/recall sob DT-15. **DT-10 permanece por último.**
+Antes de eventual publicação: certificar o **mesmo frame SQL materializado para M e U** com inclusão/pesos e sem vazamento, validar versão/proveniência das evidências brutas, ampliar grupos/células e estimar incerteza por desenho, estimar TF no frame compatível, executar **conferência matemática independente do C#** (Splink externo **opcional**, não gate obrigatório) e avaliar em TEST FP/FDR/recall sob DT-15. **DT-10 permanece por último.**
+
+**Ressalva para 30 mil:** LOO em poucos grupos é apenas sensibilidade descritiva; nenhuma quantidade de linhas sintéticas prova cobertura dos 81 estados, independência real ou FDR. A [avaliação de suficiência](Parecer_Suficiencia_Bootstrap_30mil_V9_20261012.md) exige denominadores/grupos, suporte observado e incerteza antes de alegar completude da calibração.
