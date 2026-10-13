@@ -1,3 +1,4 @@
+using System.Globalization;
 using Jornada.Contracts;
 
 namespace Jornada.Linkage.SyntheticCorpus;
@@ -51,7 +52,7 @@ public static class SyntheticBirthDistanceAuditBuilderV9
         var distances = Enumerable.Range(0, 9).ToDictionary(x => x, _ => 0);
         var states = BirthDateSemanticEvidence.States
             .ToDictionary(x => x, _ => 0, StringComparer.Ordinal);
-        var masks = Enumerable.Range(0, 8).ToDictionary(x => Convert.ToString(x, 2).PadLeft(3, '0'),
+        var masks = Enumerable.Range(0, 8).ToDictionary(x => x.ToString("B3", CultureInfo.InvariantCulture),
             _ => 0, StringComparer.Ordinal);
         var seenObservations = new HashSet<string>(StringComparer.Ordinal);
         int total = 0, missing = 0, exact = 0, different = 0;
@@ -84,7 +85,7 @@ public static class SyntheticBirthDistanceAuditBuilderV9
             var mask = ((truth.Day == observed.Day ? 1 : 0) |
                         (truth.Month == observed.Month ? 2 : 0) |
                         (truth.Year == observed.Year ? 4 : 0));
-            masks[Convert.ToString(mask, 2).PadLeft(3, '0')]++;
+            masks[mask.ToString("B3", CultureInfo.InvariantCulture)]++;
 
             if (truth == observed)
             {
