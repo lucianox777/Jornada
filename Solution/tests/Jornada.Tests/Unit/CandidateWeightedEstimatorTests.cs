@@ -753,6 +753,14 @@ public sealed class CandidateWeightedEstimatorTests
                 Is.Null);
             Assert.That(result.UnsupportedTrainingCellDecisions.ObservedRecallWithinUnsupportedActualMatches,
                 Is.EqualTo(1m));
+            Assert.That(result.UnsupportedTrainingCellDecisions.TrueNegativePairsWithoutTrainBilateralEss,
+                Is.EqualTo(result.TrueNegativePairs));
+            Assert.That(result.UnsupportedTrainingCellDecisions.TrueNegativeDesignWeightWithoutTrainBilateralEss,
+                Is.EqualTo(result.TrueNegativeDesignWeight));
+            Assert.That(result.UnsupportedTrainingCellDecisions.TrueNegativeDesignWeightShareWithoutTrainBilateralEss,
+                Is.EqualTo(1m));
+            Assert.That(result.UnsupportedTrainingCellDecisions.ObservedFalsePositiveRateWithinUnsupportedActualNonMatches,
+                Is.Zero);
             Assert.That(result.ObservedWeightedFalseDiscoveryShare, Is.EqualTo(0m));
             Assert.That(result.ObservedWeightedRecallShare, Is.EqualTo(1m));
             Assert.That(result.MatchedEvaluationEffectiveSampleSize, Is.EqualTo(2m));
@@ -799,6 +807,12 @@ public sealed class CandidateWeightedEstimatorTests
                 Is.EqualTo(1m));
             Assert.That(report.UnsupportedTrainingCellDecisions.ObservedRecallWithinUnsupportedActualMatches,
                 Is.Zero);
+            // No predicted positives -> FDR is undefined, but FPR is 0
+            // because true non-matches DO exist in unsupported TRAIN cells.
+            Assert.That(report.UnsupportedTrainingCellDecisions.TrueNegativePairsWithoutTrainBilateralEss,
+                Is.EqualTo(report.TrueNegativePairs));
+            Assert.That(report.UnsupportedTrainingCellDecisions.ObservedFalsePositiveRateWithinUnsupportedActualNonMatches,
+                Is.Zero);
             Assert.That(report.ObservedWeightedRecallShare, Is.Zero);
             Assert.That(report.FalseNegativeDesignWeight, Is.EqualTo(4m));
         }));
@@ -839,6 +853,14 @@ public sealed class CandidateWeightedEstimatorTests
                 Is.EqualTo(revised.FalsePositivePairs));
             Assert.That(revised.UnsupportedTrainingCellDecisions.ObservedFalseDiscoveryShareWithinUnsupportedPredictions,
                 Is.EqualTo(revised.ObservedWeightedFalseDiscoveryShare));
+            Assert.That(revised.UnsupportedTrainingCellDecisions.ObservedFalsePositiveRateWithinUnsupportedActualNonMatches,
+                Is.GreaterThan(0m));
+            Assert.That(revised.UnsupportedTrainingCellDecisions.FalsePositivePairsWithoutTrainBilateralEss
+                + revised.UnsupportedTrainingCellDecisions.TrueNegativePairsWithoutTrainBilateralEss,
+                Is.EqualTo(revised.FalsePositivePairs + revised.TrueNegativePairs));
+            Assert.That(revised.UnsupportedTrainingCellDecisions.FalsePositiveDesignWeightWithoutTrainBilateralEss
+                + revised.UnsupportedTrainingCellDecisions.TrueNegativeDesignWeightWithoutTrainBilateralEss,
+                Is.EqualTo(revised.FalsePositiveDesignWeight + revised.TrueNegativeDesignWeight));
         }));
     }
 
@@ -1299,6 +1321,14 @@ public sealed class CandidateWeightedEstimatorTests
             Is.EqualTo(preview.FalseNegativePairs == 0 ? null : 0m));
         Assert.That(preview.UnsupportedTrainingCellDecisions.ObservedRecallWithinUnsupportedActualMatches,
             Is.Null);
+        Assert.That(preview.UnsupportedTrainingCellDecisions.TrueNegativePairsWithoutTrainBilateralEss,
+            Is.Zero);
+        Assert.That(preview.UnsupportedTrainingCellDecisions.TrueNegativeDesignWeightWithoutTrainBilateralEss,
+            Is.Zero);
+        Assert.That(preview.UnsupportedTrainingCellDecisions.ObservedFalsePositiveRateWithinUnsupportedActualNonMatches,
+            Is.Null);
+        Assert.That(preview.UnsupportedTrainingCellDecisions.TrueNegativeDesignWeightShareWithoutTrainBilateralEss,
+            Is.EqualTo(preview.TrueNegativePairs == 0 ? null : 0m));
     }
 
     [Test]

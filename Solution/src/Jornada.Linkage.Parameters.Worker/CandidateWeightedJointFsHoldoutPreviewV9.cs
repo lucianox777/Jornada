@@ -50,8 +50,7 @@ public sealed record CandidateWeightedJointFsHoldoutOutcomeV9(
     public CandidateJointCellGroupWeightAuditV9? IndependentJointCellGroupWeightEss { get; init; }
 
     /// <summary>
-    /// Fixed-threshold EVALUATION predicted-positive, false-positive, and
-    /// false-negative mass
+    /// Fixed-threshold EVALUATION predicted-positive and full TP/FP/FN/TN mass
     /// in TRAIN-unsupported nominal cells, without individual predictions.
     /// Null only in legacy serialized previews.
     /// </summary>
@@ -63,7 +62,9 @@ public sealed record CandidateWeightedJointFsHoldoutOutcomeV9(
 /// in nominal cells where TRAIN does
 /// not have group-weight ESS >= 2 in BOTH M and U. This is a descriptive
 /// sensitivity signal, not a calibrated risk estimate, TEST, or a veto.
-/// A null share means no predicted positives, never zero false discoveries.
+/// FDR depends on predicted positives; FPR depends on actual non-matches.
+/// Each rate has its own denominator and returns null only if that denominator
+/// is absent. Neither rate represents population-level risk.
 /// </summary>
 public sealed record CandidateFsUnsupportedTrainingCellDecisionAuditV9(
     string Version,
@@ -72,14 +73,18 @@ public sealed record CandidateFsUnsupportedTrainingCellDecisionAuditV9(
     int TruePositivePairsWithoutTrainBilateralEss,
     int FalsePositivePairsWithoutTrainBilateralEss,
     int FalseNegativePairsWithoutTrainBilateralEss,
+    int TrueNegativePairsWithoutTrainBilateralEss,
     decimal PredictedPositiveDesignWeightWithoutTrainBilateralEss,
     decimal TruePositiveDesignWeightWithoutTrainBilateralEss,
     decimal FalsePositiveDesignWeightWithoutTrainBilateralEss,
     decimal FalseNegativeDesignWeightWithoutTrainBilateralEss,
+    decimal TrueNegativeDesignWeightWithoutTrainBilateralEss,
     decimal? PredictedPositiveDesignWeightShareWithoutTrainBilateralEss,
     decimal? ObservedFalseDiscoveryShareWithinUnsupportedPredictions,
     decimal? FalseNegativeDesignWeightShareWithoutTrainBilateralEss,
-    decimal? ObservedRecallWithinUnsupportedActualMatches);
+    decimal? ObservedRecallWithinUnsupportedActualMatches,
+    decimal? ObservedFalsePositiveRateWithinUnsupportedActualNonMatches,
+    decimal? TrueNegativeDesignWeightShareWithoutTrainBilateralEss);
 
 /// <summary>
 /// Leave-one-independent-EVALUATION-group-out descriptive ranges for the
@@ -105,7 +110,7 @@ public sealed record CandidateFsHoldoutGroupSensitivityV9(
 /// </summary>
 public static class CandidateWeightedJointFsHoldoutPreviewV9
 {
-    public const string Version = "V9_WEIGHTED_FS_INDEPENDENT_HOLDOUT_PREVIEW_3";
+    public const string Version = "V9_WEIGHTED_FS_INDEPENDENT_HOLDOUT_PREVIEW_4";
     public const string Status =
         "DIAGNOSTIC_ONLY_BIRTH_BLOCKING_EVALUATION_NOT_OPERATIONAL_TEST_FDR";
     public const string InsufficientGroupsStatus =
@@ -145,8 +150,9 @@ public static class CandidateWeightedJointFsHoldoutPreviewV9
         var supportByCell = groupWeightAudit.Cells.ToDictionary(x => (x.Person, x.Mother));
         var levelsByPair = CandidateNominalV9EvidenceExtractor.Extract(corpus, rawEvidence)
             .ToDictionary(x => (x.SourceId, x.CandidateId));
-        decimal unsupportedTpWeight = 0m, unsupportedFpWeight = 0m, unsupportedFnWeight = 0m;
-        int unsupportedTp = 0, unsupportedFp = 0, unsupportedFn = 0;
+        decimal unsupportedTpWeight = 0m, unsupportedFpWeight = 0m, unsupportedFnWeight = 0m,
+            unsupportedTnWeight = 0m;
+        int unsupportedTp = 0, unsupportedFp = 0, unsupportedFn = 0, unsupportedTn = 0;
         decimal tpWeight = 0m, fpWeight = 0m, fnWeight = 0m, tnWeight = 0m;
         int tp = 0, fp = 0, fn = 0, tn = 0, evaluated = 0;
         // These transient group keys never leave the method or enter the DTO.
@@ -184,6 +190,11 @@ public static class CandidateWeightedJointFsHoldoutPreviewV9
                 unsupportedFn++;
                 unsupportedFnWeight += weight;
             }
+            if (!predicted && !actual && !supportedInTraining)
+            {
+                unsupportedTn++;
+                unsupportedTnWeight += weight;
+            }
             if (predicted && actual) { tp++; tpWeight += weight; }
             else if (predicted) { fp++; fpWeight += weight; }
             else if (actual) { fn++; fnWeight += weight; }
@@ -208,22 +219,30 @@ public static class CandidateWeightedJointFsHoldoutPreviewV9
         var actualMatchWeight = tpWeight + fnWeight;
         var unsupportedPositiveWeight = unsupportedTpWeight + unsupportedFpWeight;
         var unsupportedActualMatchWeight = unsupportedTpWeight + unsupportedFnWeight;
-        if (unsupportedTp > tp || unsupportedFp > fp || unsupportedFn > fn
+        var unsupportedActualNonMatchWeight = unsupportedFpWeight + unsupportedTnWeight;
+        var actualNonMatchWeight = fpWeight + tnWeight;
+        if (unsupportedTp > tp || unsupportedFp > fp || unsupportedFn > fn || unsupportedTn > tn
             || unsupportedTpWeight > tpWeight || unsupportedFpWeight > fpWeight
-            || unsupportedFnWeight > fnWeight || unsupportedPositiveWeight > positiveWeight
-            || unsupportedActualMatchWeight > actualMatchWeight)
+            || unsupportedFnWeight > fnWeight || unsupportedTnWeight > tnWeight
+            || unsupportedPositiveWeight > positiveWeight
+            || unsupportedActualMatchWeight > actualMatchWeight
+            || unsupportedActualNonMatchWeight > actualNonMatchWeight)
             throw new InvalidOperationException(
                 "Diagnóstico V9 de decisões sem suporte TRAIN diverge da matriz FS.");
         var unsupportedDecisions = new CandidateFsUnsupportedTrainingCellDecisionAuditV9(
-            "V9_FS_EVALUATION_UNSUPPORTED_TRAIN_CELL_DECISIONS_2",
+            "V9_FS_EVALUATION_UNSUPPORTED_TRAIN_CELL_DECISIONS_3",
             "DIAGNOSTIC_ONLY_FIXED_THRESHOLD_EVALUATION_NOT_BLIND_TEST_OR_CERTIFIED_FDR",
-            unsupportedTp + unsupportedFp, unsupportedTp, unsupportedFp, unsupportedFn,
-            unsupportedPositiveWeight, unsupportedTpWeight, unsupportedFpWeight, unsupportedFnWeight,
+            unsupportedTp + unsupportedFp, unsupportedTp, unsupportedFp, unsupportedFn, unsupportedTn,
+            unsupportedPositiveWeight, unsupportedTpWeight, unsupportedFpWeight,
+            unsupportedFnWeight, unsupportedTnWeight,
             positiveWeight == 0m ? null : unsupportedPositiveWeight / positiveWeight,
             unsupportedPositiveWeight == 0m ? null : unsupportedFpWeight / unsupportedPositiveWeight,
             fnWeight == 0m ? null : unsupportedFnWeight / fnWeight,
             unsupportedActualMatchWeight == 0m ? null
-                : unsupportedTpWeight / unsupportedActualMatchWeight);
+                : unsupportedTpWeight / unsupportedActualMatchWeight,
+            unsupportedActualNonMatchWeight == 0m ? null
+                : unsupportedFpWeight / unsupportedActualNonMatchWeight,
+            tnWeight == 0m ? null : unsupportedTnWeight / tnWeight);
         return new CandidateWeightedJointFsHoldoutOutcomeV9(
             Version, Status, training.FrameFingerprint, training.SelectionFingerprint,
             training.Version, training.NominalContractVersion, decisionThreshold, evaluated,
