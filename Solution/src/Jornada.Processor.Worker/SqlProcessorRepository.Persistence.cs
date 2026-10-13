@@ -251,6 +251,10 @@ internal sealed partial class SqlProcessorRepository
             await verify.ExecuteNonQueryAsync(ct);
         }
 
+        await PersistDocumentEvidenceAsync(connection, tx, observationId,
+            person.EvidenciasDocumentais ?? Array.Empty<ParsedDocumentEvidence>(),
+            manifest.CodigoBasePessoaOrigem, ct);
+
         var attributes = new List<PersistedAttribute>();
         var attributeInstances = new HashSet<string>(StringComparer.Ordinal);
         foreach (var attribute in person.Atributos)

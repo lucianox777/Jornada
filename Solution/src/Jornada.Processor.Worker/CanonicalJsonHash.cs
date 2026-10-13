@@ -24,7 +24,9 @@ internal static class CanonicalJsonHash
     private static readonly HashSet<string> PersonUnorderedArrays = new(StringComparer.Ordinal)
     {
         "atributosTransversais",
-        "conferenciasDocumentais"
+        "conferenciasDocumentais",
+        "evidenciasDocumentais",
+        "valores"
     };
 
     public static string Compute(JsonElement element, params string[] excludedRootProperties) =>
