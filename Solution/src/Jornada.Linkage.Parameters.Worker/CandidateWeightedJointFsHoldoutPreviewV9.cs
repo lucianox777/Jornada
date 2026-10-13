@@ -48,6 +48,13 @@ public sealed record CandidateWeightedJointFsHoldoutOutcomeV9(
     /// No IDs or group-level records are exported.
     /// </summary>
     public CandidateJointCellGroupWeightAuditV9? IndependentJointCellGroupWeightEss { get; init; }
+
+    /// <summary>
+    /// Fixed-threshold EVALUATION predicted-positive and false-positive mass
+    /// in TRAIN-unsupported nominal cells, without individual predictions.
+    /// Null only in legacy serialized previews.
+    /// </summary>
+    public CandidateFsUnsupportedTrainingCellDecisionAuditV9? UnsupportedTrainingCellDecisions { get; init; }
 }
 
 /// <summary>
@@ -56,6 +63,24 @@ public sealed record CandidateWeightedJointFsHoldoutOutcomeV9(
 /// or per-group statistics are exposed. A null FDR bound means no positive
 /// predictions remained in any eligible deletion.
 /// </summary>
+/// <summary>
+/// Fixed-threshold EVALUATION decision mass in nominal cells where TRAIN does
+/// not have group-weight ESS >= 2 in BOTH M and U. This is a descriptive
+/// sensitivity signal, not a calibrated risk estimate, TEST, or a veto.
+/// A null share means no predicted positives, never zero false discoveries.
+/// </summary>
+public sealed record CandidateFsUnsupportedTrainingCellDecisionAuditV9(
+    string Version,
+    string Status,
+    int PredictedPositivePairsWithoutTrainBilateralEss,
+    int TruePositivePairsWithoutTrainBilateralEss,
+    int FalsePositivePairsWithoutTrainBilateralEss,
+    decimal PredictedPositiveDesignWeightWithoutTrainBilateralEss,
+    decimal TruePositiveDesignWeightWithoutTrainBilateralEss,
+    decimal FalsePositiveDesignWeightWithoutTrainBilateralEss,
+    decimal? PredictedPositiveDesignWeightShareWithoutTrainBilateralEss,
+    decimal? ObservedFalseDiscoveryShareWithinUnsupportedPredictions);
+
 public sealed record CandidateFsHoldoutGroupSensitivityV9(
     string Status,
     int IndependentGroups,
@@ -74,7 +99,7 @@ public sealed record CandidateFsHoldoutGroupSensitivityV9(
 /// </summary>
 public static class CandidateWeightedJointFsHoldoutPreviewV9
 {
-    public const string Version = "V9_WEIGHTED_FS_INDEPENDENT_HOLDOUT_PREVIEW_1";
+    public const string Version = "V9_WEIGHTED_FS_INDEPENDENT_HOLDOUT_PREVIEW_2";
     public const string Status =
         "DIAGNOSTIC_ONLY_BIRTH_BLOCKING_EVALUATION_NOT_OPERATIONAL_TEST_FDR";
     public const string InsufficientGroupsStatus =
@@ -104,6 +129,18 @@ public static class CandidateWeightedJointFsHoldoutPreviewV9
         var training = audit.Training;
         var cells = CandidateWeightedJointPreviewAdapterV9.FromTrainingDiagnostic(training);
         var rawByKey = rawEvidence.ToDictionary(x => (x.SourceId, x.CandidateId));
+        // Attribute the very SAME decisions to the TRAIN support of the
+        // observed V9 joint cell. A global 81-cell fraction cannot reveal
+        // whether actual predicted matches concentrate in unsupported cells.
+        // TRAIN support is frozen before EVALUATION scoring. No threshold is
+        // selected here and EVALUATION never changes m/u or cell support.
+        var groupWeightAudit = CandidateJointCellGroupWeightAuditBuilderV9.Analyze(
+            corpus, rawEvidence, audit);
+        var supportByCell = groupWeightAudit.Cells.ToDictionary(x => (x.Person, x.Mother));
+        var levelsByPair = CandidateNominalV9EvidenceExtractor.Extract(corpus, rawEvidence)
+            .ToDictionary(x => (x.SourceId, x.CandidateId));
+        decimal unsupportedTpWeight = 0m, unsupportedFpWeight = 0m;
+        int unsupportedTp = 0, unsupportedFp = 0;
         decimal tpWeight = 0m, fpWeight = 0m, fnWeight = 0m, tnWeight = 0m;
         int tp = 0, fp = 0, fn = 0, tn = 0, evaluated = 0;
         // These transient group keys never leave the method or enter the DTO.
@@ -126,6 +163,16 @@ public static class CandidateWeightedJointFsHoldoutPreviewV9
             var predicted = result.Score.Posterior >= decisionThreshold;
             var actual = observation.Label == IndependentMatchLabel.Match;
             var weight = observation.Sample.DesignWeight;
+            var pairKey = (observation.Sample.SourceId, observation.Sample.CandidateId);
+            var state = levelsByPair[pairKey];
+            var support = supportByCell[(state.Person, state.Mother)];
+            var supportedInTraining = support.TrainingMatchedGroupWeightEss >= 2m
+                && support.TrainingUnmatchedGroupWeightEss >= 2m;
+            if (predicted && !supportedInTraining)
+            {
+                if (actual) { unsupportedTp++; unsupportedTpWeight += weight; }
+                else { unsupportedFp++; unsupportedFpWeight += weight; }
+            }
             if (predicted && actual) { tp++; tpWeight += weight; }
             else if (predicted) { fp++; fpWeight += weight; }
             else if (actual) { fn++; fnWeight += weight; }
@@ -148,6 +195,19 @@ public static class CandidateWeightedJointFsHoldoutPreviewV9
 
         var positiveWeight = tpWeight + fpWeight;
         var actualMatchWeight = tpWeight + fnWeight;
+        var unsupportedPositiveWeight = unsupportedTpWeight + unsupportedFpWeight;
+        if (unsupportedTp > tp || unsupportedFp > fp
+            || unsupportedTpWeight > tpWeight || unsupportedFpWeight > fpWeight
+            || unsupportedPositiveWeight > positiveWeight)
+            throw new InvalidOperationException(
+                "Diagnóstico V9 de decisões sem suporte TRAIN diverge da matriz FS.");
+        var unsupportedDecisions = new CandidateFsUnsupportedTrainingCellDecisionAuditV9(
+            "V9_FS_EVALUATION_UNSUPPORTED_TRAIN_CELL_DECISIONS_1",
+            "DIAGNOSTIC_ONLY_FIXED_THRESHOLD_EVALUATION_NOT_BLIND_TEST_OR_CERTIFIED_FDR",
+            unsupportedTp + unsupportedFp, unsupportedTp, unsupportedFp,
+            unsupportedPositiveWeight, unsupportedTpWeight, unsupportedFpWeight,
+            positiveWeight == 0m ? null : unsupportedPositiveWeight / positiveWeight,
+            unsupportedPositiveWeight == 0m ? null : unsupportedFpWeight / unsupportedPositiveWeight);
         return new CandidateWeightedJointFsHoldoutOutcomeV9(
             Version, Status, training.FrameFingerprint, training.SelectionFingerprint,
             training.Version, training.NominalContractVersion, decisionThreshold, evaluated,
@@ -162,8 +222,8 @@ public static class CandidateWeightedJointFsHoldoutPreviewV9
             ObservedJointSupport = CandidateJointSupportAuditBuilderV9.Analyze(audit),
             IndependentJointGroupSupport = CandidateJointGroupSupportAuditBuilderV9.Analyze(
                 corpus, rawEvidence, audit),
-            IndependentJointCellGroupWeightEss = CandidateJointCellGroupWeightAuditBuilderV9.Analyze(
-                corpus, rawEvidence, audit)
+            IndependentJointCellGroupWeightEss = groupWeightAudit,
+            UnsupportedTrainingCellDecisions = unsupportedDecisions
         };
 
         CandidateFsHoldoutGroupSensitivityV9 GroupSensitivity()
