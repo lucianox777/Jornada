@@ -18,7 +18,15 @@ Para responder sobre o **algoritmo operacional completo**, a próxima prova indi
 
 Nenhuma execução deste ensaio publica/ativa V9, altera V8, DT-15, banco, referências IBGE ou JornadaLocal.
 
-## Rodada seguinte — réplica por sementes independentes (PR #996)
+## P0 — rodada de transferência de modelo inteiramente congelado (13/10/2026)
+
+A evidência anterior nas seeds 42, 43 e 44 calibrava **três modelos diferentes**, cada um com TRAIN e limiar VALIDATION próprios; por isso 3/3 PASS era **repetibilidade de treinamento**, não prova de transporte dos parâmetros. Esta rodada executa um experimento adicional, mais rigoroso: **treina e seleciona o único limiar na seed 42**, congela juntos os **81 parâmetros nominais conjuntos m/u, evidência de nascimento m/u, prior do frame e limiar de VALIDATION**, exporta `v9-frozen-model.json` e **reusa literalmente o mesmo objeto em 43 e 44**, sem ajustar pesos, prior ou threshold conforme os resultados externos. O SHA-256 do snapshot e o fingerprint do corpus-fonte devem coincidir nos três relatórios. Os TEST das sementes 43 e 44 permanecem independentes de treino/seleção.
+
+A CI preserva todos os PASS e FAIL da avaliação original e agora publica `v9-synthetic-multiseed-summary.json` com `crossSeedProxyVerdict=PASS_ALL_FROZEN_MODEL_TRANSFER_REPLICATES` ou `AT_LEAST_ONE_FROZEN_MODEL_TRANSFER_FAILED`, nunca substituindo uma falha por suavização ou troca de limiar. **Mesmo que a VALIDATION de uma seed-alvo exceda FPR 1%, o modelo não é retreinado e o experimento deve registrar esse fato; isso não é uma falha de integridade do programa, mas pode ser falha de desempenho.** A verificação independente rejeita modelo trocado, digest incorreto, reuso da base de treino, alteração do limiar e métricas inconsistentes.
+
+A hipótese desta rodada é estritamente **transferibilidade do modelo FS V9 no proxy sintético de primeira inicial**. **Não é blocking SQL físico `VERSIONED_ALIAS`, não calibra TF, não garante FDR populacional, nem resolve os 59/81 estados do TRAIN sem suporte M/U bilateral.** Não depende de comparar V8. O modelo preservado é somente experimental, sem publicação, ativação ou impacto em JornadaLocal/IBGE/HML/PROD.
+
+## Rodada anterior — réplicas com recalibração por seed (PR #996)
 
 A avaliação isolada da seed 42 já deu **3.414 TP, 39 FP, 67 FN e 5.833 TN**
 em TEST no *proxy por inicial*, recall 98,08% e FPR 0,664%.
