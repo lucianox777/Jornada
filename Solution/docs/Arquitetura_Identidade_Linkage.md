@@ -1,4 +1,4 @@
-> **Decisão posterior (29/09/2026):** [documento canônico de identidade e linkage](Decisoes_Canonicas_Identidade_Linkage_20260929.md). A V8 será o único contrato executável; remover guard demográfico fixo e implementar regra de divisão de UUID sem CPF. As seções que descrevem código antigo devem ser lidas como estado de implementação, não como decisão prevalente.
+> **Decisão posterior (29/09/2026):** [documento canônico de identidade e linkage](Decisoes_Canonicas_Identidade_Linkage_20260929.md). A decisão posterior **DC-LK-V9 (12/10)** substituiu a V8 como alvo de desenvolvimento: V9 nominal conjunta em **preview**, V8 preservada para replay histórico, sem ativação até gates DT-15. Permanece a decisão de remover guard demográfico fixo da arquitetura nova e implementar regra de divisão de UUID sem CPF. As seções que descrevem código antigo devem ser lidas como estado de implementação, não como decisão prevalente.
 
 # Arquitetura de Identidade e Linkage — especificação corrente
 
@@ -113,6 +113,8 @@ Nenhum bloco pode ser truncado silenciosamente. Limite excedido exige estratégi
 O otimizador seleciona regras por critérios objetivos e reproduzíveis, preservando evidência separada de recall de verdadeiros vínculos, retenção/redução de não-vínculos, cobertura e complexidade estrutural. Não se usa score composto oculto para mascarar trade-offs.
 
 ## 9. Calibrador, Avaliador e IBGE
+
+**Suficiência da base inicial:** a massa de **30.000 pessoas sintéticas (IBGE, seed 42)** foi deliberadamente escolhida para **calibração e iteração iniciais** do FS/TF V9, não como prova de que 81 células da matriz pessoa×mãe tenham observações suficientes M/U, ou de representatividade municipal. O Calibrador deve medir suportes pós-blocking, ESS, grupos independentes e cenários adversariais; aumentar a massa apenas com justificativa empírica, sem inventar população real. [Parecer quantitativo](Parecer_Suficiencia_Bootstrap_30mil_V9_20261012.md). A avaliação primária é o motor C# com truth sintética independente; Splink externo é opcional como diagnóstico, enquanto TEST/conferência matemática independente permanecem. **Os campos que uma nova observação precisa fornecer são definidos pelo contrato versionado de entrada**, não pela lista de features do scorer; ausência válida pode levar à abstenção.
 
 O Calibrador estima parâmetros e regras a partir de corpus controlado e publica pacote/ruleset imutável versionado. O Avaliador consome exatamente essa versão; não mistura regras ou parâmetros de versões diferentes. Replay com mesmas entradas, snapshots e versão deve ser reproduzível.
 
