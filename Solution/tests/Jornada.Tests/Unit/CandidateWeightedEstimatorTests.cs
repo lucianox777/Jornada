@@ -1153,6 +1153,83 @@ public sealed class CandidateWeightedEstimatorTests
     }
 
     [Test]
+    public async Task V9JointCellEssReportsDesignWeightedUnsupportedMassWithoutTuningEvaluation()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var baselineHoldout = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, raw, .5m);
+        var baseline = CandidateJointCellGroupWeightAuditBuilderV9.Analyze(
+            corpus, raw, baselineHoldout);
+
+        // In the baseline fixture MATCH and NONMATCH intentionally occupy
+        // different nominal cells, so no cell has both classes ESS >= 2.
+        var baseExposure = baseline.UnsupportedDesignWeightExposure;
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(baseline.Version,
+                Is.EqualTo(CandidateJointCellGroupWeightAuditBuilderV9.Version));
+            Assert.That(baseline.TrainingCellsWithGroupWeightEssAtLeastTwoInBothClasses, Is.Zero);
+            Assert.That(baseExposure.TrainingMatchedWeightShareWithoutTrainBothClassEss,
+                Is.EqualTo(1m));
+            Assert.That(baseExposure.TrainingUnmatchedWeightShareWithoutTrainBothClassEss,
+                Is.EqualTo(1m));
+            Assert.That(baseExposure.EvaluationMatchedWeightShareWithoutTrainBothClassEss,
+                Is.EqualTo(1m));
+            Assert.That(baseExposure.EvaluationUnmatchedWeightShareWithoutTrainBothClassEss,
+                Is.EqualTo(1m));
+        }));
+
+        // Put ALL train/evaluation pairs in the SAME nominal level without
+        // changing labels, group IDs or design weights. Both classes then
+        // have sufficient group ESS in that one observed joint cell.
+        var allExact = raw.Select(x => x with
+        {
+            Values = new CandidateEvidencePair("Maria Silva", null, "Ana Costa",
+                "Maria Silva", null, "Ana Costa")
+        }).ToArray();
+        var supportedHoldout = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, allExact, .5m);
+        var supported = CandidateJointCellGroupWeightAuditBuilderV9.Analyze(
+            corpus, allExact, supportedHoldout);
+        var exposure = supported.UnsupportedDesignWeightExposure;
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(supported.TrainingCellsWithGroupWeightEssAtLeastTwoInBothClasses,
+                Is.EqualTo(1));
+            Assert.That(supported.EvaluationCellsWithGroupWeightEssAtLeastTwoInBothClasses,
+                Is.EqualTo(1));
+            Assert.That(supported.CellsWithGroupWeightEssAtLeastTwoInBothPartitions,
+                Is.EqualTo(1));
+            Assert.That(exposure.TrainingMatchedWeightShareWithoutTrainBothClassEss,
+                Is.Zero);
+            Assert.That(exposure.TrainingUnmatchedWeightShareWithoutTrainBothClassEss,
+                Is.Zero);
+            Assert.That(exposure.EvaluationMatchedWeightShareWithoutTrainBothClassEss,
+                Is.Zero);
+            Assert.That(exposure.EvaluationUnmatchedWeightShareWithoutTrainBothClassEss,
+                Is.Zero);
+            Assert.That(exposure.EvaluationMatchedWeightShareWithoutEvaluationBothClassEss,
+                Is.Zero);
+            Assert.That(exposure.EvaluationUnmatchedWeightShareWithoutEvaluationBothClassEss,
+                Is.Zero);
+            Assert.That(supported.Cells.Count(x =>
+                x.TrainingMatchedGroupWeightEss.HasValue
+                || x.TrainingUnmatchedGroupWeightEss.HasValue), Is.EqualTo(1));
+            Assert.That(supported.Cells.Count(x =>
+                x.TrainingMatchedGroupWeightEss is null
+                && x.TrainingUnmatchedGroupWeightEss is null), Is.EqualTo(80));
+        }));
+
+        var preview = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            corpus, allExact, V9FsPreviewParameters(), .5m, .5m);
+        Assert.That(preview.IndependentJointCellGroupWeightEss, Is.Not.Null);
+        Assert.That(preview.IndependentJointCellGroupWeightEss!.UnsupportedDesignWeightExposure,
+            Is.EqualTo(exposure));
+    }
+
+    [Test]
     public async Task V9JointCellGroupWeightEssDoesNotTreatRepeatedPairsAsIndependent()
     {
         var capture = await CaptureAsync();
