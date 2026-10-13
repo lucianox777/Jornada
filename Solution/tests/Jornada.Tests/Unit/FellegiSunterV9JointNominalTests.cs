@@ -280,4 +280,136 @@ public sealed class FellegiSunterV9JointNominalTests
         Assert.That(Evaluate(cells.Reverse().ToArray()),
             Is.EqualTo(Evaluate(cells)).Within(1e-12));
     }
+
+    private static CompositeNominalTfPreviewV9 FirstNameTf(
+        string name, decimal frequency, decimal weight = 1m) =>
+        new(
+            CompositeNominalTfSideV9.Person,
+            new NominalFrequencyReferenceContractV9(
+                NominalFrequencyUnitV9.FirstName,
+                NominalFrequencySourceV9.IbgePublishedMarginal,
+                "IBGE_3550308_NOME",
+                "BIRTH_BLOCKING_FRAME",
+                0, false,
+                new NominalSyntheticIbgeBootstrapV9(
+                    CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance,
+                    30_000, "CANONICAL_CORPUS", "GENERATOR_V1", 42UL,
+                    "HYPOTHESES_V1")),
+            name, frequency, .10m, weight, .0001m, 100);
+
+    [Test]
+    public void V9SingleUnitTfPreviewMakesRareExactFirstNameMoreInformativeThanCommonName()
+    {
+        var cells = FullFrame(
+            CompositeNominalLevelV9.ExactFirst,
+            CompositeNominalLevelV9.Missing, .20m, .05m);
+        FellegiSunterScoreBreakdown Score(string left, string right,
+            CompositeNominalTfPreviewV9? tf) =>
+            FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                PreviewParameters(), left, right, null, null,
+                cells, CompositeNominalComparisonV9.ContractVersion,
+                nominalTf: tf);
+
+        Assert.That(CompositeNominalComparisonV9.Classify(
+            "Maria Lima", "Maria Costa"), Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
+        Assert.That(CompositeNominalComparisonV9.Classify(
+            "Zuleica Lima", "Zuleica Costa"), Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
+        var baseline = Score("Maria Lima", "Maria Costa", null);
+        var disabled = Score("Maria Lima", "Maria Costa", FirstNameTf("MARIA", .25m, 0m));
+        var common = Score("Maria Lima", "Maria Costa", FirstNameTf("MARIA", .25m));
+        var rare = Score("Zuleica Lima", "Zuleica Costa", FirstNameTf("ZULEICA", .005m));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(disabled.Score, Is.EqualTo(baseline.Score));
+            Assert.That(common.Score.LogOdds, Is.LessThan(baseline.Score.LogOdds));
+            Assert.That(rare.Score.LogOdds, Is.GreaterThan(baseline.Score.LogOdds));
+            Assert.That(rare.Score.LogOdds - common.Score.LogOdds,
+                Is.EqualTo((decimal)Math.Log(50d)).Within(.0000001m));
+            Assert.That(common.Contributions.Count(x => x.Evidence == "NOMINAL_CONJUNTO_V9"),
+                Is.EqualTo(1));
+            Assert.That(rare.Contributions.Any(x => x.Evidence is "NOME" or "NOME_MAE"),
+                Is.False);
+            Assert.That(rare.Contributions[0].MProbability, Is.EqualTo(.20m));
+            Assert.That(rare.Contributions[0].UProbability, Is.EqualTo(.05m));
+        }));
+    }
+
+    [Test]
+    public void V9TfPreviewRejectsMismatchedMarginalUnitWrongNameAndMissingMother()
+    {
+        var cells = FullFrame(
+            CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.ExactFull, .20m, .05m);
+        var tf = FirstNameTf("MARIA", .25m);
+        void Reject(CompositeNominalTfPreviewV9 bad) =>
+            Assert.That((Action)(() =>
+                FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                    PreviewParameters(), "Maria Silva", "MARIA SILVA",
+                    "Ana Costa", "ANA COSTA",
+                    cells, CompositeNominalComparisonV9.ContractVersion,
+                    nominalTf: bad)), Throws.InvalidOperationException);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Reject(tf); // IBGE first-name marginal cannot price ExactFull
+            Reject(tf with { Side = (CompositeNominalTfSideV9)99 });
+            Reject(tf with { Weight = -1m });
+            Reject(tf with { Weight = 1.5m });
+            Reject(tf with { TermFrequency = 0m });
+            Reject(tf with { UnitReferenceU = 0m });
+            Reject(tf with { Reference = tf.Reference with
+                { Unit = NominalFrequencyUnitV9.FullName } });
+        }));
+
+        var exactFirstCells = FullFrame(
+            CompositeNominalLevelV9.ExactFirst, CompositeNominalLevelV9.Missing,
+            .20m, .05m);
+        Assert.That((Action)(() =>
+            FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                PreviewParameters(), "Maria Lima", "Maria Costa", null, null,
+                exactFirstCells, CompositeNominalComparisonV9.ContractVersion,
+                nominalTf: tf with { MatchedNormalizedValue = "ZULEICA" })),
+            Throws.InvalidOperationException);
+        Assert.That((Action)(() =>
+            FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                PreviewParameters(), "Maria Lima", "Maria Costa", null, null,
+                exactFirstCells, CompositeNominalComparisonV9.ContractVersion,
+                nominalTf: tf with { Side = CompositeNominalTfSideV9.Mother })),
+            Throws.InvalidOperationException);
+    }
+
+    [Test]
+    public void V9TfPreviewSupportsRealFullNameAndNeutralWeightWithoutMultipleNominalLlr()
+    {
+        var cells = FullFrame(
+            CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.Missing, .20m, .05m);
+        var real = FirstNameTf("MARIA", .25m) with
+        {
+            MatchedNormalizedValue = "MARIA SILVA",
+            Reference = new NominalFrequencyReferenceContractV9(
+                NominalFrequencyUnitV9.FullName,
+                NominalFrequencySourceV9.IndependentlyObservedPopulation,
+                "POPULATION", "BLOCKING", 2_000, true)
+        };
+        var plain = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            PreviewParameters(), "Maria Silva", "MARIA SILVA", null, null,
+            cells, CompositeNominalComparisonV9.ContractVersion);
+        var withTf = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            PreviewParameters(), "Maria Silva", "MARIA SILVA", null, null,
+            cells, CompositeNominalComparisonV9.ContractVersion, nominalTf: real);
+        Assert.That(withTf.Score.LogOdds - plain.Score.LogOdds,
+            Is.EqualTo((decimal)Math.Log(.10d / .25d)).Within(.0000001m));
+        Assert.That(withTf.Contributions.Count(c => c.Evidence == "NOMINAL_CONJUNTO_V9"),
+            Is.EqualTo(1));
+        Assert.That(withTf.Contributions, Has.Count.EqualTo(2));
+        // Declared real support without approval must fail closed.
+        Assert.That((Action)(() =>
+            FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                PreviewParameters(), "Maria Silva", "MARIA SILVA", null, null,
+                cells, CompositeNominalComparisonV9.ContractVersion,
+                nominalTf: real with { Reference = real.Reference with
+                    { IndependentPopulationValidationApproved = false } })),
+            Throws.InvalidOperationException);
+    }
 }
