@@ -71,6 +71,7 @@ public static class V9PhysicalSqlBlockingProbe
         public long ActiveRulesetNewCandidatePairs { get; init; }
         public V9SyntheticBaseFrequencyAudit.Report? TrainBaseFrequencyAudit { get; init; }
         public V9BlockingTruthLossAudit.Report? TruePairLossAudit { get; init; }
+        public V9SqlBlockingFrameParityAudit.Report? ActiveSameFrameParityAudit { get; init; }
         public string? BlockingAblationContract { get; init; }
         public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
     }
@@ -245,9 +246,30 @@ public static class V9PhysicalSqlBlockingProbe
             """, connection) { CommandTimeout = 600 })
             await materialize.ExecuteNonQueryAsync(ct);
 
-        // Candidate C1 is additive to the actual published dynamic ruleset.
-        // This reads the ACTIVE pass definitions from the isolated SQL harness
-        // and executes their exact AND/OR key lookups on physical SQL indexes.
+        // Capture the PHYSICAL C1 membership BEFORE adding ACTIVE rules.
+        // Keep only independently known M ordinals in memory; no candidate
+        // values or pair IDs are exported. No TOP or silent sampling.
+        var c1TruePairs = new HashSet<(int A, int B)>();
+        await using (var query = new SqlCommand(
+            "SELECT a,b FROM #v9pairs ORDER BY a,b;", connection) { CommandTimeout = 600 })
+        await using (var reader = await query.ExecuteReaderAsync(ct))
+        {
+            long count = 0;
+            while (await reader.ReadAsync(ct))
+            {
+                if (++count > HardPairCap)
+                    throw new InvalidOperationException("C1 físico excedeu cap de pares.");
+                var a = reader.GetInt32(0);
+                var b = reader.GetInt32(1);
+                if (observationRows[a].Base == observationRows[b].Base
+                    && !c1TruePairs.Add((a, b)))
+                    throw new InvalidDataException("C1 físico contém M duplicado.");
+            }
+        }
+
+        // Candidate C1 is additive to the published ACTIVE dynamic ruleset.
+        // Record its exact passes to test AND/OR semantics on the SAME M frame,
+        // not on the training sample used by BlockingRuleSetOptimizer.
         var activeRules = await UnionPublishedDynamicPassesAsync(
             connection, observationRows, ct);
 
@@ -327,6 +349,25 @@ public static class V9PhysicalSqlBlockingProbe
         }
         var lossAudit = V9BlockingTruthLossAudit.Analyze(
             eligibleTruthPairs, recoveredTruePairs);
+        var parityProjectionCache = new Dictionary<int, IReadOnlySet<BlockingProjectionKey>>();
+        IReadOnlySet<BlockingProjectionKey> KeysFor(int id)
+        {
+            if (!parityProjectionCache.TryGetValue(id, out var keys))
+            {
+                var row = observationRows[id];
+                keys = BlockingProjectionKeyProjector.Project(
+                    row.Name, row.Mother, row.Birth).ToHashSet();
+                parityProjectionCache.Add(id, keys);
+            }
+            return keys;
+        }
+        var frameParity = V9SqlBlockingFrameParityAudit.Analyze(
+            eligibleTruthPairs.Select(x => new V9SqlBlockingFrameParityAudit.Pair(
+                x.LowerObservationId, x.HigherObservationId, x.Partition,
+                KeysFor(x.LowerObservationId), KeysFor(x.HigherObservationId))).ToArray(),
+            activeRules.Passes.Select(x =>
+                new V9SqlBlockingFrameParityAudit.Pass(x.PassId, x.Fields)).ToArray(),
+            c1TruePairs, recoveredTruePairs);
         var metrics = bySplit.Values.Select(x => x.Build()).ToArray();
         foreach (var split in metrics)
         {
@@ -359,6 +400,7 @@ public static class V9PhysicalSqlBlockingProbe
             ActiveRulesetNewCandidatePairs = activeRules.NewPairs,
             TrainBaseFrequencyAudit = tfBaseAudit,
             TruePairLossAudit = lossAudit,
+            ActiveSameFrameParityAudit = frameParity,
             BlockingAblationContract = BlockingAblationVersion,
             PreRegisteredPassSensitivity = passSensitivity
         };
@@ -488,7 +530,7 @@ public static class V9PhysicalSqlBlockingProbe
 
     private sealed record ActivePass(string PassId, string[] Fields);
 
-    private static async Task<(string Fingerprint, int PassCount, long NewPairs)>
+    private static async Task<(string Fingerprint, int PassCount, long NewPairs, ActivePass[] Passes)>
         UnionPublishedDynamicPassesAsync(
             SqlConnection connection, IReadOnlyList<Observation> rows,
             CancellationToken ct)
@@ -633,7 +675,7 @@ public static class V9PhysicalSqlBlockingProbe
         long after;
         await using(var cmd = new SqlCommand("SELECT COUNT_BIG(*) FROM #v9pairs;",connection))
             after = (long)(await cmd.ExecuteScalarAsync(ct) ?? 0L);
-        return (fingerprint,passes.Length,after-before);
+        return (fingerprint, passes.Length, after-before, passes);
     }
 
     private sealed class Acc(string partition)
