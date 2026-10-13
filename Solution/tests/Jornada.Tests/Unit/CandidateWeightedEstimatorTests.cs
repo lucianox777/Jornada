@@ -1060,17 +1060,33 @@ public sealed class CandidateWeightedEstimatorTests
             Assert.That(groups.Cells.All(c => c.TrainingMatchedGroups <=
                 pairs.Cells.Single(p => p.Person == c.Person && p.Mother == c.Mother)
                     .TrainingMatchedPairs), Is.True);
-            Assert.That(groups.Cells.Any(c => c.TrainingUnmatchedGroups <
+            Assert.That(groups.Cells.All(c => c.TrainingUnmatchedGroups <=
                 pairs.Cells.Single(p => p.Person == c.Person && p.Mother == c.Mother)
                     .TrainingUnmatchedPairs), Is.True);
         }));
         var v9Score = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
             corpus, raw, V9FsPreviewParameters(), .5m, .5m);
-        Assert.That(v9Score.IndependentJointGroupSupport, Is.EqualTo(groups));
+        Assert.That(v9Score.IndependentJointGroupSupport, Is.Not.Null);
+        Assert.That(v9Score.IndependentJointGroupSupport!.Cells, Is.EqualTo(groups.Cells));
         var serialized = System.Text.Json.JsonSerializer.Serialize(v9Score);
         Assert.That(serialized, Does.Not.Contain("IndependenceGroupId"));
         Assert.That(serialized, Does.Not.Contain("SourceId"));
         Assert.That(serialized, Does.Not.Contain(Sources[0].ToString("D")));
+
+        // Two NonMatch pairs from the SAME source can occupy one state.
+        // They provide two PAIRS but just one independent GROUP.
+        var repeated = raw.Select(x => x.Values.LeftMother is null
+            ? x with { Values = x.Values with
+                { LeftMother = "Ana Costa", RightMother = "Bruna Costa" } }
+            : x).ToArray();
+        var repeatedHoldout = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, repeated, .5m);
+        var repeatedGroups = CandidateJointGroupSupportAuditBuilderV9.Analyze(
+            corpus, repeated, repeatedHoldout);
+        var repeatedPairs = CandidateJointSupportAuditBuilderV9.Analyze(repeatedHoldout);
+        Assert.That(repeatedGroups.Cells.Any(c => c.TrainingUnmatchedGroups <
+            repeatedPairs.Cells.Single(p => p.Person == c.Person && p.Mother == c.Mother)
+                .TrainingUnmatchedPairs), Is.True);
 
         var demanding = CandidateJointGroupSupportAuditBuilderV9.Analyze(
             corpus, raw, holdout, 5);
