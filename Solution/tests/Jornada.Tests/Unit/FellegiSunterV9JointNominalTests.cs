@@ -439,11 +439,11 @@ public sealed class FellegiSunterV9JointNominalTests
                 .LogLikelihoodRatio, Is.EqualTo((decimal)Math.Log(4d)).Within(.00000001m));
             // Missing values from a DECLARED birth model must not silently
             // become BF=1 even when this pair has no observed birth date.
-            Assert.That((Action)(() => Score(missingM, Birth, Birth),
+            Assert.That((Action)(() => Score(missingM, Birth, Birth)),
                 Throws.InvalidOperationException);
-            Assert.That((Action)(() => Score(missingU),
+            Assert.That((Action)(() => Score(missingU)),
                 Throws.InvalidOperationException);
-            Assert.That((Action)(() => Score(invalidU, Birth, Birth),
+            Assert.That((Action)(() => Score(invalidU, Birth, Birth)),
                 Throws.InvalidOperationException);
         }));
         // Source data missing is a different situation: calibrated evidence
