@@ -8,6 +8,25 @@ using Microsoft.Data.SqlClient;
 
 const string Purpose = "DEV_HML_ONLY_NO_PUBLICATION";
 
+if (args.Length == 5 && args[0] == "--v9-physical-sql-blocking")
+{
+    if (!ulong.TryParse(args[4], out var seed) || seed is not (42UL or 43UL or 44UL))
+        throw new ArgumentException("Seed inválida.");
+    var syntheticSqlConnectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+        ?? throw new InvalidOperationException("Conexão de ensaio SQL não configurada.");
+    await using var syntheticSqlConnection = new SqlConnection(syntheticSqlConnectionString);
+    await syntheticSqlConnection.OpenAsync();
+    var result = await V9PhysicalSqlBlockingProbe.RunAsync(
+        syntheticSqlConnection, args[1], args[2], seed);
+    var syntheticSqlReportPath = Path.GetFullPath(args[3]);
+    Directory.CreateDirectory(Path.GetDirectoryName(syntheticSqlReportPath)!);
+    await File.WriteAllTextAsync(syntheticSqlReportPath,
+        JsonSerializer.Serialize(result));
+    Console.WriteLine(JsonSerializer.Serialize(result));
+    return;
+}
+
+
 // Strict offline comparison of two independently sampled reports over the SAME public marginals.
 if (args.Length == 5 && args[0] == "--compare-ibge-independent-u")
 {
