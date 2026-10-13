@@ -35,6 +35,12 @@ public sealed record CandidateWeightedJointFsHoldoutOutcomeV9(
 {
     /// <summary>Descriptive 81-cell M/U observed support; NOT a certification.</summary>
     public CandidateJointSupportAuditV9? ObservedJointSupport { get; init; }
+
+    /// <summary>
+    /// Independently grouped per-cell M/U support recomputed from the full
+    /// restricted inventory; NULL only for historical serialized outcomes.
+    /// </summary>
+    public CandidateJointGroupSupportAuditV9? IndependentJointGroupSupport { get; init; }
 }
 
 /// <summary>
@@ -146,7 +152,9 @@ public static class CandidateWeightedJointFsHoldoutPreviewV9
             positiveWeight == 0m ? null : fpWeight / positiveWeight,
             tpWeight / actualMatchWeight, GroupSensitivity())
         {
-            ObservedJointSupport = CandidateJointSupportAuditBuilderV9.Analyze(audit)
+            ObservedJointSupport = CandidateJointSupportAuditBuilderV9.Analyze(audit),
+            IndependentJointGroupSupport = CandidateJointGroupSupportAuditBuilderV9.Analyze(
+                corpus, rawEvidence, audit)
         };
 
         CandidateFsHoldoutGroupSensitivityV9 GroupSensitivity()
