@@ -70,6 +70,7 @@ public static class V9PhysicalSqlBlockingProbe
         public int ActiveRulesetPassCount { get; init; }
         public long ActiveRulesetNewCandidatePairs { get; init; }
         public V9SyntheticBaseFrequencyAudit.Report? TrainBaseFrequencyAudit { get; init; }
+        public V9BlockingTruthLossAudit.Report? TruePairLossAudit { get; init; }
         public string? BlockingAblationContract { get; init; }
         public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
     }
@@ -254,6 +255,10 @@ public static class V9PhysicalSqlBlockingProbe
         // missing candidates rather than silently conditioning recall on hits.
         var bySplit = new[] { "TRAIN", "VALIDATION", "TEST" }
             .ToDictionary(x => x, x => new Acc(x), StringComparer.Ordinal);
+        // The denominator is independently labelled BEFORE reading #v9pairs.
+        // Store no PII in the output, only ephemeral ordinals and observed
+        // comparison-state flags for aggregate breakdowns.
+        var eligibleTruthPairs = new List<V9BlockingTruthLossAudit.Pair>();
         var frame = observationRows.Where(x => x.Cpf is null && x.Birth.HasValue)
             .GroupBy(x => (x.Partition, x.Base));
         foreach (var group in frame)
@@ -261,9 +266,26 @@ public static class V9PhysicalSqlBlockingProbe
             var rows = group.ToArray();
             for (var a = 0; a < rows.Length; a++)
                 for (var b = a+1; b < rows.Length; b++)
-                    if (rows[a].Gestor != rows[b].Gestor)
-                        bySplit[group.Key.Partition].Eligible++;
+                {
+                    var left = rows[a];
+                    var right = rows[b];
+                    if (left.Gestor == right.Gestor)
+                        continue;
+                    bySplit[group.Key.Partition].Eligible++;
+                    eligibleTruthPairs.Add(new V9BlockingTruthLossAudit.Pair(
+                        Math.Min(left.Id, right.Id),
+                        Math.Max(left.Id, right.Id),
+                        group.Key.Partition,
+                        left.NameFull is null || right.NameFull is null,
+                        left.NameFull is not null && right.NameFull is not null
+                            && left.NameFull == right.NameFull,
+                        left.MotherFull is null || right.MotherFull is null,
+                        left.MotherFull is not null && right.MotherFull is not null
+                            && left.MotherFull == right.MotherFull,
+                        left.Birth == right.Birth));
+                }
         }
+        var recoveredTruePairs = new HashSet<(int A, int B)>();
         long allCandidate = 0;
         await using (var command = new SqlCommand(
             "SELECT a,b,part FROM #v9pairs ORDER BY a,b;", connection) {
@@ -283,7 +305,12 @@ public static class V9PhysicalSqlBlockingProbe
                     throw new InvalidDataException("SQL gerou par fora do frame elegível.");
                 var split = bySplit[partition];
                 var same = a.Base == b.Base;
-                if (same) split.TrueCandidate++;
+                if (same)
+                {
+                    split.TrueCandidate++;
+                    if (!recoveredTruePairs.Add((a.Id, b.Id)))
+                        throw new InvalidDataException("Censo SQL retornou M duplicado.");
+                }
                 else split.FalseCandidate++;
                 var score = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
                     frozen.Parameters, a.Name, b.Name, a.Mother, b.Mother,
@@ -298,7 +325,17 @@ public static class V9PhysicalSqlBlockingProbe
                 }
             }
         }
+        var lossAudit = V9BlockingTruthLossAudit.Analyze(
+            eligibleTruthPairs, recoveredTruePairs);
         var metrics = bySplit.Values.Select(x => x.Build()).ToArray();
+        foreach (var split in metrics)
+        {
+            var corresponding = lossAudit.Partitions.Single(x => x.Partition == split.Partition);
+            if (corresponding.EligibleTruePairs != split.EligibleTrueInterGestorNoCpfPairs
+                || corresponding.RetrievedTruePairs != split.SqlCandidateTruePairs
+                || corresponding.LostTruePairs != split.TruePairsLostBySqlBlocking)
+                throw new InvalidDataException("Decomposição M diverge do censo SQL físico.");
+        }
         // Report incremental candidate coverage and accepted-link risk for
         // 6 PRE-REGISTERED SQL alternatives. Do not add to the baseline:
         // the frozen proxy-calibrated FS model has NOT been refit on SQL.
@@ -321,6 +358,7 @@ public static class V9PhysicalSqlBlockingProbe
             ActiveRulesetPassCount = activeRules.PassCount,
             ActiveRulesetNewCandidatePairs = activeRules.NewPairs,
             TrainBaseFrequencyAudit = tfBaseAudit,
+            TruePairLossAudit = lossAudit,
             BlockingAblationContract = BlockingAblationVersion,
             PreRegisteredPassSensitivity = passSensitivity
         };

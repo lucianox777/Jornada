@@ -1150,6 +1150,7 @@ jobs:
               "PERSON_AND_MOTHER_PHONETIC_PLUS_BIRTH_EXACT")
           ablation_agg={p:dict(extra_true=0,extra_false=0,extra_tp=0,extra_fp=0) for p in ablation_names}
           ablation_by_seed=[]
+          loss_by_seed=[]
           for d in docs:
               assert d["Version"]=="V9_PHYSICAL_SQL_ACTIVE_DYNAMIC_PLUS_C1_FULL_CANDIDATE_CENSUS_V1"
               assert d["BlockingPolicy"]=="ACTIVE_LINKAGE_RULESET_SQL_UNION_COMBINED_IDENTITY_CANDIDATES_V1"
@@ -1167,6 +1168,30 @@ jobs:
               assert {(u["Side"],u["Unit"]) for u in audit["Units"]}=={(side,unit) for side in ("PERSON","MOTHER") for unit in (0,1,2,3)}
               assert [x["Partition"] for x in d["Splits"]]==["TRAIN","VALIDATION","TEST"]
               assert sum(x["SqlCandidateTruePairs"]+x["SqlCandidateFalsePairs"] for x in d["Splits"])==d["SqlCandidatePairsTotal"]
+              # All eligible M classified before SQL; missing is not disagreement.
+              loss=d["TruePairLossAudit"]
+              assert loss["Version"]=="V9_SQL_ELIGIBLE_TRUE_PAIR_LOSS_BY_OBSERVED_AGREEMENT_V1"
+              assert loss["Status"]=="DESCRIPTIVE_ONLY_NOT_GENERATOR_CAUSALITY_OR_SQL_ALIAS_PARITY"
+              assert [x["Partition"] for x in loss["Partitions"]]==["TRAIN","VALIDATION","TEST"]
+              cells=loss["Cells"]
+              states=("EXACT","DIFFERENT","MISSING")
+              assert len(cells)==54 and len({(x["Partition"],x["NameState"],x["MotherState"],x["BirthState"]) for x in cells})==54
+              assert {(x["Partition"],x["NameState"],x["MotherState"],x["BirthState"]) for x in cells}=={
+                  (part,name,mother,birth) for part in ("TRAIN","VALIDATION","TEST")
+                  for name in states for mother in states for birth in ("EXACT","DIFFERENT")}
+              for l in loss["Partitions"]:
+                  r=next(x for x in d["Splits"] if x["Partition"]==l["Partition"])
+                  bucket=[x for x in cells if x["Partition"]==l["Partition"]]
+                  for stat,field in (("EligibleTruePairs","EligibleTrueInterGestorNoCpfPairs"),
+                                     ("RetrievedTruePairs","SqlCandidateTruePairs"),
+                                     ("LostTruePairs","TruePairsLostBySqlBlocking")):
+                      assert l[stat]==r[field]==sum(x[stat] for x in bucket),(d["Seed"],l,stat)
+                  assert all(x["EligibleTruePairs"]==x["RetrievedTruePairs"]+x["LostTruePairs"] for x in bucket)
+                  triple=next(x for x in bucket if x["NameState"]==x["MotherState"]==x["BirthState"]=="DIFFERENT")
+                  assert l["SimultaneousNameMotherBirthDisagreementLost"]==triple["LostTruePairs"]
+                  assert 0<=triple["LostTruePairs"]<=l["LostTruePairs"]
+              loss_by_seed.append({"seed":d["Seed"],"test":loss["Partitions"][2],
+                  "testCells":[x for x in cells if x["Partition"]=="TEST"]})
               for r in d["Splits"]:
                   m=r["SqlCandidateTruePairs"];u=r["SqlCandidateFalsePairs"];e=r["EligibleTrueInterGestorNoCpfPairs"]
                   tp=r["AcceptedTruePairs"];fp=r["AcceptedWrongPairs"]
@@ -1242,6 +1267,9 @@ jobs:
                    "preRegisteredAblationContract":"V9_SQL_HARNESS_SIX_PASSES_V1_BASELINE_UNCHANGED",
                    "preRegisteredAblationTestBySeed":ablation_by_seed,
                    "preRegisteredAblationHypotheticalUnionDiagnostics":ablation_summary,
+                   "truePairLossDiagnosticVersion":"V9_SQL_ELIGIBLE_TRUE_PAIR_LOSS_BY_OBSERVED_AGREEMENT_V1",
+                   "truePairLossTestBySeed":loss_by_seed,
+                   "truePairLossTestTripleDifferentTotal":sum(x["test"]["SimultaneousNameMotherBirthDisagreementLost"] for x in loss_by_seed),
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))
