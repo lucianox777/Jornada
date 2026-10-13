@@ -31,6 +31,8 @@ A expressão V1 suavizava os **totais de pesos inversos de inclusão**, produzin
 2. Atestar recomputação dos **níveis V9** dos pares selecionados com o comparador congelado, sem dados pessoais no repositório/logs.
 3. Estimar suportes/ESS/incerteza por estrato, estados raros e taxas de ausência, definir redução de estados conjunta quando necessário; ampliar TRAIN/VALIDATION/TEST sem contaminação por grupos.
 4. Estimar TF em universo de **indivíduos** com unidades idênticas ao campo (nome integral ou par primeiro+último observado), com versão/população/seleção, sem produto de marginais IBGE.
-5. Conferir matemática C# × Splink externo em pares idênticos e certificar FP/FDR/recall no orçamento vigente; só então autorizar DT-15.
+5. Conferir a **matemática independente do scorer C#** com vetores governados (DT-01/09/14), certificar FP/FDR/recall no orçamento e TEST congelado antes da DT-15. O replay **externo Splink é opcional/diagnóstico** por decisão de 29/09; sua execução não é pré-condição.
 
 **Nenhuma afirmação de certificação estatística, representatividade para o runtime ou alteração de modelo ATIVO é feita neste merge.**
+
+**Tamanho da massa:** os 30.000 indivíduos do corpus sintético canônico são **default para iniciar**, não evidência numérica de suporte de cada uma das 81 células; não tratar pesos ESS e suavização como independência populacional. [Parecer de suficiência e métricas pendentes](Parecer_Suficiencia_Bootstrap_30mil_V9_20261012.md).
