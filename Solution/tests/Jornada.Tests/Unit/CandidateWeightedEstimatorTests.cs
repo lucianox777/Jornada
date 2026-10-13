@@ -943,4 +943,93 @@ public sealed class CandidateWeightedEstimatorTests
             IdentityComparison.NormalizationVersion, CandidateLabeling.FeatureVersion, "CI_PARTITION", true, Captured);
         return new CandidateLabeledCorpus(manifest, partitions, labels, evidence);
     }
+
+    [Test]
+    public async Task V9SupportAuditQuantifiesObservedJointTrainAndHoldoutCellsWithoutClaimingSufficiency()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var raw = V9RawEvidence(capture);
+        var holdout = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, raw, .5m);
+        var audit = CandidateJointSupportAuditBuilderV9.Analyze(holdout);
+        var moreDemanding = CandidateJointSupportAuditBuilderV9.Analyze(holdout, 5);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(audit.Status, Does.Contain("NOT_INDEPENDENT_CELL_OR_SQL_CERTIFICATION"));
+            Assert.That(audit.JointCellCount, Is.EqualTo(81));
+            Assert.That(audit.TrainingMatchedPairs, Is.EqualTo(4));
+            Assert.That(audit.TrainingUnmatchedPairs, Is.EqualTo(8));
+            Assert.That(audit.EvaluationMatchedPairs, Is.EqualTo(2));
+            Assert.That(audit.EvaluationUnmatchedPairs, Is.EqualTo(4));
+            Assert.That(audit.IndependentTrainingMatchedGroups, Is.GreaterThanOrEqualTo(2));
+            Assert.That(audit.TrainingCellsWithZeroMatchedPairs, Is.GreaterThan(0));
+            Assert.That(audit.TrainingCellsWithZeroUnmatchedPairs, Is.GreaterThan(0));
+            Assert.That(audit.TrainingCellsWithObservedBothClasses,
+                Is.EqualTo(holdout.Training.BothClassesObservedCells));
+            Assert.That(audit.Cells.Sum(c => c.TrainingMatchedPairs), Is.EqualTo(4));
+            Assert.That(audit.Cells.Sum(c => c.TrainingUnmatchedPairs), Is.EqualTo(8));
+            Assert.That(audit.Cells.Sum(c => c.EvaluationMatchedPairs), Is.EqualTo(2));
+            Assert.That(audit.Cells.Sum(c => c.EvaluationUnmatchedPairs), Is.EqualTo(4));
+            Assert.That(audit.TrainingMatchedWeightShareInUnsupportedCells,
+                Is.InRange(0m, 1m));
+            Assert.That(audit.EvaluationUnmatchedWeightShareInUnsupportedTrainingCells,
+                Is.InRange(0m, 1m));
+            Assert.That(moreDemanding.TrainingCellsWithObservedBothClasses, Is.Zero);
+            Assert.That(moreDemanding.EvaluationCellsWithObservedBothClasses, Is.Zero);
+            Assert.That(moreDemanding.TrainingMatchedWeightShareInUnsupportedCells, Is.EqualTo(1m));
+        }));
+
+        var score = CandidateWeightedJointFsHoldoutPreviewV9.Analyze(
+            corpus, raw, V9FsPreviewParameters(), .5m, .5m);
+        Assert.That(score.ObservedJointSupport, Is.Not.Null);
+        Assert.That(score.ObservedJointSupport!.Cells, Is.EqualTo(audit.Cells));
+        var json = System.Text.Json.JsonSerializer.Serialize(score);
+        Assert.That(json, Does.Not.Contain("SourceId"));
+        Assert.That(json, Does.Not.Contain("IndependenceGroupId"));
+        Assert.That(json, Does.Not.Contain("Maria Silva"));
+        Assert.That(json, Does.Not.Contain(Sources[0].ToString("D")));
+    }
+
+    [Test]
+    public async Task V9SupportAuditRejectsTamperedCellInventoriesAndDoesNotRefitTraining()
+    {
+        var capture = await CaptureAsync();
+        var corpus = CandidateLabeling.Validate(capture, Corpus(capture));
+        var original = V9RawEvidence(capture);
+        var changed = original.Select(e => Sources.Skip(4).Contains(e.SourceId)
+            && e.Values.LeftName == "Maria Aparecida Silva"
+            ? e with { Values = e.Values with { RightName = "Nome Diferente Santos" } }
+            : e).ToArray();
+        var first = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, original, .5m);
+        var modified = CandidateWeightedJointHoldoutAuditBuilderV9.AnalyzeFromRawEvidence(
+            corpus, changed, .5m);
+        var a = CandidateJointSupportAuditBuilderV9.Analyze(first);
+        var b = CandidateJointSupportAuditBuilderV9.Analyze(modified);
+        Assert.That(a.Cells.Select(x => (x.TrainingMatchedPairs, x.TrainingUnmatchedPairs)),
+            Is.EqualTo(b.Cells.Select(x => (x.TrainingMatchedPairs, x.TrainingUnmatchedPairs))));
+        var duplicate = first.EvaluationCells.ToArray();
+        duplicate[1] = duplicate[0];
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That((Action)(() => CandidateJointSupportAuditBuilderV9.Analyze(first, 0)),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() => CandidateJointSupportAuditBuilderV9.Analyze(
+                first with { EvaluationCells = first.EvaluationCells.Skip(1).ToArray() })),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() => CandidateJointSupportAuditBuilderV9.Analyze(
+                first with { EvaluationCells = duplicate })),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() => CandidateJointSupportAuditBuilderV9.Analyze(
+                first with { Training = first.Training with
+                    { BothClassesObservedCells = 81 } })),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() => CandidateJointSupportAuditBuilderV9.Analyze(
+                first with { MatchedEvaluation = first.MatchedEvaluation with
+                    { EvaluationPairCount = 1 } })),
+                Throws.InvalidOperationException);
+        }));
+    }
+
 }
