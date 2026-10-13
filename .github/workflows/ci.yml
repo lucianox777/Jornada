@@ -931,7 +931,8 @@ jobs:
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
             --out "$PWD/.local/e2-demographic-primary" \
             --people 30000 \
-            --seed 42
+            --seed 42 \
+            --v9-support-summary true
           python3 - <<'PY'
           import csv, hashlib, json
           from pathlib import Path
@@ -944,6 +945,28 @@ jobs:
           assert manifest["seed"]==42, manifest
           assert truth["people"]==30000==people, (truth["people"],people)
           assert truth["observations"]==observations and observations>30000, (truth["observations"],observations)
+          support=json.loads((root/"v9-joint-support.json").read_text(encoding="utf-8"))
+          assert support["Version"]=="SYNTHETIC_30K_JOINT_SUPPORT_PROXY_V1", support
+          assert support["Status"]=="OBSERVED_SYNTHETIC_PROXY_NOT_SQL_CALIBRATION"
+          assert support["People"]==people and support["Observations"]==observations
+          assert support["Seed"]==42 and support["InputFingerprint"].upper()==manifest["input_fingerprint_sha256"]
+          assert [p["Partition"] for p in support["Partitions"]]==["TRAIN","VALIDATION","TEST"]
+          assert sum(p["BasePeople"] for p in support["Partitions"])==30000
+          for partition in support["Partitions"]:
+              assert len(partition["Cells"])==81, partition["Partition"]
+              assert sum(c["MatchedPairs"] for c in partition["Cells"])==partition["MatchedPairs"]
+              assert sum(c["UnmatchedPairs"] for c in partition["Cells"])==partition["UnmatchedProxyPairs"]
+              assert partition["CellsWithoutBilateralObservation"]==sum(
+                  1 for c in partition["Cells"] if c["MatchedPairs"]==0 or c["UnmatchedPairs"]==0)
+          print("V9 30K MEASURED PROXY:", json.dumps({
+              p["Partition"]: {
+                  "groups":p["BasePeople"],
+                  "matched":p["MatchedPairs"],
+                  "unmatched_proxy":p["UnmatchedProxyPairs"],
+                  "cells_without_bilateral_observation":p["CellsWithoutBilateralObservation"],
+                  "cells_without_m":p["CellsWithoutM"],
+                  "cells_without_u":p["CellsWithoutU"]
+              } for p in support["Partitions"]},sort_keys=True))
           d=manifest["demographic_primary"]
           assert d["birth_sha256"]=="8B8498EC2ABE7DCBFAFED1D361D2A3AFAFF77CAD5BCE29A5927DA517FC236A9B", d
           assert d["birth_row_count"]==39268, d
@@ -966,6 +989,7 @@ jobs:
           path: |
             Solution/.local/e2-demographic-primary/generation-manifest.json
             Solution/.local/e2-demographic-primary/gabarito.json
+            Solution/.local/e2-demographic-primary/v9-joint-support.json
           if-no-files-found: error
           retention-days: 30
       - name: Materialize canonical blocking projection for synthetic harness

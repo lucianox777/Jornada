@@ -57,6 +57,26 @@ if (string.Equals(args[0], "generate", StringComparison.Ordinal))
         loaded.Nominal,
         loaded.InputFingerprint);
 
+    if (string.Equals(Get(values, "v9-support-summary"), "true", StringComparison.OrdinalIgnoreCase))
+    {
+        var support = SyntheticJointSupportReportV9.Build(
+            loaded.Generation.People,
+            loaded.Generation.Observations,
+            options.Seed,
+            loaded.InputFingerprint);
+        await File.WriteAllTextAsync(Path.Combine(output, "v9-joint-support.json"),
+            JsonSerializer.Serialize(support, SyntheticCorpusCliJson.Indented) + "\n");
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            support.Version,
+            support.Status,
+            support.People,
+            trainCellsWithoutBilateralObservation = support.Partitions
+                .Single(x => x.Partition == "TRAIN").CellsWithoutBilateralObservation
+        }));
+    }
+
+
     Console.WriteLine(JsonSerializer.Serialize(new
     {
         generatorVersion = SyntheticCorpusInputIdentity.GeneratorVersion,
