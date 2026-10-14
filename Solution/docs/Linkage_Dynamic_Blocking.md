@@ -1,3 +1,5 @@
+> **Decisão canônica de 14/10/2026 — Calibrador único adaptativo:** [Calibrador C# histórico, reprodução V9, snapshot inicial imutável na `ref`, bootstrap sem recalibração e calibrações posteriores somente manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). A decisão é normativa; a implementação permanece pendente na issue #1089. Documentos e números experimentais históricos não equivalem a certificação operacional.
+
 # Linkage - blocking dinâmico compartilhado
 
 **Decisão arquitetural canônica:** [Blocking complementar com referência IBGE, 27/09/2026](Decisao_Arquitetural_Blocking_Complementar_IBGE_20260927.md). **Nome completo, dinâmico e combinado são três capacidades COMPLEMENTARES de um único sistema de recuperação**, unidas e deduplicadas antes do único scorer C# Fellegi–Sunter. CPF confiável é rota determinística separada. A decisão de arquitetura está fixada; a promoção de novos passes e os parâmetros de desempenho dependem dos gates documentados. Este documento descreve o mecanismo compartilhado e não cria um terceiro executor para nome completo.
