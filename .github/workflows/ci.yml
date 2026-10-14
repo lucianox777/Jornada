@@ -1502,7 +1502,7 @@ jobs:
               # Six registered extensions: evaluate complete DISTINCT unions
               # only in TRAIN/VALIDATION, without using TEST for selection.
               union=d["TrainValidationUnionSearch"]
-              assert union["Version"]=="V9_SQL_TRAIN_VALIDATION_SIX_PASS_DEDUP_UNION_SEARCH_V1"
+              assert union["Version"]=="V9_SQL_TRAIN_VALIDATION_SIX_PASS_DEDUP_UNION_SEARCH_V2"
               assert union["Status"]=="DIAGNOSTIC_ONLY_NO_TEST_NO_POLICY_PUBLICATION"
               assert union["PartitionScope"]=="TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN"
               assert union["MayPromoteBlockingPolicy"] is False
@@ -1553,7 +1553,43 @@ jobs:
                   expected_gate=(20*c["TrainUnionM"]>=19*union["TrainEligibleM"]
                       and 20*c["ValidationUnionM"]>=19*union["ValidationEligibleM"])
                   assert c["MeetsBoth95PercentRecallFloors"] is expected_gate
+              # Deduplicated ALL-SIX union is the sharp M recall ceiling
+              # for this pre-registered six-pass family, not for unknown
+              # future rulesets. A 95% shortfall cannot be repaired just
+              # by allowing 5th/6th passes from the same family.
+              ceiling=union["AllSixRegisteredPassesCeiling"]
+              assert ceiling["Interpretation"]=="REGISTERED_SIX_PASS_FAMILY_CEILING_NOT_A_GLOBAL_BLOCKING_UPPER_BOUND"
+              assert ceiling["PassesInCeiling"]==6
+              assert union["BaselineTrainM"]<=ceiling["TrainUnionM"]<=union["TrainEligibleM"]
+              assert union["BaselineValidationM"]<=ceiling["ValidationUnionM"]<=union["ValidationEligibleM"]
+              assert union["BaselineTrainU"]<=ceiling["TrainUnionU"]
+              assert union["BaselineValidationU"]<=ceiling["ValidationUnionU"]
+              for part in ("Train","Validation"):
+                  eligible=union[part+"EligibleM"]
+                  m=ceiling[part+"UnionM"]
+                  u=ceiling[part+"UnionU"]
+                  assert m>=max(c[part+"UnionM"] for c in combos)
+                  assert u>=max(c[part+"UnionU"] for c in combos)
+                  assert m<=union["Baseline"+part+"M"]+sum(
+                      single[(p,"TRAIN" if part=="Train" else "VALIDATION")]["ExtraTruePairs"]
+                      for p in ablation_names)
+                  assert u<=union["Baseline"+part+"U"]+sum(
+                      single[(p,"TRAIN" if part=="Train" else "VALIDATION")]["ExtraFalsePairs"]
+                      for p in ablation_names)
+                  assert ceiling[part+"EligibleStillMissing"]==eligible-m
+                  assert ceiling[part+"AdditionalMNeededFor95"]==max(
+                      0, required95(eligible)-m)
+                  assert abs(D(str(ceiling[part+"Recall"]))
+                      -D(m)/D(eligible))<D("1e-23")
+              assert sum(ceiling[p+"UnionM"]+ceiling[p+"UnionU"]
+                  for p in ("Train","Validation"))<=d["CandidatePairHardCap"]
+              both95=(20*ceiling["TrainUnionM"]>=19*union["TrainEligibleM"]
+                  and 20*ceiling["ValidationUnionM"]>=19*union["ValidationEligibleM"])
+              assert ceiling["AllSixPassesMeetBoth95PercentFloors"] is both95
+              assert ceiling["AllSixPassesProve95ImpossibleWithinRegisteredPassFamily"] is (not both95)
               passing=[c for c in combos if c["MeetsBoth95PercentRecallFloors"]]
+              if not both95:
+                  assert passing==[] and union["AdvisoryBestSignatureNotPublished"] is None
               assert union["PassingUnionCount"]==len(passing)
               ranked=sorted(passing,key=lambda c:(
                   c["TrainUnionU"],c["ValidationUnionU"],
@@ -1567,7 +1603,12 @@ jobs:
                   "advisoryNotPublished":union["AdvisoryBestSignatureNotPublished"],
                   "bestTrainRecall":max(c["TrainRecallAgainstEligibleM"] for c in combos),
                   "bestValidationRecall":max(c["ValidationRecallAgainstEligibleM"] for c in combos),
-                  "mayPromote":union["MayPromoteBlockingPolicy"]})
+                  "mayPromote":union["MayPromoteBlockingPolicy"],
+                  "allSixFamilyCeilingTrainRecall":ceiling["TrainRecall"],
+                  "allSixFamilyCeilingValidationRecall":ceiling["ValidationRecall"],
+                  "allSixTrainMissingFor95":ceiling["TrainAdditionalMNeededFor95"],
+                  "allSixValidationMissingFor95":ceiling["ValidationAdditionalMNeededFor95"],
+                  "allSixFamilyCannotReach95":ceiling["AllSixPassesProve95ImpossibleWithinRegisteredPassFamily"]})
               ablation_by_seed.append({"seed":d["Seed"],"test":[a for a in alt if a["Partition"]=="TEST"]})
               t=d["Splits"][2]
               for key,field in (("eligible","EligibleTrueInterGestorNoCpfPairs"),("retrieved_true","SqlCandidateTruePairs"),("false_candidates","SqlCandidateFalsePairs"),("accepted_correct","AcceptedTruePairs"),("accepted_wrong","AcceptedWrongPairs")):
