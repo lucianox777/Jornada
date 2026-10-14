@@ -26,6 +26,16 @@ def loader():
     return v
 
 
+def demographic_reference_identity(manifest):
+    # Reuse one canonical schema; input_fingerprint_sha256 contains the
+    # generator SEED and deliberately differs for 42 vs 43/44.
+    script=Path(__file__).with_name("v9-synthetic-clean-correlated-sensitivity.py")
+    spec=importlib.util.spec_from_file_location("v9_synthetic_seed_neutral_sources",script)
+    comparator=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(comparator)
+    return comparator.demographic_reference_identity(manifest)
+
+
 def physical_frozen_cells(rows,names,base,cap):
     """Index only previously frozen cells, SQL join under deterministic cap."""
     if type(cap) is not int or not 1<=cap<=CAP_LIMIT:
@@ -92,9 +102,10 @@ def compare(source, target_report, target_manifest, target_frozen,
         raise ValueError("missing valid 42-TRAIN frozen selected plan")
     if (target_manifest.get("error_profile")!=profile
             or target_manifest.get("seed")!=seed
-            or target_manifest.get("input_fingerprint_sha256")!=source.get("source_reference_sha256")
             or target_manifest.get("error_profile_provenance")!=
-                "HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE"):
+                "HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE"
+            or source.get("seed_neutral_demographic_reference") !=
+               demographic_reference_identity(target_manifest)):
         raise ValueError("wrong profile, seed or IBGE demographic source")
     if (target_report.get("TEST_evaluated") is not False
             or target_report.get("selection_split")!="TRAIN_ONLY"
@@ -153,7 +164,12 @@ def compare(source, target_report, target_manifest, target_frozen,
     return {"version":VERSION,"seed_source":42,"seed_target":seed,
             "profile":profile,"original_source_canonical_sha256":origin["canonical_sha256"],
             "target_canonical_sha256":target_frozen["frozen_source_sha256"],
-            "ibge_reference_sha256":source["source_reference_sha256"],
+            "seed42_input_fingerprint_sha256_SEED_BOUND":
+                source["source_reference_sha256"],
+            "target_input_fingerprint_sha256_SEED_BOUND":
+                target_manifest.get("input_fingerprint_sha256"),
+            "seed_neutral_demographic_reference":
+                source["seed_neutral_demographic_reference"],
             "frozen_SOURCE_TRAIN_selected_cells":names,
             "target_fit_used_to_select_cells":False,
             "separate_target_train_and_validation_measurements":measures,
