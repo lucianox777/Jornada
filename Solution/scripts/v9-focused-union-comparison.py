@@ -20,13 +20,12 @@ def tokens(value):
 
 def key(row, cell):
     name, mother = tokens(row["nome_normalizado"]), tokens(row["nome_mae_normalizado"])
-    phon, mphon = tokens(row["nome_fonetico"]), tokens(row["nome_mae_fonetico"])
     dob = row["data_nascimento"].strip()
     if cell == "P1": parts = (row["nome_fonetico"].strip(), mother[-1] if mother else "")
     elif cell == "P2": parts = (row["nome_fonetico"].strip(), dob[:4] if len(dob) >= 4 else "")
     elif cell == "P3": parts = (name[-1] if name else "", row["nome_mae_fonetico"].strip())
-    elif cell == "P4": parts = (row["nome_fonetico"].strip(), mother[-1] if mother else "")
     elif cell == "P5": parts = (name[0][:3] if name and len(name[0]) >= 3 else "", dob)
+    elif cell == "P4": raise ValueError("P4 uses multiple maternal surnames in index")
     else: parts = tuple(row[f].strip() for f in cell)
     return parts if all(parts) else None
 
@@ -101,5 +100,5 @@ def main():
             "test_not_used_for_selection":True,
             "warning":"Canonical token splitting needs C# parity; no SQL p95, Rank/Resolve FDR or TEST certification.",
             "results":evaluate(rows)}
-    Path(a.out).write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\\n",encoding="utf-8")
+    Path(a.out).write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\n",encoding="utf-8")
 if __name__=="__main__": main()
