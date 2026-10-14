@@ -30,4 +30,39 @@ class FocusedUnionTests(unittest.TestCase):
               row("b","p","B",mother="MARIA SOUZA COSTA")]
         self.assertEqual(module.evaluate(rows)["TRAIN"]["metrics"]["P4"]["true_pairs_retrieved"],1)
 
+    def test_person_name_is_mandatory_even_when_mother_and_birth_are_present(self):
+        rows = [row("a", "p", "A", name="NÃO INFORMADO"),
+                row("b", "p", "B", name="NÃO INFORMADO")]
+        actual = module.evaluate(rows)["TRAIN"]
+        self.assertEqual(actual["all_no_cpf_true_pairs"], 1)
+        self.assertEqual(actual["name_eligible_true_pairs"], 0)
+        self.assertEqual(actual["abstaining_observations"], 2)
+        self.assertIsNone(actual["metrics"]["UNIAO_5"]["recall"])
+        self.assertEqual(actual["metrics"]["UNIAO_5"]["candidate_pairs"], 0)
+
+    def test_person_and_mother_are_eligible_even_when_birth_is_absent(self):
+        rows = [row("a", "p", "A"), row("b", "p", "B")]
+        for r in rows:
+            r["data_nascimento"] = ""
+        actual = module.evaluate(rows)["TRAIN"]
+        self.assertEqual(actual["name_eligible_true_pairs"], 1)
+        self.assertEqual(actual["metrics"]["P4"]["true_pairs_retrieved"], 1)
+        self.assertEqual(actual["metrics"]["P2"]["candidate_pairs"], 0)
+        self.assertEqual(actual["metrics"]["P5"]["candidate_pairs"], 0)
+
+    def test_sentinel_birth_not_evidence_and_cpf_route_separate(self):
+        rows = [row("a", "p", "A", mother=""), row("b", "p", "B", mother="")]
+        for r in rows:
+            r["data_nascimento"] = "1900-01-01"
+        self.assertEqual(module.evaluate(rows)["TRAIN"]["name_eligible_true_pairs"], 0)
+        rows[1]["cpf"] = "12345678909"
+        self.assertEqual(module.evaluate(rows)["TRAIN"]["observations_without_cpf"], 1)
+
+    def test_any_subset_claim_is_disclosed_on_complete_truth_denominator(self):
+        rows = [row("a", "p", "A"), row("b", "p", "B", name="")]
+        actual = module.evaluate(rows)["TRAIN"]
+        self.assertEqual(actual["all_no_cpf_true_pairs"], 1)
+        self.assertEqual(actual["name_eligible_true_pairs"], 0)
+        self.assertEqual(actual["eligibility_ceiling_over_all_truth"], 0)
+
 if __name__=="__main__": unittest.main()
