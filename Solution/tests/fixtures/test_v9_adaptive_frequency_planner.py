@@ -7,31 +7,34 @@ spec = importlib.util.spec_from_file_location("v9_adaptive", PATH)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
+def row(split, truth, name="ANA", mother="LIA", birth="2000"):
+    return {"split": split, "truth_id": truth,
+            "nome_normalizado": name, "nome_fonetico": "AN",
+            "nome_mae_normalizado": mother, "nome_mae_fonetico": "L",
+            "birth_date": birth}
+
 class AdaptivePlannerTests(unittest.TestCase):
     def test_train_only_and_deduplicated_truth(self):
-        rows = [
-            {"split":"TRAIN","truth_id":"a","person_first":"ANA","birth_date":"2000-01-01","mother_first":"LIA"},
-            {"split":"TRAIN","truth_id":"a","person_first":"ANA","birth_date":"2000-01-01","mother_first":"LIA"},
-            {"split":"TEST","truth_id":"b","person_first":"ANA","birth_date":"2000-01-01","mother_first":"LIA"},
-        ]
-        counts=module.train_counts(rows)
-        self.assertEqual(counts[("person_first","birth_date")][("ANA","2000-01-01")],1)
-        self.assertEqual(len(module.plan(rows[2],counts)),3)
+        rows = [row("TRAIN", "a"), row("TRAIN", "a"), row("TEST", "b")]
+        counts = module.train_counts(rows)
+        self.assertEqual(counts[("nome_normalizado", "birth_date")][("ANA", "2000")], 1)
+        self.assertEqual(len(module.plan(rows[2], counts)), 3)
 
     def test_missing_independent_fields_never_create_single_field_pass(self):
-        rows=[{"split":"TRAIN","truth_id":"a","person_first":"ANA"}]
-        counts=module.train_counts(rows)
-        self.assertEqual(module.plan(rows[0],counts),[])
+        rows = [row("TRAIN", "a", mother="", birth="")]
+        counts = module.train_counts(rows)
+        self.assertEqual(module.plan(rows[0], counts), [])
 
     def test_rare_joint_key_precedes_frequent(self):
-        rows=[
-            {"split":"TRAIN","truth_id":"a","person_first":"ANA","mother_first":"LIA","birth_date":"2000"},
-            {"split":"TRAIN","truth_id":"b","person_first":"ANA","mother_first":"LIA","birth_date":"2001"},
-        ]
-        counts=module.train_counts(rows)
-        selected=module.plan(rows[0],counts)
-        self.assertEqual(selected[0]["train_identity_frequency"],1)
-        self.assertEqual(selected[-1]["train_identity_frequency"],2)
+        rows = [row("TRAIN", "a", birth="2000"), row("TRAIN", "b", birth="2001")]
+        counts = module.train_counts(rows)
+        selected = module.plan(rows[0], counts)
+        self.assertEqual(selected[0]["train_identity_frequency"], 1)
+        self.assertEqual(selected[-1]["train_identity_frequency"], 2)
+
+    def test_reject_raw_only_input(self):
+        with self.assertRaisesRegex(ValueError, "canonical"):
+            module.train_counts([{"split": "TRAIN", "truth_id": "a", "person_full_raw": "ANA"}])
 
 if __name__ == "__main__":
     unittest.main()
