@@ -57,7 +57,9 @@ public static class V9NameRequiredSqlCellAudit
             if(token.Length>0 && !excluded.Contains(token))terms.Add(token);
         }
         terms.Add(components.LastContentSurname);
-        return terms.Order(StringComparer.Ordinal).ToArray();
+        return new[]{components.LastContentSurname}
+            .Concat(terms.Where(x=>x!=components.LastContentSurname).Order(StringComparer.Ordinal))
+            .ToArray();
     }
 
     public static bool Matches(string cell,Observation a,Observation b)
