@@ -1,3 +1,5 @@
+> **Decisão vigente (14/10/2026):** [Calibrador C# único adaptativo, engenharia reversa V9, calibração inicial congelada em `ref` para bootstrap e recalibrações posteriores manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). Implementação ainda em andamento na issue #1089; não confundir decisão com entrega ou ativação V9.
+
 # Priorização técnica atual — revisão 09/10/2026
 
 **Fonte:** [Manual integrado](Manual_Sistema_Consolidado_20261009.md), [Estado atual](Estado_Atual_Projeto.md), [Dívidas técnicas](Dividas_Tecnicas.md) e PRs/Actions em `master`. Este bloco atualiza a ordem das frentes DEV sem reescrever o plano histórico abaixo, que também trata de decisões sobre identidade e estatística com critérios próprios.
