@@ -53,7 +53,7 @@ for seed in (42,43,44):
     summary.append({"seed":seed,"splits":splits,"passes":ps})
 out={"version":"V9_SQL_THREE_PREFIX3_PASSES_14_UNION_V1",
      "scope":"TRAIN_VALIDATION_ONLY_TEST_BLIND",
-     "source":"SQL_SERVER_JORNA​DA_HARNESS_IBGE_DERIVED_SYNTHETIC",
+     "source":"SQL_SERVER_JORNADA_HARNESS_IBGE_DERIVED_SYNTHETIC",
      "isMunicipalRealWorldValidation":False,
      "mayPromotePolicy":False,"bySeed":summary}
 target=Path(".local/v9-sql-two-prefix3-summary.json")
