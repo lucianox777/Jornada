@@ -13,6 +13,29 @@ VERSION="V9_SYNTHETIC_CLEAN_CORRELATED_SENSITIVITY_V1"
 PROFILES=("clean","correlated")
 PARTS=("TRAIN","VALIDATION")
 
+# Seed-neutral source identity: input_fingerprint_sha256 intentionally embeds
+# generator SEED and MUST NEVER be equated across seeds 42/43/44.
+DEMOGRAPHIC_ID_KEYS=(
+    "mode","person_geography",
+    "person_source_physical_sha256","person_source_canonical_sha256",
+    "mother_first_geography",
+    "mother_first_source_physical_sha256","mother_first_source_canonical_sha256",
+    "mother_surname_geography",
+    "mother_surname_source_physical_sha256","mother_surname_source_canonical_sha256",
+    "birth_schema_version","birth_source","birth_reference_period",
+    "birth_geography","birth_sha256","birth_row_count"
+)
+
+def demographic_reference_identity(manifest):
+    source=manifest.get("demographic_primary")
+    if not isinstance(source,dict) or any(k not in source or source[k] is None
+                                           for k in DEMOGRAPHIC_ID_KEYS):
+        raise ValueError("incomplete seed-neutral demographic input references")
+    if source.get("mode")!="DEMOGRAPHIC_PRIMARY_V1":
+        raise ValueError("unsupported demographic source type")
+    return {k:source[k] for k in DEMOGRAPHIC_ID_KEYS}
+
+
 def compare(reports,manifests):
     if set(reports)!=set(PROFILES) or set(manifests)!=set(PROFILES):
         raise ValueError("both predefined profiles required, no partial comparison")
@@ -88,11 +111,15 @@ def compare(reports,manifests):
         or origin["clean"]["demographic_reference"]!=origin["correlated"]["demographic_reference"]
         or origin["clean"]["population_profile"]!=origin["correlated"]["population_profile"]):
         raise ValueError("clean and correlated use different reference or seed")
+    source_demographic=demographic_reference_identity(manifests["clean"])
+    if demographic_reference_identity(manifests["correlated"])!=source_demographic:
+        raise ValueError("different seed-neutral demographic references")
     if summaries["clean"]["canonical_sha256"]==summaries["correlated"]["canonical_sha256"]:
         raise ValueError("clean and correlated cannot reuse same corpus")
     return {
         "version":VERSION,"seed":origin["clean"]["seed"],
         "source_reference_sha256":origin["clean"]["reference_fingerprint"],
+        "seed_neutral_demographic_reference":source_demographic,
         "profiles":summaries,
         "comparison_kind":"UNPAIRED_SAME_SEED_AND_DEMOGRAPHIC_REFERENCE",
         "WARNING":"RNG branch consumption differs; neither matched persons nor real municipal error rates.",

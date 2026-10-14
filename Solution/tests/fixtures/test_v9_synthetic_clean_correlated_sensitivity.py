@@ -35,7 +35,9 @@ def fixtures():
          "seed":42,"input_fingerprint_sha256":"a"*64,
          "ruleset_version":"V2","rng_version":"XOSHIRO",
          "population_profile":"DEMOGRAPHIC_PRIMARY_V1",
-         "demographic_primary":{"person_source_physical_sha256":"b"*64}}
+         "demographic_primary":{k:("DEMOGRAPHIC_PRIMARY_V1" if k=="mode" else
+             100 if k=="birth_row_count" else "b"*64)
+             for k in m.DEMOGRAPHIC_ID_KEYS}}
     return x,y
 
 class CleanCorrelatedSensitivityTests(unittest.TestCase):
@@ -46,6 +48,8 @@ class CleanCorrelatedSensitivityTests(unittest.TestCase):
                          "UNPAIRED_SAME_SEED_AND_DEMOGRAPHIC_REFERENCE")
         self.assertFalse(result["may_promote_v9"])
         self.assertFalse(result["TEST_evaluated"])
+        self.assertEqual(result["seed_neutral_demographic_reference"],
+                         m.demographic_reference_identity(y["clean"]))
         self.assertEqual(result["profiles"]["clean"]["observed"]["TRAIN"]
                          ["TRAIN_selected_greedy_pruned"]["global_recall"],0.95)
         self.assertEqual(result["profiles"]["correlated"]["observed"]["VALIDATION"]

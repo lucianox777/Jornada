@@ -5,8 +5,10 @@ on:
       - 'Solution/scripts/v9-synthetic-corruption-impact.py'
       - 'Solution/scripts/v9-synthetic-clean-correlated-sensitivity.py'
       - 'Solution/scripts/v9-cluster-sample-size-power.py'
+      - 'Solution/scripts/v9-frozen-cross-seed-plan-transfer.py'
       - 'Solution/tests/fixtures/test_v9_synthetic_clean_correlated_sensitivity.py'
       - 'Solution/tests/fixtures/test_v9_cluster_sample_size_power.py'
+      - 'Solution/tests/fixtures/test_v9_frozen_cross_seed_plan_transfer.py'
       - 'Solution/tests/fixtures/test_v9_synthetic_corruption_impact.py'
       - 'Solution/src/Jornada.Linkage.SyntheticCorpus/SyntheticCorpusMaterializer.cs'
       - 'Solution/docs/V9_Origem_18pct_Erros_Sinteticos_20261014.md'
@@ -67,7 +69,8 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Fail-closed profile sensitivity unit tests
         run: |
-          python3 -m py_compile Solution/scripts/v9-synthetic-clean-correlated-sensitivity.py Solution/scripts/v9-cluster-sample-size-power.py
+          python3 -m py_compile Solution/scripts/v9-synthetic-clean-correlated-sensitivity.py Solution/scripts/v9-cluster-sample-size-power.py Solution/scripts/v9-frozen-cross-seed-plan-transfer.py
+          python3 -m unittest discover -s Solution/tests/fixtures -p 'test_v9_frozen_cross_seed_plan_transfer.py' -v
           python3 -m unittest discover -s Solution/tests/fixtures -p 'test_v9_cluster_sample_size_power.py' -v
           python3 -m unittest discover -s Solution/tests/fixtures -p 'test_v9_synthetic_clean_correlated_sensitivity.py' -v
       - name: Build C# generator and canonical exporter
@@ -120,6 +123,10 @@ jobs:
           if-no-files-found: error
 
   independent-seeds-43-44:
+    # The target seeds must replay seed42's frozen TRAIN-selected plan;
+    # wait only for its published immutable aggregate. Two target seeds
+    # continue independently and in parallel, without target refit.
+    needs: clean-vs-correlated-sqlite-sensitivity
     strategy:
       fail-fast: false
       matrix:
@@ -138,6 +145,15 @@ jobs:
         run: |
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.csproj
+      - name: Download seed42 frozen TRAIN plan from this SAME workflow run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p Solution/.local/v9-seed42-frozen-reference
+          gh run download "${{ github.run_id }}" --repo lucianox777/Jornada \
+            -n v9-clean-vs-correlated-seed42-mu-aggregates \
+            -D Solution/.local/v9-seed42-frozen-reference
+          test -s Solution/.local/v9-seed42-frozen-reference/v9-clean-correlated-aggregate.json
       - name: Same IBGE and 30k persons per profile; independent seed and per-base bootstrap
         working-directory: Solution
         env:
@@ -169,6 +185,10 @@ jobs:
           done
           python3 scripts/v9-synthetic-clean-correlated-sensitivity.py \
             --profile-root "$root" --out "$PWD/.local/v9-seed-${SEED}-aggregate.json"
+          python3 scripts/v9-frozen-cross-seed-plan-transfer.py \
+            --seed42-aggregate "$PWD/.local/v9-seed42-frozen-reference/v9-clean-correlated-aggregate.json" \
+            --target-profile-root "$root" --target-seed "$SEED" \
+            --out "$PWD/.local/v9-seed-${SEED}-frozen-replay-aggregate.json"
       - name: Publish only split-level M/U and identity-cluster sample-size evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -176,5 +196,6 @@ jobs:
           name: v9-synthetic-size-3seed-${{ matrix.seed }}-aggregates
           path: |
             Solution/.local/v9-seed-${{ matrix.seed }}-aggregate.json
+            Solution/.local/v9-seed-${{ matrix.seed }}-frozen-replay-aggregate.json
             Solution/.local/v9-seed-${{ matrix.seed }}-sensitivity/*/sample-size-report.json
           if-no-files-found: error
