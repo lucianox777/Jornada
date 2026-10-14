@@ -1,0 +1,24 @@
+name: v9-abcd-fast-smoke
+on:
+  pull_request:
+    paths:
+      - 'Solution/scripts/v9-abc-paired-blocking.py'
+      - 'Solution/scripts/v9-abcd-frozen-snapshot-runner.py'
+      - 'Solution/tests/fixtures/test_v9_abcd*.py'
+      - '.github/workflows/v9-abcd-fast-smoke.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  paired-blocking:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Validate 16-arm evaluator and frozen runner
+        run: |
+          python -m py_compile Solution/scripts/v9-abc-paired-blocking.py Solution/scripts/v9-abcd-frozen-snapshot-runner.py
+          python -m unittest discover -s Solution/tests/fixtures -p 'test_v9_abcd*.py' -v
