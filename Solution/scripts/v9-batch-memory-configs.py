@@ -20,7 +20,7 @@ def evaluate(rows, passes, cap):
     truth_groups = {}
     for row in rows:
         if row.get("truth_id") is not None:
-            truth_groups.setdefault(str(row["truth_id"]), []).append(str(row["id"]))
+            truth_groups.setdefault((row.get("split"), str(row["truth_id"])), []).append(str(row["id"]))
     total_truth = {
         tuple(sorted(pair))
         for group in truth_groups.values()
@@ -32,7 +32,7 @@ def evaluate(rows, passes, cap):
             key = tuple(str(row.get(f, "")).strip().upper() for f in fields)
             if not all(key):
                 continue
-            groups.setdefault(key, []).append(str(row["id"]))
+            groups.setdefault((row.get("split"), key), []).append(str(row["id"]))
         start = time.perf_counter()
         fresh = set()
         suppressed = 0
