@@ -6,18 +6,21 @@ import json
 from pathlib import Path
 
 DEFAULT_PASSES = [
-    ("person_first", "mother_first"),
-    ("person_first", "birth_date"),
-    ("mother_first", "birth_date"),
-    ("person_full_raw", "birth_date"),
-    ("mother_full_raw", "birth_date"),
-    ("person_full_raw", "mother_full_raw"),
+    ("nome_normalizado", "birth_date"),
+    ("nome_fonetico", "birth_date"),
+    ("nome_mae_normalizado", "birth_date"),
+    ("nome_mae_fonetico", "birth_date"),
+    ("nome_normalizado", "nome_mae_normalizado"),
+    ("nome_fonetico", "nome_mae_fonetico"),
 ]
 def normalized(row, fields):
-    key = tuple(str(row.get(field) or "").strip().upper() for field in fields)
+    key = tuple(str(row.get(field) or "").strip() for field in fields)
     return key if all(key) else None
 
 def train_counts(rows, passes=DEFAULT_PASSES):
+    required = {"nome_normalizado", "nome_fonetico", "nome_mae_normalizado", "nome_mae_fonetico"}
+    if any(not required.issubset(row) for row in rows):
+        raise ValueError("canonical normalized and phonetic name projections required")
     counts = {fields: collections.Counter() for fields in passes}
     identities = collections.defaultdict(list)
     for row in rows:
