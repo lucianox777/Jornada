@@ -1,0 +1,31 @@
+name: v9-sqlite-memory-diagnostic
+on:
+  pull_request:
+    paths:
+      - 'Solution/scripts/v9-sqlite-memory-cells.py'
+      - 'Solution/tests/fixtures/test_v9_sqlite_memory_cells.py'
+      - '.github/workflows/v9-sqlite-memory-diagnostic.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v9-sqlite-memory-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile versioned SQLite memory diagnostic
+        run: python -m py_compile Solution/scripts/v9-sqlite-memory-cells.py
+      - name: Hermetic indexed SQL candidate regression
+        run: python -m unittest discover -s Solution/tests/fixtures -p 'test_v9_sqlite_memory_cells.py' -v
+
+# Additional fast evidence. The existing journey-ci, SQL Server physical audit,
+# security, governance, and release branch protections remain mandatory.
