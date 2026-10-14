@@ -80,6 +80,7 @@ public static class V9PhysicalSqlBlockingProbe
         public string? BlockingAblationContract { get; init; }
         public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
         public V9SqlTrainValidationUnionSearch.Report? TrainValidationUnionSearch { get; init; }
+        public V9SqlTrainValidationUnionFanoutAudit.Report? TrainValidationUnionFanout { get; init; }
     }
 
     public static async Task<Result> RunAsync(
@@ -472,7 +473,8 @@ public static class V9PhysicalSqlBlockingProbe
             TrainSqlBaseClusterConcentrationAudit = trainClusterConcentration,
             BlockingAblationContract = BlockingAblationVersion,
             PreRegisteredPassSensitivity = passSensitivity,
-            TrainValidationUnionSearch = unionSearch.Search
+            TrainValidationUnionSearch = unionSearch.Search,
+            TrainValidationUnionFanout = unionSearch.Fanout
         };
     }
 
@@ -491,7 +493,8 @@ public static class V9PhysicalSqlBlockingProbe
     }
 
     private static async Task<(BlockingPassSensitivity[] Sensitivity,
-            V9SqlTrainValidationUnionSearch.Report Search)>
+            V9SqlTrainValidationUnionSearch.Report Search,
+            V9SqlTrainValidationUnionFanoutAudit.Report Fanout)>
         MeasurePreRegisteredPassesAsync(
             SqlConnection connection, Observation[] observations, Frozen frozen,
             IReadOnlyList<V9SqlTrainValidationUnionSearch.Pair> baseline,
@@ -621,7 +624,13 @@ public static class V9PhysicalSqlBlockingProbe
                 throw new InvalidDataException(
                     "Busca de uniões de blocking diverge da ablação SQL individual.");
         }
-        return (results.ToArray(), search);
+        var fanout = V9SqlTrainValidationUnionFanoutAudit.Analyze(
+            observations.Where(x => x.Partition is "TRAIN" or "VALIDATION")
+                .Select(x => new V9SqlTrainValidationUnionFanoutAudit.Observation(
+                    x.Id, x.Partition, x.Gestor, x.Cpf is null && x.Birth.HasValue))
+                .ToArray(),
+            baseline, extensions, search, HardPairCap);
+        return (results.ToArray(), search, fanout);
     }
 
     private sealed record ActivePass(string PassId, string[] Fields);
