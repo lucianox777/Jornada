@@ -22,8 +22,8 @@ public sealed class V9CanonicalObservationCsvExporterTests
                 "João da Silva Neto", "Maria de Souza Oliveira",
                 null, null)
         };
-        Assert.DoesNotThrow(() =>
-            V9CanonicalObservationCsvExporter.Export(writer, observations));
+        Assert.DoesNotThrow((Action)(() =>
+            V9CanonicalObservationCsvExporter.Export(writer, observations)));
         var lines = writer.ToString().TrimEnd().Split('\n');
         Assert.That(lines, Has.Length.EqualTo(3));
         Assert.That(lines[0], Is.EqualTo(V9CanonicalObservationCsvExporter.Header));
