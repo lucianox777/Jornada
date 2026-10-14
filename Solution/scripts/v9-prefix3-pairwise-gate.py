@@ -38,6 +38,40 @@ for seed in (42,43,44):
     two_field_splits=coverage["Splits"]
     assert {x["Partition"] for x in two_field_splits}=={"TRAIN","VALIDATION"}
     assert len(two_field_splits)==2
+    assert coverage["NameRequiredPolicyVersion"]==(
+        "V9_PERSON_REQUIRED_PLUS_MOTHER_OR_BIRTH_DIAGNOSTIC_V1")
+    required_splits=coverage["NameRequiredSplits"]
+    assert len(required_splits)==2
+    assert {x["Partition"] for x in required_splits}=={"TRAIN","VALIDATION"}
+    for name in required_splits:
+        part=name["Partition"]
+        two=next(x for x in two_field_splits if x["Partition"]==part)
+        cells=[x for x in availability if x["Partition"]==part]
+        allowed={"PM","PD","PMD"}
+        assert name["EligibleObservations"]==sum(
+            x["Observations"] for x in cells if x["Combination"] in allowed)
+        assert name["AbstainingObservations"]==sum(
+            x["Observations"] for x in cells if x["Combination"] not in allowed)
+        assert name["EligibleTruthM"]+name["ExcludedTruthM"]==two["AllNoCpfTruthM"]
+        assert 0<=name["EligibleTruthM"]<=two["EligibleTwoFieldTruthM"]
+        assert 0<=name["EligibleTruthMWithoutSqlBirth"]<=(
+            name["EligibleTruthM"]-name["SqlEligibleM"])
+        assert name["SqlEligibleM"]+name["SqlExcludedM"]==two["LegacySqlM"]
+        assert name["SqlEligibleU"]+name["SqlExcludedU"]==two["LegacySqlU"]
+        assert 0<=name["SqlEligibleM"]<=two["LegacySqlEligibleM"]
+        assert 0<=name["SqlEligibleU"]<=two["LegacySqlEligibleU"]
+        assert name["UnrecoveredEligibleM"]==(
+            name["EligibleTruthM"]-name["SqlEligibleM"])
+        for key,num,den in (
+            ("RecallAgainstAllNoCpfTruthM",name["SqlEligibleM"],two["AllNoCpfTruthM"]),
+            ("RecallAgainstNameEligibleTruthM",name["SqlEligibleM"],name["EligibleTruthM"]),
+            ("EligibilityCeilingAgainstAllTruthM",name["EligibleTruthM"],two["AllNoCpfTruthM"])):
+            if den==0:
+                assert name[key] is None
+            else:
+                assert abs(Decimal(str(name[key]))-Decimal(num)/Decimal(den))<Decimal("1e-12")
+        assert name["MoreMNeededFor95"]==max(
+            0,(19*name["EligibleTruthM"]+19)//20-name["SqlEligibleM"])
     for two in two_field_splits:
         part=two["Partition"]
         legacy=next(x for x in splits if x["Partition"]==part)
