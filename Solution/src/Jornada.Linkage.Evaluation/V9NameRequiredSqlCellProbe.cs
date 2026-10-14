@@ -28,6 +28,7 @@ public static class V9NameRequiredSqlCellProbe
                 gestor NVARCHAR(40) COLLATE Latin1_General_100_BIN2 NOT NULL,
                 pfull NVARCHAR(250) COLLATE Latin1_General_100_BIN2 NULL,
                 mfull NVARCHAR(250) COLLATE Latin1_General_100_BIN2 NULL,
+                pfirst NVARCHAR(120) COLLATE Latin1_General_100_BIN2 NULL,
                 pfon NVARCHAR(150) COLLATE Latin1_General_100_BIN2 NULL,
                 plast NVARCHAR(120) COLLATE Latin1_General_100_BIN2 NULL,
                 mfon NVARCHAR(150) COLLATE Latin1_General_100_BIN2 NULL,
