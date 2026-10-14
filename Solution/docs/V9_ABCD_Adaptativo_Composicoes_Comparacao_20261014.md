@@ -157,3 +157,34 @@ ela está operacionalmente homologada; U chega a
 A execução futura que reproduzir esses resultados deve
 usar a nova HEAD e registrar novo run/artifact; esta
 tabela representa a fonte acima, imutável e nomeada.
+
+
+## Complemento metodológico — adaptativo e composições com MESMO catálogo
+
+A comparação acima também revelou que TOP-3 adaptativo histórico
+só tinha acesso a seis chaves, enquanto o composto dispunha de
+19 células e múltiplos sobrenomes significativos. Não comparar
+esses 55% e 95% como se fossem resultados da mesma hipótese.
+
+O complemento `v9-adaptive-composition-sql-replay.py` agora
+executa, sobre os MESMOS conjuntos de pares obtidos por
+junções realmente indexadas SQLite, o plano adaptativo
+**por observação** para **exatamente as mesmas 19 células**
+da composição fixa. Ordena essas células por frequência de
+chave em TRAIN medida sobre **identidades-base distintas**,
+nunca por frequência de VAL/TEST, e aceita K=3,5,8,12,19
+passes por observação. Um par aparece se pelo menos uma
+das duas observações teria consultado um passe em comum.
+A hipótese é *query-side adaptive retrieval* orientada
+à raridade, **não** aprendizagem de m/u, TF ou limiar FS.
+
+A propriedade obrigatória `ADAPTIVE_COMPOSE_19_CATALOG_TOP_19`
+**=** `COMPOSE_19` (paridade exata M/U) garante que a
+redução para K menor não resulta de diferença no catálogo
+ou na implementação das chaves físicas; as soluções K menores
+devem gerar subconjuntos aninhados de candidatos M e U.
+As métricas não representam latência da consulta por origem
+porque o replay opera sobre arestas físicas já materializadas.
+Só os jobs de CI da HEAD que incorporou esse complemento
+constituirão evidência quantitativa para K=3/5/8/12/19;
+não antecipar que o adaptativo venceu a estratégia fixa.
