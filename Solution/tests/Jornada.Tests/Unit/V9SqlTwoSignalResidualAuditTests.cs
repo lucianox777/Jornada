@@ -57,10 +57,10 @@ public sealed class V9SqlTwoSignalResidualAuditTests
         var encoded=System.Text.Json.JsonSerializer.Serialize(report);
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(encoded,Does.Not.Contain("\\"PersonPhonetic\\":"));
-            Assert.That(encoded,Does.Not.Contain("\\"MotherPhonetic\\":"));
-            Assert.That(encoded,Does.Not.Contain("\\"BirthYear\\":"));
-            Assert.That(encoded,Does.Not.Contain("\\"Id\\":"));
+            Assert.That(encoded,Does.Not.Contain("\"PersonPhonetic\":"));
+            Assert.That(encoded,Does.Not.Contain("\"MotherPhonetic\":"));
+            Assert.That(encoded,Does.Not.Contain("\"BirthYear\":"));
+            Assert.That(encoded,Does.Not.Contain("\"Id\":"));
         }));
     }
 
