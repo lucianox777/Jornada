@@ -64,6 +64,17 @@ class OriginalABCDCompositionTests(unittest.TestCase):
             self.assertGreaterEqual(a["D1+E0"]["M"],a["D1"]["M"])
             self.assertGreaterEqual(a["ADAPTIVE_FREQ_TOP_3"]["M"],
                                     a["ADAPTIVE_FREQ_TOP_2"]["M"])
+            self.assertEqual(a["ADAPTIVE_COMPOSE_19_CATALOG_TOP_19"]["M"],
+                             a["COMPOSE_19"]["M"])
+            self.assertEqual(a["ADAPTIVE_COMPOSE_19_CATALOG_TOP_19"]["U"],
+                             a["COMPOSE_19"]["U"])
+            for lower, higher in ((3,5),(5,8),(8,12),(12,19)):
+                self.assertLessEqual(
+                    a[f"ADAPTIVE_COMPOSE_19_CATALOG_TOP_{lower}"]["M"],
+                    a[f"ADAPTIVE_COMPOSE_19_CATALOG_TOP_{higher}"]["M"])
+                self.assertLessEqual(
+                    a[f"ADAPTIVE_COMPOSE_19_CATALOG_TOP_{lower}"]["U"],
+                    a[f"ADAPTIVE_COMPOSE_19_CATALOG_TOP_{higher}"]["U"])
             self.assertEqual(a["COMPOSE_19"]["M"],report["results"][part]["metrics"]["UNION_EXPANDED"]["M"])
             self.assertEqual(a["COMPOSE_19"]["U"],report["results"][part]["metrics"]["UNION_EXPANDED"]["U"])
             self.assertAlmostEqual(
