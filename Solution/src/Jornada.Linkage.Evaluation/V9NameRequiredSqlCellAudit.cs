@@ -14,8 +14,11 @@ public static class V9NameRequiredSqlCellAudit
     public const string PersonPhoneticYear="PERSON_PHONETIC_BIRTH_YEAR";
     public const string PersonLastMotherPhonetic="PERSON_LAST_MOTHER_PHONETIC";
     public const string PersonPhoneticMotherAny="PERSON_PHONETIC_MOTHER_ANY";
+    public const string PersonPhoneticOnly="PERSON_PHONETIC_ONLY";
+    public const string PersonFirstAny="PERSON_FIRST_PLUS_PERSON_ANY_SURNAME";
     public static readonly string[] Order=
-        [PersonPhoneticMotherLast,PersonPhoneticYear,PersonLastMotherPhonetic,PersonPhoneticMotherAny];
+        [PersonPhoneticMotherLast,PersonPhoneticYear,PersonLastMotherPhonetic,PersonPhoneticMotherAny,
+         PersonPhoneticOnly,PersonFirstAny];
 
     public sealed record Observation(int Id,string Base,string Partition,string Gestor,
         string? Cpf,string? Person,string? Mother,DateOnly? Birth);
@@ -62,6 +65,14 @@ public static class V9NameRequiredSqlCellAudit
             .ToArray();
     }
 
+    public static string? First(string? fullName)
+    {
+        var normalized=IdentityComparison.NormalizeText(fullName);
+        if(normalized is null)return null;
+        var index=normalized.IndexOf(' ');
+        return index<0?normalized:normalized[..index];
+    }
+
     public static bool Matches(string cell,Observation a,Observation b)
     {
         var pA=MetaphoneBr.Encode(a.Person);
@@ -81,6 +92,10 @@ public static class V9NameRequiredSqlCellAudit
                 && motherPhonetic==MetaphoneBr.Encode(b.Mother),
             PersonPhoneticMotherAny=>pfon && AnySurname(a.Mother)
                 .Intersect(AnySurname(b.Mother),StringComparer.Ordinal).Any(),
+            PersonPhoneticOnly=>pfon,
+            PersonFirstAny=>pA is not null && pB is not null &&
+                First(a.Person) is { } first && first==First(b.Person) &&
+                AnySurname(a.Person).Intersect(AnySurname(b.Person),StringComparer.Ordinal).Any(),
             _=>false
         };
     }
