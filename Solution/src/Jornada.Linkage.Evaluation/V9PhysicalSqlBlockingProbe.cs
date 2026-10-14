@@ -81,6 +81,7 @@ public static class V9PhysicalSqlBlockingProbe
         public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
         public V9SqlTrainValidationUnionSearch.Report? TrainValidationUnionSearch { get; init; }
         public V9SqlTrainValidationUnionFanoutAudit.Report? TrainValidationUnionFanout { get; init; }
+        public V9SqlBirthYearPassFamilyAudit.Report? BirthYearPassFamilyTrainValidation { get; init; }
     }
 
     public static async Task<Result> RunAsync(
@@ -447,6 +448,11 @@ public static class V9PhysicalSqlBlockingProbe
             trainValidationSqlBaseline,
             bySplit["TRAIN"].Eligible, bySplit["VALIDATION"].Eligible, ct);
         var passSensitivity = unionSearch.Sensitivity;
+        // Separate four NEW birth-year tolerance pass families. Diagnostic
+        // TRAIN/VALIDATION only; TEST and current ruleset never changed.
+        var birthYearExploration = await ExploreBirthYearPassesAsync(
+            connection, observationRows, trainValidationSqlBaseline,
+            bySplit["TRAIN"].Eligible, bySplit["VALIDATION"].Eligible, ct);
         if (metrics.Any(x => x.EligibleTrueInterGestorNoCpfPairs <= 0)
             || metrics.Any(x => x.SqlCandidateTruePairs > x.EligibleTrueInterGestorNoCpfPairs))
             throw new InvalidOperationException("Gabarito ou recuperação SQL M incompatíveis.");
@@ -474,7 +480,8 @@ public static class V9PhysicalSqlBlockingProbe
             BlockingAblationContract = BlockingAblationVersion,
             PreRegisteredPassSensitivity = passSensitivity,
             TrainValidationUnionSearch = unionSearch.Search,
-            TrainValidationUnionFanout = unionSearch.Fanout
+            TrainValidationUnionFanout = unionSearch.Fanout,
+            BirthYearPassFamilyTrainValidation = birthYearExploration
         };
     }
 
@@ -631,6 +638,124 @@ public static class V9PhysicalSqlBlockingProbe
                 .ToArray(),
             baseline, extensions, search, HardPairCap);
         return (results.ToArray(), search, fanout);
+    }
+
+
+    private static async Task<V9SqlBirthYearPassFamilyAudit.Report>
+        ExploreBirthYearPassesAsync(
+            SqlConnection connection, Observation[] observations,
+            IReadOnlyList<V9SqlTrainValidationUnionSearch.Pair> baseline,
+            long trainEligibleM, long validationEligibleM,
+            CancellationToken ct)
+    {
+        // Every join is an independent, frozen, two-signal predicate.
+        // YEAR relaxation tolerates day/month edits without treating
+        // missing mother or a missing date as a neutral agreement.
+        // Four probes use the same physical SQL baseline frame. TEST is
+        // excluded in SQL, NOT merely filtered at report/ranking time.
+        (string Name, string SqlPredicate)[] proposed =
+        [
+            ("PERSON_EXACT_PLUS_BIRTH_YEAR",
+                "a.nome=b.nome AND YEAR(a.nascimento)=YEAR(b.nascimento)"),
+            ("PERSON_PHONETIC_PLUS_BIRTH_YEAR",
+                "a.nome_fon=b.nome_fon AND YEAR(a.nascimento)=YEAR(b.nascimento)"),
+            ("MOTHER_EXACT_PLUS_BIRTH_YEAR",
+                "a.mae=b.mae AND YEAR(a.nascimento)=YEAR(b.nascimento)"),
+            ("PERSON_AND_MOTHER_PHONETIC_ANY_BIRTH",
+                "a.nome_fon=b.nome_fon AND a.mae_fon=b.mae_fon")
+        ];
+        await using (var create = new SqlCommand(
+            """
+            CREATE TABLE #v9year(
+                a INT NOT NULL, b INT NOT NULL,
+                part VARCHAR(12) COLLATE Latin1_General_100_BIN2 NOT NULL,
+                PRIMARY KEY CLUSTERED(a,b)
+            );
+            """, connection) { CommandTimeout = 90 })
+            await create.ExecuteNonQueryAsync(ct);
+
+        var extensions = new List<V9SqlBirthYearPassFamilyAudit.Pass>(proposed.Length);
+        foreach (var pass in proposed)
+        {
+            // Frozen SQL predicates, never user-supplied. The existing
+            // IX_v9_person_birth, IX_v9_personfon_birth and
+            // IX_v9_mother_birth indexes support equality anchors.
+            await using (var insert = new SqlCommand($"""
+                INSERT INTO #v9year(a,b,part)
+                SELECT DISTINCT a.obs_id,b.obs_id,a.part
+                FROM #v9obs a JOIN #v9obs b
+                  ON a.part=b.part AND a.obs_id<b.obs_id
+                 AND {pass.SqlPredicate}
+                WHERE a.part IN ('TRAIN','VALIDATION')
+                  AND a.cpf IS NULL AND b.cpf IS NULL
+                  AND a.gestor<>b.gestor
+                  AND a.nascimento IS NOT NULL AND b.nascimento IS NOT NULL
+                  AND NOT EXISTS (
+                    SELECT 1 FROM #v9pairs current_pairs
+                    WHERE current_pairs.a=a.obs_id
+                      AND current_pairs.b=b.obs_id);
+                """, connection) { CommandTimeout = 600 })
+                await insert.ExecuteNonQueryAsync(ct);
+            long sqlCount;
+            await using (var count = new SqlCommand(
+                "SELECT COUNT_BIG(*) FROM #v9year;", connection) { CommandTimeout = 90 })
+                sqlCount = (long)(await count.ExecuteScalarAsync(ct) ?? -1L);
+            if (sqlCount < 0 || sqlCount > HardPairCap)
+                throw new InvalidOperationException(
+                    "Nova família SQL excedeu cap; não amostrar, truncar ou ativar.");
+            var pairSet = new List<V9SqlBirthYearPassFamilyAudit.Pair>();
+            await using (var cmd = new SqlCommand(
+                "SELECT a,b,part FROM #v9year ORDER BY a,b;", connection)
+                { CommandTimeout = 600 })
+            await using (var reader = await cmd.ExecuteReaderAsync(ct))
+            {
+                while (await reader.ReadAsync(ct))
+                {
+                    if (pairSet.Count >= HardPairCap)
+                        throw new InvalidOperationException(
+                            "Nova família SQL excedeu limite de leitura.");
+                    var a = observations[reader.GetInt32(0)];
+                    var b = observations[reader.GetInt32(1)];
+                    var part = reader.GetString(2);
+                    if (part is not ("TRAIN" or "VALIDATION")
+                        || a.Partition != part || b.Partition != part
+                        || a.Gestor == b.Gestor || a.Cpf is not null || b.Cpf is not null
+                        || !a.Birth.HasValue || !b.Birth.HasValue)
+                        throw new InvalidDataException(
+                            "Passe relaxado gerou par fora do frame SQL TRAIN/VALIDATION.");
+                    pairSet.Add(new V9SqlBirthYearPassFamilyAudit.Pair(
+                        a.Id,b.Id,part,a.Base==b.Base));
+                }
+            }
+            if (pairSet.Count != sqlCount)
+                throw new InvalidDataException("Nova família SQL perdeu candidatos.");
+            extensions.Add(new V9SqlBirthYearPassFamilyAudit.Pass(
+                pass.Name, pairSet));
+            await using var clear = new SqlCommand(
+                "TRUNCATE TABLE #v9year;", connection);
+            await clear.ExecuteNonQueryAsync(ct);
+        }
+
+        var report = V9SqlBirthYearPassFamilyAudit.Analyze(
+            observations.Where(x => x.Partition is "TRAIN" or "VALIDATION")
+                .Select(x => new V9SqlBirthYearPassFamilyAudit.Observation(
+                    x.Id,x.Partition,x.Gestor,x.Cpf is null && x.Birth.HasValue))
+                .ToArray(),
+            baseline.Select(x => new V9SqlBirthYearPassFamilyAudit.Pair(
+                x.A,x.B,x.Partition,x.IsReferenceMatch)).ToArray(),
+            extensions,trainEligibleM,validationEligibleM,HardPairCap);
+        // One new pass's SQL count must equal its own aggregate incremental
+        // M+U across TRAIN/VALIDATION. Prevent silent candidate filtering.
+        foreach (var extension in extensions)
+        {
+            var actual = report.Splits
+                .Where(x => x.PassId == extension.PassId)
+                .Sum(x => x.ExtraM + x.ExtraU);
+            if (actual != extension.ExtraPairs.Count)
+                throw new InvalidDataException(
+                    "Nova família SQL não conciliou a leitura completa de pares.");
+        }
+        return report;
     }
 
     private sealed record ActivePass(string PassId, string[] Fields);

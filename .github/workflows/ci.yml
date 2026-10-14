@@ -1152,6 +1152,7 @@ jobs:
           ablation_by_seed=[]
           union_search_by_seed=[]
           union_fanout_by_seed=[]
+          birth_year_family_by_seed=[]
           loss_by_seed=[]
           parity_by_seed=[]
           sql_support_by_seed=[]
@@ -1677,6 +1678,78 @@ jobs:
                       k:v for k,v in frame[(advisory,"VALIDATION")].items()
                       if k not in ("CandidateDegreeHistogram","FalseDegreeHistogram")},
                   "mayPromote":union_fanout["MayPromoteBlockingPolicy"]})
+              # Four new SQL predicates (not the prior six). All new probes
+              # are physically read from #v9obs and NOT from TEST, and are
+              # measured against exactly the same ACTIVE+C1 baseline.
+              year=d["BirthYearPassFamilyTrainValidation"]
+              assert year["Version"]=="V9_SQL_NEW_BIRTH_YEAR_FAMILY_TRAIN_VALIDATION_V1"
+              assert year["Status"]=="EXPLORATORY_SQL_NO_TEST_NO_SELECTION_NO_OPERATIONAL_GATE"
+              assert year["Frame"]=="TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN"
+              assert year["CanSelectOrPromotePolicy"] is False
+              assert year["PassCount"]==4 and year["PerPassSplitCount"]==8
+              names={"PERSON_EXACT_PLUS_BIRTH_YEAR",
+                     "PERSON_PHONETIC_PLUS_BIRTH_YEAR",
+                     "MOTHER_EXACT_PLUS_BIRTH_YEAR",
+                     "PERSON_AND_MOTHER_PHONETIC_ANY_BIRTH"}
+              items=year["Splits"];ceil=year["AllFourUnionCeiling"]
+              assert len(items)==8 and len(ceil)==2
+              assert {(r["PassId"],r["Partition"]) for r in items}=={
+                  (name,part) for name in names for part in ("TRAIN","VALIDATION")}
+              assert {r["Partition"] for r in ceil}=={"TRAIN","VALIDATION"}
+              for r in items+ceil:
+                  part=r["Partition"]
+                  assert part in ("TRAIN","VALIDATION")
+                  original=next(v for v in d["Splits"] if v["Partition"]==part)
+                  assert r["EligibleTrueM"]==original["EligibleTrueInterGestorNoCpfPairs"]
+                  assert r["BaselineM"]==original["SqlCandidateTruePairs"]
+                  assert r["BaselineU"]==original["SqlCandidateFalsePairs"]
+                  assert r["ExtraM"]>=0 and r["ExtraU"]>=0
+                  assert r["UnionM"]==r["BaselineM"]+r["ExtraM"]<=r["EligibleTrueM"]
+                  assert r["UnionU"]==r["BaselineU"]+r["ExtraU"]
+                  assert r["UnionM"]+r["UnionU"]<=d["CandidatePairHardCap"]
+                  assert abs(D(str(r["RecallAgainstAllEligibleM"]))
+                      -D(r["UnionM"])/D(r["EligibleTrueM"]))<D("1e-23")
+                  n=r["EligibleObservations"]
+                  assert n>0
+                  def validate(hist,total):
+                      assert hist and [x["Degree"] for x in hist]==sorted(set(x["Degree"] for x in hist))
+                      assert all(x["Degree"]>=0 and x["Observations"]>0 for x in hist)
+                      assert sum(x["Observations"] for x in hist)==n
+                      assert sum(x["Degree"]*x["Observations"] for x in hist)==total
+                      def nearest(percentile):
+                          wanted=(n*percentile+99)//100
+                          acc=0
+                          for x in hist:
+                              acc+=x["Observations"]
+                              if acc>=wanted: return x["Degree"]
+                          raise AssertionError("missing percentile")
+                      return nearest
+                  total=validate(r["TotalDegreeHistogram"],2*(r["UnionM"]+r["UnionU"]))
+                  false=validate(r["FalseDegreeHistogram"],2*r["UnionU"])
+                  zero=next((x["Observations"] for x in r["TotalDegreeHistogram"] if x["Degree"]==0),0)
+                  assert r["ObservationsWithoutCandidates"]==zero
+                  assert r["P95TotalCandidates"]==total(95)
+                  assert r["P99TotalCandidates"]==total(99)
+                  assert r["MaxTotalCandidates"]==r["TotalDegreeHistogram"][-1]["Degree"]
+                  assert r["P95FalseCandidates"]==false(95)
+                  assert r["P99FalseCandidates"]==false(99)
+                  assert r["MaxFalseCandidates"]==r["FalseDegreeHistogram"][-1]["Degree"]
+              for r in items:
+                  upper=next(x for x in ceil if x["Partition"]==r["Partition"])
+                  assert r["UnionM"]<=upper["UnionM"] and r["UnionU"]<=upper["UnionU"]
+              birth_year_family_by_seed.append({
+                  "seed":d["Seed"],"canSelect":year["CanSelectOrPromotePolicy"],
+                  "passes":[{
+                      "passId":row["PassId"],"partition":row["Partition"],
+                      "extraM":row["ExtraM"],"extraU":row["ExtraU"],
+                      "recall":row["RecallAgainstAllEligibleM"],
+                      "p95":row["P95TotalCandidates"],"p99":row["P99TotalCandidates"]
+                  } for row in items],
+                  "allFourCeiling":[{
+                      k:row[k] for k in ("Partition","EligibleTrueM","BaselineM",
+                      "ExtraM","ExtraU","UnionM","UnionU",
+                      "RecallAgainstAllEligibleM","P95TotalCandidates","P99TotalCandidates")
+                  } for row in ceil]})
               ablation_by_seed.append({"seed":d["Seed"],"test":[a for a in alt if a["Partition"]=="TEST"]})
               t=d["Splits"][2]
               for key,field in (("eligible","EligibleTrueInterGestorNoCpfPairs"),("retrieved_true","SqlCandidateTruePairs"),("false_candidates","SqlCandidateFalsePairs"),("accepted_correct","AcceptedTruePairs"),("accepted_wrong","AcceptedWrongPairs")):
@@ -1726,6 +1799,8 @@ jobs:
                    "trainValidationSqlSixPassUnionSearchBySeed":union_search_by_seed,
                    "trainValidationSqlSixPassUnionSearchDiagnosticOnly":True,
                    "trainValidationSql56UnionZeroInclusiveFanoutBySeed":union_fanout_by_seed,
+                   "newSqlBirthYearFourPassesBySeed":birth_year_family_by_seed,
+                   "newSqlBirthYearFourPassesDiagnosticOnly":True,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))
