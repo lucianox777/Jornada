@@ -17,10 +17,15 @@ def load(path):
 def evaluate(rows, passes, cap):
     seen = set()
     results = []
-    total_truth = set()
-    for a, b in itertools.combinations(rows, 2):
-        if a.get("truth_id") is not None and a.get("truth_id") == b.get("truth_id"):
-            total_truth.add(tuple(sorted((str(a["id"]), str(b["id"])))))
+    truth_groups = {}
+    for row in rows:
+        if row.get("truth_id") is not None:
+            truth_groups.setdefault(str(row["truth_id"]), []).append(str(row["id"]))
+    total_truth = {
+        tuple(sorted(pair))
+        for group in truth_groups.values()
+        for pair in itertools.combinations(group, 2)
+    }
     for fields in passes:
         groups = {}
         for row in rows:
