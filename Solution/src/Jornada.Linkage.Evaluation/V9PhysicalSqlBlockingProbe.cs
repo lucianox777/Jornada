@@ -461,7 +461,9 @@ public static class V9PhysicalSqlBlockingProbe
                 .ToArray(),
             trainValidationSqlBaseline, unionSearch.Extensions,
             birthYearExploration.Extensions, eligibleTruthPairs,
-            unionSearch.Search, birthYearExploration.Report, HardPairCap);
+            unionSearch.Search, birthYearExploration.Report, HardPairCap,
+            observationRows.Where(x=>x.Partition is "TRAIN" or "VALIDATION")
+                .ToDictionary(x=>x.Id,x=>x.Base),seed,fingerprint);
         if (metrics.Any(x => x.EligibleTrueInterGestorNoCpfPairs <= 0)
             || metrics.Any(x => x.SqlCandidateTruePairs > x.EligibleTrueInterGestorNoCpfPairs))
             throw new InvalidOperationException("Gabarito ou recuperação SQL M incompatíveis.");
