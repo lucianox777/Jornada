@@ -42,7 +42,7 @@ def evaluate(rows):
         for i, left in enumerate(subset):
             for j in range(i + 1, len(subset)):
                 right = subset[j]
-                if left["gestor"] != right["gestor"] and not (left["cpf"] and right["cpf"]):
+                if left["gestor"] != right["gestor"] and not (left["cpf"] or right["cpf"]):
                     eligible.add((i, j))
         truth = {pair for pair in eligible if subset[pair[0]]["base_person_id"] == subset[pair[1]]["base_person_id"]}
         variants = {}
