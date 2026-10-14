@@ -207,7 +207,6 @@ public static class V9PhysicalSqlBlockingProbe
             -- E0: equality on canonical normalized person, mother and valid birth date.
             -- SQL NULL equality excludes incomplete records; other passes remain available.
             CREATE INDEX IX_v9_e0_exact_demographics ON #v9obs(part,nome,mae,nascimento) INCLUDE (gestor,cpf);
-            CREATE INDEX IX_v9_name ON #v9obs(part,nome,mae,nascimento);
             CREATE INDEX IX_v9_namefon ON #v9obs(part,nome_fon,mae,nascimento);
             CREATE INDEX IX_v9_maefon ON #v9obs(part,nome,mae_fon,nascimento);
 
