@@ -13,6 +13,10 @@ public sealed class AdaptiveCalibrationModelSearchTests
     private static readonly string TrainGroups = new('f', 64);
     private static readonly string ValGroups = new('1', 64);
 
+    private static void AssertThrows<TException>(NUnit.Framework.TestDelegate action)
+        where TException : Exception
+        => Assert.Throws<TException>(action);
+
     private sealed class FakeAdapter(
         string family, long tp, long fp, bool wrongTrain = false)
         : IAdaptiveCalibrationFamilyAdapter
@@ -109,29 +113,29 @@ public sealed class AdaptiveCalibrationModelSearchTests
             new FakeAdapter("FAMILY_FS_V9", 980, 2),
             new FakeAdapter("FAMILY_FUTURE", 960, 2)
         };
-        Assert.Throws<InvalidOperationException>(() =>
+        AssertThrows<InvalidOperationException>(() =>
             AdaptiveCalibrationModelSearch.Evaluate(Request(manual: false), adapters));
         var request = Request();
         var invalid = request with {
             Validation = request.Validation with { UsesTestLabels = true }
         };
-        Assert.Throws<InvalidDataException>(() =>
+        AssertThrows<InvalidDataException>(() =>
             AdaptiveCalibrationModelSearch.Evaluate(invalid, adapters));
         invalid = request with {
             Validation = request.Validation with { IndependentIdentityPartitionFingerprintSha256 = TrainGroups }
         };
-        Assert.Throws<InvalidDataException>(() =>
+        AssertThrows<InvalidDataException>(() =>
             AdaptiveCalibrationModelSearch.Evaluate(invalid, adapters));
     }
 
     [Test]
     public void Unknown_Or_Version_Mismatched_Family_Fails_Closed()
     {
-        Assert.Throws<InvalidOperationException>(() =>
+        AssertThrows<InvalidOperationException>(() =>
             AdaptiveCalibrationModelSearch.Evaluate(Request(), [
                 new FakeAdapter("FAMILY_FS_V9", 980, 2)
             ]));
-        Assert.Throws<ArgumentException>(() =>
+        AssertThrows<ArgumentException>(() =>
             AdaptiveCalibrationModelSearch.Evaluate(Request(), [
                 new FakeAdapter("FAMILY_FS_V9", 980, 2),
                 new FakeAdapter("FAMILY_FS_V9", 970, 2),
@@ -142,7 +146,7 @@ public sealed class AdaptiveCalibrationModelSearchTests
     [Test]
     public void Forged_Source_Fingerprint_Is_Not_Allowed_As_A_Train_Fit()
     {
-        Assert.Throws<InvalidDataException>(() =>
+        AssertThrows<InvalidDataException>(() =>
             AdaptiveCalibrationModelSearch.Evaluate(Request(Budget()), [
                 new FakeAdapter("FAMILY_FS_V9", 980, 2, wrongTrain: true),
                 new FakeAdapter("FAMILY_FUTURE", 980, 2)
@@ -153,7 +157,7 @@ public sealed class AdaptiveCalibrationModelSearchTests
     public void Unsafe_Budget_Must_Not_Be_Loosened_Silently()
     {
         var request = Request(Budget() with { MaximumObservedAcceptedFdrPoint = 0.2 });
-        Assert.Throws<InvalidDataException>(() =>
+        AssertThrows<InvalidDataException>(() =>
             AdaptiveCalibrationModelSearch.Evaluate(request, [
                 new FakeAdapter("FAMILY_FS_V9", 980, 2),
                 new FakeAdapter("FAMILY_FUTURE", 980, 2)
