@@ -26,6 +26,8 @@ public static class V9NameRequiredSqlCellProbe
                 obs_id INT NOT NULL PRIMARY KEY,
                 part VARCHAR(12) COLLATE Latin1_General_100_BIN2 NOT NULL,
                 gestor NVARCHAR(40) COLLATE Latin1_General_100_BIN2 NOT NULL,
+                pfull NVARCHAR(250) COLLATE Latin1_General_100_BIN2 NULL,
+                mfull NVARCHAR(250) COLLATE Latin1_General_100_BIN2 NULL,
                 pfon NVARCHAR(150) COLLATE Latin1_General_100_BIN2 NULL,
                 plast NVARCHAR(120) COLLATE Latin1_General_100_BIN2 NULL,
                 mfon NVARCHAR(150) COLLATE Latin1_General_100_BIN2 NULL,
@@ -42,6 +44,7 @@ public static class V9NameRequiredSqlCellProbe
         var obsTable=new DataTable();
         foreach(var (name,kind) in new (string,Type)[]{
             ("obs_id",typeof(int)),("part",typeof(string)),("gestor",typeof(string)),
+            ("pfull",typeof(string)),("mfull",typeof(string)),
             ("pfon",typeof(string)),("plast",typeof(string)),("mfon",typeof(string)),
             ("mlast",typeof(string)),("birthyear",typeof(int))})
             obsTable.Columns.Add(name,kind);
@@ -63,7 +66,10 @@ public static class V9NameRequiredSqlCellProbe
             if(pfon is null || pfon.Length>150 || (mfon?.Length??0)>150
                 || (plast?.Length??0)>120 || (mlast?.Length??0)>120)
                 throw new InvalidDataException("Comprimento de chave SQL inválido; não truncar.");
-            obsTable.Rows.Add(x.Id,x.Partition,x.Gestor,(object?)pfon??DBNull.Value,
+            obsTable.Rows.Add(x.Id,x.Partition,x.Gestor,
+                (object?)IdentityComparison.NormalizeText(x.Person)??DBNull.Value,
+                (object?)IdentityComparison.NormalizeText(x.Mother)??DBNull.Value,
+                (object?)pfon??DBNull.Value,
                 (object?)plast??DBNull.Value,(object?)mfon??DBNull.Value,
                 (object?)mlast??DBNull.Value,(object?)year??DBNull.Value);
             foreach(var surname in V9NameRequiredSqlCellAudit.AnySurname(x.Mother))
@@ -88,13 +94,15 @@ public static class V9NameRequiredSqlCellProbe
             SELECT COUNT_BIG(*) FROM #v9cellobs c
             LEFT JOIN #v9obs o ON c.obs_id=o.obs_id
             WHERE o.obs_id IS NULL
+               OR ISNULL(c.pfull,N'~')<>ISNULL(o.nome,N'~')
+               OR ISNULL(c.mfull,N'~')<>ISNULL(o.mae,N'~')
                OR ISNULL(c.pfon,N'~')<>ISNULL(o.nome_fon,N'~')
                OR ISNULL(c.mfon,N'~')<>ISNULL(o.mae_fon,N'~');
             """,connection))
         {
             var mismatches=Convert.ToInt64(await parity.ExecuteScalarAsync(ct));
             if(mismatches!=0)throw new InvalidDataException(
-                "MetaphoneBR indexado não coincide com a projeção C# canonical.");
+                "Índice normalizado/MetaphoneBR difere das chaves canônicas C# existentes.");
         }
         await using(var ix=new SqlCommand("""
             CREATE INDEX IX_v9cell_pfon_mlast ON #v9cellobs(part,pfon,mlast);
