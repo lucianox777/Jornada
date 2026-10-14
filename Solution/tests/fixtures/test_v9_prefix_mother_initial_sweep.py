@@ -36,13 +36,15 @@ def corpus():
 
 
 class PrefixMotherInitialSweepTests(unittest.TestCase):
-    def test_28_hypotheses_are_preregistered_and_include_one_character(self):
+    def test_34_hypotheses_are_preregistered_and_include_one_character(self):
         vs=v.variants()
-        self.assertEqual(len(vs),28)
+        self.assertEqual(len(vs),34)
         self.assertIn("P1_M1_YEAR_MONTH",vs)
         self.assertIn("P4_M1_DOB",vs)
         self.assertIn("P3_M1_MONTH_DAY",vs)
         self.assertIn("P3_M3_YEAR_MONTH",vs)
+        self.assertIn("P_PHON_M1_NO_DOB",vs)
+        self.assertIn("P_FULL_M1_NO_DOB",vs)
 
     def test_shorter_P_prefix_recovers_both_errors_without_dob_day_or_full_mother(self):
         r=v.evaluate(corpus())
@@ -61,6 +63,19 @@ class PrefixMotherInitialSweepTests(unittest.TestCase):
         self.assertFalse(r["TEST_evaluated"])
         self.assertNotIn("ALICE SILVA",json.dumps(r))
         self.assertNotIn('"a"',json.dumps(r))
+
+    def test_mother_initial_preserves_PM_when_birth_is_completely_missing(self):
+        rows=corpus()
+        for r in rows:
+            if r["base_person_id"] in ("p","v"):
+                r["data_nascimento"]=""
+        res=v.evaluate(rows)
+        train=res["results"]["TRAIN"]["variants"]
+        self.assertEqual(train["P2_M1_NO_DOB"]["M"],1)
+        self.assertEqual(train["P2_M1_YEAR_MONTH"]["M"],0)
+        self.assertEqual(train["P2_DOB"]["M"],1)  # separate PD base remains
+        self.assertEqual(train["P_FULL_M1_NO_DOB"]["M"],0)
+        self.assertEqual(res["results"]["TRAIN"]["all_no_cpf_truth_M"],2)
 
     def test_cap_is_recorded_as_unmeasured_not_truncated(self):
         rows=corpus()
