@@ -33,11 +33,26 @@ public static class V9TwoFieldSqlCoverageAudit
         decimal? TwoFieldEligibilityCeilingAgainstAllTruthM,
         long AdditionalEligibleMNeededFor95);
 
+    public sealed record NameRequiredSplit(
+        string Partition, long EligibleObservations, long AbstainingObservations,
+        long EligibleTruthM, long ExcludedTruthM, long EligibleTruthMWithoutSqlBirth,
+        long SqlEligibleM, long SqlEligibleU,
+        long SqlExcludedM, long SqlExcludedU, long UnrecoveredEligibleM,
+        decimal? RecallAgainstAllNoCpfTruthM,
+        decimal? RecallAgainstNameEligibleTruthM,
+        decimal? EligibilityCeilingAgainstAllTruthM, long MoreMNeededFor95);
+
     public sealed record Report(
         string Version, string Status, string Scope,
         bool MayPromoteModelOrBlockingPolicy, bool FdrMeasured,
         IReadOnlyList<Availability> AvailabilityByCombination,
-        IReadOnlyList<Split> Splits);
+        IReadOnlyList<Split> Splits)
+    {
+        public string NameRequiredPolicyVersion { get; init; } =
+            V9MinimumEvidenceEligibility.PersonRequiredVersion;
+        public IReadOnlyList<NameRequiredSplit> NameRequiredSplits { get; init; } =
+            Array.Empty<NameRequiredSplit>();
+    }
 
     public static Report Analyze(
         IReadOnlyList<Observation> observations,
@@ -51,6 +66,7 @@ public static class V9TwoFieldSqlCoverageAudit
 
         var all = new Dictionary<int, Observation>();
         var evidence = new Dictionary<int, V9MinimumEvidenceEligibility.Result>();
+        var nameRequired = new Dictionary<int, bool>();
         foreach (var row in observations)
         {
             ArgumentNullException.ThrowIfNull(row);
@@ -60,9 +76,12 @@ public static class V9TwoFieldSqlCoverageAudit
                 || !all.TryAdd(row.Id, row))
                 throw new InvalidDataException("Observação duplicada, inválida ou vazamento TEST.");
 
+            var date = row.Birth?.ToDateTime(TimeOnly.MinValue);
             evidence.Add(row.Id, V9MinimumEvidenceEligibility.Evaluate(
-                row.Person, row.Mother,
-                row.Birth?.ToDateTime(TimeOnly.MinValue)));
+                row.Person, row.Mother, date));
+            nameRequired.Add(row.Id,
+                V9MinimumEvidenceEligibility.EvaluatePersonRequired(
+                    row.Person, row.Mother, date).Eligible);
         }
 
         var noCpf = all.Values.Where(x => x.Cpf is null).ToArray();
@@ -79,9 +98,11 @@ public static class V9TwoFieldSqlCoverageAudit
         // Build independent ground truth BEFORE considering SQL candidates;
         // truth M includes all no-CPF observations, even those lacking DOB.
         var eligibleTruth = new HashSet<(int, int)>();
-        var truthCount = new Dictionary<string, (long All, long Eligible, long NoDob)>(
-            StringComparer.Ordinal) { ["TRAIN"] = (0, 0, 0),
-                                     ["VALIDATION"] = (0, 0, 0) };
+        var truthCount = new Dictionary<string,
+            (long All, long Eligible, long NoDob,
+             long NameEligible, long NameNoDob)>(
+            StringComparer.Ordinal) { ["TRAIN"] = (0, 0, 0, 0, 0),
+                                     ["VALIDATION"] = (0, 0, 0, 0, 0) };
         foreach (var group in noCpf.GroupBy(x => (x.Partition, x.Base)))
         {
             var rows = group.ToArray();
@@ -97,16 +118,24 @@ public static class V9TwoFieldSqlCoverageAudit
                 if (evidence[a.Id].Eligible && evidence[b.Id].Eligible)
                 {
                     checked { old.Eligible++; }
-                    if (!V9MinimumEvidenceEligibility.HasBirth(
-                            a.Birth?.ToDateTime(TimeOnly.MinValue))
-                        || !V9MinimumEvidenceEligibility.HasBirth(
-                            b.Birth?.ToDateTime(TimeOnly.MinValue)))
+                    // Only a PHYSICALLY ABSENT DOB makes the existing SQL
+                    // frame unrecoverable. Sentinels are not valid evidence,
+                    // but the old SQL can still return those dated rows.
+                    if (!a.Birth.HasValue || !b.Birth.HasValue)
                     {
                         checked { old.NoDob++; }
                     }
                     if (!eligibleTruth.Add((Math.Min(a.Id, b.Id),
                                             Math.Max(a.Id, b.Id))))
                         throw new InvalidDataException("Gabarito M duplicado.");
+                }
+                if (nameRequired[a.Id] && nameRequired[b.Id])
+                {
+                    checked { old.NameEligible++; }
+                    if (!a.Birth.HasValue || !b.Birth.HasValue)
+                    {
+                        checked { old.NameNoDob++; }
+                    }
                 }
                 truthCount[group.Key.Partition] = old;
             }
@@ -141,18 +170,22 @@ public static class V9TwoFieldSqlCoverageAudit
         }
 
         var result = new List<Split>(2);
+        var nameResult = new List<NameRequiredSplit>(2);
         foreach (var part in new[] { "TRAIN", "VALIDATION" })
         {
             var observationsInSplit = noCpf.Where(x => x.Partition == part).ToArray();
             var eligibleObs = observationsInSplit.LongCount(x => evidence[x.Id].Eligible);
             var t = truthCount[part];
             long m = 0, u = 0, eligibleM = 0, eligibleU = 0;
+            long nameM = 0, nameU = 0;
             foreach (var pair in sql.Values.Where(x => x.Partition == part))
             {
                 var bothEligible = evidence[pair.A].Eligible && evidence[pair.B].Eligible;
+                var bothNameRequired = nameRequired[pair.A] && nameRequired[pair.B];
                 if (pair.Match)
                 {
                     m++;
+                    if (bothNameRequired) nameM++;
                     if (bothEligible)
                     {
                         eligibleM++;
@@ -163,21 +196,24 @@ public static class V9TwoFieldSqlCoverageAudit
                 else
                 {
                     u++;
+                    if (bothNameRequired) nameU++;
                     if (bothEligible) eligibleU++;
                 }
             }
             if (eligibleM > t.Eligible || m > t.All
-                || t.NoDob > t.Eligible || eligibleObs > observationsInSplit.Length)
+                || t.NoDob > t.Eligible || eligibleObs > observationsInSplit.Length
+                || nameM > t.NameEligible || t.NameEligible > t.Eligible
+                || nameM > eligibleM || nameU > eligibleU
+                || t.NameNoDob > t.NameEligible)
                 throw new InvalidDataException("Denominadores de elegibilidade incompatíveis.");
-            // SQL still requires DOB on both sides; do not claim the PM/no-DOB
-            // cases were evaluated by the current physical SQL frame.
-            if (sql.Values.Any(x => x.Partition == part && x.Match
-                    && eligibleTruth.Contains((x.A, x.B))
-                    && (!V9MinimumEvidenceEligibility.HasBirth(
-                            all[x.A].Birth?.ToDateTime(TimeOnly.MinValue))
-                        || !V9MinimumEvidenceEligibility.HasBirth(
-                            all[x.B].Birth?.ToDateTime(TimeOnly.MinValue)))))
-                throw new InvalidDataException("SQL legado recuperou M sem DOB utilizável.");
+            // Legacy SQL only ingests birth-present rows; sentinel/implausible
+            // dates still appear physically and must NOT fail this invariant.
+            if (sql.Values.Any(x => x.Partition == part
+                    && (!all[x.A].Birth.HasValue || !all[x.B].Birth.HasValue)))
+                throw new InvalidDataException("SQL legado retornou par sem DOB físico.");
+            if (t.NoDob > t.Eligible-eligibleM
+                || t.NameNoDob > t.NameEligible-nameM)
+                throw new InvalidDataException("SQL legado recuperou M com DOB fisicamente ausente.");
 
             var minimum = (19 * t.Eligible + 19) / 20;
             result.Add(new Split(part, observationsInSplit.LongLength, eligibleObs,
@@ -189,9 +225,26 @@ public static class V9TwoFieldSqlCoverageAudit
                 t.Eligible == 0 ? null : decimal.Divide(eligibleM, t.Eligible),
                 t.All == 0 ? null : decimal.Divide(t.Eligible, t.All),
                 Math.Max(0, minimum - eligibleM)));
+
+            var eligibleNameObservations = observationsInSplit.LongCount(
+                x => nameRequired[x.Id]);
+            var minName95 = (19*t.NameEligible+19)/20;
+            nameResult.Add(new NameRequiredSplit(
+                part, eligibleNameObservations,
+                observationsInSplit.LongLength-eligibleNameObservations,
+                t.NameEligible, t.All-t.NameEligible, t.NameNoDob,
+                nameM, nameU, m-nameM, u-nameU,
+                t.NameEligible-nameM,
+                t.All==0 ? null : decimal.Divide(nameM,t.All),
+                t.NameEligible==0 ? null : decimal.Divide(nameM,t.NameEligible),
+                t.All==0 ? null : decimal.Divide(t.NameEligible,t.All),
+                Math.Max(0,minName95-nameM)));
         }
         return new Report(Version, Status, "TRAIN_VALIDATION_NO_CPF_ALL_DOB_STATES",
             false, false, Array.AsReadOnly(availability.ToArray()),
-            Array.AsReadOnly(result.ToArray()));
+            Array.AsReadOnly(result.ToArray()))
+        {
+            NameRequiredSplits=Array.AsReadOnly(nameResult.ToArray())
+        };
     }
 }
