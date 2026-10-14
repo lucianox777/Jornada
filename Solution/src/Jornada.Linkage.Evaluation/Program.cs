@@ -8,7 +8,8 @@ using Microsoft.Data.SqlClient;
 
 const string Purpose = "DEV_HML_ONLY_NO_PUBLICATION";
 
-if (args.Length == 3 && args[0] == "--v9-export-canonical-csv")
+if (args.Length == 3 && args[0] is
+    ("--v9-export-canonical-csv" or "--v9-export-canonical-csv-with-surnames"))
 {
     var source = Path.GetFullPath(args[1]);
     var destination = Path.GetFullPath(args[2]);
@@ -40,7 +41,10 @@ if (args.Length == 3 && args[0] == "--v9-export-canonical-csv")
     Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
     if (source == destination) throw new ArgumentException("Input and output paths must differ.");
     using var writer = new StreamWriter(destination, false, new System.Text.UTF8Encoding(false));
-    V9CanonicalObservationCsvExporter.Export(writer, rows);
+    if (args[0] == "--v9-export-canonical-csv-with-surnames")
+        V9CanonicalObservationCsvExporter.ExportWithSurnames(writer, rows);
+    else
+        V9CanonicalObservationCsvExporter.Export(writer, rows);
     Console.WriteLine("Canonical C# blocking projections exported: " + rows.Count);
     return;
 }

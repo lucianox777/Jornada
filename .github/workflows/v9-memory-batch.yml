@@ -86,7 +86,7 @@ jobs:
       - name: Canonical C# export, TRAIN-only frozen snapshot and real in-memory SQL
         working-directory: Solution
         run: |
-          dotnet run -c Release --project src/Jornada.Linkage.Evaluation -- --v9-export-canonical-csv .local/v9-sqlite-original/input/e2-demographic-primary/observacoes.csv .local/v9-sqlite-original/canonical.csv
+          dotnet run -c Release --project src/Jornada.Linkage.Evaluation -- --v9-export-canonical-csv-with-surnames .local/v9-sqlite-original/input/e2-demographic-primary/observacoes.csv .local/v9-sqlite-original/canonical.csv
           python3 scripts/v9-freeze-canonical-name-frequency.py --canonical-csv .local/v9-sqlite-original/canonical.csv --snapshot-dir .local/v9-sqlite-original/frozen --projection-version BLOCKING_PROJECTION_KEY_PROJECTOR_V4
           python3 scripts/v9-sqlite-memory-cells.py --snapshot-dir .local/v9-sqlite-original/frozen --out .local/v9-sqlite-original/report.json --cap 1000000 --max-passes 8
       - name: Export ONLY aggregate M/U/recall, never raw observations or frequency tables

@@ -340,6 +340,46 @@ class SqliteMemoryCellsTests(unittest.TestCase):
         self.assertEqual(indexed["P_PHON_M_ANY"]["unique_candidate_pairs"], 0)
         self.assertEqual(indexed["P_PHON_M_ANY"]["max_records_per_index_key"], 3)
 
+    def test_v2_csharp_surname_projections_bypass_python_proxy_and_are_versioned(self):
+        rows = [
+            row("a", "p", "G1", name="MARIA DA SILVA OLIVEIRA",
+                mother="ANA DE SOUZA LIMA"),
+            row("b", "p", "G2", name="MARIA DA SILVA OLIVEIRA",
+                mother="ANA DE SOUZA LIMA")
+        ]
+        for r in rows:
+            r.update(nome_ultimo_sobrenome="OLIVEIRA",
+                     nome_sobrenomes_json='["OLIVEIRA","SILVA"]',
+                     nome_mae_ultimo_sobrenome="LIMA",
+                     nome_mae_sobrenomes_json='["LIMA","SOUZA"]')
+        previous = m.surname_keys
+        try:
+            def forbidden(_):
+                raise AssertionError("Python surname proxy invoked despite C# columns")
+            m.surname_keys = forbidden
+            outcome = m.assess(rows)
+        finally:
+            m.surname_keys = previous
+        self.assertEqual(outcome["results"]["TRAIN"]["metrics"]["UNION_4"]["M"], 1)
+        self.assertIn("CANONICAL_CSHARP_LAST_AND_ANY_SURNAMES", outcome["key_semantics"])
+        self.assertEqual(outcome["surname_components_version"], m.SURNAME_COMPONENTS_VERSION)
+        self.assertFalse(outcome["results"]["TRAIN"][
+            "unrecovered_expanded_truth_profile"]["uses_surname_proxy_not_canonical_CSharp_parity"])
+
+    def test_v2_partial_or_malformed_structural_keys_rejected_without_proxy_fallback(self):
+        r = row("a", "p", "G1")
+        r["nome_ultimo_sobrenome"] = "SILVA"
+        with self.assertRaisesRegex(ValueError, "partial C# surname"):
+            m.assess([r])
+        r.update(nome_sobrenomes_json='["GOMES","SILVA"]',
+                 nome_mae_ultimo_sobrenome="LIMA",
+                 nome_mae_sobrenomes_json='["LIMA"]')
+        with self.assertRaisesRegex(ValueError, "last-surname mismatch"):
+            m.assess([r])
+        r["nome_sobrenomes_json"] = "not-json"
+        with self.assertRaisesRegex(ValueError, "malformed C# surname JSON"):
+            m.assess([r])
+
     def test_snapshot_integrity_protects_training_source_and_no_overwrite(self):
         rows = [row("a","p","A"),row("b","p","B")]
         import csv

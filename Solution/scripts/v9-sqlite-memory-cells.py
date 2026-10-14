@@ -45,6 +45,12 @@ EXTENDED = PASS_ORDER[2:16]  # V1 immutable 14-cell experimental union
 TARGETED = PASS_ORDER[16:]
 EXPANDED = PASS_ORDER[2:]
 CAP_LIMIT = 1000000
+SURNAME_COLUMNS = (
+    "nome_ultimo_sobrenome", "nome_sobrenomes_json",
+    "nome_mae_ultimo_sobrenome", "nome_mae_sobrenomes_json"
+)
+SURNAME_COMPONENTS_VERSION = "PERSON_NAME_BRAZILIAN_COMPONENTS_V1"
+SURNAME_AUDIT_VERSION = "V9_NAME_REQUIRED_SQL_CELLS_DIAGNOSTIC_V1"
 
 
 def digest(path):
@@ -88,6 +94,35 @@ def surname_keys(value):
     return (content[-1], *sorted(set(content[:-1]) - {content[-1]}))
 
 
+def canonical_surname_keys(row, person):
+    """Prefer C# authoritative structural surname columns when provided.
+
+    Surname-list order MUST start with the last meaningful surname,
+    then list all other meaningful surnames in canonical projector order.
+    No fallback to token heuristics for a malformed V2 row.
+    """
+    prefix = "nome" if person else "nome_mae"
+    name = "nome_normalizado" if person else "nome_mae_normalizado"
+    last_column = prefix + "_ultimo_sobrenome"
+    keys_column = prefix + "_sobrenomes_json"
+    if not any(k in row for k in SURNAME_COLUMNS):
+        return surname_keys(row[name])
+    if not all(k in row for k in SURNAME_COLUMNS):
+        raise ValueError("partial C# surname columns; do not mix proxy and canonical")
+    try:
+        terms = json.loads(row[keys_column])
+    except (TypeError, ValueError) as ex:
+        raise ValueError("malformed C# surname JSON") from ex
+    last = row[last_column]
+    if (not isinstance(terms, list) or
+        any(not isinstance(t, str) or not t or t != t.strip()
+            for t in terms) or
+        len(set(terms)) != len(terms) or
+        (bool(last) != bool(terms)) or (terms and terms[0] != last)):
+        raise ValueError("noncanonical C# surname list or last-surname mismatch")
+    return tuple(terms)
+
+
 def key(*values):
     if not all(values):
         return None
@@ -104,8 +139,8 @@ def keys(row):
     d = birth.isoformat() if birth else ""
     y = str(birth.year) if birth else ""
     monthday = f"{birth.month:02d}-{birth.day:02d}" if birth else ""
-    ps = surname_keys(row["nome_normalizado"])
-    ms = surname_keys(row["nome_mae_normalizado"])
+    ps = canonical_surname_keys(row, person=True)
+    ms = canonical_surname_keys(row, person=False)
     last_p = ps[0] if ps else ""
     last_m = ms[0] if ms else ""
     first_p = p[0] if p else ""
@@ -158,6 +193,8 @@ def validate_rows(rows):
             raise ValueError("identity leakage between TRAIN/VALIDATION/TEST")
         owners[base] = part
         usable_birth(r["data_nascimento"])
+        canonical_surname_keys(r, person=True)
+        canonical_surname_keys(r, person=False)
 
 
 def truth_for(rows, require_name):
@@ -376,8 +413,8 @@ def profile_unrecovered_truth(rows, truth, candidates):
     def features(r):
         person = parts(r["nome_normalizado"])
         mother = parts(r["nome_mae_normalizado"])
-        p_surnames = surname_keys(r["nome_normalizado"])
-        m_surnames = surname_keys(r["nome_mae_normalizado"])
+        p_surnames = canonical_surname_keys(r, person=True)
+        m_surnames = canonical_surname_keys(r, person=False)
         dob = usable_birth(r["data_nascimento"])
         return {
             "person_full": r["nome_normalizado"].strip().upper(),
@@ -469,7 +506,8 @@ def profile_unrecovered_truth(rows, truth, candidates):
         ],
         "hypothesis_U_fanout_sql_cost_measured": False,
         "test_evaluated": False,
-        "uses_surname_proxy_not_canonical_CSharp_parity": True
+        "uses_surname_proxy_not_canonical_CSharp_parity":
+            not all(k in rows[0] for k in SURNAME_COLUMNS) if rows else True
     }
 
 
@@ -825,7 +863,16 @@ def assess(rows, cap=250000, max_passes=8):
         "minimum_U_95pct_diagnostic": min_u_evidence,
         "version": VERSION, "policy": POLICY,
         "engine": "sqlite3_memory_real_indexed_sql",
-        "key_semantics": "CANONICAL_CSHARP_FULLNAME_AND_PHONETIC;SURNAME_TOKEN_PROXY_NOT_CSHARP_PARITY",
+        "key_semantics": (
+            "CANONICAL_CSHARP_FULLNAME_AND_PHONETIC;CANONICAL_CSHARP_LAST_AND_ANY_SURNAMES"
+            if all(k in rows[0] for k in SURNAME_COLUMNS)
+            else "CANONICAL_CSHARP_FULLNAME_AND_PHONETIC;SURNAME_TOKEN_PROXY_NOT_CSHARP_PARITY"),
+        "surname_components_version": (
+            SURNAME_COMPONENTS_VERSION
+            if all(k in rows[0] for k in SURNAME_COLUMNS) else None),
+        "surname_sql_server_audit_version": (
+            SURNAME_AUDIT_VERSION
+            if all(k in rows[0] for k in SURNAME_COLUMNS) else None),
         "selection_split": "TRAIN_ONLY", "TEST_evaluated": False,
         "diagnostic_only": True, "may_promote_policy": False,
         "fdr_measured": False, "sql_server_p95_measured": False,
