@@ -168,13 +168,13 @@ jobs:
               --out "$out/sample-size-report.json" --seed "$SEED" --bootstrap-replicates 400
           done
           python3 scripts/v9-synthetic-clean-correlated-sensitivity.py \
-            --profile-root "$root" --out "$root/seed-profile-summary.json"
+            --profile-root "$root" --out "$PWD/.local/v9-seed-${SEED}-aggregate.json"
       - name: Publish only split-level M/U and identity-cluster sample-size evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: v9-synthetic-size-3seed-${{ matrix.seed }}-aggregates
           path: |
-            Solution/.local/v9-seed-${{ matrix.seed }}-sensitivity/seed-profile-summary.json
+            Solution/.local/v9-seed-${{ matrix.seed }}-aggregate.json
             Solution/.local/v9-seed-${{ matrix.seed }}-sensitivity/*/sample-size-report.json
           if-no-files-found: error
