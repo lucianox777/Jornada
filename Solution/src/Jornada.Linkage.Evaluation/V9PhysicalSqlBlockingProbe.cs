@@ -75,6 +75,7 @@ public static class V9PhysicalSqlBlockingProbe
         public V9SqlConditionedNominalSupportAudit.Report? TrainSqlNominalSupportAudit { get; init; }
         public V9SqlCandidateFanoutAudit.Report? CandidateFanoutAudit { get; init; }
         public V9SqlConditionedBirthSupportAudit.Report? TrainSqlBirthSupportAudit { get; init; }
+        public V9SqlConditionalMuIdentifiabilityAudit.Report? TrainSqlMuIdentifiabilityAudit { get; init; }
         public string? BlockingAblationContract { get; init; }
         public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
     }
@@ -390,6 +391,8 @@ public static class V9PhysicalSqlBlockingProbe
             || trainBirthSupport.SqlCandidateU != trainNominalSupport.SqlCandidateU
             || trainBirthSupport.SqlCandidatePairs != trainNominalSupport.SqlCandidatePairs)
             throw new InvalidDataException("Nascimento e nome não conciliam no mesmo SQL TRAIN.");
+        var trainMuIdentifiability = V9SqlConditionalMuIdentifiabilityAudit.Analyze(
+            trainNominalSupport, trainBirthSupport, tfBaseAudit);
         if (trainNominalSupport.SqlCandidateM != bySplit["TRAIN"].TrueCandidate
             || trainNominalSupport.SqlCandidateU != bySplit["TRAIN"].FalseCandidate)
             throw new InvalidDataException("Suporte m/u nominal TRAIN não concilia com SQL físico.");
@@ -450,6 +453,7 @@ public static class V9PhysicalSqlBlockingProbe
             TrainSqlNominalSupportAudit = trainNominalSupport,
             CandidateFanoutAudit = fanoutReport,
             TrainSqlBirthSupportAudit = trainBirthSupport,
+            TrainSqlMuIdentifiabilityAudit = trainMuIdentifiability,
             BlockingAblationContract = BlockingAblationVersion,
             PreRegisteredPassSensitivity = passSensitivity
         };
