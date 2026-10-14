@@ -55,7 +55,7 @@ public sealed class V9NameRequiredSqlCellAuditTests
         var train=report.Splits.Single(x=>x.Partition=="TRAIN");
         Assert.That(report.MayPromotePolicy,Is.False);
         Assert.That(report.FdrMeasured,Is.False);
-        Assert.That(report.Cells,Has.Count.EqualTo(8));
+        Assert.That(report.Cells,Has.Count.EqualTo(12));
         Assert.That(train.EligibleTruthM,Is.EqualTo(3));
         Assert.That(train.LegacyM,Is.EqualTo(1));
         Assert.That(train.NewM,Is.EqualTo(2));
