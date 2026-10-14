@@ -100,7 +100,10 @@ public static class V9NameRequiredSqlCellProbe
         using(var copy=new SqlBulkCopy(connection){
             DestinationTableName="#v9cellmother",BatchSize=15000,BulkCopyTimeout=600})
             await copy.WriteToServerAsync(motherTable,ct);
-        obsTable.Dispose();motherTable.Dispose();
+        using(var copy=new SqlBulkCopy(connection){
+            DestinationTableName="#v9cellperson",BatchSize=15000,BulkCopyTimeout=600})
+            await copy.WriteToServerAsync(personTable,ct);
+        obsTable.Dispose();motherTable.Dispose();personTable.Dispose();
 
         // The original #v9obs was populated using BlockingProjectionKeyProjector:
         // strict BIN2 parity between the earlier MetaphoneBR projection and
@@ -125,6 +128,8 @@ public static class V9NameRequiredSqlCellProbe
             CREATE INDEX IX_v9cell_plast_mfon ON #v9cellobs(part,plast,mfon);
             CREATE INDEX IX_v9cell_pfon ON #v9cellobs(part,pfon);
             CREATE INDEX IX_v9cell_mother_presence ON #v9cellmother(part,surname,obs_id);
+            CREATE INDEX IX_v9cell_first ON #v9cellobs(part,pfirst);
+            CREATE INDEX IX_v9cell_person_presence ON #v9cellperson(part,surname,obs_id);
             """,connection){CommandTimeout=600})
             await ix.ExecuteNonQueryAsync(ct);
 
@@ -136,7 +141,11 @@ public static class V9NameRequiredSqlCellProbe
             (V9NameRequiredSqlCellAudit.PersonLastMotherPhonetic,
                 "a.plast=b.plast AND a.mfon=b.mfon AND a.plast IS NOT NULL AND a.mfon IS NOT NULL"),
             (V9NameRequiredSqlCellAudit.PersonPhoneticMotherAny,
-                "a.pfon=b.pfon AND EXISTS (SELECT 1 FROM #v9cellmother p JOIN #v9cellmother q ON p.part=q.part AND p.surname=q.surname WHERE p.obs_id=a.obs_id AND q.obs_id=b.obs_id)")
+                "a.pfon=b.pfon AND EXISTS (SELECT 1 FROM #v9cellmother p JOIN #v9cellmother q ON p.part=q.part AND p.surname=q.surname WHERE p.obs_id=a.obs_id AND q.obs_id=b.obs_id)"),
+            (V9NameRequiredSqlCellAudit.PersonPhoneticOnly,
+                "a.pfon=b.pfon"),
+            (V9NameRequiredSqlCellAudit.PersonFirstAny,
+                "a.pfirst=b.pfirst AND a.pfirst IS NOT NULL AND EXISTS (SELECT 1 FROM #v9cellperson p JOIN #v9cellperson q ON p.part=q.part AND p.surname=q.surname WHERE p.obs_id=a.obs_id AND q.obs_id=b.obs_id)")
         };
         var passes=new List<V9NameRequiredSqlCellAudit.Pass>(predicates.Length);
         foreach(var (name,predicate) in predicates)
