@@ -23,11 +23,17 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Compile focused V9 tools
+      - name: Compile merged V9 tools
         run: |
-          python -m py_compile Solution/scripts/v9-focused-union-comparison.py
           python -m py_compile Solution/scripts/v9-freeze-canonical-name-frequency.py
-      - name: Focused behavioral regression
-        run: python -m unittest discover -s Solution/tests/fixtures -p 'test_v9_focused_union.py' -v
+          python -m py_compile Solution/scripts/v9-abc-paired-blocking.py
+      - name: Compile and test focused comparison when included in this HEAD
+        run: |
+          if [ -f Solution/scripts/v9-focused-union-comparison.py ]; then
+            python -m py_compile Solution/scripts/v9-focused-union-comparison.py
+            python -m unittest discover -s Solution/tests/fixtures -p 'test_v9_focused_union.py' -v
+          else
+            echo "Focused comparison belongs to independent PR #1069; mandatory V9 fixtures run below."
+          fi
       - name: All V9 fixture regression
         run: python -m unittest discover -s Solution/tests/fixtures -p 'test_v9*.py' -v
