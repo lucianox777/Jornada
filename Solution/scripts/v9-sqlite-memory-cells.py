@@ -16,7 +16,7 @@ from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
-VERSION = "V9_SQLITE_MEMORY_CELLS_DIAGNOSTIC_V2"
+VERSION = "V9_SQLITE_MEMORY_CELLS_DIAGNOSTIC_V3"
 POLICY = "V9_PERSON_REQUIRED_PLUS_MOTHER_OR_BIRTH_DIAGNOSTIC_V1"
 PROJECTION = "BLOCKING_PROJECTION_KEY_PROJECTOR_V4"
 REQUIRED = {"observacao_id", "base_person_id", "particao", "gestor", "cpf",
@@ -177,6 +177,83 @@ def truth_for(rows, require_name):
             if a["gestor"] != b["gestor"]}
 
 
+def profile_indexed_key_pressure(connection, pairs):
+    """Census real SQLite of per-key index fanout, independent of truth M.
+
+    Raw cross-manager JOIN hits may include the same candidate edge multiple
+    times when two names share several surname-presence keys. This is a
+    diagnostic of index key hot spots, NOT estimated FDR or real SQL Server
+    latency/cost. No key values or citizen identifiers leave this function.
+    """
+    from collections import Counter
+    census = {(part, cell): {
+        "populated_keys": 0, "keys_with_cross_manager_pairs": 0,
+        "keys_with_20_or_more_records": 0,
+        "keys_with_100_or_more_records": 0,
+        "raw_cross_manager_join_hits": 0,
+        "raw_join_hits_from_keys_20plus": 0,
+        "max_records_per_index_key": 0,
+        "_sizes": []
+    } for part in ("TRAIN", "VALIDATION") for cell in PASS_ORDER}
+    sql = """
+        SELECT k.cell, k.part, k.composite, o.manager, COUNT(*)
+          FROM cellkeys k
+          JOIN observations o ON o.oid=k.oid
+         GROUP BY k.cell, k.part, k.composite, o.manager
+         ORDER BY k.cell, k.part, k.composite, o.manager
+    """
+    previous, count, squares = None, 0, 0
+
+    def flush(group_key, size, square_sum):
+        if group_key is None:
+            return
+        cell, part, _ = group_key
+        item = census[part, cell]
+        cross = (size * size - square_sum) // 2
+        if cross < 0:
+            raise ValueError("cross-manager key pair census underflow")
+        item["populated_keys"] += 1
+        item["_sizes"].append(size)
+        item["raw_cross_manager_join_hits"] += cross
+        if cross:
+            item["keys_with_cross_manager_pairs"] += 1
+        if size >= 20:
+            item["keys_with_20_or_more_records"] += 1
+            item["raw_join_hits_from_keys_20plus"] += cross
+        if size >= 100:
+            item["keys_with_100_or_more_records"] += 1
+        item["max_records_per_index_key"] = max(
+            size, item["max_records_per_index_key"])
+
+    for cell, part, composite, manager, n in connection.execute(sql):
+        group_key = (cell, part, composite)
+        if previous != group_key:
+            flush(previous, count, squares)
+            previous, count, squares = group_key, 0, 0
+        count += n
+        squares += n * n
+    flush(previous, count, squares)
+    for (part, cell), item in census.items():
+        lengths = sorted(item.pop("_sizes"))
+        def q(p):
+            if not lengths:
+                return None
+            return lengths[max(0, math.ceil(len(lengths) * p) - 1)]
+        item["key_size_p95"] = q(0.95)
+        item["key_size_p99"] = q(0.99)
+        raw = item["raw_cross_manager_join_hits"]
+        unique = len(pairs[part, cell][0])
+        if unique > raw:
+            raise ValueError("SQL candidate dedup exceeds raw per-key joins")
+        item["unique_candidate_pairs"] = unique
+        item["repeated_join_hits_before_pair_dedup"] = raw - unique
+        item["fraction_join_hits_in_keys_20plus"] = (
+            item["raw_join_hits_from_keys_20plus"] / raw
+            if raw else None)
+        item["model_scope"] = "SQLITE_INDEX_KEY_COUNTS_NOT_SQL_SERVER_LATENCY"
+    return census
+
+
 def indexed_candidates(rows, cap):
     if cap < 1 or cap > CAP_LIMIT:
         raise ValueError("invalid per-cell cap; no silent truncation")
@@ -236,7 +313,7 @@ def indexed_candidates(rows, cap):
                     raise ValueError(
                         f"cell {cell}/{part} exceeds physical-pair cap={cap}; never truncate")
                 report[(part, cell)] = (pairs, round(time.perf_counter()-started, 6))
-        return report
+        return report, profile_indexed_key_pressure(connection, report)
     finally:
         connection.close()
 
@@ -620,7 +697,7 @@ def assess(rows, cap=250000, max_passes=8):
     validate_rows(rows)
     if max_passes < 1 or max_passes > len(EXTENDED):
         raise ValueError("invalid maximum adaptive diagnostic passes")
-    sql_pairs = indexed_candidates(rows, cap)
+    sql_pairs, key_pressure = indexed_candidates(rows, cap)
     by_part = {}
     for part in ("TRAIN", "VALIDATION"):
         subset = [r for r in rows if r["particao"] == part]
@@ -667,6 +744,10 @@ def assess(rows, cap=250000, max_passes=8):
                 profile_unrecovered_truth(subset, eligible, extended),
             "unrecovered_expanded_truth_profile":
                 profile_unrecovered_truth(subset, eligible, expanded),
+            "key_collision_pressure": {
+                cell: key_pressure[part, cell] for cell in PASS_ORDER},
+            "key_collision_pressure_note":
+                "Synthetic original key sizes are not municipality-scale fanout forecasts",
             "metrics": summaries,
             "cells": single
         }
