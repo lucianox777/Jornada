@@ -100,7 +100,7 @@ public static class V9NameRequiredSqlCellProbe
                OR ISNULL(c.mfon,N'~')<>ISNULL(o.mae_fon,N'~');
             """,connection))
         {
-            var mismatches=Convert.ToInt64(await parity.ExecuteScalarAsync(ct));
+            var mismatches=Convert.ToInt64(await parity.ExecuteScalarAsync(ct), System.Globalization.CultureInfo.InvariantCulture);
             if(mismatches!=0)throw new InvalidDataException(
                 "Índice normalizado/MetaphoneBR difere das chaves canônicas C# existentes.");
         }
