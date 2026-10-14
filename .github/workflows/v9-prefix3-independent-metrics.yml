@@ -1,0 +1,19 @@
+name: v9-prefix3-independent-metrics
+on:
+  pull_request:
+    paths:
+      - 'Solution/scripts/v9_prefix3_independent_metrics.py'
+      - 'Solution/tests/fixtures/test_v9_prefix3_independent_metrics.py'
+      - '.github/workflows/v9-prefix3-independent-metrics.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  metrics-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python3 -m unittest discover -s Solution/tests/fixtures -p test_v9_prefix3_independent_metrics.py -v
