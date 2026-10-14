@@ -46,3 +46,12 @@ Esta PR executa diagnóstico **uma vez na mesma CI já existente**: 3 sementes, 
 Para reduzir o ciclo: fazer várias edições **na mesma branch antes de abrir PR**, testar unidades/contratos primeiro, depois **uma** CI completa sobre o HEAD final; não disparar ou aguardar builds sucessivos em HEADs obsoletos. Reutilizar caches NuGet e artefatos quando hashes permitirem, diagnosticar a etapa SQL isolada pelas evidências, mas **sem separar/omitir CI obrigatória**, sem alargar os gates ou liberar merge sem `SUCCESS`. Qualquer refatoração de pipeline deve comprovar equivalência de gates.
 
 Nada muda em `JornadaLocal`, Gold, NODE/NAS, HML/PROD, IBGE original, histórico V8, V9/DT-15 operacional, `Rank/Resolve`, limiar/TF/m/u ou regras ativas. A massa sintética não certifica o desempenho real em 11 milhões; se o corpus de 30 mil não fornecer suporte efetivo de M/U e rede U, ampliar TRAIN de maneira pré-registrada e manter TEST cego.
+
+## Acompanhamento: ablação de recuperação com chaves da própria pessoa
+
+A CI física anterior (PR #1025) mediu, em VALIDATION, recall **84,82%, 84,49% e 83,98%** nas seeds 42, 43 e 44. Houve incremento real de M com exposição incremental relativamente pequena de U, porém **faltam 674, 702 e 725 M**, respectivamente, para o patamar de 95% por split.
+
+Nesta próxima rodada a matriz tem **seis** células (as quatro originais preservadas mais duas novas, no fim): `PERSON_PHONETIC_ONLY` testa a *cobertura-limite exploratória* da chave de **nome integral MetaphoneBR**, e `PERSON_FIRST_PLUS_PERSON_ANY_SURNAME` explora o **prenome normalizado + qualquer sobrenome significativo da própria pessoa** em índice invertido (o último é priorizado, mas não exclusivo). Ambas usam índices SQL temporários; nenhuma seleção de par prescinde da **elegibilidade prévia** de P + (M ou D) em **cada observação**. O passe fonético isolado **não exige concordância entre mães ou nascimentos**: só é diagnóstico do teto recuperável da identidade nominal, não pode ser promovido automaticamente, porque pode aumentar muito candidatos U e erros FS. Não retirar nem desviar os dois grupos mínimos exigidos pelo contrato.
+
+Para ambas medir SQL físico completo, cap, novo M, novo U, casos exclusivos, recall incremental, Jaro–Winkler alto entre hits, fanout e comparação do custo de última posição vs presença em qualquer posição. Uma união ≥95% não é aprovação de FS/TF nem demonstra risco aceitável em 11 milhões.
+
