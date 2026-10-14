@@ -31,9 +31,10 @@ for seed in (42,43,44):
     assert cells_report["PhoneticVersion"]=="PERSON_NAME_METAPHONE_BR_V1"
     assert cells_report["SurnameSemantics"]=="IBGE_ANY_SURNAME_PRESENCE_PROXY_LAST_SIGNIFICANT_FIRST_NOT_POSITIONAL_TF"
     ids=("PERSON_PHONETIC_MOTHER_LAST","PERSON_PHONETIC_BIRTH_YEAR",
-         "PERSON_LAST_MOTHER_PHONETIC","PERSON_PHONETIC_MOTHER_ANY")
+         "PERSON_LAST_MOTHER_PHONETIC","PERSON_PHONETIC_MOTHER_ANY",
+         "PERSON_PHONETIC_ONLY","PERSON_FIRST_PLUS_PERSON_ANY_SURNAME")
     cells=cells_report["Cells"]
-    assert len(cells)==8
+    assert len(cells)==12
     assert [(x["Name"],x["Partition"]) for x in cells]==[
         (name,part) for name in ids for part in ("TRAIN","VALIDATION")]
     assert all(0<=x["ExclusiveNewM"]<=x["NewMvs14"]<=x["M"]
