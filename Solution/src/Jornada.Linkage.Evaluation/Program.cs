@@ -38,6 +38,7 @@ if (args.Length == 3 && args[0] == "--v9-export-canonical-csv")
             Get("cpf")));
     }
     Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+    if (source == destination) throw new ArgumentException("Input and output paths must differ.");
     using var writer = new StreamWriter(destination, false, new System.Text.UTF8Encoding(false));
     V9CanonicalObservationCsvExporter.Export(writer, rows);
     Console.WriteLine("Canonical C# blocking projections exported: " + rows.Count);
