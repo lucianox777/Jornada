@@ -4,7 +4,6 @@ import argparse
 import csv
 import hashlib
 import json
-import statistics
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -54,8 +53,10 @@ def evaluate(rows):
             start = time.perf_counter()
             index = defaultdict(list)
             for i, row in enumerate(subset):
-                k = key(row, cell)
-                if k: index[k].append(i)
+                keys = ([ (row["nome_fonetico"].strip(), surname) for surname in set(tokens(row["nome_mae_normalizado"])[1:]) ]
+                        if cell == "P4" else [key(row, cell)])
+                for k in keys:
+                    if k and all(k): index[k].append(i)
             pairs = set()
             for group in index.values():
                 for offset, i in enumerate(group):
@@ -98,7 +99,7 @@ def main():
             "source_sha256":hashlib.sha256(source.read_bytes()).hexdigest(),
             "diagnostic_only":True,
             "test_not_used_for_selection":True,
-            "warning":"P1/P4 proxy overlap; canonical token splitting needs C# parity; no SQL p95, Rank/Resolve FDR or TEST certification.",
+            "warning":"Canonical token splitting needs C# parity; no SQL p95, Rank/Resolve FDR or TEST certification.",
             "results":evaluate(rows)}
     Path(a.out).write_text(json.dumps(report,ensure_ascii=False,indent=2)+"\\n",encoding="utf-8")
 if __name__=="__main__": main()
