@@ -9,15 +9,29 @@ public static class V9CanonicalObservationCsvExporter
 {
     public const string Version = "V9_CANONICAL_CSV_EXPORTER_V1";
     public const string Header = "observacao_id,base_person_id,particao,gestor,nome,nome_mae,data_nascimento,cpf,nome_normalizado,nome_fonetico,nome_mae_normalizado,nome_mae_fonetico";
+    public const string SurnameExportVersion = "V9_CANONICAL_SURNAME_EXPORT_V1";
+    public const string SurnameHeader = Header +
+        ",nome_ultimo_sobrenome,nome_sobrenomes_json" +
+        ",mae_ultimo_sobrenome,mae_sobrenomes_json";
 
     public sealed record Input(string ObservationId, string BasePersonId, string Partition,
         string Gestor, string? Name, string? MotherName, DateOnly? BirthDate, string? Cpf);
 
-    public static void Export(TextWriter writer, IEnumerable<Input> observations)
+    // Independent opt-in envelope; legacy canonical CSV and its fingerprints
+    // remain byte-for-byte unchanged until all SQL/SQLite parity gates pass.
+    public static void ExportWithCanonicalSurnames(
+        TextWriter writer, IEnumerable<Input> observations) =>
+        ExportCore(writer, observations, includeSurnames: true);
+
+    public static void Export(TextWriter writer, IEnumerable<Input> observations) =>
+        ExportCore(writer, observations, includeSurnames: false);
+
+    private static void ExportCore(
+        TextWriter writer, IEnumerable<Input> observations, bool includeSurnames)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(observations);
-        writer.WriteLine(Header);
+        writer.WriteLine(includeSurnames ? SurnameHeader : Header);
         foreach (var row in observations)
         {
             if (string.IsNullOrWhiteSpace(row.ObservationId) ||
@@ -43,6 +57,21 @@ public static class V9CanonicalObservationCsvExporter
                 Get(BlockingFeatureNames.MotherFullName),
                 Get(BlockingFeatureNames.MotherFullNamePhoneticPtBr)
             };
+            if (includeSurnames)
+            {
+                // Both person and mother MUST use exactly the same versioned
+                // BrazilianNameComponents semantics as the physical V9 audit.
+                var surnames = new[]
+                {
+                    V9NameRequiredSqlCellAudit.Last(row.Name) ?? "",
+                    System.Text.Json.JsonSerializer.Serialize(
+                        V9NameRequiredSqlCellAudit.AnySurname(row.Name)),
+                    V9NameRequiredSqlCellAudit.Last(row.MotherName) ?? "",
+                    System.Text.Json.JsonSerializer.Serialize(
+                        V9NameRequiredSqlCellAudit.AnySurname(row.MotherName))
+                };
+                fields = fields.Concat(surnames).ToArray();
+            }
             writer.WriteLine(string.Join(",", fields.Select(Escape)));
         }
     }
