@@ -1155,6 +1155,7 @@ jobs:
           birth_year_family_by_seed=[]
           eleven_pass_union_by_seed=[]
           three_anchor_residual_by_seed=[]
+          mother_prefix3_by_seed=[]
           clustered_m_recall_by_seed=[]
           u_network_bootstrap_by_seed=[]
           loss_by_seed=[]
@@ -2019,6 +2020,8 @@ jobs:
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))
           PY
+      - name: Independently verify all three physical prefix3 SQL passes
+        run: python3 scripts/v9-prefix3-pairwise-gate.py
       - name: Upload physical SQL active-ruleset and C1 wrong-link evidence
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -2028,6 +2031,7 @@ jobs:
             Solution/.local/v9-sql-physical-seed-43.json
             Solution/.local/v9-sql-physical-seed-44.json
             Solution/.local/v9-sql-physical-three-seed-summary.json
+            Solution/.local/v9-sql-two-prefix3-summary.json
           if-no-files-found: error
           retention-days: 30
       - name: Run linkage model-validation smoke
