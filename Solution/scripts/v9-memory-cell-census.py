@@ -106,6 +106,8 @@ def run(path, cap=1000000):
         eligible = {(i, j) for i, j in truth if part[i]["eligible"] and part[j]["eligible"]}
         union = set()
         cells = []
+        # A row enters only passes whose required fields are present; no fixed DOB gate.
+        # Union deduplicates candidates from the applicable person+mother/person+DOB passes.
         for name, fields, included in PASSES:
             pairs = candidate_pairs(part, fields, cap)
             added = pairs - union if included else set()
@@ -116,7 +118,11 @@ def run(path, cap=1000000):
                 union |= pairs
                 if len(union) > cap:
                     raise ValueError("union fanout cap exceeded")
-        results[partition] = dict(observations=len(part),
+        results[partition] = dict(blocking_policy="DYNAMIC_BY_PRESENT_FIELDS",
+                                  missing_dob_uses_person_mother=True,
+                                  missing_mother_uses_person_dob=True,
+                                  missing_person_abstains=True,
+                                  observations=len(part),
                                   eligible_observations=sum(r["eligible"] for r in part),
                                   abstentions=sum(not r["eligible"] for r in part),
                                   cells=cells, union=census(part, union, truth, eligible))
