@@ -5,8 +5,14 @@ Relacionado à issue #999 e às PRs #1021–#1023. Esta entrega liga o contrato
 `JornadaHarness` DEV, sem incluir um novo passe nem mudar o modelo de
 decisão. Nome da pessoa (P), nome da mãe (M), data de nascimento (D) são os
 três grupos; os casos `PM`, `PD`, `MD` e `PMD` exigem **dois grupos
-utilizáveis por observação**. `NONE`, `P`, `M`, `D` abstêm-se do ramo
-probabilístico. CPF continua exclusivamente no fluxo determinístico existente.
+utilizáveis por observação**. \`NONE\`, \`P\`, \`M\`, \`D\` abstêm-se do ramo
+probabilístico no contrato anterior. **Nova hipótese pedida para teste**:
+o **nome da pessoa é obrigatório**, acompanhado de **nome da mãe OU
+data de nascimento utilizável**; somente \`PM\`, \`PD\` e \`PMD\`
+são elegíveis no novo cenário. \`MD\` passa a abster-se. O cenário é
+`V9_PERSON_REQUIRED_PLUS_MOTHER_OR_BIRTH_DIAGNOSTIC_V1`, comparado
+paralelamente ao anterior, sem mudar contrato operacional. CPF segue
+exclusivamente o fluxo determinístico existente.
 
 ## Dois denominadores — nunca confundir cobertura do SQL com decisão FS
 
@@ -42,10 +48,23 @@ denominador nunca é selecionado a partir dos hits SQL.
   informa quanto seria impossível atingir por política que abstém com
   menos de duas evidências; não é meta de aprovação por si.
 - `EligibleTruthMWithMissingBirth`: M elegíveis em que **pelo menos uma**
-  das observações não possui DOB utilizável. O SQL legado continua exigindo
-  DOB em ambas as pontas e **não pode recuperar** esse estrato. O relatório
-  mede a lacuna, sem fabricar ganho SQL ou reivindicar que o índice prefixo3
-  já opera sobre registros PM sem DOB.
+  das observações possui DOB **fisicamente ausente (NULL)**. O SQL de 14
+  passes continua excluindo DOB ausente nas pontas e **não pode recuperar**
+  esse estrato. Importante: data sentinela (ex. 1900-01-01) tem DOB
+  fisicamente presente no SQL, mas **não** conta como evidência D utilizável;
+  pode ser fisicamente recuperada pelo SQL antigo se houver nome+mãe, sem
+  que a sentinela passe a ser uma evidência legítima.
+- `NameRequiredSplits`: medição independente de `P AND (M OR D)`
+  nas mesmas observações e nos mesmos 14 passes SQL: M elegível/excluído
+  (ambas as pontas obrigatoriamente elegíveis), M/U fisicamente
+  recuperados, exclusões, déficit em relação a 95% e recalls tanto
+  contra **todos** os M quanto apenas contra M elegíveis segundo o novo
+  cenário. `EligibleTruthMWithoutSqlBirth` conta casos de DOB
+  **fisicamente ausente** dentro de M elegíveis pela regra nome+mãe.
+  Cuidado: elevar o recall condicional por exclusão do estrato MD
+  **não significa** aumentar recuperações no universo nem atingir 95%.
+  A medição deve informar explicitamente a cobertura/abstenção e o teto
+  de recall no universo total.
 - `LegacySqlIneligibleM/U` expõe hits do SQL antigo com uma ponta com
   menos de duas evidências, que a política candidata não pode aceitar
   automaticamente. `AdditionalEligibleMNeededFor95` usa exclusivamente
@@ -64,7 +83,7 @@ campos normalizados na memória do processo; o JSON exporta **apenas totais e
 contagens por combinação**, sem nomes, CPF, chave de pessoa-base ou lista de
 pares. Duplicidade de observação, partição TEST, par invertido, gestor igual,
 label M/U incompatível com identidade-base, SQL fora do frame, cap excedido ou
-SQL recuperando M elegível sem DOB utilizável causam falha fechada.
+SQL recuperando pares sem DOB **fisicamente presente** causam falha fechada.
 A reconciliação compara `LegacySqlM/U` com `FourteenM/U` do censo já
 integrado; Python recalcula aritmética e reconciliação das três sementes.
 Os testes NUnit incluem PM sem DOB perdido pelo SQL, inelegíveis, U,
@@ -84,6 +103,15 @@ desta PR; não são presumidos antes de medição efetiva. A antiga taxa de
 ~87% é o recall de **blocking dos 14 passes com DOB**, num denominador
 mais restrito, e não deve ser descrita como recall de duas evidências ou
 do linkage aceito.
+
+O **patamar de 95% é prioridade**. Ele não pode ser obtido artificialmente
+reduzindo o denominador do recall: comparar sempre `AllNoCpfTruthM`,
+`EligibleTwoFieldTruthM`, `NameRequiredSplits.EligibleTruthM` e quantos
+M/U de fato retornaram do SQL. Caso a elegibilidade nome+mãe/nascimento
+reduza o teto no universo total para menos de 95%, registrar a tensão
+explicitamente e não afirmar sucesso operacional. A alternativa será
+melhorar a recuperação física para o universo *elegível* sem relaxar a
+segurança de vínculos aceitos.
 
 Próximo incremento, sem tocar TEST para seleção: medir consultas SQL reais
 para casos PM **sem DOB**, custo incremental U/fanout/latência e eficácia
