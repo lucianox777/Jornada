@@ -261,6 +261,126 @@ def measure(pairs, true, count):
             "u_degree": distribution(u_degrees)}
 
 
+
+def profile_unrecovered_truth(rows, truth, candidates):
+    """Explain synthetic M missed by the COMPLETE explored union, without PII.
+
+    Hypothesis support counts only known true M. They are NOT incremental
+    blocking measurements: running a new SQL pass is necessary to measure U,
+    fanout, caps, time and final gain on the unchanged TRAIN/VALIDATION frame.
+    """
+    by_id = {r["observacao_id"]: r for r in rows}
+    missing = truth - candidates
+    signatures, reasons = defaultdict(int), defaultdict(int)
+    signals = defaultdict(int)
+    hypotheses = defaultdict(int)
+
+    def shared(a, b):
+        return bool(a) and a == b
+
+    def intersect(a, b):
+        return bool(set(a) & set(b))
+
+    def features(r):
+        person = parts(r["nome_normalizado"])
+        mother = parts(r["nome_mae_normalizado"])
+        p_surnames = surname_keys(r["nome_normalizado"])
+        m_surnames = surname_keys(r["nome_mae_normalizado"])
+        dob = usable_birth(r["data_nascimento"])
+        return {
+            "person_full": r["nome_normalizado"].strip().upper(),
+            "person_phon": r["nome_fonetico"].strip().upper(),
+            "person_first": person[0] if person else "",
+            "person_prefix3": person[0][:3] if person and len(person[0]) >= 3 else "",
+            "person_last": p_surnames[0] if p_surnames else "",
+            "person_surnames": p_surnames,
+            "mother_full": r["nome_mae_normalizado"].strip().upper(),
+            "mother_phon": r["nome_mae_fonetico"].strip().upper(),
+            "mother_first": mother[0] if mother else "",
+            "mother_prefix3": mother[0][:3] if mother and len(mother[0]) >= 3 else "",
+            "mother_last": m_surnames[0] if m_surnames else "",
+            "mother_surnames": m_surnames,
+            "dob": dob
+        }
+
+    cache = {}
+    def cached(oid):
+        if oid not in cache:
+            cache[oid] = features(by_id[oid])
+        return cache[oid]
+
+    for aid, bid in missing:
+        if aid not in by_id or bid not in by_id:
+            raise ValueError("M pair is outside frozen TRAIN/VALIDATION frame")
+        a, b = cached(aid), cached(bid)
+        matched = {
+            "P_FULL": shared(a["person_full"], b["person_full"]),
+            "P_PHON": shared(a["person_phon"], b["person_phon"]),
+            "P_FIRST": shared(a["person_first"], b["person_first"]),
+            "P_PREFIX3": shared(a["person_prefix3"], b["person_prefix3"]),
+            "P_LAST": shared(a["person_last"], b["person_last"]),
+            "P_ANY": intersect(a["person_surnames"], b["person_surnames"]),
+            "M_FULL": shared(a["mother_full"], b["mother_full"]),
+            "M_PHON": shared(a["mother_phon"], b["mother_phon"]),
+            "M_FIRST": shared(a["mother_first"], b["mother_first"]),
+            "M_PREFIX3": shared(a["mother_prefix3"], b["mother_prefix3"]),
+            "M_LAST": shared(a["mother_last"], b["mother_last"]),
+            "M_ANY": intersect(a["mother_surnames"], b["mother_surnames"]),
+            "DOB_EXACT": bool(a["dob"]) and a["dob"] == b["dob"],
+            "DOB_YEAR": bool(a["dob"] and b["dob"]) and a["dob"].year == b["dob"].year,
+            "DOB_MONTHDAY": bool(a["dob"] and b["dob"]) and
+                (a["dob"].month, a["dob"].day) == (b["dob"].month, b["dob"].day),
+            "DOB_ONE_YEAR_APART": bool(a["dob"] and b["dob"]) and
+                abs(a["dob"].year - b["dob"].year) == 1,
+        }
+        for label, is_same in matched.items():
+            if is_same:
+                signals[label] += 1
+        signature = "+".join(k for k, v in matched.items() if v) or "NO_SHARED_SIGNATURE"
+        signatures[signature] += 1
+        p = any(v for k, v in matched.items() if k.startswith("P_"))
+        m = any(v for k, v in matched.items() if k.startswith("M_"))
+        d = any(v for k, v in matched.items() if k.startswith("DOB_"))
+        category = ("PERSON_MOTHER_BIRTH" if p and m and d else
+                    "PERSON_MOTHER" if p and m else
+                    "PERSON_BIRTH" if p and d else
+                    "PERSON_ONLY" if p else
+                    "NO_PERSON_SIGNATURE")
+        reasons[category] += 1
+        possible = {
+            "P_PHON_M_PHON": matched["P_PHON"] and matched["M_PHON"],
+            "P_PHON_M_PREFIX3": matched["P_PHON"] and matched["M_PREFIX3"],
+            "P_FIRST_M_ANY": matched["P_FIRST"] and matched["M_ANY"],
+            "P_ANY_M_FIRST": matched["P_ANY"] and matched["M_FIRST"],
+            "P_LAST_M_FIRST": matched["P_LAST"] and matched["M_FIRST"],
+            "P_PHON_DOB_MONTHDAY": matched["P_PHON"] and matched["DOB_MONTHDAY"],
+            "P_FIRST_DOB_MONTHDAY": matched["P_FIRST"] and matched["DOB_MONTHDAY"],
+            "P_PREFIX3_BIRTH_YEAR": matched["P_PREFIX3"] and matched["DOB_YEAR"],
+            "P_LAST_BIRTH_YEAR": matched["P_LAST"] and matched["DOB_YEAR"],
+            "P_ANY_BIRTH_YEAR": matched["P_ANY"] and matched["DOB_YEAR"],
+        }
+        for hypothesis, could_recover in possible.items():
+            if could_recover:
+                hypotheses[hypothesis] += 1
+
+    if sum(reasons.values()) != len(missing) or sum(signatures.values()) != len(missing):
+        raise ValueError("Unrecovered M residual profile does not reconcile")
+    return {
+        "unrecovered_eligible_true_M": len(missing),
+        "reason_categories": dict(sorted(reasons.items())),
+        "matching_signal_counts": dict(sorted(signals.items())),
+        "candidate_hypotheses_potential_true_M_ONLY": dict(
+            sorted(hypotheses.items(), key=lambda x: (-x[1], x[0]))),
+        "most_common_signatures": [
+            {"signature": k, "M": v}
+            for k, v in sorted(signatures.items(), key=lambda x: (-x[1], x[0]))[:20]
+        ],
+        "hypothesis_U_fanout_sql_cost_measured": False,
+        "test_evaluated": False,
+        "uses_surname_proxy_not_canonical_CSharp_parity": True
+    }
+
+
 def assess(rows, cap=250000, max_passes=8):
     validate_rows(rows)
     if max_passes < 1 or max_passes > len(EXTENDED):
@@ -304,6 +424,8 @@ def assess(rows, cap=250000, max_passes=8):
             "all_no_cpf_truth_M": len(full),
             "name_eligible_truth_M": len(eligible),
             "eligibility_ceiling_vs_all_truth": len(eligible)/len(full) if full else None,
+            "unrecovered_extended_truth_profile":
+                profile_unrecovered_truth(subset, eligible, extended),
             "metrics": summaries,
             "cells": single
         }
