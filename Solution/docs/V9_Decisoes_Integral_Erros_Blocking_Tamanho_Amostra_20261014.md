@@ -210,3 +210,33 @@ aprovado; (vi) revisar estratos, drift e critérios de suficiência
 com a governança; (vii) manter TEST blindado até aprovação.
 **Sem ativação V9/DT-15, sem alteração V8/Gold, HML/PROD, NAS,
 JornadaLocal, dos snapshots IBGE ou das políticas ativas.**
+
+## Registro de incidente estatístico multisseed e tratamento não permissivo
+
+Na primeira execução física das seeds independentes, o perfil
+`correlated` da seed **44** não disponibilizou plano
+`greedy_pruned` capaz de atingir o alvo de 95% em TRAIN:
+a rotina de tamanho amostral inicialmente abortava com
+`cannot assess non-feasible frozen plan`. Isso **não**
+autoriza descartar o caso adversarial, afirmar que sua
+amostra convergiu, alterar probabilidades de corrupção,
+baixar o alvo ou selecionar por VALIDATION. Foi corrigido
+o tratamento: para splits cujo TRAIN não encontra plano
+viável, calcular apenas a curva de **limite diagnóstico da
+união predefinida de todas as 19 células**, rotulada
+`UNSELECTED_FULL_19_DIAGNOSTIC_INFEASIBLE_TRAIN`, reconciliada
+com M da união SQL do relatório congelado. Esta curva **não
+é política selecionada, nem estatisticamente certificada**;
+o relatório indica `original_train_95pct_plan_feasible=false`.
+Se até essa união ficar abaixo de 95%, registrar a
+insuficiência estrutural daquela semente e cenário, não
+confundir com mero erro-padrão de N finito.
+
+Resultados numéricos, eventuais falhas e distribuição de
+N da seed 44 só devem ser considerados **confirmados**
+depois dos quatro jobs do workflow com as respectivas
+saídas integrais; os testes verificam o caso inviável
+sem ocultar o resíduo. A busca de características
+mais informativas, se necessária, é trabalho de nova
+experiência TRAIN-only, jamais retoque dos dados para
+satisfazer o gate.
