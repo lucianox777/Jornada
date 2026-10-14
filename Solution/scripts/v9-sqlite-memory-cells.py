@@ -395,7 +395,8 @@ def profile_unrecovered_truth(rows, truth, candidates):
     }
 
 
-def fit_min_u_plans_on_train(train_cells, train_truth, min_recall=0.95):
+def fit_min_u_plans_on_train(train_cells, train_truth, min_recall=0.95,
+                             all_truth_count=None):
     """Derive TWO diagnostic candidate subsets from TRAIN M and U only.
 
     Targeted subset: EXACT search over 2^5 target-cell subsets with the V1
@@ -411,11 +412,21 @@ def fit_min_u_plans_on_train(train_cells, train_truth, min_recall=0.95):
     # Avoid floating threshold ambiguity for a fixed 95% target.
     if min_recall != 0.95:
         raise ValueError("unversioned recall threshold")
-    needed = (19 * len(train_truth) + 19) // 20
-    if not train_truth:
-        return {"status": "NO_TRAIN_TRUTH", "minimum_recall": min_recall,
-                "required_M": needed, "exact_targeted": None,
-                "greedy_pruned": None}
+    if all_truth_count is None:
+        all_truth_count = len(train_truth)
+    if all_truth_count < len(train_truth):
+        raise ValueError("all-truth denominator cannot be below eligible truth")
+    required_eligible = (19 * len(train_truth) + 19) // 20
+    required_all = (19 * all_truth_count + 19) // 20
+    needed = max(required_eligible, required_all)
+    if not train_truth or needed > len(train_truth):
+        return {"status": ("NO_TRAIN_TRUTH" if not train_truth
+                           else "ELIGIBILITY_CEILING_BELOW_GLOBAL_95"),
+                "minimum_recall": min_recall, "required_M": needed,
+                "required_eligible_M": required_eligible,
+                "required_all_truth_M": required_all,
+                "all_truth_count": all_truth_count,
+                "exact_targeted": None, "greedy_pruned": None}
 
     baseline = set().union(*(train_cells[c] for c in EXTENDED))
     choices = []
@@ -483,16 +494,24 @@ def fit_min_u_plans_on_train(train_cells, train_truth, min_recall=0.95):
     return {"status": ("TRAIN_TARGET_FEASIBLE" if exact is not None
                        else "TRAIN_TARGET_INFEASIBLE"),
             "minimum_recall": min_recall, "required_M": needed,
+            "required_eligible_M": required_eligible,
+            "required_all_truth_M": required_all,
+            "all_truth_count": all_truth_count,
             "exact_targeted": exact, "greedy_pruned": pruned}
 
 
 def apply_fixed_min_u_plans(train_fit, sql_pairs, train_validation_true,
-                           eligible_counts):
+                           eligible_counts, all_truth_counts=None):
     """Evaluate TRAIN-fitted cell lists unchanged in VALIDATION."""
+    if all_truth_counts is None:
+        all_truth_counts = {part: len(train_validation_true[part])
+                            for part in ("TRAIN", "VALIDATION")}
     result = {"trained_on": "TRAIN_ONLY", "validation_refit": False,
               "target_is_diagnostic_not_promotion": True,
               "min_recall": train_fit["minimum_recall"],
               "train_required_M": train_fit["required_M"],
+              "train_required_all_truth_M": train_fit["required_all_truth_M"],
+              "train_required_eligible_M": train_fit["required_eligible_M"],
               "status": train_fit["status"], "plans": {}}
     for name in ("exact_targeted", "greedy_pruned"):
         fit = train_fit[name]
@@ -505,8 +524,22 @@ def apply_fixed_min_u_plans(train_fit, sql_pairs, train_validation_true,
             pairs = set().union(*(sql_pairs[(part, cell)][0]
                                   for cell in fit["cells"]))
             stats = measure(pairs, eligible, eligible_counts[part])
-            needed = (19 * len(eligible) + 19) // 20
-            stats["recall_target_met"] = bool(eligible) and stats["M"] >= needed
+            eligible_needed = (19 * len(eligible) + 19) // 20
+            all_count = all_truth_counts[part]
+            if all_count < len(eligible):
+                raise ValueError("all-truth denominator must cover eligible M")
+            all_needed = (19 * all_count + 19) // 20
+            needed = max(eligible_needed, all_needed)
+            stats["eligible_recall_target_met"] = bool(eligible) and (
+                stats["M"] >= eligible_needed)
+            stats["global_recall_target_met"] = bool(all_count) and (
+                stats["M"] >= all_needed)
+            stats["recall_target_met"] = bool(eligible) and (
+                stats["M"] >= needed)
+            stats["recall_against_all_no_cpf_truth_M"] = (
+                stats["M"] / all_count if all_count else None)
+            stats["all_no_cpf_truth_M"] = all_count
+            stats["required_all_truth_M"] = all_needed
             stats["more_M_needed_for_95"] = max(0, needed - stats["M"])
             splits[part] = stats
         result["plans"][name] = {"selected_cells": fit["cells"],
@@ -610,10 +643,14 @@ def assess(rows, cap=250000, max_passes=8):
         for part in ("TRAIN", "VALIDATION")
     }
     cell_sets = {cell: sql_pairs[("TRAIN", cell)][0] for cell in PASS_ORDER}
-    min_u_fit = fit_min_u_plans_on_train(cell_sets, truth_sets["TRAIN"])
+    min_u_fit = fit_min_u_plans_on_train(
+        cell_sets, truth_sets["TRAIN"],
+        all_truth_count=by_part["TRAIN"]["all_no_cpf_truth_M"])
     min_u_evidence = apply_fixed_min_u_plans(
         min_u_fit, sql_pairs, truth_sets,
         {part: by_part[part]["name_eligible_observations"]
+         for part in ("TRAIN", "VALIDATION")},
+        {part: by_part[part]["all_no_cpf_truth_M"]
          for part in ("TRAIN", "VALIDATION")})
     return {
         "minimum_U_95pct_diagnostic": min_u_evidence,
