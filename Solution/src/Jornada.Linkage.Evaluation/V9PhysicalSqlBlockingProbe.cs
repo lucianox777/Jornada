@@ -82,6 +82,7 @@ public static class V9PhysicalSqlBlockingProbe
         public V9SqlTrainValidationUnionSearch.Report? TrainValidationUnionSearch { get; init; }
         public V9SqlTrainValidationUnionFanoutAudit.Report? TrainValidationUnionFanout { get; init; }
         public V9SqlBirthYearPassFamilyAudit.Report? BirthYearPassFamilyTrainValidation { get; init; }
+        public V9SqlElevenPassResidualAudit.Report? ElevenPassResidualTrainValidation { get; init; }
     }
 
     public static async Task<Result> RunAsync(
@@ -448,11 +449,19 @@ public static class V9PhysicalSqlBlockingProbe
             trainValidationSqlBaseline,
             bySplit["TRAIN"].Eligible, bySplit["VALIDATION"].Eligible, ct);
         var passSensitivity = unionSearch.Sensitivity;
-        // Separate four NEW birth-year tolerance pass families. Diagnostic
+        // Separate five NEW birth-year tolerance pass families. Diagnostic
         // TRAIN/VALIDATION only; TEST and current ruleset never changed.
         var birthYearExploration = await ExploreBirthYearPassesAsync(
             connection, observationRows, trainValidationSqlBaseline,
             bySplit["TRAIN"].Eligible, bySplit["VALIDATION"].Eligible, ct);
+        var elevenResidual = V9SqlElevenPassResidualAudit.Analyze(
+            observationRows.Where(x=>x.Partition is "TRAIN" or "VALIDATION")
+                .Select(x=>new V9SqlBirthYearPassFamilyAudit.Observation(
+                    x.Id,x.Partition,x.Gestor,x.Cpf is null && x.Birth.HasValue))
+                .ToArray(),
+            trainValidationSqlBaseline, unionSearch.Extensions,
+            birthYearExploration.Extensions, eligibleTruthPairs,
+            unionSearch.Search, birthYearExploration.Report, HardPairCap);
         if (metrics.Any(x => x.EligibleTrueInterGestorNoCpfPairs <= 0)
             || metrics.Any(x => x.SqlCandidateTruePairs > x.EligibleTrueInterGestorNoCpfPairs))
             throw new InvalidOperationException("Gabarito ou recuperação SQL M incompatíveis.");
@@ -481,7 +490,8 @@ public static class V9PhysicalSqlBlockingProbe
             PreRegisteredPassSensitivity = passSensitivity,
             TrainValidationUnionSearch = unionSearch.Search,
             TrainValidationUnionFanout = unionSearch.Fanout,
-            BirthYearPassFamilyTrainValidation = birthYearExploration
+            BirthYearPassFamilyTrainValidation = birthYearExploration.Report,
+            ElevenPassResidualTrainValidation = elevenResidual
         };
     }
 
@@ -501,7 +511,8 @@ public static class V9PhysicalSqlBlockingProbe
 
     private static async Task<(BlockingPassSensitivity[] Sensitivity,
             V9SqlTrainValidationUnionSearch.Report Search,
-            V9SqlTrainValidationUnionFanoutAudit.Report Fanout)>
+            V9SqlTrainValidationUnionFanoutAudit.Report Fanout,
+            IReadOnlyList<V9SqlTrainValidationUnionSearch.Extension> Extensions)>
         MeasurePreRegisteredPassesAsync(
             SqlConnection connection, Observation[] observations, Frozen frozen,
             IReadOnlyList<V9SqlTrainValidationUnionSearch.Pair> baseline,
@@ -637,11 +648,13 @@ public static class V9PhysicalSqlBlockingProbe
                     x.Id, x.Partition, x.Gestor, x.Cpf is null && x.Birth.HasValue))
                 .ToArray(),
             baseline, extensions, search, HardPairCap);
-        return (results.ToArray(), search, fanout);
+        return (results.ToArray(), search, fanout,
+            Array.AsReadOnly(extensions.ToArray()));
     }
 
 
-    private static async Task<V9SqlBirthYearPassFamilyAudit.Report>
+    private static async Task<(V9SqlBirthYearPassFamilyAudit.Report Report,
+            IReadOnlyList<V9SqlBirthYearPassFamilyAudit.Pass> Extensions)>
         ExploreBirthYearPassesAsync(
             SqlConnection connection, Observation[] observations,
             IReadOnlyList<V9SqlTrainValidationUnionSearch.Pair> baseline,
@@ -651,7 +664,7 @@ public static class V9PhysicalSqlBlockingProbe
         // Every join is an independent, frozen, two-signal predicate.
         // YEAR relaxation tolerates day/month edits without treating
         // missing mother or a missing date as a neutral agreement.
-        // Four probes use the same physical SQL baseline frame. TEST is
+        // Five probes use the same physical SQL baseline frame. TEST is
         // excluded in SQL, NOT merely filtered at report/ranking time.
         (string Name, string SqlPredicate)[] proposed =
         [
@@ -757,7 +770,7 @@ public static class V9PhysicalSqlBlockingProbe
                 throw new InvalidDataException(
                     "Nova família SQL não conciliou a leitura completa de pares.");
         }
-        return report;
+        return (report, Array.AsReadOnly(extensions.ToArray()));
     }
 
     private sealed record ActivePass(string PassId, string[] Fields);
