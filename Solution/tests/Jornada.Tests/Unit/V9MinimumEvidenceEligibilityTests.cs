@@ -16,12 +16,9 @@ public sealed class V9MinimumEvidenceEligibilityTests
     {
         var result = V9MinimumEvidenceEligibility.Evaluate(person, mother,
             date is null ? null : DateTime.Parse(date, System.Globalization.CultureInfo.InvariantCulture));
-        Assert.Multiple(() =>
-        {
-            Assert.That(result.Eligible, Is.True);
-            Assert.That(result.MustAbstain, Is.False);
-            Assert.That(result.Combination, Is.EqualTo(expected));
-        });
+        Assert.That(result.Eligible, Is.True);
+        Assert.That(result.MustAbstain, Is.False);
+        Assert.That(result.Combination, Is.EqualTo(expected));
     }
 
     [TestCase(null, null)]
