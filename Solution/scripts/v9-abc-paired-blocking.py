@@ -50,6 +50,7 @@ def evaluate(rows):
                     eligible.add((i, j))
         truth = {pair for pair in eligible if subset[pair[0]]["base_person_id"] == subset[pair[1]]["base_person_id"]}
         variants = {}
+        retrieved_by_arm = {}
         for arm, passes in ARMS.items():
             for use_e0 in (False, True):
                 retrieved = set()
@@ -64,6 +65,7 @@ def evaluate(rows):
                             if pair in eligible:
                                 retrieved.add(pair)
                 label = arm + ("+E0" if use_e0 else "")
+                retrieved_by_arm[label] = retrieved
                 variants[label] = {"m_eligible": len(truth), "m_retrieved": len(retrieved & truth),
                                    "m_missed": len(truth - retrieved), "u_retrieved": len(retrieved - truth),
                                    "candidate_pairs": len(retrieved),
@@ -74,10 +76,14 @@ def evaluate(rows):
                 off = base + "0" + ("+E0" if use_e0 else "")
                 on = base + "1" + ("+E0" if use_e0 else "")
                 x, y = variants[off], variants[on]
+                only_off = retrieved_by_arm[off] - retrieved_by_arm[on]
+                only_on = retrieved_by_arm[on] - retrieved_by_arm[off]
                 paired[base + ("+E0" if use_e0 else "")] = {
-                    "phonetic_extra_m": y["m_retrieved"] - x["m_retrieved"],
-                    "phonetic_extra_u": y["u_retrieved"] - x["u_retrieved"],
-                    "delta_recall": (y["m_retrieved"] - x["m_retrieved"]) / len(truth) if truth else None}
+                    "m_only_off": len(only_off & truth), "m_only_on": len(only_on & truth),
+                    "u_only_off": len(only_off - truth), "u_only_on": len(only_on - truth),
+                    "phonetic_extra_m": len(only_on & truth) - len(only_off & truth),
+                    "phonetic_extra_u": len(only_on - truth) - len(only_off - truth),
+                    "delta_recall": (len(only_on & truth) - len(only_off & truth)) / len(truth) if truth else None}
         result[split] = {"observations": len(subset), "m_eligible": len(truth),
                          "u_eligible": len(eligible) - len(truth), "arms": variants,
                          "paired_phonetic": paired}
