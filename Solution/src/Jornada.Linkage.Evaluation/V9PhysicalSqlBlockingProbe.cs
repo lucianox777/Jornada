@@ -76,6 +76,7 @@ public static class V9PhysicalSqlBlockingProbe
         public V9SqlCandidateFanoutAudit.Report? CandidateFanoutAudit { get; init; }
         public V9SqlConditionedBirthSupportAudit.Report? TrainSqlBirthSupportAudit { get; init; }
         public V9SqlConditionalMuIdentifiabilityAudit.Report? TrainSqlMuIdentifiabilityAudit { get; init; }
+        public V9SqlBaseClusterConcentrationAudit.Report? TrainSqlBaseClusterConcentrationAudit { get; init; }
         public string? BlockingAblationContract { get; init; }
         public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
     }
@@ -393,6 +394,12 @@ public static class V9PhysicalSqlBlockingProbe
             throw new InvalidDataException("Nascimento e nome não conciliam no mesmo SQL TRAIN.");
         var trainMuIdentifiability = V9SqlConditionalMuIdentifiabilityAudit.Analyze(
             trainNominalSupport, trainBirthSupport, tfBaseAudit);
+        var trainClusterConcentration = V9SqlBaseClusterConcentrationAudit.Analyze(
+            trainSqlPairs, trainSqlBirthPairs, trainNominalSupport,
+            trainBirthSupport, tfBaseAudit.TrainingBasePeople);
+        if (trainClusterConcentration.SqlCandidateM != trainMuIdentifiability.SqlCandidateM
+            || trainClusterConcentration.SqlCandidateU != trainMuIdentifiability.SqlCandidateU)
+            throw new InvalidDataException("Concentração por base diverge do suporte SQL TRAIN.");
         if (trainNominalSupport.SqlCandidateM != bySplit["TRAIN"].TrueCandidate
             || trainNominalSupport.SqlCandidateU != bySplit["TRAIN"].FalseCandidate)
             throw new InvalidDataException("Suporte m/u nominal TRAIN não concilia com SQL físico.");
@@ -454,6 +461,7 @@ public static class V9PhysicalSqlBlockingProbe
             CandidateFanoutAudit = fanoutReport,
             TrainSqlBirthSupportAudit = trainBirthSupport,
             TrainSqlMuIdentifiabilityAudit = trainMuIdentifiability,
+            TrainSqlBaseClusterConcentrationAudit = trainClusterConcentration,
             BlockingAblationContract = BlockingAblationVersion,
             PreRegisteredPassSensitivity = passSensitivity
         };
