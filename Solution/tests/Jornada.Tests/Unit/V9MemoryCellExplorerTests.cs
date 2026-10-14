@@ -34,6 +34,25 @@ public sealed class V9MemoryCellExplorerTests
     }
 
     [Test]
+    public void NormalizedAndPhoneticCellsRecoverSpellingVariants()
+    {
+        V9MemoryCellExplorer.Row[] rows =
+        [
+            new(1,"TRAIN","G1","JOSÉ SILVA","ANA SOUZA",new DateTime(1980,1,2),100),
+            new(2,"TRAIN","G2","JOSE SILVA","ANA SOUZA",new DateTime(1980,1,2),100),
+            new(3,"VALIDATION","G1","MARIA DA CONCEIÇÃO","ANA SOUZA",new DateTime(1980,1,2),200),
+            new(4,"VALIDATION","G2","MARIA CONCEICAO","ANA SOUZA",new DateTime(1980,1,2),200)
+        ];
+        var results = V9MemoryCellExplorer.Analyze(rows);
+        Assert.That(results.Single(x => x.Partition == "TRAIN"
+            && x.Cell == "PERSON_EXACT_DOB").M, Is.EqualTo(1));
+        Assert.That(results.Single(x => x.Partition == "VALIDATION"
+            && x.Cell == "PERSON_NO_PARTICLES_MOTHER").M, Is.EqualTo(1));
+        Assert.That(results.Single(x => x.Partition == "TRAIN"
+            && x.Cell == "PERSON_METAPHONE_DOB").M, Is.EqualTo(1));
+    }
+
+    [Test]
     public void Rejects_test_and_duplicate_ids()
     {
         V9MemoryCellExplorer.Row[] rows =
