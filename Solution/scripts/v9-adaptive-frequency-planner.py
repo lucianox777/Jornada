@@ -23,8 +23,16 @@ def train_counts(rows, passes=DEFAULT_PASSES):
         raise ValueError("canonical normalized and phonetic name projections required")
     counts = {fields: collections.Counter() for fields in passes}
     identities = collections.defaultdict(list)
+    ownership = {}
     for row in rows:
-        if row.get("particao") != "TRAIN":
+        partition = row.get("particao")
+        identity = row.get("base_person_id")
+        if partition not in {"TRAIN", "VALIDATION", "TEST"} or not identity:
+            raise ValueError("canonical partition and base_person_id required")
+        if identity in ownership and ownership[identity] != partition:
+            raise ValueError("identity leaked between partitions")
+        ownership[identity] = partition
+        if partition != "TRAIN":
             continue
         if row.get("base_person_id") is None:
             raise ValueError("TRAIN base_person_id required")
