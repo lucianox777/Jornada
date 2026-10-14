@@ -395,6 +395,159 @@ def profile_unrecovered_truth(rows, truth, candidates):
     }
 
 
+def fit_min_u_plans_on_train(train_cells, train_truth, min_recall=0.95,
+                             all_truth_count=None):
+    """Derive TWO diagnostic candidate subsets from TRAIN M and U only.
+
+    Targeted subset: EXACT search over 2^5 target-cell subsets with the V1
+    14-cell union fixed. Cost is observed U under the same TRAIN frame.
+    Pruned: deterministic backward elimination from ALL 19 cells, deleting
+    a pass only if the resulting TRAIN recall remains >= the preset target.
+    Neither route uses VALIDATION/TEST or estimates accepted-link FDR.
+    """
+    if set(train_cells) != set(PASS_ORDER):
+        raise ValueError("missing or unknown physical memory pass")
+    if not (0 < min_recall <= 1):
+        raise ValueError("invalid minimum recall")
+    # Avoid floating threshold ambiguity for a fixed 95% target.
+    if min_recall != 0.95:
+        raise ValueError("unversioned recall threshold")
+    if all_truth_count is None:
+        all_truth_count = len(train_truth)
+    if all_truth_count < len(train_truth):
+        raise ValueError("all-truth denominator cannot be below eligible truth")
+    required_eligible = (19 * len(train_truth) + 19) // 20
+    required_all = (19 * all_truth_count + 19) // 20
+    needed = max(required_eligible, required_all)
+    if not train_truth or needed > len(train_truth):
+        return {"status": ("NO_TRAIN_TRUTH" if not train_truth
+                           else "ELIGIBILITY_CEILING_BELOW_GLOBAL_95"),
+                "minimum_recall": min_recall, "required_M": needed,
+                "required_eligible_M": required_eligible,
+                "required_all_truth_M": required_all,
+                "all_truth_count": all_truth_count,
+                "exact_targeted": None, "greedy_pruned": None}
+
+    baseline = set().union(*(train_cells[c] for c in EXTENDED))
+    choices = []
+    for mask in range(1 << len(TARGETED)):
+        chosen = tuple(c for i, c in enumerate(TARGETED) if mask & (1 << i))
+        pairs = baseline.union(*(train_cells[c] for c in chosen))
+        m = len(pairs & train_truth)
+        if m < needed:
+            continue
+        u = len(pairs) - m
+        # Minimize U, then passes, then maximize recall M.
+        choices.append((u, len(chosen), -m, chosen))
+    exact = None
+    if choices:
+        u, _, neg_m, chosen = min(choices)
+        exact = {"cells": list(EXTENDED) + list(chosen),
+                 "added_cells": list(chosen), "train_M": -neg_m,
+                 "train_U": u, "exact_over_targeted_subsets": True}
+
+    # One candidate-pair bitmask per observed pair, so backtracking
+    # does not repeatedly materialize huge unions in SQL or Python.
+    masks = {}
+    for idx, cell in enumerate(EXPANDED):
+        bit = 1 << idx
+        for pair in train_cells[cell]:
+            masks[pair] = masks.get(pair, 0) | bit
+    selected_mask = (1 << len(EXPANDED)) - 1
+    train_m = sum(pair in train_truth for pair in masks)
+    train_u = len(masks) - train_m
+    if train_m < needed:
+        pruned = None
+    else:
+        eliminated = []
+        while True:
+            exclusive_m = [0] * len(EXPANDED)
+            exclusive_u = [0] * len(EXPANDED)
+            for pair, bits in masks.items():
+                live = bits & selected_mask
+                if live and live.bit_count() == 1:
+                    idx = live.bit_length() - 1
+                    if pair in train_truth:
+                        exclusive_m[idx] += 1
+                    else:
+                        exclusive_u[idx] += 1
+            removable = [
+                i for i in range(len(EXPANDED))
+                if selected_mask & (1 << i)
+                and train_m - exclusive_m[i] >= needed
+                and (exclusive_u[i] > 0 or exclusive_m[i] == 0)
+            ]
+            if not removable:
+                break
+            # Largest U saving first, then smallest lost M. Deterministic.
+            idx = min(removable, key=lambda i:
+                      (-exclusive_u[i], exclusive_m[i], EXPANDED[i]))
+            train_m -= exclusive_m[idx]
+            train_u -= exclusive_u[idx]
+            selected_mask &= ~(1 << idx)
+            eliminated.append(EXPANDED[idx])
+        chosen = [c for i, c in enumerate(EXPANDED) if selected_mask & (1 << i)]
+        assert train_m >= needed
+        pruned = {"cells": chosen, "removed_cells": eliminated,
+                  "train_M": train_m, "train_U": train_u,
+                  "locally_greedy_not_global_optimum": True}
+    return {"status": ("TRAIN_TARGET_FEASIBLE" if exact is not None
+                       else "TRAIN_TARGET_INFEASIBLE"),
+            "minimum_recall": min_recall, "required_M": needed,
+            "required_eligible_M": required_eligible,
+            "required_all_truth_M": required_all,
+            "all_truth_count": all_truth_count,
+            "exact_targeted": exact, "greedy_pruned": pruned}
+
+
+def apply_fixed_min_u_plans(train_fit, sql_pairs, train_validation_true,
+                           eligible_counts, all_truth_counts=None):
+    """Evaluate TRAIN-fitted cell lists unchanged in VALIDATION."""
+    if all_truth_counts is None:
+        all_truth_counts = {part: len(train_validation_true[part])
+                            for part in ("TRAIN", "VALIDATION")}
+    result = {"trained_on": "TRAIN_ONLY", "validation_refit": False,
+              "target_is_diagnostic_not_promotion": True,
+              "min_recall": train_fit["minimum_recall"],
+              "train_required_M": train_fit["required_M"],
+              "train_required_all_truth_M": train_fit["required_all_truth_M"],
+              "train_required_eligible_M": train_fit["required_eligible_M"],
+              "status": train_fit["status"], "plans": {}}
+    for name in ("exact_targeted", "greedy_pruned"):
+        fit = train_fit[name]
+        if fit is None:
+            result["plans"][name] = None
+            continue
+        splits = {}
+        for part in ("TRAIN", "VALIDATION"):
+            eligible = train_validation_true[part]
+            pairs = set().union(*(sql_pairs[(part, cell)][0]
+                                  for cell in fit["cells"]))
+            stats = measure(pairs, eligible, eligible_counts[part])
+            eligible_needed = (19 * len(eligible) + 19) // 20
+            all_count = all_truth_counts[part]
+            if all_count < len(eligible):
+                raise ValueError("all-truth denominator must cover eligible M")
+            all_needed = (19 * all_count + 19) // 20
+            needed = max(eligible_needed, all_needed)
+            stats["eligible_recall_target_met"] = bool(eligible) and (
+                stats["M"] >= eligible_needed)
+            stats["global_recall_target_met"] = bool(all_count) and (
+                stats["M"] >= all_needed)
+            stats["recall_target_met"] = bool(eligible) and (
+                stats["M"] >= needed)
+            stats["recall_against_all_no_cpf_truth_M"] = (
+                stats["M"] / all_count if all_count else None)
+            stats["all_no_cpf_truth_M"] = all_count
+            stats["required_all_truth_M"] = all_needed
+            stats["more_M_needed_for_95"] = max(0, needed - stats["M"])
+            splits[part] = stats
+        result["plans"][name] = {"selected_cells": fit["cells"],
+                                 "fit_diagnostic": fit,
+                                 "measured": splits}
+    return result
+
+
 def assess(rows, cap=250000, max_passes=8):
     validate_rows(rows)
     if max_passes < 1 or max_passes > len(EXTENDED):
@@ -485,7 +638,22 @@ def assess(rows, cap=250000, max_passes=8):
         metrics["more_M_needed_for_95"] = max(
             0, (19*len(eligible)+19)//20 - metrics["M"])
         plan[part] = metrics
+    truth_sets = {
+        part: truth_for([r for r in rows if r["particao"] == part], True)
+        for part in ("TRAIN", "VALIDATION")
+    }
+    cell_sets = {cell: sql_pairs[("TRAIN", cell)][0] for cell in PASS_ORDER}
+    min_u_fit = fit_min_u_plans_on_train(
+        cell_sets, truth_sets["TRAIN"],
+        all_truth_count=by_part["TRAIN"]["all_no_cpf_truth_M"])
+    min_u_evidence = apply_fixed_min_u_plans(
+        min_u_fit, sql_pairs, truth_sets,
+        {part: by_part[part]["name_eligible_observations"]
+         for part in ("TRAIN", "VALIDATION")},
+        {part: by_part[part]["all_no_cpf_truth_M"]
+         for part in ("TRAIN", "VALIDATION")})
     return {
+        "minimum_U_95pct_diagnostic": min_u_evidence,
         "version": VERSION, "policy": POLICY,
         "engine": "sqlite3_memory_real_indexed_sql",
         "key_semantics": "CANONICAL_CSHARP_FULLNAME_AND_PHONETIC;SURNAME_TOKEN_PROXY_NOT_CSHARP_PARITY",

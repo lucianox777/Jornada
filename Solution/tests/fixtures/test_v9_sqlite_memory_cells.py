@@ -178,6 +178,93 @@ class SqliteMemoryCellsTests(unittest.TestCase):
         self.assertEqual(out["P_ANY_DOB_MONTHDAY"]["M"], 0)
         self.assertEqual(out["P_PREFIX3_BIRTH_YEAR"]["M"], 0)
 
+    def test_train_only_exact_subset_minimizes_U_under_95_recall(self):
+        truth = {(f"p{i}", f"q{i}") for i in range(10)}
+        baseline = set(list(truth)[:8])
+        last_two = truth - baseline
+        train_cells = {name: set() for name in m.PASS_ORDER}
+        train_cells[m.EXTENDED[0]] = baseline | {("base-u", "x")}
+        train_cells["P_FIRST_DOB_MONTHDAY"] = last_two | {("u", "1")}
+        train_cells["P_ANY_BIRTH_YEAR"] = last_two | {
+            ("u", "2"), ("u", "3"), ("u", "4")
+        }
+        fit = m.fit_min_u_plans_on_train(train_cells, truth)
+        self.assertEqual(fit["status"], "TRAIN_TARGET_FEASIBLE")
+        self.assertEqual(fit["required_M"], 10)
+        self.assertEqual(fit["exact_targeted"]["added_cells"],
+                         ["P_FIRST_DOB_MONTHDAY"])
+        self.assertEqual(fit["exact_targeted"]["train_U"], 2)
+        self.assertGreaterEqual(fit["greedy_pruned"]["train_M"], 10)
+        self.assertLessEqual(fit["greedy_pruned"]["train_U"], 2)
+
+    def test_train_selection_cannot_be_improved_with_validation_labels(self):
+        train_truth = {("t1", "t2")}
+        val_truth = {("v1", "v2")}
+        train_cells = {name: set() for name in m.PASS_ORDER}
+        train_cells["P_FIRST_DOB_MONTHDAY"] = set(train_truth)
+        train_cells["P_ANY_BIRTH_YEAR"] = {("u1", "u2")}
+        fit = m.fit_min_u_plans_on_train(train_cells, train_truth)
+        self.assertEqual(fit["exact_targeted"]["added_cells"],
+                         ["P_FIRST_DOB_MONTHDAY"])
+        sql_pairs = {}
+        for name in m.PASS_ORDER:
+            sql_pairs["TRAIN", name] = (train_cells[name], 0)
+            sql_pairs["VALIDATION", name] = (
+                set(val_truth) if name == "P_ANY_BIRTH_YEAR" else set(), 0)
+        fixed = m.apply_fixed_min_u_plans(
+            fit, sql_pairs, {"TRAIN": train_truth, "VALIDATION": val_truth},
+            {"TRAIN": 2, "VALIDATION": 2})
+        chosen = fixed["plans"]["exact_targeted"]
+        self.assertEqual(chosen["measured"]["TRAIN"]["recall"], 1)
+        self.assertEqual(chosen["measured"]["VALIDATION"]["M"], 0)
+        self.assertFalse(chosen["measured"]["VALIDATION"]["recall_target_met"])
+        self.assertFalse(fixed["validation_refit"])
+
+    def test_fails_closed_when_no_train_subset_can_reach_95_percent(self):
+        true = {(str(i), str(i + 100)) for i in range(20)}
+        cells = {name: set() for name in m.PASS_ORDER}
+        cells["P_PHON_M_LAST"] = set(list(true)[:2])
+        fit = m.fit_min_u_plans_on_train(cells, true)
+        self.assertEqual(fit["status"], "TRAIN_TARGET_INFEASIBLE")
+        self.assertIsNone(fit["exact_targeted"])
+        self.assertIsNone(fit["greedy_pruned"])
+
+    def test_global_95_takes_precedence_over_conditional_recall(self):
+        truth = {(str(i), str(i + 100)) for i in range(20)}
+        cells = {name: set() for name in m.PASS_ORDER}
+        cells[m.EXTENDED[0]] = set(truth)
+        impossible = m.fit_min_u_plans_on_train(cells, truth,
+                                                 all_truth_count=22)
+        self.assertEqual(impossible["status"],
+                         "ELIGIBILITY_CEILING_BELOW_GLOBAL_95")
+        self.assertEqual(impossible["required_all_truth_M"], 21)
+        self.assertIsNone(impossible["exact_targeted"])
+        feasible = m.fit_min_u_plans_on_train(cells, truth,
+                                               all_truth_count=21)
+        self.assertEqual(feasible["status"], "TRAIN_TARGET_FEASIBLE")
+        self.assertEqual(feasible["required_M"], 20)
+
+    def test_validation_must_meet_global_95_even_if_eligible_recall_is_100(self):
+        truth = {("a", "b"), ("c", "d")}
+        cells = {name: set() for name in m.PASS_ORDER}
+        cells[m.EXTENDED[0]] = set(truth)
+        fit = m.fit_min_u_plans_on_train(cells, truth)
+        sql = {}
+        for name in m.PASS_ORDER:
+            sql["TRAIN", name] = (cells[name], 0)
+            sql["VALIDATION", name] = (
+                {("v1", "v2")} if name == m.EXTENDED[0] else set(), 0)
+        result = m.apply_fixed_min_u_plans(
+            fit, sql, {"TRAIN": truth, "VALIDATION": {("v1", "v2")}},
+            {"TRAIN": 4, "VALIDATION": 2},
+            {"TRAIN": 2, "VALIDATION": 2})
+        val = result["plans"]["greedy_pruned"]["measured"]["VALIDATION"]
+        self.assertEqual(val["recall"], 1)
+        self.assertEqual(val["recall_against_all_no_cpf_truth_M"], 0.5)
+        self.assertTrue(val["eligible_recall_target_met"])
+        self.assertFalse(val["global_recall_target_met"])
+        self.assertFalse(val["recall_target_met"])
+
     def test_snapshot_integrity_protects_training_source_and_no_overwrite(self):
         rows = [row("a","p","A"),row("b","p","B")]
         import csv
