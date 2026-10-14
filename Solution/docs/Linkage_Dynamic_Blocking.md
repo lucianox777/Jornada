@@ -1,4 +1,4 @@
-> **Decisão canônica de 14/10/2026 — Calibrador único adaptativo:** [Calibrador C# histórico, reprodução V9, snapshot inicial imutável na `ref`, bootstrap sem recalibração e calibrações posteriores somente manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). A decisão é normativa; a implementação permanece pendente na issue #1089. Documentos e números experimentais históricos não equivalem a certificação operacional.
+> **Decisão canônica de 14/10/2026 — Calibrador único adaptativo:** [Calibrador V9 C# único e definitivo; melhores parâmetros V9 são do bootstrap congelado em `ref` (não definitivos), com calibrações futuras manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). A decisão é normativa; a implementação permanece pendente na issue #1089. Documentos e números experimentais históricos não equivalem a certificação operacional.
 
 # Linkage - blocking dinâmico compartilhado
 
