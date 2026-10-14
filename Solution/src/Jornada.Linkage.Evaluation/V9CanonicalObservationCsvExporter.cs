@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text;
+using System.Text.Json;
 using Jornada.Contracts;
 
 namespace Jornada.Linkage.Evaluation;
@@ -9,15 +10,28 @@ public static class V9CanonicalObservationCsvExporter
 {
     public const string Version = "V9_CANONICAL_CSV_EXPORTER_V1";
     public const string Header = "observacao_id,base_person_id,particao,gestor,nome,nome_mae,data_nascimento,cpf,nome_normalizado,nome_fonetico,nome_mae_normalizado,nome_mae_fonetico";
+    public const string SurnameVersion = "V9_CANONICAL_CSV_EXPORTER_CSHARP_SURNAMES_V2";
+    public const string SurnameHeader = Header +
+        ",nome_ultimo_sobrenome,nome_sobrenomes_json,nome_mae_ultimo_sobrenome,nome_mae_sobrenomes_json";
 
     public sealed record Input(string ObservationId, string BasePersonId, string Partition,
         string Gestor, string? Name, string? MotherName, DateOnly? BirthDate, string? Cpf);
 
-    public static void Export(TextWriter writer, IEnumerable<Input> observations)
+    public static void Export(TextWriter writer, IEnumerable<Input> observations) =>
+        ExportCore(writer, observations, withCanonicalSurnames: false);
+
+    // Opt-in new artifact, never mutate the historic V1 CSV/fingerprint contract.
+    // Uses the SAME C# surname projector as the ephemeral SQL Server audit.
+    public static void ExportWithSurnames(
+        TextWriter writer, IEnumerable<Input> observations) =>
+        ExportCore(writer, observations, withCanonicalSurnames: true);
+
+    private static void ExportCore(TextWriter writer,
+        IEnumerable<Input> observations, bool withCanonicalSurnames)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(observations);
-        writer.WriteLine(Header);
+        writer.WriteLine(withCanonicalSurnames ? SurnameHeader : Header);
         foreach (var row in observations)
         {
             if (string.IsNullOrWhiteSpace(row.ObservationId) ||
@@ -43,6 +57,16 @@ public static class V9CanonicalObservationCsvExporter
                 Get(BlockingFeatureNames.MotherFullName),
                 Get(BlockingFeatureNames.MotherFullNamePhoneticPtBr)
             };
+            if (withCanonicalSurnames)
+            {
+                fields = [
+                    ..fields,
+                    V9NameRequiredSqlCellAudit.Last(row.Name) ?? "",
+                    JsonSerializer.Serialize(V9NameRequiredSqlCellAudit.AnySurname(row.Name)),
+                    V9NameRequiredSqlCellAudit.Last(row.MotherName) ?? "",
+                    JsonSerializer.Serialize(V9NameRequiredSqlCellAudit.AnySurname(row.MotherName))
+                ];
+            }
             writer.WriteLine(string.Join(",", fields.Select(Escape)));
         }
     }
