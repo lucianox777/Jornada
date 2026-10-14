@@ -207,7 +207,7 @@ def profile_indexed_key_pressure(connection, pairs):
     def flush(group_key, size, square_sum):
         if group_key is None:
             return
-        _, part, cell = group_key
+        cell, part, _ = group_key
         item = census[part, cell]
         cross = (size * size - square_sum) // 2
         if cross < 0:
