@@ -121,12 +121,12 @@ public sealed class V9TwoFieldSqlCoverageAuditTests
     [Test]
     public void Sql_may_physically_retrieve_a_pair_with_sentinel_DOB_if_names_are_valid()
     {
-        var withSentinel = new V9TwoFieldSqlCoverageAudit.Observation[]
-        {
+        V9TwoFieldSqlCoverageAudit.Observation[] withSentinel =
+        [
             ..Observations,
             new(40, "S", "TRAIN", "G1", "MARIA", "ANA", new DateOnly(1900,1,1), null),
             new(41, "S", "TRAIN", "G2", "MARIA", "ANA", new DateOnly(1900,1,1), null)
-        };
+        ];
         var report = V9TwoFieldSqlCoverageAudit.Analyze(
             withSentinel,
             [..Sql, new(40, 41, "TRAIN", true)], 100);
