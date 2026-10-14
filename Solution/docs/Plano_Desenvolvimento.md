@@ -1,4 +1,4 @@
-> **Decisão vigente (14/10/2026):** [Calibrador C# único adaptativo, engenharia reversa V9, calibração inicial congelada em `ref` para bootstrap e recalibrações posteriores manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). Implementação ainda em andamento na issue #1089; não confundir decisão com entrega ou ativação V9.
+> **Decisão vigente (14/10/2026):** [Calibrador V9 C# único e definitivo; parâmetros iniciais do bootstrap congelados em `ref`, não permanentes; calibrações futuras manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). Implementação ainda em andamento na issue #1089; não confundir decisão com entrega ou ativação V9.
 
 # Priorização técnica atual — revisão 09/10/2026
 
