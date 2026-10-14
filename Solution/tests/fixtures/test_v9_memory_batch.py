@@ -1,6 +1,7 @@
 import importlib.util
 import pathlib
 import unittest
+# Tests run against the runner from the stacked base branch.
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 spec = importlib.util.spec_from_file_location("v9batch", ROOT / "scripts" / "v9-batch-memory-configs.py")
