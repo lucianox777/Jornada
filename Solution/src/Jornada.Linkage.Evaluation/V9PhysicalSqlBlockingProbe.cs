@@ -532,7 +532,6 @@ public static class V9PhysicalSqlBlockingProbe
         {
             var addedTrainingAndValidation =
                 new List<V9SqlTrainValidationUnionSearch.Pair>();
-        {
             // SQL clauses are compile-time constants, never user input.
             // Restriction to observed birth prevents a different eligible
             // denominator from being mistaken for an apparent recall gain.
