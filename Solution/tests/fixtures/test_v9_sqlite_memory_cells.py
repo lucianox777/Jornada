@@ -137,6 +137,47 @@ class SqliteMemoryCellsTests(unittest.TestCase):
             sum(missed["reason_categories"].values()),
             result["name_eligible_truth_M"]-result["metrics"]["UNION_EXTENDED"]["M"])
 
+    def test_targeted_cells_recover_distinct_training_residuals_without_redefining_old_union(self):
+        rows = [
+            row("a1", "p1", "G1", name="JOSE SILVA", mother="MARIA SOUZA",
+                phon="JS", mother_phon="MS", birth="1980-01-02"),
+            row("a2", "p1", "G2", name="JOSE LIMA", mother="LUIZA COSTA",
+                phon="JL", mother_phon="LC", birth="1981-01-02"),
+            row("b1", "p2", "G1", name="ANA SILVA", mother="LUIZA MELO",
+                phon="AS", mother_phon="LM", birth="1980-01-03"),
+            row("b2", "p2", "G2", name="CARLOS SILVA", mother="MARIA ANDRADE",
+                phon="CS", mother_phon="MA", birth="1980-10-04"),
+            row("c1", "p3", "G1", name="MARIA SILVA", mother="ANA OLIVEIRA",
+                phon="MS", mother_phon="AO"),
+            row("c2", "p3", "G2", name="TERESA SILVA", mother="ANA COSTA",
+                phon="TS", mother_phon="AC")
+        ]
+        report = m.assess(rows)
+        train = report["results"]["TRAIN"]
+        self.assertEqual(train["name_eligible_truth_M"], 3)
+        # A dedicated new SQL index must add a real M pair beyond V1;
+        # still verify legacy V1 union has not been silently rewritten.
+        self.assertEqual(train["metrics"]["UNION_EXPANDED"]["M"], 3)
+        self.assertGreater(
+            train["metrics"]["UNION_EXPANDED"]["M"],
+            train["metrics"]["UNION_EXTENDED"]["M"])
+        self.assertEqual(train["cells"]["P_FIRST_DOB_MONTHDAY"]["M"], 1)
+        self.assertEqual(train["cells"]["P_ANY_BIRTH_YEAR"]["M"], 1)
+        self.assertEqual(train["cells"]["P_LAST_M_FIRST"]["M"], 1)
+        self.assertEqual(train["unrecovered_expanded_truth_profile"]["unrecovered_eligible_true_M"], 0)
+        self.assertFalse(report["fdr_measured"])
+
+    def test_targeted_birth_cells_do_not_use_sentinal_dates(self):
+        rows = [row("a", "p", "G1", name="ANA LIMA",
+                    mother="MARIA SOUZA", birth="1900-01-01"),
+                row("b", "p", "G2", name="ANA LIMA",
+                    mother="MARIA SOUZA", birth="1900-01-01")]
+        out = m.assess(rows)["results"]["TRAIN"]["cells"]
+        self.assertEqual(out["P_FIRST_DOB_MONTHDAY"]["M"], 0)
+        self.assertEqual(out["P_ANY_BIRTH_YEAR"]["M"], 0)
+        self.assertEqual(out["P_ANY_DOB_MONTHDAY"]["M"], 0)
+        self.assertEqual(out["P_PREFIX3_BIRTH_YEAR"]["M"], 0)
+
     def test_snapshot_integrity_protects_training_source_and_no_overwrite(self):
         rows = [row("a","p","A"),row("b","p","B")]
         import csv
