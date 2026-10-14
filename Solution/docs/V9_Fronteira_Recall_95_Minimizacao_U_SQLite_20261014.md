@@ -21,6 +21,18 @@ Esses 95% **não certificam escala de 11,45 milhões**, índices físicos
 SQL Server, FDR, escore FS, nem a população real. Antes de aceitar
 qualquer célula, penalizar U e fanout no **mesmo frame** é indispensável.
 
+## Denominadores obrigatórios de 95%
+
+O objetivo primário é atingir 95% tanto do universo de M elegíveis
+sob P AND (M OR D) quanto de **todos os M sem CPF**, incluindo os que
+abstêm por contrato. O algoritmo exige o maior entre os dois tetos de
+M necessários (arredondamento para cima); com teto de elegibilidade
+insuficiente declara `ELIGIBILITY_CEILING_BELOW_GLOBAL_95`, sem escolher
+plano impossível. Em TRAIN seed42, o universo total é 20.458 M e exige
+19.436 M recuperados para 95%; a união de 19 células recuperou 19.447.
+Isso deixa margem de somente 11 M. Um plano com 95% de **elegíveis**
+mas menos de 95% do **universo total** não satisfaz a meta operacional.
+
 ## Dois métodos de seleção, calculados apenas em TRAIN
 
 1. `exact_targeted`: mantém fixos os 14 passes exploratórios de V1,
