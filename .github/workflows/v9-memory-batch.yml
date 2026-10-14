@@ -13,6 +13,10 @@ on:
   pull_request:
     paths:
       - 'Solution/scripts/v9-batch-memory-configs.py'
+      - 'Solution/scripts/v9-birth-tf-train.py'
+      - 'Solution/tests/fixtures/test_v9*.py'
+      - 'Solution/tests/fixtures/v9-*.jsonl'
+      - 'Solution/tests/fixtures/v9-*.json'
       - '.github/workflows/v9-memory-batch.yml'
 permissions:
   contents: read
@@ -28,6 +32,13 @@ jobs:
         run: |
           python -m py_compile Solution/scripts/v9-batch-memory-configs.py
           python Solution/scripts/v9-batch-memory-configs.py --help
+      - name: Regression tests for V9 blocking and TF
+        run: |
+          python -m unittest discover -s Solution/tests/fixtures -p 'test_v9*.py' -v
+      - name: Fixture six-configuration experiment
+        run: |
+          python Solution/scripts/v9-batch-memory-configs.py --rows Solution/tests/fixtures/v9-memory-small.jsonl --configs Solution/tests/fixtures/v9-blocking-baselines.json --out v9-memory-fixture-report.json
+          python -c "import json; r=json.load(open('v9-memory-fixture-report.json')); assert len(r['results']) == 6"
       - name: Batch experiment
         if: github.event_name == 'workflow_dispatch'
         env:
