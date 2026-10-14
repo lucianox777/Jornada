@@ -65,19 +65,20 @@ public static class V9NameRequiredSqlCellProbe
         {
             reference.Add(x.Id,x);
             var pfon=MetaphoneBr.Encode(x.Person);
+            var pfirst=V9NameRequiredSqlCellAudit.First(x.Person);
             var plast=V9NameRequiredSqlCellAudit.Last(x.Person);
             var mfon=MetaphoneBr.Encode(x.Mother);
             var mlast=V9NameRequiredSqlCellAudit.Last(x.Mother);
             var year=x.Birth.HasValue &&
                 V9MinimumEvidenceEligibility.HasBirth(x.Birth.Value.ToDateTime(TimeOnly.MinValue))
                 ? x.Birth.Value.Year : (int?)null;
-            if(pfon is null || pfon.Length>150 || (mfon?.Length??0)>150
-                || (plast?.Length??0)>120 || (mlast?.Length??0)>120)
+            if(pfon is null || pfon.Length>150 || (pfirst?.Length??0)>120
+                || (mfon?.Length??0)>150 || (plast?.Length??0)>120 || (mlast?.Length??0)>120)
                 throw new InvalidDataException("Comprimento de chave SQL inválido; não truncar.");
             obsTable.Rows.Add(x.Id,x.Partition,x.Gestor,
                 (object?)IdentityComparison.NormalizeText(x.Person)??DBNull.Value,
                 (object?)IdentityComparison.NormalizeText(x.Mother)??DBNull.Value,
-                (object?)pfon??DBNull.Value,
+                (object?)pfirst??DBNull.Value,(object?)pfon??DBNull.Value,
                 (object?)plast??DBNull.Value,(object?)mfon??DBNull.Value,
                 (object?)mlast??DBNull.Value,(object?)year??DBNull.Value);
             foreach(var surname in V9NameRequiredSqlCellAudit.AnySurname(x.Mother))
@@ -85,6 +86,12 @@ public static class V9NameRequiredSqlCellProbe
                 if(surname.Length>120)
                     throw new InvalidDataException("Sobrenome não cabe na chave indexada.");
                 motherTable.Rows.Add(x.Id,x.Partition,surname);
+            }
+            foreach(var surname in V9NameRequiredSqlCellAudit.AnySurname(x.Person))
+            {
+                if(surname.Length>120)
+                    throw new InvalidDataException("Person surname key exceeds SQL index width.");
+                personTable.Rows.Add(x.Id,x.Partition,surname);
             }
         }
         using(var copy=new SqlBulkCopy(connection){
