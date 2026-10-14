@@ -1155,6 +1155,7 @@ jobs:
           sql_support_by_seed=[]
           birth_support_by_seed=[]
           mu_identifiability_by_seed=[]
+          cluster_concentration_by_seed=[]
           fanout_by_seed=[]
           for d in docs:
               assert d["Version"]=="V9_PHYSICAL_SQL_ACTIVE_DYNAMIC_PLUS_C1_FULL_CANDIDATE_CENSUS_V1"
@@ -1297,6 +1298,68 @@ jobs:
                   "birthBoth":mu["BirthStatesWithBothObserved"],
                   "birthMissingEither":mu["BirthStatesMissingEitherClass"],
                   "mayPromote":mu["MayPromoteModelParameters"]})
+              # Independent C# vs Python checks: all 176 M/U cells, one
+              # BASE incidence per M observation pair, two per U pair.
+              # Kish contributor-equivalence is NOT independent ESS.
+              cluster=d["TrainSqlBaseClusterConcentrationAudit"]
+              assert cluster["Version"]=="V9_SQL_TRAIN_BASE_CONTRIBUTION_CONCENTRATION_V1"
+              assert cluster["Status"]=="INCONCLUSIVE_KISH_CONCENTRATION_NOT_INDEPENDENT_ESS_NO_PARAMETER_PROMOTION"
+              assert cluster["Partition"]=="TRAIN"
+              assert cluster["UniqueTrainBasePeople"]==audit["TrainingBasePeople"]
+              assert cluster["SqlCandidateM"]==support["SqlCandidateM"]
+              assert cluster["SqlCandidateU"]==support["SqlCandidateU"]
+              assert cluster["EstimatesIndependentEss"] is False
+              assert cluster["MayPromoteModelParameters"] is False
+              cc=cluster["Cells"]
+              assert len(cc)==176
+              assert len({(x["Domain"],x["PersonLevel"],x["MotherLevel"],x["BirthState"],x["ClassLabel"]) for x in cc})==176
+              for domain,source,kind in (("NOMINAL_JOINT",joint,"NOMINAL"),
+                                         ("BIRTH_SEMANTIC",dob,"BIRTH")):
+                  subset=[x for x in cc if x["Domain"]==domain]
+                  assert len(subset)==(162 if kind=="NOMINAL" else 14)
+                  for cls in ("M","U"):
+                      target=support["SqlCandidateM"] if cls=="M" else support["SqlCandidateU"]
+                      assert sum(x["ObservationPairs"] for x in subset if x["ClassLabel"]==cls)==target
+                  for src in source:
+                      for cls in ("M","U"):
+                          selected=[x for x in subset if x["ClassLabel"]==cls and (
+                              (kind=="NOMINAL" and x["PersonLevel"]==src["PersonLevel"]
+                               and x["MotherLevel"]==src["MotherLevel"]
+                               and x["BirthState"] is None) or
+                              (kind=="BIRTH" and x["BirthState"]==src["SemanticBirthState"]
+                               and x["PersonLevel"] is None and x["MotherLevel"] is None))]
+                          assert len(selected)==1
+                          x=selected[0]
+                          count=src["MCount"] if cls=="M" else src["UCount"]
+                          groups=src["DistinctMBasePeople"] if cls=="M" else src["DistinctUBasePeople"]
+                          assert x["ObservationPairs"]==count
+                          assert x["DistinctBaseContributors"]==groups
+                          incidence=count*(1 if cls=="M" else 2)
+                          assert x["BaseContributionIncidences"]==incidence
+                          square=x["SquaredBaseContributionIncidences"]
+                          max_contrib=x["MaxBaseContributionIncidences"]
+                          assert 0<=groups<=audit["TrainingBasePeople"]
+                          if count==0:
+                              assert groups==incidence==square==max_contrib==0
+                              assert x["LargestBaseContributionShare"] is None
+                              assert x["KishEquivalentBaseContributorsNotIndependentEss"] is None
+                          else:
+                              assert groups>=1 and max_contrib>=1
+                              assert max_contrib<=incidence
+                              assert incidence<=square<=incidence*incidence
+                              assert square>=max_contrib*max_contrib
+                              largest=D(max_contrib)/D(incidence)
+                              kish=D(incidence)**2/D(square)
+                              assert abs(D(str(x["LargestBaseContributionShare"]))-largest)<D("1e-23")
+                              assert abs(D(str(x["KishEquivalentBaseContributorsNotIndependentEss"]))-kish)<D("1e-23")
+                              assert 1<=kish<=groups+D("1e-23")
+              cluster_concentration_by_seed.append({
+                  "seed":d["Seed"],"trainM":cluster["SqlCandidateM"],
+                  "trainU":cluster["SqlCandidateU"],
+                  "distinctBasePeople":cluster["UniqueTrainBasePeople"],
+                  "jointCellsMissingEither":mu["JointCellsMissingEitherClass"],
+                  "estimatesIndependentEss":cluster["EstimatesIndependentEss"],
+                  "mayPromote":cluster["MayPromoteModelParameters"]})
               # Verify all candidate edges are counted twice by endpoint,
               # while zero-hit observations remain in the denominator. The
               # histograms allow independent percentile recomputation.
@@ -1477,6 +1540,8 @@ jobs:
                    "trainSqlBirthSupportDiagnosticOnly":True,
                    "trainSqlMuIdentifiabilityVersion":"V9_SQL_TRAIN_MU_EMPIRICAL_IDENTIFIABILITY_NO_WEIGHTS_V1",
                    "trainSqlMuIdentifiabilityBySeed":mu_identifiability_by_seed,
+                   "trainSqlBaseClusterConcentrationVersion":"V9_SQL_TRAIN_BASE_CONTRIBUTION_CONCENTRATION_V1",
+                   "trainSqlBaseClusterConcentrationBySeed":cluster_concentration_by_seed,
                    "candidateEndpointFanoutVersion":"V9_SQL_PHYSICAL_CANDIDATE_ENDPOINT_FANOUT_V1",
                    "candidateEndpointFanoutTestBySeed":fanout_by_seed,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
