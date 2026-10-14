@@ -83,6 +83,7 @@ public static class V9PhysicalSqlBlockingProbe
         public V9SqlTrainValidationUnionFanoutAudit.Report? TrainValidationUnionFanout { get; init; }
         public V9SqlBirthYearPassFamilyAudit.Report? BirthYearPassFamilyTrainValidation { get; init; }
         public V9SqlElevenPassResidualAudit.Report? ElevenPassResidualTrainValidation { get; init; }
+        public V9SqlNamePrefix3BirthAudit.Report? Prefix3ExactBirthTrainValidation { get; init; }
     }
 
     public static async Task<Result> RunAsync(
@@ -165,6 +166,7 @@ public static class V9PhysicalSqlBlockingProbe
                 gestor NVARCHAR(40) COLLATE Latin1_General_100_BIN2 NOT NULL,
                 cpf VARCHAR(16) NULL,
                 nome NVARCHAR(250) COLLATE Latin1_General_100_BIN2 NULL,
+                nome_p3 NVARCHAR(3) COLLATE Latin1_General_100_BIN2 NULL,
                 mae NVARCHAR(250) COLLATE Latin1_General_100_BIN2 NULL,
                 nome_fon NVARCHAR(150) COLLATE Latin1_General_100_BIN2 NULL,
                 mae_fon NVARCHAR(150) COLLATE Latin1_General_100_BIN2 NULL,
@@ -176,13 +178,15 @@ public static class V9PhysicalSqlBlockingProbe
         var table = new DataTable();
         foreach (var (name, kind) in new (string, Type)[] {
             ("obs_id", typeof(int)), ("part", typeof(string)), ("gestor", typeof(string)),
-            ("cpf", typeof(string)), ("nome", typeof(string)), ("mae", typeof(string)),
+            ("cpf", typeof(string)), ("nome", typeof(string)), ("nome_p3", typeof(string)),
+            ("mae", typeof(string)),
             ("nome_fon", typeof(string)), ("mae_fon", typeof(string)),
             ("nascimento", typeof(DateTime)) })
             table.Columns.Add(name, kind);
         foreach (var o in observationRows)
             table.Rows.Add(o.Id, o.Partition, o.Gestor, (object?)o.Cpf ?? DBNull.Value,
                 (object?)o.NameFull ?? DBNull.Value,
+                o.NameFull is { Length: >= 3 } ? o.NameFull[..3] : DBNull.Value,
                 (object?)o.MotherFull ?? DBNull.Value,
                 (object?)o.NamePhonetic ?? DBNull.Value,
                 (object?)o.MotherPhonetic ?? DBNull.Value,
@@ -209,6 +213,7 @@ public static class V9PhysicalSqlBlockingProbe
             CREATE INDEX IX_v9_mother_birth ON #v9obs(part,mae,nascimento);
             CREATE INDEX IX_v9_personfon_birth ON #v9obs(part,nome_fon,nascimento);
             CREATE INDEX IX_v9_motherfon_birth ON #v9obs(part,mae_fon,nascimento);
+            CREATE INDEX IX_v9_prefix3_birth ON #v9obs(part,nome_p3,nascimento);
 
             SELECT DISTINCT q.a, q.b, q.part
             INTO #v9pairs
@@ -469,6 +474,16 @@ public static class V9PhysicalSqlBlockingProbe
                 .Select(x=>new V9SqlTwoSignalResidualAudit.Signal(
                     x.Id,x.Partition,x.NamePhonetic,x.MotherPhonetic,x.Birth!.Value.Year))
                 .ToArray());
+        // New experimental indexed prefix3 + exact birth family, TRAIN/VALIDATION only.
+        var prefix3Birth = await V9SqlNamePrefix3BirthProbe.RunAsync(
+            connection,
+            observationRows.Select(x=>new V9SqlNamePrefix3BirthProbe.Observation(
+                x.Id,x.Base,x.Partition,x.Gestor,
+                x.NameFull is { Length: >= 3 } ? x.NameFull[..3] : null,
+                x.Birth,x.Cpf)).ToArray(),
+            trainValidationSqlBaseline,unionSearch.Extensions,
+            birthYearExploration.Extensions,eligibleTruthPairs,elevenResidual,
+            HardPairCap,ct);
         if (metrics.Any(x => x.EligibleTrueInterGestorNoCpfPairs <= 0)
             || metrics.Any(x => x.SqlCandidateTruePairs > x.EligibleTrueInterGestorNoCpfPairs))
             throw new InvalidOperationException("Gabarito ou recuperação SQL M incompatíveis.");
@@ -498,7 +513,8 @@ public static class V9PhysicalSqlBlockingProbe
             TrainValidationUnionSearch = unionSearch.Search,
             TrainValidationUnionFanout = unionSearch.Fanout,
             BirthYearPassFamilyTrainValidation = birthYearExploration.Report,
-            ElevenPassResidualTrainValidation = elevenResidual
+            ElevenPassResidualTrainValidation = elevenResidual,
+            Prefix3ExactBirthTrainValidation = prefix3Birth
         };
     }
 
