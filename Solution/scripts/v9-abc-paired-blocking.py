@@ -42,13 +42,25 @@ def evaluate(rows):
     result = {}
     for split in ("TRAIN", "VALIDATION", "TEST"):
         subset = [row for row in rows if row["particao"] == split]
-        eligible = set()
-        for i, left in enumerate(subset):
-            for j in range(i + 1, len(subset)):
-                right = subset[j]
-                if left["gestor"] != right["gestor"] and not (left["cpf"] or right["cpf"]):
-                    eligible.add((i, j))
-        truth = {pair for pair in eligible if subset[pair[0]]["base_person_id"] == subset[pair[1]]["base_person_id"]}
+        # Avoid materializing the O(N^2) universe of all cross-manager pairs.
+        by_person = defaultdict(list)
+        by_manager = defaultdict(int)
+        no_cpf = []
+        for i, row in enumerate(subset):
+            if not row["cpf"]:
+                no_cpf.append(i)
+                by_manager[row["gestor"]] += 1
+                by_person[row["base_person_id"]].append(i)
+        n = len(no_cpf)
+        eligible_count = (n * n - sum(v * v for v in by_manager.values())) // 2
+        truth = set()
+        for indices in by_person.values():
+            for i, j in itertools.combinations(indices, 2):
+                if subset[i]["gestor"] != subset[j]["gestor"]:
+                    truth.add((i, j))
+        def eligible_pair(i, j):
+            return (not subset[i]["cpf"] and not subset[j]["cpf"]
+                    and subset[i]["gestor"] != subset[j]["gestor"])
         variants = {}
         retrieved_by_arm = {}
         for arm, passes in ARMS.items():
@@ -62,7 +74,7 @@ def evaluate(rows):
                             groups[key].append(i)
                     for indices in groups.values():
                         for pair in itertools.combinations(indices, 2):
-                            if pair in eligible:
+                            if eligible_pair(*pair):
                                 retrieved.add(pair)
                 label = arm + ("+E0" if use_e0 else "")
                 retrieved_by_arm[label] = retrieved
@@ -90,7 +102,7 @@ def evaluate(rows):
                     "phonetic_extra_u": len(only_on - truth) - len(only_off - truth),
                     "delta_recall": (len(only_on & truth) - len(only_off & truth)) / len(truth) if truth else None}
         result[split] = {"observations": len(subset), "m_eligible": len(truth),
-                         "u_eligible": len(eligible) - len(truth), "arms": variants,
+                         "u_eligible": eligible_count - len(truth), "arms": variants,
                          "paired_phonetic": paired}
     return result
 
