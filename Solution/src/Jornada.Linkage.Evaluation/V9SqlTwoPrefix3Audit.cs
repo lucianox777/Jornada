@@ -16,5 +16,8 @@ public static partial class V9SqlTwoPrefix3Audit
         int P95Degree,int P99Degree,int MaxDegree,
         int P95UDegree,int P99UDegree,int MaxUDegree);
     public sealed record Report(string Version,string Status,bool MayPromotePolicy,
-        IReadOnlyList<PassSplit> Passes,IReadOnlyList<Split> Splits);
+        IReadOnlyList<PassSplit> Passes,IReadOnlyList<Split> Splits)
+    {
+        public V9TwoFieldSqlCoverageAudit.Report? TwoFieldSqlCoverage { get; init; }
+    }
 }

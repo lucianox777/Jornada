@@ -41,4 +41,33 @@ public sealed class V9MinimumEvidenceEligibilityTests
         Assert.That(V9MinimumEvidenceEligibility.Evaluate(null, "ANA", DateTime.UtcNow.AddDays(1)).Eligible, Is.False);
         Assert.That(V9MinimumEvidenceEligibility.Evaluate(null, "ANA", Dob).Combination, Is.EqualTo("MD"));
     }
+    [TestCase("MARIA SILVA", "ANA SOUZA", null, "PM", true)]
+    [TestCase("MARIA SILVA", null, "1984-07-13", "PD", true)]
+    [TestCase("MARIA SILVA", "ANA SOUZA", "1984-07-13", "PMD", true)]
+    [TestCase(null, "ANA SOUZA", "1984-07-13", "MD", false)]
+    [TestCase("NÃO INFORMADO", "ANA SOUZA", "1984-07-13", "MD", false)]
+    [TestCase("MARIA SILVA", null, null, "P", false)]
+    [TestCase(null, "ANA SOUZA", null, "M", false)]
+    public void Name_mandatory_requires_mother_or_birth(
+        string? person, string? mother, string? date, string expected, bool eligible)
+    {
+        var result = V9MinimumEvidenceEligibility.EvaluatePersonRequired(
+            person, mother, date is null ? null :
+            DateTime.Parse(date, System.Globalization.CultureInfo.InvariantCulture));
+        Assert.That(result.Combination, Is.EqualTo(expected));
+        Assert.That(result.Eligible, Is.EqualTo(eligible));
+        Assert.That(result.MustAbstain, Is.EqualTo(!eligible));
+    }
+
+    [Test]
+    public void Sentinel_birth_does_not_count_but_person_plus_mother_still_qualifies()
+    {
+        var sentinel = V9MinimumEvidenceEligibility.EvaluatePersonRequired(
+            "MARIA", "ANA", new DateTime(1900, 1, 1));
+        Assert.That(sentinel.Combination, Is.EqualTo("PM"));
+        Assert.That(sentinel.Eligible, Is.True);
+        Assert.That(V9MinimumEvidenceEligibility.PersonRequiredVersion,
+            Does.Contain("PERSON_REQUIRED"));
+    }
+
 }

@@ -21,6 +21,91 @@ for seed in (42,43,44):
     assert report["MayPromotePolicy"] is False
     ps=report["Passes"]
     splits=report["Splits"]
+    coverage=report["TwoFieldSqlCoverage"]
+    assert coverage["Version"]=="V9_TWO_FIELD_SQL_FOURTEEN_PASS_COVERAGE_V1"
+    assert coverage["Status"]=="DIAGNOSTIC_LEGACY_SQL_DOB_FRAME_NO_TEST_NO_PROMOTION"
+    assert coverage["Scope"]=="TRAIN_VALIDATION_NO_CPF_ALL_DOB_STATES"
+    assert coverage["MayPromoteModelOrBlockingPolicy"] is False
+    assert coverage["FdrMeasured"] is False
+    availability=coverage["AvailabilityByCombination"]
+    assert len(availability)==16
+    assert {(x["Partition"],x["Combination"]) for x in availability}=={
+        (part,c) for part in ("TRAIN","VALIDATION")
+        for c in ("NONE","P","M","D","PM","PD","MD","PMD")}
+    assert all(x["ProbabilisticAbstention"]==
+               (x["Combination"] in ("NONE","P","M","D"))
+               and x["Observations"]>=0 for x in availability)
+    two_field_splits=coverage["Splits"]
+    assert {x["Partition"] for x in two_field_splits}=={"TRAIN","VALIDATION"}
+    assert len(two_field_splits)==2
+    assert coverage["NameRequiredPolicyVersion"]==(
+        "V9_PERSON_REQUIRED_PLUS_MOTHER_OR_BIRTH_DIAGNOSTIC_V1")
+    required_splits=coverage["NameRequiredSplits"]
+    assert len(required_splits)==2
+    assert {x["Partition"] for x in required_splits}=={"TRAIN","VALIDATION"}
+    for name in required_splits:
+        part=name["Partition"]
+        two=next(x for x in two_field_splits if x["Partition"]==part)
+        cells=[x for x in availability if x["Partition"]==part]
+        allowed={"PM","PD","PMD"}
+        assert name["EligibleObservations"]==sum(
+            x["Observations"] for x in cells if x["Combination"] in allowed)
+        assert name["AbstainingObservations"]==sum(
+            x["Observations"] for x in cells if x["Combination"] not in allowed)
+        assert name["EligibleTruthM"]+name["ExcludedTruthM"]==two["AllNoCpfTruthM"]
+        assert 0<=name["EligibleTruthM"]<=two["EligibleTwoFieldTruthM"]
+        assert 0<=name["EligibleTruthMWithoutSqlBirth"]<=(
+            name["EligibleTruthM"]-name["SqlEligibleM"])
+        assert name["SqlEligibleM"]+name["SqlExcludedM"]==two["LegacySqlM"]
+        assert name["SqlEligibleU"]+name["SqlExcludedU"]==two["LegacySqlU"]
+        assert 0<=name["SqlEligibleM"]<=two["LegacySqlEligibleM"]
+        assert 0<=name["SqlEligibleU"]<=two["LegacySqlEligibleU"]
+        assert name["UnrecoveredEligibleM"]==(
+            name["EligibleTruthM"]-name["SqlEligibleM"])
+        for key,num,den in (
+            ("RecallAgainstAllNoCpfTruthM",name["SqlEligibleM"],two["AllNoCpfTruthM"]),
+            ("RecallAgainstNameEligibleTruthM",name["SqlEligibleM"],name["EligibleTruthM"]),
+            ("EligibilityCeilingAgainstAllTruthM",name["EligibleTruthM"],two["AllNoCpfTruthM"])):
+            if den==0:
+                assert name[key] is None
+            else:
+                assert abs(Decimal(str(name[key]))-Decimal(num)/Decimal(den))<Decimal("1e-12")
+        assert name["MoreMNeededFor95"]==max(
+            0,(19*name["EligibleTruthM"]+19)//20-name["SqlEligibleM"])
+    for two in two_field_splits:
+        part=two["Partition"]
+        legacy=next(x for x in splits if x["Partition"]==part)
+        cells=[x for x in availability if x["Partition"]==part]
+        assert two["NoCpfObservations"]==sum(x["Observations"] for x in cells)
+        assert two["EligibleObservations"]==sum(
+            x["Observations"] for x in cells if not x["ProbabilisticAbstention"])
+        assert two["AbstainingObservations"]==sum(
+            x["Observations"] for x in cells if x["ProbabilisticAbstention"])
+        assert two["LegacySqlM"]==legacy["FourteenM"]
+        assert two["LegacySqlU"]==legacy["FourteenU"]
+        assert two["AllNoCpfTruthM"]==(
+            two["EligibleTwoFieldTruthM"]+two["IneligibleTruthM"])
+        assert two["LegacySqlM"]==(
+            two["LegacySqlEligibleM"]+two["LegacySqlIneligibleM"])
+        assert two["LegacySqlU"]==(
+            two["LegacySqlEligibleU"]+two["LegacySqlIneligibleU"])
+        assert 0<=two["LegacySqlEligibleM"]<=two["EligibleTwoFieldTruthM"]
+        assert two["UnrecoveredEligibleM"]==(
+            two["EligibleTwoFieldTruthM"]-two["LegacySqlEligibleM"])
+        assert 0<=two["EligibleTruthMWithMissingBirth"]<=two["UnrecoveredEligibleM"]
+        all_m=two["AllNoCpfTruthM"]
+        eligible_m=two["EligibleTwoFieldTruthM"]
+        for key,num,den in (
+            ("RecallAgainstAllNoCpfTruthM",two["LegacySqlEligibleM"],all_m),
+            ("RecallAgainstTwoFieldEligibleM",two["LegacySqlEligibleM"],eligible_m),
+            ("TwoFieldEligibilityCeilingAgainstAllTruthM",eligible_m,all_m)):
+            if den==0:
+                assert two[key] is None
+            else:
+                assert abs(Decimal(str(two[key]))
+                           -Decimal(num)/Decimal(den))<Decimal("1e-12")
+        assert two["AdditionalEligibleMNeededFor95"]==max(
+            0,(19*eligible_m+19)//20-two["LegacySqlEligibleM"])
     assert len(ps)==4 and len(splits)==2
     assert {(x["Name"],x["Partition"]) for x in ps}=={
         (name,part) for name in PASSES for part in ("TRAIN","VALIDATION")}
@@ -50,7 +135,8 @@ for seed in (42,43,44):
         assert 0<=row["P95Degree"]<=row["P99Degree"]<=row["MaxDegree"]
         assert 0<=row["P95UDegree"]<=row["P99UDegree"]<=row["MaxUDegree"]
         assert row["P99UDegree"]<=row["P99Degree"]
-    summary.append({"seed":seed,"splits":splits,"passes":ps})
+    summary.append({"seed":seed,"splits":splits,"passes":ps,
+                    "twoFieldSqlCoverage":coverage})
 out={"version":"V9_SQL_THREE_PREFIX3_PASSES_14_UNION_V1",
      "scope":"TRAIN_VALIDATION_ONLY_TEST_BLIND",
      "source":"SQL_SERVER_JORNADA_HARNESS_IBGE_DERIVED_SYNTHETIC",
