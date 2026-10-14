@@ -1,0 +1,50 @@
+name: v9-memory-batch
+on:
+  workflow_dispatch:
+    inputs:
+      rows_path:
+        description: 'Committed synthetic JSONL relative to Solution'
+        required: true
+        type: string
+      configs_path:
+        description: 'Committed configuration JSON relative to Solution'
+        required: true
+        type: string
+  pull_request:
+    paths:
+      - 'Solution/scripts/v9-batch-memory-configs.py'
+      - '.github/workflows/v9-memory-batch.yml'
+permissions:
+  contents: read
+jobs:
+  validate-runner:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Syntax and CLI
+        run: |
+          python -m py_compile Solution/scripts/v9-batch-memory-configs.py
+          python Solution/scripts/v9-batch-memory-configs.py --help
+      - name: Batch experiment
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          ROWS: ${{ inputs.rows_path }}
+          CONFIGS: ${{ inputs.configs_path }}
+        run: |
+          python - <<'PY'
+          import os,pathlib
+          root=pathlib.Path('Solution').resolve()
+          for name in ('ROWS','CONFIGS'):
+              candidate=(root / os.environ[name]).resolve()
+              if not candidate.is_relative_to(root) or not candidate.is_file():
+                  raise SystemExit(f"invalid committed input: {name}")
+          PY
+          python Solution/scripts/v9-batch-memory-configs.py --rows "Solution/$ROWS" --configs "Solution/$CONFIGS" --out v9-memory-report.json
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'workflow_dispatch'
+        with:
+          name: v9-memory-report
+          path: v9-memory-report.json
