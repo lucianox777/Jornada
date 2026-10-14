@@ -2031,6 +2031,8 @@ jobs:
             Solution/.local/v9-sql-physical-seed-43.json
             Solution/.local/v9-sql-physical-seed-44.json
             Solution/.local/v9-sql-physical-three-seed-summary.json
+            Solution/.local/e2-demographic-primary/observacoes.csv
+            Solution/.local/e2-demographic-primary/generation-manifest.json
             Solution/.local/v9-sql-two-prefix3-summary.json
           if-no-files-found: error
           retention-days: 30
