@@ -64,14 +64,12 @@ class PrefixMotherInitialSweepTests(unittest.TestCase):
 
     def test_cap_is_recorded_as_unmeasured_not_truncated(self):
         rows=corpus()
-        rows[1]["nome_normalizado"]="ALICE SILVA"
-        rows[1]["data_nascimento"]="1990-02-11"
-        rows.insert(2,row("another","other","G3",person="ALICE OLIVEIRA",
-                          mother="ANA LIMA"))
+        rows.insert(2,row("another","other","G3",person="ALMA OLIVEIRA",
+                          mother="ANA LIMA",dob="1990-02-13"))
         r=v.evaluate(rows,cap=1)
-        self.assertEqual(r["results"]["TRAIN"]["variants"]["P1_DOB"]["status"],
+        self.assertEqual(r["results"]["TRAIN"]["variants"]["P1_YEAR_MONTH"]["status"],
                          "CAP_EXCEEDED_UNMEASURED")
-        self.assertIsNone(r["results"]["TRAIN"]["variants"]["P1_DOB"]["M"])
+        self.assertIsNone(r["results"]["TRAIN"]["variants"]["P1_YEAR_MONTH"]["M"])
 
     def test_eligibility_and_testing_split_fail_closed(self):
         r=row("noMother","p","G1",mother="",dob="1991-10-10")
