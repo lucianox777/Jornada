@@ -1,3 +1,5 @@
+> **Decisão canônica de 14/10/2026 — Calibrador único adaptativo:** [Calibrador C# histórico, reprodução V9, snapshot inicial imutável na `ref`, bootstrap sem recalibração e calibrações posteriores somente manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). A decisão é normativa; a implementação permanece pendente na issue #1089. Documentos e números experimentais históricos não equivalem a certificação operacional.
+
 > **Vigência 29/09/2026:** [decisões canônicas](Decisoes_Canonicas_Identidade_Linkage_20260929.md) prevalecem sobre regras legadas de guard exato, V6/V7 e nome social. A V8 atual não implementa todas essas decisões.
 
 # Calibrador Fellegi–Sunter — especificação corrente
