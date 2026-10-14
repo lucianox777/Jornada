@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Paired candidate-recall diagnostic for A/B/C (phonetic off/on), never promotion."""
+"""Paired candidate-recall diagnostic for A/B/C/D (phonetic off/on), never promotion."""
 import argparse
 import csv
 import hashlib
@@ -16,6 +16,9 @@ ARMS = {
     "C0": [("nome_normalizado", "data_nascimento"), ("nome_mae_normalizado", "data_nascimento")],
     "C1": [("nome_normalizado", "data_nascimento"), ("nome_mae_normalizado", "data_nascimento"),
            ("nome_fonetico", "data_nascimento"), ("nome_mae_fonetico", "data_nascimento")],
+    "D0": [("nome_normalizado", "nome_mae_normalizado"), ("nome_normalizado", "data_nascimento"), ("nome_mae_normalizado", "data_nascimento")],
+    "D1": [("nome_normalizado", "nome_mae_normalizado"), ("nome_normalizado", "data_nascimento"), ("nome_mae_normalizado", "data_nascimento"),
+           ("nome_fonetico", "nome_mae_fonetico"), ("nome_fonetico", "data_nascimento"), ("nome_mae_fonetico", "data_nascimento")],
 }
 E0 = ("nome_normalizado", "nome_mae_normalizado", "data_nascimento")
 REQUIRED = {"observacao_id", "base_person_id", "particao", "gestor", "cpf",
@@ -65,7 +68,7 @@ def evaluate(rows):
                                    "candidate_pairs": len(retrieved),
                                    "recall": len(retrieved & truth) / len(truth) if truth else None}
         paired = {}
-        for base in ("A", "B", "C"):
+        for base in ("A", "B", "C", "D"):
             for use_e0 in (False, True):
                 off = base + "0" + ("+E0" if use_e0 else "")
                 on = base + "1" + ("+E0" if use_e0 else "")
@@ -87,11 +90,11 @@ def main():
     source = Path(a.canonical_csv)
     with source.open(newline="", encoding="utf-8-sig") as f:
         rows = list(csv.DictReader(f))
-    report = {"version": "V9_ABC_PAIRED_DIAGNOSTIC_V1",
+    report = {"version": "V9_ABCD_PAIRED_DIAGNOSTIC_V1",
               "source_sha256": hashlib.sha256(source.read_bytes()).hexdigest(),
               "diagnostic_only": True,
-              "not_abc_production_strategy_equivalence": True,
-              "warning": "Simplified passes; not a calibrated Rank/Resolve, physical SQL, or certified sample-size comparison.",
+              "not_abcd_production_strategy_equivalence": True,
+              "warning": "Simplified fixed-pass proxies: D is NOT the adaptive joint-frequency strategy. No calibrated Rank/Resolve, physical SQL or certified sample-size comparison.",
               "results": evaluate(rows)}
     Path(a.out).write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 if __name__ == "__main__":
