@@ -32,14 +32,14 @@ Incluir **passe de recuperação**, não nona estratégia, com igualdade de `nom
 
 Materializar índice composto físico compatível e congelar a frequência **conjunta tripla** em TRAIN por `base_person_id` distinto; não aproximar por produto de marginais. Medir `ExclusiveNewM`, `ExclusiveNewU`, recall marginal, fanout, tempo, CPU/I/O e memória. E0 é igualdade de blocking; distâncias graduais são apenas recursos de recuperação e não substituem Rank/Resolve nem o LLR/FDR. Falta de mãe/nascimento impede E0, mas não outros passes. Nenhuma promoção automática.
 
-## Pendências novas, independentes e bloqueantes de conclusão experimental
+## Pendência preexistente P1 e nova pendência P2 — bloqueantes de conclusão experimental
 
-### P1 — Origem e magnitude da alegada deterioração de 18% (ABERTA)
+### P1 — Origem e magnitude da alegada deterioração de 18% (PREEXISTENTE; permanece ABERTA)
 A seção anterior é hipótese de auditoria, **não** resultado. Exigir rastreabilidade até dois runs comparáveis, hashes, filtros, mesma verdade de referência, mesma definição de elegibilidade e denominador; separar diferença absoluta em pontos percentuais de diferença relativa percentual. Caso não se encontrem evidências, registrar explicitamente `NAO_COMPROVADO`. Não encerrar P1 com a simples comparação de 43,17% TEST e ~80% TRAIN/VALIDATION.
 
 **Aceite P1:** relatório reproduzível com IDs de runs, código e artefatos congelados, tabelas de TP/FN e denominadores por split e estrato, diferença com incerteza, e atribuição dos pares ganhos/perdidos; ou conclusão documentada de ausência de proveniência.
 
-### P2 — Tamanho e suficiência da amostra para medir melhora/piora de blocking (ABERTA)
+### P2 — Tamanho e suficiência da amostra para medir melhora/piora de blocking (NOVA; ABERTA)
 **População sintética de 30.000 identidades e ~58.000 observações não equivale a 30.000 amostras independentes nem a 30.000 pares verdadeiros.** A unidade primária de recall de blocking é o **par M elegível** (mesma identidade, partições e gestores conforme política, sem CPF se exigido); a unidade de precisão/custo exige contabilizar também os pares U elegíveis, sem usar U amostrado como se fosse o censo. Pares que compartilham a mesma pessoa/observação são dependentes: intervalos binomiais ingênuos por par podem ser estreitos demais.
 
 Para cada braço A0/A1/B0/B1/C0/C1/D0/D1, e para E0 desligado/ligado, congelar e divulgar: total de identidades e observações por split/estrato; `M_eligible` e `U_eligible` reais; `M_retrieved`, `M_missed`, `U_retrieved`; fanout por observação e percentis; proporção de ausências de nome/mãe/nascimento; contagens de identidades e clusters independentes; custo físico SQL. Comparar **os mesmos pares** entre braços e informar tabela pareada: ambos recuperam, apenas baseline recupera, apenas variante recupera, nenhum recupera. O ganho de recall é (apenas variante − apenas baseline)/M_eligible, com denominador constante.
@@ -53,5 +53,5 @@ Para cada braço A0/A1/B0/B1/C0/C1/D0/D1, e para E0 desligado/ligado, congelar e
 ### Ordem de execução e controles
 1. Concluir exportador canônico C#, snapshot imutável, índice/consulta E0 e teste de paridade SQL.
 2. Congelar um universo único de TEST e executar oito braços × E0 ligado/desligado, sem selecionar parâmetros no TEST.
-3. Publicar P2 (suficiência e incerteza) e P1 (origem dos 18%) **como pendências separadas**; nenhuma depende de inventar explicação para a outra.
+3. Publicar P2 (nova: suficiência e incerteza) e atualizar P1 (já existente: origem dos 18%) **como pendências separadas**; nenhuma depende de inventar explicação para a outra.
 4. Diagnóstico de suficiência pode ser automático; **recalibração e promoção do modelo continuam decisões manuais**, sem ativação automática baseada no sintético.
