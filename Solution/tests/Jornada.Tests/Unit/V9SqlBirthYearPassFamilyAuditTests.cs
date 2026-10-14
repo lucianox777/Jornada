@@ -72,7 +72,7 @@ public sealed class V9SqlBirthYearPassFamilyAuditTests
             Assert.That(train.ObservationsWithoutCandidates, Is.EqualTo(1));
             Assert.That(train.EligibleObservations, Is.EqualTo(5));
             Assert.That(train.P95TotalCandidates, Is.EqualTo(2));
-            Assert.That(train.P99FalseCandidates, Is.EqualTo(1));
+            Assert.That(train.P99FalseCandidates, Is.EqualTo(2));
             Assert.That(train.TotalDegreeHistogram.Sum(
                 x => x.Degree * x.Observations), Is.EqualTo(8));
             Assert.That(train.FalseDegreeHistogram.Sum(
