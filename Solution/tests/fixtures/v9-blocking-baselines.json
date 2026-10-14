@@ -1,0 +1,75 @@
+[
+  {
+    "name": "nome_mae",
+    "passes": [
+      [
+        "person_first",
+        "mother_first"
+      ]
+    ],
+    "fanout_cap": 100
+  },
+  {
+    "name": "nome_nascimento",
+    "passes": [
+      [
+        "person_first",
+        "birth_date"
+      ]
+    ],
+    "fanout_cap": 100
+  },
+  {
+    "name": "mae_nascimento",
+    "passes": [
+      [
+        "mother_first",
+        "birth_date"
+      ]
+    ],
+    "fanout_cap": 100
+  },
+  {
+    "name": "nome_mae_mais_nascimento",
+    "passes": [
+      [
+        "person_first",
+        "mother_first"
+      ],
+      [
+        "person_first",
+        "birth_date"
+      ],
+      [
+        "mother_first",
+        "birth_date"
+      ]
+    ],
+    "fanout_cap": 100
+  },
+  {
+    "name": "nome_mae_restritivo",
+    "passes": [
+      [
+        "person_first",
+        "mother_first",
+        "birth_date"
+      ]
+    ],
+    "fanout_cap": 100
+  },
+  {
+    "name": "nome_mae_cap_30",
+    "passes": [
+      [
+        "person_first",
+        "mother_first"
+      ],
+      [
+        "person_first",
+        "birth_date"
+      ]
+    ],
+    "fanout_cap": 30
+  }
+]
