@@ -8,6 +8,8 @@ import argparse
 import csv
 import hashlib
 import json
+import shutil
+import tempfile
 from collections import Counter
 from pathlib import Path
 
@@ -71,15 +73,17 @@ def freeze(source, target, projection_version):
     joint_counts = {"|".join(fields): [{"key": list(key), "identities": count}
                    for key, count in sorted(Counter(pair[:-1] for pair in pairs).items())]
                    for fields, pairs in joint.items()}
-    target.mkdir(parents=True)
-    freq_path = target / "train_name_frequencies.json"
+    target.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=".v9-freeze-", dir=target.parent))
+    shutil.copyfile(source, staging / "canonical_observations.csv")
+    freq_path = staging / "train_name_frequencies.json"
     freq_path.write_text(json.dumps(frequencies, ensure_ascii=False, sort_keys=True,
                                     indent=2) + "\n", encoding="utf-8")
-    joint_path = target / "train_joint_name_frequencies.json"
+    joint_path = staging / "train_joint_name_frequencies.json"
     joint_path.write_text(json.dumps(joint_counts, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
     manifest = {
         "version": VERSION, "projection_version": projection_version,
-        "source_sha256": digest(source), "frequency_sha256": digest(freq_path), "joint_frequency_sha256": digest(joint_path),
+        "source_sha256": digest(source), "frozen_source_sha256": digest(staging / "canonical_observations.csv"), "frequency_sha256": digest(freq_path), "joint_frequency_sha256": digest(joint_path),
         "observations": len(rows),
         "identities_by_split": {s: len({r["base_person_id"] for r in rows if r["particao"] == s})
                                 for s in sorted(splits)},
@@ -88,9 +92,13 @@ def freeze(source, target, projection_version):
         "canonical_projection_parity_verified": False,
         "warning": "Source must be exported by canonical C# projector; parity verification is separate."
     }
-    (target / "manifest.json").write_text(
+    (staging / "manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
         encoding="utf-8")
+    if target.exists():
+        shutil.rmtree(staging)
+        raise FileExistsError("snapshot already exists")
+    staging.rename(target)
     return manifest
 
 
