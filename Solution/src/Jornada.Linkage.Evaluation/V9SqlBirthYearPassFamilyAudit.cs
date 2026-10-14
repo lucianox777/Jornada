@@ -1,20 +1,21 @@
 namespace Jornada.Linkage.Evaluation;
 
 /// <summary>
-/// Four fixed, previously unavailable SQL predicate families that tolerate
+/// Five fixed, previously unavailable SQL predicate families that tolerate
 /// birth-day/month error or changed birth date. All candidates come from actual
 /// SQL probes; this auditor does not generate/propose pairs or select a policy.
 /// TRAIN/VALIDATION only: TEST is not accepted as input.
 /// </summary>
 public static class V9SqlBirthYearPassFamilyAudit
 {
-    public const string Version = "V9_SQL_NEW_BIRTH_YEAR_FAMILY_TRAIN_VALIDATION_V1";
+    public const string Version = "V9_SQL_NEW_BIRTH_YEAR_FAMILY_TRAIN_VALIDATION_V2";
     public const string Status = "EXPLORATORY_SQL_NO_TEST_NO_SELECTION_NO_OPERATIONAL_GATE";
     public static readonly IReadOnlyList<string> RegisteredPasses = Array.AsReadOnly(
         new[] {
             "PERSON_EXACT_PLUS_BIRTH_YEAR",
             "PERSON_PHONETIC_PLUS_BIRTH_YEAR",
             "MOTHER_EXACT_PLUS_BIRTH_YEAR",
+            "MOTHER_PHONETIC_PLUS_BIRTH_YEAR",
             "PERSON_AND_MOTHER_PHONETIC_ANY_BIRTH"
         });
 
@@ -36,7 +37,7 @@ public static class V9SqlBirthYearPassFamilyAudit
     public sealed record Report(
         string Version, string Status, string Frame,
         int PassCount, int PerPassSplitCount, bool CanSelectOrPromotePolicy,
-        IReadOnlyList<Split> Splits, IReadOnlyList<Split> AllFourUnionCeiling);
+        IReadOnlyList<Split> Splits, IReadOnlyList<Split> AllFiveUnionCeiling);
 
     public static Report Analyze(
         IReadOnlyList<Observation> observations,
@@ -121,7 +122,7 @@ public static class V9SqlBirthYearPassFamilyAudit
             throw new InvalidDataException(
                 "União completa das novas famílias ultrapassou cap de pares; não truncar.");
 
-        var summaries = new List<Split>(8);
+        var summaries = new List<Split>(10);
         foreach (var (name, added) in extensions)
         {
             var union = new Dictionary<(int, int), Pair>(baseline);
@@ -130,9 +131,9 @@ public static class V9SqlBirthYearPassFamilyAudit
             summaries.AddRange(Splits(name, union, baseline, byPartition,
                 trainEligibleM, validationEligibleM, pairCap));
         }
-        var ceiling = Splits("ALL_FOUR_ONLY_NEW_BIRTH_YEAR_FAMILIES_CEILING",
+        var ceiling = Splits("ALL_FIVE_ONLY_NEW_BIRTH_YEAR_FAMILIES_CEILING",
             all, baseline, byPartition, trainEligibleM, validationEligibleM, pairCap);
-        if (summaries.Count != 8 || ceiling.Length != 2
+        if (summaries.Count != 10 || ceiling.Length != 2
             || summaries.Any(x => x.UnionM > ceiling.Single(c => c.Partition == x.Partition).UnionM
                 || x.UnionU > ceiling.Single(c => c.Partition == x.Partition).UnionU))
             throw new InvalidDataException("Limite conjunto inconsistente com passes individuais.");
