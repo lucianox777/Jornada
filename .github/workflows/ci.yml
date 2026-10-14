@@ -1155,6 +1155,7 @@ jobs:
           birth_year_family_by_seed=[]
           eleven_pass_union_by_seed=[]
           clustered_m_recall_by_seed=[]
+          u_network_bootstrap_by_seed=[]
           loss_by_seed=[]
           parity_by_seed=[]
           sql_support_by_seed=[]
@@ -1866,6 +1867,41 @@ jobs:
                   "modelsUNetwork":cluster["ModelsNetworkDependenceAmongU"],
                   "mayPromote":cluster["MayPromoteModelOrBlockingPolicy"],
                   "splits":boot})
+              # U is a graph, not independent candidate-pair Bernoullis.
+              # Check aggregate network identity and per-split percentile
+              # ordering; the actual resampling occurs on both endpoints
+              # of each true SQL U edge, preserving all duplicate base edges.
+              network=eleven["ClusteredUNetworkBootstrap"]
+              assert network["Version"]=="V9_SQL_TRAIN_VALIDATION_U_NETWORK_BASE_BOOTSTRAP_V1"
+              assert network["Status"]=="DESCRIPTIVE_TWO_ENDPOINT_NETWORK_BOOTSTRAP_NOT_INFERENTIAL_ESS_OR_ACTIVATION"
+              assert network["PartitionScope"]=="TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN"
+              assert network["SourceSeed"]==d["Seed"]
+              assert network["SourceInputFingerprint"]==d["CorpusInputFingerprint"]
+              assert network["UsesBothEndpointsOfEveryUEdge"] is True
+              assert network["TreatsCandidatePairsAsIndependent"] is False
+              assert network["IsProductionUncertaintyOrIndependentEss"] is False
+              assert network["MayPromoteModelOrBlockingPolicy"] is False
+              nrows=network["Splits"]
+              assert len(nrows)==2 and {x["Partition"] for x in nrows}=={"TRAIN","VALIDATION"}
+              for row in nrows:
+                  split=next(x for x in rows11 if x["Partition"]==row["Partition"])
+                  assert row["EligibleBasePeople"]>=3
+                  assert row["EligibleBasePeople"]<=d["CorpusPeople"]
+                  assert row["BasePeopleTouchingAtLeastOneU"]>0
+                  assert row["BasePeopleTouchingAtLeastOneU"]<=row["EligibleBasePeople"]
+                  assert row["SqlCandidateU"]==split["ElevenUnionU"]
+                  assert row["TotalBaseEndpointIncidences"]==2*row["SqlCandidateU"]
+                  assert row["BootstrapReplicates"]==512
+                  assert row["SamplingUnit"]=="SYNTHETIC_BASE_ID_MULTINOMIAL_TWO_ENDPOINTS"
+                  assert row["Estimand"]=="SYNTHETIC_SQL_U_CANDIDATE_EXPOSURE_NOT_FDR_NOT_U_PROBABILITY"
+                  assert D("0")<=D(str(row["BootstrapCandidateUP025"]))<=D(str(row["BootstrapMedianCandidateU"]))
+                  assert D(str(row["BootstrapMedianCandidateU"]))<=D(str(row["BootstrapCandidateUP975"]))
+              u_network_bootstrap_by_seed.append({
+                  "seed":d["Seed"],"sourceFingerprint":network["SourceInputFingerprint"],
+                  "mayPromote":network["MayPromoteModelOrBlockingPolicy"],
+                  "twoEndpoints":network["UsesBothEndpointsOfEveryUEdge"],
+                  "isProductionCI":network["IsProductionUncertaintyOrIndependentEss"],
+                  "splits":nrows})
               eleven_pass_union_by_seed.append({
                   "seed":d["Seed"],"mayPromote":eleven["MayPromoteBlockingPolicy"],
                   "passes95Both":eleven["Passes95PercentInBothSplits"],
@@ -1930,6 +1966,9 @@ jobs:
                    "sqlBaseClusterBootstrapMRecallVersion":"V9_SQL_TRAIN_VALIDATION_CLUSTERED_BASE_M_RECALL_BOOTSTRAP_V1",
                    "sqlBaseClusterBootstrapMRecallBySeed":clustered_m_recall_by_seed,
                    "sqlBaseClusterBootstrapMRecallNotIndependentCI":True,
+                   "sqlUNetworkTwoEndpointBootstrapVersion":"V9_SQL_TRAIN_VALIDATION_U_NETWORK_BASE_BOOTSTRAP_V1",
+                   "sqlUNetworkTwoEndpointBootstrapBySeed":u_network_bootstrap_by_seed,
+                   "sqlUNetworkTwoEndpointBootstrapDiagnosticOnly":True,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))
