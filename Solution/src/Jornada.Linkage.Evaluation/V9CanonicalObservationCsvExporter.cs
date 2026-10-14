@@ -24,9 +24,15 @@ public static class V9CanonicalObservationCsvExporter
                 string.IsNullOrWhiteSpace(row.BasePersonId) ||
                 row.Partition is not ("TRAIN" or "VALIDATION" or "TEST"))
                 throw new ArgumentException("Invalid observation identity or partition");
-            var keys = BlockingProjectionKeyProjector.Project(row.Name, row.MotherName, row.BirthDate)
-                .ToDictionary(x => x.Feature, x => x.Value, StringComparer.Ordinal);
-            string Get(string feature) => keys.GetValueOrDefault(feature) ?? "";
+            // The projector intentionally emits MULTIPLE surname-presence keys
+            // for name_surnames and mother_name_surnames. Never ToDictionary()
+            // the full set by Feature: common multi-surname names would throw.
+            // This export needs only the four single-valued canonical features.
+            var keys = BlockingProjectionKeyProjector.Project(
+                row.Name, row.MotherName, row.BirthDate);
+            string Get(string feature) =>
+                keys.FirstOrDefault(x => string.Equals(
+                    x.Feature, feature, StringComparison.Ordinal))?.Value ?? "";
             var fields = new[] {
                 row.ObservationId, row.BasePersonId, row.Partition, row.Gestor,
                 row.Name ?? "", row.MotherName ?? "",
