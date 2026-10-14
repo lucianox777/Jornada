@@ -42,7 +42,7 @@ public static class V9CanonicalObservationCsvExporter
     }
 
     private static string Escape(string value) =>
-        value.ContainsAny(',', '"', '\n', '\r')
+        value.IndexOfAny([',', '"', '\n', '\r']) >= 0
             ? "\"" + value.Replace("\"", "\"\"") + "\""
             : value;
 }
