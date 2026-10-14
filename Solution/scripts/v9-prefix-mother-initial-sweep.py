@@ -61,7 +61,8 @@ def single_key(row, shape):
         d = f"{date.month:02d}-{date.day:02d}"
     else:
         raise ValueError("unknown calendar hypothesis")
-    return base.key(person[0][:p_length], mother[0][:m_length] if m_length else "", d)
+    return (base.key(person[0][:p_length], mother[0][:m_length], d)
+            if m_length else base.key(person[0][:p_length], d))
 
 
 def preflight(connection, part, cell):
