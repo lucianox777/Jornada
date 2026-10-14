@@ -9,7 +9,8 @@ namespace Jornada.Linkage.Evaluation;
 public static partial class V9SqlTwoPrefix3Probe
 {
     public sealed record Observation(int Id,string Base,string Partition,
-        string Gestor,string? Person3,string? Mother3,DateOnly? Birth,string? Cpf);
+        string Gestor,string? Person3,string? Mother3,DateOnly? Birth,string? Cpf,
+        string? PersonFull=null,string? MotherFull=null);
 
     public static async Task<V9SqlTwoPrefix3Audit.Report> RunAsync(
         SqlConnection sql,IReadOnlyList<Observation> observations,
@@ -68,7 +69,7 @@ public static partial class V9SqlTwoPrefix3Probe
             var edges=await RunPassAsync(sql,predicate,byId,cap,ct);
             passes.Add(new V9SqlTwoPrefix3Audit.Pass(name,edges));
         }
-        return V9SqlTwoPrefix3Audit.Analyze(
+        var fourteen = V9SqlTwoPrefix3Audit.Analyze(
             observations.Where(x=>x.Partition is "TRAIN" or "VALIDATION")
                 .Select(x=>new V9SqlTwoPrefix3Audit.Observation(
                     x.Id,x.Partition,x.Gestor,x.Cpf is null && x.Birth.HasValue,
@@ -78,5 +79,24 @@ public static partial class V9SqlTwoPrefix3Probe
                 .Select(x=>new V9SqlNamePrefix3BirthAudit.Pair(
                     x.LowerObservationId,x.HigherObservationId,x.Partition,true))
                 .ToArray(),passes,twelve,cap);
+
+        // The physical union is already materialized by SQL; this parallel
+        // diagnostic reuses that EXACT membership, but independently enumerates
+        // all no-CPF M truth, including observations without DOB. TEST stays out.
+        var twoField = V9TwoFieldSqlCoverageAudit.Analyze(
+            observations.Where(x=>x.Partition is "TRAIN" or "VALIDATION")
+                .Select(x=>new V9TwoFieldSqlCoverageAudit.Observation(
+                    x.Id,x.Base,x.Partition,x.Gestor,
+                    x.PersonFull,x.MotherFull,x.Birth,x.Cpf)).ToArray(),
+            twelveEdges.Concat(passes.SelectMany(x=>x.Edges)),cap);
+        foreach (var split in fourteen.Splits)
+        {
+            var comparison = twoField.Splits.Single(x=>x.Partition==split.Partition);
+            if (split.FourteenM!=comparison.LegacySqlM
+                || split.FourteenU!=comparison.LegacySqlU)
+                throw new InvalidDataException(
+                    "Censo de duas evidências diverge da união SQL física de 14 passes.");
+        }
+        return fourteen with { TwoFieldSqlCoverage = twoField };
     }
 }
