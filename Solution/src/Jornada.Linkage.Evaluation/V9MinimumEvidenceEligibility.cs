@@ -13,6 +13,20 @@ public static class V9MinimumEvidenceEligibility
 
     public sealed record Result(bool Eligible, int ValidFields, string Combination, bool MustAbstain);
 
+    // Candidate policy only: the person's name must be usable, together
+    // with either the mother's name or date of birth. MD alone abstains.
+    public const string PersonRequiredVersion =
+        "V9_PERSON_REQUIRED_PLUS_MOTHER_OR_BIRTH_DIAGNOSTIC_V1";
+
+    public static Result EvaluatePersonRequired(
+        string? personName, string? motherName, DateTime? birthDate)
+    {
+        var original = Evaluate(personName, motherName, birthDate);
+        var allowed = original.Combination is "PM" or "PD" or "PMD";
+        return original with { Eligible = allowed, MustAbstain = !allowed };
+    }
+
+
     public static Result Evaluate(string? personName, string? motherName, DateTime? birthDate)
     {
         var person = HasName(personName);
