@@ -1,8 +1,8 @@
 using Jornada.Linkage.Parameters.Worker;
-using Xunit;
 
 namespace Jornada.Tests.Unit;
 
+[TestFixture, Category("Unit")]
 public sealed class AdaptiveCalibrationModelSearchTests
 {
     private static readonly string Study = new('a', 64);
@@ -61,49 +61,48 @@ public sealed class AdaptiveCalibrationModelSearchTests
     private static AdaptiveCalibrationPreviewBudget Budget()
         => new(AdaptiveCalibrationPreviewBudget.CurrentVersion, Study, 0.95, 0.01, 50, 500);
 
-    [Fact]
+    [Test]
     public void Family_Agnostic_Search_Can_Suggest_Better_Of_Two_Models_Without_Promotion()
     {
         var fs = new FakeAdapter("FAMILY_FS_V9", 965, 3);
         var future = new FakeAdapter("FAMILY_FUTURE", 980, 6);
         var report = AdaptiveCalibrationModelSearch.Evaluate(Request(Budget()), [fs, future]);
-        Assert.True(fs.FittedTrainOnly && future.FittedTrainOnly);
-        Assert.True(fs.EvaluatedValidationOnly && future.EvaluatedValidationOnly);
-        Assert.Equal(2, report.Options.Count);
-        Assert.Equal("FAMILY_FUTURE", report.SuggestedModelFamily);
-        Assert.Equal("GRID_1", report.SuggestedOptionId);
-        Assert.Equal("SUGGESTION_ONLY_UNCERTIFIED_FDR_CONFIDENCE_AND_PHYSICAL_SQL",
-            report.Status);
-        Assert.All(report.Options, x => Assert.True(x.MeetsDescriptiveBudgetOnly));
-        Assert.False(report.ConfidenceBoundForFdrMeasured);
-        Assert.False(report.OperationalModelCreated);
-        Assert.False(report.AutomaticRecalibrationOrActivationAllowed);
-        Assert.False(report.TestUsed);
+        Assert.That(fs.FittedTrainOnly && future.FittedTrainOnly, Is.True);
+        Assert.That(fs.EvaluatedValidationOnly && future.EvaluatedValidationOnly, Is.True);
+        Assert.That(report.Options.Count, Is.EqualTo(2));
+        Assert.That(report.SuggestedModelFamily, Is.EqualTo("FAMILY_FUTURE"));
+        Assert.That(report.SuggestedOptionId, Is.EqualTo("GRID_1"));
+        Assert.That(report.Status, Is.EqualTo("SUGGESTION_ONLY_UNCERTIFIED_FDR_CONFIDENCE_AND_PHYSICAL_SQL"));
+        Assert.That(report.Options.All(x => x.MeetsDescriptiveBudgetOnly), Is.True);
+        Assert.That(report.ConfidenceBoundForFdrMeasured, Is.False);
+        Assert.That(report.OperationalModelCreated, Is.False);
+        Assert.That(report.AutomaticRecalibrationOrActivationAllowed, Is.False);
+        Assert.That(report.TestUsed, Is.False);
     }
 
-    [Fact]
+    [Test]
     public void No_Budget_Emits_Only_Descriptive_Results_Not_A_Decision()
     {
         var report = AdaptiveCalibrationModelSearch.Evaluate(
             Request(), [new FakeAdapter("FAMILY_FS_V9", 980, 2),
                         new FakeAdapter("FAMILY_FUTURE", 950, 1)]);
-        Assert.Equal("NO_APPROVED_POLICY_DESCRIPTIVE_ONLY", report.Status);
-        Assert.Null(report.SuggestedModelFamily);
-        Assert.False(report.Options[0].MeetsDescriptiveBudgetOnly);
+        Assert.That(report.Status, Is.EqualTo("NO_APPROVED_POLICY_DESCRIPTIVE_ONLY"));
+        Assert.That(report.SuggestedModelFamily, Is.Null);
+        Assert.That(report.Options[0].MeetsDescriptiveBudgetOnly, Is.False);
     }
 
-    [Fact]
+    [Test]
     public void Failed_Risk_Or_Recall_Budget_Never_Promotes_Or_Selects()
     {
         var report = AdaptiveCalibrationModelSearch.Evaluate(
             Request(Budget()), [new FakeAdapter("FAMILY_FS_V9", 920, 0),
                 new FakeAdapter("FAMILY_FUTURE", 980, 250)]);
-        Assert.Equal("NO_MODEL_MEETS_DESCRIPTIVE_BUDGET", report.Status);
-        Assert.Null(report.SuggestedOptionId);
-        Assert.False(report.AutomaticRecalibrationOrActivationAllowed);
+        Assert.That(report.Status, Is.EqualTo("NO_MODEL_MEETS_DESCRIPTIVE_BUDGET"));
+        Assert.That(report.SuggestedOptionId, Is.Null);
+        Assert.That(report.AutomaticRecalibrationOrActivationAllowed, Is.False);
     }
 
-    [Fact]
+    [Test]
     public void Calibration_Requires_Explicit_Manual_Execution_And_No_Test_Leakage()
     {
         var adapters = new IAdaptiveCalibrationFamilyAdapter[] {
@@ -125,7 +124,7 @@ public sealed class AdaptiveCalibrationModelSearchTests
             AdaptiveCalibrationModelSearch.Evaluate(invalid, adapters));
     }
 
-    [Fact]
+    [Test]
     public void Unknown_Or_Version_Mismatched_Family_Fails_Closed()
     {
         Assert.Throws<InvalidOperationException>(() =>
@@ -140,7 +139,7 @@ public sealed class AdaptiveCalibrationModelSearchTests
             ]));
     }
 
-    [Fact]
+    [Test]
     public void Forged_Source_Fingerprint_Is_Not_Allowed_As_A_Train_Fit()
     {
         Assert.Throws<InvalidDataException>(() =>
@@ -150,7 +149,7 @@ public sealed class AdaptiveCalibrationModelSearchTests
             ]));
     }
 
-    [Fact]
+    [Test]
     public void Unsafe_Budget_Must_Not_Be_Loosened_Silently()
     {
         var request = Request(Budget() with { MaximumObservedAcceptedFdrPoint = 0.2 });
