@@ -19,5 +19,6 @@ public static partial class V9SqlTwoPrefix3Audit
         IReadOnlyList<PassSplit> Passes,IReadOnlyList<Split> Splits)
     {
         public V9TwoFieldSqlCoverageAudit.Report? TwoFieldSqlCoverage { get; init; }
+        public V9NameRequiredSqlCellAudit.Report? NameRequiredSqlCells { get; init; }
     }
 }
