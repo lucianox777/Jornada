@@ -34,7 +34,13 @@ def variants():
         for m in (2, 3, 4):
             plans[f"P{p}_M{m}_YEAR_MONTH"] = (p, m, "YEAR_MONTH")
         plans[f"P{p}_M1_MONTH_DAY"] = (p, 1, "MONTH_DAY")
-    assert len(plans) == 28
+    # PM alternatives recover people with no usable/reliable DOB. M1 alone
+    # never forms a blocking key: an actual person-name key is mandatory.
+    for p in (1, 2, 3, 4):
+        plans[f"P{p}_M1_NO_DOB"] = (p, 1, "NO_DOB")
+    plans["P_FULL_M1_NO_DOB"] = ("FULL", 1, "NO_DOB")
+    plans["P_PHON_M1_NO_DOB"] = ("PHON", 1, "NO_DOB")
+    assert len(plans) == 34
     return plans
 
 
@@ -47,9 +53,25 @@ def single_key(row, shape):
     person = base.parts(row["nome_normalizado"])
     mother = (base.parts(row["nome_mae_normalizado"]) if
               base.meaningful(row["nome_mae_normalizado"]) else [])
-    if (not person or len(person[0]) < p_length or
-            (m_length and (not mother or len(mother[0]) < m_length))):
+    if not person or (m_length and
+            (not mother or len(mother[0]) < m_length)):
         return None
+    if p_length == "FULL":
+        p = row["nome_normalizado"].strip().upper()
+    elif p_length == "PHON":
+        p = row["nome_fonetico"].strip().upper()
+    elif isinstance(p_length, int) and 1 <= p_length <= 4:
+        if len(person[0]) < p_length:
+            return None
+        p = person[0][:p_length]
+    else:
+        raise ValueError("unknown person-name prefix")
+    if not p:
+        return None
+    if calendar == "NO_DOB":
+        if not m_length:
+            raise ValueError("PM without mother cannot be a candidate")
+        return base.key(p, mother[0][:m_length])
     date = base.usable_birth(row["data_nascimento"])
     if date is None:
         return None
@@ -61,8 +83,8 @@ def single_key(row, shape):
         d = f"{date.month:02d}-{date.day:02d}"
     else:
         raise ValueError("unknown calendar hypothesis")
-    return (base.key(person[0][:p_length], mother[0][:m_length], d)
-            if m_length else base.key(person[0][:p_length], d))
+    return (base.key(p, mother[0][:m_length], d)
+            if m_length else base.key(p, d))
 
 
 def preflight(connection, part, cell):
