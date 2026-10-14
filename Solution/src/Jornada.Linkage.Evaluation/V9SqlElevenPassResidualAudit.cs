@@ -31,7 +31,10 @@ public static class V9SqlElevenPassResidualAudit
         string Version, string Status, string PartitionScope,
         int OldRegisteredPassCount, int NewRegisteredPassCount,
         bool Passes95PercentInBothSplits, bool MayPromoteBlockingPolicy,
-        IReadOnlyList<Split> Splits, IReadOnlyList<LossCell> ResidualCells);
+        IReadOnlyList<Split> Splits, IReadOnlyList<LossCell> ResidualCells)
+    {
+        public V9SqlClusteredMRecallBootstrapAudit.Report? ClusteredMRecallBootstrap { get; init; }
+    }
 
     public static Report Analyze(
         IReadOnlyList<V9SqlBirthYearPassFamilyAudit.Observation> observations,
@@ -41,7 +44,9 @@ public static class V9SqlElevenPassResidualAudit
         IReadOnlyList<V9BlockingTruthLossAudit.Pair> eligibleTruthPairs,
         V9SqlTrainValidationUnionSearch.Report oldSearch,
         V9SqlBirthYearPassFamilyAudit.Report newSearch,
-        int hardPairCap)
+        int hardPairCap,
+        IReadOnlyDictionary<int,string>? syntheticBaseByObservation = null,
+        ulong sourceSeed = 0, string? sourceInputFingerprint = null)
     {
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(baseline);
@@ -262,11 +267,41 @@ public static class V9SqlElevenPassResidualAudit
                 Percentile(total,50),Percentile(total,95),Percentile(total,99),total[^1],
                 Percentile(falseDegrees,95),Percentile(falseDegrees,99),falseDegrees[^1]));
         }
-        return new Report(Version,Status,"TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN",
+        var report = new Report(Version,Status,"TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN",
             oldPasses.Count,newPasses.Count,
             summaries.All(x=>20*x.ElevenUnionM>=19*x.EligibleM),
             false,Array.AsReadOnly(summaries.ToArray()),
             Array.AsReadOnly(residuals.ToArray()));
+
+        if (syntheticBaseByObservation is null && sourceInputFingerprint is null)
+            return report; // Unit-only invocation; physical probe always supplies corpus identity.
+        if (syntheticBaseByObservation is null || string.IsNullOrWhiteSpace(sourceInputFingerprint)
+            || syntheticBaseByObservation.Count != observations.Count
+            || syntheticBaseByObservation.Keys.Any(x => !allIds.Contains(x)))
+            throw new InvalidDataException("Base sintética/fingerprint incompletos no SQL físico.");
+
+        var byBase = new Dictionary<(string Partition,string Base),
+            (long Eligible,long Baseline,long Eleven)>();
+        foreach (var pair in truth.Values)
+        {
+            if (!syntheticBaseByObservation.TryGetValue(pair.LowerObservationId, out var left)
+                || !syntheticBaseByObservation.TryGetValue(pair.HigherObservationId, out var right)
+                || string.IsNullOrWhiteSpace(left) || left != right)
+                throw new InvalidDataException("M verdadeiro não possui uma única identidade-base.");
+            var key = (pair.Partition, left);
+            var value = byBase.GetValueOrDefault(key);
+            var edge = (pair.LowerObservationId,pair.HigherObservationId);
+            byBase[key] = (checked(value.Eligible+1),
+                checked(value.Baseline+(baseEdges.ContainsKey(edge)?1:0)),
+                checked(value.Eleven+(eleven.ContainsKey(edge)?1:0)));
+        }
+        var contributions = byBase.Select(x => new V9SqlClusteredMRecallBootstrapAudit.Contribution(
+            x.Key.Partition,x.Key.Base,x.Value.Eligible,x.Value.Baseline,x.Value.Eleven)).ToArray();
+        return report with
+        {
+            ClusteredMRecallBootstrap = V9SqlClusteredMRecallBootstrapAudit.Analyze(
+                contributions,report,sourceSeed,sourceInputFingerprint)
+        };
     }
 
     private static string State(bool missing,bool exact) =>

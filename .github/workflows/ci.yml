@@ -1154,6 +1154,7 @@ jobs:
           union_fanout_by_seed=[]
           birth_year_family_by_seed=[]
           eleven_pass_union_by_seed=[]
+          clustered_m_recall_by_seed=[]
           loss_by_seed=[]
           parity_by_seed=[]
           sql_support_by_seed=[]
@@ -1825,6 +1826,46 @@ jobs:
                   assert 0<=row["P95FalseCandidates"]<=row["P99FalseCandidates"]<=row["MaxFalseCandidates"]<=row["MaxCandidates"]
               assert eleven["Passes95PercentInBothSplits"]==all(
                   20*x["ElevenUnionM"]>=19*x["EligibleM"] for x in rows11)
+              # Bootstrap's statistical sampling unit is one base identity
+              # (NOT pairs of observations). Check exact same-frame observed
+              # numerators and denominator plus percentile ordering; neither
+              # bootstrap probability nor its interval is an operational gate.
+              cluster=eleven["ClusteredMRecallBootstrap"]
+              assert cluster["Version"]=="V9_SQL_TRAIN_VALIDATION_CLUSTERED_BASE_M_RECALL_BOOTSTRAP_V1"
+              assert cluster["Status"]=="EXPLORATORY_M_ONLY_BASE_CLUSTER_BOOTSTRAP_NOT_U_NETWORK_CI_OR_ACTIVATION"
+              assert cluster["PartitionScope"]=="TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN"
+              assert cluster["SourceSeed"]==d["Seed"]
+              assert cluster["SourceInputFingerprint"]==d["CorpusInputFingerprint"]
+              assert cluster["IsIndependentPairConfidenceInterval"] is False
+              assert cluster["ModelsNetworkDependenceAmongU"] is False
+              assert cluster["MayPromoteModelOrBlockingPolicy"] is False
+              boot=cluster["Splits"]
+              assert len(boot)==2 and {x["Partition"] for x in boot}=={"TRAIN","VALIDATION"}
+              for row in boot:
+                  physical=next(x for x in rows11 if x["Partition"]==row["Partition"])
+                  assert 2<=row["ContributingBasePeople"]<=d["CorpusPeople"]
+                  assert row["EligibleM"]==physical["EligibleM"]
+                  assert row["BaselineRecoveredM"]==physical["BaselineM"]
+                  assert row["ElevenRecoveredM"]==physical["ElevenUnionM"]
+                  assert row["BootstrapReplicates"]==1000
+                  assert abs(D(str(row["BaselineRecallObserved"]))
+                      -D(row["BaselineRecoveredM"])/D(row["EligibleM"]))<D("1e-23")
+                  assert abs(D(str(row["ElevenRecallObserved"]))
+                      -D(row["ElevenRecoveredM"])/D(row["EligibleM"]))<D("1e-23")
+                  assert all(D("0")<=D(str(row[field]))<=D("1") for field in (
+                      "BaselineBootstrapP025","BaselineBootstrapP975",
+                      "ElevenBootstrapP025","ElevenBootstrapP975"))
+                  assert row["BaselineBootstrapP025"]<=row["BaselineBootstrapP975"]
+                  assert row["ElevenBootstrapP025"]<=row["ElevenBootstrapP975"]
+                  assert row["ElevenBootstrapP025"]>=row["BaselineBootstrapP025"]
+                  assert row["ElevenBootstrapP975"]>=row["BaselineBootstrapP975"]
+                  assert D("0")<=D(str(row["ProbabilityElevenMeets95InBootstrapNotGate"]))<=D("1")
+              clustered_m_recall_by_seed.append({
+                  "seed":d["Seed"],"sourceFingerprint":cluster["SourceInputFingerprint"],
+                  "isIndependentPairCI":cluster["IsIndependentPairConfidenceInterval"],
+                  "modelsUNetwork":cluster["ModelsNetworkDependenceAmongU"],
+                  "mayPromote":cluster["MayPromoteModelOrBlockingPolicy"],
+                  "splits":boot})
               eleven_pass_union_by_seed.append({
                   "seed":d["Seed"],"mayPromote":eleven["MayPromoteBlockingPolicy"],
                   "passes95Both":eleven["Passes95PercentInBothSplits"],
@@ -1886,6 +1927,9 @@ jobs:
                    "newSqlBirthYearFivePassesDiagnosticOnly":True,
                    "sqlElevenPassCombinedUnionAndResidualBySeed":eleven_pass_union_by_seed,
                    "sqlElevenPassCombinedUnionDiagnosticOnly":True,
+                   "sqlBaseClusterBootstrapMRecallVersion":"V9_SQL_TRAIN_VALIDATION_CLUSTERED_BASE_M_RECALL_BOOTSTRAP_V1",
+                   "sqlBaseClusterBootstrapMRecallBySeed":clustered_m_recall_by_seed,
+                   "sqlBaseClusterBootstrapMRecallNotIndependentCI":True,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))
