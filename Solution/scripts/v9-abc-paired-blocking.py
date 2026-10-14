@@ -16,6 +16,7 @@ ARMS = {
     "C0": [("nome_normalizado", "data_nascimento"), ("nome_mae_normalizado", "data_nascimento")],
     "C1": [("nome_normalizado", "data_nascimento"), ("nome_mae_normalizado", "data_nascimento"),
            ("nome_fonetico", "data_nascimento"), ("nome_mae_fonetico", "data_nascimento")],
+    # D here is only a fixed-pass diagnostic proxy, NOT adaptive frequency planning.
     "D0": [("nome_normalizado", "nome_mae_normalizado"), ("nome_normalizado", "data_nascimento"), ("nome_mae_normalizado", "data_nascimento")],
     "D1": [("nome_normalizado", "nome_mae_normalizado"), ("nome_normalizado", "data_nascimento"), ("nome_mae_normalizado", "data_nascimento"),
            ("nome_fonetico", "nome_mae_fonetico"), ("nome_fonetico", "data_nascimento"), ("nome_mae_fonetico", "data_nascimento")],
