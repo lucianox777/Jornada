@@ -1151,6 +1151,7 @@ jobs:
           ablation_agg={p:dict(extra_true=0,extra_false=0,extra_tp=0,extra_fp=0) for p in ablation_names}
           ablation_by_seed=[]
           union_search_by_seed=[]
+          union_fanout_by_seed=[]
           loss_by_seed=[]
           parity_by_seed=[]
           sql_support_by_seed=[]
@@ -1568,6 +1569,73 @@ jobs:
                   "bestTrainRecall":max(c["TrainRecallAgainstEligibleM"] for c in combos),
                   "bestValidationRecall":max(c["ValidationRecallAgainstEligibleM"] for c in combos),
                   "mayPromote":union["MayPromoteBlockingPolicy"]})
+              # Independent Python validation of FULL ENDPOINT fanout for
+              # all 56 deduplicated SQL unions, including zero-hit observations.
+              union_fanout=d["TrainValidationUnionFanout"]
+              assert union_fanout["Version"]=="V9_SQL_TRAIN_VALIDATION_56_UNIONS_ZERO_INCLUSIVE_FANOUT_V1"
+              assert union_fanout["Status"]=="DESCRIPTIVE_ONLY_NO_TEST_NO_FANOUT_BUDGET_OR_OPERATIONAL_PROMOTION"
+              assert union_fanout["PartitionScope"]=="TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN"
+              assert union_fanout["MayPromoteBlockingPolicy"] is False
+              assert union_fanout["EvaluatedUnions"]==56
+              rows=union_fanout["Splits"]
+              assert len(rows)==112
+              frame={(x["Signature"],x["Partition"]):x for x in rows}
+              assert len(frame)==112
+              assert set(frame)=={
+                  (c["Signature"],part) for c in combos for part in ("TRAIN","VALIDATION")}
+              eligible_by_part={
+                  "TRAIN":union_fanout["EligibleTrainObservations"],
+                  "VALIDATION":union_fanout["EligibleValidationObservations"]}
+              assert all(eligible_by_part[p]>0 for p in eligible_by_part)
+              for c in combos:
+                  for part,key in (("TRAIN","Train"),("VALIDATION","Validation")):
+                      f=frame[(c["Signature"],part)]
+                      n=eligible_by_part[part]
+                      assert f["EligibleObservations"]==n
+                      assert f["M"]==c[key+"UnionM"]
+                      assert f["U"]==c[key+"UnionU"]
+                      assert f["TotalEndpointIncidences"]==2*(f["M"]+f["U"])
+                      assert f["FalseEndpointIncidences"]==2*f["U"]
+                      assert f["ObservationsWithCandidates"]+f["ObservationsWithoutCandidates"]==n
+                      def check_hist(hist,total):
+                          assert hist and all(v["DegreeValue"]>=0 and v["ObservationCount"]>0 for v in hist)
+                          assert [v["DegreeValue"] for v in hist]==sorted(set(v["DegreeValue"] for v in hist))
+                          assert sum(v["ObservationCount"] for v in hist)==n
+                          assert sum(v["DegreeValue"]*v["ObservationCount"] for v in hist)==total
+                          def nearest(p):
+                              position=(n*p+99)//100
+                              cumulative=0
+                              for item in hist:
+                                  cumulative+=item["ObservationCount"]
+                                  if cumulative>=position:
+                                      return item["DegreeValue"]
+                              raise AssertionError("missing nearest rank")
+                          return nearest
+                      pct=check_hist(f["CandidateDegreeHistogram"],f["TotalEndpointIncidences"])
+                      fpct=check_hist(f["FalseDegreeHistogram"],f["FalseEndpointIncidences"])
+                      zero=next((x["ObservationCount"] for x in f["CandidateDegreeHistogram"] if x["DegreeValue"]==0),0)
+                      assert f["ObservationsWithoutCandidates"]==zero
+                      assert f["P50Candidates"]==pct(50)
+                      assert f["P95Candidates"]==pct(95)
+                      assert f["P99Candidates"]==pct(99)
+                      assert f["MaxCandidates"]==f["CandidateDegreeHistogram"][-1]["DegreeValue"]
+                      assert f["P95FalseCandidates"]==fpct(95)
+                      assert f["P99FalseCandidates"]==fpct(99)
+                      assert f["MaxFalseCandidates"]==f["FalseDegreeHistogram"][-1]["DegreeValue"]
+                      assert f["MaxFalseCandidates"]<=f["MaxCandidates"]
+              advisory=union["AdvisoryBestSignatureNotPublished"]
+              union_fanout_by_seed.append({
+                  "seed":d["Seed"],"unions":union_fanout["EvaluatedUnions"],
+                  "trainEligibleObservations":eligible_by_part["TRAIN"],
+                  "validationEligibleObservations":eligible_by_part["VALIDATION"],
+                  "advisoryNotPublished":advisory,
+                  "advisoryTrain":None if advisory is None else {
+                      k:v for k,v in frame[(advisory,"TRAIN")].items()
+                      if k not in ("CandidateDegreeHistogram","FalseDegreeHistogram")},
+                  "advisoryValidation":None if advisory is None else {
+                      k:v for k,v in frame[(advisory,"VALIDATION")].items()
+                      if k not in ("CandidateDegreeHistogram","FalseDegreeHistogram")},
+                  "mayPromote":union_fanout["MayPromoteBlockingPolicy"]})
               ablation_by_seed.append({"seed":d["Seed"],"test":[a for a in alt if a["Partition"]=="TEST"]})
               t=d["Splits"][2]
               for key,field in (("eligible","EligibleTrueInterGestorNoCpfPairs"),("retrieved_true","SqlCandidateTruePairs"),("false_candidates","SqlCandidateFalsePairs"),("accepted_correct","AcceptedTruePairs"),("accepted_wrong","AcceptedWrongPairs")):
@@ -1616,6 +1684,7 @@ jobs:
                    "candidateEndpointFanoutTestBySeed":fanout_by_seed,
                    "trainValidationSqlSixPassUnionSearchBySeed":union_search_by_seed,
                    "trainValidationSqlSixPassUnionSearchDiagnosticOnly":True,
+                   "trainValidationSql56UnionZeroInclusiveFanoutBySeed":union_fanout_by_seed,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))
