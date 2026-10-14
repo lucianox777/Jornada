@@ -8,7 +8,6 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
-  actions: read
 concurrency:
   group: v9-sqlite-memory-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -28,37 +27,5 @@ jobs:
       - name: Hermetic indexed SQL candidate regression
         run: python -m unittest discover -s Solution/tests/fixtures -p 'test_v9_sqlite_memory_cells.py' -v
 
-  original-corpus:
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - name: Download pinned IBGE-derived synthetic seed-42 source artifact
-        run: |
-          mkdir -p Solution/.local/v9-sqlite-original/input
-          gh run download 38593005691 --repo lucianox777/Jornada -n v9-physical-sql-active-candidate-wrong-link-30k -D Solution/.local/v9-sqlite-original/input
-        env:
-          GH_TOKEN: ${{ github.token }}
-      - name: Canonical C# export, immutable TRAIN-only frequency snapshot and SQLite :memory: experiment
-        working-directory: Solution
-        run: |
-          dotnet run -c Release --project src/Jornada.Linkage.Evaluation -- --v9-export-canonical-csv .local/v9-sqlite-original/input/e2-demographic-primary/observacoes.csv .local/v9-sqlite-original/canonical.csv
-          python3 scripts/v9-freeze-canonical-name-frequency.py --canonical-csv .local/v9-sqlite-original/canonical.csv --snapshot-dir .local/v9-sqlite-original/frozen --projection-version BLOCKING_PROJECTION_KEY_PROJECTOR_V4
-          python3 scripts/v9-sqlite-memory-cells.py --snapshot-dir .local/v9-sqlite-original/frozen --out .local/v9-sqlite-original/report.json --cap 1000000 --max-passes 8
-      - name: Upload aggregate diagnostic ONLY — never raw observations
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: v9-sqlite-memory-aggregate-seed42
-          path: Solution/.local/v9-sqlite-original/report.json
-          if-no-files-found: ignore
 # Additional fast evidence. The existing journey-ci, SQL Server physical audit,
 # security, governance, and release branch protections remain mandatory.
