@@ -15,7 +15,7 @@ from collections import defaultdict
 from datetime import date
 from pathlib import Path
 
-VERSION = "V9_SQLITE_MEMORY_CELLS_DIAGNOSTIC_V1"
+VERSION = "V9_SQLITE_MEMORY_CELLS_DIAGNOSTIC_V2"
 POLICY = "V9_PERSON_REQUIRED_PLUS_MOTHER_OR_BIRTH_DIAGNOSTIC_V1"
 PROJECTION = "BLOCKING_PROJECTION_KEY_PROJECTOR_V4"
 REQUIRED = {"observacao_id", "base_person_id", "particao", "gestor", "cpf",
@@ -33,10 +33,16 @@ PASS_ORDER = (
     "P_FIRST_M_FIRST", "P_FIRST_M_LAST", "P_FIRST_M_PHON",
     "P_PHON_M_FIRST", "P_FIRST_BIRTH_YEAR",
     "P_PREFIX3_DOB", "P_PREFIX3_M_PREFIX3", "P_PREFIX3_M_LAST",
+    # New, explicitly targeted after inspecting aggregate missed-M signatures
+    # from the original seed-42 frozen TRAIN/VALIDATION diagnostic.
+    "P_FIRST_DOB_MONTHDAY", "P_ANY_BIRTH_YEAR",
+    "P_ANY_DOB_MONTHDAY", "P_PREFIX3_BIRTH_YEAR", "P_LAST_M_FIRST",
 )
 BASE = PASS_ORDER[:2]
 FOUR = PASS_ORDER[2:6]
-EXTENDED = PASS_ORDER[2:]
+EXTENDED = PASS_ORDER[2:16]  # V1 immutable 14-cell experimental union
+TARGETED = PASS_ORDER[16:]
+EXPANDED = PASS_ORDER[2:]
 CAP_LIMIT = 1000000
 
 
@@ -96,6 +102,7 @@ def keys(row):
     birth = usable_birth(row["data_nascimento"])
     d = birth.isoformat() if birth else ""
     y = str(birth.year) if birth else ""
+    monthday = f"{birth.month:02d}-{birth.day:02d}" if birth else ""
     ps = surname_keys(row["nome_normalizado"])
     ms = surname_keys(row["nome_mae_normalizado"])
     last_p = ps[0] if ps else ""
@@ -121,6 +128,13 @@ def keys(row):
         "P_PREFIX3_DOB": [key(prefix_p, d)],
         "P_PREFIX3_M_PREFIX3": [key(prefix_p, prefix_m)],
         "P_PREFIX3_M_LAST": [key(prefix_p, last_m)],
+        # These new cells ALWAYS include a person-name representation and
+        # at least a maternal name or usable date feature.
+        "P_FIRST_DOB_MONTHDAY": [key(first_p, monthday)],
+        "P_ANY_BIRTH_YEAR": [key(surname, y) for surname in ps],
+        "P_ANY_DOB_MONTHDAY": [key(surname, monthday) for surname in ps],
+        "P_PREFIX3_BIRTH_YEAR": [key(prefix_p, y)],
+        "P_LAST_M_FIRST": [key(last_p, first_m)],
     }
     return {cell: list(dict.fromkeys(k for k in items if k))
             for cell, items in one.items()}
@@ -400,10 +414,14 @@ def assess(rows, cap=250000, max_passes=8):
         baseline = set().union(*(cells[x] for x in BASE))
         four = set().union(*(cells[x] for x in FOUR))
         extended = set().union(*(cells[x] for x in EXTENDED))
+        expanded = set().union(*(cells[x] for x in EXPANDED))
         summaries = {}
         for label, pairs in (("BASE", baseline), ("UNION_4", four),
-                             ("UNION_EXTENDED", extended)):
+                             ("UNION_EXTENDED", extended),
+                             ("UNION_EXPANDED", expanded)):
             summaries[label] = measure(pairs, eligible, name_rows)
+            summaries[label]["more_M_needed_for_95"] = max(
+                0, (19*len(eligible)+19)//20-summaries[label]["M"])
         single = {}
         for cell in PASS_ORDER:
             pairs, elapsed = sql_pairs[(part, cell)]
@@ -426,13 +444,15 @@ def assess(rows, cap=250000, max_passes=8):
             "eligibility_ceiling_vs_all_truth": len(eligible)/len(full) if full else None,
             "unrecovered_extended_truth_profile":
                 profile_unrecovered_truth(subset, eligible, extended),
+            "unrecovered_expanded_truth_profile":
+                profile_unrecovered_truth(subset, eligible, expanded),
             "metrics": summaries,
             "cells": single
         }
     # PLAN FITS TRAIN ONLY: validation cannot change any selected cell.
     train_true = truth_for([r for r in rows if r["particao"] == "TRAIN"], True)
     selected = []
-    remaining = set(EXTENDED)
+    remaining = set(EXPANDED)
     train_union = set()
     progression = []
     while remaining and len(selected) < max_passes:
