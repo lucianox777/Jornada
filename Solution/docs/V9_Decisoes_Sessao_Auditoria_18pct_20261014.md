@@ -24,3 +24,9 @@ Evidência diferente: Solution/docs/V9_Suporte_81_Celulas_MU_SQL_TRAIN_20261013.
 4. Se faltar evidência, classificar NAO_COMPROVADO. Não publicar 18% como deterioração medida.
 
 PR #1045: planejador; PR #1047: snapshots; PR #1044: testes integrados. Comparação completa dos oito braços A/B/C/D com/sem uso fonético ainda pendente.
+
+## Passe E0 — igualdade demográfica completa (decisão adicional)
+
+Incluir **passe de recuperação**, não nona estratégia, com igualdade de `nome_normalizado`, `nome_mae_normalizado` e `data_nascimento` válida/presente nos dois lados. O passe **não aceita CPF como atalho** e não transforma homônimo em identidade confirmada. Avaliar E0 com e sem o passe em cada um dos oito braços A0/A1/B0/B1/C0/C1/D0/D1, preservando o mesmo universo M/U, seeds e splits. Não interromper passes posteriores após um match exato; deduplicar candidatos na união.
+
+Materializar índice composto físico compatível e congelar a frequência **conjunta tripla** em TRAIN por `base_person_id` distinto; não aproximar por produto de marginais. Medir `ExclusiveNewM`, `ExclusiveNewU`, recall marginal, fanout, tempo, CPU/I/O e memória. E0 é igualdade de blocking; distâncias graduais são apenas recursos de recuperação e não substituem Rank/Resolve nem o LLR/FDR. Falta de mãe/nascimento impede E0, mas não outros passes. Nenhuma promoção automática.
