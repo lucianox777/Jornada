@@ -58,7 +58,7 @@ class OriginalABCDCompositionTests(unittest.TestCase):
             self.assertEqual(result["all_no_cpf_truth_M"],2)
             self.assertEqual(result["name_eligible_truth_M"],2)
             a=result["arms"]
-            self.assertEqual(sum(z.startswith(("A","B","C","D")) for z in a),20)
+            self.assertEqual(sum(z.split("+")[0] in abc.ARMS for z in a),16)
             self.assertEqual(a["A0"]["M"],1) # only PD matching with no maternal field
             self.assertEqual(a["A1"]["M"],2) # phonetic repairs MARIA/MARYA
             self.assertGreaterEqual(a["D1+E0"]["M"],a["D1"]["M"])
@@ -84,7 +84,7 @@ class OriginalABCDCompositionTests(unittest.TestCase):
             main.compare(rows,report,abc,base,planner,cap=1000)
         rows,report=evidence()
         rows[-1]["base_person_id"]="TRAINp"
-        with self.assertRaisesRegex(ValueError,"leaked"):
+        with self.assertRaisesRegex(ValueError,"leakage"):
             main.compare(rows,report,abc,base,planner,cap=1000)
 
     def test_cap_never_truncates_and_no_CPF_motherless_PD_works(self):
