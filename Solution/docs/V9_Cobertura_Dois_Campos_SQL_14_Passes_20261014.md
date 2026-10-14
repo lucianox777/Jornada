@@ -5,11 +5,11 @@ Relacionado à issue #999 e às PRs #1021–#1023. Esta entrega liga o contrato
 `JornadaHarness` DEV, sem incluir um novo passe nem mudar o modelo de
 decisão. Nome da pessoa (P), nome da mãe (M), data de nascimento (D) são os
 três grupos; os casos `PM`, `PD`, `MD` e `PMD` exigem **dois grupos
-utilizáveis por observação**. \`NONE\`, \`P\`, \`M\`, \`D\` abstêm-se do ramo
+utilizáveis por observação**. `NONE`, `P`, `M`, `D` abstêm-se do ramo
 probabilístico no contrato anterior. **Nova hipótese pedida para teste**:
 o **nome da pessoa é obrigatório**, acompanhado de **nome da mãe OU
-data de nascimento utilizável**; somente \`PM\`, \`PD\` e \`PMD\`
-são elegíveis no novo cenário. \`MD\` passa a abster-se. O cenário é
+data de nascimento utilizável**; somente `PM`, `PD` e `PMD`
+são elegíveis no novo cenário. `MD` passa a abster-se. O cenário é
 `V9_PERSON_REQUIRED_PLUS_MOTHER_OR_BIRTH_DIAGNOSTIC_V1`, comparado
 paralelamente ao anterior, sem mudar contrato operacional. CPF segue
 exclusivamente o fluxo determinístico existente.
