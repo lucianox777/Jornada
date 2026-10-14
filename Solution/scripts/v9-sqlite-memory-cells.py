@@ -227,10 +227,38 @@ def indexed_candidates(rows, cap):
 
 
 def measure(pairs, true, count):
+    # A candidate degree is the number of DISTINCT returned neighbor records
+    # per eligible observation. Include zero-degree records in every quantile.
+    # Wrong candidates are nonmatches U, not FDR/accepted false links.
+    from collections import Counter
     m = len(pairs & true)
-    degree = [0] * count
+    degrees, u_degrees = Counter(), Counter()
+    for a, b in pairs:
+        degrees[a] += 1
+        degrees[b] += 1
+        if (a, b) not in true:
+            u_degrees[a] += 1
+            u_degrees[b] += 1
+    if len(degrees) > count or len(u_degrees) > count:
+        raise ValueError("candidate set has endpoint outside eligible frame")
+
+    def distribution(values):
+        zero = count - len(values)
+        ordered = sorted(values.values())
+        def quantile(p):
+            if count == 0:
+                return None
+            rank = max(0, math.ceil(count*p)-1)
+            return 0 if rank < zero else ordered[rank-zero]
+        return {
+            "mean": (sum(values.values())/count if count else None),
+            "p50": quantile(0.50), "p95": quantile(0.95),
+            "p99": quantile(0.99), "max": max(ordered, default=0),
+            "zero_degree_observations": zero
+        }
     return {"M": m, "U": len(pairs)-m, "recall": m/len(true) if true else None,
-            "candidate_pairs": len(pairs)}
+            "candidate_pairs": len(pairs), "degree": distribution(degrees),
+            "u_degree": distribution(u_degrees)}
 
 
 def assess(rows, cap=250000, max_passes=8):
@@ -311,7 +339,7 @@ def assess(rows, cap=250000, max_passes=8):
         subset = [r for r in rows if r["particao"] == part]
         eligible = truth_for(subset, True)
         pairs = set().union(*(sql_pairs[(part, cell)][0] for cell in selected))
-        metrics = measure(pairs, eligible, len(subset))
+        metrics = measure(pairs, eligible, by_part[part]["name_eligible_observations"])
         metrics["more_M_needed_for_95"] = max(
             0, (19*len(eligible)+19)//20 - metrics["M"])
         plan[part] = metrics
