@@ -39,6 +39,11 @@ public static class V9NameRequiredSqlCellProbe
                 part VARCHAR(12) COLLATE Latin1_General_100_BIN2 NOT NULL,
                 surname NVARCHAR(120) COLLATE Latin1_General_100_BIN2 NOT NULL,
                 PRIMARY KEY CLUSTERED(obs_id,surname));
+            CREATE TABLE #v9cellperson(
+                obs_id INT NOT NULL,
+                part VARCHAR(12) COLLATE Latin1_General_100_BIN2 NOT NULL,
+                surname NVARCHAR(120) COLLATE Latin1_General_100_BIN2 NOT NULL,
+                PRIMARY KEY CLUSTERED(obs_id,surname));
             """,connection){CommandTimeout=600})
             await create.ExecuteNonQueryAsync(ct);
 
@@ -46,6 +51,7 @@ public static class V9NameRequiredSqlCellProbe
         foreach(var (name,kind) in new (string,Type)[]{
             ("obs_id",typeof(int)),("part",typeof(string)),("gestor",typeof(string)),
             ("pfull",typeof(string)),("mfull",typeof(string)),
+            ("pfirst",typeof(string)),
             ("pfon",typeof(string)),("plast",typeof(string)),("mfon",typeof(string)),
             ("mlast",typeof(string)),("birthyear",typeof(int))})
             obsTable.Columns.Add(name,kind);
@@ -53,6 +59,7 @@ public static class V9NameRequiredSqlCellProbe
         foreach(var (name,kind) in new (string,Type)[]{
             ("obs_id",typeof(int)),("part",typeof(string)),("surname",typeof(string))})
             motherTable.Columns.Add(name,kind);
+        var personTable=motherTable.Clone();
         var reference=new Dictionary<int,V9NameRequiredSqlCellAudit.Observation>();
         foreach(var x in observations.Where(V9NameRequiredSqlCellAudit.Eligible))
         {
