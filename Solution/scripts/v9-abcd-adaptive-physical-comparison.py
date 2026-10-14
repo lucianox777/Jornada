@@ -153,6 +153,14 @@ def compare(rows,baseline,abc,base,planner,cap=CAP_LIMIT):
                 adaptive[split,n]=found
     finally:
         con.close()
+    # Same 19 canonical C# cells for fixed compositions and per-query
+    # adaptive plans; controls for unequal candidate feature catalogs.
+    spec=importlib.util.spec_from_file_location(
+        "v9_adaptive_19_sql_index",
+        Path(__file__).with_name("v9-adaptive-composition-sql-replay.py"))
+    module=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    adaptive_19=module.plan_and_replay(rows,base,observed_indices)
     def union(split,selected):
         return set().union(*(observed_indices[split,s] for s in selected))
     results={}
@@ -201,6 +209,9 @@ def compare(rows,baseline,abc,base,planner,cap=CAP_LIMIT):
                  "TRAIN_IDENTITY_FREQUENCY_PER_QUERY_INDEXED_NO_FS_CALIBRATION")
             emit("ADAPTIVE_FREQ_TOP_"+str(n)+"+E0",adaptive[split,n]|e0,
                  "TRAIN_IDENTITY_FREQUENCY_QUERY_PLUS_EXACT_E0")
+        for k, pairs in adaptive_19[split].items():
+            emit("ADAPTIVE_COMPOSE_19_CATALOG_TOP_"+str(k),pairs,
+                 "TRAIN_DISTINCT_IDENTITY_FREQUENCY_QUERY_SIDE_REPLAY_OF_REAL_INDEXED_SQL_EDGES")
         for label,pass_list in (
             ("COMPOSE_4",base.FOUR),
             ("COMPOSE_14",base.EXTENDED),
@@ -228,6 +239,8 @@ def compare(rows,baseline,abc,base,planner,cap=CAP_LIMIT):
        "abc_fixed_pass_proxy_not_production_equivalence":True,
        "D0_D1_are_not_adaptive":True,
        "adaptive_strategy_executed_using_indexed_sql":True,
+       "adaptive_same_19_cell_catalog_sql_pair_replay":True,
+       "adaptive_same_catalog_ranking_basis":"TRAIN_DISTINCT_IDENTITY_PER_KEY_NOT_M_U_CALIBRATION",
        "no_calibrated_FS_or_Rank_Resolve":True,
        "original_95pct_train_optimized_feasible":selected is not None,
        "results":results,
