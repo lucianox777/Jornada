@@ -21,6 +21,50 @@ for seed in (42,43,44):
     assert report["MayPromotePolicy"] is False
     ps=report["Passes"]
     splits=report["Splits"]
+    cells_report=report["NameRequiredSqlCells"]
+    assert cells_report["Version"]=="V9_NAME_REQUIRED_SQL_CELLS_DIAGNOSTIC_V1"
+    assert cells_report["PolicyVersion"]=="V9_PERSON_REQUIRED_PLUS_MOTHER_OR_BIRTH_DIAGNOSTIC_V1"
+    assert cells_report["Scope"]=="TRAIN_VALIDATION_SQL_PHYSICAL_NO_TEST"
+    assert cells_report["MayPromotePolicy"] is False
+    assert cells_report["FdrMeasured"] is False
+    assert cells_report["ProjectionVersion"]=="BLOCKING_PROJECTION_KEY_PROJECTOR_V4"
+    assert cells_report["PhoneticVersion"]=="PERSON_NAME_METAPHONE_BR_V1"
+    assert cells_report["SurnameSemantics"]=="IBGE_ANY_SURNAME_PRESENCE_PROXY_LAST_SIGNIFICANT_FIRST_NOT_POSITIONAL_TF"
+    ids=("PERSON_PHONETIC_MOTHER_LAST","PERSON_PHONETIC_BIRTH_YEAR",
+         "PERSON_LAST_MOTHER_PHONETIC","PERSON_PHONETIC_MOTHER_ANY")
+    cells=cells_report["Cells"]
+    assert len(cells)==8
+    assert [(x["Name"],x["Partition"]) for x in cells]==[
+        (name,part) for name in ids for part in ("TRAIN","VALIDATION")]
+    assert all(0<=x["ExclusiveNewM"]<=x["NewMvs14"]<=x["M"]
+               and 0<=x["NewUvs14"]<=x["U"]
+               and 0<=x["JaroWinklerHighM"]<=x["M"]
+               and 0<=x["JaroWinklerHighU"]<=x["U"] for x in cells)
+    cell_splits=cells_report["Splits"]
+    assert len(cell_splits)==2
+    assert {x["Partition"] for x in cell_splits}=={"TRAIN","VALIDATION"}
+    for row in cell_splits:
+        old=next(x for x in report["TwoFieldSqlCoverage"]["NameRequiredSplits"]
+                 if x["Partition"]==row["Partition"])
+        assert row["EligibleTruthM"]==old["EligibleTruthM"]
+        assert row["LegacyM"]==old["SqlEligibleM"]
+        assert row["LegacyU"]==old["SqlEligibleU"]
+        assert row["MissingBirthTruthM"]==old["EligibleTruthMWithoutSqlBirth"]
+        assert row["UnionM"]==row["LegacyM"]+row["NewM"]
+        assert row["UnionU"]==row["LegacyU"]+row["NewU"]
+        assert 0<=row["UnionM"]<=row["EligibleTruthM"]
+        assert 0<=row["LegacyM"]<=row["UnionM"]
+        assert 0<=row["LegacyU"]<=row["UnionU"]
+        assert row["MoreMNeededFor95"]==max(
+            0,(19*row["EligibleTruthM"]+19)//20-row["UnionM"])
+        for key,numerator in (("LegacyRecall",row["LegacyM"]),
+                              ("UnionRecall",row["UnionM"])):
+            if row["EligibleTruthM"]==0:
+                assert row[key] is None
+            else:
+                assert abs(Decimal(str(row[key]))-
+                           Decimal(numerator)/Decimal(row["EligibleTruthM"]))<Decimal("1e-12")
+
     coverage=report["TwoFieldSqlCoverage"]
     assert coverage["Version"]=="V9_TWO_FIELD_SQL_FOURTEEN_PASS_COVERAGE_V1"
     assert coverage["Status"]=="DIAGNOSTIC_LEGACY_SQL_DOB_FRAME_NO_TEST_NO_PROMOTION"
@@ -136,7 +180,7 @@ for seed in (42,43,44):
         assert 0<=row["P95UDegree"]<=row["P99UDegree"]<=row["MaxUDegree"]
         assert row["P99UDegree"]<=row["P99Degree"]
     summary.append({"seed":seed,"splits":splits,"passes":ps,
-                    "twoFieldSqlCoverage":coverage})
+                    "twoFieldSqlCoverage":coverage,"nameRequiredSqlCells":cells_report})
 out={"version":"V9_SQL_THREE_PREFIX3_PASSES_14_UNION_V1",
      "scope":"TRAIN_VALIDATION_ONLY_TEST_BLIND",
      "source":"SQL_SERVER_JORNADA_HARNESS_IBGE_DERIVED_SYNTHETIC",

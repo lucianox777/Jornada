@@ -97,6 +97,26 @@ public static partial class V9SqlTwoPrefix3Probe
                 throw new InvalidDataException(
                     "Censo de duas evidências diverge da união SQL física de 14 passes.");
         }
-        return fourteen with { TwoFieldSqlCoverage = twoField };
+        var cells=await V9NameRequiredSqlCellProbe.RunAsync(sql,
+            observations.Where(x=>x.Partition is "TRAIN" or "VALIDATION")
+                .Select(x=>new V9NameRequiredSqlCellAudit.Observation(
+                    x.Id,x.Base,x.Partition,x.Gestor,x.Cpf,
+                    x.PersonFull,x.MotherFull,x.Birth)).ToArray(),
+            twelveEdges.Concat(passes.SelectMany(x=>x.Edges)),cap,ct);
+        foreach(var split in cells.Splits)
+        {
+            var legacy=twoField.NameRequiredSplits.Single(
+                x=>x.Partition==split.Partition);
+            if(split.EligibleTruthM!=legacy.EligibleTruthM
+                || split.LegacyM!=legacy.SqlEligibleM
+                || split.LegacyU!=legacy.SqlEligibleU)
+                throw new InvalidDataException(
+                    "Passes nome-obrigatório divergem do mesmo SQL 14 passes.");
+        }
+        return fourteen with
+        {
+            TwoFieldSqlCoverage=twoField,
+            NameRequiredSqlCells=cells
+        };
     }
 }
