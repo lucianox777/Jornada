@@ -10,7 +10,8 @@ public static partial class V9SqlTwoPrefix3Probe
 {
     public sealed record Observation(int Id,string Base,string Partition,
         string Gestor,string? Person3,string? Mother3,DateOnly? Birth,string? Cpf,
-        string? PersonFull=null,string? MotherFull=null);
+        string? PersonFull=null,string? MotherFull=null,
+        string? PersonPhonetic=null,string? MotherPhonetic=null);
 
     public static async Task<V9SqlTwoPrefix3Audit.Report> RunAsync(
         SqlConnection sql,IReadOnlyList<Observation> observations,
