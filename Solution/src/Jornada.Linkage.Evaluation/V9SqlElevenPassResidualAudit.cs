@@ -34,6 +34,7 @@ public static class V9SqlElevenPassResidualAudit
         IReadOnlyList<Split> Splits, IReadOnlyList<LossCell> ResidualCells)
     {
         public V9SqlClusteredMRecallBootstrapAudit.Report? ClusteredMRecallBootstrap { get; init; }
+        public V9SqlUNetworkBaseBootstrapAudit.Report? ClusteredUNetworkBootstrap { get; init; }
     }
 
     public static Report Analyze(
@@ -297,10 +298,33 @@ public static class V9SqlElevenPassResidualAudit
         }
         var contributions = byBase.Select(x => new V9SqlClusteredMRecallBootstrapAudit.Contribution(
             x.Key.Partition,x.Key.Base,x.Value.Eligible,x.Value.Baseline,x.Value.Eleven)).ToArray();
+
+        // A U edge touches TWO distinct base people, potentially with many
+        // observation-pair edges between the same nodes. Re-sample the entire
+        // base graph (including zero-U eligible bases), never individual U
+        // pairs. The synthetic IDs remain in memory and do not enter JSON.
+        var eligibleBaseSet = eligible.Values
+            .Select(x => new V9SqlUNetworkBaseBootstrapAudit.Base(
+                x.Partition,syntheticBaseByObservation[x.Id]))
+            .Distinct()
+            .ToArray();
+        var uNetwork = eleven
+            .Where(x => !x.Value.Match)
+            .Select(x => new V9SqlUNetworkBaseBootstrapAudit.Edge(
+                x.Value.Part,
+                syntheticBaseByObservation[x.Key.A],
+                syntheticBaseByObservation[x.Key.B]))
+            .ToArray();
+        var uReport = V9SqlUNetworkBaseBootstrapAudit.Analyze(
+            eligibleBaseSet, uNetwork,
+            summaries.Select(x => new V9SqlUNetworkBaseBootstrapAudit.Expected(
+                x.Partition,x.ElevenUnionU)).ToArray(),
+            sourceSeed,sourceInputFingerprint);
         return report with
         {
             ClusteredMRecallBootstrap = V9SqlClusteredMRecallBootstrapAudit.Analyze(
-                contributions,report,sourceSeed,sourceInputFingerprint)
+                contributions,report,sourceSeed,sourceInputFingerprint),
+            ClusteredUNetworkBootstrap = uReport
         };
     }
 
