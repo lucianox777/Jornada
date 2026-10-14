@@ -48,7 +48,7 @@ def convert(source, output_dir):
                        "birth_date": birth, "birth_year": birth[:4] if birth else "",
                        "person_first": name.split()[0] if name else "",
                        "mother_first": mother.split()[0] if mother else ""}
-                writers[split].write(json.dumps(row, ensure_ascii=False) + "\n")
+                # Canonical projections must be supplied by the C# evaluation harness.\n                # Do not synthesize phonetic keys with a divergent Python algorithm.\n                writers[split].write(json.dumps(row, ensure_ascii=False) + "\n")
                 counts[split] += 1
     finally:
         for writer in writers.values():
