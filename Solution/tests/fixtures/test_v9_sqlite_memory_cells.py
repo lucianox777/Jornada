@@ -303,6 +303,43 @@ class SqliteMemoryCellsTests(unittest.TestCase):
         self.assertIsNone(empty["point_recall"])
         self.assertFalse(empty["statistically_supported_global_95"])
 
+    def test_sqlite_key_pressure_census_matches_distinct_pair_dedup(self):
+        rows = [
+            row("a", "p", "G1", name="MARIA SILVA SOUZA",
+                mother="ANA SILVA SOUZA", phon="A", mother_phon="B"),
+            row("b", "p", "G2", name="MARIA SILVA SOUZA",
+                mother="ANA SILVA SOUZA", phon="A", mother_phon="B"),
+            row("c", "other", "G3", name="MARIA SILVA SOUZA",
+                mother="ANA SILVA SOUZA", phon="A", mother_phon="B"),
+        ]
+        report = m.assess(rows)
+        train = report["results"]["TRAIN"]
+        indexed = train["key_collision_pressure"]["P_PHON_M_ANY"]
+        self.assertEqual(indexed["unique_candidate_pairs"], 3)
+        # Same candidate pair shares TWO maternal surname keys, so raw
+        # equality JOIN cardinality is larger than dedup pair count.
+        self.assertEqual(indexed["raw_cross_manager_join_hits"], 6)
+        self.assertEqual(indexed["repeated_join_hits_before_pair_dedup"], 3)
+        self.assertEqual(indexed["max_records_per_index_key"], 3)
+        self.assertEqual(indexed["populated_keys"], 2)
+        self.assertEqual(indexed["key_size_p95"], 3)
+        self.assertEqual(indexed["keys_with_20_or_more_records"], 0)
+        self.assertIsNone(
+            report["results"]["VALIDATION"]["key_collision_pressure"]
+            ["P_PHON_M_ANY"]["key_size_p95"])
+        self.assertNotIn("MARIA", json.dumps(indexed))
+        self.assertNotIn("SOUZA", json.dumps(indexed))
+
+    def test_cross_manager_key_count_never_counts_same_manager_pairs(self):
+        rows = [row("a", "p", "G1"), row("b", "q", "G1"),
+                row("c", "r", "G1")]
+        report = m.assess(rows)
+        indexed = report["results"]["TRAIN"]["key_collision_pressure"]
+        self.assertEqual(indexed["P_PHON_M_ANY"]["raw_cross_manager_join_hits"], 0)
+        self.assertEqual(indexed["P_PHON_M_ANY"]["populated_keys"], 2)
+        self.assertEqual(indexed["P_PHON_M_ANY"]["unique_candidate_pairs"], 0)
+        self.assertEqual(indexed["P_PHON_M_ANY"]["max_records_per_index_key"], 3)
+
     def test_snapshot_integrity_protects_training_source_and_no_overwrite(self):
         rows = [row("a","p","A"),row("b","p","B")]
         import csv
