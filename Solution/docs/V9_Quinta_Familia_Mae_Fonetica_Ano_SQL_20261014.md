@@ -1,0 +1,25 @@
+# V9 — completar a evidência mãe-fonética + ano no SQL físico (TRAIN/VALIDATION)
+
+## Decisão baseada no resultado efetivamente medido da PR #1014
+
+A execução `jornada-ci` **38496661207** da PR #1014, três corpora independentes (30 mil pessoas-base por seed 42/43/44), comprovou em **TRAIN/VALIDATION** que as quatro famílias SQL novas recuperaram aproximadamente **69,59%–70,81%** dos M elegíveis após a união deduplicada com C1+ATIVO. Isso melhora o teto de ~63–65% da família antiga de seis passes, mas continua materialmente **abaixo de 95%**. Não há autorização para ativação operacional.
+
+Os valores são **medidos no SQL físico**, não estimados por somas marginais: na seed 42 em TRAIN, `M_elegível=18.315`, `M_baseline=7.790`, `U_baseline=39.568`, `M_union_4=12.839`, `U_union_4=39.601` (adição deduplicada de 5.049 M e 33 U), recall **70,101%**. Em VALIDATION seed42, `M_elegível=6.070`, `M_baseline=2.721`, `M_union_4=4.286`, `U_union_4=4.518`, recall **70,610%**. Outros splits: seed43 TRAIN **69,590%**, VALIDATION **70,696%**; seed44 TRAIN **70,812%**, VALIDATION **70,326%**. Observação: `U` é candidato falso no *frame sintético*, **não** taxa de FP entre vínculos aceitos, já que o scorer não foi recalibrado para a nova união.
+
+Uma lacuna concreta no espaço de **dois sinais** subsistia: `nome da mãe fonético + ano de nascimento`. O passe antigo `MOTHER_EXACT_PLUS_BIRTH_YEAR` gerou **0 M e 0 U adicionais nas três seeds TRAIN/VALIDATION**, pois seus pares já eram recuperados pelo baseline. Isso **não prova** que a *fonética* materna e o ano têm cobertura zero.
+
+## Alteração experimental #1015
+
+Adicionar `MOTHER_PHONETIC_PLUS_BIRTH_YEAR`: `a.mae_fon=b.mae_fon AND YEAR(a.nascimento)=YEAR(b.nascimento)`. Requer dois atributos independentes (mãe e data), **nunca** `mae` nem `nascimento` ausentes; nulidade em qualquer lado exclui o par. Todos os demais critérios do contrato físico permanecem: duas pontas sem CPF, datas presentes, mesmos split TRAIN/VALIDATION, gestores distintos e ordem canônica `a.obs_id < b.obs_id`. A consulta opera no banco efêmero `JornadaHarness`, com predicado embutido como constante, usando o índice experimental `IX_v9_motherfon_birth`, sem qualquer modificação de SQL de produção.
+
+A família **V2** passa de quatro para cinco consultas pré-registradas. O relatório `V9SqlBirthYearPassFamilyAudit` publica individualmente `M/U` adicionados pelo novo passe **em relação ao mesmo baseline**, e **AllFiveUnionCeiling** deduplicada com as outras quatro famílias antes de calcular recall e custo por observação. A nomenclatura alterada protege contra consumo inadvertido do contrato V1; as séries V1 da PR #1014 permanecem imutáveis no artefato histórico. Teto de cinco famílias vale **só para estas cinco**, nunca para o universo de todas as regras possíveis.
+
+A verificação independente Python da CI exige 5 passes × 2 splits, exatamente dez linhas e dois tetos, etiquetas oficiais, conciliação de `M/U` com baseline físico, cobertura `M/M_elegível`, somas de histogramas incluindo observações com zero candidatos, P95/P99 e máximo e `M/U` de cada passe menores ou iguais à união dos cinco. O teste NUnit verifica que mesmo um novo passe que se sobreponha a outros **não aumenta a contagem duas vezes**; identifica vazamento de TEST, rótulo conflitante, endpoints inelegíveis e violação do cap SQL (1 milhão). Não há seleção nem extrapolação `11M`.
+
+## Limites, restrições e decisão posterior
+
+**Os resultados numéricos do quinto passe ainda não foram medidos neste documento**: somente os dados das quatro famílias da PR anterior são afirmados. Uma CI verde valida instrumentação, **não** significa alcance de 95%, segurança de FP/FDR, viabilidade de latência nem suficiência de 30 mil. Novas regras podem cobrir casos diferentes ou apenas repetir candidatos existentes; isso será determinado pelo censo físico após executar a V2 nas três seeds.
+
+Mesmo o conjunto completo de pares de atributos (pessoa, mãe, ano) pode deixar irresolúveis M com dados nominalmente divergentes, mãe ausente ou data alterada em todas as fontes. Antes de liberar a V9, é obrigatório reconciliar o gate de 95% do Calibrador com o **mesmo** frame físico/ruleset/fingerprint e analisar os M residuais por **evidências observadas** (sem atribuir causalidade ao gerador), redes de bases U, suporte e incerteza em 81 células m/u, nascimento, prior e TF. A frequência conjunta de TF permanece baseada na pessoa-base **única** em TRAIN; o IBGE original fornece somente marginais semanticamente compatíveis, nunca produto de marginais tratado como frequência conjunta. A política de atributos básicos no estado `NOVO` continua derivada do **contrato da fonte**, não da obrigatoriedade artificial do recorte SQL.
+
+**Barreira operacional inviolável:** `CanSelectOrPromotePolicy=false`; nenhum TEST é consultado pelo novo passe, nenhuma troca de regras ATIVAS, FS/TF, threshold, V9 decisória, DT-15, Rank/Resolve, V8 histórico, IBGE original, JornadaLocal, Gold, NODE/NAS ou HML/PROD.

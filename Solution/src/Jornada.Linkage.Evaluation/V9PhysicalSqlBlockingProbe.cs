@@ -661,6 +661,8 @@ public static class V9PhysicalSqlBlockingProbe
                 "a.nome_fon=b.nome_fon AND YEAR(a.nascimento)=YEAR(b.nascimento)"),
             ("MOTHER_EXACT_PLUS_BIRTH_YEAR",
                 "a.mae=b.mae AND YEAR(a.nascimento)=YEAR(b.nascimento)"),
+            ("MOTHER_PHONETIC_PLUS_BIRTH_YEAR",
+                "a.mae_fon=b.mae_fon AND YEAR(a.nascimento)=YEAR(b.nascimento)"),
             ("PERSON_AND_MOTHER_PHONETIC_ANY_BIRTH",
                 "a.nome_fon=b.nome_fon AND a.mae_fon=b.mae_fon")
         ];

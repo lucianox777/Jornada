@@ -1682,17 +1682,18 @@ jobs:
               # are physically read from #v9obs and NOT from TEST, and are
               # measured against exactly the same ACTIVE+C1 baseline.
               year=d["BirthYearPassFamilyTrainValidation"]
-              assert year["Version"]=="V9_SQL_NEW_BIRTH_YEAR_FAMILY_TRAIN_VALIDATION_V1"
+              assert year["Version"]=="V9_SQL_NEW_BIRTH_YEAR_FAMILY_TRAIN_VALIDATION_V2"
               assert year["Status"]=="EXPLORATORY_SQL_NO_TEST_NO_SELECTION_NO_OPERATIONAL_GATE"
               assert year["Frame"]=="TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN"
               assert year["CanSelectOrPromotePolicy"] is False
-              assert year["PassCount"]==4 and year["PerPassSplitCount"]==8
+              assert year["PassCount"]==5 and year["PerPassSplitCount"]==10
               names={"PERSON_EXACT_PLUS_BIRTH_YEAR",
                      "PERSON_PHONETIC_PLUS_BIRTH_YEAR",
                      "MOTHER_EXACT_PLUS_BIRTH_YEAR",
+                     "MOTHER_PHONETIC_PLUS_BIRTH_YEAR",
                      "PERSON_AND_MOTHER_PHONETIC_ANY_BIRTH"}
-              items=year["Splits"];ceil=year["AllFourUnionCeiling"]
-              assert len(items)==8 and len(ceil)==2
+              items=year["Splits"];ceil=year["AllFiveUnionCeiling"]
+              assert len(items)==10 and len(ceil)==2
               assert {(r["PassId"],r["Partition"]) for r in items}=={
                   (name,part) for name in names for part in ("TRAIN","VALIDATION")}
               assert {r["Partition"] for r in ceil}=={"TRAIN","VALIDATION"}
@@ -1799,8 +1800,8 @@ jobs:
                    "trainValidationSqlSixPassUnionSearchBySeed":union_search_by_seed,
                    "trainValidationSqlSixPassUnionSearchDiagnosticOnly":True,
                    "trainValidationSql56UnionZeroInclusiveFanoutBySeed":union_fanout_by_seed,
-                   "newSqlBirthYearFourPassesBySeed":birth_year_family_by_seed,
-                   "newSqlBirthYearFourPassesDiagnosticOnly":True,
+                   "newSqlBirthYearFivePassesBySeed":birth_year_family_by_seed,
+                   "newSqlBirthYearFivePassesDiagnosticOnly":True,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))

@@ -10,7 +10,7 @@ public sealed class V9SqlBirthYearPassFamilyAuditTests
     public void Contract_remains_non_operational()
     {
         Assert.That(V9SqlBirthYearPassFamilyAudit.Version, Does.Contain("TRAIN_VALIDATION"));
-        Assert.That(V9SqlBirthYearPassFamilyAudit.RegisteredPasses, Has.Count.EqualTo(4));
+        Assert.That(V9SqlBirthYearPassFamilyAudit.RegisteredPasses, Has.Count.EqualTo(5));
     }
 
     private static readonly V9SqlBirthYearPassFamilyAudit.Observation[] Rows =
@@ -37,6 +37,8 @@ public sealed class V9SqlBirthYearPassFamilyAuditTests
             new(2, 3, "TRAIN", false)]),
         new("MOTHER_EXACT_PLUS_BIRTH_YEAR", [
             new(2, 3, "TRAIN", false), new(7, 8, "VALIDATION", false)]),
+        new("MOTHER_PHONETIC_PLUS_BIRTH_YEAR", [
+            new(2, 3, "TRAIN", false), new(5, 7, "VALIDATION", true)]),
         new("PERSON_AND_MOTHER_PHONETIC_ANY_BIRTH", [
             new(0, 2, "TRAIN", true), new(7, 8, "VALIDATION", false)])
     ];
@@ -51,17 +53,17 @@ public sealed class V9SqlBirthYearPassFamilyAuditTests
             2, 2, cap);
 
     [Test]
-    public void All_four_ceiling_deduplicates_M_U_and_includes_zero_candidates()
+    public void All_five_ceiling_deduplicates_M_U_and_includes_zero_candidates()
     {
         var report = Run();
-        var train = report.AllFourUnionCeiling.Single(x => x.Partition == "TRAIN");
-        var val = report.AllFourUnionCeiling.Single(x => x.Partition == "VALIDATION");
+        var train = report.AllFiveUnionCeiling.Single(x => x.Partition == "TRAIN");
+        var val = report.AllFiveUnionCeiling.Single(x => x.Partition == "VALIDATION");
         var one = report.Splits.Single(x =>
             x.Partition == "TRAIN" && x.PassId == "PERSON_PHONETIC_PLUS_BIRTH_YEAR");
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(report.Splits, Has.Count.EqualTo(8));
-            Assert.That(report.AllFourUnionCeiling, Has.Count.EqualTo(2));
+            Assert.That(report.Splits, Has.Count.EqualTo(10));
+            Assert.That(report.AllFiveUnionCeiling, Has.Count.EqualTo(2));
             Assert.That(report.CanSelectOrPromotePolicy, Is.False);
             Assert.That(train.BaselineM, Is.EqualTo(1));
             Assert.That(train.BaselineU, Is.EqualTo(1));
