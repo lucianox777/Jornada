@@ -29,8 +29,11 @@ jobs:
           dotnet run -c Release --project src/Jornada.Linkage.Evaluation -- --v9-export-canonical-csv .local/v9-original/e2-demographic-primary/observacoes.csv .local/v9-original/canonical.csv
           python3 scripts/v9-freeze-canonical-name-frequency.py --canonical-csv .local/v9-original/canonical.csv --snapshot-dir .local/v9-original/frozen --projection-version BLOCKING_PROJECTION_KEY_PROJECTOR_V4
           python3 scripts/v9-abcd-frozen-snapshot-runner.py --snapshot-dir .local/v9-original/frozen --out .local/v9-original/abcd-report.json
+          python3 scripts/v9-adaptive-frozen-plans.py --snapshot-dir .local/v9-original/frozen --out .local/v9-original/adaptive-plans.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: v9-original-abcd-diagnostic
-          path: Solution/.local/v9-original/abcd-report.json
+          path: |
+            Solution/.local/v9-original/abcd-report.json
+            Solution/.local/v9-original/adaptive-plans.json
