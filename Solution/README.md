@@ -1,5 +1,7 @@
 # Jornada — Solution de Referência (Fase 1) — consolidação candidata v5.00
 
+> **Decisões experimentais V9 (14/10/2026):** [bloqueio, projeção canônica, partições, 16 braços A/B/C/D, estratégia D e limites de evidência](docs/Decisoes_V9_Bloqueio_Experimentos_20261014.md). Registro técnico de DEV, sem efeito de publicação normativa.
+
 **Auditoria editorial:** [revisão transversal de 09/10](docs/Revisao_Documental_Integral_20261009.md) classifica o acervo corrente e preserva snapshots/artefatos normativos selados.
 
 > **Documentação técnica atualizada em 09/10/2026:** consulte o [manual integrado do sistema](docs/Manual_Sistema_Consolidado_20261009.md), o [estado técnico atual](docs/Estado_Atual_Projeto.md), o [guia da Console DEV](docs/Console_DEV_Supervisao_Atual.md) e o [índice vivo do acervo](docs/Indice_Acervo_Documental.md). Esta é a visão operacional do código candidato em `master`, **não** uma publicação normativa ou homologação HML/PROD. Para estado de PRs/jobs consulte GitHub Actions e o HEAD vigente. A documentação datada anterior permanece como evidência histórica.
