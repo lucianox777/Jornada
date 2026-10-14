@@ -1,6 +1,6 @@
 namespace Jornada.Linkage.Evaluation;
 
-public static class V9SqlTwoPrefix3Audit
+public static partial class V9SqlTwoPrefix3Audit
 {
     public const string Version="V9_SQL_TWO_MORE_PREFIX3_FAMILIES_TRAIN_VALIDATION_V1";
     public const string MotherDate="MOTHER_PREFIX3_PLUS_EXACT_BIRTH";
