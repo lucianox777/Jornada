@@ -1,6 +1,10 @@
 name: v9-original-corpus-abcd-diagnostic
 on:
   workflow_dispatch:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/v9-original-corpus-abcd-diagnostic.yml'
 permissions:
   contents: read
   actions: read
