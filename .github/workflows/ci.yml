@@ -1150,6 +1150,7 @@ jobs:
               "PERSON_AND_MOTHER_PHONETIC_PLUS_BIRTH_EXACT")
           ablation_agg={p:dict(extra_true=0,extra_false=0,extra_tp=0,extra_fp=0) for p in ablation_names}
           ablation_by_seed=[]
+          union_search_by_seed=[]
           loss_by_seed=[]
           parity_by_seed=[]
           sql_support_by_seed=[]
@@ -1498,6 +1499,75 @@ jobs:
                       row["extra_false"]+=u
                       row["extra_tp"]+=tp
                       row["extra_fp"]+=fp
+              # Six registered extensions: evaluate complete DISTINCT unions
+              # only in TRAIN/VALIDATION, without using TEST for selection.
+              union=d["TrainValidationUnionSearch"]
+              assert union["Version"]=="V9_SQL_TRAIN_VALIDATION_SIX_PASS_DEDUP_UNION_SEARCH_V1"
+              assert union["Status"]=="DIAGNOSTIC_ONLY_NO_TEST_NO_POLICY_PUBLICATION"
+              assert union["PartitionScope"]=="TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN"
+              assert union["MayPromoteBlockingPolicy"] is False
+              assert union["RegisteredPassCount"]==6
+              assert union["EvaluatedUnionCount"]==56
+              assert union["CandidatesWithinPairCap"]==56
+              tr=d["Splits"][0];v=d["Splits"][1]
+              assert union["TrainEligibleM"]==tr["EligibleTrueInterGestorNoCpfPairs"]
+              assert union["ValidationEligibleM"]==v["EligibleTrueInterGestorNoCpfPairs"]
+              assert union["BaselineTrainM"]==tr["SqlCandidateTruePairs"]
+              assert union["BaselineTrainU"]==tr["SqlCandidateFalsePairs"]
+              assert union["BaselineValidationM"]==v["SqlCandidateTruePairs"]
+              assert union["BaselineValidationU"]==v["SqlCandidateFalsePairs"]
+              def required95(n): return (19*n+19)//20
+              assert union["MinimumTrainMFor95Percent"]==required95(union["TrainEligibleM"])
+              assert union["MinimumValidationMFor95Percent"]==required95(union["ValidationEligibleM"])
+              combos=union["Combinations"]
+              assert len(combos)==56
+              from itertools import combinations
+              expected_sigs={
+                  "||".join(pass_ids) for size in range(1,5)
+                  for pass_ids in combinations(sorted(ablation_names),size)}
+              assert {c["Signature"] for c in combos}==expected_sigs
+              single={
+                  (a["PassId"],a["Partition"]):a
+                  for a in alt if a["Partition"] in ("TRAIN","VALIDATION")}
+              for c in combos:
+                  ids=c["PassIds"]
+                  assert 1<=len(ids)==c["PassCount"]<=4
+                  assert ids==sorted(ids) and c["Signature"]=="||".join(ids)
+                  for partition,key,baseline_m,baseline_u,eligible in (
+                      ("TRAIN","Train",union["BaselineTrainM"],union["BaselineTrainU"],union["TrainEligibleM"]),
+                      ("VALIDATION","Validation",union["BaselineValidationM"],union["BaselineValidationU"],union["ValidationEligibleM"])):
+                      added_m=c[key+"AddedM"];added_u=c[key+"AddedU"]
+                      assert added_m>=0 and added_u>=0
+                      assert added_m<=sum(single[(p,partition)]["ExtraTruePairs"] for p in ids)
+                      assert added_u<=sum(single[(p,partition)]["ExtraFalsePairs"] for p in ids)
+                      assert c[key+"UnionM"]==baseline_m+added_m<=eligible
+                      assert c[key+"UnionU"]==baseline_u+added_u
+                      assert abs(D(str(c[key+"RecallAgainstEligibleM"]))
+                          -D(c[key+"UnionM"])/D(eligible))<D("1e-23")
+                      if len(ids)==1:
+                          p=ids[0]
+                          assert added_m==single[(p,partition)]["ExtraTruePairs"]
+                          assert added_u==single[(p,partition)]["ExtraFalsePairs"]
+                  assert (c["TrainUnionM"]+c["TrainUnionU"]
+                      +c["ValidationUnionM"]+c["ValidationUnionU"]<=d["CandidatePairHardCap"])
+                  expected_gate=(20*c["TrainUnionM"]>=19*union["TrainEligibleM"]
+                      and 20*c["ValidationUnionM"]>=19*union["ValidationEligibleM"])
+                  assert c["MeetsBoth95PercentRecallFloors"] is expected_gate
+              passing=[c for c in combos if c["MeetsBoth95PercentRecallFloors"]]
+              assert union["PassingUnionCount"]==len(passing)
+              ranked=sorted(passing,key=lambda c:(
+                  c["TrainUnionU"],c["ValidationUnionU"],
+                  -D(str(c["TrainRecallAgainstEligibleM"])),
+                  c["PassCount"],c["Signature"]))
+              assert union["AdvisoryBestSignatureNotPublished"]==(
+                  ranked[0]["Signature"] if ranked else None)
+              union_search_by_seed.append({
+                  "seed":d["Seed"],"partitionScope":union["PartitionScope"],
+                  "passingCombinations":union["PassingUnionCount"],
+                  "advisoryNotPublished":union["AdvisoryBestSignatureNotPublished"],
+                  "bestTrainRecall":max(c["TrainRecallAgainstEligibleM"] for c in combos),
+                  "bestValidationRecall":max(c["ValidationRecallAgainstEligibleM"] for c in combos),
+                  "mayPromote":union["MayPromoteBlockingPolicy"]})
               ablation_by_seed.append({"seed":d["Seed"],"test":[a for a in alt if a["Partition"]=="TEST"]})
               t=d["Splits"][2]
               for key,field in (("eligible","EligibleTrueInterGestorNoCpfPairs"),("retrieved_true","SqlCandidateTruePairs"),("false_candidates","SqlCandidateFalsePairs"),("accepted_correct","AcceptedTruePairs"),("accepted_wrong","AcceptedWrongPairs")):
@@ -1544,6 +1614,8 @@ jobs:
                    "trainSqlBaseClusterConcentrationBySeed":cluster_concentration_by_seed,
                    "candidateEndpointFanoutVersion":"V9_SQL_PHYSICAL_CANDIDATE_ENDPOINT_FANOUT_V1",
                    "candidateEndpointFanoutTestBySeed":fanout_by_seed,
+                   "trainValidationSqlSixPassUnionSearchBySeed":union_search_by_seed,
+                   "trainValidationSqlSixPassUnionSearchDiagnosticOnly":True,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))

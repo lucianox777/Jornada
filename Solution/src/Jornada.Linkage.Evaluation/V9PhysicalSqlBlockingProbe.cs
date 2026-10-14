@@ -79,6 +79,7 @@ public static class V9PhysicalSqlBlockingProbe
         public V9SqlBaseClusterConcentrationAudit.Report? TrainSqlBaseClusterConcentrationAudit { get; init; }
         public string? BlockingAblationContract { get; init; }
         public IReadOnlyList<BlockingPassSensitivity>? PreRegisteredPassSensitivity { get; init; }
+        public V9SqlTrainValidationUnionSearch.Report? TrainValidationUnionSearch { get; init; }
     }
 
     public static async Task<Result> RunAsync(
@@ -320,6 +321,7 @@ public static class V9PhysicalSqlBlockingProbe
         // M/U support comes from the exact same SQL candidate frame as the
         // scorer, TRAIN only, not from the previously sampled proxy by initial.
         var trainSqlPairs = new List<V9SqlConditionedNominalSupportAudit.Candidate>();
+        var trainValidationSqlBaseline = new List<V9SqlTrainValidationUnionSearch.Pair>();
         var trainSqlBirthPairs = new List<V9SqlConditionedBirthSupportAudit.Candidate>();
         long allCandidate = 0;
         await using (var command = new SqlCommand(
@@ -357,6 +359,9 @@ public static class V9PhysicalSqlBlockingProbe
                         a.Id, b.Id, partition, a.Base, b.Base, birthA, birthB));
                 }
                 var same = a.Base == b.Base;
+                if (partition is "TRAIN" or "VALIDATION")
+                    trainValidationSqlBaseline.Add(new V9SqlTrainValidationUnionSearch.Pair(
+                        a.Id, b.Id, partition, same));
                 if (same)
                 {
                     split.TrueCandidate++;
@@ -436,8 +441,11 @@ public static class V9PhysicalSqlBlockingProbe
         // Report incremental candidate coverage and accepted-link risk for
         // 6 PRE-REGISTERED SQL alternatives. Do not add to the baseline:
         // the frozen proxy-calibrated FS model has NOT been refit on SQL.
-        var passSensitivity = await MeasurePreRegisteredPassesAsync(
-            connection, observationRows, frozen, ct);
+        var unionSearch = await MeasurePreRegisteredPassesAsync(
+            connection, observationRows, frozen,
+            trainValidationSqlBaseline,
+            bySplit["TRAIN"].Eligible, bySplit["VALIDATION"].Eligible, ct);
+        var passSensitivity = unionSearch.Sensitivity;
         if (metrics.Any(x => x.EligibleTrueInterGestorNoCpfPairs <= 0)
             || metrics.Any(x => x.SqlCandidateTruePairs > x.EligibleTrueInterGestorNoCpfPairs))
             throw new InvalidOperationException("Gabarito ou recuperação SQL M incompatíveis.");
@@ -463,7 +471,8 @@ public static class V9PhysicalSqlBlockingProbe
             TrainSqlMuIdentifiabilityAudit = trainMuIdentifiability,
             TrainSqlBaseClusterConcentrationAudit = trainClusterConcentration,
             BlockingAblationContract = BlockingAblationVersion,
-            PreRegisteredPassSensitivity = passSensitivity
+            PreRegisteredPassSensitivity = passSensitivity,
+            TrainValidationUnionSearch = unionSearch.Search
         };
     }
 
@@ -481,9 +490,12 @@ public static class V9PhysicalSqlBlockingProbe
         }
     }
 
-    private static async Task<BlockingPassSensitivity[]>
+    private static async Task<(BlockingPassSensitivity[] Sensitivity,
+            V9SqlTrainValidationUnionSearch.Report Search)>
         MeasurePreRegisteredPassesAsync(
             SqlConnection connection, Observation[] observations, Frozen frozen,
+            IReadOnlyList<V9SqlTrainValidationUnionSearch.Pair> baseline,
+            long trainEligibleM, long validationEligibleM,
             CancellationToken ct)
     {
         // Separate, immutable exploratory alternatives. EACH pass is compared
@@ -515,8 +527,11 @@ public static class V9PhysicalSqlBlockingProbe
             """,connection) { CommandTimeout = 90 })
             await create.ExecuteNonQueryAsync(ct);
         var results = new List<BlockingPassSensitivity>(proposed.Length * 3);
+        var extensions = new List<V9SqlTrainValidationUnionSearch.Extension>(proposed.Length);
         foreach (var pass in proposed)
         {
+            var addedTrainingAndValidation =
+                new List<V9SqlTrainValidationUnionSearch.Pair>();
             // SQL clauses are compile-time constants, never user input.
             // Restriction to observed birth prevents a different eligible
             // denominator from being mistaken for an apparent recall gain.
@@ -565,6 +580,13 @@ public static class V9PhysicalSqlBlockingProbe
                     var acc = byPartition[part];
                     var match = a.Base == b.Base;
                     if (match) acc.M++; else acc.U++;
+                    // Collect only TRAIN/VALIDATION for an actual union search.
+                    // TEST ablation remains an independently reported sensitivity;
+                    // it never participates in pass ranking or policy selection.
+                    if (part is "TRAIN" or "VALIDATION")
+                        addedTrainingAndValidation.Add(
+                            new V9SqlTrainValidationUnionSearch.Pair(
+                                a.Id, b.Id, part, match));
                     var score = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
                         frozen.Parameters, a.Name,b.Name,a.Mother,b.Mother,
                         frozen.Cells, CompositeNominalComparisonV9.ContractVersion,
@@ -578,6 +600,8 @@ public static class V9PhysicalSqlBlockingProbe
             if (visited != sqlCount)
                 throw new InvalidDataException("Ablation SQL perdeu candidatos.");
             results.AddRange(byPartition.Values.Select(x=>x.Report()));
+            extensions.Add(new V9SqlTrainValidationUnionSearch.Extension(
+                pass.Name, addedTrainingAndValidation));
             await using var clear = new SqlCommand("TRUNCATE TABLE #v9opt;", connection);
             await clear.ExecuteNonQueryAsync(ct);
         }
@@ -586,7 +610,18 @@ public static class V9PhysicalSqlBlockingProbe
                 || x.ExtraAcceptedTruePairs > x.ExtraTruePairs
                 || x.ExtraAcceptedWrongPairs > x.ExtraFalsePairs))
             throw new InvalidDataException("Ablation SQL sem suporte íntegro por split.");
-        return results.ToArray();
+        var search = V9SqlTrainValidationUnionSearch.Analyze(
+            baseline, extensions, trainEligibleM, validationEligibleM, HardPairCap);
+        foreach (var ablation in results.Where(x => x.Partition is "TRAIN" or "VALIDATION"))
+        {
+            var extension = extensions.Single(x => x.PassId == ablation.PassId);
+            var subset = extension.ExtraPairs.Where(x => x.Partition == ablation.Partition).ToArray();
+            if (subset.LongCount(x => x.IsReferenceMatch) != ablation.ExtraTruePairs
+                || subset.LongCount(x => !x.IsReferenceMatch) != ablation.ExtraFalsePairs)
+                throw new InvalidDataException(
+                    "Busca de uniões de blocking diverge da ablação SQL individual.");
+        }
+        return (results.ToArray(), search);
     }
 
     private sealed record ActivePass(string PassId, string[] Fields);
