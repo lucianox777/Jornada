@@ -35,6 +35,7 @@ public static class V9SqlElevenPassResidualAudit
     {
         public V9SqlClusteredMRecallBootstrapAudit.Report? ClusteredMRecallBootstrap { get; init; }
         public V9SqlUNetworkBaseBootstrapAudit.Report? ClusteredUNetworkBootstrap { get; init; }
+        public V9SqlTwoSignalResidualAudit.Report? ThreeAnchorResidualAudit { get; init; }
     }
 
     public static Report Analyze(
@@ -47,7 +48,8 @@ public static class V9SqlElevenPassResidualAudit
         V9SqlBirthYearPassFamilyAudit.Report newSearch,
         int hardPairCap,
         IReadOnlyDictionary<int,string>? syntheticBaseByObservation = null,
-        ulong sourceSeed = 0, string? sourceInputFingerprint = null)
+        ulong sourceSeed = 0, string? sourceInputFingerprint = null,
+        IReadOnlyList<V9SqlTwoSignalResidualAudit.Signal>? physicalSignals = null)
     {
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(baseline);
@@ -274,12 +276,30 @@ public static class V9SqlElevenPassResidualAudit
             false,Array.AsReadOnly(summaries.ToArray()),
             Array.AsReadOnly(residuals.ToArray()));
 
-        if (syntheticBaseByObservation is null && sourceInputFingerprint is null)
-            return report; // Unit-only invocation; physical probe always supplies corpus identity.
+        if (syntheticBaseByObservation is null && sourceInputFingerprint is null
+            && physicalSignals is null)
+            return report; // Unit-only invocation; physical probe supplies all three.
+        if (physicalSignals is null)
+            throw new InvalidDataException("Sinais de âncoras SQL ausentes no censo físico.");
         if (syntheticBaseByObservation is null || string.IsNullOrWhiteSpace(sourceInputFingerprint)
             || syntheticBaseByObservation.Count != observations.Count
             || syntheticBaseByObservation.Keys.Any(x => !allIds.Contains(x)))
             throw new InvalidDataException("Base sintética/fingerprint incompletos no SQL físico.");
+
+        var signalAudit = V9SqlTwoSignalResidualAudit.Analyze(
+            physicalSignals,
+            truth.Values.Select(x=>new V9SqlTwoSignalResidualAudit.Pair(
+                x.LowerObservationId,x.HigherObservationId,x.Partition)).ToArray(),
+            eleven.Where(x=>x.Value.Match).Select(x=>x.Key).ToArray());
+        foreach (var split in summaries)
+        {
+            var compatible=signalAudit.Splits.Single(x=>x.Partition==split.Partition);
+            if (compatible.EligibleM!=split.EligibleM
+                || compatible.RecoveredElevenM!=split.ElevenUnionM
+                || compatible.ResidualM!=split.ResidualUnretrievedM)
+                throw new InvalidDataException(
+                    "Âncoras fonéticas/ano não conciliam com M do SQL onze passes.");
+        }
 
         var byBase = new Dictionary<(string Partition,string Base),
             (long Eligible,long Baseline,long Eleven)>();
@@ -324,7 +344,8 @@ public static class V9SqlElevenPassResidualAudit
         {
             ClusteredMRecallBootstrap = V9SqlClusteredMRecallBootstrapAudit.Analyze(
                 contributions,report,sourceSeed,sourceInputFingerprint),
-            ClusteredUNetworkBootstrap = uReport
+            ClusteredUNetworkBootstrap = uReport,
+            ThreeAnchorResidualAudit = signalAudit
         };
     }
 

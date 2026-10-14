@@ -463,7 +463,12 @@ public static class V9PhysicalSqlBlockingProbe
             birthYearExploration.Extensions, eligibleTruthPairs,
             unionSearch.Search, birthYearExploration.Report, HardPairCap,
             observationRows.Where(x=>x.Partition is "TRAIN" or "VALIDATION")
-                .ToDictionary(x=>x.Id,x=>x.Base),seed,fingerprint);
+                .ToDictionary(x=>x.Id,x=>x.Base),seed,fingerprint,
+            observationRows.Where(x=>x.Partition is "TRAIN" or "VALIDATION"
+                && x.Cpf is null && x.Birth.HasValue)
+                .Select(x=>new V9SqlTwoSignalResidualAudit.Signal(
+                    x.Id,x.Partition,x.NamePhonetic,x.MotherPhonetic,x.Birth!.Value.Year))
+                .ToArray());
         if (metrics.Any(x => x.EligibleTrueInterGestorNoCpfPairs <= 0)
             || metrics.Any(x => x.SqlCandidateTruePairs > x.EligibleTrueInterGestorNoCpfPairs))
             throw new InvalidOperationException("Gabarito ou recuperação SQL M incompatíveis.");

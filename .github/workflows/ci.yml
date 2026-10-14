@@ -1154,6 +1154,7 @@ jobs:
           union_fanout_by_seed=[]
           birth_year_family_by_seed=[]
           eleven_pass_union_by_seed=[]
+          three_anchor_residual_by_seed=[]
           clustered_m_recall_by_seed=[]
           u_network_bootstrap_by_seed=[]
           loss_by_seed=[]
@@ -1902,6 +1903,48 @@ jobs:
                   "twoEndpoints":network["UsesBothEndpointsOfEveryUEdge"],
                   "isProductionCI":network["IsProductionUncertaintyOrIndependentEss"],
                   "splits":nrows})
+              # Independently reconstruct all 8 binary signatures per split
+              # from aggregated M counts; TEST is forbidden by this contract.
+              anchors=eleven["ThreeAnchorResidualAudit"]
+              assert anchors["Version"]=="V9_SQL_PHYSICAL_THREE_ANCHORS_RESIDUAL_IDENTIFIABILITY_V1"
+              assert anchors["Status"]=="DIAGNOSTIC_ONLY_NO_TEST_NO_PRODUCTION_OR_GLOBAL_BOUND"
+              assert anchors["Scope"]=="TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN"
+              assert anchors["IsGlobalBlockingCeiling"] is False
+              assert anchors["MayPromoteBlockingPolicy"] is False
+              groups=anchors["Splits"];sigcells=anchors["Cells"]
+              assert len(groups)==2 and {x["Partition"] for x in groups}=={"TRAIN","VALIDATION"}
+              assert len(sigcells)==16
+              assert {(x["Partition"],x["PersonPhoneticAgrees"],
+                       x["MotherPhoneticAgrees"],x["BirthYearAgrees"]) for x in sigcells}=={
+                          (p,a,b,c) for p in ("TRAIN","VALIDATION")
+                          for a in (False,True) for b in (False,True) for c in (False,True)}
+              assert not any(key in anchors for key in ("Id","Name","Mother","BirthYear"))
+              for x in sigcells:
+                  assert x["AgreementCount"]==sum(
+                      (x["PersonPhoneticAgrees"],x["MotherPhoneticAgrees"],x["BirthYearAgrees"]))
+                  assert x["EligibleM"]==x["RecoveredElevenM"]+x["ResidualM"]
+                  assert min(x["EligibleM"],x["RecoveredElevenM"],x["ResidualM"])>=0
+                  assert x["AgreementCount"]<2 or x["ResidualM"]==0
+              for part in ("TRAIN","VALIDATION"):
+                  split=next(x for x in groups if x["Partition"]==part)
+                  ref=next(x for x in rows11 if x["Partition"]==part)
+                  cells=[x for x in sigcells if x["Partition"]==part]
+                  assert split["EligibleM"]==ref["EligibleM"]==sum(x["EligibleM"] for x in cells)
+                  assert split["RecoveredElevenM"]==ref["ElevenUnionM"]==sum(x["RecoveredElevenM"] for x in cells)
+                  assert split["ResidualM"]==ref["ResidualUnretrievedM"]==sum(x["ResidualM"] for x in cells)
+                  assert split["TwoOrMoreAnchorsEligibleM"]==sum(x["EligibleM"] for x in cells if x["AgreementCount"]>=2)
+                  assert split["TwoOrMoreAnchorsResidualM"]==sum(x["ResidualM"] for x in cells if x["AgreementCount"]>=2)==0
+                  assert split["ResidualWithNoMatchingAnchorM"]==sum(x["ResidualM"] for x in cells if x["AgreementCount"]==0)
+                  assert split["ResidualWithOnlyOneMatchingAnchorM"]==sum(x["ResidualM"] for x in cells if x["AgreementCount"]==1)
+                  assert split["ResidualWithNoMatchingAnchorM"]+split["ResidualWithOnlyOneMatchingAnchorM"]==split["ResidualM"]
+                  assert 0<=split["ResidualWithMissingMotherPhoneticM"]<=split["ResidualM"]
+                  assert split["ResidualWithDifferentBirthYearM"]==sum(x["ResidualM"] for x in cells if not x["BirthYearAgrees"])
+                  assert split["PhysicalSqlTwoAnchorJoinComplete"] is True
+                  assert split["MayPromoteBlockingPolicy"] is False
+              three_anchor_residual_by_seed.append({
+                  "seed":d["Seed"],"splits":groups,
+                  "twoAnchorsAlwaysRetrievedWithinExactSqlKeys":True,
+                  "globalCeiling":False,"mayPromote":False})
               eleven_pass_union_by_seed.append({
                   "seed":d["Seed"],"mayPromote":eleven["MayPromoteBlockingPolicy"],
                   "passes95Both":eleven["Passes95PercentInBothSplits"],
@@ -1963,6 +2006,9 @@ jobs:
                    "newSqlBirthYearFivePassesDiagnosticOnly":True,
                    "sqlElevenPassCombinedUnionAndResidualBySeed":eleven_pass_union_by_seed,
                    "sqlElevenPassCombinedUnionDiagnosticOnly":True,
+                   "sqlThreeAnchorResidualVersion":"V9_SQL_PHYSICAL_THREE_ANCHORS_RESIDUAL_IDENTIFIABILITY_V1",
+                   "sqlThreeAnchorResidualBySeed":three_anchor_residual_by_seed,
+                   "sqlThreeAnchorResidualNotGlobalCeiling":True,
                    "sqlBaseClusterBootstrapMRecallVersion":"V9_SQL_TRAIN_VALIDATION_CLUSTERED_BASE_M_RECALL_BOOTSTRAP_V1",
                    "sqlBaseClusterBootstrapMRecallBySeed":clustered_m_recall_by_seed,
                    "sqlBaseClusterBootstrapMRecallNotIndependentCI":True,
