@@ -1,0 +1,35 @@
+[
+  {
+    "name": "first_name_only",
+    "passes": [
+      [
+        "person_first"
+      ]
+    ],
+    "fanout_cap": 3
+  },
+  {
+    "name": "first_and_mother",
+    "passes": [
+      [
+        "person_first",
+        "mother_first"
+      ]
+    ],
+    "fanout_cap": 3
+  },
+  {
+    "name": "first_mother_then_birth",
+    "passes": [
+      [
+        "person_first",
+        "mother_first"
+      ],
+      [
+        "person_first",
+        "birth_year"
+      ]
+    ],
+    "fanout_cap": 3
+  }
+]
