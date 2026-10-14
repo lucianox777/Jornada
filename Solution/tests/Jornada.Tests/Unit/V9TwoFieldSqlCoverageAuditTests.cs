@@ -63,6 +63,26 @@ public sealed class V9TwoFieldSqlCoverageAuditTests
         Assert.That(validation.LegacySqlEligibleM, Is.EqualTo(1));
         Assert.That(validation.RecallAgainstTwoFieldEligibleM, Is.EqualTo(1m));
 
+        var name = report.NameRequiredSplits.Single(x => x.Partition == "TRAIN");
+        Assert.That(report.NameRequiredPolicyVersion,
+            Is.EqualTo(V9MinimumEvidenceEligibility.PersonRequiredVersion));
+        Assert.That(name.EligibleTruthM, Is.EqualTo(1));
+        Assert.That(name.ExcludedTruthM, Is.EqualTo(3));
+        Assert.That(name.EligibleTruthMWithoutSqlBirth, Is.EqualTo(1));
+        Assert.That(name.SqlEligibleM, Is.EqualTo(0));
+        Assert.That(name.SqlEligibleU, Is.EqualTo(1));
+        Assert.That(name.SqlExcludedM, Is.EqualTo(2));
+        Assert.That(name.UnrecoveredEligibleM, Is.EqualTo(1));
+        Assert.That(name.RecallAgainstAllNoCpfTruthM, Is.EqualTo(0m));
+        Assert.That(name.RecallAgainstNameEligibleTruthM, Is.EqualTo(0m));
+        Assert.That(name.EligibilityCeilingAgainstAllTruthM, Is.EqualTo(0.25m));
+        Assert.That(name.MoreMNeededFor95, Is.EqualTo(1));
+        var nameValidation=report.NameRequiredSplits.Single(
+            x => x.Partition == "VALIDATION");
+        Assert.That(nameValidation.EligibleTruthM, Is.EqualTo(1));
+        Assert.That(nameValidation.SqlEligibleM, Is.EqualTo(1));
+        Assert.That(nameValidation.RecallAgainstNameEligibleTruthM, Is.EqualTo(1m));
+
         var pm = report.AvailabilityByCombination.Single(x =>
             x.Partition == "TRAIN" && x.Combination == "PM");
         var none = report.AvailabilityByCombination.Single(x =>
@@ -98,4 +118,25 @@ public sealed class V9TwoFieldSqlCoverageAuditTests
             V9TwoFieldSqlCoverageAudit.Analyze(Observations,
                 [new(0, 1, "TRAIN", true)], 100)));
     }
+    [Test]
+    public void Sql_may_physically_retrieve_a_pair_with_sentinel_DOB_if_names_are_valid()
+    {
+        var withSentinel = new V9TwoFieldSqlCoverageAudit.Observation[]
+        {
+            ..Observations,
+            new(40, "S", "TRAIN", "G1", "MARIA", "ANA", new DateOnly(1900,1,1), null),
+            new(41, "S", "TRAIN", "G2", "MARIA", "ANA", new DateOnly(1900,1,1), null)
+        };
+        var report = V9TwoFieldSqlCoverageAudit.Analyze(
+            withSentinel,
+            [..Sql, new(40, 41, "TRAIN", true)], 100);
+        var train = report.Splits.Single(x => x.Partition == "TRAIN");
+        var name = report.NameRequiredSplits.Single(x => x.Partition == "TRAIN");
+        Assert.That(train.LegacySqlEligibleM, Is.EqualTo(2));
+        Assert.That(train.EligibleTruthMWithMissingBirth, Is.EqualTo(1));
+        Assert.That(name.EligibleTruthM, Is.EqualTo(2));
+        Assert.That(name.SqlEligibleM, Is.EqualTo(1));
+        Assert.That(name.EligibleTruthMWithoutSqlBirth, Is.EqualTo(1));
+    }
+
 }
