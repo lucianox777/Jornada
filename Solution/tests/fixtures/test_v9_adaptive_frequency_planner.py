@@ -8,16 +8,16 @@ module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 
 def row(split, truth, name="ANA", mother="LIA", birth="2000"):
-    return {"split": split, "truth_id": truth,
+    return {"particao": split, "base_person_id": truth, "observacao_id": str(truth) + "-" + split,
             "nome_normalizado": name, "nome_fonetico": "AN",
             "nome_mae_normalizado": mother, "nome_mae_fonetico": "L",
-            "birth_date": birth}
+            "data_nascimento": birth}
 
 class AdaptivePlannerTests(unittest.TestCase):
     def test_train_only_and_deduplicated_truth(self):
         rows = [row("TRAIN", "a"), row("TRAIN", "a"), row("TEST", "b")]
         counts = module.train_counts(rows)
-        self.assertEqual(counts[("nome_normalizado", "birth_date")][("ANA", "2000")], 1)
+        self.assertEqual(counts[("nome_normalizado", "data_nascimento")][("ANA", "2000")], 1)
         self.assertEqual(len(module.plan(rows[2], counts)), 3)
 
     def test_missing_independent_fields_never_create_single_field_pass(self):
@@ -33,9 +33,14 @@ class AdaptivePlannerTests(unittest.TestCase):
         self.assertTrue(all(item["train_identity_frequency"] == 1 for item in selected))
         self.assertEqual(counts[("nome_normalizado", "nome_mae_normalizado")][("ANA", "LIA")], 2)
 
+    def test_validation_and_test_do_not_affect_train_frequencies(self):
+        rows = [row("TRAIN", "a"), row("VALIDATION", "b"), row("TEST", "c")]
+        counts = module.train_counts(rows)
+        self.assertEqual(counts[("nome_normalizado", "data_nascimento")][("ANA", "2000")], 1)
+
     def test_reject_raw_only_input(self):
         with self.assertRaisesRegex(ValueError, "canonical"):
-            module.train_counts([{"split": "TRAIN", "truth_id": "a", "person_full_raw": "ANA"}])
+            module.train_counts([{"particao": "TRAIN", "base_person_id": "a", "person_full_raw": "ANA"}])
 
 if __name__ == "__main__":
     unittest.main()
