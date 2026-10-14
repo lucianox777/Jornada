@@ -13,8 +13,10 @@ DECLARE @expected TABLE (column_name sysname NOT NULL);
 INSERT INTO @expected(column_name) VALUES
  (N'partition'),(N'person_normalized'),(N'person_no_particles'),
  (N'person_prefix3'),(N'person_metaphone'),
+ (N'person_first_name'),(N'person_last_surname'),(N'person_surnames'),
  (N'mother_normalized'),(N'mother_no_particles'),
- (N'mother_prefix3'),(N'mother_metaphone'),(N'birth_date');
+ (N'mother_prefix3'),(N'mother_metaphone'),
+ (N'mother_first_name'),(N'mother_last_surname'),(N'mother_surnames'),(N'birth_date');
 IF EXISTS (SELECT 1 FROM @expected e
            WHERE COL_LENGTH(N'dbo.V9BlockingIndexLab', e.column_name) IS NULL)
     THROW 51002, 'Missing versioned projection columns in diagnostic table.', 1;
@@ -38,3 +40,18 @@ IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.V9Block
  CREATE INDEX IX_V9lab_mother_metaphone ON dbo.V9BlockingIndexLab(partition,mother_metaphone);
 IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.V9BlockingIndexLab') AND name=N'IX_V9lab_birth_date')
  CREATE INDEX IX_V9lab_birth_date ON dbo.V9BlockingIndexLab(partition,birth_date);
+
+-- Component projections: derived in the harness by versioned name-token policy.
+-- Never infer surnames from a fixed number of tokens without an explicit policy.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.V9BlockingIndexLab') AND name=N'IX_V9lab_person_first_name')
+ CREATE INDEX IX_V9lab_person_first_name ON dbo.V9BlockingIndexLab(partition,person_first_name);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.V9BlockingIndexLab') AND name=N'IX_V9lab_person_last_surname')
+ CREATE INDEX IX_V9lab_person_last_surname ON dbo.V9BlockingIndexLab(partition,person_last_surname);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.V9BlockingIndexLab') AND name=N'IX_V9lab_person_surnames')
+ CREATE INDEX IX_V9lab_person_surnames ON dbo.V9BlockingIndexLab(partition,person_surnames);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.V9BlockingIndexLab') AND name=N'IX_V9lab_mother_first_name')
+ CREATE INDEX IX_V9lab_mother_first_name ON dbo.V9BlockingIndexLab(partition,mother_first_name);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.V9BlockingIndexLab') AND name=N'IX_V9lab_mother_last_surname')
+ CREATE INDEX IX_V9lab_mother_last_surname ON dbo.V9BlockingIndexLab(partition,mother_last_surname);
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'dbo.V9BlockingIndexLab') AND name=N'IX_V9lab_mother_surnames')
+ CREATE INDEX IX_V9lab_mother_surnames ON dbo.V9BlockingIndexLab(partition,mother_surnames);
