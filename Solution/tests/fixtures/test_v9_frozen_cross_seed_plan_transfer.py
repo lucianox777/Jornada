@@ -23,6 +23,9 @@ def row(oid,identity,part,manager,person="MARIA SILVA",mother="ANA SOUZA",
         "data_nascimento":date}
 
 def fixture():
+    demographic={k:("DEMOGRAPHIC_PRIMARY_V1" if k=="mode" else
+                    111 if k=="birth_row_count" else "d"*64)
+                 for k in m.demographic_reference_identity_keys()}
     rows=[]
     for part in ("TRAIN","VALIDATION"):
         rows.extend([
@@ -37,11 +40,13 @@ def fixture():
     sql["canonical_observations_sha256"]="b"*64
     source={"seed":42,"TEST_evaluated":False,"may_promote_v9":False,
             "source_reference_sha256":"c"*64,
+            "seed_neutral_demographic_reference":demographic,
             "profiles":{k:{"canonical_sha256":"a"*64,
                             "greedy_train_cells":["P_PHON_M_LAST"]}
                         for k in ("clean","correlated")}}
     manifest={"seed":43,"error_profile":"clean",
         "input_fingerprint_sha256":"c"*64,
+        "demographic_primary":dict(demographic),
         "error_profile_provenance":
             "HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE"}
     frozen={"frozen_source_sha256":"b"*64,
@@ -80,10 +85,10 @@ class CrossSeedReplayTests(unittest.TestCase):
 
     def test_source_target_ibge_sha_and_test_blind(self):
         rows,sql,source,gen,frozen=fixture()
-        gen["input_fingerprint_sha256"]="wrong"
+        gen["demographic_primary"]["birth_sha256"]="wrong"
         with self.assertRaisesRegex(ValueError,"IBGE"):
             m.compare(source,sql,gen,frozen,rows,"clean",43,base,cap=100)
-        gen["input_fingerprint_sha256"]="c"*64
+        gen["demographic_primary"]["birth_sha256"]="d"*64
         sql["TEST_evaluated"]=True
         with self.assertRaisesRegex(ValueError,"snapshot"):
             m.compare(source,sql,gen,frozen,rows,"clean",43,base,cap=100)
