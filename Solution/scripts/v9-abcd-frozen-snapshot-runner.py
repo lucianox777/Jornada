@@ -24,6 +24,8 @@ def execute(snapshot_dir, report_path):
     result = json.loads(Path(report_path).read_text(encoding="utf-8"))
     expected = {a + suffix for a in ("A0", "A1", "B0", "B1", "C0", "C1", "D0", "D1")
                 for suffix in ("", "+E0")}
+    if result.get("source_sha256") != digest or result.get("diagnostic_only") is not True:
+        raise ValueError("diagnostic provenance mismatch")
     for split in ("TRAIN", "VALIDATION", "TEST"):
         if set(result["results"][split]["arms"]) != expected:
             raise ValueError("missing experimental arms")
