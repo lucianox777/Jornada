@@ -34,6 +34,8 @@ def execute(snapshot_dir, out, cap=30, max_passes=3):
     ids = [r["observacao_id"] for r in rows]
     if any(not i for i in ids) or len(ids) != len(set(ids)):
         raise ValueError("missing or duplicate observation IDs")
+    if not {"observacao_id", "base_person_id", "particao", "data_nascimento"}.issubset(rows[0]):
+        raise ValueError("canonical identity, partition and birth date columns required")
     counts = planner.train_counts(rows)
     plans = [{"observacao_id": row["observacao_id"], "particao": row["particao"],
               "passes": planner.plan(row, counts, cap=cap, max_passes=max_passes)}
@@ -43,7 +45,10 @@ def execute(snapshot_dir, out, cap=30, max_passes=3):
               "frequency_method": "distinct TRAIN identities from hash-verified canonical snapshot",
               "caution": "Plans only: no live SQL fanout, retrieval, Rank/Resolve or D-arm equivalence",
               "plans": plans}
-    Path(out).write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    destination = Path(out)
+    if destination.resolve() == source.resolve() or destination.resolve() == (root / "manifest.json").resolve():
+        raise ValueError("report cannot overwrite frozen snapshot")
+    destination.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return report
 
 if __name__ == "__main__":
