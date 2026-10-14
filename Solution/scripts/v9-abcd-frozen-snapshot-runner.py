@@ -16,6 +16,9 @@ def execute(snapshot_dir, report_path):
         raise ValueError("invalid frozen TRAIN-only snapshot")
     if digest != manifest.get("frozen_source_sha256"):
         raise ValueError("canonical observations hash mismatch")
+    for filename, key in (("train_name_frequencies.json", "frequency_sha256"), ("train_joint_name_frequencies.json", "joint_frequency_sha256")):
+        if hashlib.sha256((root / filename).read_bytes()).hexdigest() != manifest.get(key):
+            raise ValueError("frozen TRAIN frequency hash mismatch")
     runner = Path(__file__).with_name("v9-abc-paired-blocking.py")
     if not runner.exists():
         raise FileNotFoundError("A/B/C/D diagnostic not merged yet")
