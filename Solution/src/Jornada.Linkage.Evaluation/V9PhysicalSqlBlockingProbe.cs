@@ -485,6 +485,17 @@ public static class V9PhysicalSqlBlockingProbe
             trainValidationSqlBaseline,unionSearch.Extensions,
             birthYearExploration.Extensions,eligibleTruthPairs,elevenResidual,
             HardPairCap,ct);
+        // Real SQL candidates: mother's prefix3 + DOB; person+mother prefix3.
+        // Previous one-pass prefix3 table remains available on this connection.
+        var furtherPrefixPasses=await V9SqlTwoPrefix3Probe.RunAsync(
+            connection,observationRows.Select(x=>new V9SqlTwoPrefix3Probe.Observation(
+                x.Id,x.Base,x.Partition,x.Gestor,
+                x.NameFull is { Length: >= 3 } ? x.NameFull[..3] : null,
+                x.MotherFull is { Length: >= 3 } ? x.MotherFull[..3] : null,
+                x.Birth,x.Cpf)).ToArray(),
+            trainValidationSqlBaseline,unionSearch.Extensions,
+            birthYearExploration.Extensions,eligibleTruthPairs,
+            prefix3Birth,HardPairCap,ct);
         if (metrics.Any(x => x.EligibleTrueInterGestorNoCpfPairs <= 0)
             || metrics.Any(x => x.SqlCandidateTruePairs > x.EligibleTrueInterGestorNoCpfPairs))
             throw new InvalidOperationException("Gabarito ou recuperação SQL M incompatíveis.");
@@ -515,7 +526,8 @@ public static class V9PhysicalSqlBlockingProbe
             TrainValidationUnionFanout = unionSearch.Fanout,
             BirthYearPassFamilyTrainValidation = birthYearExploration.Report,
             ElevenPassResidualTrainValidation = elevenResidual,
-            Prefix3ExactBirthTrainValidation = prefix3Birth
+            Prefix3ExactBirthTrainValidation = prefix3Birth,
+            OtherPrefix3PairsTrainValidation = furtherPrefixPasses
         };
     }
 
