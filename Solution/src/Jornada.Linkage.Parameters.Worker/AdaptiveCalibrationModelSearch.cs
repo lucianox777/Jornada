@@ -15,7 +15,7 @@ public interface IAdaptiveCalibrationFamilyAdapter
     string AdapterVersion { get; }
 
     AdaptiveCalibrationFitDraft FitTrain(
-        AdaptiveCalibrationModelOption option,
+        AdaptiveCalibrationModelOption modelOption,
         AdaptiveCalibrationSlice train);
 
     AdaptiveCalibrationHoldoutMetrics EvaluateValidation(
