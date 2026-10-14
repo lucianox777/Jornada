@@ -113,7 +113,7 @@ def preflight(connection, part, cell):
     return total, hottest
 
 
-def evaluate(rows, cap=CAP_LIMIT):
+def evaluate(rows, cap=CAP_LIMIT, baseline_report=None, budget=None):
     if cap < 1 or cap > CAP_LIMIT:
         raise ValueError("unapproved candidate cap")
     base.validate_rows(rows)
@@ -209,7 +209,33 @@ def evaluate(rows, cap=CAP_LIMIT):
                 "name_eligible_observations": count,
                 "variants": singles,
             }
+        learned = None
+        if baseline_report is not None:
+            if (baseline_report.get("selection_split")!="TRAIN_ONLY"
+                or baseline_report.get("diagnostic_only") is not True
+                or baseline_report.get("TEST_evaluated") is not False
+                or baseline_report.get("may_promote_policy") is not False):
+                raise ValueError("invalid original baseline TRAIN/TEST contract")
+            trained = baseline_report.get("minimum_U_95pct_diagnostic", {})
+            greedy = trained.get("plans",{}).get("greedy_pruned")
+            if (greedy is None or trained.get("trained_on")!="TRAIN_ONLY"
+                or trained.get("validation_refit") is not False):
+                learned = {"status":"NO_TRAIN_FROZEN_ORIGINAL_PLAN",
+                           "selection_split":"TRAIN_ONLY", "may_promote_policy":False}
+            else:
+                runner_spec=importlib.util.spec_from_file_location(
+                    "v9_prefix_optimizer",
+                    Path(__file__).with_name("v9-prefix-parameter-planner.py"))
+                planner=importlib.util.module_from_spec(runner_spec)
+                runner_spec.loader.exec_module(planner)
+                physical, _ = base.indexed_candidates(rows, cap)
+                physical_sets={k:v[0] for k,v in physical.items()}
+                learned=planner.evaluate(
+                    rows, base, greedy["selected_cells"], physical_sets,
+                    collected, list(configs), baseline_report.get(
+                        "canonical_observations_sha256"), policy=budget)
         return {
+            "adaptive_train_parameter_discovery": learned,
             "version": VERSION,
             "candidate_budget_cap": cap,
             "engine": "SQLITE_REAL_INDEXED_SINGLE_KEY_PER_CELL",
@@ -225,7 +251,7 @@ def evaluate(rows, cap=CAP_LIMIT):
         con.close()
 
 
-def run(snapshot, baseline_report, output, cap=CAP_LIMIT):
+def run(snapshot, baseline_report, output, cap=CAP_LIMIT, policy_path=None):
     snapshot, baseline_report, output = (Path(x).resolve() for x in
                                          (snapshot, baseline_report, output))
     if output.exists() or snapshot == output or snapshot in output.parents:
@@ -250,7 +276,13 @@ def run(snapshot, baseline_report, output, cap=CAP_LIMIT):
         raise ValueError("baseline evidence not on same source / split frame")
     with (snapshot/"canonical_observations.csv").open(encoding="utf-8-sig",newline="") as f:
         rows = list(csv.DictReader(f))
-    report = evaluate(rows, cap)
+    policy=None
+    if policy_path:
+        policy_file=Path(policy_path).resolve()
+        if not policy_file.is_file() or policy_file==output:
+            raise ValueError("missing explicit approved diagnostic budget policy")
+        policy=json.loads(policy_file.read_text(encoding="utf8"))
+    report = evaluate(rows, cap, baseline_report=compared, budget=policy)
     report["canonical_observations_sha256"] = manifest["frozen_source_sha256"]
     report["frozen_manifest_sha256"] = base.digest(snapshot/"manifest.json")
     output.parent.mkdir(parents=True,exist_ok=True)
@@ -265,8 +297,10 @@ if __name__ == "__main__":
     p.add_argument("--baseline-report", required=True)
     p.add_argument("--out", required=True)
     p.add_argument("--cap", type=int, default=CAP_LIMIT)
+    p.add_argument("--parameter-budget", default=None, help="versioned explicit TRAIN cost budget, optional; no policy means Pareto only")
     a = p.parse_args()
-    r = run(a.snapshot_dir,a.baseline_report,a.out,a.cap)
+    r = run(a.snapshot_dir,a.baseline_report,a.out,a.cap,
+            policy_path=a.parameter_budget)
     print(json.dumps({"version":r["version"],
                       "sha256":r["canonical_observations_sha256"],
                       "measured":{part:sum(cell["status"] == "MEASURED_INDEXED_SQLITE"
