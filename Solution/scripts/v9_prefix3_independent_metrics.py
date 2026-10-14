@@ -16,6 +16,7 @@ def fdr(m,u):
 def evaluate(data,seed):
     require(data["Seed"]==seed and data["CorpusPeople"]==30000)
     report=data["OtherPrefix3PairsTrainValidation"]
+    require(report["Version"]=="V9_SQL_TWO_MORE_PREFIX3_FAMILIES_TRAIN_VALIDATION_V1")
     require(report["Status"]=="DIAGNOSTIC_ONLY_TRAIN_VALIDATION_NO_TEST"
             and report["MayPromotePolicy"] is False)
     splits=report["Splits"]
@@ -31,14 +32,23 @@ def evaluate(data,seed):
         require((m-s["TwelveM"],u-s["TwelveU"])==(s["AddedM"],s["AddedU"]))
         require(m+u<=data["CandidatePairHardCap"])
         require(abs(s["Recall"]-m/t)<1e-12)
+        require(s["MoreMNeededFor95Percent"]==max(0,(19*t+19)//20-m))
+        require(0<=s["P95Degree"]<=s["P99Degree"]<=s["MaxDegree"])
+        require(0<=s["P95UDegree"]<=s["P99UDegree"]<=s["MaxUDegree"])
+        require(s["P99UDegree"]<=s["P99Degree"])
         result[p]={"M":m,"U":u,"eligible_M":t,"eligible_observations":n,
                    "recall":m/t,"hypothetical_fdr":fdr(m,u),
                    "mean_degree":2*(m+u)/n,
                    "P95Degree":s["P95Degree"],"P99Degree":s["P99Degree"],
                    "new_M":s["AddedM"],"new_U":s["AddedU"],
                    "passes":{x["Name"]:{"M":x["M"],"U":x["U"],
-                     "new_M":x["NewMVsTwelve"],"new_U":x["NewUVsTwelve"]}
+                     "new_M":x["NewMVsTwelve"],"new_U":x["NewUVsTwelve"],
+                     "hypothetical_fdr":fdr(x["M"],x["U"]),
+                     "mean_degree":2*(x["M"]+x["U"])/n}
                      for x in passes if x["Partition"]==p}}
+    for part in PARTS:
+        require(sum(x["new_M"] for x in result[part]["passes"].values())>=result[part]["new_M"])
+        require(sum(x["new_U"] for x in result[part]["passes"].values())>=result[part]["new_U"])
     return result
 
 if __name__=="__main__":
