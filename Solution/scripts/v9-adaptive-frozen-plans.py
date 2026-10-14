@@ -46,7 +46,9 @@ def execute(snapshot_dir, out, cap=30, max_passes=3):
               "caution": "Plans only: no live SQL fanout, retrieval, Rank/Resolve or D-arm equivalence",
               "plans": plans}
     destination = Path(out)
-    if destination.resolve() == source.resolve() or destination.resolve() == (root / "manifest.json").resolve():
+    if destination.resolve() in {source.resolve(), (root / "manifest.json").resolve(),
+                                 (root / "train_name_frequencies.json").resolve(),
+                                 (root / "train_joint_name_frequencies.json").resolve()}:
         raise ValueError("report cannot overwrite frozen snapshot")
     destination.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return report
