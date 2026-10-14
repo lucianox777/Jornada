@@ -1,3 +1,5 @@
+using Jornada.Contracts;
+
 namespace Jornada.Linkage.Evaluation;
 
 /// <summary>
@@ -6,7 +8,7 @@ namespace Jornada.Linkage.Evaluation;
 /// </summary>
 public static class V9MemoryCellExplorer
 {
-    public const string Version = "V9_MEMORY_CELL_EXPLORER_V1";
+    public const string Version = "V9_MEMORY_CELL_EXPLORER_V2_NORMALIZED";
 
     public sealed record Row(int Id, string Partition, string Gestor, string? Person,
         string? Mother, DateTime? Birth, int BasePersonId);
@@ -19,10 +21,13 @@ public static class V9MemoryCellExplorer
 
     public static IReadOnlyList<Cell> DefaultCells() =>
     [
-        new("PERSON_EXACT_DOB", r => Join(r.Person, Date(r.Birth))),
-        new("PERSON_EXACT_MOTHER", r => Join(r.Person, r.Mother)),
+        new("PERSON_EXACT_DOB", r => Join(Normal(r.Person), Date(r.Birth))),
+        new("PERSON_EXACT_MOTHER", r => Join(Normal(r.Person), Normal(r.Mother))),
         new("PERSON_PREFIX3_DOB", r => Join(Prefix(r.Person), Date(r.Birth))),
-        new("PERSON_PREFIX3_MOTHER_PREFIX3", r => Join(Prefix(r.Person), Prefix(r.Mother)))
+        new("PERSON_PREFIX3_MOTHER_PREFIX3", r => Join(Prefix(r.Person), Prefix(r.Mother))),
+        new("PERSON_NO_PARTICLES_MOTHER", r => Join(NoParticles(r.Person), NoParticles(r.Mother))),
+        new("PERSON_METAPHONE_MOTHER", r => Join(Phonetic(r.Person), Phonetic(r.Mother))),
+        new("PERSON_METAPHONE_DOB", r => Join(Phonetic(r.Person), Date(r.Birth)))
     ];
 
     public static IReadOnlyList<CellResult> Analyze(IReadOnlyList<Row> rows,
@@ -81,10 +86,19 @@ public static class V9MemoryCellExplorer
         return output.AsReadOnly();
     }
 
+    private static string? Normal(string? value) => V9MinimumEvidenceEligibility.HasName(value)
+        ? PersonNameBasicNormalization.Project(value)?.UpperNoDiacritics : null;
+
+    private static string? NoParticles(string? value) => V9MinimumEvidenceEligibility.HasName(value)
+        ? PersonNameBasicNormalization.Project(value)?.WithoutPortugueseParticles : null;
+
+    private static string? Phonetic(string? value) => V9MinimumEvidenceEligibility.HasName(value)
+        ? MetaphoneBr.Encode(value) : null;
+
     private static string? Prefix(string? value)
     {
         if (!V9MinimumEvidenceEligibility.HasName(value)) return null;
-        var letters = new string(value!.Trim().ToUpperInvariant().Where(char.IsLetter).ToArray());
+        var letters = new string((Normal(value) ?? string.Empty).Where(char.IsLetter).ToArray());
         return letters.Length >= 3 ? letters[..3] : null;
     }
 
