@@ -1,0 +1,33 @@
+name: v9-experimental-fast-pr
+on:
+  pull_request:
+    paths:
+      - 'Solution/scripts/v9-*.py'
+      - 'Solution/tests/fixtures/test_v9*.py'
+      - '.github/workflows/v9-original-corpus-abcd-diagnostic.yml'
+      - '.github/workflows/v9-experimental-fast-pr.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: v9-experimental-fast-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  focused:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile focused V9 tools
+        run: |
+          python -m py_compile Solution/scripts/v9-focused-union-comparison.py
+          python -m py_compile Solution/scripts/v9-freeze-canonical-name-frequency.py
+      - name: Focused behavioral regression
+        run: python -m unittest discover -s Solution/tests/fixtures -p 'test_v9_focused_union.py' -v
+      - name: All V9 fixture regression
+        run: python -m unittest discover -s Solution/tests/fixtures -p 'test_v9*.py' -v
