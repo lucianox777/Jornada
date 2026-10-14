@@ -30,7 +30,8 @@ class AdaptivePlannerTests(unittest.TestCase):
         counts = module.train_counts(rows)
         selected = module.plan(rows[0], counts)
         self.assertEqual(selected[0]["train_identity_frequency"], 1)
-        self.assertTrue(all(item["train_identity_frequency"] == 1 for item in selected))\n        self.assertEqual(counts[("nome_normalizado", "nome_mae_normalizado")][("ANA", "LIA")], 2)
+        self.assertTrue(all(item["train_identity_frequency"] == 1 for item in selected))
+        self.assertEqual(counts[("nome_normalizado", "nome_mae_normalizado")][("ANA", "LIA")], 2)
 
     def test_reject_raw_only_input(self):
         with self.assertRaisesRegex(ValueError, "canonical"):
