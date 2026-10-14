@@ -84,6 +84,7 @@ public static class V9PhysicalSqlBlockingProbe
         public V9SqlBirthYearPassFamilyAudit.Report? BirthYearPassFamilyTrainValidation { get; init; }
         public V9SqlElevenPassResidualAudit.Report? ElevenPassResidualTrainValidation { get; init; }
         public V9SqlNamePrefix3BirthAudit.Report? Prefix3ExactBirthTrainValidation { get; init; }
+        public V9SqlTwoPrefix3Audit.Report? OtherPrefix3PairsTrainValidation { get; init; }
     }
 
     public static async Task<Result> RunAsync(
