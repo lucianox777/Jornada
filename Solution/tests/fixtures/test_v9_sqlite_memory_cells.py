@@ -95,6 +95,48 @@ class SqliteMemoryCellsTests(unittest.TestCase):
         self.assertEqual(a["frozen_train_plan_evaluated_without_validation_refit"]["TRAIN"]["M"],1)
         self.assertEqual(a["frozen_train_plan_evaluated_without_validation_refit"]["VALIDATION"]["M"],1)
 
+    def test_residual_profile_identifies_missed_person_and_mother_phonetic_cell(self):
+        rows = [
+            row("s1", "p", "G1", name="MARIA GOMES", mother="ANA LIMA",
+                phon="PSAME", mother_phon="MSAME"),
+            row("s2", "p", "G2", name="MARINA SOUZA", mother="LUIZA COSTA",
+                phon="PSAME", mother_phon="MSAME"),
+            row("s3", "q", "G3", name="JULIA ARAUJO", mother="BETE MELO",
+                phon="DIFF", mother_phon="DIFF")
+        ]
+        result = m.assess(rows)
+        t = result["results"]["TRAIN"]
+        self.assertEqual(t["name_eligible_truth_M"], 1)
+        self.assertEqual(t["metrics"]["UNION_EXTENDED"]["M"], 0)
+        residual = t["unrecovered_extended_truth_profile"]
+        self.assertEqual(residual["unrecovered_eligible_true_M"], 1)
+        self.assertEqual(residual["reason_categories"], {"PERSON_MOTHER": 1})
+        self.assertEqual(
+            residual["candidate_hypotheses_potential_true_M_ONLY"]["P_PHON_M_PHON"], 1)
+        self.assertEqual(residual["matching_signal_counts"]["P_PHON"], 1)
+        self.assertEqual(residual["matching_signal_counts"]["M_PHON"], 1)
+        self.assertFalse(residual["hypothesis_U_fanout_sql_cost_measured"])
+        payload = json.dumps(result)
+        self.assertNotIn("MARINA SOUZA", payload)
+        self.assertNotIn("LUIZA COSTA", payload)
+        self.assertNotIn("s1", payload)
+
+    def test_residual_profile_allows_person_only_without_exaggerating_gain(self):
+        rows = [
+            row("a", "p", "G1", name="ANA GOMES", mother="MARIA SILVA",
+                phon="P1", mother_phon="M1"),
+            row("b", "p", "G2", name="ANA GOMES", mother="TERESA LIMA",
+                phon="P1", mother_phon="M2")
+        ]
+        result = m.assess(rows)["results"]["TRAIN"]
+        missed = result["unrecovered_extended_truth_profile"]
+        self.assertEqual(missed["unrecovered_eligible_true_M"], 1)
+        self.assertEqual(missed["reason_categories"], {"PERSON_ONLY": 1})
+        self.assertEqual(missed["candidate_hypotheses_potential_true_M_ONLY"], {})
+        self.assertEqual(
+            sum(missed["reason_categories"].values()),
+            result["name_eligible_truth_M"]-result["metrics"]["UNION_EXTENDED"]["M"])
+
     def test_snapshot_integrity_protects_training_source_and_no_overwrite(self):
         rows = [row("a","p","A"),row("b","p","B")]
         import csv
