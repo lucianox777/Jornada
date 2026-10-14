@@ -21,6 +21,14 @@ o plano selecionado localmente em TRAIN da seed alvo, quando existe, e
   com workflow + SHA e artifact `v9-clean-vs-correlated-seed42-mu-aggregates`.
   A matriz 43/44 só inicia quando a etapa de referência 42 tiver
   concluído, depois as sementes independentes rodam em paralelo.
+- **Importante:** `input_fingerprint_sha256` do gerador inclui explicitamente
+  a **seed** (`SyntheticCorpusInputIdentity.ComputeFingerprint(seed,...)`).
+  Portanto **não** se pode exigir que essa fingerprint seja igual em 42,
+  43 e 44. O contrato foi corrigido antes de aprovar o PR: comparamos
+  somente os **16 campos de proveniência demográfica independentes da seed**
+  (geografias, hashes físicos/canônicos de pessoa/mãe, fonte e versão
+  de DOB), preservando as fingerprints individuais nos artefatos.
+  Mesmo hash IBGE + seeds distintas não significa amostras pareadas.
 - Cada run alvo contém a **mesma referência demográfica IBGE**, versão
   de projeção, arquivo canônico C# SHA-bound, perfil explicitamente
   `clean` ou `correlated`, geração separada e seed correspondente.
