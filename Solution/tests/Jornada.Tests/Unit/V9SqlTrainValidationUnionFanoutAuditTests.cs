@@ -86,8 +86,8 @@ public sealed class V9SqlTrainValidationUnionFanoutAuditTests
             Assert.That(train.MaxFalseCandidates, Is.EqualTo(2));
             Assert.That(train.CandidateDegreeHistogram.Sum(
                 x => x.DegreeValue * x.ObservationCount), Is.EqualTo(10));
-            Assert.That(train.CandidateDegreeHistogram.First().DegreeValue, Is.Zero);
-            Assert.That(train.CandidateDegreeHistogram.First().ObservationCount,
+            Assert.That(train.CandidateDegreeHistogram[0].DegreeValue, Is.Zero);
+            Assert.That(train.CandidateDegreeHistogram[0].ObservationCount,
                 Is.EqualTo(1));
             Assert.That(validation.M, Is.EqualTo(3));
             Assert.That(validation.U, Is.EqualTo(1));
