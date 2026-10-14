@@ -49,4 +49,58 @@ public sealed class V9CanonicalObservationCsvExporterTests
         Assert.That(lines[1], Does.StartWith("o1,base1,TRAIN,G1,\"Maria, da Silva\""));
         Assert.That(lines[1], Does.Contain(",1990-02-01,"));
     }
+    [Test]
+    public void Opt_in_canonical_surname_csv_has_separate_last_and_any_person_mother_features()
+    {
+        using var writer = new StringWriter(CultureInfo.InvariantCulture);
+        V9CanonicalObservationCsvExporter.ExportWithSurnames(writer,
+        [
+            new V9CanonicalObservationCsvExporter.Input(
+                "o1", "P1", "TRAIN", "G1", "Maria da Silva Oliveira",
+                "Ana de Souza Lima", new DateOnly(1980, 6, 5), null),
+            new V9CanonicalObservationCsvExporter.Input(
+                "o2", "P2", "VALIDATION", "G2", "João Silva Filho",
+                "Maria", null, null)
+        ]);
+        using var parser = new Microsoft.VisualBasic.FileIO.TextFieldParser(
+            new StringReader(writer.ToString()));
+        parser.SetDelimiters(",");
+        parser.HasFieldsEnclosedInQuotes = true;
+        var header = parser.ReadFields()!;
+        Assert.That(string.Join(",", header),
+            Is.EqualTo(V9CanonicalObservationCsvExporter.SurnameHeader));
+        var first = parser.ReadFields()!;
+        Assert.That(first, Has.Length.EqualTo(16));
+        Assert.That(first[12], Is.EqualTo("OLIVEIRA"));
+        Assert.That(first[13], Is.EqualTo("[\\"OLIVEIRA\\",\\"SILVA\\"]"));
+        Assert.That(first[14], Is.EqualTo("LIMA"));
+        Assert.That(first[15], Is.EqualTo("[\\"LIMA\\",\\"SOUZA\\"]"));
+        var second = parser.ReadFields()!;
+        Assert.That(second[12], Is.EqualTo("SILVA"));
+        Assert.That(second[13], Is.EqualTo("[\\"SILVA\\"]"));
+        Assert.That(second[14], Is.Empty);
+        Assert.That(second[15], Is.EqualTo("[]"));
+        Assert.That(parser.EndOfData, Is.True);
+    }
+
+    [Test]
+    public void Legacy_canonical_csv_keeps_original_header_and_four_projected_columns()
+    {
+        using var writer = new StringWriter(CultureInfo.InvariantCulture);
+        V9CanonicalObservationCsvExporter.Export(writer,
+        [
+            new V9CanonicalObservationCsvExporter.Input(
+                "x", "P", "TRAIN", "G", "Maria Silva Oliveira",
+                "Ana Souza Lima", null, null)
+        ]);
+        using var parser = new Microsoft.VisualBasic.FileIO.TextFieldParser(
+            new StringReader(writer.ToString()));
+        parser.SetDelimiters(",");
+        var header = parser.ReadFields()!;
+        Assert.That(header, Has.Length.EqualTo(12));
+        Assert.That(string.Join(",", header),
+            Is.EqualTo(V9CanonicalObservationCsvExporter.Header));
+        Assert.That(parser.ReadFields(), Has.Length.EqualTo(12));
+    }
+
 }
