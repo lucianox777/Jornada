@@ -68,5 +68,13 @@ class FrozenAdaptiveTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "leaked"):
                 MODULE.execute(root, root / "report.json")
 
+    def test_output_cannot_overwrite_snapshot(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = pathlib.Path(temp)
+            source = self.fixture(root)
+            with self.assertRaisesRegex(ValueError, "overwrite frozen"):
+                MODULE.execute(root, source)
+            self.assertTrue(source.read_text(encoding="utf-8").startswith("observacao_id"))
+
 if __name__ == "__main__":
     unittest.main()
