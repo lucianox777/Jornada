@@ -1,0 +1,32 @@
+name: v9-original-corpus-abcd-diagnostic
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  original-corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Fetch frozen source artifact
+        run: |
+          mkdir -p Solution/.local/v9-original
+          gh run download 38593005691 --repo lucianox777/Jornada -n v9-physical-sql-active-candidate-wrong-link-30k -D Solution/.local/v9-original
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - name: Canonical C# export
+        working-directory: Solution
+        run: |
+          dotnet run -c Release --project src/Jornada.Linkage.Evaluation -- --v9-export-canonical-csv .local/v9-original/e2-demographic-primary/observacoes.csv .local/v9-original/canonical.csv
+          python3 scripts/v9-freeze-canonical-name-frequency.py --canonical-csv .local/v9-original/canonical.csv --snapshot-dir .local/v9-original/frozen --projection-version BLOCKING_PROJECTION_KEY_PROJECTOR_V4
+          python3 scripts/v9-abcd-frozen-snapshot-runner.py --snapshot-dir .local/v9-original/frozen --out .local/v9-original/abcd-report.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: v9-original-abcd-diagnostic
+          path: Solution/.local/v9-original/abcd-report.json
