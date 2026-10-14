@@ -36,6 +36,14 @@ def demographic_reference_identity(manifest):
     return comparator.demographic_reference_identity(manifest)
 
 
+def demographic_reference_identity_keys():
+    script=Path(__file__).with_name("v9-synthetic-clean-correlated-sensitivity.py")
+    spec=importlib.util.spec_from_file_location("v9_ref_identity_keys",script)
+    comp=importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(comp)
+    return comp.DEMOGRAPHIC_ID_KEYS
+
+
 def physical_frozen_cells(rows,names,base,cap):
     """Index only previously frozen cells, SQL join under deterministic cap."""
     if type(cap) is not int or not 1<=cap<=CAP_LIMIT:
