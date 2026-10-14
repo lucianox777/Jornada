@@ -13,9 +13,9 @@ public sealed class AdaptiveCalibrationModelSearchTests
     private static readonly string TrainGroups = new('f', 64);
     private static readonly string ValGroups = new('1', 64);
 
-    private static void AssertThrows<TException>(NUnit.Framework.TestDelegate action)
+    private static void AssertThrows<TException>(Action action)
         where TException : Exception
-        => Assert.Throws<TException>(action);
+        => Assert.That(action, Throws.TypeOf<TException>());
 
     private sealed class FakeAdapter(
         string family, long tp, long fp, bool wrongTrain = false)
