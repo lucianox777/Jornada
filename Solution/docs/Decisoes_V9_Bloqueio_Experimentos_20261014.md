@@ -58,3 +58,34 @@ Os artefatos originais devem manter identificador do workflow, SHA do snapshot, 
 DEV não exige retrocompatibilidade automática de executáveis antigos, mas as evidências congeladas, semântica de identidades e versões de método permanecem imutáveis.
 
 **Critério de encerramento:** checksum de corpus, rastreabilidade do modelo escolhido, paridade física por pares no SQL Server, custos de escala e limite estatístico do recall ≥95% por split e por universo, FDR e suficiência aprovados sob política versionada. O ensaio SQL em memória não substitui a validação de promoção.
+
+
+## 7. Atualização de método e decisão sobre suficiência em 14/10/2026
+
+Esta seção substitui as menções **historicamente pendentes** a PRs
+#1066 e #1077 na descrição de 14/10; ambas foram integradas. A
+proveniência dos **18%** do gerador `correlated` (hipótese sem base real),
+o experimento `clean` versus `correlated` da PR #1084, o sistema
+de descoberta de 34 regras e seleção pelo custo real marginal das
+PRs #1081/#1082, e o teste de tamanho amostral encontram-se
+**consolidados** em
+[`V9_Decisoes_Integral_Erros_Blocking_Tamanho_Amostra_20261014.md`](V9_Decisoes_Integral_Erros_Blocking_Tamanho_Amostra_20261014.md).
+
+Aprova-se medir suficiência usando **identidades-base distintas
+portadoras de M**, não 30 mil observações ou pares tratados como IID.
+H0: recall de blocking global ≤95%. Aplicar intervalo unilateral
+por bootstrap de identidades-base em VALIDATION congelada e
+avaliação de múltiplas sementes. Uma amostra sintética **nunca é
+perfeita por mero aumento de N**: testar precisão condicional ao
+gerador separadamente da correspondência empírica dos erros,
+dos estratos e do custo físico SQL Server. Para verdadeira taxa
+perto de 95,01%, poder 80% sob aproximação IID exigiria
+~29 milhões de **pares M independentes efetivos**, antes de corrigir
+dependências, o que indica necessidade de **ganho robusto de recall**,
+não apenas ampliar indefinidamente o corpus.
+
+Os números de tamanho amostral que forem efetivamente medidos
+só se tornam evidência confirmada após `jornada-ci` e
+`v9-synthetic-corruption-evidence` concluírem com artefatos
+das seeds 42, 43 e 44. A calibração continua **manual**,
+DT-23 apenas diagnóstico, TEST blindado, V9/DT-15 não ativa.

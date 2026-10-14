@@ -4,7 +4,9 @@ on:
     paths:
       - 'Solution/scripts/v9-synthetic-corruption-impact.py'
       - 'Solution/scripts/v9-synthetic-clean-correlated-sensitivity.py'
+      - 'Solution/scripts/v9-cluster-sample-size-power.py'
       - 'Solution/tests/fixtures/test_v9_synthetic_clean_correlated_sensitivity.py'
+      - 'Solution/tests/fixtures/test_v9_cluster_sample_size_power.py'
       - 'Solution/tests/fixtures/test_v9_synthetic_corruption_impact.py'
       - 'Solution/src/Jornada.Linkage.SyntheticCorpus/SyntheticCorpusMaterializer.cs'
       - 'Solution/docs/V9_Origem_18pct_Erros_Sinteticos_20261014.md'
@@ -65,7 +67,8 @@ jobs:
           dotnet-version: '10.0.x'
       - name: Fail-closed profile sensitivity unit tests
         run: |
-          python3 -m py_compile Solution/scripts/v9-synthetic-clean-correlated-sensitivity.py
+          python3 -m py_compile Solution/scripts/v9-synthetic-clean-correlated-sensitivity.py Solution/scripts/v9-cluster-sample-size-power.py
+          python3 -m unittest discover -s Solution/tests/fixtures -p 'test_v9_cluster_sample_size_power.py' -v
           python3 -m unittest discover -s Solution/tests/fixtures -p 'test_v9_synthetic_clean_correlated_sensitivity.py' -v
       - name: Build C# generator and canonical exporter
         working-directory: Solution
@@ -95,6 +98,9 @@ jobs:
             python3 scripts/v9-sqlite-memory-cells.py \
               --snapshot-dir "$out/frozen" \
               --out "$out/sqlite-report.json" --cap 1000000 --max-passes 8
+            python3 scripts/v9-cluster-sample-size-power.py \
+              --snapshot-dir "$out/frozen" --baseline-report "$out/sqlite-report.json" \
+              --out "$out/sample-size-report.json" --seed 42 --bootstrap-replicates 400
           done
           python3 scripts/v9-synthetic-clean-correlated-sensitivity.py \
             --profile-root "$root" --out "$PWD/.local/v9-clean-correlated-aggregate.json"
@@ -105,3 +111,70 @@ jobs:
           name: v9-clean-vs-correlated-seed42-mu-aggregates
           path: Solution/.local/v9-clean-correlated-aggregate.json
           if-no-files-found: ignore
+      - name: Publish matched-base sample-size power curves, no identities
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: v9-seed42-clean-correlated-cluster-sample-size
+          path: Solution/.local/v9-corruption-sensitivity/*/sample-size-report.json
+          if-no-files-found: error
+
+  independent-seeds-43-44:
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [43, 44]
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build versioned generator and C# canonical observation projection
+        working-directory: Solution
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Evaluation/Jornada.Linkage.Evaluation.csproj
+      - name: Same IBGE and 30k persons per profile; independent seed and per-base bootstrap
+        working-directory: Solution
+        env:
+          SEED: ${{ matrix.seed }}
+        run: |
+          set -euo pipefail
+          test -s data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json
+          test -s data/reference/ibge-nomes-2022/manifest.json
+          root="$PWD/.local/v9-seed-${SEED}-sensitivity"
+          for profile in clean correlated; do
+            out="$root/$profile"
+            dotnet run -c Release --no-build --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+              --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+              --population-profile demographic-primary \
+              --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+              --out "$out" --people 30000 --seed "$SEED" --error-profile "$profile"
+            dotnet run -c Release --no-build --project src/Jornada.Linkage.Evaluation -- \
+              --v9-export-canonical-csv-with-surnames "$out/observacoes.csv" "$out/canonical.csv"
+            python3 scripts/v9-freeze-canonical-name-frequency.py \
+              --canonical-csv "$out/canonical.csv" \
+              --snapshot-dir "$out/frozen" \
+              --projection-version BLOCKING_PROJECTION_KEY_PROJECTOR_V4
+            python3 scripts/v9-sqlite-memory-cells.py \
+              --snapshot-dir "$out/frozen" \
+              --out "$out/sqlite-report.json" --cap 1000000 --max-passes 8
+            python3 scripts/v9-cluster-sample-size-power.py \
+              --snapshot-dir "$out/frozen" --baseline-report "$out/sqlite-report.json" \
+              --out "$out/sample-size-report.json" --seed "$SEED" --bootstrap-replicates 400
+          done
+          python3 scripts/v9-synthetic-clean-correlated-sensitivity.py \
+            --profile-root "$root" --out "$PWD/.local/v9-seed-${SEED}-aggregate.json"
+      - name: Publish only split-level M/U and identity-cluster sample-size evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: v9-synthetic-size-3seed-${{ matrix.seed }}-aggregates
+          path: |
+            Solution/.local/v9-seed-${{ matrix.seed }}-aggregate.json
+            Solution/.local/v9-seed-${{ matrix.seed }}-sensitivity/*/sample-size-report.json
+          if-no-files-found: error
