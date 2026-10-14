@@ -8,6 +8,44 @@ using Microsoft.Data.SqlClient;
 
 const string Purpose = "DEV_HML_ONLY_NO_PUBLICATION";
 
+if (args.Length == 3 && args[0] == "--v9-export-canonical-csv")
+{
+    var source = Path.GetFullPath(args[1]);
+    var destination = Path.GetFullPath(args[2]);
+    using var parser = new Microsoft.VisualBasic.FileIO.TextFieldParser(source);
+    parser.SetDelimiters(",");
+    parser.HasFieldsEnclosedInQuotes = true;
+    var header = parser.ReadFields() ?? throw new InvalidDataException("Missing CSV header.");
+    var index = header.Select((name, position) => (name, position))
+        .ToDictionary(x => x.name, x => x.position, StringComparer.Ordinal);
+    var required = new[] { "observacao_id", "base_person_id", "particao", "gestor",
+        "nome", "nome_mae", "data_nascimento", "cpf" };
+    if (required.Any(name => !index.ContainsKey(name)))
+        throw new InvalidDataException("Missing raw observation columns.");
+    var rows = new List<V9CanonicalObservationCsvExporter.Input>();
+    while (!parser.EndOfData)
+    {
+        var fields = parser.ReadFields() ?? throw new InvalidDataException("Invalid CSV record.");
+        if (fields.Length != header.Length)
+            throw new InvalidDataException("Invalid CSV field count.");
+        string Get(string name) => fields[index[name]];
+        var birth = Get("data_nascimento");
+        rows.Add(new V9CanonicalObservationCsvExporter.Input(
+            Get("observacao_id"), Get("base_person_id"), Get("particao"),
+            Get("gestor"), Get("nome"), Get("nome_mae"),
+            string.IsNullOrWhiteSpace(birth)
+                ? null : DateOnly.ParseExact(birth, "yyyy-MM-dd", CultureInfo.InvariantCulture),
+            Get("cpf")));
+    }
+    Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+    if (source == destination) throw new ArgumentException("Input and output paths must differ.");
+    using var writer = new StreamWriter(destination, false, new System.Text.UTF8Encoding(false));
+    V9CanonicalObservationCsvExporter.Export(writer, rows);
+    Console.WriteLine("Canonical C# blocking projections exported: " + rows.Count);
+    return;
+}
+
+
 if (args.Length == 5 && args[0] == "--v9-physical-sql-blocking")
 {
     if (!ulong.TryParse(args[4], out var seed) || seed is not (42UL or 43UL or 44UL))
