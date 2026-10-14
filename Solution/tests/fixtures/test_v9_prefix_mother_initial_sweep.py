@@ -50,7 +50,8 @@ class PrefixMotherInitialSweepTests(unittest.TestCase):
         r=v.evaluate(corpus())
         tr=r["results"]["TRAIN"]["variants"]
         self.assertEqual(r["results"]["TRAIN"]["all_no_cpf_truth_M"],2)
-        self.assertEqual(tr["P3_DOB"]["M"],0)
+        # PD case CARLA/CARINA shares CAR and full DOB; PM name-change case does not.
+        self.assertEqual(tr["P3_DOB"]["M"],1)
         self.assertEqual(tr["P2_M1_YEAR_MONTH"]["M"],1)
         self.assertEqual(tr["P3_M1_YEAR_MONTH"]["M"],0)
         self.assertEqual(tr["P1_M1_YEAR_MONTH"]["M"],1)
