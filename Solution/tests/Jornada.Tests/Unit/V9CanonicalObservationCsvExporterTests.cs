@@ -72,12 +72,12 @@ public sealed class V9CanonicalObservationCsvExporterTests
         var first = parser.ReadFields()!;
         Assert.That(first, Has.Length.EqualTo(16));
         Assert.That(first[12], Is.EqualTo("OLIVEIRA"));
-        Assert.That(first[13], Is.EqualTo("[\\"OLIVEIRA\\",\\"SILVA\\"]"));
+        Assert.That(System.Text.Json.JsonSerializer.Deserialize<string[]>(first[13]), Is.EqualTo(new[] { "OLIVEIRA", "SILVA" }));
         Assert.That(first[14], Is.EqualTo("LIMA"));
-        Assert.That(first[15], Is.EqualTo("[\\"LIMA\\",\\"SOUZA\\"]"));
+        Assert.That(System.Text.Json.JsonSerializer.Deserialize<string[]>(first[15]), Is.EqualTo(new[] { "LIMA", "SOUZA" }));
         var second = parser.ReadFields()!;
         Assert.That(second[12], Is.EqualTo("SILVA"));
-        Assert.That(second[13], Is.EqualTo("[\\"SILVA\\"]"));
+        Assert.That(System.Text.Json.JsonSerializer.Deserialize<string[]>(second[13]), Is.EqualTo(new[] { "SILVA" }));
         Assert.That(second[14], Is.Empty);
         Assert.That(second[15], Is.EqualTo("[]"));
         Assert.That(parser.EndOfData, Is.True);
