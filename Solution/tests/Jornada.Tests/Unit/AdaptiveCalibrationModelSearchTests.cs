@@ -23,12 +23,12 @@ public sealed class AdaptiveCalibrationModelSearchTests
         public bool EvaluatedValidationOnly { get; private set; }
 
         public AdaptiveCalibrationFitDraft FitTrain(
-            AdaptiveCalibrationModelOption option, AdaptiveCalibrationSlice train)
+            AdaptiveCalibrationModelOption modelOption, AdaptiveCalibrationSlice train)
         {
             FittedTrainOnly = train.Partition == "TRAIN" && !train.UsesTestLabels;
             return new AdaptiveCalibrationFitDraft(
-                option.ModelFamily, option.AdapterVersion, option.OptionId,
-                option.ConfigurationFingerprintSha256, Fit,
+                modelOption.ModelFamily, modelOption.AdapterVersion, modelOption.OptionId,
+                modelOption.ConfigurationFingerprintSha256, Fit,
                 wrongTrain ? Validation : train.CorpusFingerprintSha256, true);
         }
 
