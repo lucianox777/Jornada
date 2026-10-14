@@ -4,10 +4,10 @@
 
 ## Arquitetura e ciclo de vida
 
-1. **Um único Calibrador histórico da Jornada, implementado em C#.** Incorporar nele os algoritmos de busca e avaliação desenvolvidos nos experimentos V9; não criar segundo calibrador, otimizador independente ou controlador de estratégias no linkage operacional. Scripts históricos permanecem como evidência e oráculos de regressão, não como segunda fonte de decisão.
+1. **O **Calibrador V9 é a versão final e única da Jornada**, implementada em C#, substituindo integralmente as versões anteriores em DEV.** Incorporar nele os algoritmos de busca e avaliação desenvolvidos nos experimentos V9; não criar segundo calibrador, otimizador independente ou controlador de estratégias no linkage operacional. **Não é exigida compatibilidade retroativa nem manutenção executável de calibradores legados em DEV**; preservar somente evidências e oráculos necessários à reprodutibilidade. Scripts históricos permanecem como evidência e oráculos de regressão, não como segunda fonte de decisão.
 2. **Calibração inicial:** executar processo experimental controlado, produzir snapshot de parâmetros completo, versionado, rastreável e **imutável na camada `ref`**. O bootstrap da aplicação **consome esse snapshot**, verificando hash, schema, proveniência, versões de projeção/comparadores, elegibilidade e estado de aprovação. **Bootstrap não treina nem recalibra.** Ausência/incompatibilidade de modelo exigido deve falhar de modo explícito, nunca aplicar parâmetros inventados.
 3. **Calibrações subsequentes:** exclusivamente **sob comando manual**. Diagnóstico automático de suficiência pode recomendar nova calibração, mas não dispara treinamento, publicação, promoção ou ativação. Cada nova versão passa por avaliação, aprovação e publicação explícita; versões anteriores permanecem disponíveis para auditoria/rollback.
-4. **Separação de publicação e ativação:** gravar referência inicial em `ref` não autoriza automaticamente ativar V9 em produção. DT-15 e gates estatísticos/operacionais permanecem obrigatórios. Preservar V8, Gold, IBGE original e ambientes não autorizados.
+4. **Separação de publicação e ativação:** gravar referência inicial em `ref` não autoriza automaticamente ativar V9 em produção. DT-15 e gates estatísticos/operacionais permanecem obrigatórios. Preservar Gold, IBGE original e ambientes não autorizados; não preservar o calibrador V8 como caminho operacional paralelo.
 
 ## Engenharia reversa obrigatória e parâmetros adaptativos
 
@@ -25,7 +25,7 @@ Novos atributos entram pelo catálogo versionado de projeções/comparadores e s
 - Reconstruir exatamente o frame histórico e os denominadores, seeds, perfis de erro e versões de algoritmos. Reproduzir contagens M/U, recall de blocking, fanout, seleção de passes e hashes. Referências históricas aproximadas de **95,0044% (plano progressivo de dez células TRAIN)** e **96,87% (união de 19 células TRAIN)** são **regressões de blocking**, não certificação de FS/FDR, nem metas a perseguir por ajuste indevido.
 - TRAIN estima e explora; VALIDATION seleciona sob orçamento estatístico previamente versionado, considerando multiplicidade; TEST permanece lacrado até avaliação final, sem refit. Registrar LCB de recall, UCB de FDR, amostra efetiva por identidade/estrato, abstenções, FP, FN, custo e limites. Se não houver suporte ou aprovação, declarar INCONCLUSIVO/REPROVADO.
 - Comparar novo C# com implementação independente e com os artefatos originais; divergência exige explicação rastreável, mesmo se percentual final for semelhante. Ganhos superiores são aceitos somente com protocolo equivalente e sem vazamento.
-- SQL experimental apenas no `JornadaHarness` efêmero; não alterar Gold, V8, IBGE original, JornadaLocal, NODE/NAS, HML/PROD. Merge exige CI completa no SHA e revisão, sem equiparar CI verde a certificação estatística.
+- SQL experimental apenas no `JornadaHarness` efêmero; não alterar Gold, IBGE original, JornadaLocal, NODE/NAS, HML/PROD; remover calibradores legados somente com testes de regressão e sem tocar dados operacionais. Merge exige CI completa no SHA e revisão, sem equiparar CI verde a certificação estatística.
 
 ## Referências de implementação e documentação
 
