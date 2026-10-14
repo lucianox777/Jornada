@@ -1153,6 +1153,7 @@ jobs:
           union_search_by_seed=[]
           union_fanout_by_seed=[]
           birth_year_family_by_seed=[]
+          eleven_pass_union_by_seed=[]
           loss_by_seed=[]
           parity_by_seed=[]
           sql_support_by_seed=[]
@@ -1751,6 +1752,87 @@ jobs:
                       "ExtraM","ExtraU","UnionM","UnionU",
                       "RecallAgainstAllEligibleM","P95TotalCandidates","P99TotalCandidates")
                   } for row in ceil]})
+              # Complete *physical* union of six registered passes plus five
+              # birth-year passes: overlaps must be computed on SQL pair IDs
+              # internally; here validate the exported exact M/U identities
+              # and all 36 residual truth states independently in Python.
+              eleven=d["ElevenPassResidualTrainValidation"]
+              assert eleven["Version"]=="V9_SQL_TRAIN_VALIDATION_ELEVEN_PASS_UNION_RESIDUAL_V1"
+              assert eleven["Status"]=="RESIDUAL_DIAGNOSTIC_ONLY_NOT_BLOCKING_POLICY_OR_MODEL"
+              assert eleven["PartitionScope"]=="TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN"
+              assert eleven["OldRegisteredPassCount"]==6
+              assert eleven["NewRegisteredPassCount"]==5
+              assert eleven["MayPromoteBlockingPolicy"] is False
+              rows11=eleven["Splits"];residual11=eleven["ResidualCells"]
+              assert len(rows11)==2 and {r["Partition"] for r in rows11}=={"TRAIN","VALIDATION"}
+              assert len(residual11)==36
+              expected_loss_states={
+                  (part,name,mother,birth)
+                  for part in ("TRAIN","VALIDATION")
+                  for name in ("EXACT","DIFFERENT","MISSING")
+                  for mother in ("EXACT","DIFFERENT","MISSING")
+                  for birth in ("EXACT","DIFFERENT")}
+              assert {
+                  (x["Partition"],x["NameState"],x["MotherState"],x["BirthState"])
+                  for x in residual11}==expected_loss_states
+              previous_cells={
+                  (x["Partition"],x["NameState"],x["MotherState"],x["BirthState"]):x
+                  for x in d["TruePairLossAudit"]["Cells"]}
+              for cell in residual11:
+                  key=(cell["Partition"],cell["NameState"],cell["MotherState"],cell["BirthState"])
+                  previous=previous_cells[key]
+                  assert cell["EligibleM"]==previous["EligibleTruePairs"]
+                  assert cell["RecoveredBaselineM"]==previous["RetrievedTruePairs"]
+                  assert 0<=cell["RecoveredBaselineM"]<=cell["RecoveredElevenM"]<=cell["EligibleM"]
+                  assert cell["ResidualUnretrievedM"]==cell["EligibleM"]-cell["RecoveredElevenM"]
+                  assert cell["ResidualUnretrievedM"]<=previous["LostTruePairs"]
+              for row in rows11:
+                  part=row["Partition"]
+                  prior=next(x for x in d["Splits"] if x["Partition"]==part)
+                  new_ceiling=next(x for x in ceil if x["Partition"]==part)
+                  key="Train" if part=="TRAIN" else "Validation"
+                  assert row["EligibleM"]==prior["EligibleTrueInterGestorNoCpfPairs"]
+                  assert row["BaselineM"]==prior["SqlCandidateTruePairs"]
+                  assert row["BaselineU"]==prior["SqlCandidateFalsePairs"]
+                  assert row["SixUnionM"]==ceiling[key+"UnionM"]
+                  assert row["SixUnionU"]==ceiling[key+"UnionU"]
+                  assert row["FiveUnionM"]==new_ceiling["UnionM"]
+                  assert row["FiveUnionU"]==new_ceiling["UnionU"]
+                  assert row["EligibleObservations"]==new_ceiling["EligibleObservations"]
+                  for cls in ("M","U"):
+                      assert row["ElevenUnion"+cls]==(
+                          row["FiveUnion"+cls]+row["RecoveredOnlyBySix"+cls])
+                      assert row["ElevenUnion"+cls]==(
+                          row["SixUnion"+cls]+row["RecoveredOnlyByFive"+cls])
+                      assert row["RecoveredOnlyBySix"+cls]>=0
+                      assert row["RecoveredOnlyByFive"+cls]>=0
+                      assert max(row["SixUnion"+cls],row["FiveUnion"+cls])<=row["ElevenUnion"+cls]
+                      assert row["ElevenUnion"+cls]<=row["SixUnion"+cls]+row["FiveUnion"+cls]-row["Baseline"+cls]
+                  assert row["ElevenUnionM"]<=row["EligibleM"]
+                  assert row["ElevenUnionM"]+row["ElevenUnionU"]<=d["CandidatePairHardCap"]
+                  assert row["AdditionalMNeededFor95Percent"]==max(
+                      0,(19*row["EligibleM"]+19)//20-row["ElevenUnionM"])
+                  assert row["ResidualUnretrievedM"]==row["EligibleM"]-row["ElevenUnionM"]
+                  assert abs(D(str(row["ElevenRecallAgainstEligibleM"]))
+                      -D(row["ElevenUnionM"])/D(row["EligibleM"]))<D("1e-23")
+                  cells=[x for x in residual11 if x["Partition"]==part]
+                  assert sum(x["EligibleM"] for x in cells)==row["EligibleM"]
+                  assert sum(x["RecoveredBaselineM"] for x in cells)==row["BaselineM"]
+                  assert sum(x["RecoveredElevenM"] for x in cells)==row["ElevenUnionM"]
+                  assert sum(x["ResidualUnretrievedM"] for x in cells)==row["ResidualUnretrievedM"]
+                  assert 0<=row["ObservationsWithoutCandidates"]<=row["EligibleObservations"]
+                  assert 0<=row["P50Candidates"]<=row["P95Candidates"]<=row["P99Candidates"]<=row["MaxCandidates"]
+                  assert 0<=row["P95FalseCandidates"]<=row["P99FalseCandidates"]<=row["MaxFalseCandidates"]<=row["MaxCandidates"]
+              assert eleven["Passes95PercentInBothSplits"]==all(
+                  20*x["ElevenUnionM"]>=19*x["EligibleM"] for x in rows11)
+              eleven_pass_union_by_seed.append({
+                  "seed":d["Seed"],"mayPromote":eleven["MayPromoteBlockingPolicy"],
+                  "passes95Both":eleven["Passes95PercentInBothSplits"],
+                  "splits":rows11,
+                  "worstResidualCells":sorted(
+                      [x for x in residual11 if x["ResidualUnretrievedM"]>0],
+                      key=lambda x:(-x["ResidualUnretrievedM"],
+                          x["Partition"],x["NameState"],x["MotherState"],x["BirthState"]))[:8]})
               ablation_by_seed.append({"seed":d["Seed"],"test":[a for a in alt if a["Partition"]=="TEST"]})
               t=d["Splits"][2]
               for key,field in (("eligible","EligibleTrueInterGestorNoCpfPairs"),("retrieved_true","SqlCandidateTruePairs"),("false_candidates","SqlCandidateFalsePairs"),("accepted_correct","AcceptedTruePairs"),("accepted_wrong","AcceptedWrongPairs")):
@@ -1802,6 +1884,8 @@ jobs:
                    "trainValidationSql56UnionZeroInclusiveFanoutBySeed":union_fanout_by_seed,
                    "newSqlBirthYearFivePassesBySeed":birth_year_family_by_seed,
                    "newSqlBirthYearFivePassesDiagnosticOnly":True,
+                   "sqlElevenPassCombinedUnionAndResidualBySeed":eleven_pass_union_by_seed,
+                   "sqlElevenPassCombinedUnionDiagnosticOnly":True,
                    "operationalConclusion":"NOT_OPERATIONAL_ALIAS_HISTORY_OR_CALIBRATED_TF"}
           Path(".local/v9-sql-physical-three-seed-summary.json").write_text(json.dumps(summary,indent=2,default=str)+"\n")
           print("V9 PHYSICAL SQL CANDIDATE / ERROR CENSUS",json.dumps(summary,sort_keys=True,default=str))
