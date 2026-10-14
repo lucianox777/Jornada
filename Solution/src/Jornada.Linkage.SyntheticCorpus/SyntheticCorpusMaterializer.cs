@@ -59,9 +59,21 @@ public static class SyntheticCorpusMaterializer
             ["gabarito.json"] = await HashFileAsync(truthPath, cancellationToken)
         };
 
+        var declaredErrorProfile = SyntheticCorpusV2Rules.Profiles[generation.Options.ErrorProfile];
         var manifest = new
         {
             schema_version = 1,
+            error_profile = generation.Options.ErrorProfile,
+            error_profile_provenance = "HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE",
+            declared_corruption_rates_per_observation = new
+            {
+                common_joint_attempt = declaredErrorProfile.CommonCorruptionProbability,
+                name_independent_attempt = declaredErrorProfile.NameCorruptionProbability,
+                mother_independent_attempt = declaredErrorProfile.MotherCorruptionProbability,
+                birth_independent_attempt = declaredErrorProfile.DateCorruptionProbability,
+                mother_missing_attempt = declaredErrorProfile.MissingMotherProbability,
+                birth_missing_attempt = declaredErrorProfile.MissingDateProbability
+            },
             generator_version = SyntheticCorpusInputIdentity.GeneratorVersion,
             ruleset_version = SyntheticCorpusV2Rules.RulesetVersion,
             rng_version = Xoshiro256StarStar.AlgorithmVersion,
