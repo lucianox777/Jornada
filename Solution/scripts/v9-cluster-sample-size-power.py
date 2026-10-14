@@ -100,9 +100,26 @@ def discover_clusters(rows, frozen_report, baseline):
     if fit.get("trained_on")!="TRAIN_ONLY" or fit.get("validation_refit") is not False:
         raise ValueError("baseline not TRAIN fitted")
     chosen=fit.get("plans",{}).get("greedy_pruned")
-    if not isinstance(chosen,dict):
-        raise ValueError("cannot assess non-feasible frozen plan")
-    names=chosen.get("selected_cells")
+    feasible=isinstance(chosen,dict)
+    if chosen is None:
+        # A few adversarial synthetic seeds cannot reach 95% even with 19
+        # indexed cells. This is a REAL scientific outcome, not a broken
+        # workflow and not permission to manufacture feasible training M.
+        # Report the full pre-registered union ONLY as a diagnostic upper
+        # bound of this candidate family, never as a selected rule or a
+        # certified 95%-recall policy.
+        if (fit.get("status") not in
+            ("TRAIN_TARGET_INFEASIBLE","ELIGIBILITY_CEILING_BELOW_GLOBAL_95")
+            or frozen_report.get("results",{}).get("TRAIN",{}).get(
+                "metrics",{}).get("UNION_EXPANDED") is None):
+            raise ValueError("non-feasible baseline missing full-union evidence")
+        names=list(baseline.EXPANDED)
+        plan_kind="UNSELECTED_FULL_19_DIAGNOSTIC_INFEASIBLE_TRAIN"
+    elif feasible:
+        names=chosen.get("selected_cells")
+        plan_kind="FROZEN_TRAIN_GREEDY_PRUNED"
+    else:
+        raise ValueError("malformed TRAIN greedy selector")
     if (not isinstance(names,list) or not names or len(set(names))!=len(names)
         or not set(names).issubset(baseline.EXPANDED)):
         raise ValueError("missing/invalid selected indexed cell IDs")
@@ -116,8 +133,15 @@ def discover_clusters(rows, frozen_report, baseline):
         subset=[r for r in rows if r["particao"]==split]
         identity={r["observacao_id"]:r for r in subset}
         truth=baseline.truth_for(subset,False)
-        observed=chosen["measured"][split]
-        if len(truth)!=observed["all_no_cpf_truth_M"]:
+        if feasible:
+            observed=chosen["measured"][split]
+            observed_m=observed["M"]
+            global_m=observed["all_no_cpf_truth_M"]
+        else:
+            observed=frozen_report["results"][split]
+            observed_m=observed["metrics"]["UNION_EXPANDED"]["M"]
+            global_m=observed["all_no_cpf_truth_M"]
+        if len(truth)!=global_m:
             raise ValueError("canonical truth mismatch with frozen SQL report")
         required={i for pair in truth for i in pair}
         projected={}
@@ -143,10 +167,10 @@ def discover_clusters(rows, frozen_report, baseline):
                        any(one[cell]&two[cell] for cell in names))
             grouped[base_id][0]+=1
             grouped[base_id][1]+=int(match)
-        if sum(v[1] for v in grouped.values())!=observed["M"]:
+        if sum(v[1] for v in grouped.values())!=observed_m:
             raise ValueError("truth recovery does not match actual frozen indexed SQL")
         outcome[split]=grouped
-    return names,outcome
+    return names,outcome,plan_kind
 
 def analyze(rows, frozen_report, baseline, source_sha, seed=42, rounds=400):
     if (not isinstance(source_sha,str) or len(source_sha)!=64
@@ -154,7 +178,7 @@ def analyze(rows, frozen_report, baseline, source_sha, seed=42, rounds=400):
         raise ValueError("canonical source SHA mismatch")
     if type(seed) is not int or seed < 0 or seed > 100000:
         raise ValueError("invalid frozen generation seed")
-    cells,clusters=discover_clusters(rows,frozen_report,baseline)
+    cells,clusters,plan_kind=discover_clusters(rows,frozen_report,baseline)
     results={}
     for split in SPLITS:
         group=clusters[split]
@@ -178,7 +202,9 @@ def analyze(rows, frozen_report, baseline, source_sha, seed=42, rounds=400):
             "TEST_used_for_selection_or_precision":False}
     return {
         "version":VERSION, "canonical_observations_sha256":source_sha,
-        "generation_seed":seed,"frozen_selected_cells":cells,
+        "generation_seed":seed,"evaluated_cells":cells,
+        "evaluated_plan_kind":plan_kind,
+        "original_train_95pct_plan_feasible":plan_kind=="FROZEN_TRAIN_GREEDY_PRUNED",
         "split_results":results,
         "h0_global_recall_at_most_95":True,
         "alpha_one_sided":.05,"nominal_power":.80,
@@ -230,5 +256,5 @@ if __name__=="__main__":
     a=p.parse_args()
     r=run(a.snapshot_dir,a.baseline_report,a.out,a.seed,a.bootstrap_replicates)
     print(json.dumps({k:r[k] for k in ("version","generation_seed",
-                                     "frozen_selected_cells")},
+                                     "evaluated_cells")},
                      sort_keys=True))
