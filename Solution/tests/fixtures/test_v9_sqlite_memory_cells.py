@@ -178,6 +178,168 @@ class SqliteMemoryCellsTests(unittest.TestCase):
         self.assertEqual(out["P_ANY_DOB_MONTHDAY"]["M"], 0)
         self.assertEqual(out["P_PREFIX3_BIRTH_YEAR"]["M"], 0)
 
+    def test_train_only_exact_subset_minimizes_U_under_95_recall(self):
+        truth = {(f"p{i}", f"q{i}") for i in range(10)}
+        baseline = set(list(truth)[:8])
+        last_two = truth - baseline
+        train_cells = {name: set() for name in m.PASS_ORDER}
+        train_cells[m.EXTENDED[0]] = baseline | {("base-u", "x")}
+        train_cells["P_FIRST_DOB_MONTHDAY"] = last_two | {("u", "1")}
+        train_cells["P_ANY_BIRTH_YEAR"] = last_two | {
+            ("u", "2"), ("u", "3"), ("u", "4")
+        }
+        fit = m.fit_min_u_plans_on_train(train_cells, truth)
+        self.assertEqual(fit["status"], "TRAIN_TARGET_FEASIBLE")
+        self.assertEqual(fit["required_M"], 10)
+        self.assertEqual(fit["exact_targeted"]["added_cells"],
+                         ["P_FIRST_DOB_MONTHDAY"])
+        self.assertEqual(fit["exact_targeted"]["train_U"], 2)
+        self.assertGreaterEqual(fit["greedy_pruned"]["train_M"], 10)
+        self.assertLessEqual(fit["greedy_pruned"]["train_U"], 2)
+
+    def test_train_selection_cannot_be_improved_with_validation_labels(self):
+        train_truth = {("t1", "t2")}
+        val_truth = {("v1", "v2")}
+        train_cells = {name: set() for name in m.PASS_ORDER}
+        train_cells["P_FIRST_DOB_MONTHDAY"] = set(train_truth)
+        train_cells["P_ANY_BIRTH_YEAR"] = {("u1", "u2")}
+        fit = m.fit_min_u_plans_on_train(train_cells, train_truth)
+        self.assertEqual(fit["exact_targeted"]["added_cells"],
+                         ["P_FIRST_DOB_MONTHDAY"])
+        sql_pairs = {}
+        for name in m.PASS_ORDER:
+            sql_pairs["TRAIN", name] = (train_cells[name], 0)
+            sql_pairs["VALIDATION", name] = (
+                set(val_truth) if name == "P_ANY_BIRTH_YEAR" else set(), 0)
+        fixed = m.apply_fixed_min_u_plans(
+            fit, sql_pairs, {"TRAIN": train_truth, "VALIDATION": val_truth},
+            {"TRAIN": 2, "VALIDATION": 2})
+        chosen = fixed["plans"]["exact_targeted"]
+        self.assertEqual(chosen["measured"]["TRAIN"]["recall"], 1)
+        self.assertEqual(chosen["measured"]["VALIDATION"]["M"], 0)
+        self.assertFalse(chosen["measured"]["VALIDATION"]["recall_target_met"])
+        self.assertFalse(fixed["validation_refit"])
+
+    def test_fails_closed_when_no_train_subset_can_reach_95_percent(self):
+        true = {(str(i), str(i + 100)) for i in range(20)}
+        cells = {name: set() for name in m.PASS_ORDER}
+        cells["P_PHON_M_LAST"] = set(list(true)[:2])
+        fit = m.fit_min_u_plans_on_train(cells, true)
+        self.assertEqual(fit["status"], "TRAIN_TARGET_INFEASIBLE")
+        self.assertIsNone(fit["exact_targeted"])
+        self.assertIsNone(fit["greedy_pruned"])
+
+    def test_global_95_takes_precedence_over_conditional_recall(self):
+        truth = {(str(i), str(i + 100)) for i in range(20)}
+        cells = {name: set() for name in m.PASS_ORDER}
+        cells[m.EXTENDED[0]] = set(truth)
+        impossible = m.fit_min_u_plans_on_train(cells, truth,
+                                                 all_truth_count=22)
+        self.assertEqual(impossible["status"],
+                         "ELIGIBILITY_CEILING_BELOW_GLOBAL_95")
+        self.assertEqual(impossible["required_all_truth_M"], 21)
+        self.assertIsNone(impossible["exact_targeted"])
+        feasible = m.fit_min_u_plans_on_train(cells, truth,
+                                               all_truth_count=21)
+        self.assertEqual(feasible["status"], "TRAIN_TARGET_FEASIBLE")
+        self.assertEqual(feasible["required_M"], 20)
+
+    def test_validation_must_meet_global_95_even_if_eligible_recall_is_100(self):
+        truth = {("a", "b"), ("c", "d")}
+        cells = {name: set() for name in m.PASS_ORDER}
+        cells[m.EXTENDED[0]] = set(truth)
+        fit = m.fit_min_u_plans_on_train(cells, truth)
+        sql = {}
+        for name in m.PASS_ORDER:
+            sql["TRAIN", name] = (cells[name], 0)
+            sql["VALIDATION", name] = (
+                {("v1", "v2")} if name == m.EXTENDED[0] else set(), 0)
+        result = m.apply_fixed_min_u_plans(
+            fit, sql, {"TRAIN": truth, "VALIDATION": {("v1", "v2")}},
+            {"TRAIN": 4, "VALIDATION": 2},
+            {"TRAIN": 2, "VALIDATION": 2})
+        val = result["plans"]["greedy_pruned"]["measured"]["VALIDATION"]
+        self.assertEqual(val["recall"], 1)
+        self.assertEqual(val["recall_against_all_no_cpf_truth_M"], 0.5)
+        self.assertTrue(val["eligible_recall_target_met"])
+        self.assertFalse(val["global_recall_target_met"])
+        self.assertFalse(val["recall_target_met"])
+
+    def test_identity_cluster_bootstrap_reports_no_certification_or_PII(self):
+        rows = [
+            row("a", "p1", "G1"), row("b", "p1", "G2"),
+            row("c", "p2", "G1"), row("d", "p2", "G2"),
+            row("e", "p3", "G1"), row("f", "p3", "G2")
+        ]
+        all_truth = m.truth_for(rows, False)
+        assert len(all_truth) == 3
+        first = m.cluster_bootstrap_global_recall(
+            rows, all_truth, {("a", "b"), ("c", "d")}, rounds=200, seed=123)
+        second = m.cluster_bootstrap_global_recall(
+            rows, all_truth, {("a", "b"), ("c", "d")}, rounds=200, seed=123)
+        self.assertEqual(first, second)
+        self.assertEqual(first["match_bearing_base_identities"], 3)
+        self.assertAlmostEqual(first["point_recall"], 2/3)
+        self.assertLess(first["lower_one_sided_95"], 0.95)
+        self.assertFalse(first["statistically_supported_global_95"])
+        self.assertFalse(first["population_or_fdr_certification"])
+        self.assertNotIn("p1", json.dumps(first))
+        # Deterministic successful identity recall should have bootstrap
+        # lower confidence bound at exactly 100%.
+        total = m.cluster_bootstrap_global_recall(
+            rows, all_truth, all_truth, rounds=200, seed=123)
+        self.assertEqual(total["lower_one_sided_95"], 1)
+        self.assertTrue(total["statistically_supported_global_95"])
+
+    def test_cluster_bootstrap_rejects_wrong_true_pair_identity_and_bad_rounds(self):
+        rows = [row("a", "p1", "G1"), row("b", "p2", "G2")]
+        with self.assertRaisesRegex(ValueError, "intra-identity"):
+            m.cluster_bootstrap_global_recall(rows, {("a", "b")}, set())
+        with self.assertRaisesRegex(ValueError, "iterations"):
+            m.cluster_bootstrap_global_recall(
+                rows, set(), set(), rounds=10)
+        empty = m.cluster_bootstrap_global_recall(
+            rows, set(), set(), rounds=100)
+        self.assertIsNone(empty["point_recall"])
+        self.assertFalse(empty["statistically_supported_global_95"])
+
+    def test_sqlite_key_pressure_census_matches_distinct_pair_dedup(self):
+        rows = [
+            row("a", "p", "G1", name="MARIA SILVA SOUZA",
+                mother="ANA SILVA SOUZA", phon="A", mother_phon="B"),
+            row("b", "p", "G2", name="MARIA SILVA SOUZA",
+                mother="ANA SILVA SOUZA", phon="A", mother_phon="B"),
+            row("c", "other", "G3", name="MARIA SILVA SOUZA",
+                mother="ANA SILVA SOUZA", phon="A", mother_phon="B"),
+        ]
+        report = m.assess(rows)
+        train = report["results"]["TRAIN"]
+        indexed = train["key_collision_pressure"]["P_PHON_M_ANY"]
+        self.assertEqual(indexed["unique_candidate_pairs"], 3)
+        # Same candidate pair shares TWO maternal surname keys, so raw
+        # equality JOIN cardinality is larger than dedup pair count.
+        self.assertEqual(indexed["raw_cross_manager_join_hits"], 6)
+        self.assertEqual(indexed["repeated_join_hits_before_pair_dedup"], 3)
+        self.assertEqual(indexed["max_records_per_index_key"], 3)
+        self.assertEqual(indexed["populated_keys"], 2)
+        self.assertEqual(indexed["key_size_p95"], 3)
+        self.assertEqual(indexed["keys_with_20_or_more_records"], 0)
+        self.assertIsNone(
+            report["results"]["VALIDATION"]["key_collision_pressure"]
+            ["P_PHON_M_ANY"]["key_size_p95"])
+        self.assertNotIn("MARIA", json.dumps(indexed))
+        self.assertNotIn("SOUZA", json.dumps(indexed))
+
+    def test_cross_manager_key_count_never_counts_same_manager_pairs(self):
+        rows = [row("a", "p", "G1"), row("b", "q", "G1"),
+                row("c", "r", "G1")]
+        report = m.assess(rows)
+        indexed = report["results"]["TRAIN"]["key_collision_pressure"]
+        self.assertEqual(indexed["P_PHON_M_ANY"]["raw_cross_manager_join_hits"], 0)
+        self.assertEqual(indexed["P_PHON_M_ANY"]["populated_keys"], 2)
+        self.assertEqual(indexed["P_PHON_M_ANY"]["unique_candidate_pairs"], 0)
+        self.assertEqual(indexed["P_PHON_M_ANY"]["max_records_per_index_key"], 3)
+
     def test_v2_csharp_surname_projections_bypass_python_proxy_and_are_versioned(self):
         rows = [
             row("a", "p", "G1", name="MARIA DA SILVA OLIVEIRA",
