@@ -1,0 +1,52 @@
+name: v9-synthetic-corruption-evidence
+on:
+  pull_request:
+    paths:
+      - 'Solution/scripts/v9-synthetic-corruption-impact.py'
+      - 'Solution/tests/fixtures/test_v9_synthetic_corruption_impact.py'
+      - 'Solution/src/Jornada.Linkage.SyntheticCorpus/SyntheticCorpusMaterializer.cs'
+      - 'Solution/docs/V9_Origem_18pct_Erros_Sinteticos_20261014.md'
+      - '.github/workflows/v9-synthetic-corruption-evidence.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  frozen-corruption-evidence:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Validate isolated V2 error accounting tests
+        run: |
+          python3 -m py_compile Solution/scripts/v9-synthetic-corruption-impact.py
+          python3 -m unittest discover -s Solution/tests/fixtures -p 'test_v9_synthetic_corruption_impact.py' -v
+      - name: Fetch original seed42 corpus by published workflow evidence
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p Solution/.local/v9-corruption-origin
+          gh run download 38593005691 --repo lucianox777/Jornada -n v9-physical-sql-active-candidate-wrong-link-30k -D Solution/.local/v9-corruption-origin
+      - name: Audit original correlated scenario with manifest SHA, independent true pairs
+        run: |
+          python3 Solution/scripts/v9-synthetic-corruption-impact.py \
+            --observations Solution/.local/v9-corruption-origin/e2-demographic-primary/observacoes.csv \
+            --manifest Solution/.local/v9-corruption-origin/e2-demographic-primary/generation-manifest.json \
+            --out Solution/.local/v9-corruption-origin/v9-corruption-impact-seed42-aggregates.json
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          r=json.loads(Path('Solution/.local/v9-corruption-origin/v9-corruption-impact-seed42-aggregates.json').read_text())
+          assert r['observations']>30000 and r['true_pairs_across_managers']['ALL']['pairs']>10000
+          assert r['legacy_missing_profile_in_manifest'] is True
+          assert r['may_promote_v9_or_recalibrate'] is False
+          assert r['effective_field_changes_per_observation']['dob_changed']['rate']>0
+          PY
+      - name: Publish aggregate error profiles ONLY, no citizen names or raw observations
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: v9-observed-corruption-seed42-aggregates
+          path: Solution/.local/v9-corruption-origin/v9-corruption-impact-seed42-aggregates.json
+          if-no-files-found: ignore
