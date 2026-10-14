@@ -93,6 +93,21 @@ jobs:
         working-directory: Solution
         run: |
           python3 scripts/v9-prefix-mother-initial-sweep.py --snapshot-dir .local/v9-sqlite-original/frozen --baseline-report .local/v9-sqlite-original/report.json --out .local/v9-sqlite-original/prefix-mother-initial-sweep.json --cap 1000000
+      - name: Compare same-source ABCD sixteen proxy arms, E0, 19 compositions and live frequency-indexed adaptation
+        working-directory: Solution
+        run: |
+          python3 scripts/v9-abcd-adaptive-physical-comparison.py \
+            --snapshot-dir .local/v9-sqlite-original/frozen \
+            --baseline-report .local/v9-sqlite-original/report.json \
+            --out .local/v9-sqlite-original/abcd-adaptive-physical-comparison.json \
+            --cap 1000000
+      - name: Publish ABCD, optimized composition and real adaptive QUERY aggregates, never identities
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: v9-abcd-adaptive-compositions-seed42-sql-aggregates
+          path: Solution/.local/v9-sqlite-original/abcd-adaptive-physical-comparison.json
+          if-no-files-found: error
       - name: Upload prefix and maternal-initial aggregate comparison, never identities
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
