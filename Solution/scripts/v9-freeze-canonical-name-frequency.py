@@ -29,7 +29,7 @@ def freeze(source, target, projection_version):
         raise FileExistsError("snapshot already exists: never overwrite frozen evidence")
     with source.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.DictReader(handle)
-        required = set(FEATURES + IDENTITY)
+        required = set(FEATURES + IDENTITY + ("data_nascimento",))
         if not required.issubset(reader.fieldnames or ()):
             raise ValueError("missing canonical columns: " + ", ".join(sorted(required - set(reader.fieldnames or ()))))
         rows = list(reader)
@@ -57,11 +57,27 @@ def freeze(source, target, projection_version):
                     unique[feature].add((row[feature], row["base_person_id"]))
     frequencies = {feature: dict(sorted(Counter(v for v, _ in pairs).items()))
                    for feature, pairs in unique.items()}
-    joint = {("nome_normalizado", "nome_mae_normalizado"): set(),\n             ("nome_fonetico", "nome_mae_fonetico"): set(),\n             ("nome_normalizado", "nome_mae_fonetico"): set(),\n             ("nome_fonetico", "nome_mae_normalizado"): set()}\n    for row in rows:\n        if row["particao"] != "TRAIN":\n            continue\n        for fields, pairs in joint.items():\n            if all(row[field] for field in fields):\n                pairs.add((row[fields[0]], row[fields[1]], row["base_person_id"]))\n    joint_counts = {"|".join(fields): [{"key": list(key), "identities": count}\n                   for key, count in sorted(Counter((a, b) for a, b, _ in pairs).items())]\n                   for fields, pairs in joint.items()}\n    target.mkdir(parents=True)
+    joint = {("nome_normalizado", "nome_mae_normalizado"): set(),
+             ("nome_fonetico", "nome_mae_fonetico"): set(),
+             ("nome_normalizado", "nome_mae_fonetico"): set(),
+             ("nome_fonetico", "nome_mae_normalizado"): set(),
+             ("nome_normalizado", "nome_mae_normalizado", "data_nascimento"): set()}
+    for row in rows:
+        if row["particao"] != "TRAIN":
+            continue
+        for fields, pairs in joint.items():
+            if all(row[field] for field in fields):
+                pairs.add(tuple(row[field] for field in fields) + (row["base_person_id"],))
+    joint_counts = {"|".join(fields): [{"key": list(key), "identities": count}
+                   for key, count in sorted(Counter(pair[:-1] for pair in pairs).items())]
+                   for fields, pairs in joint.items()}
+    target.mkdir(parents=True)
     freq_path = target / "train_name_frequencies.json"
     freq_path.write_text(json.dumps(frequencies, ensure_ascii=False, sort_keys=True,
                                     indent=2) + "\n", encoding="utf-8")
-    joint_path = target / "train_joint_name_frequencies.json"\n    joint_path.write_text(json.dumps(joint_counts, ensure_ascii=False, sort_keys=True, indent=2) + "\\n", encoding="utf-8")\n    manifest = {
+    joint_path = target / "train_joint_name_frequencies.json"
+    joint_path.write_text(json.dumps(joint_counts, ensure_ascii=False, sort_keys=True, indent=2) + "\n", encoding="utf-8")
+    manifest = {
         "version": VERSION, "projection_version": projection_version,
         "source_sha256": digest(source), "frequency_sha256": digest(freq_path), "joint_frequency_sha256": digest(joint_path),
         "observations": len(rows),
