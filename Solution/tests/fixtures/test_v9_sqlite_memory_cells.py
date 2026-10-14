@@ -229,6 +229,42 @@ class SqliteMemoryCellsTests(unittest.TestCase):
         self.assertIsNone(fit["exact_targeted"])
         self.assertIsNone(fit["greedy_pruned"])
 
+    def test_global_95_takes_precedence_over_conditional_recall(self):
+        truth = {(str(i), str(i + 100)) for i in range(20)}
+        cells = {name: set() for name in m.PASS_ORDER}
+        cells[m.EXTENDED[0]] = set(truth)
+        impossible = m.fit_min_u_plans_on_train(cells, truth,
+                                                 all_truth_count=22)
+        self.assertEqual(impossible["status"],
+                         "ELIGIBILITY_CEILING_BELOW_GLOBAL_95")
+        self.assertEqual(impossible["required_all_truth_M"], 21)
+        self.assertIsNone(impossible["exact_targeted"])
+        feasible = m.fit_min_u_plans_on_train(cells, truth,
+                                               all_truth_count=21)
+        self.assertEqual(feasible["status"], "TRAIN_TARGET_FEASIBLE")
+        self.assertEqual(feasible["required_M"], 20)
+
+    def test_validation_must_meet_global_95_even_if_eligible_recall_is_100(self):
+        truth = {("a", "b"), ("c", "d")}
+        cells = {name: set() for name in m.PASS_ORDER}
+        cells[m.EXTENDED[0]] = set(truth)
+        fit = m.fit_min_u_plans_on_train(cells, truth)
+        sql = {}
+        for name in m.PASS_ORDER:
+            sql["TRAIN", name] = (cells[name], 0)
+            sql["VALIDATION", name] = (
+                {("v1", "v2")} if name == m.EXTENDED[0] else set(), 0)
+        result = m.apply_fixed_min_u_plans(
+            fit, sql, {"TRAIN": truth, "VALIDATION": {("v1", "v2")}},
+            {"TRAIN": 4, "VALIDATION": 2},
+            {"TRAIN": 2, "VALIDATION": 2})
+        val = result["plans"]["greedy_pruned"]["measured"]["VALIDATION"]
+        self.assertEqual(val["recall"], 1)
+        self.assertEqual(val["recall_against_all_no_cpf_truth_M"], 0.5)
+        self.assertTrue(val["eligible_recall_target_met"])
+        self.assertFalse(val["global_recall_target_met"])
+        self.assertFalse(val["recall_target_met"])
+
     def test_snapshot_integrity_protects_training_source_and_no_overwrite(self):
         rows = [row("a","p","A"),row("b","p","B")]
         import csv
