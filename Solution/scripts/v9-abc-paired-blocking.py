@@ -71,6 +71,11 @@ def evaluate(rows):
                                    "candidate_pairs": len(retrieved),
                                    "recall": len(retrieved & truth) / len(truth) if truth else None}
         paired = {}
+        for arm in ARMS:
+            without = retrieved_by_arm[arm]
+            with_e0 = retrieved_by_arm[arm + "+E0"]
+            variants[arm + "+E0"]["e0_exclusive_new_m"] = len((with_e0 - without) & truth)
+            variants[arm + "+E0"]["e0_exclusive_new_u"] = len((with_e0 - without) - truth)
         for base in ("A", "B", "C", "D"):
             for use_e0 in (False, True):
                 off = base + "0" + ("+E0" if use_e0 else "")
