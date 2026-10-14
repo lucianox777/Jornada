@@ -9,6 +9,7 @@ import csv
 import hashlib
 import json
 import math
+import random
 import sqlite3
 import time
 from collections import defaultdict
@@ -548,6 +549,73 @@ def apply_fixed_min_u_plans(train_fit, sql_pairs, train_validation_true,
     return result
 
 
+def cluster_bootstrap_global_recall(rows, all_truth, candidates,
+                                    rounds=400, seed=42):
+    """Nonparametric resampling of independent BASE IDENTITIES, not pairs.
+
+    A true M is two records for the same base person across managers.
+    Resampling individual M pairs would badly understate uncertainty in
+    linkage datasets with repeated observations per identity. This
+    percentile interval is DIAGNOSTIC, conditional on synthetic generator
+    quality; a successful CI is not an FS/FDR or population certification.
+    """
+    if rounds < 100 or rounds > 2000:
+        raise ValueError("unapproved number of bootstrap iterations")
+    by_id = {r["observacao_id"]: r["base_person_id"] for r in rows}
+    total_by_base = defaultdict(int)
+    hit_by_base = defaultdict(int)
+    for a, b in all_truth:
+        if a not in by_id or b not in by_id or by_id[a] != by_id[b]:
+            raise ValueError("truth is not an intra-identity pair")
+        base = by_id[a]
+        total_by_base[base] += 1
+        if (a, b) in candidates:
+            hit_by_base[base] += 1
+    if sum(total_by_base.values()) != len(all_truth):
+        raise ValueError("truth pair totals do not reconcile by base")
+    if not total_by_base:
+        return {
+            "method": "NONPARAMETRIC_IDENTITY_CLUSTER_BOOTSTRAP_V1",
+            "status": "NO_MATCH_BEARING_BASE_IDENTITIES",
+            "replicates": rounds, "seed": seed,
+            "match_bearing_base_identities": 0,
+            "point_recall": None, "lower_one_sided_95": None,
+            "upper_two_sided_95": None,
+            "statistically_supported_global_95": False,
+            "population_or_fdr_certification": False
+        }
+    # We resample only BASE identities with a true cross-manager pair;
+    # singleton identities make no contribution to a recall ratio and
+    # are irrelevant to the conditional M-recall distribution.
+    counts = [(total, hit_by_base.get(base, 0))
+              for base, total in sorted(total_by_base.items())]
+    rng = random.Random(seed)
+    n = len(counts)
+    estimates = []
+    for _ in range(rounds):
+        draws = rng.choices(range(n), k=n)
+        denominator = sum(counts[i][0] for i in draws)
+        numerator = sum(counts[i][1] for i in draws)
+        if denominator <= 0 or numerator > denominator:
+            raise ValueError("invalid identity cluster resampling")
+        estimates.append(numerator / denominator)
+    estimates.sort()
+    lower = estimates[max(0, math.ceil(rounds * 0.05) - 1)]
+    upper = estimates[min(rounds - 1, math.ceil(rounds * 0.975) - 1)]
+    point = sum(hit_by_base.values()) / len(all_truth)
+    return {
+        "method": "NONPARAMETRIC_IDENTITY_CLUSTER_BOOTSTRAP_V1",
+        "status": "DIAGNOSTIC_ONLY",
+        "replicates": rounds, "seed": seed,
+        "match_bearing_base_identities": n,
+        "point_recall": point,
+        "lower_one_sided_95": lower,
+        "upper_two_sided_95": upper,
+        "statistically_supported_global_95": bool(lower >= 0.95),
+        "population_or_fdr_certification": False
+    }
+
+
 def assess(rows, cap=250000, max_passes=8):
     validate_rows(rows)
     if max_passes < 1 or max_passes > len(EXTENDED):
@@ -652,7 +720,27 @@ def assess(rows, cap=250000, max_passes=8):
          for part in ("TRAIN", "VALIDATION")},
         {part: by_part[part]["all_no_cpf_truth_M"]
          for part in ("TRAIN", "VALIDATION")})
+    confidence = {}
+    for split, offset in (("TRAIN", 0), ("VALIDATION", 1)):
+        subset = [r for r in rows if r["particao"] == split]
+        all_truth = truth_for(subset, False)
+        baseline19 = set().union(
+            *(sql_pairs[(split, name)][0] for name in EXPANDED))
+        confidence[split] = {
+            "full_19_cell_union": cluster_bootstrap_global_recall(
+                subset, all_truth, baseline19, seed=42 + offset)
+        }
+        for name in ("exact_targeted", "greedy_pruned"):
+            choice = min_u_evidence["plans"][name]
+            if choice is None:
+                confidence[split][name] = None
+                continue
+            matched = set().union(
+                *(sql_pairs[(split, key)][0] for key in choice["selected_cells"]))
+            confidence[split][name] = cluster_bootstrap_global_recall(
+                subset, all_truth, matched, seed=42 + offset)
     return {
+        "independent_base_identity_recall_confidence": confidence,
         "minimum_U_95pct_diagnostic": min_u_evidence,
         "version": VERSION, "policy": POLICY,
         "engine": "sqlite3_memory_real_indexed_sql",

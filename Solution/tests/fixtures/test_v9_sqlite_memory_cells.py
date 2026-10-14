@@ -265,6 +265,44 @@ class SqliteMemoryCellsTests(unittest.TestCase):
         self.assertFalse(val["global_recall_target_met"])
         self.assertFalse(val["recall_target_met"])
 
+    def test_identity_cluster_bootstrap_reports_no_certification_or_PII(self):
+        rows = [
+            row("a", "p1", "G1"), row("b", "p1", "G2"),
+            row("c", "p2", "G1"), row("d", "p2", "G2"),
+            row("e", "p3", "G1"), row("f", "p3", "G2")
+        ]
+        all_truth = m.truth_for(rows, False)
+        assert len(all_truth) == 3
+        first = m.cluster_bootstrap_global_recall(
+            rows, all_truth, {("a", "b"), ("c", "d")}, rounds=200, seed=123)
+        second = m.cluster_bootstrap_global_recall(
+            rows, all_truth, {("a", "b"), ("c", "d")}, rounds=200, seed=123)
+        self.assertEqual(first, second)
+        self.assertEqual(first["match_bearing_base_identities"], 3)
+        self.assertAlmostEqual(first["point_recall"], 2/3)
+        self.assertLess(first["lower_one_sided_95"], 0.95)
+        self.assertFalse(first["statistically_supported_global_95"])
+        self.assertFalse(first["population_or_fdr_certification"])
+        self.assertNotIn("p1", json.dumps(first))
+        # Deterministic successful identity recall should have bootstrap
+        # lower confidence bound at exactly 100%.
+        total = m.cluster_bootstrap_global_recall(
+            rows, all_truth, all_truth, rounds=200, seed=123)
+        self.assertEqual(total["lower_one_sided_95"], 1)
+        self.assertTrue(total["statistically_supported_global_95"])
+
+    def test_cluster_bootstrap_rejects_wrong_true_pair_identity_and_bad_rounds(self):
+        rows = [row("a", "p1", "G1"), row("b", "p2", "G2")]
+        with self.assertRaisesRegex(ValueError, "intra-identity"):
+            m.cluster_bootstrap_global_recall(rows, {("a", "b")}, set())
+        with self.assertRaisesRegex(ValueError, "iterations"):
+            m.cluster_bootstrap_global_recall(
+                rows, set(), set(), rounds=10)
+        empty = m.cluster_bootstrap_global_recall(
+            rows, set(), set(), rounds=100)
+        self.assertIsNone(empty["point_recall"])
+        self.assertFalse(empty["statistically_supported_global_95"])
+
     def test_snapshot_integrity_protects_training_source_and_no_overwrite(self):
         rows = [row("a","p","A"),row("b","p","B")]
         import csv
