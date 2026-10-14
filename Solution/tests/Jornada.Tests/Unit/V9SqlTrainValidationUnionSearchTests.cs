@@ -44,6 +44,7 @@ public sealed class V9SqlTrainValidationUnionSearchTests
         var ab = result.Combinations.Single(x => x.Signature == "P_A||P_B");
         var ac = result.Combinations.Single(x => x.Signature == "P_A||P_C");
         var abc = result.Combinations.Single(x => x.Signature == "P_A||P_B||P_C");
+        var ceiling = result.AllSixRegisteredPassesCeiling!;
         Assert.Multiple((Action)(() =>
         {
             Assert.That(result.Version, Is.EqualTo(V9SqlTrainValidationUnionSearch.Version));
@@ -70,6 +71,17 @@ public sealed class V9SqlTrainValidationUnionSearchTests
             Assert.That(result.AdvisoryBestSignatureNotPublished, Is.EqualTo("P_B||P_C"));
             Assert.That(result.MayPromoteBlockingPolicy, Is.False);
             Assert.That(result.PartitionScope, Does.Contain("TEST_FORBIDDEN"));
+            Assert.That(ceiling.PassesInCeiling, Is.EqualTo(6));
+            Assert.That(ceiling.TrainUnionM, Is.EqualTo(10));
+            Assert.That(ceiling.ValidationUnionM, Is.EqualTo(10));
+            Assert.That(ceiling.TrainUnionU, Is.EqualTo(3));
+            Assert.That(ceiling.ValidationUnionU, Is.EqualTo(1));
+            Assert.That(ceiling.TrainEligibleStillMissing, Is.Zero);
+            Assert.That(ceiling.TrainAdditionalMNeededFor95, Is.Zero);
+            Assert.That(ceiling.ValidationAdditionalMNeededFor95, Is.Zero);
+            Assert.That(ceiling.AllSixPassesMeetBoth95PercentFloors, Is.True);
+            Assert.That(ceiling.AllSixPassesProve95ImpossibleWithinRegisteredPassFamily, Is.False);
+            Assert.That(ceiling.Interpretation, Does.Contain("NOT_A_GLOBAL"));
         }));
     }
 
@@ -78,12 +90,21 @@ public sealed class V9SqlTrainValidationUnionSearchTests
     {
         var r = V9SqlTrainValidationUnionSearch.Analyze(
             Baseline, Extensions, 50, 50, 1000);
+        var ceiling = r.AllSixRegisteredPassesCeiling!;
         Assert.Multiple((Action)(() =>
         {
             Assert.That(r.PassingUnionCount, Is.Zero);
             Assert.That(r.AdvisoryBestSignatureNotPublished, Is.Null);
             Assert.That(r.MinimumTrainMFor95Percent, Is.EqualTo(48));
             Assert.That(r.MayPromoteBlockingPolicy, Is.False);
+            Assert.That(ceiling.TrainUnionM, Is.EqualTo(10));
+            Assert.That(ceiling.ValidationUnionM, Is.EqualTo(10));
+            Assert.That(ceiling.TrainRecall, Is.EqualTo(.2m));
+            Assert.That(ceiling.TrainEligibleStillMissing, Is.EqualTo(40));
+            Assert.That(ceiling.TrainAdditionalMNeededFor95, Is.EqualTo(38));
+            Assert.That(ceiling.ValidationAdditionalMNeededFor95, Is.EqualTo(38));
+            Assert.That(ceiling.AllSixPassesMeetBoth95PercentFloors, Is.False);
+            Assert.That(ceiling.AllSixPassesProve95ImpossibleWithinRegisteredPassFamily, Is.True);
         }));
     }
 

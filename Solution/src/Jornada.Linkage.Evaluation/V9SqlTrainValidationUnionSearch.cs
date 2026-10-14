@@ -8,7 +8,7 @@ namespace Jornada.Linkage.Evaluation;
 /// </summary>
 public static class V9SqlTrainValidationUnionSearch
 {
-    public const string Version = "V9_SQL_TRAIN_VALIDATION_SIX_PASS_DEDUP_UNION_SEARCH_V1";
+    public const string Version = "V9_SQL_TRAIN_VALIDATION_SIX_PASS_DEDUP_UNION_SEARCH_V2";
     public const string Status = "DIAGNOSTIC_ONLY_NO_TEST_NO_POLICY_PUBLICATION";
     public const long RequiredRecallNumerator = 19;
     public const long RequiredRecallDenominator = 20;
@@ -24,6 +24,15 @@ public static class V9SqlTrainValidationUnionSearch
         decimal TrainRecallAgainstEligibleM, decimal ValidationRecallAgainstEligibleM,
         bool MeetsBoth95PercentRecallFloors);
 
+    public sealed record AllSixCeiling(
+        string Interpretation, int PassesInCeiling,
+        long TrainUnionM, long TrainUnionU, long ValidationUnionM, long ValidationUnionU,
+        decimal TrainRecall, decimal ValidationRecall,
+        long TrainEligibleStillMissing, long ValidationEligibleStillMissing,
+        long TrainAdditionalMNeededFor95, long ValidationAdditionalMNeededFor95,
+        bool AllSixPassesMeetBoth95PercentFloors,
+        bool AllSixPassesProve95ImpossibleWithinRegisteredPassFamily);
+
     public sealed record Report(
         string Version, string Status, string PartitionScope,
         int RegisteredPassCount, int EvaluatedUnionCount,
@@ -34,7 +43,10 @@ public static class V9SqlTrainValidationUnionSearch
         long MinimumTrainMFor95Percent, long MinimumValidationMFor95Percent,
         string? AdvisoryBestSignatureNotPublished,
         bool MayPromoteBlockingPolicy,
-        IReadOnlyList<Combination> Combinations);
+        IReadOnlyList<Combination> Combinations)
+    {
+        public AllSixCeiling? AllSixRegisteredPassesCeiling { get; init; }
+    }
 
     public static Report Analyze(
         IReadOnlyList<Pair> baselinePairs,
@@ -100,6 +112,60 @@ public static class V9SqlTrainValidationUnionSearch
         }
 
         var registered = extraByPass.Keys.ToArray();
+
+        // Union of ALL six passes is a deterministic set-theoretic UPPER
+        // BOUND on M recall for every allowed 1..4-pass subset. Evaluate it
+        // even when 5/6 passes are not candidates for publication. It proves
+        // infeasibility within this exact six-pass family when <95%, not
+        // impossibility for unseen passes or another reference population.
+        var allExtra = new Dictionary<(int A, int B), Pair>();
+        foreach (var pass in registered)
+        foreach (var (key, pair) in extraByPass[pass])
+        {
+            if (allExtra.TryGetValue(key, out var prior))
+            {
+                if (prior != pair)
+                    throw new InvalidDataException(
+                        "Passes SQL do limite superior discordam do gabarito do mesmo par.");
+            }
+            else allExtra.Add(key, pair);
+        }
+        if ((long)baseline.Count + allExtra.Count > pairHardCap)
+            throw new InvalidDataException(
+                "União dos seis passes ultrapassa cap físico; limite de cobertura não demonstrável.");
+
+        long allTrainM = bmTrain, allTrainU = buTrain;
+        long allValidationM = bmVal, allValidationU = buVal;
+        foreach (var pair in allExtra.Values)
+        {
+            if (pair.Partition == "TRAIN")
+            {
+                if (pair.IsReferenceMatch) allTrainM++;
+                else allTrainU++;
+            }
+            else
+            {
+                if (pair.IsReferenceMatch) allValidationM++;
+                else allValidationU++;
+            }
+        }
+        if (allTrainM > trainEligibleM || allValidationM > validationEligibleM)
+            throw new InvalidDataException("Limite M de seis passes excede M elegível.");
+        var trainRequired = Ceil95(trainEligibleM);
+        var validationRequired = Ceil95(validationEligibleM);
+        var allMeet = Meets95(allTrainM, trainEligibleM)
+            && Meets95(allValidationM, validationEligibleM);
+        var ceiling = new AllSixCeiling(
+            "REGISTERED_SIX_PASS_FAMILY_CEILING_NOT_A_GLOBAL_BLOCKING_UPPER_BOUND",
+            registered.Length, allTrainM, allTrainU,
+            allValidationM, allValidationU,
+            decimal.Divide(allTrainM, trainEligibleM),
+            decimal.Divide(allValidationM, validationEligibleM),
+            trainEligibleM - allTrainM, validationEligibleM - allValidationM,
+            Math.Max(0, trainRequired - allTrainM),
+            Math.Max(0, validationRequired - allValidationM),
+            allMeet, !allMeet);
+
         var results = new List<Combination>();
         for (var width = 1; width <= Math.Min(MaxPassesInUnion, registered.Length); width++)
         foreach (var selected in Combinations(registered, width))
@@ -151,7 +217,12 @@ public static class V9SqlTrainValidationUnionSearch
         }
         if (results.Count != 56
             || results.Select(x => x.Signature).Distinct(StringComparer.Ordinal).Count()
-                != results.Count)
+                != results.Count
+            || results.Any(x => x.TrainUnionM > allTrainM
+                || x.TrainUnionU > allTrainU
+                || x.ValidationUnionM > allValidationM
+                || x.ValidationUnionU > allValidationU)
+            || (!allMeet && results.Any(x => x.MeetsBoth95PercentRecallFloors)))
             throw new InvalidDataException("Combinações de seis passes até quatro incompletas.");
 
         // Advisory only, with VALIDATION as a hard gate, not a means to
@@ -167,9 +238,12 @@ public static class V9SqlTrainValidationUnionSearch
         return new Report(Version, Status, "TRAIN_AND_VALIDATION_ONLY_TEST_FORBIDDEN",
             registered.Length, results.Count, passing.Length, results.Count,
             trainEligibleM, validationEligibleM, bmTrain, buTrain, bmVal, buVal,
-            Ceil95(trainEligibleM), Ceil95(validationEligibleM),
+            trainRequired, validationRequired,
             passing.FirstOrDefault()?.Signature,
-            false, Array.AsReadOnly(results.ToArray()));
+            false, Array.AsReadOnly(results.ToArray()))
+        {
+            AllSixRegisteredPassesCeiling = ceiling
+        };
     }
 
     private static bool Meets95(long recoveredM, long eligibleM) =>
