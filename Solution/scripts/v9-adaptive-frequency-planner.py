@@ -6,10 +6,10 @@ import json
 from pathlib import Path
 
 DEFAULT_PASSES = [
-    ("nome_normalizado", "birth_date"),
-    ("nome_fonetico", "birth_date"),
-    ("nome_mae_normalizado", "birth_date"),
-    ("nome_mae_fonetico", "birth_date"),
+    ("nome_normalizado", "data_nascimento"),
+    ("nome_fonetico", "data_nascimento"),
+    ("nome_mae_normalizado", "data_nascimento"),
+    ("nome_mae_fonetico", "data_nascimento"),
     ("nome_normalizado", "nome_mae_normalizado"),
     ("nome_fonetico", "nome_mae_fonetico"),
 ]
@@ -24,11 +24,11 @@ def train_counts(rows, passes=DEFAULT_PASSES):
     counts = {fields: collections.Counter() for fields in passes}
     identities = collections.defaultdict(list)
     for row in rows:
-        if row.get("split") != "TRAIN":
+        if row.get("particao") != "TRAIN":
             continue
-        if row.get("truth_id") is None:
-            raise ValueError("TRAIN truth_id required")
-        identities[str(row["truth_id"])].append(row)
+        if row.get("base_person_id") is None:
+            raise ValueError("TRAIN base_person_id required")
+        identities[str(row["base_person_id"])].append(row)
     for identity_rows in identities.values():
         for fields in passes:
             keys = {key for row in identity_rows if (key := normalized(row, fields))}
@@ -66,7 +66,7 @@ def main():
     counts = train_counts(rows)
     report = {"diagnostic_only": True, "frequency_source": "TRAIN_DISTINCT_TRUTH_IDENTITIES",
               "caution": "TRAIN frequency is not the live index fanout; do not drop over-cap passes without fallback",
-              "plans": [{"id": row["id"], "split": row.get("split"), "passes": plan(row, counts, args.cap, args.max_passes)} for row in rows]}
+              "plans": [{"id": row["observacao_id"], "split": row.get("particao"), "passes": plan(row, counts, args.cap, args.max_passes)} for row in rows]}
     Path(args.out).write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 if __name__ == "__main__":
     main()
