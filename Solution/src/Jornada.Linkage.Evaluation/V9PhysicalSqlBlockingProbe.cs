@@ -492,7 +492,8 @@ public static class V9PhysicalSqlBlockingProbe
                 x.Id,x.Base,x.Partition,x.Gestor,
                 x.NameFull is { Length: >= 3 } ? x.NameFull[..3] : null,
                 x.MotherFull is { Length: >= 3 } ? x.MotherFull[..3] : null,
-                x.Birth,x.Cpf,x.NameFull,x.MotherFull)).ToArray(),
+                x.Birth,x.Cpf,x.NameFull,x.MotherFull,
+                x.NamePhonetic,x.MotherPhonetic)).ToArray(),
             trainValidationSqlBaseline,unionSearch.Extensions,
             birthYearExploration.Extensions,eligibleTruthPairs,
             prefix3Birth,HardPairCap,ct);
