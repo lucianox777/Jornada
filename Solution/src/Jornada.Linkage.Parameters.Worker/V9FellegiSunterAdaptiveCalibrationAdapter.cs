@@ -8,7 +8,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// <summary>
 /// Par bruto do frame candidato probabilístico já materializado pelo blocking.
 /// Não contém CPF: este adaptador é somente para o ramo sem CPF.
-/// TRAIN e VALIDATION devem ser disjuntos por IdentityGroupId.
+/// TRAIN e VALIDATION devem ser disjuntos pelas identidades-base de ambos os lados.
 /// </summary>
 public sealed record V9FsAdaptiveCandidatePair(
     string Partition,
@@ -203,7 +203,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             .Select(x => (double)x.CandidateDegreeForSource)
             .OrderBy(x => x).ToArray();
         var p99 = falseDegrees.Length == 0 ? 0d : PercentileNearestRank(falseDegrees, .99d);
-        var groups = rows.Select(x => x.IdentityGroupId).Distinct().Count();
+        var groups = IdentityGroups("VALIDATION").Count;
 
         return new AdaptiveCalibrationHoldoutMetrics(
             TruePairsWithoutCpf: truePairs,
