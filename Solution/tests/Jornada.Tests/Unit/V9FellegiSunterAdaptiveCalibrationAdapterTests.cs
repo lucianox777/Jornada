@@ -38,7 +38,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
 
         var report = AdaptiveCalibrationModelSearch.Evaluate(request, [adapter]);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Options, Has.Count.EqualTo(1));
             Assert.That(report.Options[0].Validation.TruePairsWithoutCpf, Is.EqualTo(2));
@@ -52,7 +52,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             Assert.That(report.TestUsed, Is.False);
             Assert.That(report.OperationalModelCreated, Is.False);
             Assert.That(report.AutomaticRecalibrationOrActivationAllowed, Is.False);
-        });
+        }));
     }
 
     [Test]
