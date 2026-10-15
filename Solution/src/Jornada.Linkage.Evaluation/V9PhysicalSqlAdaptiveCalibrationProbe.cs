@@ -59,8 +59,6 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         ArgumentNullException.ThrowIfNull(budget);
         RequireSha(studyFingerprintSha256, nameof(studyFingerprintSha256));
 
-        if (connection.State != ConnectionState.Open)
-            throw new InvalidOperationException("Conexão SQL precisa estar aberta.");
         if (observations.Count < 4)
             throw new ArgumentException("Frame físico exige observações TRAIN/VALIDATION suficientes.");
         if (observations.Any(x => x is null
@@ -93,6 +91,9 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             .ToHashSet(StringComparer.Ordinal);
         if (canonicalPasses.SelectMany(x => x.Fields).Any(x => !allowed.Contains(x)))
             throw new InvalidDataException("Ruleset contém feature fora do catálogo do Calibrador.");
+
+        if (connection.State != ConnectionState.Open)
+            throw new InvalidOperationException("Conexão SQL precisa estar aberta.");
 
         await RequireHarnessAsync(connection, cancellationToken);
 
