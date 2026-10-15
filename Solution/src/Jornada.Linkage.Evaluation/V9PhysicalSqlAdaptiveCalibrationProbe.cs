@@ -92,16 +92,16 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         if (canonicalPasses.SelectMany(x => x.Fields).Any(x => !allowed.Contains(x)))
             throw new InvalidDataException("Ruleset contém feature fora do catálogo do Calibrador.");
 
-        if (connection.State != ConnectionState.Open)
-            throw new InvalidOperationException("Conexão SQL precisa estar aberta.");
-
-        await RequireHarnessAsync(connection, cancellationToken);
-
         var signatures = BuildSignatures(observations, canonicalPasses);
         var preflight = CountPairIncidences(signatures);
         if (preflight > HardPairIncidenceCap)
             throw new InvalidDataException(
                 $"Censo físico recusado antes do join: {preflight} incidências excedem {HardPairIncidenceCap}.");
+
+        if (connection.State != ConnectionState.Open)
+            throw new InvalidOperationException("Conexão SQL precisa estar aberta.");
+
+        await RequireHarnessAsync(connection, cancellationToken);
 
         await CreateTablesAsync(connection, cancellationToken);
         await BulkObservationsAsync(connection, observations, cancellationToken);
