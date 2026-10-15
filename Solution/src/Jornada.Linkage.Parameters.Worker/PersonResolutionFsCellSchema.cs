@@ -7,6 +7,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// <summary>
 /// Esquema determinístico de células FS derivado do catálogo versionado.
 /// Continua diagnóstico: não estima m/u/TF, não executa SQL e não ativa V9.
+/// O fingerprint V2 inclui contrato de comparação, política de ausência, papel, dependência e TF por nível.
 /// </summary>
 public static class PersonResolutionFsCellSchema
 {
