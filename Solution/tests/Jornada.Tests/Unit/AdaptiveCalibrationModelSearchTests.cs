@@ -154,6 +154,16 @@ public sealed class AdaptiveCalibrationModelSearchTests
     }
 
     [Test]
+    public void Impossible_False_Acceptance_Exceeding_U_Candidates_Fails_Closed()
+    {
+        AssertThrows<InvalidDataException>(() =>
+            AdaptiveCalibrationModelSearch.Evaluate(Request(Budget()), [
+                new FakeAdapter("FAMILY_FS_V9", 980, 201),
+                new FakeAdapter("FAMILY_FUTURE", 980, 2)
+            ]));
+    }
+
+    [Test]
     public void Unsafe_Budget_Must_Not_Be_Loosened_Silently()
     {
         var request = Request(Budget() with { MaximumObservedAcceptedFdrPoint = 0.2 });
