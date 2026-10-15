@@ -68,7 +68,7 @@ public sealed class PersonResolutionCalibrationStrategyCatalogTests
         Assert.That(PersonResolutionCalibrationStrategyCatalog.TryGet(
             PersonResolutionContractCatalog.SocialName, out var social), Is.True);
 
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(full.EvidenceRole,
                 Is.EqualTo(PersonResolutionEvidenceRole.RequiredForProbabilisticEligibility));
@@ -86,7 +86,7 @@ public sealed class PersonResolutionCalibrationStrategyCatalogTests
                 Does.Contain(PersonResolutionContractCatalog.FullName));
             Assert.That(social.TfPolicies, Is.Empty,
                 "Nome social não herda marginal IBGE de nome civil sem calibração própria.");
-        });
+        }));
     }
 
     [Test]
