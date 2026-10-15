@@ -201,6 +201,7 @@ public static class AdaptiveCalibrationModelSearch
                 || validation.TrueAcceptedLinks < 0 || validation.FalseAcceptedLinks < 0
                 || validation.TrueAcceptedLinks > validation.TruePairsWithoutCpf
                 || validation.Abstentions < 0 || validation.BlockingFalseCandidatePairs < 0
+                || validation.FalseAcceptedLinks > validation.BlockingFalseCandidatePairs
                 || validation.IndependentlyLabeledIdentityGroups < 0
                 || validation.IndependentlyLabeledIdentityGroups > request.Validation.DistinctIdentityGroups
                 || !double.IsFinite(validation.BlockingFalseDegreeP99)
