@@ -12,8 +12,8 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public sealed record V9FsAdaptiveCandidatePair(
     string Partition,
-    Guid LeftIdentityGroupId,
-    Guid RightIdentityGroupId,
+    string LeftIdentityGroupId,
+    string RightIdentityGroupId,
     bool IsTruePair,
     string? LeftPersonName,
     string? RightPersonName,
@@ -231,8 +231,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         var validPartitions = new HashSet<string>(["TRAIN", "VALIDATION"], StringComparer.Ordinal);
         if (frame.Pairs.Any(x => x is null
                 || !validPartitions.Contains(x.Partition)
-                || x.LeftIdentityGroupId == Guid.Empty
-                || x.RightIdentityGroupId == Guid.Empty
+                || string.IsNullOrWhiteSpace(x.LeftIdentityGroupId)
+                || string.IsNullOrWhiteSpace(x.RightIdentityGroupId)
                 || x.CandidateDegreeForSource <= 0
                 || (x.IsTruePair && x.LeftIdentityGroupId != x.RightIdentityGroupId)
                 || (!x.IsTruePair && x.LeftIdentityGroupId == x.RightIdentityGroupId)))
@@ -267,9 +267,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             throw new InvalidDataException($"TRAIN {label} exige suporte de ao menos duas identidades.");
     }
 
-    private HashSet<Guid> IdentityGroups(string partition)
+    private HashSet<string> IdentityGroups(string partition)
     {
-        var groups = new HashSet<Guid>();
+        var groups = new HashSet<string>(StringComparer.Ordinal);
         foreach (var pair in frame.Pairs.Where(x => x.Partition == partition))
         {
             groups.Add(pair.LeftIdentityGroupId);
