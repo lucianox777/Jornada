@@ -20,8 +20,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
 
         var request = new AdaptiveCalibrationStudyRequest(
             StudySha,
-            Slice("TRAIN", TrainSha, TrainGroupsSha, 4),
-            Slice("VALIDATION", ValidationSha, ValidationGroupsSha, 4),
+            Slice("TRAIN", TrainSha, TrainGroupsSha, 6),
+            Slice("VALIDATION", ValidationSha, ValidationGroupsSha, 6),
             [new AdaptiveCalibrationModelOption(
                 V9FellegiSunterAdaptiveCalibrationAdapter.Family,
                 V9FellegiSunterAdaptiveCalibrationAdapter.Version,
@@ -66,7 +66,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             option.OptionId,
             option.FingerprintSha256);
 
-        var fit = adapter.FitTrain(model, Slice("TRAIN", TrainSha, TrainGroupsSha, 4));
+        var fit = adapter.FitTrain(model, Slice("TRAIN", TrainSha, TrainGroupsSha, 6));
 
         Assert.That(fit.TrainOnly, Is.True);
         Assert.That(fit.TrainingCorpusFingerprintSha256, Is.EqualTo(TrainSha));
@@ -75,7 +75,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
         var forged = model with { ConfigurationFingerprintSha256 = new string('f', 64) };
         Assert.That(
             (Action)(() => { _ = adapter.FitTrain(
-                forged, Slice("TRAIN", TrainSha, TrainGroupsSha, 4)); }),
+                forged, Slice("TRAIN", TrainSha, TrainGroupsSha, 6)); }),
             Throws.TypeOf<InvalidDataException>());
     }
 
@@ -84,7 +84,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
     {
         var pairs = Frame().Pairs.ToList();
         pairs.Add(new V9FsAdaptiveCandidatePair(
-            "TEST", Guid.NewGuid(), true,
+            "TEST", Guid.NewGuid(), Guid.NewGuid(), true,
             "MARIA SILVA", "MARIA SILVA", "ANA COSTA", "ANA COSTA",
             Birth, Birth, 1));
 
@@ -95,9 +95,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             Throws.TypeOf<InvalidDataException>());
 
         var leaked = Frame();
-        var same = leaked.Pairs[0].IdentityGroupId;
+        var same = leaked.Pairs[0].LeftIdentityGroupId;
         var changed = leaked.Pairs.Select((x, i) =>
-            i == 4 ? x with { IdentityGroupId = same } : x).ToArray();
+            i == 4 ? x with { LeftIdentityGroupId = same, RightIdentityGroupId = same } : x).ToArray();
         Assert.That(
             (Action)(() => { _ = new V9FellegiSunterAdaptiveCalibrationAdapter(
                 leaked with { Pairs = changed },
@@ -111,28 +111,29 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
 
     private static V9FsAdaptiveCandidateFrame Frame()
     {
-        var g = Enumerable.Range(1, 8)
+        var g = Enumerable.Range(1, 12)
             .Select(i => Guid.Parse($"00000000-0000-4000-8000-{i:000000000000}"))
             .ToArray();
         return new V9FsAdaptiveCandidateFrame(
             TrainSha, ValidationSha, TrainGroupsSha, ValidationGroupsSha,
             [
-                Pair("TRAIN", g[0], true, "MARIA SILVA", "MARIA SILVA", "ANA COSTA", "ANA COSTA", Birth, Birth, 2),
-                Pair("TRAIN", g[1], true, "JOAO SOUZA", "JOAO SOUZA", "LUCIA SOUZA", "LUCIA SOUZA", Birth, Birth, 2),
-                Pair("TRAIN", g[2], false, "MARIA SILVA", "CARLOS LIMA", "ANA COSTA", "ROSA LIMA", Birth, Birth.AddDays(20), 5),
-                Pair("TRAIN", g[3], false, "JOAO SOUZA", "PEDRO ALVES", "LUCIA SOUZA", "TERESA ALVES", Birth, Birth.AddYears(3), 6),
+                Pair("TRAIN", g[0], g[0], true, "MARIA SILVA", "MARIA SILVA", "ANA COSTA", "ANA COSTA", Birth, Birth, 2),
+                Pair("TRAIN", g[1], g[1], true, "JOAO SOUZA", "JOAO SOUZA", "LUCIA SOUZA", "LUCIA SOUZA", Birth, Birth, 2),
+                Pair("TRAIN", g[2], g[3], false, "MARIA SILVA", "CARLOS LIMA", "ANA COSTA", "ROSA LIMA", Birth, Birth.AddDays(20), 5),
+                Pair("TRAIN", g[4], g[5], false, "JOAO SOUZA", "PEDRO ALVES", "LUCIA SOUZA", "TERESA ALVES", Birth, Birth.AddYears(3), 6),
 
-                Pair("VALIDATION", g[4], true, "MARIA SILVA", "MARIA SILVA", "ANA COSTA", "ANA COSTA", Birth, Birth, 2),
-                Pair("VALIDATION", g[5], true, "JOAO SOUZA", "JOAO SOUZA", "LUCIA SOUZA", "LUCIA SOUZA", Birth, Birth, 3),
-                Pair("VALIDATION", g[6], false, "MARIA SILVA", "ROBERTO MENDES", "ANA COSTA", "HELENA MENDES", Birth, Birth.AddYears(5), 7),
-                Pair("VALIDATION", g[7], false, "JOAO SOUZA", "PAULO NUNES", "LUCIA SOUZA", "MARTA NUNES", Birth, Birth.AddDays(10), 8)
+                Pair("VALIDATION", g[6], g[6], true, "MARIA SILVA", "MARIA SILVA", "ANA COSTA", "ANA COSTA", Birth, Birth, 2),
+                Pair("VALIDATION", g[7], g[7], true, "JOAO SOUZA", "JOAO SOUZA", "LUCIA SOUZA", "LUCIA SOUZA", Birth, Birth, 3),
+                Pair("VALIDATION", g[8], g[9], false, "MARIA SILVA", "ROBERTO MENDES", "ANA COSTA", "HELENA MENDES", Birth, Birth.AddYears(5), 7),
+                Pair("VALIDATION", g[10], g[11], false, "JOAO SOUZA", "PAULO NUNES", "LUCIA SOUZA", "MARTA NUNES", Birth, Birth.AddDays(10), 8)
             ]);
     }
 
     private static V9FsAdaptiveCandidatePair Pair(
-        string partition, Guid group, bool isTrue,
+        string partition, Guid leftGroup, Guid rightGroup, bool isTrue,
         string leftName, string rightName, string leftMother, string rightMother,
         DateOnly leftBirth, DateOnly rightBirth, int degree) =>
-        new(partition, group, isTrue, leftName, rightName, leftMother, rightMother,
+        new(partition, leftGroup, rightGroup, isTrue,
+            leftName, rightName, leftMother, rightMother,
             leftBirth, rightBirth, degree);
 }
