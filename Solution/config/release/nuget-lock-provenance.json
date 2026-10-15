@@ -219,7 +219,7 @@
     "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole permanece como host DEV independente, sem dependência de domínio; o lock vazio foi force-evaluated no mesmo gate. Atualização 2026-10-04: dependências de teste compatíveis e ações GitHub consolidadas; NUnit 4.6.1 foi descartado após ambiguidade de overloads em Assert.* e mantido em 4.2.2; locks regenerados pelo grafo corrente. Security patch 2026-10-13: CVE-2026-84008/CVE-2026-70162, PKCS 9.0.21; 22 lockfiles regenerated on GitHub-hosted .NET 10.0.112 runner with --force-evaluate, artifact actions/run/38464250893; 15 changed lockfiles, full manifest hash replaced; historical v4.05 attestation preserved.",
     "lockCount": 22,
     "changedLockCount": 22,
-    "combinedSha256": "cf4653114400a5d27f4ab347d5bb155f79e1ebfdf3ad533fb15a86a62d161d37",
+    "combinedSha256": "a51a7d4f0a1872e86ef73619d92033a983e61e504bdcff8b778df89f27c5feae",
     "overrides": [
       {
         "path": "src/Jornada.Access.Security/packages.lock.json",
@@ -259,7 +259,7 @@
       },
       {
         "path": "src/Jornada.Linkage.Conference/packages.lock.json",
-        "sha256": "6a6682f7faf25d153414193faa9525f3d2d9d6aa3d1d73a60dae479c0d1e98b3"
+        "sha256": "7e56985fbb69c4137dcf4328e9de1d0624f605ed1721b2fe385bcc6282b24a63"
       },
       {
         "path": "src/Jornada.Linkage.Core/packages.lock.json",
