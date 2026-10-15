@@ -31,6 +31,35 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
     }
 
     [Test]
+    public void Rejects_duplicate_observation_ids_before_any_sql_command()
+    {
+        using var connection = new SqlConnection();
+        var rows = BaseRows().ToArray();
+        rows[3] = rows[3] with { ObservationId = rows[0].ObservationId };
+
+        Assert.That(
+            (Func<Task>)(async () => await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
+                connection, rows, Passes(), Options(), Budget, new string('e', 64),
+                CancellationToken.None)),
+            Throws.TypeOf<InvalidDataException>()
+                .With.Message.Contains("ObservationId duplicado"));
+    }
+
+    [Test]
+    public void Rejects_missing_validation_partition_before_any_sql_command()
+    {
+        using var connection = new SqlConnection();
+        var rows = BaseRows().Select(x => x with { Partition = "TRAIN" }).ToArray();
+
+        Assert.That(
+            (Func<Task>)(async () => await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
+                connection, rows, Passes(), Options(), Budget, new string('e', 64),
+                CancellationToken.None)),
+            Throws.TypeOf<InvalidDataException>()
+                .With.Message.Contains("TRAIN e VALIDATION"));
+    }
+
+    [Test]
     public void Rejects_identity_leakage_between_train_and_validation_before_sql()
     {
         using var connection = new SqlConnection();
