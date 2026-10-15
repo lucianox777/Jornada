@@ -5,14 +5,14 @@ namespace Jornada.Linkage.Evaluation;
 /// <summary>Diagnostic-only eligibility for probabilistic V9 evaluation; does not resolve identity.</summary>
 public static class V9MinimumEvidenceEligibility
 {
-    public const string Version = "V9_MINIMUM_TWO_FIELDS_DIAGNOSTIC_V2";
+    public const string Version = "V9_MINIMUM_TWO_FIELDS_DIAGNOSTIC_V1";
 
     public sealed record Result(bool Eligible, int ValidFields, string Combination, bool MustAbstain);
 
     // Candidate policy only: the person's name must be usable, together
     // with either the mother's name or date of birth. MD alone abstains.
     public const string PersonRequiredVersion =
-        "V9_PERSON_REQUIRED_PLUS_MOTHER_OR_BIRTH_DIAGNOSTIC_V2";
+        "V9_PERSON_REQUIRED_PLUS_MOTHER_OR_BIRTH_DIAGNOSTIC_V1";
 
     public static Result EvaluatePersonRequired(
         string? personName, string? motherName, DateTime? birthDate)
