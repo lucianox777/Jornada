@@ -34,11 +34,11 @@ public sealed class PersonResolutionFsCellSchemaTests
     [Test]
     public void Ineligible_Attributes_And_Duplicate_Fields_Fail_Closed()
     {
-        Assert.Throws<InvalidDataException>(() => { PersonResolutionFsCellSchema.Generate([
-            PersonResolutionContractCatalog.ConfidentialShelterAddress]); });
-        Assert.Throws<ArgumentException>(() => { PersonResolutionFsCellSchema.Generate([
+        Assert.Throws<InvalidDataException>((TestDelegate)(() => { PersonResolutionFsCellSchema.Generate([
+            PersonResolutionContractCatalog.ConfidentialShelterAddress]); }));
+        Assert.Throws<ArgumentException>((TestDelegate)(() => { PersonResolutionFsCellSchema.Generate([
             PersonResolutionContractCatalog.FullName,
-            PersonResolutionContractCatalog.FullName]); });
+            PersonResolutionContractCatalog.FullName]); }));
     }
 
     [Test]
