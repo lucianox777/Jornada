@@ -26,7 +26,7 @@ O corpus original congelado de aproximadamente 30 mil identidades foi publicado 
 
 ## 5. Evidência estatística e promoção
 
-A regra proposta é minimizar falsos negativos sob teto de FDR `ε`, usando limite superior unilateral de incerteza, com TRAIN para estimar m/u/TF, VALIDATION para seleção e TEST independente para certificação. Valores de ε, α, estratos, n_min e gates dependem de política versionada; números ainda em discussão não devem ser tratados como homologados. Diagnóstico com variância ingênua de pares ou amostra insuficiente deve ser marcado **INCONCLUSIVO**. O problema de deterioração de ~18% segue distinto e não resolvido. Nenhum resultado sintético, proxy ou plano adaptativo isolado autoriza ativação em HML/PROD.
+A regra proposta é minimizar falsos negativos sob teto de FDR `ε`, usando limite superior unilateral de incerteza, com TRAIN para estimar m/u/TF, VALIDATION para seleção e **novo TEST independente ainda não observado** para certificação. O TEST das seeds 42/43/44 já publicado em 13/10 é evidência histórica consumida e não volta a ser holdout final. Valores de ε, α, estratos, n_min e gates dependem de política versionada; números ainda em discussão não devem ser tratados como homologados. Diagnóstico com variância ingênua de pares ou amostra insuficiente deve ser marcado **INCONCLUSIVO**. O problema de deterioração de ~18% segue distinto e não resolvido. Nenhum resultado sintético, proxy ou plano adaptativo isolado autoriza ativação em HML/PROD.
 
 ## 6. Estado atualizado em 14/10/2026 — evidência de blocking
 
@@ -52,7 +52,7 @@ Os artefatos originais devem manter identificador do workflow, SHA do snapshot, 
 2. Executar comparação do **mesmo conjunto de pares candidatos** em SQL Server isolado e SQLite, com collation binária, índices reais, duração P95/P99, CPU, memória, fanout por gestor e plano de execução; caracterizar os vieses entre SQL de memória e banco físico.
 3. Confrontar custo de colisões por chave e composição populacional real; não multiplicar simplesmente U por `11,45 milhões/30 mil` como se toda célula tivesse mesma distribuição condicional. Criar orçamento/governança de U e cauda de fanout P95/P99 antes de adotar passes largos.
 4. Repetir evidências em sementes independentes (42, 43, 44) com mesma separação TRAIN/VALIDATION/TEST e estimar incerteza por identidade. Não alterar o gerador sintético apenas para atingir recall.
-5. Separadamente, recalibrar somente **sob decisão manual**, com m/u/TF derivados de base independente TRAIN e universo de candidatos realmente induzido pelas novas regras, usando VALIDATION para seleção e TEST ainda fechado até a decisão formal. Medir FDR dos **vínculos aceitos** e gates de suficiência, jamais supor que U é FDR.
+5. Separadamente, recalibrar somente **sob decisão manual**, com m/u/TF derivados de base independente TRAIN e universo de candidatos realmente induzido pelas novas regras, usando VALIDATION para seleção. O TEST histórico das seeds 42/43/44 está **consumido**; a certificação da configuração recalibrada exige um **novo TEST congelado antes da execução e não observado durante o desenvolvimento**. Medir FDR dos **vínculos aceitos** e gates de suficiência, jamais supor que U é FDR.
 6. Não alterar V8, DT-15, scorer único Fellegi–Sunter, Rank/Resolve, Gold, IBGE original, HML/PROD, JornadaLocal ou NODE/NAS por resultados apenas diagnósticos.
 
 DEV não exige retrocompatibilidade automática de executáveis antigos, mas as evidências congeladas, semântica de identidades e versões de método permanecem imutáveis.
