@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Data;
 using System.Security.Cryptography;
 using System.Text;
@@ -479,7 +480,7 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
               .Append(row.Gestor).Append('|')
               .Append(row.PersonName).Append('|')
               .Append(row.MotherName).Append('|')
-              .Append(row.BirthDate?.ToString("yyyy-MM-dd")).Append('\n');
+              .Append(row.BirthDate?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)).Append('\n');
         return Sha(sb.ToString());
     }
 
