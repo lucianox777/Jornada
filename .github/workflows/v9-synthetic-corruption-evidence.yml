@@ -50,7 +50,7 @@ jobs:
           assert r['effective_field_changes_per_observation']['dob_changed']['rate']>0
           PY
       - name: Publish aggregate error profiles ONLY, no citizen names or raw observations
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: v9-observed-corruption-seed42-aggregates
@@ -108,14 +108,14 @@ jobs:
           python3 scripts/v9-synthetic-clean-correlated-sensitivity.py \
             --profile-root "$root" --out "$PWD/.local/v9-clean-correlated-aggregate.json"
       - name: Only upload profile-level M/U/uncertainty aggregates, never truth, citizen names or observations
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: v9-clean-vs-correlated-seed42-mu-aggregates
           path: Solution/.local/v9-clean-correlated-aggregate.json
           if-no-files-found: ignore
       - name: Publish matched-base sample-size power curves, no identities
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: v9-seed42-clean-correlated-cluster-sample-size
@@ -190,7 +190,7 @@ jobs:
             --target-profile-root "$root" --target-seed "$SEED" \
             --out "$PWD/.local/v9-seed-${SEED}-frozen-replay-aggregate.json"
       - name: Publish only split-level M/U and identity-cluster sample-size evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: v9-synthetic-size-3seed-${{ matrix.seed }}-aggregates

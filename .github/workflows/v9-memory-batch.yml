@@ -55,7 +55,7 @@ jobs:
                   raise SystemExit(f"invalid committed input: {name}")
           PY
           python Solution/scripts/v9-batch-memory-configs.py --rows "Solution/$ROWS" --configs "Solution/$CONFIGS" --out v9-memory-report.json
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: github.event_name == 'workflow_dispatch'
         with:
           name: v9-memory-report
@@ -102,21 +102,21 @@ jobs:
             --out .local/v9-sqlite-original/abcd-adaptive-physical-comparison.json \
             --cap 1000000
       - name: Publish ABCD, optimized composition and real adaptive QUERY aggregates, never identities
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: v9-abcd-adaptive-compositions-seed42-sql-aggregates
           path: Solution/.local/v9-sqlite-original/abcd-adaptive-physical-comparison.json
           if-no-files-found: error
       - name: Upload prefix and maternal-initial aggregate comparison, never identities
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: v9-prefix-mother-initial-seed42-aggregates
           path: Solution/.local/v9-sqlite-original/prefix-mother-initial-sweep.json
           if-no-files-found: ignore
       - name: Export ONLY aggregate M/U/recall, never raw observations or frequency tables
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: always()
         with:
           name: v9-sqlite-memory-cells-seed42-aggregates
