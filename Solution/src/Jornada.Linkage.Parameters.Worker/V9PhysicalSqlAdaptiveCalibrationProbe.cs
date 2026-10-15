@@ -3,6 +3,7 @@ using System.Data;
 using System.Security.Cryptography;
 using System.Text;
 using Jornada.Contracts;
+using Jornada.Linkage.Runner;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Parameters.Worker;
