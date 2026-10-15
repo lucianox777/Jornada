@@ -8,7 +8,9 @@
 - Três conjuntos independentes de **30.000 indivíduos-base sintéticos cada**, cada conjunto dividido em TRAIN/VALIDATION/TEST. Modelo FS C# V9, evidência conjunta pessoa × mãe + nascimento, parâmetros e threshold **congelados a partir do proxy da seed 42**, reusados sem refit nas demais seeds.
 - O SQL Server **físico** da base temporária `JornadaHarness` executou a união de regras do ruleset ativo do **CI** (dois passes no ensaio) e cinco passes C1, indexados, com `DISTINCT`. Recuperou pares do **frame sem CPF, inter-Gestor, por split, com nascimento presente**. É SQL verdadeiro, mas sobre chaves atuais; **não inclui histórico de aliases `VERSIONED_ALIAS`**. Nenhum índice de `JornadaLocal` nem modelo ativo de produção foi alterado.
 
-## Resultado TEST — agregação correta de numeradores e denominadores
+## Resultado TEST histórico — agregação correta de numeradores e denominadores
+
+**Estado metodológico após 15/10/2026:** este TEST foi aberto e seus TP/FP/FDR foram publicados; portanto está **consumido como holdout histórico**. Preservar os números e artefatos imutáveis para regressão/auditoria, mas não reutilizar essas mesmas identidades/partições como TEST final para escolher ou certificar a V9 recalibrada.
 
 | Métrica | Seed 42 | Seed 43 | Seed 44 | Total |
 | --- | ---: | ---: | ---: | ---: |
@@ -33,7 +35,7 @@ Duas limitações impedem interpretar isto como experimento da **V9 corretamente
 
 ## Próximo gate: issue #999 — calibração sem vazamento
 
-A ordem aprovada é usar **o mesmo conjunto SQL de candidatos** para condicionar `m/u` conjuntos, nascimento e prior a TRAIN; materializar frequências `f(value)` em **uma pessoa-base por indivíduo no universo TRAIN** (não em pontas de pares candidatos) para `FullName`, `FirstLastJoint`, `FirstName` e `LastContentSurname`, pessoa e mãe separadamente; estimar um **baseline U da mesma unidade e do mesmo frame**; depois selecionar peso TF e threshold **somente em VALIDATION**, usando suporte/abstenção explícitos. Congelar snapshot e usar TEST das três sementes sem refit. A prova matemática independente deve conferir contagens e score C# nos mesmos pares, sem publicar dados pessoais.
+A ordem aprovada é usar **o mesmo conjunto SQL de candidatos** para condicionar `m/u` conjuntos, nascimento e prior a TRAIN; materializar frequências `f(value)` em **uma pessoa-base por indivíduo no universo TRAIN** (não em pontas de pares candidatos) para `FullName`, `FirstLastJoint`, `FirstName` e `LastContentSurname`, pessoa e mãe separadamente; estimar um **baseline U da mesma unidade e do mesmo frame**; depois selecionar peso TF e threshold **somente em VALIDATION**, usando suporte/abstenção explícitos. Congelar snapshot e avaliar em **novo TEST não observado**, congelado antes da execução e distinto do TEST histórico das três seeds aqui publicado. A prova matemática independente deve conferir contagens e score C# nos mesmos pares, sem publicar dados pessoais.
 
 A PR #1000 mede apenas **histogramas agregados TRAIN de unidades TF por pessoa-base**, com SHA-256 do corpus e segregação dos splits. É um pré-requisito da calibração, **não** calibração do peso ou valor U. Células raras, valores desconhecidos e ausência de campo não podem virar automaticamente TF neutro: `w=0` é válido somente como escolha modelada/documentada, distinta de Bayes factor neutro `1` e de parâmetro ausente. Caso os 30 mil não forneçam suporte por unidade/estrato/grupo, declarar inconclusão e redimensionar a massa por evidência, sem escolher `200 mil` ou `1,5 milhão` arbitrariamente.
 

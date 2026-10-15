@@ -1,3 +1,4 @@
+using Jornada.Contracts;
 using Jornada.Linkage.Evaluation;
 
 namespace Jornada.Tests.Unit;
@@ -41,6 +42,7 @@ public sealed class V9MinimumEvidenceEligibilityTests
         Assert.That(V9MinimumEvidenceEligibility.Evaluate(null, "ANA", DateTime.UtcNow.AddDays(1)).Eligible, Is.False);
         Assert.That(V9MinimumEvidenceEligibility.Evaluate(null, "ANA", Dob).Combination, Is.EqualTo("MD"));
     }
+
     [TestCase("MARIA SILVA", "ANA SOUZA", null, "PM", true)]
     [TestCase("MARIA SILVA", null, "1984-07-13", "PD", true)]
     [TestCase("MARIA SILVA", "ANA SOUZA", "1984-07-13", "PMD", true)]
@@ -70,4 +72,15 @@ public sealed class V9MinimumEvidenceEligibilityTests
             Does.Contain("PERSON_REQUIRED"));
     }
 
+    [TestCase("")]
+    [TestCase("NULL")]
+    [TestCase("IGNORADO")]
+    [TestCase("NÃO INFORMADO")]
+    [TestCase("SEM INFORMAÇÃO")]
+    [TestCase("N/A")]
+    public void Canonical_missing_policy_is_shared_by_eligibility(string value)
+    {
+        Assert.That(PersonResolutionMissingValuePolicy.IsMissingText(value), Is.True);
+        Assert.That(V9MinimumEvidenceEligibility.HasName(value), Is.False);
+    }
 }
