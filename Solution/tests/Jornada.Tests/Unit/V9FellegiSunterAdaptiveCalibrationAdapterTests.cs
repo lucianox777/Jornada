@@ -74,7 +74,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
 
         var forged = model with { ConfigurationFingerprintSha256 = new string('f', 64) };
         Assert.That(
-            (TestDelegate)(() => { _ = adapter.FitTrain(
+            (Action)(() => { _ = adapter.FitTrain(
                 forged, Slice("TRAIN", TrainSha, TrainGroupsSha, 4)); }),
             Throws.TypeOf<InvalidDataException>());
     }
@@ -89,7 +89,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             Birth, Birth, 1));
 
         Assert.That(
-            (TestDelegate)(() => { _ = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            (Action)(() => { _ = new V9FellegiSunterAdaptiveCalibrationAdapter(
                 Frame() with { Pairs = pairs },
                 [new V9FsAdaptiveOptionConfiguration("DEFAULT", .5m, .5m)]); }),
             Throws.TypeOf<InvalidDataException>());
@@ -99,7 +99,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
         var changed = leaked.Pairs.Select((x, i) =>
             i == 4 ? x with { IdentityGroupId = same } : x).ToArray();
         Assert.That(
-            (TestDelegate)(() => { _ = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            (Action)(() => { _ = new V9FellegiSunterAdaptiveCalibrationAdapter(
                 leaked with { Pairs = changed },
                 [new V9FsAdaptiveOptionConfiguration("DEFAULT", .5m, .5m)]); }),
             Throws.TypeOf<InvalidDataException>());
