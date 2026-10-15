@@ -17,32 +17,60 @@ public sealed class PersonResolutionFsCellSchemaTests
             PersonResolutionContractCatalog.BirthDate,
             PersonResolutionContractCatalog.FullName,
             PersonResolutionContractCatalog.MotherName]);
+
         Assert.That(a.FingerprintSha256, Is.EqualTo(b.FingerprintSha256));
         Assert.That(a.FingerprintSha256.Length, Is.EqualTo(64));
-        Assert.That(a.Cells.Count, Is.EqualTo(14));
-        Assert.That(a.Cells.All(x => x.TfSource == "TRAIN_CANDIDATE_FRAME"), Is.True);
+        Assert.That(a.MissingPolicyVersion, Is.EqualTo(PersonResolutionMissingValuePolicy.Version));
+        Assert.That(a.Cells.Count, Is.EqualTo(21));
+
+        var firstNameTf = a.Cells.Single(x =>
+            x.AttributeCode == PersonResolutionContractCatalog.FullName
+            && x.ComparisonLevel == nameof(CompositeNominalLevelV9.ExactFirst));
+        Assert.That(firstNameTf.TfUnit, Is.EqualTo(NominalFrequencyUnitV9.FirstName));
+        Assert.That(firstNameTf.TfSource,
+            Is.EqualTo(CalibrationTfSource.FrozenIbgePublishedMarginal));
     }
 
     [Test]
     public void Ineligible_Attributes_And_Duplicate_Fields_Fail_Closed()
     {
-        Assert.Throws<InvalidDataException>((Action)(() => { PersonResolutionFsCellSchema.Generate([
-            PersonResolutionContractCatalog.ConfidentialShelterAddress]); }));
-        Assert.Throws<ArgumentException>((Action)(() => { PersonResolutionFsCellSchema.Generate([
+        Assert.Throws<InvalidDataException>(() => { PersonResolutionFsCellSchema.Generate([
+            PersonResolutionContractCatalog.ConfidentialShelterAddress]); });
+        Assert.Throws<ArgumentException>(() => { PersonResolutionFsCellSchema.Generate([
             PersonResolutionContractCatalog.FullName,
-            PersonResolutionContractCatalog.FullName]); }));
+            PersonResolutionContractCatalog.FullName]); });
     }
 
     [Test]
-    public void Schema_Does_Not_Contain_Fitted_Mu_Tf_Or_Thresholds()
+    public void Nominal_Schema_Uses_V9_Levels_Not_Generic_Exact_High_Partial()
     {
         var schema = PersonResolutionFsCellSchema.Generate([
             PersonResolutionContractCatalog.MotherName]);
+
         Assert.That(schema.Cells.Select(x => x.ComparisonLevel),
-            Does.Contain("MISSING"));
-        Assert.That(schema.Cells.Select(x => x.ComparisonLevel),
-            Does.Contain("DISAGREE"));
-        Assert.That(schema.Cells.All(x => x.AttributeCode == PersonResolutionContractCatalog.MotherName),
-            Is.True);
+            Is.EquivalentTo(Enum.GetNames<CompositeNominalLevelV9>()));
+        Assert.That(schema.Cells.Select(x => x.ComparisonLevel), Does.Contain("ExactFull"));
+        Assert.That(schema.Cells.Select(x => x.ComparisonLevel), Does.Contain("ExactFirstLast"));
+        Assert.That(schema.Cells.Select(x => x.ComparisonLevel), Does.Not.Contain("PARTIAL"));
+        Assert.That(schema.Cells.All(x =>
+            x.ComparisonContract == CompositeNominalComparisonV9.ContractVersion), Is.True);
+    }
+
+    [Test]
+    public void Schema_Carries_Role_Dependency_And_Social_Cross_Comparison_Without_Fitted_Values()
+    {
+        var schema = PersonResolutionFsCellSchema.Generate([
+            PersonResolutionContractCatalog.ContactPhone,
+            PersonResolutionContractCatalog.SocialName]);
+
+        Assert.That(schema.Cells.Where(x =>
+            x.AttributeCode == PersonResolutionContractCatalog.ContactPhone)
+            .All(x => x.EvidenceRole == PersonResolutionEvidenceRole.ReinforcementOnly
+                && x.DependencyPolicy == PersonResolutionDependencyPolicy.SharedContactWeak), Is.True);
+
+        Assert.That(schema.Cells.Where(x =>
+            x.AttributeCode == PersonResolutionContractCatalog.SocialName)
+            .All(x => x.CrossCompareWith.Contains(PersonResolutionContractCatalog.FullName)
+                && x.TfSource == CalibrationTfSource.None), Is.True);
     }
 }
