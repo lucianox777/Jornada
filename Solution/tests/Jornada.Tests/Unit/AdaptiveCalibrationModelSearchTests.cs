@@ -100,7 +100,7 @@ public sealed class AdaptiveCalibrationModelSearchTests
     {
         var report = AdaptiveCalibrationModelSearch.Evaluate(
             Request(Budget()), [new FakeAdapter("FAMILY_FS_V9", 920, 0),
-                new FakeAdapter("FAMILY_FUTURE", 980, 250)]);
+                new FakeAdapter("FAMILY_FUTURE", 980, 150)]);
         Assert.That(report.Status, Is.EqualTo("NO_MODEL_MEETS_DESCRIPTIVE_BUDGET"));
         Assert.That(report.SuggestedOptionId, Is.Null);
         Assert.That(report.AutomaticRecalibrationOrActivationAllowed, Is.False);
