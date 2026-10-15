@@ -84,7 +84,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
     {
         var pairs = Frame().Pairs.ToList();
         pairs.Add(new V9FsAdaptiveCandidatePair(
-            "TEST", Guid.NewGuid(), Guid.NewGuid(), true,
+            "TEST", "TEST-A", "TEST-A", true,
             "MARIA SILVA", "MARIA SILVA", "ANA COSTA", "ANA COSTA",
             Birth, Birth, 1));
 
@@ -112,7 +112,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
     private static V9FsAdaptiveCandidateFrame Frame()
     {
         var g = Enumerable.Range(1, 12)
-            .Select(i => Guid.Parse($"00000000-0000-4000-8000-{i:000000000000}"))
+            .Select(i => $"BASE-{i:00}")
             .ToArray();
         return new V9FsAdaptiveCandidateFrame(
             TrainSha, ValidationSha, TrainGroupsSha, ValidationGroupsSha,
@@ -130,7 +130,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
     }
 
     private static V9FsAdaptiveCandidatePair Pair(
-        string partition, Guid leftGroup, Guid rightGroup, bool isTrue,
+        string partition, string leftGroup, string rightGroup, bool isTrue,
         string leftName, string rightName, string leftMother, string rightMother,
         DateOnly leftBirth, DateOnly rightBirth, int degree) =>
         new(partition, leftGroup, rightGroup, isTrue,
