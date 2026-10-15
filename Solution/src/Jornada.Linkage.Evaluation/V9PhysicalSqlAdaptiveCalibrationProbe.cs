@@ -198,6 +198,9 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
                 foreach (var values in Cartesian(pass.Fields, byFeature))
                 {
                     var canonical = pass.PassId + "\u001e" + string.Join("\u001f", values);
+                    if (result.Count >= HardPairIncidenceCap)
+                        throw new InvalidDataException(
+                            "Projeção de assinaturas excedeu o limite físico antes da materialização SQL.");
                     result.Add(new SignatureRow(
                         observation.ObservationId,
                         observation.Partition,
