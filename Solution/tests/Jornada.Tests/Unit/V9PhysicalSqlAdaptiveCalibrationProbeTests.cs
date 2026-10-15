@@ -24,7 +24,7 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
             99, "TEST-1", "TEST", "G1", "MARIA", "ANA", new DateOnly(1980, 1, 1))).ToArray();
 
         Assert.That(
-            (AsyncTestDelegate)(async () => await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
+            (Func<Task>)(async () => await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
                 connection, rows, Passes(), Options(), Budget, new string('e', 64),
                 CancellationToken.None)),
             Throws.TypeOf<InvalidDataException>());
@@ -38,7 +38,7 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
         rows[2] = rows[2] with { BasePersonId = rows[0].BasePersonId };
 
         Assert.That(
-            (AsyncTestDelegate)(async () => await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
+            (Func<Task>)(async () => await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
                 connection, rows, Passes(), Options(), Budget, new string('e', 64),
                 CancellationToken.None)),
             Throws.TypeOf<InvalidDataException>());
@@ -51,7 +51,7 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
         var bad = new[] { LinkageBlockingPass.Create("BAD", ["not_a_real_feature"]) };
 
         Assert.That(
-            (AsyncTestDelegate)(async () => await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
+            (Func<Task>)(async () => await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
                 connection, BaseRows(), bad, Options(), Budget, new string('e', 64),
                 CancellationToken.None)),
             Throws.TypeOf<InvalidDataException>());
@@ -63,7 +63,7 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
         using var connection = new SqlConnection();
 
         Assert.That(
-            (AsyncTestDelegate)(async () => await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
+            (Func<Task>)(async () => await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
                 connection, BaseRows(), Passes(), Options(), Budget, new string('e', 64),
                 CancellationToken.None)),
             Throws.TypeOf<InvalidOperationException>()
