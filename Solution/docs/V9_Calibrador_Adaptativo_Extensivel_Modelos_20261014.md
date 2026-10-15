@@ -85,3 +85,26 @@ ausência de ativação. Os resultados de adapters fictícios
 **Nenhuma modificação** em V8, V9/DT-15 ativo, Gold,
 Calibrador atualmente ativo, FS/TF/m/u/prior operacionais,
 IBGE original, HML/PROD, JornadaLocal ou NODE/NAS.
+
+
+## Integração FS V9 real no coordenador — 15/10/2026
+
+A PR #1093 acrescenta `V9FellegiSunterAdaptiveCalibrationAdapter`, primeira família concreta do coordenador que atravessa o scorer C# real em vez de usar adaptadores fictícios. O contrato recebe um frame candidato do ramo probabilístico sem CPF, já materializado pelo blocking, com partições TRAIN/VALIDATION disjuntas por identidade-base e fingerprints SHA-256.
+
+Em TRAIN, para cada opção versionada de `alpha` e threshold, o adaptador:
+
+1. exige o catálogo/esquema V9 corrigido da #1092;
+2. recomputa os níveis de pessoa e mãe via `CompositeNominalComparisonV9`;
+3. estima as 81 células conjuntas m/u no universo candidato recebido;
+4. estima o prior no mesmo frame;
+5. estima a distribuição binária de nascimento no mesmo TRAIN;
+6. congela células/parâmetros por SHA-256 antes de qualquer leitura de VALIDATION.
+
+Em VALIDATION, o mesmo fit é avaliado sem refit por `FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown`, produzindo TP, FP, recall aceito, FDR pontual, abstenções e fanout P99 para o `AdaptiveCalibrationModelSearch`. TEST é rejeitado pelo contrato e a saída continua não operacional: não persiste snapshot, não ativa V9/DT-15 e não autoriza recalibração automática.
+
+### Limites explícitos desta etapa
+
+- A V1 ainda **não aplica TF positivo**. Isso é deliberado: não inventar frequência ou tratar ausência de referência como TF neutra. A integração da política TF da #1092 deve ser um passo separado, com referência/unidade compatíveis e parâmetros versionados.
+- O adaptador aceita um frame candidato materializado, mas #1093 ainda **não é o leitor do SQL Server físico**. O próximo incremento deve produzir esse frame a partir do censo SQL congelado, preservando exatamente o ruleset/fingerprint e sem `TOP N`.
+- FDR nesta etapa é pontual em VALIDATION; não é UCB de certificação.
+- O TEST histórico das seeds 42/43/44 permanece consumido; a certificação futura usa novo TEST não observado.
