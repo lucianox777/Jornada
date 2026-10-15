@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Jornada.Contracts;
+using Jornada.Linkage.Runner;
 
 namespace Jornada.Linkage.Parameters.Worker;
 
