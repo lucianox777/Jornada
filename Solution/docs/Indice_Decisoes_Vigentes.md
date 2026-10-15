@@ -1,3 +1,5 @@
+> **Decisão canônica de 14/10/2026 — Calibrador único adaptativo:** [Calibrador V9 C# único e definitivo; melhores parâmetros V9 são do bootstrap congelado em `ref` (não definitivos), com calibrações futuras manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). A decisão é normativa; a implementação permanece pendente na issue #1089. Documentos e números experimentais históricos não equivalem a certificação operacional.
+
 > **Decisão de 09/10/2026 — DT-23:** [diagnóstico de suficiência](DT23_Diagnostico_Automatico_Suficiencia_FS.md) deve ser automático, periódico e read-only; **calibração FS manual por demanda**, **ativação governada**. O ciclo automático ainda não está implementado. A PR #920 já foi integrada à master com persistência versionada e prévia somente leitura no Monitor, mas sem coletor auditável nem execução periódica; a prévia permanece `INDETERMINADO`/`UNVERIFIED` e não certifica suficiência. A subida do sistema verifica/carrega referências congeladas, mas não calibra.
 
 > **Nota editorial — 09/10/2026:** o índice de decisões de

@@ -1,3 +1,5 @@
+> **Decisão vigente (14/10/2026):** [Calibrador V9 C# único e definitivo; parâmetros iniciais do bootstrap congelados em `ref`, não permanentes; calibrações futuras manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). Implementação ainda em andamento na issue #1089; não confundir decisão com entrega ou ativação V9.
+
 # Estado técnico atual — atualização de engenharia 09/10/2026
 
 **Base observada:** `master` em `b4f74cb34e4346191ed58010b3d6b5cbb2db7e65` após #859, candidata v5.00/Schema 3.70; última release selada e precedência normativa continuam definidos por `RELEASE_INFO.txt` e pela Especificação Técnica publicada. Este bloco prevalece, **somente quanto ao estado de implementação em DEV/CI**, sobre as fotografias datadas posteriores neste arquivo; não altera decisões normativas nem aprova HML/Produção. Consulte o [manual do sistema](Manual_Sistema_Consolidado_20261009.md), [Console atual](Console_DEV_Supervisao_Atual.md), [índice documental](Indice_Acervo_Documental.md) e Actions da HEAD exata.
