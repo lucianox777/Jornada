@@ -12,7 +12,8 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public sealed record V9FsAdaptiveCandidatePair(
     string Partition,
-    Guid IdentityGroupId,
+    Guid LeftIdentityGroupId,
+    Guid RightIdentityGroupId,
     bool IsTruePair,
     string? LeftPersonName,
     string? RightPersonName,
@@ -230,13 +231,14 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         var validPartitions = new HashSet<string>(["TRAIN", "VALIDATION"], StringComparer.Ordinal);
         if (frame.Pairs.Any(x => x is null
                 || !validPartitions.Contains(x.Partition)
-                || x.IdentityGroupId == Guid.Empty
-                || x.CandidateDegreeForSource <= 0))
+                || x.LeftIdentityGroupId == Guid.Empty
+                || x.RightIdentityGroupId == Guid.Empty
+                || x.CandidateDegreeForSource <= 0
+                || (x.IsTruePair && x.LeftIdentityGroupId != x.RightIdentityGroupId)
+                || (!x.IsTruePair && x.LeftIdentityGroupId == x.RightIdentityGroupId)))
             throw new InvalidDataException("Frame FS V9 contém partição/grupo/fanout inválido.");
-        var trainGroups = frame.Pairs.Where(x => x.Partition == "TRAIN")
-            .Select(x => x.IdentityGroupId).ToHashSet();
-        var validationGroups = frame.Pairs.Where(x => x.Partition == "VALIDATION")
-            .Select(x => x.IdentityGroupId).ToHashSet();
+        var trainGroups = IdentityGroups("TRAIN");
+        var validationGroups = IdentityGroups("VALIDATION");
         if (trainGroups.Count < 2 || validationGroups.Count < 2 || trainGroups.Overlaps(validationGroups))
             throw new InvalidDataException("TRAIN/VALIDATION devem ser disjuntos por identidade-base.");
     }
@@ -250,16 +252,30 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             || slice.IndependentIdentityPartitionFingerprintSha256 != identitySha)
             throw new InvalidDataException("Slice adaptativo não coincide com o frame FS V9 congelado.");
 
-        var groups = frame.Pairs.Where(x => x.Partition == partition)
-            .Select(x => x.IdentityGroupId).Distinct().Count();
+        var groups = IdentityGroups(partition).Count;
         if (slice.DistinctIdentityGroups != groups)
             throw new InvalidDataException("Contagem de grupos independentes diverge do frame FS V9.");
     }
 
     private static void RequireClassSupport(V9FsAdaptiveCandidatePair[] rows, string label)
     {
-        if (rows.Length < 2 || rows.Select(x => x.IdentityGroupId).Distinct().Count() < 2)
-            throw new InvalidDataException($"TRAIN {label} exige dois grupos independentes.");
+        var identities = rows.SelectMany(x => new[]
+        {
+            x.LeftIdentityGroupId, x.RightIdentityGroupId
+        }).Distinct().Count();
+        if (rows.Length < 2 || identities < 2)
+            throw new InvalidDataException($"TRAIN {label} exige suporte de ao menos duas identidades.");
+    }
+
+    private HashSet<Guid> IdentityGroups(string partition)
+    {
+        var groups = new HashSet<Guid>();
+        foreach (var pair in frame.Pairs.Where(x => x.Partition == partition))
+        {
+            groups.Add(pair.LeftIdentityGroupId);
+            groups.Add(pair.RightIdentityGroupId);
+        }
+        return groups;
     }
 
     private static Dictionary<(CompositeNominalLevelV9 Person, CompositeNominalLevelV9 Mother), int>
