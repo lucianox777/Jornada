@@ -105,6 +105,60 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             Throws.TypeOf<InvalidDataException>());
     }
 
+    [Test]
+    public void Candidate_frame_is_snapshotted_before_train_and_validation()
+    {
+        var source = Frame();
+        var mutablePairs = source.Pairs.ToList();
+        var option = new V9FsAdaptiveOptionConfiguration("SNAPSHOT", .5m, .50m);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            source with { Pairs = mutablePairs }, [option]);
+        var reference = new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(), [option]);
+        var model = new AdaptiveCalibrationModelOption(
+            V9FellegiSunterAdaptiveCalibrationAdapter.Family,
+            V9FellegiSunterAdaptiveCalibrationAdapter.Version,
+            option.OptionId, option.FingerprintSha256);
+
+        // Mutar TRAIN e VALIDATION depois da construção não pode alterar o resultado.
+        mutablePairs[0] = mutablePairs[0] with { LeftPersonName = "ALTERADO" };
+        mutablePairs[4] = mutablePairs[4] with { RightMotherName = "ALTERADA" };
+        mutablePairs.Clear();
+
+        var train = Slice("TRAIN", TrainSha, TrainGroupsSha, 6);
+        var validation = Slice("VALIDATION", ValidationSha, ValidationGroupsSha, 6);
+        var actualFit = adapter.FitTrain(model, train);
+        var referenceFit = reference.FitTrain(model, train);
+        Assert.That(actualFit.FittedParametersFingerprintSha256,
+            Is.EqualTo(referenceFit.FittedParametersFingerprintSha256));
+        Assert.That(adapter.EvaluateValidation(actualFit, validation),
+            Is.EqualTo(reference.EvaluateValidation(referenceFit, validation)));
+    }
+
+    [Test]
+    public void Validation_rejects_forged_fit_configuration_or_training_provenance()
+    {
+        var option = new V9FsAdaptiveOptionConfiguration("PROVENANCE", .5m, .50m);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(), [option]);
+        var model = new AdaptiveCalibrationModelOption(
+            V9FellegiSunterAdaptiveCalibrationAdapter.Family,
+            V9FellegiSunterAdaptiveCalibrationAdapter.Version,
+            option.OptionId, option.FingerprintSha256);
+        var fit = adapter.FitTrain(model, Slice("TRAIN", TrainSha, TrainGroupsSha, 6));
+        var validation = Slice("VALIDATION", ValidationSha, ValidationGroupsSha, 6);
+
+        var forgedFits = new[]
+        {
+            fit with { ConfigurationFingerprintSha256 = new string('f', 64) },
+            fit with { TrainingCorpusFingerprintSha256 = new string('f', 64) },
+            fit with { OptionId = "OUTRA_OPCAO" },
+            fit with { TrainOnly = false }
+        };
+        foreach (var forged in forgedFits)
+            Assert.That(
+                (Action)(() => { _ = adapter.EvaluateValidation(forged, validation); }),
+                Throws.TypeOf<InvalidDataException>());
+    }
+
     private static AdaptiveCalibrationSlice Slice(
         string partition, string corpus, string groups, int count) =>
         new(partition, corpus, groups, count, true, false);
