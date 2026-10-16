@@ -86,6 +86,21 @@ class CleanCorrelatedSensitivityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"name eligibility"):
             m.compare(x,y)
 
+    def test_sparse_u_degree_mean_may_exceed_p95(self):
+        # With >95% zero-degree observations, p95=0 while a few
+        # nonzero observations make the arithmetic mean positive.
+        x,y=fixtures()
+        for profile in ("clean","correlated"):
+            for part in ("TRAIN","VALIDATION"):
+                x[profile]["results"][part]["metrics"]["UNION_EXPANDED"][
+                    "u_degree"]={"mean":0.01,"p95":0,"p99":1}
+                x[profile]["minimum_U_95pct_diagnostic"]["plans"][
+                    "greedy_pruned"]["measured"][part]["u_degree"]={
+                        "mean":0.01,"p95":0,"p99":1}
+        result=m.compare(x,y)
+        self.assertEqual(result["profiles"]["clean"]["observed"]["TRAIN"][
+            "expanded_19_cells"]["p95_u_degree"],0)
+
     def test_same_raw_corpus_or_test_evidence_forbidden(self):
         x,y=fixtures()
         x["clean"]["canonical_observations_sha256"]=x["correlated"][
