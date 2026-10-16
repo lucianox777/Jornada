@@ -92,7 +92,7 @@ def compare(reports,manifests):
                 values=(degree["mean"],degree["p95"],degree["p99"])
                 if (any(type(v) not in (int,float) or not math.isfinite(v)
                         or v<0 for v in values)
-                    or not values[0]<=values[1]<=values[2]):
+                    or not values[1]<=values[2]):
                     raise ValueError("invalid U fanout distribution")
                 return {"M":m["M"],"U":m["U"],"global_recall":m["M"]/total,
                         "mean_u_degree":values[0],
