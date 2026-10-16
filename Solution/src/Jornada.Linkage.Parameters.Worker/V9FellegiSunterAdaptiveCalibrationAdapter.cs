@@ -68,7 +68,6 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
     {
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(options);
-        this.frame = frame;
         RequireSha(frame.TrainCorpusFingerprintSha256, "TRAIN corpus");
         RequireSha(frame.ValidationCorpusFingerprintSha256, "VALIDATION corpus");
         RequireSha(frame.TrainIdentityFingerprintSha256, "TRAIN identities");
@@ -78,6 +77,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             throw new InvalidDataException("TRAIN e VALIDATION precisam de fingerprints distintos.");
         if (frame.Pairs is null || frame.Pairs.Count == 0)
             throw new ArgumentException("Frame candidato vazio.");
+        // A lista fornecida pelo chamador pode ser mutável; congele um snapshot antes de validar.
+        // Os pares são records com campos imutáveis (strings, DateOnly e valores escalares).
+        this.frame = frame with { Pairs = Array.AsReadOnly(frame.Pairs.ToArray()) };
 
         var byId = options.ToArray();
         if (byId.Length is < 1 or > 64
@@ -157,7 +159,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             ["U_DATA_NASCIMENTO_DIFF"] = (uBirth.Diff + alpha) / (uBirth.Total + 2m * alpha)
         };
 
-        var fitSha = FittedFingerprintSha256(config, cells, parameters, schema.FingerprintSha256);
+        var fitSha = FittedFingerprintSha256(config, cells, parameters, schema.FingerprintSha256,
+            frame.TrainCorpusFingerprintSha256, frame.TrainIdentityFingerprintSha256);
         fits[fitSha] = new FrozenFit(fitSha, config.OptionId, config.DecisionThreshold,
             Array.AsReadOnly(cells.ToArray()),
             new Dictionary<string, decimal>(parameters, StringComparer.Ordinal));
@@ -175,8 +178,13 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         ValidateSlice(validation, "VALIDATION", frame.ValidationCorpusFingerprintSha256,
             frame.ValidationIdentityFingerprintSha256);
         if (fitted.ModelFamily != Family || fitted.AdapterVersion != Version
-            || !fitted.TrainOnly || !fits.TryGetValue(fitted.FittedParametersFingerprintSha256, out var frozen)
-            || frozen.OptionId != fitted.OptionId)
+            || !fitted.TrainOnly
+            || fitted.TrainingCorpusFingerprintSha256 != frame.TrainCorpusFingerprintSha256
+            || !options.TryGetValue(fitted.OptionId, out var config)
+            || fitted.ConfigurationFingerprintSha256 != config.FingerprintSha256
+            || !fits.TryGetValue(fitted.FittedParametersFingerprintSha256, out var frozen)
+            || frozen.OptionId != fitted.OptionId
+            || frozen.FingerprintSha256 != fitted.FittedParametersFingerprintSha256)
             throw new InvalidDataException("Fit V9 desconhecido ou não congelado por este adaptador.");
 
         var rows = frame.Pairs.Where(x => x.Partition == "VALIDATION").ToArray();
@@ -311,12 +319,16 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         V9FsAdaptiveOptionConfiguration config,
         IReadOnlyList<FellegiSunterJointNominalCellV9> cells,
         IReadOnlyDictionary<string, decimal> parameters,
-        string schemaSha)
+        string schemaSha,
+        string trainCorpusSha,
+        string trainIdentitySha)
     {
         var sb = new StringBuilder()
             .Append(Version).Append('\n')
             .Append(config.FingerprintSha256).Append('\n')
-            .Append(schemaSha).Append('\n');
+            .Append(schemaSha).Append('\n')
+            .Append(trainCorpusSha).Append('\n')
+            .Append(trainIdentitySha).Append('\n');
         foreach (var cell in cells.OrderBy(x => x.Person).ThenBy(x => x.Mother))
             sb.Append(cell.Person).Append('|').Append(cell.Mother).Append('|')
                 .Append(cell.M.ToString(System.Globalization.CultureInfo.InvariantCulture)).Append('|')
