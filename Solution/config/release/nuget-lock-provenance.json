@@ -267,7 +267,7 @@
       },
       {
         "path": "src/Jornada.Linkage.Evaluation/packages.lock.json",
-        "sha256": "f49b9a4c7bd2df70d34fdf07e01093529f47183fc33a22fc5ef64e5cf01743d3"
+        "sha256": "dbfe1843d32b654f3bbd494e9181e957ed94b926ecaa7542721221b0d0f3784b"
       },
       {
         "path": "src/Jornada.Linkage.Parameters.Worker/packages.lock.json",
@@ -303,11 +303,11 @@
       },
       {
         "path": "tests/Jornada.Integration.Tests/packages.lock.json",
-        "sha256": "6573a01d7e133c1261c574036ea7da3f250b95a2e317e81e66d0100b8ba76e5e"
+        "sha256": "6aaaa84c35c7fa44c56f34c2a20d46dde10de746e3448ff832228bcf496121b5"
       },
       {
         "path": "tests/Jornada.Tests/packages.lock.json",
-        "sha256": "c8b44ad5dd932f162d9a043a0784f00aa68ffbef0b48d2e06c256364a2ababec"
+        "sha256": "9c582069d0f5d081a47df2bd372db979569379b7d122bfcb62034bab00e2902c"
       }
     ]
   }
