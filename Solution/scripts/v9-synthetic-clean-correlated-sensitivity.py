@@ -7,6 +7,7 @@ TEST remains excluded from selection; synthetic data cannot certify city scale.
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 
 VERSION="V9_SYNTHETIC_CLEAN_CORRELATED_SENSITIVITY_V1"
@@ -74,17 +75,29 @@ def compare(reports,manifests):
             total=data["all_no_cpf_truth_M"]
             if type(total) is not int or total<=0:
                 raise ValueError("no no-CPF truth denominator")
+            eligible=data["name_eligible_truth_M"]
+            observations=data["name_eligible_observations"]
+            if (type(eligible) is not int or not 0<=eligible<=total
+                or type(observations) is not int or observations<0):
+                raise ValueError("invalid name eligibility denominator")
             expanded=data["metrics"]["UNION_EXPANDED"]
             fit=plan["plans"]["greedy_pruned"]
             def summary(m):
                 if m is None:
                     return None
-                if not (0<=m["M"]<=total and m["U"]>=0):
+                if (type(m["M"]) is not int or type(m["U"]) is not int
+                    or not 0<=m["M"]<=total or m["U"]<0):
                     raise ValueError("candidate M/U not valid")
+                degree=m["u_degree"]
+                values=(degree["mean"],degree["p95"],degree["p99"])
+                if (any(type(v) not in (int,float) or not math.isfinite(v)
+                        or v<0 for v in values)
+                    or not values[1]<=values[2]):
+                    raise ValueError("invalid U fanout distribution")
                 return {"M":m["M"],"U":m["U"],"global_recall":m["M"]/total,
-                        "mean_u_degree":m["u_degree"]["mean"],
-                        "p95_u_degree":m["u_degree"]["p95"],
-                        "p99_u_degree":m["u_degree"]["p99"]}
+                        "mean_u_degree":values[0],
+                        "p95_u_degree":values[1],
+                        "p99_u_degree":values[2]}
             per_split[part]={
                 "all_no_cpf_truth_M":total,
                 "name_eligible_truth_M":data["name_eligible_truth_M"],
