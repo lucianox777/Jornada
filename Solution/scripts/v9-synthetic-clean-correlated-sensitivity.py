@@ -98,16 +98,26 @@ def compare(reports,manifests):
                         "mean_u_degree":values[0],
                         "p95_u_degree":values[1],
                         "p99_u_degree":values[2]}
+            expanded_summary=summary(expanded)
+            greedy_summary=summary(fit["measured"][part]) if fit else None
+            confidence=(report["independent_base_identity_recall_confidence"]
+                        [part]["greedy_pruned"]["lower_one_sided_95"]
+                        if fit else None)
+            if confidence is not None and (
+                type(confidence) not in (int,float)
+                or not math.isfinite(confidence)
+                or not 0<=confidence<=1
+                or confidence>greedy_summary["global_recall"]):
+                raise ValueError("invalid bootstrap recall confidence bound")
             per_split[part]={
                 "all_no_cpf_truth_M":total,
                 "name_eligible_truth_M":data["name_eligible_truth_M"],
                 "name_eligible_observations":data["name_eligible_observations"],
-                "expanded_19_cells":summary(expanded),
+                "expanded_19_cells":expanded_summary,
                 "TRAIN_selected_greedy_pruned":
-                    summary(fit["measured"][part]) if fit else None,
+                    greedy_summary,
                 "bootstrap_lower_one_sided_95_greedy":
-                    report["independent_base_identity_recall_confidence"][part]["greedy_pruned"]["lower_one_sided_95"]
-                    if fit else None
+                    confidence
             }
         summaries[profile]={
             "canonical_sha256":report["canonical_observations_sha256"],

@@ -101,6 +101,14 @@ class CleanCorrelatedSensitivityTests(unittest.TestCase):
         self.assertEqual(result["profiles"]["clean"]["observed"]["TRAIN"][
             "expanded_19_cells"]["p95_u_degree"],0)
 
+    def test_reject_invalid_bootstrap_lower_bound(self):
+        for bad in (float("nan"), float("inf"), -0.1, 1.01, 0.96, True):
+            x,y=fixtures()
+            x["clean"]["independent_base_identity_recall_confidence"][
+                "VALIDATION"]["greedy_pruned"]["lower_one_sided_95"]=bad
+            with self.assertRaisesRegex(ValueError,"bootstrap recall confidence"):
+                m.compare(x,y)
+
     def test_same_raw_corpus_or_test_evidence_forbidden(self):
         x,y=fixtures()
         x["clean"]["canonical_observations_sha256"]=x["correlated"][
