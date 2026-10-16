@@ -69,6 +69,23 @@ class CleanCorrelatedSensitivityTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"different reference or seed"):
             m.compare(x,y)
 
+    def test_invalid_candidate_counts_and_fanout_fail_closed(self):
+        for bad in (True, -1, 101, 2.5):
+            x,y=fixtures()
+            x["clean"]["results"]["TRAIN"]["metrics"]["UNION_EXPANDED"]["M"]=bad
+            with self.assertRaisesRegex(ValueError,"candidate M/U"):
+                m.compare(x,y)
+        for bad in (float("nan"), float("inf"), -1):
+            x,y=fixtures()
+            x["clean"]["results"]["TRAIN"]["metrics"]["UNION_EXPANDED"][
+                "u_degree"]["p99"]=bad
+            with self.assertRaisesRegex(ValueError,"invalid U fanout"):
+                m.compare(x,y)
+        x,y=fixtures()
+        x["clean"]["results"]["TRAIN"]["name_eligible_truth_M"]=101
+        with self.assertRaisesRegex(ValueError,"name eligibility"):
+            m.compare(x,y)
+
     def test_same_raw_corpus_or_test_evidence_forbidden(self):
         x,y=fixtures()
         x["clean"]["canonical_observations_sha256"]=x["correlated"][
