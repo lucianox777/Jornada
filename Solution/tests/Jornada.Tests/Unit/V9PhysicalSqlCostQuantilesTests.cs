@@ -27,4 +27,40 @@ public sealed class V9PhysicalSqlCostQuantilesTests
         Assert.That((Action)(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([-1d])),
             Throws.TypeOf<InvalidDataException>());
     }
+    [Test]
+    public void Repeated_materialization_quantiles_use_one_run_per_sample()
+    {
+        var runs = Enumerable.Range(1, 100)
+            .Select(x => new V9PhysicalSqlMeasuredTimings(1, 2, 3, x, 5));
+        var result = V9PhysicalSqlCostQuantiles.FromRepeatedMaterializationRuns(runs);
+        Assert.That(result.SampleCount, Is.EqualTo(100));
+        Assert.That(result.P95Milliseconds, Is.EqualTo(95));
+        Assert.That(result.P99Milliseconds, Is.EqualTo(99));
+    }
+
+    [Test]
+    public void Repeated_materialization_at_minimum_sample_count_has_p99_equal_to_max()
+    {
+        var runs = Enumerable.Range(1, 20)
+            .Select(x => new V9PhysicalSqlMeasuredTimings(1, 2, 3, x, 5));
+        var result = V9PhysicalSqlCostQuantiles.FromRepeatedMaterializationRuns(runs);
+        Assert.That(result.SampleCount, Is.EqualTo(20));
+        Assert.That(result.P95Milliseconds, Is.EqualTo(19));
+        Assert.That(result.P99Milliseconds, Is.EqualTo(20));
+        Assert.That(result.MaximumMilliseconds, Is.EqualTo(20));
+    }
+
+    [Test]
+    public void Repeated_materialization_rejects_insufficient_or_invalid_runs()
+    {
+        var few = Enumerable.Range(1, 19)
+            .Select(x => new V9PhysicalSqlMeasuredTimings(1, 2, 3, x, 5));
+        Assert.That((Action)(() => V9PhysicalSqlCostQuantiles.FromRepeatedMaterializationRuns(few)),
+            Throws.TypeOf<InvalidDataException>());
+        var invalid = Enumerable.Range(1, 20)
+            .Select(x => new V9PhysicalSqlMeasuredTimings(1, 2, double.NaN, x, 5));
+        Assert.That((Action)(() => V9PhysicalSqlCostQuantiles.FromRepeatedMaterializationRuns(invalid)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
 }
