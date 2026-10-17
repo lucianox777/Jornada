@@ -103,7 +103,7 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             throw new InvalidDataException("Ruleset contém feature fora do catálogo do Calibrador.");
 
         var signatures = BuildSignatures(observations, canonicalPasses);
-        var preflight = CountPairIncidences(signatures);
+        var preflight = CountPairIncidences(signatures, observations);
         if (preflight > HardPairIncidenceCap)
             throw new InvalidDataException(
                 $"Censo físico recusado antes do join: {preflight} incidências excedem {HardPairIncidenceCap}.");
@@ -293,20 +293,41 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         return Walk(0);
     }
 
-    private static long CountPairIncidences(IReadOnlyCollection<SignatureRow> signatures)
+    /// <summary>
+    /// Upper bound on physical SQL join incidences, excluding same-manager pairs
+    /// exactly as the materialization query does. Duplicate pass hits still count
+    /// separately here, so the cap remains conservative for the distinct union.
+    /// </summary>
+    public static long CountCrossManagerPairIncidences(
+        IReadOnlyCollection<(int ObservationId, string Partition, string PassId, string Signature)> signatures,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations)
     {
+        ArgumentNullException.ThrowIfNull(signatures);
+        ArgumentNullException.ThrowIfNull(observations);
+        var gestores = observations.ToDictionary(x => x.ObservationId, x => x.Gestor);
         decimal total = 0m;
-        foreach (var group in signatures.GroupBy(
-            x => (x.Partition, x.PassId, x.Signature)))
+        foreach (var group in signatures.GroupBy(x => (x.Partition, x.PassId, x.Signature)))
         {
-            var n = group.Select(x => x.ObservationId).Distinct().LongCount();
-            checked { total += (decimal)n * (n - 1L) / 2m; }
-            if (total > HardPairIncidenceCap)
-                return HardPairIncidenceCap + 1L;
+            long prior = 0;
+            foreach (var count in group.Select(x => x.ObservationId).Distinct()
+                         .GroupBy(id => gestores[id], StringComparer.Ordinal)
+                         .Select(g => g.LongCount()))
+            {
+                total += (decimal)prior * count;
+                if (total > HardPairIncidenceCap)
+                    return HardPairIncidenceCap + 1L;
+                prior = checked(prior + count);
+            }
         }
-
         return checked((long)total);
     }
+
+    private static long CountPairIncidences(
+        IReadOnlyCollection<SignatureRow> signatures,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations) =>
+        CountCrossManagerPairIncidences(
+            signatures.Select(x => (x.ObservationId, x.Partition, x.PassId, x.Signature)).ToArray(),
+            observations);
 
     private static async Task RequireHarnessAsync(
         SqlConnection connection, CancellationToken cancellationToken)
