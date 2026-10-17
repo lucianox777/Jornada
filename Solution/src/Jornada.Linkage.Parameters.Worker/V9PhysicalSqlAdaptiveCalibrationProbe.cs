@@ -26,7 +26,11 @@ public sealed record V9PhysicalCalibrationRunResult(
     long ValidationCandidatePairs,
     int TrainDistinctBasePeople,
     int ValidationDistinctBasePeople,
-    AdaptiveCalibrationStudyReport CalibrationReport);
+    AdaptiveCalibrationStudyReport CalibrationReport,
+    long TrainEligibleTruePairsBeforeBlocking = 0,
+    long ValidationEligibleTruePairsBeforeBlocking = 0,
+    long TrainTruePairsRecoveredBySql = 0,
+    long ValidationTruePairsRecoveredBySql = 0);
 
 /// <summary>
 /// Calibration-only physical SQL bridge. It accepts TRAIN/VALIDATION observations only,
@@ -37,7 +41,7 @@ public sealed record V9PhysicalCalibrationRunResult(
 /// </summary>
 public static class V9PhysicalSqlAdaptiveCalibrationProbe
 {
-    public const string Version = "V9_PHYSICAL_SQL_ADAPTIVE_FS_TRAIN_VALIDATION_V1";
+    public const string Version = "V9_PHYSICAL_SQL_ADAPTIVE_FS_TRAIN_VALIDATION_V2";
     public const int HardPairIncidenceCap = 1_000_000;
 
     private sealed record SignatureRow(
@@ -81,6 +85,12 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         if (trainBases.Overlaps(validationBases))
             throw new InvalidDataException("Vazamento de identidade entre TRAIN e VALIDATION.");
 
+        // Count cross-manager true observation-pairs BEFORE any blocking pass.
+        // This denominator includes M pairs missed by every SQL rule. Comparing
+        // against only M_sql would silently inflate blocking recall.
+        var trainEligibleM = CountEligibleTruePairsAcrossManagers(observations, "TRAIN");
+        var validationEligibleM = CountEligibleTruePairsAcrossManagers(observations, "VALIDATION");
+
         var canonicalPasses = passes
             .Select(p => LinkageBlockingPass.Create(p.PassId, p.Fields))
             .OrderBy(p => p.PassId, StringComparer.Ordinal)
@@ -121,6 +131,12 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             || trainRows.All(x => x.IsTruePair) || trainRows.All(x => !x.IsTruePair)
             || validationRows.All(x => x.IsTruePair) || validationRows.All(x => !x.IsTruePair))
             throw new InvalidDataException("TRAIN/VALIDATION físicos precisam conter M e U.");
+
+        var trainRecoveredM = trainRows.LongCount(x => x.IsTruePair);
+        var validationRecoveredM = validationRows.LongCount(x => x.IsTruePair);
+        if (trainRecoveredM > trainEligibleM || validationRecoveredM > validationEligibleM)
+            throw new InvalidDataException(
+                "M recuperado no SQL excede universo elegível pré-blocking: denominador inconsistente.");
 
         var blockingFingerprint = BlockingFingerprint(canonicalPasses);
         var trainCorpusSha = CorpusFingerprint("TRAIN", observations, blockingFingerprint);
@@ -171,7 +187,40 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             validationRows.LongLength,
             trainPairBases.Count,
             validationPairBases.Count,
-            report);
+            report,
+            trainEligibleM,
+            validationEligibleM,
+            trainRecoveredM,
+            validationRecoveredM);
+    }
+
+    /// <summary>
+    /// Number of true observation pairs across distinct gestores in the specified
+    /// split, before blocking. One pair is counted once (unoriented), regardless
+    /// of how many SQL passes could later retrieve it. No CPF/TF is inferred.
+    /// </summary>
+    public static long CountEligibleTruePairsAcrossManagers(
+        IEnumerable<V9PhysicalCalibrationObservation> observations, string partition)
+    {
+        ArgumentNullException.ThrowIfNull(observations);
+        if (partition is not ("TRAIN" or "VALIDATION"))
+            throw new ArgumentException("Partição inválida no denominador M.", nameof(partition));
+
+        long eligible = 0;
+        foreach (var baseGroup in observations.Where(x => x.Partition == partition)
+                     .GroupBy(x => x.BasePersonId, StringComparer.Ordinal))
+        {
+            long priorGestores = 0;
+            foreach (var count in baseGroup.GroupBy(x => x.Gestor, StringComparer.Ordinal)
+                         .Select(x => x.LongCount()))
+            {
+                // Each observation from a new gestor can form a pair with
+                // every previously seen gestor; same-gestor pairs are ineligible.
+                eligible = checked(eligible + checked(priorGestores * count));
+                priorGestores = checked(priorGestores + count);
+            }
+        }
+        return eligible;
     }
 
     private static List<SignatureRow> BuildSignatures(
