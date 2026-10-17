@@ -1,3 +1,12 @@
+> **Auditoria do master em 17/10/2026 (649fc784):** a leitura direta dos caminhos
+> `scripts/console-private-worker-cancel-oneoff.py` e
+> `scripts/test-console-private-worker-cancel-oneoff.py` retornou 404.
+> Assim, a descrição histórica do helper abaixo **não comprova que o
+> executável esteja presente no master atual**. Localizar a implementação
+> efetivamente integrada antes de qualquer ligação HTTP/UI; na ausência
+> dela, a entrega inclui implementar e testar o helper sob a allowlist
+> privada. Não executar Docker nem inferir aceite a partir deste texto.
+>
 > **Incremento técnico em avaliação — C3.3b3b0 (09/10/2026):**
 > `scripts/console-private-worker-cancel-oneoff.py` é um **helper
 > ainda NÃO conectado à Console**. Ele exige CI DEV GitHub efêmero,
