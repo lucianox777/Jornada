@@ -34,6 +34,11 @@ public sealed record V9PhysicalCalibrationRunResult(
     long ValidationTruePairsRecoveredBySql = 0,
     V9PhysicalSqlMeasuredTimings? PhysicalSqlTimings = null);
 
+/// <summary>
+/// Observed wall-clock duration of each SQL phase for one physical probe run.
+/// The values are not repeated-run latency percentiles and must not be used
+/// as a P95/P99 SLA or as evidence of production readiness.
+/// </summary>
 public sealed record V9PhysicalSqlMeasuredTimings(
     double CreateTablesMilliseconds,
     double BulkObservationsMilliseconds,
