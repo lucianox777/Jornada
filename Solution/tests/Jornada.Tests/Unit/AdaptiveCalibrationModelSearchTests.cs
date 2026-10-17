@@ -66,6 +66,19 @@ public sealed class AdaptiveCalibrationModelSearchTests
         => new(AdaptiveCalibrationPreviewBudget.CurrentVersion, Study, 0.95, 0.01, 50, 500);
 
     [Test]
+    public void All_Accepted_Links_False_Always_Fails_Preliminary_Fdr_Screen()
+    {
+        var report = AdaptiveCalibrationModelSearch.Evaluate(
+            Request(Budget()), [new FakeAdapter("FAMILY_FS_V9", 0, 200),
+                                new FakeAdapter("FAMILY_FUTURE", 0, 200)]);
+        Assert.That(report.Options.All(x => x.ObservedAcceptedFdrPoint == 1d), Is.True);
+        Assert.That(report.Options.All(x => x.NominalPairwiseFdrUpper95 == 1d), Is.True);
+        Assert.That(report.Options.All(x => !x.MeetsNecessaryNominalFdrScreen), Is.True);
+        Assert.That(report.SuggestedOptionId, Is.Null);
+        Assert.That(report.OperationalModelCreated, Is.False);
+    }
+
+    [Test]
     public void Family_Agnostic_Search_Can_Suggest_Better_Of_Two_Models_Without_Promotion()
     {
         var fs = new FakeAdapter("FAMILY_FS_V9", 965, 3);
