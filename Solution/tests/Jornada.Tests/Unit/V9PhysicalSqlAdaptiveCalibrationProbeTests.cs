@@ -178,7 +178,7 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
     public void Physical_sql_timing_contract_keeps_distinct_phase_measurements()
     {
         var timings = new V9PhysicalSqlMeasuredTimings(1, 2, 3, 4, 5);
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(timings.CreateTablesMilliseconds, Is.EqualTo(1));
             Assert.That(timings.BulkObservationsMilliseconds, Is.EqualTo(2));
