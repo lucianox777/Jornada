@@ -87,7 +87,9 @@ public sealed record AdaptiveCalibrationOptionResult(
     AdaptiveCalibrationHoldoutMetrics Validation,
     double GlobalAcceptedRecall,
     double? ObservedAcceptedFdrPoint,
-    bool MeetsDescriptiveBudgetOnly);
+    bool MeetsDescriptiveBudgetOnly,
+    double? NominalPairwiseFdrUpper95 = null,
+    bool MeetsNecessaryNominalFdrScreen = false);
 
 public sealed record AdaptiveCalibrationStudyReport(
     string Version,
@@ -105,11 +107,14 @@ public sealed record AdaptiveCalibrationStudyReport(
 /// Diagnostic pluggable model-family search: TRAIN fit, VALIDATION assessment,
 /// optional *descriptive* budget ranking. There is no TEST access, no model
 /// persistence, no activation API and no automatic recalibration trigger.
-/// Point FDR is not an upper confidence bound, so suggestion is NOT approval.
+/// Wilson's one-sided 95% UCB is only a *necessary* nominal pairwise screen:
+/// candidate pairs can share identities and are not independent trials.
+/// The correlated identity-level FDR upper bound, SQL/Rank/Resolve parity and
+/// unseen TEST remain unmeasured. A suggestion is NEVER approval.
 /// </summary>
 public static class AdaptiveCalibrationModelSearch
 {
-    public const string Version = "ADAPTIVE_CALIBRATION_MULTI_MODEL_TRAIN_VAL_DIAGNOSTIC_V1";
+    public const string Version = "ADAPTIVE_CALIBRATION_MULTI_MODEL_TRAIN_VAL_DIAGNOSTIC_V2";
 
     public static AdaptiveCalibrationStudyReport Evaluate(
         AdaptiveCalibrationStudyRequest request,
@@ -211,17 +216,24 @@ public static class AdaptiveCalibrationModelSearch
             var recall = (double)validation.TrueAcceptedLinks / validation.TruePairsWithoutCpf;
             double? fdrPoint = accepted > 0
                 ? (double)validation.FalseAcceptedLinks / accepted : null;
+            var nominalUpper95 = NominalWilsonUpper95(validation.FalseAcceptedLinks, accepted);
             var eligible = budget is not null && fdrPoint.HasValue
                 && recall >= budget.MinimumGlobalAcceptedRecall
                 && fdrPoint.Value <= budget.MaximumObservedAcceptedFdrPoint
                 && validation.BlockingFalseDegreeP99 <= budget.MaximumBlockingFalseDegreeP99
                 && validation.IndependentlyLabeledIdentityGroups >= budget.MinimumValidationIdentityGroups;
+            // Necessary, NOT sufficient: pair-level Wilson assumes independent Bernoulli
+            // trials, which does not hold when many accepted pairs share an identity.
+            // Never turn this nominal screen into an operational certificate.
+            var passesNominalScreen = eligible && nominalUpper95.HasValue
+                && nominalUpper95.Value <= budget!.MaximumObservedAcceptedFdrPoint;
             measured.Add(new AdaptiveCalibrationOptionResult(
                 option.ModelFamily, option.AdapterVersion, option.OptionId,
-                fit.FittedParametersFingerprintSha256, validation, recall, fdrPoint, eligible));
+                fit.FittedParametersFingerprintSha256, validation, recall, fdrPoint, eligible,
+                nominalUpper95, passesNominalScreen));
         }
 
-        var suggestion = measured.Where(x => x.MeetsDescriptiveBudgetOnly)
+        var suggestion = measured.Where(x => x.MeetsNecessaryNominalFdrScreen)
             .OrderByDescending(x => x.GlobalAcceptedRecall)
             .ThenBy(x => x.ObservedAcceptedFdrPoint)
             .ThenBy(x => x.Validation.BlockingFalseDegreeP99)
@@ -229,14 +241,30 @@ public static class AdaptiveCalibrationModelSearch
             .ThenBy(x => x.OptionId, StringComparer.Ordinal)
             .FirstOrDefault();
         var status = budget is null ? "NO_APPROVED_POLICY_DESCRIPTIVE_ONLY"
-            : suggestion is null ? "NO_MODEL_MEETS_DESCRIPTIVE_BUDGET"
-            : "SUGGESTION_ONLY_UNCERTIFIED_FDR_CONFIDENCE_AND_PHYSICAL_SQL";
+            : suggestion is null ? "NO_MODEL_MEETS_PRELIMINARY_FDR_SCREEN"
+            : "SUGGESTION_ONLY_UNCERTIFIED_GROUP_FDR_AND_PHYSICAL_SQL";
         return new AdaptiveCalibrationStudyReport(
             Version, request.StudyFingerprintSha256, status, measured,
             suggestion?.ModelFamily, suggestion?.OptionId,
             TestUsed: false, ConfidenceBoundForFdrMeasured: false,
             OperationalModelCreated: false,
             AutomaticRecalibrationOrActivationAllowed: false);
+    }
+
+    // One-sided 95% Wilson score limit for FP / accepted pairs (z = Phi^-1(.95)).
+    // Diagnostic only. It is not valid as an identity-cluster-aware risk bound.
+    // In particular, 0 FP out of 2 accepted has UCB ~0.575, not zero risk.
+    private static double? NominalWilsonUpper95(long fp, long accepted)
+    {
+        if (accepted == 0) return null;
+        const double z = 1.6448536269514722d;
+        var n = (double)accepted;
+        var p = fp / n;
+        var zSquared = z * z;
+        var variance = p * (1d - p) / n + zSquared / (4d * n * n);
+        return Math.Min(1d,
+            (p + zSquared / (2d * n) + z * Math.Sqrt(variance))
+            / (1d + zSquared / n));
     }
 
     private static void RequireSha(string? sha, string label)
