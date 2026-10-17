@@ -17,6 +17,21 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
         MinimumValidationIdentityGroups: 2);
 
     [Test]
+    public void Eligible_M_Excludes_Same_Manager_And_Never_Crosses_Splits()
+    {
+        var rows = new[]
+        {
+            new V9PhysicalCalibrationObservation(1, "BASE-1", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(2, "BASE-1", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(3, "BASE-1", "VALIDATION", "G2", null, null, null),
+            new V9PhysicalCalibrationObservation(4, "BASE-2", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(5, "BASE-2", "TRAIN", "G2", null, null, null)
+        };
+        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountEligibleTruePairsAcrossManagers(rows, "TRAIN"), Is.EqualTo(1));
+        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountEligibleTruePairsAcrossManagers(rows, "VALIDATION"), Is.Zero);
+    }
+
+    [Test]
     public void Rejects_test_partition_before_any_sql_command()
     {
         using var connection = new SqlConnection();
