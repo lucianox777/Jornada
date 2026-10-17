@@ -152,6 +152,29 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
     }
 
     [Test]
+    public void Physical_preflight_excludes_same_manager_and_counts_duplicate_pass_hits()
+    {
+        var rows = new[]
+        {
+            new V9PhysicalCalibrationObservation(1, "A", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(2, "B", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(3, "C", "TRAIN", "G2", null, null, null),
+            new V9PhysicalCalibrationObservation(4, "D", "VALIDATION", "G3", null, null, null)
+        };
+        var signatures = new (int ObservationId, string Partition, string PassId, string Signature)[]
+        {
+            (1, "TRAIN", "P1", "X"), (2, "TRAIN", "P1", "X"),
+            (3, "TRAIN", "P1", "X"), (1, "TRAIN", "P2", "X"),
+            (3, "TRAIN", "P2", "X"), (4, "VALIDATION", "P1", "X")
+        };
+        // P1: 2 cross-manager hits (not 3); P2: 1 hit; split is isolated.
+        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountCrossManagerPairIncidences(
+            signatures, rows), Is.EqualTo(3));
+        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountCrossManagerPairIncidences(
+            signatures.Where(x => x.ObservationId != 3).ToArray(), rows), Is.Zero);
+    }
+
+    [Test]
     public void Valid_preflight_reaches_open_connection_guard()
     {
         using var connection = new SqlConnection();
