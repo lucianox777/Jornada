@@ -9,12 +9,22 @@ manifest(){
   test -s "$target" || { echo 'DETERMINISTIC BUILD GATE: FAIL: nenhum artefato Release encontrado' >&2; exit 1; }
 }
 cd "$ROOT"
-dotnet clean Jornada.sln --configuration Release >/dev/null
-dotnet build Jornada.sln --configuration Release --no-restore >/dev/null
-manifest "$OUT/build1.sha256"
-dotnet clean Jornada.sln --configuration Release >/dev/null
-dotnet build Jornada.sln --configuration Release --no-restore >/dev/null
-manifest "$OUT/build2.sha256"
+build_once(){
+  local label="$1"
+  if ! dotnet clean Jornada.sln --configuration Release > "$OUT/${label}-clean.log" 2>&1; then
+    echo "DETERMINISTIC BUILD GATE: FAIL: clean ${label}" >&2
+    tail -n 120 "$OUT/${label}-clean.log" >&2
+    exit 1
+  fi
+  if ! dotnet build Jornada.sln --configuration Release --no-restore > "$OUT/${label}-build.log" 2>&1; then
+    echo "DETERMINISTIC BUILD GATE: FAIL: build ${label}" >&2
+    tail -n 160 "$OUT/${label}-build.log" >&2
+    exit 1
+  fi
+  manifest "$OUT/${label}.sha256"
+}
+build_once build1
+build_once build2
 if ! diff -u "$OUT/build1.sha256" "$OUT/build2.sha256" > "$OUT/diff.txt"; then
   echo 'DETERMINISTIC BUILD GATE: FAIL: builds consecutivos divergiram' >&2; cat "$OUT/diff.txt" >&2; exit 1
 fi
