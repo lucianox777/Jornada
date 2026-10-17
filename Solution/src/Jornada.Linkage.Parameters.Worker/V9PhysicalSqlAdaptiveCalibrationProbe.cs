@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Data;
 using System.Security.Cryptography;
@@ -30,7 +31,15 @@ public sealed record V9PhysicalCalibrationRunResult(
     long TrainEligibleTruePairsBeforeBlocking = 0,
     long ValidationEligibleTruePairsBeforeBlocking = 0,
     long TrainTruePairsRecoveredBySql = 0,
-    long ValidationTruePairsRecoveredBySql = 0);
+    long ValidationTruePairsRecoveredBySql = 0,
+    V9PhysicalSqlMeasuredTimings? PhysicalSqlTimings = null);
+
+public sealed record V9PhysicalSqlMeasuredTimings(
+    double CreateTablesMilliseconds,
+    double BulkObservationsMilliseconds,
+    double BulkSignaturesMilliseconds,
+    double MaterializePairsMilliseconds,
+    double ReadPairsMilliseconds);
 
 /// <summary>
 /// Calibration-only physical SQL bridge. It accepts TRAIN/VALIDATION observations only,
@@ -113,15 +122,28 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
 
         await RequireHarnessAsync(connection, cancellationToken);
 
+        // Measure actual physical SQL operations; do not present five operation
+        // samples as repeated-run P95/P99 or as production certification.
+        var timer = Stopwatch.StartNew();
         await CreateTablesAsync(connection, cancellationToken);
+        var createMs = timer.Elapsed.TotalMilliseconds;
+        timer.Restart();
         await BulkObservationsAsync(connection, observations, cancellationToken);
+        var observationsMs = timer.Elapsed.TotalMilliseconds;
+        timer.Restart();
         await BulkSignaturesAsync(connection, signatures, cancellationToken);
-
+        var signaturesMs = timer.Elapsed.TotalMilliseconds;
+        timer.Restart();
         var physicalPairs = await MaterializePairsAsync(connection, cancellationToken);
+        var materializeMs = timer.Elapsed.TotalMilliseconds;
         if (physicalPairs > HardPairIncidenceCap)
             throw new InvalidDataException("União SQL distinta excedeu o hard cap após materialização.");
 
+        timer.Restart();
         var rows = await ReadCandidatePairsAsync(connection, cancellationToken);
+        var readMs = timer.Elapsed.TotalMilliseconds;
+        var measuredSql = new V9PhysicalSqlMeasuredTimings(
+            createMs, observationsMs, signaturesMs, materializeMs, readMs);
         if (rows.Count != physicalPairs)
             throw new InvalidDataException("Contagem da união SQL diverge da leitura do frame.");
 
@@ -191,7 +213,8 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             trainEligibleM,
             validationEligibleM,
             trainRecoveredM,
-            validationRecoveredM);
+            validationRecoveredM,
+            measuredSql);
     }
 
     /// <summary>
