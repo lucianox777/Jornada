@@ -1,3 +1,15 @@
+> **Contrato de medição pendente (17/10/2026; master 649fc784):**
+> fechar a DT-05 exige **execução observada** em `JornadaSyntheticDev`,
+> com identificador do run, SHA do código, corpus sintético, configuração,
+> número de ondas, bytes únicos/compartilhados, duração de captura e
+> replay, contagem de reavaliados e transições semânticas. Reportar
+> P50/P95/P99 de tempos medidos, quantidade de amostras e método de
+> percentil, sem transformar amostra sintética em SLA. A PR #1116
+> adiciona apenas um utilitário de quantis **ainda não integrado** à
+> instrumentação de snapshots/replay: não fecha esta pendência.
+> Sem artefato de medição e comparação reproduzível, manter DT-05
+> **PARCIAL**; não utilizar `JornadaLocal`, NAS real ou IBGE original.
+>
 > **Delimitação de escopo aprovada em 09/10/2026:** a
 > fidelidade do `REPLAY` histórico de DT-05 (mesmo modelo
 > e candidatos imutáveis do run original) **não** constitui
