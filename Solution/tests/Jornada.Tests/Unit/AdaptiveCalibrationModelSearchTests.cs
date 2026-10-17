@@ -74,10 +74,14 @@ public sealed class AdaptiveCalibrationModelSearchTests
         Assert.That(fs.FittedTrainOnly && future.FittedTrainOnly, Is.True);
         Assert.That(fs.EvaluatedValidationOnly && future.EvaluatedValidationOnly, Is.True);
         Assert.That(report.Options.Count, Is.EqualTo(2));
-        Assert.That(report.SuggestedModelFamily, Is.EqualTo("FAMILY_FUTURE"));
-        Assert.That(report.SuggestedOptionId, Is.EqualTo("GRID_1"));
-        Assert.That(report.Status, Is.EqualTo("SUGGESTION_ONLY_UNCERTIFIED_FDR_CONFIDENCE_AND_PHYSICAL_SQL"));
+        Assert.That(report.SuggestedModelFamily, Is.EqualTo("FAMILY_FS_V9"));
+        Assert.That(report.SuggestedOptionId, Is.EqualTo("DEFAULT"));
+        Assert.That(report.Status, Is.EqualTo("SUGGESTION_ONLY_UNCERTIFIED_GROUP_FDR_AND_PHYSICAL_SQL"));
         Assert.That(report.Options.All(x => x.MeetsDescriptiveBudgetOnly), Is.True);
+        Assert.That(report.Options[0].MeetsNecessaryNominalFdrScreen, Is.True);
+        Assert.That(report.Options[1].MeetsNecessaryNominalFdrScreen, Is.False);
+        Assert.That(report.Options[0].NominalPairwiseFdrUpper95, Is.LessThan(.01d));
+        Assert.That(report.Options[1].NominalPairwiseFdrUpper95, Is.GreaterThan(.01d));
         Assert.That(report.ConfidenceBoundForFdrMeasured, Is.False);
         Assert.That(report.OperationalModelCreated, Is.False);
         Assert.That(report.AutomaticRecalibrationOrActivationAllowed, Is.False);
@@ -101,9 +105,26 @@ public sealed class AdaptiveCalibrationModelSearchTests
         var report = AdaptiveCalibrationModelSearch.Evaluate(
             Request(Budget()), [new FakeAdapter("FAMILY_FS_V9", 920, 0),
                 new FakeAdapter("FAMILY_FUTURE", 980, 150)]);
-        Assert.That(report.Status, Is.EqualTo("NO_MODEL_MEETS_DESCRIPTIVE_BUDGET"));
+        Assert.That(report.Status, Is.EqualTo("NO_MODEL_MEETS_PRELIMINARY_FDR_SCREEN"));
         Assert.That(report.SuggestedOptionId, Is.Null);
         Assert.That(report.AutomaticRecalibrationOrActivationAllowed, Is.False);
+    }
+
+    [Test]
+    public void Zero_False_Accepted_On_Small_Frame_Is_Not_Evidence_Of_One_Percent_Risk()
+    {
+        // No FP among just two accepted pairs still has a ~57.5% nominal
+        // one-sided UCB; the pairwise approximation is only a necessary screen.
+        var report = AdaptiveCalibrationModelSearch.Evaluate(
+            Request(Budget()),
+            [new FakeAdapter("FAMILY_FS_V9", 2, 0),
+             new FakeAdapter("FAMILY_FUTURE", 2, 0)]);
+        Assert.That(report.Options.All(x => x.ObservedAcceptedFdrPoint == 0d), Is.True);
+        Assert.That(report.Options.All(x => x.NominalPairwiseFdrUpper95 > .57d), Is.True);
+        Assert.That(report.Options.All(x => !x.MeetsNecessaryNominalFdrScreen), Is.True);
+        Assert.That(report.SuggestedOptionId, Is.Null);
+        Assert.That(report.Status, Is.EqualTo("NO_MODEL_MEETS_PRELIMINARY_FDR_SCREEN"));
+        Assert.That(report.ConfidenceBoundForFdrMeasured, Is.False);
     }
 
     [Test]
