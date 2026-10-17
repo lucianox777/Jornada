@@ -20,11 +20,11 @@ public sealed class V9PhysicalSqlCostQuantilesTests
     [Test]
     public void Rejects_Missing_And_Invalid_Timings()
     {
-        ClassicAssert.That(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([]),
+        ClassicAssert.That((TestDelegate)(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([])),
             Throws.TypeOf<InvalidDataException>());
-        ClassicAssert.That(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([double.NaN]),
+        ClassicAssert.That((TestDelegate)(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([double.NaN])),
             Throws.TypeOf<InvalidDataException>());
-        ClassicAssert.That(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([-1d]),
+        ClassicAssert.That((TestDelegate)(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([-1d])),
             Throws.TypeOf<InvalidDataException>());
     }
 }
