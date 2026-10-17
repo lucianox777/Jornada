@@ -47,8 +47,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             Assert.That(report.Options[0].Validation.Abstentions, Is.EqualTo(0));
             Assert.That(report.Options[0].ObservedAcceptedFdrPoint, Is.EqualTo(0d));
             Assert.That(report.Options[0].GlobalAcceptedRecall, Is.EqualTo(1d));
-            Assert.That(report.SuggestedModelFamily,
-                Is.EqualTo(V9FellegiSunterAdaptiveCalibrationAdapter.Family));
+            Assert.That(report.Options[0].NominalPairwiseFdrUpper95, Is.GreaterThan(.57d));
+            Assert.That(report.Options[0].MeetsNecessaryNominalFdrScreen, Is.False);
+            Assert.That(report.SuggestedModelFamily, Is.Null);
+            Assert.That(report.Status, Is.EqualTo("NO_MODEL_MEETS_PRELIMINARY_FDR_SCREEN"));
             Assert.That(report.TestUsed, Is.False);
             Assert.That(report.OperationalModelCreated, Is.False);
             Assert.That(report.AutomaticRecalibrationOrActivationAllowed, Is.False);
