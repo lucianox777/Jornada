@@ -108,3 +108,28 @@ Em VALIDATION, o mesmo fit é avaliado sem refit por `FellegiSunterScoring.Calcu
 - O adaptador aceita um frame candidato materializado, mas #1093 ainda **não é o leitor do SQL Server físico**. O próximo incremento deve produzir esse frame a partir do censo SQL congelado, preservando exatamente o ruleset/fingerprint e sem `TOP N`.
 - FDR nesta etapa é pontual em VALIDATION; não é UCB de certificação.
 - O TEST histórico das seeds 42/43/44 permanece consumido; a certificação futura usa novo TEST não observado.
+
+
+## FDR: triagem nominal conservadora — 17/10/2026
+
+O coordenador diagnóstico `ADAPTIVE_CALIBRATION_MULTI_MODEL_TRAIN_VAL_DIAGNOSTIC_V2`
+adiciona `NominalPairwiseFdrUpper95` (Wilson unilateral de 95%, com
+`z=1,6448536269514722`) e `MeetsNecessaryNominalFdrScreen`.
+O **ponto** `FP/(TP+FP)` continua registrado, mas não basta para sugerir
+um modelo: a triagem nominal também precisa ter limite superior <= ao
+orçamento predefinido. Zero FP em apenas dois vínculos aceitos não equivale
+a risco baixo: o limite nominal aproxima-se de **57,5%**. Sem suporte,
+a busca retorna `NO_MODEL_MEETS_PRELIMINARY_FDR_SCREEN`.
+
+**Limitação estatística fundamental:** pares SQL compartilham pessoas e
+candidatos. O Wilson por par supõe ensaios Bernoulli independentes e,
+portanto, é apenas uma **barreira necessária de triagem**, NÃO um limite
+de confiança válido do erro de linkage. `ConfidenceBoundForFdrMeasured`
+continua `false` porque **o limite válido por conglomerado de
+identidade-base não foi estimado**. Mesmo quando a triagem nominal passa,
+a sugestão se chama `SUGGESTION_ONLY_UNCERTIFIED_GROUP_FDR_AND_PHYSICAL_SQL`
+e continua **não operacional**. A certificação exige estimação por
+conglomerados/splits independentes, estratos e tamanho efetivo, mesma
+decisão final Rank/Resolve no SQL físico, TEST novo lacrado e DT-15.
+O orçamento `ADAPTIVE_CALIBRATION_PREVIEW_BUDGET_V1` não foi
+alargado; apenas acrescentou-se uma restrição conservadora à prévia.
