@@ -20,4 +20,27 @@ public static class V9PhysicalSqlCostQuantiles
             sorted[(int)((((long)sorted.Length * numerator) + 99) / 100) - 1];
         return new Summary(values.Length, Rank(values, 95), Rank(values, 99), values[^1]);
     }
+    /// <summary>
+    /// Summarizes repeated independent executions of the same physical SQL
+    /// materialization operation. Each input is one observed execution, never
+    /// a different phase of the same execution. Requires at least 20 runs so
+    /// nearest-rank P95 has more than a single extreme observation.
+    /// </summary>
+    public static Summary FromRepeatedMaterializationRuns(
+        IEnumerable<V9PhysicalSqlMeasuredTimings> runs)
+    {
+        ArgumentNullException.ThrowIfNull(runs);
+        var values = runs.ToArray();
+        if (values.Length < 20)
+            throw new InvalidDataException("P95/P99 físicos exigem pelo menos 20 execuções comparáveis.");
+        if (values.Any(x => x is null
+                || !double.IsFinite(x.CreateTablesMilliseconds) || x.CreateTablesMilliseconds < 0
+                || !double.IsFinite(x.BulkObservationsMilliseconds) || x.BulkObservationsMilliseconds < 0
+                || !double.IsFinite(x.BulkSignaturesMilliseconds) || x.BulkSignaturesMilliseconds < 0
+                || !double.IsFinite(x.MaterializePairsMilliseconds) || x.MaterializePairsMilliseconds < 0
+                || !double.IsFinite(x.ReadPairsMilliseconds) || x.ReadPairsMilliseconds < 0))
+            throw new InvalidDataException("Todas as fases SQL medidas devem ser finitas e não negativas.");
+        return FromMeasuredMilliseconds(values.Select(x => x.MaterializePairsMilliseconds));
+    }
+
 }
