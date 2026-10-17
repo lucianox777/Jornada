@@ -32,6 +32,24 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
     }
 
     [Test]
+    public void Eligible_M_Counts_Unordered_Three_Manager_Combinations_Exactly_Once()
+    {
+        var rows = new[]
+        {
+            new V9PhysicalCalibrationObservation(1, "PERSON-A", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(2, "PERSON-A", "TRAIN", "G2", null, null, null),
+            new V9PhysicalCalibrationObservation(3, "PERSON-A", "TRAIN", "G3", null, null, null),
+            new V9PhysicalCalibrationObservation(4, "PERSON-B", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(5, "PERSON-B", "TRAIN", "G2", null, null, null),
+            new V9PhysicalCalibrationObservation(6, "PERSON-C", "VALIDATION", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(7, "PERSON-C", "VALIDATION", "G2", null, null, null)
+        };
+        // Three unordered combinations for PERSON-A plus one for PERSON-B.
+        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountEligibleTruePairsAcrossManagers(rows, "TRAIN"), Is.EqualTo(4));
+        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountEligibleTruePairsAcrossManagers(rows, "VALIDATION"), Is.EqualTo(1));
+    }
+
+    [Test]
     public void Rejects_test_partition_before_any_sql_command()
     {
         using var connection = new SqlConnection();
