@@ -87,6 +87,38 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
     }
 
     [Test]
+    public void Eligible_M_denominator_is_counted_before_blocking_and_across_managers_only()
+    {
+        var rows = new[]
+        {
+            new V9PhysicalCalibrationObservation(1, "BASE-A", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(2, "BASE-A", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(3, "BASE-A", "TRAIN", "G2", null, null, null),
+            new V9PhysicalCalibrationObservation(4, "BASE-A", "TRAIN", "G3", null, null, null),
+            new V9PhysicalCalibrationObservation(5, "BASE-B", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(6, "BASE-B", "TRAIN", "G2", null, null, null),
+            new V9PhysicalCalibrationObservation(7, "BASE-B", "TRAIN", "G2", null, null, null),
+            new V9PhysicalCalibrationObservation(8, "BASE-C", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(9, "BASE-C", "TRAIN", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(10, "BASE-A", "VALIDATION", "G1", null, null, null),
+            new V9PhysicalCalibrationObservation(11, "BASE-A", "VALIDATION", "G2", null, null, null)
+        };
+
+        // BASE-A: G1(2)*G2(1) + G1(2)*G3(1) + G2(1)*G3(1) = 5.
+        // BASE-B: G1(1)*G2(2) = 2. BASE-C: same-gestor only = 0.
+        Assert.That(
+            V9PhysicalSqlAdaptiveCalibrationProbe.CountEligibleTruePairsAcrossManagers(rows, "TRAIN"),
+            Is.EqualTo(7));
+        Assert.That(
+            V9PhysicalSqlAdaptiveCalibrationProbe.CountEligibleTruePairsAcrossManagers(rows, "VALIDATION"),
+            Is.EqualTo(1));
+        Assert.That(
+            (Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+                .CountEligibleTruePairsAcrossManagers(rows, "TEST")),
+            Throws.TypeOf<ArgumentException>());
+    }
+
+    [Test]
     public void Valid_preflight_reaches_open_connection_guard()
     {
         using var connection = new SqlConnection();
