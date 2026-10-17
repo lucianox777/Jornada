@@ -152,6 +152,20 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
     }
 
     [Test]
+    public void Physical_sql_timing_contract_keeps_distinct_phase_measurements()
+    {
+        var timings = new V9PhysicalSqlMeasuredTimings(1, 2, 3, 4, 5);
+        Assert.Multiple(() =>
+        {
+            Assert.That(timings.CreateTablesMilliseconds, Is.EqualTo(1));
+            Assert.That(timings.BulkObservationsMilliseconds, Is.EqualTo(2));
+            Assert.That(timings.BulkSignaturesMilliseconds, Is.EqualTo(3));
+            Assert.That(timings.MaterializePairsMilliseconds, Is.EqualTo(4));
+            Assert.That(timings.ReadPairsMilliseconds, Is.EqualTo(5));
+        });
+    }
+
+    [Test]
     public void Valid_preflight_reaches_open_connection_guard()
     {
         using var connection = new SqlConnection();
