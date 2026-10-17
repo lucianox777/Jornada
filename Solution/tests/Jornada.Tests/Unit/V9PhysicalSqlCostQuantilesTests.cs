@@ -39,6 +39,18 @@ public sealed class V9PhysicalSqlCostQuantilesTests
     }
 
     [Test]
+    public void Repeated_materialization_at_minimum_sample_count_has_p99_equal_to_max()
+    {
+        var runs = Enumerable.Range(1, 20)
+            .Select(x => new V9PhysicalSqlMeasuredTimings(1, 2, 3, x, 5));
+        var result = V9PhysicalSqlCostQuantiles.FromRepeatedMaterializationRuns(runs);
+        Assert.That(result.SampleCount, Is.EqualTo(20));
+        Assert.That(result.P95Milliseconds, Is.EqualTo(19));
+        Assert.That(result.P99Milliseconds, Is.EqualTo(20));
+        Assert.That(result.MaximumMilliseconds, Is.EqualTo(20));
+    }
+
+    [Test]
     public void Repeated_materialization_rejects_insufficient_or_invalid_runs()
     {
         var few = Enumerable.Range(1, 19)
