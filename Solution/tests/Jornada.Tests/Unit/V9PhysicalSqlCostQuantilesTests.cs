@@ -1,4 +1,5 @@
 using Jornada.Linkage.Parameters.Worker;
+using NUnit.Framework.Legacy;
 
 namespace Jornada.Tests.Unit;
 
@@ -10,20 +11,20 @@ public sealed class V9PhysicalSqlCostQuantilesTests
     {
         var result = V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds(
             Enumerable.Range(1, 100).Reverse().Select(x => (double)x));
-        Assert.That(result.SampleCount, Is.EqualTo(100));
-        Assert.That(result.P95Milliseconds, Is.EqualTo(95));
-        Assert.That(result.P99Milliseconds, Is.EqualTo(99));
-        Assert.That(result.MaximumMilliseconds, Is.EqualTo(100));
+        ClassicAssert.That(result.SampleCount, Is.EqualTo(100));
+        ClassicAssert.That(result.P95Milliseconds, Is.EqualTo(95));
+        ClassicAssert.That(result.P99Milliseconds, Is.EqualTo(99));
+        ClassicAssert.That(result.MaximumMilliseconds, Is.EqualTo(100));
     }
 
     [Test]
     public void Rejects_Missing_And_Invalid_Timings()
     {
-        Assert.That(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([]),
+        ClassicAssert.That(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([]),
             Throws.TypeOf<InvalidDataException>());
-        Assert.That(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([double.NaN]),
+        ClassicAssert.That(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([double.NaN]),
             Throws.TypeOf<InvalidDataException>());
-        Assert.That(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([-1d]),
+        ClassicAssert.That(() => V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds([-1d]),
             Throws.TypeOf<InvalidDataException>());
     }
 }
