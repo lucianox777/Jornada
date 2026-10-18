@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using Jornada.Contracts;
 using Jornada.Linkage.Runner;
 
 namespace Jornada.Linkage.Parameters.Worker;
