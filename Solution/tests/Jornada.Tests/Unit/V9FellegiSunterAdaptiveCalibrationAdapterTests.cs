@@ -286,6 +286,22 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
         var result = adapter.EvaluateSourceUnitResolveValidation(
             observations, sqlEdges, [.5m], 16);
         Assert.That(result, Has.Count.EqualTo(3));
+        var withFs = adapter.EvaluateSourceUnitResolveValidation(
+            observations, sqlEdges, [.5m], 16,
+            includeFsBlindGrouping: true, minimumFsGroupingPosterior: .99m);
+        Assert.That(withFs, Has.Count.EqualTo(4));
+        var fs = withFs.Single(x =>
+            x.CandidateGrouping == "BLIND_FS_COMPLETE_LINK_CANDIDATES");
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(fs.OperationallyCertified, Is.False);
+            Assert.That(fs.SyntheticGoldOracleGrouping, Is.False);
+            Assert.That(fs.TrueAcceptedSourceObservations
+                + fs.FalseAcceptedSourceObservations
+                + fs.Conflicts + fs.Unresolved,
+                Is.EqualTo(observations.Length));
+            Assert.That(fs.ImpureBlindGroups, Is.GreaterThanOrEqualTo(0));
+        }));
         var raw = result.Single(x => x.CandidateGrouping == "RAW_SQL_OBSERVATION_CANDIDATES");
         var blind = result.Single(x => x.CandidateGrouping == "BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING");
         var oracle = result.Single(x => x.SyntheticGoldOracleGrouping);

@@ -146,7 +146,9 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         bool evaluateFinalResolve = false,
         decimal finalConflictMargin = .5m,
         int predeclaredMaximumAcceptedPerBaseIdentity = 16,
-        IReadOnlyCollection<decimal>? finalConflictMargins = null)
+        IReadOnlyCollection<decimal>? finalConflictMargins = null,
+        bool includeFsBlindGrouping = false,
+        decimal minimumFsGroupingPosterior = .99m)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(observations);
@@ -342,7 +344,8 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
                 finalConflictMargin, predeclaredMaximumAcceptedPerBaseIdentity);
             sourceResolve = adapter.EvaluateSourceUnitResolveValidation(
                 observations, physicalEdges, finalConflictMargins ?? [finalConflictMargin],
-                predeclaredMaximumAcceptedPerBaseIdentity);
+                predeclaredMaximumAcceptedPerBaseIdentity,
+                includeFsBlindGrouping, minimumFsGroupingPosterior);
         }
 
         return new V9PhysicalCalibrationRunResult(

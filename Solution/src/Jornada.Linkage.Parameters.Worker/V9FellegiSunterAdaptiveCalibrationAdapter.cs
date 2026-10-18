@@ -435,12 +435,15 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
         IReadOnlyList<(int A, int B)> validationSqlPairs,
         IReadOnlyCollection<decimal> conflictMargins,
-        int maximumAcceptedPerBaseIdentity)
+        int maximumAcceptedPerBaseIdentity,
+        bool includeFsBlindGrouping = false,
+        decimal minimumFsGroupingPosterior = .99m)
     {
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(validationSqlPairs);
         ArgumentNullException.ThrowIfNull(conflictMargins);
         if (maximumAcceptedPerBaseIdentity < 1
+            || (includeFsBlindGrouping && minimumFsGroupingPosterior is <= .5m or >= 1m)
             || conflictMargins.Count is < 1 or > 8
             || conflictMargins.Any(x => x is < 0m or > 1000m)
             || conflictMargins.Distinct().Count() != conflictMargins.Count)
@@ -548,6 +551,12 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     Enumerable.Range(0, 3).Select(groupMode => (margin, groupMode)))
                 .ToDictionary(x => x,
                     _ => new V9SourceResolveAccumulator(orderedBases));
+            // Scores are computed once from the SAME frozen TRAIN fit for
+            // each source. FS grouping only sees observed SQL adjacency
+            // and those ranked scores, never the validation truth labels.
+            var rankedBySource = includeFsBlindGrouping
+                ? new Dictionary<int, IReadOnlyList<CandidateScore>>()
+                : null;
 
             foreach (var source in validation.Values.OrderBy(x => x.ObservationId))
             {
@@ -588,6 +597,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     CompositeNominalComparisonV9.ContractVersion,
                     config.TfWeight > 0m ? TfForPair : null,
                     config.TfWeight > 0m ? config.TfSide : null);
+                if (rankedBySource is not null)
+                    rankedBySource.Add(source.ObservationId, ranked);
 
                 // Oracle Gold upper-bound: collapse multiple observations into
                 // one synthetic ground-truth entity, retain its strongest FS
@@ -650,6 +661,94 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     }
                     counters[(margin, mode)].Add(
                         source.BasePersonId, targetBase, decision);
+                }
+            }
+
+
+            if (rankedBySource is not null)
+            {
+                // Two directed Rank scores from the frozen C# FS scorer
+                // for EVERY physical SQL pair. No oracle membership or
+                // reconstructed/invented missing edge enters clustering.
+                var fsEdges = validationSqlPairs.Select(pair =>
+                {
+                    var forward = rankedBySource[pair.A].Single(x =>
+                        x.PessoaUuid == ObservationGuid(pair.B));
+                    var backward = rankedBySource[pair.B].Single(x =>
+                        x.PessoaUuid == ObservationGuid(pair.A));
+                    return new V9BlindFsSqlEdge(
+                        pair.A, pair.B, forward.LogOdds, backward.LogOdds);
+                }).ToArray();
+                var inferred = V9BlindIncrementalIdentityGrouping.Build(
+                    validation.Values.ToArray(), fsEdges,
+                    minimumFsGroupingPosterior,
+                    maximumAcceptedPerBaseIdentity);
+                // Synthetic truth is used ONLY AFTER grouping, to count
+                // impure clusters and final TP/FP. Never for merging.
+                var truthByInferredGuid = validation.Values
+                    .GroupBy(x => inferred.IdentityByObservation[x.ObservationId])
+                    .ToDictionary(x => x.Key,
+                        x => x.Select(v => v.BasePersonId)
+                            .Distinct(StringComparer.Ordinal).ToArray());
+                var impureFsGroups = truthByInferredGuid.Values
+                    .Count(x => x.Length > 1);
+                foreach (var margin in conflictMargins.OrderBy(x => x))
+                {
+                    var counter = new V9SourceResolveAccumulator(orderedBases);
+                    foreach (var source in validation.Values.OrderBy(x => x.ObservationId))
+                    {
+                        var collapsed = rankedBySource[source.ObservationId]
+                            .GroupBy(x => inferred.IdentityByObservation[
+                                observationByGuid[x.PessoaUuid].ObservationId])
+                            .Select(g => g.First() with { PessoaUuid = g.Key })
+                            .OrderByDescending(x => x.LogOdds)
+                            .ThenBy(x => x.PessoaUuid).ToArray();
+                        var decision = ProbabilisticLinkageDecisions
+                            .ResolveRankedCompositeNominalV9Preview(
+                                ObservationGuid(source.ObservationId),
+                                fitted.Parameters, collapsed,
+                                config.DecisionThreshold, margin);
+                        string? targetBase = null;
+                        if (decision.Status == ResolutionStatus.RESOLVIDO)
+                        {
+                            if (decision.PessoaUuidResolvido is not { } selected
+                                || !truthByInferredGuid.TryGetValue(
+                                    selected, out var bases))
+                                throw new InvalidDataException(
+                                    "Resolve FS blind retornou identidade desconhecida.");
+                            targetBase = bases.Length == 1 ? bases[0]
+                                : "IMPURE_FS_BLIND_GROUP:" + selected;
+                        }
+                        counter.Add(source.BasePersonId, targetBase, decision);
+                    }
+                    if (counter.Total != validation.Count
+                        || counter.Tp > trueSqlSources
+                        || counter.Tp > eligibleSources)
+                        throw new InvalidDataException(
+                            "Decisões FS blind não reconciliam por fonte.");
+                    var bound = V9IdentityClusterFdr.UpperBoundForPopulationMeanRatio(
+                        counter.GroupContributions
+                            .OrderBy(x => x.Key, StringComparer.Ordinal)
+                            .Select(x => new V9IdentityClusterFdr.IdentityGroup(
+                                x.Key, x.Value.Tp, x.Value.Fp)),
+                        maximumAcceptedPerBaseIdentity, alpha: .05d);
+                    metrics.Add(new V9PhysicalSourceResolveMetric(
+                        config.OptionId, config.DecisionThreshold, config.TfWeight,
+                        margin, "BLIND_FS_COMPLETE_LINK_CANDIDATES",
+                        validation.Count, eligibleSources, trueSqlSources,
+                        counter.Tp, counter.Fp,
+                        counter.Conflicts, counter.Unresolved,
+                        (double)trueSqlSources / eligibleSources,
+                        (double)counter.Tp / eligibleSources,
+                        counter.Tp + counter.Fp == 0 ? null
+                            : (double)counter.Fp / (counter.Tp + counter.Fp),
+                        bound.UpperFdr, orderedBases.Length,
+                        counter.Reasons.OrderBy(x => x.Key, StringComparer.Ordinal)
+                            .ToDictionary(x => x.Key, x => x.Value,
+                                StringComparer.Ordinal),
+                        SyntheticGoldOracleGrouping: false,
+                        OperationallyCertified: false,
+                        ImpureBlindGroups: impureFsGroups));
                 }
             }
 
