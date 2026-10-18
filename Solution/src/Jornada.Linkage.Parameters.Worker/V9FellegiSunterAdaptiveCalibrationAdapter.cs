@@ -28,7 +28,9 @@ public sealed record V9FsAdaptiveCandidateFrame(
     string ValidationCorpusFingerprintSha256,
     string TrainIdentityFingerprintSha256,
     string ValidationIdentityFingerprintSha256,
-    IReadOnlyList<V9FsAdaptiveCandidatePair> Pairs);
+    IReadOnlyList<V9FsAdaptiveCandidatePair> Pairs,
+    IReadOnlyCollection<string>? TrainPreBlockingBaseIdentityIds = null,
+    IReadOnlyCollection<string>? ValidationPreBlockingBaseIdentityIds = null);
 
 public sealed record V9FsAdaptiveOptionConfiguration(
     string OptionId,
@@ -79,7 +81,14 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             throw new ArgumentException("Frame candidato vazio.");
         // A lista fornecida pelo chamador pode ser mutável; congele um snapshot antes de validar.
         // Os pares são records com campos imutáveis (strings, DateOnly e valores escalares).
-        this.frame = frame with { Pairs = Array.AsReadOnly(frame.Pairs.ToArray()) };
+        this.frame = frame with
+        {
+            Pairs = Array.AsReadOnly(frame.Pairs.ToArray()),
+            TrainPreBlockingBaseIdentityIds = frame.TrainPreBlockingBaseIdentityIds is null
+                ? null : Array.AsReadOnly(frame.TrainPreBlockingBaseIdentityIds.ToArray()),
+            ValidationPreBlockingBaseIdentityIds = frame.ValidationPreBlockingBaseIdentityIds is null
+                ? null : Array.AsReadOnly(frame.ValidationPreBlockingBaseIdentityIds.ToArray())
+        };
 
         var byId = options.ToArray();
         if (byId.Length is < 1 or > 64
@@ -211,7 +220,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             .Select(x => (double)x.CandidateDegreeForSource)
             .OrderBy(x => x).ToArray();
         var p99 = falseDegrees.Length == 0 ? 0d : PercentileNearestRank(falseDegrees, .99d);
-        var groups = IdentityGroups("VALIDATION").Count;
+        // Independent validation groups are the entire pre-blocking cohort,
+        // including identities with zero SQL candidates. Restricting this
+        // denominator to groups appearing in SQL induces selection bias.
+        var groups = PartitionIdentityGroups("VALIDATION").Count;
 
         return new AdaptiveCalibrationHoldoutMetrics(
             TruePairsWithoutCpf: truePairs,
@@ -245,10 +257,13 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 || (x.IsTruePair && x.LeftIdentityGroupId != x.RightIdentityGroupId)
                 || (!x.IsTruePair && x.LeftIdentityGroupId == x.RightIdentityGroupId)))
             throw new InvalidDataException("Frame FS V9 contém partição/grupo/fanout inválido.");
-        var trainGroups = IdentityGroups("TRAIN");
-        var validationGroups = IdentityGroups("VALIDATION");
+        var trainGroups = PartitionIdentityGroups("TRAIN");
+        var validationGroups = PartitionIdentityGroups("VALIDATION");
         if (trainGroups.Count < 2 || validationGroups.Count < 2 || trainGroups.Overlaps(validationGroups))
             throw new InvalidDataException("TRAIN/VALIDATION devem ser disjuntos por identidade-base.");
+        if (!IdentityGroups("TRAIN").IsSubsetOf(trainGroups)
+            || !IdentityGroups("VALIDATION").IsSubsetOf(validationGroups))
+            throw new InvalidDataException("Pares SQL contêm identidade ausente do universo pré-blocking.");
     }
 
     private void ValidateSlice(
@@ -260,7 +275,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             || slice.IndependentIdentityPartitionFingerprintSha256 != identitySha)
             throw new InvalidDataException("Slice adaptativo não coincide com o frame FS V9 congelado.");
 
-        var groups = IdentityGroups(partition).Count;
+        var groups = PartitionIdentityGroups(partition).Count;
         if (slice.DistinctIdentityGroups != groups)
             throw new InvalidDataException("Contagem de grupos independentes diverge do frame FS V9.");
     }
@@ -273,6 +288,26 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         }).Distinct().Count();
         if (rows.Length < 2 || identities < 2)
             throw new InvalidDataException($"TRAIN {label} exige suporte de ao menos duas identidades.");
+    }
+
+    private HashSet<string> PartitionIdentityGroups(string partition)
+    {
+        if ((frame.TrainPreBlockingBaseIdentityIds is null)
+            != (frame.ValidationPreBlockingBaseIdentityIds is null))
+            throw new InvalidDataException("Censos pré-blocking TRAIN/VALIDATION devem ser informados juntos.");
+        var snapshot = partition switch
+        {
+            "TRAIN" => frame.TrainPreBlockingBaseIdentityIds,
+            "VALIDATION" => frame.ValidationPreBlockingBaseIdentityIds,
+            _ => throw new InvalidDataException("Partição FS inválida.")
+        };
+        if (snapshot is null)
+            return IdentityGroups(partition); // Legacy candidate-only unit fixtures.
+        var unique = snapshot.ToHashSet(StringComparer.Ordinal);
+        if (unique.Count != snapshot.Count
+            || unique.Any(string.IsNullOrWhiteSpace))
+            throw new InvalidDataException("Censo pré-blocking duplicado ou com grupos vazios.");
+        return unique;
     }
 
     private HashSet<string> IdentityGroups(string partition)

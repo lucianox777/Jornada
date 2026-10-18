@@ -208,3 +208,29 @@ mantêm sua semântica histórica de **identidades com pelo menos um par SQL**;
 não devem ser citados como tamanho integral do corpus. A presença de
 um grupo no censo por si só **não comprova amostragem iid**, cap por
 identidade, decisão final Rank/Resolve ou certificação.
+
+
+### Identidades completas no próprio adaptador FS — correção de suporte (18/10/2026)
+
+A métrica da #1137 já identificava o censo de pessoas **antes** do
+blocking, inclusive identidades que não geraram pares SQL; contudo,
+o probe ainda informava ao coordenador `AdaptiveCalibrationSlice`
+apenas o subconjunto de identidades encontradas em pares candidatos.
+Isso podia superestimar a evidência de suporte sobre uma população
+selecionada pelo blocking e apagar identidades com grau zero.
+
+A ponte SQL agora fornece `TrainPreBlockingBaseIdentityIds` e
+`ValidationPreBlockingBaseIdentityIds` ao
+`V9FsAdaptiveCandidateFrame`. O adaptador toma cópia imutável,
+confere que todos os grupos encontrados nos pares SQL fazem parte
+dos respectivos censos, rejeita identidades duplicadas, vazias e
+vazamento entre TRAIN e VALIDATION. `AdaptiveCalibrationSlice`
+e `IndependentlyLabeledIdentityGroups` passam a usar o **número
+integral de grupos de entrada**, com ou sem candidatos. A antiga
+interface sem censo permanece para fixtures unitárias legadas, mas
+o fluxo físico canônico sempre envia ambas as partições completas.
+
+**Importante:** contar uma identidade ausente do SQL não demonstra
+rotulagem completa, amostragem iid nem suporte independente
+validado. Os valores ainda são diagnósticos e o mecanismo V9 não
+passa a ativar ou recalibrar automaticamente.

@@ -212,7 +212,9 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             validationCorpusSha,
             trainIdentitySha,
             validationIdentitySha,
-            rows);
+            rows,
+            trainBases.OrderBy(x => x, StringComparer.Ordinal).ToArray(),
+            validationBases.OrderBy(x => x, StringComparer.Ordinal).ToArray());
 
         var optionList = options.ToArray();
         var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(frame, optionList);
@@ -237,10 +239,10 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             studyFingerprintSha256,
             new AdaptiveCalibrationSlice(
                 "TRAIN", trainCorpusSha, trainIdentitySha,
-                trainPairBases.Count, true, false),
+                trainBases.Count, true, false),
             new AdaptiveCalibrationSlice(
                 "VALIDATION", validationCorpusSha, validationIdentitySha,
-                validationPairBases.Count, true, false),
+                validationBases.Count, true, false),
             modelOptions,
             ManuallyRequestedCalibration: true,
             budget);
