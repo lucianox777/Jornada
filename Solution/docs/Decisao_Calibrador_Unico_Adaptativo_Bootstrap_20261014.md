@@ -63,10 +63,11 @@ por perfil, `clean` com 2 passes nomeados (`P_PHON_M_LAST`,
 `P_PREFIX3_DOB`), recall 19.630/20.364 em TRAIN,
 6.509/6.763 em VALIDATION, 242/28 U; `correlated` com
 nove passes reportados, 19.437/20.458 TRAIN,
-6.432/6.714 VALIDATION, 516.029/59.376 U. **A assinatura e
-ordem completas do plano `correlated` não foram reproduzidas
-nesse arquivo**, portanto a configuração explicita
-`signatureComplete=false`, não inventa nove células.
+6.432/6.714 VALIDATION, 516.029/59.376 U. **A ordem completa dos nove passes do plano `correlated` foi
+recuperada e congelada** do artefato CI `11926175227` do workflow
+`38628254862`, com SHA dos relatórios e fonte; ambos os perfis têm
+`signatureComplete=true`. Isso resolve rastreabilidade dos passes,
+**não** resolve a certificação da política.
 O LCB unilateral TRAIN do `correlated` (~94,678%)
 permanece abaixo de 95% apesar do recall pontual de 95,009%.
 
