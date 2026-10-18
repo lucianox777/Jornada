@@ -32,7 +32,29 @@ public sealed record V9PhysicalCalibrationRunResult(
     long ValidationEligibleTruePairsBeforeBlocking = 0,
     long TrainTruePairsRecoveredBySql = 0,
     long ValidationTruePairsRecoveredBySql = 0,
-    V9PhysicalSqlMeasuredTimings? PhysicalSqlTimings = null);
+    V9PhysicalSqlMeasuredTimings? PhysicalSqlTimings = null,
+    IReadOnlyList<V9PhysicalSqlOptionGlobalCoverage>? ValidationGlobalCoverage = null);
+
+/// <summary>
+/// Every numerator here is a thresholded FS candidate-pair decision, NOT a
+/// conflict-resolved final identity link. In particular, GlobalAcceptedRecall
+/// uses ALL cross-manager true pairs before blocking, rather than M_sql.
+/// This diagnostic has no TEST, Rank/Resolve, TF or operational certification.
+/// </summary>
+public sealed record V9PhysicalSqlOptionGlobalCoverage(
+    string ModelFamily,
+    string OptionId,
+    long EligibleTruePairsBeforeBlocking,
+    long TruePairsRecoveredBySql,
+    long FalsePairsRecoveredBySql,
+    long TruePairsAcceptedByThreshold,
+    long FalsePairsAcceptedByThreshold,
+    double BlockingTruePairRecall,
+    double ConditionalAcceptedPairRecall,
+    double GlobalAcceptedPairRecall,
+    double? ThresholdAcceptedPairFdr,
+    bool MeetsGlobalRecallBudget,
+    bool FinalRankResolveEvaluated);
 
 /// <summary>
 /// Observed wall-clock duration of each SQL phase for one physical probe run.
@@ -204,6 +226,12 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             budget);
 
         var report = AdaptiveCalibrationModelSearch.Evaluate(request, [adapter]);
+        var globalCoverage = CalculateValidationGlobalCoverage(
+            validationEligibleM,
+            validationRecoveredM,
+            validationRows.LongCount(x => !x.IsTruePair),
+            report.Options,
+            budget.MinimumGlobalAcceptedRecall);
 
         return new V9PhysicalCalibrationRunResult(
             Version,
@@ -219,7 +247,62 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             validationEligibleM,
             trainRecoveredM,
             validationRecoveredM,
-            measuredSql);
+            measuredSql,
+            globalCoverage);
+    }
+
+    /// <summary>
+    /// Calculate physically grounded global recall separately from the
+    /// coordinator's conditional SQL-candidate recall. A passing screen
+    /// here never authorizes promotion or substitutes for Rank/Resolve.
+    /// </summary>
+    public static IReadOnlyList<V9PhysicalSqlOptionGlobalCoverage> CalculateValidationGlobalCoverage(
+        long eligibleTruePairs,
+        long recoveredTruePairs,
+        long recoveredFalsePairs,
+        IReadOnlyList<AdaptiveCalibrationOptionResult> options,
+        double minimumGlobalRecall)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        if (eligibleTruePairs <= 0 || recoveredTruePairs < 0
+            || recoveredTruePairs > eligibleTruePairs || recoveredFalsePairs < 0
+            || !double.IsFinite(minimumGlobalRecall) || minimumGlobalRecall is < 0 or > 1)
+            throw new InvalidDataException("Universo físico ou orçamento global inválido.");
+        if (options.Count == 0 || options.Any(x => x is null))
+            throw new InvalidDataException("Opções FS ausentes do censo físico.");
+        if (options.Select(x => (x.ModelFamily, x.OptionId)).Distinct().Count() != options.Count)
+            throw new InvalidDataException("Opções FS duplicadas no censo físico.");
+
+        var measured = new List<V9PhysicalSqlOptionGlobalCoverage>(options.Count);
+        foreach (var option in options)
+        {
+            var validation = option.Validation;
+            if (validation is null || validation.TruePairsWithoutCpf != recoveredTruePairs
+                || validation.BlockingFalseCandidatePairs != recoveredFalsePairs
+                || validation.TrueAcceptedLinks < 0
+                || validation.TrueAcceptedLinks > recoveredTruePairs
+                || validation.FalseAcceptedLinks < 0
+                || validation.FalseAcceptedLinks > recoveredFalsePairs
+                || validation.Abstentions < 0
+                || validation.Abstentions > recoveredTruePairs - validation.TrueAcceptedLinks)
+                throw new InvalidDataException(
+                    "TP/FP/abstenção FS não reconciliam com o frame SQL físico.");
+
+            var accepted = checked(validation.TrueAcceptedLinks + validation.FalseAcceptedLinks);
+            var globalRecall = (double)validation.TrueAcceptedLinks / eligibleTruePairs;
+            measured.Add(new V9PhysicalSqlOptionGlobalCoverage(
+                option.ModelFamily, option.OptionId,
+                eligibleTruePairs, recoveredTruePairs, recoveredFalsePairs,
+                validation.TrueAcceptedLinks, validation.FalseAcceptedLinks,
+                (double)recoveredTruePairs / eligibleTruePairs,
+                recoveredTruePairs == 0 ? 0d
+                    : (double)validation.TrueAcceptedLinks / recoveredTruePairs,
+                globalRecall,
+                accepted == 0 ? null : (double)validation.FalseAcceptedLinks / accepted,
+                MeetsGlobalRecallBudget: globalRecall >= minimumGlobalRecall,
+                FinalRankResolveEvaluated: false));
+        }
+        return Array.AsReadOnly(measured.ToArray());
     }
 
     /// <summary>
