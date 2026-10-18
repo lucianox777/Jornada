@@ -50,3 +50,36 @@ CI sintética substitui TEST físico independente. A PR #1132 verifica parte
 do contrato e os casos adversariais; **não implementa ainda a exportação
 real dos outcomes, a coleta SQL repetida nem a persistência auditada**.
 A issue #999 permanece aberta até a apresentação e verificação das evidências.
+
+
+## Ponte de outcomes finais → conglomerados de identidade — 18/10/2026
+
+A classe `V9RecordedClusterFdrValidation` é uma **ponte diagnóstica
+exclusivamente para VALIDATION**, sem nova política de decisão, exportador
+HML, runner ou acesso ao TEST. Recebe um censo pré-blocking de fingerprints
+opacos de identidade-base, vínculo observação→identidade de origem,
+`IndependentResolutionObservation` e `IndependentRecordedOutcome`
+do MESMO run gravado. Chama primeiro o
+`IndependentResolutionEvaluator.EvaluateRecorded` existente, incluindo
+a exigência de candidatos completos, manifesto, versão do modelo, ruleset,
+run ID e validação de resultados realmente resolvidos/conflituosos.
+
+Só então agrega `TrueAccepted` e `FalseAccepted` das decisões
+**`RESOLVIDO` finais** por identidade-base de **origem**. Não duplica
+o mesmo falso vínculo nos dois lados do par e não conta uma sugestão FS
+bruta como link final. Atribuição de origem exige vínculo explícito
+para todas as observações; identidade desconhecida, vínculo duplicado ou
+ausente falha fechado. Todas as identidades do censo anterior ao blocking
+participam da análise, inclusive as sem observação de consulta ou
+sem link aceito. TP/FP agregados precisam coincidir com
+`Overall.TrueLinks`/`Overall.FalseLinks` do avaliador canônico.
+
+O resultado inclui ponto FDR, sensibilidade leave-one-identity-out e
+limite Hoeffding de razão de médias de aceites por identidade, com
+**cap de aceites por origem predeclarado e enforçado**. Sem denominador
+inferior positivo, o limite fica **nulo**, nunca zero risco. Essa
+aproximação exige amostragem iid entre identidades-base e rotulagem
+completa; os fingerprints/coortes e testes **não atestam por si só** essas
+hipóteses. `OperationallyCertified=false` em todas as saídas.
+Ainda falta o exportador real do Runner integrado ao censo, assinatura
+de proveniência, execução física e TEST lacrado.
