@@ -165,3 +165,23 @@ o resultado final. Também faltam TF positiva compatível, intervalo
 válido de erro por grupo de identidade, latência ponta a ponta com
 repetições e TEST novo lacrado. O output declara explicitamente
 `FinalRankResolveEvaluated=false`, e a V9 segue inativa.
+
+
+### Bloqueio de sugestões que só atingem recall condicional (18/10/2026)
+
+O relatório genérico de `AdaptiveCalibrationModelSearch` calcula recall
+no frame de candidatos recebido. No censo físico V9, isso é **condicional**
+aos pares M que passaram pelo blocking. Portanto, não basta publicar o
+recall global separadamente: o probe aplica também
+`EnforcePhysicalGlobalRecallForSuggestion` a seu relatório, reconciliado
+com `ValidationGlobalCoverage`. Se a sugestão condicional não atende ao
+mínimo explícito de recall **TP_threshold / M_eligible**, o resultado
+físico deixa de sugerir modelo e retorna
+`NO_MODEL_MEETS_PHYSICAL_GLOBAL_RECALL_BUDGET`. Opções ausentes,
+duplicadas ou uma sugestão sem correspondência no frame SQL causam
+falha fechada. O coordenador genérico permanece puramente diagnóstico.
+
+Esta é somente uma **condição necessária da prévia física**: o
+`TP_threshold` do FS não representa vínculos finais após Rank/Resolve.
+Não usar esse relatório para congelar/ativar o modelo nem para afirmar
+certificação por identidade-base. TEST segue não utilizado.

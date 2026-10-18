@@ -129,6 +129,81 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
     }
 
     [Test]
+    public void Physical_sql_does_not_suggest_a_model_with_only_conditional_recall()
+    {
+        // 98% conditional FS recall would pass a nominal 95% screen,
+        // but recovery of just 50% M in SQL means global recall is 49%.
+        var option = CoverageOption("T050", mSql: 100, sqlU: 200, tp: 98, fp: 0);
+        var report = CoverageReport([option], "T050");
+        var physical = V9PhysicalSqlAdaptiveCalibrationProbe.CalculateValidationGlobalCoverage(
+            eligibleTruePairs: 200, recoveredTruePairs: 100, recoveredFalsePairs: 200,
+            options: [option], minimumGlobalRecall: .95);
+        Assert.That(physical[0].ConditionalAcceptedPairRecall, Is.EqualTo(.98d));
+        Assert.That(physical[0].GlobalAcceptedPairRecall, Is.EqualTo(.49d));
+        var reconciled = V9PhysicalSqlAdaptiveCalibrationProbe
+            .EnforcePhysicalGlobalRecallForSuggestion(report, physical);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(reconciled.Status,
+                Is.EqualTo("NO_MODEL_MEETS_PHYSICAL_GLOBAL_RECALL_BUDGET"));
+            Assert.That(reconciled.SuggestedModelFamily, Is.Null);
+            Assert.That(reconciled.SuggestedOptionId, Is.Null);
+            Assert.That(reconciled.OperationalModelCreated, Is.False);
+            Assert.That(reconciled.AutomaticRecalibrationOrActivationAllowed, Is.False);
+        }));
+    }
+
+    [Test]
+    public void Physical_sql_keeps_descriptive_suggestion_only_when_global_recall_passes()
+    {
+        var option = CoverageOption("T050", mSql: 100, sqlU: 200, tp: 98, fp: 0);
+        var report = CoverageReport([option], "T050");
+        var physical = V9PhysicalSqlAdaptiveCalibrationProbe.CalculateValidationGlobalCoverage(
+            eligibleTruePairs: 102, recoveredTruePairs: 100, recoveredFalsePairs: 200,
+            options: [option], minimumGlobalRecall: .95);
+        var reconciled = V9PhysicalSqlAdaptiveCalibrationProbe
+            .EnforcePhysicalGlobalRecallForSuggestion(report, physical);
+        Assert.That(physical[0].GlobalAcceptedPairRecall, Is.GreaterThan(.95d));
+        Assert.That(reconciled, Is.SameAs(report));
+        Assert.That(reconciled.OperationalModelCreated, Is.False);
+    }
+
+    [Test]
+    public void Physical_sql_suggestion_requires_matching_unambiguous_option_fingerprints()
+    {
+        var option = CoverageOption("T050", mSql: 100, sqlU: 200, tp: 98, fp: 0);
+        var report = CoverageReport([option], "T050");
+        var physical = V9PhysicalSqlAdaptiveCalibrationProbe.CalculateValidationGlobalCoverage(
+            102, 100, 200, [option], .95);
+        Assert.That((Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+            .EnforcePhysicalGlobalRecallForSuggestion(report,
+                [physical[0] with { OptionId = "FORGED" }])),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+            .EnforcePhysicalGlobalRecallForSuggestion(
+                report with { SuggestedModelFamily = null }, physical)),
+            Throws.TypeOf<InvalidDataException>());
+        var noSuggestion = report with
+        {
+            SuggestedModelFamily = null,
+            SuggestedOptionId = null
+        };
+        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe
+            .EnforcePhysicalGlobalRecallForSuggestion(noSuggestion, physical),
+            Is.SameAs(noSuggestion));
+    }
+
+    private static AdaptiveCalibrationStudyReport CoverageReport(
+        IReadOnlyList<AdaptiveCalibrationOptionResult> options,
+        string suggestedOption) => new(
+            AdaptiveCalibrationModelSearch.Version, new string('b', 64),
+            "SUGGESTION_ONLY_UNCERTIFIED_GROUP_FDR_AND_PHYSICAL_SQL",
+            options, "FELLEGI_SUNTER_V9", suggestedOption,
+            TestUsed: false, ConfidenceBoundForFdrMeasured: false,
+            OperationalModelCreated: false,
+            AutomaticRecalibrationOrActivationAllowed: false);
+
+    [Test]
     public void Rejects_test_partition_before_any_sql_command()
     {
         using var connection = new SqlConnection();
