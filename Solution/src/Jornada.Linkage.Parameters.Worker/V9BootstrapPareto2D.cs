@@ -9,7 +9,7 @@ public static class V9BootstrapPareto2D
     public const double InitialMaximumP95Milliseconds = 60000d;
     public const string SelectionVersion = "V9_BOOTSTRAP_PARETO_2D_IDEAL_DISTANCE_V1";
 
-    public sealed record Option(
+    public sealed record CandidateOption(
         string OptionId,
         string ConfigurationFingerprintSha256,
         double GlobalRecall,
@@ -23,7 +23,7 @@ public static class V9BootstrapPareto2D
         bool IdentityClusterUncertaintyAttested);
 
     public sealed record Evaluation(
-        Option Option,
+        CandidateOption Option,
         bool Eligible,
         string? ExclusionReason,
         bool OnFrontier);
@@ -36,7 +36,7 @@ public static class V9BootstrapPareto2D
         string Status);
 
     public static Result Evaluate(
-        IEnumerable<Option> options,
+        IEnumerable<CandidateOption> options,
         double maximumP95Milliseconds = InitialMaximumP95Milliseconds)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -61,7 +61,7 @@ public static class V9BootstrapPareto2D
 
         var sorted = all.OrderBy(p => p.ConfigurationFingerprintSha256, StringComparer.Ordinal)
             .ThenBy(p => p.OptionId, StringComparer.Ordinal).ToArray();
-        string? Reason(Option p)
+        string? Reason(CandidateOption p)
         {
             var accepted = checked(p.TrueAccepted + p.FalseAccepted);
             if (p.AcceptedFdr is null || accepted == 0) return "FDR_INDEFINIDO_SEM_ACEITOS";
@@ -78,13 +78,13 @@ public static class V9BootstrapPareto2D
         }
         var reasons = sorted.ToDictionary(p => p.OptionId, Reason, StringComparer.Ordinal);
         var eligible = sorted.Where(p => reasons[p.OptionId] is null).ToArray();
-        static bool Dominates(Option a, Option b) =>
+        static bool Dominates(CandidateOption a, CandidateOption b) =>
             a.GlobalRecall >= b.GlobalRecall && a.AcceptedFdr!.Value <= b.AcceptedFdr!.Value
             && (a.GlobalRecall > b.GlobalRecall || a.AcceptedFdr.Value < b.AcceptedFdr.Value);
         var front = eligible.Where(p => !eligible.Any(q => !ReferenceEquals(p, q) && Dominates(q, p)))
             .ToArray();
         var frontIds = front.Select(p => p.OptionId).ToHashSet(StringComparer.Ordinal);
-        Option? suggestion = null;
+        CandidateOption? suggestion = null;
         if (front.Length > 0)
         {
             var rMin = front.Min(p => p.GlobalRecall);
