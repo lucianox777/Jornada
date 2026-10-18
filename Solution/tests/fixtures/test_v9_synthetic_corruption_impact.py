@@ -85,6 +85,7 @@ class CorruptionSensitivityAuditTests(unittest.TestCase):
             self.assertEqual(audited["observations"],4)
             self.assertEqual(audited["partition_scope"],"TRAIN_VALIDATION_ONLY")
             self.assertFalse(audited["test_rows_included_in_aggregates"])
+            self.assertFalse(audited["test_metrics_reported_for_data_quality_audit_only"])
             self.assertNotIn("TEST",audited["observations_by_split"])
             self.assertEqual(audited["true_pairs_across_managers"]["ALL"]["pairs"],2)
             self.assertEqual(audited["true_pairs_across_managers"]["ALL"]["rates"]["dob_disagrees_or_missing"]["count"],1)

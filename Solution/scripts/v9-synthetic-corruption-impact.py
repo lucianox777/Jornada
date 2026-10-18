@@ -136,6 +136,7 @@ def run(source,output,manifest=None,exclude_test=False):
     report.update({
         "partition_scope": "TRAIN_VALIDATION_ONLY" if exclude_test else "TRAIN_VALIDATION_TEST_HISTORICAL_AUDIT",
         "test_rows_included_in_aggregates": not exclude_test,
+        "test_metrics_reported_for_data_quality_audit_only": not exclude_test,
         "observations_sha256":digest(source),
         "frozen_manifest_sha256":digest(manifest) if manifest is not None else None,
         "manifest_recorded_error_profile":profile,

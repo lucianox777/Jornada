@@ -90,6 +90,7 @@ jobs:
           assert data["manifest_recorded_error_profile"]=="clean"
           assert data["partition_scope"]=="TRAIN_VALIDATION_ONLY"
           assert data["test_rows_included_in_aggregates"] is False
+          assert data["test_metrics_reported_for_data_quality_audit_only"] is False
           assert set(data["observations_by_split"])=={"TRAIN","VALIDATION"}
           assert data["true_pairs_across_managers"]["NO_CPF"]["pairs"]>0
           print(json.dumps({"observed_field_changes":data["effective_field_changes_per_observation"],
