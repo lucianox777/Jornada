@@ -31,7 +31,7 @@ public static class V9TrainSqlFirstNameUCalibration
     {
         ArgumentNullException.ThrowIfNull(trainSqlCandidates);
         if (!Enum.IsDefined(side) || smoothingAlpha <= 0m
-            || trainFingerprintSha256.Length != 64
+            || trainFingerprintSha256 is null || trainFingerprintSha256.Length != 64
             || trainFingerprintSha256.Any(x => !Uri.IsHexDigit(x)))
             throw new InvalidDataException("Parâmetros U de prenome TRAIN inválidos.");
 
@@ -68,7 +68,8 @@ public static class V9TrainSqlFirstNameUCalibration
         var canonical = new StringBuilder()
             .Append(Version).Append('|').Append(side).Append('|')
             .Append(trainFingerprintSha256).Append('|')
-            .Append(smoothingAlpha).Append('|').Append(n).Append('\n');
+            .Append(smoothingAlpha.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .Append('|').Append(n).Append('\n');
         foreach (var term in units.OrderBy(x => x.Key, StringComparer.Ordinal))
             canonical.Append(term.Key).Append('=')
                 .Append(term.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))
