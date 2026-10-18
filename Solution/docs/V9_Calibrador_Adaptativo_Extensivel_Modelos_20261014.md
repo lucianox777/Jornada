@@ -234,3 +234,23 @@ o fluxo físico canônico sempre envia ambas as partições completas.
 rotulagem completa, amostragem iid nem suporte independente
 validado. Os valores ainda são diagnósticos e o mecanismo V9 não
 passa a ativar ou recalibrar automaticamente.
+
+
+### Alvo de recall definido pela política, sem piso universal (18/10/2026)
+
+`AdaptiveCalibrationPreviewBudget.MinimumGlobalAcceptedRecall`
+é um limite **explícito de estudo** em `[0,1]`, vinculado à mesma
+identidade de estudo e à versão do orçamento. Não há piso universal
+de 95% embutido no coordenador de modelos. Por exemplo, um ensaio
+pode declarar `0.90` sem receber uma reprovação por um `0.95`
+implícito; mas declarar `0.90` **não afirma que 90% seja aceitável
+para produção**. Orçamentos ausentes, números NaN/infinitos ou fora
+de `[0,1]` falham fechado.
+
+A fonte da métrica permanece declarada: o coordenador genérico vê
+o recall **condicional ao seu frame**; o probe SQL físico (#1135/#1136)
+corrige o denominador global `TP_threshold/M_eligible` antes de
+admitir qualquer sugestão. O limite estatístico por identidade,
+decisões finais Rank/Resolve e TEST novo lacrado seguem exigências
+independentes. Nada nesta mudança altera o limite de risco existente,
+desabilita gates de CI ou autoriza ativação automática V9.
