@@ -233,6 +233,11 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             report.Options,
             budget.MinimumGlobalAcceptedRecall);
 
+        // The family-agnostic report is conditional on SQL-recovered M.
+        // On physical SQL only, never suggest a configuration whose global
+        // TP/eligible-M recall fails the same explicit budget.
+        var physicalReport = EnforcePhysicalGlobalRecallForSuggestion(report, globalCoverage);
+
         return new V9PhysicalCalibrationRunResult(
             Version,
             blockingFingerprint,
@@ -242,7 +247,7 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             validationRows.LongLength,
             trainPairBases.Count,
             validationPairBases.Count,
-            report,
+            physicalReport,
             trainEligibleM,
             validationEligibleM,
             trainRecoveredM,
@@ -303,6 +308,51 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
                 FinalRankResolveEvaluated: false));
         }
         return Array.AsReadOnly(measured.ToArray());
+    }
+
+    /// <summary>
+    /// Necessary physical SQL safeguard: a conditional recommendation from the
+    /// model search must not survive a failing global eligible-M denominator.
+    /// This remains diagnostic: the rank/resolve final links are not evaluated.
+    /// </summary>
+    public static AdaptiveCalibrationStudyReport EnforcePhysicalGlobalRecallForSuggestion(
+        AdaptiveCalibrationStudyReport report,
+        IReadOnlyList<V9PhysicalSqlOptionGlobalCoverage> coverage)
+    {
+        ArgumentNullException.ThrowIfNull(report);
+        ArgumentNullException.ThrowIfNull(coverage);
+        if (report.Options is null || coverage.Count != report.Options.Count)
+            throw new InvalidDataException("Relatório/medidas físicas não possuem a mesma cardinalidade.");
+
+        var keys = new HashSet<(string, string)>();
+        foreach (var x in coverage)
+        {
+            if (x is null || string.IsNullOrWhiteSpace(x.ModelFamily)
+                || string.IsNullOrWhiteSpace(x.OptionId)
+                || !keys.Add((x.ModelFamily, x.OptionId)))
+                throw new InvalidDataException("Opção física ausente ou duplicada.");
+        }
+        if (report.Options.Any(x => x is null
+            || !keys.Contains((x.ModelFamily, x.OptionId))))
+            throw new InvalidDataException("Opções do relatório diferem do SQL físico.");
+
+        if (report.SuggestedOptionId is null && report.SuggestedModelFamily is null)
+            return report;
+        if (string.IsNullOrWhiteSpace(report.SuggestedOptionId)
+            || string.IsNullOrWhiteSpace(report.SuggestedModelFamily))
+            throw new InvalidDataException("Sugestão parcial no coordenador.");
+        var matching = coverage.SingleOrDefault(x =>
+            x.ModelFamily == report.SuggestedModelFamily
+            && x.OptionId == report.SuggestedOptionId);
+        if (matching is null)
+            throw new InvalidDataException("Sugestão não pertence às opções do SQL físico.");
+
+        return matching.MeetsGlobalRecallBudget ? report : report with
+        {
+            Status = "NO_MODEL_MEETS_PHYSICAL_GLOBAL_RECALL_BUDGET",
+            SuggestedModelFamily = null,
+            SuggestedOptionId = null
+        };
     }
 
     /// <summary>
