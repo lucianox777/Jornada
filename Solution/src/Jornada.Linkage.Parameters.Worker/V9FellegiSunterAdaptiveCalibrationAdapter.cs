@@ -468,6 +468,49 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             .ToDictionary(x => x.Id, x => x.Guid, StringComparer.Ordinal);
         var baseByGroupGuid = groupIdByBase.ToDictionary(x => x.Value, x => x.Key);
 
+        // THIRD ARM, fully BLIND to synthetic ground-truth labels:
+        // a provisional entity is the complete normalized composite
+        // (person, mother, DOB) when all three values are available.
+        // Missing values never allow two observations to coalesce.
+        // This is a conservative surrogate, NOT operational Gold.
+        var exactGroups = new Dictionary<(string, string, DateOnly), Guid>();
+        var blindByObservationId = new Dictionary<int, Guid>();
+        var trueBasesByBlindGuid = new Dictionary<Guid, HashSet<string>>();
+        int blindSequence = 0;
+        foreach (var observed in validation.Values.OrderBy(x => x.ObservationId))
+        {
+            var person = IdentityComparison.NormalizeText(observed.PersonName);
+            var mother = IdentityComparison.NormalizeText(observed.MotherName);
+            Guid id;
+            if (person is not null && mother is not null
+                && observed.BirthDate is { } dob)
+            {
+                var key = (person, mother, dob);
+                if (!exactGroups.TryGetValue(key, out id))
+                {
+                    id = new Guid(checked(++blindSequence), 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 3);
+                    exactGroups[key] = id;
+                }
+            }
+            else
+            {
+                id = new Guid(checked(++blindSequence), 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 3);
+            }
+            blindByObservationId[observed.ObservationId] = id;
+            if (!trueBasesByBlindGuid.TryGetValue(id, out var trueBases))
+            {
+                trueBases = new HashSet<string>(StringComparer.Ordinal);
+                trueBasesByBlindGuid[id] = trueBases;
+            }
+            // Truth is recorded ONLY for evaluation of impurity / FP,
+            // never for choosing this blind group's key or membership.
+            trueBases.Add(observed.BasePersonId);
+        }
+        var impureBlindGroups = trueBasesByBlindGuid.Values
+            .Count(bases => bases.Count > 1);
+
         var neighbors = validation.Keys.ToDictionary(id => id, _ => new HashSet<int>());
         foreach (var (a, b) in validationSqlPairs)
         {
@@ -501,8 +544,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             if (config.TfWeight > 0m && (fitted.TrainUnitU is null || frozenTfReference is null))
                 throw new InvalidDataException("TF positiva sem snapshot TRAIN congelado.");
 
-            var counters = conflictMargins.SelectMany(margin => new[] { false, true }
-                    .Select(grouped => (margin, grouped)))
+            var counters = conflictMargins.SelectMany(margin =>
+                    Enumerable.Range(0, 3).Select(groupMode => (margin, groupMode)))
                 .ToDictionary(x => x,
                     _ => new V9SourceResolveAccumulator(orderedBases));
 
@@ -555,25 +598,48 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     .Select(g => g.First() with { PessoaUuid = g.Key })
                     .OrderByDescending(x => x.LogOdds)
                     .ThenBy(x => x.PessoaUuid).ToArray();
+                var blindRanking = ranked
+                    .GroupBy(x => blindByObservationId[
+                        observationByGuid[x.PessoaUuid].ObservationId])
+                    .Select(g => g.First() with { PessoaUuid = g.Key })
+                    .OrderByDescending(x => x.LogOdds)
+                    .ThenBy(x => x.PessoaUuid).ToArray();
 
                 foreach (var margin in conflictMargins)
-                foreach (var oracleGrouping in new[] { false, true })
+                foreach (var mode in new[] { 0, 1, 2 })
                 {
+                    var ranking = mode switch
+                    {
+                        0 => ranked,
+                        1 => blindRanking,
+                        2 => groupedRanking,
+                        _ => throw new InvalidOperationException("Modo de agrupamento inválido.")
+                    };
                     var decision = ProbabilisticLinkageDecisions
                         .ResolveRankedCompositeNominalV9Preview(
                             ObservationGuid(source.ObservationId),
-                            fitted.Parameters,
-                            oracleGrouping ? groupedRanking : ranked,
+                            fitted.Parameters, ranking,
                             config.DecisionThreshold, margin);
                     string? targetBase = null;
                     if (decision.Status == ResolutionStatus.RESOLVIDO)
                     {
                         if (decision.PessoaUuidResolvido is not { } selected)
                             throw new InvalidDataException("Resolve sem alvo em RESOLVIDO.");
-                        if (oracleGrouping)
+                        if (mode == 2)
                         {
                             if (!baseByGroupGuid.TryGetValue(selected, out targetBase))
                                 throw new InvalidDataException("Grupo oracle fora de VALIDATION.");
+                        }
+                        else if (mode == 1)
+                        {
+                            if (!trueBasesByBlindGuid.TryGetValue(selected, out var trueBases))
+                                throw new InvalidDataException("Grupo blind fora de VALIDATION.");
+                            // Impure inferred entities are ALWAYS errors,
+                            // even if one of their sources shares the true ID.
+                            // Never use the oracle to choose their real target.
+                            targetBase = trueBases.Count == 1
+                                ? trueBases.Single()
+                                : "IMPURE_BLIND_GROUP:" + selected;
                         }
                         else
                         {
@@ -582,15 +648,15 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                             targetBase = target.BasePersonId;
                         }
                     }
-                    counters[(margin, oracleGrouping)].Add(
+                    counters[(margin, mode)].Add(
                         source.BasePersonId, targetBase, decision);
                 }
             }
 
             foreach (var margin in conflictMargins.OrderBy(x => x))
-            foreach (var oracleGrouping in new[] { false, true })
+            foreach (var mode in new[] { 0, 1, 2 })
             {
-                var counter = counters[(margin, oracleGrouping)];
+                var counter = counters[(margin, mode)];
                 if (counter.Total != validation.Count || counter.Tp > trueSqlSources
                     || counter.Tp > eligibleSources)
                     throw new InvalidDataException("Decisões não reconciliam por fonte.");
@@ -602,9 +668,13 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     maximumAcceptedPerBaseIdentity, alpha: .05d);
                 metrics.Add(new V9PhysicalSourceResolveMetric(
                     config.OptionId, config.DecisionThreshold, config.TfWeight,
-                    margin, oracleGrouping
-                        ? "ORACLE_SYNTHETIC_GOLD_GROUPING_NOT_OPERATIONAL"
-                        : "RAW_SQL_OBSERVATION_CANDIDATES",
+                    margin, mode switch
+                    {
+                        0 => "RAW_SQL_OBSERVATION_CANDIDATES",
+                        1 => "BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING",
+                        2 => "ORACLE_SYNTHETIC_GOLD_GROUPING_NOT_OPERATIONAL",
+                        _ => throw new InvalidOperationException("Modo de agrupamento inválido.")
+                    },
                     validation.Count, eligibleSources, trueSqlSources,
                     counter.Tp, counter.Fp, counter.Conflicts, counter.Unresolved,
                     (double)trueSqlSources / eligibleSources,
@@ -614,8 +684,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     confidence.UpperFdr, orderedBases.Length,
                     counter.Reasons.OrderBy(x => x.Key, StringComparer.Ordinal)
                         .ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal),
-                    SyntheticGoldOracleGrouping: oracleGrouping,
-                    OperationallyCertified: false));
+                    SyntheticGoldOracleGrouping: mode == 2,
+                    OperationallyCertified: false,
+                    ImpureBlindGroups: mode == 1 ? impureBlindGroups : 0));
             }
         }
         return Array.AsReadOnly(metrics.ToArray());
