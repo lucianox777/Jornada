@@ -83,3 +83,31 @@ completa; os fingerprints/coortes e testes **não atestam por si só** essas
 hipóteses. `OperationallyCertified=false` em todas as saídas.
 Ainda falta o exportador real do Runner integrado ao censo, assinatura
 de proveniência, execução física e TEST lacrado.
+
+
+### Integridade da origem de grupos no FDR final — 18/10/2026
+
+**Problema diagnosticado:** o SHA do relatório do avaliador final
+`IndependentResolutionEvaluator` identifica o run e suas decisões
+gravadas, **não** a vinculação entre observações e identidades-base
+nem a coorte integral pré-blocking. Alterar apenas o agrupamento
+poderia deixar o SHA do run idêntico, mas modificar a inferência
+por conglomerados, sem alterar TP/FP globais.
+
+A ponte `V9RecordedClusterFdrValidation` V2 acrescenta
+`BoundCohortEvidenceFingerprintSha256`. É um digest SHA-256
+determinístico que abrange **o fingerprint das decisões finais**,
+a coorte **integral** de identidades (incluindo grau zero), o mapa
+`observation fingerprint -> base identity fingerprint`, o limite
+máximo pré-declarado de aceites por origem e o valor `alpha`.
+O digest é independente da ordem de entrada. Testes demonstram
+que alterar somente o agrupamento, uma identidade de grau zero,
+o cap ou o alpha modifica esse digest, mesmo que TP/FP globais e
+fingerprint do Runner permaneçam iguais.
+
+Esse vínculo serve à **rastreabilidade e detecção de substituições**;
+não autentica sozinho um censo, a amostra, uma assinatura externa,
+a veracidade do mapeamento ou a independência entre grupos.
+`OperationallyCertified` permanece sempre `false`. A execução
+física integral, o exportador de proveniência assinado, a validade
+das hipóteses do limite e o TEST lacrado ainda precisam ser comprovados.
