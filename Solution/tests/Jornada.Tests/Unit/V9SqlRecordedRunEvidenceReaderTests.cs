@@ -70,6 +70,22 @@ public sealed class V9SqlRecordedRunEvidenceReaderTests
     }
 
     [Test]
+    public void Default_json_export_discloses_only_run_metadata_and_sha_not_observation_uuids()
+    {
+        var snapshot = Verify();
+        var json = System.Text.Json.JsonSerializer.Serialize(snapshot);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(json, Does.Contain("CompleteFinalDecisionFingerprintSha256"));
+            Assert.That(json, Does.Contain("HasCompleteCandidateUnion"));
+            Assert.That(json, Does.Not.Contain("ObservationId"));
+            Assert.That(json, Does.Not.Contain("Outcomes"));
+            Assert.That(json, Does.Not.Contain(Person.ToString("D")));
+            Assert.That(json, Does.Not.Contain(Other.ToString("D")));
+        }));
+    }
+
+    [Test]
     public void Fail_closed_for_partial_published_wrong_status_run_or_tampered_counters()
     {
         void Reject(V9SqlRecordedRunHeader header,
