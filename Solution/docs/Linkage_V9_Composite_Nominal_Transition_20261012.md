@@ -190,7 +190,11 @@ O diagnóstico ponderado FS V9 agora inclui `ObservedJointSupport`, relatório d
 A API interna de desenvolvimento
 `ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview` agora aceita
 **opcionalmente** um provedor de `CompositeNominalTfPreviewV9` por par
-`observação × candidato`. O ranking aplica a correção no **mesmo**
+`observação × candidato`, **junto com o lado `positiveTfSide` obrigatório
+para TF positiva**. Com TF desabilitada ambos são nulos (BF = 1);
+com TF positiva, ausência de frequência `ExactFirst` no lado escolhido
+falha fechado, sem confundir parâmetro desconhecido com TF zero.
+O ranking aplica a correção no **mesmo**
 `FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewWithBreakdown`
 e preserva o desempate determinístico por UUID, o censo de candidatos,
 a deduplicação, a evidência de nascimento e a marca diagnóstica de
