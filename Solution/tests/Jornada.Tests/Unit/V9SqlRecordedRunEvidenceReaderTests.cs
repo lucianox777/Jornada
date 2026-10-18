@@ -179,12 +179,15 @@ public sealed class V9SqlRecordedRunEvidenceReaderTests
     [Test]
     public void Without_real_SQL_connection_cannot_claim_a_completed_authenticated_run()
     {
-        Assert.That(async () =>
-            await V9SqlRecordedRunEvidenceReader.ReadCompletedHmlAsync(
-                null!, Run), Throws.ArgumentNullException);
-        Assert.That(async () =>
-            await V9SqlRecordedRunEvidenceReader.ReadCompletedHmlAsync(
-                new Microsoft.Data.SqlClient.SqlConnection(), Run),
-            Throws.TypeOf<InvalidOperationException>());
+        Assert.That((AsyncTestDelegate)(async () =>
+        {
+            _ = await V9SqlRecordedRunEvidenceReader.ReadCompletedHmlAsync(
+                null!, Run);
+        }), Throws.ArgumentNullException);
+        Assert.That((AsyncTestDelegate)(async () =>
+        {
+            _ = await V9SqlRecordedRunEvidenceReader.ReadCompletedHmlAsync(
+                new Microsoft.Data.SqlClient.SqlConnection(), Run);
+        }), Throws.TypeOf<InvalidOperationException>());
     }
 }
