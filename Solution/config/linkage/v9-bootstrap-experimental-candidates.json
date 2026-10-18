@@ -1,0 +1,92 @@
+{
+  "schemaVersion": "V9_BOOTSTRAP_EXPERIMENTAL_CANDIDATES_V1",
+  "status": "HISTORICAL_DIAGNOSTIC_NOT_APPROVED_NOT_OPERATIONAL",
+  "active": false,
+  "calibrator": "V9_SINGLE_CSHARP_ADAPTIVE",
+  "referenceDestination": "ref",
+  "referenceStatus": "NOT_MATERIALIZED_OR_APPROVED_BY_THIS_FILE",
+  "population": {
+    "baseIdentitiesPerSeed": 30000,
+    "reference": "IBGE_DERIVED_SYNTHETIC",
+    "seed": 42,
+    "partition": [
+      "TRAIN",
+      "VALIDATION"
+    ],
+    "testUsedForParameterSelection": false
+  },
+  "selectionTarget": {
+    "denominator": "ALL_NO_CPF_TRUE_M_BEFORE_BLOCKING",
+    "minimumRecall": 0.95,
+    "objective": "MINIMIZE_TRAIN_FALSE_CANDIDATE_U_SUBJECT_TO_RECALL_AND_BUDGET",
+    "statisticalCertification": false
+  },
+  "observations": [
+    {
+      "profile": "clean",
+      "selectionMethod": "GREEDY_PRUNED_TRAIN_ONLY",
+      "selectedPassCount": 2,
+      "selectedPassIds": [
+        "P_PHON_M_LAST",
+        "P_PREFIX3_DOB"
+      ],
+      "signatureComplete": true,
+      "train": {
+        "trueM": 20364,
+        "recoveredM": 19630,
+        "returnedFalseCandidatesU": 242,
+        "identityClusterRecallLower95": 0.96073
+      },
+      "validation": {
+        "trueM": 6763,
+        "recoveredM": 6509,
+        "returnedFalseCandidatesU": 28
+      },
+      "source": "Solution/docs/V9_Decisoes_Integral_Erros_Blocking_Tamanho_Amostra_20261014.md",
+      "evidenceStatus": "OBSERVED_ON_SYNTHETIC_INDEXED_SQLITE"
+    },
+    {
+      "profile": "correlated",
+      "selectionMethod": "GREEDY_PRUNED_TRAIN_ONLY",
+      "selectedPassCount": 9,
+      "selectedPassIds": [],
+      "signatureComplete": false,
+      "train": {
+        "trueM": 20458,
+        "recoveredM": 19437,
+        "returnedFalseCandidatesU": 516029,
+        "identityClusterRecallLower95": 0.94678
+      },
+      "validation": {
+        "trueM": 6714,
+        "recoveredM": 6432,
+        "returnedFalseCandidatesU": 59376
+      },
+      "source": "Solution/docs/V9_Decisoes_Integral_Erros_Blocking_Tamanho_Amostra_20261014.md",
+      "evidenceStatus": "NUMBERS_VERIFIED_IN_HISTORICAL_DOC_PASS_ORDER_NOT_YET_RECONCILED"
+    }
+  ],
+  "missingForApproval": [
+    "COMPLETE_CORRELATED_PASS_ORDER_AND_SIGNATURE",
+    "CONDITIONED_SQL_TRAIN_M_U_PRIOR_AND_TF_SAME_UNIT",
+    "VALIDATION_CLUSTER_RECALL_LCB_AND_FDR_UCB_GATES",
+    "FULL_SQL_SERVER_CANDIDATE_UNION_PARITY_AND_P95_P99",
+    "NEW_UNSEEN_SEALED_TEST",
+    "APPROVED_REF_SNAPSHOT_AND_MANUAL_ACTIVATION"
+  ],
+  "historicalMeasurementWarning": {
+    "metric": "43.1581_PERCENT_RECALL",
+    "state": "HISTORICAL_C1_ACTIVE_SQL_SYNTHETIC_HARNESS_NOT_CURRENT_V9",
+    "reason": "OLDER_RULESET_AND_UNCALIBRATED_PROXY_FS; NOT REAL_MUNICIPAL_DATA; DO_NOT_COMPARE_TO_UPDATED_BLOCKING",
+    "historicalReport": "Solution/docs/V9_Veredito_SQL_30mil_20261013.md",
+    "currentReplacementCertified": false,
+    "correctedCauseIndependentlyVerified": false
+  },
+  "safety": {
+    "mayTrainAtBootstrap": false,
+    "mayPublishRef": false,
+    "mayActivateV9": false,
+    "mayWriteHmlProd": false,
+    "mayOpenHistoricalTestForSelection": false
+  }
+}
