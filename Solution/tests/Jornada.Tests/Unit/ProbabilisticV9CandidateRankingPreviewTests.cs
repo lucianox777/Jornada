@@ -208,7 +208,8 @@ public sealed class ProbabilisticV9CandidateRankingPreviewTests
         }
         var weighted = ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
             Parameters, observation, [firstMatch, nonMatch],
-            cells, CompositeNominalComparisonV9.ContractVersion, Weighted);
+            cells, CompositeNominalComparisonV9.ContractVersion, Weighted,
+            positiveTfSide: CompositeNominalTfSideV9.Person);
         Assert.Multiple((Action)(() =>
         {
             Assert.That(applied, Is.EqualTo(1));
@@ -228,7 +229,22 @@ public sealed class ProbabilisticV9CandidateRankingPreviewTests
                 (_, _) => pinned.CreatePreview(
                     CompositeNominalTfSideV9.Person,
                     CompositeNominalLevelV9.ExactFirst,
-                    "Maria Lima", "Maria Costa", .10m, 1m, .00001m, 1))),
+                    "Maria Lima", "Maria Costa", .10m, 1m, .00001m, 1),
+                positiveTfSide: CompositeNominalTfSideV9.Person)),
+            Throws.InvalidOperationException);
+        // Missing term is not the same as weight TF=0 or BF=1.
+        Assert.That((Action)(() =>
+            ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+                Parameters, observation, [firstMatch],
+                cells, CompositeNominalComparisonV9.ContractVersion,
+                (_, _) => null,
+                positiveTfSide: CompositeNominalTfSideV9.Person)),
+            Throws.InvalidOperationException);
+        Assert.That((Action)(() =>
+            ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+                Parameters, observation, [firstMatch],
+                cells, CompositeNominalComparisonV9.ContractVersion,
+                positiveTfSide: CompositeNominalTfSideV9.Person)),
             Throws.InvalidOperationException);
     }
 
@@ -256,7 +272,8 @@ public sealed class ProbabilisticV9CandidateRankingPreviewTests
         }
         var ranked = ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
             Parameters, obs, [high, exact],
-            Cells(), CompositeNominalComparisonV9.ContractVersion, OnlyFirst);
+            Cells(), CompositeNominalComparisonV9.ContractVersion, OnlyFirst,
+            positiveTfSide: CompositeNominalTfSideV9.Person);
         Assert.Multiple((Action)(() =>
         {
             Assert.That(ineligibleTf, Is.Zero);
