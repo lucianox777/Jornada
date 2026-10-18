@@ -133,3 +133,35 @@ conglomerados/splits independentes, estratos e tamanho efetivo, mesma
 decisão final Rank/Resolve no SQL físico, TEST novo lacrado e DT-15.
 O orçamento `ADAPTIVE_CALIBRATION_PREVIEW_BUDGET_V1` não foi
 alargado; apenas acrescentou-se uma restrição conservadora à prévia.
+
+
+## Diagnóstico de recall global no SQL físico — 18/10/2026
+
+O probe SQL do calibrador possui **dois universos verdadeiros diferentes**:
+`M_eligible` (todos os pares da mesma identidade-base entre gestores diferentes,
+contados antes do blocking) e `M_sql` (subconjunto de pares recuperados
+pelos passes SQL deduplicados). O adaptador FS continua reportando métricas
+de VALIDATION *condicionadas aos pares SQL*, que **não** são recall global
+quando `M_sql < M_eligible`.
+
+`V9PhysicalSqlOptionGlobalCoverage`, produzido pelo mesmo probe físico
+por opção FS (sem outro scorer), explicita três taxas com denominadores
+distintos:
+- `BlockingTruePairRecall = M_sql / M_eligible`;
+- `ConditionalAcceptedPairRecall = TP_threshold / M_sql`;
+- `GlobalAcceptedPairRecall = TP_threshold / M_eligible`.
+
+Também reporta `ThresholdAcceptedPairFdr = FP_threshold /
+(TP_threshold + FP_threshold)`, **indefinido** quando não há aceitos.
+O método reconcilia contagens do scorer com os pares M/U SQL físicos;
+contagens incompatíveis abortam. `MeetsGlobalRecallBudget` é somente
+um **indicador descritivo** relativo à política recebida, nunca autorização
+de seleção operacional.
+
+**Limite essencial:** `TP_threshold` e `FP_threshold` são decisões
+individuais de limiar do FS, **não vínculos finais após Rank/Resolve e
+controle de conflitos de UUID**. Assim, nenhuma dessas taxas certifica
+o resultado final. Também faltam TF positiva compatível, intervalo
+válido de erro por grupo de identidade, latência ponta a ponta com
+repetições e TEST novo lacrado. O output declara explicitamente
+`FinalRankResolveEvaluated=false`, e a V9 segue inativa.

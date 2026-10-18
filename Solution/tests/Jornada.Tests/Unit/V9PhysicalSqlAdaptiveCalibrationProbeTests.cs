@@ -50,6 +50,85 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
     }
 
     [Test]
+    public void Physical_frame_global_recall_includes_M_missed_by_blocking()
+    {
+        var rows = new[]
+        {
+            CoverageOption("T050", mSql: 6, sqlU: 20, tp: 5, fp: 1)
+        };
+        var result = V9PhysicalSqlAdaptiveCalibrationProbe.CalculateValidationGlobalCoverage(
+            eligibleTruePairs: 10, recoveredTruePairs: 6, recoveredFalsePairs: 20,
+            options: rows, minimumGlobalRecall: .95);
+        Assert.That(result, Has.Count.EqualTo(1));
+        var metric = result[0];
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(metric.EligibleTruePairsBeforeBlocking, Is.EqualTo(10));
+            Assert.That(metric.BlockingTruePairRecall, Is.EqualTo(.6d));
+            Assert.That(metric.ConditionalAcceptedPairRecall, Is.EqualTo(5d / 6d).Within(1e-12));
+            Assert.That(metric.GlobalAcceptedPairRecall, Is.EqualTo(.5d).Within(1e-12));
+            Assert.That(metric.ThresholdAcceptedPairFdr, Is.EqualTo(1d / 6d).Within(1e-12));
+            Assert.That(metric.MeetsGlobalRecallBudget, Is.False);
+            Assert.That(metric.FinalRankResolveEvaluated, Is.False);
+        }));
+    }
+
+    [Test]
+    public void Physical_frame_rejects_wrong_M_SQL_or_impossible_FS_accepted_counts()
+    {
+        var valid = CoverageOption("T050", mSql: 6, sqlU: 20, tp: 5, fp: 1);
+        Assert.That((Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+            .CalculateValidationGlobalCoverage(5, 6, 20, [valid], .95)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+            .CalculateValidationGlobalCoverage(10, 5, 20, [valid], .95)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+            .CalculateValidationGlobalCoverage(10, 6, 19, [valid], .95)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+            .CalculateValidationGlobalCoverage(10, 6, 20,
+                [CoverageOption("T050", 6, 20, 7, 1)], .95)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+            .CalculateValidationGlobalCoverage(10, 6, 20,
+                [CoverageOption("T050", 6, 20, 5, 21)], .95)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void No_threshold_accepted_pairs_has_undefined_FDR_not_zero_risk()
+    {
+        var result = V9PhysicalSqlAdaptiveCalibrationProbe.CalculateValidationGlobalCoverage(
+            10, 6, 20, [CoverageOption("T0", 6, 20, 0, 0)], .95);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result[0].GlobalAcceptedPairRecall, Is.Zero);
+            Assert.That(result[0].ThresholdAcceptedPairFdr, Is.Null);
+            Assert.That(result[0].MeetsGlobalRecallBudget, Is.False);
+        }));
+    }
+
+    private static AdaptiveCalibrationOptionResult CoverageOption(
+        string id, long mSql, long sqlU, long tp, long fp)
+    {
+        var holdout = new AdaptiveCalibrationHoldoutMetrics(
+            TruePairsWithoutCpf: mSql,
+            TrueAcceptedLinks: tp,
+            FalseAcceptedLinks: fp,
+            Abstentions: Math.Max(0, mSql - tp),
+            BlockingFalseCandidatePairs: sqlU,
+            BlockingFalseDegreeP99: 2d,
+            IndependentlyLabeledIdentityGroups: 20);
+        var accepted = tp + fp;
+        return new AdaptiveCalibrationOptionResult(
+            "FELLEGI_SUNTER_V9", "V9_TEST", id, new string('a', 64),
+            holdout, mSql == 0 ? 0 : (double)tp / mSql,
+            accepted == 0 ? null : (double)fp / accepted,
+            MeetsDescriptiveBudgetOnly: false);
+    }
+
+    [Test]
     public void Rejects_test_partition_before_any_sql_command()
     {
         using var connection = new SqlConnection();
