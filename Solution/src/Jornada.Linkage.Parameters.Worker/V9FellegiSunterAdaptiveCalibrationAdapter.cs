@@ -311,9 +311,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         var neighbors = validation.Keys.ToDictionary(x => x, _ => new HashSet<int>());
         foreach (var (left, right) in validationSqlPairs)
         {
-            if (left >= right || !validation.ContainsKey(left)
-                || !validation.ContainsKey(right)
-                || validation[left].Gestor == validation[right].Gestor
+            if (left >= right || !validation.TryGetValue(left, out var leftObservation)
+                || !validation.TryGetValue(right, out var rightObservation)
+                || leftObservation.Gestor == rightObservation.Gestor
                 || !neighbors[left].Add(right) || !neighbors[right].Add(left))
                 throw new InvalidDataException("União SQL física duplicada, contaminada ou sem orientação canônica.");
         }

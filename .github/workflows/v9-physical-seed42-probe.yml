@@ -98,10 +98,48 @@ jobs:
           assert all(x['OperationallyCertified'] is False for x in d['final_resolve_options'])
           print('Real SQL plus final Rank-Resolve measured; HML/TEST certification NOT claimed')
           PY
+      - name: Export measured, unambiguous 3x1 TF0 diagnostic CSV (NOT a completed 3x2 table)
+        working-directory: Solution
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          python3 - <<'PY'
+          import csv,json,os
+          from pathlib import Path
+          root=Path('.local/v9-physical-'+os.environ['PROFILE'])
+          source=json.loads((root/'physical-fs-resolve-diagnostic.json').read_text())
+          rows=[]
+          for measured in source['final_resolve_options']:
+              assert measured['TfWeight']==0 and measured['FinalRankResolveEvaluated']
+              eligible=measured['EligibleDirectedTrueLinksBeforeBlocking']
+              sql_true=measured['RecoveredDirectedTrueLinksBySql']
+              tp,fp=measured['TrueAcceptedDirectedLinks'],measured['FalseAcceptedDirectedLinks']
+              assert 0<=tp<=sql_true<=eligible and eligible>0
+              rows.append(dict(
+                  profile=source['profile'],threshold=measured['Threshold'],tf_weight=0,
+                  eligible_true=eligible,sql_true=sql_true,tp=tp,fp=fp,
+                  blocking_recall=measured['BlockingRecall'],
+                  global_recall=measured['GlobalRecall'],
+                  fdr_after_resolve=measured['FdrAfterResolve'],
+                  hoeffding_upper_by_identity=measured['HoeffdingUpperBySourceBaseIdentity'],
+                  conflict=measured['Conflicts'],unresolved=measured['Unresolved'],
+                  sql_p95_ms=source['RepeatedSqlMaterializationQuantiles']['P95Milliseconds'],
+                  evidence_status='MEASURED_SYNTHETIC_PHYSICAL_SQL_3x1_TF0_NOT_CERTIFIED',
+                  input_sha256=source['synthetic_input_sha256']))
+          assert len(rows)==3
+          path=root/'physical-resolve-partial-3x1.csv'
+          with path.open('x',newline='') as stream:
+              writer=csv.DictWriter(stream,fieldnames=list(rows[0]))
+              writer.writeheader()
+              writer.writerows(rows)
+          print(path.read_text())
+          PY
       - name: Upload aggregate physical metrics only (no identifiers, names, or truth)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: v9-physical-30k-seed42-${{ matrix.profile }}-resolve-diagnostic
-          path: Solution/.local/v9-physical-${{ matrix.profile }}/physical-fs-resolve-diagnostic.json
+          path: |
+            Solution/.local/v9-physical-${{ matrix.profile }}/physical-fs-resolve-diagnostic.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/physical-resolve-partial-3x1.csv
           if-no-files-found: ignore
