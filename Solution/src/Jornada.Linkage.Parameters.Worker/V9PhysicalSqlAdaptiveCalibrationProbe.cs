@@ -481,7 +481,7 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             "SELECT CASE WHEN OBJECT_ID('tempdb..#v9_cal_obs') IS NOT NULL AND OBJECT_ID('tempdb..#v9_cal_sig') IS NOT NULL THEN 1 ELSE 0 END",
             connection))
         {
-            if (Convert.ToInt32(await check.ExecuteScalarAsync(cancellationToken)) != 1)
+            if (Convert.ToInt32(await check.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture) != 1)
                 throw new InvalidOperationException("Frame SQL físico ausente na sessão.");
         }
         var samples = new List<double>(repetitions);
