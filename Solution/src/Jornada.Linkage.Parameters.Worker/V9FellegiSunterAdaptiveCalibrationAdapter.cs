@@ -194,7 +194,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             frame.TrainCorpusFingerprintSha256, frame.TrainIdentityFingerprintSha256);
         if (trainU is not null)
             fitSha = Sha(string.Join("|", fitSha, trainU.FingerprintSha256,
-                frozenTfReference!.PublishedReferenceSha256,
+                frozenTfReference!.ReferenceVersionId,
+                frozenTfReference.ReferenceCode,
+                frozenTfReference.PublishedReferenceSha256,
                 frozenTfReference.MaterializedFrequencySha256,
                 frozenTfReference.BlockingFrameFingerprint));
         fits[fitSha] = new FrozenFit(fitSha, config.OptionId, config.DecisionThreshold,
