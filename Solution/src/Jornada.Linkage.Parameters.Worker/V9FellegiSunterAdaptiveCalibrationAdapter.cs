@@ -540,6 +540,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             throw new InvalidDataException("Cobertura SQL por fonte inconsistente.");
 
         var metrics = new List<V9PhysicalSourceResolveMetric>();
+        var predeclaredComparedConfigurations = checked(
+            options.Count * conflictMargins.Count * (includeFsBlindGrouping ? 4 : 3));
         foreach (var config in options.Values.OrderBy(x => x.OptionId, StringComparer.Ordinal))
         {
             var fitted = fits.Values.SingleOrDefault(x => x.OptionId == config.OptionId)
@@ -726,12 +728,15 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                         || counter.Tp > eligibleSources)
                         throw new InvalidDataException(
                             "Decisões FS blind não reconciliam por fonte.");
+                    var sourcesByIdentity = counter.GroupContributions
+                        .OrderBy(x => x.Key, StringComparer.Ordinal)
+                        .Select(x => new V9IdentityClusterFdr.IdentityGroup(
+                            x.Key, x.Value.Tp, x.Value.Fp)).ToArray();
                     var bound = V9IdentityClusterFdr.UpperBoundForPopulationMeanRatio(
-                        counter.GroupContributions
-                            .OrderBy(x => x.Key, StringComparer.Ordinal)
-                            .Select(x => new V9IdentityClusterFdr.IdentityGroup(
-                                x.Key, x.Value.Tp, x.Value.Fp)),
-                        maximumAcceptedPerBaseIdentity, alpha: .05d);
+                        sourcesByIdentity, maximumAcceptedPerBaseIdentity, alpha: .05d);
+                    var cp = V9IdentityClusterFdr.UpperBoundForPopulationMeanRatioByAnyErrorCp(
+                        sourcesByIdentity, maximumAcceptedPerBaseIdentity,
+                        predeclaredComparedConfigurations, alpha: .05d);
                     metrics.Add(new V9PhysicalSourceResolveMetric(
                         config.OptionId, config.DecisionThreshold, config.TfWeight,
                         margin, "BLIND_FS_COMPLETE_LINK_CANDIDATES",
@@ -748,7 +753,12 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                                 StringComparer.Ordinal),
                         SyntheticGoldOracleGrouping: false,
                         OperationallyCertified: false,
-                        ImpureBlindGroups: impureFsGroups));
+                        ImpureBlindGroups: impureFsGroups,
+                        ConditionalClusterCpFdrUpper: cp.UpperFdrConditional,
+                        ClopperPearsonUpperAnyFpByIdentity:
+                            cp.UpperProbabilityOfAnyGroupErrorClopperPearson,
+                        BonferroniComparedConfigurations: predeclaredComparedConfigurations,
+                        ClusterIidIndependentlyValidated: false));
                 }
             }
 
@@ -759,12 +769,15 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 if (counter.Total != validation.Count || counter.Tp > trueSqlSources
                     || counter.Tp > eligibleSources)
                     throw new InvalidDataException("Decisões não reconciliam por fonte.");
+                var sourcesByIdentity = counter.GroupContributions
+                    .OrderBy(x => x.Key, StringComparer.Ordinal)
+                    .Select(x => new V9IdentityClusterFdr.IdentityGroup(
+                        x.Key, x.Value.Tp, x.Value.Fp)).ToArray();
                 var confidence = V9IdentityClusterFdr.UpperBoundForPopulationMeanRatio(
-                    counter.GroupContributions
-                        .OrderBy(x => x.Key, StringComparer.Ordinal)
-                        .Select(x => new V9IdentityClusterFdr.IdentityGroup(
-                            x.Key, x.Value.Tp, x.Value.Fp)),
-                    maximumAcceptedPerBaseIdentity, alpha: .05d);
+                    sourcesByIdentity, maximumAcceptedPerBaseIdentity, alpha: .05d);
+                var cp = V9IdentityClusterFdr.UpperBoundForPopulationMeanRatioByAnyErrorCp(
+                    sourcesByIdentity, maximumAcceptedPerBaseIdentity,
+                    predeclaredComparedConfigurations, alpha: .05d);
                 metrics.Add(new V9PhysicalSourceResolveMetric(
                     config.OptionId, config.DecisionThreshold, config.TfWeight,
                     margin, mode switch
@@ -785,7 +798,12 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                         .ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal),
                     SyntheticGoldOracleGrouping: mode == 2,
                     OperationallyCertified: false,
-                    ImpureBlindGroups: mode == 1 ? impureBlindGroups : 0));
+                    ImpureBlindGroups: mode == 1 ? impureBlindGroups : 0,
+                    ConditionalClusterCpFdrUpper: cp.UpperFdrConditional,
+                    ClopperPearsonUpperAnyFpByIdentity:
+                        cp.UpperProbabilityOfAnyGroupErrorClopperPearson,
+                    BonferroniComparedConfigurations: predeclaredComparedConfigurations,
+                    ClusterIidIndependentlyValidated: false));
             }
         }
         return Array.AsReadOnly(metrics.ToArray());

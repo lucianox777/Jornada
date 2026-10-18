@@ -7,6 +7,7 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/Program.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9BlindIncrementalIdentityGrouping.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FellegiSunterAdaptiveCalibrationAdapter.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9IdentityClusterFdr.cs'
       - '.github/workflows/v9-physical-seed42-probe.yml'
   workflow_dispatch:
 
@@ -142,6 +143,13 @@ jobs:
           assert all(x['ImpureBlindGroups']>=0 for x in d['source_resolve_options'])
           assert d['candidate_grouping_oracle_uses_truth_labels'] is True
           assert d['label_blind_fs_complete_link_measured'] is True
+          assert d['conditional_cp_cluster_ratio_is_operationally_certified'] is False
+          assert d['conditional_cp_cluster_independence_not_attested'] is True
+          assert all(x['BonferroniComparedConfigurations']==36 for x in d['source_resolve_options'])
+          assert all(x['ClusterIidIndependentlyValidated'] is False for x in d['source_resolve_options'])
+          assert all(x['ClopperPearsonUpperAnyFpByIdentity'] is not None for x in d['source_resolve_options'])
+          assert all(x['ConditionalClusterCpFdrUpper'] is None or 0<=x['ConditionalClusterCpFdrUpper']<=1
+                     for x in d['source_resolve_options'])
           assert d['fs_grouping_minimum_pair_posterior']==0.99
           print('Real SQL plus final Rank-Resolve measured; HML/TEST certification NOT claimed')
           PY
@@ -174,6 +182,10 @@ jobs:
                   global_source_recall=result['GlobalSourceRecall'],
                   fdr_after_resolve=result['FdrAfterResolve'],
                   hoeffding_upper_by_identity=result['HoeffdingUpperBySourceBaseIdentity'],
+                  conditional_cp_any_group_fp_fdr_upper=result['ConditionalClusterCpFdrUpper'],
+                  cp_upper_probability_of_any_group_fp=result['ClopperPearsonUpperAnyFpByIdentity'],
+                  bonferroni_compared_configurations=result['BonferroniComparedConfigurations'],
+                  cluster_iid_independently_validated=result['ClusterIidIndependentlyValidated'],
                   conflict=result['Conflicts'],unresolved=result['Unresolved'],
                   resolve_reasons=json.dumps(result['ReasonsByResolveStatus'],sort_keys=True),
                   sql_p95_ms=source['RepeatedSqlMaterializationQuantiles']['P95Milliseconds'],

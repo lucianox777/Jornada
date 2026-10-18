@@ -95,4 +95,131 @@ public static class V9IdentityClusterFdr
             DenominatorSupported: supported, OperationallyCertified: false);
     }
 
+    /// <summary>
+    /// Supplementary ONE-SIDED 1-alpha bound on population E[FP]/E[accepts].
+    /// Split alpha over (a) EXACT binomial Clopper-Pearson UCB for the
+    /// probability that an entire source-identity cluster has >=1 FP,
+    /// and (b) Hoeffding LCB on accepted links per independent identity.
+    /// The inequality E[FP] <= predeclaredCap * P(any FP in cluster)
+    /// yields an upper ratio after dividing by that positive LCB.
+    ///
+    /// ASSUMPTIONS (NOT certified here): exchangeable IID base-identity
+    /// clusters; complete independent truth labels; a hard cap enforced
+    /// by the population measurement protocol, not chosen from observed
+    /// maximum; a predeclared count of all compared configurations. Candidate
+    /// competition may correlate two identities: that violates IID and means
+    /// this number is an assumption-CONDITIONAL sensitivity diagnostic only.
+    /// No automatic suggestion, VALIDATE, ACTIVATE, TEST or promotion.
+    /// </summary>
+    public sealed record ClusterAnyErrorCpRatioBound(
+        int IndependentGroups,
+        int GroupsWithAnyFalseAccepted,
+        long TotalAccepted,
+        long FalseAccepted,
+        double? ObservedFdr,
+        double UpperProbabilityOfAnyGroupErrorClopperPearson,
+        double LowerMeanAcceptedPerGroupHoeffding,
+        double? UpperFdrConditional,
+        double Alpha,
+        int ComparedConfigurations,
+        int PredeclaredMaximumAcceptedPerIdentity,
+        bool DenominatorSupported,
+        bool IidClusterAssumptionIndependentlyValidated,
+        bool OperationallyCertified);
+
+    public static ClusterAnyErrorCpRatioBound
+        UpperBoundForPopulationMeanRatioByAnyErrorCp(
+            IEnumerable<IdentityGroup> groups,
+            int predeclaredMaximumAcceptedPerIdentity,
+            int comparedConfigurations,
+            double alpha = .05d)
+    {
+        ArgumentNullException.ThrowIfNull(groups);
+        if (predeclaredMaximumAcceptedPerIdentity < 1
+            || comparedConfigurations is < 1 or > 4096
+            || !double.IsFinite(alpha) || alpha is <= 0d or >= 1d)
+            throw new ArgumentOutOfRangeException(nameof(alpha),
+                "Cap positivo, quantidade de opções pré-declarada e alpha em (0,1) exigidos.");
+
+        var values = groups.ToArray();
+        var summary = Describe(values); // uniqueness, signs, group count >= 2
+        foreach (var group in values)
+            if (group.TrueAccepted > predeclaredMaximumAcceptedPerIdentity
+                || group.FalseAccepted
+                    > predeclaredMaximumAcceptedPerIdentity - group.TrueAccepted)
+                throw new InvalidDataException(
+                    "Cap por identidade violado; impossível inferir UCB.");
+
+        var n = values.Length;
+        var errors = values.Count(x => x.FalseAccepted > 0);
+        // Bonferroni across ALL predeclared compared configurations,
+        // followed by a second Bonferroni over numerator and denominator.
+        var perComponentAlpha = alpha / (2d * comparedConfigurations);
+        var cpUpper = ClopperPearsonBinomialUpper(
+            n, errors, perComponentAlpha);
+        var total = checked(summary.TrueAccepted + summary.FalseAccepted);
+        var acceptedLower = Math.Max(0d, (double)total / n
+            - predeclaredMaximumAcceptedPerIdentity
+                * Math.Sqrt(Math.Log(1d / perComponentAlpha) / (2d * n)));
+        var supported = acceptedLower > 0d;
+        var ratio = supported
+            ? Math.Min(1d,
+                predeclaredMaximumAcceptedPerIdentity * cpUpper / acceptedLower)
+            : (double?)null;
+        return new ClusterAnyErrorCpRatioBound(
+            n, errors, total, summary.FalseAccepted, summary.ObservedFdr,
+            cpUpper, acceptedLower, ratio, alpha, comparedConfigurations,
+            predeclaredMaximumAcceptedPerIdentity,
+            DenominatorSupported: supported,
+            IidClusterAssumptionIndependentlyValidated: false,
+            OperationallyCertified: false);
+    }
+
+    // P_p(X<=k) decreases in p. Its equality to alphaComponent gives
+    // the exact one-sided Clopper-Pearson UCB for Bernoulli cluster errors.
+    // Compute the binomial tail in the log domain to avoid underflow for
+    // thousands of identities; no normal or n_eff approximation is used.
+    private static double ClopperPearsonBinomialUpper(
+        int trials, int errors, double alphaComponent)
+    {
+        if (errors == trials) return 1d;
+        if (errors == 0)
+            return 1d - Math.Exp(Math.Log(alphaComponent) / trials);
+        double low = 0d, high = 1d;
+        for (int i = 0; i < 70; i++)
+        {
+            var mid = (low + high) / 2d;
+            if (BinomialLowerTail(trials, errors, mid) > alphaComponent)
+                low = mid;
+            else
+                high = mid;
+        }
+        return high;
+    }
+
+    private static double BinomialLowerTail(int n, int k, double p)
+    {
+        if (p <= 0d) return 1d;
+        if (p >= 1d) return k == n ? 1d : 0d;
+        var logP = Math.Log(p);
+        var logOneMinusP = Math.Log(1d - p);
+        var logs = new double[k + 1];
+        double logCombination = 0d;
+        double maximum = double.NegativeInfinity;
+        for (var j = 0; j <= k; j++)
+        {
+            if (j > 0)
+                logCombination += Math.Log(n - j + 1d) - Math.Log(j);
+            var logTerm = logCombination + j * logP
+                + (n - j) * logOneMinusP;
+            logs[j] = logTerm;
+            maximum = Math.Max(maximum, logTerm);
+        }
+        if (maximum < -745d) return 0d;
+        double sum = 0d;
+        foreach (var value in logs)
+            sum += Math.Exp(value - maximum);
+        return Math.Min(1d, Math.Exp(maximum) * sum);
+    }
+
 }

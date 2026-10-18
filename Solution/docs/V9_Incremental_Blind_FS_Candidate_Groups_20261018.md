@@ -41,3 +41,44 @@ O workflow publica `physical-source-resolve-3x3x4-TF0.csv` e JSON,
 associados ao hash do corpus/fit; o braço ORACLE continua apenas teto
 não operacional. Antes da execução, números do quarto braço são
 **não medidos**; não inferir FP/recall sem artefato do Actions.
+
+
+## Inferência de FDR por identidade: análise CP exata condicional (18/10/2026)
+
+O experimento físico `clean` após a PR #1154 confirmou no threshold
+**0,95** e margem **0,5**, para o braço BLIND_FS_COMPLETE_LINK,
+**7.505 TP, 0 FP observados, 176 conflitos**, recall global por fonte
+**95,715%** em 7.841 fontes elegíveis. BLIND_EXACT ficou em 7.502 TP:
+o ganho do FS conservador foi somente +3 fontes. No threshold
+**0,90** o FS obteve 7.535 TP, **1 FP**, recall 96,097%.
+Evidência: [run SQL físico 39151390820](https://github.com/lucianox777/Jornada/actions/runs/39151390820),
+[artefato #12145661038](https://github.com/lucianox777/Jornada/actions/runs/39151390820/artifacts/12145661038),
+HEAD `c5f52c12fb532ffbfd56087ce163728bcccc8640`, merge da
+[PR #1154](https://github.com/lucianox777/Jornada/pull/1154)
+em `9c84527f8fe44496c35c142cde009135653e28ca`.
+
+O novo diagnóstico `UpperBoundForPopulationMeanRatioByAnyErrorCp`
+usa **Clopper–Pearson unilateral exato** para a **probabilidade
+por identidade de pelo menos um FP**, NÃO diretamente FDR por vínculo.
+Sob as hipóteses explícitas de identidades independentes e iid,
+truth completa, e cap `C` imposto antes do experimento:
+`E[FP/identidade] ≤ C × P(identidade com FP)`.
+Uma LCB unilateral de Hoeffding para `E[aceites/identidade]`
+permite então limitar `E[FP]/E[aceites]`. O risco total alpha
+é repartido entre numerador/denominador e corrigido por
+**Bonferroni sobre todas as configurações comparadas**.
+Quando a LCB do denominador é zero, o resultado é **undefined**,
+nunca risco zero. A classe preserva `OperationallyCertified=false`
+e `IidClusterAssumptionIndependentlyValidated=false`.
+
+Usando a coorte medida (5.556 grupos de identidade, 7.505 aceites,
+zero FP, cap16) a fórmula dá UCB **~1,003% em comparação única**
+ou **~2,223% para 36 opções pré-declaradas**, sempre **condicionais
+às hipóteses não certificadas**, não promessa de 95% de cobertura
+sobre o conjunto real. O Hoeffding original (~27,52%) permanece
+visível como limite descritivo mais conservador. A competição
+entre identidades no blocking e no Resolve cria dependência
+estatística, então **não usar automaticamente o bound CP para
+selecionar nem promover V9**. Essas duas colunas serão medidas
+no probe físico sem usar TEST; TF positiva e correção de múltiplos
+estudos permanecem pendentes.
