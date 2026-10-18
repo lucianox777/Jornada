@@ -148,3 +148,37 @@ válidos. Não altera o Runner operacional nem publica/ativa V9.
 `OperationallyCertified=false` é incondicional; falta integrar
 o exportador a uma execução HML genuína, com atestação do mesmo
 run/modelo/ruleset e TEST lacrado.
+
+
+## Encadeamento vinculante de decisões finais → FDR por coorte (18/10/2026)
+
+`V9RecordedRunnerOutcomeEvaluation.EvaluateValidation` agora executa,
+na **mesma chamada** e sobre os mesmos dados:
+`V9RecordedRunnerOutcomeBridge.Bind` →
+`V9RecordedClusterFdrValidation.Evaluate` →
+`IndependentResolutionEvaluator.EvaluateRecorded`. Recebe
+`ProbabilisticLinkageDecision` já calculado pelo Runner C#, todo o
+mapa `UUID ↔ fingerprint ↔ posterior` da união candidata,
+o gabarito independente de `VALIDATION`, a coorte completa de bases
+**anterior ao blocking** (inclusive grau zero), run/model/ruleset
+fixados, limiar, margem, limite por identidade e alpha.
+
+Diferentemente de testes que apenas imprimiam o score, a integração
+exige o **status final pós-guards** e confere TP/FP com o avaliador
+independente. Um SHA final vincula `runId`, `modelId`,
+versão do modelo, fingerprint do ruleset, fingerprint do registro de
+decisões e fingerprint da coorte com proveniência. Os testes
+exercitam TP=1/FP=1, bases sem consulta, recusa de universo truncado,
+identidade-base inexistente, mudança silenciosa de origem, inversão
+de decisão, parâmetros falsos e estabilidade por permutação de linhas.
+
+**Não confundir com uma execução física aprovada**: a nova API
+integra corretamente objetos **fornecidos pelo chamador**, mas ainda
+não extrai automaticamente essas evidências do run real da HML,
+não autentica assinaturas/estado SQL de um run, não prova isolamento
+TRAIN/VALIDATION/TEST, cobertura sem `TOP N`, independência da amostra
+de grupos, suficiência de 30 mil ou validade do cap por origem.
+Permanece `OperationallyCertified=false` e **não ativa V9/DT-15**.
+O contrato exige uma exportação posterior genuína com captura fixada
+do mesmo run/modelo/ruleset e do TEST lacrado, sem substituir a
+verdade independente por rótulos do próprio Runner.
