@@ -159,7 +159,8 @@ public sealed class ProbabilisticV9CandidateRankingPreviewTests
     {
         var entries = new[]
         {
-            new NominalTermFrequencyEntry("NOME_PRENOME", "MARIA", 60, 100, .60m)
+            new NominalTermFrequencyEntry("NOME_PRENOME", "MARIA", 60, 100, .60m),
+            new NominalTermFrequencyEntry("NOME_MAE_PRENOME", "ANA", 30, 100, .30m)
         };
         return FrozenIbgeNominalTfV9.BindPublished(
             new PreparedNominalTermFrequency(
