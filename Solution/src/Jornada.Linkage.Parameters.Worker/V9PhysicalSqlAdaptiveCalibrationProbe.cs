@@ -32,6 +32,24 @@ public sealed record V9PhysicalFinalResolveMetric(
     int PredeclaredMaximumAcceptedPerBaseIdentity, double Alpha,
     bool FinalRankResolveEvaluated, bool OperationallyCertified);
 
+/// <summary>
+/// One Rank/Resolve decision per SOURCE observation. Source eligibility is
+/// determined BEFORE SQL blocking (at least one true cross-manager partner).
+/// Oracle grouping uses SYNTHETIC truth labels solely to model ideal Gold
+/// consolidation and cannot certify actual entity clustering.
+/// </summary>
+public sealed record V9PhysicalSourceResolveMetric(
+    string OptionId, decimal Threshold, decimal TfWeight, decimal ConflictMargin,
+    string CandidateGrouping, int AllValidationObservations,
+    long EligibleSourceObservationsBeforeBlocking,
+    long EligibleSourceObservationsWithTrueSqlCandidate,
+    long TrueAcceptedSourceObservations, long FalseAcceptedSourceObservations,
+    long Conflicts, long Unresolved,
+    double BlockingSourceRecall, double GlobalSourceRecall,
+    double? FdrAfterResolve, double? HoeffdingUpperBySourceBaseIdentity,
+    int PreBlockingBaseIdentities, IReadOnlyDictionary<string, long> ReasonsByResolveStatus,
+    bool SyntheticGoldOracleGrouping, bool OperationallyCertified);
+
 public sealed record V9PhysicalCalibrationRunResult(
     string Version,
     string BlockingFingerprintSha256,
@@ -51,7 +69,8 @@ public sealed record V9PhysicalCalibrationRunResult(
     V9PhysicalSqlIdentityCohortCoverage? TrainIdentityCohortCoverage = null,
     V9PhysicalSqlIdentityCohortCoverage? ValidationIdentityCohortCoverage = null,
     V9PhysicalSqlCostQuantiles.Summary? RepeatedSqlMaterializationQuantiles = null,
-    IReadOnlyList<V9PhysicalFinalResolveMetric>? FinalResolveValidation = null);
+    IReadOnlyList<V9PhysicalFinalResolveMetric>? FinalResolveValidation = null,
+    IReadOnlyList<V9PhysicalSourceResolveMetric>? SourceResolveValidation = null);
 
 /// <summary>
 /// Cohort is defined BEFORE SQL blocking and includes every base identity,
@@ -125,7 +144,8 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         int repeatedSqlMaterializationRuns = 0,
         bool evaluateFinalResolve = false,
         decimal finalConflictMargin = .5m,
-        int predeclaredMaximumAcceptedPerBaseIdentity = 16)
+        int predeclaredMaximumAcceptedPerBaseIdentity = 16,
+        IReadOnlyCollection<decimal>? finalConflictMargins = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(observations);
@@ -310,6 +330,7 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         // TP/eligible-M recall fails the same explicit budget.
         var physicalReport = EnforcePhysicalGlobalRecallForSuggestion(report, globalCoverage);
         IReadOnlyList<V9PhysicalFinalResolveMetric>? finalResolve = null;
+        IReadOnlyList<V9PhysicalSourceResolveMetric>? sourceResolve = null;
         if (evaluateFinalResolve)
         {
             var physicalEdges = await ReadValidationPairsAsync(connection, cancellationToken);
@@ -318,6 +339,9 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             finalResolve = adapter.EvaluatePostResolveValidation(
                 observations, physicalEdges, validationEligibleM, validationRecoveredM,
                 finalConflictMargin, predeclaredMaximumAcceptedPerBaseIdentity);
+            sourceResolve = adapter.EvaluateSourceUnitResolveValidation(
+                observations, physicalEdges, finalConflictMargins ?? [finalConflictMargin],
+                predeclaredMaximumAcceptedPerBaseIdentity);
         }
 
         return new V9PhysicalCalibrationRunResult(
@@ -339,7 +363,8 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             trainIdentityCoverage,
             validationIdentityCoverage,
             repeatedQuantiles,
-            finalResolve);
+            finalResolve,
+            sourceResolve);
     }
 
     /// <summary>
