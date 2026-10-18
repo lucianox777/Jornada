@@ -104,7 +104,8 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         IReadOnlyCollection<V9FsAdaptiveOptionConfiguration> options,
         AdaptiveCalibrationPreviewBudget budget,
         string studyFingerprintSha256,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        FrozenIbgeNominalTfV9? frozenTfReference = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(observations);
@@ -151,7 +152,15 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             .ToHashSet(StringComparer.Ordinal);
         if (canonicalPasses.SelectMany(x => x.Fields).Any(x => !allowed.Contains(x)))
             throw new InvalidDataException("Ruleset contém feature fora do catálogo do Calibrador.");
-
+        var blockingFingerprint = BlockingFingerprint(canonicalPasses);
+        // A positive TF option can only run against the SAME pinned physical
+        // SQL blocking frame and preloaded immutable reference. Do not query
+        // whichever reference happens to be active at evaluation time.
+        if (options.Any(x => x is not null && x.TfWeight > 0m)
+            && (frozenTfReference is null
+                || frozenTfReference.BlockingFrameFingerprint != blockingFingerprint))
+            throw new InvalidDataException(
+                "TF positiva exige referência IBGE publicada/fixada no mesmo frame SQL.");
         var signatures = BuildSignatures(observations, canonicalPasses);
         var preflight = CountPairIncidences(signatures, observations);
         if (preflight > HardPairIncidenceCap)
@@ -201,7 +210,6 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             throw new InvalidDataException(
                 "M recuperado no SQL excede universo elegível pré-blocking: denominador inconsistente.");
 
-        var blockingFingerprint = BlockingFingerprint(canonicalPasses);
         var trainCorpusSha = CorpusFingerprint("TRAIN", observations, blockingFingerprint);
         var validationCorpusSha = CorpusFingerprint("VALIDATION", observations, blockingFingerprint);
         var trainIdentitySha = IdentityFingerprint("TRAIN", trainBases);
@@ -217,7 +225,8 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             validationBases.OrderBy(x => x, StringComparer.Ordinal).ToArray());
 
         var optionList = options.ToArray();
-        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(frame, optionList);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            frame, optionList, frozenTfReference);
         var modelOptions = optionList.Select(x => new AdaptiveCalibrationModelOption(
             V9FellegiSunterAdaptiveCalibrationAdapter.Family,
             V9FellegiSunterAdaptiveCalibrationAdapter.Version,

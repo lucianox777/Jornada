@@ -254,3 +254,52 @@ admitir qualquer sugestão. O limite estatístico por identidade,
 decisões finais Rank/Resolve e TEST novo lacrado seguem exigências
 independentes. Nada nesta mudança altera o limite de risco existente,
 desabilita gates de CI ou autoriza ativação automática V9.
+
+
+## V9 — TF positiva de prenome no MESMO adaptador FS C# (18/10/2026)
+
+O adaptador FS V9 evolui de `V1` para `V2` **somente no fluxo
+diagnóstico TRAIN/VALIDATION**. O mesmo `FitTrain` congela as 81
+células conjuntas e, para cada opção com `TfWeight > 0`, calcula
+em **TRAIN U do mesmo SQL físico** a distribuição da **unidade de
+prenome** entre pares `ExactFirst`. A probabilidade de referência
+`UnitReferenceU` é `(contagem_U(termo) + alpha) /
+(total_U_ExactFirst + alpha * (K + 1))`, onde K é o número de termos
+U distintos observados. Esse baseline é **condicional à seleção SQL
+e ao estado ExactFirst**, não frequência marginal na população:
+deve ser interpretado apenas como estimativa preliminar de treinamento.
+
+Na mesma avaliação `EvaluateValidation`, o scorer
+`FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown`
+recebe `CompositeNominalTfPreviewV9` da fonte
+`FrozenIbgeNominalTfV9`, para o **mesmo termo** e com peso explícito
+na opção (`0 <= TfWeight <= 1`). Somente `ExactFirst` é elegível
+a essa **marginal IBGE de prenome**. Níveis integrais, sobrenomes,
+reversões e comparações não exatas permanecem sem TF, **por decisão
+explícita de elegibilidade da unidade**, não por fingir frequência
+desconhecida igual a zero/um. Com peso zero, a contribuição TF é
+desabilitada intencionalmente (BF=1). Se peso positivo e termo
+`ExactFirst` desconhecido no U TRAIN, suprimido no snapshot ou
+sem baseline de suporte, **a avaliação falha fechado**; não há
+fallback para TF neutra.
+
+O `V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync` aceita a
+referência IBGE fixada por parâmetro opcional, e verifica o fingerprint
+do ruleset de blocking **antes da execução SQL** quando existir
+opção com TF positiva. Não escolhe outra versão publicada nem faz
+lookup oportunista da referência `ATIVA`. A versão da fonte publicada,
+digest da materialização, fingerprint do SQL e distribuição U TRAIN
+compõem a identidade do fit; pesos e lados entram no fingerprint da
+configuração. Nenhuma propriedade da referência IBGE substitui
+estimativa U ou seleciona peso; `V9FsAdaptiveOptionConfiguration`
+fornece a grade explícita de pesos e o coordenador avalia a mesma
+VALIDATION, sem acessar TEST.
+
+**Limitações não resolvidas:** este baseline baseado em pares U do
+blocking não demonstra independência entre identidades, nem valida
+uma massa-base sintética integral de 30 mil para a TF. O teste de
+corpus sintético, compatibilidade m/u por unidade e estratos,
+seleção adaptativa sob risco FDR por grupos, decisão final
+Rank/Resolve, P95/P99 e TEST novo lacrado são exigências distintas.
+A versão V2 continua `PREVIEW` e não altera `GENERATE_DRAFT`,
+modelos publicados ou a V8/Gold.

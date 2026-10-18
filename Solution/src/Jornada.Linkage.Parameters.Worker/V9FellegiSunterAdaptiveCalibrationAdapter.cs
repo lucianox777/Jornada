@@ -35,7 +35,11 @@ public sealed record V9FsAdaptiveCandidateFrame(
 public sealed record V9FsAdaptiveOptionConfiguration(
     string OptionId,
     decimal SmoothingAlpha,
-    decimal DecisionThreshold)
+    decimal DecisionThreshold,
+    decimal TfWeight = 0m,
+    CompositeNominalTfSideV9 TfSide = CompositeNominalTfSideV9.Person,
+    decimal TfMinimumFrequency = 0.000001m,
+    long TfMinimumIndependentSupport = 1)
 {
     public string FingerprintSha256 => V9FellegiSunterAdaptiveCalibrationAdapter
         .ConfigurationFingerprintSha256(this);
@@ -45,28 +49,32 @@ public sealed record V9FsAdaptiveOptionConfiguration(
 /// Adaptador real do coordenador adaptativo para o scorer Fellegi-Sunter V9 C#.
 /// Ele estima 81 células conjuntas, nascimento binário e prior SOMENTE em TRAIN,
 /// congela o fit em memória pelo fingerprint e avalia o MESMO fit em VALIDATION.
-/// Não lê TEST, não persiste/ativa modelo e, nesta V1, não aplica TF: peso TF
-/// diferente de zero não é representado nem inferido silenciosamente.
+/// Não lê TEST, não persiste/ativa modelo. TF opcional V2 admite peso em [0,1]
+/// somente para prenomes ExactFirst com snapshot IBGE fixado e baseline U da
+/// MESMA partição TRAIN SQL. Ausências com TF positiva falham fechado.
 /// </summary>
 public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibrationFamilyAdapter
 {
     public const string Family = "FELLEGI_SUNTER_V9";
-    public const string Version = "V9_FS_ADAPTIVE_REAL_SCORER_TRAIN_VALIDATION_V1";
+    public const string Version = "V9_FS_ADAPTIVE_REAL_SCORER_TRAIN_VALIDATION_V2";
 
     private sealed record FrozenFit(
         string FingerprintSha256,
         string OptionId,
         decimal Threshold,
         IReadOnlyList<FellegiSunterJointNominalCellV9> Cells,
-        IReadOnlyDictionary<string, decimal> Parameters);
+        IReadOnlyDictionary<string, decimal> Parameters,
+        V9TrainSqlFirstNameUCalibration.Frozen? TrainUnitU);
 
     private readonly V9FsAdaptiveCandidateFrame frame;
     private readonly IReadOnlyDictionary<string, V9FsAdaptiveOptionConfiguration> options;
+    private readonly FrozenIbgeNominalTfV9? frozenTfReference;
     private readonly Dictionary<string, FrozenFit> fits = new(StringComparer.Ordinal);
 
     public V9FellegiSunterAdaptiveCalibrationAdapter(
         V9FsAdaptiveCandidateFrame frame,
-        IEnumerable<V9FsAdaptiveOptionConfiguration> options)
+        IEnumerable<V9FsAdaptiveOptionConfiguration> options,
+        FrozenIbgeNominalTfV9? frozenTfReference = null)
     {
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(options);
@@ -94,10 +102,15 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         if (byId.Length is < 1 or > 64
             || byId.Any(x => x is null || string.IsNullOrWhiteSpace(x.OptionId)
                 || x.SmoothingAlpha <= 0m || x.SmoothingAlpha > 1000m
-                || x.DecisionThreshold <= 0m || x.DecisionThreshold >= 1m)
+                || x.DecisionThreshold <= 0m || x.DecisionThreshold >= 1m
+                || x.TfWeight is < 0m or > 1m || !Enum.IsDefined(x.TfSide)
+                || x.TfMinimumFrequency is < 0m or > 1m
+                || x.TfMinimumIndependentSupport < 1)
+            || (frozenTfReference is null && byId.Any(x => x.TfWeight > 0m))
             || byId.Select(x => x.OptionId).Distinct(StringComparer.Ordinal).Count() != byId.Length)
             throw new ArgumentException("Opções FS V9 inválidas ou duplicadas.");
         this.options = byId.ToDictionary(x => x.OptionId, StringComparer.Ordinal);
+        this.frozenTfReference = frozenTfReference;
 
         ValidateFrame();
     }
@@ -168,11 +181,27 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             ["U_DATA_NASCIMENTO_DIFF"] = (uBirth.Diff + alpha) / (uBirth.Total + 2m * alpha)
         };
 
+        V9TrainSqlFirstNameUCalibration.Frozen? trainU = null;
+        if (config.TfWeight > 0m)
+        {
+            if (frozenTfReference is null)
+                throw new InvalidOperationException("TF positiva exige snapshot IBGE fixado.");
+            trainU = V9TrainSqlFirstNameUCalibration.Fit(
+                rows, config.TfSide, alpha, frame.TrainCorpusFingerprintSha256);
+        }
+
         var fitSha = FittedFingerprintSha256(config, cells, parameters, schema.FingerprintSha256,
             frame.TrainCorpusFingerprintSha256, frame.TrainIdentityFingerprintSha256);
+        if (trainU is not null)
+            fitSha = Sha(string.Join("|", fitSha, trainU.FingerprintSha256,
+                frozenTfReference!.ReferenceVersionId,
+                frozenTfReference.ReferenceCode,
+                frozenTfReference.PublishedReferenceSha256,
+                frozenTfReference.MaterializedFrequencySha256,
+                frozenTfReference.BlockingFrameFingerprint));
         fits[fitSha] = new FrozenFit(fitSha, config.OptionId, config.DecisionThreshold,
             Array.AsReadOnly(cells.ToArray()),
-            new Dictionary<string, decimal>(parameters, StringComparer.Ordinal));
+            new Dictionary<string, decimal>(parameters, StringComparer.Ordinal), trainU);
 
         return new AdaptiveCalibrationFitDraft(
             Family, Version, config.OptionId, config.FingerprintSha256, fitSha,
@@ -205,12 +234,25 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         long tp = 0, fp = 0;
         foreach (var row in rows)
         {
+            CompositeNominalTfPreviewV9? nominalTf = null;
+            if (config.TfWeight > 0m)
+            {
+                if (frozen.TrainUnitU is null || frozenTfReference is null)
+                    throw new InvalidDataException("Fit TF V9 inconsistente.");
+                nominalTf = V9TrainSqlFirstNameUCalibration.Preview(
+                    frozen.TrainUnitU, frozenTfReference,
+                    CompositeNominalComparisonV9.Classify(row.LeftPersonName, row.RightPersonName),
+                    CompositeNominalComparisonV9.Classify(row.LeftMotherName, row.RightMotherName),
+                    row, config.TfWeight, config.TfMinimumFrequency,
+                    config.TfMinimumIndependentSupport);
+            }
             var score = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
                 frozen.Parameters,
                 row.LeftPersonName, row.RightPersonName,
                 row.LeftMotherName, row.RightMotherName,
                 frozen.Cells, CompositeNominalComparisonV9.ContractVersion,
-                leftBirthDate: row.LeftBirthDate, rightBirthDate: row.RightBirthDate);
+                leftBirthDate: row.LeftBirthDate, rightBirthDate: row.RightBirthDate,
+                nominalTf: nominalTf);
             var accepted = score.Score.Posterior >= frozen.Threshold;
             if (accepted && row.IsTruePair) tp++;
             else if (accepted) fp++;
@@ -242,7 +284,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             Version, config.OptionId,
             config.SmoothingAlpha.ToString(System.Globalization.CultureInfo.InvariantCulture),
             config.DecisionThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            "TF=DISABLED_V1");
+            "TF_WEIGHT=" + config.TfWeight.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "TF_SIDE=" + config.TfSide,
+            "TF_MIN_FREQ=" + config.TfMinimumFrequency.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            "TF_SUPPORT=" + config.TfMinimumIndependentSupport);
         return Sha(canonical);
     }
 
