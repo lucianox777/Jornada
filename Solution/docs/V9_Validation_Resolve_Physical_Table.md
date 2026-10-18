@@ -9,3 +9,70 @@ Entrada obrigatória: `seed=42`, `split=VALIDATION`, `test_used=false`, `runs` c
 O formatador rejeita grade incompleta, denominadores impossíveis, resultados de pares que não passaram pelo Resolve e uso do TEST. `fdr_after_resolve` fica indefinida quando TP+FP=0; CONFLITO e NAO_RESOLVIDO permanecem separados. `sql_p95_ms` **não** é latência ponta a ponta. Não confundir asserções sintéticas dos testes do formatador com resultados medidos do corpus de 30 mil.
 
 **Próximo bloqueio real:** criar/exportar os 12 resultados do `V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync` integrado ao Resolve, registrar a verdade independente por identidade e o UCB agrupado, ligar a CLI/workflow ao ambiente descartável `JornadaHarness`, executar os perfis 30k seed 42 e publicar CSV + SHA das fontes. Até lá não há tabela de desempenho real nem seleção V9 válida. Não usar JornadaLocal, IBGE original, HML/PROD ou TEST para ajuste.
+
+
+## Execução SQL física (seed 42, 30 mil identidades): correção metodológica
+
+O [workflow físico](../../.github/workflows/v9-physical-seed42-probe.yml) chama de fato o
+`V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync` em `JornadaHarness`
+descartável. Foram publicados os primeiros artefatos medidos no run
+[39138689675](https://github.com/lucianox777/Jornada/actions/runs/39138689675):
+`clean` e `correlated`, 20 repetições SQL cada. O SQL materializa
+**pares de observações** cross-gestor, enquanto a operação resolve
+**uma observação fonte → uma identidade de destino**. Assim, as primeiras
+tabelas de `GlobalRecall = TP_dirigido/(2 × M_elegível_pares)`
+eram diagnóstico de pares dirigidos e **não mediam corretamente recall
+de decisões únicas por observação**.
+
+A rodada V2 mede em paralelo:
+
+1. **Fonte elegível pré-blocking**: cada observação VALIDATION
+   sem CPF pertencente a identidade com pelo menos outra observação
+   de *gestor diferente*. Inclui fontes com zero candidatos no SQL.
+   `GlobalSourceRecall = TP_fonte / ObservacoesFontesElegiveis`;
+   `BlockingSourceRecall = FontesElegiveisComAoMenosUmM_SQL /
+   ObservacoesFontesElegiveis`. Não usar `2 × M_pares`.
+2. **RAW_SQL_OBSERVATION_CANDIDATES**: cada observação recuperada
+   é candidato independente. Serve para quantificar conflitos
+   introduzidos por duplicação da mesma pessoa.
+3. **ORACLE_SYNTHETIC_GOLD_GROUPING_NOT_OPERATIONAL**: usa somente
+   os rótulos *sintéticos de verdade* para juntar candidatos
+   pertencentes a uma mesma pessoa, conserva o maior LLR por
+   identidade, e chama o MESMO núcleo `ResolveRankedCore`.
+   **É um limite exploratório otimista**, com formação de grupos
+   perfeita fornecida pelo gabarito; não demonstra desempenho
+   de agrupamento Gold real e não pode entrar no seletor como
+   evidência operacional. A verdade só escolhe o grupo em que
+   os candidatos são consolidados; não é usada para estimar M/U
+   ou para alterar o LLR observado.
+4. **Grade TF=0** com thresholds `0.99 / 0.999 / 0.9999` e
+   margens em log-odds `0 / 0.5 / 2` nos dois modos, 18 células
+   por perfil. O novo CSV expõe TP/FP por fonte, conflitos,
+   não resolvidos, motivos do Resolve e P95 físico, sem
+   alegar que é a grade TF=0/0.5/1.
+5. **UCB Hoeffding** continua descritivo e condicionado às premissas
+   de independência entre identidades e teto pré-declarado. O
+   bootstrap por identidade pode complementar sensibilidade,
+   **não substitui por si só um limite superior com cobertura
+   frequentista garantida**; sobretudo com FP raro/zero, percentil
+   bootstrap pode dar zero indevidamente. Ausência de UCB
+   sustentado significa não certificação.
+
+**Cuidados**: a implementação do scorer FS do TRAIN contém
+probabilidades, prior e decisão, mas flags de guard da
+política operacional precisam ser verificadas explicitamente,
+assim como a origem da TF. No código atual, `TF` positiva aplica
+`peso × ln(U_TRAIN_SQL(prenome | U,ExactFirst,blocking) /
+max(f_IBGE_populacional(prenome),piso))`.
+Uma marginal populacional e uma condicional pós-blocking
+**não são o mesmo condicionamento estatístico**. A segunda
+coluna TF positiva da pesquisa exige demonstração de
+compatibilidade e snapshot publicado/pinado; não se
+inventam linhas da grade.
+
+Passar de 95% de recall **somente no braço com agrupamento
+oracle de gabarito** não torna a V9 pronta para TEST nem
+certificada: verificar a formação real do Gold, FDR-UCB por
+identidade com suporte válido, catálogos/guards, seletor
+pós-Resolve, congelamento TRAIN/VALIDATION e a
+proveniência do TEST novo e lacrado antes de avaliar o TEST.
