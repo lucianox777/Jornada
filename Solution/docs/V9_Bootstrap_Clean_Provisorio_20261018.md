@@ -103,3 +103,25 @@ Não inventar uma taxa municipal nem trocar limiares para passar CI.
   valores bootstrap NÃO são parâmetros operacionais definitivos.
 - Não modificar V8, Gold/PROD/HML, referência IBGE original,
   NODE/NAS, JornadaLocal, DT-15 ou ativar V9 por esse estudo.
+
+
+## Auditoria observada em SQL físico clean — run #39147073026
+
+A HEAD `ce2ad3186da36b02b93ae97e6a5d5cf3a895a7ef` executou `JornadaHarness`
+real descartável no GitHub Actions e publicou o
+[artefato #12142909368](https://github.com/lucianox777/Jornada/actions/runs/39147073026/artifacts/12142909368),
+incluindo `field-quality-train-val.json`, `physical-fs-resolve-diagnostic.json`
+e `physical-source-resolve-3x3x3-TF0.csv`.
+A auditoria inclui **46.780 observações TRAIN+VALIDATION**
+(35.091 TRAIN, 11.689 VALIDATION; TEST excluído) e
+**27.127 pares M verdadeiros entre gestores sem CPF**.
+Nesta coorte as discordâncias observadas entre pares M sem CPF são
+**11,6858% nome completo**, **27,2091% nome da mãe divergente ou ausente**
+e **10,1449% nascimento divergente ou ausente**, contra
+probabilidades **por registro** de tentativa de corrupção 6%/10%/4%
+e de ausência 5% materna/1% nascimento.
+Essas medições não estimam a qualidade cadastral de São Paulo.
+A massa é input **inicial**; não é snapshot operacional `ref`.
+Hashes e planilha de decisões finais foram consolidados em
+[V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md). Nenhum resultado aqui é autorização
+de ativação V9, TF positiva ou teste final.

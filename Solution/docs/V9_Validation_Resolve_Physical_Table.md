@@ -1,4 +1,19 @@
-# V9 — tabela de VALIDATION pós-Resolve (incremento parcial)
+# V9 — VALIDATION pós-Resolve: formatador histórico e probe físico atual
+
+> **Situação superveniente em 18/10/2026 — números físicos existentes:** este
+> documento iniciou como **formatador diagnóstico**, quando o probe ainda
+> não era acionado por workflow. **Isto foi superado** pelo
+> `v9-physical-seed42-probe.yml` e pela CLI
+> `--v9-physical-probe-seed42` do Worker. O
+> [run clean #39147073026](https://github.com/lucianox777/Jornada/actions/runs/39147073026)
+> executou SQL Server descartável, FS TRAIN e VALIDATION pós-Resolve
+> por observação; criou 27 linhas de TF=0, auditoria de qualidade
+> TRAIN/VALIDATION e artefato #12142909368. A grade 3×2 de TF,
+> Gold real, seleção final/TEST independente e homologação **continuam
+> pendentes**. `correlated` é histórico. A narrativa V1 abaixo
+> permanece para proveniência do formatador antigo, mas não representa
+> a ausência atual de execução. Ver [auditoria documental e runners](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md).
+>
 
 CLI: `python3 Solution/scripts/v9-physical-validation-resolve-table.py --evidence <runner-measured.json> --out <new.csv>`.
 
@@ -8,7 +23,7 @@ Entrada obrigatória: `seed=42`, `split=VALIDATION`, `test_used=false`, `runs` c
 
 O formatador rejeita grade incompleta, denominadores impossíveis, resultados de pares que não passaram pelo Resolve e uso do TEST. `fdr_after_resolve` fica indefinida quando TP+FP=0; CONFLITO e NAO_RESOLVIDO permanecem separados. `sql_p95_ms` **não** é latência ponta a ponta. Não confundir asserções sintéticas dos testes do formatador com resultados medidos do corpus de 30 mil.
 
-**Próximo bloqueio real:** criar/exportar os 12 resultados do `V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync` integrado ao Resolve, registrar a verdade independente por identidade e o UCB agrupado, ligar a CLI/workflow ao ambiente descartável `JornadaHarness`, executar os perfis 30k seed 42 e publicar CSV + SHA das fontes. Até lá não há tabela de desempenho real nem seleção V9 válida. Não usar JornadaLocal, IBGE original, HML/PROD ou TEST para ajuste.
+**Bloqueio histórico da fase V1 (já superado parcialmente):** criar/exportar os 12 resultados do `V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync` integrado ao Resolve, registrar a verdade independente por identidade e o UCB agrupado, ligar a CLI/workflow ao ambiente descartável `JornadaHarness`, executar os perfis 30k seed 42 e publicar CSV + SHA das fontes. Naquela data não havia tabela de desempenho real. Desde então há a medição física TF=0 de clean por fonte com 27 opções (run 39147073026), **mas não a grade TF positiva, a seleção adaptativa completa nem certificação V9**. Não usar JornadaLocal, IBGE original, HML/PROD ou TEST para ajuste.
 
 
 ## Execução SQL física (seed 42, 30 mil identidades): correção metodológica
