@@ -272,6 +272,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
         {
             Pairs = original.Pairs.Where(x => x.Partition == "TRAIN")
                 .Concat(valPairs).ToArray(),
+            TrainPreBlockingBaseIdentityIds = Enumerable.Range(1, 6)
+                .Select(i => $"BASE-{i:00}").ToArray(),
             ValidationPreBlockingBaseIdentityIds = ["A", "B", "C"]
         };
         var option = new V9FsAdaptiveOptionConfiguration("SOURCE", .5m, .5m);
