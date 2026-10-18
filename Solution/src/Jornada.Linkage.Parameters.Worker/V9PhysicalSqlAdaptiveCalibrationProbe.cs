@@ -18,6 +18,39 @@ public sealed record V9PhysicalCalibrationObservation(
     string? MotherName,
     DateOnly? BirthDate);
 
+
+public sealed record V9PhysicalFinalResolveMetric(
+    string OptionId, decimal Threshold, decimal TfWeight,
+    long EligibleDirectedTrueLinksBeforeBlocking,
+    long RecoveredDirectedTrueLinksBySql,
+    long TrueAcceptedDirectedLinks,
+    long FalseAcceptedDirectedLinks,
+    long Conflicts, long Unresolved,
+    double BlockingRecall, double GlobalRecall, double? FdrAfterResolve,
+    double? HoeffdingUpperBySourceBaseIdentity,
+    int PreBlockingBaseIdentities,
+    int PredeclaredMaximumAcceptedPerBaseIdentity, double Alpha,
+    bool FinalRankResolveEvaluated, bool OperationallyCertified);
+
+/// <summary>
+/// One Rank/Resolve decision per SOURCE observation. Source eligibility is
+/// determined BEFORE SQL blocking (at least one true cross-manager partner).
+/// Oracle grouping uses SYNTHETIC truth labels solely to model ideal Gold
+/// consolidation and cannot certify actual entity clustering.
+/// </summary>
+public sealed record V9PhysicalSourceResolveMetric(
+    string OptionId, decimal Threshold, decimal TfWeight, decimal ConflictMargin,
+    string CandidateGrouping, int AllValidationObservations,
+    long EligibleSourceObservationsBeforeBlocking,
+    long EligibleSourceObservationsWithTrueSqlCandidate,
+    long TrueAcceptedSourceObservations, long FalseAcceptedSourceObservations,
+    long Conflicts, long Unresolved,
+    double BlockingSourceRecall, double GlobalSourceRecall,
+    double? FdrAfterResolve, double? HoeffdingUpperBySourceBaseIdentity,
+    int PreBlockingBaseIdentities, IReadOnlyDictionary<string, long> ReasonsByResolveStatus,
+    bool SyntheticGoldOracleGrouping, bool OperationallyCertified,
+    int ImpureBlindGroups);
+
 public sealed record V9PhysicalCalibrationRunResult(
     string Version,
     string BlockingFingerprintSha256,
@@ -36,7 +69,9 @@ public sealed record V9PhysicalCalibrationRunResult(
     IReadOnlyList<V9PhysicalSqlOptionGlobalCoverage>? ValidationGlobalCoverage = null,
     V9PhysicalSqlIdentityCohortCoverage? TrainIdentityCohortCoverage = null,
     V9PhysicalSqlIdentityCohortCoverage? ValidationIdentityCohortCoverage = null,
-    V9PhysicalSqlCostQuantiles.Summary? RepeatedSqlMaterializationQuantiles = null);
+    V9PhysicalSqlCostQuantiles.Summary? RepeatedSqlMaterializationQuantiles = null,
+    IReadOnlyList<V9PhysicalFinalResolveMetric>? FinalResolveValidation = null,
+    IReadOnlyList<V9PhysicalSourceResolveMetric>? SourceResolveValidation = null);
 
 /// <summary>
 /// Cohort is defined BEFORE SQL blocking and includes every base identity,
@@ -107,7 +142,11 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         string studyFingerprintSha256,
         CancellationToken cancellationToken,
         FrozenIbgeNominalTfV9? frozenTfReference = null,
-        int repeatedSqlMaterializationRuns = 0)
+        int repeatedSqlMaterializationRuns = 0,
+        bool evaluateFinalResolve = false,
+        decimal finalConflictMargin = .5m,
+        int predeclaredMaximumAcceptedPerBaseIdentity = 16,
+        IReadOnlyCollection<decimal>? finalConflictMargins = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(observations);
@@ -291,6 +330,20 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         // On physical SQL only, never suggest a configuration whose global
         // TP/eligible-M recall fails the same explicit budget.
         var physicalReport = EnforcePhysicalGlobalRecallForSuggestion(report, globalCoverage);
+        IReadOnlyList<V9PhysicalFinalResolveMetric>? finalResolve = null;
+        IReadOnlyList<V9PhysicalSourceResolveMetric>? sourceResolve = null;
+        if (evaluateFinalResolve)
+        {
+            var physicalEdges = await ReadValidationPairsAsync(connection, cancellationToken);
+            if (physicalEdges.Count != validationRows.Length)
+                throw new InvalidDataException("Arestas SQL de VALIDATION divergem do censo original.");
+            finalResolve = adapter.EvaluatePostResolveValidation(
+                observations, physicalEdges, validationEligibleM, validationRecoveredM,
+                finalConflictMargin, predeclaredMaximumAcceptedPerBaseIdentity);
+            sourceResolve = adapter.EvaluateSourceUnitResolveValidation(
+                observations, physicalEdges, finalConflictMargins ?? [finalConflictMargin],
+                predeclaredMaximumAcceptedPerBaseIdentity);
+        }
 
         return new V9PhysicalCalibrationRunResult(
             Version,
@@ -310,7 +363,9 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             globalCoverage,
             trainIdentityCoverage,
             validationIdentityCoverage,
-            repeatedQuantiles);
+            repeatedQuantiles,
+            finalResolve,
+            sourceResolve);
     }
 
     /// <summary>
@@ -810,6 +865,20 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         }
 
         return rows;
+    }
+
+
+    private static async Task<IReadOnlyList<(int A, int B)>> ReadValidationPairsAsync(
+        SqlConnection connection, CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(
+            "SELECT a,b FROM #v9_cal_pairs WHERE part='VALIDATION' ORDER BY a,b;", connection)
+        { CommandTimeout = 300 };
+        var result = new List<(int A, int B)>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+            result.Add((reader.GetInt32(0), reader.GetInt32(1)));
+        return result;
     }
 
     private static HashSet<string> PairBaseSet(

@@ -1,0 +1,194 @@
+name: v9-physical-seed42-probe
+
+on:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9PhysicalCalibrationEvidenceCli.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/Program.cs'
+      - '.github/workflows/v9-physical-seed42-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  physical-seed42:
+    name: SQL físico 30k ${{ matrix.profile }} — Rank-Resolve TF0
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    # Only the provisional clean bootstrap is executed in ongoing PR validation.
+    # Correlated results are historical, not a calibration target.
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [clean]
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!V9Probe'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "SQLCMDPASSWORD=$MSSQL_SA_PASSWORD /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 25
+    env:
+      JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!V9Probe'
+      ConnectionStrings__Jornada: 'Server=localhost,1433;Database=JornadaHarness;User Id=sa;Password=Jornada_${{ github.run_id }}!V9Probe;TrustServerCertificate=true;Encrypt=false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build generator and real FS adaptive probe
+        working-directory: Solution
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Initialize disposable JornadaHarness SQL Server
+        run: |
+          set -euo pipefail
+          CID=$(docker ps -q --filter publish=1433 | head -1)
+          test -n "$CID"
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -e SQLCMDPASSWORD "$CID" \
+            /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b \
+            -Q "IF DB_ID(N'JornadaHarness') IS NULL CREATE DATABASE JornadaHarness;"
+      - name: Generate original IBGE-derived synthetic corpus, seed 42, 30000 people
+        working-directory: Solution
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          test -s data/reference/ibge-nomes-2022/manifest.json
+          test -s data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --out "$PWD/.local/v9-physical-$PROFILE" --people 30000 --seed 42 --error-profile "$PROFILE"
+      - name: Audit clean field-level quality on TRAIN/VALIDATION only
+        working-directory: Solution
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          test "$PROFILE" = clean
+          python3 scripts/v9-synthetic-corruption-impact.py \
+            --observations ".local/v9-physical-$PROFILE/observacoes.csv" \
+            --manifest ".local/v9-physical-$PROFILE/generation-manifest.json" \
+            --exclude-test \
+            --out ".local/v9-physical-$PROFILE/field-quality-train-val.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(".local/v9-physical-"+os.environ["PROFILE"])
+          data=json.loads((root/"field-quality-train-val.json").read_text())
+          assert data["manifest_recorded_error_profile"]=="clean"
+          assert data["partition_scope"]=="TRAIN_VALIDATION_ONLY"
+          assert data["test_rows_included_in_aggregates"] is False
+          assert data["test_metrics_reported_for_data_quality_audit_only"] is False
+          assert set(data["observations_by_split"])=={"TRAIN","VALIDATION"}
+          assert data["true_pairs_across_managers"]["NO_CPF"]["pairs"]>0
+          print(json.dumps({"observed_field_changes":data["effective_field_changes_per_observation"],
+            "true_pairs_no_cpf":data["true_pairs_across_managers"]["NO_CPF"],
+            "observations":data["observations"]},sort_keys=True))
+          PY
+      - name: Execute REAL SQL pair materialization, FS TRAIN, VALIDATION Rank-Resolve and 20 SQL repetitions
+        working-directory: Solution
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-physical-probe-seed42 \
+            "$PWD/.local/v9-physical-$PROFILE/observacoes.csv" \
+            "$PROFILE" "$PWD/.local/v9-physical-$PROFILE/physical-fs-resolve-diagnostic.json" 0.95
+      - name: Assert physically measured Rank-Resolve, grouped FDR and sealed TEST
+        working-directory: Solution
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path('.local/v9-physical-'+os.environ['PROFILE']+'/physical-fs-resolve-diagnostic.json')
+          d=json.loads(p.read_text())
+          assert d['physical_sql_executed'] is True
+          assert d['final_rank_resolve_evaluated'] is True
+          assert d['fdr_after_resolve_measured'] is True
+          assert d['test_used'] is False
+          assert d['ValidationEligibleTruePairsBeforeBlocking']>=d['ValidationTruePairsRecoveredBySql']
+          assert len(d['legacy_directed_pair_denominator_options'])==3
+          assert len(d['source_resolve_options'])==27
+          assert all(x['OperationallyCertified'] is False for x in d['source_resolve_options'])
+          assert len({(x['Threshold'],x['ConflictMargin'],x['CandidateGrouping']) for x in d['source_resolve_options']})==27
+          assert {x['Threshold'] for x in d['source_resolve_options']}=={0.99,0.999,0.9999}
+          assert {x['ConflictMargin'] for x in d['source_resolve_options']}=={0,0.5,2}
+          assert all(x['TfWeight']==0 for x in d['source_resolve_options'])
+          assert all(x['TrueAcceptedSourceObservations']<=x['EligibleSourceObservationsWithTrueSqlCandidate']<=x['EligibleSourceObservationsBeforeBlocking'] for x in d['source_resolve_options'])
+          assert all(x['TrueAcceptedSourceObservations']+x['FalseAcceptedSourceObservations']+x['Conflicts']+x['Unresolved']==x['AllValidationObservations'] for x in d['source_resolve_options'])
+          assert {x['SyntheticGoldOracleGrouping'] for x in d['source_resolve_options']}=={False,True}
+          assert {x['CandidateGrouping'] for x in d['source_resolve_options']}=={
+              'RAW_SQL_OBSERVATION_CANDIDATES',
+              'BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING',
+              'ORACLE_SYNTHETIC_GOLD_GROUPING_NOT_OPERATIONAL'}
+          assert all(x['ImpureBlindGroups']>=0 for x in d['source_resolve_options'])
+          assert d['candidate_grouping_oracle_uses_truth_labels'] is True
+          print('Real SQL plus final Rank-Resolve measured; HML/TEST certification NOT claimed')
+          PY
+      - name: Export PHYSICAL source-observation recall and synthetic Gold oracle sensitivity
+        working-directory: Solution
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          python3 - <<'PY'
+          import csv,json,os
+          from pathlib import Path
+          root=Path('.local/v9-physical-'+os.environ['PROFILE'])
+          source=json.loads((root/'physical-fs-resolve-diagnostic.json').read_text())
+          rows=[]
+          for result in source['source_resolve_options']:
+              eligible=result['EligibleSourceObservationsBeforeBlocking']
+              sql_sources=result['EligibleSourceObservationsWithTrueSqlCandidate']
+              tp=result['TrueAcceptedSourceObservations']
+              fp=result['FalseAcceptedSourceObservations']
+              assert 0<=tp<=sql_sources<=eligible and eligible>0
+              rows.append(dict(
+                  profile=source['profile'], threshold=result['Threshold'],
+                  margin=result['ConflictMargin'],tf_weight=result['TfWeight'],
+                  candidate_grouping=result['CandidateGrouping'],
+                  oracle_truth_based_grouping=result['SyntheticGoldOracleGrouping'],
+                  impure_blind_groups=result['ImpureBlindGroups'],
+                  eligible_sources=eligible,sql_true_sources=sql_sources,
+                  tp_sources=tp,fp_sources=fp,
+                  source_blocking_recall=result['BlockingSourceRecall'],
+                  global_source_recall=result['GlobalSourceRecall'],
+                  fdr_after_resolve=result['FdrAfterResolve'],
+                  hoeffding_upper_by_identity=result['HoeffdingUpperBySourceBaseIdentity'],
+                  conflict=result['Conflicts'],unresolved=result['Unresolved'],
+                  resolve_reasons=json.dumps(result['ReasonsByResolveStatus'],sort_keys=True),
+                  sql_p95_ms=source['RepeatedSqlMaterializationQuantiles']['P95Milliseconds'],
+                  status='MEASURED_SQL_SYNTHETIC_SOURCE_DIAGNOSTIC_TF0_NOT_OPERATIONAL',
+                  input_sha256=source['synthetic_input_sha256']))
+          assert len(rows)==27
+          path=root/'physical-source-resolve-3x3x3-TF0.csv'
+          with path.open('x',newline='') as stream:
+              writer=csv.DictWriter(stream,fieldnames=list(rows[0]))
+              writer.writeheader()
+              writer.writerows(rows)
+          print(path.read_text())
+          PY
+      - name: Upload aggregate physical metrics only (no identifiers, names, or truth)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: v9-physical-30k-seed42-${{ matrix.profile }}-resolve-diagnostic
+          path: |
+            Solution/.local/v9-physical-${{ matrix.profile }}/physical-fs-resolve-diagnostic.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/physical-source-resolve-3x3x3-TF0.csv
+            Solution/.local/v9-physical-${{ matrix.profile }}/field-quality-train-val.json
+          if-no-files-found: ignore

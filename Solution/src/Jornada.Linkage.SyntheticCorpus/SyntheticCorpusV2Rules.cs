@@ -26,6 +26,9 @@ public static class SyntheticCorpusV2Rules
     public static readonly IReadOnlyList<string> SurnameParticles =
         new[] { "da", "de", "do", "dos", "das" };
 
+    // Historical numeric profiles remain versioned for exact reproduction.
+    // "clean" is provisional bootstrap, NOT an empirically calibrated Brazilian rate.
+    // "correlated" is adversarial history; never the active calibration default.
     public static readonly IReadOnlyDictionary<string, SyntheticErrorProfile> Profiles =
         new Dictionary<string, SyntheticErrorProfile>(StringComparer.Ordinal)
         {

@@ -44,9 +44,11 @@ def compare(reports,manifests):
     summaries={}
     for profile in PROFILES:
         report,manifest=reports[profile],manifests[profile]
-        if manifest.get("error_profile")!=profile or (
-            manifest.get("error_profile_provenance")!=
-            "HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE"):
+        allowed_provenance={ "HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE" }
+        if profile=="clean":
+            allowed_provenance.add("PROVISIONAL_SYNTHETIC_CLEAN_BOOTSTRAP_NOT_BRAZILIAN_DATA_QUALITY_ESTIMATE")
+        if (manifest.get("error_profile")!=profile or
+                manifest.get("error_profile_provenance") not in allowed_provenance):
             raise ValueError("synthetic profile not bound in C# manifest")
         if (report.get("selection_split")!="TRAIN_ONLY"
             or report.get("TEST_evaluated") is not False

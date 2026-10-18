@@ -397,6 +397,27 @@ internal static class ProbabilisticLinkageDecisions
             scored, "SEM_CANDIDATO_NO_RULESET_BLOCKING", decisionEvidence: true);
     }
 
+    /// <summary>
+    /// Resolves a V9 TRAIN-fitted ranked preview using the EXACT shared
+    /// operational decision kernel. Caller may collapse several observations
+    /// of the same candidate identity BEFORE this call. Preview only:
+    /// no operational model dispatch, persistence or TEST selection.
+    /// </summary>
+    internal static ProbabilisticLinkageDecision ResolveRankedCompositeNominalV9Preview(
+        Guid diagnosticModelId,
+        IReadOnlyDictionary<string, decimal> parameters,
+        IReadOnlyList<CandidateScore> rankedCandidates,
+        decimal threshold, decimal conflictMargin)
+    {
+        if (diagnosticModelId == Guid.Empty)
+            throw new ArgumentException("ID diagnóstico V9 obrigatório.", nameof(diagnosticModelId));
+        if (threshold is <= 0m or > 1m || conflictMargin is < 0m or > 1000m)
+            throw new ArgumentOutOfRangeException(nameof(threshold));
+        return ResolveRankedCore(
+            parameters, threshold, conflictMargin, diagnosticModelId,
+            rankedCandidates, "SEM_CANDIDATO_NO_RULESET_BLOCKING", decisionEvidence: true);
+    }
+
     internal static ProbabilisticLinkageDecision ResolveRanked(
         LinkageModel model,
         IReadOnlyList<CandidateScore> scored,

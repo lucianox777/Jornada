@@ -59,6 +59,38 @@ class CorruptionSensitivityAuditTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError,"unknown V2"):
             m.analyze([obs("a","p","G1",corruptions="UNKNOWN_OVERLAY")])
 
+
+    def test_clean_bootstrap_audit_excludes_test_without_relabelling_truth(self):
+        rows=[
+            obs("a","train","G1",part="TRAIN",corruptions="DATE_DAY",dob="1989-02-04"),
+            obs("b","train","G2",part="TRAIN"),
+            obs("c","validation","G1",part="VALIDATION"),
+            obs("d","validation","G2",part="VALIDATION"),
+            obs("e","test","G1",part="TEST",corruptions="DATE_DAY",dob="1989-02-05"),
+            obs("f","test","G2",part="TEST"),
+        ]
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder); source=root/"observacoes.csv"
+            with source.open("w",newline="",encoding="utf8") as file:
+                writer=csv.DictWriter(file,fieldnames=list(rows[0]))
+                writer.writeheader();writer.writerows(rows)
+            sha=hashlib.sha256(source.read_bytes()).hexdigest()
+            manifest=root/"generation-manifest.json"
+            manifest.write_text(json.dumps({
+                "ruleset_version":"JORNADA_SYNTH_CORPUS_V2_RULES_CSHARP_V1",
+                "error_profile":"clean",
+                "outputs":[{"path":"observacoes.csv","sha256":sha}]
+            }))
+            audited=m.run(source,root/"train-val.json",manifest,exclude_test=True)
+            self.assertEqual(audited["observations"],4)
+            self.assertEqual(audited["partition_scope"],"TRAIN_VALIDATION_ONLY")
+            self.assertFalse(audited["test_rows_included_in_aggregates"])
+            self.assertFalse(audited["test_metrics_reported_for_data_quality_audit_only"])
+            self.assertNotIn("TEST",audited["observations_by_split"])
+            self.assertEqual(audited["true_pairs_across_managers"]["ALL"]["pairs"],2)
+            self.assertEqual(audited["true_pairs_across_managers"]["ALL"]["rates"]["dob_disagrees_or_missing"]["count"],1)
+            self.assertEqual(audited["manifest_recorded_error_profile"],"clean")
+
     def test_manifest_sha_required_and_legacy_profile_not_invented(self):
         rows=[obs("a","p","G1"),obs("b","p","G2")]
         with tempfile.TemporaryDirectory() as folder:

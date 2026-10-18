@@ -110,8 +110,9 @@ def compare(source, target_report, target_manifest, target_frozen,
         raise ValueError("missing valid 42-TRAIN frozen selected plan")
     if (target_manifest.get("error_profile")!=profile
             or target_manifest.get("seed")!=seed
-            or target_manifest.get("error_profile_provenance")!=
-                "HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE"
+            or target_manifest.get("error_profile_provenance") not in (
+                ("HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE","PROVISIONAL_SYNTHETIC_CLEAN_BOOTSTRAP_NOT_BRAZILIAN_DATA_QUALITY_ESTIMATE")
+                if profile=="clean" else ("HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE",))
             or source.get("seed_neutral_demographic_reference") !=
                demographic_reference_identity(target_manifest)):
         raise ValueError("wrong profile, seed or IBGE demographic source")

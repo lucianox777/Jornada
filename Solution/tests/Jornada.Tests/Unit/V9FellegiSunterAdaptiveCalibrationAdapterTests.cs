@@ -231,6 +231,111 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
                 Throws.TypeOf<InvalidDataException>());
     }
 
+
+    [Test]
+    public void Source_recall_uses_eligible_observations_and_oracle_gold_collapses_duplicate_identity()
+    {
+        // A occurs in THREE managers -> three true unordered SQL edges but
+        // only THREE eligible source observations. C occurs in two managers
+        // and has ZERO SQL edges -> both still belong in the denominator.
+        var birth = Birth;
+        var observations = new[]
+        {
+            new V9PhysicalCalibrationObservation(100, "A", "VALIDATION", "G1",
+                "MARIA SILVA", "ANA COSTA", birth),
+            new V9PhysicalCalibrationObservation(101, "A", "VALIDATION", "G2",
+                "MARIA SILVA", "ANA COSTA", birth),
+            new V9PhysicalCalibrationObservation(102, "A", "VALIDATION", "G3",
+                "MARIA SILVA", "ANA COSTA", birth),
+            new V9PhysicalCalibrationObservation(103, "B", "VALIDATION", "G2",
+                "CARLOS LIMA", "ROSA LIMA", birth.AddYears(4)),
+            new V9PhysicalCalibrationObservation(104, "C", "VALIDATION", "G1",
+                "JOAO PEREIRA", "LUCIA PEREIRA", birth),
+            new V9PhysicalCalibrationObservation(105, "C", "VALIDATION", "G2",
+                "JOAO PEREIRA", "LUCIA PEREIRA", birth)
+        };
+        var sqlEdges = new (int A, int B)[]
+        {
+            (100, 101), (100, 102), (101, 102), (100, 103)
+        };
+        var original = Frame();
+        var valPairs = sqlEdges.Select(edge =>
+        {
+            var a = observations.Single(x => x.ObservationId == edge.A);
+            var b = observations.Single(x => x.ObservationId == edge.B);
+            return new V9FsAdaptiveCandidatePair("VALIDATION", a.BasePersonId,
+                b.BasePersonId, a.BasePersonId == b.BasePersonId,
+                a.PersonName, b.PersonName, a.MotherName, b.MotherName,
+                a.BirthDate, b.BirthDate, 3);
+        });
+        var frame = original with
+        {
+            Pairs = original.Pairs.Where(x => x.Partition == "TRAIN")
+                .Concat(valPairs).ToArray(),
+            TrainPreBlockingBaseIdentityIds = Enumerable.Range(1, 6)
+                .Select(i => $"BASE-{i:00}").ToArray(),
+            ValidationPreBlockingBaseIdentityIds = ["A", "B", "C"]
+        };
+        var option = new V9FsAdaptiveOptionConfiguration("SOURCE", .5m, .5m);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(frame, [option]);
+        var model = new AdaptiveCalibrationModelOption(
+            V9FellegiSunterAdaptiveCalibrationAdapter.Family,
+            V9FellegiSunterAdaptiveCalibrationAdapter.Version,
+            option.OptionId, option.FingerprintSha256);
+        _ = adapter.FitTrain(model, Slice("TRAIN", TrainSha, TrainGroupsSha, 6));
+        var result = adapter.EvaluateSourceUnitResolveValidation(
+            observations, sqlEdges, [.5m], 16);
+        Assert.That(result, Has.Count.EqualTo(3));
+        var raw = result.Single(x => x.CandidateGrouping == "RAW_SQL_OBSERVATION_CANDIDATES");
+        var blind = result.Single(x => x.CandidateGrouping == "BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING");
+        var oracle = result.Single(x => x.SyntheticGoldOracleGrouping);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(raw.EligibleSourceObservationsBeforeBlocking, Is.EqualTo(5));
+            Assert.That(oracle.EligibleSourceObservationsBeforeBlocking, Is.EqualTo(5));
+            Assert.That(raw.EligibleSourceObservationsWithTrueSqlCandidate, Is.EqualTo(3));
+            Assert.That(oracle.BlockingSourceRecall, Is.EqualTo(.6d));
+            Assert.That(raw.GlobalSourceRecall,
+                Is.EqualTo((double)raw.TrueAcceptedSourceObservations / 5d));
+            Assert.That(oracle.GlobalSourceRecall,
+                Is.EqualTo((double)oracle.TrueAcceptedSourceObservations / 5d));
+            Assert.That(raw.Conflicts, Is.GreaterThan(oracle.Conflicts));
+            Assert.That(oracle.TrueAcceptedSourceObservations,
+                Is.GreaterThan(raw.TrueAcceptedSourceObservations));
+            Assert.That(oracle.TrueAcceptedSourceObservations, Is.EqualTo(3));
+            Assert.That(blind.TrueAcceptedSourceObservations, Is.EqualTo(3));
+            Assert.That(blind.Conflicts, Is.Zero);
+            Assert.That(blind.ImpureBlindGroups, Is.Zero);
+            Assert.That(oracle.GlobalSourceRecall, Is.EqualTo(.6d));
+            Assert.That(raw.TrueAcceptedSourceObservations
+                + raw.FalseAcceptedSourceObservations
+                + raw.Conflicts + raw.Unresolved, Is.EqualTo(6));
+            Assert.That(oracle.OperationallyCertified, Is.False);
+        }));
+    }
+
+    [Test]
+    public void Source_resolve_rejects_test_and_duplicate_sql_edges()
+    {
+        var option = new V9FsAdaptiveOptionConfiguration("SOURCE_SAFE", .5m, .5m);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(), [option]);
+        var observations = new[]
+        {
+            new V9PhysicalCalibrationObservation(1, "A", "VALIDATION", "G1",
+                "MARIA SILVA", "ANA COSTA", Birth),
+            new V9PhysicalCalibrationObservation(2, "A", "VALIDATION", "G2",
+                "MARIA SILVA", "ANA COSTA", Birth),
+            new V9PhysicalCalibrationObservation(3, "T", "TEST", "G3",
+                "MARIA SILVA", "ANA COSTA", Birth)
+        };
+        Assert.That((Action)(() => adapter.EvaluateSourceUnitResolveValidation(
+            observations, [(1, 2)], [.5m], 16)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => adapter.EvaluateSourceUnitResolveValidation(
+            observations.Take(2).ToArray(), [(1, 2), (1, 2)], [.5m], 16)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
     private static AdaptiveCalibrationSlice Slice(
         string partition, string corpus, string groups, int count) =>
         new(partition, corpus, groups, count, true, false);

@@ -114,7 +114,7 @@ def analyze(rows):
         "may_promote_v9_or_recalibrate":False
     }
 
-def run(source,output,manifest=None):
+def run(source,output,manifest=None,exclude_test=False):
     source,output=Path(source).resolve(),Path(output).resolve()
     if output.exists() or output==source:
         raise ValueError("refuse to overwrite source or existing evidence")
@@ -128,8 +128,15 @@ def run(source,output,manifest=None):
             raise ValueError("source SHA does not match frozen manifest")
         profile=m.get("error_profile")
     with source.open(encoding="utf-8-sig",newline="") as stream:
-        report=analyze(csv.DictReader(stream))
+        raw_rows=csv.DictReader(stream)
+        # TEST is not measured in a bootstrap/VALIDATION data-quality audit;
+        # the immutable source CSV hash is still checked against the manifest.
+        rows=(r for r in raw_rows if r.get("particao") in ("TRAIN","VALIDATION")) if exclude_test else raw_rows
+        report=analyze(rows)
     report.update({
+        "partition_scope": "TRAIN_VALIDATION_ONLY" if exclude_test else "TRAIN_VALIDATION_TEST_HISTORICAL_AUDIT",
+        "test_rows_included_in_aggregates": not exclude_test,
+        "test_metrics_reported_for_data_quality_audit_only": not exclude_test,
         "observations_sha256":digest(source),
         "frozen_manifest_sha256":digest(manifest) if manifest is not None else None,
         "manifest_recorded_error_profile":profile,
@@ -145,9 +152,11 @@ if __name__=="__main__":
     p=argparse.ArgumentParser()
     p.add_argument("--observations",required=True)
     p.add_argument("--manifest")
+    p.add_argument("--exclude-test",action="store_true",
+                   help="Evaluate only TRAIN/VALIDATION, without touching TEST labels.")
     p.add_argument("--out",required=True)
     a=p.parse_args()
-    r=run(a.observations,a.out,manifest=a.manifest)
+    r=run(a.observations,a.out,manifest=a.manifest,exclude_test=a.exclude_test)
     print(json.dumps({"version":r["version"],"observations":r["observations"],
                       "legacy_missing_profile_in_manifest":r["legacy_missing_profile_in_manifest"],
                       "pairs":r["true_pairs_across_managers"]["ALL"]["pairs"]},

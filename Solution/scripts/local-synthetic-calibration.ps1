@@ -4,7 +4,7 @@
     [string]$ExpectedSeeds = '',
     [string]$RunGroupId = '',
     [ValidateSet('clean','independent','correlated','field')]
-    [string]$ErrorProfile = 'correlated',
+    [string]$ErrorProfile = 'clean',
     [string]$DataReferencia = '2026-09-21T00:00:00-03:00',
     [string]$ApiBase = 'http://127.0.0.1:5098',
     [ValidateRange(0,12)]

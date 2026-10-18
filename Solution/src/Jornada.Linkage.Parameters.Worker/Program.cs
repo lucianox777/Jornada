@@ -2,6 +2,13 @@ using Jornada.Operational.Sql;
 using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Parameters.Worker;
 
+// Read-only opt-in physical diagnostic; never starts the operational worker.
+if (args.Length > 0 && args[0] == "--v9-physical-probe-seed42")
+{
+    await V9PhysicalCalibrationEvidenceCli.RunAsync(args);
+    return;
+}
+
 const string EnsureNameFrequencySnapshotOperation = "ENSURE_NAME_FREQUENCY_SNAPSHOT";
 const string CanonicalNameFrequencyReferenceCode = "CENSO2022_NOMES_BRASIL_V1";
 

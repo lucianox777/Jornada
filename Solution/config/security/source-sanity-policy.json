@@ -21,7 +21,8 @@
     ".github/workflows/identity-history-runtime.yml",
     ".github/workflows/identity-projection-scope.yml",
     ".github/workflows/identity-publication-eligibility.yml",
-    ".github/workflows/identity-atomic-publication.yml"
+    ".github/workflows/identity-atomic-publication.yml",
+    ".github/workflows/v9-physical-seed42-probe.yml"
   ],
   "allowedPasswordLiteralGlobs": [
     ".github/workflows/ci.yml",
@@ -39,7 +40,8 @@
     ".github/workflows/identity-composition-ledger.yml",
     ".github/workflows/identity-composition-preapplication.yml",
     ".github/workflows/identity-composition-application.yml",
-    ".github/workflows/identity-history-runtime.yml"
+    ".github/workflows/identity-history-runtime.yml",
+    ".github/workflows/v9-physical-seed42-probe.yml"
   ],
   "forbiddenTokenPrefixes": [
     "ghp_",
@@ -47,5 +49,5 @@
     "AKIA",
     "ASIA"
   ],
-  "note": "Exceções só para Development/CI sintético. .github/workflows/dt10-evidence.yml é reusable workflow chamado exclusivamente pelo job CI impact-gated, usa JornadaSyntheticDev efêmero e senha derivada de github.run_id, igual ao job original ci.yml; não habilita TLS SQL enfraquecido em produção. Produção não distribui credencial, chave privada ou TLS SQL enfraquecido."
+  "note": "Exceções só para Development/CI sintético. .github/workflows/dt10-evidence.yml é reusable workflow chamado exclusivamente pelo job CI impact-gated, usa JornadaSyntheticDev efêmero e senha derivada de github.run_id, igual ao job original ci.yml; não habilita TLS SQL enfraquecido em produção. Produção não distribui credencial, chave privada ou TLS SQL enfraquecido. A exceção exata .github/workflows/v9-physical-seed42-probe.yml é restrita ao job CI SQL Server 2022 descartável JornadaHarness, com credencial efêmera derivada de github.run_id, não toca HML/PROD nem distribui acesso operacional."
 }

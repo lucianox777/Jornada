@@ -9,6 +9,25 @@ namespace Jornada.Tests.Unit;
 public sealed class SyntheticCorpusFoundationTests
 {
     [Test]
+    public void Clean_is_the_provisional_synthetic_bootstrap_default_without_changing_archived_correlated_rates()
+    {
+        var options = new SyntheticCorpusOptions();
+        Assert.That(options.ErrorProfile, Is.EqualTo("clean"));
+        var clean = SyntheticCorpusV2Rules.Profiles["clean"];
+        var correlated = SyntheticCorpusV2Rules.Profiles["correlated"];
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(clean.NameCorruptionProbability, Is.EqualTo(.06d));
+            Assert.That(clean.MotherCorruptionProbability, Is.EqualTo(.10d));
+            Assert.That(clean.DateCorruptionProbability, Is.EqualTo(.04d));
+            Assert.That(clean.CommonCorruptionProbability, Is.Zero);
+            Assert.That(clean.MissingMotherProbability, Is.EqualTo(.05d));
+            Assert.That(clean.MissingDateProbability, Is.EqualTo(.01d));
+            Assert.That(correlated.CommonCorruptionProbability, Is.EqualTo(.18d));
+        }));
+    }
+
+    [Test]
     public void Xoshiro_seed_42_matches_frozen_vector()
     {
         var rng = new Xoshiro256StarStar(42);

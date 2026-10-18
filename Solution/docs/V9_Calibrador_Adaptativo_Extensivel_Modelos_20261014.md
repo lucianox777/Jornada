@@ -390,3 +390,50 @@ nem garantia sob carga operacional. A medição inicial
 pois cinco fases não são cinco repetições independentes. Essa
 opção não cria orçamento operacional, não liga ativação e não
 modifica as probabilidades ou a busca FS V9.
+
+
+## 18/10/2026 — escolha do perfil do bootstrap sintético
+
+A configuração inicial do único calibrador C# V9 deve ser inferida por
+`FitTrain` usando apenas a nova massa **clean** sintética e a fonte de referência
+IBGE pinada, com seleção preliminar no VALIDATION correspondente. Os valores
+são **bootstrap provisório** e não parâmetros finais. A antiga sensibilidade
+`correlated` fica somente como histórico, com hashes, artefatos e nomes de
+perfil preservados. Não executar automaticamente novos estudos correlated.
+A literatura **não** valida o clean como representativo do município;
+por isso o experimento registra agora divergências por campo de pares M
+TRAIN/VALIDATION e separa taxas por observação de erros entre pares.
+Calibração empírica real por gestor/sistema, FDR pós-Resolve com suporte
+independente, TEST inédito lacrado e decisão manual continuam obrigatórios
+para eventual ativação. Ver
+`V9_Bootstrap_Clean_Provisorio_20261018.md`.
+
+
+## Reconciliação com o runner físico SQL e seletor (18/10/2026)
+
+O `V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync` passou a ser chamado
+de fato pela CLI Worker `--v9-physical-probe-seed42` e pelo workflow
+`v9-physical-seed42-probe.yml`. O run
+[39147073026](https://github.com/lucianox777/Jornada/actions/runs/39147073026)
+mediu **clean** sobre SQL Server descartável, 30 mil identidades,
+sem TEST, 20 materializações de lote e 27 configurações
+(`0.99/0.999/0.9999` × margens `0/0.5/2` × RAW/BLIND/ORACLE),
+sempre **TF=0**. VALIDATION pós-Resolve mede uma decisão por
+observação-fonte pré-blocking elegível, e não TP dividido por
+`2 × M` pareado. Margem 0,5/threshold 0,99:
+recall RAW **59,51%**, BLIND tripla exata **94,71%**,
+ORACLE por gabarito **96,95%**; FP pontuais zero em clean,
+sem bound de FDR suficiente para certificação.
+A diferença mostra por que a margem deve comparar **identidades**
+e não observações repetidas da mesma pessoa. O modo ORACLE não
+é agrupamento Gold operacional e margem 0 não é política segura.
+
+**A integração permanece parcial:** o `AdaptiveCalibrationModelSearch`
+ainda lê a validação por **par** do adaptador, marcando
+`ConfidenceBoundForFdrMeasured=false`. Medir Resolve no probe
+não prova que o seletor escolhe pelo resultado final.
+Não há execução HML com Runner efetivo, garantia de guards de
+conflito/homônimo operacionais, TF positiva estatisticamente
+fundamentada ou TEST novo independente. Correlated fica
+somente no histórico e não deve voltar à CI automática.
+Consultar [revisão integral e dados dos runs](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md).

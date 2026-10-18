@@ -1,5 +1,25 @@
 # V9 — proveniência dos 18% e diagnóstico independente da corrupção sintética
 
+> **Decisão atual de bootstrap sintético (18/10/2026):** `clean` passa a ser o
+> único perfil automático para gerar dados iniciais da calibração FS V9.
+> `correlated`, `independent` e `field` permanecem no gerador para
+> reprodução histórica, mas não são base para selecionar o modelo inicial.
+> O workflow de sensibilidade `v9-synthetic-corruption-evidence` deixa
+> de disparar em PRs (reprodução histórica exclusivamente manual).
+> Nenhuma massa anterior, fingerprint ou artefato foi regravado.
+> `clean` é **bootstrap provisório**, NÃO taxa de corrupção
+> empiricamente representativa do Brasil; particularmente, seus 4% de
+> tentativas de alteração de DOB mais 1% de ausência por observação
+> ainda são elevados frente aos estudos britânicos. Avaliar somente
+> divergências efetivas entre pares M verdadeiros de TRAIN/VALIDATION
+> antes de interpretar sua plausibilidade. Parâmetros resultantes são
+> **iniciais e experimentais**, e não autorização de promoção V9.
+>
+> [Justificativa com dados e fontes](V9_Bootstrap_Clean_Provisorio_20261018.md).
+
+## Histórico preservado (não constitui o default atual)
+
+
 **Escopo:** análise de sensibilidade e proveniência, **não** calibração de
 parâmetros m/u/TF, revisão automática de recall, nem autorização de
 ativação do blocking V9. A massa demográfica IBGE é sintética.

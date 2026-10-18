@@ -277,6 +277,472 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             IndependentlyLabeledIdentityGroups: groups);
     }
 
+
+    /// <summary>
+    /// Diagnostic source-observation Rank -> Resolve on both directions of the
+    /// COMPLETE physical SQL candidate union. Its true-link denominator is
+    /// TWICE the unordered cross-manager M-pair universe (directed arcs).
+    /// It uses the TRAIN-fitted 81-cell model with NO refit on VALIDATION.
+    /// The decision kernel is shared with operational Resolve, but this
+    /// synthetic evaluation is NOT a persisted Runner/HML run.
+    /// </summary>
+    internal IReadOnlyList<V9PhysicalFinalResolveMetric> EvaluatePostResolveValidation(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
+        IReadOnlyList<(int A, int B)> validationSqlPairs,
+        long eligibleUnorderedM, long recoveredUnorderedM,
+        decimal conflictMargin, int maximumAcceptedPerBaseIdentity)
+    {
+        ArgumentNullException.ThrowIfNull(observations);
+        ArgumentNullException.ThrowIfNull(validationSqlPairs);
+        if (eligibleUnorderedM <= 0 || recoveredUnorderedM < 0
+            || recoveredUnorderedM > eligibleUnorderedM
+            || conflictMargin < 0m || conflictMargin > 1000m
+            || maximumAcceptedPerBaseIdentity < 1)
+            throw new InvalidDataException("M ou política pós-Resolve inválidos.");
+
+        var validation = observations.Where(x => x.Partition == "VALIDATION")
+            .ToDictionary(x => x.ObservationId);
+        if (validation.Count < 2)
+            throw new InvalidDataException("VALIDATION precisa de observações.");
+        static Guid SyntheticCandidateId(int id) =>
+            new(id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+        var candidatesByGuid = validation.Values.ToDictionary(
+            x => SyntheticCandidateId(x.ObservationId));
+        var neighbors = validation.Keys.ToDictionary(x => x, _ => new HashSet<int>());
+        foreach (var (left, right) in validationSqlPairs)
+        {
+            if (left >= right || !validation.TryGetValue(left, out var leftObservation)
+                || !validation.TryGetValue(right, out var rightObservation)
+                || leftObservation.Gestor == rightObservation.Gestor
+                || !neighbors[left].Add(right) || !neighbors[right].Add(left))
+                throw new InvalidDataException("União SQL física duplicada, contaminada ou sem orientação canônica.");
+        }
+        if (validationSqlPairs.LongCount(x => validation[x.A].BasePersonId
+                == validation[x.B].BasePersonId) != recoveredUnorderedM)
+            throw new InvalidDataException("M SQL de VALIDATION divergiu das arestas lidas.");
+
+        var results = new List<V9PhysicalFinalResolveMetric>(options.Count);
+        foreach (var config in options.Values.OrderBy(x => x.OptionId, StringComparer.Ordinal))
+        {
+            var fitted = fits.Values.SingleOrDefault(x => x.OptionId == config.OptionId)
+                ?? throw new InvalidDataException("Modelo TRAIN não ajustado para Resolve.");
+            if (config.TfWeight > 0m && (fitted.TrainUnitU is null || frozenTfReference is null))
+                throw new InvalidDataException("Fit TF positivo não está congelado.");
+
+            var groups = validation.Values.Select(x => x.BasePersonId)
+                .Distinct(StringComparer.Ordinal)
+                .ToDictionary(x => x, x => (Tp: 0L, Fp: 0L), StringComparer.Ordinal);
+            long tp = 0, fp = 0, conflicts = 0, unresolved = 0;
+            foreach (var source in validation.Values.OrderBy(x => x.ObservationId))
+            {
+                var list = neighbors[source.ObservationId].OrderBy(x => x)
+                    .Select(id => validation[id]).ToArray();
+                var candidates = list.Select(x => new LinkageCandidate(
+                    SyntheticCandidateId(x.ObservationId), x.PersonName,
+                    x.BirthDate, x.MotherName)).ToArray();
+                var sourceValue = new IdentityObservation(
+                    null, "SEM_CPF", source.PersonName, source.BirthDate, source.MotherName);
+                CompositeNominalTfPreviewV9? Tf(
+                    IdentityObservation ignored, LinkageCandidate candidate)
+                {
+                    if (fitted.TrainUnitU is null || frozenTfReference is null)
+                        return null;
+                    var target = candidatesByGuid[candidate.PessoaUuid];
+                    var pair = new V9FsAdaptiveCandidatePair(
+                        "VALIDATION", source.BasePersonId, target.BasePersonId,
+                        source.BasePersonId == target.BasePersonId,
+                        source.PersonName, target.PersonName,
+                        source.MotherName, target.MotherName,
+                        source.BirthDate, target.BirthDate, 1);
+                    return V9TrainSqlFirstNameUCalibration.Preview(
+                        fitted.TrainUnitU, frozenTfReference,
+                        CompositeNominalComparisonV9.Classify(
+                            source.PersonName, target.PersonName),
+                        CompositeNominalComparisonV9.Classify(
+                            source.MotherName, target.MotherName),
+                        pair, config.TfWeight,
+                        config.TfMinimumFrequency, config.TfMinimumIndependentSupport);
+                }
+                var decision = ProbabilisticLinkageDecisions.ResolveCompositeNominalV9Preview(
+                    SyntheticCandidateId(source.ObservationId),
+                    fitted.Parameters, sourceValue, candidates, fitted.Cells,
+                    CompositeNominalComparisonV9.ContractVersion,
+                    config.DecisionThreshold, conflictMargin,
+                    config.TfWeight > 0m ? Tf : null,
+                    config.TfWeight > 0m ? config.TfSide : null);
+                if (decision.Status == ResolutionStatus.CONFLITO)
+                {
+                    conflicts++;
+                    continue;
+                }
+                if (decision.Status == ResolutionStatus.NAO_RESOLVIDO)
+                {
+                    unresolved++;
+                    continue;
+                }
+                if (decision.Status != ResolutionStatus.RESOLVIDO
+                    || decision.PessoaUuidResolvido is not { } targetId
+                    || !candidatesByGuid.TryGetValue(targetId, out var targetObs)
+                    || !neighbors[source.ObservationId].Contains(targetObs.ObservationId))
+                    throw new InvalidDataException("Resolve retornou alvo fora da união SQL.");
+                var score = groups[source.BasePersonId];
+                if (targetObs.BasePersonId == source.BasePersonId)
+                {
+                    tp++;
+                    score.Tp++;
+                }
+                else
+                {
+                    fp++;
+                    score.Fp++;
+                }
+                groups[source.BasePersonId] = score;
+            }
+
+            var directedEligible = checked(2L * eligibleUnorderedM);
+            var directedRecovered = checked(2L * recoveredUnorderedM);
+            if (tp > directedRecovered
+                || tp + fp + conflicts + unresolved != validation.Count)
+                throw new InvalidDataException("Decisões pós-Resolve não reconciliam com o censo.");
+            var confidence = V9IdentityClusterFdr.UpperBoundForPopulationMeanRatio(
+                groups.OrderBy(x => x.Key, StringComparer.Ordinal)
+                    .Select(x => new V9IdentityClusterFdr.IdentityGroup(
+                        x.Key, x.Value.Tp, x.Value.Fp)),
+                maximumAcceptedPerBaseIdentity, alpha: .05d);
+            results.Add(new V9PhysicalFinalResolveMetric(
+                config.OptionId, config.DecisionThreshold, config.TfWeight,
+                directedEligible, directedRecovered, tp, fp, conflicts, unresolved,
+                (double)directedRecovered / directedEligible,
+                (double)tp / directedEligible,
+                tp + fp == 0 ? null : (double)fp / (tp + fp),
+                confidence.UpperFdr, groups.Count,
+                maximumAcceptedPerBaseIdentity, .05d,
+                FinalRankResolveEvaluated: true, OperationallyCertified: false));
+        }
+        return Array.AsReadOnly(results.ToArray());
+    }
+
+
+    /// <summary>
+    /// Corrects the diagnostic denominator: one outcome per eligible source
+    /// observation, NOT one outcome per directed true observation-pair.
+    /// The optional oracle mode coalesces candidate observations using known
+    /// SYNTHETIC ground-truth identity; this is an optimistic diagnostic upper
+    /// bound, NEVER evidence that the operational Gold would cluster correctly.
+    /// No TEST input, refit, publishing or automatic selector activation.
+    /// </summary>
+    public IReadOnlyList<V9PhysicalSourceResolveMetric> EvaluateSourceUnitResolveValidation(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
+        IReadOnlyList<(int A, int B)> validationSqlPairs,
+        IReadOnlyCollection<decimal> conflictMargins,
+        int maximumAcceptedPerBaseIdentity)
+    {
+        ArgumentNullException.ThrowIfNull(observations);
+        ArgumentNullException.ThrowIfNull(validationSqlPairs);
+        ArgumentNullException.ThrowIfNull(conflictMargins);
+        if (maximumAcceptedPerBaseIdentity < 1
+            || conflictMargins.Count is < 1 or > 8
+            || conflictMargins.Any(x => x is < 0m or > 1000m)
+            || conflictMargins.Distinct().Count() != conflictMargins.Count)
+            throw new InvalidDataException("Margens ou cap da avaliação source inválidos.");
+        if (observations.Any(x => x.Partition is not ("TRAIN" or "VALIDATION")))
+            throw new InvalidDataException("TEST não pode participar da avaliação source.");
+
+        var validation = observations.Where(x => x.Partition == "VALIDATION")
+            .ToDictionary(x => x.ObservationId);
+        if (validation.Count < 2
+            || validation.Values.Any(x => string.IsNullOrWhiteSpace(x.BasePersonId)))
+            throw new InvalidDataException("Universo completo de VALIDATION ausente.");
+        static Guid ObservationGuid(int id) =>
+            new(id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+        var observationByGuid = validation.Values.ToDictionary(
+            x => ObservationGuid(x.ObservationId));
+
+        // Grouping key is a synthetic TRUTH oracle for the second diagnostic
+        // arm only, not a model-inferred or production Gold identifier.
+        var orderedBases = validation.Values.Select(x => x.BasePersonId)
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(x => x, StringComparer.Ordinal).ToArray();
+        var groupIdByBase = orderedBases.Select((id, index) =>
+                (Id: id, Guid: new Guid(index + 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2)))
+            .ToDictionary(x => x.Id, x => x.Guid, StringComparer.Ordinal);
+        var baseByGroupGuid = groupIdByBase.ToDictionary(x => x.Value, x => x.Key);
+
+        // THIRD ARM, fully BLIND to synthetic ground-truth labels:
+        // a provisional entity is the complete normalized composite
+        // (person, mother, DOB) when all three values are available.
+        // Missing values never allow two observations to coalesce.
+        // This is a conservative surrogate, NOT operational Gold.
+        var exactGroups = new Dictionary<(string, string, DateOnly), Guid>();
+        var blindByObservationId = new Dictionary<int, Guid>();
+        var trueBasesByBlindGuid = new Dictionary<Guid, HashSet<string>>();
+        int blindSequence = 0;
+        foreach (var observed in validation.Values.OrderBy(x => x.ObservationId))
+        {
+            var person = IdentityComparison.NormalizeText(observed.PersonName);
+            var mother = IdentityComparison.NormalizeText(observed.MotherName);
+            Guid id;
+            if (person is not null && mother is not null
+                && observed.BirthDate is { } dob)
+            {
+                var key = (person, mother, dob);
+                if (!exactGroups.TryGetValue(key, out id))
+                {
+                    id = new Guid(checked(++blindSequence), 0, 0,
+                        0, 0, 0, 0, 0, 0, 0, 3);
+                    exactGroups[key] = id;
+                }
+            }
+            else
+            {
+                id = new Guid(checked(++blindSequence), 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 3);
+            }
+            blindByObservationId[observed.ObservationId] = id;
+            if (!trueBasesByBlindGuid.TryGetValue(id, out var trueBases))
+            {
+                trueBases = new HashSet<string>(StringComparer.Ordinal);
+                trueBasesByBlindGuid[id] = trueBases;
+            }
+            // Truth is recorded ONLY for evaluation of impurity / FP,
+            // never for choosing this blind group's key or membership.
+            trueBases.Add(observed.BasePersonId);
+        }
+        var impureBlindGroups = trueBasesByBlindGuid.Values
+            .Count(bases => bases.Count > 1);
+
+        var neighbors = validation.Keys.ToDictionary(id => id, _ => new HashSet<int>());
+        foreach (var (a, b) in validationSqlPairs)
+        {
+            if (a >= b || !validation.TryGetValue(a, out var left)
+                || !validation.TryGetValue(b, out var right)
+                || left.Gestor == right.Gestor
+                || !neighbors[a].Add(b) || !neighbors[b].Add(a))
+                throw new InvalidDataException("Aresta SQL física inválida ou duplicada.");
+        }
+        var eligibleBases = validation.Values
+            .GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
+            .Where(g => g.Select(x => x.Gestor)
+                .Distinct(StringComparer.Ordinal).Skip(1).Any())
+            .Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
+        var eligibleSources = validation.Values.LongCount(
+            x => eligibleBases.Contains(x.BasePersonId));
+        if (eligibleSources == 0)
+            throw new InvalidDataException("Nenhuma fonte possui par verdadeiro elegível.");
+        var trueSqlSources = validation.Values.LongCount(source =>
+            eligibleBases.Contains(source.BasePersonId)
+            && neighbors[source.ObservationId].Any(other =>
+                validation[other].BasePersonId == source.BasePersonId));
+        if (trueSqlSources > eligibleSources)
+            throw new InvalidDataException("Cobertura SQL por fonte inconsistente.");
+
+        var metrics = new List<V9PhysicalSourceResolveMetric>();
+        foreach (var config in options.Values.OrderBy(x => x.OptionId, StringComparer.Ordinal))
+        {
+            var fitted = fits.Values.SingleOrDefault(x => x.OptionId == config.OptionId)
+                ?? throw new InvalidDataException("Fit TRAIN necessário para avaliar Resolve.");
+            if (config.TfWeight > 0m && (fitted.TrainUnitU is null || frozenTfReference is null))
+                throw new InvalidDataException("TF positiva sem snapshot TRAIN congelado.");
+
+            var counters = conflictMargins.SelectMany(margin =>
+                    Enumerable.Range(0, 3).Select(groupMode => (margin, groupMode)))
+                .ToDictionary(x => x,
+                    _ => new V9SourceResolveAccumulator(orderedBases));
+
+            foreach (var source in validation.Values.OrderBy(x => x.ObservationId))
+            {
+                var candidates = neighbors[source.ObservationId].OrderBy(id => id)
+                    .Select(id => validation[id])
+                    .Select(x => new LinkageCandidate(
+                        ObservationGuid(x.ObservationId), x.PersonName,
+                        x.BirthDate, x.MotherName)).ToArray();
+                var sourceObservation = new IdentityObservation(
+                    null, "SEM_CPF", source.PersonName, source.BirthDate, source.MotherName);
+
+                CompositeNominalTfPreviewV9? TfForPair(
+                    IdentityObservation ignored, LinkageCandidate candidate)
+                {
+                    if (fitted.TrainUnitU is null || frozenTfReference is null)
+                        return null;
+                    var target = observationByGuid[candidate.PessoaUuid];
+                    var pair = new V9FsAdaptiveCandidatePair(
+                        "VALIDATION", source.BasePersonId, target.BasePersonId,
+                        source.BasePersonId == target.BasePersonId,
+                        source.PersonName, target.PersonName,
+                        source.MotherName, target.MotherName,
+                        source.BirthDate, target.BirthDate, 1);
+                    return V9TrainSqlFirstNameUCalibration.Preview(
+                        fitted.TrainUnitU, frozenTfReference,
+                        CompositeNominalComparisonV9.Classify(
+                            source.PersonName, target.PersonName),
+                        CompositeNominalComparisonV9.Classify(
+                            source.MotherName, target.MotherName),
+                        pair, config.TfWeight,
+                        config.TfMinimumFrequency, config.TfMinimumIndependentSupport);
+                }
+
+                // Calculate the SAME FS evidence exactly once per observed
+                // candidate; do NOT use ground-truth identity to choose scores.
+                var ranked = ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+                    fitted.Parameters, sourceObservation, candidates, fitted.Cells,
+                    CompositeNominalComparisonV9.ContractVersion,
+                    config.TfWeight > 0m ? TfForPair : null,
+                    config.TfWeight > 0m ? config.TfSide : null);
+
+                // Oracle Gold upper-bound: collapse multiple observations into
+                // one synthetic ground-truth entity, retain its strongest FS
+                // score, then reuse EXACTLY the same ResolveRankedCore kernel.
+                var groupedRanking = ranked
+                    .GroupBy(x => groupIdByBase[
+                        observationByGuid[x.PessoaUuid].BasePersonId])
+                    .Select(g => g.First() with { PessoaUuid = g.Key })
+                    .OrderByDescending(x => x.LogOdds)
+                    .ThenBy(x => x.PessoaUuid).ToArray();
+                var blindRanking = ranked
+                    .GroupBy(x => blindByObservationId[
+                        observationByGuid[x.PessoaUuid].ObservationId])
+                    .Select(g => g.First() with { PessoaUuid = g.Key })
+                    .OrderByDescending(x => x.LogOdds)
+                    .ThenBy(x => x.PessoaUuid).ToArray();
+
+                foreach (var margin in conflictMargins)
+                foreach (var mode in new[] { 0, 1, 2 })
+                {
+                    var ranking = mode switch
+                    {
+                        0 => ranked,
+                        1 => blindRanking,
+                        2 => groupedRanking,
+                        _ => throw new InvalidOperationException("Modo de agrupamento inválido.")
+                    };
+                    var decision = ProbabilisticLinkageDecisions
+                        .ResolveRankedCompositeNominalV9Preview(
+                            ObservationGuid(source.ObservationId),
+                            fitted.Parameters, ranking,
+                            config.DecisionThreshold, margin);
+                    string? targetBase = null;
+                    if (decision.Status == ResolutionStatus.RESOLVIDO)
+                    {
+                        if (decision.PessoaUuidResolvido is not { } selected)
+                            throw new InvalidDataException("Resolve sem alvo em RESOLVIDO.");
+                        if (mode == 2)
+                        {
+                            if (!baseByGroupGuid.TryGetValue(selected, out targetBase))
+                                throw new InvalidDataException("Grupo oracle fora de VALIDATION.");
+                        }
+                        else if (mode == 1)
+                        {
+                            if (!trueBasesByBlindGuid.TryGetValue(selected, out var trueBases))
+                                throw new InvalidDataException("Grupo blind fora de VALIDATION.");
+                            // Impure inferred entities are ALWAYS errors,
+                            // even if one of their sources shares the true ID.
+                            // Never use the oracle to choose their real target.
+                            targetBase = trueBases.Count == 1
+                                ? trueBases.Single()
+                                : "IMPURE_BLIND_GROUP:" + selected;
+                        }
+                        else
+                        {
+                            if (!observationByGuid.TryGetValue(selected, out var target))
+                                throw new InvalidDataException("Observação resolvida fora do SQL.");
+                            targetBase = target.BasePersonId;
+                        }
+                    }
+                    counters[(margin, mode)].Add(
+                        source.BasePersonId, targetBase, decision);
+                }
+            }
+
+            foreach (var margin in conflictMargins.OrderBy(x => x))
+            foreach (var mode in new[] { 0, 1, 2 })
+            {
+                var counter = counters[(margin, mode)];
+                if (counter.Total != validation.Count || counter.Tp > trueSqlSources
+                    || counter.Tp > eligibleSources)
+                    throw new InvalidDataException("Decisões não reconciliam por fonte.");
+                var confidence = V9IdentityClusterFdr.UpperBoundForPopulationMeanRatio(
+                    counter.GroupContributions
+                        .OrderBy(x => x.Key, StringComparer.Ordinal)
+                        .Select(x => new V9IdentityClusterFdr.IdentityGroup(
+                            x.Key, x.Value.Tp, x.Value.Fp)),
+                    maximumAcceptedPerBaseIdentity, alpha: .05d);
+                metrics.Add(new V9PhysicalSourceResolveMetric(
+                    config.OptionId, config.DecisionThreshold, config.TfWeight,
+                    margin, mode switch
+                    {
+                        0 => "RAW_SQL_OBSERVATION_CANDIDATES",
+                        1 => "BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING",
+                        2 => "ORACLE_SYNTHETIC_GOLD_GROUPING_NOT_OPERATIONAL",
+                        _ => throw new InvalidOperationException("Modo de agrupamento inválido.")
+                    },
+                    validation.Count, eligibleSources, trueSqlSources,
+                    counter.Tp, counter.Fp, counter.Conflicts, counter.Unresolved,
+                    (double)trueSqlSources / eligibleSources,
+                    (double)counter.Tp / eligibleSources,
+                    counter.Tp + counter.Fp == 0 ? null
+                        : (double)counter.Fp / (counter.Tp + counter.Fp),
+                    confidence.UpperFdr, orderedBases.Length,
+                    counter.Reasons.OrderBy(x => x.Key, StringComparer.Ordinal)
+                        .ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal),
+                    SyntheticGoldOracleGrouping: mode == 2,
+                    OperationallyCertified: false,
+                    ImpureBlindGroups: mode == 1 ? impureBlindGroups : 0));
+            }
+        }
+        return Array.AsReadOnly(metrics.ToArray());
+    }
+
+    private sealed class V9SourceResolveAccumulator
+    {
+        internal long Tp { get; private set; }
+        internal long Fp { get; private set; }
+        internal long Conflicts { get; private set; }
+        internal long Unresolved { get; private set; }
+        internal long Total => Tp + Fp + Conflicts + Unresolved;
+        internal Dictionary<string, (long Tp, long Fp)> GroupContributions { get; }
+        internal Dictionary<string, long> Reasons { get; } = new(StringComparer.Ordinal);
+
+        internal V9SourceResolveAccumulator(IEnumerable<string> baseIds)
+        {
+            GroupContributions = baseIds.ToDictionary(
+                id => id, _ => (Tp: 0L, Fp: 0L), StringComparer.Ordinal);
+        }
+
+        internal void Add(string sourceBase, string? targetBase,
+            ProbabilisticLinkageDecision decision)
+        {
+            var reason = decision.Motivo ?? decision.Status.ToString();
+            Reasons[reason] = checked(Reasons.GetValueOrDefault(reason) + 1);
+            switch (decision.Status)
+            {
+                case ResolutionStatus.CONFLITO:
+                    Conflicts++;
+                    break;
+                case ResolutionStatus.NAO_RESOLVIDO:
+                    Unresolved++;
+                    break;
+                case ResolutionStatus.RESOLVIDO:
+                    if (targetBase is null)
+                        throw new InvalidDataException("Vínculo sem grupo alvo.");
+                    var entry = GroupContributions[sourceBase];
+                    if (sourceBase == targetBase)
+                    {
+                        Tp++;
+                        entry.Tp++;
+                    }
+                    else
+                    {
+                        Fp++;
+                        entry.Fp++;
+                    }
+                    GroupContributions[sourceBase] = entry;
+                    break;
+                default:
+                    throw new InvalidDataException("Status Resolve desconhecido.");
+            }
+        }
+    }
+
     public static string ConfigurationFingerprintSha256(V9FsAdaptiveOptionConfiguration config)
     {
         ArgumentNullException.ThrowIfNull(config);
