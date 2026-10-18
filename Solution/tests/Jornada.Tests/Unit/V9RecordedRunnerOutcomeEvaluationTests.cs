@@ -156,8 +156,18 @@ public sealed class V9RecordedRunnerOutcomeEvaluationTests
             Throws.TypeOf<InvalidDataException>());
         Assert.That((Action)(() => Evaluate(modelVersion: "MODEL_TEST")),
             Throws.TypeOf<InvalidDataException>());
-        Assert.That((Action)(() => Evaluate(cohort: Cohort()[..4])),
+        // Omitting a group actually referenced by an observation MUST fail.
+        // Omitting only a zero-degree base cannot be detected from records
+        // without an externally authenticated pre-blocking census; its
+        // footprint differs instead and is never operationally certified.
+        Assert.That((Action)(() => Evaluate(cohort:
+            [Sha('5'), Sha('6'), Sha('7'), Sha('9')])),
             Throws.TypeOf<InvalidDataException>());
+        var censoredZeroDegree = Evaluate(cohort: Cohort()[..4]);
+        Assert.That(censoredZeroDegree.OperationallyCertified, Is.False);
+        Assert.That(censoredZeroDegree.PreBlockingBaseIdentities, Is.EqualTo(4));
+        Assert.That(censoredZeroDegree.RecordedRunnerEvidenceFingerprintSha256,
+            Is.Not.EqualTo(Evaluate().RecordedRunnerEvidenceFingerprintSha256));
         var recorded = Recorded();
         recorded[0] = recorded[0] with
         {
