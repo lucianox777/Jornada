@@ -70,6 +70,8 @@ public static class V9PhysicalSqlBlockingProbe
         public int ActiveRulesetPassCount { get; init; }
         public long ActiveRulesetNewCandidatePairs { get; init; }
         public V9SyntheticBaseFrequencyAudit.Report? TrainBaseFrequencyAudit { get; init; }
+        public IReadOnlyList<V9SyntheticBaseFrequencyAudit.MaterializedUnitEvidence>?
+            TrainBaseNominalFrequencySnapshots { get; init; }
         public V9BlockingTruthLossAudit.Report? TruePairLossAudit { get; init; }
         public V9SqlBlockingFrameParityAudit.Report? ActiveSameFrameParityAudit { get; init; }
         public V9SqlConditionedNominalSupportAudit.Report? TrainSqlNominalSupportAudit { get; init; }
@@ -156,8 +158,22 @@ public static class V9PhysicalSqlBlockingProbe
         // Source is the *unique synthetic BASE PEOPLE population* in TRAIN,
         // not repeated candidate endpoints or noise-corrupted observations.
         // No TF U baseline or calibrated weight can be inferred from this audit.
-        var tfBaseAudit = V9SyntheticBaseFrequencyAudit.Analyze(
-            basePeople, string.Concat(fingerprint, ":", peopleSha));
+        var tfFrame = string.Concat(fingerprint, ":", peopleSha);
+        var tfBaseAudit = V9SyntheticBaseFrequencyAudit.Analyze(basePeople, tfFrame);
+        // The actual 30k corpus and raw CSV hashes were already checked
+        // against generation-manifest.json above. The manifest digest is an
+        // explicit versioned source assertion, not an externally signed
+        // certificate of the generator or statistical assumptions.
+        var manifestSha = Convert.ToHexString(SHA256.HashData(
+            Encoding.UTF8.GetBytes(meta.GetRawText()))).ToLowerInvariant();
+        var tfBootstrap = new NominalSyntheticIbgeBootstrapV9(
+            CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance,
+            basePeople.Length, tfFrame,
+            meta.GetProperty("generator_version").GetString()
+                ?? throw new InvalidDataException("Versão do gerador sintético ausente."),
+            seed, "GENERATION_MANIFEST_SHA256:" + manifestSha);
+        var tfEvidence = V9SyntheticBaseFrequencyAudit.MaterializePhysicalEvidence(
+            basePeople, tfFrame, tfBootstrap, tfBaseAudit);
 
         await using (var create = new SqlCommand(
             """
@@ -515,6 +531,7 @@ public static class V9PhysicalSqlBlockingProbe
             ActiveRulesetPassCount = activeRules.PassCount,
             ActiveRulesetNewCandidatePairs = activeRules.NewPairs,
             TrainBaseFrequencyAudit = tfBaseAudit,
+            TrainBaseNominalFrequencySnapshots = tfEvidence,
             TruePairLossAudit = lossAudit,
             ActiveSameFrameParityAudit = frameParity,
             TrainSqlNominalSupportAudit = trainNominalSupport,
