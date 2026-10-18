@@ -283,6 +283,121 @@ public sealed class ProbabilisticV9CandidateRankingPreviewTests
         }));
     }
 
+    private static ProbabilisticLinkageDecision ResolveV9(
+        IdentityObservation source,
+        IReadOnlyList<LinkageCandidate> candidates,
+        decimal threshold,
+        decimal margin,
+        IReadOnlyDictionary<string, decimal>? parameters = null,
+        IReadOnlyCollection<FellegiSunterJointNominalCellV9>? cells = null,
+        Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? tf = null,
+        CompositeNominalTfSideV9? tfSide = null) =>
+        ProbabilisticLinkageDecisions.ResolveCompositeNominalV9Preview(
+            Guid.Parse("11111111-1111-4111-8111-111111111190"),
+            parameters ?? Parameters,
+            source, candidates, cells ?? Cells(),
+            CompositeNominalComparisonV9.ContractVersion,
+            threshold, margin, tf, tfSide);
+
+    [Test]
+    public void Preview_resolve_calls_the_same_final_decision_guards_as_production_without_V9_activation()
+    {
+        var observation = Observation();
+        var ranked = ResolveV9(observation, Candidates(), .10m, .5m);
+        var conflicted = ResolveV9(observation, Candidates(), .10m, 3m);
+        var tooWeak = ResolveV9(observation, Candidates(), .90m, 0m);
+        var empty = ResolveV9(observation, [], .10m, 0m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(ranked.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
+            Assert.That(ranked.PessoaUuidResolvido, Is.EqualTo(ExactId));
+            Assert.That(ranked.MelhorCandidatoUuid, Is.EqualTo(ExactId));
+            Assert.That(conflicted.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
+            Assert.That(conflicted.Motivo, Is.EqualTo("MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE"));
+            Assert.That(tooWeak.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
+            Assert.That(tooWeak.Motivo, Is.EqualTo("ABAIXO_T_LINKAGE"));
+            Assert.That(empty.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
+            Assert.That(empty.Motivo, Is.EqualTo("SEM_CANDIDATO_NO_RULESET_BLOCKING"));
+        }));
+
+        var demographic = Parameters.ToDictionary(x => x.Key, x => x.Value);
+        demographic[LinkageParameterCatalog.NonUniqueDemographicExactGuard] = 1m;
+        var guarded = ResolveV9(observation, Candidates(), .10m, 0m, demographic);
+        Assert.That(guarded.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
+        Assert.That(guarded.Motivo, Is.EqualTo("NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO"));
+
+        demographic.Remove(LinkageParameterCatalog.NonUniqueDemographicExactGuard);
+        demographic[LinkageParameterCatalog.DualThresholdConflictGuard] = 1m;
+        demographic[LinkageParameterCatalog.DualThresholdConflictFloorV2] = 1m;
+        demographic[LinkageParameterCatalog.DualThresholdConflictFloor] = .02m;
+        var ambiguous = ResolveV9(observation, Candidates(), .10m, 0m, demographic);
+        Assert.That(ambiguous.Status, Is.EqualTo(ResolutionStatus.CONFLITO));
+        Assert.That(ambiguous.Motivo, Is.EqualTo("SEGUNDO_CANDIDATO_ACIMA_PISO_CONFLITO"));
+    }
+
+    [Test]
+    public void Preview_resolve_TF_positive_changes_final_selection_and_refuses_unknown_frequency()
+    {
+        var levels = Enum.GetValues<CompositeNominalLevelV9>();
+        var neutralCells = levels.SelectMany(p => levels.Select(m =>
+            new FellegiSunterJointNominalCellV9(p, m, 1m / 81m, 1m / 81m))).ToArray();
+        var source = new IdentityObservation(
+            null, "SEM_CPF", "Maria Lima", Birth, "Ana Costa");
+        var exactFirst = new LinkageCandidate(
+            ExactId, "Maria Costa", Birth, "Ana Costa");
+        var different = new LinkageCandidate(
+            NearId, "Zuleica Nogueira", Birth, "Ana Costa");
+        var unadjusted = ResolveV9(source, [different, exactFirst], .02m, 0m,
+            cells: neutralCells);
+        var pinned = PinnedTf();
+        CompositeNominalTfPreviewV9? Frequency(
+            IdentityObservation obs, LinkageCandidate candidate)
+        {
+            var level = CompositeNominalComparisonV9.Classify(
+                obs.NomeCompleto, candidate.NomeCompleto);
+            return level == CompositeNominalLevelV9.ExactFirst
+                ? pinned.CreatePreview(CompositeNominalTfSideV9.Person, level,
+                    obs.NomeCompleto, candidate.NomeCompleto, .10m, 1m, .00001m, 1)
+                : null;
+        }
+        var weighted = ResolveV9(source, [exactFirst, different], .02m, 0m,
+            cells: neutralCells, tf: Frequency, tfSide: CompositeNominalTfSideV9.Person);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(unadjusted.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
+            Assert.That(unadjusted.PessoaUuidResolvido, Is.EqualTo(ExactId));
+            Assert.That(weighted.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
+            Assert.That(weighted.PessoaUuidResolvido, Is.EqualTo(NearId));
+            Assert.That(weighted.PessoaUuidResolvido, Is.Not.EqualTo(unadjusted.PessoaUuidResolvido));
+        }));
+        Assert.That((Action)(() => ResolveV9(
+            source, [exactFirst], .02m, 0m, cells: neutralCells,
+            tfSide: CompositeNominalTfSideV9.Person)), Throws.InvalidOperationException);
+        Assert.That((Action)(() => ResolveV9(
+            source, [exactFirst], .02m, 0m, cells: neutralCells,
+            tf: (_, _) => null, tfSide: CompositeNominalTfSideV9.Person)),
+            Throws.InvalidOperationException);
+    }
+
+    [Test]
+    public void Preview_resolve_rejects_invalid_threshold_margin_model_id_and_CPF()
+    {
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That((Action)(() => ResolveV9(Observation(), Candidates(), 0m, 0m)),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() => ResolveV9(Observation(), Candidates(), .2m, -1m)),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() => ResolveV9(Observation("12345678901"), Candidates(), .2m, 0m)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                ProbabilisticLinkageDecisions.ResolveCompositeNominalV9Preview(
+                    Guid.Empty, Parameters, Observation(), Candidates(),
+                    Cells(), CompositeNominalComparisonV9.ContractVersion,
+                    .2m, 0m)), Throws.TypeOf<ArgumentException>());
+        }));
+    }
+
     [Test]
     public void PreviewWithNoCandidatesProducesNoInferenceOrAutomatedResolution()
     {

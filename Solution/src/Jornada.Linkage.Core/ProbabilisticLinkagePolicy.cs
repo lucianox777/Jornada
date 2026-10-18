@@ -367,18 +367,65 @@ internal static class ProbabilisticLinkageDecisions
         return ResolveRanked(model, Rank(model, observation, candidates), noCandidateReason);
     }
 
+    /// <summary>
+    /// Development-only final-decision preview; shares EXACTLY the same
+    /// threshold, dual-candidate conflict, log-odds margin, and demographic
+    /// collision guards as operational ResolveRanked. It never calls the
+    /// operational V9 dispatch, persists outcomes or certifies a model.
+    /// </summary>
+    internal static ProbabilisticLinkageDecision ResolveCompositeNominalV9Preview(
+        Guid diagnosticModelId,
+        IReadOnlyDictionary<string, decimal> parameters,
+        IdentityObservation observation,
+        IReadOnlyList<LinkageCandidate> candidates,
+        IReadOnlyCollection<FellegiSunterJointNominalCellV9> jointCells,
+        string nominalContractVersion,
+        decimal threshold,
+        decimal conflictMargin,
+        Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? tfForPair = null,
+        CompositeNominalTfSideV9? positiveTfSide = null)
+    {
+        if (diagnosticModelId == Guid.Empty)
+            throw new ArgumentException("ID do estudo V9 é obrigatório.", nameof(diagnosticModelId));
+        if (threshold is <= 0m or > 1m || conflictMargin is < 0m or > 1000m)
+            throw new ArgumentOutOfRangeException(nameof(threshold));
+        var scored = RankCompositeNominalV9Preview(
+            parameters, observation, candidates, jointCells,
+            nominalContractVersion, tfForPair, positiveTfSide);
+        return ResolveRankedCore(
+            parameters, threshold, conflictMargin, diagnosticModelId,
+            scored, "SEM_CANDIDATO_NO_RULESET_BLOCKING", decisionEvidence: true);
+    }
+
     internal static ProbabilisticLinkageDecision ResolveRanked(
         LinkageModel model,
         IReadOnlyList<CandidateScore> scored,
         string noCandidateReason)
     {
         LinkageModelPolicy.RequireCertifiedOperationalAlgorithm(model.AlgorithmVersion);
+        return ResolveRankedCore(
+            model.Parameters, model.Threshold, model.ConflictMargin,
+            model.ModelId, scored, noCandidateReason,
+            LinkageParameterCatalog.UsesDecisionEvidence(model.AlgorithmVersion));
+    }
+
+    private static ProbabilisticLinkageDecision ResolveRankedCore(
+        IReadOnlyDictionary<string, decimal> parameters,
+        decimal threshold, decimal conflictMargin,
+        Guid modelId, IReadOnlyList<CandidateScore> scored,
+        string noCandidateReason, bool decisionEvidence)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(scored);
         ArgumentException.ThrowIfNullOrWhiteSpace(noCandidateReason);
-        var decisionEvidence = LinkageParameterCatalog.UsesDecisionEvidence(model.AlgorithmVersion);
+        // The existing operational V5-V8 ResolveRanked contract permits
+        // threshold=0 in calibration probes and Guid.Empty in synthetic
+        // studies. Preserve its exact historical semantics here. Only the
+        // new V9 preview entry point validates its own strict study domain.
         if (scored.Count == 0)
             return new ProbabilisticLinkageDecision(
                 ResolutionStatus.NAO_RESOLVIDO, null, null, 0m, null, null, null,
-                model.ModelId, noCandidateReason);
+                modelId, noCandidateReason);
 
         var best = scored[0];
         var second = scored.Count > 1 ? scored[1] : null;
@@ -400,10 +447,10 @@ internal static class ProbabilisticLinkageDecisions
             }
         }
 
-        if (best.Score < model.Threshold)
-            return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId, "ABAIXO_T_LINKAGE");
+        if (best.Score < threshold)
+            return new ProbabilisticLinkageDecision(ResolutionStatus.NAO_RESOLVIDO, null, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, modelId, "ABAIXO_T_LINKAGE");
 
-        var nonUniqueDemographicExactGuard = model.Parameters.TryGetValue(
+        var nonUniqueDemographicExactGuard = parameters.TryGetValue(
             LinkageParameterCatalog.NonUniqueDemographicExactGuard,
             out var demographicGuardFlag) && demographicGuardFlag >= 1m;
         if (nonUniqueDemographicExactGuard && best.DemographicExactCollisionRisk)
@@ -411,31 +458,31 @@ internal static class ProbabilisticLinkageDecisions
                 ResolutionStatus.CONFLITO, null,
                 best.PessoaUuid, best.Score,
                 second?.PessoaUuid, secondScore,
-                margin, model.ModelId,
+                margin, modelId,
                 "NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO");
 
-        var dualThresholdGuard = model.Parameters.TryGetValue(
+        var dualThresholdGuard = parameters.TryGetValue(
             LinkageParameterCatalog.DualThresholdConflictGuard,
             out var dualThresholdFlag) && dualThresholdFlag >= 1m;
-        var independentConflictFloor = model.Parameters.TryGetValue(
+        var independentConflictFloor = parameters.TryGetValue(
             LinkageParameterCatalog.DualThresholdConflictFloorV2,
             out var floorV2Flag) && floorV2Flag >= 1m;
         var secondCandidateConflictFloor = independentConflictFloor
-            ? model.Parameters[LinkageParameterCatalog.DualThresholdConflictFloor]
-            : model.Threshold;
+            ? parameters[LinkageParameterCatalog.DualThresholdConflictFloor]
+            : threshold;
         if (dualThresholdGuard && second is not null && second.Score >= secondCandidateConflictFloor)
             return new ProbabilisticLinkageDecision(
                 ResolutionStatus.CONFLITO, null,
                 best.PessoaUuid, best.Score,
                 second.PessoaUuid, second.Score,
-                margin, model.ModelId,
+                margin, modelId,
                 independentConflictFloor
                     ? "SEGUNDO_CANDIDATO_ACIMA_PISO_CONFLITO"
                     : "DOIS_CANDIDATOS_ACIMA_T_LINKAGE");
 
-        if (second is not null && margin!.Value < model.ConflictMargin)
-            return new ProbabilisticLinkageDecision(ResolutionStatus.CONFLITO, null, best.PessoaUuid, best.Score, second.PessoaUuid, second.Score, margin, model.ModelId, "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE");
-        return new ProbabilisticLinkageDecision(ResolutionStatus.RESOLVIDO, best.PessoaUuid, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, model.ModelId);
+        if (second is not null && margin!.Value < conflictMargin)
+            return new ProbabilisticLinkageDecision(ResolutionStatus.CONFLITO, null, best.PessoaUuid, best.Score, second.PessoaUuid, second.Score, margin, modelId, "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE");
+        return new ProbabilisticLinkageDecision(ResolutionStatus.RESOLVIDO, best.PessoaUuid, best.PessoaUuid, best.Score, second?.PessoaUuid, secondScore, margin, modelId);
     }
 
     private static IReadOnlyList<LinkageCandidate> DeduplicateCandidates(IReadOnlyList<LinkageCandidate> candidates)
