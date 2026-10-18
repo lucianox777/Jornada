@@ -1,0 +1,15 @@
+# V9 — formação incremental de identidades candidatas sem gabarito (18/10/2026)
+
+**Superveniência factual:** as PRs [#1151](https://github.com/lucianox777/Jornada/pull/1151), [#1153](https://github.com/lucianox777/Jornada/pull/1153) e [#1152](https://github.com/lucianox777/Jornada/pull/1152) foram integradas à master, respectivamente nos commits `2111ad4cddeec571fa5bdd43e182ca3fe1eec533`, `9e043fe00ae38686d8abaffa99bf4ea0280f106b` e `30c28ae63a2f0d8cafe32c7c79accc232c85381a`. O dossiê `V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md` é uma fotografia **anterior** à integração da #1152.
+
+## Incremento implementado nesta PR (fundação testável, não execução física)
+
+`V9BlindIncrementalIdentityGrouping.Build` é um núcleo **diagnóstico puro** para formar grupos de candidatos sem ler `BasePersonId`, CPF ou TEST. Recebe observações VALIDATION e arestas SQL canônicas com **log-odds FS de ambas as direções** calculados externamente a partir do mesmo fit congelado em TRAIN. Esta API não atesta, sozinha, a proveniência SQL/FS; essa integração ao probe físico ainda precisa ocorrer antes de qualquer ensaio.
+
+Requisitos de transição: posterior FS mínima explícita (default experimental 0,99, não política operacional), escore em ambas as direções acima do limiar, primeiro e último token normalizados do nome iguais, nome da mãe normalizado completo igual, nascimento exato presente, gestores diferentes e **aresta SQL forte para cada par entre dois grupos** (complete linkage). Não há fusão por encadeamento A–B–C se A–C não foi comprovada; ausência de campo não autoriza merge. Limite pré-declarado de tamanho do grupo impede expansão silenciosa. A ordem é determinística por escore mínimo e IDs; UUIDs de grupos são sintéticos e **nunca** devem ser publicados como Gold.
+
+Os testes cobrem variação de nome intermediário, cadeia sem aresta de fechamento, escore assimétrico, guard de mãe, gestor, ausência de campo, cap, TEST, duplicações e **invariância à troca do gabarito**. Um homônimo completo pode passar todos os guards: não há promessa de ausência de FP. O mecanismo ainda **não** substitui o modo BLIND_EXACT, não participa da CLI/Actions e não modifica os resultados físicos históricos. A integração seguinte deverá medir exclusivamente **clean**, thresholds 0,90/0,95/0,99 em VALIDATION e TP/FP/CONFLITO por fonte após Rank→Resolve; **não** usar ORACLE para formar grupos ou escolher limiares.
+
+## Fronteiras de validade
+
+A massa sintética clean seed42 não demonstrou representatividade brasileira. O FDR pontual e o bound Hoeffding atual não certificam operação; independência iid entre identidades, cap, amostragem e suporte devem ser auditados antes de decisão. TF positiva fica bloqueada até provar mesma unidade e condicionamento do U SQL TRAIN e referência congelada. Não consumir TEST na seleção; não promover modelo, snapshot `ref`, V9/DT15, HML/PROD ou Gold. Perfis correlated/independent/field ficam como histórico manual, sem novo ensaio automático. A evidência do DT-05 Runner CPF tardio (run 39149089443, artifact 12145055171) não equivale à execução física V9/HML.
