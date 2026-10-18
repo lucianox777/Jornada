@@ -61,6 +61,9 @@ public static class V9SqlRecordedRunEvidenceReader
         LEFT JOIN identidade.linkage_resultado AS x
           ON x.linkage_run_id=r.linkage_run_id
         WHERE r.linkage_run_id=@run
+          AND r.tipo_run=N'MODEL_VALIDATION'
+          AND r.status=N'CONCLUIDO_SEM_PUBLICACAO'
+          AND r.publicado_em IS NULL
         ORDER BY x.pessoa_observacao_id;
         """;
 
