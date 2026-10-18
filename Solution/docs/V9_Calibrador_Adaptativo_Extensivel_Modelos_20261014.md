@@ -337,3 +337,30 @@ como contratos diferentes. O digest é prova de consistência interna,
 30 mil pessoas não demonstra por si só que o tamanho é suficiente
 para nomes raros, caudas, FDR ou produção. O método não altera o
 Rank/Resolve, não lê rótulos TEST e não ativa a V9.
+
+
+## Evidência de TF no probe SQL físico de 30 mil — integração (18/10/2026)
+
+O probe `V9PhysicalSqlBlockingProbe` existente já autentica os bytes
+`pessoas_verdade.csv` e `observacoes.csv` contra os hashes
+de `generation-manifest.json` antes do processamento SQL em
+`JornadaHarness`. Agora ele aproveita essa mesma fonte verificada
+para executar `MaterializePhysicalEvidence` em **oito** combinações
+de lado (`PERSON`/`MOTHER`) e unidade nominal
+(`FullName`, `FirstLastJoint`, `FirstName`,
+`LastContentSurname`), comparando todos os agregados com
+`TrainBaseFrequencyAudit`.
+
+O relatório `TrainBaseNominalFrequencySnapshots` contém exclusivamente
+**digest SHA-256 por unidade e contagens agregadas**, não nomes,
+frequências de um indivíduo, CPF ou identificadores de pessoa.
+A identidade de bootstrap usa o fingerprint e hash da massa-base,
+`generator_version`, `seed` e hash do manifesto verificado como
+identificação declarativa das hipóteses. Esta camada **não demonstra
+assinatura/autenticidade externa** do gerador, apenas coerência e
+rastreabilidade dentro do artefato físico lido.
+
+Essa integração **não substitui U condicionado ao SQL**, não conecta
+automaticamente oito ajustes TF ao scorer, não prova suficiência
+de 30.000 para caudas, nem altera TEST ou a decisão Rank/Resolve.
+Nenhum fingerprint de auditoria autoriza promoção operacional.
