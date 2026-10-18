@@ -43,4 +43,37 @@ public static class V9PhysicalSqlCostQuantiles
         return FromMeasuredMilliseconds(values.Select(x => x.MaterializePairsMilliseconds));
     }
 
+    /// <summary>
+    /// A physical SQL run with the immutable experiment and execution fingerprint.
+    /// Quantiles from different candidate universes, SQL rulesets or environments
+    /// must never be pooled into a single descriptive estimate.
+    /// </summary>
+    public sealed record ProvenancedRun(
+        string FrameFingerprint,
+        string SqlRulesetFingerprint,
+        string EnvironmentFingerprint,
+        V9PhysicalSqlMeasuredTimings Timings);
+
+    public static Summary FromComparableMaterializationRuns(IEnumerable<ProvenancedRun> runs)
+    {
+        ArgumentNullException.ThrowIfNull(runs);
+        var values = runs.ToArray();
+        if (values.Length < 20
+            || values.Any(x => x is null
+                || string.IsNullOrWhiteSpace(x.FrameFingerprint)
+                || string.IsNullOrWhiteSpace(x.SqlRulesetFingerprint)
+                || string.IsNullOrWhiteSpace(x.EnvironmentFingerprint)
+                || x.Timings is null))
+            throw new InvalidDataException("P95/P99 exigem 20 execuções com proveniência SQL completa.");
+
+        var first = values[0];
+        if (values.Any(x =>
+                !StringComparer.Ordinal.Equals(x.FrameFingerprint, first.FrameFingerprint)
+                || !StringComparer.Ordinal.Equals(x.SqlRulesetFingerprint, first.SqlRulesetFingerprint)
+                || !StringComparer.Ordinal.Equals(x.EnvironmentFingerprint, first.EnvironmentFingerprint)))
+            throw new InvalidDataException("Execuções de frames, rulesets ou ambientes diferentes não são comparáveis.");
+
+        return FromRepeatedMaterializationRuns(values.Select(x => x.Timings));
+    }
+
 }

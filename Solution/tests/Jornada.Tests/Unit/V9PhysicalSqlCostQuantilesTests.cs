@@ -63,4 +63,37 @@ public sealed class V9PhysicalSqlCostQuantilesTests
             Throws.TypeOf<InvalidDataException>());
     }
 
+    [Test]
+    public void Comparable_runs_require_identical_frame_ruleset_and_environment()
+    {
+        var runs = Enumerable.Range(1, 20)
+            .Select(x => new V9PhysicalSqlCostQuantiles.ProvenancedRun(
+                "frame-sha", "ruleset-sha", "sql-server-ci",
+                new V9PhysicalSqlMeasuredTimings(1, 2, 3, x, 5)))
+            .ToArray();
+
+        var result = V9PhysicalSqlCostQuantiles.FromComparableMaterializationRuns(runs);
+        Assert.That(result.P95Milliseconds, Is.EqualTo(19));
+
+        var differentFrame = runs.ToArray();
+        differentFrame[19] = differentFrame[19] with { FrameFingerprint = "another-frame" };
+        Assert.That((Action)(() => V9PhysicalSqlCostQuantiles.FromComparableMaterializationRuns(differentFrame)),
+            Throws.TypeOf<InvalidDataException>());
+
+        var differentRuleset = runs.ToArray();
+        differentRuleset[19] = differentRuleset[19] with { SqlRulesetFingerprint = "another-ruleset" };
+        Assert.That((Action)(() => V9PhysicalSqlCostQuantiles.FromComparableMaterializationRuns(differentRuleset)),
+            Throws.TypeOf<InvalidDataException>());
+
+        var differentEnvironment = runs.ToArray();
+        differentEnvironment[19] = differentEnvironment[19] with { EnvironmentFingerprint = "other-sql" };
+        Assert.That((Action)(() => V9PhysicalSqlCostQuantiles.FromComparableMaterializationRuns(differentEnvironment)),
+            Throws.TypeOf<InvalidDataException>());
+
+        var missingProvenance = runs.ToArray();
+        missingProvenance[19] = missingProvenance[19] with { FrameFingerprint = "" };
+        Assert.That((Action)(() => V9PhysicalSqlCostQuantiles.FromComparableMaterializationRuns(missingProvenance)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
 }
