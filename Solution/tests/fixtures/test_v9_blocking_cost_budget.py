@@ -102,6 +102,14 @@ class CostBudgetTests(unittest.TestCase):
         self.assertIn("CLUSTER_LOWER_RECALL_BELOW_POLICY",
                       result["plans"]["greedy_pruned"]["splits"]["TRAIN"]["reasons"])
 
+    def test_optional_recall_floor_has_fail_closed_domain(self):
+        for invalid in (True, -0.01, 1.01, float("nan"), float("inf"), "0.95"):
+            policy = budget()
+            policy["minimum_global_M_recall"] = invalid
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                    ValueError, "explicit versioned budget"):
+                m.assess(fixture(), policy)
+
     def test_p95_p99_and_mean_are_separate_constraints(self):
         policy = budget()
         policy["max_u_degree_p99"] = 4
