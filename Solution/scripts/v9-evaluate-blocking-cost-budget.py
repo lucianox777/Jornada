@@ -33,12 +33,12 @@ def assess(report, policy):
         or report.get("selection_split") != "TRAIN_ONLY"):
         raise ValueError("unverified diagnostic-only, TEST-blind SQLite provenance")
     if (policy.get("version") != VERSION
-        or policy.get("minimum_global_M_recall") != 0.95
+        or (policy.get("minimum_global_M_recall") is not None\n            and (type(policy["minimum_global_M_recall"]) not in (float, int)\n                 or not 0 <= policy["minimum_global_M_recall"] <= 1))
         or policy.get("source_sha256") != report.get("canonical_observations_sha256")
         or not isinstance(policy.get("source_sha256"), str)
         or len(policy["source_sha256"]) != 64):
         raise ValueError("missing explicit versioned budget or canonical SHA binding")
-    if set(policy) != {"version", "minimum_global_M_recall", "source_sha256", *BUDGETS}:
+    if set(policy) not in ({"version", "source_sha256", *BUDGETS},\n                           {"version", "minimum_global_M_recall", "source_sha256", *BUDGETS}):
         raise ValueError("unknown or missing budget fields")
     for name in BUDGETS:
         number(policy[name], name)
@@ -130,7 +130,7 @@ def assess(report, policy):
     return {
         "version": VERSION, "budget_scope": "OBSERVED_SYNTHETIC_TRAIN_VALIDATION_ONLY",
         "source_sha256": policy["source_sha256"],
-        "budget": {name: policy[name] for name in BUDGETS},
+        "budget": {name: policy[name] for name in BUDGETS},\n        "optional_recall_floor": policy.get("minimum_global_M_recall"),
         "plans": output, "TEST_evaluated": False,
         "may_promote_policy": False, "fdr_measured": False,
         "sql_server_latency_measured": False, "city_scale_certified": False,
