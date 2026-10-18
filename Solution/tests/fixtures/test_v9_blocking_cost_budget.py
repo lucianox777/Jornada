@@ -78,7 +78,28 @@ class CostBudgetTests(unittest.TestCase):
         result = m.assess(report, budget())
         self.assertEqual(result["plans"]["greedy_pruned"]["status"],
                          "OBSERVED_DIAGNOSTIC_BUDGET_UNMET")
-        self.assertIn("CLUSTER_LOWER_95_BELOW_95",
+        self.assertIn("CLUSTER_LOWER_RECALL_BELOW_POLICY",
+                      result["plans"]["greedy_pruned"]["splits"]["TRAIN"]["reasons"])
+
+    def test_absent_recall_floor_is_diagnostic_not_a_universal_95_gate(self):
+        report = fixture()
+        # Remove the optional recall target and prove 95% is not silently
+        # reinstated as a policy constraint, while preserving its metrics.
+        policy = budget()
+        del policy["minimum_global_M_recall"]
+        report["minimum_U_95pct_diagnostic"]["plans"]["greedy_pruned"]["measured"]["TRAIN"]["M"] = 92
+        report["minimum_U_95pct_diagnostic"]["plans"]["greedy_pruned"]["measured"]["TRAIN"]["global_recall_target_met"] = False
+        report["independent_base_identity_recall_confidence"]["TRAIN"]["greedy_pruned"]["point_recall"] = 0.92
+        report["independent_base_identity_recall_confidence"]["TRAIN"]["greedy_pruned"]["lower_one_sided_95"] = 0.89
+        report["independent_base_identity_recall_confidence"]["TRAIN"]["greedy_pruned"]["statistically_supported_global_95"] = False
+        result = m.assess(report, policy)
+        self.assertEqual(result["plans"]["greedy_pruned"]["status"],
+                         "OBSERVED_DIAGNOSTIC_BUDGET_MET")
+        self.assertEqual(result["optional_recall_floor"], None)
+        self.assertEqual(result["plans"]["greedy_pruned"]["splits"]["TRAIN"]["global_M_recall"], .92)
+        policy["minimum_global_M_recall"] = .91
+        result = m.assess(report, policy)
+        self.assertIn("CLUSTER_LOWER_RECALL_BELOW_POLICY",
                       result["plans"]["greedy_pruned"]["splits"]["TRAIN"]["reasons"])
 
     def test_p95_p99_and_mean_are_separate_constraints(self):
