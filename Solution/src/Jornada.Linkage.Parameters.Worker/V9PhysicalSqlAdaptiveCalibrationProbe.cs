@@ -456,6 +456,53 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         await bulk.WriteToServerAsync(table, cancellationToken);
     }
 
+    /// <summary>
+    /// Repetições físicas do mesmo SQL de materialização em conexão isolada,
+    /// sem recalibrar, sem alterar opções ou usar TEST. Este diagnóstico é
+    /// somente TRAIN/VALIDATION e NÃO substitui a avaliação TEST independente.
+    /// Cada amostra reexecuta o SELECT DISTINCT e a criação de índice reais.
+    /// </summary>
+    public static async Task<IReadOnlyList<double>> RepeatPhysicalMaterializationAsync(
+        SqlConnection connection,
+        int repetitions,
+        long expectedDistinctPairs,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        if (repetitions < 20 || repetitions > 100)
+            throw new ArgumentOutOfRangeException(nameof(repetitions), "São exigidas 20..100 repetições físicas.");
+        if (expectedDistinctPairs < 0 || expectedDistinctPairs > HardPairIncidenceCap)
+            throw new ArgumentOutOfRangeException(nameof(expectedDistinctPairs));
+        if (connection.State != ConnectionState.Open)
+            throw new InvalidOperationException("Conexão SQL deve estar aberta.");
+        await RequireHarnessAsync(connection, cancellationToken);
+        // Não aceitar uma conexão sem frame previamente materializado.
+        await using (var check = new SqlCommand(
+            "SELECT CASE WHEN OBJECT_ID('tempdb..#v9_cal_obs') IS NOT NULL AND OBJECT_ID('tempdb..#v9_cal_sig') IS NOT NULL THEN 1 ELSE 0 END",
+            connection))
+        {
+            if (Convert.ToInt32(await check.ExecuteScalarAsync(cancellationToken), CultureInfo.InvariantCulture) != 1)
+                throw new InvalidOperationException("Frame SQL físico ausente na sessão.");
+        }
+        var samples = new List<double>(repetitions);
+        for (var i = 0; i < repetitions; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await using (var drop = new SqlCommand(
+                "IF OBJECT_ID('tempdb..#v9_cal_pairs') IS NOT NULL DROP TABLE #v9_cal_pairs;",
+                connection))
+                await drop.ExecuteNonQueryAsync(cancellationToken);
+            var stopwatch = Stopwatch.StartNew();
+            var actual = await MaterializePairsAsync(connection, cancellationToken);
+            stopwatch.Stop();
+            if (actual != expectedDistinctPairs)
+                throw new InvalidDataException(
+                    $"Materialização física {i + 1} divergiu: {actual} != {expectedDistinctPairs}.");
+            samples.Add(stopwatch.Elapsed.TotalMilliseconds);
+        }
+        return samples.AsReadOnly();
+    }
+
     private static async Task<long> MaterializePairsAsync(
         SqlConnection connection, CancellationToken cancellationToken)
     {
