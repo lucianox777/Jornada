@@ -1,3 +1,32 @@
+## Continuidade V9 e baixa de pendências comprovadas — 18/10/2026
+
+**Regra de atualização:** quitar apenas a parte com implementação, teste e merge
+confirmados; **não apagar histórico** ou declarar concluída uma DT porque
+um PR de instrumentação compilou. Não misturar a lista histórica de DTs
+institucionais com as lacunas do Linkage V9.
+
+| Frente rastreada | Evidência entregue | Situação restante / gate para quitação total |
+| --- | --- | --- |
+| Parametrização inicial V9 — #1089 | Config experimental **`Solution/config/linkage/v9-bootstrap-experimental-candidates.json`** registra os melhores resultados sintéticos efetivamente documentados, sua seleção de TRAIN, incerteza e requisitos de aprovação; teste impede promoção/ativação inadvertida. | **PARCIAL:** o arquivo é diagnóstico, não é snapshot aprovado/persistido em `ref` nem fonte ativa do Worker; falta assinatura completa e ordem dos nove passes `correlated`, m/u/TF no mesmo universo SQL, suporte estatístico e TEST inédito. Não fixar pesos ou limiares desconhecidos. |
+| Ponte TF + Rank + Resolve — #922/#999/#1089 | PRs #1143–#1148 integraram auditoria TF TRAIN, ranking com TF por candidato, núcleo C# compartilhado de decisão e contrato de vinculação a identidades-base. | **PARCIAL:** falta calibração end-to-end certificada e ligação auditável ao Runner físico, sem executar V9 operacional. |
+| FDR por coorte e resultados gravados — #999 | PR #1149 integrou Bind → FDR/avaliador independente com proveniência por grupo e sem recomputar decisão. | **PARCIAL:** coorte grau-zero requer censo anterior ao blocking autenticado, além de snapshot de universo candidato integral. |
+| Captura final SQL HML — PR #1150 | Leitor read-only proposto para `MODEL_VALIDATION` `CONCLUIDO_SEM_PUBLICACAO`, verificação de contagens e digest de resultados sem publicação. | **EM CI / NÃO QUITADA:** `linkage_resultado` persiste no máximo 2 melhores candidatos, não prova todos os candidatos; HML real ainda precisa de execução/atestado; recusa produção. |
+| Seletor adaptativo Pareto — PR #1134 | Experiências anteriores exploraram trade-off M/U em CLEAN/CORRELATED e catálogos de 19 passes. | **BLOQUEADA / NÃO QUITADA:** #1134 ainda draft, sem CI aprovada, com CA1716; nenhum contorno de bloqueio de ferramenta. |
+| DT-23 — diagnóstico automático de suficiência FS | Há avaliadores puros e testes anteriores; conceito de separação TRAIN/VALIDATION/TEST documentado. | **ABERTA:** sem monitoramento periódico integrado, política persistida, semáforo/observabilidade operacionais e prova em fontes autorizadas. Não dispara calibração. |
+| DT-05 e DT-20/21 | Aceites parciais e seus limites estão registrados nas seções históricas. | **REVALIDAR** em evidência concreta por escopo antes de marcar encerrada; preservar governança DT-22 postergada. |
+
+**Retificação estatística importante:** os **43,1581%** de 13/10 são
+do *antigo* banco **efêmero SQL Server `JornadaHarness` com pessoas
+sintéticas**, ruleset ATIVO+C1 e scorer proxy sem TF, não de um banco
+municipal real nem do novo V9. A posterior correção mencionada pela
+equipe e os ganhos de blocking >95% devem ser avaliados em **artefatos
+pareados equivalentes** antes de substituir formalmente o valor
+histórico. A execução antiga fica preservada no
+[`V9_Veredito_SQL_30mil_20261013.md`](V9_Veredito_SQL_30mil_20261013.md)
+sem ser reusada como métrica vigente, promessa de FDR ou prova de
+certificação. Prioridade: conferir M/U da mesma união física, outcomes
+pós-guards e incerteza por identidade em novo TEST lacrado.
+
 > **Decisão canônica de 14/10/2026 — Calibrador único adaptativo:** [Calibrador V9 C# único e definitivo; melhores parâmetros V9 são do bootstrap congelado em `ref` (não definitivos), com calibrações futuras manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). A decisão é normativa; a implementação permanece pendente na issue #1089. Documentos e números experimentais históricos não equivalem a certificação operacional.
 
 > **DT-23 — decisão confirmada em 09/10/2026:** [diagnóstico automático de suficiência FS](DT23_Diagnostico_Automatico_Suficiencia_FS.md) **ABERTA / NÃO IMPLEMENTADA**. Monitoramento periódico read-only, semáforo e recomendação são automáticos; calibração FS é **manual por demanda**, e ativação do modelo é governada. A carga congelada de referências na inicialização não executa calibração. Não confundir a documentação desta DT com entrega funcional.
