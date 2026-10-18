@@ -178,9 +178,23 @@ public sealed class V9SyntheticBaseFrequencyAuditTests
         Assert.That(names, Does.Not.Contain("BASE-"));
 
         var fraud = audit with { TrainingBasePeople = audit.TrainingBasePeople - 1 };
-        Assert.That((Action)(() => V9SyntheticBaseFrequencyAudit.MaterializePhysicalEvidence(
-            people, "CORPUS_30K_PINNED", FullBootstrap(), fraud)),
-            Throws.TypeOf<InvalidDataException>());
+        void Reject(V9SyntheticBaseFrequencyAudit.Report changed) =>
+            Assert.That((Action)(() => V9SyntheticBaseFrequencyAudit.MaterializePhysicalEvidence(
+                people, "CORPUS_30K_PINNED", FullBootstrap(), changed)),
+                Throws.TypeOf<InvalidDataException>());
+        Reject(fraud);
+        Reject(audit with { Status = "APPROVED" });
+        var first = audit.Units[0];
+        Reject(audit with { Units = audit.Units
+            .Select((x, i) => i == 0 ? x with { LargestValueCount = x.LargestValueCount - 1 } : x)
+            .ToArray() });
+        Reject(audit with { Units = audit.Units
+            .Select((x, i) => i == 0 ? x with { SingletonValues = x.SingletonValues + 1 } : x)
+            .ToArray() });
+        Reject(audit with { Units = audit.Units
+            .Select((x, i) => i == 0 ? x with { LargestValueShare = 0m } : x)
+            .ToArray() });
+        Reject(audit with { Units = audit.Units.Select((x, i) => i == 1 ? first : x).ToArray() });
     }
 
     [Test]
