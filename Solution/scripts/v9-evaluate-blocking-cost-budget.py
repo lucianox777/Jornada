@@ -157,8 +157,7 @@ def run(report_path, budget_path, output_path):
     result["report_sha256"] = hashlib.sha256(report_path.read_bytes()).hexdigest()
     result["budget_sha256"] = hashlib.sha256(budget_path.read_bytes()).hexdigest()
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(result, sort_keys=True, indent=2)+"
-",
+    output_path.write_text(json.dumps(result, sort_keys=True, indent=2)+"\n",
                            encoding="utf-8")
     return result
 
