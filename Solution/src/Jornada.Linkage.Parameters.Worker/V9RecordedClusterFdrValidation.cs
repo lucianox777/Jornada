@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
@@ -12,6 +15,7 @@ public sealed record V9RecordedBaseObservation(
 public sealed record V9RecordedClusterFdrValidationReport(
     string Version,
     string RecordedEvaluationFingerprintSha256,
+    string BoundCohortEvidenceFingerprintSha256,
     int PreBlockingBaseIdentities,
     int IdentitiesWithoutAcceptedLinks,
     int IdentitiesWithoutAnyQueryObservation,
@@ -28,7 +32,7 @@ public sealed record V9RecordedClusterFdrValidationReport(
 /// </summary>
 public static class V9RecordedClusterFdrValidation
 {
-    public const string Version = "V9_RECORDED_FINAL_IDENTITY_CLUSTER_FDR_VALIDATION_V1";
+    public const string Version = "V9_RECORDED_FINAL_IDENTITY_CLUSTER_FDR_VALIDATION_V2";
 
     public static V9RecordedClusterFdrValidationReport Evaluate(
         IndependentRuleSetEvaluationManifest manifest,
@@ -110,11 +114,54 @@ public static class V9RecordedClusterFdrValidation
         var bound = V9IdentityClusterFdr.UpperBoundForPopulationMeanRatio(
             groups, maximumAcceptedLinksPerBaseIdentity, alpha);
         var observedGroups = binding.Values.ToHashSet(StringComparer.Ordinal);
+        var evidenceFingerprint = BoundEvidenceFingerprint(
+            recorded.FingerprintSha256, cohort, binding,
+            maximumAcceptedLinksPerBaseIdentity, alpha);
         return new V9RecordedClusterFdrValidationReport(
-            Version, recorded.FingerprintSha256, cohort.Length,
+            Version, recorded.FingerprintSha256, evidenceFingerprint, cohort.Length,
             groups.Count(x => x.TrueAccepted + x.FalseAccepted == 0),
             cohort.Length - observedGroups.Count, descriptive, bound,
             OperationallyCertified: false);
+    }
+
+    /// <summary>
+    /// Binds the final recorded run to the WHOLE pre-blocking sampling frame,
+    /// the explicit source-to-base attribution, and the bound's fixed cap/alpha.
+    /// A digest prevents silent substitution in exported evidence but by itself
+    /// DOES NOT authenticate the underlying data or attest iid sampling.
+    /// </summary>
+    public static string BoundEvidenceFingerprint(
+        string recordedEvaluationFingerprintSha256,
+        IReadOnlyCollection<string> cohort,
+        IReadOnlyDictionary<string, string> bindings,
+        int maximumAcceptedLinksPerBaseIdentity,
+        double alpha)
+    {
+        ArgumentNullException.ThrowIfNull(cohort);
+        ArgumentNullException.ThrowIfNull(bindings);
+        if (!IsSha(recordedEvaluationFingerprintSha256)
+            || cohort.Count < 2 || cohort.Any(x => !IsSha(x))
+            || cohort.Distinct(StringComparer.Ordinal).Count() != cohort.Count
+            || bindings.Any(x => !IsSha(x.Key) || !IsSha(x.Value)
+                || !cohort.Contains(x.Value, StringComparer.Ordinal))
+            || maximumAcceptedLinksPerBaseIdentity < 1
+            || !double.IsFinite(alpha) || alpha <= 0 || alpha >= 1)
+            throw new InvalidDataException("Evidência agrupada não pode ser identificada de forma íntegra.");
+
+        var canonical = new StringBuilder()
+            .Append(Version).Append('\n')
+            .Append(recordedEvaluationFingerprintSha256).Append('\n')
+            .Append(maximumAcceptedLinksPerBaseIdentity).Append('|')
+            .Append(alpha.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+            .Append('\n');
+        foreach (var identity in cohort.OrderBy(x => x, StringComparer.Ordinal))
+            canonical.Append("GROUP:").Append(identity).Append('\n');
+        foreach (var pair in bindings.OrderBy(x => x.Key, StringComparer.Ordinal))
+            canonical.Append("SOURCE:").Append(pair.Key).Append('|')
+                .Append(pair.Value).Append('\n');
+        return Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString())))
+            .ToLowerInvariant();
     }
 
     private static bool IsSha(string? value) =>
