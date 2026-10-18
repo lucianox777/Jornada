@@ -160,13 +160,18 @@ internal static class ProbabilisticLinkageDecisions
     /// There is deliberately no AlgorithmVersion dispatch, persistence, or
     /// Resolve/ACTIVATE route. No score is released to an attendant.
     /// A certified joint-m/u snapshot and TF weights remain prerequisites.
+    /// The opt-in per-candidate TF factory must supply the same-unit frozen
+    /// TRAIN U + pinned external reference; any bad/mismatched eligible term
+    /// fails through the existing scorer rather than silently neutralizing TF.
+    /// No FINAL Resolve outcome or production V9 dispatch is implied.
     /// </summary>
     internal static IReadOnlyList<CandidateScore> RankCompositeNominalV9Preview(
         IReadOnlyDictionary<string, decimal> parameters,
         IdentityObservation observation,
         IReadOnlyList<LinkageCandidate> candidates,
         IReadOnlyCollection<FellegiSunterJointNominalCellV9> jointCells,
-        string nominalContractVersion)
+        string nominalContractVersion,
+        Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? tfForPair = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(observation);
@@ -193,7 +198,8 @@ internal static class ProbabilisticLinkageDecisions
                     observation.NomeMae, candidate.NomeMae,
                     frozen,
                     unique.Count,
-                    observation.DataNascimento, candidate.DataNascimento);
+                    observation.DataNascimento, candidate.DataNascimento,
+                    tfForPair?.Invoke(observation, candidate));
                 var fullExact = CompositeNominalComparisonV9.Classify(
                     observation.NomeCompleto, candidate.NomeCompleto)
                     == CompositeNominalLevelV9.ExactFull;
