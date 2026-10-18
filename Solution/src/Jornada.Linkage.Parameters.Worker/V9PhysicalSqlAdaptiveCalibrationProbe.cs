@@ -33,7 +33,21 @@ public sealed record V9PhysicalCalibrationRunResult(
     long TrainTruePairsRecoveredBySql = 0,
     long ValidationTruePairsRecoveredBySql = 0,
     V9PhysicalSqlMeasuredTimings? PhysicalSqlTimings = null,
-    IReadOnlyList<V9PhysicalSqlOptionGlobalCoverage>? ValidationGlobalCoverage = null);
+    IReadOnlyList<V9PhysicalSqlOptionGlobalCoverage>? ValidationGlobalCoverage = null,
+    V9PhysicalSqlIdentityCohortCoverage? TrainIdentityCohortCoverage = null,
+    V9PhysicalSqlIdentityCohortCoverage? ValidationIdentityCohortCoverage = null);
+
+/// <summary>
+/// Cohort is defined BEFORE SQL blocking and includes every base identity,
+/// including singleton identities and those with no matching signatures.
+/// It is not an independent sampling/certification guarantee.
+/// </summary>
+public sealed record V9PhysicalSqlIdentityCohortCoverage(
+    string Partition,
+    int BaseIdentitiesBeforeBlocking,
+    int BaseIdentitiesRepresentedBySql,
+    int BaseIdentitiesWithoutSqlCandidates,
+    double BaseIdentityCandidateCoverage);
 
 /// <summary>
 /// Every numerator here is a thresholded FS candidate-pair decision, NOT a
@@ -210,6 +224,12 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
 
         var trainPairBases = PairBaseSet(trainRows);
         var validationPairBases = PairBaseSet(validationRows);
+        var trainIdentityCoverage = SummarizeIdentityCohort("TRAIN", trainBases, trainRows);
+        var validationIdentityCoverage =
+            SummarizeIdentityCohort("VALIDATION", validationBases, validationRows);
+        if (trainPairBases.Count != trainIdentityCoverage.BaseIdentitiesRepresentedBySql
+            || validationPairBases.Count != validationIdentityCoverage.BaseIdentitiesRepresentedBySql)
+            throw new InvalidDataException("Cobertura de identidades SQL não reconcilia.");
         if (trainPairBases.Overlaps(validationPairBases))
             throw new InvalidDataException("União física contaminou identidades entre splits.");
 
@@ -253,7 +273,9 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             trainRecoveredM,
             validationRecoveredM,
             measuredSql,
-            globalCoverage);
+            globalCoverage,
+            trainIdentityCoverage,
+            validationIdentityCoverage);
     }
 
     /// <summary>
@@ -353,6 +375,39 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             SuggestedModelFamily = null,
             SuggestedOptionId = null
         };
+    }
+
+    /// <summary>
+    /// Keep the entire input cohort in the diagnostic denominator: a group
+    /// absent from SQL is not an independently measured negative or proof
+    /// of no risk; it must not be silently dropped from subsequent UCB work.
+    /// </summary>
+    public static V9PhysicalSqlIdentityCohortCoverage SummarizeIdentityCohort(
+        string partition,
+        IReadOnlyCollection<string> inputBaseIdentities,
+        IReadOnlyCollection<V9FsAdaptiveCandidatePair> physicalPairs)
+    {
+        ArgumentNullException.ThrowIfNull(inputBaseIdentities);
+        ArgumentNullException.ThrowIfNull(physicalPairs);
+        if (partition is not ("TRAIN" or "VALIDATION"))
+            throw new ArgumentException("Partição inválida no censo de identidades.", nameof(partition));
+        var input = inputBaseIdentities.ToHashSet(StringComparer.Ordinal);
+        if (input.Count == 0 || input.Count != inputBaseIdentities.Count
+            || input.Any(string.IsNullOrWhiteSpace))
+            throw new InvalidDataException("Universo pré-blocking ausente, duplicado ou inválido.");
+        var represented = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var row in physicalPairs)
+        {
+            if (row is null || row.Partition != partition
+                || !input.Contains(row.LeftIdentityGroupId)
+                || !input.Contains(row.RightIdentityGroupId))
+                throw new InvalidDataException("Candidato SQL fora da partição/universo de identidade-base.");
+            represented.Add(row.LeftIdentityGroupId);
+            represented.Add(row.RightIdentityGroupId);
+        }
+        return new V9PhysicalSqlIdentityCohortCoverage(
+            partition, input.Count, represented.Count, input.Count - represented.Count,
+            (double)represented.Count / input.Count);
     }
 
     /// <summary>
