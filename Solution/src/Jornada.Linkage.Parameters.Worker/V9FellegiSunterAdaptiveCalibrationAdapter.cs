@@ -431,7 +431,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
     /// bound, NEVER evidence that the operational Gold would cluster correctly.
     /// No TEST input, refit, publishing or automatic selector activation.
     /// </summary>
-    internal IReadOnlyList<V9PhysicalSourceResolveMetric> EvaluateSourceUnitResolveValidation(
+    public IReadOnlyList<V9PhysicalSourceResolveMetric> EvaluateSourceUnitResolveValidation(
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
         IReadOnlyList<(int A, int B)> validationSqlPairs,
         IReadOnlyCollection<decimal> conflictMargins,
