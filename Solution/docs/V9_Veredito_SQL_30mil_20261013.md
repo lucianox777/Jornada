@@ -1,5 +1,7 @@
 # V9 — veredito do censo SQL físico: 3 × 30 mil (13/10/2026)
 
+> **Retificação de interpretação — 18/10/2026:** o recall de **43,1581%** documentado abaixo pertence **exclusivamente ao ensaio histórico de 13/10**, com o conjunto **ATIVO+C1 do banco efêmero SQL Server `JornadaHarness`**, 3 corpora **sintéticos** de 30 mil e scorer **proxy congelado sem TF**. **Não foi uma medição do banco municipal real, nem representa o resultado atualizado do blocking V9.** Essa execução antecede as correções e expansões posteriores de regras/projeções e as experiências que passaram de 95% em **outro frame** (SQL indexado SQLite). O problema histórico mencionado na revisão não está aqui acompanhado de uma reprodução antes/depois **no mesmo SQL Server, regras, gabarito e denominador**, de modo que não se atribui artificialmente a causa, não se recalcula o valor nem se proclama que o número antigo foi formalmente revogado. Preservá-lo para auditoria; **proibido utilizá-lo como indicador atual da Jornada ou do Calibrador V9**, ou compará-lo aos 95% como se fosse o mesmo experimento. Para uma comparação corrigida e substitutiva, exigir artefato pareado com SHA, execução física SQL, parâmetros atuais, M/U do mesmo universo e decisão FS/TF final.
+
 ## Proveniência verificável
 
 - PR diagnóstica original: #998, HEAD executada `7f310869cedfb336cbd6bcbac9e6905962e6361c`.

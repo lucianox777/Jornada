@@ -46,3 +46,37 @@ Novos atributos entram pelo catálogo versionado de projeções/comparadores e s
 - [Issue de implementação #1089](https://github.com/lucianox777/Jornada/issues/1089), [issue de qualidade #999](https://github.com/lucianox777/Jornada/issues/999), PRs experimentais #1087/#1088.
 
 **Regra de precedência:** documentos históricos continuam válidos como descrição do estado e das evidências de sua época; qualquer prescrição conflitante de calibrador paralelo, adaptação de política em runtime ou recalibração automática é superada por esta decisão.
+
+## Registro concreto dos melhores resultados em JSON — 18/10/2026
+
+Os resultados históricos não devem permanecer apenas em conversas ou
+relatórios dispersos: a configuração experimental versionada
+[`config/linkage/v9-bootstrap-experimental-candidates.json`](../config/linkage/v9-bootstrap-experimental-candidates.json)
+contém os números observados por perfil, parâmetros de seleção
+comprovados e referências documentais. Seu **estado inativo é
+intencional**: esses dados pertencem aos *candidatos ao bootstrap*,
+não constituem os pesos, m/u, TF, prior, limiares ou regras completas
+certificadas que o Worker deverá carregar em `ref`.
+
+**Resultados explicitamente registrados:** seed42, 30 mil identidades
+por perfil, `clean` com 2 passes nomeados (`P_PHON_M_LAST`,
+`P_PREFIX3_DOB`), recall 19.630/20.364 em TRAIN,
+6.509/6.763 em VALIDATION, 242/28 U; `correlated` com
+nove passes reportados, 19.437/20.458 TRAIN,
+6.432/6.714 VALIDATION, 516.029/59.376 U. **A ordem completa dos nove passes do plano `correlated` foi
+recuperada e congelada** do artefato CI `11926175227` do workflow
+`38628254862`, com SHA dos relatórios e fonte; ambos os perfis têm
+`signatureComplete=true`. Isso resolve rastreabilidade dos passes,
+**não** resolve a certificação da política.
+O LCB unilateral TRAIN do `correlated` (~94,678%)
+permanece abaixo de 95% apesar do recall pontual de 95,009%.
+
+**Não migrar esses números automaticamente para
+`LinkageParameters:AlgorithmVersion` ou defaults do appsettings
+operacional.** O registro de resultados em JSON resolve a dívida
+de perda de evidência básica, não a publicação de um snapshot
+`ref` íntegro, do bootstrap único nem a ativação V9/DT15.
+O histórico de 43,1581% do velho ensaio ATIVO+C1 era do
+`JornadaHarness` **sintético** com TF desligada,
+não do banco real da prefeitura; o texto histórico é
+preservado e anotado, mas não caracteriza o modelo V9 corrigido.
