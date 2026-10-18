@@ -222,6 +222,52 @@ public sealed class AdaptiveCalibrationModelSearchTests
     }
 
     [Test]
+    public void Explicit_90_percent_recall_target_is_valid_without_universal_95_floor()
+    {
+        var adapters = new IAdaptiveCalibrationFamilyAdapter[]
+        {
+            new FakeAdapter("FAMILY_FS_V9", 930, 0),
+            new FakeAdapter("FAMILY_FUTURE", 900, 0)
+        };
+        var configured = AdaptiveCalibrationModelSearch.Evaluate(
+            Request(Budget() with { MinimumGlobalAcceptedRecall = 0.90 }), adapters);
+        Assert.That(configured.Options.All(x => x.MeetsDescriptiveBudgetOnly), Is.True);
+        Assert.That(configured.SuggestedModelFamily, Is.EqualTo("FAMILY_FS_V9"));
+        Assert.That(configured.Options.All(x => x.MeetsNecessaryNominalFdrScreen), Is.True);
+        Assert.That(configured.AutomaticRecalibrationOrActivationAllowed, Is.False);
+
+        var stricter = AdaptiveCalibrationModelSearch.Evaluate(
+            Request(Budget() with { MinimumGlobalAcceptedRecall = 0.95 }), adapters);
+        Assert.That(stricter.SuggestedModelFamily, Is.Null);
+        Assert.That(stricter.Options.All(x => !x.MeetsDescriptiveBudgetOnly), Is.True);
+    }
+
+    [Test]
+    public void Explicit_recall_floor_rejects_out_of_domain_and_nonfinite_numbers()
+    {
+        var adapters = new IAdaptiveCalibrationFamilyAdapter[]
+        {
+            new FakeAdapter("FAMILY_FS_V9", 980, 0),
+            new FakeAdapter("FAMILY_FUTURE", 980, 0)
+        };
+        foreach (var invalid in new[] { -0.01d, 1.01d, double.NaN,
+                                        double.PositiveInfinity, double.NegativeInfinity })
+        {
+            AssertThrows<InvalidDataException>(() =>
+                AdaptiveCalibrationModelSearch.Evaluate(
+                    Request(Budget() with { MinimumGlobalAcceptedRecall = invalid }),
+                    adapters));
+        }
+        // Zero is an explicit valid recall floor but no acceptable FDR
+        // evidence still prevents a suggestion when no pairs are accepted.
+        var noAccepted = AdaptiveCalibrationModelSearch.Evaluate(
+            Request(Budget() with { MinimumGlobalAcceptedRecall = 0d }),
+            [new FakeAdapter("FAMILY_FS_V9", 0, 0),
+             new FakeAdapter("FAMILY_FUTURE", 0, 0)]);
+        Assert.That(noAccepted.SuggestedOptionId, Is.Null);
+    }
+
+    [Test]
     public void Unsafe_Budget_Must_Not_Be_Loosened_Silently()
     {
         var request = Request(Budget() with { MaximumObservedAcceptedFdrPoint = 0.2 });

@@ -105,7 +105,8 @@ public sealed record AdaptiveCalibrationStudyReport(
 
 /// <summary>
 /// Diagnostic pluggable model-family search: TRAIN fit, VALIDATION assessment,
-/// optional *descriptive* budget ranking. There is no TEST access, no model
+/// optional *descriptive* budget ranking. The recall floor is supplied by policy,
+/// never silently fixed to 95%. There is no TEST access, no model
 /// persistence, no activation API and no automatic recalibration trigger.
 /// Wilson's one-sided 95% UCB is only a *necessary* nominal pairwise screen:
 /// candidate pairs can share identities and are not independent trials.
@@ -173,7 +174,7 @@ public static class AdaptiveCalibrationModelSearch
             if (budget.Version != AdaptiveCalibrationPreviewBudget.CurrentVersion
                 || budget.StudyFingerprintSha256 != request.StudyFingerprintSha256
                 || !double.IsFinite(budget.MinimumGlobalAcceptedRecall)
-                || budget.MinimumGlobalAcceptedRecall is < 0.95 or > 1
+                || budget.MinimumGlobalAcceptedRecall is < 0 or > 1
                 || !double.IsFinite(budget.MaximumObservedAcceptedFdrPoint)
                 || budget.MaximumObservedAcceptedFdrPoint is < 0 or > 0.01
                 || !double.IsFinite(budget.MaximumBlockingFalseDegreeP99)
