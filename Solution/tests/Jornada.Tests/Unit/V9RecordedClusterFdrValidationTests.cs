@@ -76,6 +76,7 @@ public sealed class V9RecordedClusterFdrValidationTests
         {
             Assert.That(result.Version, Is.EqualTo(V9RecordedClusterFdrValidation.Version));
             Assert.That(result.RecordedEvaluationFingerprintSha256, Has.Length.EqualTo(64));
+            Assert.That(result.BoundCohortEvidenceFingerprintSha256, Has.Length.EqualTo(64));
             Assert.That(result.PreBlockingBaseIdentities, Is.EqualTo(5));
             Assert.That(result.IdentitiesWithoutAnyQueryObservation, Is.EqualTo(1));
             Assert.That(result.IdentitiesWithoutAcceptedLinks, Is.EqualTo(3));
@@ -93,6 +94,61 @@ public sealed class V9RecordedClusterFdrValidationTests
             RunId, "model-v9", Manifest().RuleSetFingerprintSha256, .95m, 3m, true, 1);
         Assert.That(reverse.RecordedEvaluationFingerprintSha256,
             Is.EqualTo(result.RecordedEvaluationFingerprintSha256));
+        Assert.That(reverse.BoundCohortEvidenceFingerprintSha256,
+            Is.EqualTo(result.BoundCohortEvidenceFingerprintSha256));
+    }
+
+    [Test]
+    public void Changing_only_source_base_attribution_or_zero_degree_cohort_changes_grouped_evidence()
+    {
+        var original = Evaluate();
+        var alteredBindings = Bindings();
+        // Same recorded decisions, run, TN/TP/FP and result fingerprint,
+        // different source -> base membership for one accepted decision.
+        alteredBindings[0] = alteredBindings[0] with
+        {
+            BaseIdentityFingerprintSha256 = Sha('9')
+        };
+        var attributedDifferently = Evaluate(bindings: alteredBindings);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(attributedDifferently.RecordedEvaluationFingerprintSha256,
+                Is.EqualTo(original.RecordedEvaluationFingerprintSha256));
+            Assert.That(attributedDifferently.DescriptiveFdr.TrueAccepted,
+                Is.EqualTo(original.DescriptiveFdr.TrueAccepted));
+            Assert.That(attributedDifferently.DescriptiveFdr.FalseAccepted,
+                Is.EqualTo(original.DescriptiveFdr.FalseAccepted));
+            Assert.That(attributedDifferently.BoundCohortEvidenceFingerprintSha256,
+                Is.Not.EqualTo(original.BoundCohortEvidenceFingerprintSha256));
+        }));
+
+        // Same observations and all recorded outcomes, but altered full
+        // sampling frame (including an identity with zero SQL candidates).
+        var differentCohort = Cohort().Select(x =>
+            x == Sha('9') ? Sha('f') : x).ToArray();
+        var changedPopulation = Evaluate(cohort: differentCohort);
+        Assert.That(changedPopulation.RecordedEvaluationFingerprintSha256,
+            Is.EqualTo(original.RecordedEvaluationFingerprintSha256));
+        Assert.That(changedPopulation.BoundCohortEvidenceFingerprintSha256,
+            Is.Not.EqualTo(original.BoundCohortEvidenceFingerprintSha256));
+    }
+
+    [Test]
+    public void Bound_group_evidence_changes_if_bound_alpha_or_predeclared_cap_changes()
+    {
+        var original = Evaluate();
+        var capTwo = Evaluate(cap: 2);
+        Assert.That(capTwo.BoundCohortEvidenceFingerprintSha256,
+            Is.Not.EqualTo(original.BoundCohortEvidenceFingerprintSha256));
+        var manifest = Manifest();
+        var stricterAlpha = V9RecordedClusterFdrValidation.Evaluate(
+            manifest, Observations(), Outcomes(), Cohort(), Bindings(),
+            RunId, manifest.Evaluation.ModelVersion,
+            manifest.RuleSetFingerprintSha256,
+            .95m, 3m, true, 1, alpha: .01);
+        Assert.That(stricterAlpha.BoundCohortEvidenceFingerprintSha256,
+            Is.Not.EqualTo(original.BoundCohortEvidenceFingerprintSha256));
+        Assert.That(stricterAlpha.OperationallyCertified, Is.False);
     }
 
     [Test]
