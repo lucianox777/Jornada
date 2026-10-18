@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   physical-seed42:
-    name: SQL físico 30k ${{ matrix.profile }} — FS/TF0 sem Resolve
+    name: SQL físico 30k ${{ matrix.profile }} — Rank-Resolve TF0
     runs-on: ubuntu-latest
     timeout-minutes: 90
     strategy:
@@ -68,7 +68,7 @@ jobs:
             --population-profile demographic-primary \
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
             --out "$PWD/.local/v9-physical-$PROFILE" --people 30000 --seed 42 --error-profile "$PROFILE"
-      - name: Execute REAL SQL pair materialization, FS TRAIN calibration, VALIDATION, 20 SQL repetitions
+      - name: Execute REAL SQL pair materialization, FS TRAIN, VALIDATION Rank-Resolve and 20 SQL repetitions
         working-directory: Solution
         env:
           PROFILE: ${{ matrix.profile }}
@@ -77,8 +77,8 @@ jobs:
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-physical-probe-seed42 \
             "$PWD/.local/v9-physical-$PROFILE/observacoes.csv" \
-            "$PROFILE" "$PWD/.local/v9-physical-$PROFILE/physical-fs-pair-diagnostic.json" 0.95
-      - name: Assert this is measured SQL but NOT post-Resolve evidence
+            "$PROFILE" "$PWD/.local/v9-physical-$PROFILE/physical-fs-resolve-diagnostic.json" 0.95
+      - name: Assert physically measured Rank-Resolve, grouped FDR and sealed TEST
         working-directory: Solution
         env:
           PROFILE: ${{ matrix.profile }}
@@ -86,20 +86,22 @@ jobs:
           python3 - <<'PY'
           import json,os
           from pathlib import Path
-          p=Path('.local/v9-physical-'+os.environ['PROFILE']+'/physical-fs-pair-diagnostic.json')
+          p=Path('.local/v9-physical-'+os.environ['PROFILE']+'/physical-fs-resolve-diagnostic.json')
           d=json.loads(p.read_text())
           assert d['physical_sql_executed'] is True
-          assert d['final_rank_resolve_evaluated'] is False
-          assert d['fdr_after_resolve_measured'] is False
+          assert d['final_rank_resolve_evaluated'] is True
+          assert d['fdr_after_resolve_measured'] is True
           assert d['test_used'] is False
           assert d['ValidationEligibleTruePairsBeforeBlocking']>=d['ValidationTruePairsRecoveredBySql']
-          assert len(d['options'])==3
-          print('Real physical SQL measured; FINAL Resolve/FDR intentionally NOT claimed')
+          assert len(d['final_resolve_options'])==3
+          assert all(x['FinalRankResolveEvaluated'] is True for x in d['final_resolve_options'])
+          assert all(x['OperationallyCertified'] is False for x in d['final_resolve_options'])
+          print('Real SQL plus final Rank-Resolve measured; HML/TEST certification NOT claimed')
           PY
       - name: Upload aggregate physical metrics only (no identifiers, names, or truth)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: v9-physical-30k-seed42-${{ matrix.profile }}-pair-diagnostic
-          path: Solution/.local/v9-physical-${{ matrix.profile }}/physical-fs-pair-diagnostic.json
+          name: v9-physical-30k-seed42-${{ matrix.profile }}-resolve-diagnostic
+          path: Solution/.local/v9-physical-${{ matrix.profile }}/physical-fs-resolve-diagnostic.json
           if-no-files-found: ignore
