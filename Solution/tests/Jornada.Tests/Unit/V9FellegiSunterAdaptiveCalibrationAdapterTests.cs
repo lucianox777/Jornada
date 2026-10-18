@@ -82,6 +82,76 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
     }
 
     [Test]
+    public void Preblocking_cohort_counts_zero_candidate_groups_in_validation_support()
+    {
+        var baseline = Frame();
+        var trainFull = Enumerable.Range(1, 6)
+            .Select(i => $"BASE-{i:00}").Append("BASE-TRAIN-ZERO").ToArray();
+        var validationFull = Enumerable.Range(7, 6)
+            .Select(i => $"BASE-{i:00}").Append("BASE-VAL-ZERO").ToArray();
+        var expanded = baseline with
+        {
+            TrainPreBlockingBaseIdentityIds = trainFull,
+            ValidationPreBlockingBaseIdentityIds = validationFull
+        };
+        var config = new V9FsAdaptiveOptionConfiguration("ALL_BASES", .5m, .5m);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(expanded, [config]);
+        var model = new AdaptiveCalibrationModelOption(
+            V9FellegiSunterAdaptiveCalibrationAdapter.Family,
+            V9FellegiSunterAdaptiveCalibrationAdapter.Version,
+            config.OptionId, config.FingerprintSha256);
+        // The SQL-only frame still has six groups per split, but the
+        // attestable TRAIN/VALIDATION cohort contains seven each.
+        var fit = adapter.FitTrain(model, Slice("TRAIN", TrainSha, TrainGroupsSha, 7));
+        var metrics = adapter.EvaluateValidation(
+            fit, Slice("VALIDATION", ValidationSha, ValidationGroupsSha, 7));
+        Assert.That(metrics.IndependentlyLabeledIdentityGroups, Is.EqualTo(7));
+        Assert.That((Action)(() => adapter.EvaluateValidation(
+            fit, Slice("VALIDATION", ValidationSha, ValidationGroupsSha, 6))),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Preblocking_cohort_is_frozen_and_rejects_duplicates_leakage_and_missing_sql_group()
+    {
+        var source = Frame();
+        var train = Enumerable.Range(1, 6).Select(i => $"BASE-{i:00}").ToList();
+        var validation = Enumerable.Range(7, 6).Select(i => $"BASE-{i:00}").ToList();
+        var option = new V9FsAdaptiveOptionConfiguration("COHORT", .5m, .5m);
+        var frozen = new V9FellegiSunterAdaptiveCalibrationAdapter(source with
+        {
+            TrainPreBlockingBaseIdentityIds = train,
+            ValidationPreBlockingBaseIdentityIds = validation
+        }, [option]);
+        // A mutable input collection must not change the snapshot.
+        train.Clear();
+        validation.Clear();
+        var model = new AdaptiveCalibrationModelOption(
+            V9FellegiSunterAdaptiveCalibrationAdapter.Family,
+            V9FellegiSunterAdaptiveCalibrationAdapter.Version,
+            option.OptionId, option.FingerprintSha256);
+        Assert.DoesNotThrow(() => frozen.FitTrain(
+            model, Slice("TRAIN", TrainSha, TrainGroupsSha, 6)));
+
+        void Reject(IEnumerable<string> tr, IEnumerable<string> val) =>
+            Assert.That((Action)(() => new V9FellegiSunterAdaptiveCalibrationAdapter(
+                source with
+                {
+                    TrainPreBlockingBaseIdentityIds = tr.ToArray(),
+                    ValidationPreBlockingBaseIdentityIds = val.ToArray()
+                }, [option])), Throws.TypeOf<InvalidDataException>());
+
+        var baseTrain = Enumerable.Range(1, 6).Select(i => $"BASE-{i:00}").ToArray();
+        var baseVal = Enumerable.Range(7, 6).Select(i => $"BASE-{i:00}").ToArray();
+        Reject(baseTrain.Append(baseTrain[0]), baseVal); // duplicate
+        Reject(baseTrain, baseVal.Append(baseTrain[0])); // cross-split leakage
+        Reject(baseTrain.Where(x => x != "BASE-01"), baseVal); // SQL group not in cohort
+        Assert.That((Action)(() => new V9FellegiSunterAdaptiveCalibrationAdapter(
+            source with { TrainPreBlockingBaseIdentityIds = baseTrain }, [option])),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Frame_rejects_test_partition_and_identity_leakage()
     {
         var pairs = Frame().Pairs.ToList();
