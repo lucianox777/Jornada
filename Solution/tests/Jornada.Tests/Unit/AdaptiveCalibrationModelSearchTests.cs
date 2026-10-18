@@ -18,7 +18,7 @@ public sealed class AdaptiveCalibrationModelSearchTests
         => Assert.That(action, Throws.TypeOf<TException>());
 
     private sealed class FakeAdapter(
-        string family, long tp, long fp, bool wrongTrain = false)
+        string family, long tp, long fp, bool wrongTrain = false, long? abstentionsOverride = null)
         : IAdaptiveCalibrationFamilyAdapter
     {
         public string ModelFamily => family;
@@ -45,7 +45,7 @@ public sealed class AdaptiveCalibrationModelSearchTests
                 TruePairsWithoutCpf: 1000,
                 TrueAcceptedLinks: tp,
                 FalseAcceptedLinks: fp,
-                Abstentions: 1000 - tp,
+                Abstentions: abstentionsOverride ?? (1000 - tp),
                 BlockingFalseCandidatePairs: 200,
                 BlockingFalseDegreeP99: 8.0,
                 IndependentlyLabeledIdentityGroups: 600);
@@ -90,6 +90,16 @@ public sealed class AdaptiveCalibrationModelSearchTests
         Assert.That(report.SuggestedOptionId, Is.Null);
         Assert.That(report.ConfidenceBoundForFdrMeasured, Is.False);
         Assert.That(report.OperationalModelCreated, Is.False);
+    }
+
+    [Test]
+    public void Validation_Rejects_Abstentions_Exceeding_Eligible_True_Pairs()
+    {
+        AssertThrows<InvalidDataException>(() =>
+            AdaptiveCalibrationModelSearch.Evaluate(Request(Budget()), [
+                new FakeAdapter("FAMILY_FS_V9", 980, 2, abstentionsOverride: 21),
+                new FakeAdapter("FAMILY_FUTURE", 980, 2)
+            ]));
     }
 
     [Test]
