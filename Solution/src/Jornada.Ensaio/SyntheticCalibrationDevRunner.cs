@@ -1360,7 +1360,7 @@ public sealed partial class SyntheticCalibrationDevRunner(
                     "Execução multi-seed exige RunGroupId explícito e estável entre as avaliações independentes.");
 
             var errorProfile = configuration["Ensaio:SyntheticCalibration:ErrorProfile"]?.Trim()
-                               ?? "correlated";
+                               ?? "clean";
             if (errorProfile is not ("clean" or "independent" or "correlated" or "field"))
             {
                 throw new InvalidOperationException(

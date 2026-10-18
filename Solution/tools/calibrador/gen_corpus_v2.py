@@ -224,7 +224,7 @@ def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--ibge-source", required=True, help="frequencia-brasil.ndjson.gz")
     ap.add_argument("--out", default="./corpus-v2"); ap.add_argument("--people",type=int,default=20000); ap.add_argument("--seed",type=int,default=42)
-    ap.add_argument("--error-profile",choices=PROFILES,default="correlated"); ap.add_argument("--min-freq",type=int,default=20); ap.add_argument("--tail-oversample",type=float,default=1.0)
+    ap.add_argument("--error-profile",choices=PROFILES,default="clean"); ap.add_argument("--min-freq",type=int,default=20); ap.add_argument("--tail-oversample",type=float,default=1.0)
     ap.add_argument("--cpf-base-prevalence",type=float,default=.22); ap.add_argument("--cns-base-prevalence",type=float,default=.55)
     ap.add_argument("--cpf-observation-retention",type=float,default=.55); ap.add_argument("--cns-observation-retention",type=float,default=.70)
     ap.add_argument("--cns-invalid-rate",type=float,default=.01); ap.add_argument("--cns-reuse-rate",type=float,default=.01); ap.add_argument("--cns-dob-conflict-rate",type=float,default=.01)

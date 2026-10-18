@@ -58,7 +58,7 @@ try {
     '--reference-root',(Join-Path $Root 'data/reference/ibge-nomes-2022'),
     '--population-profile','demographic-primary',
     '--birth-daily-source',(Join-Path $Root 'data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json'),
-    '--out',$corpusDir,'--people','30000','--seed','42','--error-profile','correlated'
+    '--out',$corpusDir,'--people','30000','--seed','42','--error-profile','clean'
   )
   Push-Location $RepoRoot
   try{ & $dotnetExe @generatorArgs }
