@@ -148,3 +148,46 @@ válidos. Não altera o Runner operacional nem publica/ativa V9.
 `OperationallyCertified=false` é incondicional; falta integrar
 o exportador a uma execução HML genuína, com atestação do mesmo
 run/modelo/ruleset e TEST lacrado.
+
+
+## Leitura REAL de decisões terminais persistidas no SQL da HML — 18/10/2026
+
+O novo `V9SqlRecordedRunEvidenceReader.ReadCompletedHmlAsync` avança
+a cadeia de proveniência da V9 além das fixtures artificiais.
+Usa **somente SELECT parametrizado** para ler
+`identidade.linkage_run` e **todas** as linhas correspondentes de
+`identidade.linkage_resultado` (sem `TOP N`, paginação ou filtro de
+candidatos). Antes de ler identidade exige que o **marcador residente**
+`Jornada.EnvironmentProfile` do banco seja exatamente `HML`.
+Rejeita Development, Production, perfis ausentes e conexões fechadas.
+
+Exige `tipo_run=MODEL_VALIDATION`,
+`status=CONCLUIDO_SEM_PUBLICACAO`, `publicado_em IS NULL`,
+`registros_elegiveis=avaliados>0`, decomposição exata
+resolvidos/conflitos/não resolvidos, uma linha por observação e
+modelo/versão estáveis em todas as linhas. Reconstitui
+`ProbabilisticLinkageDecision` **dos dados efetivamente persistidos
+pelo Runner**, sem recalcular score, guard ou resultado e produz um
+SHA-256 determinístico de run/modelo, contagens e todas as decisões
+com motivo e posteriores.
+
+A informação de UUID/ID de observação fica **apenas no objeto C#
+diagnóstico em memória**, não deve ser publicada ou registrada em
+logs; o hash, desacompanhado do objeto original, é exportável para
+rastreabilidade. Não escreve no banco, não muda V8/Gold e não
+publica nenhum vínculo.
+
+**Limitação estrutural verificada no DDL existente:** a tabela
+`identidade.linkage_resultado` grava no máximo dois melhores
+candidatos, seus posteriores e o resultado. Portanto, mesmo a leitura
+de **todas as linhas do run** não prova a **união integral** dos
+candidatos por observação, a identidade-base de origem nem a verdade
+independente. Os campos de saída
+`HasCompleteCandidateUnion=false` e
+`OperationallyCertified=false` são invariáveis. A eventual
+alimentação de `V9RecordedRunnerOutcomeBridge` requer captura
+separada e autenticada da lista completa de candidatos e da coorte
+pré-blocking com mapeamento de origem. Testes puros verificam a
+integridade de linha/contador e rejeição de status, run, modelo e
+publicação falsificados. O método **não foi executado em HML real**
+por esses testes e não rompe o lacre de TEST.
