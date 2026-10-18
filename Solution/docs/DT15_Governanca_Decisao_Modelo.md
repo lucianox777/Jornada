@@ -1,3 +1,5 @@
+> **Auditoria superveniente de 18/10/2026:** [auditoria V9 e últimos runners](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md). A decisão atual é **bootstrap inicial do calibrador V9 somente com o corpus sintético clean**, parâmetros **não definitivos**, e `correlated` preservado **exclusivamente para histórico**. Foram executados SQL Server físico sintético e Rank→Resolve por fonte na PR #1152; **não equivalem** a Gold operacional, FDR certificada, novo TEST ou HML real. A PR #1152 é trabalho de branch até merge comprovado; CI verde não promove V9.
+
 # DT-15 — dossiê comparativo e página de decisão do modelo
 
 **Decisão de produto/arquitetura (27/09/2026):** o objeto principal da decisão é a comparação **atual × proposto** nas mesmas condições de avaliação, não uma classificação histórica de modelos. O histórico agregado continua disponível como contexto. O **Monitor Operacional** e a **página restrita de governança para o operador master** são superfícies distintas, com permissões, responsabilidades e efeitos diferentes.

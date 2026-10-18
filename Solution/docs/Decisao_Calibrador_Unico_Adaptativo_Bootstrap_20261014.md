@@ -80,3 +80,12 @@ O histórico de 43,1581% do velho ensaio ATIVO+C1 era do
 `JornadaHarness` **sintético** com TF desligada,
 não do banco real da prefeitura; o texto histórico é
 preservado e anotado, mas não caracteriza o modelo V9 corrigido.
+
+
+## Emenda superveniente de 18/10/2026 — perfil inicial e unidade de decisão
+
+A massa sintética **clean** passa a ser **única fonte automática de bootstrap inicial** V9 em DEV, **não** um estimador empírico da qualidade brasileira. Os perfis `correlated`/`independent`/`field` permanecem apenas em arquivos históricos e reprodução manual; não selecioná-los em novas calibrações nem exigir CI correlated. O JSON `v9-bootstrap-experimental-candidates.json` adicionado pela PR #1151 (merge `2111ad4`) é **inventário histórico**, `active=false`, sem parâmetros publicados em `ref`.
+
+A seleção do calibrador deve usar decisões Rank→Resolve **por observação-fonte**, com candidatos formados por **identidade** (não observação), margem entre identidades distintas, FDR posterior por grupo com UCB válido e separação de `CONFLITO`/abstenção. A PR #1152 contém execução SQL Server física **sintética** com esses diagnósticos, mas o grupo `ORACLE` usa a verdade e `BLIND` usa tripla exata; nenhum deles prova Gold operacional, seletor de produção integrado ou TEST novo. Não trocar controle de conflito por margem zero só porque houve 0 FP sintéticos. Resultados e pontos pendentes: [V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md).
+
+**Atenção à palavra “bootstrap”:** a geração/calibração **inicial** do snapshot é evento explícito separado da **subida da aplicação**; a subida **consome/valida** um snapshot aprovado em `ref` e jamais dispara novo ajuste FS. Parâmetros de busca (orçamentos, espaço, tolerâncias) não são passes, caracteres e pesos efetivamente calibrados. Nenhuma configuração inicial sintética, nem CI verde, autoriza DT-15, HML ou Produção.

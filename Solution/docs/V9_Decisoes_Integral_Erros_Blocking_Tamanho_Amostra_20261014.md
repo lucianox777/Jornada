@@ -1,3 +1,5 @@
+> **Nota de vigência (18/10):** esta tabela de propostas e seeds correlacionadas é **histórico de experimentação**, não plano atual de calibração. O bootstrap automático usa **clean** na PR #1152; correlated não deve ser reexecutado como gate nem escolha de modelo. Consulte [reconciliação dos runners e decisões](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md). Dados/hashes de 14/10 continuam intactos.
+
 # Jornada V9 — decisão integral: erros sintéticos, seleção de blocking e suficiência amostral
 **Registro consolidado de 14/10/2026 — pesquisa DEV, não política ativa.**
 

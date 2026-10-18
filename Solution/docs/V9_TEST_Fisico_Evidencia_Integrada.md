@@ -1,3 +1,5 @@
+> **Atualização 18/10/2026:** [evidência física sintética real e limites do TEST](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md). O probe SQL repetido 20x e o diagnóstico Rank→Resolve de 30 mil identidades clean **já foram executados no JornadaHarness efêmero** ([run 39147073026](https://github.com/lucianox777/Jornada/actions/runs/39147073026)), mas **o TEST independente novo, a execução com outcomes do Runner na HML e a integração da coorte/união completa não foram demonstrados**. A antiga frase abaixo de #1132 que afirmava falta de repetição SQL é uma fotografia daquela etapa, não o estado de outubro 18. CI sintética não homologa V9.
+
 # V9 — TEST físico independente na infraestrutura existente
 
 Estado: **implementação parcial; evidências reais e aprovação pendentes**.

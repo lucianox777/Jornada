@@ -1,3 +1,5 @@
+> **Histórico V1:** taxas `m_exact` aqui pertencem ao corpus V1 e denominadores próprios; a [auditoria V9 clean 18/10](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md) mede outro corpus e taxa de divergência por pares verdadeiros TRAIN/VALIDATION, não usa `expected_m_exact` como ground truth nem certifica FDR brasileira.
+
 # Calibrador — avaliação do corpus sintético JORNADA_SYNTH_CORPUS_V1
 
 ## Conclusão

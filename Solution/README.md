@@ -1,3 +1,5 @@
+> **V9 — decisão e estado experimental de 18/10:** [auditoria de decisões e últimos runners](docs/V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md). Bootstrap V9 sintético automático: apenas clean; correlated só histórico. Resultados físicos ocorreram no SQL Server efêmero; formação Gold real, seletor pós-Resolve, TF positiva válida, TEST novo e governança HML/PROD continuam pendentes. PR aberta não é código na master.
+
 # Jornada — Solution de Referência (Fase 1) — consolidação candidata v5.00
 
 > **Decisões experimentais V9 (14/10/2026):** [bloqueio, projeção canônica, partições, 16 braços A/B/C/D, estratégia D e limites de evidência](docs/Decisoes_V9_Bloqueio_Experimentos_20261014.md). Registro técnico de DEV, sem efeito de publicação normativa.
