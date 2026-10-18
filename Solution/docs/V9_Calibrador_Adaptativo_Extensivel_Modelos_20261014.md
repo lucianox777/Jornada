@@ -185,3 +185,26 @@ Esta é somente uma **condição necessária da prévia física**: o
 `TP_threshold` do FS não representa vínculos finais após Rank/Resolve.
 Não usar esse relatório para congelar/ativar o modelo nem para afirmar
 certificação por identidade-base. TEST segue não utilizado.
+
+
+### Cobertura integral das identidades-base, incluindo ausência de candidatos
+
+Além do denominador `M_eligible` de pares verdadeiros, o relatório do
+probe SQL físico retém, por split, o **universo completo de identidades**
+das observações recebidas, antes de aplicar as regras: `BaseIdentitiesBeforeBlocking`,
+`BaseIdentitiesRepresentedBySql` e `BaseIdentitiesWithoutSqlCandidates`.
+A razão `BaseIdentityCandidateCoverage` é **cobertura do cadastro de
+identidades com ao menos um candidato**, não recall de vínculo e muito
+menos taxa de falsos vínculos.
+
+`SummarizeIdentityCohort` recusa ids de base ausentes, duplicados,
+candidatos externos à partição e tentativas de incluir TEST. Zero
+candidatos não transforma uma identidade em evidência negativa: esse
+grupo permanece no denominador. Isso prepara futura análise agrupada
+da incerteza sem o viés de descartar as identidades com grau zero.
+
+**Atenção:** `TrainDistinctBasePeople`/`ValidationDistinctBasePeople`
+mantêm sua semântica histórica de **identidades com pelo menos um par SQL**;
+não devem ser citados como tamanho integral do corpus. A presença de
+um grupo no censo por si só **não comprova amostragem iid**, cap por
+identidade, decisão final Rank/Resolve ou certificação.
