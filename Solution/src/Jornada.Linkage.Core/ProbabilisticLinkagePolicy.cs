@@ -418,9 +418,10 @@ internal static class ProbabilisticLinkageDecisions
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(scored);
         ArgumentException.ThrowIfNullOrWhiteSpace(noCandidateReason);
-        if (threshold is <= 0m or > 1m || conflictMargin is < 0m or > 1000m
-            || modelId == Guid.Empty)
-            throw new InvalidOperationException("Parâmetros de decisão FS inválidos.");
+        // The existing operational V5-V8 ResolveRanked contract permits
+        // threshold=0 in calibration probes and Guid.Empty in synthetic
+        // studies. Preserve its exact historical semantics here. Only the
+        // new V9 preview entry point validates its own strict study domain.
         if (scored.Count == 0)
             return new ProbabilisticLinkageDecision(
                 ResolutionStatus.NAO_RESOLVIDO, null, null, 0m, null, null, null,
