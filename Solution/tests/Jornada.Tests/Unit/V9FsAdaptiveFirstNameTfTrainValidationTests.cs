@@ -110,10 +110,10 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     {
         var config = new V9FsAdaptiveOptionConfiguration("TF", .5m, .55m, 1m);
         Assert.That((Action)(() =>
-            new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(), [config])),
+            _ = new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(), [config])),
             Throws.TypeOf<ArgumentException>());
         Assert.That((Action)(() =>
-            new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(),
+            _ = new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(),
                 [config with { TfWeight = 1.01m }], Reference())),
             Throws.TypeOf<ArgumentException>());
 
