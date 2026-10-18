@@ -35,7 +35,8 @@ public sealed record V9PhysicalCalibrationRunResult(
     V9PhysicalSqlMeasuredTimings? PhysicalSqlTimings = null,
     IReadOnlyList<V9PhysicalSqlOptionGlobalCoverage>? ValidationGlobalCoverage = null,
     V9PhysicalSqlIdentityCohortCoverage? TrainIdentityCohortCoverage = null,
-    V9PhysicalSqlIdentityCohortCoverage? ValidationIdentityCohortCoverage = null);
+    V9PhysicalSqlIdentityCohortCoverage? ValidationIdentityCohortCoverage = null,
+    V9PhysicalSqlCostQuantiles.Summary? RepeatedSqlMaterializationQuantiles = null);
 
 /// <summary>
 /// Cohort is defined BEFORE SQL blocking and includes every base identity,
@@ -105,7 +106,8 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         AdaptiveCalibrationPreviewBudget budget,
         string studyFingerprintSha256,
         CancellationToken cancellationToken,
-        FrozenIbgeNominalTfV9? frozenTfReference = null)
+        FrozenIbgeNominalTfV9? frozenTfReference = null,
+        int repeatedSqlMaterializationRuns = 0)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(observations);
@@ -113,6 +115,13 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(budget);
         RequireSha(studyFingerprintSha256, nameof(studyFingerprintSha256));
+        // Default is zero: no implicit extra SQL work in existing probes.
+        // When explicitly requested, each run repeats the exact SQL UNION
+        // materialization and rechecks the distinct-pair cardinality.
+        if (repeatedSqlMaterializationRuns != 0
+            && repeatedSqlMaterializationRuns is < 20 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(repeatedSqlMaterializationRuns),
+                "Repetição de SQL exige 20..100 execuções físicas ou zero para desabilitar.");
 
         if (observations.Count < 4)
             throw new ArgumentException("Frame físico exige observações TRAIN/VALIDATION suficientes.");
@@ -196,6 +205,20 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             createMs, observationsMs, signaturesMs, materializeMs, readMs);
         if (rows.Count != physicalPairs)
             throw new InvalidDataException("Contagem da união SQL diverge da leitura do frame.");
+
+        // Repeat only AFTER verifying the first materialization and BEFORE
+        // calibrating/reading TEST. The existing RepeatPhysicalMaterialization
+        // path uses the exact same SQL on the same ephemeral JornadaHarness
+        // frame and checks the number of distinct pairs after each run.
+        // This is a diagnostic per-operation P95/P99, NOT Rank/Resolve latency.
+        V9PhysicalSqlCostQuantiles.Summary? repeatedQuantiles = null;
+        if (repeatedSqlMaterializationRuns != 0)
+        {
+            var samples = await RepeatPhysicalMaterializationAsync(
+                connection, repeatedSqlMaterializationRuns, physicalPairs,
+                cancellationToken);
+            repeatedQuantiles = V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds(samples);
+        }
 
         var trainRows = rows.Where(x => x.Partition == "TRAIN").ToArray();
         var validationRows = rows.Where(x => x.Partition == "VALIDATION").ToArray();
@@ -286,7 +309,8 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             measuredSql,
             globalCoverage,
             trainIdentityCoverage,
-            validationIdentityCoverage);
+            validationIdentityCoverage,
+            repeatedQuantiles);
     }
 
     /// <summary>

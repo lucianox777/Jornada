@@ -260,6 +260,36 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
             null, null, null, null, null, null, 1);
 
     [Test]
+    public void Repeated_sql_materialization_requires_explicit_20_to_100_runs_before_any_db_access()
+    {
+        using var connection = new SqlConnection();
+        foreach (var invalid in new[] { -1, 1, 19, 101, int.MaxValue })
+        {
+            Assert.That(
+                (Func<Task>)(async () =>
+                    await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
+                        connection, BaseRows(), Passes(), Options(), Budget,
+                        new string('e', 64), CancellationToken.None,
+                        repeatedSqlMaterializationRuns: invalid)),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+        }
+    }
+
+    [Test]
+    public void Physical_materialization_quantile_contract_remains_empty_unless_opted_in()
+    {
+        // No repeated runs may be misrepresented as P95/P99 on a
+        // single SQL phase. The optional result field defaults to null.
+        var diagnostic = new V9PhysicalCalibrationRunResult(
+            "TEST", new string('a', 64), 100, 25, 10, 15, 2, 2,
+            CoverageReport([CoverageOption("X", 6, 20, 5, 1)], "X"));
+        Assert.That(diagnostic.RepeatedSqlMaterializationQuantiles, Is.Null);
+        Assert.That(V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds(
+                Enumerable.Range(1, 20).Select(x => (double)x))
+            .P99Milliseconds, Is.EqualTo(20d));
+    }
+
+    [Test]
     public void Rejects_test_partition_before_any_sql_command()
     {
         using var connection = new SqlConnection();
