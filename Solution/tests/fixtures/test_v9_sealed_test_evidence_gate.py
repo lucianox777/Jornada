@@ -19,9 +19,12 @@ def fixture():
                    "gitCommit": "a" * 40, "frozenBeforeTest": True},
         "partition": "TEST", "testUsedForTuning": False,
         "independentEvaluator": True, "completeTruthLabels": True,
+        "evaluationMode": "RECORDED_RUNTIME", "completeCandidateUniverse": True,
+        "recordedOutcomeFingerprintSha256": a, "artifactStoredOutsideRepository": True,
         "sqlPhysicalExecution": True, "artifactSha256": a, "runId": "evaluation-1",
         "blocking": {"eligibleTruePairsBeforeBlocking": 100, "recoveredTruePairsBySql": 90,
-                     "physicalDistinctCandidatePairs": 120},
+                     "physicalDistinctCandidatePairs": 120,
+                     "denominatorComputedBeforeSqlBlocking": True},
         "fdr": {"predeclaredMaxAcceptedPerIdentity": 1, "capEnforcedByDesign": True,
                 "independentIdentityClusters": True, "alpha": .05,
                 "groups": [{"baseIdentityFingerprint": format(i, "064x"),
@@ -41,6 +44,24 @@ class TestEvidenceGate(unittest.TestCase):
         self.assertEqual(result["blockingRecall"], .9)
         self.assertFalse(result["operationallyCertified"])
         self.assertEqual(result["materializePairsP99Ms"], 20)
+
+    def test_rejects_posterior_replay_for_v9(self):
+        data = fixture()
+        data["evaluationMode"] = "POSTERIOR_REPLAY"
+        with self.assertRaises(ValueError):
+            gate.validate(data)
+
+    def test_rejects_non_durable_artifact(self):
+        data = fixture()
+        data["artifactStoredOutsideRepository"] = False
+        with self.assertRaises(ValueError):
+            gate.validate(data)
+
+    def test_rejects_post_blocking_denominator(self):
+        data = fixture()
+        data["blocking"]["denominatorComputedBeforeSqlBlocking"] = False
+        with self.assertRaises(ValueError):
+            gate.validate(data)
 
     def test_rejects_test_tuning(self):
         data = fixture()
