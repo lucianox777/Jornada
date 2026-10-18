@@ -130,24 +130,24 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             V9FellegiSunterAdaptiveCalibrationAdapter.Family,
             V9FellegiSunterAdaptiveCalibrationAdapter.Version,
             option.OptionId, option.FingerprintSha256);
-        Assert.DoesNotThrow(() => frozen.FitTrain(
-            model, Slice("TRAIN", TrainSha, TrainGroupsSha, 6)));
+        Assert.That((Action)(() => { _ = frozen.FitTrain(
+            model, Slice("TRAIN", TrainSha, TrainGroupsSha, 6)); }), Throws.Nothing);
 
         void Reject(IEnumerable<string> tr, IEnumerable<string> val) =>
-            Assert.That((Action)(() => new V9FellegiSunterAdaptiveCalibrationAdapter(
+            Assert.That((Action)(() => { _ = new V9FellegiSunterAdaptiveCalibrationAdapter(
                 source with
                 {
                     TrainPreBlockingBaseIdentityIds = tr.ToArray(),
                     ValidationPreBlockingBaseIdentityIds = val.ToArray()
-                }, [option])), Throws.TypeOf<InvalidDataException>());
+                }, [option]); }), Throws.TypeOf<InvalidDataException>());
 
         var baseTrain = Enumerable.Range(1, 6).Select(i => $"BASE-{i:00}").ToArray();
         var baseVal = Enumerable.Range(7, 6).Select(i => $"BASE-{i:00}").ToArray();
         Reject(baseTrain.Append(baseTrain[0]), baseVal); // duplicate
         Reject(baseTrain, baseVal.Append(baseTrain[0])); // cross-split leakage
         Reject(baseTrain.Where(x => x != "BASE-01"), baseVal); // SQL group not in cohort
-        Assert.That((Action)(() => new V9FellegiSunterAdaptiveCalibrationAdapter(
-            source with { TrainPreBlockingBaseIdentityIds = baseTrain }, [option])),
+        Assert.That((Action)(() => { _ = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            source with { TrainPreBlockingBaseIdentityIds = baseTrain }, [option]); }),
             Throws.TypeOf<InvalidDataException>());
     }
 
