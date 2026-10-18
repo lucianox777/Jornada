@@ -76,3 +76,28 @@ certificada: verificar a formação real do Gold, FDR-UCB por
 identidade com suporte válido, catálogos/guards, seletor
 pós-Resolve, congelamento TRAIN/VALIDATION e a
 proveniência do TEST novo e lacrado antes de avaliar o TEST.
+
+
+### Terceiro braço — agrupamento sem gabarito
+
+Para não confundir um Gold *oracle* com agrupamento que existe na prática,
+o experimento adiciona `BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING`.
+O agrupador usa **somente** os valores observados normalizados
+`(nome da pessoa, nome da mãe, nascimento)`: agrupa apenas
+compostos completos idênticos, mantém isoladas observações com campos
+ausentes, não consulta `BasePersonId` para decidir membros, e
+mantém o maior score FS da identidade candidata antes de invocar
+o mesmo núcleo Resolve. O gabarito somente avalia
+**posteriormente** a pureza dos grupos e se a ligação aceita está
+certa. Se um grupo blind mistura identidades verdadeiras,
+a decisão para ele é contada como **FP** (não como TP fácil).
+O CSV expõe `impure_blind_groups`.
+
+É uma experiência de sensibilidade **sem oracle**, não um algoritmo de
+Gold aprovado: não reconhece variações de grafia que pertencem
+à mesma pessoa e pode fundir homônimos com tripla idêntica.
+A tabela contém três comparações da unidade candidata —
+`RAW`, `BLIND_EXACT` e `ORACLE_GOLD` —
+para cada threshold/margem, todos com TF=0.
+O número de linhas passa a **27 por perfil**.
+Não ativar em Gold operacional.

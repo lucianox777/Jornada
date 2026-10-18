@@ -94,15 +94,20 @@ jobs:
           assert d['test_used'] is False
           assert d['ValidationEligibleTruePairsBeforeBlocking']>=d['ValidationTruePairsRecoveredBySql']
           assert len(d['legacy_directed_pair_denominator_options'])==3
-          assert len(d['source_resolve_options'])==18
+          assert len(d['source_resolve_options'])==27
           assert all(x['OperationallyCertified'] is False for x in d['source_resolve_options'])
-          assert len({(x['Threshold'],x['ConflictMargin'],x['CandidateGrouping']) for x in d['source_resolve_options']})==18
+          assert len({(x['Threshold'],x['ConflictMargin'],x['CandidateGrouping']) for x in d['source_resolve_options']})==27
           assert {x['Threshold'] for x in d['source_resolve_options']}=={0.99,0.999,0.9999}
           assert {x['ConflictMargin'] for x in d['source_resolve_options']}=={0,0.5,2}
           assert all(x['TfWeight']==0 for x in d['source_resolve_options'])
           assert all(x['TrueAcceptedSourceObservations']<=x['EligibleSourceObservationsWithTrueSqlCandidate']<=x['EligibleSourceObservationsBeforeBlocking'] for x in d['source_resolve_options'])
           assert all(x['TrueAcceptedSourceObservations']+x['FalseAcceptedSourceObservations']+x['Conflicts']+x['Unresolved']==x['AllValidationObservations'] for x in d['source_resolve_options'])
           assert {x['SyntheticGoldOracleGrouping'] for x in d['source_resolve_options']}=={False,True}
+          assert {x['CandidateGrouping'] for x in d['source_resolve_options']}=={
+              'RAW_SQL_OBSERVATION_CANDIDATES',
+              'BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING',
+              'ORACLE_SYNTHETIC_GOLD_GROUPING_NOT_OPERATIONAL'}
+          assert all(x['ImpureBlindGroups']>=0 for x in d['source_resolve_options'])
           assert d['candidate_grouping_oracle_uses_truth_labels'] is True
           print('Real SQL plus final Rank-Resolve measured; HML/TEST certification NOT claimed')
           PY
@@ -128,6 +133,7 @@ jobs:
                   margin=result['ConflictMargin'],tf_weight=result['TfWeight'],
                   candidate_grouping=result['CandidateGrouping'],
                   oracle_truth_based_grouping=result['SyntheticGoldOracleGrouping'],
+                  impure_blind_groups=result['ImpureBlindGroups'],
                   eligible_sources=eligible,sql_true_sources=sql_sources,
                   tp_sources=tp,fp_sources=fp,
                   source_blocking_recall=result['BlockingSourceRecall'],
@@ -139,8 +145,8 @@ jobs:
                   sql_p95_ms=source['RepeatedSqlMaterializationQuantiles']['P95Milliseconds'],
                   status='MEASURED_SQL_SYNTHETIC_SOURCE_DIAGNOSTIC_TF0_NOT_OPERATIONAL',
                   input_sha256=source['synthetic_input_sha256']))
-          assert len(rows)==18
-          path=root/'physical-source-resolve-3x3x2-TF0.csv'
+          assert len(rows)==27
+          path=root/'physical-source-resolve-3x3x3-TF0.csv'
           with path.open('x',newline='') as stream:
               writer=csv.DictWriter(stream,fieldnames=list(rows[0]))
               writer.writeheader()
@@ -154,5 +160,5 @@ jobs:
           name: v9-physical-30k-seed42-${{ matrix.profile }}-resolve-diagnostic
           path: |
             Solution/.local/v9-physical-${{ matrix.profile }}/physical-fs-resolve-diagnostic.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/physical-source-resolve-3x3x2-TF0.csv
+            Solution/.local/v9-physical-${{ matrix.profile }}/physical-source-resolve-3x3x3-TF0.csv
           if-no-files-found: ignore

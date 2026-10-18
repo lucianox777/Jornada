@@ -85,7 +85,7 @@ public static class V9PhysicalCalibrationEvidenceCli
         if (measured.RepeatedSqlMaterializationQuantiles is null
             || measured.ValidationGlobalCoverage is not { Count: 3 }
             || measured.FinalResolveValidation is not { Count: 3 }
-            || measured.SourceResolveValidation is not { Count: 18 })
+            || measured.SourceResolveValidation is not { Count: 27 })
             throw new InvalidDataException("Probe não retornou medidas SQL físicas completas TF=0.");
 
         var diagnostic = new

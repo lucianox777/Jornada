@@ -283,8 +283,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
         _ = adapter.FitTrain(model, Slice("TRAIN", TrainSha, TrainGroupsSha, 6));
         var result = adapter.EvaluateSourceUnitResolveValidation(
             observations, sqlEdges, [.5m], 16);
-        Assert.That(result, Has.Count.EqualTo(2));
-        var raw = result.Single(x => !x.SyntheticGoldOracleGrouping);
+        Assert.That(result, Has.Count.EqualTo(3));
+        var raw = result.Single(x => x.CandidateGrouping == "RAW_SQL_OBSERVATION_CANDIDATES");
+        var blind = result.Single(x => x.CandidateGrouping == "BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING");
         var oracle = result.Single(x => x.SyntheticGoldOracleGrouping);
         Assert.Multiple((Action)(() =>
         {
@@ -300,6 +301,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             Assert.That(oracle.TrueAcceptedSourceObservations,
                 Is.GreaterThan(raw.TrueAcceptedSourceObservations));
             Assert.That(oracle.TrueAcceptedSourceObservations, Is.EqualTo(3));
+            Assert.That(blind.TrueAcceptedSourceObservations, Is.EqualTo(3));
+            Assert.That(blind.Conflicts, Is.Zero);
+            Assert.That(blind.ImpureBlindGroups, Is.Zero);
             Assert.That(oracle.GlobalSourceRecall, Is.EqualTo(.6d));
             Assert.That(raw.TrueAcceptedSourceObservations
                 + raw.FalseAcceptedSourceObservations

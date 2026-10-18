@@ -48,7 +48,8 @@ public sealed record V9PhysicalSourceResolveMetric(
     double BlockingSourceRecall, double GlobalSourceRecall,
     double? FdrAfterResolve, double? HoeffdingUpperBySourceBaseIdentity,
     int PreBlockingBaseIdentities, IReadOnlyDictionary<string, long> ReasonsByResolveStatus,
-    bool SyntheticGoldOracleGrouping, bool OperationallyCertified);
+    bool SyntheticGoldOracleGrouping, bool OperationallyCertified,
+    int ImpureBlindGroups);
 
 public sealed record V9PhysicalCalibrationRunResult(
     string Version,
