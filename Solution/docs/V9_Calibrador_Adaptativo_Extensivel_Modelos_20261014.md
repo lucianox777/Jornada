@@ -390,3 +390,20 @@ nem garantia sob carga operacional. A medição inicial
 pois cinco fases não são cinco repetições independentes. Essa
 opção não cria orçamento operacional, não liga ativação e não
 modifica as probabilidades ou a busca FS V9.
+
+
+## 18/10/2026 — escolha do perfil do bootstrap sintético
+
+A configuração inicial do único calibrador C# V9 deve ser inferida por
+`FitTrain` usando apenas a nova massa **clean** sintética e a fonte de referência
+IBGE pinada, com seleção preliminar no VALIDATION correspondente. Os valores
+são **bootstrap provisório** e não parâmetros finais. A antiga sensibilidade
+`correlated` fica somente como histórico, com hashes, artefatos e nomes de
+perfil preservados. Não executar automaticamente novos estudos correlated.
+A literatura **não** valida o clean como representativo do município;
+por isso o experimento registra agora divergências por campo de pares M
+TRAIN/VALIDATION e separa taxas por observação de erros entre pares.
+Calibração empírica real por gestor/sistema, FDR pós-Resolve com suporte
+independente, TEST inédito lacrado e decisão manual continuam obrigatórios
+para eventual ativação. Ver
+`V9_Bootstrap_Clean_Provisorio_20261018.md`.

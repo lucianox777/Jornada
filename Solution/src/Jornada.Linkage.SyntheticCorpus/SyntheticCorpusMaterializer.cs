@@ -64,7 +64,9 @@ public static class SyntheticCorpusMaterializer
         {
             schema_version = 1,
             error_profile = generation.Options.ErrorProfile,
-            error_profile_provenance = "HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE",
+            error_profile_provenance = generation.Options.ErrorProfile == "clean"
+                ? "PROVISIONAL_SYNTHETIC_CLEAN_BOOTSTRAP_NOT_BRAZILIAN_DATA_QUALITY_ESTIMATE"
+                : "HYPOTHETICAL_UNCALIBRATED_SYNTHETIC_STRESS_PROFILE",
             declared_corruption_rates_per_observation = new
             {
                 common_joint_attempt = declaredErrorProfile.CommonCorruptionProbability,

@@ -3,7 +3,7 @@ namespace Jornada.Linkage.SyntheticCorpus;
 public sealed record SyntheticCorpusOptions(
     int People = 20_000,
     ulong Seed = 42,
-    string ErrorProfile = "correlated",
+    string ErrorProfile = "clean",
     long MinFrequency = 20,
     double TailOversample = 1.0,
     double CpfBasePrevalence = .22,

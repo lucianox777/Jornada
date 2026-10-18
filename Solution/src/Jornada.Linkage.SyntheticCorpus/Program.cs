@@ -296,7 +296,7 @@ static SyntheticCorpusOptions ParseCorpusOptions(IReadOnlyDictionary<string, str
     var options = new SyntheticCorpusOptions(
         People: GetInt(values, "people", 30_000),
         Seed: GetUlong(values, "seed", 42),
-        ErrorProfile: Get(values, "error-profile") ?? "correlated",
+        ErrorProfile: Get(values, "error-profile") ?? "clean",
         MinFrequency: GetLong(values, "min-freq", 20),
         TailOversample: GetDouble(values, "tail-oversample", 1.0),
         CpfBasePrevalence: GetDouble(values, "cpf-base-prevalence", .22),

@@ -1,18 +1,8 @@
 name: v9-synthetic-corruption-evidence
+# HISTORICAL REPLAY ONLY: no PR/push/schedule starts old clean-vs-correlated runs.
+# Results from 2026-10 and SHA-bound artifacts remain unchanged.
 on:
-  pull_request:
-    paths:
-      - 'Solution/scripts/v9-synthetic-corruption-impact.py'
-      - 'Solution/scripts/v9-synthetic-clean-correlated-sensitivity.py'
-      - 'Solution/scripts/v9-cluster-sample-size-power.py'
-      - 'Solution/scripts/v9-frozen-cross-seed-plan-transfer.py'
-      - 'Solution/tests/fixtures/test_v9_synthetic_clean_correlated_sensitivity.py'
-      - 'Solution/tests/fixtures/test_v9_cluster_sample_size_power.py'
-      - 'Solution/tests/fixtures/test_v9_frozen_cross_seed_plan_transfer.py'
-      - 'Solution/tests/fixtures/test_v9_synthetic_corruption_impact.py'
-      - 'Solution/src/Jornada.Linkage.SyntheticCorpus/SyntheticCorpusMaterializer.cs'
-      - 'Solution/docs/V9_Origem_18pct_Erros_Sinteticos_20261014.md'
-      - '.github/workflows/v9-synthetic-corruption-evidence.yml'
+  workflow_dispatch:
 permissions:
   contents: read
   actions: read

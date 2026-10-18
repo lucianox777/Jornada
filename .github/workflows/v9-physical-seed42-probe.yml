@@ -16,10 +16,12 @@ jobs:
     name: SQL físico 30k ${{ matrix.profile }} — Rank-Resolve TF0
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    # Only the provisional clean bootstrap is executed in ongoing PR validation.
+    # Correlated results are historical, not a calibration target.
     strategy:
       fail-fast: false
       matrix:
-        profile: [clean, correlated]
+        profile: [clean]
     services:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
@@ -68,6 +70,32 @@ jobs:
             --population-profile demographic-primary \
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
             --out "$PWD/.local/v9-physical-$PROFILE" --people 30000 --seed 42 --error-profile "$PROFILE"
+      - name: Audit clean field-level quality on TRAIN/VALIDATION only
+        working-directory: Solution
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          test "$PROFILE" = clean
+          python3 scripts/v9-synthetic-corruption-impact.py \
+            --observations ".local/v9-physical-$PROFILE/observacoes.csv" \
+            --manifest ".local/v9-physical-$PROFILE/generation-manifest.json" \
+            --exclude-test \
+            --out ".local/v9-physical-$PROFILE/field-quality-train-val.json"
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path(".local/v9-physical-"+os.environ["PROFILE"])
+          data=json.loads((root/"field-quality-train-val.json").read_text())
+          assert data["manifest_recorded_error_profile"]=="clean"
+          assert data["partition_scope"]=="TRAIN_VALIDATION_ONLY"
+          assert data["test_rows_included_in_aggregates"] is False
+          assert set(data["observations_by_split"])=={"TRAIN","VALIDATION"}
+          assert data["true_pairs_across_managers"]["NO_CPF"]["pairs"]>0
+          print(json.dumps({"observed_field_changes":data["effective_field_changes_per_observation"],
+            "true_pairs_no_cpf":data["true_pairs_across_managers"]["NO_CPF"],
+            "observations":data["observations"]},sort_keys=True))
+          PY
       - name: Execute REAL SQL pair materialization, FS TRAIN, VALIDATION Rank-Resolve and 20 SQL repetitions
         working-directory: Solution
         env:
@@ -161,4 +189,5 @@ jobs:
           path: |
             Solution/.local/v9-physical-${{ matrix.profile }}/physical-fs-resolve-diagnostic.json
             Solution/.local/v9-physical-${{ matrix.profile }}/physical-source-resolve-3x3x3-TF0.csv
+            Solution/.local/v9-physical-${{ matrix.profile }}/field-quality-train-val.json
           if-no-files-found: ignore
