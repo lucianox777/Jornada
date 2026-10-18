@@ -1,3 +1,6 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
 using Jornada.Contracts;
 
 namespace Jornada.Linkage.Evaluation;
@@ -86,6 +89,128 @@ public static class V9SyntheticBaseFrequencyAudit
             Version, Status, "TRAIN", people.Count, train.Length,
             populationFrameFingerprint,
             Array.AsReadOnly(result.ToArray()));
+    }
+
+    /// <summary>
+    /// A strictly TRAIN-only, one-row-per-base-person frequency materialization
+    /// for the pinned 30k synthetic corpus. Observed-term frequencies are
+    /// conditional on that unit being present, not a SQL-candidate U estimate.
+    /// Value-level data is intended for an in-memory diagnostic only.
+    /// </summary>
+    public sealed record UnitFrequencyValue(
+        string NormalizedValue, int BaseIdentities, decimal FrequencyAmongPresent);
+
+    public sealed record MaterializedTrainUnitSnapshot(
+        string Version,
+        string Status,
+        string PopulationFrameFingerprint,
+        string InputBootstrapCorpusFingerprint,
+        string GeneratorVersion,
+        ulong GeneratorSeed,
+        string GenerationHypothesesFingerprint,
+        string Side,
+        NominalFrequencyUnitV9 Unit,
+        int CorpusBaseIdentities,
+        int TrainBaseIdentities,
+        int PresentTrainBaseIdentities,
+        int MissingTrainBaseIdentities,
+        int MinimumBaseOccurrences,
+        IReadOnlyList<UnitFrequencyValue> Frequencies,
+        string SnapshotFingerprintSha256);
+
+    public const string MaterializedVersion =
+        "V9_CANONICAL_30000_BASE_TRAIN_NOMINAL_FREQUENCIES_V1";
+    public const string MaterializedStatus =
+        "SYNTHETIC_TRAIN_DISTRIBUTION_NOT_SQL_U_NO_CERTIFICATION";
+
+    /// <summary>
+    /// Requires the full pinned 30k census, but only reads TRAIN names for
+    /// frequency. Other partitions contribute to census-completeness and
+    /// identity-leakage checks only. Pinned metadata is a caller assertion:
+    /// external source authentication is a distinct required step.
+    /// </summary>
+    public static MaterializedTrainUnitSnapshot MaterializeCanonicalTrainUnit(
+        IReadOnlyCollection<BasePerson> people,
+        string populationFrameFingerprint,
+        NominalSyntheticIbgeBootstrapV9 bootstrap,
+        string side,
+        NominalFrequencyUnitV9 unit,
+        int minimumBaseOccurrences = 1)
+    {
+        ArgumentNullException.ThrowIfNull(people);
+        ArgumentNullException.ThrowIfNull(bootstrap);
+        if (people.Count != CompositeNominalTermFrequencyContractV9.CanonicalBootstrapPeople
+            || bootstrap.People != CompositeNominalTermFrequencyContractV9.CanonicalBootstrapPeople
+            || bootstrap.Provenance != CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance
+            || string.IsNullOrWhiteSpace(populationFrameFingerprint)
+            || bootstrap.CorpusFingerprint != populationFrameFingerprint
+            || string.IsNullOrWhiteSpace(bootstrap.GeneratorVersion)
+            || string.IsNullOrWhiteSpace(bootstrap.GenerationHypothesesFingerprint)
+            || side is not ("PERSON" or "MOTHER")
+            || !Enum.IsDefined(unit)
+            || minimumBaseOccurrences < 1)
+            throw new InvalidDataException("Massa-base V9 exige 30 mil pessoas, bootstrap fixado, unidade e lado válidos.");
+
+        var rows = people.ToArray();
+        if (rows.Any(x => x is null || string.IsNullOrWhiteSpace(x.BasePersonId)
+                || x.Partition is not ("TRAIN" or "VALIDATION" or "TEST"))
+            || rows.Select(x => x.BasePersonId)
+                .Distinct(StringComparer.Ordinal).Count() != rows.Length)
+            throw new InvalidDataException("O censo sintético deve ter um registro por identidade-base e splits íntegros.");
+
+        var train = rows.Where(x => x.Partition == "TRAIN").ToArray();
+        if (train.Length == 0
+            || !rows.Any(x => x.Partition == "VALIDATION")
+            || !rows.Any(x => x.Partition == "TEST"))
+            throw new InvalidDataException("O corpus de 30 mil deve manter TRAIN, VALIDATION e TEST.");
+        if (minimumBaseOccurrences > train.Length)
+            throw new InvalidDataException("Suporte mínimo excede todo o TRAIN sintético.");
+
+        var normalized = train.Select(x => new
+        {
+            x.BasePersonId,
+            UnitValue = Project(side == "PERSON" ? x.Name : x.MotherName, unit)
+        }).OrderBy(x => x.BasePersonId, StringComparer.Ordinal).ToArray();
+        var present = normalized.Where(x => x.UnitValue is not null).ToArray();
+        if (present.Length == 0)
+            throw new InvalidDataException("Unidade sem valores observados no TRAIN.");
+
+        var observed = present.GroupBy(x => x.UnitValue!, StringComparer.Ordinal)
+            .OrderBy(x => x.Key, StringComparer.Ordinal)
+            .Select(x => new UnitFrequencyValue(
+                x.Key, x.Count(), decimal.Divide(x.Count(), present.Length)))
+            .ToArray();
+        var retained = observed.Where(x => x.BaseIdentities >= minimumBaseOccurrences)
+            .ToArray();
+        if (retained.Length == 0)
+            throw new InvalidDataException("Sem frequência nominal com suporte TRAIN suficiente.");
+
+        // Hash normalized TRAIN observations (including suppressed values),
+        // not just the public-looking marginal counts. Thus two different
+        // training assignments with identical histograms cannot silently
+        // reuse the same evidence fingerprint.
+        var identity = JsonSerializer.Serialize(new
+        {
+            Version = MaterializedVersion,
+            Frame = populationFrameFingerprint,
+            bootstrap.GeneratorVersion,
+            bootstrap.GeneratorSeed,
+            bootstrap.GenerationHypothesesFingerprint,
+            Side = side,
+            Unit = unit.ToString(),
+            MinSupport = minimumBaseOccurrences,
+            Training = normalized,
+            Retained = retained
+        });
+        var digest = Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(identity))).ToLowerInvariant();
+        return new MaterializedTrainUnitSnapshot(
+            MaterializedVersion, MaterializedStatus, populationFrameFingerprint,
+            bootstrap.CorpusFingerprint, bootstrap.GeneratorVersion,
+            bootstrap.GeneratorSeed, bootstrap.GenerationHypothesesFingerprint,
+            side, unit, rows.Length, train.Length, present.Length,
+            train.Length - present.Length, minimumBaseOccurrences,
+            Array.AsReadOnly(retained), digest);
     }
 
     /// <summary>

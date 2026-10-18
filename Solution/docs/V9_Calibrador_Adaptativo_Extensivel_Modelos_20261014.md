@@ -303,3 +303,37 @@ seleção adaptativa sob risco FDR por grupos, decisão final
 Rank/Resolve, P95/P99 e TEST novo lacrado são exigências distintas.
 A versão V2 continua `PREVIEW` e não altera `GENERATE_DRAFT`,
 modelos publicados ou a V8/Gold.
+
+
+## Materialização de frequências por identidade-base sintética (18/10/2026)
+
+O censo `V9SyntheticBaseFrequencyAudit` passa a oferecer
+`MaterializeCanonicalTrainUnit` para recuperar **valores normalizados
+com frequências** da massa-base sintética completa de 30.000 identidades,
+sem duplicar pessoas pela quantidade de registros ou de candidatos.
+A entrada exige uma identidade única por pessoa, declaração fixada
+`SINTETICO_IBGE` (corpus, gerador, seed e hipóteses), 30 mil
+identidades e partições distintas TRAIN/VALIDATION/TEST.
+
+**Somente nomes de pessoas TRAIN** alimentam a contagem; os demais
+splits participam exclusivamente da verificação estrutural do universo.
+As quatro unidades `FullName`, `FirstLastJoint`, `FirstName` e
+`LastContentSurname` são contadas diretamente, sem multiplicar
+marginais nem usar o nome de mãe como se fosse o nome da pessoa.
+O lado `MOTHER` é medido em distribuição separada. `f(value)`
+usa como denominador o número de bases TRAIN **com essa unidade
+efetivamente observada**, expondo separadamente os casos ausentes;
+valores abaixo do suporte mínimo podem ser suprimidos, **sem
+renormalizar** as frequências restantes ou inferir frequência zero.
+A materialização conserva um digest estável que incorpora o mapa
+TRAIN de identidade-base → valor normalizado, inclusive termos
+suprimidos, além de versão, parâmetros e fonte declarada.
+
+Essa é uma **distribuição empírica do bootstrap sintético em TRAIN**,
+não a estimativa `U` condicionada ao SQL nem a TF do IBGE real:
+o scorer usa a fonte TF fixada e o `U` do mesmo universo comparativo
+como contratos diferentes. O digest é prova de consistência interna,
+**não autenticação externa** do corpus ou da amostragem; declarar
+30 mil pessoas não demonstra por si só que o tamanho é suficiente
+para nomes raros, caudas, FDR ou produção. O método não altera o
+Rank/Resolve, não lê rótulos TEST e não ativa a V9.

@@ -60,6 +60,119 @@ public sealed class V9SyntheticBaseFrequencyAuditTests
         Assert.That(changed.Units, Is.EqualTo(baseline.Units));
     }
 
+    private static V9SyntheticBaseFrequencyAudit.BasePerson[] Full30kCorpus() =>
+        Enumerable.Range(0, 30_000).Select(i => new V9SyntheticBaseFrequencyAudit.BasePerson(
+            $"BASE-{i:00000}", i < 20_000 ? "TRAIN" : i < 25_000 ? "VALIDATION" : "TEST",
+            i == 0 ? "Maria Aparecida Silva"
+            : i == 1 ? "Maria Cecilia Silva"
+            : i == 2 ? "Maria Silva" : "Joana Costa",
+            i % 7 == 0 ? null : "Ana Souza")).ToArray();
+
+    private static NominalSyntheticIbgeBootstrapV9 FullBootstrap() => new(
+        CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance,
+        30_000, "CORPUS_30K_PINNED", "GENERATOR_V1", 42UL, "HYPOTHESES_SHA");
+
+    [Test]
+    public void Canonical_30k_materialization_counts_one_train_base_per_exact_unit()
+    {
+        var people = Full30kCorpus();
+        V9SyntheticBaseFrequencyAudit.MaterializedTrainUnitSnapshot Snapshot(
+            NominalFrequencyUnitV9 unit, int min = 1) =>
+            V9SyntheticBaseFrequencyAudit.MaterializeCanonicalTrainUnit(
+                people, "CORPUS_30K_PINNED", FullBootstrap(),
+                "PERSON", unit, min);
+
+        var full = Snapshot(NominalFrequencyUnitV9.FullName);
+        var firstLast = Snapshot(NominalFrequencyUnitV9.FirstLastJoint);
+        var first = Snapshot(NominalFrequencyUnitV9.FirstName);
+        var last = Snapshot(NominalFrequencyUnitV9.LastContentSurname);
+        var fullMaria = full.Frequencies.Single(x => x.NormalizedValue == "MARIA APARECIDA SILVA");
+        var jointMaria = firstLast.Frequencies.Single(x => x.NormalizedValue == "MARIA|SILVA");
+        var firstMaria = first.Frequencies.Single(x => x.NormalizedValue == "MARIA");
+        var lastSilva = last.Frequencies.Single(x => x.NormalizedValue == "SILVA");
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(full.CorpusBaseIdentities, Is.EqualTo(30_000));
+            Assert.That(full.TrainBaseIdentities, Is.EqualTo(20_000));
+            Assert.That(full.PresentTrainBaseIdentities, Is.EqualTo(20_000));
+            Assert.That(full.MissingTrainBaseIdentities, Is.Zero);
+            Assert.That(fullMaria.BaseIdentities, Is.EqualTo(1));
+            Assert.That(jointMaria.BaseIdentities, Is.EqualTo(3));
+            Assert.That(firstMaria.BaseIdentities, Is.EqualTo(3));
+            Assert.That(lastSilva.BaseIdentities, Is.EqualTo(3));
+            Assert.That(firstMaria.FrequencyAmongPresent, Is.EqualTo(3m / 20_000m));
+            Assert.That(fullMaria.FrequencyAmongPresent, Is.EqualTo(1m / 20_000m));
+            Assert.That(full.SnapshotFingerprintSha256, Has.Length.EqualTo(64));
+            Assert.That(full.Status, Is.EqualTo(
+                V9SyntheticBaseFrequencyAudit.MaterializedStatus));
+        }));
+        var supported = Snapshot(NominalFrequencyUnitV9.FirstName, min: 5);
+        Assert.That(supported.Frequencies.Any(x => x.NormalizedValue == "MARIA"), Is.False);
+        Assert.That(supported.Frequencies.Single().NormalizedValue, Is.EqualTo("JOANA"));
+        Assert.That(supported.Frequencies.Single().FrequencyAmongPresent,
+            Is.EqualTo(19_997m / 20_000m));
+    }
+
+    [Test]
+    public void Nominal_snapshot_sha_binds_train_identities_not_only_term_histogram()
+    {
+        var people = Full30kCorpus();
+        V9SyntheticBaseFrequencyAudit.MaterializedTrainUnitSnapshot Snapshot() =>
+            V9SyntheticBaseFrequencyAudit.MaterializeCanonicalTrainUnit(
+                people, "CORPUS_30K_PINNED", FullBootstrap(),
+                "PERSON", NominalFrequencyUnitV9.FullName);
+
+        var before = Snapshot();
+        // VALIDATION/TEST cannot contribute to a TRAIN-only marginal.
+        people[20_000] = people[20_000] with { Name = "CHANGED VAL" };
+        people[25_000] = people[25_000] with { Name = "CHANGED TEST" };
+        Assert.That(Snapshot().SnapshotFingerprintSha256,
+            Is.EqualTo(before.SnapshotFingerprintSha256));
+
+        // Swapping two TRAIN identities keeps histogram/term frequencies
+        // identical, but the source-person assignment must change the SHA.
+        (people[0], people[3]) = (
+            people[0] with { Name = people[3].Name },
+            people[3] with { Name = people[0].Name });
+        var after = Snapshot();
+        Assert.That(after.Frequencies, Is.EqualTo(before.Frequencies));
+        Assert.That(after.SnapshotFingerprintSha256,
+            Is.Not.EqualTo(before.SnapshotFingerprintSha256));
+        var reordered = people.Reverse().ToArray();
+        var replay = V9SyntheticBaseFrequencyAudit.MaterializeCanonicalTrainUnit(
+            reordered, "CORPUS_30K_PINNED", FullBootstrap(),
+            "PERSON", NominalFrequencyUnitV9.FullName);
+        Assert.That(replay.SnapshotFingerprintSha256,
+            Is.EqualTo(after.SnapshotFingerprintSha256));
+    }
+
+    [Test]
+    public void Canonical_bootstrap_rejects_incomplete_split_wrong_hash_duplicate_and_fake_support()
+    {
+        var people = Full30kCorpus();
+        void Reject(
+            V9SyntheticBaseFrequencyAudit.BasePerson[] source,
+            string frame, NominalSyntheticIbgeBootstrapV9 bootstrap,
+            string side = "PERSON", int min = 1) =>
+            Assert.That((Action)(() => V9SyntheticBaseFrequencyAudit.MaterializeCanonicalTrainUnit(
+                source, frame, bootstrap, side,
+                NominalFrequencyUnitV9.FirstName, min)),
+                Throws.TypeOf<InvalidDataException>());
+
+        Reject(people[..^1], "CORPUS_30K_PINNED", FullBootstrap());
+        Reject(people, "UNMATCHED_FRAME", FullBootstrap());
+        Reject(people, "CORPUS_30K_PINNED", FullBootstrap() with { People = 29_999 });
+        Reject(people, "CORPUS_30K_PINNED", FullBootstrap() with { Provenance = "OBSERVED" });
+        Reject(people, "CORPUS_30K_PINNED", FullBootstrap(), side: "OTHER");
+        Reject(people, "CORPUS_30K_PINNED", FullBootstrap(), min: 20_001);
+        var copied = people.ToArray();
+        copied[29_999] = copied[0] with { Partition = "TEST" };
+        Reject(copied, "CORPUS_30K_PINNED", FullBootstrap());
+        copied = people.Select(x => x.Partition == "TEST"
+            ? x with { Partition = "VALIDATION" } : x).ToArray();
+        Reject(copied, "CORPUS_30K_PINNED", FullBootstrap());
+    }
+
     [Test]
     public void Duplicate_base_or_wrong_split_fails_closed()
     {
