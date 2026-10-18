@@ -337,3 +337,30 @@ como contratos diferentes. O digest é prova de consistência interna,
 30 mil pessoas não demonstra por si só que o tamanho é suficiente
 para nomes raros, caudas, FDR ou produção. O método não altera o
 Rank/Resolve, não lê rótulos TEST e não ativa a V9.
+
+
+## SQL físico: P95/P99 repetidos no próprio probe adaptativo (18/10/2026)
+
+O `V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync` pode agora
+receber `repeatedSqlMaterializationRuns` explicitamente: **0
+(desabilitado por padrão) ou 20..100 execuções reais**. A coleta
+ocorre somente depois da primeira materialização SQL e da
+verificação da cardinalidade; chama o método existente
+`RepeatPhysicalMaterializationAsync` usando **a mesma conexão,
+o mesmo ruleset e a mesma sessão efêmera JornadaHarness**.
+Cada execução recria a união física, recompõe o índice e confere
+o número de pares distintos. Divergência de cardinalidade,
+amostras não finitas, domínio inválido ou tentativa de usar TEST
+provocam falha fechada.
+
+Quando requisitado, o resultado contém
+`RepeatedSqlMaterializationQuantiles` calculado com
+`V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds`:
+contagem de execuções, P95 e P99 por nearest-rank e máximo.
+O P95/P99 de **materializar candidatos SQL** não é latência
+de `Rank/Resolve`, de consulta de usuário, de pipeline completo,
+nem garantia sob carga operacional. A medição inicial
+`PhysicalSqlTimings` de cinco **fases distintas** continua separada,
+pois cinco fases não são cinco repetições independentes. Essa
+opção não cria orçamento operacional, não liga ativação e não
+modifica as probabilidades ou a busca FS V9.
