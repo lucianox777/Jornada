@@ -93,12 +93,20 @@ jobs:
           assert d['fdr_after_resolve_measured'] is True
           assert d['test_used'] is False
           assert d['ValidationEligibleTruePairsBeforeBlocking']>=d['ValidationTruePairsRecoveredBySql']
-          assert len(d['final_resolve_options'])==3
-          assert all(x['FinalRankResolveEvaluated'] is True for x in d['final_resolve_options'])
-          assert all(x['OperationallyCertified'] is False for x in d['final_resolve_options'])
+          assert len(d['legacy_directed_pair_denominator_options'])==3
+          assert len(d['source_resolve_options'])==18
+          assert all(x['OperationallyCertified'] is False for x in d['source_resolve_options'])
+          assert len({(x['Threshold'],x['ConflictMargin'],x['CandidateGrouping']) for x in d['source_resolve_options']})==18
+          assert {x['Threshold'] for x in d['source_resolve_options']}=={0.99,0.999,0.9999}
+          assert {x['ConflictMargin'] for x in d['source_resolve_options']}=={0,0.5,2}
+          assert all(x['TfWeight']==0 for x in d['source_resolve_options'])
+          assert all(x['TrueAcceptedSourceObservations']<=x['EligibleSourceObservationsWithTrueSqlCandidate']<=x['EligibleSourceObservationsBeforeBlocking'] for x in d['source_resolve_options'])
+          assert all(x['TrueAcceptedSourceObservations']+x['FalseAcceptedSourceObservations']+x['Conflicts']+x['Unresolved']==x['AllValidationObservations'] for x in d['source_resolve_options'])
+          assert {x['SyntheticGoldOracleGrouping'] for x in d['source_resolve_options']}=={False,True}
+          assert d['candidate_grouping_oracle_uses_truth_labels'] is True
           print('Real SQL plus final Rank-Resolve measured; HML/TEST certification NOT claimed')
           PY
-      - name: Export measured, unambiguous 3x1 TF0 diagnostic CSV (NOT a completed 3x2 table)
+      - name: Export PHYSICAL source-observation recall and synthetic Gold oracle sensitivity
         working-directory: Solution
         env:
           PROFILE: ${{ matrix.profile }}
@@ -109,25 +117,30 @@ jobs:
           root=Path('.local/v9-physical-'+os.environ['PROFILE'])
           source=json.loads((root/'physical-fs-resolve-diagnostic.json').read_text())
           rows=[]
-          for measured in source['final_resolve_options']:
-              assert measured['TfWeight']==0 and measured['FinalRankResolveEvaluated']
-              eligible=measured['EligibleDirectedTrueLinksBeforeBlocking']
-              sql_true=measured['RecoveredDirectedTrueLinksBySql']
-              tp,fp=measured['TrueAcceptedDirectedLinks'],measured['FalseAcceptedDirectedLinks']
-              assert 0<=tp<=sql_true<=eligible and eligible>0
+          for result in source['source_resolve_options']:
+              eligible=result['EligibleSourceObservationsBeforeBlocking']
+              sql_sources=result['EligibleSourceObservationsWithTrueSqlCandidate']
+              tp=result['TrueAcceptedSourceObservations']
+              fp=result['FalseAcceptedSourceObservations']
+              assert 0<=tp<=sql_sources<=eligible and eligible>0
               rows.append(dict(
-                  profile=source['profile'],threshold=measured['Threshold'],tf_weight=0,
-                  eligible_true=eligible,sql_true=sql_true,tp=tp,fp=fp,
-                  blocking_recall=measured['BlockingRecall'],
-                  global_recall=measured['GlobalRecall'],
-                  fdr_after_resolve=measured['FdrAfterResolve'],
-                  hoeffding_upper_by_identity=measured['HoeffdingUpperBySourceBaseIdentity'],
-                  conflict=measured['Conflicts'],unresolved=measured['Unresolved'],
+                  profile=source['profile'], threshold=result['Threshold'],
+                  margin=result['ConflictMargin'],tf_weight=result['TfWeight'],
+                  candidate_grouping=result['CandidateGrouping'],
+                  oracle_truth_based_grouping=result['SyntheticGoldOracleGrouping'],
+                  eligible_sources=eligible,sql_true_sources=sql_sources,
+                  tp_sources=tp,fp_sources=fp,
+                  source_blocking_recall=result['BlockingSourceRecall'],
+                  global_source_recall=result['GlobalSourceRecall'],
+                  fdr_after_resolve=result['FdrAfterResolve'],
+                  hoeffding_upper_by_identity=result['HoeffdingUpperBySourceBaseIdentity'],
+                  conflict=result['Conflicts'],unresolved=result['Unresolved'],
+                  resolve_reasons=json.dumps(result['ReasonsByResolveStatus'],sort_keys=True),
                   sql_p95_ms=source['RepeatedSqlMaterializationQuantiles']['P95Milliseconds'],
-                  evidence_status='MEASURED_SYNTHETIC_PHYSICAL_SQL_3x1_TF0_NOT_CERTIFIED',
+                  status='MEASURED_SQL_SYNTHETIC_SOURCE_DIAGNOSTIC_TF0_NOT_OPERATIONAL',
                   input_sha256=source['synthetic_input_sha256']))
-          assert len(rows)==3
-          path=root/'physical-resolve-partial-3x1.csv'
+          assert len(rows)==18
+          path=root/'physical-source-resolve-3x3x2-TF0.csv'
           with path.open('x',newline='') as stream:
               writer=csv.DictWriter(stream,fieldnames=list(rows[0]))
               writer.writeheader()
@@ -141,5 +154,5 @@ jobs:
           name: v9-physical-30k-seed42-${{ matrix.profile }}-resolve-diagnostic
           path: |
             Solution/.local/v9-physical-${{ matrix.profile }}/physical-fs-resolve-diagnostic.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/physical-resolve-partial-3x1.csv
+            Solution/.local/v9-physical-${{ matrix.profile }}/physical-source-resolve-3x3x2-TF0.csv
           if-no-files-found: ignore
