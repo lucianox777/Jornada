@@ -49,9 +49,30 @@ public sealed class V9BootstrapCandidateEvidenceConfigTests
             .EnumerateArray().Select(x => x.GetString()).ToArray();
         Assert.That(cleanPasses, Is.EqualTo(new[] { "P_PHON_M_LAST", "P_PREFIX3_DOB" }));
         Assert.That(clean.GetProperty("signatureComplete").GetBoolean(), Is.True);
-        Assert.That(correlated.GetProperty("signatureComplete").GetBoolean(), Is.False);
+        Assert.That(correlated.GetProperty("signatureComplete").GetBoolean(), Is.True);
         Assert.That(correlated.GetProperty("selectedPassCount").GetInt32(), Is.EqualTo(9));
-        Assert.That(correlated.GetProperty("selectedPassIds").GetArrayLength(), Is.Zero);
+        Assert.That(correlated.GetProperty("selectedPassIds")
+            .EnumerateArray().Select(x => x.GetString()).ToArray(), Is.EqualTo(new[]
+            {
+                "P_PHON_BIRTH_YEAR", "P_LAST_M_PHON", "P_PREFIX3_M_PREFIX3",
+                "P_PREFIX3_M_LAST", "P_FIRST_DOB_MONTHDAY",
+                "P_ANY_BIRTH_YEAR", "P_ANY_DOB_MONTHDAY",
+                "P_PREFIX3_BIRTH_YEAR", "P_LAST_M_FIRST"
+            }));
+        var source = root.GetProperty("sourceEvidence");
+        Assert.That(source.GetProperty("runId").GetInt64(), Is.EqualTo(38628254862L));
+        Assert.That(source.GetProperty("artifactId").GetInt64(), Is.EqualTo(11926175227L));
+        foreach (var candidate in candidates)
+        {
+            Assert.That(candidate.GetProperty("canonicalSha256").GetString(), Has.Length.EqualTo(64));
+            Assert.That(candidate.GetProperty("manifestSha256").GetString(), Has.Length.EqualTo(64));
+            Assert.That(candidate.GetProperty("sourceReportSha256").GetString(), Has.Length.EqualTo(64));
+            Assert.That(candidate.GetProperty("selectedPassCount").GetInt32(),
+                Is.EqualTo(candidate.GetProperty("selectedPassIds").GetArrayLength()));
+            Assert.That(candidate.GetProperty("train").GetProperty("p99FalseCandidateDegree").GetInt32(),
+                Is.GreaterThanOrEqualTo(candidate.GetProperty("train")
+                    .GetProperty("p95FalseCandidateDegree").GetInt32()));
+        }
         Assert.That(clean.GetProperty("train").GetProperty("recoveredM").GetInt32(),
             Is.EqualTo(19630));
         Assert.That(clean.GetProperty("train").GetProperty("returnedFalseCandidatesU").GetInt32(),
@@ -78,7 +99,8 @@ public sealed class V9BootstrapCandidateEvidenceConfigTests
         var prerequisites = root.GetProperty("missingForApproval")
             .EnumerateArray().Select(x => x.GetString()).ToArray();
         Assert.That(prerequisites, Does.Contain("NEW_UNSEEN_SEALED_TEST"));
-        Assert.That(prerequisites, Does.Contain("COMPLETE_CORRELATED_PASS_ORDER_AND_SIGNATURE"));
+        Assert.That(prerequisites, Does.Not.Contain("COMPLETE_CORRELATED_PASS_ORDER_AND_SIGNATURE"));
+        Assert.That(prerequisites, Does.Contain("CONDITIONED_SQL_TRAIN_M_U_PRIOR_AND_TF_SAME_UNIT"));
         var historical = root.GetProperty("historicalMeasurementWarning");
         Assert.That(historical.GetProperty("currentReplacementCertified").GetBoolean(), Is.False);
         Assert.That(historical.GetProperty("correctedCauseIndependentlyVerified").GetBoolean(),
