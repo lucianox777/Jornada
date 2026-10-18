@@ -1,3 +1,5 @@
+> **ENCERRADO COMO FRENTE ATIVA (18/10):** o estudo clean versus correlated abaixo é evidência **histórica**, com hashes/runs preservados. Nenhum novo teste automático correlated deve orientar bootstrap, seleção ou meta de recall. Referência atual: [resultados físicos clean e decisões](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md). A antiga frase “SQL Server físico sem medição” descreve **somente o experimento SQLite daquela época**, não os runs SQL Server de 18/10.
+
 # V9 — comparação real do bloqueio SQL sob cenários clean e correlated
 
 Amplia o diagnóstico de proveniência dos **18%** com experimento

@@ -1,3 +1,5 @@
+> **Leitura histórica (14/10):** a ordem P0/P1/P2 original foi parcialmente superada pelo [resultado físico real e decisões 18/10](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md). Novos testes correlated e repetição dos 16 braços antigos **não** são prioridade atual; corrigir margem entre identidades, seletor final pós-Resolve e TF compatível usando **clean**.
+
 # V9 — revisão de qualidade: testes, blocking, calibrador e seletor (2026-10-14)
 
 Status: recomendações técnicas e critérios de aceite; **não representam funcionalidades já implementadas**.

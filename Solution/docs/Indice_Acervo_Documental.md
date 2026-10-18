@@ -1,3 +1,5 @@
+> **Auditoria superveniente de 18/10/2026:** [auditoria V9 e últimos runners](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md). A decisão atual é **bootstrap inicial do calibrador V9 somente com o corpus sintético clean**, parâmetros **não definitivos**, e `correlated` preservado **exclusivamente para histórico**. Foram executados SQL Server físico sintético e Rank→Resolve por fonte na PR #1152; **não equivalem** a Gold operacional, FDR certificada, novo TEST ou HML real. A PR #1152 é trabalho de branch até merge comprovado; CI verde não promove V9.
+
 # Índice vivo atualizado — 09/10/2026
 
 **Trilha editorial desta atualização:** [Revisão transversal de 09/10/2026](Revisao_Documental_Integral_20261009.md), sem reclassificação retroativa de releases/artefatos selados.
