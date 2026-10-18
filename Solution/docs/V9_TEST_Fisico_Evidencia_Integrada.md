@@ -111,3 +111,40 @@ a veracidade do mapeamento ou a independência entre grupos.
 `OperationallyCertified` permanece sempre `false`. A execução
 física integral, o exportador de proveniência assinado, a validade
 das hipóteses do limite e o TEST lacrado ainda precisam ser comprovados.
+
+
+## Ponte dos resultados gravados do Runner → avaliador independente (18/10/2026)
+
+O novo `V9RecordedRunnerOutcomeBridge.Bind` recebe resultados
+`ProbabilisticLinkageDecision` **já calculados após os guards do
+Runner C#**, com identificação do run/modelo, fingerprint da observação
+e da identidade-base e um mapeamento completo
+`CandidatePersonUuid → CandidateFingerprintSha256 + posterior`.
+Recebe **separadamente** a moldura de avaliação
+`IndependentResolutionObservation` com rótulos externos de verdade.
+Não calcula novos scores, não refaz `Resolve` a partir de posteriores,
+não usa o gabarito para escolher candidato e **não modifica** decisões.
+
+Antes de exportar `IndependentRecordedOutcome` e
+`V9RecordedBaseObservation`, exige cobertura observação-a-observação,
+run/modelo não vazios, declaração explícita de universo SQL completo,
+ausência de duplicatas, correspondência **integral** dos candidatos e
+seus posteriores com a moldura independente, SHA válido para fonte e
+identidade-base, modelo exato, coerência entre UUID e fingerprints de
+melhor/segundo/resolvido, score registrado e status final
+`RESOLVIDO`, `CONFLITO`, `NAO_RESOLVIDO`.
+O relatório resultante **não exporta UUIDs/nomes/verdade de vínculo**;
+só fingerprints, status, motivos, IDs de run/modelo e mapeamento
+observação→base. Ordenação determinística garante reprodução.
+
+Essa ponte pode alimentar diretamente
+`IndependentResolutionEvaluator.EvaluateRecorded` e
+`V9RecordedClusterFdrValidation.Evaluate`, sem reconstruir o
+resultado dos limiares. **Limitação importante:** a função pura
+não prova que o chamador realmente capturou esses dados de uma
+execução HML autenticada, que o SQL não usou `TOP N`, ou que os
+rótulos independentes, amostragem das bases e cap estatístico são
+válidos. Não altera o Runner operacional nem publica/ativa V9.
+`OperationallyCertified=false` é incondicional; falta integrar
+o exportador a uma execução HML genuína, com atestação do mesmo
+run/modelo/ruleset e TEST lacrado.
