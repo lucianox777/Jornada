@@ -147,6 +147,57 @@ public sealed class V9SyntheticBaseFrequencyAuditTests
     }
 
     [Test]
+    public void Physical_sql_evidence_exports_eight_reconciled_hashes_without_pii_or_test_labels()
+    {
+        var people = Full30kCorpus();
+        var audit = V9SyntheticBaseFrequencyAudit.Analyze(people, "CORPUS_30K_PINNED");
+        var snapshots = V9SyntheticBaseFrequencyAudit.MaterializePhysicalEvidence(
+            people, "CORPUS_30K_PINNED", FullBootstrap(), audit);
+        Assert.That(snapshots, Has.Count.EqualTo(8));
+        Assert.That(snapshots.Select(x => (x.Side, x.Unit)).Distinct().Count(),
+            Is.EqualTo(8));
+        foreach (var item in snapshots)
+        {
+            var aggregate = audit.Units.Single(x => x.Side == item.Side && x.Unit == item.Unit);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(item.CorpusBaseIdentities, Is.EqualTo(30_000));
+                Assert.That(item.TrainBaseIdentities, Is.EqualTo(20_000));
+                Assert.That(item.PresentTrainBaseIdentities,
+                    Is.EqualTo(aggregate.PresentTrainingBasePeople));
+                Assert.That(item.MissingTrainBaseIdentities,
+                    Is.EqualTo(aggregate.MissingTrainingBasePeople));
+                Assert.That(item.DistinctRetainedValues,
+                    Is.EqualTo(aggregate.DistinctValues));
+                Assert.That(item.SnapshotFingerprintSha256, Has.Length.EqualTo(64));
+            }));
+        }
+        var names = System.Text.Json.JsonSerializer.Serialize(snapshots);
+        Assert.That(names, Does.Not.Contain("MARIA"));
+        Assert.That(names, Does.Not.Contain("JOANA"));
+        Assert.That(names, Does.Not.Contain("BASE-"));
+
+        var fraud = audit with { TrainingBasePeople = audit.TrainingBasePeople - 1 };
+        void Reject(V9SyntheticBaseFrequencyAudit.Report changed) =>
+            Assert.That((Action)(() => V9SyntheticBaseFrequencyAudit.MaterializePhysicalEvidence(
+                people, "CORPUS_30K_PINNED", FullBootstrap(), changed)),
+                Throws.TypeOf<InvalidDataException>());
+        Reject(fraud);
+        Reject(audit with { Status = "APPROVED" });
+        var first = audit.Units[0];
+        Reject(audit with { Units = audit.Units
+            .Select((x, i) => i == 0 ? x with { LargestValueCount = x.LargestValueCount - 1 } : x)
+            .ToArray() });
+        Reject(audit with { Units = audit.Units
+            .Select((x, i) => i == 0 ? x with { SingletonValues = x.SingletonValues + 1 } : x)
+            .ToArray() });
+        Reject(audit with { Units = audit.Units
+            .Select((x, i) => i == 0 ? x with { LargestValueShare = 0m } : x)
+            .ToArray() });
+        Reject(audit with { Units = audit.Units.Select((x, i) => i == 1 ? first : x).ToArray() });
+    }
+
+    [Test]
     public void Canonical_bootstrap_rejects_incomplete_split_wrong_hash_duplicate_and_fake_support()
     {
         var people = Full30kCorpus();

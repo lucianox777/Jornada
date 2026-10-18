@@ -214,6 +214,69 @@ public static class V9SyntheticBaseFrequencyAudit
     }
 
     /// <summary>
+    /// Bounded, PII-free evidence exported by the real physical SQL probe.
+    /// Source values remain local and only sha256 + aggregate counts leave
+    /// this method. Both observations and term frequencies come exclusively
+    /// from the synthetic TRAIN base identities, not candidate-pair endpoints.
+    /// </summary>
+    public sealed record MaterializedUnitEvidence(
+        string Side,
+        NominalFrequencyUnitV9 Unit,
+        string SnapshotFingerprintSha256,
+        int CorpusBaseIdentities,
+        int TrainBaseIdentities,
+        int PresentTrainBaseIdentities,
+        int MissingTrainBaseIdentities,
+        int DistinctRetainedValues,
+        int MinimumBaseOccurrences);
+
+    public static IReadOnlyList<MaterializedUnitEvidence> MaterializePhysicalEvidence(
+        IReadOnlyCollection<BasePerson> people,
+        string populationFrameFingerprint,
+        NominalSyntheticIbgeBootstrapV9 bootstrap,
+        Report audit)
+    {
+        ArgumentNullException.ThrowIfNull(audit);
+        if (people is null || audit.Version != Version || audit.Status != Status
+            || audit.Partition != "TRAIN"
+            || audit.PopulationFrameFingerprint != populationFrameFingerprint
+            || audit.CorpusBasePeople != people.Count
+            || audit.TrainingBasePeople != people.Count(x => x.Partition == "TRAIN")
+            || audit.Units is null || audit.Units.Count != 8
+            || audit.Units.Any(x => x is null
+                || x.Side is not ("PERSON" or "MOTHER") || !Enum.IsDefined(x.Unit))
+            || audit.Units.Select(x => (x.Side, x.Unit)).Distinct().Count() != 8)
+            throw new InvalidDataException("Auditoria base e manifesto do probe físico não coincidem.");
+        var evidence = new List<MaterializedUnitEvidence>(8);
+        foreach (var side in new[] { "PERSON", "MOTHER" })
+        foreach (var unit in Enum.GetValues<NominalFrequencyUnitV9>())
+        {
+            var snapshot = MaterializeCanonicalTrainUnit(
+                people, populationFrameFingerprint, bootstrap, side, unit);
+            var aggregate = audit.Units.Single(x => x.Side == side && x.Unit == unit);
+            var counts = snapshot.Frequencies.Select(x => x.BaseIdentities).ToArray();
+            var largest = counts.Max();
+            if (snapshot.TrainBaseIdentities != aggregate.TrainingBasePeople
+                || snapshot.PresentTrainBaseIdentities != aggregate.PresentTrainingBasePeople
+                || snapshot.MissingTrainBaseIdentities != aggregate.MissingTrainingBasePeople
+                || snapshot.Frequencies.Count != aggregate.DistinctValues
+                || counts.Count(x => x == 1) != aggregate.SingletonValues
+                || counts.Count(x => x >= 5) != aggregate.ValuesObservedAtLeastFiveBases
+                || counts.Where(x => x >= 5).Sum() != aggregate.BasesCoveredByValuesObservedAtLeastFive
+                || largest != aggregate.LargestValueCount
+                || (decimal)largest / snapshot.PresentTrainBaseIdentities != aggregate.LargestValueShare)
+                throw new InvalidDataException(
+                    "Snapshot TF da massa-base divergiu dos agregados canônicos TRAIN.");
+            evidence.Add(new MaterializedUnitEvidence(
+                side, unit, snapshot.SnapshotFingerprintSha256,
+                snapshot.CorpusBaseIdentities, snapshot.TrainBaseIdentities,
+                snapshot.PresentTrainBaseIdentities, snapshot.MissingTrainBaseIdentities,
+                snapshot.Frequencies.Count, snapshot.MinimumBaseOccurrences));
+        }
+        return Array.AsReadOnly(evidence.ToArray());
+    }
+
+    /// <summary>
     /// Identical logical nominal units to CompositeNominalTfPreviewEvaluatorV9.
     /// FullName includes middle names and agnomes; first+last is a JOINT
     /// observed key, never the product of two marginals.
