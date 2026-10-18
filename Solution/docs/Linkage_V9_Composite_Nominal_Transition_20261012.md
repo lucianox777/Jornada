@@ -183,3 +183,34 @@ O contrato versionado de entrada controla a obrigatoriedade dos atributos: **nen
 No preview V9, uma estratégia **de nascimento explicitamente declarada** (semântica V5, conjunta V4, data única V3 ou componentes V2) requer toda a sua distribuição M/U, mesmo quando o par específico não possui datas de nascimento. Falta de parâmetro obrigatório não pode virar LLR zero. A ausência de **atributo na Pessoa** continua permitida conforme o contrato da origem, e seu tratamento estatístico segue a regra de evidência/ausência. O scorer histórico permanece intocado para replay V1–V8.
 
 O diagnóstico ponderado FS V9 agora inclui `ObservedJointSupport`, relatório de 81 células M/U e TRAIN/EVALUATION com **contagens observadas**, ESS e grupos por classe, e frações de massa ponderada nas células rarefeitas. É somente descrição da amostra já processada; **não indica que as 30.000 pessoas canônicas foram de fato executadas**, que as células estão independentes ou que a V9 passou DT-15. O objetivo é fornecer uma medição reprodutível antes de deliberar aumento de N, colapso de níveis ou política de abstenção. [Parecer de suficiência](Parecer_Suficiencia_Bootstrap_30mil_V9_20261012.md).
+
+
+## Ranking V9 com TF por candidato no scorer real — 18/10/2026
+
+A API interna de desenvolvimento
+`ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview` agora aceita
+**opcionalmente** um provedor de `CompositeNominalTfPreviewV9` por par
+`observação × candidato`. O ranking aplica a correção no **mesmo**
+`FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewWithBreakdown`
+e preserva o desempate determinístico por UUID, o censo de candidatos,
+a deduplicação, a evidência de nascimento e a marca diagnóstica de
+colisão demográfica exata. Um provedor incompatível com o nível,
+a unidade ou o termo nominal é rejeitado pelo scorer, não convertido
+silenciosamente em TF neutra.
+
+O teste adversarial fixa uma tabela FS de 81 células com LLR nominal
+neutro e mostra que aplicar **peso TF = 1** a um prenome muito comum
+pode **mudar a ordem do ranking real**, enquanto uma opção sem TF
+mantém o empate pelo UUID. Outro teste exige que um candidato de
+**nome integral EXATO** permaneça acima de **HIGH integral**, quando
+nascimento e mãe são iguais e a tabela FS conjunta favorece o estado
+exato. A marginal IBGE de **prenome** não é aplicada indevidamente
+aos estados FullName ExactFull/HighFull.
+
+Esses testes são asserts de `CandidateScore` efetivo, e **não**
+impressão de valores. Não alteram `Rank` operacional V8,
+não executam `Resolve`, não publicam modelo e não comprovam que
+`TF=1` seja bom: o peso, a referência e a unidade devem vir
+do calibrador e de snapshots congelados. A comparação de TF com
+suporte m/u, FDR por identidades e TEST lacrado ainda é obrigatória
+antes da ativação V9.
