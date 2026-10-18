@@ -277,6 +277,151 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             IndependentlyLabeledIdentityGroups: groups);
     }
 
+
+    /// <summary>
+    /// Diagnostic source-observation Rank -> Resolve on both directions of the
+    /// COMPLETE physical SQL candidate union. Its true-link denominator is
+    /// TWICE the unordered cross-manager M-pair universe (directed arcs).
+    /// It uses the TRAIN-fitted 81-cell model with NO refit on VALIDATION.
+    /// The decision kernel is shared with operational Resolve, but this
+    /// synthetic evaluation is NOT a persisted Runner/HML run.
+    /// </summary>
+    internal IReadOnlyList<V9PhysicalFinalResolveMetric> EvaluatePostResolveValidation(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
+        IReadOnlyList<(int A, int B)> validationSqlPairs,
+        long eligibleUnorderedM, long recoveredUnorderedM,
+        decimal conflictMargin, int maximumAcceptedPerBaseIdentity)
+    {
+        ArgumentNullException.ThrowIfNull(observations);
+        ArgumentNullException.ThrowIfNull(validationSqlPairs);
+        if (eligibleUnorderedM <= 0 || recoveredUnorderedM < 0
+            || recoveredUnorderedM > eligibleUnorderedM
+            || conflictMargin < 0m || conflictMargin > 1000m
+            || maximumAcceptedPerBaseIdentity < 1)
+            throw new InvalidDataException("M ou política pós-Resolve inválidos.");
+
+        var validation = observations.Where(x => x.Partition == "VALIDATION")
+            .ToDictionary(x => x.ObservationId);
+        if (validation.Count < 2)
+            throw new InvalidDataException("VALIDATION precisa de observações.");
+        static Guid SyntheticCandidateId(int id) =>
+            new(id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+        var candidatesByGuid = validation.Values.ToDictionary(
+            x => SyntheticCandidateId(x.ObservationId));
+        var neighbors = validation.Keys.ToDictionary(x => x, _ => new HashSet<int>());
+        foreach (var (left, right) in validationSqlPairs)
+        {
+            if (left >= right || !validation.ContainsKey(left)
+                || !validation.ContainsKey(right)
+                || validation[left].Gestor == validation[right].Gestor
+                || !neighbors[left].Add(right) || !neighbors[right].Add(left))
+                throw new InvalidDataException("União SQL física duplicada, contaminada ou sem orientação canônica.");
+        }
+        if (validationSqlPairs.LongCount(x => validation[x.A].BasePersonId
+                == validation[x.B].BasePersonId) != recoveredUnorderedM)
+            throw new InvalidDataException("M SQL de VALIDATION divergiu das arestas lidas.");
+
+        var results = new List<V9PhysicalFinalResolveMetric>(options.Count);
+        foreach (var config in options.Values.OrderBy(x => x.OptionId, StringComparer.Ordinal))
+        {
+            var fitted = fits.Values.SingleOrDefault(x => x.OptionId == config.OptionId)
+                ?? throw new InvalidDataException("Modelo TRAIN não ajustado para Resolve.");
+            if (config.TfWeight > 0m && (fitted.TrainUnitU is null || frozenTfReference is null))
+                throw new InvalidDataException("Fit TF positivo não está congelado.");
+
+            var groups = validation.Values.Select(x => x.BasePersonId)
+                .Distinct(StringComparer.Ordinal)
+                .ToDictionary(x => x, x => (Tp: 0L, Fp: 0L), StringComparer.Ordinal);
+            long tp = 0, fp = 0, conflicts = 0, unresolved = 0;
+            foreach (var source in validation.Values.OrderBy(x => x.ObservationId))
+            {
+                var list = neighbors[source.ObservationId].OrderBy(x => x)
+                    .Select(id => validation[id]).ToArray();
+                var candidates = list.Select(x => new LinkageCandidate(
+                    SyntheticCandidateId(x.ObservationId), x.PersonName,
+                    x.BirthDate, x.MotherName)).ToArray();
+                var sourceValue = new IdentityObservation(
+                    null, "SEM_CPF", source.PersonName, source.BirthDate, source.MotherName);
+                CompositeNominalTfPreviewV9? Tf(
+                    IdentityObservation ignored, LinkageCandidate candidate)
+                {
+                    if (fitted.TrainUnitU is null || frozenTfReference is null)
+                        return null;
+                    var target = candidatesByGuid[candidate.PessoaUuid];
+                    var pair = new V9FsAdaptiveCandidatePair(
+                        "VALIDATION", source.BasePersonId, target.BasePersonId,
+                        source.BasePersonId == target.BasePersonId,
+                        source.PersonName, target.PersonName,
+                        source.MotherName, target.MotherName,
+                        source.BirthDate, target.BirthDate, 1);
+                    return V9TrainSqlFirstNameUCalibration.Preview(
+                        fitted.TrainUnitU, frozenTfReference,
+                        CompositeNominalComparisonV9.Classify(
+                            source.PersonName, target.PersonName),
+                        CompositeNominalComparisonV9.Classify(
+                            source.MotherName, target.MotherName),
+                        pair, config.TfWeight,
+                        config.TfMinimumFrequency, config.TfMinimumIndependentSupport);
+                }
+                var decision = ProbabilisticLinkageDecisions.ResolveCompositeNominalV9Preview(
+                    SyntheticCandidateId(source.ObservationId),
+                    fitted.Parameters, sourceValue, candidates, fitted.Cells,
+                    CompositeNominalComparisonV9.ContractVersion,
+                    config.DecisionThreshold, conflictMargin,
+                    config.TfWeight > 0m ? Tf : null,
+                    config.TfWeight > 0m ? config.TfSide : null);
+                if (decision.Status == ResolutionStatus.CONFLITO)
+                {
+                    conflicts++;
+                    continue;
+                }
+                if (decision.Status == ResolutionStatus.NAO_RESOLVIDO)
+                {
+                    unresolved++;
+                    continue;
+                }
+                if (decision.Status != ResolutionStatus.RESOLVIDO
+                    || decision.PessoaUuidResolvido is not { } targetId
+                    || !candidatesByGuid.TryGetValue(targetId, out var targetObs)
+                    || !neighbors[source.ObservationId].Contains(targetObs.ObservationId))
+                    throw new InvalidDataException("Resolve retornou alvo fora da união SQL.");
+                var score = groups[source.BasePersonId];
+                if (targetObs.BasePersonId == source.BasePersonId)
+                {
+                    tp++;
+                    score.Tp++;
+                }
+                else
+                {
+                    fp++;
+                    score.Fp++;
+                }
+                groups[source.BasePersonId] = score;
+            }
+
+            var directedEligible = checked(2L * eligibleUnorderedM);
+            var directedRecovered = checked(2L * recoveredUnorderedM);
+            if (tp > directedRecovered
+                || tp + fp + conflicts + unresolved != validation.Count)
+                throw new InvalidDataException("Decisões pós-Resolve não reconciliam com o censo.");
+            var confidence = V9IdentityClusterFdr.UpperBoundForPopulationMeanRatio(
+                groups.OrderBy(x => x.Key, StringComparer.Ordinal)
+                    .Select(x => new V9IdentityClusterFdr.IdentityGroup(
+                        x.Key, x.Value.Tp, x.Value.Fp)),
+                maximumAcceptedPerBaseIdentity, alpha: .05d);
+            results.Add(new V9PhysicalFinalResolveMetric(
+                config.OptionId, config.DecisionThreshold, config.TfWeight,
+                directedEligible, directedRecovered, tp, fp, conflicts, unresolved,
+                (double)directedRecovered / directedEligible,
+                (double)tp / directedEligible,
+                tp + fp == 0 ? null : (double)fp / (tp + fp),
+                confidence.UpperFdr, groups.Count,
+                maximumAcceptedPerBaseIdentity, .05d,
+                FinalRankResolveEvaluated: true, OperationallyCertified: false));
+        }
+        return Array.AsReadOnly(results.ToArray());
+    }
+
     public static string ConfigurationFingerprintSha256(V9FsAdaptiveOptionConfiguration config)
     {
         ArgumentNullException.ThrowIfNull(config);

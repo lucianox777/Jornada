@@ -76,15 +76,18 @@ public static class V9PhysicalCalibrationEvidenceCli
         await sql.OpenAsync();
         var measured = await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(
             sql, observations, passes, options, budget, study,
-            CancellationToken.None, repeatedSqlMaterializationRuns: 20);
+            CancellationToken.None, repeatedSqlMaterializationRuns: 20,
+            evaluateFinalResolve: true, finalConflictMargin: .5m,
+            predeclaredMaximumAcceptedPerBaseIdentity: 16);
         if (measured.RepeatedSqlMaterializationQuantiles is null
-            || measured.ValidationGlobalCoverage is not { Count: 3 })
+            || measured.ValidationGlobalCoverage is not { Count: 3 }
+            || measured.FinalResolveValidation is not { Count: 3 })
             throw new InvalidDataException("Probe não retornou medidas SQL físicas completas TF=0.");
 
         var diagnostic = new
         {
-            version = "V9_SEED42_PHYSICAL_SQL_FS_PAIR_DIAGNOSTIC_V1",
-            source_kind = "PHYSICAL_SQL_FS_PAIR_THRESHOLD_ONLY",
+            version = "V9_SEED42_PHYSICAL_SQL_POST_RESOLVE_DIAGNOSTIC_V1",
+            source_kind = "PHYSICAL_SQL_CSHARP_RANK_RESOLVE_SYNTHETIC_VALIDATION",
             profile = args[2],
             seed = 42,
             split = "VALIDATION",
@@ -93,8 +96,8 @@ public static class V9PhysicalCalibrationEvidenceCli
             study_sha256 = study,
             test_used = false,
             physical_sql_executed = true,
-            final_rank_resolve_evaluated = false,
-            fdr_after_resolve_measured = false,
+            final_rank_resolve_evaluated = true,
+            fdr_after_resolve_measured = true,
             operationally_certified = false,
             sql_blocking_fingerprint_sha256 = measured.BlockingFingerprintSha256,
             measured.PreflightPairIncidences,
@@ -104,7 +107,8 @@ public static class V9PhysicalCalibrationEvidenceCli
             measured.TrainTruePairsRecoveredBySql,
             measured.ValidationTruePairsRecoveredBySql,
             measured.RepeatedSqlMaterializationQuantiles,
-            options = measured.ValidationGlobalCoverage
+            threshold_pair_options = measured.ValidationGlobalCoverage,
+            final_resolve_options = measured.FinalResolveValidation
         };
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
         await File.WriteAllTextAsync(outputPath,
@@ -113,12 +117,12 @@ public static class V9PhysicalCalibrationEvidenceCli
         {
             evidence = outputPath,
             physical_sql = true,
-            post_resolve = false,
+            post_resolve = true,
             validation_M_eligible = measured.ValidationEligibleTruePairsBeforeBlocking,
             validation_M_sql = measured.ValidationTruePairsRecoveredBySql,
             blocking_recall = (double)measured.ValidationTruePairsRecoveredBySql
                 / measured.ValidationEligibleTruePairsBeforeBlocking,
-            option_count = measured.ValidationGlobalCoverage.Count
+            option_count = measured.FinalResolveValidation.Count
         }));
     }
 
