@@ -57,14 +57,14 @@ public static class V9PhysicalCalibrationEvidenceCli
         };
         // Shift diagnostic grid to the unsaturated tail. Margins are evaluated
         // separately from the frozen TRAIN fit without retraining.
-        var options = new[] { .99m, .999m, .9999m }.Select(t =>
+        var options = new[] { .90m, .95m, .99m }.Select(t =>
             new V9FsAdaptiveOptionConfiguration(
                 "T" + t.ToString("0.0000", CultureInfo.InvariantCulture)
                     .Replace(".", "", StringComparison.Ordinal) + "_TF0",
                 .5m, t, TfWeight: 0m)).ToArray();
         var study = Convert.ToHexString(SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(
-                "V9_PHYSICAL_SOURCE_RESOLVE_SEED42_V2|" + args[2] + "|" + rawSha)))
+                "V9_PHYSICAL_SOURCE_RESOLVE_SEED42_V3_FS_BLIND_099|" + args[2] + "|" + rawSha)))
             .ToLowerInvariant();
         var budget = new AdaptiveCalibrationPreviewBudget(
             AdaptiveCalibrationPreviewBudget.CurrentVersion,
@@ -81,16 +81,18 @@ public static class V9PhysicalCalibrationEvidenceCli
             CancellationToken.None, repeatedSqlMaterializationRuns: 20,
             evaluateFinalResolve: true, finalConflictMargin: .5m,
             predeclaredMaximumAcceptedPerBaseIdentity: 16,
-            finalConflictMargins: [0m, .5m, 2m]);
+            finalConflictMargins: [0m, .5m, 2m],
+            includeFsBlindGrouping: true,
+            minimumFsGroupingPosterior: .99m);
         if (measured.RepeatedSqlMaterializationQuantiles is null
             || measured.ValidationGlobalCoverage is not { Count: 3 }
             || measured.FinalResolveValidation is not { Count: 3 }
-            || measured.SourceResolveValidation is not { Count: 27 })
+            || measured.SourceResolveValidation is not { Count: 36 })
             throw new InvalidDataException("Probe não retornou medidas SQL físicas completas TF=0.");
 
         var diagnostic = new
         {
-            version = "V9_SEED42_PHYSICAL_SQL_SOURCE_RESOLVE_V2",
+            version = "V9_SEED42_PHYSICAL_SQL_SOURCE_RESOLVE_V3_FS_BLIND",
             source_kind = "PHYSICAL_SQL_CSHARP_RANK_RESOLVE_SYNTHETIC_VALIDATION",
             profile = args[2],
             seed = 42,
@@ -114,6 +116,8 @@ public static class V9PhysicalCalibrationEvidenceCli
             threshold_pair_options = measured.ValidationGlobalCoverage,
             legacy_directed_pair_denominator_options = measured.FinalResolveValidation,
             source_resolve_options = measured.SourceResolveValidation,
+            label_blind_fs_complete_link_measured = true,
+            fs_grouping_minimum_pair_posterior = .99m,
             candidate_grouping_oracle_uses_truth_labels = true,
             comparison_is_operationally_certified = false,
             // Full SQL candidate union before Resolve, no Gold publication.

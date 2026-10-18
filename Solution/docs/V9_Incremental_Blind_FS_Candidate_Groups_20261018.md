@@ -13,3 +13,31 @@ Os testes cobrem variação de nome intermediário, cadeia sem aresta de fechame
 ## Fronteiras de validade
 
 A massa sintética clean seed42 não demonstrou representatividade brasileira. O FDR pontual e o bound Hoeffding atual não certificam operação; independência iid entre identidades, cap, amostragem e suporte devem ser auditados antes de decisão. TF positiva fica bloqueada até provar mesma unidade e condicionamento do U SQL TRAIN e referência congelada. Não consumir TEST na seleção; não promover modelo, snapshot `ref`, V9/DT15, HML/PROD ou Gold. Perfis correlated/independent/field ficam como histórico manual, sem novo ensaio automático. A evidência do DT-05 Runner CPF tardio (run 39149089443, artifact 12145055171) não equivale à execução física V9/HML.
+
+
+## Integração real ao probe SQL físico clean (sem gabarito de agrupamento)
+
+O probe chama agora `EvaluateSourceUnitResolveValidation` com o braço
+`BLIND_FS_COMPLETE_LINK_CANDIDATES` habilitado **apenas** na CLI física
+(`includeFsBlindGrouping=true`), mantendo o comportamento anterior nas
+chamadas existentes. Para cada par efetivamente materializado no SQL de
+VALIDATION, o mesmo modelo FS já ajustado em TRAIN calcula os
+`LogOdds` direcionais, via `RankCompositeNominalV9Preview` e o mesmo
+conjunto de candidatos. `V9BlindIncrementalIdentityGrouping.Build` recebe
+**somente** observações sem TEST, arestas SQL reais e scores TRAIN-frozen.
+Rótulos sintéticos `BasePersonId` são consultados **após** a formação
+dos grupos apenas para medir clusters impuros, TP e FP. `ResolveRankedCore`
+calcula a margem entre o maior FS de **cada grupo inferido distinto**.
+Esse modo é diagnóstico e pode rejeitar verdadeiros matches com erro
+nominal: os guards exigem prenome, último nome, mãe e DOB exatos; portanto
+não representa o agrupador Gold operacional nem garante melhoria de recall.
+
+A CLI mede thresholds de decisão `0,90 / 0,95 / 0,99`, margens
+`0 / 0,5 / 2`, e os quatro modos RAW, BLIND_EXACT, BLIND_FS_COMPLETE_LINK
+e ORACLE (=36 condições físicas), sempre TF=0. O limiar *de fusão*
+FS `0,99` é mantido **fixo e declarado** para tornar comparáveis as
+três políticas de decisão (não é parâmetro escolhido para PROD).
+O workflow publica `physical-source-resolve-3x3x4-TF0.csv` e JSON,
+associados ao hash do corpus/fit; o braço ORACLE continua apenas teto
+não operacional. Antes da execução, números do quarto braço são
+**não medidos**; não inferir FP/recall sem artefato do Actions.
