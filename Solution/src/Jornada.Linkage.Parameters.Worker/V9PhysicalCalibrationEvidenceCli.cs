@@ -14,6 +14,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static class V9PhysicalCalibrationEvidenceCli
 {
+    private static readonly JsonSerializerOptions IndentedJson = new() { WriteIndented = true };
     public static async Task RunAsync(string[] args)
     {
         if (args.Length != 5 || args[0] != "--v9-physical-probe-seed42"
@@ -107,7 +108,7 @@ public static class V9PhysicalCalibrationEvidenceCli
         };
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath)!);
         await File.WriteAllTextAsync(outputPath,
-            JsonSerializer.Serialize(diagnostic, new JsonSerializerOptions { WriteIndented = true }) + "\n");
+            JsonSerializer.Serialize(diagnostic, IndentedJson) + "\n");
         Console.WriteLine(JsonSerializer.Serialize(new
         {
             evidence = outputPath,
