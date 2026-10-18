@@ -237,11 +237,15 @@ public static class V9SyntheticBaseFrequencyAudit
         Report audit)
     {
         ArgumentNullException.ThrowIfNull(audit);
-        if (audit.Version != Version
+        if (people is null || audit.Version != Version || audit.Status != Status
             || audit.Partition != "TRAIN"
             || audit.PopulationFrameFingerprint != populationFrameFingerprint
             || audit.CorpusBasePeople != people.Count
-            || audit.Units.Count != 8)
+            || audit.TrainingBasePeople != people.Count(x => x.Partition == "TRAIN")
+            || audit.Units is null || audit.Units.Count != 8
+            || audit.Units.Any(x => x is null
+                || x.Side is not ("PERSON" or "MOTHER") || !Enum.IsDefined(x.Unit))
+            || audit.Units.Select(x => (x.Side, x.Unit)).Distinct().Count() != 8)
             throw new InvalidDataException("Auditoria base e manifesto do probe físico não coincidem.");
         var evidence = new List<MaterializedUnitEvidence>(8);
         foreach (var side in new[] { "PERSON", "MOTHER" })
@@ -250,10 +254,17 @@ public static class V9SyntheticBaseFrequencyAudit
             var snapshot = MaterializeCanonicalTrainUnit(
                 people, populationFrameFingerprint, bootstrap, side, unit);
             var aggregate = audit.Units.Single(x => x.Side == side && x.Unit == unit);
+            var counts = snapshot.Frequencies.Select(x => x.BaseIdentities).ToArray();
+            var largest = counts.Max();
             if (snapshot.TrainBaseIdentities != aggregate.TrainingBasePeople
                 || snapshot.PresentTrainBaseIdentities != aggregate.PresentTrainingBasePeople
                 || snapshot.MissingTrainBaseIdentities != aggregate.MissingTrainingBasePeople
-                || snapshot.Frequencies.Count != aggregate.DistinctValues)
+                || snapshot.Frequencies.Count != aggregate.DistinctValues
+                || counts.Count(x => x == 1) != aggregate.SingletonValues
+                || counts.Count(x => x >= 5) != aggregate.ValuesObservedAtLeastFiveBases
+                || counts.Where(x => x >= 5).Sum() != aggregate.BasesCoveredByValuesObservedAtLeastFive
+                || largest != aggregate.LargestValueCount
+                || (decimal)largest / snapshot.PresentTrainBaseIdentities != aggregate.LargestValueShare)
                 throw new InvalidDataException(
                     "Snapshot TF da massa-base divergiu dos agregados canônicos TRAIN.");
             evidence.Add(new MaterializedUnitEvidence(
