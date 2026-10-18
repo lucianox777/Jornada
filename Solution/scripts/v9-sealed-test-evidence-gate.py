@@ -38,9 +38,14 @@ def validate(document):
     require(document.get("partition") == "TEST", "independent TEST partition required")
     require(document.get("testUsedForTuning") is False, "TEST cannot tune parameters")
     require(document.get("independentEvaluator") is True, "independent evaluator required")
+    require(document.get("evaluationMode") == "RECORDED_RUNTIME", "must use existing recorded-runtime evaluator, not posterior replay")
+    require(document.get("completeCandidateUniverse") is True, "full SQL candidate union required")
+    require(document.get("recordedOutcomeFingerprintSha256") is not None, "recorded outcomes required")
+    digest(document["recordedOutcomeFingerprintSha256"], "recordedOutcomeFingerprintSha256")
     require(document.get("completeTruthLabels") is True, "complete truth labels required")
     require(document.get("sqlPhysicalExecution") is True, "physical SQL execution required")
     require(document.get("artifactSha256") is not None, "external evidence artifact hash required")
+    require(document.get("artifactStoredOutsideRepository") is True, "durable external artifact required")
     digest(document["artifactSha256"], "artifactSha256")
     require(isinstance(document.get("runId"), str) and bool(document["runId"].strip()), "runId missing")
 
@@ -48,6 +53,7 @@ def validate(document):
     eligible = count(blocking["eligibleTruePairsBeforeBlocking"], "eligibleTruePairsBeforeBlocking")
     recovered = count(blocking["recoveredTruePairsBySql"], "recoveredTruePairsBySql")
     require(eligible > 0 and recovered <= eligible, "blocking denominator invalid")
+    require(blocking.get("denominatorComputedBeforeSqlBlocking") is True, "blocking denominator must precede SQL")
     require(count(blocking["physicalDistinctCandidatePairs"], "physicalDistinctCandidatePairs") >= recovered, "candidate count invalid")
 
     fdr = document["fdr"]
