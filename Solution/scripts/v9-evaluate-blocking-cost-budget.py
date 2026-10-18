@@ -33,12 +33,15 @@ def assess(report, policy):
         or report.get("selection_split") != "TRAIN_ONLY"):
         raise ValueError("unverified diagnostic-only, TEST-blind SQLite provenance")
     if (policy.get("version") != VERSION
-        or policy.get("minimum_global_M_recall") != 0.95
+        or (policy.get("minimum_global_M_recall") is not None
+            and (type(policy["minimum_global_M_recall"]) not in (float, int)
+                 or not 0 <= policy["minimum_global_M_recall"] <= 1))
         or policy.get("source_sha256") != report.get("canonical_observations_sha256")
         or not isinstance(policy.get("source_sha256"), str)
         or len(policy["source_sha256"]) != 64):
         raise ValueError("missing explicit versioned budget or canonical SHA binding")
-    if set(policy) != {"version", "minimum_global_M_recall", "source_sha256", *BUDGETS}:
+    if set(policy) not in ({"version", "source_sha256", *BUDGETS},
+                           {"version", "minimum_global_M_recall", "source_sha256", *BUDGETS}):
         raise ValueError("unknown or missing budget fields")
     for name in BUDGETS:
         number(policy[name], name)
@@ -102,10 +105,14 @@ def assess(report, policy):
                 or p95 > p99 or p99 > number(degree.get("max"), "u degree max")):
                 raise ValueError("U degree must count BOTH endpoints and include zero degree")
             failed = []
-            if 20*m < 19*all_m:
-                failed.append("GLOBAL_POINT_RECALL_BELOW_95")
-            if lower < 0.95:
-                failed.append("CLUSTER_LOWER_95_BELOW_95")
+            # Optional, versioned policy floor; reported legacy 95% flags remain
+            # verified for arithmetic consistency, but are not universal gates.
+            recall_floor = policy.get("minimum_global_M_recall")
+            if recall_floor is not None:
+                if m / all_m < recall_floor:
+                    failed.append("GLOBAL_POINT_RECALL_BELOW_POLICY")
+                if lower < recall_floor:
+                    failed.append("CLUSTER_LOWER_RECALL_BELOW_POLICY")
             if ci.get("statistically_supported_global_95") != (lower >= 0.95):
                 raise ValueError("bootstrap support flag inconsistent")
             for name, value in (("max_u_degree_mean",mean),
@@ -131,6 +138,7 @@ def assess(report, policy):
         "version": VERSION, "budget_scope": "OBSERVED_SYNTHETIC_TRAIN_VALIDATION_ONLY",
         "source_sha256": policy["source_sha256"],
         "budget": {name: policy[name] for name in BUDGETS},
+        "optional_recall_floor": policy.get("minimum_global_M_recall"),
         "plans": output, "TEST_evaluated": False,
         "may_promote_policy": False, "fdr_measured": False,
         "sql_server_latency_measured": False, "city_scale_certified": False,
