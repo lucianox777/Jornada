@@ -63,6 +63,7 @@ class TestEvidenceGate(unittest.TestCase):
     def test_rejects_unbounded_fdr_denominator(self):
         data = fixture()
         data["fdr"]["groups"] = data["fdr"]["groups"][:2]
+        data["fdr"]["groups"][1]["trueAccepted"] = 0
         with self.assertRaises(ValueError):
             gate.validate(data)
 
