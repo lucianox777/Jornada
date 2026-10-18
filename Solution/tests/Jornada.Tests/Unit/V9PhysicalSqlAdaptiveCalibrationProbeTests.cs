@@ -204,6 +204,62 @@ public sealed class V9PhysicalSqlAdaptiveCalibrationProbeTests
             AutomaticRecalibrationOrActivationAllowed: false);
 
     [Test]
+    public void Physical_sql_cohort_counts_identities_with_no_candidate_pairs()
+    {
+        // A single true pair contributes one base identity, not two.
+        // Another two bases appear in a false pair; two input identities
+        // never appear in SQL and must remain in the cohort denominator.
+        var pairs = new[]
+        {
+            CandidateForCohort("VALIDATION", "BASE-A", "BASE-A", true),
+            CandidateForCohort("VALIDATION", "BASE-B", "BASE-C", false)
+        };
+        var result = V9PhysicalSqlAdaptiveCalibrationProbe.SummarizeIdentityCohort(
+            "VALIDATION", ["BASE-A", "BASE-B", "BASE-C", "BASE-D", "BASE-E"], pairs);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.BaseIdentitiesBeforeBlocking, Is.EqualTo(5));
+            Assert.That(result.BaseIdentitiesRepresentedBySql, Is.EqualTo(3));
+            Assert.That(result.BaseIdentitiesWithoutSqlCandidates, Is.EqualTo(2));
+            Assert.That(result.BaseIdentityCandidateCoverage, Is.EqualTo(.6d));
+        }));
+    }
+
+    [Test]
+    public void Empty_sql_frame_does_not_erase_input_identity_groups()
+    {
+        var result = V9PhysicalSqlAdaptiveCalibrationProbe.SummarizeIdentityCohort(
+            "TRAIN", ["BASE-A", "BASE-B"], Array.Empty<V9FsAdaptiveCandidatePair>());
+        Assert.That(result.BaseIdentitiesBeforeBlocking, Is.EqualTo(2));
+        Assert.That(result.BaseIdentitiesRepresentedBySql, Is.Zero);
+        Assert.That(result.BaseIdentitiesWithoutSqlCandidates, Is.EqualTo(2));
+        Assert.That(result.BaseIdentityCandidateCoverage, Is.Zero);
+    }
+
+    [Test]
+    public void Physical_sql_cohort_rejects_unseen_groups_split_leakage_and_duplicate_input()
+    {
+        var valid = CandidateForCohort("TRAIN", "BASE-A", "BASE-B", false);
+        Assert.That((Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+            .SummarizeIdentityCohort("TRAIN", ["BASE-A", "BASE-A"], [valid])),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+            .SummarizeIdentityCohort("TRAIN", ["BASE-A", "BASE-C"], [valid])),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+            .SummarizeIdentityCohort("VALIDATION", ["BASE-A", "BASE-B"], [valid])),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9PhysicalSqlAdaptiveCalibrationProbe
+            .SummarizeIdentityCohort("TEST", ["BASE-A", "BASE-B"], [valid])),
+            Throws.TypeOf<ArgumentException>());
+    }
+
+    private static V9FsAdaptiveCandidatePair CandidateForCohort(
+        string partition, string leftGroup, string rightGroup, bool truePair) =>
+        new(partition, leftGroup, rightGroup, truePair,
+            null, null, null, null, null, null, 1);
+
+    [Test]
     public void Rejects_test_partition_before_any_sql_command()
     {
         using var connection = new SqlConnection();
