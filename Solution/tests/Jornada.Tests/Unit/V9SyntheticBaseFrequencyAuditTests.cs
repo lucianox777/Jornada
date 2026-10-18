@@ -147,6 +147,43 @@ public sealed class V9SyntheticBaseFrequencyAuditTests
     }
 
     [Test]
+    public void Physical_sql_evidence_exports_eight_reconciled_hashes_without_pii_or_test_labels()
+    {
+        var people = Full30kCorpus();
+        var audit = V9SyntheticBaseFrequencyAudit.Analyze(people, "CORPUS_30K_PINNED");
+        var snapshots = V9SyntheticBaseFrequencyAudit.MaterializePhysicalEvidence(
+            people, "CORPUS_30K_PINNED", FullBootstrap(), audit);
+        Assert.That(snapshots, Has.Count.EqualTo(8));
+        Assert.That(snapshots.Select(x => (x.Side, x.Unit)).Distinct().Count(),
+            Is.EqualTo(8));
+        foreach (var item in snapshots)
+        {
+            var aggregate = audit.Units.Single(x => x.Side == item.Side && x.Unit == item.Unit);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(item.CorpusBaseIdentities, Is.EqualTo(30_000));
+                Assert.That(item.TrainBaseIdentities, Is.EqualTo(20_000));
+                Assert.That(item.PresentTrainBaseIdentities,
+                    Is.EqualTo(aggregate.PresentTrainingBasePeople));
+                Assert.That(item.MissingTrainBaseIdentities,
+                    Is.EqualTo(aggregate.MissingTrainingBasePeople));
+                Assert.That(item.DistinctRetainedValues,
+                    Is.EqualTo(aggregate.DistinctValues));
+                Assert.That(item.SnapshotFingerprintSha256, Has.Length.EqualTo(64));
+            }));
+        }
+        var names = System.Text.Json.JsonSerializer.Serialize(snapshots);
+        Assert.That(names, Does.Not.Contain("MARIA"));
+        Assert.That(names, Does.Not.Contain("JOANA"));
+        Assert.That(names, Does.Not.Contain("BASE-"));
+
+        var fraud = audit with { TrainingBasePeople = audit.TrainingBasePeople - 1 };
+        Assert.That((Action)(() => V9SyntheticBaseFrequencyAudit.MaterializePhysicalEvidence(
+            people, "CORPUS_30K_PINNED", FullBootstrap(), fraud)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Canonical_bootstrap_rejects_incomplete_split_wrong_hash_duplicate_and_fake_support()
     {
         var people = Full30kCorpus();
