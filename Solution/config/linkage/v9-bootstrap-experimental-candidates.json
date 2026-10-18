@@ -35,39 +35,64 @@
         "trueM": 20364,
         "recoveredM": 19630,
         "returnedFalseCandidatesU": 242,
-        "identityClusterRecallLower95": 0.96073
+        "identityClusterRecallLower95": 0.9607340173638517,
+        "p95FalseCandidateDegree": 0,
+        "p99FalseCandidateDegree": 1
       },
       "validation": {
         "trueM": 6763,
         "recoveredM": 6509,
-        "returnedFalseCandidatesU": 28
+        "returnedFalseCandidatesU": 28,
+        "identityClusterRecallLower95": 0.9563812600969306,
+        "p95FalseCandidateDegree": 0,
+        "p99FalseCandidateDegree": 0
       },
       "source": "Solution/docs/V9_Decisoes_Integral_Erros_Blocking_Tamanho_Amostra_20261014.md",
-      "evidenceStatus": "OBSERVED_ON_SYNTHETIC_INDEXED_SQLITE"
+      "evidenceStatus": "OBSERVED_ON_SYNTHETIC_INDEXED_SQLITE",
+      "canonicalSha256": "2eea27f49976eaa578af340152f3516ba3ba4b4793aad0343cf5b64f51feed7d",
+      "manifestSha256": "ea33b5327a8da5e263b4550487f0681a0d1e200d87ad976c426ab99bbbe251e3",
+      "sourceReportSha256": "77af21f0263bf5ca485a0a699aae5c315fe20f14351ebf96532a263b3160d2b8"
     },
     {
       "profile": "correlated",
       "selectionMethod": "GREEDY_PRUNED_TRAIN_ONLY",
       "selectedPassCount": 9,
-      "selectedPassIds": [],
-      "signatureComplete": false,
+      "selectedPassIds": [
+        "P_PHON_BIRTH_YEAR",
+        "P_LAST_M_PHON",
+        "P_PREFIX3_M_PREFIX3",
+        "P_PREFIX3_M_LAST",
+        "P_FIRST_DOB_MONTHDAY",
+        "P_ANY_BIRTH_YEAR",
+        "P_ANY_DOB_MONTHDAY",
+        "P_PREFIX3_BIRTH_YEAR",
+        "P_LAST_M_FIRST"
+      ],
+      "signatureComplete": true,
       "train": {
         "trueM": 20458,
         "recoveredM": 19437,
         "returnedFalseCandidatesU": 516029,
-        "identityClusterRecallLower95": 0.94678
+        "identityClusterRecallLower95": 0.9467796777213817,
+        "p95FalseCandidateDegree": 108,
+        "p99FalseCandidateDegree": 328
       },
       "validation": {
         "trueM": 6714,
         "recoveredM": 6432,
-        "returnedFalseCandidatesU": 59376
+        "returnedFalseCandidatesU": 59376,
+        "identityClusterRecallLower95": 0.9520322773460849,
+        "p95FalseCandidateDegree": 43,
+        "p99FalseCandidateDegree": 109
       },
       "source": "Solution/docs/V9_Decisoes_Integral_Erros_Blocking_Tamanho_Amostra_20261014.md",
-      "evidenceStatus": "NUMBERS_VERIFIED_IN_HISTORICAL_DOC_PASS_ORDER_NOT_YET_RECONCILED"
+      "evidenceStatus": "VERIFIED_ARTIFACT_SYNTHETIC_INDEXED_SQLITE",
+      "canonicalSha256": "f79eb1cd0bed0e3a341392eca10551dcaa7a09e052cb7efa23d1d23430a8b42d",
+      "manifestSha256": "de833d0feda09225567ddabf9df0258a8a877b7c3f00b58db7d4bed9ce4695c0",
+      "sourceReportSha256": "8fdc6a05af4284aac48f6738b394009dac07f8b7daed8814696f154dfb708dee"
     }
   ],
   "missingForApproval": [
-    "COMPLETE_CORRELATED_PASS_ORDER_AND_SIGNATURE",
     "CONDITIONED_SQL_TRAIN_M_U_PRIOR_AND_TF_SAME_UNIT",
     "VALIDATION_CLUSTER_RECALL_LCB_AND_FDR_UCB_GATES",
     "FULL_SQL_SERVER_CANDIDATE_UNION_PARITY_AND_P95_P99",
@@ -88,5 +113,14 @@
     "mayActivateV9": false,
     "mayWriteHmlProd": false,
     "mayOpenHistoricalTestForSelection": false
+  },
+  "sourceEvidence": {
+    "workflow": "v9-synthetic-corruption-evidence",
+    "runId": 38628254862,
+    "artifactId": 11926175227,
+    "artifactName": "v9-clean-vs-correlated-seed42-mu-aggregates",
+    "reportVersion": "V9_SYNTHETIC_CLEAN_CORRELATED_SENSITIVITY_V1",
+    "sourceReferenceSha256": "4CADBCE728A06CC24FDADEBACD9E2CB84248F70E4B5FDB8CBFC2B9BFEA5023D1",
+    "comparisonKind": "UNPAIRED_SAME_SEED_AND_DEMOGRAPHIC_REFERENCE"
   }
 }
