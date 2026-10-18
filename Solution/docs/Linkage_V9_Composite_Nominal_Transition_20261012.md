@@ -218,3 +218,37 @@ não executam `Resolve`, não publicam modelo e não comprovam que
 do calibrador e de snapshots congelados. A comparação de TF com
 suporte m/u, FDR por identidades e TEST lacrado ainda é obrigatória
 antes da ativação V9.
+
+
+## Ponte Rank→Resolve V9 com política C# compartilhada — 18/10/2026
+
+O `ResolveCompositeNominalV9Preview` fornece uma **avaliação
+diagnóstica sem publicação** do **mesmo** `RankCompositeNominalV9Preview`
+que recebe TF por candidato e, em seguida, executa
+`ResolveRankedCore` compartilhado com o `ResolveRanked`
+operacional existente. O núcleo aplica **as mesmas verificações**
+de limiar posterior, margem entre primeiro e segundo em log-odds,
+segundo candidato acima do piso de conflito e proteção contra colisão
+demográfica nominal/nascimento exatos. Retorna explicitamente
+`RESOLVIDO`, `CONFLITO` ou `NAO_RESOLVIDO`, candidato, motivo
+e margem; não se limita a imprimir `CandidateScore`.
+
+A entrada exige `diagnosticModelId` não vazio, limiar em `(0,1]`
+e margem em `[0,1000]`. Os testes exercitam no objeto de decisão:
+resolução de EXATO acima de HIGH, conflito por margem,
+rejeição abaixo do limiar, universo SQL sem candidatos,
+proteção demográfica, piso de conflito independente e TF positiva
+capaz de alterar **o candidato final selecionado**; ausência de
+frequência/side no estado elegível falha fechado, não equivale à
+evidência neutra ou a `TF=0`.
+
+**Isolamento essencial:** o método novo é **interno e apenas preview**,
+não chama `LinkageModelPolicy.Create`, não acessa o Runner SQL,
+não registra outcomes reais da HML e não habilita
+`AlgorithmVersion=V9` em `Rank`/`Resolve` operacional.
+`LinkageModelPolicy.RequireCertifiedOperationalAlgorithm` permanece
+obrigatório nos caminhos publicados V8/Gold e recusará V9 até
+certificação DT-15. Para atestar as métricas finais ainda são
+necessários exportador genuíno do Runner, coorte de identidade antes
+do blocking, prova de amostragem, FDR com limite por conglomerados,
+latência ponta-a-ponta e TEST lacrado.
