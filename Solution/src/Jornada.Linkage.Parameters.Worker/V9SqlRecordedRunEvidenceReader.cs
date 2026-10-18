@@ -25,6 +25,7 @@ public sealed record V9SqlRecordedRunOutcome(
 public sealed record V9SqlRecordedRunEvidence(
     string Version,
     V9SqlRecordedRunHeader Header,
+    [property: System.Text.Json.Serialization.JsonIgnore]
     IReadOnlyList<V9SqlRecordedRunOutcome> Outcomes,
     string CompleteFinalDecisionFingerprintSha256,
     bool HasCompleteCandidateUnion,
