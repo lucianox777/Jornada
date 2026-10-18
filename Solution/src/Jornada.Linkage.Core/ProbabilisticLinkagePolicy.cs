@@ -160,18 +160,29 @@ internal static class ProbabilisticLinkageDecisions
     /// There is deliberately no AlgorithmVersion dispatch, persistence, or
     /// Resolve/ACTIVATE route. No score is released to an attendant.
     /// A certified joint-m/u snapshot and TF weights remain prerequisites.
+    /// An opt-in per-candidate TF factory and its required side represent
+    /// POSITIVE TF weight. Missing ExactFirst frequency on that side fails
+    /// closed, distinct from intentionally disabled TF with no factory.
+    /// The factory must supply same-unit frozen TRAIN U + pinned reference.
+    /// No FINAL Resolve outcome or production V9 dispatch is implied.
     /// </summary>
     internal static IReadOnlyList<CandidateScore> RankCompositeNominalV9Preview(
         IReadOnlyDictionary<string, decimal> parameters,
         IdentityObservation observation,
         IReadOnlyList<LinkageCandidate> candidates,
         IReadOnlyCollection<FellegiSunterJointNominalCellV9> jointCells,
-        string nominalContractVersion)
+        string nominalContractVersion,
+        Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? tfForPair = null,
+        CompositeNominalTfSideV9? positiveTfSide = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(observation);
         ArgumentNullException.ThrowIfNull(candidates);
         ArgumentNullException.ThrowIfNull(jointCells);
+        if ((tfForPair is null) != (positiveTfSide is null)
+            || (positiveTfSide is { } side && !Enum.IsDefined(side)))
+            throw new InvalidOperationException(
+                "TF positiva V9 exige função por candidato e lado nominal explícitos.");
         if (!string.IsNullOrWhiteSpace(observation.Cpf))
             throw new InvalidOperationException(
                 "Ranking probabilístico V9 só é permitido quando observação não possui CPF.");
@@ -187,13 +198,30 @@ internal static class ProbabilisticLinkageDecisions
 
         return unique.Select(candidate =>
             {
+                var term = tfForPair?.Invoke(observation, candidate);
+                if (positiveTfSide is { } side)
+                {
+                    var level = side == CompositeNominalTfSideV9.Person
+                        ? CompositeNominalComparisonV9.Classify(
+                            observation.NomeCompleto, candidate.NomeCompleto)
+                        : CompositeNominalComparisonV9.Classify(
+                            observation.NomeMae, candidate.NomeMae);
+                    if ((level == CompositeNominalLevelV9.ExactFirst && term is null)
+                        || (term is not null
+                            && (term.Side != side
+                                || level != CompositeNominalLevelV9.ExactFirst
+                                || term.Weight <= 0m)))
+                        throw new InvalidOperationException(
+                            "TF V9 positiva sem unidade ExactFirst válida ou frequência disponível.");
+                }
                 var breakdown = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewWithBreakdown(
                     parameters,
                     observation.NomeCompleto, candidate.NomeCompleto,
                     observation.NomeMae, candidate.NomeMae,
                     frozen,
                     unique.Count,
-                    observation.DataNascimento, candidate.DataNascimento);
+                    observation.DataNascimento, candidate.DataNascimento,
+                    term);
                 var fullExact = CompositeNominalComparisonV9.Classify(
                     observation.NomeCompleto, candidate.NomeCompleto)
                     == CompositeNominalLevelV9.ExactFull;

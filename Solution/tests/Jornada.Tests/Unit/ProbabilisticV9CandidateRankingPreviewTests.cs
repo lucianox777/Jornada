@@ -1,5 +1,6 @@
 using Jornada.Contracts;
 using Jornada.Linkage.Runner;
+using Jornada.Linkage.Parameters.Worker;
 
 namespace Jornada.Tests.Unit;
 
@@ -152,6 +153,134 @@ public sealed class ProbabilisticV9CandidateRankingPreviewTests
                     Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(single)));
             }));
         }
+    }
+
+    private static FrozenIbgeNominalTfV9 PinnedTf()
+    {
+        var entries = new[]
+        {
+            new NominalTermFrequencyEntry("NOME_PRENOME", "MARIA", 60, 100, .60m),
+            new NominalTermFrequencyEntry("NOME_MAE_PRENOME", "ANA", 30, 100, .30m)
+        };
+        return FrozenIbgeNominalTfV9.BindPublished(
+            new PreparedNominalTermFrequency(
+                NominalTermFrequencySnapshot.Create(entries), entries, 42),
+            "IBGE_PINNED", new string('f', 64), "BLOCKING_PINNED",
+            new NominalSyntheticIbgeBootstrapV9(
+                CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance,
+                30_000, "CORPUS_30K", "GENERATOR_V1", 42UL, "HYPOTHESES_V1"));
+    }
+
+    [Test]
+    public void Ranking_preview_consumes_actual_FS_TF_weight_and_changes_candidate_order()
+    {
+        // Intentionally neutral 81 joint-cell ratios to isolate TF. Unlike
+        // logging exactFirst=false, this asserts actual ranked CandidateScore.
+        var levels = Enum.GetValues<CompositeNominalLevelV9>();
+        var cells = levels.SelectMany(p => levels.Select(m =>
+            new FellegiSunterJointNominalCellV9(p, m, 1m / 81m, 1m / 81m))).ToArray();
+        var observation = new IdentityObservation(
+            null, "SEM_CPF", "Maria Lima", Birth, "Ana Costa");
+        var firstMatch = new LinkageCandidate(
+            ExactId, "Maria Costa", Birth, "Ana Costa");
+        var nonMatch = new LinkageCandidate(
+            NearId, "Zuleica Nogueira", Birth, "Ana Costa");
+        var baseline = ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+            Parameters, observation, [nonMatch, firstMatch],
+            cells, CompositeNominalComparisonV9.ContractVersion);
+        Assert.That(CompositeNominalComparisonV9.Classify(
+            observation.NomeCompleto, firstMatch.NomeCompleto),
+            Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
+        var pinned = PinnedTf();
+        int applied = 0;
+        CompositeNominalTfPreviewV9? Weighted(
+            IdentityObservation source, LinkageCandidate target)
+        {
+            var level = CompositeNominalComparisonV9.Classify(
+                source.NomeCompleto, target.NomeCompleto);
+            if (level != CompositeNominalLevelV9.ExactFirst)
+                return null; // No marginal may be invented for another unit.
+            applied++;
+            return pinned.CreatePreview(
+                CompositeNominalTfSideV9.Person, level,
+                source.NomeCompleto, target.NomeCompleto,
+                .10m, 1m, .00001m, 1);
+        }
+        var weighted = ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+            Parameters, observation, [firstMatch, nonMatch],
+            cells, CompositeNominalComparisonV9.ContractVersion, Weighted,
+            positiveTfSide: CompositeNominalTfSideV9.Person);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(applied, Is.EqualTo(1));
+            Assert.That(baseline[0].PessoaUuid, Is.EqualTo(ExactId));
+            Assert.That(weighted[0].PessoaUuid, Is.EqualTo(NearId));
+            Assert.That(weighted[1].PessoaUuid, Is.EqualTo(ExactId));
+            Assert.That(weighted[0].LogOdds, Is.GreaterThan(weighted[1].LogOdds));
+            Assert.That(weighted[1].LogOdds - baseline[0].LogOdds,
+                Is.EqualTo((decimal)Math.Log(1d / 6d)).Within(.00000001m));
+        }));
+        // A caller cannot pass TF with the wrong comparison unit and have
+        // the ranker silently ignore an incompatible positive adjustment.
+        Assert.That((Action)(() =>
+            ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+                Parameters, observation, [nonMatch],
+                cells, CompositeNominalComparisonV9.ContractVersion,
+                (_, _) => pinned.CreatePreview(
+                    CompositeNominalTfSideV9.Person,
+                    CompositeNominalLevelV9.ExactFirst,
+                    "Maria Lima", "Maria Costa", .10m, 1m, .00001m, 1),
+                positiveTfSide: CompositeNominalTfSideV9.Person)),
+            Throws.InvalidOperationException);
+        // Missing term is not the same as weight TF=0 or BF=1.
+        Assert.That((Action)(() =>
+            ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+                Parameters, observation, [firstMatch],
+                cells, CompositeNominalComparisonV9.ContractVersion,
+                (_, _) => null,
+                positiveTfSide: CompositeNominalTfSideV9.Person)),
+            Throws.InvalidOperationException);
+        Assert.That((Action)(() =>
+            ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+                Parameters, observation, [firstMatch],
+                cells, CompositeNominalComparisonV9.ContractVersion,
+                positiveTfSide: CompositeNominalTfSideV9.Person)),
+            Throws.InvalidOperationException);
+    }
+
+    [Test]
+    public void Full_exact_outscores_high_full_with_equal_birth_mother_and_TF_excluded()
+    {
+        var obs = new IdentityObservation(
+            null, "SEM_CPF", "Maria Clara Silva", Birth, "Ana Costa");
+        var exact = new LinkageCandidate(
+            ExactId, "Maria Clara Silva", Birth, "Ana Costa");
+        var high = new LinkageCandidate(
+            NearId, "Maria Clara Silvaa", Birth, "Ana Costa");
+        Assert.That(CompositeNominalComparisonV9.Classify(
+            obs.NomeCompleto, high.NomeCompleto),
+            Is.EqualTo(CompositeNominalLevelV9.HighFull));
+        int ineligibleTf = 0;
+        CompositeNominalTfPreviewV9? OnlyFirst(
+            IdentityObservation source, LinkageCandidate candidate)
+        {
+            if (CompositeNominalComparisonV9.Classify(
+                source.NomeCompleto, candidate.NomeCompleto)
+                == CompositeNominalLevelV9.ExactFirst)
+                ineligibleTf++;
+            return null;
+        }
+        var ranked = ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+            Parameters, obs, [high, exact],
+            Cells(), CompositeNominalComparisonV9.ContractVersion, OnlyFirst,
+            positiveTfSide: CompositeNominalTfSideV9.Person);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(ineligibleTf, Is.Zero);
+            Assert.That(ranked[0].PessoaUuid, Is.EqualTo(ExactId));
+            Assert.That(ranked[1].PessoaUuid, Is.EqualTo(NearId));
+            Assert.That(ranked[0].LogOdds, Is.GreaterThan(ranked[1].LogOdds));
+        }));
     }
 
     [Test]
