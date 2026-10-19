@@ -1039,12 +1039,17 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
 
     private static void RequireClassSupport(V9FsAdaptiveCandidatePair[] rows, string label)
     {
+        if (!HasClassSupport(rows))
+            throw new InvalidDataException($"TRAIN {label} exige suporte de ao menos duas identidades.");
+    }
+
+    internal static bool HasClassSupport(V9FsAdaptiveCandidatePair[] rows)
+    {
         var identities = rows.SelectMany(x => new[]
         {
             x.LeftIdentityGroupId, x.RightIdentityGroupId
         }).Distinct().Count();
-        if (rows.Length < 2 || identities < 2)
-            throw new InvalidDataException($"TRAIN {label} exige suporte de ao menos duas identidades.");
+        return rows.Length >= 2 && identities >= 2;
     }
 
     private HashSet<string> PartitionIdentityGroups(string partition)

@@ -285,6 +285,12 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             || trainRows.All(x => x.IsTruePair) || trainRows.All(x => !x.IsTruePair)
             || validationRows.All(x => x.IsTruePair) || validationRows.All(x => !x.IsTruePair))
             throw CandidateRejected("TRAIN/VALIDATION físicos precisam conter M e U.");
+        // The exact same support rule used by the adapter is a candidate-local
+        // eligibility screen. A sparse ruleset must stay in the rejection table
+        // instead of aborting evaluation of every later ruleset.
+        if (!V9FellegiSunterAdaptiveCalibrationAdapter.HasClassSupport(trainRows.Where(x => x.IsTruePair).ToArray())
+            || !V9FellegiSunterAdaptiveCalibrationAdapter.HasClassSupport(trainRows.Where(x => !x.IsTruePair).ToArray()))
+            throw CandidateRejected("TRAIN M/U exige ao menos dois pares e duas identidades em cada classe.");
 
         var trainRecoveredM = trainRows.LongCount(x => x.IsTruePair);
         var validationRecoveredM = validationRows.LongCount(x => x.IsTruePair);
