@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+  </PropertyGroup>
+  <!-- Benchmark the built production implementation without adding any packages. -->
+  <ItemGroup>
+    <Reference Include="Jornada.Contracts">
+      <HintPath>../../src/Jornada.Contracts/bin/$(Configuration)/net10.0/Jornada.Contracts.dll</HintPath>
+    </Reference>
+    <Reference Include="Jornada.Linkage.Parameters.Worker">
+      <HintPath>../../src/Jornada.Linkage.Parameters.Worker/bin/$(Configuration)/net10.0/Jornada.Linkage.Parameters.Worker.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>
