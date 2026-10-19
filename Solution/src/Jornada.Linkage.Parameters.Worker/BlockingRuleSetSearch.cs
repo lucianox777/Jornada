@@ -80,17 +80,14 @@ public static class BlockingRuleSetSearch
         if (canonicalFeatures.Length == 0)
             throw new ArgumentException("O espaço de busca não possui atributos.", nameof(features));
 
-        var primitiveResults = GeneratePrimitivePasses(canonicalFeatures, options.MaxFieldsPerPass)
-            .Select(pass => BlockingRuleSetOptimizer.SelectBest(
-                observations,
-                new IReadOnlyList<LinkageBlockingPass>[] { new[] { pass } },
-                minimumTrueMatchRecall: 0d))
-            .ToArray();
+        var primitiveResults = EvaluatePrimitives(
+            observations, canonicalFeatures,
+            GeneratePrimitivePasses(canonicalFeatures, options.MaxFieldsPerPass));
         if (options.RequireExhaustivePrimitivePool && primitiveResults.Length > options.PrimitivePoolSize)
             throw new InvalidOperationException(
                 $"Exhaustive primitive search requires {primitiveResults.Length} primitives; pool={options.PrimitivePoolSize}.");
         var ranked = BuildPrimitivePool(primitiveResults, options)
-            .Select(static result => result.Passes[0])
+            .Select(static result => result.Pass)
             .ToArray();
 
         // Never clip combinations to make a workload appear successful.
@@ -123,14 +120,92 @@ public static class BlockingRuleSetSearch
             primitiveResults.Length == ranked.Length);
     }
 
-    private static IReadOnlyList<BlockingRuleSetOptimizationResult> BuildPrimitivePool(
-        IReadOnlyCollection<BlockingRuleSetOptimizationResult> evaluated,
+    private sealed record PrimitiveSearchResult(
+        LinkageBlockingPass Pass, BlockingRuleSetDiagnosticResult Diagnostic,
+        string CanonicalSignature)
+    {
+        public int FieldClauseCount => Pass.Fields.Count;
+    }
+
+    private static PrimitiveSearchResult[] EvaluatePrimitives(
+        IReadOnlyCollection<BlockingFeatureObservation> observations,
+        IReadOnlyList<string> features,
+        IEnumerable<LinkageBlockingPass> passes)
+    {
+        if (observations.Count == 0)
+            throw new ArgumentException("O corpus de diagnóstico não pode ser vazio.", nameof(observations));
+        var rows = observations.ToArray();
+        var columns = features.Select(_ => new byte[rows.Length]).ToArray();
+        var featureIndex = features.Select((field, index) => (field, index))
+            .ToDictionary(x => x.field, x => x.index, StringComparer.Ordinal);
+        decimal matchWeight = 0m, nonMatchWeight = 0m;
+        for (var i = 0; i < rows.Length; i++)
+        {
+            var row = rows[i];
+            ArgumentNullException.ThrowIfNull(row);
+            ArgumentNullException.ThrowIfNull(row.Agreements);
+            if (row.Weight <= 0m)
+                throw new ArgumentOutOfRangeException(nameof(observations), "Todos os pesos devem ser positivos.");
+            if (row.IsReferenceMatch) matchWeight += row.Weight;
+            else nonMatchWeight += row.Weight;
+            for (var field = 0; field < features.Count; field++)
+                columns[field][i] = row.Agreements.TryGetValue(features[field], out var value)
+                    && value.HasValue ? value.Value ? (byte)2 : (byte)1 : (byte)0;
+        }
+        if (matchWeight <= 0m || nonMatchWeight <= 0m)
+            throw new ArgumentException("O corpus deve conter vínculos e não-vínculos de referência.", nameof(observations));
+
+        // Cache ternary agreement columns ONCE. Single-pass pool ranking needs
+        // the same exact diagnostics as Analyze, not the final optimizer's
+        // leave-one-pass-out contributions. Indexed scans avoid per-row LINQ
+        // closures/enumerators and repeated feature dictionary lookups.
+        return passes.Select(pass =>
+        {
+            var passColumns = pass.Fields.Select(field => columns[featureIndex[field]]).ToArray();
+            decimal retainedMatches = 0m, retainedNonMatches = 0m;
+            decimal completeMatches = 0m, completeNonMatches = 0m, effectiveObserved = 0m;
+            for (var rowIndex = 0; rowIndex < rows.Length; rowIndex++)
+            {
+                var complete = true;
+                var retained = true;
+                for (var fieldIndex = 0; fieldIndex < passColumns.Length; fieldIndex++)
+                {
+                    var agreement = passColumns[fieldIndex][rowIndex];
+                    if (agreement == 0) { complete = false; break; }
+                    if (agreement == 1) retained = false;
+                }
+                if (!complete) continue;
+                var row = rows[rowIndex];
+                effectiveObserved += row.Weight;
+                if (row.IsReferenceMatch)
+                {
+                    completeMatches += row.Weight;
+                    if (retained) retainedMatches += row.Weight;
+                }
+                else
+                {
+                    completeNonMatches += row.Weight;
+                    if (retained) retainedNonMatches += row.Weight;
+                }
+            }
+            var recall = (double)(retainedMatches / matchWeight);
+            var retention = (double)(retainedNonMatches / nonMatchWeight);
+            var diagnostic = new BlockingRuleSetDiagnosticResult([pass], recall, retention,
+                1d - retention, (double)(completeMatches / matchWeight),
+                (double)(completeNonMatches / nonMatchWeight), effectiveObserved);
+            return new PrimitiveSearchResult(pass, diagnostic,
+                pass.PassId + ":" + string.Join("+", pass.Fields));
+        }).ToArray();
+    }
+
+    private static IReadOnlyList<PrimitiveSearchResult> BuildPrimitivePool(
+        IReadOnlyCollection<PrimitiveSearchResult> evaluated,
         BlockingRuleSetSearchOptions options)
     {
-        var selected = new List<BlockingRuleSetOptimizationResult>(options.PrimitivePoolSize);
+        var selected = new List<PrimitiveSearchResult>(options.PrimitivePoolSize);
         var signatures = new HashSet<string>(StringComparer.Ordinal);
 
-        void Add(BlockingRuleSetOptimizationResult candidate)
+        void Add(PrimitiveSearchResult candidate)
         {
             if (selected.Count < options.PrimitivePoolSize && signatures.Add(candidate.CanonicalSignature))
                 selected.Add(candidate);

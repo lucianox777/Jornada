@@ -14,19 +14,39 @@ const string buildConfiguration = "Debug";
 #else
 const string buildConfiguration = "Release";
 #endif
+if (args.Contains("--discovery-proof-only", StringComparer.Ordinal))
+{
+    var proofs = new[] { 300, 1_500, 3_000, 30_000 }.Select(count =>
+    {
+        var result = V9TrainBlockingCandidateDiscovery.Discover(TrainInputs(count), DiscoveryOptions(count));
+        return new
+        {
+            Observations = count, result.TrainProjectionFingerprintSha256,
+            result.SamplePairFingerprintSha256, result.ProjectionSchemaFingerprintSha256,
+            CandidateUnionFingerprintSha256 = CandidateFingerprint(result),
+            result.EligiblePositivePairsBeforeBlocking, result.EligibleNonMatchPairsBeforeBlocking,
+            result.SampledNonMatchPairs, result.PairSamplingAttempts, result.FeatureCount,
+            result.PairFeatureComparisonCount, result.EvaluatedPrimitiveCount,
+            result.RetainedPrimitiveCount, result.EnumeratedUnionCount
+        };
+    }).ToArray();
+    Console.WriteLine(JsonSerializer.Serialize(proofs, BenchmarkJson.Options));
+    return;
+}
 var measurements = new List<object>();
-_ = V9BootstrapPareto2D.Evaluate(ParetoInputs(32));
+var benchmarkPolicy = new V9BootstrapPareto2D.SelectionPolicy(0, 1, 2);
+_ = V9BootstrapPareto2D.Evaluate(ParetoInputs(32), benchmarkPolicy);
 _ = V9TrainBlockingCandidateDiscovery.Discover(TrainInputs(32), DiscoveryOptions(32));
 
 foreach (var count in new[] { 500, 2_000, 8_000 })
 {
     var inputs = ParetoInputs(count);
-    _ = V9BootstrapPareto2D.Evaluate(inputs);
+    _ = V9BootstrapPareto2D.Evaluate(inputs, benchmarkPolicy);
     var runs = new List<RunMeasurement>();
     for (var repeat = 0; repeat < repetitions; repeat++)
         runs.Add(Measure(() =>
         {
-            var result = V9BootstrapPareto2D.Evaluate(inputs);
+            var result = V9BootstrapPareto2D.Evaluate(inputs, benchmarkPolicy);
             if (result.Table.Count != count || result.Table.Count(x => x.OnFrontier) != count)
                 throw new InvalidOperationException("Artificial tradeoff frontier was not preserved.");
             return Fingerprint(string.Join("|", result.Table.Select(x => x.Option.OptionId)));
@@ -53,7 +73,8 @@ foreach (var count in new[] { 300, 1_500, 3_000, 30_000 })
             last = V9TrainBlockingCandidateDiscovery.Discover(inputs, options);
             if (last.TrainObservationCount != count || last.EnumeratedUnionCount != 136)
                 throw new InvalidOperationException("Discovery workload changed unexpectedly.");
-            return last.TrainProjectionFingerprintSha256 + ":" + last.SamplePairFingerprintSha256;
+            return last.TrainProjectionFingerprintSha256 + ":" + last.SamplePairFingerprintSha256
+                + ":" + CandidateFingerprint(last);
         }));
     measurements.Add(new
     {
@@ -69,7 +90,7 @@ foreach (var count in new[] { 300, 1_500, 3_000, 30_000 })
 
 Console.WriteLine(JsonSerializer.Serialize(new
 {
-    Version = "V9_CPU_WORKLOAD_BENCHMARK_V1",
+    Version = "V9_CPU_WORKLOAD_BENCHMARK_V2",
     EvidenceScope = "Synthetic CPU kernel timings only; no SQL, TEST, GPU timing, or statistical certification",
     Framework = RuntimeInformation.FrameworkDescription,
     OS = RuntimeInformation.OSDescription,
@@ -115,7 +136,8 @@ static V9BootstrapPareto2D.CandidateOption[] ParetoInputs(int count) =>
         return new V9BootstrapPareto2D.CandidateOption(
             i.ToString("D8", CultureInfo.InvariantCulture), Fingerprint("artificial-cpu-point:" + i),
             tp / 1_000_000d, (double)fp / (tp + fp), 1d,
-            tp, fp, 1_000_000, 1_000, true, true);
+            tp, fp, 1_000_000, 1_000, true, true,
+            IdentityClusterFdrUpper: 1d, MultiplicityComparedConfigurations: count);
     }).ToArray();
 
 static V9PhysicalCalibrationObservation[] TrainInputs(int count) =>
@@ -131,6 +153,10 @@ static V9TrainBlockingDiscoveryOptions DiscoveryOptions(int count) => new(
 
 static string Fingerprint(string value) =>
     Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+static string CandidateFingerprint(V9TrainBlockingDiscoveryResult result) => Fingerprint(
+    string.Join("\n", result.Candidates.Select(c => string.Join("||", c.Select(p =>
+        p.PassId + ":" + string.Join("+", p.Fields))))));
 
 internal sealed record RunMeasurement(
     double ElapsedMilliseconds, double ProcessCpuMilliseconds,

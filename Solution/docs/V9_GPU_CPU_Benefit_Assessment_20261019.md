@@ -1,5 +1,11 @@
 # V9: avaliação local CPU/GPU — 19/10/2026
 
+Este arquivo preserva o benchmark inicial **Pareto V1**. A implementação
+consolidada é V2: resultados reconferidos e limites de comparação constam em
+`V9_CPU_Consolidated_Benchmark_20261019.json` e
+`V9_Consolidacao_Pareto_Execucao_20261019.md`. O benchmark atual exige política
+artificial explícita; seus flags não comprovam elegibilidade estatística.
+
 Decisão: manter CPU neste ensaio. A GPU está acessível, mas nenhum speedup foi
 medido. Não há evidência para substituir o cálculo exato atual por um backend GPU.
 Nenhuma dependência foi instalada; não houve SQL, TEST, publicação ou ativação.
