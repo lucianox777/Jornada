@@ -7,6 +7,7 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/Program.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9BlindIncrementalIdentityGrouping.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FellegiSunterAdaptiveCalibrationAdapter.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9PostResolveSourceDiagnosticSelector.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9IdentityClusterFdr.cs'
       - '.github/workflows/v9-physical-seed42-probe.yml'
   workflow_dispatch:
@@ -143,6 +144,23 @@ jobs:
           assert all(x['ImpureBlindGroups']>=0 for x in d['source_resolve_options'])
           assert d['candidate_grouping_oracle_uses_truth_labels'] is True
           assert d['label_blind_fs_complete_link_measured'] is True
+          selector=d['post_resolve_selector']
+          assert selector['Version']=="V9_POST_RESOLVE_SOURCE_VALIDATION_SELECTOR_DIAGNOSTIC_V1"
+          assert selector['SelectedGrouping']=="BLIND_FS_COMPLETE_LINK_CANDIDATES"
+          assert len(selector['Options'])==9
+          assert selector['MinimumConflictMargin']==0.5
+          assert selector['TestUsed'] is False
+          assert selector['OperationalModelCreated'] is False
+          assert selector['AutomaticallyActivated'] is False
+          assert selector['IndependenceProved'] is False
+          assert selector['SuggestedOptionId'] is None
+          assert selector['SuggestedConflictMargin'] is None
+          assert selector['Status']=="NO_SUGGESTION_CLUSTER_INDEPENDENCE_UNPROVEN"
+          assert all(x['CandidateGrouping']=="BLIND_FS_COMPLETE_LINK_CANDIDATES"
+                     and x['EligibleForDescriptiveSelection'] is False
+                     and x['IdentityIidIndependentlyAttested'] is False
+                     for x in selector['Options'])
+          assert d['pairwise_suggestion_suppressed_in_final_probe'] is True
           assert d['conditional_cp_cluster_ratio_is_operationally_certified'] is False
           assert d['conditional_cp_cluster_independence_not_attested'] is True
           assert all(x['BonferroniComparedConfigurations']==36 for x in d['source_resolve_options'])

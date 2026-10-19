@@ -87,7 +87,8 @@ public static class V9PhysicalCalibrationEvidenceCli
         if (measured.RepeatedSqlMaterializationQuantiles is null
             || measured.ValidationGlobalCoverage is not { Count: 3 }
             || measured.FinalResolveValidation is not { Count: 3 }
-            || measured.SourceResolveValidation is not { Count: 36 })
+            || measured.SourceResolveValidation is not { Count: 36 }
+            || measured.PostResolveSelection is not { Options.Count: 9 })
             throw new InvalidDataException("Probe não retornou medidas SQL físicas completas TF=0.");
 
         var diagnostic = new
@@ -116,6 +117,10 @@ public static class V9PhysicalCalibrationEvidenceCli
             threshold_pair_options = measured.ValidationGlobalCoverage,
             legacy_directed_pair_denominator_options = measured.FinalResolveValidation,
             source_resolve_options = measured.SourceResolveValidation,
+            post_resolve_selector = measured.PostResolveSelection,
+            pairwise_suggestion_suppressed_in_final_probe =
+                measured.CalibrationReport.SuggestedOptionId is null
+                && measured.CalibrationReport.SuggestedModelFamily is null,
             label_blind_fs_complete_link_measured = true,
             conditional_cp_cluster_ratio_is_operationally_certified = false,
             conditional_cp_cluster_independence_not_attested = true,
@@ -137,7 +142,8 @@ public static class V9PhysicalCalibrationEvidenceCli
             validation_M_sql = measured.ValidationTruePairsRecoveredBySql,
             blocking_recall = (double)measured.ValidationTruePairsRecoveredBySql
                 / measured.ValidationEligibleTruePairsBeforeBlocking,
-            option_count = measured.SourceResolveValidation.Count
+            option_count = measured.SourceResolveValidation.Count,
+            final_source_selector_status = measured.PostResolveSelection.Status
         }));
     }
 

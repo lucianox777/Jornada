@@ -75,7 +75,8 @@ public sealed record V9PhysicalCalibrationRunResult(
     V9PhysicalSqlIdentityCohortCoverage? ValidationIdentityCohortCoverage = null,
     V9PhysicalSqlCostQuantiles.Summary? RepeatedSqlMaterializationQuantiles = null,
     IReadOnlyList<V9PhysicalFinalResolveMetric>? FinalResolveValidation = null,
-    IReadOnlyList<V9PhysicalSourceResolveMetric>? SourceResolveValidation = null);
+    IReadOnlyList<V9PhysicalSourceResolveMetric>? SourceResolveValidation = null,
+    V9PostResolveSourceSelectionReport? PostResolveSelection = null);
 
 /// <summary>
 /// Cohort is defined BEFORE SQL blocking and includes every base identity,
@@ -338,6 +339,7 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         var physicalReport = EnforcePhysicalGlobalRecallForSuggestion(report, globalCoverage);
         IReadOnlyList<V9PhysicalFinalResolveMetric>? finalResolve = null;
         IReadOnlyList<V9PhysicalSourceResolveMetric>? sourceResolve = null;
+        V9PostResolveSourceSelectionReport? postResolveSelection = null;
         if (evaluateFinalResolve)
         {
             var physicalEdges = await ReadValidationPairsAsync(connection, cancellationToken);
@@ -350,6 +352,16 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
                 observations, physicalEdges, finalConflictMargins ?? [finalConflictMargin],
                 predeclaredMaximumAcceptedPerBaseIdentity,
                 includeFsBlindGrouping, minimumFsGroupingPosterior);
+            postResolveSelection = V9PostResolveSourceDiagnosticSelector.Evaluate(
+                sourceResolve, budget, minimumConflictMargin: .5m);
+            // Pairwise FS threshold ranking is NEVER a valid suggestion
+            // once final source-identity Rank->Resolve is requested.
+            physicalReport = physicalReport with
+            {
+                Status = "PAIRWISE_SUGGESTION_SUPPRESSED_USE_POST_RESOLVE_GATES",
+                SuggestedModelFamily = null,
+                SuggestedOptionId = null
+            };
         }
 
         return new V9PhysicalCalibrationRunResult(
@@ -372,7 +384,8 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             validationIdentityCoverage,
             repeatedQuantiles,
             finalResolve,
-            sourceResolve);
+            sourceResolve,
+            postResolveSelection);
     }
 
     /// <summary>

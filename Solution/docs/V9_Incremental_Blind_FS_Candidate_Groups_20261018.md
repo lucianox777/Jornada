@@ -82,3 +82,30 @@ estatística, então **não usar automaticamente o bound CP para
 selecionar nem promover V9**. Essas duas colunas serão medidas
 no probe físico sem usar TEST; TF positiva e correção de múltiplos
 estudos permanecem pendentes.
+
+## Seletor diagnóstico pós-Resolve por FONTE — complemento de 19/10/2026
+
+O antigo `AdaptiveCalibrationModelSearch` gerava uma **sugestão por par**,
+que NÃO mede as decisões finais por identidade e poderia ser confundida
+com seleção válida. Quando o `V9PhysicalSqlAdaptiveCalibrationProbe`
+executa `evaluateFinalResolve=true`, agora o relatório legado **remove
+explicitamente** `SuggestedModelFamily/OptionId` e registra
+`PAIRWISE_SUGGESTION_SUPPRESSED_USE_POST_RESOLVE_GATES`.
+
+O novo `V9PostResolveSourceDiagnosticSelector.Evaluate` usa apenas
+`BLIND_FS_COMPLETE_LINK_CANDIDATES` (não RAW nem ORACLE) e mede no
+VALIDATION físico por observação-fonte: recall global com todas as fontes
+elegíveis pré-blocking; FP/aceites FINAL após Resolve; bound condicional
+CP por identidade; e política explícita de margem positiva (0,5 neste
+estudo). Essas **nove células** representam três thresholds por
+três margens. A multiplicidade de 36 células já é aplicada no CP físico
+para contemplar todos os braços realmente comparados.
+
+**Fail closed:** `ClusterIidIndependentlyValidated=false` nos artefatos,
+mesmo com FP pontual zero. Logo `SuggestedOptionId=null` e
+`NO_SUGGESTION_CLUSTER_INDEPENDENCE_UNPROVEN`, sem modelo criado nem
+ativação. Este seletor é **um diagnóstico C# físico**, não a publicação
+do calibrador operacional na `ref`, e não altera o contrato genérico de
+busca de outras famílias. Suposições iid, estimativa de FDR com cobertura,
+seletor adaptativo com o catálogo completo e validação operacional
+ainda requerem sua própria etapa e prova.
