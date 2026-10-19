@@ -5,6 +5,7 @@ Static check only. It cannot count a cache hit as proof of compilation,
 SQL integration, security review or transactional E2E.
 """
 from pathlib import Path
+import json
 import re
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,11 +14,12 @@ CI = ROOT.parent / ".github/workflows/ci.yml"
 
 def main() -> None:
     data = CI.read_text(encoding="utf-8")
+    sdk = json.loads((ROOT / "global.json").read_text(encoding="utf-8"))["sdk"]["version"]
     # A pinned setup-dotnet invocation is the only place cache config belongs.
     matches = list(re.finditer(
         r"(?m)^      - uses: actions/setup-dotnet@[a-f0-9]{40}[^\n]*\n"
         r"        with:\n"
-        r"          dotnet-version: '10\.0\.112'\n"
+        r"          dotnet-version: '" + re.escape(sdk) + r"'\n"
         r"          #[^\n]*\n"
         r"          #[^\n]*\n"
         r"          cache: true\n"
