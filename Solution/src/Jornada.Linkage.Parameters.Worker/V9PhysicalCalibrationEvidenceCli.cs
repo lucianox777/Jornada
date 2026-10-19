@@ -142,8 +142,10 @@ public static class V9PhysicalCalibrationEvidenceCli
         }));
     }
 
-    public static V9PhysicalCalibrationObservation[] ReadNoCpfTrainValidation(string file)
+    public static V9PhysicalCalibrationObservation[] ReadNoCpfTrainValidation(string file,
+        int minimumObservationCount = 1000)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(minimumObservationCount, 4);
         using var csv = new TextFieldParser(file);
         csv.SetDelimiters(",");
         csv.HasFieldsEnclosedInQuotes = true;
@@ -185,7 +187,7 @@ public static class V9PhysicalCalibrationEvidenceCli
                 checked(rows.Count + 1), Get("base_person_id"), partition,
                 Get("gestor"), Get("nome"), Get("nome_mae"), dob));
         }
-        if (rows.Count < 1000
+        if (rows.Count < minimumObservationCount
             || !rows.Any(x => x.Partition == "TRAIN")
             || !rows.Any(x => x.Partition == "VALIDATION"))
             throw new InvalidDataException("Corpus sem CPF TRAIN/VALIDATION insuficiente.");

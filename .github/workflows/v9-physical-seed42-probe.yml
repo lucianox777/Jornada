@@ -231,4 +231,8 @@ jobs:
             Solution/.local/v9-physical-${{ matrix.profile }}/physical-fs-resolve-diagnostic.json
             Solution/.local/v9-physical-${{ matrix.profile }}/physical-source-resolve-3x3x4-TF0.csv
             Solution/.local/v9-physical-${{ matrix.profile }}/field-quality-train-val.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/study.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/*.fitted.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/plan.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/interrupted.json
           if-no-files-found: ignore

@@ -79,6 +79,9 @@ def verify(root: Path) -> None:
     assert result["SourceSelection"]["TestUsed"] is False
     print(json.dumps({"fixture_only": True, "configurations": 54,
                       "physical_full_path_rows": len(measurements), "test_used": False,
+                      "p95_min_ms": min(row["Quantiles"]["P95Milliseconds"] for row in times),
+                      "p95_max_ms": max(row["Quantiles"]["P95Milliseconds"] for row in times),
+                      "portable_fit_count": len(fits),
                       "certified": False, "activated": False}))
 
 
