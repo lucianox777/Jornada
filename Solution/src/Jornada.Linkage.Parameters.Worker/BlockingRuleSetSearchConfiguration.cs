@@ -21,7 +21,9 @@ public static class BlockingRuleSetSearchConfiguration
             MaxPasses: configuration.GetValue($"{Prefix}:MaxPasses", 2),
             PrimitivePoolSize: configuration.GetValue($"{Prefix}:PrimitivePoolSize", 8),
             MinimumTrueMatchRecall: configuration.GetValue($"{Prefix}:MinimumTrueMatchRecall", 0.95d),
-            RequireObservedNonMatchSupport: configuration.GetValue($"{Prefix}:RequireObservedNonMatchSupport", true));
+            RequireObservedNonMatchSupport: configuration.GetValue($"{Prefix}:RequireObservedNonMatchSupport", true),
+            CandidateRuleSetCap: configuration.GetValue($"{Prefix}:CandidateRuleSetCap", 2048),
+            RequireExhaustivePrimitivePool: configuration.GetValue($"{Prefix}:RequireExhaustivePrimitivePool", false));
 
         options.Validate();
         return options;

@@ -7,7 +7,9 @@ public sealed record BlockingRuleSetSearchOptions(
     int MaxPasses = 2,
     int PrimitivePoolSize = 8,
     double MinimumTrueMatchRecall = 0.95d,
-    bool RequireObservedNonMatchSupport = false)
+    bool RequireObservedNonMatchSupport = false,
+    int CandidateRuleSetCap = 2048,
+    bool RequireExhaustivePrimitivePool = false)
 {
     public void Validate()
     {
@@ -15,12 +17,21 @@ public sealed record BlockingRuleSetSearchOptions(
             throw new ArgumentOutOfRangeException(nameof(MaxFieldsPerPass));
         if (MaxPasses is < 1 or > 4)
             throw new ArgumentOutOfRangeException(nameof(MaxPasses));
-        if (PrimitivePoolSize is < 1 or > 64)
+        if (PrimitivePoolSize is < 1 or > 4096)
             throw new ArgumentOutOfRangeException(nameof(PrimitivePoolSize));
+        if (CandidateRuleSetCap is < 1 or > 1_000_000)
+            throw new ArgumentOutOfRangeException(nameof(CandidateRuleSetCap));
         if (MinimumTrueMatchRecall is < 0d or > 1d)
             throw new ArgumentOutOfRangeException(nameof(MinimumTrueMatchRecall));
     }
 }
+
+public sealed record BlockingRuleSetCandidateEnumeration(
+    IReadOnlyList<IReadOnlyList<LinkageBlockingPass>> Candidates,
+    int EvaluatedPrimitiveCount,
+    int RetainedPrimitiveCount,
+    long EnumeratedUnionCount,
+    bool ExhaustivePrimitivePool);
 
 /// <summary>
 /// Busca bounded e determinística. Primeiro avalia todos os passes primitivos com até N campos.
@@ -34,10 +45,23 @@ public sealed record BlockingRuleSetSearchOptions(
 /// </summary>
 public static class BlockingRuleSetSearch
 {
-    public const string MethodVersion = "BLOCKING_RULESET_SEARCH_V3";
+    public const string MethodVersion = "BLOCKING_RULESET_SEARCH_V4";
     public const int MaxCandidateRuleSets = 2048;
 
     public static BlockingRuleSetOptimizationResult SearchBest(
+        IReadOnlyCollection<BlockingFeatureObservation> observations,
+        IReadOnlyCollection<string> features,
+        BlockingRuleSetSearchOptions? options = null)
+    {
+        options ??= new BlockingRuleSetSearchOptions();
+        var enumeration = EnumerateCandidateRuleSets(observations, features, options);
+        return BlockingRuleSetOptimizer.SelectBest(
+            observations, enumeration.Candidates,
+            options.MinimumTrueMatchRecall, options.RequireObservedNonMatchSupport);
+    }
+
+    /// <summary>Returns EVERY union from the declared primitive pool, before final selection.</summary>
+    public static BlockingRuleSetCandidateEnumeration EnumerateCandidateRuleSets(
         IReadOnlyCollection<BlockingFeatureObservation> observations,
         IReadOnlyCollection<string> features,
         BlockingRuleSetSearchOptions? options = null)
@@ -62,6 +86,9 @@ public static class BlockingRuleSetSearch
                 new IReadOnlyList<LinkageBlockingPass>[] { new[] { pass } },
                 minimumTrueMatchRecall: 0d))
             .ToArray();
+        if (options.RequireExhaustivePrimitivePool && primitiveResults.Length > options.PrimitivePoolSize)
+            throw new InvalidOperationException(
+                $"Exhaustive primitive search requires {primitiveResults.Length} primitives; pool={options.PrimitivePoolSize}.");
         var ranked = BuildPrimitivePool(primitiveResults, options)
             .Select(static result => result.Passes[0])
             .ToArray();
@@ -76,10 +103,10 @@ public static class BlockingRuleSetSearch
         {
             combinations = checked(combinations * (ranked.Length - width + 1) / width);
             candidateCount = checked(candidateCount + combinations);
-            if (candidateCount > MaxCandidateRuleSets)
+            if (candidateCount > options.CandidateRuleSetCap)
                 throw new InvalidOperationException(
                     $"Blocking search requires {candidateCount}+ candidate unions; " +
-                    $"cap={MaxCandidateRuleSets}. Reduce PrimitivePoolSize/MaxPasses " +
+                    $"cap={options.CandidateRuleSetCap}. Reduce PrimitivePoolSize/MaxPasses " +
                     "explicitly instead of silently truncating the search.");
         }
 
@@ -91,11 +118,9 @@ public static class BlockingRuleSetSearch
         if (candidates.Count != candidateCount)
             throw new InvalidOperationException("Blocking search incomplete candidate enumeration.");
 
-        return BlockingRuleSetOptimizer.SelectBest(
-            observations,
-            candidates,
-            options.MinimumTrueMatchRecall,
-            options.RequireObservedNonMatchSupport);
+        return new BlockingRuleSetCandidateEnumeration(
+            candidates, primitiveResults.Length, ranked.Length, candidateCount,
+            primitiveResults.Length == ranked.Length);
     }
 
     private static IReadOnlyList<BlockingRuleSetOptimizationResult> BuildPrimitivePool(
