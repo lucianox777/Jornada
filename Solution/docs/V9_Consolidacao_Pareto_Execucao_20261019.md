@@ -3,7 +3,13 @@
 Base integrada: master `7f68f5e8` (PR #1157), mais os cinco commits da PR #1134.
 Branch: `feat/v9-consolidacao-pareto-20261019`, no worktree irmão
 `Jornada-v9-consolidacao-20261019`. O checkout original, seus arquivos não rastreados
-e o stash anterior foram preservados. Não houve push, merge ou ativação nesta rodada.
+e o stash anterior foram preservados. A publicação posterior foi autorizada pelo
+usuário e a branch está na PR draft #1158; não houve merge ou ativação.
+
+Incremento posterior à CI de `b334f7d2`: [candidato experimental v0, garantia de
+cap 4, protocolo novo e limites da independência](V9_Bootstrap_V0_Cap_Identidade_20261019.md).
+As evidências anteriores abaixo permanecem identificadas por seu protocolo; não
+constituem execução do Runner incremental com Gold nem aprovação do v0.
 
 ## Implementação efetiva
 

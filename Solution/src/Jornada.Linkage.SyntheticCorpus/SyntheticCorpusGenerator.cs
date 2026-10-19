@@ -1,4 +1,5 @@
 using System.Globalization;
+using Jornada.Contracts;
 
 namespace Jornada.Linkage.SyntheticCorpus;
 
@@ -6,8 +7,6 @@ public sealed class SyntheticCorpusGenerator
 {
     private static readonly int[] SurnameCounts = [1, 2, 3];
     private static readonly ulong[] SurnameCountWeights = [35, 45, 20];
-    private static readonly int[] ObservationCounts = [1, 2, 3, 4];
-    private static readonly ulong[] ObservationCountWeights = [40, 34, 18, 8];
 
     private readonly SyntheticFrequencySampler firstNames;
     private readonly SyntheticFrequencySampler surnames;
@@ -78,8 +77,8 @@ public sealed class SyntheticCorpusGenerator
         {
             var count = SyntheticCorpusV2Rules.WeightedChoice(
                 random,
-                ObservationCounts,
-                ObservationCountWeights);
+                SyntheticObservationMultiplicityContract.Counts,
+                SyntheticObservationMultiplicityContract.Weights);
 
             var gestorIndexes = Enumerable.Range(0, options.Gestores).ToArray();
             var selected = SyntheticCorpusV2Rules.SampleWithoutReplacement(

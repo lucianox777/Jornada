@@ -1,0 +1,71 @@
+{
+  "schema": "V9_EXPERIMENTAL_BOOTSTRAP_REFERENCE_V1",
+  "label": "bootstrap-v0-clean-T095-margin05-TF0",
+  "snapshot_sha256": "613f914114073d4a9100e848a01a56321354ae9a7885a77462941ae86936953d",
+  "source_head": "b334f7d2fa99783df3c3d698a5a36055165fbffc",
+  "source_run": "https://github.com/lucianox777/Jornada/actions/runs/39338667251",
+  "source_artifact_id": 12227823619,
+  "source_archive_sha256": "db3218f05f550dd651df381bbdf8291d2ae2f8c0bea4af81638b588e7d78f456",
+  "source_study_sha256": "06d9fdadd84f317ab926c60ff975aab5c75062afa385ad7fa1668a4a86bdda35",
+  "selection": "USER_REQUESTED_EXPERIMENTAL_REFERENCE_NOT_ELIGIBLE_SELECTOR_OUTPUT",
+  "measurement_scope": "HISTORICAL_CLEAN_SEED42_VALIDATION_SOURCE_POST_RESOLVE",
+  "source_measurement": {
+    "OptionId": "aeade5e6ad632d8dc25edf3b0c6aa490249762e2412d44eee69b70f260091a6c:T0.95_TF0",
+    "Threshold": 0.95,
+    "TfWeight": 0,
+    "ConflictMargin": 0.5,
+    "CandidateGrouping": "BLIND_FS_COMPLETE_LINK_CANDIDATES",
+    "AllValidationObservations": 10296,
+    "EligibleSourceObservationsBeforeBlocking": 7841,
+    "EligibleSourceObservationsWithTrueSqlCandidate": 7727,
+    "TrueAcceptedSourceObservations": 7505,
+    "FalseAcceptedSourceObservations": 0,
+    "Conflicts": 176,
+    "Unresolved": 2615,
+    "BlockingSourceRecall": 0.9854610381328912,
+    "GlobalSourceRecall": 0.9571483229179951,
+    "FdrAfterResolve": 0,
+    "HoeffdingUpperBySourceBaseIdentity": 0.27521011146719365,
+    "PreBlockingBaseIdentities": 5556,
+    "ReasonsByResolveStatus": {
+      "ABAIXO_T_LINKAGE": 543,
+      "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE": 176,
+      "RESOLVIDO": 7505,
+      "SEM_CANDIDATO_NO_RULESET_BLOCKING": 2072
+    },
+    "SyntheticGoldOracleGrouping": false,
+    "OperationallyCertified": false,
+    "ImpureBlindGroups": 0,
+    "ConditionalClusterCpFdrUpper": 0.03961530065200156,
+    "ClopperPearsonUpperAnyFpByIdentity": 0.002069511745767527,
+    "BonferroniComparedConfigurations": 2493,
+    "ClusterIidIndependentlyValidated": false
+  },
+  "population_cap_four_sensitivity": [
+    {
+      "comparisons": 1,
+      "population_cap": 4,
+      "conditional_fdr_upper": 0.0020775298933068177,
+      "status": "RETROSPECTIVE_SENSITIVITY_NOT_NEW_VALIDATION"
+    },
+    {
+      "comparisons": 36,
+      "population_cap": 4,
+      "conditional_fdr_upper": 0.004190982906639329,
+      "status": "RETROSPECTIVE_SENSITIVITY_NOT_NEW_VALIDATION"
+    },
+    {
+      "comparisons": 2493,
+      "population_cap": 4,
+      "conditional_fdr_upper": 0.0067738754035991545,
+      "status": "RETROSPECTIVE_SENSITIVITY_NOT_NEW_VALIDATION"
+    }
+  ],
+  "decision_cluster_iid_validated": false,
+  "operationally_certified": false,
+  "test_reserved": false,
+  "test_used": false,
+  "published_to_sql_ref": false,
+  "activated": false,
+  "incremental_runner_gold_evaluated": false
+}

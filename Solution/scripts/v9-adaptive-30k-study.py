@@ -3,10 +3,11 @@
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 
 
-def prepare(corpus: Path, plan_path: Path) -> None:
+def prepare(corpus: Path, plan_path: Path, cap_four: bool = False) -> None:
     manifest = json.loads((corpus.parent / "generation-manifest.json").read_bytes())
     assert manifest["seed"] == 42
     assert manifest["population_profile"] == "DEMOGRAPHIC_PRIMARY_V1"
@@ -42,6 +43,26 @@ def prepare(corpus: Path, plan_path: Path) -> None:
                       "MaximumCandidatePairIncidences": 1000000, "MaximumProjectedSignatures": 1000000},
         "MinimumGroupingPosterior": 0.99, "MaximumAcceptedPerBaseIdentity": 16
     }
+    if cap_four:
+        multiplicity = manifest["observation_multiplicity"]
+        assert manifest["generator_version"] == "JORNADA_SYNTH_CORPUS_CSHARP_V1"
+        assert multiplicity["contract_version"] == "SYNTHETIC_BASE_OBSERVATION_MULTIPLICITY_V1"
+        assert multiplicity["maximum_observations_per_base_identity"] == 4
+        assert multiplicity["scope"] == "BASE_CORPUS_ONLY_NOT_INGESTION_WAVES"
+        manifest_sha = hashlib.sha256((corpus.parent / "generation-manifest.json").read_bytes()).hexdigest()
+        study = hashlib.sha256(("V9_ADAPTIVE_30K_BASE_CAP4_V3|" + input_sha + "|" + manifest_sha).encode()).hexdigest()
+        plan["StudyFingerprintSha256"] = plan["Budget"]["StudyFingerprintSha256"] = study
+        # Carry the entire previous family; do not reset multiplicity on a new bound protocol.
+        plan["PreviouslyComparedValidationConfigurations"] = 2493
+        plan["MaximumComparedConfigurations"] = 3726
+        plan["MaximumAcceptedPerBaseIdentity"] = 4
+        plan["ObservationCapDeclaration"] = {
+            "ContractVersion": multiplicity["contract_version"],
+            "GeneratorVersion": manifest["generator_version"],
+            "MaximumObservationsPerBaseIdentity": 4,
+            "ManifestSha256": manifest_sha, "ObservationsSha256": input_sha
+        }
+        # Source population cap differs from the blind candidate size guard (16).
     with plan_path.open("x", encoding="utf-8") as stream:
         json.dump(plan, stream, indent=2)
         stream.write("\n")
@@ -49,7 +70,12 @@ def prepare(corpus: Path, plan_path: Path) -> None:
 
 def verify(root: Path) -> None:
     result = json.loads((root / "study.json").read_bytes())
-    assert result["PredeclaredComparedConfigurations"] == 2493
+    plan = json.loads((root / "plan.json").read_bytes())
+    comparisons = plan["MaximumComparedConfigurations"]
+    assert (plan["MaximumAcceptedPerBaseIdentity"], comparisons) in [(16, 2493), (4, 3726)]
+    if plan["MaximumAcceptedPerBaseIdentity"] == 4:
+        assert plan["ObservationCapDeclaration"]["MaximumObservationsPerBaseIdentity"] == 4
+    assert result["PredeclaredComparedConfigurations"] == comparisons
     assert result["TotalCandidateRuleSets"] == 137
     assert result["Discovery"]["EnumeratedUnionCount"] == 136
     assert result["Discovery"]["Options"]["NonMatchSampleSize"] == 100000
@@ -59,7 +85,7 @@ def verify(root: Path) -> None:
     assert all(row["ExclusionReasons"] for row in result["Pareto"]["Table"])
     assert result["EndToEndMeasurements"] == []
     rows = result["SourceMeasurements"]
-    assert rows and all(row["BonferroniComparedConfigurations"] == 2493 for row in rows)
+    assert rows and all(row["BonferroniComparedConfigurations"] == comparisons for row in rows)
     assert all(row["CandidateGrouping"] == "BLIND_FS_COMPLETE_LINK_CANDIDATES" for row in rows)
     assert all(not row["ClusterIidIndependentlyValidated"] and not row["OperationallyCertified"] for row in rows)
     assert result["SourceSelection"]["TestUsed"] is False
@@ -71,6 +97,9 @@ def verify(root: Path) -> None:
     reference = json.loads((root.parent / "physical-fs-resolve-diagnostic.json").read_bytes())["source_resolve_options"]
     control_rows = [row for row in rows if row["OptionId"] in controls]
     assert len(control_rows) == 9
+    if plan["MaximumAcceptedPerBaseIdentity"] == 4:
+        assert any(item["Snapshot"]["ContentSha256"] == "613f914114073d4a9100e848a01a56321354ae9a7885a77462941ae86936953d"
+                   for item in result["FrozenConfigurations"]), "Cap-only protocol must preserve the frozen v0 fit"
     for row in control_rows:
         if row["ConflictMargin"] not in [0.5, 2]:
             continue
@@ -90,6 +119,18 @@ def verify(root: Path) -> None:
         assert (row["FdrAfterResolve"] is None) == (accepted == 0)
         if accepted:
             assert abs(row["FdrAfterResolve"] - row["FalseAcceptedSourceObservations"] / accepted) < 1e-12
+        if row["FalseAcceptedSourceObservations"] == 0:
+            n = row["PreBlockingBaseIdentities"]
+            cap = plan["MaximumAcceptedPerBaseIdentity"]
+            component_alpha = .05 / (2 * comparisons)
+            cp = -math.expm1(math.log(component_alpha) / n)
+            denominator = accepted / n - cap * math.sqrt(math.log(1 / component_alpha) / (2 * n))
+            expected = min(1, cap * cp / denominator) if denominator > 0 else None
+            assert abs(row["ClopperPearsonUpperAnyFpByIdentity"] - cp) < 1e-12
+            if expected is None:
+                assert row["ConditionalClusterCpFdrUpper"] is None
+            else:
+                assert abs(row["ConditionalClusterCpFdrUpper"] - expected) < 1e-12, "Reported cap was not applied to bound"
     for fit in result["FrozenConfigurations"]:
         snapshot = fit["Snapshot"]
         assert hashlib.sha256((root / (snapshot["ContentSha256"] + ".fitted.json")).read_bytes()).hexdigest() == snapshot["ContentSha256"]
@@ -97,7 +138,8 @@ def verify(root: Path) -> None:
         "scope": "HISTORICAL_TRAIN_VALIDATION_EXPLORATORY_NOT_CERTIFICATION",
         "plan_sha256": result["PlanSha256"], "configurations": 1233,
         "evaluated_source_rows": len(rows), "rejected_rows": 1233 - len(rows),
-        "multiplicity_including_previous_known_family": 2493,
+        "multiplicity_including_previous_known_family": comparisons,
+        "predeclared_population_cap": plan["MaximumAcceptedPerBaseIdentity"],
         "reference_control_included": True,
         "historical_validation_reused": True, "complete_historical_look_count_verified": False,
         "p95_measured": False, "test_used": False, "certified": False, "activated": False,
@@ -116,10 +158,13 @@ if __name__ == "__main__":
     prep = commands.add_parser("prepare")
     prep.add_argument("corpus", type=Path)
     prep.add_argument("plan", type=Path)
+    prep_cap = commands.add_parser("prepare-cap4")
+    prep_cap.add_argument("corpus", type=Path)
+    prep_cap.add_argument("plan", type=Path)
     check = commands.add_parser("verify")
     check.add_argument("result", type=Path)
     args = parser.parse_args()
-    if args.mode == "prepare":
-        prepare(args.corpus, args.plan)
+    if args.mode in ("prepare", "prepare-cap4"):
+        prepare(args.corpus, args.plan, cap_four=args.mode == "prepare-cap4")
     else:
         verify(args.result)

@@ -15,6 +15,10 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/BlockingRuleSetSearch.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9*Pareto*.cs'
       - 'Solution/src/Jornada.Contracts/V9CalibrationBlockingProjection.cs'
+      - 'Solution/src/Jornada.Contracts/SyntheticObservationMultiplicityContract.cs'
+      - 'Solution/src/Jornada.Linkage.SyntheticCorpus/**'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9SyntheticObservationCapEvidence.cs'
+      - 'Solution/data/calibration/v9/**'
       - 'Solution/src/Jornada.Linkage.Core/V9FittedSnapshot.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FrozenSourceResolveReplay.cs'
       - 'Solution/src/Jornada.Linkage.Runner/V9FittedSnapshotExecutionRuntime.cs'
@@ -230,7 +234,7 @@ jobs:
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-physical-$PROFILE"
-          python3 scripts/v9-adaptive-30k-study.py prepare "$root/observacoes.csv" "$root/adaptive-30k-plan.json"
+          python3 scripts/v9-adaptive-30k-study.py prepare-cap4 "$root/observacoes.csv" "$root/adaptive-30k-plan.json"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-adaptive-study "$root/adaptive-30k-plan.json" "$root/observacoes.csv" "$root/adaptive-30k-result"
           python3 scripts/v9-adaptive-30k-study.py verify "$root/adaptive-30k-result"
@@ -248,6 +252,8 @@ jobs:
             Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/plan.json
             Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/interrupted.json
             Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-plan.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/generation-manifest.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/plan.json
             Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/study.json
             Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/diagnostic-summary.json
             Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/*.fitted.json

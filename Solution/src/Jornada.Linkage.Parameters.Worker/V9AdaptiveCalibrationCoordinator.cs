@@ -20,7 +20,9 @@ public sealed record V9AdaptiveCalibrationPlan(
     decimal MinimumGroupingPosterior = .99m,
     int MaximumAcceptedPerBaseIdentity = 16,
     int PreviouslyComparedValidationConfigurations = 0,
-    IReadOnlyList<IReadOnlyList<LinkageBlockingPass>>? BaselineRuleSets = null);
+    IReadOnlyList<IReadOnlyList<LinkageBlockingPass>>? BaselineRuleSets = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    V9SyntheticObservationCapDeclaration? ObservationCapDeclaration = null);
 
 public sealed record V9AdaptiveCandidateRejection(string RulesetSha256,
     IReadOnlyList<string> ConfigurationIds, string Reason);
@@ -83,6 +85,8 @@ public static class V9AdaptiveCalibrationCoordinator
             || !plan.Execution.FsBlindGroupingOnly || plan.Execution.MaximumBlindClusterSize is null)
             throw new InvalidDataException("Plano não pode relaxar risco, trocar projeção ou omitir agrupamento.");
         plan.Execution.Validate(evaluateFinalResolve: true, includeFsBlindGrouping: true);
+        if (plan.ObservationCapDeclaration is { } capDeclaration)
+            V9SyntheticObservationCapEvidence.ValidateDeclaration(capDeclaration, plan.MaximumAcceptedPerBaseIdentity);
         if (plan.BaselineRuleSets is not null)
             _ = CombineCandidateRuleSets([], plan.BaselineRuleSets);
     }
@@ -140,6 +144,10 @@ public static class V9AdaptiveCalibrationCoordinator
         if (observations.Any(x => x is null || x.Partition is not ("TRAIN" or "VALIDATION"))
             || observations.Select(x => x.ObservationId).Distinct().Count() != observations.Count)
             throw new InvalidDataException("Coordenador exige TRAIN/VALIDATION sem TEST ou IDs duplicados.");
+        if (plan.ObservationCapDeclaration is { } declaration
+            && observations.GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
+                .Any(g => g.Count() > declaration.MaximumObservationsPerBaseIdentity))
+            throw new InvalidDataException("Frame excede o cap populacional pré-declarado.");
         var train = observations.Where(x => x.Partition == "TRAIN").ToArray();
         var validation = observations.Where(x => x.Partition == "VALIDATION").ToArray();
         if (validation.Length < 2 || train.Select(x => x.BasePersonId).Intersect(

@@ -31,11 +31,22 @@ public static class V9AdaptiveCalibrationStudyCli
         // This file-only entry point must never silently replace positive TF with zero.
         if (plan.ModelOptions.Any(x => x.TfWeight > 0m))
             throw new InvalidDataException("CLI requer TF=0; TF positiva usa RunAsync com referência IBGE fixada por frame.");
+        if (plan.ObservationCapDeclaration is { } declaration)
+        {
+            var manifestPath = Path.Combine(Path.GetDirectoryName(inputPath)!, "generation-manifest.json");
+            if (new FileInfo(manifestPath).Length is <= 0 or > 10_000_000)
+                throw new InvalidDataException("Manifesto ausente, vazio ou grande demais.");
+            await using var input = File.OpenRead(inputPath);
+            var inputSha = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(input));
+            V9SyntheticObservationCapEvidence.ValidateManifest(await File.ReadAllBytesAsync(manifestPath),
+                declaration, inputSha, plan.MaximumAcceptedPerBaseIdentity);
+        }
         // This shared entry point accepts the same >=4-row frame as the physical
         // coordinator. The historical seed42 CLI retains its 1000-row default.
         // Statistical eligibility is enforced downstream, never inferred from this floor.
         var observations = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(inputPath,
-            minimumObservationCount: 4);
+            minimumObservationCount: 4,
+            maximumObservationsPerBaseIdentity: plan.ObservationCapDeclaration?.MaximumObservationsPerBaseIdentity);
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
             ?? throw new InvalidOperationException("Conexão de JornadaHarness descartável ausente.");
         var builder = new SqlConnectionStringBuilder(connectionString);
