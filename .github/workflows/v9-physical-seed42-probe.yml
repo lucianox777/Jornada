@@ -8,6 +8,17 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9BlindIncrementalIdentityGrouping.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FellegiSunterAdaptiveCalibrationAdapter.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9IdentityClusterFdr.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9PhysicalSqlAdaptiveCalibrationProbe.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9Adaptive*.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9PhysicalAdaptiveExecution.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9TrainBlockingCandidateDiscovery.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/BlockingRuleSetSearch.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9*Pareto*.cs'
+      - 'Solution/src/Jornada.Contracts/V9CalibrationBlockingProjection.cs'
+      - 'Solution/src/Jornada.Linkage.Core/V9FittedSnapshot.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FrozenSourceResolveReplay.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9FittedSnapshotExecutionRuntime.cs'
+      - 'Solution/scripts/v9-adaptive-pipeline-smoke.py'
       - '.github/workflows/v9-physical-seed42-probe.yml'
   workflow_dispatch:
 
@@ -73,6 +84,18 @@ jobs:
             --population-profile demographic-primary \
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
             --out "$PWD/.local/v9-physical-$PROFILE" --people 30000 --seed 42 --error-profile "$PROFILE"
+      - name: Execute adaptive coordinator, prefix SQL, full-path P95 and immutable fits (plumbing fixture)
+        working-directory: Solution
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          fixture="$PWD/.local/v9-physical-$PROFILE/adaptive-plumbing-input"
+          output="$PWD/.local/v9-physical-$PROFILE/adaptive-plumbing-result"
+          python3 scripts/v9-adaptive-pipeline-smoke.py prepare "$fixture"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-adaptive-study "$fixture/plan.json" "$fixture/observacoes.csv" "$output"
+          python3 scripts/v9-adaptive-pipeline-smoke.py verify "$output"
       - name: Audit clean field-level quality on TRAIN/VALIDATION only
         working-directory: Solution
         env:

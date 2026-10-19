@@ -1,5 +1,10 @@
 # Calibrador V9 — implementação e validação local de 19/10/2026
 
+**Continuação posterior à PR #1157:** a consolidação de Pareto, descoberta TRAIN,
+snapshot com agrupamento, replay portátil, orçamento global e validações atuais
+está em [V9_Consolidacao_Pareto_Execucao_20261019.md](V9_Consolidacao_Pareto_Execucao_20261019.md).
+As contagens e pendências abaixo descrevem a rodada anterior e são históricas.
+
 Base: `452c5d3bf870553ac896c6620f2bedc5e48ca05b`. Branch de trabalho: `feat/v9-calibrador-integral-local-20261019`. Este documento registra a fase local anterior à publicação da PR. O estado do merge e da CI deve ser conferido na PR e na HEAD vigente; não declara homologação nem ativação. Os documentos datados anteriores continuam como evidência histórica.
 
 ## Entregas desta alteração

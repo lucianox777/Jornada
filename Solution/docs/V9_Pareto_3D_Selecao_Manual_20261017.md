@@ -1,5 +1,10 @@
 # V9 — decisão: fronteira de Pareto tridimensional e seleção manual
 
+**Histórico superado:** a decisão vigente é Pareto **2D Recall × FDR** por fonte
+após Resolve; P95 é guardrail, não terceiro objetivo. A implementação 3D foi
+removida. Consultar [consolidação atual](V9_Consolidacao_Pareto_Execucao_20261019.md).
+O texto abaixo registra a proposta anterior, não um contrato em vigor.
+
 **Status:** contrato de diagnóstico e visualização; não é certificação nem autorização de produção.
 
 ## Objetivo e domínio

@@ -94,6 +94,8 @@ public sealed class V9FittedSnapshotExecutionRuntime
             throw new InvalidDataException("União candidata não pertence ao conteúdo integral do snapshot fixado.");
         if (!frame.CompleteCandidateUniverse)
             throw new InvalidDataException("Resolve V9 exige união candidata completa, sem TOP N/truncamento.");
+        if (snapshot.Payload.CandidateGrouping is not null)
+            throw new InvalidDataException("Snapshot agrupado exige replay da coorte e das arestas; Resolve isolado não pode ignorar agrupamento.");
         if (Plan(observation).Count == 0 && frame.Candidates.Count != 0)
             throw new InvalidDataException("Candidatos fornecidos sem passe de blocking elegível para a observação.");
         return snapshot.ResolvePreview(diagnosticModelId, observation, frame.Candidates);

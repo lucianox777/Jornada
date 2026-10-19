@@ -93,4 +93,31 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
                 evaluateFinalResolve: true, includeFsBlindGrouping: true, adaptiveExecution: plan.Execution)));
         Assert.That(optIn!.Message, Does.Contain("Conexão SQL precisa estar aberta"));
     }
+
+    [Test]
+    public void Enlarged_resource_cap_keeps_preflight_conservative_and_local_rejections_identifiable()
+    {
+        var rows = Enumerable.Range(1, 4000).Select(i => new V9PhysicalCalibrationObservation(
+            i, "BASE-" + i, "TRAIN", i <= 2000 ? "G1" : "G2", "MARIA", null, null)).ToArray();
+        var signatures = rows.Select(x => (x.ObservationId, x.Partition, PassId: "P", Signature: "SAME")).ToArray();
+        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountCrossManagerPairIncidences(signatures, rows),
+            Is.EqualTo(1_000_001));
+        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountCrossManagerPairIncidences(signatures, rows, 2_000_000),
+            Is.EqualTo(2_000_001));
+        Assert.That(V9PhysicalSqlAdaptiveCalibrationProbe.CountCrossManagerPairIncidences(signatures, rows, 5_000_000),
+            Is.EqualTo(4_000_000));
+
+        using var sql = new SqlConnection();
+        var frame = rows.Take(2).Select((x, i) => x with { Gestor = "G" + i }).Concat(
+            rows.Skip(2).Take(2).Select((x, i) => x with { Partition = "VALIDATION", Gestor = "G" + i })).ToArray();
+        var plan = Plan();
+        var exception = Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(sql, frame,
+                [LinkageBlockingPass.Create("P", [V9CalibrationBlockingProjection.NamePrefixFeature(1)])],
+                plan.ModelOptions.Take(1).ToArray(), plan.Budget, plan.StudyFingerprintSha256, CancellationToken.None,
+                evaluateFinalResolve: true, includeFsBlindGrouping: true,
+                adaptiveExecution: plan.Execution with { MaximumCandidatePairIncidences = 1 })));
+        Assert.That(exception!.Message, Does.Contain("incidências excedem 1"));
+        Assert.That(exception.Data["V9_DECLARED_CANDIDATE_REJECTION"], Is.EqualTo(true));
+    }
 }

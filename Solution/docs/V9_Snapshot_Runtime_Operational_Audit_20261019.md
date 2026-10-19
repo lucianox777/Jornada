@@ -2,6 +2,12 @@
 
 O snapshot portátil agora tem um consumidor explícito de projeção e blocking em `Jornada.Linkage.Runner/V9FittedSnapshotExecutionRuntime.cs`. O consumidor é opt-in, não é registrado em DI e não remove o bloqueio operacional V9.
 
+Para fit com agrupamento embutido, Resolve de registro isolado é recusado:
+`V9FrozenSourceResolveReplay` executa a coorte VALIDATION e suas arestas físicas
+completas, recarregando os parâmetros do snapshot e reutilizando FS/TF, complete-link
+e Resolve. O posterior mínimo e o cap afetam as decisões e o SHA. Esse replay
+experimental não é o loader SQL operacional nem uma autorização de ativação.
+
 ## Consumir sem estimar novamente
 
 1. Carregar os bytes e o SHA previamente fixado por `V9FittedSnapshotExecutionRuntime.Load`. O codec de #1157 continua validando schema, parâmetros, TF e conteúdo integral.

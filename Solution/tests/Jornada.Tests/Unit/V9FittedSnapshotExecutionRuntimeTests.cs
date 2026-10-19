@@ -119,6 +119,19 @@ public sealed class V9FittedSnapshotExecutionRuntimeTests
     }
 
     [Test]
+    public void Isolated_record_resolve_cannot_ignore_embedded_cohort_grouping()
+    {
+        var fit = Snapshot();
+        var grouped = V9FittedSnapshot.Create(fit.Payload with
+        {
+            CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16)
+        });
+        var runtime = Load(grouped);
+        var error = Assert.Throws<InvalidDataException>((Action)(() => Resolve(runtime, [Target()])));
+        Assert.That(error!.Message, Does.Contain("exige replay da coorte"));
+    }
+
+    [Test]
     public void Pinned_fit_uses_shared_resolve_and_changed_threshold_and_margin_change_real_outcomes()
     {
         var fit = Snapshot();

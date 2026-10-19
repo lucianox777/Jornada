@@ -158,7 +158,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         IReadOnlyList<LinkageBlockingPass> blockingPasses,
         string projectionSchemaVersion,
         string projectionFingerprintSha256,
-        decimal conflictMargin)
+        decimal conflictMargin,
+        V9SnapshotCandidateGrouping? candidateGrouping = null)
     {
         ArgumentNullException.ThrowIfNull(fitted);
         if (frame.CandidateBlockingPasses is null || blockingPasses is null
@@ -196,7 +197,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             frame.TrainIdentityFingerprintSha256, frame.ValidationIdentityFingerprintSha256,
             Version, frozen.OptionId, frozen.Threshold, conflictMargin, config.TfWeight,
             blockingPasses, frozen.Cells, frozen.Parameters, tf,
-            BlockingFrameFingerprintSha256: frame.BlockingFrameFingerprintSha256));
+            BlockingFrameFingerprintSha256: frame.BlockingFrameFingerprintSha256,
+            CandidateGrouping: candidateGrouping));
     }
 
     private static bool BlockingPassesEqual(

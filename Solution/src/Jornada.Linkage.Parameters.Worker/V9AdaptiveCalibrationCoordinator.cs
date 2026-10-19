@@ -99,7 +99,7 @@ public static class V9AdaptiveCalibrationCoordinator
     public static async Task<V9AdaptiveCalibrationStudyResult> RunAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
         V9AdaptiveCalibrationPlan plan, CancellationToken cancellationToken,
-        Func<IReadOnlyList<LinkageBlockingPass>, FrozenIbgeNominalTfV9?>? frozenTfReferenceForRuleset = null)
+        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(observations);
@@ -136,6 +136,10 @@ public static class V9AdaptiveCalibrationCoordinator
             cancellationToken.ThrowIfCancellationRequested();
             var rulesetSha = Sha(JsonSerializer.Serialize(passes));
             var options = plan.ModelOptions.Select(x => x with { OptionId = rulesetSha + ":" + x.OptionId }).ToArray();
+            // Resolve a published reference once, before any option/margin batch.
+            // A provider must never change the reference midway through this ruleset.
+            var pinnedTfReference = frozenTfReferenceForRuleset is null ? null
+                : await frozenTfReferenceForRuleset(passes, cancellationToken);
             // The legacy family adapter's 64-option working set is only a batch size.
             // Every option and every margin reaches physical evaluation; no best-only screen.
             foreach (var batch in options.Chunk(64))
@@ -145,7 +149,7 @@ public static class V9AdaptiveCalibrationCoordinator
                 {
                     var run = await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(connection, observations,
                         passes, batch, plan.Budget, plan.StudyFingerprintSha256, cancellationToken,
-                        frozenTfReferenceForRuleset?.Invoke(passes), evaluateFinalResolve: true,
+                        pinnedTfReference, evaluateFinalResolve: true,
                         finalConflictMargins: margins, includeFsBlindGrouping: true,
                         minimumFsGroupingPosterior: plan.MinimumGroupingPosterior,
                         predeclaredMaximumAcceptedPerBaseIdentity: plan.MaximumAcceptedPerBaseIdentity,
@@ -173,12 +177,15 @@ public static class V9AdaptiveCalibrationCoordinator
         V9ParetoSourceSelectionReport? selection = null;
         if (measurements.Count > 0)
         {
+            var fittedByKey = frozen.ToDictionary(x => (x.OptionId, x.ConflictMargin));
+            var timingByKey = timings.ToDictionary(x => (x.OptionId, x.ConflictMargin));
             var source = V9PostResolveAdaptiveSelector.EvaluateValidation("VALIDATION", false,
                 plan.Budget, measurements, fanout);
             var evidence = measurements.Select(row =>
             {
-                var snapshot = frozen.Single(x => x.OptionId == row.OptionId && x.ConflictMargin == row.ConflictMargin).Snapshot;
-                var time = timings.SingleOrDefault(x => x.OptionId == row.OptionId && x.ConflictMargin == row.ConflictMargin);
+                var key = (row.OptionId, row.ConflictMargin);
+                var snapshot = fittedByKey[key].Snapshot;
+                timingByKey.TryGetValue(key, out var time);
                 return new V9ParetoPhysicalEvidence(row.OptionId, row.CandidateGrouping, row.ConflictMargin,
                     snapshot.ContentSha256, trainSha, validationSha, source.EvidenceFingerprintSha256,
                     time?.ProtocolSha256 ?? V9PhysicalAdaptiveExecution.EndToEndProtocolSha256,

@@ -252,7 +252,14 @@ public static class V9CalibrationFreezeService
         var m = metadata.Validation ?? throw new InvalidDataException("Evidência VALIDATION ausente.");
         ValidateMetrics(m);
         var p = metadata.Policy ?? throw new InvalidDataException("Política versionada ausente.");
+        if (p.MaximumFdrUpperBound is < 0m or > .01m)
+            throw new InvalidDataException("Congelamento não pode relaxar o teto de FDR de 1% do seletor por fonte.");
         var grouping = metadata.Grouping ?? throw new InvalidDataException("Configuração de agrupamento ausente.");
+        var fittedGrouping = snapshot.Payload.CandidateGrouping;
+        if (fittedGrouping is null || fittedGrouping.CandidateGrouping != grouping.CandidateGrouping
+            || fittedGrouping.MinimumPairPosterior != grouping.MinimumPairPosterior
+            || fittedGrouping.MaximumObservationsPerIdentity != grouping.MaximumObservationsPerIdentity)
+            throw new InvalidDataException("Agrupamento medido deve estar fixado no hash do snapshot.");
         var configurationId = V9ParetoSourceSelection.ConfigurationId(snapshot.Payload.OptionId,
             grouping.CandidateGrouping, snapshot.Payload.ConflictMargin);
         var option = selection.Table.SingleOrDefault(e => e.Option.OptionId == metadata.SelectedConfigurationId);

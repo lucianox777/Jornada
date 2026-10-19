@@ -215,7 +215,7 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             .ToHashSet(StringComparer.Ordinal);
         if (canonicalPasses.SelectMany(x => x.Fields).Any(x => !allowed.Contains(x)))
             throw new InvalidDataException("Ruleset contém feature fora do catálogo do Calibrador.");
-        var blockingFingerprint = BlockingFingerprint(canonicalPasses);
+        var blockingFingerprint = ComputeBlockingFingerprint(canonicalPasses);
         // A positive TF option can only run against the SAME pinned physical
         // SQL blocking frame and preloaded immutable reference. Do not query
         // whichever reference happens to be active at evaluation time.
@@ -230,10 +230,10 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         var projectionSha = adaptiveExecution.MaximumPrefixLength == 0
             ? PersonResolutionProjectionContract.FingerprintSha256
             : V9CalibrationBlockingProjection.ComputeSchemaFingerprint(adaptiveExecution.MaximumPrefixLength);
-        var preflight = CountPairIncidences(signatures, observations);
+        var preflight = CountPairIncidences(signatures, observations, adaptiveExecution.MaximumCandidatePairIncidences);
         if (preflight > adaptiveExecution.MaximumCandidatePairIncidences)
-            throw new InvalidDataException(
-                $"Censo físico recusado antes do join: {preflight} incidências excedem {HardPairIncidenceCap}.");
+            throw CandidateRejected(
+                $"Censo físico recusado antes do join: {preflight} incidências excedem {adaptiveExecution.MaximumCandidatePairIncidences}.");
 
         if (connection.State != ConnectionState.Open)
             throw new InvalidOperationException("Conexão SQL precisa estar aberta.");
@@ -255,7 +255,7 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         var physicalPairs = await MaterializePairsAsync(connection, cancellationToken);
         var materializeMs = timer.Elapsed.TotalMilliseconds;
         if (physicalPairs > adaptiveExecution.MaximumCandidatePairIncidences)
-            throw new InvalidDataException("União SQL distinta excedeu o hard cap após materialização.");
+            throw CandidateRejected("União SQL distinta excedeu o limite declarado após materialização.");
 
         timer.Restart();
         var rows = await ReadCandidatePairsAsync(connection, cancellationToken);
@@ -275,7 +275,7 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         {
             var samples = await RepeatPhysicalMaterializationAsync(
                 connection, repeatedSqlMaterializationRuns, physicalPairs,
-                cancellationToken);
+                cancellationToken, adaptiveExecution.MaximumCandidatePairIncidences);
             repeatedQuantiles = V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds(samples);
         }
 
@@ -284,7 +284,7 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         if (trainRows.Length == 0 || validationRows.Length == 0
             || trainRows.All(x => x.IsTruePair) || trainRows.All(x => !x.IsTruePair)
             || validationRows.All(x => x.IsTruePair) || validationRows.All(x => !x.IsTruePair))
-            throw new InvalidDataException("TRAIN/VALIDATION físicos precisam conter M e U.");
+            throw CandidateRejected("TRAIN/VALIDATION físicos precisam conter M e U.");
 
         var trainRecoveredM = trainRows.LongCount(x => x.IsTruePair);
         var validationRecoveredM = validationRows.LongCount(x => x.IsTruePair);
@@ -388,7 +388,10 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
                 trainCorpusSha, TrainOnly: true);
             foreach (var margin in (finalConflictMargins ?? [finalConflictMargin]).OrderBy(x => x))
                 frozen.Add(new V9PhysicalFrozenConfiguration(result.OptionId, margin,
-                    adapter.ExportFrozenSnapshot(draft, canonicalPasses, projectionVersion, projectionSha, margin)));
+                    adapter.ExportFrozenSnapshot(draft, canonicalPasses, projectionVersion, projectionSha, margin,
+                        includeFsBlindGrouping ? new V9SnapshotCandidateGrouping(
+                            "BLIND_FS_COMPLETE_LINK_CANDIDATES", minimumFsGroupingPosterior,
+                            adaptiveExecution.MaximumBlindClusterSize ?? predeclaredMaximumAcceptedPerBaseIdentity) : null)));
         }
         var endToEnd = new List<V9PhysicalEndToEndMeasurement>();
         foreach (var baseline in (sourceResolve ?? []).Where(x =>
@@ -397,6 +400,10 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             if (adaptiveExecution.EndToEndRepetitions == 0) break;
             var samples = new List<double>();
             var expectedOutcome = OutcomeSha(baseline);
+            var exported = frozen.Single(x => x.OptionId == baseline.OptionId
+                && x.ConflictMargin == baseline.ConflictMargin).Snapshot;
+            var replaySnapshot = V9FittedSnapshot.Load(exported.SerializeUtf8(), exported.ContentSha256);
+            var replayValidation = observations.Where(x => x.Partition == "VALIDATION").ToArray();
             for (var run = 0; run < adaptiveExecution.EndToEndRepetitions; run++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -408,12 +415,9 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
                 var replayCount = await MaterializePairsAsync(connection, cancellationToken);
                 var replayRows = await ReadCandidatePairsAsync(connection, cancellationToken);
                 var replayEdges = await ReadValidationPairsAsync(connection, cancellationToken);
-                var replay = adapter.EvaluateSourceUnitResolveValidation(observations, replayEdges,
-                    [baseline.ConflictMargin], predeclaredMaximumAcceptedPerBaseIdentity,
-                    includeFsBlindGrouping: true, minimumFsGroupingPosterior,
-                    adaptiveExecution.MaximumBlindClusterSize,
-                    new HashSet<string>([baseline.OptionId], StringComparer.Ordinal),
-                    fsBlindGroupingOnly: true, totalComparedConfigurations: baseline.BonferroniComparedConfigurations).Single();
+                var replay = SummarizeFrozenReplay(V9FrozenSourceResolveReplay.Replay(
+                    replaySnapshot, replayValidation, replayEdges), replayValidation,
+                    baseline, predeclaredMaximumAcceptedPerBaseIdentity);
                 var duration = timer.Elapsed.TotalMilliseconds;
                 if (replayCount != physicalPairs || !replayRows.SequenceEqual(rows)
                     || OutcomeSha(replay) != expectedOutcome)
@@ -628,6 +632,57 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
     private static string OutcomeSha(V9PhysicalSourceResolveMetric row) =>
         Sha(JsonSerializer.Serialize(row));
 
+    private static V9PhysicalSourceResolveMetric SummarizeFrozenReplay(V9FrozenSourceReplayResult replay,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> validation,
+        V9PhysicalSourceResolveMetric baseline, int maximumAcceptedPerIdentity)
+    {
+        var byId = validation.ToDictionary(x => x.ObservationId);
+        var truthByGroup = validation.GroupBy(x => replay.IdentityByObservation[x.ObservationId])
+            .ToDictionary(g => g.Key, g => g.Select(x => x.BasePersonId).Distinct(StringComparer.Ordinal).ToArray());
+        var contributions = validation.Select(x => x.BasePersonId).Distinct(StringComparer.Ordinal)
+            .ToDictionary(id => id, _ => (Tp: 0L, Fp: 0L), StringComparer.Ordinal);
+        long tp = 0, fp = 0, conflicts = 0, unresolved = 0;
+        var reasons = new Dictionary<string, long>(StringComparer.Ordinal);
+        foreach (var result in replay.Decisions)
+        {
+            var decision = result.Decision;
+            var reason = decision.Motivo ?? decision.Status.ToString();
+            reasons[reason] = reasons.GetValueOrDefault(reason) + 1;
+            if (decision.Status == ResolutionStatus.CONFLITO) conflicts++;
+            else if (decision.Status == ResolutionStatus.NAO_RESOLVIDO) unresolved++;
+            else if (decision.Status == ResolutionStatus.RESOLVIDO
+                && decision.PessoaUuidResolvido is { } target && truthByGroup.TryGetValue(target, out var truths))
+            {
+                var source = byId[result.ObservationId].BasePersonId;
+                var entry = contributions[source];
+                if (truths.Length == 1 && truths[0] == source) { tp++; entry.Tp++; }
+                else { fp++; entry.Fp++; }
+                contributions[source] = entry;
+            }
+            else throw new InvalidDataException("Replay congelado retornou decisão ou alvo desconhecido.");
+        }
+        var groups = contributions.OrderBy(x => x.Key, StringComparer.Ordinal)
+            .Select(x => new V9IdentityClusterFdr.IdentityGroup(x.Key, x.Value.Tp, x.Value.Fp)).ToArray();
+        var hoeffding = V9IdentityClusterFdr.UpperBoundForPopulationMeanRatio(groups, maximumAcceptedPerIdentity);
+        var cp = V9IdentityClusterFdr.UpperBoundForPopulationMeanRatioByAnyErrorCp(groups,
+            maximumAcceptedPerIdentity, baseline.BonferroniComparedConfigurations);
+        return baseline with
+        {
+            AllValidationObservations = validation.Count,
+            TrueAcceptedSourceObservations = tp, FalseAcceptedSourceObservations = fp,
+            Conflicts = conflicts, Unresolved = unresolved,
+            GlobalSourceRecall = (double)tp / baseline.EligibleSourceObservationsBeforeBlocking,
+            FdrAfterResolve = tp + fp == 0 ? null : (double)fp / (tp + fp),
+            HoeffdingUpperBySourceBaseIdentity = hoeffding.UpperFdr,
+            PreBlockingBaseIdentities = groups.Length,
+            ReasonsByResolveStatus = reasons.OrderBy(x => x.Key, StringComparer.Ordinal)
+                .ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal),
+            ImpureBlindGroups = truthByGroup.Values.Count(x => x.Length > 1),
+            ConditionalClusterCpFdrUpper = cp.UpperFdrConditional,
+            ClopperPearsonUpperAnyFpByIdentity = cp.UpperProbabilityOfAnyGroupErrorClopperPearson
+        };
+    }
+
     private static List<SignatureRow> BuildSignatures(
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
         IReadOnlyCollection<LinkageBlockingPass> passes, int maximumPrefixLength = 0, int signatureCap = HardPairIncidenceCap)
@@ -654,7 +709,7 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
                 {
                     var canonical = pass.PassId + "\u001e" + string.Join("\u001f", values);
                     if (result.Count >= signatureCap)
-                        throw new InvalidDataException(
+                        throw CandidateRejected(
                             "Projeção de assinaturas excedeu o limite físico antes da materialização SQL.");
                     result.Add(new SignatureRow(
                         observation.ObservationId,
@@ -706,10 +761,12 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
     /// </summary>
     public static long CountCrossManagerPairIncidences(
         IReadOnlyCollection<(int ObservationId, string Partition, string PassId, string Signature)> signatures,
-        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations)
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
+        int maximumPairIncidences = HardPairIncidenceCap)
     {
         ArgumentNullException.ThrowIfNull(signatures);
         ArgumentNullException.ThrowIfNull(observations);
+        ArgumentOutOfRangeException.ThrowIfLessThan(maximumPairIncidences, 1);
         var gestores = observations.ToDictionary(x => x.ObservationId, x => x.Gestor);
         decimal total = 0m;
         foreach (var group in signatures.GroupBy(x => (x.Partition, x.PassId, x.Signature)))
@@ -720,8 +777,8 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
                          .Select(g => g.LongCount()))
             {
                 total += (decimal)prior * count;
-                if (total > HardPairIncidenceCap)
-                    return HardPairIncidenceCap + 1L;
+                if (total > maximumPairIncidences)
+                    return maximumPairIncidences + 1L;
                 prior = checked(prior + count);
             }
         }
@@ -730,10 +787,11 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
 
     private static long CountPairIncidences(
         IReadOnlyCollection<SignatureRow> signatures,
-        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations) =>
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
+        int maximumPairIncidences = HardPairIncidenceCap) =>
         CountCrossManagerPairIncidences(
             signatures.Select(x => (x.ObservationId, x.Partition, x.PassId, x.Signature)).ToArray(),
-            observations);
+            observations, maximumPairIncidences);
 
     private static async Task RequireHarnessAsync(
         SqlConnection connection, CancellationToken cancellationToken)
@@ -844,12 +902,13 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         SqlConnection connection,
         int repetitions,
         long expectedDistinctPairs,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int maximumPairIncidences = HardPairIncidenceCap)
     {
         ArgumentNullException.ThrowIfNull(connection);
         if (repetitions < 20 || repetitions > 100)
             throw new ArgumentOutOfRangeException(nameof(repetitions), "São exigidas 20..100 repetições físicas.");
-        if (expectedDistinctPairs < 0 || expectedDistinctPairs > HardPairIncidenceCap)
+        if (maximumPairIncidences < 1 || expectedDistinctPairs < 0 || expectedDistinctPairs > maximumPairIncidences)
             throw new ArgumentOutOfRangeException(nameof(expectedDistinctPairs));
         if (connection.State != ConnectionState.Open)
             throw new InvalidOperationException("Conexão SQL deve estar aberta.");
@@ -993,10 +1052,12 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         return result;
     }
 
-    private static string BlockingFingerprint(
+    public static string ComputeBlockingFingerprint(
         IReadOnlyCollection<LinkageBlockingPass> passes)
     {
+        ArgumentNullException.ThrowIfNull(passes);
         var canonical = string.Join("\n", passes
+            .Select(x => LinkageBlockingPass.Create(x.PassId, x.Fields))
             .OrderBy(x => x.PassId, StringComparer.Ordinal)
             .Select(x => x.PassId + "=" + string.Join(",", x.Fields)));
         return Sha(

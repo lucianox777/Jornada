@@ -38,18 +38,40 @@ public sealed class V9CalibrationFreezeServiceTests
                 [LinkageParameterCatalog.BirthSingleEvidenceScoring] = 1m,
                 ["M_DATA_NASCIMENTO_EXACT"] = .9m, ["M_DATA_NASCIMENTO_DIFF"] = .1m,
                 ["U_DATA_NASCIMENTO_EXACT"] = .1m, ["U_DATA_NASCIMENTO_DIFF"] = .9m
-            }));
+            }, CandidateGrouping: new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16)));
     }
 
     private static string ConfigurationId => V9ParetoSourceSelection.ConfigurationId("option", "BLIND_FS_COMPLETE_LINK_CANDIDATES", .5m);
 
+    [Test]
+    public void Effective_grouping_is_hashed_and_legacy_snapshot_cannot_be_frozen()
+    {
+        var original = Snapshot();
+        var posterior = V9FittedSnapshot.Create(original.Payload with
+        {
+            CandidateGrouping = original.Payload.CandidateGrouping! with { MinimumPairPosterior = .9m }
+        });
+        var size = V9FittedSnapshot.Create(original.Payload with
+        {
+            CandidateGrouping = original.Payload.CandidateGrouping! with { MaximumObservationsPerIdentity = 8 }
+        });
+        Assert.That(new[] { original.ContentSha256, posterior.ContentSha256, size.ContentSha256 }, Is.Unique);
+        var legacy = V9FittedSnapshot.Create(original.Payload with { CandidateGrouping = null });
+        Assert.That(System.Text.Encoding.UTF8.GetString(legacy.SerializeUtf8()), Does.Not.Contain("CandidateGrouping"));
+        Assert.That(V9FittedSnapshot.Load(legacy.SerializeUtf8(), legacy.ContentSha256).Payload.CandidateGrouping, Is.Null);
+        Reject(async () => await V9CalibrationFreezeService.FreezeAsync(directory, legacy,
+            Metadata(Selection(snapshot: legacy)), Selection(snapshot: legacy)));
+        Reject(async () => await V9CalibrationFreezeService.FreezeAsync(directory, original,
+            Metadata(Selection()) with { Grouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .9m, 16) }, Selection()));
+    }
+
     private static V9BootstrapPareto2D.Result Selection(bool physical = true, V9FittedSnapshot? snapshot = null) =>
         V9BootstrapPareto2D.Evaluate([new V9BootstrapPareto2D.CandidateOption(
-            ConfigurationId, (snapshot ?? Snapshot()).ContentSha256, .9, 0, 12, 90, 0, 100, 90, physical, true, .04, 1)],
-            new V9BootstrapPareto2D.SelectionPolicy(.8, .05, 50, 60000));
+            ConfigurationId, (snapshot ?? Snapshot()).ContentSha256, .9, 0, 12, 900, 0, 1000, 900, physical, true, .004, 1)],
+            new V9BootstrapPareto2D.SelectionPolicy(.8, .01, 50, 60000));
 
     private static V9CalibrationValidationEvidence Evidence() => new(
-        90, 0, 100, 10, 90, .9m, 0m, .04m, .8m, 1m,
+        900, 0, 1000, 100, 900, .9m, 0m, .004m, .8m, 1m,
         "identity-cluster-upper-bound-fixture", Hash('1'), Hash('2'), Hash('3'), 12m);
 
     private static V9CalibrationFreezeMetadata Metadata(V9BootstrapPareto2D.Result selection,
@@ -58,13 +80,27 @@ public sealed class V9CalibrationFreezeServiceTests
         V9CalibrationFreezeService.FingerprintSelection(selection), PersonResolutionAttributeCatalog.CatalogVersion,
         PersonResolutionAttributeCatalog.All.Select(a => new V9CalibrationCatalogEntry(a.CanonicalCode,
             a.Semantic.ToString(), a.EligibleForResolution, a.MultiValued, a.CompatibilityProfile)).ToArray(),
-        new V9CalibrationFreezePolicy("fixture-policy-v1", 60000, .05m, 50, "RankResolve-abstain-on-conflict", .8m), Evidence(),
+        new V9CalibrationFreezePolicy("fixture-policy-v1", 60000, .01m, 50, "RankResolve-abstain-on-conflict", .8m), Evidence(),
         ConfigurationId, new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16));
 
     private Task<V9FrozenCalibration?> Freeze(string version = "v1", string? predecessor = null,
         string origin = V9CalibrationFreezeService.BootstrapOrigin, decimal threshold = .99m) =>
         V9CalibrationFreezeService.FreezeAsync(directory, Snapshot(threshold),
             Metadata(Selection(snapshot: Snapshot(threshold)), version, predecessor, origin), Selection(snapshot: Snapshot(threshold)));
+
+    [Test]
+    public void Matching_envelope_and_pareto_cannot_relax_the_source_selector_risk_limit()
+    {
+        var selection = Selection();
+        var weaker = V9BootstrapPareto2D.Evaluate(selection.Table.Select(x => x.Option),
+            selection.Policy with { MaximumAcceptedFdrUpper = .05 });
+        var metadata = Metadata(weaker);
+        metadata = metadata with { Policy = metadata.Policy with { MaximumFdrUpperBound = .05m } };
+        var error = Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9CalibrationFreezeService.FreezeAsync(directory, Snapshot(), metadata, weaker)));
+        Assert.That(error!.Message, Does.Contain("teto de FDR de 1%"));
+        Assert.That(Directory.Exists(directory), Is.False);
+    }
 
     [Test]
     public async Task Bootstrap_is_immutable_idempotent_and_loads_same_shared_fit()

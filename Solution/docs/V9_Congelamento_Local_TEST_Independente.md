@@ -2,6 +2,12 @@
 
 `V9CalibrationFreezeService` complementa o codec portátil entregue em #1157 e reutiliza `V9FittedSnapshotArtifact`. Não publica referências SQL, não seleciona modelo ativo e não emite aprovação DT-15.
 
+O novo congelamento exige `Payload.CandidateGrouping` igual à configuração do
+envelope: posterior e tamanho máximo integram também o SHA do fit. Artefatos V2
+antigos sem esse campo continuam legíveis para preview, mas são recusados como
+congelamento integral. A política não pode relaxar o teto de FDR de 1% do seletor
+por fonte. O replay de coorte usa `V9FrozenSourceResolveReplay`, sem refit.
+
 O diretório é a raiz de uma linhagem científica. A mesma raiz deve acompanhar todas as recalibrações; copiá-la ou trocar o caminho não cria autorização para repetir TEST. O serviço protege escritores locais concorrentes com lease exclusivo e publica arquivos com criação exclusiva e rename. Não sobrescreve snapshots nem envelopes existentes. Em interrupção entre gravação do fit e envelope, somente o mesmo conteúdo pode reaproveitar o fit órfão.
 
 ## Fluxo
