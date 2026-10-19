@@ -24,6 +24,11 @@ public static class BlockingProjectionCandidateQueryBuilder
         => BuildCandidateUuidQueryCore(command, passes, projectionSchemaVersion,
             projectionFingerprintSha256, maxParameters, dynamicPassCount: null);
 
+    internal static string BuildVerifiedSnapshotCandidateUuidQuery(DbCommand command,
+        IReadOnlyList<BlockingCandidatePassLookup> passes, V9FittedSnapshotExecutionRuntime runtime, int maxParameters) =>
+        BuildCandidateUuidQueryCore(command, passes, runtime.ProjectionSchemaVersion,
+            runtime.ProjectionFingerprintSha256, maxParameters, dynamicPassCount: null, runtime);
+
     /// <summary>
     /// Read-only audit: preserve D/C provenance for exact overlap counting in a single
     /// SQL statement. Reuses every filtering, projection and parameter-limit contract
@@ -50,12 +55,16 @@ public static class BlockingProjectionCandidateQueryBuilder
         string? projectionSchemaVersion,
         string? projectionFingerprintSha256,
         int maxParameters,
-        int? dynamicPassCount)
+        int? dynamicPassCount,
+        V9FittedSnapshotExecutionRuntime? snapshotExecution = null)
     {
         ArgumentNullException.ThrowIfNull(command);
         ArgumentNullException.ThrowIfNull(passes);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxParameters);
-        PersonResolutionProjectionContract.ValidateSupported(projectionSchemaVersion, projectionFingerprintSha256);
+        if (snapshotExecution is null)
+            PersonResolutionProjectionContract.ValidateSupported(projectionSchemaVersion, projectionFingerprintSha256);
+        else
+            snapshotExecution.ValidateMaterializedProjection(projectionSchemaVersion!, projectionFingerprintSha256!);
 
         if (passes.Count == 0)
             return dynamicPassCount is null
@@ -110,7 +119,8 @@ public static class BlockingProjectionCandidateQueryBuilder
                     valueParameters.Add(valueParameter);
                 }
 
-                var currentOnly = BlockingFeatureTemporalCatalog.Get(clause.Feature)
+                var currentOnly = (snapshotExecution?.TemporalSemantics(clause.Feature)
+                    ?? BlockingFeatureTemporalCatalog.Get(clause.Feature))
                     == BlockingFeatureTemporalSemantics.StableIdentityDatum
                     ? " AND vigencia_fim IS NULL"
                     : string.Empty;
