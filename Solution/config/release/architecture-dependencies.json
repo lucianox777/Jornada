@@ -117,6 +117,7 @@
     "Jornada.Access.Security": [
       "Jornada.Contracts"
     ],
-    "Jornada.DevConsole": []
+    "Jornada.DevConsole": [],
+    "V9CpuWorkloadBenchmark": []
   }
 }
