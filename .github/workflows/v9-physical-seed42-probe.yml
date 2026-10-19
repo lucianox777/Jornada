@@ -8,6 +8,22 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9BlindIncrementalIdentityGrouping.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FellegiSunterAdaptiveCalibrationAdapter.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9IdentityClusterFdr.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9PhysicalSqlAdaptiveCalibrationProbe.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9Adaptive*.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9PhysicalAdaptiveExecution.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9TrainBlockingCandidateDiscovery.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/BlockingRuleSetSearch.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9*Pareto*.cs'
+      - 'Solution/src/Jornada.Contracts/V9CalibrationBlockingProjection.cs'
+      - 'Solution/src/Jornada.Contracts/SyntheticObservationMultiplicityContract.cs'
+      - 'Solution/src/Jornada.Linkage.SyntheticCorpus/**'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9SyntheticObservationCapEvidence.cs'
+      - 'Solution/data/calibration/v9/**'
+      - 'Solution/src/Jornada.Linkage.Core/V9FittedSnapshot.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FrozenSourceResolveReplay.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9FittedSnapshotExecutionRuntime.cs'
+      - 'Solution/scripts/v9-adaptive-pipeline-smoke.py'
+      - 'Solution/scripts/v9-adaptive-30k-study.py'
       - '.github/workflows/v9-physical-seed42-probe.yml'
   workflow_dispatch:
 
@@ -73,6 +89,18 @@ jobs:
             --population-profile demographic-primary \
             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
             --out "$PWD/.local/v9-physical-$PROFILE" --people 30000 --seed 42 --error-profile "$PROFILE"
+      - name: Execute adaptive coordinator, prefix SQL, full-path P95 and immutable fits (plumbing fixture)
+        working-directory: Solution
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          fixture="$PWD/.local/v9-physical-$PROFILE/adaptive-plumbing-input"
+          output="$PWD/.local/v9-physical-$PROFILE/adaptive-plumbing-result"
+          python3 scripts/v9-adaptive-pipeline-smoke.py prepare "$fixture"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-adaptive-study "$fixture/plan.json" "$fixture/observacoes.csv" "$output"
+          python3 scripts/v9-adaptive-pipeline-smoke.py verify "$output"
       - name: Audit clean field-level quality on TRAIN/VALIDATION only
         working-directory: Solution
         env:
@@ -199,6 +227,17 @@ jobs:
               writer.writerows(rows)
           print(path.read_text())
           PY
+      - name: Execute predeclared adaptive 30k TRAIN-VALIDATION grid (no TEST, no latency certification)
+        working-directory: Solution
+        env:
+          PROFILE: ${{ matrix.profile }}
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-physical-$PROFILE"
+          python3 scripts/v9-adaptive-30k-study.py prepare-cap4 "$root/observacoes.csv" "$root/adaptive-30k-plan.json"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-adaptive-study "$root/adaptive-30k-plan.json" "$root/observacoes.csv" "$root/adaptive-30k-result"
+          python3 scripts/v9-adaptive-30k-study.py verify "$root/adaptive-30k-result"
       - name: Upload aggregate physical metrics only (no identifiers, names, or truth)
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
@@ -208,4 +247,15 @@ jobs:
             Solution/.local/v9-physical-${{ matrix.profile }}/physical-fs-resolve-diagnostic.json
             Solution/.local/v9-physical-${{ matrix.profile }}/physical-source-resolve-3x3x4-TF0.csv
             Solution/.local/v9-physical-${{ matrix.profile }}/field-quality-train-val.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/study.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/*.fitted.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/plan.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/interrupted.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-plan.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/generation-manifest.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/plan.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/study.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/diagnostic-summary.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/*.fitted.json
+            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/interrupted.json
           if-no-files-found: ignore

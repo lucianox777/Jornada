@@ -136,7 +136,7 @@ public static class V9IdentityClusterFdr
     {
         ArgumentNullException.ThrowIfNull(groups);
         if (predeclaredMaximumAcceptedPerIdentity < 1
-            || comparedConfigurations is < 1 or > 4096
+            || comparedConfigurations < 1
             || !double.IsFinite(alpha) || alpha is <= 0d or >= 1d)
             throw new ArgumentOutOfRangeException(nameof(alpha),
                 "Cap positivo, quantidade de opções pré-declarada e alpha em (0,1) exigidos.");

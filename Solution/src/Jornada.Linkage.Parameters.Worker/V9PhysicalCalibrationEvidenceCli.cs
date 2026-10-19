@@ -142,8 +142,12 @@ public static class V9PhysicalCalibrationEvidenceCli
         }));
     }
 
-    public static V9PhysicalCalibrationObservation[] ReadNoCpfTrainValidation(string file)
+    public static V9PhysicalCalibrationObservation[] ReadNoCpfTrainValidation(string file,
+        int minimumObservationCount = 1000, int? maximumObservationsPerBaseIdentity = null)
     {
+        ArgumentOutOfRangeException.ThrowIfLessThan(minimumObservationCount, 4);
+        if (maximumObservationsPerBaseIdentity is < 1)
+            throw new ArgumentOutOfRangeException(nameof(maximumObservationsPerBaseIdentity));
         using var csv = new TextFieldParser(file);
         csv.SetDelimiters(",");
         csv.HasFieldsEnclosedInQuotes = true;
@@ -156,6 +160,7 @@ public static class V9PhysicalCalibrationEvidenceCli
                 throw new InvalidDataException("Coluna obrigatória ausente: " + name);
         var rows = new List<V9PhysicalCalibrationObservation>();
         var partitionByBaseIdentity = new Dictionary<string, string>(StringComparer.Ordinal);
+        var observationCounts = new Dictionary<string, int>(StringComparer.Ordinal);
         while (!csv.EndOfData)
         {
             var fields = csv.ReadFields() ?? throw new InvalidDataException("Linha CSV inválida.");
@@ -176,6 +181,13 @@ public static class V9PhysicalCalibrationEvidenceCli
             partitionByBaseIdentity[baseIdentity] = partition;
             if (partition == "TEST")
                 continue; // TEST não entra no probe ou na seleção.
+            if (maximumObservationsPerBaseIdentity is { } cap)
+            {
+                var count = observationCounts.GetValueOrDefault(baseIdentity) + 1;
+                if (count > cap)
+                    throw new InvalidDataException("CSV TRAIN/VALIDATION excede cap populacional, incluindo observações com CPF.");
+                observationCounts[baseIdentity] = count;
+            }
             if (!string.IsNullOrWhiteSpace(Get("cpf")))
                 continue; // Experimento FS estritamente sem CPF.
             var birth = Get("data_nascimento");
@@ -185,7 +197,7 @@ public static class V9PhysicalCalibrationEvidenceCli
                 checked(rows.Count + 1), Get("base_person_id"), partition,
                 Get("gestor"), Get("nome"), Get("nome_mae"), dob));
         }
-        if (rows.Count < 1000
+        if (rows.Count < minimumObservationCount
             || !rows.Any(x => x.Partition == "TRAIN")
             || !rows.Any(x => x.Partition == "VALIDATION"))
             throw new InvalidDataException("Corpus sem CPF TRAIN/VALIDATION insuficiente.");

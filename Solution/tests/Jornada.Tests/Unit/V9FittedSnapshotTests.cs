@@ -256,6 +256,34 @@ public sealed class V9FittedSnapshotTests
         Assert.That(loaded.SerializeUtf8(), Is.EqualTo(winner.SerializeUtf8()));
     }
 
+    [Test]
+    public async Task Checked_in_experimental_v0_reloads_exact_measured_bytes_without_training_or_approval()
+    {
+        var directory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+        while (directory is not null && !Directory.Exists(System.IO.Path.Combine(directory.FullName, "Solution", "src")))
+            directory = directory.Parent;
+        Assert.That(directory, Is.Not.Null);
+        var root = System.IO.Path.Combine(directory!.FullName, "Solution", "data", "calibration", "v9", "bootstrap-v0");
+        const string sha = "613f914114073d4a9100e848a01a56321354ae9a7885a77462941ae86936953d";
+        var loaded = await V9FittedSnapshotArtifact.ReadPinnedAsync(System.IO.Path.Combine(root, sha + ".fitted.json"), sha);
+        using var metadata = System.Text.Json.JsonDocument.Parse(await File.ReadAllBytesAsync(
+            System.IO.Path.Combine(root, "experimental-reference.json")));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(loaded.Payload.Threshold, Is.EqualTo(.95m));
+            Assert.That(loaded.Payload.ConflictMargin, Is.EqualTo(.5m));
+            Assert.That(loaded.Payload.TfWeight, Is.Zero);
+            Assert.That(loaded.Payload.JointCells.Count, Is.EqualTo(81));
+            Assert.That(loaded.Payload.CandidateGrouping!.MaximumObservationsPerIdentity, Is.EqualTo(16),
+                "O cap de população 4 não deve reescrever o agrupamento do fit histórico.");
+            Assert.That(metadata.RootElement.GetProperty("snapshot_sha256").GetString(), Is.EqualTo(loaded.ContentSha256));
+            Assert.That(metadata.RootElement.GetProperty("source_measurement").GetProperty("TrueAcceptedSourceObservations").GetInt32(), Is.EqualTo(7505));
+            Assert.That(metadata.RootElement.GetProperty("operationally_certified").GetBoolean(), Is.False);
+            Assert.That(metadata.RootElement.GetProperty("test_used").GetBoolean(), Is.False);
+            Assert.That(metadata.RootElement.GetProperty("incremental_runner_gold_evaluated").GetBoolean(), Is.False);
+        }));
+    }
+
     private sealed class TemporaryArtifactDirectory : IDisposable
     {
         public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(),

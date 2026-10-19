@@ -17,7 +17,12 @@ public sealed record V9FittedSnapshotPayload(
     IReadOnlyList<FellegiSunterJointNominalCellV9> JointCells,
     IReadOnlyDictionary<string, decimal> Parameters,
     V9SnapshotFirstNameTf? TfCalibration = null,
-    string? BlockingFrameFingerprintSha256 = null);
+    string? BlockingFrameFingerprintSha256 = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    V9SnapshotCandidateGrouping? CandidateGrouping = null);
+
+public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
+    decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
 
 public sealed record V9SnapshotFirstNameTf(
     CompositeNominalTfSideV9 Side, NominalFrequencyReferenceContractV9 Reference,
@@ -101,6 +106,18 @@ public sealed class V9FittedSnapshot
             Payload.TfCalibration?.Side);
     }
 
+    internal IReadOnlyList<CandidateScore> RankPreview(IdentityObservation observation,
+        IReadOnlyList<V9SnapshotCandidate> candidates) =>
+        ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(Payload.Parameters, observation,
+            candidates.Select(c => new LinkageCandidate(c.PersonUuid, c.FullName, c.BirthDate, c.MotherName)).ToArray(),
+            Payload.JointCells, Payload.NominalContractVersion,
+            Payload.TfCalibration is null ? null : CreateTf, Payload.TfCalibration?.Side);
+
+    internal ProbabilisticLinkageDecision ResolveRankedPreview(Guid diagnosticModelId,
+        IReadOnlyList<CandidateScore> ranking) =>
+        ProbabilisticLinkageDecisions.ResolveRankedCompositeNominalV9Preview(diagnosticModelId,
+            Payload.Parameters, ranking, Payload.Threshold, Payload.ConflictMargin);
+
     private CompositeNominalTfPreviewV9? CreateTf(IdentityObservation observation, LinkageCandidate candidate)
     {
         var tf = Payload.TfCalibration!;
@@ -131,6 +148,11 @@ public sealed class V9FittedSnapshot
     private static V9FittedSnapshotPayload FreezeAndValidate(V9FittedSnapshotPayload p)
     {
         ArgumentNullException.ThrowIfNull(p);
+        if (p.CandidateGrouping is { } grouping
+            && (grouping.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES"
+                || grouping.MinimumPairPosterior is <= .5m or >= 1m
+                || grouping.MaximumObservationsPerIdentity < 2))
+            throw new InvalidDataException("Contrato de agrupamento do snapshot V9 inválido.");
         if (p.SchemaVersion != SchemaVersion || p.NominalContractVersion != CompositeNominalComparisonV9.ContractVersion
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)

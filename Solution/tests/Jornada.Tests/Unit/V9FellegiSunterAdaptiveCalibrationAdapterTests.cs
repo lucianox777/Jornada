@@ -1,4 +1,6 @@
 using Jornada.Linkage.Parameters.Worker;
+using Jornada.Contracts;
+using Jornada.Linkage.Runner;
 
 namespace Jornada.Tests.Unit;
 
@@ -274,7 +276,11 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
                 .Concat(valPairs).ToArray(),
             TrainPreBlockingBaseIdentityIds = Enumerable.Range(1, 6)
                 .Select(i => $"BASE-{i:00}").ToArray(),
-            ValidationPreBlockingBaseIdentityIds = ["A", "B", "C"]
+            ValidationPreBlockingBaseIdentityIds = ["A", "B", "C"],
+            CandidateBlockingPasses = [LinkageBlockingPass.Create("NAME", [BlockingFeatureNames.FullName])],
+            ProjectionSchemaVersion = PersonResolutionProjectionContract.SchemaVersion,
+            ProjectionFingerprintSha256 = PersonResolutionProjectionContract.FingerprintSha256,
+            BlockingFrameFingerprintSha256 = new string('f', 64)
         };
         var option = new V9FsAdaptiveOptionConfiguration("SOURCE", .5m, .5m);
         var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(frame, [option]);
@@ -282,7 +288,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             V9FellegiSunterAdaptiveCalibrationAdapter.Family,
             V9FellegiSunterAdaptiveCalibrationAdapter.Version,
             option.OptionId, option.FingerprintSha256);
-        _ = adapter.FitTrain(model, Slice("TRAIN", TrainSha, TrainGroupsSha, 6));
+        var sourceFit = adapter.FitTrain(model, Slice("TRAIN", TrainSha, TrainGroupsSha, 6));
         var result = adapter.EvaluateSourceUnitResolveValidation(
             observations, sqlEdges, [.5m], 16);
         Assert.That((Action)(() => adapter.EvaluateSourceUnitResolveValidation(
@@ -305,6 +311,67 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
                 Is.EqualTo(observations.Length));
             Assert.That(fs.ImpureBlindGroups, Is.GreaterThanOrEqualTo(0));
         }));
+        // This deliberately small TRAIN fixture gives accepted evidence below .99.
+        // Use a declared .60 grouping gate to exercise actual merges and the size cap.
+        var groupedReference = adapter.EvaluateSourceUnitResolveValidation(
+            observations, sqlEdges, [.5m], 16, includeFsBlindGrouping: true,
+            minimumFsGroupingPosterior: .60m, maximumBlindClusterSize: 16)
+            .Single(x => x.CandidateGrouping == "BLIND_FS_COMPLETE_LINK_CANDIDATES");
+        var isolatedReplay = adapter.EvaluateSourceUnitResolveValidation(
+            observations, sqlEdges, [.5m], 16, includeFsBlindGrouping: true,
+            minimumFsGroupingPosterior: .60m, maximumBlindClusterSize: 16,
+            evaluatedOptionIds: new HashSet<string>([option.OptionId], StringComparer.Ordinal),
+            fsBlindGroupingOnly: true, totalComparedConfigurations: 1_000_000).Single();
+        var smallerGroups = adapter.EvaluateSourceUnitResolveValidation(
+            observations, sqlEdges, [.5m], 16, includeFsBlindGrouping: true,
+            minimumFsGroupingPosterior: .60m, maximumBlindClusterSize: 2,
+            fsBlindGroupingOnly: true, totalComparedConfigurations: 1_000_000).Single();
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(isolatedReplay.TrueAcceptedSourceObservations, Is.EqualTo(groupedReference.TrueAcceptedSourceObservations));
+            Assert.That(isolatedReplay.FalseAcceptedSourceObservations, Is.EqualTo(groupedReference.FalseAcceptedSourceObservations));
+            Assert.That(isolatedReplay.ReasonsByResolveStatus, Is.EquivalentTo(groupedReference.ReasonsByResolveStatus));
+            Assert.That(isolatedReplay.BonferroniComparedConfigurations, Is.EqualTo(1_000_000));
+            Assert.That(isolatedReplay.ClopperPearsonUpperAnyFpByIdentity,
+                Is.GreaterThan(groupedReference.ClopperPearsonUpperAnyFpByIdentity!.Value));
+            Assert.That(isolatedReplay.ClusterIidIndependentlyValidated, Is.False);
+            Assert.That(smallerGroups.TrueAcceptedSourceObservations, Is.LessThan(isolatedReplay.TrueAcceptedSourceObservations));
+            Assert.That(smallerGroups.Conflicts, Is.GreaterThan(isolatedReplay.Conflicts));
+        }));
+        Assert.That((Action)(() => adapter.EvaluateSourceUnitResolveValidation(
+                observations, sqlEdges, [.5m], 16, includeFsBlindGrouping: true,
+                evaluatedOptionIds: new HashSet<string>(["UNKNOWN"], StringComparer.Ordinal))),
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("Margens ou cap"));
+        var exported = adapter.ExportFrozenSnapshot(sourceFit, frame.CandidateBlockingPasses!,
+            frame.ProjectionSchemaVersion!, frame.ProjectionFingerprintSha256!, .5m,
+            new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .60m, 16));
+        var loaded = V9FittedSnapshot.Load(exported.SerializeUtf8(), exported.ContentSha256);
+        var portable = V9FrozenSourceResolveReplay.Replay(loaded, observations, sqlEdges);
+        var capped = V9FittedSnapshot.Create(loaded.Payload with
+        {
+            CandidateGrouping = loaded.Payload.CandidateGrouping! with { MaximumObservationsPerIdentity = 2 }
+        });
+        var cappedReplay = V9FrozenSourceResolveReplay.Replay(capped, observations, sqlEdges);
+        var strict = V9FittedSnapshot.Create(loaded.Payload with
+        {
+            CandidateGrouping = loaded.Payload.CandidateGrouping! with { MinimumPairPosterior = .99m }
+        });
+        var strictReplay = V9FrozenSourceResolveReplay.Replay(strict, observations, sqlEdges);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(portable.Decisions.Count(x => x.Decision.Status == ResolutionStatus.RESOLVIDO),
+                Is.EqualTo(isolatedReplay.TrueAcceptedSourceObservations + isolatedReplay.FalseAcceptedSourceObservations));
+            Assert.That(cappedReplay.Decisions.Count(x => x.Decision.Status == ResolutionStatus.CONFLITO),
+                Is.GreaterThan(portable.Decisions.Count(x => x.Decision.Status == ResolutionStatus.CONFLITO)));
+            Assert.That(strictReplay.Decisions.Count(x => x.Decision.Status == ResolutionStatus.RESOLVIDO), Is.Zero);
+            Assert.That(portable.Decisions, Is.EqualTo(V9FrozenSourceResolveReplay.Replay(loaded,
+                observations.Select(x => x with { BasePersonId = "RELABELED-" + x.ObservationId }).ToArray(), sqlEdges).Decisions));
+        }));
+        Assert.That((Action)(() => V9FrozenSourceResolveReplay.Replay(loaded,
+            observations.Select(x => x with { Partition = "TEST" }).ToArray(), sqlEdges)),
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("sem TEST"));
+        Assert.That((Action)(() => V9FrozenSourceResolveReplay.Replay(loaded, observations,
+            sqlEdges.Append(sqlEdges[0]).ToArray())), Throws.TypeOf<InvalidDataException>().With.Message.Contains("duplicada"));
         var raw = result.Single(x => x.CandidateGrouping == "RAW_SQL_OBSERVATION_CANDIDATES");
         var blind = result.Single(x => x.CandidateGrouping == "BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING");
         var oracle = result.Single(x => x.SyntheticGoldOracleGrouping);

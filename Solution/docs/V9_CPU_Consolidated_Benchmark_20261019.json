@@ -1,0 +1,323 @@
+{
+  "Version": "V9_CPU_WORKLOAD_BENCHMARK_V2",
+  "EvidenceScope": "Synthetic CPU kernel timings only; no SQL, TEST, GPU timing, or statistical certification",
+  "Framework": ".NET 10.0.13",
+  "OS": "Microsoft Windows 10.0.26300",
+  "Architecture": "X64",
+  "LogicalProcessors": 16,
+  "BenchmarkConfiguration": "Release",
+  "Repetitions": 3,
+  "WarmupsPerScale": 1,
+  "ParetoVersion": "V9_BOOTSTRAP_PARETO_2D_IDEAL_DISTANCE_V2",
+  "DiscoveryVersion": "V9_TRAIN_PREBLOCKING_CANDIDATE_DISCOVERY_V1",
+  "ContractsAssemblySha256": "02204d45dd6026ba9c3a8ebf1b3229635c9806e94997e00ab2457b3c5752ae34",
+  "ParametersAssemblySha256": "9e2d000d0dd8476e63dd2d79a9e49f266e0eba16681bf6a3cc9a80ab8933b3a7",
+  "Measurements": [
+    {
+      "Workload": "actual_csharp_pareto_full_tradeoff_frontier_and_table",
+      "Configurations": 500,
+      "WorstCaseDominanceComparisons": 249500,
+      "AllConfigurationsOnFrontier": true,
+      "Runs": [
+        {
+          "ElapsedMilliseconds": 5.6075,
+          "ProcessCpuMilliseconds": 0,
+          "AllocatedBytes": 622448,
+          "WorkingSetBytesAfter": 38014976,
+          "ResultFingerprint": "b7f2c0bd39b45e02af1f09c471b71bbf914a3b1505a67c66da6355448efa486a"
+        },
+        {
+          "ElapsedMilliseconds": 5.196,
+          "ProcessCpuMilliseconds": 0,
+          "AllocatedBytes": 622320,
+          "WorkingSetBytesAfter": 38371328,
+          "ResultFingerprint": "b7f2c0bd39b45e02af1f09c471b71bbf914a3b1505a67c66da6355448efa486a"
+        },
+        {
+          "ElapsedMilliseconds": 5.3621,
+          "ProcessCpuMilliseconds": 0,
+          "AllocatedBytes": 622320,
+          "WorkingSetBytesAfter": 38359040,
+          "ResultFingerprint": "b7f2c0bd39b45e02af1f09c471b71bbf914a3b1505a67c66da6355448efa486a"
+        }
+      ],
+      "MedianElapsedMilliseconds": 5.3621
+    },
+    {
+      "Workload": "actual_csharp_pareto_full_tradeoff_frontier_and_table",
+      "Configurations": 2000,
+      "WorstCaseDominanceComparisons": 3998000,
+      "AllConfigurationsOnFrontier": true,
+      "Runs": [
+        {
+          "ElapsedMilliseconds": 76.0424,
+          "ProcessCpuMilliseconds": 78.125,
+          "AllocatedBytes": 2536224,
+          "WorkingSetBytesAfter": 39534592,
+          "ResultFingerprint": "77897d7ba643aed2709fdd739e64d10ef2a4922a86f92575f50348016ae7c668"
+        },
+        {
+          "ElapsedMilliseconds": 89.7105,
+          "ProcessCpuMilliseconds": 109.375,
+          "AllocatedBytes": 2536224,
+          "WorkingSetBytesAfter": 41312256,
+          "ResultFingerprint": "77897d7ba643aed2709fdd739e64d10ef2a4922a86f92575f50348016ae7c668"
+        },
+        {
+          "ElapsedMilliseconds": 75.7495,
+          "ProcessCpuMilliseconds": 62.5,
+          "AllocatedBytes": 2536224,
+          "WorkingSetBytesAfter": 41234432,
+          "ResultFingerprint": "77897d7ba643aed2709fdd739e64d10ef2a4922a86f92575f50348016ae7c668"
+        }
+      ],
+      "MedianElapsedMilliseconds": 76.0424
+    },
+    {
+      "Workload": "actual_csharp_pareto_full_tradeoff_frontier_and_table",
+      "Configurations": 8000,
+      "WorstCaseDominanceComparisons": 63992000,
+      "AllConfigurationsOnFrontier": true,
+      "Runs": [
+        {
+          "ElapsedMilliseconds": 845.65,
+          "ProcessCpuMilliseconds": 843.75,
+          "AllocatedBytes": 9125720,
+          "WorkingSetBytesAfter": 60694528,
+          "ResultFingerprint": "c903557f0a80ecbcbb267635295c50679b2903cdb532038593199536a0fe1b64"
+        },
+        {
+          "ElapsedMilliseconds": 869.2538,
+          "ProcessCpuMilliseconds": 875,
+          "AllocatedBytes": 9125720,
+          "WorkingSetBytesAfter": 60956672,
+          "ResultFingerprint": "c903557f0a80ecbcbb267635295c50679b2903cdb532038593199536a0fe1b64"
+        },
+        {
+          "ElapsedMilliseconds": 864.281,
+          "ProcessCpuMilliseconds": 859.375,
+          "AllocatedBytes": 9125720,
+          "WorkingSetBytesAfter": 60997632,
+          "ResultFingerprint": "c903557f0a80ecbcbb267635295c50679b2903cdb532038593199536a0fe1b64"
+        }
+      ],
+      "MedianElapsedMilliseconds": 864.281
+    },
+    {
+      "Workload": "actual_csharp_train_preblocking_discovery",
+      "Observations": 300,
+      "Partition": "TRAIN",
+      "options": {
+        "MaximumPrefixLength": 4,
+        "NonMatchSampleSize": 900,
+        "NonMatchSampleSeed": 20261019,
+        "PositivePairCap": 2000000,
+        "PairSamplingAttemptCap": 10000000,
+        "SearchOptions": {
+          "MaxFieldsPerPass": 2,
+          "MaxPasses": 2,
+          "PrimitivePoolSize": 16,
+          "MinimumTrueMatchRecall": 0.95,
+          "RequireObservedNonMatchSupport": false,
+          "CandidateRuleSetCap": 100000,
+          "RequireExhaustivePrimitivePool": false
+        }
+      },
+      "EligiblePositivePairsBeforeBlocking": 300,
+      "EligibleNonMatchPairsBeforeBlocking": 29700,
+      "SampledNonMatchPairs": 900,
+      "PairSamplingAttempts": 1342,
+      "FeatureCount": 27,
+      "PairFeatureComparisonCount": 32400,
+      "EvaluatedPrimitiveCount": 378,
+      "RetainedPrimitiveCount": 16,
+      "EnumeratedUnionCount": 136,
+      "Runs": [
+        {
+          "ElapsedMilliseconds": 38.4809,
+          "ProcessCpuMilliseconds": 31.25,
+          "AllocatedBytes": 13151080,
+          "WorkingSetBytesAfter": 60919808,
+          "ResultFingerprint": "30051516d67e1ebfd7265e7bf60279c0c609015fae28bb91d9fa2844f384cb04:e8eb05e86a9fa852b9a07243a4ccf4d0ca2671a8f4366bb692c2da4ff199504d:1680e55034d7698c2619e75761ce19c414867799caaa6169526b2828ce6bb982"
+        },
+        {
+          "ElapsedMilliseconds": 36.9679,
+          "ProcessCpuMilliseconds": 31.25,
+          "AllocatedBytes": 13150952,
+          "WorkingSetBytesAfter": 59801600,
+          "ResultFingerprint": "30051516d67e1ebfd7265e7bf60279c0c609015fae28bb91d9fa2844f384cb04:e8eb05e86a9fa852b9a07243a4ccf4d0ca2671a8f4366bb692c2da4ff199504d:1680e55034d7698c2619e75761ce19c414867799caaa6169526b2828ce6bb982"
+        },
+        {
+          "ElapsedMilliseconds": 37.1092,
+          "ProcessCpuMilliseconds": 31.25,
+          "AllocatedBytes": 13150952,
+          "WorkingSetBytesAfter": 59801600,
+          "ResultFingerprint": "30051516d67e1ebfd7265e7bf60279c0c609015fae28bb91d9fa2844f384cb04:e8eb05e86a9fa852b9a07243a4ccf4d0ca2671a8f4366bb692c2da4ff199504d:1680e55034d7698c2619e75761ce19c414867799caaa6169526b2828ce6bb982"
+        }
+      ],
+      "MedianElapsedMilliseconds": 37.1092
+    },
+    {
+      "Workload": "actual_csharp_train_preblocking_discovery",
+      "Observations": 1500,
+      "Partition": "TRAIN",
+      "options": {
+        "MaximumPrefixLength": 4,
+        "NonMatchSampleSize": 4500,
+        "NonMatchSampleSeed": 20261019,
+        "PositivePairCap": 2000000,
+        "PairSamplingAttemptCap": 10000000,
+        "SearchOptions": {
+          "MaxFieldsPerPass": 2,
+          "MaxPasses": 2,
+          "PrimitivePoolSize": 16,
+          "MinimumTrueMatchRecall": 0.95,
+          "RequireObservedNonMatchSupport": false,
+          "CandidateRuleSetCap": 100000,
+          "RequireExhaustivePrimitivePool": false
+        }
+      },
+      "EligiblePositivePairsBeforeBlocking": 1500,
+      "EligibleNonMatchPairsBeforeBlocking": 748500,
+      "SampledNonMatchPairs": 4500,
+      "PairSamplingAttempts": 6737,
+      "FeatureCount": 27,
+      "PairFeatureComparisonCount": 162000,
+      "EvaluatedPrimitiveCount": 378,
+      "RetainedPrimitiveCount": 16,
+      "EnumeratedUnionCount": 136,
+      "Runs": [
+        {
+          "ElapsedMilliseconds": 175.5846,
+          "ProcessCpuMilliseconds": 218.75,
+          "AllocatedBytes": 63450728,
+          "WorkingSetBytesAfter": 74874880,
+          "ResultFingerprint": "e53e855c7264bd77a69b45a987e34f317f1104110913fda82ec52efd06717fa8:fc0f6ba8153503bd0e26fb25293274ebc670ab513f6bc454fbb4fa63b815494c:0205219d60a757ea3ea9b0f6fa037199a20cdcdc29ac17b39fb1beaa2d7d5f13"
+        },
+        {
+          "ElapsedMilliseconds": 177.0322,
+          "ProcessCpuMilliseconds": 171.875,
+          "AllocatedBytes": 63460104,
+          "WorkingSetBytesAfter": 72368128,
+          "ResultFingerprint": "e53e855c7264bd77a69b45a987e34f317f1104110913fda82ec52efd06717fa8:fc0f6ba8153503bd0e26fb25293274ebc670ab513f6bc454fbb4fa63b815494c:0205219d60a757ea3ea9b0f6fa037199a20cdcdc29ac17b39fb1beaa2d7d5f13"
+        },
+        {
+          "ElapsedMilliseconds": 174.3508,
+          "ProcessCpuMilliseconds": 203.125,
+          "AllocatedBytes": 63475376,
+          "WorkingSetBytesAfter": 77266944,
+          "ResultFingerprint": "e53e855c7264bd77a69b45a987e34f317f1104110913fda82ec52efd06717fa8:fc0f6ba8153503bd0e26fb25293274ebc670ab513f6bc454fbb4fa63b815494c:0205219d60a757ea3ea9b0f6fa037199a20cdcdc29ac17b39fb1beaa2d7d5f13"
+        }
+      ],
+      "MedianElapsedMilliseconds": 175.5846
+    },
+    {
+      "Workload": "actual_csharp_train_preblocking_discovery",
+      "Observations": 3000,
+      "Partition": "TRAIN",
+      "options": {
+        "MaximumPrefixLength": 4,
+        "NonMatchSampleSize": 9000,
+        "NonMatchSampleSeed": 20261019,
+        "PositivePairCap": 2000000,
+        "PairSamplingAttemptCap": 10000000,
+        "SearchOptions": {
+          "MaxFieldsPerPass": 2,
+          "MaxPasses": 2,
+          "PrimitivePoolSize": 16,
+          "MinimumTrueMatchRecall": 0.95,
+          "RequireObservedNonMatchSupport": false,
+          "CandidateRuleSetCap": 100000,
+          "RequireExhaustivePrimitivePool": false
+        }
+      },
+      "EligiblePositivePairsBeforeBlocking": 3000,
+      "EligibleNonMatchPairsBeforeBlocking": 2997000,
+      "SampledNonMatchPairs": 9000,
+      "PairSamplingAttempts": 13501,
+      "FeatureCount": 27,
+      "PairFeatureComparisonCount": 324000,
+      "EvaluatedPrimitiveCount": 378,
+      "RetainedPrimitiveCount": 16,
+      "EnumeratedUnionCount": 136,
+      "Runs": [
+        {
+          "ElapsedMilliseconds": 372.5052,
+          "ProcessCpuMilliseconds": 656.25,
+          "AllocatedBytes": 126622520,
+          "WorkingSetBytesAfter": 94396416,
+          "ResultFingerprint": "10b38a7aa6073b8ff06d6ca191738fe8556209a4a804379d9907124fdf92c842:433279b21d1248d72455dd8d2c55b66ef8a574c92ec7c057c460f7b30daf7342:0205219d60a757ea3ea9b0f6fa037199a20cdcdc29ac17b39fb1beaa2d7d5f13"
+        },
+        {
+          "ElapsedMilliseconds": 193.1772,
+          "ProcessCpuMilliseconds": 234.375,
+          "AllocatedBytes": 125393632,
+          "WorkingSetBytesAfter": 95887360,
+          "ResultFingerprint": "10b38a7aa6073b8ff06d6ca191738fe8556209a4a804379d9907124fdf92c842:433279b21d1248d72455dd8d2c55b66ef8a574c92ec7c057c460f7b30daf7342:0205219d60a757ea3ea9b0f6fa037199a20cdcdc29ac17b39fb1beaa2d7d5f13"
+        },
+        {
+          "ElapsedMilliseconds": 199.2336,
+          "ProcessCpuMilliseconds": 203.125,
+          "AllocatedBytes": 125413464,
+          "WorkingSetBytesAfter": 91525120,
+          "ResultFingerprint": "10b38a7aa6073b8ff06d6ca191738fe8556209a4a804379d9907124fdf92c842:433279b21d1248d72455dd8d2c55b66ef8a574c92ec7c057c460f7b30daf7342:0205219d60a757ea3ea9b0f6fa037199a20cdcdc29ac17b39fb1beaa2d7d5f13"
+        }
+      ],
+      "MedianElapsedMilliseconds": 199.2336
+    },
+    {
+      "Workload": "actual_csharp_train_preblocking_discovery",
+      "Observations": 30000,
+      "Partition": "TRAIN",
+      "options": {
+        "MaximumPrefixLength": 4,
+        "NonMatchSampleSize": 90000,
+        "NonMatchSampleSeed": 20261019,
+        "PositivePairCap": 2000000,
+        "PairSamplingAttemptCap": 10000000,
+        "SearchOptions": {
+          "MaxFieldsPerPass": 2,
+          "MaxPasses": 2,
+          "PrimitivePoolSize": 16,
+          "MinimumTrueMatchRecall": 0.95,
+          "RequireObservedNonMatchSupport": false,
+          "CandidateRuleSetCap": 100000,
+          "RequireExhaustivePrimitivePool": false
+        }
+      },
+      "EligiblePositivePairsBeforeBlocking": 30000,
+      "EligibleNonMatchPairsBeforeBlocking": 299970000,
+      "SampledNonMatchPairs": 90000,
+      "PairSamplingAttempts": 135305,
+      "FeatureCount": 27,
+      "PairFeatureComparisonCount": 3240000,
+      "EvaluatedPrimitiveCount": 378,
+      "RetainedPrimitiveCount": 16,
+      "EnumeratedUnionCount": 136,
+      "Runs": [
+        {
+          "ElapsedMilliseconds": 3153.0726,
+          "ProcessCpuMilliseconds": 3140.625,
+          "AllocatedBytes": 1250840800,
+          "WorkingSetBytesAfter": 407629824,
+          "ResultFingerprint": "9c75ee73fa1205ac01c82ef827c700ab996388de9a487ff6618c65540ee0ddc9:1858ef20c7ccebeccf42cb864932c44b40f4ebddcc3db34cb3c6c75bd812cb48:e9d2c3ed95ef4e1ca0458a74037cef553174c7d4c2c61effc3a20b714b47bcf2"
+        },
+        {
+          "ElapsedMilliseconds": 3294.3802,
+          "ProcessCpuMilliseconds": 3250,
+          "AllocatedBytes": 1250833848,
+          "WorkingSetBytesAfter": 409333760,
+          "ResultFingerprint": "9c75ee73fa1205ac01c82ef827c700ab996388de9a487ff6618c65540ee0ddc9:1858ef20c7ccebeccf42cb864932c44b40f4ebddcc3db34cb3c6c75bd812cb48:e9d2c3ed95ef4e1ca0458a74037cef553174c7d4c2c61effc3a20b714b47bcf2"
+        },
+        {
+          "ElapsedMilliseconds": 3444.2271,
+          "ProcessCpuMilliseconds": 3390.625,
+          "AllocatedBytes": 1250843608,
+          "WorkingSetBytesAfter": 410169344,
+          "ResultFingerprint": "9c75ee73fa1205ac01c82ef827c700ab996388de9a487ff6618c65540ee0ddc9:1858ef20c7ccebeccf42cb864932c44b40f4ebddcc3db34cb3c6c75bd812cb48:e9d2c3ed95ef4e1ca0458a74037cef553174c7d4c2c61effc3a20b714b47bcf2"
+        }
+      ],
+      "MedianElapsedMilliseconds": 3294.3802
+    }
+  ]
+}

@@ -220,6 +220,12 @@ public sealed class SyntheticCorpusV2PortTests
         var b = Path.Combine(root, "b");
         try
         {
+            var invalidPath = Path.Combine(root, "invalid");
+            var invalid = generation with { Observations = Enumerable.Repeat(generation.Observations[0], 5).ToArray() };
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await SyntheticCorpusMaterializer.WriteAsync(invalidPath, invalid, source, new string('C', 64))));
+            Assert.That(Directory.Exists(invalidPath), Is.False,
+                "A violação deve falhar antes de gravar qualquer artefato.");
             var left = await SyntheticCorpusMaterializer.WriteAsync(a, generation, source, new string('C', 64));
             var right = await SyntheticCorpusMaterializer.WriteAsync(b, generation, source, new string('C', 64));
 
@@ -232,6 +238,12 @@ public sealed class SyntheticCorpusV2PortTests
             }
 
             using var truth = JsonDocument.Parse(await File.ReadAllTextAsync(left.TruthPath));
+            using var manifest = JsonDocument.Parse(await File.ReadAllTextAsync(left.ManifestPath));
+            var multiplicity = manifest.RootElement.GetProperty("observation_multiplicity");
+            Assert.That(multiplicity.GetProperty("maximum_observations_per_base_identity").GetInt32(), Is.EqualTo(4));
+            Assert.That(multiplicity.GetProperty("support").EnumerateArray().Select(x => x.GetInt32()),
+                Is.EqualTo(new[] { 1, 2, 3, 4 }));
+            Assert.That(multiplicity.GetProperty("decision_cluster_iid_certified").GetBoolean(), Is.False);
             Assert.Multiple((Action)(() =>
             {
                 Assert.That(truth.RootElement.GetProperty("generator_version").GetString(),

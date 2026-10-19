@@ -1,0 +1,54 @@
+{
+  "version": "V9_LOCAL_GPU_INVENTORY_V1",
+  "python": "3.13.5",
+  "logical_processors": 16,
+  "system_packages_metadata_only": {
+    "numpy": "2.3.2",
+    "torch": null,
+    "cupy": null,
+    "cupy-cuda12x": null,
+    "cupy-cuda13x": null,
+    "numba": null,
+    "llvmlite": null,
+    "onnxruntime-gpu": null,
+    "onnxruntime-directml": null,
+    "tensorflow": null,
+    "pycuda": null,
+    "cuda-python": null
+  },
+  "existing_venv_packages_metadata_only": {
+    "numpy": "2.5.3",
+    "torch": null,
+    "cupy": null,
+    "cupy-cuda12x": null,
+    "cupy-cuda13x": null,
+    "numba": null,
+    "llvmlite": null,
+    "onnxruntime-gpu": null,
+    "onnxruntime-directml": null,
+    "tensorflow": null,
+    "pycuda": null,
+    "cuda-python": null
+  },
+  "nvcc_on_path": false,
+  "cuda_toolkit_default_directory_present": false,
+  "windows_sdk_x64_dxc_versions": [
+    "10.0.22621.0",
+    "10.0.26100.0"
+  ],
+  "gpu_benchmark_executed": false,
+  "gpu_speedup_measured": false,
+  "nvidia_smi": [
+    "name, driver_version, memory.total [MiB], compute_cap, pstate",
+    "NVIDIA GeForce RTX 3060 Laptop GPU, 610.62, 6144 MiB, 8.6, P8"
+  ],
+  "system_gpu_api_dlls_present": {
+    "nvcuda.dll": true,
+    "DirectML.dll": true,
+    "d3d12.dll": true,
+    "d3dcompiler_47.dll": true
+  },
+  "cuda_driver_init_status": 0,
+  "cuda_device_count_status": 0,
+  "cuda_device_count": 1
+}

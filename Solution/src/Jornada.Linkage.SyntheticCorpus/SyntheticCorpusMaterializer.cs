@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Jornada.Contracts;
 
 namespace Jornada.Linkage.SyntheticCorpus;
 
@@ -29,6 +30,12 @@ public static class SyntheticCorpusMaterializer
         ArgumentNullException.ThrowIfNull(generation);
         ArgumentNullException.ThrowIfNull(source);
         ArgumentException.ThrowIfNullOrWhiteSpace(inputFingerprintSha256);
+
+        // Reject imported/expanded generations before writing any output. The
+        // hard support is not the largest cluster observed in this particular run.
+        if (generation.Observations.GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
+            .Any(g => g.Count() > SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity))
+            throw new InvalidDataException("Geração excede o suporte declarado de observações por pessoa.");
 
         Directory.CreateDirectory(outputDirectory);
         var peoplePath = Path.Combine(outputDirectory, "pessoas_verdade.csv");
@@ -77,6 +84,15 @@ public static class SyntheticCorpusMaterializer
                 birth_missing_attempt = declaredErrorProfile.MissingDateProbability
             },
             generator_version = SyntheticCorpusInputIdentity.GeneratorVersion,
+            observation_multiplicity = new
+            {
+                contract_version = SyntheticObservationMultiplicityContract.Version,
+                maximum_observations_per_base_identity = SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity,
+                support = SyntheticObservationMultiplicityContract.Counts,
+                weights = SyntheticObservationMultiplicityContract.Weights,
+                scope = "BASE_CORPUS_ONLY_NOT_INGESTION_WAVES",
+                decision_cluster_iid_certified = false
+            },
             ruleset_version = SyntheticCorpusV2Rules.RulesetVersion,
             rng_version = Xoshiro256StarStar.AlgorithmVersion,
             frequency_sampler_version = SyntheticFrequencySampler.MethodVersion,

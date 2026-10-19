@@ -100,6 +100,7 @@ public static class V9PostResolveAdaptiveSelector
                 || (fdr.HasValue && !Equal(row.FdrAfterResolve!.Value, fdr.Value))
                 || !ValidBound(row.HoeffdingUpperBySourceBaseIdentity)
                 || !ValidBound(row.ConditionalClusterCpFdrUpper)
+                || !ValidBound(row.ClopperPearsonUpperAnyFpByIdentity)
                 || (fdr.HasValue && row.ConditionalClusterCpFdrUpper.HasValue
                     && row.ConditionalClusterCpFdrUpper.Value + 1e-12 < fdr.Value))
                 throw new InvalidDataException("Razões ou limites não reconciliam com as contagens.");
