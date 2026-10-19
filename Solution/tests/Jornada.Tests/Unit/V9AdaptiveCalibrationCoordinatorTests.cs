@@ -20,6 +20,24 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
     }
 
     [Test]
+    public void Known_control_is_retained_beyond_the_discovery_pool_and_counted_without_order_duplicates()
+    {
+        IReadOnlyList<LinkageBlockingPass> first = [LinkageBlockingPass.Create("A", ["name_full"])];
+        IReadOnlyList<LinkageBlockingPass> control =
+        [
+            LinkageBlockingPass.Create("Z", ["name_phonetic_ptbr", "mother_name_last"]),
+            LinkageBlockingPass.Create("B", ["name_first", "birth_year"]),
+            LinkageBlockingPass.Create("C", ["name_last", "mother_name_phonetic_ptbr"])
+        ];
+        var combined = V9AdaptiveCalibrationCoordinator.CombineCandidateRuleSets([first], [control, control.Reverse().ToArray()]);
+        Assert.That(combined, Has.Count.EqualTo(2));
+        Assert.That(combined[1].Select(p => p.PassId), Is.EqualTo(new[] { "B", "C", "Z" }));
+        Assert.That(V9AdaptiveCalibrationCoordinator.CountComparedConfigurations(Plan(), combined.Count), Is.EqualTo(2000));
+        Assert.That((Action)(() => V9AdaptiveCalibrationCoordinator.CountComparedConfigurations(
+            Plan() with { MaximumPhysicalRuleSets = 1 }, combined.Count)), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Large_family_counts_every_ruleset_option_margin_and_previous_comparison()
     {
         var plan = Plan() with { PreviouslyComparedValidationConfigurations = 123 };

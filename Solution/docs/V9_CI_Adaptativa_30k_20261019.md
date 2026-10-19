@@ -30,6 +30,21 @@ sem novo pacote. Há 23 projetos na matriz arquitetural e 22 grafos NuGet produt
 
 ## Protocolo da nova grade exploratória
 
+O primeiro ensaio de grade no commit `64f2d00b` passou no
+[run 39337430558](https://github.com/lucianox777/Jornada/actions/runs/39337430558):
+1224 configurações, 324 medidas e 900 recusadas por incidências acima do milhão
+declarado; melhor recall observado 0,9452875908685117, com FP=0 nesse ponto.
+Não melhorou o controle conhecido. Artefato `12226859709`, ZIP SHA-256
+`346b85c67653bbbecb747f648e1cf63c3e41833d859c2dfb429447421d6058a8`,
+conferido localmente. Nenhum gate foi relaxado para promover esse resultado.
+
+O protocolo seguinte inclui explicitamente o ruleset anterior de três passes como
+controle, além do pool descoberto. `BaselineRuleSets` é opcional no plano C#;
+controles não são descartados por limite heurístico do pool e entram no mesmo
+orçamento/multiplicidade/tabela. Passes e campos são congelados e ordem idêntica
+não cria configurações duplicadas. A verificação compara os resultados do controle
+com o probe de referência executado no mesmo run. Isso não cria nova certificação.
+
 `scripts/v9-adaptive-30k-study.py` escreve o plano antes de executar a grade, sem ler
 métricas de VALIDATION. O coordenador descobre propostas exclusivamente em TRAIN.
 
@@ -37,9 +52,9 @@ métricas de VALIDATION. O coordenador descobre propostas exclusivamente em TRAI
 - Projeção opt-in K1..4, 378 primitivos avaliados; pool explícito de 16, sem alegar
   exaustividade de todos os primitivos; todas as 136 uniões de um/dois passes.
 - Thresholds .90/.95/.99, margens .5/2/4, alpha de suavização proposto .5, TF0:
-  **1224 configurações**. Esses valores são propostas declaradas, não constantes
+  1224 propostas mais 9 configurações do controle: **1233 configurações**. Esses valores são propostas declaradas, não constantes
   definitivas nem parâmetros certificados.
-- Multiplicidade **1260**, incluindo a família física anterior conhecida de 36.
+- Multiplicidade **2493**, incluindo as famílias anteriores conhecidas de 36 e 1224.
   O histórico completo de buscas não foi autenticado/enumerado; o relatório declara
   essa limitação. Os bounds são condicionais à família informada, não prova de cobertura
   de todas as decisões históricas após observar VALIDATION.

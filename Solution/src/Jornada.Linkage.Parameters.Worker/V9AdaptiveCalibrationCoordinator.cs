@@ -19,7 +19,8 @@ public sealed record V9AdaptiveCalibrationPlan(
     V9PhysicalAdaptiveExecution Execution,
     decimal MinimumGroupingPosterior = .99m,
     int MaximumAcceptedPerBaseIdentity = 16,
-    int PreviouslyComparedValidationConfigurations = 0);
+    int PreviouslyComparedValidationConfigurations = 0,
+    IReadOnlyList<IReadOnlyList<LinkageBlockingPass>>? BaselineRuleSets = null);
 
 public sealed record V9AdaptiveCandidateRejection(string RulesetSha256,
     IReadOnlyList<string> ConfigurationIds, string Reason);
@@ -31,7 +32,8 @@ public sealed record V9AdaptiveCalibrationStudyResult(string Version, string Pla
     IReadOnlyList<V9PhysicalSourceResolveMetric> SourceMeasurements,
     IReadOnlyList<V9PhysicalFrozenConfiguration> FrozenConfigurations,
     IReadOnlyList<V9PhysicalEndToEndMeasurement> EndToEndMeasurements,
-    IReadOnlyList<V9AdaptiveCandidateRejection> Rejections);
+    IReadOnlyList<V9AdaptiveCandidateRejection> Rejections,
+    int TotalCandidateRuleSets = 0);
 
 /// <summary>
 /// One C# calibration path: TRAIN proposal discovery, full physical candidate union,
@@ -81,6 +83,31 @@ public static class V9AdaptiveCalibrationCoordinator
             || !plan.Execution.FsBlindGroupingOnly || plan.Execution.MaximumBlindClusterSize is null)
             throw new InvalidDataException("Plano não pode relaxar risco, trocar projeção ou omitir agrupamento.");
         plan.Execution.Validate(evaluateFinalResolve: true, includeFsBlindGrouping: true);
+        if (plan.BaselineRuleSets is not null)
+            _ = CombineCandidateRuleSets([], plan.BaselineRuleSets);
+    }
+
+    /// <summary>Retains declared controls alongside proposals; never prunes using VALIDATION.</summary>
+    public static IReadOnlyList<IReadOnlyList<LinkageBlockingPass>> CombineCandidateRuleSets(
+        IEnumerable<IReadOnlyList<LinkageBlockingPass>> discovered,
+        IEnumerable<IReadOnlyList<LinkageBlockingPass>>? baselines)
+    {
+        ArgumentNullException.ThrowIfNull(discovered);
+        var result = new List<IReadOnlyList<LinkageBlockingPass>>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var ruleset in discovered.Concat(baselines ?? []))
+        {
+            if (ruleset is null || ruleset.Count is < 1 or > 64
+                || ruleset.Any(p => p is null || p.Fields is null))
+                throw new InvalidDataException("Ruleset de controle/proposta inválido.");
+            var canonical = ruleset.Select(p => LinkageBlockingPass.Create(p.PassId, p.Fields))
+                .OrderBy(p => p.PassId, StringComparer.Ordinal)
+                .Select(p => new LinkageBlockingPass(p.PassId, Array.AsReadOnly(p.Fields.ToArray()))).ToArray();
+            if (canonical.Select(p => p.PassId).Distinct(StringComparer.Ordinal).Count() != canonical.Length)
+                throw new InvalidDataException("Ruleset de controle/proposta com PassId duplicado.");
+            if (seen.Add(JsonSerializer.Serialize(canonical))) result.Add(Array.AsReadOnly(canonical));
+        }
+        return result.AsReadOnly();
     }
 
     public static int CountComparedConfigurations(V9AdaptiveCalibrationPlan plan, long ruleSets)
@@ -107,7 +134,9 @@ public static class V9AdaptiveCalibrationCoordinator
         // Freeze mutable collections before discovery or any asynchronous boundary.
         observations = Array.AsReadOnly(observations.ToArray());
         plan = plan with { ModelOptions = Array.AsReadOnly(plan.ModelOptions.ToArray()),
-            ConflictMargins = Array.AsReadOnly(plan.ConflictMargins.ToArray()) };
+            ConflictMargins = Array.AsReadOnly(plan.ConflictMargins.ToArray()),
+            BaselineRuleSets = plan.BaselineRuleSets is null ? null
+                : CombineCandidateRuleSets([], plan.BaselineRuleSets) };
         if (observations.Any(x => x is null || x.Partition is not ("TRAIN" or "VALIDATION"))
             || observations.Select(x => x.ObservationId).Distinct().Count() != observations.Count)
             throw new InvalidDataException("Coordenador exige TRAIN/VALIDATION sem TEST ou IDs duplicados.");
@@ -119,7 +148,8 @@ public static class V9AdaptiveCalibrationCoordinator
         if (plan.ModelOptions.Any(x => x.TfWeight > 0) && frozenTfReferenceForRuleset is null)
             throw new InvalidDataException("Busca TF positiva exige referência imutável por frame SQL.");
         var discovery = V9TrainBlockingCandidateDiscovery.Discover(train, plan.Discovery);
-        var compared = CountComparedConfigurations(plan, discovery.Candidates.Count);
+        var candidates = CombineCandidateRuleSets(discovery.Candidates, plan.BaselineRuleSets);
+        var compared = CountComparedConfigurations(plan, candidates.Count);
         var trainSha = InputSha(train);
         var validationSha = InputSha(validation);
         var measurements = new List<V9PhysicalSourceResolveMetric>();
@@ -131,7 +161,7 @@ public static class V9AdaptiveCalibrationCoordinator
         var eligibleSources = validation.GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
             .Where(g => g.Select(x => x.Gestor).Distinct(StringComparer.Ordinal).Skip(1).Any()).Sum(g => (long)g.Count());
         if (eligibleSources == 0) throw new InvalidDataException("VALIDATION sem fontes elegíveis pré-blocking.");
-        foreach (var passes in discovery.Candidates)
+        foreach (var passes in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var rulesetSha = Sha(JsonSerializer.Serialize(passes));
@@ -199,7 +229,7 @@ public static class V9AdaptiveCalibrationCoordinator
             (selection?.Pareto.Table.Select(x => x.Option) ?? []).Concat(failedOptions), plan.SelectionPolicy);
         return new(Version, Sha(JsonSerializer.Serialize(plan)), trainSha, validationSha,
             compared, discovery, selection, pareto, measurements.AsReadOnly(), frozen.AsReadOnly(),
-            timings.AsReadOnly(), rejected.AsReadOnly());
+            timings.AsReadOnly(), rejected.AsReadOnly(), candidates.Count);
     }
 
     private static string InputSha(IEnumerable<V9PhysicalCalibrationObservation> observations) =>
