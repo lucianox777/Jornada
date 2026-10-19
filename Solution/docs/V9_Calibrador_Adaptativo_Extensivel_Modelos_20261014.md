@@ -1,3 +1,5 @@
+> **Implementação local V9 — 19/10/2026:** [snapshot portátil com TF, seleção pós-Resolve, validação executada e lacunas operacionais](V9_Integracao_Local_20261019.md). O incremento não representa homologação ou ativação; consulte a PR e os checks da HEAD vigente. As fotografias históricas abaixo não substituem esse inventário de código.
+
 # Calibrador adaptativo V9 — contrato extensível para diferentes famílias de modelos
 
 ## Decisão

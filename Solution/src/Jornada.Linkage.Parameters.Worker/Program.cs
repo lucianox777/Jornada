@@ -2,6 +2,13 @@ using Jornada.Operational.Sql;
 using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Parameters.Worker;
 
+// Portable artifact inspection never starts the host or connects to SQL.
+if (args.Length > 0 && args[0] == "--v9-inspect-fitted-snapshot")
+{
+    await V9FittedSnapshotArtifact.InspectAsync(args);
+    return;
+}
+
 // Read-only opt-in physical diagnostic; never starts the operational worker.
 if (args.Length > 0 && args[0] == "--v9-physical-probe-seed42")
 {

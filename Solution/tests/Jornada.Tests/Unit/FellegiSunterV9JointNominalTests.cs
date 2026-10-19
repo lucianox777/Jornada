@@ -335,6 +335,31 @@ public sealed class FellegiSunterV9JointNominalTests
     }
 
     [Test]
+    public void V9FrequencyOneIsNotNeutralBayesFactorOrDisabledWeight()
+    {
+        var cells = FullFrame(CompositeNominalLevelV9.ExactFirst,
+            CompositeNominalLevelV9.Missing, .20m, .05m);
+        FellegiSunterScoreBreakdown Score(CompositeNominalTfPreviewV9? tf) =>
+            FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                PreviewParameters(), "Maria Lima", "Maria Costa", null, null,
+                cells, CompositeNominalComparisonV9.ContractVersion, nominalTf: tf);
+        var plain = Score(null);
+        var neutral = Score(FirstNameTf("MARIA", .10m)); // frequency == baseline U => BF=1
+        var disabled = Score(FirstNameTf("MARIA", 1m, 0m));
+        var ubiquitous = Score(FirstNameTf("MARIA", 1m));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(neutral.Score, Is.EqualTo(plain.Score));
+            Assert.That(disabled.Score, Is.EqualTo(plain.Score));
+            Assert.That(ubiquitous.Score.LogOdds - plain.Score.LogOdds,
+                Is.EqualTo((decimal)Math.Log(.10d)).Within(.0000001m));
+            Assert.That(ubiquitous.Score.Posterior, Is.LessThan(plain.Score.Posterior));
+        }));
+        Assert.That((Action)(() => Score(FirstNameTf("MARIA", 0m))),
+            Throws.InvalidOperationException);
+    }
+
+    [Test]
     public void V9TfPreviewRejectsMismatchedMarginalUnitWrongNameAndMissingMother()
     {
         var cells = FullFrame(

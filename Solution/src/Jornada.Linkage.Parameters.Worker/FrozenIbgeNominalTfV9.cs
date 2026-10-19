@@ -27,6 +27,21 @@ public sealed class FrozenIbgeNominalTfV9
     public string BlockingFrameFingerprint { get; }
     public NominalSyntheticIbgeBootstrapV9 Bootstrap { get; }
 
+    // Exports the exact pinned values, not a fresh SQL lookup or an ATIVA
+    // reference. The portable artifact digest binds these values with TRAIN U.
+    internal (NominalFrequencyReferenceContractV9 Reference,
+        IReadOnlyDictionary<string, decimal> Frequencies) ExportForSnapshot(
+        CompositeNominalTfSideV9 side)
+    {
+        if (!Enum.IsDefined(side))
+            throw new InvalidDataException("Lado TF do snapshot desconhecido.");
+        var values = side == CompositeNominalTfSideV9.Person ? personFirst : motherFirst;
+        return (MakeReference(side, ReferenceCode, PublishedReferenceSha256,
+                BlockingFrameFingerprint, Bootstrap),
+            new System.Collections.ObjectModel.ReadOnlyDictionary<string, decimal>(
+                values.ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal)));
+    }
+
     private FrozenIbgeNominalTfV9(
         PreparedNominalTermFrequency prepared,
         string referenceCode,

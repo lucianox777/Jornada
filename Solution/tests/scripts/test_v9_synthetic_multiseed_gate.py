@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 SOURCE = Path(__file__).resolve().parents[2] / "scripts" / "v9-synthetic-multiseed-gate.py"
 SPEC = importlib.util.spec_from_file_location("v9_synthetic_gate", SOURCE)
@@ -44,7 +45,9 @@ def write_run(root: Path, seed: int, truth="TRUTH", bad=False):
     raw_model = json.dumps(model, separators=(",", ":"), ensure_ascii=False)
     model_sha = hashlib.sha256(raw_model.encode("utf-8")).hexdigest().upper()
     if seed == 42:
-        (root / "v9-frozen-model.json").write_text(raw_model + "\n", encoding="utf-8")
+        # The gate pins raw UTF-8 bytes, excluding the producer's LF suffix.
+        # Text-mode Windows newline translation would leave an unhashed CR.
+        (root / "v9-frozen-model.json").write_bytes(raw_model.encode("utf-8") + b"\n")
     report = {
         "Version": gate.SCORER_VERSION, "Scope": gate.SCOPE,
         "FrozenModel": model,
@@ -69,6 +72,27 @@ def write_run(root: Path, seed: int, truth="TRUTH", bad=False):
 
 
 class V9IndependentSyntheticSeedsTest(unittest.TestCase):
+    def test_fixture_is_stable_with_windows_text_translation_and_gate_rejects_changed_bytes(self):
+        def windows_write_text(path, data, encoding=None, errors=None, newline=None):
+            with path.open("w", encoding=encoding, errors=errors, newline="\r\n") as stream:
+                return stream.write(data)
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            with mock.patch.object(Path, "write_text", windows_write_text):
+                source = write_run(root, 42)
+            file = root / "v9-frozen-model.json"
+            frozen_bytes = file.read_bytes()
+            self.assertTrue(frozen_bytes.endswith(b"\n"))
+            self.assertFalse(frozen_bytes.endswith(b"\r\n"))
+            self.assertEqual(hashlib.sha256(frozen_bytes[:-1]).hexdigest().upper(),
+                             source["FrozenModelSha256"])
+            gate.audit_directory(root, 42)
+            # Exact-byte evidence remains strict: CRLF is not silently normalized.
+            file.write_bytes(frozen_bytes[:-1] + b"\r\n")
+            with self.assertRaisesRegex(ValueError, "Frozen source model SHA-256 mismatch"):
+                gate.audit_directory(root, 42)
+
     def test_three_replicas_have_provenance_and_pure_aggregate_verdict(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp)

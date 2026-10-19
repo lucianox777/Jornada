@@ -10,8 +10,8 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-SDK = '10.0.112'
-EXPECTED_COUNT = 18
+SDK = '10.0.113'
+EXPECTED_COUNT = 22
 MANIFEST = ROOT / 'config/release/nuget-lock-provenance.json'
 PROJECT = 'src/Jornada.Operational.Sql/packages.lock.json'
 CONTRACTS = 'jornada.contracts'
@@ -29,7 +29,7 @@ def fail(message: str) -> None:
 
 
 def locks() -> dict[str, bytes]:
-    files = sorted(p for p in ROOT.rglob('packages.lock.json')
+    files = sorted(p for base in (ROOT / 'src', ROOT / 'tests') for p in base.rglob('packages.lock.json')
                    if not {'bin', 'obj', '.local'} & set(p.parts))
     if len(files) != EXPECTED_COUNT:
         fail(f'Expected {EXPECTED_COUNT} locks, found {len(files)}.')
@@ -39,7 +39,7 @@ def locks() -> dict[str, bytes]:
 def project_targets(lock_paths: Iterable[str]) -> list[str]:
     """Every versioned project must have exactly one sibling lock, and vice versa."""
     lock_paths = set(lock_paths)
-    projects = sorted(p for p in ROOT.rglob('*.csproj')
+    projects = sorted(p for base in (ROOT / 'src', ROOT / 'tests') for p in base.rglob('*.csproj')
                       if not {'bin', 'obj', '.local'} & set(p.parts))
     targets = []
     expected_locks = set()

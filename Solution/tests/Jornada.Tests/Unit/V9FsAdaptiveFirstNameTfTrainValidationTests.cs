@@ -24,7 +24,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         return FrozenIbgeNominalTfV9.BindPublished(
             new PreparedNominalTermFrequency(
                 NominalTermFrequencySnapshot.Create(entries), entries, 123),
-            "IBGE_PINNED", new string('e', 64), "BLOCK_SQL_PINNED",
+            "IBGE_PINNED", new string('e', 64), new string('1', 64),
             new NominalSyntheticIbgeBootstrapV9(
                 CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance,
                 30_000, "CORPUS_30K", "GENERATOR_V1", 42UL, "HYPOTHESES_V1"));
@@ -48,7 +48,9 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             Pair("VALIDATION", "VAL-B", "VAL-B", true),
             Pair("VALIDATION", "VAL-C", "VAL-D", false),
             Pair("VALIDATION", "VAL-D", "VAL-C", false)
-        ]);
+        ], CandidateBlockingPasses: [new LinkageBlockingPass("NAME", ["NOME"])],
+        ProjectionSchemaVersion: "PROJECTION_V1", ProjectionFingerprintSha256: new string('f', 64),
+        BlockingFrameFingerprintSha256: new string('1', 64));
 
     private static AdaptiveCalibrationSlice Slice(string split) =>
         split == "TRAIN"
@@ -88,6 +90,121 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             Assert.That(neutral.FingerprintSha256, Is.Not.EqualTo(positive.FingerprintSha256));
             Assert.That(fractional.FingerprintSha256, Is.Not.EqualTo(positive.FingerprintSha256));
         }));
+    }
+
+    [Test]
+    public void Export_freezes_the_actual_train_fit_and_never_drops_positive_TF()
+    {
+        var neutral = new V9FsAdaptiveOptionConfiguration("TF0", .5m, .55m);
+        var positive = new V9FsAdaptiveOptionConfiguration("TF1", .5m, .55m, 1m);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            Frame(), [neutral, positive], Reference());
+        var fit = adapter.FitTrain(Model(neutral), Slice("TRAIN"));
+        var passes = new[] { new LinkageBlockingPass("NAME", ["NOME"]) };
+        var snapshot = adapter.ExportFrozenSnapshot(fit, passes, "PROJECTION_V1",
+            new string('f', 64), .2m);
+        var replay = V9FittedSnapshot.Load(snapshot.SerializeUtf8(), snapshot.ContentSha256);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(replay.Payload.FitFingerprintSha256,
+                Is.EqualTo(fit.FittedParametersFingerprintSha256));
+            Assert.That(replay.Payload.TrainCorpusSha256, Is.EqualTo(TrainCorpus));
+            Assert.That(replay.Payload.JointCells, Has.Count.EqualTo(81));
+            Assert.That(replay.Payload.Threshold, Is.EqualTo(neutral.DecisionThreshold));
+            Assert.That(replay.Payload.TfWeight, Is.Zero);
+        }));
+        var positiveFit = adapter.FitTrain(Model(positive), Slice("TRAIN"));
+        var positiveSnapshot = adapter.ExportFrozenSnapshot(positiveFit,
+            passes, "PROJECTION_V1", new string('f', 64), .2m);
+        var positiveReplay = V9FittedSnapshot.Load(positiveSnapshot.SerializeUtf8(),
+            positiveSnapshot.ContentSha256);
+        Assert.That(positiveReplay.Payload.TfCalibration, Is.Not.Null);
+        Assert.That(positiveReplay.Payload.TfCalibration!.Frequencies["MARIA"], Is.EqualTo(.60m));
+        Assert.That(positiveReplay.Payload.TfCalibration.TrainUnitUByValue["MARIA"],
+            Is.EqualTo(2.5m / 3m));
+        var source = new IdentityObservation(null, "SEM_CPF", "MARIA COSTA", Birth, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "MARIA LIMA", Birth, null);
+        var neutralDecision = replay.ResolvePreview(Guid.NewGuid(), source, [candidate]);
+        var positiveDecision = positiveReplay.ResolvePreview(Guid.NewGuid(), source, [candidate]);
+        Assert.That(neutralDecision.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
+        Assert.That(positiveDecision.Status, Is.EqualTo(ResolutionStatus.RESOLVIDO));
+        Assert.That(positiveDecision.PessoaUuidResolvido, Is.EqualTo(candidate.PersonUuid));
+        Assert.That((Action)(() => adapter.ExportFrozenSnapshot(
+            fit with { OptionId = "TF1" }, passes, "PROJECTION_V1", new string('f', 64), .2m)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => adapter.ExportFrozenSnapshot(fit,
+            [new LinkageBlockingPass("OTHER", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m)), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => adapter.ExportFrozenSnapshot(fit, passes,
+            "PROJECTION_V1", new string('a', 64), .2m)), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Positive_TF_cannot_use_reference_from_another_blocking_frame()
+    {
+        var config = new V9FsAdaptiveOptionConfiguration("TF", .5m, .55m, 1m);
+        Assert.That((Action)(() => _ = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            Frame() with { BlockingFrameFingerprintSha256 = new string('2', 64) },
+            [config], Reference())), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Pair_only_fixture_cannot_invent_blocking_provenance_when_exporting()
+    {
+        var config = new V9FsAdaptiveOptionConfiguration("TF0", .5m, .55m);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(Frame() with
+        {
+            CandidateBlockingPasses = null, ProjectionSchemaVersion = null,
+            ProjectionFingerprintSha256 = null, BlockingFrameFingerprintSha256 = null
+        }, [config]);
+        var fit = adapter.FitTrain(Model(config), Slice("TRAIN"));
+        Assert.That((Action)(() => adapter.ExportFrozenSnapshot(fit,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m)),
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("frame"));
+    }
+
+    [Test]
+    public void Positive_TF_cannot_be_silently_disabled_by_a_stale_comparison_level()
+    {
+        var rows = Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray();
+        var fitted = V9TrainSqlFirstNameUCalibration.Fit(
+            rows, CompositeNominalTfSideV9.Person, .5m, TrainCorpus);
+        var pair = Frame().Pairs.First(x => x.Partition == "VALIDATION");
+        Assert.That(CompositeNominalComparisonV9.Classify(
+            pair.LeftPersonName, pair.RightPersonName), Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
+        Assert.That((Action)(() => V9TrainSqlFirstNameUCalibration.Preview(
+            fitted, Reference(), CompositeNominalLevelV9.Other,
+            CompositeNominalLevelV9.Missing, pair, 1m, .000001m, 1)),
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("divergem"));
+        var preview = V9TrainSqlFirstNameUCalibration.Preview(
+            fitted, Reference(), CompositeNominalLevelV9.ExactFirst,
+            CompositeNominalLevelV9.Missing, pair, 1m, .000001m, 1);
+        Assert.That(preview, Is.Not.Null);
+        Assert.That(preview!.TermFrequency, Is.EqualTo(.60m));
+        Assert.That(preview.UnitReferenceU, Is.EqualTo(2.5m / 3m));
+    }
+
+    [Test]
+    public void Inapplicable_TF_is_neutral_but_still_rejects_invalid_configuration()
+    {
+        var rows = Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray();
+        var fitted = V9TrainSqlFirstNameUCalibration.Fit(
+            rows, CompositeNominalTfSideV9.Person, .5m, TrainCorpus);
+        var pair = rows[0] with { RightPersonName = rows[0].LeftPersonName };
+        Assert.That(CompositeNominalComparisonV9.Classify(
+            pair.LeftPersonName, pair.RightPersonName), Is.EqualTo(CompositeNominalLevelV9.ExactFull));
+        Assert.That(V9TrainSqlFirstNameUCalibration.Preview(
+            fitted, Reference(), CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.Missing, pair, 1m, .000001m, 1), Is.Null);
+        Assert.That((Action)(() => V9TrainSqlFirstNameUCalibration.Preview(
+            fitted, Reference(), CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.Missing, pair, 1m, -1m, 1)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9TrainSqlFirstNameUCalibration.Preview(
+            fitted with { Side = (CompositeNominalTfSideV9)99 }, Reference(),
+            CompositeNominalLevelV9.ExactFull, CompositeNominalLevelV9.Missing,
+            pair, 1m, .000001m, 1)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]

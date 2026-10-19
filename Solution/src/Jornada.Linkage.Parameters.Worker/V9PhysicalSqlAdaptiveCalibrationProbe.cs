@@ -75,7 +75,8 @@ public sealed record V9PhysicalCalibrationRunResult(
     V9PhysicalSqlIdentityCohortCoverage? ValidationIdentityCohortCoverage = null,
     V9PhysicalSqlCostQuantiles.Summary? RepeatedSqlMaterializationQuantiles = null,
     IReadOnlyList<V9PhysicalFinalResolveMetric>? FinalResolveValidation = null,
-    IReadOnlyList<V9PhysicalSourceResolveMetric>? SourceResolveValidation = null);
+    IReadOnlyList<V9PhysicalSourceResolveMetric>? SourceResolveValidation = null,
+    V9PostResolveSelectionReport? PostResolveSelection = null);
 
 /// <summary>
 /// Cohort is defined BEFORE SQL blocking and includes every base identity,
@@ -290,7 +291,11 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             validationIdentitySha,
             rows,
             trainBases.OrderBy(x => x, StringComparer.Ordinal).ToArray(),
-            validationBases.OrderBy(x => x, StringComparer.Ordinal).ToArray());
+            validationBases.OrderBy(x => x, StringComparer.Ordinal).ToArray(),
+            CandidateBlockingPasses: canonicalPasses,
+            ProjectionSchemaVersion: PersonResolutionProjectionContract.SchemaVersion,
+            ProjectionFingerprintSha256: PersonResolutionProjectionContract.FingerprintSha256,
+            BlockingFrameFingerprintSha256: blockingFingerprint);
 
         var optionList = options.ToArray();
         var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
@@ -340,6 +345,12 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
         IReadOnlyList<V9PhysicalSourceResolveMetric>? sourceResolve = null;
         if (evaluateFinalResolve)
         {
+            physicalReport = physicalReport with
+            {
+                SuggestedModelFamily = null,
+                SuggestedOptionId = null,
+                Status = "PAIR_DIAGNOSTIC_ONLY_USE_POST_RESOLVE_SOURCE_SELECTION"
+            };
             var physicalEdges = await ReadValidationPairsAsync(connection, cancellationToken);
             if (physicalEdges.Count != validationRows.Length)
                 throw new InvalidDataException("Arestas SQL de VALIDATION divergem do censo original.");
@@ -372,7 +383,11 @@ public static class V9PhysicalSqlAdaptiveCalibrationProbe
             validationIdentityCoverage,
             repeatedQuantiles,
             finalResolve,
-            sourceResolve);
+            sourceResolve,
+            sourceResolve is null ? null : V9PostResolveAdaptiveSelector.EvaluateValidation(
+                "VALIDATION", usesTestLabels: false, budget, sourceResolve,
+                physicalReport.Options.ToDictionary(x => x.OptionId,
+                    x => x.Validation.BlockingFalseDegreeP99, StringComparer.Ordinal)));
     }
 
     /// <summary>

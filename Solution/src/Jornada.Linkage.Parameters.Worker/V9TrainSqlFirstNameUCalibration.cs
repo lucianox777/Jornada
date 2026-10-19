@@ -98,8 +98,17 @@ public static class V9TrainSqlFirstNameUCalibration
         ArgumentNullException.ThrowIfNull(calibration);
         ArgumentNullException.ThrowIfNull(reference);
         ArgumentNullException.ThrowIfNull(pair);
-        if (weight <= 0m || weight > 1m)
-            throw new InvalidDataException("Preview U positivo exige TF em (0,1].");
+        if (weight <= 0m || weight > 1m
+            || minimumFrequency < 0m || minimumFrequency > 1m
+            || minimumIndependentSupport <= 0 || !Enum.IsDefined(calibration.Side))
+            throw new InvalidDataException("Preview U positivo exige configuração TF válida.");
+        // Applicability is evidence, not caller policy. A stale/mismatched
+        // level must not turn an applicable positive TF into a neutral null.
+        if (personLevel != CompositeNominalComparisonV9.Classify(
+                pair.LeftPersonName, pair.RightPersonName)
+            || motherLevel != CompositeNominalComparisonV9.Classify(
+                pair.LeftMotherName, pair.RightMotherName))
+            throw new InvalidDataException("Estados TF V9 divergem do par nominal observado.");
         var level = calibration.Side == CompositeNominalTfSideV9.Person
             ? personLevel : motherLevel;
         if (level != CompositeNominalLevelV9.ExactFirst)

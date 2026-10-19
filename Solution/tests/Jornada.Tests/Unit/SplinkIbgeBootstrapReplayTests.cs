@@ -238,6 +238,7 @@ public sealed class SplinkIbgeBootstrapReplayTests
         var lines = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         Assert.Multiple((Action)(() =>
         {
+            Assert.That(csv, Does.Not.Contain("\r"), "CSV de evidência usa LF em todas as plataformas.");
             Assert.That(lines, Has.Length.EqualTo(2));
             Assert.That(lines[0], Is.EqualTo(
                 "recorte,pair_index,left_name,right_name,c_sharp_state,splink_state"));

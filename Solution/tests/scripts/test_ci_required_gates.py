@@ -49,7 +49,7 @@ def test_unit_parallel_contracts_and_runtime_are_both_mandatory():
         assert "needs.dependency-lock.result == 'success'" in part
         assert "dotnet restore Jornada.sln --locked-mode" in part
         assert "name: nuget-lockfiles" in part
-        assert "dotnet-version: '10.0.112'" in part
+        assert "dotnet-version: '10.0.113'" in part
         assert "persist-credentials: false" in part
     for protected in (
         "Gate source sanity and pinned workflow actions",
@@ -107,7 +107,7 @@ def test_security_guards_codeql_and_aggregate_are_independent_and_mandatory():
         assert "needs.dependency-lock.result == 'success'" in part
         assert "dotnet restore Jornada.sln --locked-mode" in part
         assert "dotnet restore tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj --locked-mode" in part
-        assert "dotnet-version: '10.0.112'" in part
+        assert "dotnet-version: '10.0.113'" in part
         assert "name: nuget-lockfiles" in part
         assert "persist-credentials: false" in part
         assert "if-no-files-found: error" in part

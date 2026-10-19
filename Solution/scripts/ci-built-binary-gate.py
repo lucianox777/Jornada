@@ -76,7 +76,7 @@ def identity(root: Path) -> dict[str, Any]:
     if not run_id.isdecimal():
         raise ValueError("Missing GitHub Actions run ID")
     sdk = subprocess.check_output(["dotnet", "--version"], text=True, timeout=20).strip()
-    if sdk != "10.0.112":
+    if sdk != "10.0.113":
         raise ValueError("SDK different from the CI pinned toolchain")
     return {
         "schema": SCHEMA,

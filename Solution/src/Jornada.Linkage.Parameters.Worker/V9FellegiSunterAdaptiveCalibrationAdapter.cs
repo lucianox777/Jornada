@@ -30,7 +30,11 @@ public sealed record V9FsAdaptiveCandidateFrame(
     string ValidationIdentityFingerprintSha256,
     IReadOnlyList<V9FsAdaptiveCandidatePair> Pairs,
     IReadOnlyCollection<string>? TrainPreBlockingBaseIdentityIds = null,
-    IReadOnlyCollection<string>? ValidationPreBlockingBaseIdentityIds = null);
+    IReadOnlyCollection<string>? ValidationPreBlockingBaseIdentityIds = null,
+    IReadOnlyList<LinkageBlockingPass>? CandidateBlockingPasses = null,
+    string? ProjectionSchemaVersion = null,
+    string? ProjectionFingerprintSha256 = null,
+    string? BlockingFrameFingerprintSha256 = null);
 
 public sealed record V9FsAdaptiveOptionConfiguration(
     string OptionId,
@@ -82,11 +86,30 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         RequireSha(frame.ValidationCorpusFingerprintSha256, "VALIDATION corpus");
         RequireSha(frame.TrainIdentityFingerprintSha256, "TRAIN identities");
         RequireSha(frame.ValidationIdentityFingerprintSha256, "VALIDATION identities");
-        if (frame.TrainCorpusFingerprintSha256 == frame.ValidationCorpusFingerprintSha256
-            || frame.TrainIdentityFingerprintSha256 == frame.ValidationIdentityFingerprintSha256)
+        if (frame.TrainCorpusFingerprintSha256.Equals(frame.ValidationCorpusFingerprintSha256,
+                StringComparison.OrdinalIgnoreCase)
+            || frame.TrainIdentityFingerprintSha256.Equals(frame.ValidationIdentityFingerprintSha256,
+                StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("TRAIN e VALIDATION precisam de fingerprints distintos.");
         if (frame.Pairs is null || frame.Pairs.Count == 0)
             throw new ArgumentException("Frame candidato vazio.");
+        if (frame.CandidateBlockingPasses is not null)
+        {
+            RequireSha(frame.ProjectionFingerprintSha256, "projection");
+            RequireSha(frame.BlockingFrameFingerprintSha256, "blocking");
+            if (string.IsNullOrWhiteSpace(frame.ProjectionSchemaVersion)
+                || frame.CandidateBlockingPasses.Count == 0
+                || frame.CandidateBlockingPasses.Any(x => x is null
+                    || string.IsNullOrWhiteSpace(x.PassId) || x.Fields is null
+                    || x.Fields.Count == 0 || x.Fields.Any(string.IsNullOrWhiteSpace)
+                    || x.Fields.Distinct(StringComparer.Ordinal).Count() != x.Fields.Count)
+                || frame.CandidateBlockingPasses.Select(x => x.PassId)
+                    .Distinct(StringComparer.Ordinal).Count() != frame.CandidateBlockingPasses.Count)
+                throw new InvalidDataException("Metadados de blocking/projeção do frame inválidos.");
+        }
+        else if (frame.ProjectionSchemaVersion is not null || frame.ProjectionFingerprintSha256 is not null
+            || frame.BlockingFrameFingerprintSha256 is not null)
+            throw new InvalidDataException("Metadados de blocking/projeção devem ser fornecidos juntos.");
         // A lista fornecida pelo chamador pode ser mutável; congele um snapshot antes de validar.
         // Os pares são records com campos imutáveis (strings, DateOnly e valores escalares).
         this.frame = frame with
@@ -95,7 +118,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             TrainPreBlockingBaseIdentityIds = frame.TrainPreBlockingBaseIdentityIds is null
                 ? null : Array.AsReadOnly(frame.TrainPreBlockingBaseIdentityIds.ToArray()),
             ValidationPreBlockingBaseIdentityIds = frame.ValidationPreBlockingBaseIdentityIds is null
-                ? null : Array.AsReadOnly(frame.ValidationPreBlockingBaseIdentityIds.ToArray())
+                ? null : Array.AsReadOnly(frame.ValidationPreBlockingBaseIdentityIds.ToArray()),
+            CandidateBlockingPasses = frame.CandidateBlockingPasses is null ? null
+                : Array.AsReadOnly(frame.CandidateBlockingPasses.Select(x =>
+                    new LinkageBlockingPass(x.PassId, Array.AsReadOnly(x.Fields.ToArray()))).ToArray())
         };
 
         var byId = options.ToArray();
@@ -111,12 +137,78 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             throw new ArgumentException("Opções FS V9 inválidas ou duplicadas.");
         this.options = byId.ToDictionary(x => x.OptionId, StringComparer.Ordinal);
         this.frozenTfReference = frozenTfReference;
+        if (frame.CandidateBlockingPasses is not null && byId.Any(x => x.TfWeight > 0m)
+            && !string.Equals(frozenTfReference!.BlockingFrameFingerprint,
+                frame.BlockingFrameFingerprintSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Referência TF divergente do frame blocking calibrado.");
 
         ValidateFrame();
     }
 
     public string ModelFamily => Family;
     public string AdapterVersion => Version;
+
+    /// <summary>
+    /// Exports the exact TRAIN fit for a pinned, portable preview snapshot.
+    /// This neither approves nor activates it. Positive TF exports the pinned
+    /// frequency reference and conditional TRAIN unit U alongside the fit.
+    /// </summary>
+    public V9FittedSnapshot ExportFrozenSnapshot(
+        AdaptiveCalibrationFitDraft fitted,
+        IReadOnlyList<LinkageBlockingPass> blockingPasses,
+        string projectionSchemaVersion,
+        string projectionFingerprintSha256,
+        decimal conflictMargin)
+    {
+        ArgumentNullException.ThrowIfNull(fitted);
+        if (frame.CandidateBlockingPasses is null || blockingPasses is null
+            || string.IsNullOrWhiteSpace(frame.ProjectionSchemaVersion)
+            || frame.ProjectionSchemaVersion != projectionSchemaVersion
+            || frame.ProjectionFingerprintSha256 != projectionFingerprintSha256
+            || !BlockingPassesEqual(frame.CandidateBlockingPasses, blockingPasses))
+            throw new InvalidDataException("Exportação exige blocking e projeção idênticos ao frame de calibração.");
+        if (fitted.ModelFamily != Family || fitted.AdapterVersion != Version
+            || !fitted.TrainOnly
+            || fitted.TrainingCorpusFingerprintSha256 != frame.TrainCorpusFingerprintSha256
+            || !options.TryGetValue(fitted.OptionId, out var config)
+            || fitted.ConfigurationFingerprintSha256 != config.FingerprintSha256
+            || !fits.TryGetValue(fitted.FittedParametersFingerprintSha256, out var frozen)
+            || frozen.OptionId != fitted.OptionId)
+            throw new InvalidDataException("Exportação exige fit TRAIN congelado por este adaptador.");
+        V9SnapshotFirstNameTf? tf = null;
+        if (config.TfWeight > 0m)
+        {
+            if (frozen.TrainUnitU is null || frozenTfReference is null
+                || frozen.TrainUnitU.TrainFingerprintSha256 != frame.TrainCorpusFingerprintSha256
+                || frozen.TrainUnitU.Side != config.TfSide)
+                throw new InvalidDataException("Referência TF ou baseline U TRAIN não coincide com o fit congelado.");
+            var reference = frozenTfReference.ExportForSnapshot(config.TfSide);
+            tf = new V9SnapshotFirstNameTf(config.TfSide, reference.Reference,
+                reference.Frequencies, frozen.TrainUnitU.FirstNameUnitUByValue,
+                frozen.TrainUnitU.FingerprintSha256, config.TfMinimumFrequency,
+                config.TfMinimumIndependentSupport, frame.TrainCorpusFingerprintSha256);
+        }
+        return V9FittedSnapshot.Create(new V9FittedSnapshotPayload(
+            V9FittedSnapshot.SchemaVersion, CompositeNominalComparisonV9.ContractVersion,
+            projectionSchemaVersion, projectionFingerprintSha256,
+            frozen.FingerprintSha256,
+            frame.TrainCorpusFingerprintSha256, frame.ValidationCorpusFingerprintSha256,
+            frame.TrainIdentityFingerprintSha256, frame.ValidationIdentityFingerprintSha256,
+            Version, frozen.OptionId, frozen.Threshold, conflictMargin, config.TfWeight,
+            blockingPasses, frozen.Cells, frozen.Parameters, tf,
+            BlockingFrameFingerprintSha256: frame.BlockingFrameFingerprintSha256));
+    }
+
+    private static bool BlockingPassesEqual(
+        IReadOnlyList<LinkageBlockingPass> left, IReadOnlyList<LinkageBlockingPass> right)
+    {
+        if (left.Count != right.Count || left.Count == 0 || right.Any(x => x is null || x.Fields is null))
+            return false;
+        var a = left.OrderBy(x => x.PassId, StringComparer.Ordinal).ToArray();
+        var b = right.OrderBy(x => x.PassId, StringComparer.Ordinal).ToArray();
+        return a.Zip(b).All(x => x.First.PassId == x.Second.PassId
+            && x.First.Fields.SequenceEqual(x.Second.Fields, StringComparer.Ordinal));
+    }
 
     public AdaptiveCalibrationFitDraft FitTrain(
         AdaptiveCalibrationModelOption modelOption,
@@ -199,6 +291,14 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 frozenTfReference.PublishedReferenceSha256,
                 frozenTfReference.MaterializedFrequencySha256,
                 frozenTfReference.BlockingFrameFingerprint));
+        if (frame.CandidateBlockingPasses is not null)
+            fitSha = Sha(fitSha + "|FRAME_METADATA|" + System.Text.Json.JsonSerializer.Serialize(new
+            {
+                frame.ProjectionSchemaVersion,
+                frame.ProjectionFingerprintSha256,
+                frame.BlockingFrameFingerprintSha256,
+                Passes = frame.CandidateBlockingPasses.OrderBy(x => x.PassId, StringComparer.Ordinal)
+            }));
         fits[fitSha] = new FrozenFit(fitSha, config.OptionId, config.DecisionThreshold,
             Array.AsReadOnly(cells.ToArray()),
             new Dictionary<string, decimal>(parameters, StringComparer.Ordinal), trainU);
@@ -231,6 +331,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         if (truePairs <= 0 || falsePairs <= 0)
             throw new InvalidDataException("VALIDATION precisa conter M e U.");
 
+        // The fitted table is immutable across the whole holdout: validate and
+        // precompute its 81 log ratios once, rather than hashing it per pair.
+        var frozenNominal = FrozenFellegiSunterJointNominalV9.Freeze(
+            frozen.Cells, CompositeNominalComparisonV9.ContractVersion);
         long tp = 0, fp = 0;
         foreach (var row in rows)
         {
@@ -246,11 +350,11 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     row, config.TfWeight, config.TfMinimumFrequency,
                     config.TfMinimumIndependentSupport);
             }
-            var score = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            var score = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewWithBreakdown(
                 frozen.Parameters,
                 row.LeftPersonName, row.RightPersonName,
                 row.LeftMotherName, row.RightMotherName,
-                frozen.Cells, CompositeNominalComparisonV9.ContractVersion,
+                frozenNominal,
                 leftBirthDate: row.LeftBirthDate, rightBirthDate: row.RightBirthDate,
                 nominalTf: nominalTf);
             var accepted = score.Score.Posterior >= frozen.Threshold;
@@ -448,8 +552,20 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             || conflictMargins.Any(x => x is < 0m or > 1000m)
             || conflictMargins.Distinct().Count() != conflictMargins.Count)
             throw new InvalidDataException("Margens ou cap da avaliação source inválidos.");
-        if (observations.Any(x => x.Partition is not ("TRAIN" or "VALIDATION")))
-            throw new InvalidDataException("TEST não pode participar da avaliação source.");
+        if (observations.Any(x => x is null || x.ObservationId <= 0
+                || string.IsNullOrWhiteSpace(x.BasePersonId)
+                || x.Partition is not ("TRAIN" or "VALIDATION"))
+            || observations.Select(x => x.ObservationId).Distinct().Count() != observations.Count)
+            throw new InvalidDataException("Observações source inválidas, duplicadas ou com partição TEST.");
+
+        var sourceTrainGroups = observations.Where(x => x.Partition == "TRAIN")
+            .Select(x => x.BasePersonId).ToHashSet(StringComparer.Ordinal);
+        var sourceValidationGroups = observations.Where(x => x.Partition == "VALIDATION")
+            .Select(x => x.BasePersonId).ToHashSet(StringComparer.Ordinal);
+        if (sourceTrainGroups.Overlaps(sourceValidationGroups)
+            || !sourceValidationGroups.SetEquals(PartitionIdentityGroups("VALIDATION"))
+            || (sourceTrainGroups.Count > 0 && !sourceTrainGroups.SetEquals(PartitionIdentityGroups("TRAIN"))))
+            throw new InvalidDataException("Coorte source diverge das identidades congeladas TRAIN/VALIDATION.");
 
         var validation = observations.Where(x => x.Partition == "VALIDATION")
             .ToDictionary(x => x.ObservationId);

@@ -31,7 +31,8 @@ public static class V9CanonicalObservationCsvExporter
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(observations);
-        writer.WriteLine(withCanonicalSurnames ? SurnameHeader : Header);
+        writer.Write(withCanonicalSurnames ? SurnameHeader : Header);
+        writer.Write('\n');
         foreach (var row in observations)
         {
             if (string.IsNullOrWhiteSpace(row.ObservationId) ||
@@ -67,7 +68,8 @@ public static class V9CanonicalObservationCsvExporter
                     JsonSerializer.Serialize(V9NameRequiredSqlCellAudit.AnySurname(row.MotherName))
                 ];
             }
-            writer.WriteLine(string.Join(",", fields.Select(Escape)));
+            writer.Write(string.Join(",", fields.Select(Escape)));
+            writer.Write('\n');
         }
     }
 

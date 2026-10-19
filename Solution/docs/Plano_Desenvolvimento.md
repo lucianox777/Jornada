@@ -1,3 +1,5 @@
+> **Implementação local V9 — 19/10/2026:** [snapshot portátil com TF, seleção pós-Resolve, validação executada e lacunas operacionais](V9_Integracao_Local_20261019.md). O incremento não representa homologação ou ativação; consulte a PR e os checks da HEAD vigente. As fotografias históricas abaixo não substituem esse inventário de código.
+
 > **Decisão vigente (14/10/2026):** [Calibrador V9 C# único e definitivo; parâmetros iniciais do bootstrap congelados em `ref`, não permanentes; calibrações futuras manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). Implementação ainda em andamento na issue #1089; não confundir decisão com entrega ou ativação V9.
 
 # Priorização técnica atual — revisão 09/10/2026

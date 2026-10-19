@@ -1,3 +1,5 @@
+> **Implementação local V9 — 19/10/2026:** [snapshot portátil com TF, seleção pós-Resolve, validação executada e lacunas operacionais](V9_Integracao_Local_20261019.md). O incremento não representa homologação ou ativação; consulte a PR e os checks da HEAD vigente. As fotografias históricas abaixo não substituem esse inventário de código.
+
 > **Auditoria superveniente de 18/10/2026:** [auditoria V9 e últimos runners](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md). A decisão atual é **bootstrap inicial do calibrador V9 somente com o corpus sintético clean**, parâmetros **não definitivos**, e `correlated` preservado **exclusivamente para histórico**. Foram executados SQL Server físico sintético e Rank→Resolve por fonte na PR #1152; **não equivalem** a Gold operacional, FDR certificada, novo TEST ou HML real. A PR #1152 é trabalho de branch até merge comprovado; CI verde não promove V9.
 
 ## Continuidade V9 e baixa de pendências comprovadas — 18/10/2026

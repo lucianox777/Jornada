@@ -228,7 +228,7 @@ public static class SplinkIbgeReplayContract
         var external = JsonSerializer.Deserialize<SplinkIbgeReplayExternalResult>(resultJson, JsonOptions)!;
         var byIndex = external.Pairs.ToDictionary(pair => pair.PairIndex, pair => pair.SplinkState);
         var output = new StringBuilder();
-        output.AppendLine("recorte,pair_index,left_name,right_name,c_sharp_state,splink_state");
+        output.Append("recorte,pair_index,left_name,right_name,c_sharp_state,splink_state\n");
         var count = 0;
         foreach (var pair in source.Pairs)
         {
@@ -239,7 +239,7 @@ public static class SplinkIbgeReplayContract
                 .Append(EscapeCsv(pair.LeftName)).Append(',')
                 .Append(EscapeCsv(pair.RightName)).Append(',')
                 .Append(EscapeCsv(pair.CSharpState)).Append(',')
-                .Append(EscapeCsv(splink)).AppendLine();
+                .Append(EscapeCsv(splink)).Append('\n');
             count++;
         }
         if (count != diagnostic.PairwiseDisagreements)
