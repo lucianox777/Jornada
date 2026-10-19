@@ -191,7 +191,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             V9FellegiSunterAdaptiveCalibrationAdapter.Version,
             option.OptionId, option.FingerprintSha256);
 
-        // Mutar TRAIN e VALIDATION depois da construÃ§Ã£o nÃ£o pode alterar o resultado.
+        // Mutar TRAIN e VALIDATION depois da construção não pode alterar o resultado.
         mutablePairs[0] = mutablePairs[0] with { LeftPersonName = "ALTERADO" };
         mutablePairs[4] = mutablePairs[4] with { RightMotherName = "ALTERADA" };
         mutablePairs.Clear();
@@ -305,6 +305,37 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
                 Is.EqualTo(observations.Length));
             Assert.That(fs.ImpureBlindGroups, Is.GreaterThanOrEqualTo(0));
         }));
+        // This deliberately small TRAIN fixture gives accepted evidence below .99.
+        // Use a declared .60 grouping gate to exercise actual merges and the size cap.
+        var groupedReference = adapter.EvaluateSourceUnitResolveValidation(
+            observations, sqlEdges, [.5m], 16, includeFsBlindGrouping: true,
+            minimumFsGroupingPosterior: .60m, maximumBlindClusterSize: 16)
+            .Single(x => x.CandidateGrouping == "BLIND_FS_COMPLETE_LINK_CANDIDATES");
+        var isolatedReplay = adapter.EvaluateSourceUnitResolveValidation(
+            observations, sqlEdges, [.5m], 16, includeFsBlindGrouping: true,
+            minimumFsGroupingPosterior: .60m, maximumBlindClusterSize: 16,
+            evaluatedOptionIds: new HashSet<string>([option.OptionId], StringComparer.Ordinal),
+            fsBlindGroupingOnly: true, totalComparedConfigurations: 1_000_000).Single();
+        var smallerGroups = adapter.EvaluateSourceUnitResolveValidation(
+            observations, sqlEdges, [.5m], 16, includeFsBlindGrouping: true,
+            minimumFsGroupingPosterior: .60m, maximumBlindClusterSize: 2,
+            fsBlindGroupingOnly: true, totalComparedConfigurations: 1_000_000).Single();
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(isolatedReplay.TrueAcceptedSourceObservations, Is.EqualTo(groupedReference.TrueAcceptedSourceObservations));
+            Assert.That(isolatedReplay.FalseAcceptedSourceObservations, Is.EqualTo(groupedReference.FalseAcceptedSourceObservations));
+            Assert.That(isolatedReplay.ReasonsByResolveStatus, Is.EquivalentTo(groupedReference.ReasonsByResolveStatus));
+            Assert.That(isolatedReplay.BonferroniComparedConfigurations, Is.EqualTo(1_000_000));
+            Assert.That(isolatedReplay.ClopperPearsonUpperAnyFpByIdentity,
+                Is.GreaterThan(groupedReference.ClopperPearsonUpperAnyFpByIdentity!.Value));
+            Assert.That(isolatedReplay.ClusterIidIndependentlyValidated, Is.False);
+            Assert.That(smallerGroups.TrueAcceptedSourceObservations, Is.LessThan(isolatedReplay.TrueAcceptedSourceObservations));
+            Assert.That(smallerGroups.Conflicts, Is.GreaterThan(isolatedReplay.Conflicts));
+        }));
+        Assert.That((Action)(() => adapter.EvaluateSourceUnitResolveValidation(
+                observations, sqlEdges, [.5m], 16, includeFsBlindGrouping: true,
+                evaluatedOptionIds: new HashSet<string>(["UNKNOWN"], StringComparer.Ordinal))),
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("Margens ou cap"));
         var raw = result.Single(x => x.CandidateGrouping == "RAW_SQL_OBSERVATION_CANDIDATES");
         var blind = result.Single(x => x.CandidateGrouping == "BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING");
         var oracle = result.Single(x => x.SyntheticGoldOracleGrouping);

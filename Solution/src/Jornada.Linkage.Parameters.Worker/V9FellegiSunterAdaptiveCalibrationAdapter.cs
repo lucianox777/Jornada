@@ -541,12 +541,20 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         IReadOnlyCollection<decimal> conflictMargins,
         int maximumAcceptedPerBaseIdentity,
         bool includeFsBlindGrouping = false,
-        decimal minimumFsGroupingPosterior = .99m)
+        decimal minimumFsGroupingPosterior = .99m,
+        int? maximumBlindClusterSize = null,
+        IReadOnlySet<string>? evaluatedOptionIds = null,
+        bool fsBlindGroupingOnly = false,
+        int? totalComparedConfigurations = null)
     {
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(validationSqlPairs);
         ArgumentNullException.ThrowIfNull(conflictMargins);
-        if (maximumAcceptedPerBaseIdentity < 1
+        if ((maximumBlindClusterSize.HasValue && maximumBlindClusterSize.Value < 2)
+            || (fsBlindGroupingOnly && !includeFsBlindGrouping)
+            || (evaluatedOptionIds is not null && (evaluatedOptionIds.Count == 0
+                || evaluatedOptionIds.Any(id => !options.ContainsKey(id))))
+            || maximumAcceptedPerBaseIdentity < 1
             || (includeFsBlindGrouping && minimumFsGroupingPosterior is <= .5m or >= 1m)
             || conflictMargins.Count is < 1 or > 8
             || conflictMargins.Any(x => x is < 0m or > 1000m)
@@ -656,9 +664,12 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             throw new InvalidDataException("Cobertura SQL por fonte inconsistente.");
 
         var metrics = new List<V9PhysicalSourceResolveMetric>();
-        var predeclaredComparedConfigurations = checked(
-            options.Count * conflictMargins.Count * (includeFsBlindGrouping ? 4 : 3));
-        foreach (var config in options.Values.OrderBy(x => x.OptionId, StringComparer.Ordinal))
+        var localComparedConfigurations = checked(
+            (evaluatedOptionIds?.Count ?? options.Count) * conflictMargins.Count * (fsBlindGroupingOnly ? 1 : includeFsBlindGrouping ? 4 : 3));
+        var predeclaredComparedConfigurations = totalComparedConfigurations ?? localComparedConfigurations;
+        if (predeclaredComparedConfigurations < localComparedConfigurations)
+            throw new InvalidDataException("Multiplicidade global não pode omitir configurações comparadas.");
+        foreach (var config in options.Values.Where(x => evaluatedOptionIds is null || evaluatedOptionIds.Contains(x.OptionId)).OrderBy(x => x.OptionId, StringComparer.Ordinal))
         {
             var fitted = fits.Values.SingleOrDefault(x => x.OptionId == config.OptionId)
                 ?? throw new InvalidDataException("Fit TRAIN necessário para avaliar Resolve.");
@@ -721,13 +732,13 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 // Oracle Gold upper-bound: collapse multiple observations into
                 // one synthetic ground-truth entity, retain its strongest FS
                 // score, then reuse EXACTLY the same ResolveRankedCore kernel.
-                var groupedRanking = ranked
+                var groupedRanking = fsBlindGroupingOnly ? [] : ranked
                     .GroupBy(x => groupIdByBase[
                         observationByGuid[x.PessoaUuid].BasePersonId])
                     .Select(g => g.First() with { PessoaUuid = g.Key })
                     .OrderByDescending(x => x.LogOdds)
                     .ThenBy(x => x.PessoaUuid).ToArray();
-                var blindRanking = ranked
+                var blindRanking = fsBlindGroupingOnly ? [] : ranked
                     .GroupBy(x => blindByObservationId[
                         observationByGuid[x.PessoaUuid].ObservationId])
                     .Select(g => g.First() with { PessoaUuid = g.Key })
@@ -735,7 +746,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     .ThenBy(x => x.PessoaUuid).ToArray();
 
                 foreach (var margin in conflictMargins)
-                foreach (var mode in new[] { 0, 1, 2 })
+                foreach (var mode in fsBlindGroupingOnly ? Array.Empty<int>() : [0, 1, 2])
                 {
                     var ranking = mode switch
                     {
@@ -800,7 +811,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 var inferred = V9BlindIncrementalIdentityGrouping.Build(
                     validation.Values.ToArray(), fsEdges,
                     minimumFsGroupingPosterior,
-                    maximumAcceptedPerBaseIdentity);
+                    maximumBlindClusterSize ?? maximumAcceptedPerBaseIdentity);
                 // Synthetic truth is used ONLY AFTER grouping, to count
                 // impure clusters and final TP/FP. Never for merging.
                 var truthByInferredGuid = validation.Values
@@ -879,7 +890,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             }
 
             foreach (var margin in conflictMargins.OrderBy(x => x))
-            foreach (var mode in new[] { 0, 1, 2 })
+            foreach (var mode in fsBlindGroupingOnly ? Array.Empty<int>() : [0, 1, 2])
             {
                 var counter = counters[(margin, mode)];
                 if (counter.Total != validation.Count || counter.Tp > trueSqlSources
