@@ -49,7 +49,11 @@ public sealed record V9PhysicalSourceResolveMetric(
     double? FdrAfterResolve, double? HoeffdingUpperBySourceBaseIdentity,
     int PreBlockingBaseIdentities, IReadOnlyDictionary<string, long> ReasonsByResolveStatus,
     bool SyntheticGoldOracleGrouping, bool OperationallyCertified,
-    int ImpureBlindGroups);
+    int ImpureBlindGroups,
+    double? ConditionalClusterCpFdrUpper = null,
+    double? ClopperPearsonUpperAnyFpByIdentity = null,
+    int BonferroniComparedConfigurations = 0,
+    bool ClusterIidIndependentlyValidated = false);
 
 public sealed record V9PhysicalCalibrationRunResult(
     string Version,

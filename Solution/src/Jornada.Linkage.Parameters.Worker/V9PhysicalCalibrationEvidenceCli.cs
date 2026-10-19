@@ -117,6 +117,8 @@ public static class V9PhysicalCalibrationEvidenceCli
             legacy_directed_pair_denominator_options = measured.FinalResolveValidation,
             source_resolve_options = measured.SourceResolveValidation,
             label_blind_fs_complete_link_measured = true,
+            conditional_cp_cluster_ratio_is_operationally_certified = false,
+            conditional_cp_cluster_independence_not_attested = true,
             fs_grouping_minimum_pair_posterior = .99m,
             candidate_grouping_oracle_uses_truth_labels = true,
             comparison_is_operationally_certified = false,
