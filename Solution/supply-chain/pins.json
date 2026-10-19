@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "dotnetSdk": "10.0.112",
+  "dotnetSdk": "10.0.113",
   "githubActions": {
     "actions/checkout": {
       "tagHint": "v4.2.2",

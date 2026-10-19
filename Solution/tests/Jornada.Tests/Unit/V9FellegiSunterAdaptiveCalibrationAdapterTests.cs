@@ -285,6 +285,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
         _ = adapter.FitTrain(model, Slice("TRAIN", TrainSha, TrainGroupsSha, 6));
         var result = adapter.EvaluateSourceUnitResolveValidation(
             observations, sqlEdges, [.5m], 16);
+        Assert.That((Action)(() => adapter.EvaluateSourceUnitResolveValidation(
+            observations, sqlEdges.Append(sqlEdges[0]).ToArray(), [.5m], 16)),
+            Throws.TypeOf<InvalidDataException>());
         Assert.That(result, Has.Count.EqualTo(3));
         var withFs = adapter.EvaluateSourceUnitResolveValidation(
             observations, sqlEdges, [.5m], 16,
@@ -331,7 +334,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
     }
 
     [Test]
-    public void Source_resolve_rejects_test_and_duplicate_sql_edges()
+    public void Source_resolve_rejects_test()
     {
         var option = new V9FsAdaptiveOptionConfiguration("SOURCE_SAFE", .5m, .5m);
         var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(), [option]);
@@ -347,9 +350,25 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
         Assert.That((Action)(() => adapter.EvaluateSourceUnitResolveValidation(
             observations, [(1, 2)], [.5m], 16)),
             Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Source_resolve_rejects_replaced_cohort_identity_leakage_and_duplicate_observations()
+    {
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(),
+            [new V9FsAdaptiveOptionConfiguration("SOURCE_SAFE", .5m, .5m)]);
+        var validation = Enumerable.Range(7, 6).Select(i => new V9PhysicalCalibrationObservation(
+            i, $"BASE-{i:00}", "VALIDATION", "G1", "MARIA", "ANA", Birth)).ToArray();
+        var sharedTrain = new V9PhysicalCalibrationObservation(100, "BASE-07", "TRAIN", "G2", "MARIA", "ANA", Birth);
         Assert.That((Action)(() => adapter.EvaluateSourceUnitResolveValidation(
-            observations.Take(2).ToArray(), [(1, 2), (1, 2)], [.5m], 16)),
-            Throws.TypeOf<InvalidDataException>());
+            validation.Append(sharedTrain).ToArray(), [], [.5m], 16)), Throws.TypeOf<InvalidDataException>()
+            .With.Message.Contains("Coorte source"));
+        Assert.That((Action)(() => adapter.EvaluateSourceUnitResolveValidation(
+            validation.Take(5).ToArray(), [], [.5m], 16)), Throws.TypeOf<InvalidDataException>()
+            .With.Message.Contains("Coorte source"));
+        Assert.That((Action)(() => adapter.EvaluateSourceUnitResolveValidation(
+            validation.Append(validation[0]).ToArray(), [], [.5m], 16)), Throws.TypeOf<InvalidDataException>()
+            .With.Message.Contains("duplicadas"));
     }
 
     private static AdaptiveCalibrationSlice Slice(

@@ -116,6 +116,7 @@ public static class V9PhysicalCalibrationEvidenceCli
             threshold_pair_options = measured.ValidationGlobalCoverage,
             legacy_directed_pair_denominator_options = measured.FinalResolveValidation,
             source_resolve_options = measured.SourceResolveValidation,
+            post_resolve_source_selection = measured.PostResolveSelection,
             label_blind_fs_complete_link_measured = true,
             conditional_cp_cluster_ratio_is_operationally_certified = false,
             conditional_cp_cluster_independence_not_attested = true,
@@ -141,7 +142,7 @@ public static class V9PhysicalCalibrationEvidenceCli
         }));
     }
 
-    private static V9PhysicalCalibrationObservation[] ReadNoCpfTrainValidation(string file)
+    public static V9PhysicalCalibrationObservation[] ReadNoCpfTrainValidation(string file)
     {
         using var csv = new TextFieldParser(file);
         csv.SetDelimiters(",");
@@ -154,6 +155,7 @@ public static class V9PhysicalCalibrationEvidenceCli
             if (!columns.ContainsKey(name))
                 throw new InvalidDataException("Coluna obrigatória ausente: " + name);
         var rows = new List<V9PhysicalCalibrationObservation>();
+        var partitionByBaseIdentity = new Dictionary<string, string>(StringComparer.Ordinal);
         while (!csv.EndOfData)
         {
             var fields = csv.ReadFields() ?? throw new InvalidDataException("Linha CSV inválida.");
@@ -161,10 +163,19 @@ public static class V9PhysicalCalibrationEvidenceCli
                 throw new InvalidDataException("CSV malformado.");
             string Get(string field) => fields[columns[field]];
             var partition = Get("particao");
+            if (partition is not ("TRAIN" or "VALIDATION" or "TEST"))
+                throw new InvalidDataException("Partição inesperada na massa.");
+            // Isolation is checked before filtering CPF or skipping TEST.
+            // Only partition/identity metadata of TEST is inspected; no TEST
+            // names, dates, candidate scores or labels enter calibration.
+            var baseIdentity = Get("base_person_id");
+            if (string.IsNullOrWhiteSpace(baseIdentity)
+                || (partitionByBaseIdentity.TryGetValue(baseIdentity, out var previousPartition)
+                    && previousPartition != partition))
+                throw new InvalidDataException("Identidade-base vazia ou compartilhada entre partições.");
+            partitionByBaseIdentity[baseIdentity] = partition;
             if (partition == "TEST")
                 continue; // TEST não entra no probe ou na seleção.
-            if (partition is not ("TRAIN" or "VALIDATION"))
-                throw new InvalidDataException("Partição inesperada na massa.");
             if (!string.IsNullOrWhiteSpace(Get("cpf")))
                 continue; // Experimento FS estritamente sem CPF.
             var birth = Get("data_nascimento");

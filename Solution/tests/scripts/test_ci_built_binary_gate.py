@@ -44,7 +44,7 @@ class ReuseTests(unittest.TestCase):
         self.context = {
             "schema": 2, "repository": "lucianox777/Jornada",
             "gitSha": "a"*40, "gitTree": "b"*40, "runId": "42",
-            "sdk": "10.0.112", "os": "Linux", "machine": "x86_64",
+            "sdk": "10.0.113", "os": "Linux", "machine": "x86_64",
             "locksSha256": gate.lock_digest(self.root),
         }
         self.manifest = self.root / ".local" / "compiled-release" / "manifest.json"

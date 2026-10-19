@@ -1,3 +1,5 @@
+> **Implementação local V9 — 19/10/2026:** [snapshot portátil com TF, seleção pós-Resolve, validação executada e lacunas operacionais](V9_Integracao_Local_20261019.md). O incremento não representa homologação ou ativação; consulte a PR e os checks da HEAD vigente. As fotografias históricas abaixo não substituem esse inventário de código.
+
 > **Decisão canônica de 14/10/2026 — Calibrador único adaptativo:** [Calibrador V9 C# único e definitivo; melhores parâmetros V9 são do bootstrap congelado em `ref` (não definitivos), com calibrações futuras manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). A decisão é normativa; a implementação permanece pendente na issue #1089. Documentos e números experimentais históricos não equivalem a certificação operacional.
 
 > **Vigência 29/09/2026:** [decisões canônicas](Decisoes_Canonicas_Identidade_Linkage_20260929.md) prevalecem sobre regras legadas de guard exato, V6/V7 e nome social. A V8 atual não implementa todas essas decisões.

@@ -44,6 +44,35 @@ As chaves de nome integral e de par primeiro + último existem apenas em dicion�
 3. Calibrar peso TF de forma independente, com `w_TF=0` permitido quando dados insuficientes; verificar monotonicidade EXACT/HIGH no pior cenário e paridade de cálculo C# × Splink.
 4. Habilitar `AlgorithmVersion=V9` apenas após gates de FP/FDR/recall e decisão DT-15; **sem alteração silenciosa do modelo ativo**.
 
+## Revisão de consistência de TF — 19/10/2026
+
+O preview da calibração `V9TrainSqlFirstNameUCalibration` confere os estados
+informados com a classificação dos nomes presentes no próprio par antes de decidir
+se TF é aplicável. Um estado desatualizado não pode transformar silenciosamente
+um `ExactFirst` com peso positivo em correção ausente. Configurações inválidas
+(lado desconhecido, piso fora de [0,1] ou suporte não positivo) também são
+rejeitadas nos estados aos quais a TF de prenome não se aplica.
+
+As regressões distinguem explicitamente frequência 1 (ajuste `ln(U)` com peso 1),
+fator de Bayes 1 (frequência igual ao baseline U), peso TF 0 (ajuste desativado) e
+frequência 0 (entrada inválida, nunca substituída por BF=1). Não se impõe ordem
+artificial entre EXACT e HIGH: a TF deve respeitar a unidade do estado, e a razão
+M/U conjunta estimada continua determinando sua evidência. HIGH permanece sem
+ajuste TF até existir contrato específico; isto não autoriza promoção operacional
+nem demonstra precisão, recall ou FPR em TEST independente.
+
+`ExportFrozenSnapshot` exporta o mesmo fit TRAIN e, quando o peso TF é positivo,
+inclui a referência nominal fixada, suas frequências e o baseline U condicional
+por prenome estimado exclusivamente em TRAIN. Não consulta novamente a versão
+ATIVA nem estima parâmetros ao carregar o artefato. A exportação exige os passes
+de blocking e a identidade da projeção informados no frame original; parâmetros
+de exportação divergentes são rejeitados. O fingerprint do fit também vincula
+esses metadados. O frame com metadados explícitos rejeita uma referência TF de
+outro blocking. Fixtures antigas somente com pares continuam aptas a ensaios,
+mas não podem gerar um artefato exportável com proveniência inventada depois do
+ajuste. O artefato com TF contém dicionários de termos nominais e deve receber os
+mesmos controles de acesso da referência; logs e relatórios permanecem agregados.
+
 ## Compatibilidade
 
 A entrega contém biblioteca/diagnóstico e logs read-only no `GENERATE_DRAFT` histórico. **Não muda** `Rank`, `Resolve`, `VALIDATE`, `ACTIVATE`, `TermFrequencyScoring` V8, banco, contrato persistido, pesos ou snapshots históricos. V8 permanece apenas para replay; novos conceitos são V9.

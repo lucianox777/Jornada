@@ -154,7 +154,7 @@
       "package": "System.Security.Cryptography.Pkcs",
       "from": null,
       "to": "9.0.21",
-      "justification": "2026-10-13: resposta auditável à CVE-2026-84008 (alta) e à CVE-2026-70162 no PKCS transitivo 9.0.18 do Microsoft.Data.SqlClient; pin explícito da versão corrigida 9.0.21 no adaptador compartilhado, 15 lockfiles recalculados via SDK 10.0.112, hashes da proveniência atualizados. Security-guards, locked restore, unit, integration SQL, deterministic-build e E2E permanecem obrigatórios; nenhuma exceção a scanner ou risco."
+      "justification": "2026-10-13: resposta auditável à CVE-2026-84008 (alta) e à CVE-2026-70162 no PKCS transitivo 9.0.18 do Microsoft.Data.SqlClient; pin explícito da versão corrigida 9.0.21 no adaptador compartilhado, 15 lockfiles recalculados via SDK 10.0.113, hashes da proveniência atualizados. Security-guards, locked restore, unit, integration SQL, deterministic-build e E2E permanecem obrigatórios; nenhuma exceção a scanner ou risco."
     }
   ],
   "note": "DT-02 mantém SQL Server como único runtime relacional da candidata, governa Microsoft.Data.SqlClient 5.2.2 → 7.1.1 e registra somente as compatibilidades adicionais comprovadas para .NET 10: Microsoft.AspNetCore.Mvc.Testing 10.0.12 nos testes e Microsoft.Data.SqlClient.Extensions.Azure 7.1.1 para o provider Entra. Upgrades de NUnit/Test SDK permanecem fora deste escopo salvo incompatibilidade comprovada. DT-05 autoriza Parquet.Net 6.1.0 exclusivamente no Jornada.Linkage.Runner para publicação do candidate-state imutável de replay."

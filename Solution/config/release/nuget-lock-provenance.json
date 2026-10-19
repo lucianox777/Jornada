@@ -215,7 +215,7 @@
     "status": "CI_FORCE_EVALUATED_LOCK_GRAPH",
     "sourceCommit": "79bf142775828e8b148939dd06cee65c728c0d5e",
     "githubRunId": "38464250893",
-    "sdk": "10.0.112",
+    "sdk": "10.0.113",
     "reason": "DT-02: grafo candidato regenerado após migração para net10.0 e Microsoft.Data.SqlClient 7.1.1; compatibilidade de testes alinhada a Microsoft.AspNetCore.Mvc.Testing 10.0.12 e provider Entra separado em Microsoft.Data.SqlClient.Extensions.Azure 7.1.1; histórico v4.05/.NET 8 preservado separadamente. Parquet.Net 6.1.0 foi incorporado no incremento DT-05 candidate-state; locks afetados foram force-evaluated pelo CI .NET 10.0.112. Jornada.DevConsole permanece como host DEV independente, sem dependência de domínio; o lock vazio foi force-evaluated no mesmo gate. Atualização 2026-10-04: dependências de teste compatíveis e ações GitHub consolidadas; NUnit 4.6.1 foi descartado após ambiguidade de overloads em Assert.* e mantido em 4.2.2; locks regenerados pelo grafo corrente. Security patch 2026-10-13: CVE-2026-84008/CVE-2026-70162, PKCS 9.0.21; 22 lockfiles regenerated on GitHub-hosted .NET 10.0.112 runner with --force-evaluate, artifact actions/run/38464250893; 15 changed lockfiles, full manifest hash replaced; historical v4.05 attestation preserved.",
     "lockCount": 22,
     "changedLockCount": 22,
@@ -228,10 +228,6 @@
       {
         "path": "src/Jornada.Api/packages.lock.json",
         "sha256": "b1b847e372a66aab0273980a4d14fee46ab5285ce0ff3fe8d56d33a85ddf93bc"
-      },
-      {
-        "path": "src/Jornada.DevConsole/packages.lock.json",
-        "sha256": "a29c6aa8cfb81874ff8bb78dc369d7416f28c9b8cc47e99592bfc019b20c41eb"
       },
       {
         "path": "src/Jornada.Bronze.Maintenance.Worker/packages.lock.json",
@@ -247,6 +243,10 @@
       },
       {
         "path": "src/Jornada.Contracts/packages.lock.json",
+        "sha256": "a29c6aa8cfb81874ff8bb78dc369d7416f28c9b8cc47e99592bfc019b20c41eb"
+      },
+      {
+        "path": "src/Jornada.DevConsole/packages.lock.json",
         "sha256": "a29c6aa8cfb81874ff8bb78dc369d7416f28c9b8cc47e99592bfc019b20c41eb"
       },
       {
@@ -309,6 +309,16 @@
         "path": "tests/Jornada.Tests/packages.lock.json",
         "sha256": "9c582069d0f5d081a47df2bd372db979569379b7d122bfcb62034bab00e2902c"
       }
-    ]
+    ],
+    "localVerification": {
+      "date": "2026-10-19",
+      "sdk": "10.0.113",
+      "commands": [
+        "dotnet restore Jornada.sln --force-evaluate",
+        "dotnet restore Jornada.sln --locked-mode"
+      ],
+      "githubCiApproval": false,
+      "note": "Current csproj NUnit 4.6.1; single PKCS 9.0.21 reference. Historical attestation unchanged."
+    }
   }
 }
