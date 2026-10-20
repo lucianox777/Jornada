@@ -12,15 +12,13 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static class V9LowerNonMatchTrainCalibrator
 {
-    public const string Version = "V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V1";
+    public const string Version = "V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V2";
 
     public sealed record Policy(
         string FrozenSnapshotSha256,
         string TrainingEvidenceSha256,
         decimal FixedUpperThreshold,
         IReadOnlyList<decimal> CandidateLowerThresholds,
-        double MaximumFalseNewAmongCreates,
-        double MaximumFalseNewAmongAlreadyRepresented,
         int MinimumIndependentIdentityGroups,
         int MinimumAlreadyRepresentedSources,
         bool ManualCalibrationRequested,
@@ -44,7 +42,6 @@ public static class V9LowerNonMatchTrainCalibrator
         long PendingAfter,
         double? FalseNewAmongCreates,
         double FalseNewAmongAlreadyRepresented,
-        bool MeetsPointBudgets,
         bool IsParetoFrontier);
 
     public sealed record Study(
@@ -78,10 +75,6 @@ public static class V9LowerNonMatchTrainCalibrator
             || policy.CandidateLowerThresholds.Count is < 1 or > 256
             || policy.CandidateLowerThresholds.Any(x => x is <= 0m or >= 1m || x >= policy.FixedUpperThreshold)
             || policy.CandidateLowerThresholds.Distinct().Count() != policy.CandidateLowerThresholds.Count
-            || !double.IsFinite(policy.MaximumFalseNewAmongCreates)
-            || policy.MaximumFalseNewAmongCreates is < 0 or > .1
-            || !double.IsFinite(policy.MaximumFalseNewAmongAlreadyRepresented)
-            || policy.MaximumFalseNewAmongAlreadyRepresented is < 0 or > .1
             || policy.MinimumIndependentIdentityGroups < 2
             || policy.MinimumAlreadyRepresentedSources < 1)
             throw new InvalidDataException("Parâmetros e orçamento de duplicação inválidos.");
@@ -131,9 +124,6 @@ public static class V9LowerNonMatchTrainCalibrator
             var alreadyRate = (double)wrong / nRepresented;
             candidates.Add(new Candidate(threshold, creates, good, wrong,
                 baselinePending, pending0, falseRate, alreadyRate,
-                MeetsPointBudgets: creates > 0 && falseRate.HasValue
-                    && falseRate.Value <= policy.MaximumFalseNewAmongCreates
-                    && alreadyRate <= policy.MaximumFalseNewAmongAlreadyRepresented,
                 IsParetoFrontier: false));
         }
         if (candidates.Select(x => x.BaselinePending).Distinct().Count() != 1)
@@ -148,27 +138,22 @@ public static class V9LowerNonMatchTrainCalibrator
                 && (y.FalseNewReferences < x.FalseNewReferences
                     || y.PendingAfter < x.PendingAfter))
         }).ToArray();
-        var suggested = frontier.Where(x => x.MeetsPointBudgets)
-            .OrderBy(x => x.PendingAfter)
-            .ThenBy(x => x.FalseNewReferences)
-            .ThenBy(x => x.LowerThreshold)
-            .FirstOrDefault();
+        // A Pareto frontier is a set of candidates, not a certified winner.
+        // Never impose an invented duplicate budget or silently select a threshold.
+        decimal? suggested = null;
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             Version + "|" + policy.FrozenSnapshotSha256 + "|"
             + policy.TrainingEvidenceSha256 + "|"
             + policy.FixedUpperThreshold.ToString(System.Globalization.CultureInfo.InvariantCulture)
             + "|" + string.Join(",", policy.CandidateLowerThresholds.OrderBy(x => x)
                 .Select(x => x.ToString(System.Globalization.CultureInfo.InvariantCulture)))
-            + "|" + policy.MaximumFalseNewAmongCreates.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
-            + "|" + policy.MaximumFalseNewAmongAlreadyRepresented.ToString("R", System.Globalization.CultureInfo.InvariantCulture)
             + "|" + policy.MinimumIndependentIdentityGroups
             + "|" + policy.MinimumAlreadyRepresentedSources
         ))).ToLowerInvariant();
         return new Study(Version, policy.FrozenSnapshotSha256, policy.TrainingEvidenceSha256,
             fingerprint, nGroups, nRepresented, originalAccepted,
-            frontier, suggested?.LowerThreshold,
-            suggested is null ? "NO_TRAIN_POINT_CANDIDATE_MEETS_DUPLICATE_BUDGET"
-                : "TRAIN_POINT_SUGGESTION_ONLY_UNCERTIFIED_BLOCKING_MISS_AND_DUPLICATE_DEPENDENCE",
+            frontier, suggested,
+            "TRAIN_PARETO_FRONTIER_REQUIRES_INDEPENDENT_SELECTION_NO_PRESET_DUPLICATE_BUDGET",
             ExternalValidationUsed: false, TestUsed: false, OperationalModelCreated: false,
             AutomaticCalibrationOrActivationAllowed: false,
             DuplicateConfidenceCertified: false, LinkageFdrRecalibrated: false);
