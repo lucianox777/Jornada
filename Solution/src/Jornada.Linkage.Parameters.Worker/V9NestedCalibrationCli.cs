@@ -130,13 +130,8 @@ public static class V9NestedCalibrationCli
             return await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync(connection, validation,
                 snapshot, plan.Calibration.Execution, plan.Calibration.MaximumAcceptedPerBaseIdentity, ids.Length, ct);
         }, CancellationToken.None);
-        var best = measured.Where(x => x.Metric.ConditionalClusterCpFdrUpper.HasValue
-            && x.Metric.ConditionalClusterCpFdrUpper <= plan.Calibration.SelectionPolicy.MaximumAcceptedFdrUpper
-            && x.Metric.GlobalSourceRecall >= plan.Calibration.SelectionPolicy.MinimumGlobalRecall
-            && x.P95Milliseconds.HasValue && x.P95Milliseconds <= plan.Calibration.SelectionPolicy.MaximumP95Milliseconds
-            && x.FalseDegreeP99 <= plan.Calibration.Budget.MaximumBlockingFalseDegreeP99)
-            .OrderByDescending(x => x.Metric.GlobalSourceRecall).ThenBy(x => x.Metric.ConditionalClusterCpFdrUpper)
-            .ThenBy(x => x.SnapshotSha256, StringComparer.Ordinal).FirstOrDefault();
+        var best = SelectConditionalWinner(measured, plan.Calibration.SelectionPolicy,
+            plan.Calibration.Budget.MaximumBlockingFalseDegreeP99);
         await WriteNewAsync(Path.Combine(output, "finalist-validation.json"), new { selectionEnvelopeSha256 = selectionSha,
             fresh, comparedConfigurations = ids.Length, measured,
             bestConditionalSnapshotSha256 = best?.SnapshotSha256, selectedApprovedSnapshotSha256 = (string?)null,
@@ -144,6 +139,25 @@ public static class V9NestedCalibrationCli
             identityClusterIidIndependentlyValidated = false, testUsed = false, refitted = false, certified = false, activated = false });
         Console.WriteLine(JsonSerializer.Serialize(new { finalists = ids.Length, conditionalWinner = best?.SnapshotSha256,
             refitted = false, certified = false, testUsed = false, activated = false }));
+    }
+
+    public static V9FrozenHoldoutEvaluation? SelectConditionalWinner(IReadOnlyList<V9FrozenHoldoutEvaluation> measured,
+        V9BootstrapPareto2D.SelectionPolicy policy, double maximumFalseDegreeP99)
+    {
+        ArgumentNullException.ThrowIfNull(measured);
+        ArgumentNullException.ThrowIfNull(policy);
+        if (measured.Count is < 1 or > 3 || measured.Select(x => x.SnapshotSha256).Distinct(StringComparer.Ordinal).Count() != measured.Count
+            || measured.Any(x => x.Refitted || x.Metric.SyntheticGoldOracleGrouping
+                || x.Metric.BonferroniComparedConfigurations != measured.Count))
+            throw new InvalidDataException("Escolha exige a mesma família de até três finalistas congelados, sem ORACLE/refit.");
+        return measured.Where(x => x.Metric.ConditionalClusterCpFdrUpper.HasValue
+            && x.Metric.ConditionalClusterCpFdrUpper <= policy.MaximumAcceptedFdrUpper
+            && x.Metric.GlobalSourceRecall >= policy.MinimumGlobalRecall
+            && x.Metric.PreBlockingBaseIdentities >= policy.MinimumIndependentIdentityGroups
+            && x.P95Milliseconds.HasValue && x.P95Milliseconds <= policy.MaximumP95Milliseconds
+            && x.FalseDegreeP99 <= maximumFalseDegreeP99)
+            .OrderByDescending(x => x.Metric.GlobalSourceRecall).ThenBy(x => x.Metric.ConditionalClusterCpFdrUpper)
+            .ThenBy(x => x.SnapshotSha256, StringComparer.Ordinal).FirstOrDefault();
     }
 
     private static string Sha(ReadOnlySpan<byte> bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();

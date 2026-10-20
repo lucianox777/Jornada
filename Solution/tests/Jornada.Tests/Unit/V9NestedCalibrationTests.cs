@@ -9,6 +9,22 @@ namespace Jornada.Tests.Unit;
 public sealed class V9NestedCalibrationTests
 {
     [Test]
+    public void Conditional_finalist_choice_preserves_group_risk_cost_and_family_constraints()
+    {
+        var c = Candidate(180, 0, .95m);
+        var m = c.Metric with { ConditionalClusterCpFdrUpper = .005, BonferroniComparedConfigurations = 1 };
+        var measured = new V9FrozenHoldoutEvaluation(c.Snapshot.ContentSha256, m, 10, 2, "fixture", []);
+        var policy = new V9BootstrapPareto2D.SelectionPolicy(.8, .01, 100, 20);
+        Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([measured], policy, 2), Is.SameAs(measured));
+        Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([measured], policy with { MinimumIndependentIdentityGroups = 101 }, 2), Is.Null);
+        Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([measured], policy with { MaximumAcceptedFdrUpper = .001 }, 2), Is.Null);
+        Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([measured], policy with { MaximumP95Milliseconds = 5 }, 2), Is.Null);
+        Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([measured], policy, 1), Is.Null);
+        Assert.That((Action)(() => V9NestedCalibrationCli.SelectConditionalWinner([measured with { Refitted = true }], policy, 2)), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9NestedCalibrationCli.SelectConditionalWinner([measured with { Metric = m with { BonferroniComparedConfigurations = 3 } }], policy, 2)), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Search_reader_skips_external_holdout_attribute_values_and_never_opens_TEST()
     {
         var file = Path.Combine(Path.GetTempPath(), "jornada-train-only-" + Guid.NewGuid().ToString("N") + ".csv");

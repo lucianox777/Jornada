@@ -77,7 +77,7 @@ São cálculos condicionais, não garantia de IID ou de zero erro. O projeto de 
 Conexão somente para instância descartável e banco `JornadaHarness`, definida no processo:
 
 ```powershell
-$env:ConnectionStrings__Jornada='Server=(localdb)\JornadaV9Integral20261019;Database=JornadaHarness;Integrated Security=true;Encrypt=false;TrustServerCertificate=true'
+# Defina ConnectionStrings__Jornada para a instância exclusiva e descartável antes de executar.
 python Solution/scripts/v9-integral-search-study.py <observacoes.csv> <plano-novo.json> --workers 2
 dotnet <Jornada.Linkage.Parameters.Worker.dll> --v9-adaptive-census <plano-novo.json> <observacoes.csv> <diretorio-novo>
 dotnet <Jornada.Linkage.Parameters.Worker.dll> --v9-adaptive-study <plano-novo.json> <observacoes.csv> <outro-diretorio-novo>

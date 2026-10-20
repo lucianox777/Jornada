@@ -57,7 +57,7 @@ Instância exclusiva `JornadaV9Integral20261019`, banco descartável `JornadaHar
 
 As 36 falharam nesse piso; 18 também excederam fanout. Resultado `NO_FEASIBLE_CONFIGURATION_NO_HOLDOUT_USED`, **zero finalistas**, **nenhuma avaliação externa real de VALIDATION/TEST**. A política de suporte usada é explícita, não demonstra que todas as células tenham probabilidade positiva. Antes de ampliar N ou rever uma exigência por célula, justificar alcance/zeros estruturais pelo contrato e calcular o desenho amostral; não relaxar o piso para obter aprovação, nem preencher a falta de evidência com probabilidades suavizadas.
 
-Artefatos compactos: `data/calibration/v9/nested-train-selection-exploratory/`. Resultados completos e snapshots ficam nos artefatos da CI. A suíte local executou **1.791 testes C# e 117 fixtures Python**, além da prova SQL com um holdout exclusivo da fixture. Build Release com SDK 10.0.113; PKCS 9.0.21 preservado.
+Artefatos compactos: `data/calibration/v9/nested-train-selection-exploratory/`. Resultados completos e snapshots ficam nos artefatos da CI. A suíte local executou **1.792 testes C# e 117 fixtures Python**, além da prova SQL com um holdout exclusivo da fixture. Build Release com SDK 10.0.113; PKCS 9.0.21 preservado.
 
 ## Reprodução
 
