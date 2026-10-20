@@ -1,0 +1,8 @@
+{
+  "envelopeSha256": "f8cb1fbc745dd0ec81f92cce9c7d30df58287fdc9e665be0638c7169da470543",
+  "FinalistSnapshotShas": [],
+  "StopReason": "NO_FEASIBLE_CONFIGURATION_NO_HOLDOUT_USED",
+  "externalValidationUsed": false,
+  "testUsed": false,
+  "activated": false
+}

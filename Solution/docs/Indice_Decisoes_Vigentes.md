@@ -1,3 +1,7 @@
+> **Fluxo V9 corrente — 19/10:** [seleção interna no TRAIN, parada heurística e avaliação única de até três finalistas congelados](V9_Selecao_Interna_TRAIN_Finalistas_20261019.md). VALIDATION histórica não volta a ser holdout novo. Nenhuma certificação ou ativação automática.
+
+> **V9 — busca integral e contrato M/U (19/10):** [catálogo completo, faixas Recall × FDR, engenharia reversa, amostra e evidências físicas](V9_Busca_Integral_Faixas_MU_20261019.md). Censo exaustivo de 524.287 combinações; avaliação do ótimo global ainda pendente.
+
 > **Auditoria superveniente de 18/10/2026:** [auditoria V9 e últimos runners](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md). A decisão atual é **bootstrap inicial do calibrador V9 somente com o corpus sintético clean**, parâmetros **não definitivos**, e `correlated` preservado **exclusivamente para histórico**. Foram executados SQL Server físico sintético e Rank→Resolve por fonte na PR #1152; **não equivalem** a Gold operacional, FDR certificada, novo TEST ou HML real. A PR #1152 é trabalho de branch até merge comprovado; CI verde não promove V9.
 
 > **Decisão canônica de 14/10/2026 — Calibrador único adaptativo:** [Calibrador V9 C# único e definitivo; melhores parâmetros V9 são do bootstrap congelado em `ref` (não definitivos), com calibrações futuras manuais](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md). A decisão é normativa; a implementação permanece pendente na issue #1089. Documentos e números experimentais históricos não equivalem a certificação operacional.

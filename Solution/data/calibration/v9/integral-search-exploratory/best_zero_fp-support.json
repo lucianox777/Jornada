@@ -1,0 +1,499 @@
+{
+  "SnapshotSha256": "31b764df1c8e4117e243f81d437304d9fdc933b6e0b23abf43856271420984ac",
+  "SmoothingAlpha": 0.5,
+  "TrainMPairs": 20325,
+  "TrainUPairs": 1009142,
+  "CellsWithM": 41,
+  "CellsWithU": 54,
+  "CellsWithBoth": 37,
+  "CellsWithNeither": 23,
+  "Cells": [
+    {
+      "Person": 0,
+      "Mother": 0,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 0,
+      "Mother": 1,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 0,
+      "Mother": 2,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 0,
+      "Mother": 3,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 0,
+      "Mother": 4,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 0,
+      "Mother": 5,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 0,
+      "Mother": 6,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 0,
+      "Mother": 7,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 0,
+      "Mother": 8,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 1,
+      "Mother": 0,
+      "ObservedMPairs": 1708,
+      "ObservedUPairs": 7
+    },
+    {
+      "Person": 1,
+      "Mother": 1,
+      "ObservedMPairs": 13203,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 1,
+      "Mother": 2,
+      "ObservedMPairs": 293,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 1,
+      "Mother": 3,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 1,
+      "Mother": 4,
+      "ObservedMPairs": 2320,
+      "ObservedUPairs": 3
+    },
+    {
+      "Person": 1,
+      "Mother": 5,
+      "ObservedMPairs": 63,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 1,
+      "Mother": 6,
+      "ObservedMPairs": 22,
+      "ObservedUPairs": 53
+    },
+    {
+      "Person": 1,
+      "Mother": 7,
+      "ObservedMPairs": 300,
+      "ObservedUPairs": 53
+    },
+    {
+      "Person": 1,
+      "Mother": 8,
+      "ObservedMPairs": 103,
+      "ObservedUPairs": 100
+    },
+    {
+      "Person": 2,
+      "Mother": 0,
+      "ObservedMPairs": 49,
+      "ObservedUPairs": 58
+    },
+    {
+      "Person": 2,
+      "Mother": 1,
+      "ObservedMPairs": 395,
+      "ObservedUPairs": 4
+    },
+    {
+      "Person": 2,
+      "Mother": 2,
+      "ObservedMPairs": 5,
+      "ObservedUPairs": 5
+    },
+    {
+      "Person": 2,
+      "Mother": 3,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 2,
+      "Mother": 4,
+      "ObservedMPairs": 57,
+      "ObservedUPairs": 8
+    },
+    {
+      "Person": 2,
+      "Mother": 5,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 1
+    },
+    {
+      "Person": 2,
+      "Mother": 6,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 793
+    },
+    {
+      "Person": 2,
+      "Mother": 7,
+      "ObservedMPairs": 8,
+      "ObservedUPairs": 513
+    },
+    {
+      "Person": 2,
+      "Mother": 8,
+      "ObservedMPairs": 3,
+      "ObservedUPairs": 1441
+    },
+    {
+      "Person": 3,
+      "Mother": 0,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 3,
+      "Mother": 1,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 3,
+      "Mother": 2,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 3,
+      "Mother": 3,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 3,
+      "Mother": 4,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 3,
+      "Mother": 5,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 3,
+      "Mother": 6,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 3,
+      "Mother": 7,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 3,
+      "Mother": 8,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 3
+    },
+    {
+      "Person": 4,
+      "Mother": 0,
+      "ObservedMPairs": 138,
+      "ObservedUPairs": 16
+    },
+    {
+      "Person": 4,
+      "Mother": 1,
+      "ObservedMPairs": 1050,
+      "ObservedUPairs": 4
+    },
+    {
+      "Person": 4,
+      "Mother": 2,
+      "ObservedMPairs": 15,
+      "ObservedUPairs": 1
+    },
+    {
+      "Person": 4,
+      "Mother": 3,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 4,
+      "Mother": 4,
+      "ObservedMPairs": 161,
+      "ObservedUPairs": 8
+    },
+    {
+      "Person": 4,
+      "Mother": 5,
+      "ObservedMPairs": 5,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 4,
+      "Mother": 6,
+      "ObservedMPairs": 5,
+      "ObservedUPairs": 270
+    },
+    {
+      "Person": 4,
+      "Mother": 7,
+      "ObservedMPairs": 32,
+      "ObservedUPairs": 258
+    },
+    {
+      "Person": 4,
+      "Mother": 8,
+      "ObservedMPairs": 9,
+      "ObservedUPairs": 381
+    },
+    {
+      "Person": 5,
+      "Mother": 0,
+      "ObservedMPairs": 10,
+      "ObservedUPairs": 28
+    },
+    {
+      "Person": 5,
+      "Mother": 1,
+      "ObservedMPairs": 25,
+      "ObservedUPairs": 2
+    },
+    {
+      "Person": 5,
+      "Mother": 2,
+      "ObservedMPairs": 1,
+      "ObservedUPairs": 6
+    },
+    {
+      "Person": 5,
+      "Mother": 3,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 5,
+      "Mother": 4,
+      "ObservedMPairs": 9,
+      "ObservedUPairs": 27
+    },
+    {
+      "Person": 5,
+      "Mother": 5,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 1
+    },
+    {
+      "Person": 5,
+      "Mother": 6,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 423
+    },
+    {
+      "Person": 5,
+      "Mother": 7,
+      "ObservedMPairs": 1,
+      "ObservedUPairs": 356
+    },
+    {
+      "Person": 5,
+      "Mother": 8,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 1001
+    },
+    {
+      "Person": 6,
+      "Mother": 0,
+      "ObservedMPairs": 1,
+      "ObservedUPairs": 9370
+    },
+    {
+      "Person": 6,
+      "Mother": 1,
+      "ObservedMPairs": 10,
+      "ObservedUPairs": 515
+    },
+    {
+      "Person": 6,
+      "Mother": 2,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 1385
+    },
+    {
+      "Person": 6,
+      "Mother": 3,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 6,
+      "Mother": 4,
+      "ObservedMPairs": 1,
+      "ObservedUPairs": 2026
+    },
+    {
+      "Person": 6,
+      "Mother": 5,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 725
+    },
+    {
+      "Person": 6,
+      "Mother": 6,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 111451
+    },
+    {
+      "Person": 6,
+      "Mother": 7,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 82387
+    },
+    {
+      "Person": 6,
+      "Mother": 8,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 172636
+    },
+    {
+      "Person": 7,
+      "Mother": 0,
+      "ObservedMPairs": 31,
+      "ObservedUPairs": 2849
+    },
+    {
+      "Person": 7,
+      "Mother": 1,
+      "ObservedMPairs": 191,
+      "ObservedUPairs": 206
+    },
+    {
+      "Person": 7,
+      "Mother": 2,
+      "ObservedMPairs": 9,
+      "ObservedUPairs": 393
+    },
+    {
+      "Person": 7,
+      "Mother": 3,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 0
+    },
+    {
+      "Person": 7,
+      "Mother": 4,
+      "ObservedMPairs": 31,
+      "ObservedUPairs": 794
+    },
+    {
+      "Person": 7,
+      "Mother": 5,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 263
+    },
+    {
+      "Person": 7,
+      "Mother": 6,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 36370
+    },
+    {
+      "Person": 7,
+      "Mother": 7,
+      "ObservedMPairs": 2,
+      "ObservedUPairs": 32499
+    },
+    {
+      "Person": 7,
+      "Mother": 8,
+      "ObservedMPairs": 2,
+      "ObservedUPairs": 57296
+    },
+    {
+      "Person": 8,
+      "Mother": 0,
+      "ObservedMPairs": 6,
+      "ObservedUPairs": 31886
+    },
+    {
+      "Person": 8,
+      "Mother": 1,
+      "ObservedMPairs": 43,
+      "ObservedUPairs": 2178
+    },
+    {
+      "Person": 8,
+      "Mother": 2,
+      "ObservedMPairs": 2,
+      "ObservedUPairs": 687
+    },
+    {
+      "Person": 8,
+      "Mother": 3,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 1
+    },
+    {
+      "Person": 8,
+      "Mother": 4,
+      "ObservedMPairs": 5,
+      "ObservedUPairs": 1518
+    },
+    {
+      "Person": 8,
+      "Mother": 5,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 484
+    },
+    {
+      "Person": 8,
+      "Mother": 6,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 66788
+    },
+    {
+      "Person": 8,
+      "Mother": 7,
+      "ObservedMPairs": 1,
+      "ObservedUPairs": 52016
+    },
+    {
+      "Person": 8,
+      "Mother": 8,
+      "ObservedMPairs": 0,
+      "ObservedUPairs": 336595
+    }
+  ],
+  "IndependentIdentitySupportEstablished": false
+}

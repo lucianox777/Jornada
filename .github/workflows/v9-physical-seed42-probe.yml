@@ -3,27 +3,18 @@ name: v9-physical-seed42-probe
 on:
   pull_request:
     paths:
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9PhysicalCalibrationEvidenceCli.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9*.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/Program.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9BlindIncrementalIdentityGrouping.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FellegiSunterAdaptiveCalibrationAdapter.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9IdentityClusterFdr.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9PhysicalSqlAdaptiveCalibrationProbe.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9Adaptive*.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9PhysicalAdaptiveExecution.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9TrainBlockingCandidateDiscovery.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/BlockingRuleSetSearch.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9*Pareto*.cs'
-      - 'Solution/src/Jornada.Contracts/V9CalibrationBlockingProjection.cs'
+      - 'Solution/src/Jornada.Contracts/V9*.cs'
       - 'Solution/src/Jornada.Contracts/SyntheticObservationMultiplicityContract.cs'
       - 'Solution/src/Jornada.Linkage.SyntheticCorpus/**'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9SyntheticObservationCapEvidence.cs'
+      - 'Solution/src/Jornada.Linkage.Core/V9*.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9*.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/V9*.cs'
       - 'Solution/data/calibration/v9/**'
-      - 'Solution/src/Jornada.Linkage.Core/V9FittedSnapshot.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FrozenSourceResolveReplay.cs'
-      - 'Solution/src/Jornada.Linkage.Runner/V9FittedSnapshotExecutionRuntime.cs'
-      - 'Solution/scripts/v9-adaptive-pipeline-smoke.py'
-      - 'Solution/scripts/v9-adaptive-30k-study.py'
+      - 'Solution/scripts/v9-nested-*.py'
+      - 'Solution/scripts/v9-integral-search-study.py'
       - '.github/workflows/v9-physical-seed42-probe.yml'
   workflow_dispatch:
 
@@ -32,15 +23,9 @@ permissions:
 
 jobs:
   physical-seed42:
-    name: SQL físico 30k ${{ matrix.profile }} — FS blind Rank-Resolve TF0
+    name: SQL físico 30k clean — FS blind Rank-Resolve TF0
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    # Only the provisional clean bootstrap is executed in ongoing PR validation.
-    # Correlated results are historical, not a calibration target.
-    strategy:
-      fail-fast: false
-      matrix:
-        profile: [clean]
     services:
       sqlserver:
         image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
@@ -57,18 +42,18 @@ jobs:
       JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!V9Probe'
       ConnectionStrings__Jornada: 'Server=localhost,1433;Database=JornadaHarness;User Id=sa;Password=Jornada_${{ github.run_id }}!V9Probe;TrustServerCertificate=true;Encrypt=false'
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.113'
-      - name: Build generator and real FS adaptive probe
+      - name: Build the single CSharp calibrator and synthetic producer
         working-directory: Solution
         run: |
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      - name: Initialize disposable JornadaHarness SQL Server
+      - name: Initialize disposable JornadaHarness
         run: |
           set -euo pipefail
           CID=$(docker ps -q --filter publish=1433 | head -1)
@@ -76,186 +61,66 @@ jobs:
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -e SQLCMDPASSWORD "$CID" \
             /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b \
             -Q "IF DB_ID(N'JornadaHarness') IS NULL CREATE DATABASE JornadaHarness;"
-      - name: Generate original IBGE-derived synthetic corpus, seed 42, 30000 people
+      - name: Generate clean fixtures and historical 30k development corpus
         working-directory: Solution
-        env:
-          PROFILE: ${{ matrix.profile }}
         run: |
           set -euo pipefail
-          test -s data/reference/ibge-nomes-2022/manifest.json
-          test -s data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
-            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
-            --population-profile demographic-primary \
-            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
-            --out "$PWD/.local/v9-physical-$PROFILE" --people 30000 --seed 42 --error-profile "$PROFILE"
-      - name: Execute adaptive coordinator, prefix SQL, full-path P95 and immutable fits (plumbing fixture)
+          root="$PWD/.local/v9-nested-ci"
+          mkdir -p "$root"
+          generate() {
+            dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+              --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+              --population-profile demographic-primary \
+              --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+              --error-profile clean --people "$1" --seed "$2" --out "$root/$3" > "$root/$3-generation.log"
+          }
+          generate 1000 42 fixture-train &
+          a=$!
+          generate 1000 20261019001 fixture-validation &
+          b=$!
+          wait "$a"
+          wait "$b"
+          generate 30000 42 development-30k
+      - name: Real SQL nested search and one-time frozen finalist validation - fixture only
         working-directory: Solution
         env:
-          PROFILE: ${{ matrix.profile }}
+          JORNADA_V9_HOLDOUT_REGISTRY: '${{ github.workspace }}/Solution/.local/v9-nested-ci/fixture-registry'
+        run: |
+          python3 scripts/v9-nested-calibration-verify.py fixture \
+            src/Jornada.Linkage.Parameters.Worker/bin/Release/net10.0/Jornada.Linkage.Parameters.Worker.dll \
+            .local/v9-nested-ci/fixture-train/observacoes.csv \
+            .local/v9-nested-ci/fixture-validation/observacoes.csv \
+            .local/v9-nested-ci/regression
+      - name: Calibrate 30k using ONLY TRAIN-adjust and TRAIN-selection
+        working-directory: Solution
         run: |
           set -euo pipefail
-          fixture="$PWD/.local/v9-physical-$PROFILE/adaptive-plumbing-input"
-          output="$PWD/.local/v9-physical-$PROFILE/adaptive-plumbing-result"
-          python3 scripts/v9-adaptive-pipeline-smoke.py prepare "$fixture"
+          root="$PWD/.local/v9-nested-ci"
+          python3 scripts/v9-nested-calibration-study.py "$root/development-30k/observacoes.csv" "$root/bootstrap-plan.json"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-adaptive-study "$fixture/plan.json" "$fixture/observacoes.csv" "$output"
-          python3 scripts/v9-adaptive-pipeline-smoke.py verify "$output"
-      - name: Audit clean field-level quality on TRAIN/VALIDATION only
+            --v9-calibrate "$root/bootstrap-plan.json" "$root/development-30k/observacoes.csv" "$root/bootstrap-search"
+          python3 scripts/v9-nested-calibration-verify.py search "$root/bootstrap-search"
+          # No external 30k VALIDATION/TEST scoring in this workflow.
+      - name: Export batch gain and resolution curves
         working-directory: Solution
-        env:
-          PROFILE: ${{ matrix.profile }}
         run: |
-          set -euo pipefail
-          test "$PROFILE" = clean
-          python3 scripts/v9-synthetic-corruption-impact.py \
-            --observations ".local/v9-physical-$PROFILE/observacoes.csv" \
-            --manifest ".local/v9-physical-$PROFILE/generation-manifest.json" \
-            --exclude-test \
-            --out ".local/v9-physical-$PROFILE/field-quality-train-val.json"
-          python3 - <<'PY'
-          import json,os
-          from pathlib import Path
-          root=Path(".local/v9-physical-"+os.environ["PROFILE"])
-          data=json.loads((root/"field-quality-train-val.json").read_text())
-          assert data["manifest_recorded_error_profile"]=="clean"
-          assert data["partition_scope"]=="TRAIN_VALIDATION_ONLY"
-          assert data["test_rows_included_in_aggregates"] is False
-          assert data["test_metrics_reported_for_data_quality_audit_only"] is False
-          assert set(data["observations_by_split"])=={"TRAIN","VALIDATION"}
-          assert data["true_pairs_across_managers"]["NO_CPF"]["pairs"]>0
-          print(json.dumps({"observed_field_changes":data["effective_field_changes_per_observation"],
-            "true_pairs_no_cpf":data["true_pairs_across_managers"]["NO_CPF"],
-            "observations":data["observations"]},sort_keys=True))
-          PY
-      - name: Execute REAL SQL pair materialization, FS TRAIN, VALIDATION Rank-Resolve and 20 SQL repetitions
-        working-directory: Solution
-        env:
-          PROFILE: ${{ matrix.profile }}
-        run: |
-          set -euo pipefail
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-physical-probe-seed42 \
-            "$PWD/.local/v9-physical-$PROFILE/observacoes.csv" \
-            "$PROFILE" "$PWD/.local/v9-physical-$PROFILE/physical-fs-resolve-diagnostic.json" 0.95
-      - name: Assert physically measured Rank-Resolve, grouped FDR and sealed TEST
-        working-directory: Solution
-        env:
-          PROFILE: ${{ matrix.profile }}
-        run: |
-          python3 - <<'PY'
-          import json,os
-          from pathlib import Path
-          p=Path('.local/v9-physical-'+os.environ['PROFILE']+'/physical-fs-resolve-diagnostic.json')
-          d=json.loads(p.read_text())
-          assert d['physical_sql_executed'] is True
-          assert d['final_rank_resolve_evaluated'] is True
-          assert d['fdr_after_resolve_measured'] is True
-          assert d['test_used'] is False
-          assert d['ValidationEligibleTruePairsBeforeBlocking']>=d['ValidationTruePairsRecoveredBySql']
-          assert len(d['legacy_directed_pair_denominator_options'])==3
-          assert len(d['source_resolve_options'])==36
-          assert all(x['OperationallyCertified'] is False for x in d['source_resolve_options'])
-          assert len({(x['Threshold'],x['ConflictMargin'],x['CandidateGrouping']) for x in d['source_resolve_options']})==36
-          assert {x['Threshold'] for x in d['source_resolve_options']}=={0.90,0.95,0.99}
-          assert {x['ConflictMargin'] for x in d['source_resolve_options']}=={0,0.5,2}
-          assert all(x['TfWeight']==0 for x in d['source_resolve_options'])
-          assert all(x['TrueAcceptedSourceObservations']<=x['EligibleSourceObservationsWithTrueSqlCandidate']<=x['EligibleSourceObservationsBeforeBlocking'] for x in d['source_resolve_options'])
-          assert all(x['TrueAcceptedSourceObservations']+x['FalseAcceptedSourceObservations']+x['Conflicts']+x['Unresolved']==x['AllValidationObservations'] for x in d['source_resolve_options'])
-          assert {x['SyntheticGoldOracleGrouping'] for x in d['source_resolve_options']}=={False,True}
-          assert {x['CandidateGrouping'] for x in d['source_resolve_options']}=={
-              'RAW_SQL_OBSERVATION_CANDIDATES',
-              'BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING',
-              'BLIND_FS_COMPLETE_LINK_CANDIDATES',
-              'ORACLE_SYNTHETIC_GOLD_GROUPING_NOT_OPERATIONAL'}
-          assert all(x['ImpureBlindGroups']>=0 for x in d['source_resolve_options'])
-          assert d['candidate_grouping_oracle_uses_truth_labels'] is True
-          assert d['label_blind_fs_complete_link_measured'] is True
-          assert d['conditional_cp_cluster_ratio_is_operationally_certified'] is False
-          assert d['conditional_cp_cluster_independence_not_attested'] is True
-          assert all(x['BonferroniComparedConfigurations']==36 for x in d['source_resolve_options'])
-          assert all(x['ClusterIidIndependentlyValidated'] is False for x in d['source_resolve_options'])
-          assert all(x['ClopperPearsonUpperAnyFpByIdentity'] is not None for x in d['source_resolve_options'])
-          assert all(x['ConditionalClusterCpFdrUpper'] is None or 0<=x['ConditionalClusterCpFdrUpper']<=1
-                     for x in d['source_resolve_options'])
-          assert d['fs_grouping_minimum_pair_posterior']==0.99
-          print('Real SQL plus final Rank-Resolve measured; HML/TEST certification NOT claimed')
-          PY
-      - name: Export PHYSICAL source-observation recall and synthetic Gold oracle sensitivity
-        working-directory: Solution
-        env:
-          PROFILE: ${{ matrix.profile }}
-        run: |
-          python3 - <<'PY'
-          import csv,json,os
-          from pathlib import Path
-          root=Path('.local/v9-physical-'+os.environ['PROFILE'])
-          source=json.loads((root/'physical-fs-resolve-diagnostic.json').read_text())
-          rows=[]
-          for result in source['source_resolve_options']:
-              eligible=result['EligibleSourceObservationsBeforeBlocking']
-              sql_sources=result['EligibleSourceObservationsWithTrueSqlCandidate']
-              tp=result['TrueAcceptedSourceObservations']
-              fp=result['FalseAcceptedSourceObservations']
-              assert 0<=tp<=sql_sources<=eligible and eligible>0
-              rows.append(dict(
-                  profile=source['profile'], threshold=result['Threshold'],
-                  margin=result['ConflictMargin'],tf_weight=result['TfWeight'],
-                  candidate_grouping=result['CandidateGrouping'],
-                  oracle_truth_based_grouping=result['SyntheticGoldOracleGrouping'],
-                  impure_blind_groups=result['ImpureBlindGroups'],
-                  eligible_sources=eligible,sql_true_sources=sql_sources,
-                  tp_sources=tp,fp_sources=fp,
-                  source_blocking_recall=result['BlockingSourceRecall'],
-                  global_source_recall=result['GlobalSourceRecall'],
-                  fdr_after_resolve=result['FdrAfterResolve'],
-                  hoeffding_upper_by_identity=result['HoeffdingUpperBySourceBaseIdentity'],
-                  conditional_cp_any_group_fp_fdr_upper=result['ConditionalClusterCpFdrUpper'],
-                  cp_upper_probability_of_any_group_fp=result['ClopperPearsonUpperAnyFpByIdentity'],
-                  bonferroni_compared_configurations=result['BonferroniComparedConfigurations'],
-                  cluster_iid_independently_validated=result['ClusterIidIndependentlyValidated'],
-                  conflict=result['Conflicts'],unresolved=result['Unresolved'],
-                  resolve_reasons=json.dumps(result['ReasonsByResolveStatus'],sort_keys=True),
-                  sql_p95_ms=source['RepeatedSqlMaterializationQuantiles']['P95Milliseconds'],
-                  status='MEASURED_SQL_SYNTHETIC_SOURCE_DIAGNOSTIC_TF0_NOT_OPERATIONAL',
-                  input_sha256=source['synthetic_input_sha256']))
-          assert len(rows)==36
-          path=root/'physical-source-resolve-3x3x4-TF0.csv'
-          with path.open('x',newline='') as stream:
-              writer=csv.DictWriter(stream,fieldnames=list(rows[0]))
-              writer.writeheader()
-              writer.writerows(rows)
-          print(path.read_text())
-          PY
-      - name: Execute predeclared adaptive 30k TRAIN-VALIDATION grid (no TEST, no latency certification)
-        working-directory: Solution
-        env:
-          PROFILE: ${{ matrix.profile }}
-        run: |
-          set -euo pipefail
-          root="$PWD/.local/v9-physical-$PROFILE"
-          python3 scripts/v9-adaptive-30k-study.py prepare-cap4 "$root/observacoes.csv" "$root/adaptive-30k-plan.json"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-adaptive-study "$root/adaptive-30k-plan.json" "$root/observacoes.csv" "$root/adaptive-30k-result"
-          python3 scripts/v9-adaptive-30k-study.py verify "$root/adaptive-30k-result"
-      - name: Upload aggregate physical metrics only (no identifiers, names, or truth)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+          root="$PWD/.local/v9-nested-ci"
+          python3 -m venv "$root/plot-env"
+          "$root/plot-env/bin/python" -m pip install --disable-pip-version-check --quiet matplotlib==3.10.8
+          "$root/plot-env/bin/python" scripts/v9-nested-gain-plot.py "$root/regression/search/gain-by-batch.json" "$root/regression/gain-by-batch.svg"
+          "$root/plot-env/bin/python" scripts/v9-nested-gain-plot.py "$root/bootstrap-search/gain-by-batch.json" "$root/bootstrap-search/gain-by-batch.svg"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
-          name: v9-physical-30k-seed42-${{ matrix.profile }}-resolve-diagnostic
+          name: v9-nested-train-selection-frozen-finalists-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: error
           path: |
-            Solution/.local/v9-physical-${{ matrix.profile }}/physical-fs-resolve-diagnostic.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/physical-source-resolve-3x3x4-TF0.csv
-            Solution/.local/v9-physical-${{ matrix.profile }}/field-quality-train-val.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/study.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/*.fitted.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/plan.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-plumbing-result/interrupted.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-plan.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/generation-manifest.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/plan.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/study.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/diagnostic-summary.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/*.fitted.json
-            Solution/.local/v9-physical-${{ matrix.profile }}/adaptive-30k-result/interrupted.json
-          if-no-files-found: ignore
+            Solution/.local/v9-nested-ci/bootstrap-plan.json
+            Solution/.local/v9-nested-ci/bootstrap-search/*.json
+            Solution/.local/v9-nested-ci/bootstrap-search/*.svg
+            Solution/.local/v9-nested-ci/regression/**/*.json
+            Solution/.local/v9-nested-ci/regression/*.svg
+            Solution/.local/v9-nested-ci/fixture-train/generation-manifest.json
+            Solution/.local/v9-nested-ci/fixture-validation/generation-manifest.json
+            Solution/.local/v9-nested-ci/development-30k/generation-manifest.json

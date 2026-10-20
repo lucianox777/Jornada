@@ -266,6 +266,20 @@ public sealed class V9FittedSnapshotTests
         var root = System.IO.Path.Combine(directory!.FullName, "Solution", "data", "calibration", "v9", "bootstrap-v0");
         const string sha = "613f914114073d4a9100e848a01a56321354ae9a7885a77462941ae86936953d";
         var loaded = await V9FittedSnapshotArtifact.ReadPinnedAsync(System.IO.Path.Combine(root, sha + ".fitted.json"), sha);
+        var support = V9FittedJointSupportAudit.Reconstruct(loaded, .5m, 19896, 26378);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(support.Cells, Has.Count.EqualTo(81));
+            Assert.That(support.CellsWithM, Is.EqualTo(31));
+            Assert.That(support.CellsWithU, Is.EqualTo(25));
+            Assert.That(support.CellsWithBoth, Is.EqualTo(18));
+            Assert.That(support.CellsWithNeither, Is.EqualTo(43));
+            Assert.That(support.IndependentIdentitySupportEstablished, Is.False);
+            Assert.That(support.Cells.Sum(x => x.ObservedMPairs), Is.EqualTo(19896));
+            Assert.That(support.Cells.Sum(x => x.ObservedUPairs), Is.EqualTo(26378));
+        }));
+        Assert.That((Action)(() => V9FittedJointSupportAudit.Reconstruct(loaded, .1m, 19896, 26378)), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9FittedJointSupportAudit.Reconstruct(loaded, .5m, 19897, 26378)), Throws.TypeOf<InvalidDataException>());
         using var metadata = System.Text.Json.JsonDocument.Parse(await File.ReadAllBytesAsync(
             System.IO.Path.Combine(root, "experimental-reference.json")));
         Assert.Multiple((Action)(() =>

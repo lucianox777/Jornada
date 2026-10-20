@@ -71,6 +71,23 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
     }
 
     [Test]
+    public void Exact_equivalence_and_shards_require_a_complete_catalogue_zero_tf_and_valid_ordinals()
+    {
+        var plan = Plan();
+        V9DeclaredBlockingSearchSpace space = new([new("P", ["name_first"])]);
+        var valid = plan with { DeclaredSearchSpace = space, CollapseEquivalentCandidateFrames = true };
+        Assert.DoesNotThrow((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(valid)));
+        foreach (var invalid in new[] {
+            plan with { CollapseEquivalentCandidateFrames = true },
+            plan with { ShardCount = 2 },
+            valid with { ShardIndex = 1 }, valid with { ShardCount = 0 },
+            valid with { ShardIndex = -1 },
+            valid with { ModelOptions = [new("TF", .5m, .95m, TfWeight: 1)] }
+        })
+            Assert.That((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(invalid)), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Test_labels_and_identity_leakage_fail_before_discovery_or_closed_SQL()
     {
         using var sql = new SqlConnection();

@@ -49,13 +49,14 @@ public sealed class BlockingRuleSetSearchConfigurationTests
         }));
     }
 
-    [Test]
-    public void Invalid_configuration_fails_closed()
+    [TestCase("0")]
+    [TestCase("-1")]
+    public void Non_positive_configuration_fails_closed(string maximumPasses)
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["LinkageParameters:BlockingSearch:MaxPasses"] = "5"
+                ["LinkageParameters:BlockingSearch:MaxPasses"] = maximumPasses
             })
             .Build();
 

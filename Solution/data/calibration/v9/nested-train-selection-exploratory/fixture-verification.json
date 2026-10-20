@@ -1,0 +1,13 @@
+{
+  "fixture_only": true,
+  "nested_train_search_verified": true,
+  "external_validation_not_used_in_search": true,
+  "historical_validation_rejected": true,
+  "one_time_holdout_verified": true,
+  "no_refit": true,
+  "finalists": 1,
+  "compared_configurations": 1,
+  "certified": false,
+  "test_used": false,
+  "activated": false
+}

@@ -1,0 +1,22 @@
+{
+  "scope": "TRAIN_SELECTION_ONLY_HEURISTIC_FRONTIER_NOT_GLOBAL_OPTIMUM",
+  "envelope_sha256": "f8cb1fbc745dd0ec81f92cce9c7d30df58287fdc9e665be0638c7169da470543",
+  "plan_sha256": "a05164a6a80ac9358a7b13f4ef714edd5b659384f6ea8dd149a83dcdbb2c8a0c",
+  "original_observations_sha256": "28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17",
+  "assignment_sha256": "082a5232384738dac887bfd70ac65934bcb325e462a3010bc761664c887f723a",
+  "identities_by_purpose": {
+    "TRAIN_ADJUST": 11673,
+    "TRAIN_SELECTION": 5003
+  },
+  "configurations": 36,
+  "finalists": [],
+  "stop_reason": "NO_FEASIBLE_CONFIGURATION_NO_HOLDOUT_USED",
+  "rejection_counts": {
+    "SUPORTE_OBSERVADO_POR_CELULA_INSUFICIENTE": 36,
+    "FANOUT_P99_ACIMA_DO_ORCAMENTO": 18
+  },
+  "external_validation_used": false,
+  "test_used": false,
+  "certified": false,
+  "activated": false
+}

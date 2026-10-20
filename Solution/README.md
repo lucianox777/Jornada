@@ -1,3 +1,7 @@
+> **Fluxo V9 corrente — 19/10:** [seleção interna no TRAIN, parada heurística e avaliação única de até três finalistas congelados](docs/V9_Selecao_Interna_TRAIN_Finalistas_20261019.md). VALIDATION histórica não volta a ser holdout novo. Nenhuma certificação ou ativação automática.
+
+> **V9 — busca integral e contrato M/U (19/10):** [catálogo completo, faixas Recall × FDR, engenharia reversa, amostra e evidências físicas](docs/V9_Busca_Integral_Faixas_MU_20261019.md). Censo exaustivo de 524.287 combinações; avaliação do ótimo global ainda pendente.
+
 > **Implementação local V9 — 19/10/2026:** [snapshot portátil com TF, seleção pós-Resolve, validação executada e lacunas operacionais](docs/V9_Integracao_Local_20261019.md). O incremento não representa homologação ou ativação; consulte a PR e os checks da HEAD vigente. As fotografias históricas abaixo não substituem esse inventário de código.
 
 > **V9 — decisão e estado experimental de 18/10:** [auditoria de decisões e últimos runners](docs/V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md). Bootstrap V9 sintético automático: apenas clean; correlated só histórico. Resultados físicos ocorreram no SQL Server efêmero; formação Gold real, seletor pós-Resolve, TF positiva válida, TEST novo e governança HML/PROD continuam pendentes. PR aberta não é código na master.

@@ -1,0 +1,218 @@
+{
+  "scope": "PHYSICAL_30K_CONTROLS_AND_EXHAUSTIVE_LABEL_BLIND_CENSUS_NOT_OPTIMALITY",
+  "observations_sha256": "28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17",
+  "study_sha256": "2ee78f257fbf47322a03fee4ef852088485611ffc2204409b56dbe973dd58562",
+  "plan_sha256": "b3d9ea9118221a10f560046f6524a1e630bfa0c084c33fb0dca57f868f86e2fd",
+  "catalogue_census": {
+    "DistinctPhysicalEdges": 1146177,
+    "PhysicalEdgesSha256": "7763d2e989ab78d5702a03cd0391c7f67ef176f847c4c4513140229264d60c59",
+    "ProjectionContract": "V9_CANONICAL_CSHARP_SIGNATURE_SQL_JOIN_TRAIN_VALIDATION_V1",
+    "ProjectionFingerprintSha256": "7ba946552bb9453d4fc2942fcb91bc4e119d8100b6797ee96a8bbba00258e086",
+    "MaximumPrefixLength": 4
+  },
+  "candidate_coverage_sha256": "fff263ab72aae181dd9ddc6611fc8c674a7135ac43ac2ddb24c98168b4975024",
+  "configurations_enumerated": 524287,
+  "exact_candidate_classes": 60563,
+  "whole_configuration_search_evaluated": false,
+  "physically_evaluated_controls": 54,
+  "multiplicity": 14159502,
+  "complete_historical_look_count_verified": false,
+  "best_zero_fp": {
+    "OptionId": "19aa3655e43fef7b6938e96371e3a4daf10ca4a6fb66cc924d572e1d5200e035:A0.5_T0.95_TF0",
+    "Threshold": 0.95,
+    "TfWeight": 0,
+    "ConflictMargin": 0.5,
+    "CandidateGrouping": "BLIND_FS_COMPLETE_LINK_CANDIDATES",
+    "AllValidationObservations": 10296,
+    "EligibleSourceObservationsBeforeBlocking": 7841,
+    "EligibleSourceObservationsWithTrueSqlCandidate": 7834,
+    "TrueAcceptedSourceObservations": 7563,
+    "FalseAcceptedSourceObservations": 0,
+    "Conflicts": 150,
+    "Unresolved": 2583,
+    "BlockingSourceRecall": 0.9991072567274583,
+    "GlobalSourceRecall": 0.9645453386047698,
+    "FdrAfterResolve": 0,
+    "HoeffdingUpperBySourceBaseIdentity": 0.056568808161242025,
+    "PreBlockingBaseIdentities": 5556,
+    "ReasonsByResolveStatus": {
+      "ABAIXO_T_LINKAGE": 2304,
+      "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE": 150,
+      "RESOLVIDO": 7563,
+      "SEM_CANDIDATO_NO_RULESET_BLOCKING": 279
+    },
+    "SyntheticGoldOracleGrouping": false,
+    "OperationallyCertified": false,
+    "ImpureBlindGroups": 0,
+    "ConditionalClusterCpFdrUpper": 0.012162458759481154,
+    "ClopperPearsonUpperAnyFpByIdentity": 0.0036209977805964355,
+    "BonferroniComparedConfigurations": 14159502,
+    "ClusterIidIndependentlyValidated": false
+  },
+  "best_observed_recall": {
+    "OptionId": "19aa3655e43fef7b6938e96371e3a4daf10ca4a6fb66cc924d572e1d5200e035:A0.5_T0.9_TF0",
+    "Threshold": 0.9,
+    "TfWeight": 0,
+    "ConflictMargin": 0.5,
+    "CandidateGrouping": "BLIND_FS_COMPLETE_LINK_CANDIDATES",
+    "AllValidationObservations": 10296,
+    "EligibleSourceObservationsBeforeBlocking": 7841,
+    "EligibleSourceObservationsWithTrueSqlCandidate": 7834,
+    "TrueAcceptedSourceObservations": 7642,
+    "FalseAcceptedSourceObservations": 1,
+    "Conflicts": 158,
+    "Unresolved": 2495,
+    "BlockingSourceRecall": 0.9991072567274583,
+    "GlobalSourceRecall": 0.9746205841091697,
+    "FdrAfterResolve": 0.00013083867591259977,
+    "HoeffdingUpperBySourceBaseIdentity": 0.05608173057686333,
+    "PreBlockingBaseIdentities": 5556,
+    "ReasonsByResolveStatus": {
+      "ABAIXO_T_LINKAGE": 2216,
+      "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE": 158,
+      "RESOLVIDO": 7643,
+      "SEM_CANDIDATO_NO_RULESET_BLOCKING": 279
+    },
+    "SyntheticGoldOracleGrouping": false,
+    "OperationallyCertified": false,
+    "ImpureBlindGroups": 0,
+    "ConditionalClusterCpFdrUpper": 0.013917872466921038,
+    "ClopperPearsonUpperAnyFpByIdentity": 0.004193718519765633,
+    "BonferroniComparedConfigurations": 14159502,
+    "ClusterIidIndependentlyValidated": false
+  },
+  "risk_frontier": {
+    "Version": "V9_POST_RESOLVE_RISK_ENVELOPES_V1",
+    "Bands": [
+      {
+        "MaximumFdr": 0.001,
+        "BestConditionalOptionId": null,
+        "ConditionalRecall": null,
+        "ConditionalFdrUpper": null,
+        "BestEligibleOptionId": null,
+        "ConditionalExclusionReasons": [
+          "NENHUMA_CONFIGURACAO_NUMERICAMENTE_SUPORTADA_NA_FAIXA"
+        ]
+      },
+      {
+        "MaximumFdr": 0.0025,
+        "BestConditionalOptionId": null,
+        "ConditionalRecall": null,
+        "ConditionalFdrUpper": null,
+        "BestEligibleOptionId": null,
+        "ConditionalExclusionReasons": [
+          "NENHUMA_CONFIGURACAO_NUMERICAMENTE_SUPORTADA_NA_FAIXA"
+        ]
+      },
+      {
+        "MaximumFdr": 0.005,
+        "BestConditionalOptionId": null,
+        "ConditionalRecall": null,
+        "ConditionalFdrUpper": null,
+        "BestEligibleOptionId": null,
+        "ConditionalExclusionReasons": [
+          "NENHUMA_CONFIGURACAO_NUMERICAMENTE_SUPORTADA_NA_FAIXA"
+        ]
+      },
+      {
+        "MaximumFdr": 0.01,
+        "BestConditionalOptionId": null,
+        "ConditionalRecall": null,
+        "ConditionalFdrUpper": null,
+        "BestEligibleOptionId": null,
+        "ConditionalExclusionReasons": [
+          "NENHUMA_CONFIGURACAO_NUMERICAMENTE_SUPORTADA_NA_FAIXA"
+        ]
+      },
+      {
+        "MaximumFdr": 0.02,
+        "BestConditionalOptionId": "78:19aa3655e43fef7b6938e96371e3a4daf10ca4a6fb66cc924d572e1d5200e035:A0.5_T0.9_TF0|33:BLIND_FS_COMPLETE_LINK_CANDIDATES|0.5",
+        "ConditionalRecall": 0.9746205841091697,
+        "ConditionalFdrUpper": 0.013917872466921038,
+        "BestEligibleOptionId": null,
+        "ConditionalExclusionReasons": [
+          "P95_FISICO_NAO_ATESTADO",
+          "EVIDENCIA_ESTATISTICA_INSUFICIENTE",
+          "FANOUT_AUSENTE_OU_ACIMA_DA_POLITICA",
+          "FAIXA_EXPLORATORIA_ACIMA_DO_RISCO_OPERACIONAL"
+        ]
+      },
+      {
+        "MaximumFdr": 0.05,
+        "BestConditionalOptionId": "78:19aa3655e43fef7b6938e96371e3a4daf10ca4a6fb66cc924d572e1d5200e035:A0.5_T0.9_TF0|33:BLIND_FS_COMPLETE_LINK_CANDIDATES|0.5",
+        "ConditionalRecall": 0.9746205841091697,
+        "ConditionalFdrUpper": 0.013917872466921038,
+        "BestEligibleOptionId": null,
+        "ConditionalExclusionReasons": [
+          "P95_FISICO_NAO_ATESTADO",
+          "EVIDENCIA_ESTATISTICA_INSUFICIENTE",
+          "FANOUT_AUSENTE_OU_ACIMA_DA_POLITICA",
+          "FAIXA_EXPLORATORIA_ACIMA_DO_RISCO_OPERACIONAL"
+        ]
+      }
+    ],
+    "Scope": "VALIDATION_EXPLORATORY_NOT_CERTIFICATION",
+    "TestUsed": false,
+    "AutomaticActivationAllowed": false
+  },
+  "sample_design": {
+    "Assumptions": {
+      "Alpha": 0.05,
+      "Power": 0.8,
+      "RecallNull": 0.95,
+      "RecallAlternative": 0.97,
+      "RecallHalfWidth": 0.01,
+      "CellHalfWidth": 0.02,
+      "MinimumCellProbability": 0.001,
+      "Cells": 81,
+      "ComparedConfigurations": 14159502,
+      "MaximumAcceptedPerIndependentUnit": 4,
+      "ExpectedAcceptedPerIndependentUnit": 1.3,
+      "ValidationFraction": 0.2,
+      "TestFraction": 0.2,
+      "RetainedIndependentUnitFraction": 0.9,
+      "ExpectedEligibleSourcesPerIndependentUnit": 1.3
+    },
+    "RecallPrecisionIndependentUnits": 4252235,
+    "RecallPowerIndependentUnits": 402869,
+    "TrainingIndependentPairsPerClassForCellPrecision": 33286,
+    "TrainingIndependentPairsPerClassForAnyCellObservation": 25923,
+    "RiskBands": [
+      {
+        "MaximumFdr": 0.001,
+        "ValidationIndependentUnitsZeroError": 68921,
+        "TestIndependentUnitsZeroError": 16239
+      },
+      {
+        "MaximumFdr": 0.0025,
+        "ValidationIndependentUnitsZeroError": 28198,
+        "TestIndependentUnitsZeroError": 6644
+      },
+      {
+        "MaximumFdr": 0.005,
+        "ValidationIndependentUnitsZeroError": 14461,
+        "TestIndependentUnitsZeroError": 3407
+      },
+      {
+        "MaximumFdr": 0.01,
+        "ValidationIndependentUnitsZeroError": 7493,
+        "TestIndependentUnitsZeroError": 1766
+      },
+      {
+        "MaximumFdr": 0.02,
+        "ValidationIndependentUnitsZeroError": 3939,
+        "TestIndependentUnitsZeroError": 928
+      },
+      {
+        "MaximumFdr": 0.05,
+        "ValidationIndependentUnitsZeroError": 1739,
+        "TestIndependentUnitsZeroError": 410
+      }
+    ],
+    "RequiredBaseUnits": 23623528,
+    "Status": "CONDITIONAL_DESIGN_NOT_IID_OR_REPRESENTATIVENESS_EVIDENCE"
+  },
+  "test_used": false,
+  "certified": false,
+  "activated": false
+}
