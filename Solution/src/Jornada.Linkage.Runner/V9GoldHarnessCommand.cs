@@ -27,6 +27,8 @@ public static class V9GoldHarnessCommand
     private sealed record Source(long Id, string Truth, string Manager, IdentityObservation Observation);
     private sealed record Outcome(bool Eligible, bool TrueAccepted, bool FalseAccepted, string Status,
         bool PublishedTrueAssociation, bool PublishedFalseAssociation, string PublicationResult);
+    private sealed record PendingReasonCount(
+        string RawStatus, string RawReasonCategory, string PublicationReasonCategory, long Sources);
 
     public static void ValidateDisposableConnection(string connectionString)
     {
@@ -131,6 +133,16 @@ public static class V9GoldHarnessCommand
             var publishedFalse = outcomes.LongCount(x => x.Value.PublishedFalseAssociation);
             var finalOwnership = await OwnershipAsync(owner, truthByObservation);
             var impure = finalOwnership.Count(x => x.Value.Count > 1);
+            var finalGoldSources = await FinalGoldSourcesAsync(owner);
+            var goldEndToEnd = V9GoldEndToEndAudit.Measure(
+                truthByObservation.ToDictionary(x => x.Key, x => x.Value.Truth),
+                finalGoldSources);
+            var pendingReasonBreakdown = await PendingReasonsAsync(owner, outcomes);
+            if (goldEndToEnd.GoldReferences != finalOwnership.Count
+                || goldEndToEnd.ImpureGoldReferences != impure
+                || goldEndToEnd.PendingSources != outcomes.LongCount(x => x.Value.PublicationResult == "INDEFINIDA")
+                || pendingReasonBreakdown.Sum(x => x.Sources) != goldEndToEnd.PendingSources)
+                throw new InvalidDataException("Indicadores Gold e razões de pendência não reconciliam a publicação.");
             await using (var guard = new SqlCommand("SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status<>'RASCUNHO';", owner))
                 if (Convert.ToInt32(await guard.ExecuteScalarAsync(), CultureInfo.InvariantCulture) != 0)
                     throw new InvalidDataException("Modelo experimental sofreu promoção indevida.");
@@ -143,6 +155,7 @@ public static class V9GoldHarnessCommand
                 recallWithPriorGold = eligible == 0 ? (double?)null : (double)trueAccepted / eligible,
                 fdrAfterResolve = trueAccepted + falseAccepted == 0 ? (double?)null : (double)falseAccepted / (trueAccepted + falseAccepted),
                 goldIdentities = finalOwnership.Count, impureGoldIdentities = impure, waves, reevaluation,
+                goldEndToEnd, pendingReasonBreakdown,
                 publication = new
                 {
                     trueExistingLinks = publishedTrue, falseExistingLinks = publishedFalse,
@@ -318,6 +331,72 @@ public static class V9GoldHarnessCommand
         }
         await tx.CommitAsync();
         return result;
+    }
+
+    /// <summary>Reads the actually published FINAL Gold references, not just raw Resolve decisions.</summary>
+    private static async Task<Dictionary<long, Guid>> FinalGoldSourcesAsync(SqlConnection connection)
+    {
+        var sources = new Dictionary<long, Guid>();
+        await using var command = new SqlCommand("""
+            SELECT o.pessoa_observacao_id,p.canonical_uuid
+            FROM silver.pessoa_observacao o
+            JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id
+            JOIN gold.pessoa g ON g.pessoa_uuid=p.canonical_uuid
+            WHERE p.estado=N'REFERENCIA' AND g.estado_identidade=N'REFERENCIA';
+            """, connection);
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+            if (!sources.TryAdd(reader.GetInt64(0), reader.GetGuid(1)))
+                throw new InvalidDataException("Observação Gold duplicada no estado final.");
+        return sources;
+    }
+
+    /// <summary>
+    /// Aggregate the LAST published run result for each pending source.
+    /// Reason labels are intentionally bucketed: free-text reasons and UUIDs
+    /// never leave the disposable harness in the exported diagnostic.
+    /// </summary>
+    private static async Task<List<PendingReasonCount>> PendingReasonsAsync(
+        SqlConnection connection, IReadOnlyDictionary<long, Outcome> outcomes)
+    {
+        var counts = new Dictionary<(string RawStatus, string RawCategory, string PublicationCategory), long>();
+        var seen = new HashSet<long>();
+        await using var command = new SqlCommand("""
+            WITH latest AS (
+                SELECT r.pessoa_observacao_id,r.status,r.motivo,r.resultado_publicacao,
+                       r.motivo_publicacao,
+                       ROW_NUMBER() OVER(
+                           PARTITION BY r.pessoa_observacao_id
+                           ORDER BY r.linkage_resultado_id DESC) AS rn
+                FROM identidade.linkage_resultado r
+            )
+            SELECT pessoa_observacao_id,status,motivo,resultado_publicacao,motivo_publicacao
+            FROM latest WHERE rn=1;
+            """, connection);
+        await using var reader = await command.ExecuteReaderAsync();
+        while (await reader.ReadAsync())
+        {
+            var id = reader.GetInt64(0);
+            var status = reader.GetString(1);
+            var result = reader.IsDBNull(3) ? "" : reader.GetString(3);
+            if (!seen.Add(id) || !outcomes.TryGetValue(id, out var expected)
+                || expected.PublicationResult != result || expected.Status != status)
+                throw new InvalidDataException("Último resultado SQL diverge do run publicado por fonte.");
+            if (result != "INDEFINIDA") continue;
+            var raw = reader.IsDBNull(2) ? null : reader.GetString(2);
+            var publication = reader.IsDBNull(4) ? null : reader.GetString(4);
+            var key = (status, V9GoldEndToEndAudit.ReasonCategory(raw),
+                V9GoldEndToEndAudit.ReasonCategory(publication));
+            counts[key] = counts.GetValueOrDefault(key) + 1;
+        }
+        if (seen.Count != outcomes.Count)
+            throw new InvalidDataException("Motivos de publicação não cobrem todas as fontes.");
+        return counts.OrderByDescending(x => x.Value)
+            .ThenBy(x => x.Key.RawStatus, StringComparer.Ordinal)
+            .ThenBy(x => x.Key.RawCategory, StringComparer.Ordinal)
+            .ThenBy(x => x.Key.PublicationCategory, StringComparer.Ordinal)
+            .Select(x => new PendingReasonCount(x.Key.RawStatus,
+                x.Key.RawCategory, x.Key.PublicationCategory, x.Value)).ToList();
     }
 
     private static async Task<Dictionary<Guid, HashSet<string>>> OwnershipAsync(SqlConnection connection, Dictionary<long, Source> truth)
