@@ -25,6 +25,14 @@ será executado quando houver entrada de ordem explícita no harness.
 `GoldTrainThreeOrderProtocol.ResolveOrder` aceita apenas estas três
 ordens e exatamente G0/G1/G2/G3 sem repetição. O comparador
 `GoldTrainThreeOrderProtocol.Compare` exige três provas de corrida
+distintas e o contrato `TRAIN_CSV_OBSERVATION_ID_NOT_SQL_ID_V1`:
+**as chaves para comparar partições são os IDs estáveis do CSV TRAIN**,
+NUNCA o `pessoa_observacao_id` gerado por IDENTITY no SQL, pois muda
+quando as ondas são inseridas em ordens diferentes. O harness precisa
+converter `pessoa_observacao_id` → `Source.Id` do mesmo CSV antes de
+alimentar o comparador. O par de nomes `gestor`/`OBS_<Source.Id>`
+permite auditar essa conversão a partir das fontes do harness.
+O protocolo exige
 distintas, mesmo SHA256 do TRAIN, mesmo SHA256 do snapshot, mesmos
 rótulos independentes para todas as observações e sequência executada
 exatamente igual à pré-declarada. Recusa flag TEST, ativação e onda
