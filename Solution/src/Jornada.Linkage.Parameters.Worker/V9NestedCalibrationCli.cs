@@ -109,7 +109,8 @@ public static class V9NestedCalibrationCli
         await using var csv = File.OpenRead(source);
         var sourceSha = Convert.ToHexString(await SHA256.HashDataAsync(csv)).ToLowerInvariant();
         var fresh = V9FreshHoldoutProtocol.Inspect(manifestBytes, sourceSha, original,
-            root.GetProperty("producerSeed").GetUInt64(), plan.Calibration.MaximumAcceptedPerBaseIdentity);
+            root.GetProperty("producerSeed").GetUInt64(), plan.Calibration.MaximumAcceptedPerBaseIdentity,
+            isPlumbingFixture: plan.Purpose == "PLUMBING_FIXTURE_NOT_CERTIFICATION");
         var snapshots = new List<V9FittedSnapshot>();
         foreach (var id in ids)
         {

@@ -34,7 +34,7 @@ O envelope `<SHA>.selection.json` contém plano, manifesto interno, todas as ava
 
 `--v9-validate-finalists <plano> <SHA.selection.json> <CSV-novo> <diretório-novo>` exige o envelope e os mesmos parâmetros, um a três snapshots fixados e um manifesto do gerador C# compatível. Verifica SHA do manifesto/CSV e cap populacional **4**, separadamente do guard de tamanho do cluster BLIND, que permanece 16.
 
-São recusadas seeds históricas 42/43/44, a seed da massa de ajuste e o mesmo arquivo de origem. Identidades de coortes sintéticas diferentes recebem namespace do manifesto, pois o gerador reutiliza IDs locais `P0000000` entre seeds. Esse namespace evita colisão administrativa; não comprova independência estatística.
+São recusadas seeds históricas 42/43/44, a seed da massa de ajuste e o mesmo arquivo de origem. A seed 20261019001 fica reservada às fixtures e também é recusada para avaliação do bootstrap. Identidades de coortes sintéticas diferentes recebem namespace do manifesto, pois o gerador reutiliza IDs locais `P0000000` entre seeds. Esse namespace evita colisão administrativa; não comprova independência estatística.
 
 Antes de ler os atributos da nova VALIDATION, o processo reserva atomicamente uma exposição por seed para o envelope e os finalistas exatos. Registro padrão: `%LOCALAPPDATA%/Jornada/V9/holdout-exposures` no Windows, ou diretório correspondente de dados locais do usuário. Fixtures usam `JORNADA_V9_HOLDOUT_REGISTRY` isolado. Tentativa interrompida conserva a reserva; não se apaga a tentativa nem se fornece outro trio com novo alpha no mesmo holdout. Registro local não é prova universal de ausência de consultas externas: a governança da coorte continua necessária.
 
@@ -67,6 +67,6 @@ dotnet <Jornada.Linkage.Parameters.Worker.dll> --v9-calibrate <plano-novo.json> 
 python Solution/scripts/v9-nested-calibration-verify.py search <diretorio-novo>
 ```
 
-Conexão `ConnectionStrings__Jornada` somente para banco descartável `JornadaHarness`. Para exportar a curva com Matplotlib 3.10.8: `v9-nested-gain-plot.py <gain-by-batch.json> <novo.svg>`. A CI reproduz a busca interna, a prova pequena de finalistas e as rejeições de holdout; **não executa a antiga grade na VALIDATION histórica**. As CLIs antigas permanecem como diagnósticos históricos explícitos, sem promoção.
+Conexão `ConnectionStrings__Jornada` somente para banco descartável `JornadaHarness`. Para exportar a curva com Matplotlib 3.10.8: `v9-nested-gain-plot.py <gain-by-batch.json> <novo.svg>`. O workflow dedicado V9 reproduz a busca interna, a prova pequena de finalistas e as rejeições de holdout; **não executa a antiga grade de seleção na VALIDATION histórica**. As regressões legadas independentes da CI geral permanecem históricas e não fornecem evidência ao novo trio. As CLIs antigas permanecem como diagnósticos históricos explícitos, sem promoção.
 
 Pendências de homologação: resolver suporte/suficiência das células com contrato estatístico defensável, demonstrar incerteza residual aplicável ao pipeline, medir Runner incremental/Gold real, obter finalistas viáveis, executar nova VALIDATION real e TEST congelado e cumprir promoção `ref`/DT-15. Merge do fluxo não encerra essas pendências nem ativa V9.

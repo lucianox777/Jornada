@@ -10,7 +10,7 @@ public sealed record V9FreshHoldoutDeclaration(ulong Seed, string ManifestSha256
 public static class V9FreshHoldoutProtocol
 {
     public static V9FreshHoldoutDeclaration Inspect(ReadOnlySpan<byte> manifestBytes, string observationsSha256,
-        string originalObservationsSha256, ulong originalSeed, int acceptedCap)
+        string originalObservationsSha256, ulong originalSeed, int acceptedCap, bool isPlumbingFixture = false)
     {
         using var document = JsonDocument.Parse(manifestBytes.ToArray());
         var m = document.RootElement;
@@ -22,7 +22,8 @@ public static class V9FreshHoldoutProtocol
             manifestSha, observationsSha256);
         V9SyntheticObservationCapEvidence.ValidateManifest(manifestBytes, declaration, observationsSha256, acceptedCap);
         var seed = m.GetProperty("seed").GetUInt64();
-        if (seed is 42 or 43 or 44 || seed == originalSeed || string.Equals(observationsSha256, originalObservationsSha256, StringComparison.OrdinalIgnoreCase)
+        if (seed is 42 or 43 or 44 || seed == originalSeed || seed == 20261019001UL && !isPlumbingFixture
+            || string.Equals(observationsSha256, originalObservationsSha256, StringComparison.OrdinalIgnoreCase)
             || m.GetProperty("error_profile").GetString() != "clean"
             || m.GetProperty("population_profile").GetString() != "DEMOGRAPHIC_PRIMARY_V1")
             throw new InvalidDataException("VALIDATION histórica/exposta ou perfil incompatível; não reiniciar multiplicidade em três.");

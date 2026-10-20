@@ -56,7 +56,7 @@ public sealed class V9NestedCalibrationTests
             outputs = new[] { new { path = "observacoes.csv", sha256 = csvSha } } });
         var fresh = V9FreshHoldoutProtocol.Inspect(Manifest(1000), csvSha, new string('c', 64), 42, 4);
         Assert.That(fresh.Scope, Does.Contain("NOT_IID_CERTIFICATION"));
-        foreach (var seed in new ulong[] { 42, 43, 44, 1000 })
+        foreach (var seed in new ulong[] { 42, 43, 44, 1000, 20261019001 })
             Assert.That((Action)(() => V9FreshHoldoutProtocol.Inspect(Manifest(seed), csvSha, new string('c', 64), 1000, 4)),
                 Throws.TypeOf<InvalidDataException>());
         Assert.That((Action)(() => V9FreshHoldoutProtocol.Inspect(Manifest(1000), csvSha, csvSha, 42, 4)), Throws.TypeOf<InvalidDataException>());
