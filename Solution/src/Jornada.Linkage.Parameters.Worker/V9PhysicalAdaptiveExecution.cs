@@ -48,7 +48,7 @@ public sealed record V9PhysicalAdaptiveExecution(
 }
 
 public sealed record V9PhysicalFrozenConfiguration(string OptionId, decimal ConflictMargin,
-    V9FittedSnapshot Snapshot);
+    V9FittedSnapshot Snapshot, V9FittedJointSupportAudit.Report? JointSupport = null);
 
 public sealed record V9PhysicalEndToEndMeasurement(string OptionId, string CandidateGrouping,
     decimal ConflictMargin, string ProtocolSha256, string EnvironmentSha256,

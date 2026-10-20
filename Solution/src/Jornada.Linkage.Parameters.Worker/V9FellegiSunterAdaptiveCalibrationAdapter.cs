@@ -547,7 +547,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         int? maximumBlindClusterSize = null,
         IReadOnlySet<string>? evaluatedOptionIds = null,
         bool fsBlindGroupingOnly = false,
-        int? totalComparedConfigurations = null)
+        int? totalComparedConfigurations = null,
+        bool includeIdentityOutcomes = false)
     {
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(validationSqlPairs);
@@ -656,6 +657,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             .Select(g => g.Key).ToHashSet(StringComparer.Ordinal);
         var eligibleSources = validation.Values.LongCount(
             x => eligibleBases.Contains(x.BasePersonId));
+        var eligibleSourcesByBase = includeIdentityOutcomes ? validation.Values
+            .GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => eligibleBases.Contains(g.Key) ? g.LongCount() : 0, StringComparer.Ordinal) : null;
         if (eligibleSources == 0)
             throw new InvalidDataException("Nenhuma fonte possui par verdadeiro elegível.");
         var trueSqlSources = validation.Values.LongCount(source =>
@@ -887,7 +891,11 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                         ClopperPearsonUpperAnyFpByIdentity:
                             cp.UpperProbabilityOfAnyGroupErrorClopperPearson,
                         BonferroniComparedConfigurations: predeclaredComparedConfigurations,
-                        ClusterIidIndependentlyValidated: false));
+                        ClusterIidIndependentlyValidated: false,
+                        IdentityOutcomes: includeIdentityOutcomes ? Array.AsReadOnly(sourcesByIdentity.Select(g =>
+                            new V9SourceIdentityOutcome(g.BaseIdentityFingerprint,
+                                eligibleSourcesByBase!.GetValueOrDefault(g.BaseIdentityFingerprint),
+                                g.TrueAccepted, g.FalseAccepted)).ToArray()) : null));
                 }
             }
 

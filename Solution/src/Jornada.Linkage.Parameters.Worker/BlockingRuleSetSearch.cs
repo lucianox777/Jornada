@@ -13,13 +13,13 @@ public sealed record BlockingRuleSetSearchOptions(
 {
     public void Validate()
     {
-        if (MaxFieldsPerPass is < 1 or > 3)
+        if (MaxFieldsPerPass < 1)
             throw new ArgumentOutOfRangeException(nameof(MaxFieldsPerPass));
-        if (MaxPasses is < 1 or > 4)
+        if (MaxPasses < 1)
             throw new ArgumentOutOfRangeException(nameof(MaxPasses));
-        if (PrimitivePoolSize is < 1 or > 4096)
+        if (PrimitivePoolSize < 1)
             throw new ArgumentOutOfRangeException(nameof(PrimitivePoolSize));
-        if (CandidateRuleSetCap is < 1 or > 1_000_000)
+        if (CandidateRuleSetCap < 1)
             throw new ArgumentOutOfRangeException(nameof(CandidateRuleSetCap));
         if (MinimumTrueMatchRecall is < 0d or > 1d)
             throw new ArgumentOutOfRangeException(nameof(MinimumTrueMatchRecall));

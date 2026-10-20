@@ -2,7 +2,13 @@ using Jornada.Operational.Sql;
 using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Parameters.Worker;
 
-if (args.Length > 0 && args[0] == "--v9-adaptive-study")
+if (args.Length > 0 && args[0] is "--v9-calibrate" or "--v9-validate-finalists")
+{
+    await V9NestedCalibrationCli.RunAsync(args);
+    return;
+}
+
+if (args.Length > 0 && args[0] is "--v9-adaptive-study" or "--v9-adaptive-census")
 {
     await V9AdaptiveCalibrationStudyCli.RunAsync(args);
     return;

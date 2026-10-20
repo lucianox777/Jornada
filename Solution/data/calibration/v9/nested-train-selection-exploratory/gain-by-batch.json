@@ -1,0 +1,53 @@
+[
+  {
+    "Batch": 1,
+    "NewConfigurations": 36,
+    "TotalConfigurations": 36,
+    "Bands": [
+      {
+        "MaximumFdr": 0.001,
+        "SnapshotSha256": null,
+        "Recall": null,
+        "Fdr": null
+      },
+      {
+        "MaximumFdr": 0.0025,
+        "SnapshotSha256": null,
+        "Recall": null,
+        "Fdr": null
+      },
+      {
+        "MaximumFdr": 0.005,
+        "SnapshotSha256": null,
+        "Recall": null,
+        "Fdr": null
+      },
+      {
+        "MaximumFdr": 0.01,
+        "SnapshotSha256": null,
+        "Recall": null,
+        "Fdr": null
+      },
+      {
+        "MaximumFdr": 0.02,
+        "SnapshotSha256": null,
+        "Recall": null,
+        "Fdr": null
+      },
+      {
+        "MaximumFdr": 0.05,
+        "SnapshotSha256": null,
+        "Recall": null,
+        "Fdr": null
+      }
+    ],
+    "MaximumRecallGain": 0,
+    "MaximumFdrGain": 0,
+    "RecallResolution": 0.0001,
+    "FdrResolution": 1E-05,
+    "MaterialGain": false,
+    "ConsecutiveStagnantBatches": 1,
+    "UncertaintyScope": "PAIRED_IDENTITY_BOOTSTRAP_HEURISTIC_NOT_IID_CERTIFICATION",
+    "MaximumGainInResolutionUnits": 0
+  }
+]

@@ -1,0 +1,339 @@
+{
+  "Calibration": {
+    "StudyFingerprintSha256": "1e5893a1baf3ff5f66957ed9361c76c82a526b66b3d1b0c9904e4d5b5c4c38f7",
+    "Discovery": {
+      "MaximumPrefixLength": 4,
+      "NonMatchSampleSize": 100000,
+      "NonMatchSampleSeed": 20261019,
+      "PositivePairCap": 2000000,
+      "PairSamplingAttemptCap": 10000000,
+      "SearchOptions": null
+    },
+    "ModelOptions": [
+      {
+        "OptionId": "A0.1_T0.9_TF0",
+        "SmoothingAlpha": 0.1,
+        "DecisionThreshold": 0.9,
+        "TfWeight": 0,
+        "TfSide": 0,
+        "TfMinimumFrequency": 0.000001,
+        "TfMinimumIndependentSupport": 1,
+        "FingerprintSha256": "8e29b060f3de125ee4ce0ca42fa6f8403e8732ddfeefaa37c43a5cddca4ab14c"
+      },
+      {
+        "OptionId": "A0.1_T0.95_TF0",
+        "SmoothingAlpha": 0.1,
+        "DecisionThreshold": 0.95,
+        "TfWeight": 0,
+        "TfSide": 0,
+        "TfMinimumFrequency": 0.000001,
+        "TfMinimumIndependentSupport": 1,
+        "FingerprintSha256": "141ba1978cafd8b4ef9fada5319266ccd0fd188f9f27ef4f899e3881c0e16577"
+      },
+      {
+        "OptionId": "A0.1_T0.99_TF0",
+        "SmoothingAlpha": 0.1,
+        "DecisionThreshold": 0.99,
+        "TfWeight": 0,
+        "TfSide": 0,
+        "TfMinimumFrequency": 0.000001,
+        "TfMinimumIndependentSupport": 1,
+        "FingerprintSha256": "1db14426f3d4cfa3259de7f8c26888fc45303045669e549623a6792d66290cfe"
+      },
+      {
+        "OptionId": "A0.5_T0.9_TF0",
+        "SmoothingAlpha": 0.5,
+        "DecisionThreshold": 0.9,
+        "TfWeight": 0,
+        "TfSide": 0,
+        "TfMinimumFrequency": 0.000001,
+        "TfMinimumIndependentSupport": 1,
+        "FingerprintSha256": "f84441255fbb337de5f741b3362fa0db22ca00403a8a4638c864189d463e4fb3"
+      },
+      {
+        "OptionId": "A0.5_T0.95_TF0",
+        "SmoothingAlpha": 0.5,
+        "DecisionThreshold": 0.95,
+        "TfWeight": 0,
+        "TfSide": 0,
+        "TfMinimumFrequency": 0.000001,
+        "TfMinimumIndependentSupport": 1,
+        "FingerprintSha256": "c32c51f5cca8ffa1dacf8f3df7d88a7c48a3f621c415428b365e69258f37fe1b"
+      },
+      {
+        "OptionId": "A0.5_T0.99_TF0",
+        "SmoothingAlpha": 0.5,
+        "DecisionThreshold": 0.99,
+        "TfWeight": 0,
+        "TfSide": 0,
+        "TfMinimumFrequency": 0.000001,
+        "TfMinimumIndependentSupport": 1,
+        "FingerprintSha256": "dc41e54413d98ac46e45c53c3ff1cf99dec382b9425eee53adfd3c8328fae19a"
+      },
+      {
+        "OptionId": "A1_T0.9_TF0",
+        "SmoothingAlpha": 1,
+        "DecisionThreshold": 0.9,
+        "TfWeight": 0,
+        "TfSide": 0,
+        "TfMinimumFrequency": 0.000001,
+        "TfMinimumIndependentSupport": 1,
+        "FingerprintSha256": "3fc0d2e719844bbe394d0b82f66f257859b4d2dda666d75557794d6416782fcb"
+      },
+      {
+        "OptionId": "A1_T0.95_TF0",
+        "SmoothingAlpha": 1,
+        "DecisionThreshold": 0.95,
+        "TfWeight": 0,
+        "TfSide": 0,
+        "TfMinimumFrequency": 0.000001,
+        "TfMinimumIndependentSupport": 1,
+        "FingerprintSha256": "6c164ffa1faef26ad32bb9330147337d584d5274da9b4b16c42fce6e7ab6e167"
+      },
+      {
+        "OptionId": "A1_T0.99_TF0",
+        "SmoothingAlpha": 1,
+        "DecisionThreshold": 0.99,
+        "TfWeight": 0,
+        "TfSide": 0,
+        "TfMinimumFrequency": 0.000001,
+        "TfMinimumIndependentSupport": 1,
+        "FingerprintSha256": "7fa7b26e73426c7aded17313d25c2c8bfc77e3ba4ed8933891a12469e9b27c54"
+      }
+    ],
+    "ConflictMargins": [
+      0.5,
+      2
+    ],
+    "Budget": {
+      "Version": "ADAPTIVE_CALIBRATION_PREVIEW_BUDGET_V1",
+      "StudyFingerprintSha256": "1e5893a1baf3ff5f66957ed9361c76c82a526b66b3d1b0c9904e4d5b5c4c38f7",
+      "MinimumGlobalAcceptedRecall": 0.95,
+      "MaximumObservedAcceptedFdrPoint": 0.01,
+      "MaximumBlockingFalseDegreeP99": 100,
+      "MinimumValidationIdentityGroups": 1000
+    },
+    "SelectionPolicy": {
+      "MinimumGlobalRecall": 0.95,
+      "MaximumAcceptedFdrUpper": 0.01,
+      "MinimumIndependentIdentityGroups": 1000,
+      "MaximumP95Milliseconds": 60000
+    },
+    "MaximumPhysicalRuleSets": 1000000,
+    "MaximumComparedConfigurations": 1000000,
+    "Execution": {
+      "MaximumPrefixLength": 4,
+      "EndToEndRepetitions": 20,
+      "TotalComparedConfigurations": null,
+      "FsBlindGroupingOnly": true,
+      "MaximumBlindClusterSize": 16,
+      "MaximumCandidatePairIncidences": 20000000,
+      "MaximumProjectedSignatures": 5000000
+    },
+    "MinimumGroupingPosterior": 0.99,
+    "MaximumAcceptedPerBaseIdentity": 4,
+    "PreviouslyComparedValidationConfigurations": 0,
+    "BaselineRuleSets": [
+      [
+        {
+          "PassId": "P_FIRST_BIRTH_YEAR",
+          "Fields": [
+            "name_first",
+            "birth_year"
+          ]
+        },
+        {
+          "PassId": "P_LAST_M_PHON",
+          "Fields": [
+            "name_last",
+            "mother_name_phonetic_ptbr"
+          ]
+        },
+        {
+          "PassId": "P_PHON_M_LAST",
+          "Fields": [
+            "name_phonetic_ptbr",
+            "mother_name_last"
+          ]
+        }
+      ]
+    ],
+    "ObservationCapDeclaration": {
+      "ContractVersion": "SYNTHETIC_BASE_OBSERVATION_MULTIPLICITY_V1",
+      "GeneratorVersion": "JORNADA_SYNTH_CORPUS_CSHARP_V1",
+      "MaximumObservationsPerBaseIdentity": 4,
+      "ManifestSha256": "3d6dcb2b825981b3ae51468fb0567022f8989ce0d55313cc3bb6e8d5e2ad20c8",
+      "ObservationsSha256": "28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17"
+    },
+    "MaximumParallelRuleSets": 2,
+    "RiskCeilings": [
+      0.001,
+      0.0025,
+      0.005,
+      0.01,
+      0.02,
+      0.05
+    ],
+    "SampleDesign": null,
+    "DeclaredSearchSpace": {
+      "Catalogue": [
+        {
+          "PassId": "P_ANY_BIRTH_YEAR",
+          "Fields": [
+            "name_surnames",
+            "birth_year"
+          ]
+        },
+        {
+          "PassId": "P_ANY_DOB_MONTHDAY",
+          "Fields": [
+            "name_surnames",
+            "birth_day",
+            "birth_month"
+          ]
+        },
+        {
+          "PassId": "P_ANY_M_PHON",
+          "Fields": [
+            "name_surnames",
+            "mother_name_phonetic_ptbr"
+          ]
+        },
+        {
+          "PassId": "P_FIRST_BIRTH_YEAR",
+          "Fields": [
+            "name_first",
+            "birth_year"
+          ]
+        },
+        {
+          "PassId": "P_FIRST_DOB_MONTHDAY",
+          "Fields": [
+            "name_first",
+            "birth_day",
+            "birth_month"
+          ]
+        },
+        {
+          "PassId": "P_FIRST_M_FIRST",
+          "Fields": [
+            "name_first",
+            "mother_name_first"
+          ]
+        },
+        {
+          "PassId": "P_FIRST_M_LAST",
+          "Fields": [
+            "name_first",
+            "mother_name_last"
+          ]
+        },
+        {
+          "PassId": "P_FIRST_M_PHON",
+          "Fields": [
+            "name_first",
+            "mother_name_phonetic_ptbr"
+          ]
+        },
+        {
+          "PassId": "P_LAST_M_ANY",
+          "Fields": [
+            "name_last",
+            "mother_name_surnames"
+          ]
+        },
+        {
+          "PassId": "P_LAST_M_FIRST",
+          "Fields": [
+            "name_last",
+            "mother_name_first"
+          ]
+        },
+        {
+          "PassId": "P_LAST_M_PHON",
+          "Fields": [
+            "name_last",
+            "mother_name_phonetic_ptbr"
+          ]
+        },
+        {
+          "PassId": "P_PHON_BIRTH_YEAR",
+          "Fields": [
+            "name_phonetic_ptbr",
+            "birth_year"
+          ]
+        },
+        {
+          "PassId": "P_PHON_M_ANY",
+          "Fields": [
+            "name_phonetic_ptbr",
+            "mother_name_surnames"
+          ]
+        },
+        {
+          "PassId": "P_PHON_M_FIRST",
+          "Fields": [
+            "name_phonetic_ptbr",
+            "mother_name_first"
+          ]
+        },
+        {
+          "PassId": "P_PHON_M_LAST",
+          "Fields": [
+            "name_phonetic_ptbr",
+            "mother_name_last"
+          ]
+        },
+        {
+          "PassId": "P_PREFIX3_BIRTH_YEAR",
+          "Fields": [
+            "name_prefix_3",
+            "birth_year"
+          ]
+        },
+        {
+          "PassId": "P_PREFIX3_DOB",
+          "Fields": [
+            "name_prefix_3",
+            "birth_day",
+            "birth_month",
+            "birth_year"
+          ]
+        },
+        {
+          "PassId": "P_PREFIX3_M_LAST",
+          "Fields": [
+            "name_prefix_3",
+            "mother_name_last"
+          ]
+        },
+        {
+          "PassId": "P_PREFIX3_M_PREFIX3",
+          "Fields": [
+            "name_prefix_3",
+            "mother_name_prefix_3"
+          ]
+        }
+      ],
+      "MinimumPasses": 19,
+      "MaximumPasses": 19,
+      "FingerprintSha256": "d0d896068d1356377071b60610fe81a05080103f0ba1276ba6075695893810e8"
+    },
+    "CollapseEquivalentCandidateFrames": false,
+    "ShardIndex": 0,
+    "ShardCount": 1
+  },
+  "SplitSeed": "JORNADA_V9_INTERNAL_70_30_20261019_V1",
+  "MaximumBatches": 32,
+  "MaximumSearchConfigurations": 1000000,
+  "BootstrapRepetitions": 2000,
+  "BootstrapSeed": 20261019,
+  "MinimumObservedMPerCell": 1,
+  "MinimumObservedUPerCell": 1,
+  "InitialThresholdStep": 0.025,
+  "InitialMarginStep": 0.25,
+  "AdjustmentFraction": 0.7,
+  "MinimumRecallImprovement": 0.0001,
+  "MinimumFdrImprovement": 1E-05,
+  "Purpose": "BOOTSTRAP_CANDIDATE_SELECTION"
+}

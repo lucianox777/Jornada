@@ -143,9 +143,12 @@ public static class V9PhysicalCalibrationEvidenceCli
     }
 
     public static V9PhysicalCalibrationObservation[] ReadNoCpfTrainValidation(string file,
-        int minimumObservationCount = 1000, int? maximumObservationsPerBaseIdentity = null)
+        int minimumObservationCount = 1000, int? maximumObservationsPerBaseIdentity = null,
+        string? onlyPartition = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(minimumObservationCount, 4);
+        if (onlyPartition is not (null or "TRAIN" or "VALIDATION"))
+            throw new InvalidDataException("Leitor de calibração não abre TEST.");
         if (maximumObservationsPerBaseIdentity is < 1)
             throw new ArgumentOutOfRangeException(nameof(maximumObservationsPerBaseIdentity));
         using var csv = new TextFieldParser(file);
@@ -181,6 +184,8 @@ public static class V9PhysicalCalibrationEvidenceCli
             partitionByBaseIdentity[baseIdentity] = partition;
             if (partition == "TEST")
                 continue; // TEST não entra no probe ou na seleção.
+            if (onlyPartition is not null && partition != onlyPartition)
+                continue; // Do not parse names, DOB or CPF from the external holdout during search.
             if (maximumObservationsPerBaseIdentity is { } cap)
             {
                 var count = observationCounts.GetValueOrDefault(baseIdentity) + 1;
@@ -198,8 +203,8 @@ public static class V9PhysicalCalibrationEvidenceCli
                 Get("gestor"), Get("nome"), Get("nome_mae"), dob));
         }
         if (rows.Count < minimumObservationCount
-            || !rows.Any(x => x.Partition == "TRAIN")
-            || !rows.Any(x => x.Partition == "VALIDATION"))
+            || (onlyPartition is null or "TRAIN") && !rows.Any(x => x.Partition == "TRAIN")
+            || (onlyPartition is null or "VALIDATION") && !rows.Any(x => x.Partition == "VALIDATION"))
             throw new InvalidDataException("Corpus sem CPF TRAIN/VALIDATION insuficiente.");
         return rows.ToArray();
     }

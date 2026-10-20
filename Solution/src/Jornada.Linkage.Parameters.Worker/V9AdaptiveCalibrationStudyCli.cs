@@ -15,8 +15,8 @@ public static class V9AdaptiveCalibrationStudyCli
 
     public static async Task RunAsync(string[] args)
     {
-        if (args.Length != 4 || args[0] != "--v9-adaptive-study")
-            throw new ArgumentException("Uso: --v9-adaptive-study <plano.json> <observacoes.csv> <novo-diretorio>");
+        if (args.Length != 4 || args[0] is not ("--v9-adaptive-study" or "--v9-adaptive-census"))
+            throw new ArgumentException("Uso: --v9-adaptive-study|--v9-adaptive-census <plano.json> <observacoes.csv> <novo-diretorio>");
         var planPath = Path.GetFullPath(args[1]);
         var inputPath = Path.GetFullPath(args[2]);
         var outputPath = Path.GetFullPath(args[3]);
@@ -60,9 +60,30 @@ public static class V9AdaptiveCalibrationStudyCli
         await WriteNewJsonAsync(Path.Combine(outputPath, "plan.json"), plan);
         try
         {
-            await using var connection = new SqlConnection(connectionString);
-            await connection.OpenAsync();
-            var result = await V9AdaptiveCalibrationCoordinator.RunAsync(connection,
+            if (args[0] == "--v9-adaptive-census")
+            {
+                if (plan.DeclaredSearchSpace is null)
+                    throw new InvalidDataException("Censo exige espaço integral declarado.");
+                var fullCount = checked((long)plan.DeclaredSearchSpace.Count() + (plan.BaselineRuleSets?.Count ?? 0));
+                var compared = V9AdaptiveCalibrationCoordinator.CountComparedConfigurations(plan, fullCount);
+                await using var connection = new SqlConnection(connectionString);
+                await connection.OpenAsync();
+                var census = await V9PhysicalSqlAdaptiveCalibrationProbe.ReadCatalogueEdgeMasksAsync(connection,
+                    observations, plan.DeclaredSearchSpace, plan.Execution, CancellationToken.None);
+                await WriteNewJsonAsync(Path.Combine(outputPath, "catalogue-census.json"), census);
+                var coverage = V9CandidateFrameEquivalence.Partition(plan.DeclaredSearchSpace, census.EdgeMasks, CancellationToken.None);
+                await WriteNewJsonAsync(Path.Combine(outputPath, "candidate-frame-coverage.json"), coverage);
+                Console.WriteLine(JsonSerializer.Serialize(new { census.DistinctPhysicalEdges,
+                    coverage.ConfigurationsEnumerated, exactClasses = coverage.Classes.Count,
+                    multiplicity = compared, outcomesUsed = false, testUsed = false, activated = false }));
+                return;
+            }
+            var result = await V9AdaptiveCalibrationCoordinator.RunParallelAsync(async ct =>
+            {
+                var connection = new SqlConnection(connectionString);
+                try { await connection.OpenAsync(ct); return connection; }
+                catch { await connection.DisposeAsync(); throw; }
+            },
                 observations, plan, CancellationToken.None);
             foreach (var configuration in result.FrozenConfigurations)
             {

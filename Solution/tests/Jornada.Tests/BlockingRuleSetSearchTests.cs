@@ -258,12 +258,12 @@ public sealed class BlockingRuleSetSearchTests
     }
 
     [Test]
-    public void SearchOptions_RejectUnboundedValues()
+    public void SearchOptions_RejectNonPositiveValues()
     {
         Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
-            new BlockingRuleSetSearchOptions(MaxFieldsPerPass: 4).Validate()));
+            new BlockingRuleSetSearchOptions(MaxFieldsPerPass: 0).Validate()));
         Assert.Throws<ArgumentOutOfRangeException>((Action)(() =>
-            new BlockingRuleSetSearchOptions(MaxPasses: 5).Validate()));
+            new BlockingRuleSetSearchOptions(MaxPasses: 0).Validate()));
     }
 
     private static BlockingFeatureObservation Obs(
