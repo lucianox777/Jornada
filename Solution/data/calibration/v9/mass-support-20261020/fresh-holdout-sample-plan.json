@@ -1,0 +1,49 @@
+{
+  "externalDesign": {
+    "Alpha": 0.05,
+    "ExternalValidationMultiplicity": 1,
+    "FrozenTestMultiplicity": 1,
+    "MaximumAcceptedPerIdentity": 4,
+    "AssumedMeanAcceptedPerIdentity": 1.3659804117529482,
+    "RiskBands": [
+      {
+        "MaximumFdr": 0.001,
+        "ValidationIndependentUnitsZeroError": 11222,
+        "TestIndependentUnitsZeroError": 11222
+      },
+      {
+        "MaximumFdr": 0.0025,
+        "ValidationIndependentUnitsZeroError": 4589,
+        "TestIndependentUnitsZeroError": 4589
+      },
+      {
+        "MaximumFdr": 0.005,
+        "ValidationIndependentUnitsZeroError": 2352,
+        "TestIndependentUnitsZeroError": 2352
+      },
+      {
+        "MaximumFdr": 0.01,
+        "ValidationIndependentUnitsZeroError": 1218,
+        "TestIndependentUnitsZeroError": 1218
+      },
+      {
+        "MaximumFdr": 0.02,
+        "ValidationIndependentUnitsZeroError": 640,
+        "TestIndependentUnitsZeroError": 640
+      },
+      {
+        "MaximumFdr": 0.05,
+        "ValidationIndependentUnitsZeroError": 282,
+        "TestIndependentUnitsZeroError": 282
+      }
+    ],
+    "Scope": "FROZEN_FINALISTS_ONLY_SEARCH_AND_HISTORICAL_LOOKS_EXCLUDED_FROM_FRESH_HOLDOUT_FAMILY",
+    "Assumptions": "IID_IDENTITIES_ZERO_ERRORS_ASSUMED_FUTURE_ACCEPTANCE_YIELD_NOT_CERTIFICATION"
+  },
+  "historicalKnownComparedConfigurations": 14159502,
+  "historicalScope": "CONSUMED_HISTORICAL_VALIDATION_ONLY_NOT_FRESH_FINALIST_MULTIPLICITY",
+  "searchConfigurations": 926,
+  "externalValidationMultiplicity": 1,
+  "frozenTestMultiplicity": 1,
+  "certified": false
+}

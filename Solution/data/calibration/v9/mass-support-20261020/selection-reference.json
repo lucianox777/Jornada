@@ -1,0 +1,10 @@
+{
+  "envelopeSha256": "b98121f9b4854e0db56026df1ddaef30e0f8c32717baa88a68549bd0ad08d75a",
+  "FinalistSnapshotShas": [
+    "0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b"
+  ],
+  "StopReason": "TWO_STAGNANT_BATCHES_HEURISTIC_NOT_OPTIMALITY",
+  "externalValidationUsed": false,
+  "testUsed": false,
+  "activated": false
+}

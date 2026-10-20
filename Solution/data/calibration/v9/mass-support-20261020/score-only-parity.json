@@ -1,0 +1,7 @@
+{
+  "configurations": 22,
+  "all_fitted_snapshots_equal": true,
+  "all_source_metrics_equal": true,
+  "scope": "FUNCTIONAL_PARITY_NOT_BENCHMARK",
+  "test_used": false
+}

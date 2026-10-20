@@ -1,0 +1,12 @@
+{
+  "sourceSnapshotSha256": "0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b",
+  "variantSnapshotSha256": "6d93690dccac2c92dc4d3113cbb9169dd19156c4f9b3d849ededfb4c54ae5f3f",
+  "sameFitFingerprintSha256": "8bb2d68bb312acb8776498a0bfdbb0a995f6075d9eb2ef27b13d897772ee455c",
+  "finalistValidationSha256": "49e24099c1b7d706c2412be0e7ba669ad816b4e6b5af8bb3ebba4b81ebd09a0d",
+  "grouping": "GOLD",
+  "refitted": false,
+  "measured": false,
+  "certified": false,
+  "activated": false,
+  "status": "PREPARED_ONLY_REAL_INCREMENTAL_RUNNER_AND_DT15_BINDING_STILL_REQUIRED"
+}

@@ -12,7 +12,9 @@ public sealed record V9NestedCalibrationPlan(V9AdaptiveCalibrationPlan Calibrati
     decimal InitialThresholdStep, decimal InitialMarginStep,
     decimal AdjustmentFraction = .7m, double MinimumRecallImprovement = .0001,
     double MinimumFdrImprovement = .00001, string Purpose = "BOOTSTRAP_CANDIDATE_SELECTION",
-    decimal ClassMassCoverage = .99m);
+    decimal ClassMassCoverage = .99m,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? SupportedTailRule = null);
 
 public sealed record V9NestedCandidateEvaluation(string RequestSha256, int Batch,
     V9TrainingCandidate? Candidate, IReadOnlyList<string> Rejections);
@@ -45,7 +47,7 @@ public static class V9NestedCalibrationCoordinator
     {
         ArgumentNullException.ThrowIfNull(plan);
         V9AdaptiveCalibrationCoordinator.ValidatePlan(plan.Calibration);
-        V9JointSupportEstimation.ValidatePolicy(new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell));
+        V9JointSupportEstimation.ValidatePolicy(new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule));
         if (string.IsNullOrWhiteSpace(plan.SplitSeed) || plan.AdjustmentFraction is <= 0 or >= 1
             || plan.MaximumBatches < 1 || plan.MaximumSearchConfigurations < 1
             || plan.BootstrapRepetitions < 100 || plan.MinimumObservedMPerCell < 0 || plan.MinimumObservedUPerCell < 0
@@ -228,7 +230,7 @@ public static class V9NestedCalibrationCoordinator
                 includeFsBlindGrouping: true, minimumFsGroupingPosterior: c.MinimumGroupingPosterior,
                 adaptiveExecution: c.Execution with { EndToEndRepetitions = 0, TotalComparedConfigurations = plan.MaximumSearchConfigurations },
                 includeIdentityOutcomes: true,
-                jointSupportPolicy: new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell));
+                jointSupportPolicy: new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule));
             var result = new List<V9NestedCandidateEvaluation>();
             foreach (var request in requests)
             {

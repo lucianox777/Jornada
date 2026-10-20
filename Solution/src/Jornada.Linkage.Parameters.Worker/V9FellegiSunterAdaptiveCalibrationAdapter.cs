@@ -68,8 +68,18 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         decimal Threshold,
         IReadOnlyList<FellegiSunterJointNominalCellV9> Cells,
         IReadOnlyDictionary<string, decimal> Parameters,
-        V9TrainSqlFirstNameUCalibration.Frozen? TrainUnitU, V9JointSupportProvenance? JointSupport);
+        V9TrainSqlFirstNameUCalibration.Frozen? TrainUnitU, V9JointSupportProvenance? JointSupport)
+    {
+        internal FrozenFellegiSunterJointNominalV9 FrozenNominal { get; } =
+            FrozenFellegiSunterJointNominalV9.Freeze(Cells, CompositeNominalComparisonV9.ContractVersion);
+        internal IReadOnlyDictionary<string, double> NumericParameters { get; } = FellegiSunterScoring.ToDoubleParameters(Parameters);
+    }
 
+    private sealed record NominalCounts(
+        Dictionary<(CompositeNominalLevelV9 Person, CompositeNominalLevelV9 Mother), int> M,
+        Dictionary<(CompositeNominalLevelV9 Person, CompositeNominalLevelV9 Mother), int> U);
+
+    private readonly Lazy<NominalCounts> trainingNominalCounts;
     private readonly V9FsAdaptiveCandidateFrame frame;
     private readonly IReadOnlyDictionary<string, V9FsAdaptiveOptionConfiguration> options;
     private readonly FrozenIbgeNominalTfV9? frozenTfReference;
@@ -145,6 +155,11 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             throw new InvalidDataException("Referência TF divergente do frame blocking calibrado.");
 
         ValidateFrame();
+        // Classification is a pure function of this immutable TRAIN frame, not
+        // alpha/threshold/margin. Never cache across frames or include holdouts.
+        trainingNominalCounts = new(() => new NominalCounts(
+            CountNominal(this.frame.Pairs.Where(x => x.Partition == "TRAIN" && x.IsTruePair)),
+            CountNominal(this.frame.Pairs.Where(x => x.Partition == "TRAIN" && !x.IsTruePair))));
     }
 
     public string ModelFamily => Family;
@@ -243,8 +258,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
 
         var levels = Enum.GetValues<CompositeNominalLevelV9>();
         var cellCount = levels.Length * levels.Length;
-        var mCounts = CountNominal(matched);
-        var uCounts = CountNominal(unmatched);
+        var mCounts = trainingNominalCounts.Value.M;
+        var uCounts = trainingNominalCounts.Value.U;
         var alpha = config.SmoothingAlpha;
 
         var cells = new List<FellegiSunterJointNominalCellV9>(cellCount);
@@ -348,8 +363,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
 
         // The fitted table is immutable across the whole holdout: validate and
         // precompute its 81 log ratios once, rather than hashing it per pair.
-        var frozenNominal = FrozenFellegiSunterJointNominalV9.Freeze(
-            frozen.Cells, CompositeNominalComparisonV9.ContractVersion);
+        var frozenNominal = frozen.FrozenNominal;
         long tp = 0, fp = 0;
         foreach (var row in rows)
         {
@@ -365,14 +379,14 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     row, config.TfWeight, config.TfMinimumFrequency,
                     config.TfMinimumIndependentSupport);
             }
-            var score = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewWithBreakdown(
+            var score = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewScore(
                 frozen.Parameters,
                 row.LeftPersonName, row.RightPersonName,
                 row.LeftMotherName, row.RightMotherName,
                 frozenNominal,
                 leftBirthDate: row.LeftBirthDate, rightBirthDate: row.RightBirthDate,
-                nominalTf: nominalTf);
-            var accepted = score.Score.Posterior >= frozen.Threshold;
+                nominalTf: nominalTf, numericParameters: frozen.NumericParameters);
+            var accepted = score.Posterior >= frozen.Threshold;
             if (accepted && row.IsTruePair) tp++;
             else if (accepted) fp++;
         }
@@ -740,9 +754,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
 
                 // Calculate the SAME FS evidence exactly once per observed
                 // candidate; do NOT use ground-truth identity to choose scores.
-                var ranked = ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
-                    fitted.Parameters, sourceObservation, candidates, fitted.Cells,
-                    CompositeNominalComparisonV9.ContractVersion,
+                var ranked = ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9Preview(
+                    fitted.Parameters, fitted.NumericParameters, sourceObservation, candidates, fitted.FrozenNominal,
                     config.TfWeight > 0m ? TfForPair : null,
                     config.TfWeight > 0m ? config.TfSide : null);
                 if (rankedBySource is not null)

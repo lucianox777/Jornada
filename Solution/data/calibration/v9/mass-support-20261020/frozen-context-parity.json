@@ -1,0 +1,8 @@
+{
+  "fixture_only": true,
+  "configurations": 22,
+  "all_fitted_snapshot_shas_equal": true,
+  "all_source_metrics_equal": true,
+  "performance_claim": false,
+  "certified": false
+}

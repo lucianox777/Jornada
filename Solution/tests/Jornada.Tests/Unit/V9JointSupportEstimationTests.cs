@@ -30,6 +30,15 @@ public sealed class V9JointSupportEstimationTests
     }
 
     [Test]
+    public void Underflow_is_rejected_instead_of_exporting_zero_or_unknown_probabilities()
+    {
+        var raw = Counts().Select(c => c with { M = c.M == 1 ? 0 : c.M, U = c.U == 1 ? 0 : c.U }).ToArray();
+        var error = Assert.Throws<InvalidDataException>((Action)(() => V9JointSupportEstimation.Estimate(raw,
+            new(.99m, 5, 5, V9JointSupportEstimation.SupportedTailRule), .0000000000000000000000000001m, Train)));
+        Assert.That(error!.Message, Does.Contain("precisão decimal"));
+    }
+
+    [Test]
     public void Classwise_core_preserves_match_mass_when_U_dominates_and_does_not_require_both_classes_in_every_cell()
     {
         var raw = Counts().Select(c => c with { M = c.M == 1 ? 0 : c.M, U = c.U == 1 ? 0 : c.U }).ToArray();
@@ -81,6 +90,28 @@ public sealed class V9JointSupportEstimationTests
     }
 
     [Test]
+    public void Supported_rare_class_keeps_its_24_observations_instead_of_being_replaced_by_independence()
+    {
+        var raw = Counts().Select(c => c with { M = c.M == 1 ? 0 : c.M, U = c.U == 1 ? 0 : c.U }).ToArray();
+        var index = Array.FindIndex(raw, c => c.Person == CompositeNominalLevelV9.ExactLast && c.Mother == CompositeNominalLevelV9.HighFull);
+        raw[index] = raw[index] with { U = 24 };
+        var fit = V9JointSupportEstimation.Estimate(raw, new(.99m, 5, 5, V9JointSupportEstimation.SupportedTailRule), .5m, Train);
+        var cell = fit.Provenance.Cells[index];
+        Assert.That(cell.CoreU, Is.False);
+        Assert.That(cell.MethodU, Is.EqualTo(V9JointSupportEstimation.SupportedTail));
+        Assert.That(cell.MethodM, Is.EqualTo(V9JointSupportEstimation.Marginal));
+        Assert.That(fit.Probabilities[index].U, Is.EqualTo(24.5m / (100024m + 40.5m)));
+        Assert.That(Math.Abs(fit.Probabilities.Sum(c => c.U) - 1m), Is.LessThan(.000000000000000000000001m));
+        Assert.That(fit.Provenance.Version, Is.EqualTo(V9JointSupportEstimation.SupportedTailVersion));
+        Assert.That(V9JointSupportEstimation.HasRequiredCoreSupport(fit.Provenance), Is.True);
+        Assert.That(V9JointSupportEstimation.VerifyAndFreeze(fit.Provenance, fit.Probabilities, Train).Version,
+            Is.EqualTo(V9JointSupportEstimation.SupportedTailVersion));
+        var legacy = V9JointSupportEstimation.Estimate(raw, new(.99m, 5, 5), .5m, Train);
+        Assert.That(legacy.Provenance.Version, Is.EqualTo(V9JointSupportEstimation.Version));
+        Assert.That(legacy.Provenance.Cells[index].MethodU, Is.EqualTo(V9JointSupportEstimation.Marginal));
+    }
+
+    [Test]
     public void Provenance_verification_recomputes_probabilities_counts_methods_and_TRAIN_binding()
     {
         var fit = V9JointSupportEstimation.Estimate(Counts(), new(.99m, 5, 5), .5m, Train);
@@ -114,6 +145,23 @@ public sealed class V9JointSupportEstimationTests
         Assert.That((Action)(() => V9FittedSnapshot.Create(snapshot.Payload with { JointSupport = null })), Throws.TypeOf<InvalidDataException>());
         Assert.That((Action)(() => V9FittedSnapshot.Create(snapshot.Payload with { SchemaVersion = V9FittedSnapshot.SchemaVersion })), Throws.TypeOf<InvalidDataException>());
         Assert.That((Action)(() => V9FittedJointSupportAudit.Reconstruct(loaded, .5m, 19897, 26378)), Throws.TypeOf<InvalidDataException>());
+
+        var blind = V9FittedSnapshot.Create(loaded.Payload with { CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16) });
+        var gold = blind.CreateGoldHarnessVariant();
+        Assert.That(gold.ContentSha256, Is.Not.EqualTo(blind.ContentSha256));
+        Assert.That(gold.Payload.GoldParentSnapshotSha256, Is.EqualTo(blind.ContentSha256));
+        Assert.That(JsonSerializer.Serialize(gold.Payload with { CandidateGrouping = blind.Payload.CandidateGrouping, GoldParentSnapshotSha256 = null }),
+            Is.EqualTo(JsonSerializer.Serialize(blind.Payload)));
+        var runtime = V9FittedSnapshotExecutionRuntime.Load(gold.SerializeUtf8(), gold.ContentSha256);
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", new(1980, 1, 1), "ANA COSTA");
+        V9SnapshotCandidate[] candidates = [new(Guid.NewGuid(), "MARIA SILVA", new(1980, 1, 1), "ANA COSTA")];
+        var model = Guid.NewGuid();
+        Assert.That(runtime.ResolveRetrievedCandidatesPreview(model, observation, new(gold.ContentSha256,
+            runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256, true, candidates)),
+            Is.EqualTo(gold.ResolvePreview(model, observation, candidates)));
+        Assert.That((Action)(() => V9FittedSnapshot.Create(gold.Payload with { GoldParentSnapshotSha256 = null })), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => gold.CreateGoldHarnessVariant()), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => legacy.CreateGoldHarnessVariant()), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]

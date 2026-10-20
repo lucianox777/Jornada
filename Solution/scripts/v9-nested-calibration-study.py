@@ -53,7 +53,7 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False):
         MaximumBatches=3 if fixture else 32, MaximumSearchConfigurations=maximum,
         BootstrapRepetitions=200 if fixture else 2000, BootstrapSeed=20261019,
         MinimumObservedMPerCell=0 if fixture else 5, MinimumObservedUPerCell=0 if fixture else 5,
-        ClassMassCoverage=.99,
+        ClassMassCoverage=.99, SupportedTailRule="RETAIN_CLASS_JOINT_WHEN_COUNT_AT_LEAST_K_V2",
         InitialThresholdStep=.025, InitialMarginStep=.25, AdjustmentFraction=.7,
         MinimumRecallImprovement=.0001, MinimumFdrImprovement=.00001,
         Purpose="PLUMBING_FIXTURE_NOT_CERTIFICATION" if fixture else "BOOTSTRAP_CANDIDATE_SELECTION")

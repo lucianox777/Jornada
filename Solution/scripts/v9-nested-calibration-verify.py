@@ -30,14 +30,20 @@ def verify_support_math(snapshot):
         denominator = total + 81 * alpha
         person = {i: (sum(c["Observed" + kind] for c in cells if c["Person"] == i) + 9 * alpha) / denominator for i in range(9)}
         mother = {i: (sum(c["Observed" + kind] for c in cells if c["Mother"] == i) + 9 * alpha) / denominator for i in range(9)}
-        rare = [c for c in cells if (c["Person"], c["Mother"]) not in core]
+        retain_tail = provenance["Policy"].get("SupportedTailRule") == "RETAIN_CLASS_JOINT_WHEN_COUNT_AT_LEAST_K_V2"
+        joint = core | {(c["Person"], c["Mother"]) for c in cells
+            if retain_tail and c["Observed" + kind] >= provenance["Policy"]["Minimum" + kind]}
+        rare = [c for c in cells if (c["Person"], c["Mother"]) not in joint]
         residual = sum((c["Observed" + kind] + alpha) / denominator for c in rare)
         product_mass = sum(person[c["Person"]] * mother[c["Mother"]] for c in rare)
         scale = residual / product_mass if rare else 0
         assert math.isclose(provenance["FallbackScale" + kind], scale, rel_tol=1e-12, abs_tol=1e-28)
         for c in cells:
             key = c["Person"], c["Mother"]
-            expected = ((c["Observed" + kind] + alpha) / denominator if key in core
+            expected_method = ("JOINT_DIRICHLET" if key in core else "JOINT_DIRICHLET_SUPPORTED_TAIL"
+                if key in joint else "CONDITIONAL_PRODUCT_MARGINALS")
+            assert c["Method" + kind] == expected_method
+            expected = ((c["Observed" + kind] + alpha) / denominator if key in joint
                 else scale * person[c["Person"]] * mother[c["Mother"]])
             assert math.isclose(actual[key][kind], expected, rel_tol=1e-12, abs_tol=1e-28), (kind, key)
 
@@ -83,8 +89,11 @@ def read_selection(root):
         provenance = snapshot["JointSupport"]
         assert snapshot["SchemaVersion"] == "V9_FITTED_SNAPSHOT_V3"
         assert provenance["TrainCorpusSha256"] == snapshot["TrainCorpusSha256"]
-        assert provenance["Policy"] == dict(ClassMassCoverage=plan["ClassMassCoverage"],
+        expected_policy = dict(ClassMassCoverage=plan["ClassMassCoverage"],
             MinimumM=plan["MinimumObservedMPerCell"], MinimumU=plan["MinimumObservedUPerCell"])
+        if plan.get("SupportedTailRule") is not None:
+            expected_policy["SupportedTailRule"] = plan["SupportedTailRule"]
+        assert provenance["Policy"] == expected_policy
         assert provenance["ObservedCoreMassM"] >= plan["ClassMassCoverage"]
         assert provenance["ObservedCoreMassU"] >= plan["ClassMassCoverage"]
         assert sum(c["ObservedM"] for c in provenance["Cells"]) == support["TrainMPairs"]
@@ -95,8 +104,7 @@ def read_selection(root):
         for kind in ["M", "U"]:
             assert abs(sum(c[kind] for c in snapshot["JointCells"]) - 1) < 1e-12
             assert all(c[kind] > 0 for c in snapshot["JointCells"])
-            assert all(c["Method" + kind] == ("JOINT_DIRICHLET" if c["Core" + kind]
-                else "CONDITIONAL_PRODUCT_MARGINALS") for c in provenance["Cells"])
+
     if result["StopReason"] == "TWO_STAGNANT_BATCHES_HEURISTIC_NOT_OPTIMALITY":
         assert [p["ConsecutiveStagnantBatches"] for p in result["Progress"][-2:]] == [1, 2]
         assert all(p["MaximumGainInResolutionUnits"] <= 1 for p in result["Progress"][-2:])

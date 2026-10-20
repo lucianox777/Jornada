@@ -1,0 +1,76 @@
+{
+  "schema_version": 1,
+  "error_profile": "clean",
+  "error_profile_provenance": "PROVISIONAL_SYNTHETIC_CLEAN_BOOTSTRAP_NOT_BRAZILIAN_DATA_QUALITY_ESTIMATE",
+  "declared_corruption_rates_per_observation": {
+    "common_joint_attempt": 0,
+    "name_independent_attempt": 0.06,
+    "mother_independent_attempt": 0.1,
+    "birth_independent_attempt": 0.04,
+    "mother_missing_attempt": 0.05,
+    "birth_missing_attempt": 0.01
+  },
+  "generator_version": "JORNADA_SYNTH_CORPUS_CSHARP_V1",
+  "observation_multiplicity": {
+    "contract_version": "SYNTHETIC_BASE_OBSERVATION_MULTIPLICITY_V1",
+    "maximum_observations_per_base_identity": 4,
+    "support": [
+      1,
+      2,
+      3,
+      4
+    ],
+    "weights": [
+      40,
+      34,
+      18,
+      8
+    ],
+    "scope": "BASE_CORPUS_ONLY_NOT_INGESTION_WAVES",
+    "decision_cluster_iid_certified": false
+  },
+  "ruleset_version": "JORNADA_SYNTH_CORPUS_V2_RULES_CSHARP_V1",
+  "rng_version": "XOSHIRO256SS_SPLITMIX64_V1",
+  "frequency_sampler_version": "PYTHON_V2_FREQ_SAMPLER_RULES_CSHARP_V1",
+  "date_corruption_version": "EFFECTIVE_DATE_CORRUPTION_V2",
+  "population_profile": "DEMOGRAPHIC_PRIMARY_V1",
+  "seed": 20261020001,
+  "input_fingerprint_sha256": "746A070C911DFEAB6F1A840C5C574A42017906FEC5AE1281C33D54A00F3F6BB2",
+  "reference_code": "CENSO2022_NOMES_BRASIL_V1",
+  "outputs": [
+    {
+      "path": "gabarito.json",
+      "sha256": "7E73409000CE706F923124B63450D45E6017EF04D99B190D1879B213ED9DD999"
+    },
+    {
+      "path": "observacoes.csv",
+      "sha256": "65B3E06A80D01A065DD18A08386D85FCACB58ADCDB8B187B5652FDB03921A321"
+    },
+    {
+      "path": "pessoas_verdade.csv",
+      "sha256": "486F374DE3B2E1ACBC2B5A97300D6744A079841F92AA5E4B0AF07FC4ECC4FD07"
+    }
+  ],
+  "demographic_primary": {
+    "mode": "DEMOGRAPHIC_PRIMARY_V1",
+    "person_geography": "MUNICIPIO_SP_3550308",
+    "person_source_path": "projection/frequencia-municipio.ndjson.gz",
+    "person_source_physical_sha256": "F101790AFAD0035252150CDD09930D5E24F51F4673794CD3D8A9927F07CAFD53",
+    "person_source_canonical_sha256": "451359502719EF6E051B910202D7CDBF90C1E72D0079ECF28E860ADCADD9CAB3",
+    "mother_first_geography": "BRASIL_FEMININO",
+    "mother_first_source_path": "projection/frequencia-sexo-brasil.ndjson.gz",
+    "mother_first_source_physical_sha256": "BE454D325C049CAD6CAB6A1AD6E94CB973DFA36D596FD801CDA6AAFF12E82D3F",
+    "mother_first_source_canonical_sha256": "BB677A0366B6123ED64CB6314632AD5A5DEC18E251F2033900EAC8D7DC8842EA",
+    "mother_surname_geography": "BRASIL_TODOS",
+    "mother_surname_source_path": "projection/frequencia-brasil.ndjson.gz",
+    "mother_surname_source_physical_sha256": "AFA63B5EE6A1E34110EB7F0C75526B7A561E68AEF4C2B64009A3CB9EB433DDF8",
+    "mother_surname_source_canonical_sha256": "86BF2711675698807AD714FDB7B988001CC59244BB62E08C99A884A2C20CBB0A",
+    "birth_schema_version": "JORNADA_SYNTH_BIRTH_DAILY_V1",
+    "birth_source": "IBGE_PROJECAO_POPULACAO_REVISAO_2024_REF",
+    "birth_reference_period": "2026-07-01",
+    "birth_geography": "UF_SP",
+    "birth_path": "C:\\Users\\lucia\\source\\repos\\lucianox777\\Jornada-v9-suporte-20261019\\Solution\\data\\reference\\synthetic-birth-sp\\birth_daily_sp_projection2024_2026.json",
+    "birth_sha256": "8B8498EC2ABE7DCBFAFED1D361D2A3AFAFF77CAD5BCE29A5927DA517FC236A9B",
+    "birth_row_count": 39268
+  }
+}

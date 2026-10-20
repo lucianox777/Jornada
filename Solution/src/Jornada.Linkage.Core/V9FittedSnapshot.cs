@@ -21,7 +21,9 @@ public sealed record V9FittedSnapshotPayload(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     V9SnapshotCandidateGrouping? CandidateGrouping = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    V9JointSupportProvenance? JointSupport = null);
+    V9JointSupportProvenance? JointSupport = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? GoldParentSnapshotSha256 = null);
 
 public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
     decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
@@ -53,12 +55,16 @@ public sealed class V9FittedSnapshot
         RespectRequiredConstructorParameters = true
     };
     private readonly byte[] utf8;
+    private readonly FrozenFellegiSunterJointNominalV9 frozenNominal;
+    private readonly IReadOnlyDictionary<string, double> numericParameters;
     public V9FittedSnapshotPayload Payload { get; }
     public string ContentSha256 { get; }
 
     private V9FittedSnapshot(V9FittedSnapshotPayload payload)
     {
         Payload = FreezeAndValidate(payload);
+        frozenNominal = FrozenFellegiSunterJointNominalV9.Freeze(Payload.JointCells, Payload.NominalContractVersion);
+        numericParameters = FellegiSunterScoring.ToDoubleParameters(Payload.Parameters);
         utf8 = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
         if (utf8.Length > MaximumContentBytes)
             throw new InvalidDataException("Snapshot V9 excede o limite permitido para carga e persistência.");
@@ -67,6 +73,19 @@ public sealed class V9FittedSnapshot
 
     public static V9FittedSnapshot Create(V9FittedSnapshotPayload payload) => new(payload);
     public byte[] SerializeUtf8() => (byte[])utf8.Clone();
+
+    /// <summary>
+    /// Experimental Gold retrieval variant of the SAME fit, never an operational
+    /// approval. Real Gold membership must be supplied by the incremental pipeline,
+    /// not synthetic labels or the cohort complete-link builder.
+    /// </summary>
+    public V9FittedSnapshot CreateGoldHarnessVariant()
+    {
+        if (Payload.JointSupport is null || Payload.TfWeight != 0
+            || Payload.CandidateGrouping?.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES")
+            throw new InvalidDataException("Variante Gold exige fit V3 BLIND TF0 congelado.");
+        return Create(Payload with { CandidateGrouping = new("GOLD", 0, 0), GoldParentSnapshotSha256 = ContentSha256 });
+    }
 
     /// <summary>The expected digest must come from the pinned reference, not the payload.</summary>
     public static V9FittedSnapshot Load(ReadOnlySpan<byte> content, string expectedSha256)
@@ -100,20 +119,15 @@ public sealed class V9FittedSnapshot
         ArgumentNullException.ThrowIfNull(candidates);
         if (candidates.Any(c => c is null || c.PersonUuid == Guid.Empty))
             throw new InvalidDataException("Identidade candidata V9 inválida.");
-        return ProbabilisticLinkageDecisions.ResolveCompositeNominalV9Preview(
-            diagnosticModelId, Payload.Parameters, observation,
-            candidates.Select(c => new LinkageCandidate(c.PersonUuid, c.FullName,
-                c.BirthDate, c.MotherName)).ToArray(), Payload.JointCells,
-            Payload.NominalContractVersion, Payload.Threshold, Payload.ConflictMargin,
-            Payload.TfCalibration is null ? null : CreateTf,
-            Payload.TfCalibration?.Side);
+        if (diagnosticModelId == Guid.Empty) throw new ArgumentException("ID do estudo V9 é obrigatório.", nameof(diagnosticModelId));
+        return ResolveRankedPreview(diagnosticModelId, RankPreview(observation, candidates));
     }
 
     internal IReadOnlyList<CandidateScore> RankPreview(IdentityObservation observation,
         IReadOnlyList<V9SnapshotCandidate> candidates) =>
-        ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(Payload.Parameters, observation,
+        ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9Preview(Payload.Parameters, numericParameters, observation,
             candidates.Select(c => new LinkageCandidate(c.PersonUuid, c.FullName, c.BirthDate, c.MotherName)).ToArray(),
-            Payload.JointCells, Payload.NominalContractVersion,
+            frozenNominal,
             Payload.TfCalibration is null ? null : CreateTf, Payload.TfCalibration?.Side);
 
     internal ProbabilisticLinkageDecision ResolveRankedPreview(Guid diagnosticModelId,
@@ -151,11 +165,20 @@ public sealed class V9FittedSnapshot
     private static V9FittedSnapshotPayload FreezeAndValidate(V9FittedSnapshotPayload p)
     {
         ArgumentNullException.ThrowIfNull(p);
-        if (p.CandidateGrouping is { } grouping
-            && (grouping.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES"
-                || grouping.MinimumPairPosterior is <= .5m or >= 1m
-                || grouping.MaximumObservationsPerIdentity < 2))
-            throw new InvalidDataException("Contrato de agrupamento do snapshot V9 inválido.");
+        if (p.CandidateGrouping is { } grouping)
+        {
+            if (grouping.CandidateGrouping == "GOLD")
+            {
+                RequireSha(p.GoldParentSnapshotSha256!);
+                if (p.JointSupport is null || grouping.MinimumPairPosterior != 0 || grouping.MaximumObservationsPerIdentity != 0)
+                    throw new InvalidDataException("Gold usa entidades reais e proveniência do fit, sem guard de agrupamento BLIND.");
+            }
+            else if (grouping.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES"
+                || grouping.MinimumPairPosterior is <= .5m or >= 1m || grouping.MaximumObservationsPerIdentity < 2)
+                throw new InvalidDataException("Contrato de agrupamento do snapshot V9 inválido.");
+        }
+        if (p.GoldParentSnapshotSha256 is not null && p.CandidateGrouping?.CandidateGrouping != "GOLD")
+            throw new InvalidDataException("Proveniência Gold exige variante Gold explícita.");
         if (p.SchemaVersion != (p.JointSupport is null ? SchemaVersion : SupportSchemaVersion) || p.NominalContractVersion != CompositeNominalComparisonV9.ContractVersion
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)

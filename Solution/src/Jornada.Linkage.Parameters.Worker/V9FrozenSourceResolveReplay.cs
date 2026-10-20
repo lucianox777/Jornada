@@ -26,6 +26,8 @@ public static class V9FrozenSourceResolveReplay
         ArgumentNullException.ThrowIfNull(completePhysicalSqlEdges);
         var grouping = snapshot.Payload.CandidateGrouping
             ?? throw new InvalidDataException("Replay de coorte exige agrupamento fixado no snapshot.");
+        if (grouping.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES")
+            throw new InvalidDataException("Replay BLIND não mede Gold; variante Gold exige entidades do Runner real.");
         if (validation.Count < 2 || validation.Any(x => x is null || x.ObservationId <= 0 || x.Partition != "VALIDATION")
             || validation.Select(x => x.ObservationId).Distinct().Count() != validation.Count)
             throw new InvalidDataException("Replay aceita exclusivamente coorte VALIDATION única, sem TEST.");

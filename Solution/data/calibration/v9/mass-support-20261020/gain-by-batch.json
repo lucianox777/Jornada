@@ -1,0 +1,308 @@
+[
+  {
+    "Batch": 1,
+    "NewConfigurations": 36,
+    "TotalConfigurations": 36,
+    "Bands": [
+      {
+        "MaximumFdr": 0.001,
+        "SnapshotSha256": "c2e090da1eae7ff36cff96373c81022e3e79601e244d606f51c031b68e7ea15f",
+        "Recall": 0.9071459135643988,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.0025,
+        "SnapshotSha256": "c2e090da1eae7ff36cff96373c81022e3e79601e244d606f51c031b68e7ea15f",
+        "Recall": 0.9071459135643988,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.005,
+        "SnapshotSha256": "c2e090da1eae7ff36cff96373c81022e3e79601e244d606f51c031b68e7ea15f",
+        "Recall": 0.9071459135643988,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.01,
+        "SnapshotSha256": "c2e090da1eae7ff36cff96373c81022e3e79601e244d606f51c031b68e7ea15f",
+        "Recall": 0.9071459135643988,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.02,
+        "SnapshotSha256": "c2e090da1eae7ff36cff96373c81022e3e79601e244d606f51c031b68e7ea15f",
+        "Recall": 0.9071459135643988,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.05,
+        "SnapshotSha256": "c2e090da1eae7ff36cff96373c81022e3e79601e244d606f51c031b68e7ea15f",
+        "Recall": 0.9071459135643988,
+        "Fdr": 0
+      }
+    ],
+    "MaximumRecallGain": 0,
+    "MaximumFdrGain": 0,
+    "RecallResolution": 0.0050068302203938675,
+    "FdrResolution": 0.00015723270440251572,
+    "MaterialGain": true,
+    "ConsecutiveStagnantBatches": 0,
+    "UncertaintyScope": "PAIRED_IDENTITY_BOOTSTRAP_HEURISTIC_NOT_IID_CERTIFICATION",
+    "MaximumGainInResolutionUnits": 0
+  },
+  {
+    "Batch": 2,
+    "NewConfigurations": 179,
+    "TotalConfigurations": 215,
+    "Bands": [
+      {
+        "MaximumFdr": 0.001,
+        "SnapshotSha256": "0978e39e62c38a097c52cf2331c4599c4de67de77d78621b5e205d86f8dc8699",
+        "Recall": 0.9699044358864641,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.0025,
+        "SnapshotSha256": "0978e39e62c38a097c52cf2331c4599c4de67de77d78621b5e205d86f8dc8699",
+        "Recall": 0.9699044358864641,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.005,
+        "SnapshotSha256": "0978e39e62c38a097c52cf2331c4599c4de67de77d78621b5e205d86f8dc8699",
+        "Recall": 0.9699044358864641,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.01,
+        "SnapshotSha256": "0978e39e62c38a097c52cf2331c4599c4de67de77d78621b5e205d86f8dc8699",
+        "Recall": 0.9699044358864641,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.02,
+        "SnapshotSha256": "0978e39e62c38a097c52cf2331c4599c4de67de77d78621b5e205d86f8dc8699",
+        "Recall": 0.9699044358864641,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.05,
+        "SnapshotSha256": "0978e39e62c38a097c52cf2331c4599c4de67de77d78621b5e205d86f8dc8699",
+        "Recall": 0.9699044358864641,
+        "Fdr": 0
+      }
+    ],
+    "MaximumRecallGain": 0.06275852232206536,
+    "MaximumFdrGain": 0,
+    "RecallResolution": 0.004358188126921444,
+    "FdrResolution": 0.00014705882352941175,
+    "MaterialGain": true,
+    "ConsecutiveStagnantBatches": 0,
+    "UncertaintyScope": "PAIRED_IDENTITY_BOOTSTRAP_HEURISTIC_NOT_IID_CERTIFICATION",
+    "MaximumGainInResolutionUnits": 14.400140722332011
+  },
+  {
+    "Batch": 3,
+    "NewConfigurations": 178,
+    "TotalConfigurations": 393,
+    "Bands": [
+      {
+        "MaximumFdr": 0.001,
+        "SnapshotSha256": "27f5ed66841c764f57a5e1942ba25eb749da3749254f7b22195d0860d721a69a",
+        "Recall": 0.9726144629867352,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.0025,
+        "SnapshotSha256": "27f5ed66841c764f57a5e1942ba25eb749da3749254f7b22195d0860d721a69a",
+        "Recall": 0.9726144629867352,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.005,
+        "SnapshotSha256": "27f5ed66841c764f57a5e1942ba25eb749da3749254f7b22195d0860d721a69a",
+        "Recall": 0.9726144629867352,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.01,
+        "SnapshotSha256": "27f5ed66841c764f57a5e1942ba25eb749da3749254f7b22195d0860d721a69a",
+        "Recall": 0.9726144629867352,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.02,
+        "SnapshotSha256": "27f5ed66841c764f57a5e1942ba25eb749da3749254f7b22195d0860d721a69a",
+        "Recall": 0.9726144629867352,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.05,
+        "SnapshotSha256": "27f5ed66841c764f57a5e1942ba25eb749da3749254f7b22195d0860d721a69a",
+        "Recall": 0.9726144629867352,
+        "Fdr": 0
+      }
+    ],
+    "MaximumRecallGain": 0.0027100271002710175,
+    "MaximumFdrGain": 0,
+    "RecallResolution": 0.0007918598118949812,
+    "FdrResolution": 0.00014664906877841325,
+    "MaterialGain": true,
+    "ConsecutiveStagnantBatches": 0,
+    "UncertaintyScope": "PAIRED_IDENTITY_BOOTSTRAP_HEURISTIC_NOT_IID_CERTIFICATION",
+    "MaximumGainInResolutionUnits": 3.422357164187579
+  },
+  {
+    "Batch": 4,
+    "NewConfigurations": 178,
+    "TotalConfigurations": 571,
+    "Bands": [
+      {
+        "MaximumFdr": 0.001,
+        "SnapshotSha256": "04ea23beb75a002654d341ed77052d8dee40a9958a93863c7bdbf7ff4e6ee3af",
+        "Recall": 0.9743260590500642,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.0025,
+        "SnapshotSha256": "04ea23beb75a002654d341ed77052d8dee40a9958a93863c7bdbf7ff4e6ee3af",
+        "Recall": 0.9743260590500642,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.005,
+        "SnapshotSha256": "04ea23beb75a002654d341ed77052d8dee40a9958a93863c7bdbf7ff4e6ee3af",
+        "Recall": 0.9743260590500642,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.01,
+        "SnapshotSha256": "04ea23beb75a002654d341ed77052d8dee40a9958a93863c7bdbf7ff4e6ee3af",
+        "Recall": 0.9743260590500642,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.02,
+        "SnapshotSha256": "04ea23beb75a002654d341ed77052d8dee40a9958a93863c7bdbf7ff4e6ee3af",
+        "Recall": 0.9743260590500642,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.05,
+        "SnapshotSha256": "04ea23beb75a002654d341ed77052d8dee40a9958a93863c7bdbf7ff4e6ee3af",
+        "Recall": 0.9743260590500642,
+        "Fdr": 0
+      }
+    ],
+    "MaximumRecallGain": 0.0017115960633290461,
+    "MaximumFdrGain": 0,
+    "RecallResolution": 0.0007478054600809645,
+    "FdrResolution": 0.00014639145073927682,
+    "MaterialGain": true,
+    "ConsecutiveStagnantBatches": 0,
+    "UncertaintyScope": "PAIRED_IDENTITY_BOOTSTRAP_HEURISTIC_NOT_IID_CERTIFICATION",
+    "MaximumGainInResolutionUnits": 2.2888253091168025
+  },
+  {
+    "Batch": 5,
+    "NewConfigurations": 178,
+    "TotalConfigurations": 749,
+    "Bands": [
+      {
+        "MaximumFdr": 0.001,
+        "SnapshotSha256": "0b98df271a2ca752281f46b79b392760e4646281876bf261e48626909edcd31e",
+        "Recall": 0.9744686920553416,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.0025,
+        "SnapshotSha256": "0b98df271a2ca752281f46b79b392760e4646281876bf261e48626909edcd31e",
+        "Recall": 0.9744686920553416,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.005,
+        "SnapshotSha256": "0b98df271a2ca752281f46b79b392760e4646281876bf261e48626909edcd31e",
+        "Recall": 0.9744686920553416,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.01,
+        "SnapshotSha256": "0b98df271a2ca752281f46b79b392760e4646281876bf261e48626909edcd31e",
+        "Recall": 0.9744686920553416,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.02,
+        "SnapshotSha256": "0b98df271a2ca752281f46b79b392760e4646281876bf261e48626909edcd31e",
+        "Recall": 0.9744686920553416,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.05,
+        "SnapshotSha256": "0b98df271a2ca752281f46b79b392760e4646281876bf261e48626909edcd31e",
+        "Recall": 0.9744686920553416,
+        "Fdr": 0
+      }
+    ],
+    "MaximumRecallGain": 0.00014263300527739275,
+    "MaximumFdrGain": 0,
+    "RecallResolution": 0.0008214160139563641,
+    "FdrResolution": 0.00014637002341920375,
+    "MaterialGain": false,
+    "ConsecutiveStagnantBatches": 1,
+    "UncertaintyScope": "PAIRED_IDENTITY_BOOTSTRAP_HEURISTIC_NOT_IID_CERTIFICATION",
+    "MaximumGainInResolutionUnits": 0.17364283487778437
+  },
+  {
+    "Batch": 6,
+    "NewConfigurations": 177,
+    "TotalConfigurations": 926,
+    "Bands": [
+      {
+        "MaximumFdr": 0.001,
+        "SnapshotSha256": "0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b",
+        "Recall": 0.9747539580658965,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.0025,
+        "SnapshotSha256": "0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b",
+        "Recall": 0.9747539580658965,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.005,
+        "SnapshotSha256": "0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b",
+        "Recall": 0.9747539580658965,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.01,
+        "SnapshotSha256": "0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b",
+        "Recall": 0.9747539580658965,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.02,
+        "SnapshotSha256": "0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b",
+        "Recall": 0.9747539580658965,
+        "Fdr": 0
+      },
+      {
+        "MaximumFdr": 0.05,
+        "SnapshotSha256": "0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b",
+        "Recall": 0.9747539580658965,
+        "Fdr": 0
+      }
+    ],
+    "MaximumRecallGain": 0.00028526601055489653,
+    "MaximumFdrGain": 0,
+    "RecallResolution": 0.0009010465060903075,
+    "FdrResolution": 0.0001463271875914545,
+    "MaterialGain": false,
+    "ConsecutiveStagnantBatches": 2,
+    "UncertaintyScope": "PAIRED_IDENTITY_BOOTSTRAP_HEURISTIC_NOT_IID_CERTIFICATION",
+    "MaximumGainInResolutionUnits": 0.3165941032196907
+  }
+]
