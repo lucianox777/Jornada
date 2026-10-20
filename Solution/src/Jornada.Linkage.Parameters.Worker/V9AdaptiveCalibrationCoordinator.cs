@@ -62,6 +62,18 @@ public static class V9AdaptiveCalibrationCoordinator
     public const string Version = "V9_ADAPTIVE_PHYSICAL_TRAIN_VALIDATION_PARETO_V1";
     public const string Grouping = "BLIND_FS_COMPLETE_LINK_CANDIDATES";
 
+    /// <summary>
+    /// TRAIN_SELECTION-only lower no-match search within the ONE V9 C# calibrator.
+    /// It consumes real frozen FS decisions and certified-by-the-caller physical
+    /// retrieval metadata, but never changes the fitted scorer, VALIDATION, SQL
+    /// publication or the DT-15 activation gate. Training examples are labeled
+    /// AFTER the Gold run, not from the model's candidate generation.
+    /// </summary>
+    public static V9LowerNonMatchTrainCalibrator.Study SearchLowerNonMatchOnTrain(
+        V9LowerNonMatchTrainCalibrator.Policy policy,
+        IReadOnlyList<V9LowerNonMatchTrainCalibrator.TrainingSource> trainSelection)
+        => V9LowerNonMatchTrainCalibrator.Search(policy, trainSelection);
+
     public static void ValidatePlan(V9AdaptiveCalibrationPlan plan)
     {
         ArgumentNullException.ThrowIfNull(plan);
