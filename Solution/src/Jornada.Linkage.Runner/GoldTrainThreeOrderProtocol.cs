@@ -11,6 +11,7 @@ public static class GoldTrainThreeOrderProtocol
     public const string Baseline = "BASELINE_G0_G1_G2_G3";
     public const string Reverse = "REVERSE_G3_G2_G1_G0";
     public const string Interleaved = "INTERLEAVED_G1_G3_G0_G2";
+    public const string StableSourceKeyContract = "TRAIN_CSV_OBSERVATION_ID_NOT_SQL_ID_V1";
 
     public static IReadOnlyList<string> OrderIds { get; } =
         Array.AsReadOnly(new[] { Baseline, Reverse, Interleaved });
@@ -52,6 +53,7 @@ public static class GoldTrainThreeOrderProtocol
         string FrozenSnapshotSha256,
         string IsolatedRunFingerprintSha256,
         string EvidenceScope,
+        string SourceKeyContract,
         bool TestUsed,
         bool Activated,
         bool AllFourWavesPublished,
@@ -115,7 +117,9 @@ public static class GoldTrainThreeOrderProtocol
             RequireSha(trial.IsolatedRunFingerprintSha256);
             if (!runFingerprints.Add(trial.IsolatedRunFingerprintSha256))
                 throw new InvalidDataException("Cada ordem exige execução SQL isolada, não reutilização do mesmo run.");
-            if (trial.EvidenceScope != "TRAIN_SELECTION" || trial.TestUsed || trial.Activated
+            if (trial.EvidenceScope != "TRAIN_SELECTION"
+                || trial.SourceKeyContract != StableSourceKeyContract
+                || trial.TestUsed || trial.Activated
                 || !trial.AllFourWavesPublished
                 || !string.Equals(trial.OriginalCorpusSha256, first.OriginalCorpusSha256, StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(trial.FrozenSnapshotSha256, first.FrozenSnapshotSha256, StringComparison.OrdinalIgnoreCase))
