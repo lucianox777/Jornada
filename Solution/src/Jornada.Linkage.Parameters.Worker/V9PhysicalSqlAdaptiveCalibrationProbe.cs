@@ -222,7 +222,8 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         bool includeFsBlindGrouping = false,
         decimal minimumFsGroupingPosterior = .99m,
         V9PhysicalAdaptiveExecution? adaptiveExecution = null,
-        bool includeIdentityOutcomes = false)
+        bool includeIdentityOutcomes = false,
+        V9JointSupportPolicy? jointSupportPolicy = null)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(observations);
@@ -381,7 +382,9 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             ProjectionFingerprintSha256: projectionSha,
             BlockingFrameFingerprintSha256: blockingFingerprint);
 
-        var optionList = options.ToArray();
+        if (jointSupportPolicy is not null && options.Any(x => x.JointSupportPolicy is not null && x.JointSupportPolicy != jointSupportPolicy))
+            throw new InvalidDataException("Política de suporte da opção diverge da política de execução.");
+        var optionList = options.Select(x => jointSupportPolicy is null ? x : x with { JointSupportPolicy = jointSupportPolicy }).ToArray();
         var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
             frame, optionList, frozenTfReference);
         var modelOptions = optionList.Select(x => new AdaptiveCalibrationModelOption(

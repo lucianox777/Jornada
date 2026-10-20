@@ -64,13 +64,29 @@ public static class V9NestedCalibrationCli
             var connection = new SqlConnection(connectionString);
             try { await connection.OpenAsync(ct); return connection; }
             catch { await connection.DisposeAsync(); throw; }
-        }, train, plan, CancellationToken.None);
+        }, train, plan, CancellationToken.None, progress =>
+        {
+            var line = JsonSerializer.Serialize(progress);
+            File.AppendAllText(Path.Combine(output, "batch-progress.jsonl"), line + Environment.NewLine);
+            Console.Error.WriteLine(line);
+        });
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
             .DistinctBy(x => x.ContentSha256))
             await V9FittedSnapshotArtifact.WriteNewAsync(Path.Combine(output, fit.ContentSha256 + ".fitted.json"), fit);
+        var finalists = result.Evaluations.Where(x => x.Candidate is not null
+            && result.FinalistSnapshotShas.Contains(x.Candidate.Snapshot.ContentSha256)).Select(x => x.Candidate!).ToArray();
+        var externalDesign = finalists.Length == 0 ? null : V9StatisticalSamplePlan.CalculateFinalistFdrOnly(finalists.Length,
+            plan.Calibration.MaximumAcceptedPerBaseIdentity, finalists.Min(x =>
+                (x.Metric.TrueAcceptedSourceObservations + x.Metric.FalseAcceptedSourceObservations) / (double)x.Metric.PreBlockingBaseIdentities),
+            plan.Calibration.RiskCeilings!);
+        await WriteNewAsync(Path.Combine(output, "fresh-holdout-sample-plan.json"), new { externalDesign,
+            historicalKnownComparedConfigurations = 14159502, historicalScope = "CONSUMED_HISTORICAL_VALIDATION_ONLY_NOT_FRESH_FINALIST_MULTIPLICITY",
+            searchConfigurations = result.Evaluations.Count, externalValidationMultiplicity = result.FinalistSnapshotShas.Count,
+            frozenTestMultiplicity = 1, certified = false });
         var envelope = JsonSerializer.SerializeToUtf8Bytes(new
         {
-            result, originalObservationsSha256 = sourceSha, producerManifestSha256 = Sha(manifestBytes),
+            result, externalDesign, externalValidationMultiplicity = result.FinalistSnapshotShas.Count,
+            originalObservationsSha256 = sourceSha, producerManifestSha256 = Sha(manifestBytes),
             producerSeed = producer.RootElement.GetProperty("seed").GetUInt64(),
             snapshotValidationSlotPurpose = "TRAIN_SELECTION_NOT_EXTERNAL_VALIDATION",
             validationRule = "UP_TO_3_PRECOMMITTED_FITS_MAX_RECALL_WITH_CP_RATIO_UCB_WITHIN_EPSILON_NO_REFIT",

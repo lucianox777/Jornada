@@ -167,6 +167,19 @@ public sealed class V9FittedSnapshotExecutionRuntimeTests
     }
 
     [Test]
+    public void Missing_required_blocking_fields_remain_pending_instead_of_claiming_an_exhausted_empty_search()
+    {
+        var runtime = Load(Snapshot(passes: [new("mother", ["mother_name_prefix_3"])]));
+        ProbabilisticLinkageDecision Run(IdentityObservation observation) => runtime.ResolveRetrievedCandidatesPreview(Model,
+            observation, new(runtime.SnapshotSha256, runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256, true, []));
+        var missing = Run(Observation(mother: null));
+        Assert.That(missing.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
+        Assert.That(missing.Motivo, Is.EqualTo("EVIDENCIA_INSUFICIENTE_PARA_BLOCKING"));
+        Assert.That(ProbabilisticLinkageBatchRunner.IsNoCandidateReason(missing.Motivo), Is.False);
+        Assert.That(ProbabilisticLinkageBatchRunner.IsNoCandidateReason(Run(Observation()).Motivo), Is.True);
+    }
+
+    [Test]
     public void Current_legacy_projection_fit_still_projects_through_existing_contract()
     {
         var fit = Snapshot();

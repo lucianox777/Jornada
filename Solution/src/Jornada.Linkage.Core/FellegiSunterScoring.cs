@@ -99,31 +99,48 @@ public static class FellegiSunterScoring
         int? blockCandidateCount = null,
         DateOnly? leftBirthDate = null,
         DateOnly? rightBirthDate = null,
-        CompositeNominalTfPreviewV9? nominalTf = null)
+        CompositeNominalTfPreviewV9? nominalTf = null,
+        IReadOnlyDictionary<string, double>? numericParameters = null)
+    {
+        var result = EvaluateFrozenCompositeNominalV9(parameters, leftPersonName, rightPersonName,
+            leftMotherName, rightMotherName, frozen, blockCandidateCount, leftBirthDate, rightBirthDate,
+            nominalTf, numericParameters, captureBreakdown: true);
+        return RenderBreakdown(parameters, result.Raw,
+            new FellegiSunterJointNominalCellV9(result.Cell.Person, result.Cell.Mother, result.Cell.M, result.Cell.U));
+    }
+
+    // Score-only V9 uses exactly the SAME Evaluate kernel; ranking does not
+    // allocate a diagnostic contribution list/array for every candidate.
+    internal static FellegiSunterScore CalculateFrozenCompositeNominalV9PreviewScore(
+        IReadOnlyDictionary<string, decimal> parameters,
+        string? leftPersonName, string? rightPersonName, string? leftMotherName, string? rightMotherName,
+        FrozenFellegiSunterJointNominalV9 frozen, int? blockCandidateCount = null,
+        DateOnly? leftBirthDate = null, DateOnly? rightBirthDate = null,
+        CompositeNominalTfPreviewV9? nominalTf = null,
+        IReadOnlyDictionary<string, double>? numericParameters = null) =>
+        ToContractScore(EvaluateFrozenCompositeNominalV9(parameters, leftPersonName, rightPersonName,
+            leftMotherName, rightMotherName, frozen, blockCandidateCount, leftBirthDate, rightBirthDate,
+            nominalTf, numericParameters, captureBreakdown: false).Raw.Score);
+
+    private static (RawEvaluation Raw, FrozenNominalStateV9 Cell) EvaluateFrozenCompositeNominalV9(
+        IReadOnlyDictionary<string, decimal> parameters,
+        string? leftPersonName, string? rightPersonName, string? leftMotherName, string? rightMotherName,
+        FrozenFellegiSunterJointNominalV9 frozen, int? blockCandidateCount,
+        DateOnly? leftBirthDate, DateOnly? rightBirthDate, CompositeNominalTfPreviewV9? nominalTf,
+        IReadOnlyDictionary<string, double>? numericParameters, bool captureBreakdown)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(frozen);
-        if (!parameters.TryGetValue(LinkageParameterCatalog.DecisionEvidenceScoring, out var enabled)
-            || enabled < 1m)
-            throw new InvalidOperationException(
-                "Preview V9 exige o contrato FS decision-evidence habilitado.");
-
-        var selected = frozen.Classify(
-            leftPersonName, rightPersonName, leftMotherName, rightMotherName);
-        var tfAdjustment = CompositeNominalTfPreviewEvaluatorV9.Calculate(
-            selected.Person, selected.Mother,
-            leftPersonName, rightPersonName, leftMotherName, rightMotherName,
-            nominalTf);
-        var raw = Evaluate(
-            ToDoubleParameters(parameters),
-            nameState: null, motherNameState: null,
-            blockCandidateCount, leftBirthDate, rightBirthDate,
-            captureBreakdown: true,
-            v9Joint: ($"{selected.Person}:{selected.Mother}",
+        if (!parameters.TryGetValue(LinkageParameterCatalog.DecisionEvidenceScoring, out var enabled) || enabled < 1m)
+            throw new InvalidOperationException("Preview V9 exige o contrato FS decision-evidence habilitado.");
+        var selected = frozen.Classify(leftPersonName, rightPersonName, leftMotherName, rightMotherName);
+        var tfAdjustment = CompositeNominalTfPreviewEvaluatorV9.Calculate(selected.Person, selected.Mother,
+            leftPersonName, rightPersonName, leftMotherName, rightMotherName, nominalTf);
+        var raw = Evaluate(numericParameters ?? ToDoubleParameters(parameters),
+            nameState: null, motherNameState: null, blockCandidateCount, leftBirthDate, rightBirthDate,
+            captureBreakdown, v9Joint: (captureBreakdown ? $"{selected.Person}:{selected.Mother}" : string.Empty,
                 (double)selected.M, (double)selected.U, selected.LogLikelihoodRatio + tfAdjustment));
-        return RenderBreakdown(parameters, raw,
-            new FellegiSunterJointNominalCellV9(
-                selected.Person, selected.Mother, selected.M, selected.U));
+        return (raw, selected);
     }
 
     public static decimal CalculatePosterior(

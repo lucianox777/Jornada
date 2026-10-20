@@ -4,6 +4,20 @@ using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Runner;
 using Jornada.Bronze.Storage;
 
+if (args.FirstOrDefault() == V9GoldHarnessDatabasePreparation.Flag)
+{
+    await V9GoldHarnessDatabasePreparation.RunAsync(args);
+    return;
+}
+
+if (args.FirstOrDefault() == V9GoldHarnessCommand.Flag)
+{
+    var harnessConnection = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+        ?? throw new InvalidOperationException("Conexão de JornadaHarness descartável ausente.");
+    await V9GoldHarnessCommand.RunAsync(args, harnessConnection);
+    return;
+}
+
 if (BlockingPassAuditCommand.IsRequested(args))
 {
     var auditBuilder = Host.CreateApplicationBuilder(args);

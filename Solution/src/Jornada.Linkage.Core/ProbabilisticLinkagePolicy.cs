@@ -192,6 +192,29 @@ internal static class ProbabilisticLinkageDecisions
         // cannot conceal an invalid nominal probability table.
         var frozen = FrozenFellegiSunterJointNominalV9.Freeze(
             jointCells, nominalContractVersion);
+        return RankFrozenCompositeNominalV9Preview(parameters, FellegiSunterScoring.ToDoubleParameters(parameters),
+            observation, candidates, frozen, tfForPair, positiveTfSide);
+    }
+
+    // Both immutable inputs belong to the same fitted context. This overload
+    // never accepts an unverified table and never caches observation outcomes.
+    internal static IReadOnlyList<CandidateScore> RankFrozenCompositeNominalV9Preview(
+        IReadOnlyDictionary<string, decimal> parameters, IReadOnlyDictionary<string, double> numericParameters,
+        IdentityObservation observation, IReadOnlyList<LinkageCandidate> candidates,
+        FrozenFellegiSunterJointNominalV9 frozen,
+        Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? tfForPair = null,
+        CompositeNominalTfSideV9? positiveTfSide = null)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(numericParameters);
+        ArgumentNullException.ThrowIfNull(observation);
+        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(frozen);
+        if ((tfForPair is null) != (positiveTfSide is null)
+            || (positiveTfSide is { } side && !Enum.IsDefined(side)))
+            throw new InvalidOperationException("TF positiva V9 exige função por candidato e lado nominal explícitos.");
+        if (!string.IsNullOrWhiteSpace(observation.Cpf))
+            throw new InvalidOperationException("Ranking probabilístico V9 só é permitido quando observação não possui CPF.");
         var unique = DeduplicateCandidates(candidates);
         if (unique.Count == 0)
             return Array.Empty<CandidateScore>();
@@ -214,22 +237,22 @@ internal static class ProbabilisticLinkageDecisions
                         throw new InvalidOperationException(
                             "TF V9 positiva sem unidade ExactFirst válida ou frequência disponível.");
                 }
-                var breakdown = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewWithBreakdown(
+                var score = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewScore(
                     parameters,
                     observation.NomeCompleto, candidate.NomeCompleto,
                     observation.NomeMae, candidate.NomeMae,
                     frozen,
                     unique.Count,
                     observation.DataNascimento, candidate.DataNascimento,
-                    term);
+                    term, numericParameters);
                 var fullExact = CompositeNominalComparisonV9.Classify(
                     observation.NomeCompleto, candidate.NomeCompleto)
                     == CompositeNominalLevelV9.ExactFull;
                 var exactBirth = observation.DataNascimento is { } birth
                     && candidate.DataNascimento == birth;
                 return new CandidateScore(
-                    candidate.PessoaUuid, breakdown.Score.Posterior,
-                    breakdown.Score.LogOdds, fullExact && exactBirth);
+                    candidate.PessoaUuid, score.Posterior,
+                    score.LogOdds, fullExact && exactBirth);
             })
             .OrderByDescending(x => x.LogOdds)
             .ThenBy(x => x.PessoaUuid)

@@ -1,3 +1,5 @@
+> **Suporte V9 corrente:** [núcleos de massa M/U, fallback marginal e snapshot V3](V9_Suporte_Massa_Backoff_20261019.md).
+
 > **Fluxo V9 corrente — 19/10:** [seleção interna no TRAIN, parada heurística e avaliação única de até três finalistas congelados](V9_Selecao_Interna_TRAIN_Finalistas_20261019.md). VALIDATION histórica não volta a ser holdout novo. Nenhuma certificação ou ativação automática.
 
 > **V9 — busca integral e contrato M/U (19/10):** [catálogo completo, faixas Recall × FDR, engenharia reversa, amostra e evidências físicas](V9_Busca_Integral_Faixas_MU_20261019.md). Censo exaustivo de 524.287 combinações; avaliação do ótimo global ainda pendente.

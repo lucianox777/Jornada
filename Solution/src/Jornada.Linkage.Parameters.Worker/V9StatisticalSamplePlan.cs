@@ -68,15 +68,39 @@ public static class V9StatisticalSamplePlan
         return new(d, precision, power, cellPrecision, cellCoverage, Array.AsReadOnly(requirements), baseUnits);
     }
 
-    private static long? RequiredZeroError(Design d, double target, double alpha, int compared)
+    public sealed record FinalistRiskDesign(double Alpha, int ExternalValidationMultiplicity,
+        int FrozenTestMultiplicity, int MaximumAcceptedPerIdentity, double AssumedMeanAcceptedPerIdentity,
+        IReadOnlyList<RiskRequirement> RiskBands,
+        string Scope = "FROZEN_FINALISTS_ONLY_SEARCH_AND_HISTORICAL_LOOKS_EXCLUDED_FROM_FRESH_HOLDOUT_FAMILY",
+        string Assumptions = "IID_IDENTITIES_ZERO_ERRORS_ASSUMED_FUTURE_ACCEPTANCE_YIELD_NOT_CERTIFICATION");
+
+    public static FinalistRiskDesign CalculateFinalistFdrOnly(int finalists, int cap,
+        double assumedMeanAccepted, IReadOnlyCollection<double> ceilings, double alpha = .05)
+    {
+        if (finalists is < 1 or > 3 || cap < 1 || !double.IsFinite(assumedMeanAccepted)
+            || assumedMeanAccepted <= 0 || assumedMeanAccepted > cap || !double.IsFinite(alpha)
+            || alpha is <= 0 or >= 1 || ceilings.Count == 0
+            || ceilings.Any(x => !double.IsFinite(x) || x is <= 0 or >= 1)
+            || ceilings.Distinct().Count() != ceilings.Count)
+            throw new InvalidDataException("Plano externo exige um a três finalistas, cap, rendimento e faixas explícitos.");
+        return new(alpha, finalists, 1, cap, assumedMeanAccepted,
+            Array.AsReadOnly(ceilings.OrderBy(x => x).Select(x => new RiskRequirement(x,
+                RequiredZeroError(cap, assumedMeanAccepted, x, alpha, finalists),
+                RequiredZeroError(cap, assumedMeanAccepted, x, alpha, 1))).ToArray()));
+    }
+
+    private static long? RequiredZeroError(Design d, double target, double alpha, int compared) =>
+        RequiredZeroError(d.MaximumAcceptedPerIndependentUnit, d.ExpectedAcceptedPerIndependentUnit, target, alpha, compared);
+
+    private static long? RequiredZeroError(int cap, double meanAccepted, double target, double alpha, int compared)
     {
         var logarithm = Math.Log(2d * compared / alpha);
         bool Meets(long n)
         {
-            var lower = d.ExpectedAcceptedPerIndependentUnit
-                - d.MaximumAcceptedPerIndependentUnit * Math.Sqrt(logarithm / (2d * n));
+            var lower = meanAccepted
+                - cap * Math.Sqrt(logarithm / (2d * n));
             var cp = 1 - Math.Exp(-logarithm / n);
-            return lower > 0 && d.MaximumAcceptedPerIndependentUnit * cp / lower <= target;
+            return lower > 0 && cap * cp / lower <= target;
         }
         // Evidence DTO uses Int32 independent groups. Absence of a supported
         // design is explicit, never clipped into a feasible sample size.
