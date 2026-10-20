@@ -27,6 +27,7 @@ public sealed class GoldTrainThreeOrderProtocolTests
     private static GoldTrainThreeOrderProtocol.Trial Trial(string id, int runNumber,
         bool mixed = false, Dictionary<long, Guid>? published = null) =>
         new(id, Sha(11), Sha(12), Sha(100 + runNumber), "TRAIN_SELECTION",
+            GoldTrainThreeOrderProtocol.StableSourceKeyContract,
             TestUsed: false, Activated: false, AllFourWavesPublished: true,
             GoldTrainThreeOrderProtocol.ResolveOrder(id, ["G3", "G2", "G1", "G0"]),
             Truth(), published ?? Final(mixed));
@@ -135,6 +136,9 @@ public sealed class GoldTrainThreeOrderProtocolTests
         Reject<InvalidDataException>(() => GoldTrainThreeOrderProtocol.Compare(a));
         a = Three();
         a[1] = a[1] with { EvidenceScope = "VALIDATION" };
+        Reject<InvalidDataException>(() => GoldTrainThreeOrderProtocol.Compare(a));
+        a = Three();
+        a[1] = a[1] with { SourceKeyContract = "SQL_IDENTITY_OBSERVACAO" };
         Reject<InvalidDataException>(() => GoldTrainThreeOrderProtocol.Compare(a));
         a = Three();
         a[1] = a[1] with { AllFourWavesPublished = false };
