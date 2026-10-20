@@ -111,8 +111,9 @@ public sealed class GoldTrainThreeOrderProtocolTests
         // but WHICH source is pending is different.
         runs[0] = runs[0] with { FinalPublishedGoldBySource =
             new Dictionary<long, Guid> { [1] = x, [2] = x, [3] = y } };
+        var q = Guid.NewGuid();
         runs[1] = runs[1] with { FinalPublishedGoldBySource =
-            new Dictionary<long, Guid> { [1] = Guid.NewGuid(), [2] = Guid.NewGuid(), [4] = Guid.NewGuid() } };
+            new Dictionary<long, Guid> { [3] = q, [4] = q, [1] = Guid.NewGuid() } };
         var report = GoldTrainThreeOrderProtocol.Compare(runs);
         Assert.That(report.GoldPartitionOrderInvariant, Is.False);
     }
