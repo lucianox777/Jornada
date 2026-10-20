@@ -97,7 +97,7 @@ public sealed class V9LowerNonMatchTrainPreviewTests
     [
         Example(1, .05m, true), Example(2, .22m, true),
         Example(3, .03m, false), Example(4, .12m, false),
-        Example(5, .30m, false), Example(6, .40m, true),
+        Example(5, .30m, false), Example(6, .60m, true),
         Example(7, .70m, true), Example(8, .90m, true)
     ];
 
