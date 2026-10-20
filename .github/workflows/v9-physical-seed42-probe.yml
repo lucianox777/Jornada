@@ -109,7 +109,7 @@ jobs:
           "$root/plot-env/bin/python" -m pip install --disable-pip-version-check --quiet matplotlib==3.10.8
           "$root/plot-env/bin/python" scripts/v9-nested-gain-plot.py "$root/regression/search/gain-by-batch.json" "$root/regression/gain-by-batch.svg"
           "$root/plot-env/bin/python" scripts/v9-nested-gain-plot.py "$root/bootstrap-search/gain-by-batch.json" "$root/bootstrap-search/gain-by-batch.svg"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         if: always()
         with:
           name: v9-nested-train-selection-frozen-finalists-${{ github.run_id }}
