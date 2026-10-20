@@ -26,3 +26,14 @@ id = "generic-api-key"
     '''^Solution/scripts/local-e2e\.(sh|ps1)$''',
     '''^Solution/install/windows-production/Jornada\.Cluster\.Test\.json$'''
   ]
+
+  # Reviewed in PR #1160: public deterministic SHA-256 of
+  # "V9_FRESH_SYNTHETIC_HOLDOUT_V1|20261020001", used only as a receipt filename.
+  # Decision: Solution/docs/V9_Suporte_Massa_Backoff_20261019.md (scanner section).
+  # Require BOTH this exact evidence path and this exact non-secret value.
+  [[rules.allowlists]]
+  description = "Reviewed public seed fingerprint for one consumed V9 holdout receipt (#1160)."
+  condition = "AND"
+  regexTarget = "secret"
+  paths = ['''^Solution/data/calibration/v9/mass-support-20261020/finalist-validation\.json$''']
+  regexes = ['''^93387c6b861d40608d235035ca04eafe09db06ae8480069e84bb9f477f5cdd8c$''']
