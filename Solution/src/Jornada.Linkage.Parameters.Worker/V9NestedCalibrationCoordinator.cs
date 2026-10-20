@@ -11,7 +11,8 @@ public sealed record V9NestedCalibrationPlan(V9AdaptiveCalibrationPlan Calibrati
     long MinimumObservedMPerCell, long MinimumObservedUPerCell,
     decimal InitialThresholdStep, decimal InitialMarginStep,
     decimal AdjustmentFraction = .7m, double MinimumRecallImprovement = .0001,
-    double MinimumFdrImprovement = .00001, string Purpose = "BOOTSTRAP_CANDIDATE_SELECTION");
+    double MinimumFdrImprovement = .00001, string Purpose = "BOOTSTRAP_CANDIDATE_SELECTION",
+    decimal ClassMassCoverage = .99m);
 
 public sealed record V9NestedCandidateEvaluation(string RequestSha256, int Batch,
     V9TrainingCandidate? Candidate, IReadOnlyList<string> Rejections);
@@ -44,6 +45,7 @@ public static class V9NestedCalibrationCoordinator
     {
         ArgumentNullException.ThrowIfNull(plan);
         V9AdaptiveCalibrationCoordinator.ValidatePlan(plan.Calibration);
+        V9JointSupportEstimation.ValidatePolicy(new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell));
         if (string.IsNullOrWhiteSpace(plan.SplitSeed) || plan.AdjustmentFraction is <= 0 or >= 1
             || plan.MaximumBatches < 1 || plan.MaximumSearchConfigurations < 1
             || plan.BootstrapRepetitions < 100 || plan.MinimumObservedMPerCell < 0 || plan.MinimumObservedUPerCell < 0
@@ -57,13 +59,14 @@ public static class V9NestedCalibrationCoordinator
             throw new InvalidDataException("Busca interna exige política, custos, suporte, TF0, faixas e orçamento explícitos.");
         if (plan.Purpose is not ("BOOTSTRAP_CANDIDATE_SELECTION" or "PLUMBING_FIXTURE_NOT_CERTIFICATION")
             || plan.Purpose == "BOOTSTRAP_CANDIDATE_SELECTION" && (plan.MinimumObservedMPerCell < 1 || plan.MinimumObservedUPerCell < 1))
-            throw new InvalidDataException("Bootstrap exige suporte observado positivo por célula; piso zero é exclusivo da fixture sem certificação.");
+            throw new InvalidDataException("Bootstrap exige suporte observado positivo no núcleo de massa de cada classe; piso zero é exclusivo da fixture sem certificação.");
     }
 
     public static async Task<V9NestedCalibrationSearchResult> SearchAsync(
         Func<CancellationToken, Task<SqlConnection>> openIndependentConnection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> originalTrain,
-        V9NestedCalibrationPlan plan, CancellationToken cancellationToken)
+        V9NestedCalibrationPlan plan, CancellationToken cancellationToken,
+        Action<V9TrainingBatchProgress>? reportProgress = null)
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
         ValidatePlan(plan);
@@ -169,6 +172,7 @@ public static class V9NestedCalibrationCoordinator
             progress.Add(new(batch, requests.Length, evaluations.Count, currentBands, recallGain, fdrGain,
                 double.IsFinite(deltaR) ? deltaR : null, double.IsFinite(deltaF) ? deltaF : null, material, stagnant,
                 MaximumGainInResolutionUnits: normalizedGain));
+            reportProgress?.Invoke(progress[^1]);
             if (frontier.Count == 0) { stop = "NO_FEASIBLE_CONFIGURATION_NO_HOLDOUT_USED"; break; }
             if (stagnant >= 2) { stop = "TWO_STAGNANT_BATCHES_HEURISTIC_NOT_OPTIMALITY"; break; }
             if (evaluations.Count >= plan.MaximumSearchConfigurations) { stop = "COMPUTE_BUDGET_EXHAUSTED_NOT_OPTIMALITY"; break; }
@@ -223,7 +227,8 @@ public static class V9NestedCalibrationCoordinator
                 predeclaredMaximumAcceptedPerBaseIdentity: c.MaximumAcceptedPerBaseIdentity,
                 includeFsBlindGrouping: true, minimumFsGroupingPosterior: c.MinimumGroupingPosterior,
                 adaptiveExecution: c.Execution with { EndToEndRepetitions = 0, TotalComparedConfigurations = plan.MaximumSearchConfigurations },
-                includeIdentityOutcomes: true);
+                includeIdentityOutcomes: true,
+                jointSupportPolicy: new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell));
             var result = new List<V9NestedCandidateEvaluation>();
             foreach (var request in requests)
             {
@@ -231,8 +236,8 @@ public static class V9NestedCalibrationCoordinator
                 var fit = run.FrozenConfigurations!.Single(x => x.OptionId == request.Option.OptionId);
                 var support = fit.JointSupport!;
                 var reasons = new List<string>();
-                if (support.Cells.Any(x => x.ObservedMPairs < plan.MinimumObservedMPerCell || x.ObservedUPairs < plan.MinimumObservedUPerCell))
-                    reasons.Add("SUPORTE_OBSERVADO_POR_CELULA_INSUFICIENTE");
+                if (!V9JointSupportEstimation.HasRequiredCoreSupport(fit.Snapshot.Payload.JointSupport!))
+                    reasons.Add("SUPORTE_OBSERVADO_NO_NUCLEO_DE_MASSA_INSUFICIENTE");
                 var fanout = run.CalibrationReport.Options.Single(x => x.OptionId == request.Option.OptionId).Validation.BlockingFalseDegreeP99;
                 if (fanout > c.Budget.MaximumBlockingFalseDegreeP99) reasons.Add("FANOUT_P99_ACIMA_DO_ORCAMENTO");
                 if (metric.FdrAfterResolve is null) reasons.Add("FDR_INDEFINIDO_SEM_ACEITOS");

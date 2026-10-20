@@ -118,6 +118,7 @@ jobs:
           path: |
             Solution/.local/v9-nested-ci/bootstrap-plan.json
             Solution/.local/v9-nested-ci/bootstrap-search/*.json
+            Solution/.local/v9-nested-ci/bootstrap-search/*.jsonl
             Solution/.local/v9-nested-ci/bootstrap-search/*.svg
             Solution/.local/v9-nested-ci/regression/**/*.json
             Solution/.local/v9-nested-ci/regression/*.svg

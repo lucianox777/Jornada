@@ -43,7 +43,7 @@ public sealed record V9FsAdaptiveOptionConfiguration(
     decimal TfWeight = 0m,
     CompositeNominalTfSideV9 TfSide = CompositeNominalTfSideV9.Person,
     decimal TfMinimumFrequency = 0.000001m,
-    long TfMinimumIndependentSupport = 1)
+    long TfMinimumIndependentSupport = 1, V9JointSupportPolicy? JointSupportPolicy = null)
 {
     public string FingerprintSha256 => V9FellegiSunterAdaptiveCalibrationAdapter
         .ConfigurationFingerprintSha256(this);
@@ -68,7 +68,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         decimal Threshold,
         IReadOnlyList<FellegiSunterJointNominalCellV9> Cells,
         IReadOnlyDictionary<string, decimal> Parameters,
-        V9TrainSqlFirstNameUCalibration.Frozen? TrainUnitU);
+        V9TrainSqlFirstNameUCalibration.Frozen? TrainUnitU, V9JointSupportProvenance? JointSupport);
 
     private readonly V9FsAdaptiveCandidateFrame frame;
     private readonly IReadOnlyDictionary<string, V9FsAdaptiveOptionConfiguration> options;
@@ -135,6 +135,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             || (frozenTfReference is null && byId.Any(x => x.TfWeight > 0m))
             || byId.Select(x => x.OptionId).Distinct(StringComparer.Ordinal).Count() != byId.Length)
             throw new ArgumentException("Opções FS V9 inválidas ou duplicadas.");
+        foreach (var option in byId)
+            if (option.JointSupportPolicy is not null) V9JointSupportEstimation.ValidatePolicy(option.JointSupportPolicy);
         this.options = byId.ToDictionary(x => x.OptionId, StringComparer.Ordinal);
         this.frozenTfReference = frozenTfReference;
         if (frame.CandidateBlockingPasses is not null && byId.Any(x => x.TfWeight > 0m)
@@ -190,7 +192,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 config.TfMinimumIndependentSupport, frame.TrainCorpusFingerprintSha256);
         }
         return V9FittedSnapshot.Create(new V9FittedSnapshotPayload(
-            V9FittedSnapshot.SchemaVersion, CompositeNominalComparisonV9.ContractVersion,
+            (frozen.JointSupport is null ? V9FittedSnapshot.SchemaVersion : V9FittedSnapshot.SupportSchemaVersion), CompositeNominalComparisonV9.ContractVersion,
             projectionSchemaVersion, projectionFingerprintSha256,
             frozen.FingerprintSha256,
             frame.TrainCorpusFingerprintSha256, frame.ValidationCorpusFingerprintSha256,
@@ -198,7 +200,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             Version, frozen.OptionId, frozen.Threshold, conflictMargin, config.TfWeight,
             blockingPasses, frozen.Cells, frozen.Parameters, tf,
             BlockingFrameFingerprintSha256: frame.BlockingFrameFingerprintSha256,
-            CandidateGrouping: candidateGrouping));
+            CandidateGrouping: candidateGrouping, JointSupport: frozen.JointSupport));
     }
 
     private static bool BlockingPassesEqual(
@@ -257,6 +259,16 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             cells.Add(new FellegiSunterJointNominalCellV9(person, mother, m, u));
         }
 
+        V9JointSupportProvenance? support = null;
+        if (config.JointSupportPolicy is { } jointSupportPolicy)
+        {
+            var estimated = V9JointSupportEstimation.Estimate(cells.Select(c => new V9JointObservedCell(c.Person, c.Mother,
+                mCounts.GetValueOrDefault((c.Person, c.Mother)), uCounts.GetValueOrDefault((c.Person, c.Mother)))),
+                jointSupportPolicy, alpha, frame.TrainCorpusFingerprintSha256);
+            cells = estimated.Probabilities.ToList();
+            support = estimated.Provenance;
+        }
+
         var mBirth = BirthCounts(matched);
         var uBirth = BirthCounts(unmatched);
         if (mBirth.Total < 2 || uBirth.Total < 2)
@@ -301,9 +313,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 frame.BlockingFrameFingerprintSha256,
                 Passes = frame.CandidateBlockingPasses.OrderBy(x => x.PassId, StringComparer.Ordinal)
             }));
+        if (support is not null) fitSha = Sha(fitSha + "|JOINT_SUPPORT|" + System.Text.Json.JsonSerializer.Serialize(support));
         fits[fitSha] = new FrozenFit(fitSha, config.OptionId, config.DecisionThreshold,
             Array.AsReadOnly(cells.ToArray()),
-            new Dictionary<string, decimal>(parameters, StringComparer.Ordinal), trainU);
+            new Dictionary<string, decimal>(parameters, StringComparer.Ordinal), trainU, support);
 
         return new AdaptiveCalibrationFitDraft(
             Family, Version, config.OptionId, config.FingerprintSha256, fitSha,
@@ -1008,6 +1021,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             "TF_SIDE=" + config.TfSide,
             "TF_MIN_FREQ=" + config.TfMinimumFrequency.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "TF_SUPPORT=" + config.TfMinimumIndependentSupport);
+        if (config.JointSupportPolicy is not null) canonical += "|JOINT_SUPPORT|" + System.Text.Json.JsonSerializer.Serialize(config.JointSupportPolicy);
         return Sha(canonical);
     }
 

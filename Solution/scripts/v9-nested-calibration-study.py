@@ -52,7 +52,8 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False):
     plan = dict(Calibration=calibration, SplitSeed="JORNADA_V9_INTERNAL_70_30_20261019_V1",
         MaximumBatches=3 if fixture else 32, MaximumSearchConfigurations=maximum,
         BootstrapRepetitions=200 if fixture else 2000, BootstrapSeed=20261019,
-        MinimumObservedMPerCell=0 if fixture else 1, MinimumObservedUPerCell=0 if fixture else 1,
+        MinimumObservedMPerCell=0 if fixture else 5, MinimumObservedUPerCell=0 if fixture else 5,
+        ClassMassCoverage=.99,
         InitialThresholdStep=.025, InitialMarginStep=.25, AdjustmentFraction=.7,
         MinimumRecallImprovement=.0001, MinimumFdrImprovement=.00001,
         Purpose="PLUMBING_FIXTURE_NOT_CERTIFICATION" if fixture else "BOOTSTRAP_CANDIDATE_SELECTION")

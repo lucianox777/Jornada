@@ -19,7 +19,9 @@ public sealed record V9FittedSnapshotPayload(
     V9SnapshotFirstNameTf? TfCalibration = null,
     string? BlockingFrameFingerprintSha256 = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    V9SnapshotCandidateGrouping? CandidateGrouping = null);
+    V9SnapshotCandidateGrouping? CandidateGrouping = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    V9JointSupportProvenance? JointSupport = null);
 
 public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
     decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
@@ -43,6 +45,7 @@ public sealed record V9SnapshotCandidate(
 public sealed class V9FittedSnapshot
 {
     public const string SchemaVersion = "V9_FITTED_SNAPSHOT_V2";
+    public const string SupportSchemaVersion = "V9_FITTED_SNAPSHOT_V3";
     public const int MaximumContentBytes = 67_108_864;
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -153,7 +156,7 @@ public sealed class V9FittedSnapshot
                 || grouping.MinimumPairPosterior is <= .5m or >= 1m
                 || grouping.MaximumObservationsPerIdentity < 2))
             throw new InvalidDataException("Contrato de agrupamento do snapshot V9 inválido.");
-        if (p.SchemaVersion != SchemaVersion || p.NominalContractVersion != CompositeNominalComparisonV9.ContractVersion
+        if (p.SchemaVersion != (p.JointSupport is null ? SchemaVersion : SupportSchemaVersion) || p.NominalContractVersion != CompositeNominalComparisonV9.ContractVersion
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)
             || p.Threshold is <= 0m or >= 1m || p.ConflictMargin is < 0m or > 1000m
@@ -248,7 +251,8 @@ public sealed class V9FittedSnapshot
             frozenTf = tf with { Frequencies = frequencies, TrainUnitUByValue = trainU };
         }
         return p with { BlockingPasses = Array.AsReadOnly(passes), JointCells = cells,
-            Parameters = parameters, TfCalibration = frozenTf };
+            Parameters = parameters, TfCalibration = frozenTf,
+            JointSupport = p.JointSupport is null ? null : V9JointSupportEstimation.VerifyAndFreeze(p.JointSupport, cells, p.TrainCorpusSha256) };
     }
 
     private static void RequireSha(string value)

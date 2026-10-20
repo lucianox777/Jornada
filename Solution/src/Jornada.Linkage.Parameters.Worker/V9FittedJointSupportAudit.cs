@@ -18,8 +18,16 @@ public static class V9FittedJointSupportAudit
         ArgumentNullException.ThrowIfNull(snapshot);
         if (smoothingAlpha <= 0 || physicalTrainMPairs < 2 || physicalTrainUPairs < 2)
             throw new InvalidDataException("Auditoria exige alpha e contagens físicas M/U de TRAIN.");
-        var cells = snapshot.Payload.JointCells.Select(cell => new Cell(cell.Person, cell.Mother,
-            Invert(cell.M, physicalTrainMPairs), Invert(cell.U, physicalTrainUPairs))).ToArray();
+        var declared = snapshot.Payload.JointSupport;
+        if (declared is not null && (declared.SmoothingAlpha != smoothingAlpha
+            || declared.TotalM != physicalTrainMPairs || declared.TotalU != physicalTrainUPairs))
+            throw new InvalidDataException("Contagens físicas divergem da proveniência conjunta/marginal.");
+        // V3 persists raw support explicitly. Backoff probabilities cannot be inverted
+        // as if they were Laplace counts. Legacy V2 remains independently auditable.
+        var cells = declared is not null
+            ? declared.Cells.Select(c => new Cell(c.Person, c.Mother, c.ObservedM, c.ObservedU)).ToArray()
+            : snapshot.Payload.JointCells.Select(cell => new Cell(cell.Person, cell.Mother,
+                Invert(cell.M, physicalTrainMPairs), Invert(cell.U, physicalTrainUPairs))).ToArray();
         if (cells.Length != 81 || cells.Sum(x => x.ObservedMPairs) != physicalTrainMPairs
             || cells.Sum(x => x.ObservedUPairs) != physicalTrainUPairs
             || Math.Abs(snapshot.Payload.Parameters[LinkageParameterCatalog.PriorMatchProbability]
