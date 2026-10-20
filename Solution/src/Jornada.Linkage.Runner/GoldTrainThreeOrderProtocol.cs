@@ -105,6 +105,8 @@ public static class GoldTrainThreeOrderProtocol
         if (first.TruthBySource is null || first.TruthBySource.Count == 0)
             throw new InvalidDataException("Gabarito TRAIN completo obrigatório.");
         var outputs = new List<Metrics>();
+        IReadOnlyDictionary<long, (bool Published, long Representative)>? baselinePartition = null;
+        var partitionInvariant = true;
         var runFingerprints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var trial in trials.OrderBy(x => OrderIds.ToList().IndexOf(x.OrderId)))
         {
@@ -126,6 +128,12 @@ public static class GoldTrainThreeOrderProtocol
             var order = ResolveOrder(trial.OrderId, ["G0", "G1", "G2", "G3"]);
             if (trial.ExecutedWaveOrder is null || !trial.ExecutedWaveOrder.SequenceEqual(order, StringComparer.Ordinal))
                 throw new InvalidDataException("Sequência executada diverge do plano congelado.");
+            var partition = CanonicalPartition(trial.TruthBySource.Keys, trial.FinalPublishedGoldBySource);
+            if (baselinePartition is null) baselinePartition = partition;
+            else if (baselinePartition.Count != partition.Count
+                || baselinePartition.Any(x => !partition.TryGetValue(x.Key, out var key)
+                    || key != x.Value))
+                partitionInvariant = false;
             var pair = V9GoldEndToEndAudit.Measure(trial.TruthBySource, trial.FinalPublishedGoldBySource);
             var bcubed = GoldPartitionBcubedAudit.Measure(trial.TruthBySource, trial.FinalPublishedGoldBySource);
             if (pair.Observations != bcubed.Sources
@@ -146,24 +154,28 @@ public static class GoldTrainThreeOrderProtocol
 
         var pending = outputs.Select(x => x.PendingSources).ToArray();
         var falsePairs = outputs.Select(x => x.FalseGoldPairs).ToArray();
-        // These metrics do not determine whether bytewise UUIDs are equal.
-        // Invariance means equal evaluated Gold partition quality, not equal
-        // identity assignments. Full partition invariance needs additional
-        // pairwise co-cluster comparison across runs.
-        var equalQuality = outputs.All(x =>
-            x.PublishedSources == outputs[0].PublishedSources
-            && x.PendingSources == outputs[0].PendingSources
-            && x.TrueIdentitiesRepresented == outputs[0].TrueIdentitiesRepresented
-            && x.FragmentedTrueIdentities == outputs[0].FragmentedTrueIdentities
-            && x.ImpureGoldReferences == outputs[0].ImpureGoldReferences
-            && x.CorrectGoldPairs == outputs[0].CorrectGoldPairs
-            && x.FalseGoldPairs == outputs[0].FalseGoldPairs);
         return new Comparison(
             Version, first.OriginalCorpusSha256, first.FrozenSnapshotSha256,
             outputs, pending.Max() - pending.Min(), falsePairs.Max() - falsePairs.Min(),
-            GoldPartitionOrderInvariant: false, // never infer it from equal aggregate quality
+            GoldPartitionOrderInvariant: partitionInvariant, // source-membership equivalence, never UUID byte equality
             IncrementalLinkageFdrComputed: false, // needs per-accepted-link truth, not pairs
             IndependentlyCertified: false, TestUsed: false, OperationallyActivated: false);
+    }
+
+    private static IReadOnlyDictionary<long, (bool Published, long Representative)> CanonicalPartition(
+        IEnumerable<long> allSourceIds, IReadOnlyDictionary<long, Guid> published)
+    {
+        var result = new Dictionary<long, (bool Published, long Representative)>();
+        foreach (var group in published.GroupBy(x => x.Value))
+        {
+            var representative = group.Min(x => x.Key);
+            foreach (var source in group)
+                if (!result.TryAdd(source.Key, (true, representative)))
+                    throw new InvalidDataException("Fonte publicada mais de uma vez.");
+        }
+        foreach (var source in allSourceIds)
+            result.TryAdd(source, (false, source)); // pending is a singleton with explicit status
+        return result;
     }
 
     private static void RequireSha(string? value)
