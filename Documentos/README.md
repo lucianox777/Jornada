@@ -1,3 +1,5 @@
+> **Atualização de engenharia em 20/10/2026:** para decisões vigentes do Calibrador V9, bootstrap, fronteira de Pareto e auditoria Gold, consultar [registro de decisões e evidências](../Solution/docs/V9_Registro_Decisoes_Bootstrap_Gold_20261020.md) e [índice de decisões](../Solution/docs/Indice_Decisoes_Vigentes.md). Esta remissão **não altera** a especificação publicada v3.62, a candidata v5.00 ou o estado de release selada; decisões técnicas pendentes de implementação não constituem publicação normativa.
+
 > **NAVEGAÇÃO CORRENTE (06/10/2026):** use o [índice vivo do acervo](../Solution/docs/Indice_Acervo_Documental.md) para precedência e leitura mínima. As [decisões canônicas de identidade/linkage](../Solution/docs/Decisoes_Canonicas_Identidade_Linkage_20260929.md) continuam sendo a fonte decisória daquele domínio; o [catálogo de vigência de 29/09](../Solution/docs/Catalogo_Vigencia_Documental_20260929.md) é snapshot do corte que declara e não cobre automaticamente documentos posteriores.
 
 # Documentos da Jornada do Cidadão
