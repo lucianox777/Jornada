@@ -21,7 +21,7 @@ public sealed class V9GoldEndToEndAuditTests
             [3] = b, [5] = b           // A/B false pair; C still pending
         };
         var report = V9GoldEndToEndAudit.Measure(truth, final);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.Observations, Is.EqualTo(6));
             Assert.That(report.TrueIdentities, Is.EqualTo(3));
@@ -40,7 +40,7 @@ public sealed class V9GoldEndToEndAuditTests
             Assert.That(report.TruthIdentityCoverage, Is.EqualTo(2.0 / 3));
             Assert.That(report.FragmentedTrueIdentities, Is.EqualTo(2));
             Assert.That(report.ImpureGoldReferences, Is.EqualTo(2));
-        });
+        }));
     }
 
     [Test]
@@ -50,7 +50,7 @@ public sealed class V9GoldEndToEndAuditTests
         var report = V9GoldEndToEndAudit.Measure(
             new Dictionary<long, string> { [1] = "P", [2] = "P", [3] = "P" },
             new Dictionary<long, Guid> { [1] = gold, [2] = gold, [3] = gold });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.MinimumLinksForPerfectConsolidation, Is.EqualTo(2));
             Assert.That(report.AllTrueObservationPairs, Is.EqualTo(3));
@@ -59,7 +59,7 @@ public sealed class V9GoldEndToEndAuditTests
             Assert.That(report.FinalGoldPairPrecision, Is.EqualTo(1));
             Assert.That(report.FragmentedTrueIdentities, Is.Zero);
             Assert.That(report.ImpureGoldReferences, Is.Zero);
-        });
+        }));
     }
 
     [Test]
@@ -68,14 +68,14 @@ public sealed class V9GoldEndToEndAuditTests
         var report = V9GoldEndToEndAudit.Measure(
             new Dictionary<long, string> { [1] = "P", [2] = "P" },
             new Dictionary<long, Guid> { [1] = Guid.NewGuid(), [2] = Guid.NewGuid() });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.TruthIdentityCoverage, Is.EqualTo(1));
             Assert.That(report.GoldReferences, Is.EqualTo(2));
             Assert.That(report.FragmentedTrueIdentities, Is.EqualTo(1));
             Assert.That(report.FinalGoldPairRecall, Is.Zero);
             Assert.That(report.FinalGoldPairPrecision, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -84,7 +84,7 @@ public sealed class V9GoldEndToEndAuditTests
         var report = V9GoldEndToEndAudit.Measure(
             new Dictionary<long, string> { [1] = "P", [2] = "P" },
             new Dictionary<long, Guid>());
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.PendingSources, Is.EqualTo(2));
             Assert.That(report.TruthIdentitiesRepresented, Is.Zero);
@@ -92,7 +92,7 @@ public sealed class V9GoldEndToEndAuditTests
             Assert.That(report.AllTrueObservationPairs, Is.EqualTo(1));
             Assert.That(report.FinalGoldPairRecall, Is.Zero);
             Assert.That(report.FinalGoldPairPrecision, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -101,27 +101,27 @@ public sealed class V9GoldEndToEndAuditTests
         var report = V9GoldEndToEndAudit.Measure(
             new Dictionary<long, string> { [1] = "P", [2] = "Q" },
             new Dictionary<long, Guid> { [1] = Guid.NewGuid() });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report.AllTrueObservationPairs, Is.Zero);
             Assert.That(report.FinalGoldPairRecall, Is.Null);
             Assert.That(report.FinalGoldPairPrecision, Is.Null);
             Assert.That(report.PendingSourceRate, Is.EqualTo(.5));
-        });
+        }));
     }
 
     [Test]
     public void Refuses_Gold_assignment_outside_truth_and_missing_truth()
     {
-        Assert.Throws<InvalidDataException>(() => V9GoldEndToEndAudit.Measure(
+        Assert.Throws<InvalidDataException>((Action)(() => V9GoldEndToEndAudit.Measure(
             new Dictionary<long, string> { [1] = "P" },
-            new Dictionary<long, Guid> { [2] = Guid.NewGuid() }));
-        Assert.Throws<InvalidDataException>(() => V9GoldEndToEndAudit.Measure(
+            new Dictionary<long, Guid> { [2] = Guid.NewGuid() })));
+        Assert.Throws<InvalidDataException>((Action)(() => V9GoldEndToEndAudit.Measure(
             new Dictionary<long, string> { [1] = "P" },
-            new Dictionary<long, Guid> { [1] = Guid.Empty }));
-        Assert.Throws<InvalidDataException>(() => V9GoldEndToEndAudit.Measure(
+            new Dictionary<long, Guid> { [1] = Guid.Empty })));
+        Assert.Throws<InvalidDataException>((Action)(() => V9GoldEndToEndAudit.Measure(
             new Dictionary<long, string> { [1] = "" },
-            new Dictionary<long, Guid>()));
+            new Dictionary<long, Guid>())));
     }
 
     [TestCase("SEM_CANDIDATO_NO_BLOCO", "BUSCA_COMPLETA_SEM_CANDIDATO")]
