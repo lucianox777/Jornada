@@ -81,7 +81,7 @@ public sealed class V9LowerNonMatchTrainPreviewTests
     }
 
     private static V9LowerNonMatchTrainCalibrator.Policy Policy(
-        double maxWrongAmongCreates = .4, double maxWrongAmongExisting = .2,
+        double maxWrongAmongCreates = .1, double maxWrongAmongExisting = .1,
         bool manual = true, bool test = false)
         => new(Fit, Corpus, .95m, [.1m, .2m, .5m],
             maxWrongAmongCreates, maxWrongAmongExisting, 6, 5, manual, test);
@@ -95,7 +95,7 @@ public sealed class V9LowerNonMatchTrainPreviewTests
 
     private static V9LowerNonMatchTrainCalibrator.TrainingSource[] Sources() =>
     [
-        Example(1, .05m, true), Example(2, .22m, true),
+        Example(1, .55m, true), Example(2, .22m, true),
         Example(3, .03m, false), Example(4, .12m, false),
         Example(5, .30m, false), Example(6, .60m, true),
         Example(7, .70m, true), Example(8, .90m, true)
@@ -111,15 +111,15 @@ public sealed class V9LowerNonMatchTrainPreviewTests
         Multiple(() =>
         {
             Assert.That(s.Version, Is.EqualTo(V9LowerNonMatchTrainCalibrator.Version));
-            Assert.That(lo.FalseNewReferences, Is.EqualTo(1));
-            Assert.That(lo.ProposedNewReferences, Is.EqualTo(2));
-            Assert.That(lo.MeetsPointBudgets, Is.False);
-            Assert.That(mid.FalseNewReferences, Is.EqualTo(1));
+            Assert.That(lo.FalseNewReferences, Is.Zero);
+            Assert.That(lo.ProposedNewReferences, Is.EqualTo(1));
+            Assert.That(lo.MeetsPointBudgets, Is.True);
+            Assert.That(mid.FalseNewReferences, Is.Zero);
             Assert.That(mid.CorrectNewReferences, Is.EqualTo(2));
-            Assert.That(mid.PendingAfter, Is.EqualTo(5));
+            Assert.That(mid.PendingAfter, Is.EqualTo(6));
             Assert.That(mid.MeetsPointBudgets, Is.True);
-            Assert.That(hi.FalseNewReferences, Is.EqualTo(2));
-            Assert.That(hi.PendingAfter, Is.EqualTo(3));
+            Assert.That(hi.FalseNewReferences, Is.EqualTo(1));
+            Assert.That(hi.PendingAfter, Is.EqualTo(4));
             Assert.That(hi.MeetsPointBudgets, Is.False);
             Assert.That(s.DescriptiveSuggestedLowerThreshold, Is.EqualTo(.2m));
             Assert.That(s.IndependentIdentityGroups, Is.EqualTo(8));
@@ -165,7 +165,7 @@ public sealed class V9LowerNonMatchTrainPreviewTests
         var p = V9AdaptiveCalibrationCoordinator.SearchLowerNonMatchOnTrain(Policy(), s);
         Multiple(() =>
         {
-            Assert.That(p.Candidates.Single(x => x.LowerThreshold == .2m).ProposedNewReferences, Is.EqualTo(2));
+            Assert.That(p.Candidates.Single(x => x.LowerThreshold == .2m).ProposedNewReferences, Is.EqualTo(1));
             Assert.That(p.Candidates.Select(x => x.BaselinePending).Distinct().Count(), Is.EqualTo(1));
             Assert.That(p.Candidates[0].BaselinePending, Is.EqualTo(8));
         });
