@@ -4,6 +4,12 @@ using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Runner;
 using Jornada.Bronze.Storage;
 
+if (args.FirstOrDefault() == GoldTrainLowerNonMatchMatrixCommand.Flag)
+{
+    await GoldTrainLowerNonMatchMatrixCommand.RunAsync(args);
+    return;
+}
+
 if (args.FirstOrDefault() == GoldTrainThreeOrderAggregateCommand.Flag)
 {
     await GoldTrainThreeOrderAggregateCommand.RunAsync(args);
