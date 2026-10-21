@@ -545,13 +545,40 @@ public static class V9GoldHarnessCommand
             await update.ExecuteNonQueryAsync();
         }
         await tx.CommitAsync();
+
+        // Physically check the materialized keys used by this pinned V9 fit.
+        // A declared fingerprint alone is not evidence that the SQL projection exists.
+        var expected = keys.Rows.Cast<DataRow>().Select(r => (
+            Person: (Guid)r["person"], Feature: (string)r["feature"],
+            Value: (string)r["value"], Temporal: (string)r["temporal"])).ToHashSet();
+        var actual = new HashSet<(Guid Person, string Feature, string Value, string Temporal)>();
+        await using (var verify = new SqlCommand("""
+            SELECT b.pessoa_uuid,b.atributo,b.valor_normalizado,b.semantica_temporal
+            FROM identidade.blocking_chave b
+            JOIN gold.pessoa g ON g.pessoa_uuid=b.pessoa_uuid
+            WHERE g.estado_identidade=N'REFERENCIA'
+              AND b.normalizacao_versao=@normalization
+              AND b.projection_schema_version=@schema
+              AND b.projection_fingerprint_sha256=@fingerprint
+              AND b.vigencia_fim IS NULL;
+            """, connection))
+        {
+            verify.Parameters.AddWithValue("@normalization", IdentityComparison.NormalizationVersion);
+            verify.Parameters.AddWithValue("@schema", runtime.ProjectionSchemaVersion);
+            verify.Parameters.AddWithValue("@fingerprint", runtime.ProjectionFingerprintSha256);
+            await using var reader = await verify.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                actual.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
+        }
+        if (!expected.IsSubsetOf(actual))
+            throw new InvalidDataException("Projeção SQL Gold incompleta: chaves de blocking do fit fixado ausentes.");
     }
 
     // Private to this guarded command: no production DI registration, active model
     // lookup or truth access. Complete candidates and comparison attributes come
     // exclusively from the real Gold state before the current runner wave.
     private sealed class IsolatedPreview(IOperationalSqlAdapter sql, V9FittedSnapshotExecutionRuntime runtime,
-        ProbabilisticLinkageModelRef model) : IProbabilisticIdentityLinkage
+        ProbabilisticLinkageModelRef model, decimal? lowerNonMatchThreshold) : IProbabilisticIdentityLinkage
     {
         public Task<ProbabilisticLinkageModelRef> GetActiveModelAsync(CancellationToken ct) =>
             throw new InvalidOperationException("Preview não dispõe de modelo ativo.");
@@ -570,8 +597,22 @@ public static class V9GoldHarnessCommand
                 while (await reader.ReadAsync(ct))
                     candidates.Add(new(reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1),
                         reader.IsDBNull(2) ? null : DateOnly.FromDateTime(reader.GetDateTime(2)), reader.IsDBNull(3) ? null : reader.GetString(3)));
-            return runtime.ResolveRetrievedCandidatesPreview(modeloId, observation, new(runtime.SnapshotSha256,
+            var decision = runtime.ResolveRetrievedCandidatesPreview(modeloId, observation, new(runtime.SnapshotSha256,
                 runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256, true, candidates));
+            if (lowerNonMatchThreshold is not { } lower) return decision;
+            // Query has no TOP/paging: read the full UNION of blocking passes
+            // and the actual Gold columns before invoking the SAME frozen scorer.
+            // The initial empty Gold is guarded; each later Gold projection is
+            // physically checked after publication and before the next wave.
+            var candidateFrameSha = Sha(System.Text.Encoding.UTF8.GetBytes(string.Join("|",
+                runtime.SnapshotSha256, runtime.ProjectionFingerprintSha256,
+                string.Join(",", candidates.Select(x => x.PersonUuid.ToString("D", CultureInfo.InvariantCulture))))));
+            var retrieval = new V9LowerNonMatchPreview.VerifiedRetrieval(
+                runtime.SnapshotSha256, candidateFrameSha, candidates.Count,
+                IndexMaterializationVerified: true, CompleteCandidateUniverse: true,
+                EligibleBlockingPasses: runtime.Plan(observation).Count != 0);
+            return V9GoldLowerNonMatchExperiment.Apply(decision, retrieval,
+                runtime.SnapshotSha256, lower, model.Threshold);
         }
     }
 
