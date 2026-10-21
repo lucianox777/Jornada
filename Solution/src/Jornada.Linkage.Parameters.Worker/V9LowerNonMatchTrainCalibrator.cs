@@ -12,7 +12,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static class V9LowerNonMatchTrainCalibrator
 {
-    public const string Version = "V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V3";
+    public const string Version = "V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V4";
 
     public sealed record Policy(
         string FrozenSnapshotSha256,
@@ -44,6 +44,8 @@ public static class V9LowerNonMatchTrainCalibrator
         double FalseNewAmongAlreadyRepresented,
         bool IsParetoFrontier);
 
+    public sealed record DescriptiveBand(decimal MaximumFalseNewAmongCreates, decimal? BestLowerThreshold, long? FalseNewReferences, long? PendingAfter);
+
     public sealed record Study(
         string Version,
         string FrozenSnapshotSha256,
@@ -60,7 +62,9 @@ public static class V9LowerNonMatchTrainCalibrator
         bool OperationalModelCreated,
         bool AutomaticCalibrationOrActivationAllowed,
         bool DuplicateConfidenceCertified,
-        bool LinkageFdrRecalibrated);
+        bool LinkageFdrRecalibrated,
+        IReadOnlyList<DescriptiveBand>? DescriptiveBands = null,
+        IReadOnlyList<decimal>? DescriptiveFinalistThresholds = null);
 
     public static Study Search(Policy policy, IReadOnlyList<TrainingSource> sources)
     {
@@ -160,6 +164,26 @@ public static class V9LowerNonMatchTrainCalibrator
             .ThenBy(x => x.PendingAfter)
             .ThenBy(x => x.LowerThreshold)
             .First().LowerThreshold;
+        // Bands describe the observed frontier, not admissibility constraints.
+        // Missing bands are explicit; they do not silently relax a risk budget.
+        var bands = new[] { .005m, .01m, .02m, .05m, 1m }
+            .Select(maxRate =>
+            {
+                var eligible = nondominated.Where(x => x.FalseNewAmongCreates.HasValue
+                    && (decimal)x.FalseNewAmongCreates.Value <= maxRate)
+                    .OrderBy(x => x.PendingAfter)
+                    .ThenBy(x => x.FalseNewReferences)
+                    .ThenBy(x => x.LowerThreshold)
+                    .FirstOrDefault();
+                return new DescriptiveBand(maxRate, eligible?.LowerThreshold,
+                    eligible?.FalseNewReferences, eligible?.PendingAfter);
+            }).ToArray();
+        var conservative = nondominated.OrderBy(x => x.FalseNewReferences)
+            .ThenBy(x => x.PendingAfter).ThenBy(x => x.LowerThreshold).First();
+        var lowestPending = nondominated.OrderBy(x => x.PendingAfter)
+            .ThenBy(x => x.FalseNewReferences).ThenBy(x => x.LowerThreshold).First();
+        var finalists = new[] { suggested, conservative.LowerThreshold, lowestPending.LowerThreshold }
+            .Distinct().ToArray();
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             Version + "|" + policy.FrozenSnapshotSha256 + "|"
             + policy.TrainingEvidenceSha256 + "|"
@@ -175,7 +199,8 @@ public static class V9LowerNonMatchTrainCalibrator
             "TRAIN_DESCRIPTIVE_KNEE_SUGGESTION_ONLY_UNCERTIFIED_NO_PRESET_DUPLICATE_BUDGET",
             ExternalValidationUsed: false, TestUsed: false, OperationalModelCreated: false,
             AutomaticCalibrationOrActivationAllowed: false,
-            DuplicateConfidenceCertified: false, LinkageFdrRecalibrated: false);
+            DuplicateConfidenceCertified: false, LinkageFdrRecalibrated: false,
+            DescriptiveBands: bands, DescriptiveFinalistThresholds: finalists);
     }
 
     private static void CheckSha(string? sha, string label)
