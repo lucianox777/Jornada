@@ -120,6 +120,11 @@ public sealed class V9LowerNonMatchTrainPreviewTests
             Assert.That(s.DescriptiveSuggestedLowerThreshold, Is.EqualTo(.2m));
             Assert.That(s.Candidates.Single(x => x.LowerThreshold == s.DescriptiveSuggestedLowerThreshold).IsParetoFrontier, Is.True);
             Assert.That(s.Candidates.Count(x => x.IsParetoFrontier), Is.GreaterThanOrEqualTo(2));
+            Assert.That(s.DescriptiveBands, Has.Count.EqualTo(5));
+            Assert.That(s.DescriptiveBands![0].MaximumFalseNewAmongCreates, Is.EqualTo(.005m));
+            Assert.That(s.DescriptiveBands![0].BestLowerThreshold, Is.EqualTo(.2m));
+            Assert.That(s.DescriptiveFinalistThresholds, Is.EquivalentTo(new[] { .2m, .5m }));
+            Assert.That(s.DescriptiveFinalistThresholds!.Count, Is.LessThanOrEqualTo(3));
             Assert.That(s.IndependentIdentityGroups, Is.EqualTo(8));
             Assert.That(s.AlreadyRepresentedSources, Is.EqualTo(5));
             Assert.That(s.ExternalValidationUsed, Is.False);
