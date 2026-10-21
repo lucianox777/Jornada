@@ -4,6 +4,12 @@ using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Runner;
 using Jornada.Bronze.Storage;
 
+if (args.FirstOrDefault() == GoldTrainThreeOrderAggregateCommand.Flag)
+{
+    await GoldTrainThreeOrderAggregateCommand.RunAsync(args);
+    return;
+}
+
 if (args.FirstOrDefault() == V9GoldHarnessDatabasePreparation.Flag)
 {
     await V9GoldHarnessDatabasePreparation.RunAsync(args);
