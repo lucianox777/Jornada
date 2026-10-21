@@ -40,6 +40,73 @@ public sealed class GoldTrainThreeOrderProtocolTests
     ];
 
     [Test]
+    public void Stable_key_comes_from_actual_csv_observation_id_not_sql_or_row_position()
+    {
+        var id = "P000102-G3-1";
+        var k = GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(id);
+        Multiple(() =>
+        {
+            Assert.That(k, Is.GreaterThan(0L));
+            Assert.That(GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(id), Is.EqualTo(k));
+            Assert.That(GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId("P000102-G0-1"),
+                Is.Not.EqualTo(k));
+            Assert.That(GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(id + "-2"),
+                Is.Not.EqualTo(k));
+        });
+        Reject<InvalidDataException>(() => GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(""));
+        Reject<InvalidDataException>(() => GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId("   "));
+    }
+
+    [Test]
+    public void Stable_partition_digest_is_invariant_to_random_gold_uuids_and_source_iteration_order()
+    {
+        var gold1 = new Dictionary<long, Guid>();
+        var g1 = Guid.NewGuid();
+        var g2 = Guid.NewGuid();
+        gold1[1] = g1;
+        gold1[2] = g1;
+        gold1[3] = g2;
+        var gold2 = new Dictionary<long, Guid>();
+        var h2 = Guid.NewGuid();
+        var h1 = Guid.NewGuid();
+        gold2[3] = h2;
+        gold2[2] = h1;
+        gold2[1] = h1;
+        var truth = Truth();
+        var reversed = truth.Reverse().ToDictionary(x => x.Key, x => x.Value);
+        var first = GoldTrainThreeOrderProtocol.FingerprintStablePartition(truth, gold1);
+        var second = GoldTrainThreeOrderProtocol.FingerprintStablePartition(reversed, gold2);
+        var modified = GoldTrainThreeOrderProtocol.FingerprintStablePartition(
+            truth, new Dictionary<long, Guid>
+            {
+                [1] = h1, [2] = h2, [3] = h2
+            });
+        var pendingChanged = GoldTrainThreeOrderProtocol.FingerprintStablePartition(
+            truth, new Dictionary<long, Guid> { [1] = h1, [2] = h1 });
+        Multiple(() =>
+        {
+            Assert.That(first.Length, Is.EqualTo(64));
+            Assert.That(second, Is.EqualTo(first));
+            Assert.That(modified, Is.Not.EqualTo(first));
+            Assert.That(pendingChanged, Is.Not.EqualTo(first));
+        });
+    }
+
+    [Test]
+    public void Stable_digest_rejects_sql_generated_keys_outside_train_or_invalid_source()
+    {
+        var truth = Truth();
+        Reject<InvalidDataException>(() => GoldTrainThreeOrderProtocol.FingerprintStablePartition(
+            truth, new Dictionary<long, Guid> { [999] = Guid.NewGuid() }));
+        Reject<InvalidDataException>(() => GoldTrainThreeOrderProtocol.FingerprintStablePartition(
+            truth, new Dictionary<long, Guid> { [1] = Guid.Empty }));
+        Reject<InvalidDataException>(() => GoldTrainThreeOrderProtocol.FingerprintStablePartition(
+            new Dictionary<long, string> { [-1] = "P" }, new Dictionary<long, Guid>()));
+        Reject<InvalidDataException>(() => GoldTrainThreeOrderProtocol.FingerprintStablePartition(
+            new Dictionary<long, string>(), new Dictionary<long, Guid>()));
+    }
+
+    [Test]
     public void Three_orders_are_predeclared_and_independent_of_input_enumeration()
     {
         Multiple(() =>

@@ -13,6 +13,27 @@ public static class GoldTrainThreeOrderProtocol
     public const string Interleaved = "INTERLEAVED_G1_G3_G0_G2";
     public const string StableSourceKeyContract = "TRAIN_CSV_OBSERVATION_ID_NOT_SQL_ID_V1";
 
+    /// <summary>
+    /// Deterministic positive numeric key derived from the actual
+    /// observacao_id field of the frozen synthetic TRAIN CSV, never the
+    /// SQL-generated IDENTITY value or a row index. CSV observation IDs
+    /// include synthetic identity codes: raw strings MUST NOT be exported.
+    /// A collision check across all selected sources remains mandatory.
+    /// </summary>
+    public static long StableKeyFromCsvObservationId(string observationId)
+    {
+        if (string.IsNullOrWhiteSpace(observationId))
+            throw new InvalidDataException("observacao_id do CSV TRAIN é obrigatório.");
+        var bytes = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(
+                "JORNADA_GOLD_TRAIN_STABLE_SOURCE_V1|" + observationId));
+        var key = System.Buffers.Binary.BinaryPrimitives.ReadInt64BigEndian(bytes.AsSpan(0, 8))
+            & long.MaxValue;
+        if (key == 0)
+            throw new InvalidDataException("Fingerprint de observação não é uma chave válida.");
+        return key;
+    }
+
     public static IReadOnlyList<string> OrderIds { get; } =
         Array.AsReadOnly(new[] { Baseline, Reverse, Interleaved });
 
@@ -164,6 +185,43 @@ public static class GoldTrainThreeOrderProtocol
             GoldPartitionOrderInvariant: partitionInvariant, // source-membership equivalence, never UUID byte equality
             IncrementalLinkageFdrComputed: false, // needs per-accepted-link truth, not pairs
             IndependentlyCertified: false, TestUsed: false, OperationallyActivated: false);
+    }
+
+    /// <summary>
+    /// SHA-256 of the COMPLETE final source membership, including pending
+    /// source flags. Source keys MUST be stable IDs read from the frozen TRAIN
+    /// CSV, not SQL identity columns. No labels or person UUIDs are exported.
+    /// Distinct LocalDB trials with equivalent final partitions yield the
+    /// exact same digest even though their generated Gold UUIDs differ.
+    /// A hash is an aggregate comparison aid, not a substitute for an
+    /// independently authenticated SQL run manifest.
+    /// </summary>
+    public static string FingerprintStablePartition(
+        IReadOnlyDictionary<long, string> truthByStableSource,
+        IReadOnlyDictionary<long, Guid> publishedGoldByStableSource)
+    {
+        ArgumentNullException.ThrowIfNull(truthByStableSource);
+        ArgumentNullException.ThrowIfNull(publishedGoldByStableSource);
+        if (truthByStableSource.Count == 0 || truthByStableSource.Keys.Any(k => k <= 0)
+            || truthByStableSource.Values.Any(string.IsNullOrWhiteSpace))
+            throw new InvalidDataException("Fonte estável e gabarito TRAIN completos obrigatórios.");
+        if (publishedGoldByStableSource.Any(x =>
+            x.Key <= 0 || x.Value == Guid.Empty || !truthByStableSource.ContainsKey(x.Key)))
+            throw new InvalidDataException("Partição Gold contém UUID ou fonte fora do TRAIN.");
+        var partition = CanonicalPartition(truthByStableSource.Keys, publishedGoldByStableSource);
+        if (partition.Count != truthByStableSource.Count)
+            throw new InvalidDataException("Partição Gold não cobre todas as fontes TRAIN.");
+        var canonical = new System.Text.StringBuilder();
+        canonical.Append(Version).Append('|').Append(StableSourceKeyContract).Append('\n');
+        foreach (var source in partition.OrderBy(x => x.Key))
+        {
+            canonical.Append(source.Key.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .Append('|').Append(source.Value.Published ? 'P' : 'U').Append('|')
+                .Append(source.Value.Representative.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .Append('\n');
+        }
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
     }
 
     private static IReadOnlyDictionary<long, (bool Published, long Representative)> CanonicalPartition(
