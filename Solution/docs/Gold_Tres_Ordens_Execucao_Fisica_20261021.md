@@ -27,7 +27,7 @@ Cada execução precisa ter a **sua própria instância**
 `JornadaHarness` inicialmente vazio, propriedades residentes
 `Jornada.EnvironmentProfile=Development` e
 `Jornada.V9.ExperimentalHarness=PINNED_FIT_PREVIEW_NO_ACTIVATION`.
-Preparar pelo comando `--v9-gold-prepare` conforme o contrato
+Preparar pelo comando `--v9-gold-harness-create <diretório novo> <Solution/database>` conforme o contrato
 existente; nunca apontar para JornadaLocal, HML, PROD ou instância
 compartilhada. Usar **a mesma seleção, mesmo JSON de validação
 condicional, mesmo fitted Gold e mesmo CSV**. Cada saída deve ser
