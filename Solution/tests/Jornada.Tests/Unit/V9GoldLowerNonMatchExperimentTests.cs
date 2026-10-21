@@ -67,6 +67,28 @@ public sealed class V9GoldLowerNonMatchExperimentTests
     }
 
     [Test]
+    public void Disposable_dt10_patch_is_explicit_localdb_only_and_fails_on_schema_drift()
+    {
+        var canonical =
+            "CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote AS BEGIN " +
+            "IF l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%' THROW 51810,'blocked',1; END";
+        var patched = V9GoldDisposableLowerProcedurePatch.Apply(canonical);
+        Assert.Multiple(() =>
+        {
+            Assert.That(patched, Does.Contain("SERVERPROPERTY(N'IsLocalDB')"));
+            Assert.That(patched, Does.Contain("Jornada.V9.ExperimentalHarness"));
+            Assert.That(patched, Does.Contain(V9GoldLowerNonMatchExperiment.PublicationReason));
+            Assert.That(patched, Does.Contain("l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'"));
+        });
+        Assert.Throws<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(patched));
+        Assert.Throws<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
+            canonical.Replace("l.raw_motivo NOT LIKE", "l.raw_motivo LIKE", StringComparison.Ordinal)));
+        Assert.Throws<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
+            canonical.Replace("THROW", "OR l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%' THROW",
+                StringComparison.Ordinal)));
+    }
+
+    [Test]
     public void Sql_publication_requires_private_database_marker_and_distinct_experimental_reason()
     {
         var sql = ProbabilisticLinkageBatchRunner.ProgressivePublicationSql();
