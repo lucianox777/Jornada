@@ -95,6 +95,22 @@ public static class V9GoldHarnessCommand
         var sql = new OperationalSqlAdapter(connectionString);
         await using var owner = await sql.OpenAsync(CancellationToken.None);
         await GuardEmptyOwnedDatabaseAsync(owner);
+        // The canonical DT-10 procedure deliberately rejects NEW_IDENTITY with
+        // recovered candidates. Extend that guard only inside THIS empty,
+        // separately named, marked LocalDB. No migration or operational DB is altered.
+        string? disposableProcedureSha256 = null;
+        if (lowerNonMatchThreshold.HasValue)
+        {
+            await using var read = new SqlCommand(
+                "SELECT OBJECT_DEFINITION(OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote'));",
+                owner);
+            var canonicalDefinition = await read.ExecuteScalarAsync() as string
+                ?? throw new InvalidDataException("Procedure DT-10 não instalada no LocalDB descartável.");
+            var patched = V9GoldDisposableLowerProcedurePatch.Apply(canonicalDefinition);
+            await using var modify = new SqlCommand(patched, owner) { CommandTimeout = 900 };
+            await modify.ExecuteNonQueryAsync();
+            disposableProcedureSha256 = Sha(System.Text.Encoding.UTF8.GetBytes(patched));
+        }
         Directory.CreateDirectory(output);
         try
         {
@@ -206,6 +222,7 @@ public static class V9GoldHarnessCommand
                     policy = lowerNonMatchThreshold.HasValue ? "EXPERIMENTAL_LOWER_TRAIN_ONLY" : "CURRENT",
                     threshold = lowerNonMatchThreshold,
                     scorerReused = true, operationalActivation = false,
+                    disposableProcedureSha256,
                     publicationReason = lowerNonMatchThreshold.HasValue
                         ? V9GoldLowerNonMatchExperiment.PublicationReason : null,
                     finalLowerBandProposals = outcomes.Count(x => x.Value.LowerBandProposal),
