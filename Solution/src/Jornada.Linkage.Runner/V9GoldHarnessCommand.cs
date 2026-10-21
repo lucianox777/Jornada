@@ -41,8 +41,8 @@ public static class V9GoldHarnessCommand
 
     public static async Task RunAsync(string[] args, string connectionString)
     {
-        if (args.Length != 6 || args[0] != Flag)
-            throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova>");
+        if (args.Length is not (6 or 7) || args[0] != Flag)
+            throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2]");
         ValidateDisposableConnection(connectionString);
         var selectionBytes = await File.ReadAllBytesAsync(args[1]);
         var selectionSha = Sha(selectionBytes);
@@ -72,6 +72,13 @@ public static class V9GoldHarnessCommand
             .Where(x => x.GetProperty("Purpose").GetString() == "TRAIN_SELECTION")
             .Select(x => x.GetProperty("BaseIdentity").GetString()!).ToHashSet(StringComparer.Ordinal);
         var sources = ReadTrainSelection(args[4], identities);
+        // The default order is byte-for-byte compatible with the original G0..G3
+        // experiment. Other orders are pre-registered TRAIN sensitivity checks,
+        // NOT selected adaptively from linkage quality or final Gold outcomes.
+        var groupedSources = sources.GroupBy(x => x.Manager, StringComparer.Ordinal)
+            .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
+        var orderId = args.Length == 7 ? args[6] : GoldTrainThreeOrderProtocol.Baseline;
+        var waveOrder = GoldTrainThreeOrderProtocol.ResolveOrder(orderId, groupedSources.Keys);
         var output = Path.GetFullPath(args[5]);
         if (Directory.Exists(output) || File.Exists(output)) throw new IOException("Gold preview exige saída nova.");
         var sql = new OperationalSqlAdapter(connectionString);
@@ -99,22 +106,23 @@ public static class V9GoldHarnessCommand
             var truthByObservation = new Dictionary<long, Source>();
             var outcomes = new Dictionary<long, Outcome>();
             var waves = new List<object>();
-            foreach (var wave in sources.GroupBy(x => x.Manager).OrderBy(g => g.Key, StringComparer.Ordinal))
+            foreach (var manager in waveOrder)
             {
-                // Source order uses manager codes, never labels or measured outcomes.
+                // Source order uses only a PRE-DECLARED manager permutation, never
+                // labels, prior outcome quality, FS scores or future Gold truth.
                 var ownership = await OwnershipAsync(owner, truthByObservation);
-                var added = await InsertWaveAsync(owner, wave.ToArray());
+                var added = await InsertWaveAsync(owner, groupedSources[manager]);
                 foreach (var item in added) truthByObservation.Add(item.Key, item.Value);
-                var summary = await runner.RunAsync(new(LinkageRunType.INCREMENTAL, 1, null, wave.Key, null,
+                var summary = await runner.RunAsync(new(LinkageRunType.INCREMENTAL, 1, null, manager, null,
                     1000, 2, null, "V9_DISPOSABLE_HARNESS", "PINNED_FIT_TRAIN_SELECTION_DIAGNOSTIC", Guid.NewGuid(), true), CancellationToken.None);
                 if (summary.Status != LinkageRunStatus.PUBLICADO || summary.Avaliados != added.Count)
                     throw new InvalidDataException("Runner incremental não publicou exatamente a onda congelada.");
                 var measured = await ReadOutcomesAsync(owner, summary.RunId, truthByObservation, ownership);
                 foreach (var item in measured) outcomes[item.Key] = item.Value;
                 await RefreshActualGoldProjectionAsync(owner, runtime);
-                waves.Add(new { manager = wave.Key, summary, eligibleWithPriorGold = measured.Count(x => x.Value.Eligible),
+                waves.Add(new { manager, summary, eligibleWithPriorGold = measured.Count(x => x.Value.Eligible),
                     trueAccepted = measured.Count(x => x.Value.TrueAccepted), falseAccepted = measured.Count(x => x.Value.FalseAccepted) });
-                Console.Error.WriteLine(JsonSerializer.Serialize(new { goldWave = wave.Key, summary.Avaliados, summary.Status }));
+                Console.Error.WriteLine(JsonSerializer.Serialize(new { goldWave = manager, summary.Avaliados, summary.Status }));
             }
             var beforeReevaluation = await OwnershipAsync(owner, truthByObservation);
             var reevaluation = await runner.RunAsync(new(LinkageRunType.INCREMENTAL, 1, null, null, null,
@@ -146,6 +154,17 @@ public static class V9GoldHarnessCommand
                 || goldBcubed.GoldIdentityGroups != goldEndToEnd.GoldReferences)
                 throw new InvalidDataException("B-cubed não reconcilia com a auditoria Gold final.");
             var pendingReasonBreakdown = await PendingReasonsAsync(owner, outcomes);
+            // SQL observation IDs are generated in arrival order. Across runs the
+            // SAME CSV observation must keep the SAME key; map only after Gold
+            // publication, never expose truth to the scorer or candidate search.
+            var corpusSha = selection.RootElement.GetProperty("originalObservationsSha256").GetString()
+                ?? throw new InvalidDataException("Seleção TRAIN sem SHA original.");
+            var runFingerprint = Sha(modelId.ToByteArray());
+            var privateOrderTrial = GoldTrainOrderEvidence.Create(
+                orderId, corpusSha, snapshot.ContentSha256, runFingerprint, waveOrder,
+                truthByObservation.ToDictionary(
+                    x => x.Key, x => new GoldTrainOrderEvidence.SourceCrosswalk(x.Value.Id, x.Value.Truth)),
+                finalGoldSources);
             if (goldEndToEnd.GoldReferences != finalOwnership.Count
                 || goldEndToEnd.ImpureGoldReferences != impure
                 || goldEndToEnd.PendingSources != outcomes.LongCount(x => x.Value.PublicationResult == "INDEFINIDA")
@@ -154,6 +173,11 @@ public static class V9GoldHarnessCommand
             await using (var guard = new SqlCommand("SELECT COUNT(*) FROM identidade.modelo_linkage WHERE status<>'RASCUNHO';", owner))
                 if (Convert.ToInt32(await guard.ExecuteScalarAsync(), CultureInfo.InvariantCulture) != 0)
                     throw new InvalidDataException("Modelo experimental sofreu promoção indevida.");
+            // PRIVATE local evidence contains synthetic truth labels and random
+            // Gold UUIDs. Keep it inside the isolated owned output; do not commit,
+            // upload to public CI artifacts or copy to Gold operational.
+            await WriteNewAsync(Path.Combine(output,
+                GoldTrainThreeOrderCompareCommand.PrivateEvidenceFileName), privateOrderTrial);
             await WriteNewAsync(Path.Combine(output, "gold-runner-study.json"), new
             {
                 version = "V9_REAL_INCREMENTAL_RUNNER_GOLD_TRAIN_SELECTION_V1", snapshotSha256 = snapshot.ContentSha256,
@@ -164,6 +188,10 @@ public static class V9GoldHarnessCommand
                 fdrAfterResolve = trueAccepted + falseAccepted == 0 ? (double?)null : (double)falseAccepted / (trueAccepted + falseAccepted),
                 goldIdentities = finalOwnership.Count, impureGoldIdentities = impure, waves, reevaluation,
                 goldEndToEnd, goldBcubed, pendingReasonBreakdown,
+                goldOrderProtocol = GoldTrainThreeOrderProtocol.Version,
+                goldOrderId = orderId, executedWaveOrder = waveOrder,
+                goldOrderStableSourceKey = GoldTrainThreeOrderProtocol.StableSourceKeyContract,
+                goldOrderRunFingerprintSha256 = runFingerprint,
                 publication = new
                 {
                     trueExistingLinks = publishedTrue, falseExistingLinks = publishedFalse,
