@@ -287,6 +287,7 @@ public static class V9GoldHarnessCommand
         var header = csv.ReadFields() ?? throw new InvalidDataException("CSV sem cabeçalho.");
         var columns = header.Select((name, i) => (name, i)).ToDictionary(x => x.name, x => x.i, StringComparer.Ordinal);
         var rows = new List<Source>();
+        var stableSourceKeys = new HashSet<long>();
         while (!csv.EndOfData)
         {
             var f = csv.ReadFields() ?? throw new InvalidDataException("CSV malformado.");
@@ -298,7 +299,13 @@ public static class V9GoldHarnessCommand
             var manager = Get("gestor");
             if (manager.Length is < 1 or > 40 || manager.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '_'))
                 throw new InvalidDataException("Código de gestor inválido.");
-            rows.Add(new(rows.Count + 1, Get("base_person_id"), manager, new(null, "SEM_CPF", Get("nome"),
+            // Use the actual frozen synthetic CSV observacao_id (hashed to a
+            // private long), NOT filtered row ordinal or SQL IDENTITY values.
+            // A duplicate/collision is a hard error, never silently rekeyed.
+            var stableKey = GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(Get("observacao_id"));
+            if (!stableSourceKeys.Add(stableKey))
+                throw new InvalidDataException("observacao_id TRAIN repetido ou colisão da chave estável.");
+            rows.Add(new(stableKey, Get("base_person_id"), manager, new(null, "SEM_CPF", Get("nome"),
                 string.IsNullOrWhiteSpace(birth) ? null : DateOnly.ParseExact(birth, "yyyy-MM-dd", CultureInfo.InvariantCulture), Get("nome_mae"))));
         }
         if (rows.Count == 0 || !rows.Select(x => x.Truth).ToHashSet(StringComparer.Ordinal).SetEquals(identities))
