@@ -137,6 +137,14 @@ public static class V9GoldHarnessCommand
             var goldEndToEnd = V9GoldEndToEndAudit.Measure(
                 truthByObservation.ToDictionary(x => x.Key, x => x.Value.Truth),
                 finalGoldSources);
+            var goldBcubed = GoldPartitionBcubedAudit.Measure(
+                truthByObservation.ToDictionary(x => x.Key, x => x.Value.Truth),
+                finalGoldSources);
+            if (goldBcubed.Sources != goldEndToEnd.Observations
+                || goldBcubed.PublishedSources != goldEndToEnd.PublishedSources
+                || goldBcubed.PendingSources != goldEndToEnd.PendingSources
+                || goldBcubed.GoldIdentityGroups != goldEndToEnd.GoldReferences)
+                throw new InvalidDataException("B-cubed não reconcilia com a auditoria Gold final.");
             var pendingReasonBreakdown = await PendingReasonsAsync(owner, outcomes);
             if (goldEndToEnd.GoldReferences != finalOwnership.Count
                 || goldEndToEnd.ImpureGoldReferences != impure
@@ -155,7 +163,7 @@ public static class V9GoldHarnessCommand
                 recallWithPriorGold = eligible == 0 ? (double?)null : (double)trueAccepted / eligible,
                 fdrAfterResolve = trueAccepted + falseAccepted == 0 ? (double?)null : (double)falseAccepted / (trueAccepted + falseAccepted),
                 goldIdentities = finalOwnership.Count, impureGoldIdentities = impure, waves, reevaluation,
-                goldEndToEnd, pendingReasonBreakdown,
+                goldEndToEnd, goldBcubed, pendingReasonBreakdown,
                 publication = new
                 {
                     trueExistingLinks = publishedTrue, falseExistingLinks = publishedFalse,
