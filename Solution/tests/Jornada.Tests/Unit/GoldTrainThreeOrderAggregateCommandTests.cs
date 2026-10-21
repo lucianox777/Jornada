@@ -140,7 +140,7 @@ public sealed class GoldTrainThreeOrderAggregateCommandTests
     {
         var same = Three().Select(x => WithPolicy(x, .2m)).ToArray();
         var comparison = GoldTrainThreeOrderAggregateCommand.Compare(same);
-        Assert.Multiple(() =>
+        Multiple(() =>
         {
             Assert.That(comparison.LowerNonMatchPolicy, Is.EqualTo("EXPERIMENTAL_LOWER_TRAIN_ONLY"));
             Assert.That(comparison.LowerNonMatchThreshold, Is.EqualTo(.2m));
@@ -165,7 +165,7 @@ public sealed class GoldTrainThreeOrderAggregateCommandTests
             }
         }
         var matrix = GoldTrainLowerNonMatchMatrixCommand.Compare(reports);
-        Assert.Multiple(() =>
+        Multiple(() =>
         {
             Assert.That(matrix.Rows, Has.Count.EqualTo(12));
             Assert.That(matrix.Rows[0].PolicySlot, Is.EqualTo("CURRENT"));
