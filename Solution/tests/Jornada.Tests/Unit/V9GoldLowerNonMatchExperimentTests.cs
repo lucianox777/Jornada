@@ -6,6 +6,8 @@ namespace Jornada.Tests.Unit;
 [TestFixture, Category("Unit")]
 public sealed class V9GoldLowerNonMatchExperimentTests
 {
+    private static void Multiple(Action a) => Assert.Multiple(a);
+    private static void Reject<T>(Action a) where T : Exception => Assert.Throws<T>(a);
     private static readonly Guid Model = Guid.Parse("10000000-0000-0000-0000-000000000001");
     private static readonly Guid Candidate = Guid.Parse("20000000-0000-0000-0000-000000000001");
     private static readonly string Fit = new('a', 64);
@@ -26,8 +28,7 @@ public sealed class V9GoldLowerNonMatchExperimentTests
             "LOWER_NONMATCH=1", "LOWER_NONMATCH=-0.1", "LOWER_NONMATCH=NaN",
             "LOWER_NONMATCH=0.2extra"
         })
-            Assert.Throws<ArgumentException>(() => V9GoldLowerNonMatchExperiment.ParseThreshold(bad, .9m),
-                bad);
+            Reject<ArgumentException>(() => V9GoldLowerNonMatchExperiment.ParseThreshold(bad, .9m));
     }
 
     [Test]
@@ -35,7 +36,7 @@ public sealed class V9GoldLowerNonMatchExperimentTests
     {
         var original = Rejected(.1m);
         var changed = V9GoldLowerNonMatchExperiment.Apply(original, Frame(), Fit, .2m, .9m);
-        Assert.Multiple(() =>
+        Multiple(() =>
         {
             Assert.That(changed.Status, Is.EqualTo(ResolutionStatus.NAO_RESOLVIDO));
             Assert.That(changed.MelhorScore, Is.EqualTo(.1m));
@@ -73,17 +74,17 @@ public sealed class V9GoldLowerNonMatchExperimentTests
             "CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote AS BEGIN " +
             "IF l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%' THROW 51810,'blocked',1; END";
         var patched = V9GoldDisposableLowerProcedurePatch.Apply(canonical);
-        Assert.Multiple(() =>
+        Multiple(() =>
         {
             Assert.That(patched, Does.Contain("SERVERPROPERTY(N'IsLocalDB')"));
             Assert.That(patched, Does.Contain("Jornada.V9.ExperimentalHarness"));
             Assert.That(patched, Does.Contain(V9GoldLowerNonMatchExperiment.PublicationReason));
             Assert.That(patched, Does.Contain("l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'"));
         });
-        Assert.Throws<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(patched));
-        Assert.Throws<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
+        Reject<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(patched));
+        Reject<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
             canonical.Replace("l.raw_motivo NOT LIKE", "l.raw_motivo LIKE", StringComparison.Ordinal)));
-        Assert.Throws<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
+        Reject<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
             canonical.Replace("THROW", "OR l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%' THROW",
                 StringComparison.Ordinal)));
     }
@@ -92,7 +93,7 @@ public sealed class V9GoldLowerNonMatchExperimentTests
     public void Sql_publication_requires_private_database_marker_and_distinct_experimental_reason()
     {
         var sql = ProbabilisticLinkageBatchRunner.ProgressivePublicationSql();
-        Assert.Multiple(() =>
+        Multiple(() =>
         {
             Assert.That(sql, Does.Contain("DB_NAME()=N'JornadaHarness'"));
             Assert.That(sql, Does.Contain("Jornada.V9.ExperimentalHarness"));
