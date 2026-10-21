@@ -209,7 +209,7 @@ public static class GoldTrainThreeOrderAggregateCommand
                 .Distinct(StringComparer.OrdinalIgnoreCase).Count() != 3
             || File.Exists(paths[3]) || Directory.Exists(paths[3]))
             throw new InvalidDataException("Três relatórios Gold de execuções separadas e saída inédita obrigatórios.");
-        var inputs = await Task.WhenAll(paths.Take(3).Select(File.ReadAllBytesAsync));
+        var inputs = await Task.WhenAll(paths.Take(3).Select(path => File.ReadAllBytesAsync(path)));
         var result = Compare(inputs);
         await using var stream = new FileStream(paths[3], FileMode.CreateNew, FileAccess.Write, FileShare.None);
         await JsonSerializer.SerializeAsync(stream, result, new JsonSerializerOptions { WriteIndented = true });
