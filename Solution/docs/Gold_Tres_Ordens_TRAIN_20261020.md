@@ -28,10 +28,16 @@ ordens e exatamente G0/G1/G2/G3 sem repetição. O comparador
 distintas e o contrato `TRAIN_CSV_OBSERVATION_ID_NOT_SQL_ID_V1`:
 **as chaves para comparar partições são os IDs estáveis do CSV TRAIN**,
 NUNCA o `pessoa_observacao_id` gerado por IDENTITY no SQL, pois muda
-quando as ondas são inseridas em ordens diferentes. O harness precisa
-converter `pessoa_observacao_id` → `Source.Id` do mesmo CSV antes de
-alimentar o comparador. O par de nomes `gestor`/`OBS_<Source.Id>`
-permite auditar essa conversão a partir das fontes do harness.
+quando as ondas são inseridas em ordens diferentes. O harness deriva
+`Source.Id` do campo original `observacao_id` do CSV TRAIN por
+SHA-256 com prefixo de domínio e truncamento a 63 bits positivos,
+recusando chaves repetidas/colisões. O identificador original do CSV
+contém código sintético de identidade e **não é exportado**.
+Não utilizar número de linha do CSV nem contador de linhas filtradas.
+O harness precisa converter `pessoa_observacao_id` → `Source.Id`
+estável antes de alimentar a comparação. O par
+`gestor`/`OBS_<Source.Id>` permite auditar a associação
+somente dentro do ensaio descartável.
 O protocolo exige
 distintas, mesmo SHA256 do TRAIN, mesmo SHA256 do snapshot, mesmos
 rótulos independentes para todas as observações e sequência executada
@@ -87,7 +93,8 @@ versão do protocolo, ordem solicitada e executada, fingerprints
 do CSV e snapshot fixados, fingerprint não autenticado da execução
 isolada e `stablePartitionSha256` (SHA-256 da partição **final por
 IDs estáveis do CSV**, com marca de publicado/pendente). O digest
-canonicaliza cada UUID Gold pelo menor ID CSV de seu grupo; portanto,
+canonicaliza cada UUID Gold pelo menor Source.Id derivado do
+`observacao_id` CSV de seu grupo; portanto,
 UUIDs aleatórios diferentes com **a mesma partição** geram o mesmo
 digest. Nenhum UUID, rótulo verdadeiro ou identificador por observação
 é exportado nesse relatório. O digest é um auxiliar de comparação e
