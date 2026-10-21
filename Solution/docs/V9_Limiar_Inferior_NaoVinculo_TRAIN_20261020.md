@@ -1,3 +1,5 @@
+> **RETIFICAÇÃO DE DECISÃO (20/10/2026):** as menções abaixo a tetos/orçamentos de falsas criações, `MeetsPointBudgets`, escolha automática de vencedor e status `NO_TRAIN_POINT_CANDIDATE_MEETS_DUPLICATE_BUDGET` descrevem o código V1 da PR #1162, **não uma política vigente**. A decisão superveniente é explorar e recomendar candidatos pelas **faixas da fronteira de Pareto sem orçamento prévio de duplicatas nem limiar inferior pré-fixado**. A PR #1165 corrige parcialmente o código, mas sua integração e os ensaios físicos devem ser conferidos. Ver [registro canônico](V9_Registro_Decisoes_Bootstrap_Gold_20261020.md). Este arquivo fica preservado como histórico técnico, não como especificação atual de seleção.
+
 # V9 — limiar inferior de não-vínculo, calibração TRAIN e risco de duplicação
 
 **Data:** 20/10/2026. **Fase:** implementação diagnóstica **sem
