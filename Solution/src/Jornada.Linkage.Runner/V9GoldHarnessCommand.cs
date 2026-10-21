@@ -91,6 +91,7 @@ public static class V9GoldHarnessCommand
             trialOrderId, wavesByManager.Keys);
         var output = Path.GetFullPath(args[5]);
         if (Directory.Exists(output) || File.Exists(output)) throw new IOException("Gold preview exige saída nova.");
+        var physicalTrialTimer = System.Diagnostics.Stopwatch.StartNew();
         var sql = new OperationalSqlAdapter(connectionString);
         await using var owner = await sql.OpenAsync(CancellationToken.None);
         await GuardEmptyOwnedDatabaseAsync(owner);
@@ -216,6 +217,7 @@ public static class V9GoldHarnessCommand
                     originalCorpusSha256 = selection.RootElement.GetProperty("originalObservationsSha256").GetString(),
                     frozenSnapshotSha256 = snapshot.ContentSha256,
                     isolatedRunFingerprintSha256,
+                    elapsedMilliseconds = physicalTrialTimer.ElapsedMilliseconds,
                     stablePartitionSha256,
                     allFourWavesPublished = true,
                     sourceCount = stableTruth.Count,
