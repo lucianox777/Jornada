@@ -166,6 +166,43 @@ public static class GoldTrainThreeOrderProtocol
             IndependentlyCertified: false, TestUsed: false, OperationallyActivated: false);
     }
 
+    /// <summary>
+    /// SHA-256 of the COMPLETE final source membership, including pending
+    /// source flags. Source keys MUST be stable IDs read from the frozen TRAIN
+    /// CSV, not SQL identity columns. No labels or person UUIDs are exported.
+    /// Distinct LocalDB trials with equivalent final partitions yield the
+    /// exact same digest even though their generated Gold UUIDs differ.
+    /// A hash is an aggregate comparison aid, not a substitute for an
+    /// independently authenticated SQL run manifest.
+    /// </summary>
+    public static string FingerprintStablePartition(
+        IReadOnlyDictionary<long, string> truthByStableSource,
+        IReadOnlyDictionary<long, Guid> publishedGoldByStableSource)
+    {
+        ArgumentNullException.ThrowIfNull(truthByStableSource);
+        ArgumentNullException.ThrowIfNull(publishedGoldByStableSource);
+        if (truthByStableSource.Count == 0 || truthByStableSource.Keys.Any(k => k <= 0)
+            || truthByStableSource.Values.Any(string.IsNullOrWhiteSpace))
+            throw new InvalidDataException("Fonte estável e gabarito TRAIN completos obrigatórios.");
+        if (publishedGoldByStableSource.Any(x =>
+            x.Key <= 0 || x.Value == Guid.Empty || !truthByStableSource.ContainsKey(x.Key)))
+            throw new InvalidDataException("Partição Gold contém UUID ou fonte fora do TRAIN.");
+        var partition = CanonicalPartition(truthByStableSource.Keys, publishedGoldByStableSource);
+        if (partition.Count != truthByStableSource.Count)
+            throw new InvalidDataException("Partição Gold não cobre todas as fontes TRAIN.");
+        var canonical = new System.Text.StringBuilder();
+        canonical.Append(Version).Append('|').Append(StableSourceKeyContract).Append('\n');
+        foreach (var source in partition.OrderBy(x => x.Key))
+        {
+            canonical.Append(source.Key.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .Append('|').Append(source.Value.Published ? 'P' : 'U').Append('|')
+                .Append(source.Value.Representative.ToString(System.Globalization.CultureInfo.InvariantCulture))
+                .Append('\n');
+        }
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
+    }
+
     private static IReadOnlyDictionary<long, (bool Published, long Representative)> CanonicalPartition(
         IEnumerable<long> allSourceIds, IReadOnlyDictionary<long, Guid> published)
     {
