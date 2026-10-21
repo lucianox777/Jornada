@@ -599,7 +599,7 @@ public static class V9GoldHarnessCommand
                         reader.IsDBNull(2) ? null : DateOnly.FromDateTime(reader.GetDateTime(2)), reader.IsDBNull(3) ? null : reader.GetString(3)));
             var decision = runtime.ResolveRetrievedCandidatesPreview(modeloId, observation, new(runtime.SnapshotSha256,
                 runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256, true, candidates));
-            if (lowerNonMatchThreshold is not { } lower) return decision;
+            if (lowerNonMatchThreshold is not { } lower || runtime.Plan(observation).Count == 0) return decision;
             // Query has no TOP/paging: read the full UNION of blocking passes
             // and the actual Gold columns before invoking the SAME frozen scorer.
             // The initial empty Gold is guarded; each later Gold projection is
