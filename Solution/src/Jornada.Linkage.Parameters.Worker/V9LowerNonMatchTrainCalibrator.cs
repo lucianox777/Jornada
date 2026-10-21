@@ -12,7 +12,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static class V9LowerNonMatchTrainCalibrator
 {
-    public const string Version = "V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V2";
+    public const string Version = "V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V3";
 
     public sealed record Policy(
         string FrozenSnapshotSha256,
@@ -77,7 +77,7 @@ public static class V9LowerNonMatchTrainCalibrator
             || policy.CandidateLowerThresholds.Distinct().Count() != policy.CandidateLowerThresholds.Count
             || policy.MinimumIndependentIdentityGroups < 2
             || policy.MinimumAlreadyRepresentedSources < 1)
-            throw new InvalidDataException("Parâmetros e orçamento de duplicação inválidos.");
+            throw new InvalidDataException("Parâmetros da exploração TRAIN inválidos.");
         if (sources.Count == 0 || sources.Count > 1_000_000)
             throw new InvalidDataException("TRAIN_SELECTION com pelo menos uma observação e cap explícito.");
         var seen = new HashSet<string>(StringComparer.Ordinal);
@@ -138,9 +138,28 @@ public static class V9LowerNonMatchTrainCalibrator
                 && (y.FalseNewReferences < x.FalseNewReferences
                     || y.PendingAfter < x.PendingAfter))
         }).ToArray();
-        // A Pareto frontier is a set of candidates, not a certified winner.
-        // Never impose an invented duplicate budget or silently select a threshold.
-        decimal? suggested = null;
+        // Descriptive knee: nearest point to the ideal (zero false creations,
+        // minimum pending), after range-normalizing both observed objectives.
+        // This is a TRAIN recommendation, never an acceptance budget or certificate.
+        var nondominated = frontier.Where(x => x.IsParetoFrontier).ToArray();
+        var minFalse = nondominated.Min(x => x.FalseNewReferences);
+        var maxFalse = nondominated.Max(x => x.FalseNewReferences);
+        var minPending = nondominated.Min(x => x.PendingAfter);
+        var maxPending = nondominated.Max(x => x.PendingAfter);
+        double Distance(Candidate x)
+        {
+            var duplicate = maxFalse == minFalse ? 0d
+                : (double)(x.FalseNewReferences - minFalse) / (maxFalse - minFalse);
+            var pending = maxPending == minPending ? 0d
+                : (double)(x.PendingAfter - minPending) / (maxPending - minPending);
+            return duplicate * duplicate + pending * pending;
+        }
+        var suggested = nondominated
+            .OrderBy(Distance)
+            .ThenBy(x => x.FalseNewReferences)
+            .ThenBy(x => x.PendingAfter)
+            .ThenBy(x => x.LowerThreshold)
+            .First().LowerThreshold;
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             Version + "|" + policy.FrozenSnapshotSha256 + "|"
             + policy.TrainingEvidenceSha256 + "|"
@@ -153,7 +172,7 @@ public static class V9LowerNonMatchTrainCalibrator
         return new Study(Version, policy.FrozenSnapshotSha256, policy.TrainingEvidenceSha256,
             fingerprint, nGroups, nRepresented, originalAccepted,
             frontier, suggested,
-            "TRAIN_PARETO_FRONTIER_REQUIRES_INDEPENDENT_SELECTION_NO_PRESET_DUPLICATE_BUDGET",
+            "TRAIN_DESCRIPTIVE_KNEE_SUGGESTION_ONLY_UNCERTIFIED_NO_PRESET_DUPLICATE_BUDGET",
             ExternalValidationUsed: false, TestUsed: false, OperationalModelCreated: false,
             AutomaticCalibrationOrActivationAllowed: false,
             DuplicateConfidenceCertified: false, LinkageFdrRecalibrated: false);
