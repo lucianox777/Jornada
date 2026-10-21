@@ -171,6 +171,14 @@ public static class GoldTrainThreeOrderAggregateCommand
                 var rawThreshold = lower.GetProperty("threshold");
                 lowerThreshold = rawThreshold.ValueKind == JsonValueKind.Null
                     ? null : rawThreshold.GetDecimal();
+                var totalFalseNew = lower.TryGetProperty("finalFalseNewIdentityCreations", out var totalFalse)
+                    ? totalFalse.GetInt64() : 0L;
+                var lowerFalseNew = lower.TryGetProperty("finalFalseLowerBandCreations", out var bandFalse)
+                    ? bandFalse.GetInt64() : 0L;
+                if (totalFalseNew < 0 || totalFalseNew > published || lowerFalseNew < 0
+                    || lowerFalseNew > totalFalseNew
+                    || lowerFalseNew > lower.GetProperty("finalLowerBandCreated").GetInt64())
+                    throw new InvalidDataException("Duplicatas por criação não reconciliam.");
                 if (lower.GetProperty("operationalActivation").GetBoolean()
                     || !lower.GetProperty("scorerReused").GetBoolean())
                     throw new InvalidDataException("Política experimental incompatível com o LS V9.");
