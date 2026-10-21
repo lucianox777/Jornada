@@ -40,6 +40,24 @@ public sealed class GoldTrainThreeOrderProtocolTests
     ];
 
     [Test]
+    public void Stable_key_comes_from_actual_csv_observation_id_not_sql_or_row_position()
+    {
+        var id = "P000102-G3-1";
+        var k = GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(id);
+        Multiple(() =>
+        {
+            Assert.That(k, Is.GreaterThan(0L));
+            Assert.That(GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(id), Is.EqualTo(k));
+            Assert.That(GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId("P000102-G0-1"),
+                Is.Not.EqualTo(k));
+            Assert.That(GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(id + "-2"),
+                Is.Not.EqualTo(k));
+        });
+        Reject<InvalidDataException>(() => GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(""));
+        Reject<InvalidDataException>(() => GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId("   "));
+    }
+
+    [Test]
     public void Stable_partition_digest_is_invariant_to_random_gold_uuids_and_source_iteration_order()
     {
         var gold1 = new Dictionary<long, Guid>();
