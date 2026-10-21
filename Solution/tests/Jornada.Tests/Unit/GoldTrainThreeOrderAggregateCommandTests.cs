@@ -125,6 +125,7 @@ public sealed class GoldTrainThreeOrderAggregateCommandTests
             ["threshold"] = threshold.HasValue ? JsonValue.Create(threshold.Value) : null,
             ["scorerReused"] = true,
             ["operationalActivation"] = false,
+            ["disposableProcedureSha256"] = threshold.HasValue ? Sha(77) : null,
             ["publicationReason"] = threshold.HasValue
                 ? V9GoldLowerNonMatchExperiment.PublicationReason : null,
             ["finalLowerBandProposals"] = 0,
