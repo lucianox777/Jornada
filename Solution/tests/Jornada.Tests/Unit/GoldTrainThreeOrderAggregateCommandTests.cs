@@ -128,7 +128,9 @@ public sealed class GoldTrainThreeOrderAggregateCommandTests
             ["publicationReason"] = threshold.HasValue
                 ? V9GoldLowerNonMatchExperiment.PublicationReason : null,
             ["finalLowerBandProposals"] = 0,
-            ["finalLowerBandCreated"] = 0
+            ["finalLowerBandCreated"] = 0,
+            ["finalFalseNewIdentityCreations"] = 0,
+            ["finalFalseLowerBandCreations"] = 0
         };
         return JsonSerializer.SerializeToUtf8Bytes(json);
     }
