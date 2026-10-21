@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Jornada.Linkage.Runner;
 
 namespace Jornada.Tests.Unit;
@@ -108,6 +109,40 @@ public sealed class GoldTrainThreeOrderAggregateCommandTests
             Assert.That(json, Does.Not.Contain("FinalPublishedGoldBySource"));
             Assert.That(json, Does.Not.Contain("pessoa_uuid"));
         });
+    }
+
+    private static byte[] WithPolicy(byte[] report, decimal? threshold)
+    {
+        var json = JsonNode.Parse(report)!.AsObject();
+        json["lowerNonMatchExperiment"] = new JsonObject
+        {
+            ["policy"] = threshold.HasValue ? "EXPERIMENTAL_LOWER_TRAIN_ONLY" : "CURRENT",
+            ["threshold"] = threshold.HasValue ? JsonValue.Create(threshold.Value) : null,
+            ["scorerReused"] = true,
+            ["operationalActivation"] = false,
+            ["publicationReason"] = threshold.HasValue
+                ? V9GoldLowerNonMatchExperiment.PublicationReason : null,
+            ["finalLowerBandProposals"] = 0,
+            ["finalLowerBandCreated"] = 0
+        };
+        return JsonSerializer.SerializeToUtf8Bytes(json);
+    }
+
+    [Test]
+    public void Three_orders_must_share_identical_policy_and_lower_threshold()
+    {
+        var same = Three().Select(x => WithPolicy(x, .2m)).ToArray();
+        var comparison = GoldTrainThreeOrderAggregateCommand.Compare(same);
+        Assert.Multiple(() =>
+        {
+            Assert.That(comparison.LowerNonMatchPolicy, Is.EqualTo("EXPERIMENTAL_LOWER_TRAIN_ONLY"));
+            Assert.That(comparison.LowerNonMatchThreshold, Is.EqualTo(.2m));
+        });
+        var mixed = (byte[][])same.Clone();
+        mixed[2] = WithPolicy(Three()[2], .3m);
+        Reject<InvalidDataException>(() => GoldTrainThreeOrderAggregateCommand.Compare(mixed));
+        mixed[2] = WithPolicy(Three()[2], null);
+        Reject<InvalidDataException>(() => GoldTrainThreeOrderAggregateCommand.Compare(mixed));
     }
 
     [Test]
