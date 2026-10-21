@@ -81,10 +81,9 @@ public sealed class V9LowerNonMatchTrainPreviewTests
     }
 
     private static V9LowerNonMatchTrainCalibrator.Policy Policy(
-        double maxWrongAmongCreates = .1, double maxWrongAmongExisting = .1,
         bool manual = true, bool test = false)
         => new(Fit, Corpus, .95m, [.1m, .2m, .5m],
-            maxWrongAmongCreates, maxWrongAmongExisting, 6, 5, manual, test);
+            6, 5, manual, test);
 
     private static V9LowerNonMatchTrainCalibrator.TrainingSource Example(
         int i, decimal score, bool alreadyRepresented, string partition = "TRAIN_SELECTION",
@@ -102,7 +101,7 @@ public sealed class V9LowerNonMatchTrainPreviewTests
     ];
 
     [Test]
-    public void Train_pareto_selects_only_descriptive_threshold_under_both_duplicate_budgets()
+    public void Train_pareto_reports_candidates_without_arbitrary_duplicate_budget()
     {
         var s = V9AdaptiveCalibrationCoordinator.SearchLowerNonMatchOnTrain(Policy(), Sources());
         var lo = s.Candidates.Single(x => x.LowerThreshold == .1m);
@@ -113,15 +112,13 @@ public sealed class V9LowerNonMatchTrainPreviewTests
             Assert.That(s.Version, Is.EqualTo(V9LowerNonMatchTrainCalibrator.Version));
             Assert.That(lo.FalseNewReferences, Is.Zero);
             Assert.That(lo.ProposedNewReferences, Is.EqualTo(1));
-            Assert.That(lo.MeetsPointBudgets, Is.True);
             Assert.That(mid.FalseNewReferences, Is.Zero);
             Assert.That(mid.CorrectNewReferences, Is.EqualTo(2));
             Assert.That(mid.PendingAfter, Is.EqualTo(6));
-            Assert.That(mid.MeetsPointBudgets, Is.True);
             Assert.That(hi.FalseNewReferences, Is.EqualTo(1));
             Assert.That(hi.PendingAfter, Is.EqualTo(4));
-            Assert.That(hi.MeetsPointBudgets, Is.False);
-            Assert.That(s.DescriptiveSuggestedLowerThreshold, Is.EqualTo(.2m));
+            Assert.That(s.DescriptiveSuggestedLowerThreshold, Is.Null);
+            Assert.That(s.Candidates.Count(x => x.IsParetoFrontier), Is.GreaterThanOrEqualTo(2));
             Assert.That(s.IndependentIdentityGroups, Is.EqualTo(8));
             Assert.That(s.AlreadyRepresentedSources, Is.EqualTo(5));
             Assert.That(s.ExternalValidationUsed, Is.False);
