@@ -602,6 +602,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
         -- lower-band proposal. A scorer reason is never authorization alone.
         DECLARE @experimental_lower_harness bit=0;
         IF DB_NAME()=N'JornadaHarness'
+           AND COALESCE(TRY_CONVERT(int,SERVERPROPERTY(N'IsLocalDB')),0)=1
            AND EXISTS (SELECT 1 FROM sys.extended_properties
                        WHERE class=0 AND name=N'Jornada.EnvironmentProfile'
                          AND CONVERT(nvarchar(200),value)=N'Development')
