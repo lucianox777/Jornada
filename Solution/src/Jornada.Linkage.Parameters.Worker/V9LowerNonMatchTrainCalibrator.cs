@@ -12,7 +12,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static class V9LowerNonMatchTrainCalibrator
 {
-    public const string Version = "V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V4";
+    public const string Version = "V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V5";
 
     public sealed record Policy(
         string FrozenSnapshotSha256,
@@ -64,7 +64,8 @@ public static class V9LowerNonMatchTrainCalibrator
         bool DuplicateConfidenceCertified,
         bool LinkageFdrRecalibrated,
         IReadOnlyList<DescriptiveBand>? DescriptiveBands = null,
-        IReadOnlyList<decimal>? DescriptiveFinalistThresholds = null);
+        IReadOnlyList<decimal>? DescriptiveFinalistThresholds = null,
+        string? DeclaredGridSha256 = null);
 
     public static Study Search(Policy policy, IReadOnlyList<TrainingSource> sources)
     {
@@ -184,6 +185,13 @@ public static class V9LowerNonMatchTrainCalibrator
             .ThenBy(x => x.FalseNewReferences).ThenBy(x => x.LowerThreshold).First();
         var finalists = new[] { suggested, conservative.LowerThreshold, lowestPending.LowerThreshold }
             .Distinct().ToArray();
+        // Grid identity is frozen from the declared, ordered threshold set.
+        // Changing endpoints or density changes this identity and requires
+        // a fresh independent validation of the selected finalists.
+        var gridSha = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
+            string.Join(",", policy.CandidateLowerThresholds.OrderBy(x => x)
+                .Select(x => x.ToString(System.Globalization.CultureInfo.InvariantCulture))))))
+            .ToLowerInvariant();
         var fingerprint = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
             Version + "|" + policy.FrozenSnapshotSha256 + "|"
             + policy.TrainingEvidenceSha256 + "|"
@@ -200,7 +208,8 @@ public static class V9LowerNonMatchTrainCalibrator
             ExternalValidationUsed: false, TestUsed: false, OperationalModelCreated: false,
             AutomaticCalibrationOrActivationAllowed: false,
             DuplicateConfidenceCertified: false, LinkageFdrRecalibrated: false,
-            DescriptiveBands: bands, DescriptiveFinalistThresholds: finalists);
+            DescriptiveBands: bands, DescriptiveFinalistThresholds: finalists,
+            DeclaredGridSha256: gridSha);
     }
 
     private static void CheckSha(string? sha, string label)
