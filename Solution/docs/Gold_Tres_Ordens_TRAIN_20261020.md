@@ -150,7 +150,15 @@ Runner exige `DB_NAME()='JornadaHarness'`, propriedade Development e
 `Jornada.V9.ExperimentalHarness=PINNED_FIT_PREVIEW_NO_ACTIVATION`; qualquer
 uso do motivo fora desse domínio aborta a publicação com erro 51822.
 Continuam valendo precedências, conflitos, origem persistente, UUID inicial,
-recomposição e destino externo. Busca com passes inelegíveis não cria
+recomposição e destino externo. A procedure DT-10 canônica também valida
+que toda NOVA_IDENTIDADE resultou de `SEM_CANDIDATO_%`. Para não adulterar
+o motivo bruto, o harness com limiar ligado confere a definição DT-10
+instalada e estende **somente naquela instância LocalDB** o guard de
+não-vínculo para o motivo experimental, com verificação independente
+`SERVERPROPERTY('IsLocalDB')=1` e os marcadores de banco exclusivos.
+Em qualquer deriva da definição, o ensaio aborta; o hash da procedure
+isolada modificada aparece como `disposableProcedureSha256`.
+Nenhuma migration SQL canônica e nenhum banco operacional são alterados. Busca com passes inelegíveis não cria
 referência. O próprio harness compara as chaves Gold esperadas contra a
 projeção SQL materializada após cada onda; o candidate SQL é UNION completo,
 sem TOP/truncamento. Uma busca tecnicamente completa **não é prova** de
