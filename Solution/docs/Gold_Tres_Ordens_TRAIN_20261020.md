@@ -61,24 +61,61 @@ decisão individual aceita**; não é igual a `1 - PairPrecision`.
 `IndependentlyCertified`, `TestUsed` e
 `OperationallyActivated` permanecem `false`.
 
-## 3. Execução física ainda necessária
+## 3. Seleção física das três ordens (contrato do harness)
+
+O `V9GoldHarnessCommand` agora aceita um **sétimo argumento opcional**
+somente com um dos identificadores pré-declarados (o sexto argumento
+continua sendo o diretório de saída). O contrato de seis argumentos
+mantém **exatamente** a ordem padrão `BASELINE_G0_G1_G2_G3`.
+
+```text
+--v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2]
+```
+
+Antes de qualquer escrita SQL, valida que as quatro ondas
+G0/G1/G2/G3 são exatamente as quatro do TRAIN original e aplica a
+ordem pré-fixada por `GoldTrainThreeOrderProtocol.ResolveOrder`,
+sem inspecionar os resultados. Preserva todos os filtros de snapshot,
+CSV imutável, modelo RASCUNHO, universo/persistência do Runner e
+isolamento LocalDB `JornadaV9Gold...` / `JornadaHarness`.
+Cada execução permanece **em instância LocalDB exclusiva e vazia**.
+A flag **não** cria bancos, não apaga tabelas e não executa
+automaticamente três bancos sequenciais.
+
+O arquivo `gold-runner-study.json` inclui `goldThreeOrderTrial` com:
+versão do protocolo, ordem solicitada e executada, fingerprints
+do CSV e snapshot fixados, fingerprint não autenticado da execução
+isolada e `stablePartitionSha256` (SHA-256 da partição **final por
+IDs estáveis do CSV**, com marca de publicado/pendente). O digest
+canonicaliza cada UUID Gold pelo menor ID CSV de seu grupo; portanto,
+UUIDs aleatórios diferentes com **a mesma partição** geram o mesmo
+digest. Nenhum UUID, rótulo verdadeiro ou identificador por observação
+é exportado nesse relatório. O digest é um auxiliar de comparação e
+**não** substitui a prova de execução independente de cada SQL.
+
+A auditoria B-cubed, os pares, fusões e razões agregadas de pendência
+continuam em `gold-runner-study.json` e são calculados apenas
+**após a publicação**. Um único relatório **não** equivale ao
+`GoldTrainThreeOrderProtocol.Compare`, que exige três ensaios
+efetivamente realizados com mapas completos em memória confiável.
+
+## 4. Execução física ainda necessária
 
 Após merge protegido desta biblioteca:
 
-1. Ligar a seleção de ordem ao `V9GoldHarnessCommand` com uma flag
-   explícita e sem alterar o comportamento padrão. Usar o mesmo
-   `--v9-gold-harness`, snapshots já pinados e corpus TRAIN.
-2. Rodar as três ordens em LocalDB distintos, com saídas imutáveis
-   e `run fingerprints` diferentes; cada execução deve chamar o
-   **Runner real**, projeção Gold SQL e reavaliação final dos pendentes.
-3. Reconciliar os três `gold-runner-study.json`, inclusive B-cubed,
+1. **Executar fisicamente** as três ordens (a seleção explícita
+   está implementada) em LocalDB distintos, com saídas imutáveis e
+   fingerprints diferentes. Cada instância deve chamar o Runner
+   real, as projeções Gold SQL e a reavaliação final dos pendentes.
+2. Reconciliar os três `gold-runner-study.json`, inclusive B-cubed,
    indicadores por pares, motivos agregados das pendências e FDR
-   pós-Resolve efetiva com gabarito por associação.
-4. Avaliar a proposta de limiar inferior APENAS em TRAIN, com
+   pós-Resolve efetiva com gabarito por associação; conferir
+   igualdade de SHA do CSV/fit e as três ordens esperadas.
+3. Avaliar a proposta de limiar inferior APENAS em TRAIN, com
    verdade independente sobre identidade já representada e
-   perdas de blocking; seguir fronteira de Pareto sem orçamento
-   arbitrário de duplicação ou vencedor selecionado automaticamente.
-5. Comparar na mesma escala física custo, grau falso, latência,
+   perdas de blocking; seguir a fronteira de Pareto descritiva
+   sem impor teto arbitrário ou publicar vencedor automaticamente.
+4. Comparar na mesma escala física custo, grau falso, latência,
    casos de fusões e subgrupos de identidades novas, sem generalizar
    massa sintética para 11 milhões de cidadãos reais.
 
