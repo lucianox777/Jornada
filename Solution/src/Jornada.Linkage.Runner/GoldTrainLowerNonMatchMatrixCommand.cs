@@ -92,7 +92,7 @@ public static class GoldTrainLowerNonMatchMatrixCommand
             || paths.Take(12).Any(x => Path.GetFileName(x) != GoldTrainThreeOrderAggregateCommand.SourceReportName)
             || File.Exists(paths[12]) || Directory.Exists(paths[12]))
             throw new InvalidDataException("Matriz exige doze fontes de execução diferentes e saída inédita.");
-        var bytes = await Task.WhenAll(paths.Take(12).Select(File.ReadAllBytesAsync));
+        var bytes = await Task.WhenAll(paths.Take(12).Select(path => File.ReadAllBytesAsync(path)));
         var matrix = Compare(bytes);
         await using var stream = new FileStream(paths[12], FileMode.CreateNew, FileAccess.Write, FileShare.None);
         await JsonSerializer.SerializeAsync(stream, matrix, Json);
