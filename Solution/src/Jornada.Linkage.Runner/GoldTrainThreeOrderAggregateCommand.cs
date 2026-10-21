@@ -49,10 +49,15 @@ public static class GoldTrainThreeOrderAggregateCommand
         bool IdentityLevelEvidenceExported,
         bool TestUsed,
         bool IndependentlyCertified,
-        bool OperationallyActivated);
+        bool OperationallyActivated)
+    {
+        public string LowerNonMatchPolicy { get; init; } = "CURRENT";
+        public decimal? LowerNonMatchThreshold { get; init; }
+    }
 
     private sealed record Parsed(OrderMetric Metric, string OrderId, string OriginalCorpusSha,
-        string FrozenSnapshotSha, string RunFingerprint, string[] WaveOrder);
+        string FrozenSnapshotSha, string RunFingerprint, string[] WaveOrder,
+        string LowerPolicy, decimal? LowerThreshold);
 
     /// <summary>
     /// Inputs MUST be the complete, post-reevaluation reports produced in three
@@ -73,7 +78,9 @@ public static class GoldTrainThreeOrderAggregateCommand
                 !string.Equals(x.OriginalCorpusSha, first.OriginalCorpusSha, StringComparison.OrdinalIgnoreCase)
                 || !string.Equals(x.FrozenSnapshotSha, first.FrozenSnapshotSha, StringComparison.OrdinalIgnoreCase)
                 || x.Metric.Sources != first.Metric.Sources
-                || x.Metric.TrueIdentities != first.Metric.TrueIdentities)
+                || x.Metric.TrueIdentities != first.Metric.TrueIdentities
+                || x.LowerPolicy != first.LowerPolicy
+                || x.LowerThreshold != first.LowerThreshold)
             || trials.Select(x => x.RunFingerprint).Distinct(StringComparer.OrdinalIgnoreCase).Count() != 3)
             throw new InvalidDataException("Três ordens devem ter corpus/fit/universo iguais e execuções distintas.");
 
@@ -87,7 +94,11 @@ public static class GoldTrainThreeOrderAggregateCommand
             LargestAcceptedFalseLinkDifference: outputs.Max(x => x.FalseAcceptedLinks) - outputs.Min(x => x.FalseAcceptedLinks),
             Scope: "TRAIN_SELECTION_PRE_REGISTERED_ORDERS",
             IdentityLevelEvidenceExported: false,
-            TestUsed: false, IndependentlyCertified: false, OperationallyActivated: false);
+            TestUsed: false, IndependentlyCertified: false, OperationallyActivated: false)
+        {
+            LowerNonMatchPolicy = first.LowerPolicy,
+            LowerNonMatchThreshold = first.LowerThreshold
+        };
     }
 
     private static Parsed Parse(byte[] bytes)
@@ -151,6 +162,38 @@ public static class GoldTrainThreeOrderAggregateCommand
                 fdr is null || Math.Abs(fdr.Value - (double)falseAccepted / (trueAccepted + falseAccepted)) > 1e-9)
                 throw new InvalidDataException("FDR publicada diverge dos contadores de associações.");
 
+            var lowerPolicy = "CURRENT";
+            decimal? lowerThreshold = null;
+            if (root.TryGetProperty("lowerNonMatchExperiment", out var lower))
+            {
+                lowerPolicy = lower.GetProperty("policy").GetString()
+                    ?? throw new InvalidDataException("Política inferior ausente.");
+                var rawThreshold = lower.GetProperty("threshold");
+                lowerThreshold = rawThreshold.ValueKind == JsonValueKind.Null
+                    ? null : rawThreshold.GetDecimal();
+                if (lower.GetProperty("operationalActivation").GetBoolean()
+                    || !lower.GetProperty("scorerReused").GetBoolean())
+                    throw new InvalidDataException("Política experimental incompatível com o LS V9.");
+                if (lowerPolicy == "CURRENT")
+                {
+                    if (lowerThreshold.HasValue || lower.GetProperty("publicationReason").ValueKind != JsonValueKind.Null
+                        || lower.GetProperty("finalLowerBandProposals").GetInt64() != 0
+                        || lower.GetProperty("finalLowerBandCreated").GetInt64() != 0)
+                        throw new InvalidDataException("Baseline não pode conter criações por limiar inferior.");
+                }
+                else if (lowerPolicy == "EXPERIMENTAL_LOWER_TRAIN_ONLY")
+                {
+                    if (lowerThreshold is null or <= 0m or >= 1m
+                        || lower.GetProperty("publicationReason").GetString() != V9GoldLowerNonMatchExperiment.PublicationReason
+                        || lower.GetProperty("finalLowerBandCreated").GetInt64() < 0
+                        || lower.GetProperty("finalLowerBandCreated").GetInt64() > lower.GetProperty("finalLowerBandProposals").GetInt64()
+                        || lower.GetProperty("finalLowerBandProposals").GetInt64() > n
+                        || lower.GetProperty("finalLowerBandCreated").GetInt64() > published)
+                        throw new InvalidDataException("Resumo do limiar inferior inconsistente.");
+                }
+                else throw new InvalidDataException("Política de limiar inferior não reconhecida.");
+            }
+
             var metric = new OrderMetric(
                 orderId, partition, n, distinctTrue, published, pending,
                 e2e.GetProperty("PendingSourceRate").GetDouble(), goldRefs,
@@ -173,7 +216,7 @@ public static class GoldTrainThreeOrderAggregateCommand
                 || !ValidRate(metric.BcubedCoverageAwarePrecision)
                 || !ValidRate(metric.BcubedCoverageAwareRecall))
                 throw new InvalidDataException("Métrica Gold não finita ou com denominador inconsistente.");
-            return new Parsed(metric, orderId, corpus, fit, run, observedOrder);
+            return new Parsed(metric, orderId, corpus, fit, run, observedOrder, lowerPolicy, lowerThreshold);
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or FormatException
             or InvalidOperationException or OverflowException)
