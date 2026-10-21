@@ -13,6 +13,27 @@ public static class GoldTrainThreeOrderProtocol
     public const string Interleaved = "INTERLEAVED_G1_G3_G0_G2";
     public const string StableSourceKeyContract = "TRAIN_CSV_OBSERVATION_ID_NOT_SQL_ID_V1";
 
+    /// <summary>
+    /// Deterministic positive numeric key derived from the actual
+    /// observacao_id field of the frozen synthetic TRAIN CSV, never the
+    /// SQL-generated IDENTITY value or a row index. CSV observation IDs
+    /// include synthetic identity codes: raw strings MUST NOT be exported.
+    /// A collision check across all selected sources remains mandatory.
+    /// </summary>
+    public static long StableKeyFromCsvObservationId(string observationId)
+    {
+        if (string.IsNullOrWhiteSpace(observationId))
+            throw new InvalidDataException("observacao_id do CSV TRAIN é obrigatório.");
+        var bytes = System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(
+                "JORNADA_GOLD_TRAIN_STABLE_SOURCE_V1|" + observationId));
+        var key = System.Buffers.Binary.BinaryPrimitives.ReadInt64BigEndian(bytes.AsSpan(0, 8))
+            & long.MaxValue;
+        if (key == 0)
+            throw new InvalidDataException("Fingerprint de observação não é uma chave válida.");
+        return key;
+    }
+
     public static IReadOnlyList<string> OrderIds { get; } =
         Array.AsReadOnly(new[] { Baseline, Reverse, Interleaved });
 
