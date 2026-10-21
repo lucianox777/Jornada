@@ -12,6 +12,7 @@ public static class GoldTrainThreeOrderAggregateCommand
     public const string Flag = "--v9-gold-compare-aggregates";
     public const string Version = "GOLD_TRAIN_THREE_ORDER_AGGREGATES_V1";
     public const string SourceReportName = "gold-runner-study.json";
+    private static readonly JsonSerializerOptions PrettyJson = new() { WriteIndented = true };
 
     public sealed record OrderMetric(
         string OrderId,
@@ -212,7 +213,7 @@ public static class GoldTrainThreeOrderAggregateCommand
         var inputs = await Task.WhenAll(paths.Take(3).Select(path => File.ReadAllBytesAsync(path)));
         var result = Compare(inputs);
         await using var stream = new FileStream(paths[3], FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        await JsonSerializer.SerializeAsync(stream, result, new JsonSerializerOptions { WriteIndented = true });
+        await JsonSerializer.SerializeAsync(stream, result, PrettyJson);
         return result;
     }
 }
