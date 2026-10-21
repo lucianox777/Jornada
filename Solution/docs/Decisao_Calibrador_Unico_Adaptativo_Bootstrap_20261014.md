@@ -1,3 +1,5 @@
+> **Complemento vinculante de 20/10/2026:** os guardrails de fanout, memória e segurança descritos abaixo **não autorizam criar um orçamento percentual pré-fixado de falsas novas identidades para filtrar a descoberta do limiar inferior**. A calibração inicial deve explorar fronteiras de Pareto sem limiar inferior previamente imposto, medir riscos, expor faixas e recomendar candidatos com justificativa e incerteza; ausência de evidência suficiente exige abstenção. O limite de FDR de vínculos aceitos permanece separado. Este complemento prevalece sobre leituras da implementação V1 da #1162 e da sua nota técnica. [Registro de decisão e evidência](V9_Registro_Decisoes_Bootstrap_Gold_20261020.md). Não declara a implementação nem o ensaio concluídos.
+
 > **Suporte V9 corrente:** [núcleos de massa M/U, fallback marginal e snapshot V3](V9_Suporte_Massa_Backoff_20261019.md).
 
 > **Fluxo V9 corrente — 19/10:** [seleção interna no TRAIN, parada heurística e avaliação única de até três finalistas congelados](V9_Selecao_Interna_TRAIN_Finalistas_20261019.md). VALIDATION histórica não volta a ser holdout novo. Nenhuma certificação ou ativação automática.
