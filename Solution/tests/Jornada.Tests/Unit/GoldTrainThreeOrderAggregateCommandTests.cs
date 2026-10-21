@@ -35,6 +35,7 @@ public sealed class GoldTrainThreeOrderAggregateCommandTests
                 originalCorpusSha256 = Sha(corpus),
                 frozenSnapshotSha256 = Sha(2),
                 isolatedRunFingerprintSha256 = Sha(runIndex + 100),
+                elapsedMilliseconds = 1000 + runIndex,
                 stablePartitionSha256 = Sha(partitionIndex),
                 allFourWavesPublished = true,
                 sourceCount = n,
@@ -65,7 +66,11 @@ public sealed class GoldTrainThreeOrderAggregateCommandTests
                 CoverageAwarePrecision = .6,
                 CoverageAwareRecall = .5
             },
-            pendingReasonBreakdown = new[] { new { Sources = claimedPending ?? pending } },
+            pendingReasonBreakdown = new[] { new {
+                RawStatus = "NAO_RESOLVIDO",
+                RawReasonCategory = "ABAIXO_T_LINKAGE",
+                PublicationReasonCategory = "LINKAGE_INDEFINIDO",
+                Sources = claimedPending ?? pending } },
             publication = new
             {
                 pendingSources = pending,
@@ -143,6 +148,40 @@ public sealed class GoldTrainThreeOrderAggregateCommandTests
         Reject<InvalidDataException>(() => GoldTrainThreeOrderAggregateCommand.Compare(mixed));
         mixed[2] = WithPolicy(Three()[2], null);
         Reject<InvalidDataException>(() => GoldTrainThreeOrderAggregateCommand.Compare(mixed));
+    }
+
+    [Test]
+    public void Matrix_aggregates_twelve_runs_and_rejects_mixed_or_replayed_experiments()
+    {
+        var reports = new List<byte[]>();
+        for (var policy = 0; policy < 4; policy++)
+        {
+            for (var order = 0; order < 3; order++)
+            {
+                var source = Report(GoldTrainThreeOrderProtocol.OrderIds[order], 1 + policy * 3 + order);
+                reports.Add(WithPolicy(source, policy == 0 ? null : policy / 10m));
+            }
+        }
+        var matrix = GoldTrainLowerNonMatchMatrixCommand.Compare(reports);
+        Assert.Multiple(() =>
+        {
+            Assert.That(matrix.Rows, Has.Count.EqualTo(12));
+            Assert.That(matrix.Rows[0].PolicySlot, Is.EqualTo("CURRENT"));
+            Assert.That(matrix.Rows[3].PolicySlot, Is.EqualTo("KNEE"));
+            Assert.That(matrix.Rows[6].PolicySlot, Is.EqualTo("CONSERVATIVE"));
+            Assert.That(matrix.Rows[9].PolicySlot, Is.EqualTo("LOWEST_PENDING"));
+            Assert.That(matrix.Rows[9].LowerThreshold, Is.EqualTo(.3m));
+            Assert.That(matrix.Rows.All(x => x.ElapsedMilliseconds > 0), Is.True);
+            Assert.That(matrix.Rows.All(x => x.PendingReasons.Sum(y => y.Sources) == x.Metrics.PendingSources), Is.True);
+            Assert.That(matrix.OperationallyActivated, Is.False);
+        });
+        var duplicate = reports.ToArray();
+        duplicate[6] = duplicate[3];
+        Reject<InvalidDataException>(() => GoldTrainLowerNonMatchMatrixCommand.Compare(duplicate));
+        var changed = reports.ToArray();
+        changed[7] = WithPolicy(Report(GoldTrainThreeOrderProtocol.OrderIds[1], 8), .1m);
+        Reject<InvalidDataException>(() => GoldTrainLowerNonMatchMatrixCommand.Compare(changed));
+        Reject<InvalidDataException>(() => GoldTrainLowerNonMatchMatrixCommand.Compare(reports.Take(11).ToArray()));
     }
 
     [Test]
