@@ -135,7 +135,10 @@ public static class V9GoldHarnessCommand
                 waves.Add(new { manager, summary, eligibleWithPriorGold = measured.Count(x => x.Value.Eligible),
                     trueAccepted = measured.Count(x => x.Value.TrueAccepted), falseAccepted = measured.Count(x => x.Value.FalseAccepted),
                     lowerBandProposals = measured.Count(x => x.Value.LowerBandProposal),
-                    lowerBandCreated = measured.Count(x => x.Value.LowerBandProposal && x.Value.PublicationResult == "NOVA_IDENTIDADE") });
+                    lowerBandCreated = measured.Count(x => x.Value.LowerBandProposal && x.Value.PublicationResult == "NOVA_IDENTIDADE"),
+                    falseNewIdentityCreations = measured.Count(x => x.Value.Eligible && x.Value.PublicationResult == "NOVA_IDENTIDADE"),
+                    falseLowerBandCreations = measured.Count(x => x.Value.LowerBandProposal && x.Value.Eligible
+                        && x.Value.PublicationResult == "NOVA_IDENTIDADE") });
                 Console.Error.WriteLine(JsonSerializer.Serialize(new { goldWave = manager, summary.Avaliados, summary.Status }));
             }
             var beforeReevaluation = await OwnershipAsync(owner, truthByObservation);
@@ -206,7 +209,10 @@ public static class V9GoldHarnessCommand
                     publicationReason = lowerNonMatchThreshold.HasValue
                         ? V9GoldLowerNonMatchExperiment.PublicationReason : null,
                     finalLowerBandProposals = outcomes.Count(x => x.Value.LowerBandProposal),
-                    finalLowerBandCreated = outcomes.Count(x => x.Value.LowerBandProposal && x.Value.PublicationResult == "NOVA_IDENTIDADE")
+                    finalLowerBandCreated = outcomes.Count(x => x.Value.LowerBandProposal && x.Value.PublicationResult == "NOVA_IDENTIDADE"),
+                    finalFalseNewIdentityCreations = outcomes.Count(x => x.Value.Eligible && x.Value.PublicationResult == "NOVA_IDENTIDADE"),
+                    finalFalseLowerBandCreations = outcomes.Count(x => x.Value.LowerBandProposal && x.Value.Eligible
+                        && x.Value.PublicationResult == "NOVA_IDENTIDADE")
                 },
                 goldThreeOrderTrial = new
                 {
