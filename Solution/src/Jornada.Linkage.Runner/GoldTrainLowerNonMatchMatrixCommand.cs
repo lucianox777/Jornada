@@ -19,6 +19,7 @@ public static class GoldTrainLowerNonMatchMatrixCommand
     public sealed record Row(string PolicySlot, string Policy, decimal? LowerThreshold,
         GoldTrainThreeOrderAggregateCommand.OrderMetric Metrics,
         long ElapsedMilliseconds, long LowerBandProposals, long LowerBandCreated,
+        long FalseNewIdentityCreations, long FalseLowerBandCreations,
         IReadOnlyList<PendingReason> PendingReasons);
     public sealed record Matrix(string Version, string OriginalCorpusSha256,
         string FrozenSnapshotSha256, IReadOnlyList<Row> Rows,
@@ -73,8 +74,11 @@ public static class GoldTrainLowerNonMatchMatrixCommand
                 var lowerData = root.GetProperty("lowerNonMatchExperiment");
                 var proposals = lowerData.GetProperty("finalLowerBandProposals").GetInt64();
                 var created = lowerData.GetProperty("finalLowerBandCreated").GetInt64();
+                var falseNew = lowerData.GetProperty("finalFalseNewIdentityCreations").GetInt64();
+                var falseLower = lowerData.GetProperty("finalFalseLowerBandCreations").GetInt64();
                 rows.Add(new Row(PolicySlots[policyIndex], comparison.LowerNonMatchPolicy,
-                    comparison.LowerNonMatchThreshold, metric, ms, proposals, created, reasons));
+                    comparison.LowerNonMatchThreshold, metric, ms, proposals, created,
+                    falseNew, falseLower, reasons));
             }
         }
         return new Matrix("GOLD_TRAIN_LOWER_NONMATCH_MATRIX_V1", corpus!, fit!,
