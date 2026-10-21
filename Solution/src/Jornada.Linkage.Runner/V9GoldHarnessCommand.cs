@@ -311,6 +311,7 @@ public static class V9GoldHarnessCommand
     {
         await using var command = new SqlCommand("""
             IF DB_NAME()<>N'JornadaHarness' THROW 51900,'Banco de ensaio incorreto.',1;
+            IF COALESCE(TRY_CONVERT(int,SERVERPROPERTY(N'IsLocalDB')),0)<>1 THROW 51900,'Ensaio requer SQL LocalDB real.',1;
             IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile' AND CONVERT(nvarchar(200),value)=N'Development')
                 THROW 51900,'Ensaio exige perfil Development residente.',1;
             IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.V9.ExperimentalHarness' AND CONVERT(nvarchar(200),value)=@marker)
