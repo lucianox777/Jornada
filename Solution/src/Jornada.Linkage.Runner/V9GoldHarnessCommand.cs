@@ -26,7 +26,7 @@ public static class V9GoldHarnessCommand
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
     private sealed record Source(long Id, string Truth, string Manager, IdentityObservation Observation);
     private sealed record Outcome(bool Eligible, bool TrueAccepted, bool FalseAccepted, string Status,
-        bool PublishedTrueAssociation, bool PublishedFalseAssociation, string PublicationResult);
+        bool PublishedTrueAssociation, bool PublishedFalseAssociation, string PublicationResult, bool LowerBandProposal);
     private sealed record PendingReasonCount(
         string RawStatus, string RawReasonCategory, string PublicationReasonCategory, long Sources);
 
@@ -41,8 +41,8 @@ public static class V9GoldHarnessCommand
 
     public static async Task RunAsync(string[] args, string connectionString)
     {
-        if (args.Length is not (6 or 7) || args[0] != Flag)
-            throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2]");
+        if (args.Length is < 6 or > 8 || args[0] != Flag)
+            throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2] [LOWER_NONMATCH=<decimal>]; usar exclusivamente LocalDB descartável.");
         ValidateDisposableConnection(connectionString);
         var selectionBytes = await File.ReadAllBytesAsync(args[1]);
         var selectionSha = Sha(selectionBytes);
@@ -76,14 +76,41 @@ public static class V9GoldHarnessCommand
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
         // Validate the PRE-REGISTERED order against the complete same CSV
         // before any SQL connection, database write or output directory.
-        var trialOrderId = args.Length == 7 ? args[6] : GoldTrainThreeOrderProtocol.Baseline;
+        var optional = args.Skip(6).ToArray();
+        var lowerOptions = optional.Where(x => x.StartsWith(
+            V9GoldLowerNonMatchExperiment.ArgumentPrefix, StringComparison.Ordinal)).ToArray();
+        var orderOptions = optional.Where(x => !x.StartsWith(
+            V9GoldLowerNonMatchExperiment.ArgumentPrefix, StringComparison.Ordinal)).ToArray();
+        if (lowerOptions.Length > 1 || orderOptions.Length > 1)
+            throw new ArgumentException("Ordem ou LOWER_NONMATCH duplicados.");
+        decimal? lowerNonMatchThreshold = lowerOptions.Length == 1
+            ? V9GoldLowerNonMatchExperiment.ParseThreshold(lowerOptions[0], snapshot.Payload.Threshold)
+            : null;
+        var trialOrderId = orderOptions.Length == 1 ? orderOptions[0] : GoldTrainThreeOrderProtocol.Baseline;
         var executedWaveOrder = GoldTrainThreeOrderProtocol.ResolveOrder(
             trialOrderId, wavesByManager.Keys);
         var output = Path.GetFullPath(args[5]);
         if (Directory.Exists(output) || File.Exists(output)) throw new IOException("Gold preview exige saída nova.");
+        var physicalTrialTimer = System.Diagnostics.Stopwatch.StartNew();
         var sql = new OperationalSqlAdapter(connectionString);
         await using var owner = await sql.OpenAsync(CancellationToken.None);
         await GuardEmptyOwnedDatabaseAsync(owner);
+        // The canonical DT-10 procedure deliberately rejects NEW_IDENTITY with
+        // recovered candidates. Extend that guard only inside THIS empty,
+        // separately named, marked LocalDB. No migration or operational DB is altered.
+        string? disposableProcedureSha256 = null;
+        if (lowerNonMatchThreshold.HasValue)
+        {
+            await using var read = new SqlCommand(
+                "SELECT OBJECT_DEFINITION(OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote'));",
+                owner);
+            var canonicalDefinition = await read.ExecuteScalarAsync() as string
+                ?? throw new InvalidDataException("Procedure DT-10 não instalada no LocalDB descartável.");
+            var patched = V9GoldDisposableLowerProcedurePatch.Apply(canonicalDefinition);
+            await using var modify = new SqlCommand(patched, owner) { CommandTimeout = 900 };
+            await modify.ExecuteNonQueryAsync();
+            disposableProcedureSha256 = Sha(System.Text.Encoding.UTF8.GetBytes(patched));
+        }
         Directory.CreateDirectory(output);
         try
         {
@@ -95,7 +122,7 @@ public static class V9GoldHarnessCommand
             {
                 BlockingContract = new("PINNED_GOLD_HARNESS_" + snapshot.ContentSha256, snapshot.ContentSha256,
                     runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256)
-            });
+            }, lowerNonMatchThreshold);
             var bronzeRoot = Path.Combine(output, "bronze");
             var runner = new ProbabilisticLinkageBatchRunner(new ConfigurationBuilder().Build(), sql, preview,
                 new SqlPipelineCoordinator(sql), new Dt05ReplaySql(sql),
@@ -122,7 +149,12 @@ public static class V9GoldHarnessCommand
                 foreach (var item in measured) outcomes[item.Key] = item.Value;
                 await RefreshActualGoldProjectionAsync(owner, runtime);
                 waves.Add(new { manager, summary, eligibleWithPriorGold = measured.Count(x => x.Value.Eligible),
-                    trueAccepted = measured.Count(x => x.Value.TrueAccepted), falseAccepted = measured.Count(x => x.Value.FalseAccepted) });
+                    trueAccepted = measured.Count(x => x.Value.TrueAccepted), falseAccepted = measured.Count(x => x.Value.FalseAccepted),
+                    lowerBandProposals = measured.Count(x => x.Value.LowerBandProposal),
+                    lowerBandCreated = measured.Count(x => x.Value.LowerBandProposal && x.Value.PublicationResult == "NOVA_IDENTIDADE"),
+                    falseNewIdentityCreations = measured.Count(x => x.Value.Eligible && x.Value.PublicationResult == "NOVA_IDENTIDADE"),
+                    falseLowerBandCreations = measured.Count(x => x.Value.LowerBandProposal && x.Value.Eligible
+                        && x.Value.PublicationResult == "NOVA_IDENTIDADE") });
                 Console.Error.WriteLine(JsonSerializer.Serialize(new { goldWave = manager, summary.Avaliados, summary.Status }));
             }
             var beforeReevaluation = await OwnershipAsync(owner, truthByObservation);
@@ -185,6 +217,20 @@ public static class V9GoldHarnessCommand
                 fdrAfterResolve = trueAccepted + falseAccepted == 0 ? (double?)null : (double)falseAccepted / (trueAccepted + falseAccepted),
                 goldIdentities = finalOwnership.Count, impureGoldIdentities = impure, waves, reevaluation,
                 goldEndToEnd, goldBcubed, pendingReasonBreakdown,
+                lowerNonMatchExperiment = new
+                {
+                    policy = lowerNonMatchThreshold.HasValue ? "EXPERIMENTAL_LOWER_TRAIN_ONLY" : "CURRENT",
+                    threshold = lowerNonMatchThreshold,
+                    scorerReused = true, operationalActivation = false,
+                    disposableProcedureSha256,
+                    publicationReason = lowerNonMatchThreshold.HasValue
+                        ? V9GoldLowerNonMatchExperiment.PublicationReason : null,
+                    finalLowerBandProposals = outcomes.Count(x => x.Value.LowerBandProposal),
+                    finalLowerBandCreated = outcomes.Count(x => x.Value.LowerBandProposal && x.Value.PublicationResult == "NOVA_IDENTIDADE"),
+                    finalFalseNewIdentityCreations = outcomes.Count(x => x.Value.Eligible && x.Value.PublicationResult == "NOVA_IDENTIDADE"),
+                    finalFalseLowerBandCreations = outcomes.Count(x => x.Value.LowerBandProposal && x.Value.Eligible
+                        && x.Value.PublicationResult == "NOVA_IDENTIDADE")
+                },
                 goldThreeOrderTrial = new
                 {
                     protocol = GoldTrainThreeOrderProtocol.Version,
@@ -194,6 +240,7 @@ public static class V9GoldHarnessCommand
                     originalCorpusSha256 = selection.RootElement.GetProperty("originalObservationsSha256").GetString(),
                     frozenSnapshotSha256 = snapshot.ContentSha256,
                     isolatedRunFingerprintSha256,
+                    elapsedMilliseconds = physicalTrialTimer.ElapsedMilliseconds,
                     stablePartitionSha256,
                     allFourWavesPublished = true,
                     sourceCount = stableTruth.Count,
@@ -230,7 +277,7 @@ public static class V9GoldHarnessCommand
     {
         var priorTruth = ownership.Values.SelectMany(x => x).ToHashSet(StringComparer.Ordinal);
         var outcomes = new Dictionary<long, Outcome>();
-        await using var command = new SqlCommand("SELECT pessoa_observacao_id,status,pessoa_uuid_resolvido,resultado_publicacao,pessoa_uuid_publicado FROM identidade.linkage_resultado WHERE linkage_run_id=@run;", connection);
+        await using var command = new SqlCommand("SELECT pessoa_observacao_id,status,pessoa_uuid_resolvido,resultado_publicacao,pessoa_uuid_publicado,motivo FROM identidade.linkage_resultado WHERE linkage_run_id=@run;", connection);
         command.Parameters.AddWithValue("@run", run);
         await using var reader = await command.ExecuteReaderAsync();
         while (await reader.ReadAsync())
@@ -254,7 +301,8 @@ public static class V9GoldHarnessCommand
             }
             else if (publication is not ("NOVA_IDENTIDADE" or "INDEFINIDA"))
                 throw new InvalidDataException("Resultado de publicação desconhecido.");
-            outcomes.Add(id, new(priorTruth.Contains(source.Truth), tp, fp, status, publishedTp, publishedFp, publication));
+            outcomes.Add(id, new(priorTruth.Contains(source.Truth), tp, fp, status, publishedTp, publishedFp, publication,
+                !reader.IsDBNull(5) && reader.GetString(5) == V9GoldLowerNonMatchExperiment.PublicationReason));
         }
         return outcomes;
     }
@@ -263,6 +311,7 @@ public static class V9GoldHarnessCommand
     {
         await using var command = new SqlCommand("""
             IF DB_NAME()<>N'JornadaHarness' THROW 51900,'Banco de ensaio incorreto.',1;
+            IF COALESCE(TRY_CONVERT(int,SERVERPROPERTY(N'IsLocalDB')),0)<>1 THROW 51900,'Ensaio requer SQL LocalDB real.',1;
             IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.EnvironmentProfile' AND CONVERT(nvarchar(200),value)=N'Development')
                 THROW 51900,'Ensaio exige perfil Development residente.',1;
             IF NOT EXISTS(SELECT 1 FROM sys.extended_properties WHERE class=0 AND name=N'Jornada.V9.ExperimentalHarness' AND CONVERT(nvarchar(200),value)=@marker)
@@ -522,13 +571,40 @@ public static class V9GoldHarnessCommand
             await update.ExecuteNonQueryAsync();
         }
         await tx.CommitAsync();
+
+        // Physically check the materialized keys used by this pinned V9 fit.
+        // A declared fingerprint alone is not evidence that the SQL projection exists.
+        var expected = keys.Rows.Cast<DataRow>().Select(r => (
+            Person: (Guid)r["person"], Feature: (string)r["feature"],
+            Value: (string)r["value"], Temporal: (string)r["temporal"])).ToHashSet();
+        var actual = new HashSet<(Guid Person, string Feature, string Value, string Temporal)>();
+        await using (var verify = new SqlCommand("""
+            SELECT b.pessoa_uuid,b.atributo,b.valor_normalizado,b.semantica_temporal
+            FROM identidade.blocking_chave b
+            JOIN gold.pessoa g ON g.pessoa_uuid=b.pessoa_uuid
+            WHERE g.estado_identidade=N'REFERENCIA'
+              AND b.normalizacao_versao=@normalization
+              AND b.projection_schema_version=@schema
+              AND b.projection_fingerprint_sha256=@fingerprint
+              AND b.vigencia_fim IS NULL;
+            """, connection))
+        {
+            verify.Parameters.AddWithValue("@normalization", IdentityComparison.NormalizationVersion);
+            verify.Parameters.AddWithValue("@schema", runtime.ProjectionSchemaVersion);
+            verify.Parameters.AddWithValue("@fingerprint", runtime.ProjectionFingerprintSha256);
+            await using var reader = await verify.ExecuteReaderAsync();
+            while (await reader.ReadAsync())
+                actual.Add((reader.GetGuid(0), reader.GetString(1), reader.GetString(2), reader.GetString(3)));
+        }
+        if (!expected.IsSubsetOf(actual))
+            throw new InvalidDataException("Projeção SQL Gold incompleta: chaves de blocking do fit fixado ausentes.");
     }
 
     // Private to this guarded command: no production DI registration, active model
     // lookup or truth access. Complete candidates and comparison attributes come
     // exclusively from the real Gold state before the current runner wave.
     private sealed class IsolatedPreview(IOperationalSqlAdapter sql, V9FittedSnapshotExecutionRuntime runtime,
-        ProbabilisticLinkageModelRef model) : IProbabilisticIdentityLinkage
+        ProbabilisticLinkageModelRef model, decimal? lowerNonMatchThreshold) : IProbabilisticIdentityLinkage
     {
         public Task<ProbabilisticLinkageModelRef> GetActiveModelAsync(CancellationToken ct) =>
             throw new InvalidOperationException("Preview não dispõe de modelo ativo.");
@@ -547,8 +623,22 @@ public static class V9GoldHarnessCommand
                 while (await reader.ReadAsync(ct))
                     candidates.Add(new(reader.GetGuid(0), reader.IsDBNull(1) ? null : reader.GetString(1),
                         reader.IsDBNull(2) ? null : DateOnly.FromDateTime(reader.GetDateTime(2)), reader.IsDBNull(3) ? null : reader.GetString(3)));
-            return runtime.ResolveRetrievedCandidatesPreview(modeloId, observation, new(runtime.SnapshotSha256,
+            var decision = runtime.ResolveRetrievedCandidatesPreview(modeloId, observation, new(runtime.SnapshotSha256,
                 runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256, true, candidates));
+            if (lowerNonMatchThreshold is not { } lower || runtime.Plan(observation).Count == 0) return decision;
+            // Query has no TOP/paging: read the full UNION of blocking passes
+            // and the actual Gold columns before invoking the SAME frozen scorer.
+            // The initial empty Gold is guarded; each later Gold projection is
+            // physically checked after publication and before the next wave.
+            var candidateFrameSha = Sha(System.Text.Encoding.UTF8.GetBytes(string.Join("|",
+                runtime.SnapshotSha256, runtime.ProjectionFingerprintSha256,
+                string.Join(",", candidates.Select(x => x.PersonUuid.ToString("D", CultureInfo.InvariantCulture))))));
+            var retrieval = new V9LowerNonMatchPreview.VerifiedRetrieval(
+                runtime.SnapshotSha256, candidateFrameSha, candidates.Count,
+                IndexMaterializationVerified: true, CompleteCandidateUniverse: true,
+                EligibleBlockingPasses: runtime.Plan(observation).Count != 0);
+            return V9GoldLowerNonMatchExperiment.Apply(decision, retrieval,
+                runtime.SnapshotSha256, lower, model.Threshold);
         }
     }
 

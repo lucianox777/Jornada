@@ -1,8 +1,9 @@
 # Gold incremental — três ordens TRAIN com fit congelado
 
 **Protocolo pré-declarado de sensibilidade à ordem de ingestão.**
-Este trabalho implementa exclusivamente um planejador/comparador C# puro;
-**não declara que as três execuções físicas já ocorreram**.
+O protocolo está conectado ao Runner C# físico e inclui modo experimental
+restrito de limiar inferior; **não declara que qualquer corrida física da matriz
+foi realizada**.
 
 ## 1. Três ordens imutáveis
 
@@ -17,8 +18,8 @@ comparativo. Não inverter a preferência em função de acerto, custo ou
 pendência. É obrigatório preservar **todos os gerentes e todas as fontes**,
 executando cada tentativa em uma **instância LocalDB exclusiva, criada
 vazia**, com o mesmo corpus TRAIN_SELECTION, snapshot FS fixo, regras
-de blocking e TF, SQL e versão do Runner. O teste no Runner real só
-será executado quando houver entrada de ordem explícita no harness.
+de blocking e TF, SQL e versão do Runner. As três ordens são selecionáveis no Runner real, mas precisam ser executadas
+manualmente em LocalDB isolados.
 
 ## 2. Contrato implementado
 
@@ -38,8 +39,7 @@ O harness precisa converter `pessoa_observacao_id` → `Source.Id`
 estável antes de alimentar a comparação. O par
 `gestor`/`OBS_<Source.Id>` permite auditar a associação
 somente dentro do ensaio descartável.
-O protocolo exige
-distintas, mesmo SHA256 do TRAIN, mesmo SHA256 do snapshot, mesmos
+O protocolo exige execuções distintas, mesmo SHA256 do TRAIN, mesmo SHA256 do snapshot, mesmos
 rótulos independentes para todas as observações e sequência executada
 exatamente igual à pré-declarada. Recusa flag TEST, ativação e onda
 não publicada. Atestações do chamador sobre banco SQL isolado devem
@@ -69,13 +69,15 @@ decisão individual aceita**; não é igual a `1 - PairPrecision`.
 
 ## 3. Seleção física das três ordens (contrato do harness)
 
-O `V9GoldHarnessCommand` agora aceita um **sétimo argumento opcional**
-somente com um dos identificadores pré-declarados (o sexto argumento
-continua sendo o diretório de saída). O contrato de seis argumentos
-mantém **exatamente** a ordem padrão `BASELINE_G0_G1_G2_G3`.
+O `V9GoldHarnessCommand` aceita ordem opcional e/ou `LOWER_NONMATCH=<decimal>`.
+A opção de limiar é explícita e usa ponto decimal invariante, com
+`0 < piso < limiar superior fixado no snapshot`. O contrato antigo de seis
+argumentos mantém **exatamente** a política atual e a ordem padrão.
+Os três finalistas não são deduzidos pelo CLI: devem vir da fronteira
+Pareto de TRAIN validada, sem seleção automática ou teto de duplicatas.
 
 ```text
---v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2]
+--v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2] [LOWER_NONMATCH=<decimal>]
 ```
 
 Antes de qualquer escrita SQL, valida que as quatro ondas
@@ -128,7 +130,62 @@ Após merge protegido desta biblioteca:
 
 **Atenção:** o comparador puro não é um experimento físico. Não
 o confundir com a sonda de calibração SQL de 30 mil registros, nem
-com certificação municipal. Não habilitar NOVA_IDENTIDADE por score
+com certificação municipal. Não habilitar NOVA_IDENTIDADE **operacional** por score
 abaixo do piso, nem ativar V9/DT-15, abrir TEST, usar VALIDATION
 consumida ou alterar V8, Gold operacional, IBGE original, JornadaLocal,
 NODE/NAS ou HML/PROD.
+
+## 5. Política experimental C# (21/10/2026; execução pendente)
+
+O `V9GoldLowerNonMatchExperiment` reutiliza
+`V9LowerNonMatchPreview.Evaluate` e **o mesmo Rank/Resolve FS/TF congelado**;
+não executa um segundo scorer. Só a condição
+`CandidateRejectedNewReferenceHypothesis` converte o motivo bruto em
+`LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL` sem alterar posterior, candidato,
+status ou decisão de vínculo. O nome do motivo é deliberadamente distinto
+de `SEM_CANDIDATO_%`: foram recuperados candidatos reais.
+
+Para publicar essa hipótese **somente na instância descartável**, o SQL do
+Runner exige `DB_NAME()='JornadaHarness'`, propriedade Development e
+`Jornada.V9.ExperimentalHarness=PINNED_FIT_PREVIEW_NO_ACTIVATION`; qualquer
+uso do motivo fora desse domínio aborta a publicação com erro 51822.
+Continuam valendo precedências, conflitos, origem persistente, UUID inicial,
+recomposição e destino externo. A procedure DT-10 canônica também valida
+que toda NOVA_IDENTIDADE resultou de `SEM_CANDIDATO_%`. Para não adulterar
+o motivo bruto, o harness com limiar ligado confere a definição DT-10
+instalada e estende **somente naquela instância LocalDB** o guard de
+não-vínculo para o motivo experimental, com verificação independente
+`SERVERPROPERTY('IsLocalDB')=1` e os marcadores de banco exclusivos.
+Em qualquer deriva da definição, o ensaio aborta; o hash da procedure
+isolada modificada aparece como `disposableProcedureSha256`.
+Nenhuma migration SQL canônica e nenhum banco operacional são alterados. Busca com passes inelegíveis não cria
+referência. O próprio harness compara as chaves Gold esperadas contra a
+projeção SQL materializada após cada onda; o candidate SQL é UNION completo,
+sem TOP/truncamento. Uma busca tecnicamente completa **não é prova** de
+recuperação da identidade verdadeira: medir falsas novas identidades contra
+o gabarito TRAIN e a sensibilidade às ordens continua obrigatório.
+
+Cada `gold-runner-study.json` contém `lowerNonMatchExperiment`, criação
+efetiva por onda, `elapsedMilliseconds`, B-cubed, métricas por pares,
+pendências por motivo, FDR e SHA estável da partição. O comparador de três
+ordens recusa mistura de políticas ou de limiares.
+
+Para as **12 execuções** (controle + três valores TRAIN × três ordens),
+executar o mesmo `--v9-gold-harness` uma vez por banco LocalDB exclusivo
+e fornecer os 12 relatórios, em ordem de política
+`CURRENT`, `KNEE`, `CONSERVATIVE`, `LOWEST_PENDING`, cada política com
+ordens baseline, reversa e intercalada, a:
+
+```text
+--v9-gold-compare-matrix <12 caminhos gold-runner-study.json> <saída-nova.json>
+```
+
+O comparador `GoldTrainLowerNonMatchMatrixCommand` é offline,
+não abre SQL, recusa relatório duplicado, fit/corpus divergente e limiares
+iguais entre finalistas. Publica uma tabela de 12 linhas com pares,
+B-cubed, fusões/fragmentação, pendências categorizadas, falsos vínculos,
+FDR, latência e SHA por partição. Não divulga UUIDs de pessoas, gabarito
+por fonte ou identificadores individuais. Os nomes das três alternativas
+são rótulos da entrada; não certificam que a escolha Pareto foi validada.
+CI/unidades apenas verificam o software: o **ensaio físico e a decisão de
+governança permanecem pendentes**.
