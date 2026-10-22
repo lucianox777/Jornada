@@ -119,7 +119,7 @@ try {
                 $instance -cnotmatch '^JornadaV9Gold[0-9]{8}_[a-f0-9]{8}$') {
                 throw "Manifesto da instância isolada inválido: $label"
             }
-            $env:ConnectionStrings__Jornada = "Server=(localdb)\$instance;Database=JornadaHarness;Integrated Security=true;Encrypt=False"
+            $env:ConnectionStrings__Jornada = "Server=(localdb)\$instance;Database=JornadaHarness;Integrated Security=true;Encrypt=Optional"
             $argv = @('--v9-gold-harness', $selection, $validation, $goldFit, $csv, $trialOutput, $order)
             if ($null -ne $policy.Floor) {
                 $floorInvariant = $policy.Floor.ToString([Globalization.CultureInfo]::InvariantCulture)
