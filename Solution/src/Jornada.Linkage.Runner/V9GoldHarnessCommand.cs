@@ -731,10 +731,11 @@ public static class V9GoldHarnessCommand
                 runtime.SnapshotSha256, candidateFrameSha, candidates.Count,
                 IndexMaterializationVerified: true, CompleteCandidateUniverse: true,
                 EligibleBlockingPasses: eligiblePasses);
-            if (captureTrainEvidence)
+            // Only the four manager waves are training evidence. The final
+            // pending reevaluation must run normally but must NOT replace or
+            // contaminate the frozen prepublication TRAIN observations.
+            if (captureTrainEvidence && _wave is { } dictionary)
             {
-                var dictionary = _wave ?? throw new InvalidOperationException(
-                    "Score do TRAIN executado fora de onda pré-registrada.");
                 var key = ObservationKey.From(observation);
                 var value = new CapturedDecision(decision, retrieval);
                 if (!dictionary.TryAdd(key, value) && dictionary.TryGetValue(key, out var earlier)
