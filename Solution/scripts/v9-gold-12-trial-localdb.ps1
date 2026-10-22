@@ -74,12 +74,12 @@ if ($gold.CandidateGrouping.CandidateGrouping -ne 'GOLD' -or
 if (@($rawStudy.DescriptiveFinalistThresholds).Count -ne 3) {
     throw "TRAIN não apresentou três finalistas DISTINTOS; matriz 3x4 não deve inventar limiares."
 }
-$upper = [decimal]::Parse([string]$gold.Threshold, [Globalization.CultureInfo]::InvariantCulture)
+$upper = [decimal]$gold.Threshold
 $values = @($rawStudy.DescriptiveFinalistThresholds | ForEach-Object {
-    [decimal]::Parse([string]$_, [Globalization.CultureInfo]::InvariantCulture)
+    [decimal]$_
 })
 if (@($values | Select-Object -Unique).Count -ne 3 -or
-    ($values | Where-Object { $_ -le 0 -or $_ -ge $upper }).Count -ne 0 -or
+    @($values | Where-Object { $_ -le 0 -or $_ -ge $upper }).Count -ne 0 -or
     $values[0] -ne [decimal]$rawStudy.DescriptiveSuggestedLowerThreshold) {
     throw "Os três limiares devem ser os finalistas TRAIN, distintos e inferiores ao teto V9."
 }
@@ -155,7 +155,7 @@ try {
     }
     if ($reports.Count -ne 12) { throw "Doze ensaios físicos eram obrigatórios." }
     $matrixFile = Join-Path $root 'gold-12-trial-matrix.json'
-    $matrixArgs = @('--v9-gold-compare-matrix') + @($reports) + @($matrixFile)
+    $matrixArgs = @('--v9-gold-compare-matrix') + $reports.ToArray() + @($matrixFile)
     & dotnet $runner @matrixArgs
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $matrixFile -PathType Leaf)) {
         throw "Comparador C# recusou a matriz; nenhuma inferência autorizada."
