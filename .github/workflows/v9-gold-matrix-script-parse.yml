@@ -1,0 +1,45 @@
+name: v9-gold-matrix-script-parse
+
+on:
+  pull_request:
+    paths:
+      - 'Solution/scripts/v9-gold-12-trial-localdb.ps1'
+      - '.github/workflows/v9-gold-matrix-script-parse.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parse-only:
+    name: Parse guarded Windows matrix orchestrator (no SQL execution)
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Parse PowerShell and verify fail-closed invariants
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $file = Join-Path $env:GITHUB_WORKSPACE 'Solution/scripts/v9-gold-12-trial-localdb.ps1'
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count -ne 0) {
+            $parseErrors | ForEach-Object { Write-Error $_.Message }
+            throw 'Orquestrador Gold contém erro sintático PowerShell.'
+          }
+          $script = [System.IO.File]::ReadAllText($file)
+          foreach ($required in @('SqlLocalDB.exe',
+              '--v9-gold-harness-create', '--v9-gold-harness',
+              '--v9-gold-compare-matrix', 'DescriptiveFinalistThresholds',
+              'TRAIN_DESCRIPTIVE_KNEE_SUGGESTION_ONLY_UNCERTIFIED_NO_PRESET_DUPLICATE_BUDGET',
+              'ConnectionStrings__Jornada', 'finally')) {
+            if (-not $script.Contains($required)) { throw "Guard/contract missing: $required" }
+          }
+          if ($script -match '(?im)\b(Remove-Item|DROP\s+DATABASE|SqlLocalDB\.exe\s+(delete|stop))\b') {
+            throw 'Orquestrador não pode apagar bancos/instâncias ou evidências.'
+          }
+          Write-Host 'PowerShell sintaticamente válido. Ensaio físico NÃO executado.'
