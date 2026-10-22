@@ -53,7 +53,7 @@ public sealed class V9GoldPhysicalCreationAuditTests
     public void Invalid_publications_fail_closed()
     {
         var audit = new V9GoldPhysicalCreationAudit();
-        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             audit.Observe(1, false, true, "DESCONHECIDO")));
         Assert.That(audit.Snapshot().LowerBandCreated, Is.Zero);
     }
