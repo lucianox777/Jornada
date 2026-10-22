@@ -189,3 +189,36 @@ por fonte ou identificadores individuais. Os nomes das três alternativas
 são rótulos da entrada; não certificam que a escolha Pareto foi validada.
 CI/unidades apenas verificam o software: o **ensaio físico e a decisão de
 governança permanecem pendentes**.
+
+
+## 6. Retificação da contagem de criação física (22/10/2026)
+
+A reavaliação final **substitui** o estado da associação por fonte, mas
+**não desfaz** o ato anterior de `NOVA_IDENTIDADE`. A contagem das novas
+referências não pode usar apenas o motivo/status da última tentativa: isso
+apagaria do relatório uma criação real de onda anterior que depois se tornou
+`ASSOCIACAO_EXISTENTE`.
+
+O `V9GoldPhysicalCreationAudit` retém internamente um ledger de eventos
+por fonte, observado após cada publicação física de onda e também após a
+reavaliação. A auditoria faz união por fonte dos motivos
+`LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL`, dos atos `NOVA_IDENTIDADE`
+e das **falsas** criações (identidade verdadeira já representada no Gold
+antes daquele run). Não exporta UUID, IDs de fonte nem rótulos privados.
+
+Os campos legados `finalLowerBandProposals`,
+`finalLowerBandCreated`, `finalFalseNewIdentityCreations` e
+`finalFalseLowerBandCreations` passam a significar **fontes únicas que
+tiveram esses eventos durante todo o experimento físico**, inclusive a
+reavaliação, não apenas o estado mais recente. O campo
+`creationCountRule=ANY_PHYSICAL_RUN_SOURCE_UNION_PREPUBLICATION_GOLD_TRUTH`
+torna explícita a regra. A auditoria de vínculos e a partição B-cubed
+continuam no estado final da fonte. Para um mesmo source, não se conta duas
+vezes a proposta nem a criação.
+
+Esta métrica de falsas criações usa o Gold verdadeiro **pré-run**; não
+substitui a métrica de fragmentação/duplicação **dentro da mesma onda**,
+que precisa ser examinada pela partição final. O rótulo sintético é usado
+após a decisão e nunca alimenta Rank, Resolve, blocking ou publicação.
+As 12 execuções físicas continuam pendentes e não são inferidas de testes
+unitários/CI.
