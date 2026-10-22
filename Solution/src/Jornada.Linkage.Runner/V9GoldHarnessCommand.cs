@@ -132,6 +132,7 @@ public static class V9GoldHarnessCommand
                 NullLogger<ProbabilisticLinkageBatchRunner>.Instance);
             var truthByObservation = new Dictionary<long, Source>();
             var outcomes = new Dictionary<long, Outcome>();
+            var creationAudit = new V9GoldPhysicalCreationAudit();
             var waves = new List<object>();
             foreach (var manager in executedWaveOrder)
             {
@@ -146,7 +147,12 @@ public static class V9GoldHarnessCommand
                 if (summary.Status != LinkageRunStatus.PUBLICADO || summary.Avaliados != added.Count)
                     throw new InvalidDataException("Runner incremental não publicou exatamente a onda congelada.");
                 var measured = await ReadOutcomesAsync(owner, summary.RunId, truthByObservation, ownership);
-                foreach (var item in measured) outcomes[item.Key] = item.Value;
+                foreach (var item in measured)
+                {
+                    outcomes[item.Key] = item.Value;
+                    creationAudit.Observe(item.Key, item.Value.Eligible,
+                        item.Value.LowerBandProposal, item.Value.PublicationResult);
+                }
                 await RefreshActualGoldProjectionAsync(owner, runtime);
                 waves.Add(new { manager, summary, eligibleWithPriorGold = measured.Count(x => x.Value.Eligible),
                     trueAccepted = measured.Count(x => x.Value.TrueAccepted), falseAccepted = measured.Count(x => x.Value.FalseAccepted),
@@ -163,13 +169,24 @@ public static class V9GoldHarnessCommand
             if (reevaluation.Status != LinkageRunStatus.PUBLICADO || reevaluation.FreshPending != 0)
                 throw new InvalidDataException("Reavaliação final deve conter somente pendências do corpus já carregado.");
             foreach (var item in await ReadOutcomesAsync(owner, reevaluation.RunId, truthByObservation, beforeReevaluation))
-                outcomes[item.Key] = item.Value; // Replace, never double count a source evaluated again.
+            {
+                outcomes[item.Key] = item.Value; // Final association metric: last result wins.
+                creationAudit.Observe(item.Key, item.Value.Eligible,
+                    item.Value.LowerBandProposal, item.Value.PublicationResult);
+                // Physical creations are *events*, not final source outcomes:
+                // never erase a creation when the final run associates that source.
+            }
             await RefreshActualGoldProjectionAsync(owner, runtime);
             long eligible = outcomes.Count(x => x.Value.Eligible), trueAccepted = outcomes.Count(x => x.Value.TrueAccepted),
                 falseAccepted = outcomes.Count(x => x.Value.FalseAccepted), conflicts = outcomes.Count(x => x.Value.Status == "CONFLITO"),
                 unresolved = outcomes.Count(x => x.Value.Status == "NAO_RESOLVIDO");
             if (outcomes.Count != sources.Count || trueAccepted > eligible)
                 throw new InvalidDataException("Métricas finais não reconciliam fontes distintas e elegibilidade anterior ao score.");
+            var physicalCreations = creationAudit.Snapshot();
+            if (physicalCreations.LowerBandCreated > physicalCreations.LowerBandProposals
+                || physicalCreations.FalseLowerBandCreations > physicalCreations.LowerBandCreated
+                || physicalCreations.FalseLowerBandCreations > physicalCreations.FalseNewIdentityCreations)
+                throw new InvalidDataException("Ledger de criações físicas Gold não reconcilia.");
             var publishedTrue = outcomes.LongCount(x => x.Value.PublishedTrueAssociation);
             var publishedFalse = outcomes.LongCount(x => x.Value.PublishedFalseAssociation);
             var finalOwnership = await OwnershipAsync(owner, truthByObservation);
@@ -225,11 +242,13 @@ public static class V9GoldHarnessCommand
                     disposableProcedureSha256,
                     publicationReason = lowerNonMatchThreshold.HasValue
                         ? V9GoldLowerNonMatchExperiment.PublicationReason : null,
-                    finalLowerBandProposals = outcomes.Count(x => x.Value.LowerBandProposal),
-                    finalLowerBandCreated = outcomes.Count(x => x.Value.LowerBandProposal && x.Value.PublicationResult == "NOVA_IDENTIDADE"),
-                    finalFalseNewIdentityCreations = outcomes.Count(x => x.Value.Eligible && x.Value.PublicationResult == "NOVA_IDENTIDADE"),
-                    finalFalseLowerBandCreations = outcomes.Count(x => x.Value.LowerBandProposal && x.Value.Eligible
-                        && x.Value.PublicationResult == "NOVA_IDENTIDADE")
+                    // Deduplicated historical physical events over all four waves
+                    // AND the final reevaluation; names kept for matrix contract.
+                    creationCountRule = "ANY_PHYSICAL_RUN_SOURCE_UNION_PREPUBLICATION_GOLD_TRUTH",
+                    finalLowerBandProposals = physicalCreations.LowerBandProposals,
+                    finalLowerBandCreated = physicalCreations.LowerBandCreated,
+                    finalFalseNewIdentityCreations = physicalCreations.FalseNewIdentityCreations,
+                    finalFalseLowerBandCreations = physicalCreations.FalseLowerBandCreations
                 },
                 goldThreeOrderTrial = new
                 {
