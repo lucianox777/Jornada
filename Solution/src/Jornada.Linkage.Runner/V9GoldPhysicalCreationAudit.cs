@@ -24,8 +24,7 @@ public sealed class V9GoldPhysicalCreationAudit
     public void Observe(long sourceId, bool trueIdentityRepresentedBeforeRun,
         bool lowerBandProposal, string publicationResult)
     {
-        if (sourceId <= 0)
-            throw new ArgumentOutOfRangeException(nameof(sourceId));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceId);
         if (publicationResult is not ("NOVA_IDENTIDADE" or "ASSOCIACAO_EXISTENTE" or "INDEFINIDA"))
             throw new InvalidDataException("Publicação Gold desconhecida no ledger físico.");
 
