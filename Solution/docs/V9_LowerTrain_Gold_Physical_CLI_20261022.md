@@ -100,11 +100,16 @@ O estudo **não executa** automaticamente as 12 corridas.
 A segunda etapa segue
 `Gold_Orquestracao_Matriz_12_LocalDB_TRAIN_20261021.md`:
 forneça `-LowerTrainStudy` apontando ao `lower-train-pareto.json`.
-O script recusa menos de **três finalistas distintos**. A fronteira
-pode legítima e frequentemente retornar apenas um ou dois;
-**não completar com valores fictícios**: registrar
-`MATRIZ_12_INVIAVEL_TRES_FINALISTAS`, analisar a fronteira e exigir
-decisão explícita sobre o desenho experimental.
+O orquestrador aceita **k = 0, 1, 2 ou 3 finalistas distintos**;
+executa exatamente `3 × (1 + k)` tentativas em LocalDB exclusivos,
+sempre incluindo as três ordens do controle CURRENT. A fronteira pode
+legitimamente retornar um ou dois, e o contrato também aceita zero
+explicitamente declarado, sem inventar valores. O JSON da matriz contém
+`FinalistCount` e `ExecutedTrialCount`; o nome histórico do arquivo
+continua `gold-12-trial-matrix.json`, mesmo quando executa 3/6/9 corridas.
+O calibrador atual, enquanto tiver grade não vazia, normalmente sugere
+pelo menos um limiar; portanto `k=0` é compatibilidade com a hipótese
+futura de nenhuma alternativa, não uma saída usual da implementação.
 
 ## 3. Pendências para decisão operacional
 
