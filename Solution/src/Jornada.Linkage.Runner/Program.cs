@@ -1,8 +1,15 @@
+using Jornada.Linkage.Parameters.Worker;
 using Jornada.Operational.Sql;
 using Jornada.Contracts;
 using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Runner;
 using Jornada.Bronze.Storage;
+
+if (args.FirstOrDefault() == V9LowerNonMatchStudyCli.Flag)
+{
+    await V9LowerNonMatchStudyCli.RunAsync(args);
+    return;
+}
 
 if (args.FirstOrDefault() == GoldTrainLowerNonMatchMatrixCommand.Flag)
 {
