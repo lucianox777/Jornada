@@ -170,25 +170,43 @@ efetiva por onda, `elapsedMilliseconds`, B-cubed, métricas por pares,
 pendências por motivo, FDR e SHA estável da partição. O comparador de três
 ordens recusa mistura de políticas ou de limiares.
 
-Para as **12 execuções** (controle + três valores TRAIN × três ordens),
-executar o mesmo `--v9-gold-harness` uma vez por banco LocalDB exclusivo
-e fornecer os 12 relatórios, em ordem de política
-`CURRENT`, `KNEE`, `CONSERVATIVE`, `LOWEST_PENDING`, cada política com
-ordens baseline, reversa e intercalada, a:
+A PR #1177 integrou na master `--v9-lower-nonmatch-study`: o
+Runner físico extrai, apenas em memória, as decisões FS **originais**
+e o estado Gold **pré-onda** dos registros TRAIN, invoca o único
+`V9LowerNonMatchTrainCalibrator.Search` compartilhado em Core
+e produz `lower-train-pareto.json` agregado. Não reabre TEST ou
+VALIDATION e não exporta UUIDs/verdade por fonte.
+
+A PR #1178 altera a regra de execução: **k = 0, 1, 2 ou 3**
+finalistas **distintos**, como retornados pela fronteira TRAIN.
+Executar exatamente **3 × (1+k) = 3/6/9/12** ensaios em instâncias
+LocalDB independentes. O controle `CURRENT` é sempre executado nas três
+ordens, mesmo com k = 0, sem fabricar limiares. Quando k < 3,
+não reinterpretar automaticamente os rótulos restantes como
+`CONSERVATIVE` ou `LOWEST_PENDING`: a deduplicação no Pareto
+não preserva quais posições conceituais desapareceram.
 
 ```text
---v9-gold-compare-matrix <12 caminhos gold-runner-study.json> <saída-nova.json>
+--v9-gold-compare-matrix <3/6/9/12 caminhos gold-runner-study.json: CURRENT primeiro, 3 ordens por política> <saída-nova.json>
 ```
 
-O comparador `GoldTrainLowerNonMatchMatrixCommand` é offline,
-não abre SQL, recusa relatório duplicado, fit/corpus divergente e limiares
-iguais entre finalistas. Publica uma tabela de 12 linhas com pares,
-B-cubed, fusões/fragmentação, pendências categorizadas, falsos vínculos,
-FDR, latência e SHA por partição. Não divulga UUIDs de pessoas, gabarito
-por fonte ou identificadores individuais. Os nomes das três alternativas
-são rótulos da entrada; não certificam que a escolha Pareto foi validada.
-CI/unidades apenas verificam o software: o **ensaio físico e a decisão de
-governança permanecem pendentes**.
+O comparador C# `GoldTrainLowerNonMatchMatrixCommand` é offline,
+não abre SQL, exige trios completos, recusa relatório físico repetido,
+fit/corpus ou política divergentes e pisos duplicados. A matriz V2
+registra `FinalistCount` e `ExecutedTrialCount`, além de pares,
+B-cubed, fusões/fragmentação, pendências, FDR observada, latência
+e partição estável. O nome de arquivo `gold-12-trial-matrix.json`
+é preservado mesmo com menos de 12 corridas; **não** indica a
+quantidade efetivamente executada.
+
+O Windows GitHub Actions confirmou `SqlLocalDB.exe info` no job de
+verificação de PowerShell (run #39892149332). O workflow
+`v9-gold-physical-train-matrix` disponibiliza execução física
+**manual**, com SHA do corpus histórico e dos fits fixados.
+Nenhuma matriz foi executada ou aprovada por meras verificações CI.
+Detalhes de acionamento e insumos em
+`Gold_Orquestracao_Matriz_12_LocalDB_TRAIN_20261021.md`.
+TEST permanece lacrado, e a decisão de governança está pendente.
 
 
 ## 6. Retificação da contagem de criação física (22/10/2026)
@@ -220,5 +238,5 @@ Esta métrica de falsas criações usa o Gold verdadeiro **pré-run**; não
 substitui a métrica de fragmentação/duplicação **dentro da mesma onda**,
 que precisa ser examinada pela partição final. O rótulo sintético é usado
 após a decisão e nunca alimenta Rank, Resolve, blocking ou publicação.
-As 12 execuções físicas continuam pendentes e não são inferidas de testes
-unitários/CI.
+As corridas físicas (3/6/9/12, segundo os k finalistas reais) continuam
+pendentes e não são inferidas dos testes unitários/CI.
