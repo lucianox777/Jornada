@@ -85,6 +85,17 @@ uma grade **pré-declarada manualmente**. Os três parâmetros são:
 - `minimum_already_represented_sources`: suporte mínimo de fontes
   já presentes no Gold anterior à onda, inteiro maior ou igual a 1.
 
+**Localização do executável no GitHub Windows.** A instalação do
+`SqlLocalDB.exe` foi confirmada na imagem hospedada, mas a pasta
+`Microsoft SQL Server/170/Tools/Binn` não deve ser presumida no
+`PATH`. O workflow pesquisa exclusivamente a instalação do LocalDB
+no host Windows, falha se o executável não existir, publica a pasta
+encontrada em `GITHUB_PATH` e verifica novamente a visibilidade de
+`SqlLocalDB.exe info` **no passo seguinte**. Sem isso, um sucesso
+isolado do preflight não asseguraria que o orquestrador em outro
+processo PowerShell pudesse localizar o comando; jamais substituir
+esse executável por um servidor SQL operacional.
+
 O workflow `workflow_dispatch`, nunca automático, regenera o corpus
 sintético histórico clean seed42 de 30 mil identidades e **confere seu
 SHA** contra `28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17`.
