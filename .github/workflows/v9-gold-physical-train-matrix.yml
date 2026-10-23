@@ -1,0 +1,154 @@
+name: v9-gold-physical-train-matrix
+
+on:
+  workflow_dispatch:
+    inputs:
+      lower_thresholds:
+        description: 'TRAIN-only declared threshold grid: comma-separated decimals, each 0 < value < frozen 0.8671875; never choose using TEST'
+        required: true
+        type: string
+      minimum_independent_identity_groups:
+        description: 'Explicit TRAIN lower-bound minimum independent identity groups (>=2)'
+        required: true
+        type: number
+      minimum_already_represented_sources:
+        description: 'Explicit TRAIN minimum already represented sources (>=1)'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  physical-train-matrix:
+    name: Gold TRAIN — physical LocalDB Pareto and 3–12 trials (no TEST)
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          global-json-file: Solution/global.json
+
+      - name: Verify Windows LocalDB before handling input (fail closed)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue)) {
+            throw 'Hosted Windows runner does not have SqlLocalDB.exe; never fall back to an operational DB.'
+          }
+          & SqlLocalDB.exe info
+          if ($LASTEXITCODE -ne 0) { throw 'LocalDB cannot enumerate instances on Windows runner.' }
+
+      - name: Reproduce immutable historical TRAIN corpus and frozen selection
+        shell: pwsh
+        working-directory: Solution
+        env:
+          CANDIDATES: ${{ inputs.lower_thresholds }}
+          MIN_GROUPS: ${{ inputs.minimum_independent_identity_groups }}
+          MIN_PRESENT: ${{ inputs.minimum_already_represented_sources }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $study = Join-Path $env:RUNNER_TEMP 'v9-gold-study-inputs'
+          [IO.Directory]::CreateDirectory($study) | Out-Null
+          $root = Join-Path $PWD 'data/calibration/v9/mass-support-20261020'
+          $selectionSha = 'b98121f9b4854e0db56026df1ddaef30e0f8c32717baa88a68549bd0ad08d75a'
+          $csvSha = '28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17'
+          $parentSha = '0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b'
+          $goldSha = '6d93690dccac2c92dc4d3113cbb9169dd19156c4f9b3d849ededfb4c54ae5f3f'
+          $archive = Join-Path $root "$selectionSha.selection.json.gz"
+          $selection = Join-Path $study "$selectionSha.selection.json"
+          $reader = [IO.File]::OpenRead($archive)
+          try {
+            $gzip = [IO.Compression.GZipStream]::new($reader,[IO.Compression.CompressionMode]::Decompress)
+            try {
+              $target = [IO.File]::Create($selection)
+              try { $gzip.CopyTo($target) } finally { $target.Dispose() }
+            } finally { $gzip.Dispose() }
+          } finally { $reader.Dispose() }
+          if ((Get-FileHash -LiteralPath $selection -Algorithm SHA256).Hash.ToLowerInvariant() -ne $selectionSha) {
+            throw 'Frozen TRAIN selection archive SHA mismatch.'
+          }
+          Copy-Item -LiteralPath (Join-Path $root "$parentSha.fitted.json") -Destination $study
+          foreach ($name in @("$parentSha.fitted.json","$goldSha.fitted.json","finalist-validation.json")) {
+            if (-not (Test-Path -LiteralPath (Join-Path $root $name))) {
+              throw "Missing pinned TRAIN evidence: $name"
+            }
+          }
+          $validation = Join-Path $root 'finalist-validation.json'
+          $goldFit = Join-Path $root "$goldSha.fitted.json"
+          foreach ($entry in @(@($parentSha,(Join-Path $study "$parentSha.fitted.json")),@($goldSha,$goldFit))) {
+            if ((Get-FileHash -LiteralPath $entry[1] -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry[0]) {
+              throw "Fitted snapshot bytes are not frozen: $($entry[0])"
+            }
+          }
+          dotnet build src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj -c Release
+          dotnet build src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release
+          $runner = Join-Path $PWD 'src/Jornada.Linkage.Runner/bin/Release/net10.0/Jornada.Linkage.Runner.dll'
+          $synthetic = Join-Path $PWD 'src/Jornada.Linkage.SyntheticCorpus/bin/Release/net10.0/Jornada.Linkage.SyntheticCorpus.dll'
+          $corpusDir = Join-Path $env:RUNNER_TEMP 'v9-gold-corpus-clean-seed42'
+          dotnet $synthetic generate --reference-root "$PWD/data/reference/ibge-nomes-2022" `
+            --population-profile demographic-primary `
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" `
+            --error-profile clean --people 30000 --seed 42 --out $corpusDir
+          $csv = Join-Path $corpusDir 'observacoes.csv'
+          if ((Get-FileHash -LiteralPath $csv -Algorithm SHA256).Hash.ToLowerInvariant() -ne $csvSha) {
+            throw 'Generated CSV differs from frozen historical TRAIN SHA; halt, never substitute new TRAIN.'
+          }
+          $candidates = @($env:CANDIDATES -split ',' | ForEach-Object {
+            [decimal]::Parse($_.Trim(),[Globalization.CultureInfo]::InvariantCulture)
+          })
+          if ($candidates.Count -lt 1 -or $candidates.Count -gt 256 -or
+              @($candidates | Select-Object -Unique).Count -ne $candidates.Count -or
+              @($candidates | Where-Object { $_ -le 0 -or $_ -ge [decimal]'0.8671875' }).Count -ne 0) {
+            throw 'Invalid manual TRAIN threshold grid.'
+          }
+          $minGroups = [int]$env:MIN_GROUPS
+          $minPresent = [int]$env:MIN_PRESENT
+          if ($minGroups -lt 2 -or $minPresent -lt 1) { throw 'Invalid minimum independent TRAIN evidence support.' }
+          $grade = Join-Path $study 'declared-grid.json'
+          @{
+            CandidateLowerThresholds = $candidates
+            MinimumIndependentIdentityGroups = $minGroups
+            MinimumAlreadyRepresentedSources = $minPresent
+            ManualCalibrationRequested = $true
+            TestUsed = $false
+          } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $grade -Encoding utf8
+          $db = Join-Path $env:RUNNER_TEMP 'v9-gold-study-localdb'
+          dotnet $runner --v9-gold-harness-create $db "$PWD/database"
+          $ready = Get-Content -LiteralPath (Join-Path $db 'schema-ready.json') -Raw | ConvertFrom-Json
+          if ($ready.completed -ne $true -or $ready.database -ne 'JornadaHarness' -or
+              $ready.instance -cnotmatch '^JornadaV9Gold[0-9]{8}_[a-f0-9]{8}$') {
+            throw 'Disposable LocalDB bootstrap failed.'
+          }
+          $env:ConnectionStrings__Jornada = "Server=(localdb)\$($ready.instance);Database=JornadaHarness;Integrated Security=true;Encrypt=Optional"
+          $studyOutput = Join-Path $env:RUNNER_TEMP 'v9-gold-study-report'
+          dotnet $runner --v9-lower-nonmatch-study $selection $validation $goldFit $csv $grade $studyOutput
+          $pareto = Join-Path $studyOutput 'lower-train-pareto.json'
+          if (-not (Test-Path -LiteralPath $pareto -PathType Leaf)) { throw 'No physical Pareto report.' }
+          # No TEST data, no per-source labels or UUIDs in uploaded artifacts.
+          $matrix = Join-Path $env:RUNNER_TEMP 'v9-gold-matrix-evidence'
+          & pwsh -NoProfile -File scripts/v9-gold-12-trial-localdb.ps1 `
+            -RunnerDll $runner -DatabaseSchema "$PWD/database" `
+            -TrainSelectionEnvelope $selection -FinalistValidation $validation `
+            -GoldFittedSnapshot $goldFit -OriginalTrainCsv $csv `
+            -LowerTrainStudy $pareto -OutputRoot $matrix
+          if (-not (Test-Path -LiteralPath (Join-Path $matrix 'gold-12-trial-matrix.json') -PathType Leaf)) {
+            throw 'No physical Gold TRAIN matrix.'
+          }
+
+      - name: Publish aggregate-only TRAIN evidence, even if later trial fails
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-gold-physical-train-matrix-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/v9-gold-study-report/lower-train-pareto.json
+            ${{ runner.temp }}/v9-gold-study-report/gold-runner-study.json
+            ${{ runner.temp }}/v9-gold-matrix-evidence/gold-12-trial-matrix.json
+            ${{ runner.temp }}/v9-gold-matrix-evidence/*_report/gold-runner-study.json
