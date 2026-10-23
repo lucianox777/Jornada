@@ -117,3 +117,49 @@ O ensaio Gold é diagnóstico pós-seleção no TRAIN; não substitui uma avalia
 O job `security-guards` do commit `d41a5876` sinalizou `generic-api-key` na linha 8 de `mass-support-20261020/finalist-validation.json`: o campo `fresh.ExposureKey`. O código `V9FreshHoldoutProtocol.Inspect` calcula esse valor exclusivamente como SHA-256 UTF-8 da string pública `V9_FRESH_SYNTHETIC_HOLDOUT_V1|20261020001`. `ReserveOnceAsync` o utiliza como nome do arquivo de recibo criado atomicamente; não há uso como credencial, autenticação ou segredo. A classificação é falso positivo de um identificador público reproduzível, após inspeção do relatório e do consumidor.
 
 A exceção revisada na PR [#1160](https://github.com/lucianox777/Jornada/pull/1160) exige simultaneamente o caminho exato desse relatório e o valor exato desse hash, somente para a regra `generic-api-key`. Não exclui o arquivo inteiro, diretórios ou outras regras. Mantém os bytes/SHA científicos originais e não reescreve o histórico. A [configuração primária do Gitleaks 8.30.1](https://github.com/gitleaks/gitleaks/blob/v8.30.1/README.md#configuration) define a conjunção `AND`. A verificação local usa essa mesma versão, inclui o caso permitido e mutações de valor, caminho e credencial adicional que devem continuar sendo detectadas.
+
+
+## Atualização operacional de evidência — 23/10/2026 (sem nova certificação)
+
+Este complemento **não altera os números da rodada histórica de 20/10**.
+A PR #1176 (merge `23bae526`) corrigiu a auditoria de **eventos físicos**
+`NOVA_IDENTIDADE`: uma referência criada durante uma onda continua
+contabilizada mesmo que a reavaliação final passe a apresentar
+`ASSOCIACAO_EXISTENTE` para a fonte. As métricas de vínculo final e de
+partição permanecem separadas do ledger de criações; não extrapolar
+nenhuma delas para duplicação populacional sem validação independente.
+
+A PR #1177 (merge `3ca81ad1`) integrou a CLI física
+`--v9-lower-nonmatch-study` no Runner e manteve um único
+`V9LowerNonMatchTrainCalibrator.Search` em `Jornada.Linkage.Core`.
+A observação TRAIN é rotulada conforme Gold **antes de cada onda**, e a
+recuperação/decisão FS congelada não recebe o rótulo como entrada.
+Só se publica `lower-train-pareto.json` agregado após executar o
+Runner no banco descartável; integrar o código **não gera** o arquivo.
+
+A PR #1178 adapta a matriz física para `k=0..3` finalistas **distintos**,
+três ordens por política e `3 × (1 + k)` corridas; o controle CURRENT
+não desaparece quando há menos alternativas. O comparador agrega
+`FinalistCount` e `ExecutedTrialCount`; o nome histórico
+`gold-12-trial-matrix.json` não informa quantas corridas ocorreram.
+O ambiente Windows do Actions já respondeu a `SqlLocalDB.exe info`,
+mas **isso não é a execução da matriz**. O workflow manual
+`v9-gold-physical-train-matrix` exige declaração prévia de grade e
+suporte, reproduz o CSV TRAIN original com validação de SHA e executa
+estudo e matriz somente se os arquivos congelados reconciliarem.
+
+**Sequência de avaliação ainda obrigatória:** resultados físicos da
+matriz exclusivamente TRAIN → congelar uma política → validação
+independente em corpus **novo** com Gold incremental → abrir o TEST
+lacrado só segundo a governança → decidir DT-15 e release. O resultado
+de 97,5417% / bound condicional 0,40479% da rodada de 20/10 **não**
+certifica a segurança da política de criação por limiar inferior e não
+substitui os novos ensaios. Se uma política inferior for autorizada
+para uso operacional, a procedure experimental LocalDB exige
+migration **canônica DT-10**, testes de publicação e aprovação explícita.
+HML, IdP, integração institucional com PRODAM, dados municipais reais e
+release são frentes externas a essa evidência; nenhuma foi destravada
+por esses merges.
+
+A referência executável da matriz, seus inputs manuais e saídas
+está em `Gold_Orquestracao_Matriz_12_LocalDB_TRAIN_20261021.md`.

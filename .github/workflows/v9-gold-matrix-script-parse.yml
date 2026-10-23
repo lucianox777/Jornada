@@ -19,6 +19,24 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+      - name: Check real Windows LocalDB availability (no operational databases)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $executable = Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue
+          if (-not $executable) {
+            $sqlRoot = Join-Path $env:ProgramFiles 'Microsoft SQL Server'
+            if (Test-Path -LiteralPath $sqlRoot) {
+              $executable = Get-ChildItem -LiteralPath $sqlRoot -Filter SqlLocalDB.exe -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($executable) { $env:PATH = $executable.DirectoryName + [IO.Path]::PathSeparator + $env:PATH }
+            }
+          }
+          if (-not $executable) {
+            throw 'LocalDB executable missing on GitHub Windows runner. The matrix must run in an authorized Windows environment.'
+          }
+          Write-Host "LocalDB executable: $($executable.Source ?? $executable.FullName)"
+          & SqlLocalDB.exe info
+          if ($LASTEXITCODE -ne 0) { throw 'Windows runner has LocalDB binary but cannot query its instances.' }
       - name: Parse PowerShell and verify fail-closed invariants
         shell: pwsh
         run: |

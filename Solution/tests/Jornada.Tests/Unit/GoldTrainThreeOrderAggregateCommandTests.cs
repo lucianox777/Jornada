@@ -187,6 +187,57 @@ public sealed class GoldTrainThreeOrderAggregateCommandTests
         Reject<InvalidDataException>(() => GoldTrainLowerNonMatchMatrixCommand.Compare(reports.Take(11).ToArray()));
     }
 
+    [TestCase(0, 3)]
+    [TestCase(1, 6)]
+    [TestCase(2, 9)]
+    [TestCase(3, 12)]
+    public void Matrix_accepts_only_complete_control_and_distinct_finalist_trios(int k, int n)
+    {
+        var reports = new List<byte[]>();
+        for (var policy = 0; policy <= k; policy++)
+            for (var order = 0; order < 3; order++)
+                reports.Add(WithPolicy(
+                    Report(GoldTrainThreeOrderProtocol.OrderIds[order], 1 + policy * 3 + order),
+                    policy == 0 ? null : policy / 10m));
+        var matrix = GoldTrainLowerNonMatchMatrixCommand.Compare(reports);
+        Multiple(() =>
+        {
+            Assert.That(matrix.Version, Is.EqualTo("GOLD_TRAIN_LOWER_NONMATCH_MATRIX_V2"));
+            Assert.That(matrix.Rows, Has.Count.EqualTo(n));
+            Assert.That(matrix.FinalistCount, Is.EqualTo(k));
+            Assert.That(matrix.ExecutedTrialCount, Is.EqualTo(n));
+            Assert.That(matrix.Rows[0].PolicySlot, Is.EqualTo("CURRENT"));
+            Assert.That(matrix.Rows.All(x => !x.Metrics.OrderId.Contains("TEST")), Is.True);
+            Assert.That(matrix.TrainOnly, Is.True);
+            Assert.That(matrix.OperationallyActivated, Is.False);
+            Assert.That(matrix.IndependentlyCertified, Is.False);
+        });
+        if (k > 0)
+            Assert.That(matrix.Rows[3].PolicySlot, Is.EqualTo("KNEE"));
+        if (k == 2)
+            Assert.That(matrix.Rows[6].PolicySlot, Is.EqualTo("FINALIST_2"));
+        if (k == 3)
+            Assert.That(matrix.Rows[9].PolicySlot, Is.EqualTo("LOWEST_PENDING"));
+        if (k > 0)
+        {
+            var duplicateFloor = reports.ToArray();
+            for (var i = 0; i < 3; i++)
+                duplicateFloor[3 + i] = WithPolicy(
+                    Report(GoldTrainThreeOrderProtocol.OrderIds[i], 4 + i), .2m);
+            if (k > 1)
+            {
+                for (var i = 0; i < 3; i++)
+                    duplicateFloor[6 + i] = WithPolicy(
+                        Report(GoldTrainThreeOrderProtocol.OrderIds[i], 7 + i), .2m);
+                Reject<InvalidDataException>(() => GoldTrainLowerNonMatchMatrixCommand.Compare(duplicateFloor));
+            }
+        }
+        Reject<InvalidDataException>(() => GoldTrainLowerNonMatchMatrixCommand.Compare(reports.Take(n - 1).ToArray()));
+        if (k < 3)
+            Reject<InvalidDataException>(() => GoldTrainLowerNonMatchMatrixCommand.Compare(
+                reports.Concat([reports[0], reports[1]]).ToArray()));
+    }
+
     [Test]
     public void Changed_partition_and_pending_are_visible_without_source_level_export()
     {

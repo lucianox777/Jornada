@@ -1,10 +1,10 @@
 #requires -Version 7.2
 <#
 .SYNOPSIS
-  Manual TRAIN-only 3 orders x (current + 3 Pareto finalists) Gold physical replay.
+  Manual TRAIN-only 3 orders x (CURRENT + 0..3 distinct Pareto finalists) Gold replay.
 .DESCRIPTION
   Requires a Windows machine with SQL Server LocalDB installed and a published
-  Jornada.Linkage.Runner.dll. Each of the twelve attempts provisions a NEW
+  Jornada.Linkage.Runner.dll. Each attempt provisions a NEW
   LocalDB instance with the canonical schema and emits aggregate-only evidence.
   No cleanup, no operational database, no TEST or automatic model activation.
   Source files must be supplied explicitly and are validated again by the
@@ -71,25 +71,47 @@ if ($gold.CandidateGrouping.CandidateGrouping -ne 'GOLD' -or
     [string]::IsNullOrWhiteSpace($gold.GoldParentSnapshotSha256)) {
     throw "Esperada variante Gold do mesmo fit V9."
 }
-if (@($rawStudy.DescriptiveFinalistThresholds).Count -ne 3) {
-    throw "TRAIN não apresentou três finalistas DISTINTOS; matriz 3x4 não deve inventar limiares."
+# Zero finalistas still gets the CURRENT baseline: missing study fields are
+# NOT treated as zero. The existing Pareto Search normally returns >= 1
+# candidate, but explicit empty output is supported for future no-suggestion.
+if (-not $rawStudy.PSObject.Properties['DescriptiveFinalistThresholds']) {
+    throw "Estudo TRAIN não declara DescriptiveFinalistThresholds."
+}
+if (-not $rawStudy.PSObject.Properties['DescriptiveSuggestedLowerThreshold']) {
+    throw "Estudo TRAIN não declara DescriptiveSuggestedLowerThreshold."
+}
+$values = @($rawStudy.DescriptiveFinalistThresholds)
+$k = $values.Count
+if ($k -gt 3 -or $values -contains $null) {
+    throw "Pareto TRAIN exige 0 a 3 limiares explicitamente declarados, não nulos."
 }
 $upper = [decimal]$gold.Threshold
-$values = @($rawStudy.DescriptiveFinalistThresholds | ForEach-Object {
-    [decimal]$_
-})
-if (@($values | Select-Object -Unique).Count -ne 3 -or
-    @($values | Where-Object { $_ -le 0 -or $_ -ge $upper }).Count -ne 0 -or
-    $values[0] -ne [decimal]$rawStudy.DescriptiveSuggestedLowerThreshold) {
-    throw "Os três limiares devem ser os finalistas TRAIN, distintos e inferiores ao teto V9."
+$converted = @($values | ForEach-Object { [decimal]$_ })
+if (@($converted | Select-Object -Unique).Count -ne $k -or
+    @($converted | Where-Object { $_ -le 0 -or $_ -ge $upper }).Count -ne 0) {
+    throw "Finalistas TRAIN devem ser distintos, positivos e inferiores ao limiar superior V9."
+}
+if ($k -gt 0) {
+    if ($null -eq $rawStudy.DescriptiveSuggestedLowerThreshold -or
+        $converted[0] -ne [decimal]$rawStudy.DescriptiveSuggestedLowerThreshold) {
+        throw "O primeiro finalista não coincide com o joelho TRAIN declarado."
+    }
+}
+elseif ($null -ne $rawStudy.DescriptiveSuggestedLowerThreshold) {
+    throw "Estudo sem finalistas não pode declarar joelho."
 }
 
-$policies = @(
-    [pscustomobject]@{ Slot = 'CURRENT'; Floor = $null },
-    [pscustomobject]@{ Slot = 'KNEE'; Floor = $values[0] },
-    [pscustomobject]@{ Slot = 'CONSERVATIVE'; Floor = $values[1] },
-    [pscustomobject]@{ Slot = 'LOWEST_PENDING'; Floor = $values[2] }
-)
+$policies = [System.Collections.Generic.List[object]]::new()
+$policies.Add([pscustomobject]@{ Slot = 'CURRENT'; Floor = $null })
+for ($i = 0; $i -lt $k; $i++) {
+    # Only with all three distinct can each position be interpreted as
+    # knee / conservative / least-pending. Dedupe erases intermediate slots.
+    $slot = if ($i -eq 0) { 'KNEE' }
+        elseif ($k -eq 3 -and $i -eq 1) { 'CONSERVATIVE' }
+        elseif ($k -eq 3 -and $i -eq 2) { 'LOWEST_PENDING' }
+        else { 'FINALIST_' + ($i + 1) }
+    $policies.Add([pscustomobject]@{ Slot = $slot; Floor = $converted[$i] })
+}
 $orders = @(
     'BASELINE_G0_G1_G2_G3',
     'REVERSE_G3_G2_G1_G0',
@@ -153,14 +175,24 @@ try {
             $reports.Add($reportPath)
         }
     }
-    if ($reports.Count -ne 12) { throw "Doze ensaios físicos eram obrigatórios." }
+    $expectedCount = 3 * ($k + 1)
+    if ($reports.Count -ne $expectedCount) {
+        throw "Número de trios de ordens divergente da quantidade de finalistas TRAIN."
+    }
+    # Legacy filename retained for consumers, but V2 carries actual k and N.
     $matrixFile = Join-Path $root 'gold-12-trial-matrix.json'
     $matrixArgs = @('--v9-gold-compare-matrix') + $reports.ToArray() + @($matrixFile)
     & dotnet $runner @matrixArgs
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $matrixFile -PathType Leaf)) {
         throw "Comparador C# recusou a matriz; nenhuma inferência autorizada."
     }
-    Write-Output "Matriz TRAIN concluída, não certificada: $matrixFile"
+    $matrix = Get-Content -LiteralPath $matrixFile -Raw | ConvertFrom-Json -Depth 100
+    if ([int]$matrix.FinalistCount -ne $k -or
+        [int]$matrix.ExecutedTrialCount -ne $expectedCount -or
+        @($matrix.Rows).Count -ne $expectedCount) {
+        throw "Matriz não confirmou k finalistas e total de corridas físicas."
+    }
+    Write-Output "Matriz TRAIN $expectedCount corridas (k=$k), não certificada: $matrixFile"
 }
 finally {
     [Environment]::SetEnvironmentVariable('ConnectionStrings__Jornada', $previousConnection, 'Process')

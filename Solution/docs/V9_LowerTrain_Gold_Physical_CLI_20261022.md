@@ -1,6 +1,8 @@
 # V9 — estudo físico manual do limiar inferior sobre o Gold TRAIN
 
-**Status:** implementação em PR, sem execução das 12 corridas e sem certificação.
+**Status (23/10/2026):** CLI integrada na `master` pela PR #1177; PR #1178
+adapta o comparador/orquestrador a 3/6/9/12 corridas. A cadeia física
+completa **ainda não foi executada** nem certificada.
 A fonte física do Pareto é a execução da política **CURRENT**, em quatro
 ondas da ordem `BASELINE_G0_G1_G2_G3`, no **mesmo C# Runner** congelado.
 A geração do estudo é manual; nenhum modelo é promovido, TEST é lacrado
@@ -95,18 +97,42 @@ dotnet Solution/src/Jornada.Linkage.Runner/bin/Release/net10.0/Jornada.Linkage.R
 Saídas: `study-report-UNICO/gold-runner-study.json` (controle físico)
 e `study-report-UNICO/lower-train-pareto.json` (Pareto TRAIN).
 A pasta deve ser inexistente antes da execução. Não usar dados reais.
-O estudo **não executa** automaticamente as 12 corridas.
+O estudo **não executa** automaticamente a matriz Gold. O número de
+corridas será definido por `k` finalistas reais: 3 × (1+k), de 3 a 12.
 
 A segunda etapa segue
 `Gold_Orquestracao_Matriz_12_LocalDB_TRAIN_20261021.md`:
 forneça `-LowerTrainStudy` apontando ao `lower-train-pareto.json`.
-O script recusa menos de **três finalistas distintos**. A fronteira
-pode legítima e frequentemente retornar apenas um ou dois;
-**não completar com valores fictícios**: registrar
-`MATRIZ_12_INVIAVEL_TRES_FINALISTAS`, analisar a fronteira e exigir
-decisão explícita sobre o desenho experimental.
+O orquestrador aceita **k = 0, 1, 2 ou 3 finalistas distintos**;
+executa exatamente `3 × (1 + k)` tentativas em LocalDB exclusivos,
+sempre incluindo as três ordens do controle CURRENT. A fronteira pode
+legitimamente retornar um ou dois, e o contrato também aceita zero
+explicitamente declarado, sem inventar valores. O JSON da matriz contém
+`FinalistCount` e `ExecutedTrialCount`; o nome histórico do arquivo
+continua `gold-12-trial-matrix.json`, mesmo quando executa 3/6/9 corridas.
+O calibrador atual, enquanto tiver grade não vazia, normalmente sugere
+pelo menos um limiar; portanto `k=0` é compatibilidade com a hipótese
+futura de nenhuma alternativa, não uma saída usual da implementação.
 
-## 3. Pendências para decisão operacional
+## 3. Execução integrada no GitHub Actions
+
+Para evitar depender do computador local, a PR #1178 também adiciona o
+workflow manual `v9-gold-physical-train-matrix`, com os três inputs
+`lower_thresholds`, `minimum_independent_identity_groups` e
+`minimum_already_represented_sources`. A grade e os mínimos são definidos
+manualmente **antes da avaliação**, sem usar TEST. O workflow confere SHA
+do CSV sintético TRAIN histórico, da seleção descomprimida e dos snapshots
+congelados; cria instâncias LocalDB novas para o estudo e cada tentativa,
+e publica somente os agregados `lower-train-pareto.json` e
+`gold-12-trial-matrix.json` (nome legado). Uma incompatibilidade de hash
+interrompe a execução, sem fallback de corpus. O ensaio é longo e sujeito
+ao limite de tempo do job; sucesso da verificação de `SqlLocalDB.exe info`
+no Windows Actions não representa execução nem certificação da matriz.
+
+A operação está descrita com os parâmetros e os cuidados de governança
+em `Gold_Orquestracao_Matriz_12_LocalDB_TRAIN_20261021.md`.
+
+## 4. Pendências para decisão operacional
 
 A execução física usa `V9GoldDisposableLowerProcedurePatch` **apenas**
 em LocalDB isolado. Antes de operar a política inferior fora do ensaio

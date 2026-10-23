@@ -1,9 +1,12 @@
-# V9 Gold — orquestração física das doze corridas (Windows/LocalDB)
+# V9 Gold — orquestração física das 3–12 corridas (Windows/LocalDB)
 
-**Situação:** script de orquestração preparado; **as doze execuções físicas não
-foram realizadas** por esta alteração. A ferramenta depende de o Runner C# e o
-comparador da PR #1174 estarem compilados e aprovados. É um ensaio de TRAIN;
-não abre TEST, não certifica identidade e não ativa modelo.
+**Situação (23/10/2026):** #1173, #1174, #1175, #1176 e #1177 já integram a master.
+A PR #1178 adapta tanto o script quanto o comparador C# a k = 0–3 finalistas.
+**Nenhuma matriz física 3/6/9/12 foi executada por esta mudança**.
+O teste Windows comprovou apenas que `SqlLocalDB.exe info` funciona no runner
+hospedado (GitHub Actions #39892149332); não comprovou provisionamento ou
+publicação Gold no Windows. Ensaio exclusivamente TRAIN: TEST lacrado,
+sem certificação, migration operacional ou ativação.
 
 ## Pré-condições
 
@@ -16,11 +19,17 @@ não abre TEST, não certifica identidade e não ativa modelo.
   `<SHA>.fitted.json`, CSV sintético TRAIN original imutável (correspondente
   à assinatura de seleção) e estudo diagnóstico do
   `V9LowerNonMatchTrainCalibrator.Search` gerado por comando **manual**.
-- O estudo deve conter exatamente **três** candidatos distintos no campo
-  `DescriptiveFinalistThresholds` (joelho, conservador, menor pendência), em
-  `0 < T_inferior < T_superior`, e a sugestão do joelho no primeiro índice.
-  Se o Pareto resultar em menos de três valores distintos, **não inventar**
-  valores para satisfazer a matriz 3×4: o script recusa a execução.
+- O estudo declara **zero a três** candidatos distintos no campo
+  `DescriptiveFinalistThresholds`, em `0 < T_inferior < T_superior`.
+  Se k > 0, o primeiro coincide com `DescriptiveSuggestedLowerThreshold`
+  (joelho); com k = 0, o joelho deve ser nulo. A fronteira pode ter apenas
+  uma ou duas alternativas: nesses casos os rótulos de posições 2/3 são
+  genéricos e não presumem `CONSERVATIVE` ou `LOWEST_PENDING`.
+  Quando o Pareto fornecer menos de três valores distintos, **não inventar**
+  finalistas: executar três ordens × (CURRENT + k finalistas), com k entre 0 e 3;
+  o arquivo agregado grava `FinalistCount` e `ExecutedTrialCount`. O calibrador
+  atual normalmente fornece pelo menos um finalista; zero é contrato para
+  ausência explícita de sugestão, não fallback de JSON inválido.
 - A origem do estudo TRAIN/independência de rótulos deve ser auditada
   previamente por responsável; o JSON e seus SHAs são verificações
   de consistência, **não são atestação independente** de proveniência.
@@ -42,24 +51,64 @@ pwsh -NoProfile -File Solution/scripts/v9-gold-12-trial-localdb.ps1 `
 ```
 
 O script invoca a CLI `--v9-gold-harness-create` para **cada uma** das
-doze execuções, cria LocalDB independente e executa na ordem:
-CURRENT (controle), KNEE, CONSERVATIVE, LOWEST_PENDING; em cada política,
+3–12 execuções, cria LocalDB independente e executa na ordem:
+CURRENT (controle) e k finalistas distintos, na ordem exportada pelo Pareto; em cada política,
 baseline, reversa e intercalada. Não reutiliza banco entre ordens ou
 políticas; usa o mesmo fit e corpus. Preserva pastas, fontes SQL e evidências
 dos ensaios, mesmo se alguma execução falhar. **Não realiza limpeza**.
 
-As doze saídas `gold-runner-study.json` são validadas pelo comparador
+As 3–12 saídas `gold-runner-study.json` são validadas pelo comparador
 C# existente, que exige a mesma massa sintética/fit/política por trio, SHA
-de procedure experimental, contagens e 12 fingerprints de runs distintos.
-A saída final é `gold-12-trial-matrix.json` com diagnósticos agregados:
+de procedure experimental, contagens e um fingerprint distinto para cada tentativa de runs distintos.
+A saída final é `gold-12-trial-matrix.json` (nome histórico preservado mesmo para 3/6/9 corridas) com diagnósticos agregados:
 cobertura, pares, B-cubed, fusões, fragmentação, FDR, pendências por motivo,
 falsas criações, latência e partição. Em particular, **diminuir pendências
 não demonstra segurança de criar identidades**.
 
-O workflow `v9-gold-matrix-script-parse` somente valida a sintaxe
-PowerShell e invariantes estáticas do script. **Ele não executa LocalDB, não
-consome o corpus sintético e não constitui evidência física.** A matriz
-deverá ser efetivamente executada e auditada em máquina Windows descartável,
-com avaliação posterior de sensibilidade à ordem e erros por identidade.
-A simples execução do script não altera a governança de DT-15 nem aprova
-publicação operacional.
+## Workflow manual Windows no GitHub Actions (PR #1178)
+
+O job automático `v9-gold-matrix-script-parse` verifica a sintaxe, os
+invariantes estáticos e a disponibilidade real de `SqlLocalDB.exe` no
+runner Windows. **Não** cria bancos nem executa o ensaio físico. No run
+#39892149332, localizou `C:\\Program Files\\Microsoft SQL Server\\170\\Tools\\Binn\\SqlLocalDB.exe`
+e recebeu `MSSQLLocalDB` como resposta do comando `info`.
+
+Após a integração da PR #1178, abrir **GitHub → Actions →
+v9-gold-physical-train-matrix → Run workflow**, na `master`, informando
+uma grade **pré-declarada manualmente**. Os três parâmetros são:
+
+- `lower_thresholds`: valores decimais separados por vírgulas, todos
+  distintos no intervalo `0 < x < 0.8671875`. Exemplo **apenas de
+  sintaxe**: `0.1,0.2,0.3` (não são limiares recomendados/definitivos).
+- `minimum_independent_identity_groups`: suporte mínimo de grupos
+  independentes de identidade, inteiro maior ou igual a 2.
+- `minimum_already_represented_sources`: suporte mínimo de fontes
+  já presentes no Gold anterior à onda, inteiro maior ou igual a 1.
+
+O workflow `workflow_dispatch`, nunca automático, regenera o corpus
+sintético histórico clean seed42 de 30 mil identidades e **confere seu
+SHA** contra `28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17`.
+Descompacta o envelope de seleção de ~951 MB, confere o SHA
+`b98121f9b4854e0db56026df1ddaef30e0f8c32717baa88a68549bd0ad08d75a`,
+usa os snapshots congelados e a validação pré-existente, **sem reabrir
+VALIDATION/TEST**. Se qualquer verificação falhar, o ensaio aborta; não
+substituir o CSV ou o fit para forçar um resultado.
+
+O workflow cria um LocalDB exclusivo para o estudo `CURRENT` →
+`lower-train-pareto.json`, depois novos LocalDB para as três ordens de
+cada política (3 × (1+k) corridas, k entre 0 e 3). Publica somente os
+agregados `lower-train-pareto.json`, `gold-runner-study.json`
+e `gold-12-trial-matrix.json`, se produzidos. O nome da matriz é legado,
+mas o conteúdo V2 deve trazer `FinalistCount` e `ExecutedTrialCount`.
+Sucesso do workflow é evidência da execução naquele runner, **não prova
+independência estatística** nem autoriza promover a política.
+
+**Após o resultado:** analisar falsa criação física segundo o ledger
+#1176, pendências por motivo, falsos pares/associações, B-cubed,
+fragmentação, sensibilidade à ordem e intervalos de incerteza. Seguir
+a sequência governada: matriz TRAIN → congelamento de política →
+validação em massa **nova** no Gold incremental → TEST lacrado com
+autorização → governança/DT-15. Se aprovada uma mudança operacional,
+são exigidas migration canônica DT-10 e novos testes; nenhuma migration
+experimental é transferida automaticamente.
+
