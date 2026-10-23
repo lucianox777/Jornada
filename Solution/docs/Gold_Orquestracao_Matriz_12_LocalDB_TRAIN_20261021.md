@@ -1,6 +1,6 @@
-# V9 Gold — orquestração física das doze corridas (Windows/LocalDB)
+# V9 Gold — orquestração física das 3–12 corridas (Windows/LocalDB)
 
-**Situação:** script de orquestração preparado; **as doze execuções físicas não
+**Situação:** script de orquestração preparado; **as 3–12 execuções físicas não
 foram realizadas** por esta alteração. A ferramenta depende de o Runner C# e o
 comparador da PR #1174 estarem compilados e aprovados. É um ensaio de TRAIN;
 não abre TEST, não certifica identidade e não ativa modelo.
@@ -16,11 +16,14 @@ não abre TEST, não certifica identidade e não ativa modelo.
   `<SHA>.fitted.json`, CSV sintético TRAIN original imutável (correspondente
   à assinatura de seleção) e estudo diagnóstico do
   `V9LowerNonMatchTrainCalibrator.Search` gerado por comando **manual**.
-- O estudo deve conter exatamente **três** candidatos distintos no campo
+- O estudo deve conter exatamente **até três** candidatos distintos no campo
   `DescriptiveFinalistThresholds` (joelho, conservador, menor pendência), em
   `0 < T_inferior < T_superior`, e a sugestão do joelho no primeiro índice.
-  Se o Pareto resultar em menos de três valores distintos, **não inventar**
-  valores para satisfazer a matriz 3×4: o script recusa a execução.
+  Quando o Pareto fornecer menos de três valores distintos, **não inventar**
+  finalistas: executar três ordens × (CURRENT + k finalistas), com k entre 0 e 3;
+  o arquivo agregado grava `FinalistCount` e `ExecutedTrialCount`. O calibrador
+  atual normalmente fornece pelo menos um finalista; zero é contrato para
+  ausência explícita de sugestão, não fallback de JSON inválido.
 - A origem do estudo TRAIN/independência de rótulos deve ser auditada
   previamente por responsável; o JSON e seus SHAs são verificações
   de consistência, **não são atestação independente** de proveniência.
@@ -42,16 +45,16 @@ pwsh -NoProfile -File Solution/scripts/v9-gold-12-trial-localdb.ps1 `
 ```
 
 O script invoca a CLI `--v9-gold-harness-create` para **cada uma** das
-doze execuções, cria LocalDB independente e executa na ordem:
-CURRENT (controle), KNEE, CONSERVATIVE, LOWEST_PENDING; em cada política,
+3–12 execuções, cria LocalDB independente e executa na ordem:
+CURRENT (controle) e k finalistas distintos, na ordem exportada pelo Pareto; em cada política,
 baseline, reversa e intercalada. Não reutiliza banco entre ordens ou
 políticas; usa o mesmo fit e corpus. Preserva pastas, fontes SQL e evidências
 dos ensaios, mesmo se alguma execução falhar. **Não realiza limpeza**.
 
-As doze saídas `gold-runner-study.json` são validadas pelo comparador
+As 3–12 saídas `gold-runner-study.json` são validadas pelo comparador
 C# existente, que exige a mesma massa sintética/fit/política por trio, SHA
-de procedure experimental, contagens e 12 fingerprints de runs distintos.
-A saída final é `gold-12-trial-matrix.json` com diagnósticos agregados:
+de procedure experimental, contagens e um fingerprint distinto para cada tentativa de runs distintos.
+A saída final é `gold-12-trial-matrix.json` (nome histórico preservado mesmo para 3/6/9 corridas) com diagnósticos agregados:
 cobertura, pares, B-cubed, fusões, fragmentação, FDR, pendências por motivo,
 falsas criações, latência e partição. Em particular, **diminuir pendências
 não demonstra segurança de criar identidades**.
