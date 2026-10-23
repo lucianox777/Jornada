@@ -32,15 +32,42 @@ jobs:
         with:
           global-json-file: Solution/global.json
 
-      - name: Verify Windows LocalDB before handling input (fail closed)
+      - name: Locate Windows LocalDB and publish its executable directory to subsequent steps
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # SQL Server LocalDB is installed on hosted Windows but its Tools/Binn
+          # directory is not guaranteed to be in PATH. A step-local PATH edit
+          # does NOT persist into the following study/matrix PowerShell steps.
+          $found = Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue
+          $localDb = if ($found) { $found.Source } else { $null }
+          if (-not $localDb) {
+            $sqlRoot = Join-Path $env:ProgramFiles 'Microsoft SQL Server'
+            if (Test-Path -LiteralPath $sqlRoot -PathType Container) {
+              $binary = Get-ChildItem -LiteralPath $sqlRoot -Filter SqlLocalDB.exe -File -Recurse -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+              if ($binary) { $localDb = $binary.FullName }
+            }
+          }
+          if (-not $localDb -or -not (Test-Path -LiteralPath $localDb -PathType Leaf)) {
+            throw 'No SQL Server LocalDB executable found; never fall back to any operational DB.'
+          }
+          $toolDir = Split-Path -Path $localDb -Parent
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value $toolDir -Encoding utf8
+          Write-Host "Isolated Windows LocalDB executable: $localDb"
+          & $localDb info
+          if ($LASTEXITCODE -ne 0) {
+            throw 'LocalDB binary exists but cannot enumerate instances; aborting physical study.'
+          }
+      - name: Assert LocalDB remains reachable in the following job step
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
           if (-not (Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue)) {
-            throw 'Hosted Windows runner does not have SqlLocalDB.exe; never fall back to an operational DB.'
+            throw 'LocalDB directory was not propagated between GitHub Actions steps.'
           }
           & SqlLocalDB.exe info
-          if ($LASTEXITCODE -ne 0) { throw 'LocalDB cannot enumerate instances on Windows runner.' }
+          if ($LASTEXITCODE -ne 0) { throw 'LocalDB cannot enumerate instances after PATH propagation.' }
 
       - name: Reproduce immutable historical TRAIN corpus and frozen selection
         shell: pwsh
