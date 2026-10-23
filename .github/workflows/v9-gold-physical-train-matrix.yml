@@ -80,10 +80,9 @@ jobs:
           }
           $validation = Join-Path $root 'finalist-validation.json'
           $goldFit = Join-Path $root "$goldSha.fitted.json"
-          foreach ($entry in @(@($parentSha,(Join-Path $study "$parentSha.fitted.json")),@($goldSha,$goldFit))) {
-            if ((Get-FileHash -LiteralPath $entry[1] -Algorithm SHA256).Hash.ToLowerInvariant() -ne $entry[0]) {
-              throw "Fitted snapshot bytes are not frozen: $($entry[0])"
-            }
+          if ((Get-FileHash -LiteralPath (Join-Path $study "$parentSha.fitted.json") -Algorithm SHA256).Hash.ToLowerInvariant() -ne $parentSha -or
+              (Get-FileHash -LiteralPath $goldFit -Algorithm SHA256).Hash.ToLowerInvariant() -ne $goldSha) {
+            throw 'Fitted parent/Gold snapshot bytes are not pinned to their original SHA.'
           }
           dotnet build src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj -c Release
           dotnet build src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release
