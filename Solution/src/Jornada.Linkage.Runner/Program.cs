@@ -5,6 +5,60 @@ using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Runner;
 using Jornada.Bronze.Storage;
 
+// One-shot diagnostic for the owned, empty Windows LocalDB harness only.
+// Read-only: never changes the canonical procedure, SQL data or TEST.
+if (args.FirstOrDefault() == "--v9-gold-dt10-patch-preflight")
+{
+    if (args.Length != 1 || !OperatingSystem.IsWindows())
+        throw new ArgumentException("Preflight exige Windows e sem argumentos adicionais.");
+    var cs = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+        ?? throw new InvalidOperationException("Conexão de LocalDB descartável ausente.");
+    V9GoldHarnessCommand.ValidateDisposableConnection(cs);
+    await using var db = new Microsoft.Data.SqlClient.SqlConnection(cs);
+    await db.OpenAsync();
+    await using var check = new Microsoft.Data.SqlClient.SqlCommand("""
+        IF DB_NAME()<>N'JornadaHarness'
+           OR COALESCE(TRY_CONVERT(int,SERVERPROPERTY(N'IsLocalDB')),0)<>1
+           OR NOT EXISTS(SELECT 1 FROM sys.extended_properties
+                WHERE class=0 AND name=N'Jornada.EnvironmentProfile'
+                  AND CONVERT(nvarchar(200),value)=N'Development')
+           OR NOT EXISTS(SELECT 1 FROM sys.extended_properties
+                WHERE class=0 AND name=N'Jornada.V9.ExperimentalHarness'
+                  AND CONVERT(nvarchar(200),value)=N'PINNED_FIT_PREVIEW_NO_ACTIVATION')
+          THROW 51900, 'Proibido consultar módulo fora do LocalDB marcado.',1;
+        SELECT OBJECT_DEFINITION(
+            OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote',N'P'));
+        """, db);
+    var definition = await check.ExecuteScalarAsync() as string
+        ?? throw new InvalidDataException("Procedure DT-10 indisponível no LocalDB descartável.");
+    var oldGuard = "l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'";
+    var expectedHeader = "CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote";
+    var declarationMatch = definition.Contains(expectedHeader, StringComparison.OrdinalIgnoreCase);
+    var guardOccurrences = definition.Split(oldGuard, StringSplitOptions.None).Length - 1;
+    var alreadyPatched = definition.Contains(
+        V9GoldLowerNonMatchExperiment.PublicationReason, StringComparison.Ordinal);
+    var normalizedHeader = System.Text.RegularExpressions.Regex.IsMatch(
+        definition, @"(?:CREATE|ALTER)(?:\s+OR\s+ALTER)?\s+(?:PROC|PROCEDURE)\s+(?:\[?identidade\]?)\s*\.\s*\[?sp_publicar_resolucao_progressiva_linkage_lote\]?",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase |
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    var sha = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+        System.Text.Encoding.UTF8.GetBytes(definition))).ToLowerInvariant();
+    Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new {
+        check = "OWNED_LOCALDB_ONLY_DT10_MODULE_READ_ONLY",
+        moduleSha256 = sha, moduleLength = definition.Length,
+        exactDeclarationMatch = declarationMatch,
+        recognizedProcedureDeclaration = normalizedHeader,
+        exactOldGuardOccurrences = guardOccurrences,
+        experimentalReasonAlreadyPresent = alreadyPatched,
+        hasThrow51810 = definition.Contains("THROW 51810", StringComparison.OrdinalIgnoreCase)
+    }));
+    // Running the same pure fail-closed logic as the physical trial,
+    // without modifying the SQL procedure or executing Gold waves.
+    _ = V9GoldDisposableLowerProcedurePatch.Apply(definition);
+    Console.WriteLine("DT10_PATCH_DRY_RUN_ACCEPTED");
+    return;
+}
+
 if (args.FirstOrDefault() == V9LowerNonMatchStudyCli.Flag)
 {
     await V9LowerNonMatchStudyCli.RunAsync(args);
