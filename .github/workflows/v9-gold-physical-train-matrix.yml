@@ -1,6 +1,14 @@
 name: v9-gold-physical-train-matrix
 
+# One-shot, branch-scoped execution explicitly requested 24/10/2026.
+# Existing master workflow remains manual-only. Exact experimental inputs
+# were frozen publicly before this run (issue #1180).
 on:
+  push:
+    branches:
+      - experiment/v9-gold-train-seed42-20261024
+    paths:
+      - '.github/workflows/v9-gold-physical-train-matrix.yml'
   workflow_dispatch:
     inputs:
       lower_thresholds:
@@ -73,9 +81,11 @@ jobs:
         shell: pwsh
         working-directory: Solution
         env:
-          CANDIDATES: ${{ inputs.lower_thresholds }}
-          MIN_GROUPS: ${{ inputs.minimum_independent_identity_groups }}
-          MIN_PRESENT: ${{ inputs.minimum_already_represented_sources }}
+          # On a branch-scoped push, use ONLY the values already
+          # pre-registered in issue #1180. Manual dispatch still uses inputs.
+          CANDIDATES: ${{ github.event_name == 'workflow_dispatch' && inputs.lower_thresholds || '0.001,0.005,0.01,0.02,0.05,0.1,0.2,0.3,0.5,0.7,0.8' }}
+          MIN_GROUPS: ${{ github.event_name == 'workflow_dispatch' && inputs.minimum_independent_identity_groups || 1000 }}
+          MIN_PRESENT: ${{ github.event_name == 'workflow_dispatch' && inputs.minimum_already_represented_sources || 100 }}
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
