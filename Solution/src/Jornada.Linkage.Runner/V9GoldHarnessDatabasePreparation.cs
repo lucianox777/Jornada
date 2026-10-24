@@ -86,8 +86,16 @@ public static class V9GoldHarnessDatabasePreparation
             {
                 var actualDefinition = await definitionQuery.ExecuteScalarAsync() as string
                     ?? throw new InvalidDataException("DT-10 batch procedure missing in disposable SQL.");
-                // Applying to an in-memory string does NOT execute the SQL.
-                _ = V9GoldDisposableLowerProcedurePatch.Apply(actualDefinition);
+                // Apply exactly the same validated patch as the physical Gold
+                // runner, then compile it using ALTER PROCEDURE on this newly
+                // created, explicitly marked and empty LocalDB. This detects
+                // SQL Server metadata normalization *and* syntax/SQL binding
+                // problems before an hour-long TRAIN matrix. It cannot touch
+                // operational SQL and does not modify any canonical migration.
+                var experimentalSql = V9GoldDisposableLowerProcedurePatch.Apply(actualDefinition);
+                await using var patchCommand = new SqlCommand(experimentalSql, sql)
+                { CommandTimeout = 900 };
+                await patchCommand.ExecuteNonQueryAsync();
             }
             await WriteNewAsync(Path.Combine(output, "schema-ready.json"), new
             {
