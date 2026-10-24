@@ -1,0 +1,86 @@
+name: v9-gold-dt10-sql-shape-probe
+
+on:
+  push:
+    branches:
+      - experiment/v9-gold-train-seed42-20261024
+    paths:
+      - '.github/workflows/v9-gold-dt10-sql-shape-probe.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  dt10-definition-probe:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          global-json-file: Solution/global.json
+      - name: Find LocalDB and expose to subsequent steps
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $found = Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue
+          $exe = if ($found) { $found.Source } else { $null }
+          if (-not $exe) {
+            $root = Join-Path $env:ProgramFiles 'Microsoft SQL Server'
+            $candidate = Get-ChildItem -LiteralPath $root -Filter SqlLocalDB.exe -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($candidate) { $exe = $candidate.FullName }
+          }
+          if (-not $exe) { throw 'LocalDB is not installed' }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value (Split-Path $exe -Parent) -Encoding utf8
+          & $exe info
+          if ($LASTEXITCODE -ne 0) { throw 'LocalDB cannot enumerate instances' }
+      - name: Create disposable canonical schema without synthetic observations
+        shell: pwsh
+        working-directory: Solution
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet build src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release
+          $dll = Join-Path $PWD 'src/Jornada.Linkage.Runner/bin/Release/net10.0/Jornada.Linkage.Runner.dll'
+          $db = Join-Path $env:RUNNER_TEMP 'v9-dt10-shape-probe-db'
+          dotnet $dll --v9-gold-harness-create $db "$PWD/database"
+          if ($LASTEXITCODE -ne 0) { throw 'Disposable canonical schema creation failed' }
+      - name: Inspect ACTUAL OBJECT_DEFINITION with read-only SQL query (metadata only)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $db = Join-Path $env:RUNNER_TEMP 'v9-dt10-shape-probe-db'
+          $ready = Get-Content -LiteralPath (Join-Path $db 'schema-ready.json') -Raw | ConvertFrom-Json
+          if ($ready.completed -ne $true -or $ready.database -ne 'JornadaHarness' -or
+              $ready.instance -cnotmatch '^JornadaV9Gold[0-9]{8}_[a-f0-9]{8}$') {
+            throw 'Not an owned disposable LocalDB database'
+          }
+          $connection = New-Object System.Data.SqlClient.SqlConnection
+          $connection.ConnectionString = "Server=(localdb)\$($ready.instance);Database=JornadaHarness;Integrated Security=true;Encrypt=False"
+          $connection.Open()
+          try {
+            $command = $connection.CreateCommand()
+            $command.CommandText = "SELECT OBJECT_DEFINITION(OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote'));"
+            $definition = [string]$command.ExecuteScalar()
+            if (-not $definition) { throw 'Canonical DT10 procedure missing' }
+            $header = 'CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote'
+            $guard = "l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'"
+            $reason = 'LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL'
+            $sha = [System.Security.Cryptography.SHA256]::Create()
+            try {
+              $hash = [BitConverter]::ToString($sha.ComputeHash([Text.Encoding]::UTF8.GetBytes($definition))).Replace('-', '').ToLowerInvariant()
+            } finally { $sha.Dispose() }
+            $normalized = $definition -replace '\\s+', ' '
+            Write-Host ('definitionSha256=' + $hash)
+            Write-Host ('definitionLength=' + $definition.Length)
+            Write-Host ('expectedDeclarationPresent=' + $definition.Contains($header))
+            Write-Host ('expectedDeclarationIgnoreCase=' + ($definition.IndexOf($header, [StringComparison]::OrdinalIgnoreCase) -ge 0))
+            Write-Host ('guardExactOccurrences=' + ($definition.Split(@($guard), [StringSplitOptions]::None).Length - 1))
+            Write-Host ('guardIgnoreCaseOccurrences=' + ([regex]::Matches($definition, [regex]::Escape($guard), [Text.RegularExpressions.RegexOptions]::IgnoreCase).Count))
+            Write-Host ('guardWhitespaceNormalized=' + ($normalized.IndexOf($guard, [StringComparison]::OrdinalIgnoreCase) -ge 0))
+            Write-Host ('experimentalReasonAlreadyPresent=' + ($definition.Contains($reason)))
+            Write-Host ('throw51810Present=' + ($definition.IndexOf('THROW 51810', [StringComparison]::OrdinalIgnoreCase) -ge 0))
+            Write-Host ('startsWith=' + $definition.Substring(0, [Math]::Min(24, $definition.Length)).Replace("`r",' ').Replace("`n",' '))
+          } finally { $connection.Dispose() }
