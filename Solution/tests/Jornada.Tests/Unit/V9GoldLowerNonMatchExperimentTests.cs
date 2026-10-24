@@ -82,6 +82,9 @@ public sealed class V9GoldLowerNonMatchExperimentTests
         var patchedNormalized = V9GoldDisposableLowerProcedurePatch.Apply(normalized);
         Multiple(() =>
         {
+            Assert.That(patchedNormalized.TrimStart(), Does.StartWith("ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote"));
+            Assert.That(patched.TrimStart(), Does.StartWith("ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote"));
+            Assert.That(patchedNormalized, Does.Not.Contain("CREATE OR ALTER PROCEDURE"));
             Assert.That(patchedNormalized, Does.Contain("SERVERPROPERTY(N'IsLocalDB')"));
             Assert.That(patchedNormalized, Does.Contain(V9GoldLowerNonMatchExperiment.PublicationReason));
             Assert.That(patched, Does.Contain("SERVERPROPERTY(N'IsLocalDB')"));
