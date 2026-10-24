@@ -22,9 +22,13 @@ sem certificação, migration operacional ou ativação.
 - O estudo declara **zero a três** candidatos distintos no campo
   `DescriptiveFinalistThresholds`, em `0 < T_inferior < T_superior`.
   Se k > 0, o primeiro coincide com `DescriptiveSuggestedLowerThreshold`
-  (joelho); com k = 0, o joelho deve ser nulo. A fronteira pode ter apenas
-  uma ou duas alternativas: nesses casos os rótulos de posições 2/3 são
-  genéricos e não presumem `CONSERVATIVE` ou `LOWEST_PENDING`.
+  (sugestão Pareto 2D). Na seleção V6, as outras alternativas provêm
+  dos representantes **das faixas descritivas de falsa criação**
+  (0,5%/1%/2%/5%/100%) — preferência às faixas não vazias mais estrita
+  e mais ampla, com preenchimento por faixas intermediárias distintas.
+  Em qualquer k, os slots seguintes são `FINALIST_2`/`FINALIST_3`;
+  não se presume `CONSERVATIVE` ou `LOWEST_PENDING` como ótimos absolutos.
+  Com k = 0, o joelho deve ser nulo.
   Quando o Pareto fornecer menos de três valores distintos, **não inventar**
   finalistas: executar três ordens × (CURRENT + k finalistas), com k entre 0 e 3;
   o arquivo agregado grava `FinalistCount` e `ExecutedTrialCount`. O calibrador
@@ -64,6 +68,12 @@ A saída final é `gold-12-trial-matrix.json` (nome histórico preservado mesmo 
 cobertura, pares, B-cubed, fusões, fragmentação, FDR, pendências por motivo,
 falsas criações, latência e partição. Em particular, **diminuir pendências
 não demonstra segurança de criar identidades**.
+
+**Compatibilidade da evidência:** a execução [#40124876599](https://github.com/lucianox777/Jornada/actions/runs/40124876599), iniciada em branch experimental de 24/10,
+foi compilada com o seletor **V5** (joelho + extremos absolutos) e não deve
+ser confundida com a V6 proposta nesta correção (joelho + representantes
+das faixas). Preservar os artefatos antigos, não trocar limiares durante
+um run e nunca fazer merge do gatilho temporário `push` para a master.
 
 ## Workflow manual Windows no GitHub Actions (PR #1178)
 

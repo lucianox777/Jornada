@@ -137,6 +137,69 @@ public sealed class V9LowerNonMatchTrainPreviewTests
         });
     }
 
+    [Test]
+    public void Pareto_risk_bands_select_finalists_instead_of_raw_count_extrema()
+    {
+        // Three non-dominated policies: strictest absolute false count at
+        // .2, normalized 2D knee at .3, highest coverage at .4.
+        // The 2% and 5% descriptive bands pick .3 and .4 respectively;
+        // neither an arbitrary duplicate budget nor an extrema-only
+        // finalist selector may silently add .2 to the physical trials.
+        var sources = new List<V9LowerNonMatchTrainCalibrator.TrainingSource>();
+        var next = 1;
+        void Add(int count, decimal score, bool alreadyRepresented)
+        {
+            for (var n = 0; n < count; n++)
+                sources.Add(Example(next++, score, alreadyRepresented));
+        }
+        Add(3, .05m, true);
+        Add(97, .15m, false);
+        Add(1, .25m, true);
+        Add(99, .25m, false);
+        Add(3, .35m, true);
+        Add(97, .35m, false);
+
+        var study = V9AdaptiveCalibrationCoordinator.SearchLowerNonMatchOnTrain(
+            Policy() with { CandidateLowerThresholds = [.1m, .2m, .3m, .4m] },
+            sources);
+        Multiple(() =>
+        {
+            Assert.That(study.Candidates.Single(x => x.LowerThreshold == .2m).IsParetoFrontier, Is.True);
+            Assert.That(study.Candidates.Single(x => x.LowerThreshold == .3m).IsParetoFrontier, Is.True);
+            Assert.That(study.Candidates.Single(x => x.LowerThreshold == .4m).IsParetoFrontier, Is.True);
+            Assert.That(study.DescriptiveSuggestedLowerThreshold, Is.EqualTo(.3m));
+            Assert.That(study.DescriptiveBands![0].BestLowerThreshold, Is.Null);
+            Assert.That(study.DescriptiveBands[1].BestLowerThreshold, Is.Null);
+            Assert.That(study.DescriptiveBands[2].BestLowerThreshold, Is.EqualTo(.3m));
+            Assert.That(study.DescriptiveBands[3].BestLowerThreshold, Is.EqualTo(.4m));
+            Assert.That(study.DescriptiveFinalistThresholds, Is.EqualTo(new[] { .3m, .4m }));
+            Assert.That(study.DescriptiveFinalistThresholds, Does.Not.Contain(.2m));
+            Assert.That(study.Version, Is.EqualTo(V9LowerNonMatchTrainCalibrator.Version));
+            Assert.That(study.DuplicateConfidenceCertified, Is.False);
+            Assert.That(study.TestUsed, Is.False);
+        });
+    }
+
+    [Test]
+    public void Empty_creation_bands_do_not_invent_finalists_or_approval()
+    {
+        // No lower threshold reaches any rejected candidate posterior.
+        // The observed false-among-creates rate is undefined (not zero).
+        var policy = Policy() with { CandidateLowerThresholds = [.01m, .02m, .03m] };
+        var study = V9AdaptiveCalibrationCoordinator.SearchLowerNonMatchOnTrain(
+            policy, Sources());
+        Multiple(() =>
+        {
+            Assert.That(study.Candidates.All(x => x.ProposedNewReferences == 0), Is.True);
+            Assert.That(study.Candidates.All(x => x.FalseNewAmongCreates is null), Is.True);
+            Assert.That(study.DescriptiveBands!.All(x => x.BestLowerThreshold is null), Is.True);
+            Assert.That(study.DescriptiveSuggestedLowerThreshold, Is.EqualTo(.01m));
+            Assert.That(study.DescriptiveFinalistThresholds, Is.EqualTo(new[] { .01m }));
+            Assert.That(study.DuplicateConfidenceCertified, Is.False);
+            Assert.That(study.AutomaticCalibrationOrActivationAllowed, Is.False);
+        });
+    }
+
     private static V9LowerNonMatchTrainCalibrator.TrainingSource[] SourcesWithInvalidPartition()
     {
         var s = Sources();

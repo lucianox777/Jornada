@@ -104,12 +104,11 @@ elseif ($null -ne $rawStudy.DescriptiveSuggestedLowerThreshold) {
 $policies = [System.Collections.Generic.List[object]]::new()
 $policies.Add([pscustomobject]@{ Slot = 'CURRENT'; Floor = $null })
 for ($i = 0; $i -lt $k; $i++) {
-    # Only with all three distinct can each position be interpreted as
-    # knee / conservative / least-pending. Dedupe erases intermediate slots.
-    $slot = if ($i -eq 0) { 'KNEE' }
-        elseif ($k -eq 3 -and $i -eq 1) { 'CONSERVATIVE' }
-        elseif ($k -eq 3 -and $i -eq 2) { 'LOWEST_PENDING' }
-        else { 'FINALIST_' + ($i + 1) }
+    # The knee is first; remaining finalists are selected from the
+    # descriptive Pareto risk-band envelope. A deduplicated band winner
+    # is NOT necessarily the globally most-conservative/lowest-pending
+    # frontier extreme. Keep ordinal names rather than mislabeling them.
+    $slot = if ($i -eq 0) { 'KNEE' } else { 'FINALIST_' + ($i + 1) }
     $policies.Add([pscustomobject]@{ Slot = $slot; Floor = $converted[$i] })
 }
 $orders = @(

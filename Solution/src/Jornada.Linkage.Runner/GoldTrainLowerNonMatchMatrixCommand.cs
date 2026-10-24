@@ -10,15 +10,11 @@ namespace Jornada.Linkage.Runner;
 public static class GoldTrainLowerNonMatchMatrixCommand
 {
     public const string Flag = "--v9-gold-compare-matrix";
-    private static readonly string[] FullPolicySlots =
-        ["CURRENT", "KNEE", "CONSERVATIVE", "LOWEST_PENDING"];
-
-    // With fewer than 3 distinct finalists, ordinal slots are used rather
-    // than falsely assuming FINALIST_2 is the conservative optimum: Pareto
-    // de-duplicates knee/conservative/least-pending before exporting values.
-    private static string PolicySlot(int index, int finalistCount) =>
+    // The post-knee finalists come from the descriptive TRAIN risk-band
+    // frontier (not necessarily absolute error/pending extrema). Ordinal
+    // labels avoid claiming a meaning that deduplicated bands do not prove.
+    private static string PolicySlot(int index) =>
         index == 0 ? "CURRENT" :
-        finalistCount == 3 ? FullPolicySlots[index] :
         index == 1 ? "KNEE" : "FINALIST_" +
             index.ToString(System.Globalization.CultureInfo.InvariantCulture);
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
@@ -92,7 +88,7 @@ public static class GoldTrainLowerNonMatchMatrixCommand
                 var created = lowerData.GetProperty("finalLowerBandCreated").GetInt64();
                 var falseNew = lowerData.GetProperty("finalFalseNewIdentityCreations").GetInt64();
                 var falseLower = lowerData.GetProperty("finalFalseLowerBandCreations").GetInt64();
-                rows.Add(new Row(PolicySlot(policyIndex, finalistCount), comparison.LowerNonMatchPolicy,
+                rows.Add(new Row(PolicySlot(policyIndex), comparison.LowerNonMatchPolicy,
                     comparison.LowerNonMatchThreshold, metric, ms, proposals, created,
                     falseNew, falseLower, reasons));
             }

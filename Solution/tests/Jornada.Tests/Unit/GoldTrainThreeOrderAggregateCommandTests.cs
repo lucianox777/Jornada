@@ -171,8 +171,8 @@ public sealed class GoldTrainThreeOrderAggregateCommandTests
             Assert.That(matrix.Rows, Has.Count.EqualTo(12));
             Assert.That(matrix.Rows[0].PolicySlot, Is.EqualTo("CURRENT"));
             Assert.That(matrix.Rows[3].PolicySlot, Is.EqualTo("KNEE"));
-            Assert.That(matrix.Rows[6].PolicySlot, Is.EqualTo("CONSERVATIVE"));
-            Assert.That(matrix.Rows[9].PolicySlot, Is.EqualTo("LOWEST_PENDING"));
+            Assert.That(matrix.Rows[6].PolicySlot, Is.EqualTo("FINALIST_2"));
+            Assert.That(matrix.Rows[9].PolicySlot, Is.EqualTo("FINALIST_3"));
             Assert.That(matrix.Rows[9].LowerThreshold, Is.EqualTo(.3m));
             Assert.That(matrix.Rows.All(x => x.ElapsedMilliseconds > 0), Is.True);
             Assert.That(matrix.Rows.All(x => x.PendingReasons.Sum(y => y.Sources) == x.Metrics.PendingSources), Is.True);
@@ -217,7 +217,7 @@ public sealed class GoldTrainThreeOrderAggregateCommandTests
         if (k == 2)
             Assert.That(matrix.Rows[6].PolicySlot, Is.EqualTo("FINALIST_2"));
         if (k == 3)
-            Assert.That(matrix.Rows[9].PolicySlot, Is.EqualTo("LOWEST_PENDING"));
+            Assert.That(matrix.Rows[9].PolicySlot, Is.EqualTo("FINALIST_3"));
         if (k > 0)
         {
             var duplicateFloor = reports.ToArray();
