@@ -180,6 +180,26 @@ public sealed class V9LowerNonMatchTrainPreviewTests
         });
     }
 
+    [Test]
+    public void Empty_creation_bands_do_not_invent_finalists_or_approval()
+    {
+        // No lower threshold reaches any rejected candidate posterior.
+        // The observed false-among-creates rate is undefined (not zero).
+        var policy = Policy() with { CandidateLowerThresholds = [.01m, .02m, .03m] };
+        var study = V9AdaptiveCalibrationCoordinator.SearchLowerNonMatchOnTrain(
+            policy, Sources());
+        Multiple(() =>
+        {
+            Assert.That(study.Candidates.All(x => x.ProposedNewReferences == 0), Is.True);
+            Assert.That(study.Candidates.All(x => x.FalseNewAmongCreates is null), Is.True);
+            Assert.That(study.DescriptiveBands!.All(x => x.BestLowerThreshold is null), Is.True);
+            Assert.That(study.DescriptiveSuggestedLowerThreshold, Is.EqualTo(.01m));
+            Assert.That(study.DescriptiveFinalistThresholds, Is.EqualTo(new[] { .01m }));
+            Assert.That(study.DuplicateConfidenceCertified, Is.False);
+            Assert.That(study.AutomaticCalibrationOrActivationAllowed, Is.False);
+        });
+    }
+
     private static V9LowerNonMatchTrainCalibrator.TrainingSource[] SourcesWithInvalidPartition()
     {
         var s = Sources();
