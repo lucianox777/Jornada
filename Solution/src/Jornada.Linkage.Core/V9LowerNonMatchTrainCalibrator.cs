@@ -12,7 +12,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static class V9LowerNonMatchTrainCalibrator
 {
-    public const string Version = "V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V5";
+    public const string Version = "V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V6";
 
     public sealed record Policy(
         string FrozenSnapshotSha256,
@@ -179,12 +179,32 @@ public static class V9LowerNonMatchTrainCalibrator
                 return new DescriptiveBand(maxRate, eligible?.LowerThreshold,
                     eligible?.FalseNewReferences, eligible?.PendingAfter);
             }).ToArray();
-        var conservative = nondominated.OrderBy(x => x.FalseNewReferences)
-            .ThenBy(x => x.PendingAfter).ThenBy(x => x.LowerThreshold).First();
-        var lowestPending = nondominated.OrderBy(x => x.PendingAfter)
-            .ThenBy(x => x.FalseNewReferences).ThenBy(x => x.LowerThreshold).First();
-        var finalists = new[] { suggested, conservative.LowerThreshold, lowestPending.LowerThreshold }
-            .Distinct().ToArray();
+        // Finalists are selected FROM the descriptive risk-band envelope,
+        // not from independent count-based Pareto extrema. Preserve the 2D
+        // normalized-ideal suggestion first; then cover the strictest band
+        // with an eligible point and the widest band (max pending reduction).
+        // Fill remaining slots with distinct intermediate band winners.
+        // The 0.5/1/2/5/100% bands are descriptive discovery strata, NEVER
+        // acceptance ceilings or an operational duplicate-risk budget.
+        // Empty bands remain empty, and there is no invented finalist.
+        var bandWinners = bands
+            .Where(x => x.BestLowerThreshold.HasValue)
+            .Select(x => x.BestLowerThreshold!.Value)
+            .Distinct()
+            .ToArray();
+        var finalists = new List<decimal> { suggested };
+        void AddBandWinner(decimal threshold)
+        {
+            if (finalists.Count < 3 && !finalists.Contains(threshold))
+                finalists.Add(threshold);
+        }
+        if (bandWinners.Length > 0)
+        {
+            AddBandWinner(bandWinners[0]);
+            AddBandWinner(bandWinners[^1]);
+            foreach (var threshold in bandWinners)
+                AddBandWinner(threshold);
+        }
         // Grid identity is frozen from the declared, ordered threshold set.
         // Changing endpoints or density changes this identity and requires
         // a fresh independent validation of the selected finalists.
