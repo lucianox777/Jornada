@@ -15,10 +15,25 @@ public static class V9GoldDisposableLowerProcedurePatch
     public static string Apply(string canonicalDefinition)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(canonicalDefinition);
-        if (!canonicalDefinition.Contains(ExpectedDeclaration, StringComparison.OrdinalIgnoreCase)
-            || canonicalDefinition.Split(OldGuard, StringSplitOptions.None).Length != 2
-            || canonicalDefinition.Contains(V9GoldLowerNonMatchExperiment.PublicationReason, StringComparison.Ordinal))
-            throw new InvalidDataException("Procedure DT-10 desconhecida ou já alterada: experimento recusado.");
+        var expectedDeclaration = canonicalDefinition.Contains(
+            ExpectedDeclaration, StringComparison.OrdinalIgnoreCase);
+        var guardOccurrences = canonicalDefinition.Split(
+            OldGuard, StringSplitOptions.None).Length - 1;
+        var alreadyPatched = canonicalDefinition.Contains(
+            V9GoldLowerNonMatchExperiment.PublicationReason, StringComparison.Ordinal);
+        if (!expectedDeclaration || guardOccurrences != 1 || alreadyPatched)
+        {
+            // Diagnose safe booleans and a digest only. NEVER publish the full
+            // executable SQL definition or relax an unrecognized DT-10 guard.
+            var digest = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(
+                    System.Text.Encoding.UTF8.GetBytes(canonicalDefinition)))
+                .ToLowerInvariant();
+            throw new InvalidDataException(
+                $"Procedure DT-10 desconhecida ou já alterada: experimento recusado. " +
+                $"declaration={expectedDeclaration}; guardCount={guardOccurrences}; " +
+                $"alreadyPatched={alreadyPatched}; definitionSha256={digest}");
+        }
 
         // Do not modify the existing no-candidate case or any source data. The
         // new reason is accepted only under the same isolated DB ownership marker
