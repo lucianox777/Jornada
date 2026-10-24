@@ -39,3 +39,29 @@
 - [Documentos institucionais](../../Documentos/README.md) — release selada, especificação publicada e candidata.
 
 **Regra editorial:** não editar retroativamente evidências, tags, especificações publicadas ou relatórios de ensaio. Corrigir documentos correntes por remissão datada; marcar divergências código × decisão explicitamente. Reorganização física de pastas só após inventário de referências e testes de links, para não quebrar rastreabilidade.
+
+
+## Complemento de implementação — 24/10/2026 (seletor Gold V6)
+
+Para realizar DC-V9-BOOT-01 no **limiar inferior Gold**, o calibrador único
+`V9LowerNonMatchTrainCalibrator.Search` mantém como objetivos Pareto 2D
+**falsas novas referências × pendências** em TRAIN (não confundir com o
+Pareto 2D do bootstrap geral, **recall global por fonte × FDR pós-Resolve**).
+O joelho é uma sugestão do ponto próximo ao ideal normalizado; não é um
+certificado de FDR ou de duplicação. As faixas descritivas observadas de
+falsa criação entre as referências propostas (0,5%, 1%, 2%, 5%, 100%)
+**participam da escolha de alternativas para o experimento físico**:
+são selecionados o joelho, a primeira faixa não vazia e a última faixa
+não vazia, com deduplicação e complemento por faixas intermediárias até
+três limiares distintos. Faixas vazias não são preenchidas artificialmente.
+A largura das faixas **não constitui orçamento de risco para aceitar ou
+rejeitar a criação operacional**.
+
+A versão do estudo evolui de `V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V5`
+(seleção do joelho + extremos absolutos, já usada no run físico
+[#40124876599](https://github.com/lucianox777/Jornada/actions/runs/40124876599))
+para `V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V6` após o merge da
+correção. Não reclassificar retrospectivamente outputs do run V5 como V6;
+resultados físicos precisam estar vinculados ao SHA e à versão exatos.
+Nem este complemento nem qualquer merge ativam V9/DT-15, abrem TEST,
+promovem `ref` ou alteram bancos operacionais.
