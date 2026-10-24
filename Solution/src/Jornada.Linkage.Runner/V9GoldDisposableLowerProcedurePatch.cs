@@ -1,3 +1,5 @@
+using System.Text.RegularExpressions;
+
 namespace Jornada.Linkage.Runner;
 
 /// <summary>
@@ -9,14 +11,23 @@ public static class V9GoldDisposableLowerProcedurePatch
 {
     public const string ProcedureName = "identidade.sp_publicar_resolucao_progressiva_linkage_lote";
     private const string OldGuard = "l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'";
-    private const string ExpectedDeclaration =
-        "CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote";
+    // SqlLocalDB/SQL Server 17 normalizes CREATE OR ALTER PROCEDURE into
+    // ' CREATE   PROCEDURE ...' in OBJECT_DEFINITION. The actual disposable
+    // schema run #40132062400 proved the exact guard occurs once and THROW
+    // 51810 remains present; the previous literal header check was too strict.
+    // Anchor the known procedure name and accept ONLY whitespace variation
+    // or SQL Server's omission of OR ALTER, without relaxing the DT-10 guard.
+    private static readonly Regex ExpectedDeclaration = new(
+        @"\A\s*CREATE\s+(?:OR\s+ALTER\s+)?PROCEDURE\s+identidade\.sp_publicar_resolucao_progressiva_linkage_lote(?=\s)",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant,
+        TimeSpan.FromSeconds(1));
 
     public static string Apply(string canonicalDefinition)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(canonicalDefinition);
-        if (!canonicalDefinition.Contains(ExpectedDeclaration, StringComparison.OrdinalIgnoreCase)
+        if (!ExpectedDeclaration.IsMatch(canonicalDefinition)
             || canonicalDefinition.Split(OldGuard, StringSplitOptions.None).Length != 2
+            || !canonicalDefinition.Contains("THROW 51810", StringComparison.OrdinalIgnoreCase)
             || canonicalDefinition.Contains(V9GoldLowerNonMatchExperiment.PublicationReason, StringComparison.Ordinal))
             throw new InvalidDataException("Procedure DT-10 desconhecida ou já alterada: experimento recusado.");
 
