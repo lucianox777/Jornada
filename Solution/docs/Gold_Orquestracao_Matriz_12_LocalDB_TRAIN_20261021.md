@@ -123,3 +123,36 @@ autorização → governança/DT-15. Se aprovada uma mudança operacional,
 são exigidas migration canônica DT-10 e novos testes; nenhuma migration
 experimental é transferida automaticamente.
 
+
+## Primeiro ensaio físico — bloqueio DT-10 e correção direcionada (24/10/2026)
+
+No [run #40124876599](https://github.com/lucianox777/Jornada/actions/runs/40124876599)
+o estudo Pareto TRAIN V5 e as três ordens CURRENT foram concluídos e
+publicados como **artefatos parciais**, mas a primeira tentativa
+experimental KNEE abortou em
+`V9GoldDisposableLowerProcedurePatch.Apply`, antes de qualquer
+publicação experimental. Não existe `gold-12-trial-matrix.json` desse
+run; resultados de prévia não podem ser confundidos com métricas Gold
+físicas da política inferior. Ver [issue #1180](https://github.com/lucianox777/Jornada/issues/1180).
+
+O [diagnóstico físico isolado #40132062400](https://github.com/lucianox777/Jornada/actions/runs/40132062400)
+confirmou a causa específica: o SQL Server 17 devolve
+`OBJECT_DEFINITION` começando por
+` CREATE   PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote`,
+embora a migration-fonte use `CREATE OR ALTER PROCEDURE`.
+O predicado de motivo `l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'`
+continuava presente **uma vez**, a regra `THROW 51810` existia e
+`LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL` **não** estava instalado.
+A comparação literal do cabeçalho rejeitou uma normalização legítima
+do motor, e a trava falhou fechado.
+
+A correção limita-se ao reconhecimento do cabeçalho SQL Server,
+aceitando a forma canônica e a normalização de `OR ALTER` com
+espaçamento variável **da mesma procedure**, preservando as checagens
+da ocorrência única do guard original, da regra `THROW 51810` e da
+ausência do motivo experimental. Não altera DT-10, schema canônico,
+a política Gold operacional ou os hashes da massa sintética. O patch
+continua restrito ao banco `JornadaHarness` LocalDB próprio, recém
+criado e vazio. Um novo run físico requer código integrado, grade e
+versão registrados antes do novo disparo.
+
