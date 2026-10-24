@@ -10,11 +10,13 @@ namespace Jornada.Linkage.Runner;
 public static class V9GoldHarnessDatabasePreparation
 {
     public const string Flag = "--v9-gold-harness-create";
+    public const string VerifyLowerPatchFlag = "--verify-disposable-lower-patch";
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
     public static async Task RunAsync(string[] args)
     {
-        if (args.Length != 3 || args[0] != Flag || !OperatingSystem.IsWindows())
-            throw new ArgumentException("Windows: --v9-gold-harness-create <diretório novo> <Solution/database>");
+        var verifyLowerPatch = args.Length == 4 && args[3] == VerifyLowerPatchFlag;
+        if ((args.Length != 3 && !verifyLowerPatch) || args[0] != Flag || !OperatingSystem.IsWindows())
+            throw new ArgumentException("Windows: --v9-gold-harness-create <diretório novo> <Solution/database> [--verify-disposable-lower-patch]");
         var output = Path.GetFullPath(args[1]);
         if (Directory.Exists(output) || File.Exists(output)) throw new IOException("Preparação exige diretório novo; reuso/limpeza proibidos.");
         var schema = Path.GetFullPath(args[2]);
@@ -77,6 +79,23 @@ public static class V9GoldHarnessDatabasePreparation
                 EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.ExperimentalHarness',@value=N'PINNED_FIT_PREVIEW_NO_ACTIVATION';
                 """, sql))
                 await mark.ExecuteNonQueryAsync();
+            // Explicit opt-in physical preflight: exercise the SAME SQL
+            // OBJECT_DEFINITION and guarded temporary DT-10 patch that the
+            // lower-band trial uses. No TRAIN, TEST or operational database;
+            // this empty harness is a uniquely owned disposable LocalDB.
+            // Never verify by changing or weakening a canonical migration.
+            if (verifyLowerPatch)
+            {
+                await using var read = new SqlCommand(
+                    "SELECT OBJECT_DEFINITION(OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote'));",
+                    sql);
+                var installedDefinition = await read.ExecuteScalarAsync() as string
+                    ?? throw new InvalidDataException("LocalDB disposable DT-10 definition missing.");
+                var experimentalDefinition = V9GoldDisposableLowerProcedurePatch.Apply(installedDefinition);
+                await using var execute = new SqlCommand(experimentalDefinition, sql) { CommandTimeout = 900 };
+                await execute.ExecuteNonQueryAsync();
+                Console.WriteLine("Disposable DT-10 lower-band patch compiled in isolated LocalDB.");
+            }
             await WriteNewAsync(Path.Combine(output, "schema-ready.json"), new
             {
                 instance, database = "JornadaHarness", canonicalFiles = files.Length,
