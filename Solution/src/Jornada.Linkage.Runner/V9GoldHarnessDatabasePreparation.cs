@@ -77,6 +77,18 @@ public static class V9GoldHarnessDatabasePreparation
                 EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.ExperimentalHarness',@value=N'PINNED_FIT_PREVIEW_NO_ACTIVATION';
                 """, sql))
                 await mark.ExecuteNonQueryAsync();
+            // Cheap fail-closed physical SQL patch preflight: must pass BEFORE
+            // any hour-long TRAIN corpus replay or physical control trials.
+            // The permanent canonical DT-10 module is never mutated here.
+            await using (var definitionQuery = new SqlCommand(
+                "SELECT OBJECT_DEFINITION(OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote', N'P'));",
+                sql))
+            {
+                var actualDefinition = await definitionQuery.ExecuteScalarAsync() as string
+                    ?? throw new InvalidDataException("DT-10 batch procedure missing in disposable SQL.");
+                // Applying to an in-memory string does NOT execute the SQL.
+                _ = V9GoldDisposableLowerProcedurePatch.Apply(actualDefinition);
+            }
             await WriteNewAsync(Path.Combine(output, "schema-ready.json"), new
             {
                 instance, database = "JornadaHarness", canonicalFiles = files.Length,
