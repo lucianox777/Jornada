@@ -1,0 +1,57 @@
+name: v9-gold-disposable-dt10-patch-smoke
+
+on:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Linkage.Runner/V9GoldDisposableLowerProcedurePatch.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9GoldHarnessDatabasePreparation.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/V9GoldLowerNonMatchExperimentTests.cs'
+      - '.github/workflows/v9-gold-disposable-dt10-patch-smoke.yml'
+      - '.github/workflows/v9-gold-physical-train-matrix.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  disposable-dt10-physical:
+    name: Windows LocalDB — empty DT-10 experimental patch (no TRAIN)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          global-json-file: Solution/global.json
+      - name: Locate installed Windows LocalDB (never operational SQL)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $localDb = (Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue)?.Source
+          if (-not $localDb) {
+            $root = Join-Path $env:ProgramFiles 'Microsoft SQL Server'
+            if (Test-Path -LiteralPath $root) {
+              $found = Get-ChildItem -LiteralPath $root -Filter SqlLocalDB.exe -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($found) { $localDb = $found.FullName }
+            }
+          }
+          if (-not $localDb) { throw 'No installed Windows LocalDB executable; fail closed.' }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value (Split-Path -Path $localDb -Parent) -Encoding utf8
+          & $localDb info
+          if ($LASTEXITCODE -ne 0) { throw 'Windows LocalDB cannot enumerate instances.' }
+      - name: Build experimental runner and compile patched DT-10 only in empty disposable DB
+        shell: pwsh
+        working-directory: Solution
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet build src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj --configuration Release
+          $runner = Join-Path $PWD 'src/Jornada.Linkage.Runner/bin/Release/net10.0/Jornada.Linkage.Runner.dll'
+          $folder = Join-Path $env:RUNNER_TEMP 'v9-dt10-patch-smoke'
+          dotnet $runner --v9-gold-harness-create $folder "$PWD/database" --verify-disposable-lower-patch
+          $ready = Get-Content -LiteralPath (Join-Path $folder 'schema-ready.json') -Raw | ConvertFrom-Json
+          if ($ready.completed -ne $true -or $ready.database -ne 'JornadaHarness' -or
+              $ready.instance -cnotmatch '^JornadaV9Gold[0-9]{8}_[a-f0-9]{8}$') {
+            throw 'Disposable DT-10 patch compilation did not complete.'
+          }
