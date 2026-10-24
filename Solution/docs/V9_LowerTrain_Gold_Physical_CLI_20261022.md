@@ -114,6 +114,48 @@ O calibrador atual, enquanto tiver grade não vazia, normalmente sugere
 pelo menos um limiar; portanto `k=0` é compatibilidade com a hipótese
 futura de nenhuma alternativa, não uma saída usual da implementação.
 
+## Seleção descritiva por Pareto 2D e faixas (correção de 24/10/2026)
+
+A versão **V6** de `V9LowerNonMatchTrainCalibrator` utiliza a fronteira
+Pareto de **falsas novas referências × fontes pendentes** (ambos minimizados)
+calculada no **mesmo TRAIN**. A sugestão primária continua sendo o ponto de
+menor distância quadrática ao ideal, com normalização pelos extremos da
+fronteira — denominado `DescriptiveSuggestedLowerThreshold`; não é
+aprovação de política operacional.
+
+As faixas de **taxa observada** de falsas criações entre todas as criações
+são `0,5%, 1%, 2%, 5%, 100%`, e são apenas resumos descritivos da
+fronteira, **não orçamentos prévios de duplicatas**. Para cada faixa
+com ponto elegível, `DescriptiveBands` registra aquele que deixa menos
+pendências, com desempate determinístico por menos falsas criações e
+menor limiar. Faixas vazias continuam declaradas como vazias.
+
+Os `DescriptiveFinalistThresholds` (máximo três valores distintos) são,
+por ordem: sugestão Pareto 2D; representante da **faixa mais estrita não
+vazia**; representante da **faixa mais ampla não vazia**. Empates são
+deduplicados; se houver vaga, representantes de faixas intermediárias
+distintos completam até três. Nenhuma alternativa é criada artificialmente
+para preencher a matriz. **Não** substituir os representantes das faixas
+pelos extremos absolutos de falsa criação/pendência sem relação com elas.
+A escolha da fronteira não certifica nível de risco, e a matriz física
+servirá para aferir estabilidade nas três ordens, não para escolher o
+vencedor pela ordem mais favorável.
+
+Os slots de matriz são `CURRENT`, `KNEE`, `FINALIST_2` e
+`FINALIST_3` conforme efetivamente presentes; rótulos como
+`CONSERVATIVE` e `LOWEST_PENDING` seriam enganosos quando uma faixa
+intermediária é selecionada. O JSON de estudo contém a versão V6 e
+fingerprint que inclui a versão do seletor.
+
+**Não reescrever resultados já em andamento:** a execução física
+[#40124876599](https://github.com/lucianox777/Jornada/actions/runs/40124876599)
+foi iniciada em 24/10/2026 no commit `7870209ebab69c3dd565ad6cfe197717a59263d5`,
+que ainda usa a seleção **V5** (joelho + extremos absolutos). Ela
+permanece um ensaio TRAIN exploratório de protocolo V5; **não** alegar
+que o arquivo `lower-train-pareto.json` dessa execução segue a V6.
+Uma avaliação V6 exige novo run pré-declarado após integração, sem
+contaminar o resultado histórico ou usar TEST.
+
 ## 3. Execução integrada no GitHub Actions
 
 Para evitar depender do computador local, a PR #1178 também adiciona o
