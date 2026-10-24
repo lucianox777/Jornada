@@ -15,10 +15,20 @@ public static class V9GoldDisposableLowerProcedurePatch
     public static string Apply(string canonicalDefinition)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(canonicalDefinition);
-        if (!canonicalDefinition.Contains(ExpectedDeclaration, StringComparison.OrdinalIgnoreCase)
-            || canonicalDefinition.Split(OldGuard, StringSplitOptions.None).Length != 2
-            || canonicalDefinition.Contains(V9GoldLowerNonMatchExperiment.PublicationReason, StringComparison.Ordinal))
-            throw new InvalidDataException("Procedure DT-10 desconhecida ou já alterada: experimento recusado.");
+        var validDeclaration = canonicalDefinition.Contains(ExpectedDeclaration, StringComparison.OrdinalIgnoreCase);
+        var literalGuardCount = canonicalDefinition.Split(OldGuard, StringSplitOptions.None).Length - 1;
+        var hasExperimentalReason = canonicalDefinition.Contains(
+            V9GoldLowerNonMatchExperiment.PublicationReason, StringComparison.OrdinalIgnoreCase);
+        if (!validDeclaration || literalGuardCount != 1 || hasExperimentalReason)
+        {
+            // Diagnostic metadata ONLY; never print procedure text or patch
+            // an unrecognized definition. A physically provisioned LocalDB
+            // smoke distinguishes SQL metadata formatting from schema drift.
+            throw new InvalidDataException(
+                "Procedure DT-10 desconhecida ou já alterada: experimento recusado. "
+                + $"declaration={validDeclaration}; guardCount={literalGuardCount}; "
+                + $"experimentalMarker={hasExperimentalReason}.");
+        }
 
         // Do not modify the existing no-candidate case or any source data. The
         // new reason is accepted only under the same isolated DB ownership marker
