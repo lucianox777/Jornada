@@ -86,16 +86,31 @@ public static class V9GoldHarnessDatabasePreparation
             {
                 var actualDefinition = await definitionQuery.ExecuteScalarAsync() as string
                     ?? throw new InvalidDataException("DT-10 batch procedure missing in disposable SQL.");
-                // Apply exactly the same validated patch as the physical Gold
-                // runner, then compile it using ALTER PROCEDURE on this newly
-                // created, explicitly marked and empty LocalDB. This detects
-                // SQL Server metadata normalization *and* syntax/SQL binding
-                // problems before an hour-long TRAIN matrix. It cannot touch
-                // operational SQL and does not modify any canonical migration.
+                // Compile the real experimental SQL in a transaction, then
+                // ROLLBACK: even CURRENT controls must start with the exact
+                // canonical DT-10 procedure. This prevents test instrumentation
+                // from changing the baseline while proving the SQL Server 17
+                // normalized header and SQL syntax will execute in LocalDB.
                 var experimentalSql = V9GoldDisposableLowerProcedurePatch.Apply(actualDefinition);
-                await using var patchCommand = new SqlCommand(experimentalSql, sql)
-                { CommandTimeout = 900 };
-                await patchCommand.ExecuteNonQueryAsync();
+                await using (var trialTransaction = (SqlTransaction)await sql.BeginTransactionAsync())
+                {
+                    try
+                    {
+                        await using var patchCommand = new SqlCommand(experimentalSql, sql, trialTransaction)
+                        { CommandTimeout = 900 };
+                        await patchCommand.ExecuteNonQueryAsync();
+                    }
+                    finally
+                    {
+                        await trialTransaction.RollbackAsync();
+                    }
+                }
+                await using var checkRestored = new SqlCommand(
+                    "SELECT OBJECT_DEFINITION(OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote', N'P'));",
+                    sql);
+                var restoredDefinition = await checkRestored.ExecuteScalarAsync() as string;
+                if (!string.Equals(actualDefinition, restoredDefinition, StringComparison.Ordinal))
+                    throw new InvalidDataException("DT-10 original altered by disposable preflight.");
             }
             await WriteNewAsync(Path.Combine(output, "schema-ready.json"), new
             {
