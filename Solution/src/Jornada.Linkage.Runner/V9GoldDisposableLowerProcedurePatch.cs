@@ -46,6 +46,17 @@ public static class V9GoldDisposableLowerProcedurePatch
                         WHERE class=0 AND name=N'Jornada.V9.ExperimentalHarness'
                           AND CONVERT(nvarchar(200),value)=N'PINNED_FIT_PREVIEW_NO_ACTIVATION')))
             """;
-        return canonicalDefinition.Replace(OldGuard, alternative, StringComparison.Ordinal);
+        // SQL Server can report CREATE PROCEDURE for the already installed
+        // module even when the migration used CREATE OR ALTER. Executing
+        // CREATE again would fail with "object already exists" after the
+        // signature preflight. Convert ONLY the validated leading declaration
+        // to ALTER PROCEDURE: this requires the named module to exist and
+        // cannot create another procedure on an unexpected database.
+        var patched = canonicalDefinition.Replace(OldGuard, alternative, StringComparison.Ordinal);
+        var declaration = ExpectedDeclaration.Match(patched);
+        var executableHeader = Regex.Replace(declaration.Value,
+            @"\bCREATE\s+(?:OR\s+ALTER\s+)?PROCEDURE\b",
+            "ALTER PROCEDURE", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+        return executableHeader + patched[declaration.Length..];
     }
 }
