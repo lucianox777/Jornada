@@ -16,8 +16,11 @@ param(
     [Parameter(Mandatory)][string]$GoldFittedSnapshot,
     [Parameter(Mandatory)][string]$ReferenceRoot,
     [Parameter(Mandatory)][string]$BirthDailySource,
-    [Parameter(Mandatory)][string]$OutputRoot
+    [Parameter(Mandatory)][string]$OutputRoot,
+    [ValidateSet('CURRENT','KNEE')][string]$Policy,
+    [ValidateSet('BASELINE_G0_G1_G2_G3','REVERSE_G3_G2_G1_G0','INTERLEAVED_G1_G3_G0_G2')][string]$Order
 )
+if ([bool]$Policy -ne [bool]$Order) { throw 'Policy e Order devem ser informados juntos.' }
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
@@ -70,6 +73,11 @@ $policies = @(
     [pscustomobject]@{ Slot = 'KNEE'; Floor = [decimal]'0.05' }
 )
 $orders = @('BASELINE_G0_G1_G2_G3','REVERSE_G3_G2_G1_G0','INTERLEAVED_G1_G3_G0_G2')
+if ($Policy) {
+    $policies = @($policies | Where-Object { $_.Slot -ceq $Policy })
+    $orders = @($Order)
+}
+$expectedTrials = if ($Policy) { 1 } else { 6 }
 $rows = [System.Collections.Generic.List[object]]::new()
 $seenFingerprints = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 $previousConnection = [Environment]::GetEnvironmentVariable('ConnectionStrings__Jornada', 'Process')
@@ -178,7 +186,7 @@ try {
             }
         }
     }
-    if ($rows.Count -ne 6 -or $seenFingerprints.Count -ne 6 -or
+    if ($rows.Count -ne $expectedTrials -or $seenFingerprints.Count -ne $expectedTrials -or
         @($rows | Select-Object -ExpandProperty Sources -Unique).Count -ne 1 -or
         @($rows | Select-Object -ExpandProperty TrueIdentities -Unique).Count -ne 1) {
         throw 'Seis execuções físicas únicas da mesma coorte são obrigatórias.'
@@ -195,7 +203,7 @@ try {
         }
     }
     $matrix = [pscustomobject]@{
-        Version = 'GOLD_INDEPENDENT_HOLDOUT_SIX_PHYSICAL_TRIALS_V1'
+        Version = if ($Policy) { 'GOLD_INDEPENDENT_HOLDOUT_ONE_PHYSICAL_TRIAL_V1' } else { 'GOLD_INDEPENDENT_HOLDOUT_SIX_PHYSICAL_TRIALS_V1' }
         Scope = 'INDEPENDENT_HOLDOUT'
         Seed = [uint64]20261025001
         NewCorpusSha256 = $csvSha
@@ -209,9 +217,10 @@ try {
         TestUsed = $false; IndependentlyCertified = $false
         OperationallyActivated = $false; Retuned = $false
     }
+    $fileName = if ($Policy) { 'holdout-trial.json' } else { 'holdout-six-trial-matrix.json' }
     $matrix | ConvertTo-Json -Depth 30 |
-        Set-Content -LiteralPath (Join-Path $root 'holdout-six-trial-matrix.json') -Encoding utf8 -NoNewline
-    Write-Host 'Six independent holdout SQL trials complete; aggregate-only matrix published.'
+        Set-Content -LiteralPath (Join-Path $root $fileName) -Encoding utf8 -NoNewline
+    Write-Host "Independent holdout physical trials complete: $expectedTrials. Aggregate-only output: $fileName"
 }
 finally {
     [Environment]::SetEnvironmentVariable('ConnectionStrings__Jornada', $previousConnection, 'Process')
