@@ -19,13 +19,13 @@ public sealed class V9GoldIndependentHoldoutContractTests
         30000, Sha(5), Sha(6), Sha(2), false, false, false, false, false);
 
     private static void Reject(Action run) =>
-        Assert.Throws<InvalidDataException>((NUnit.Framework.TestDelegate)(() => run()));
+        Assert.Throws<InvalidDataException>((System.Action)(() => run()));
 
     [Test]
     public void Fresh_declared_cohort_produces_six_trial_plan_without_certification()
     {
         var plan = V9GoldIndependentHoldoutContract.Prepare(Candidate(), Manifest(), Sha(5), LocalDb);
-        Assert.Multiple((NUnit.Framework.TestDelegate)(() =>
+        Assert.Multiple((System.Action)(() =>
         {
             Assert.That(plan.EvidenceScope, Is.EqualTo("INDEPENDENT_HOLDOUT"));
             Assert.That(plan.RequiredPhysicalTrials, Is.EqualTo(6));
@@ -68,7 +68,7 @@ public sealed class V9GoldIndependentHoldoutContractTests
             Manifest() with { HistoricalValidationUsed = true }, Sha(5), LocalDb));
         Reject(() => V9GoldIndependentHoldoutContract.Prepare(Candidate(),
             Manifest() with { OperationallyActivated = true }, Sha(5), LocalDb));
-        Assert.Throws<InvalidOperationException>((NUnit.Framework.TestDelegate)(() =>
+        Assert.Throws<InvalidOperationException>((System.Action)(() =>
             V9GoldIndependentHoldoutContract.Prepare(Candidate(), Manifest(), Sha(5),
                 "Server=prod;Database=Jornada;Integrated Security=true;")));
     }
