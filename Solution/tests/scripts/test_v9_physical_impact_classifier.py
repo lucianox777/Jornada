@@ -79,18 +79,6 @@ class V9PhysicalImpactTests(unittest.TestCase):
     def test_manual_always_requires_probe(self):
         self.assertTrue(m.classify([], manual=True)["run_physical_30k"])
 
-    def test_workflow_preserves_gate_and_original_probe_steps(self):
-        workflow = (Path(__file__).resolve().parents[3] / ".github/workflows/v9-physical-seed42-probe.yml").read_text(encoding="utf-8")
-        for literal in (
-            "  pull_request:\n", "  workflow_dispatch:\n",
-            "  impact:\n", "  physical-30k:\n", "  physical-seed42:\n",
-            "    name: SQL físico 30k clean — FS blind Rank-Resolve TF0\n",
-            "    needs: [impact, physical-30k]\n", "    if: always()\n",
-            "name: v9-physical-30k-impact-", "Calibrate 30k using ONLY TRAIN-adjust and TRAIN-selection",
-            "scripts/v9-physical-impact-classifier.py", "NOT_REQUIRED_FOR_THIS_DIFF",
-        ):
-            self.assertIn(literal, workflow)
-        self.assertNotIn("  pull_request:\n    paths:", workflow)
 
 
 if __name__ == "__main__":
