@@ -130,8 +130,31 @@ try {
                 [decimal]$report.lowerNonMatchExperiment.threshold -ne [decimal]'0.05') {
                 throw 'KNEE não corresponde ao candidato V6 congelado.'
             }
+            # The public matrix receives only per-error qualitative states,
+            # rounded scores and truth-in-blocking YES/NO. No local row keys,
+            # synthetic P-ID, names, dates, UUIDs or labels leave the runner.
+            $forensic = $report.holdoutErrorForensics
+            if ($null -eq $forensic -or $forensic.noPii -ne $true -or
+                $forensic.exportedIds -ne $false -or
+                $forensic.contract -cne 'GOLD_HOLDOUT_ERROR_FORENSICS_NO_IDENTIFIERS_V1' -or
+                @($forensic.cases | Where-Object { $_.Failure -eq 'FALSE_CREATION' }).Count -ne
+                    [long]$report.lowerNonMatchExperiment.finalFalseNewIdentityCreations) {
+                throw "Perícia sem identificação não reconcilia as criações físicas: $label"
+            }
             $rows.Add([pscustomobject]@{
                 Policy = $policy.Slot; OrderId = $order
+                ErrorForensicCases = @($forensic.cases)
+                ErrorForensicFalseCreations = [long]$forensic.falseCreationCaseCount
+                ErrorForensicFalseAcceptedEvents = [long]$forensic.falseAcceptedEventCaseCount
+                BlockingMissWhenTruthRepresented = @($forensic.cases | Where-Object {
+                    $_.TruthAmongBlockingCandidates -ceq 'NO'
+                }).Count
+                ScorerOrResolverWhenTrueCandidateRetrieved = @($forensic.cases | Where-Object {
+                    $_.TruthAmongBlockingCandidates -ceq 'YES'
+                }).Count
+                NotYetRepresentedInPriorGold = @($forensic.cases | Where-Object {
+                    $_.PriorGoldTruth -ceq 'NOT_REPRESENTED'
+                }).Count
                 Sources = [long]$report.goldEndToEnd.Observations
                 TrueIdentities = [long]$report.goldEndToEnd.TrueIdentities
                 Pending = [long]$report.goldEndToEnd.PendingSources
