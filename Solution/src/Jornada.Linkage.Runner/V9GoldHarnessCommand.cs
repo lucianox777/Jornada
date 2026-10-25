@@ -201,7 +201,17 @@ public static class V9GoldHarnessCommand
             }, lowerNonMatchThreshold, captureTrainEvidence, holdout is not null);
             var trainingEvidence = new List<V9GoldTrainPhysicalEvidence>();
             var bronzeRoot = Path.Combine(output, "bronze");
-            var runner = new ProbabilisticLinkageBatchRunner(new ConfigurationBuilder().Build(), sql, preview,
+            // The external 30k holdout uses canonical publication SQL on a disposable
+            // LocalDB. Its G2 publication exceeded the default 900s command timeout
+            // (physical run 40212632707). Raise ONLY this experiment's SQL command
+            // timeout; do not alter production settings, scoring or SQL atomicity.
+            var harnessConfiguration = holdout is null
+                ? new ConfigurationBuilder().Build()
+                : new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ProbabilisticLinkage:CommandTimeoutSeconds"] = "3600"
+                }).Build();
+            var runner = new ProbabilisticLinkageBatchRunner(harnessConfiguration, sql, preview,
                 new SqlPipelineCoordinator(sql), new Dt05ReplaySql(sql),
                 new Dt05ReplayManifestPublisher(new FileSystemBronzeObjectStore(bronzeRoot), bronzeRoot),
                 new Dt05CandidateStateSnapshotPublisher(sql, bronzeRoot), new Dt05BlockingProjectionSnapshotPublisher(sql, bronzeRoot),
