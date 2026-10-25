@@ -74,8 +74,19 @@ public sealed class V9GoldLowerNonMatchExperimentTests
             "CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote AS BEGIN " +
             "IF l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%' THROW 51810,'blocked',1; END";
         var patched = V9GoldDisposableLowerProcedurePatch.Apply(canonical);
+        // SQL Server 17 LocalDB OBJECT_DEFINITION normalization was measured
+        // physically in run #40132062400: ' CREATE   PROCEDURE ...'.
+        // Accept that exact known header form, not an unknown or altered guard.
+        var normalized = " CREATE   PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote"
+            + canonical["CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote".Length..];
+        var patchedNormalized = V9GoldDisposableLowerProcedurePatch.Apply(normalized);
         Multiple(() =>
         {
+            Assert.That(patchedNormalized.TrimStart(), Does.StartWith("ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote"));
+            Assert.That(patched.TrimStart(), Does.StartWith("ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote"));
+            Assert.That(patchedNormalized, Does.Not.Contain("CREATE OR ALTER PROCEDURE"));
+            Assert.That(patchedNormalized, Does.Contain("SERVERPROPERTY(N'IsLocalDB')"));
+            Assert.That(patchedNormalized, Does.Contain(V9GoldLowerNonMatchExperiment.PublicationReason));
             Assert.That(patched, Does.Contain("SERVERPROPERTY(N'IsLocalDB')"));
             Assert.That(patched, Does.Contain("Jornada.V9.ExperimentalHarness"));
             Assert.That(patched, Does.Contain(V9GoldLowerNonMatchExperiment.PublicationReason));
@@ -84,6 +95,11 @@ public sealed class V9GoldLowerNonMatchExperimentTests
         Reject<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(patched));
         Reject<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
             canonical.Replace("l.raw_motivo NOT LIKE", "l.raw_motivo LIKE", StringComparison.Ordinal)));
+        Reject<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
+            normalized.Replace("THROW 51810", "PRINT 51810", StringComparison.Ordinal)));
+        Reject<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
+            normalized.Replace("identidade.sp_publicar_resolucao_progressiva_linkage_lote",
+                "identidade.sp_other_unknown_procedure", StringComparison.Ordinal)));
         Reject<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
             canonical.Replace("THROW", "OR l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%' THROW",
                 StringComparison.Ordinal)));
