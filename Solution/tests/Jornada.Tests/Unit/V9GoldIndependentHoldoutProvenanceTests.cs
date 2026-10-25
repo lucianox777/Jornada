@@ -23,14 +23,14 @@ public sealed class V9GoldIndependentHoldoutProvenanceTests
         var root = Path.Combine(Path.GetTempPath(), "gold-holdout-provenance-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
         var peopleBuilder = new StringBuilder(
-            "base_person_id,particao,nome,nome_mae,data_nascimento,sexo,cpf,cns,cns_scenario,evaluation_weight\\n");
+            "base_person_id,particao,nome,nome_mae,data_nascimento,sexo,cpf,cns,cns_scenario,evaluation_weight\n");
         var observationBuilder = new StringBuilder(
-            "observacao_id,base_person_id,particao,gestor,nome,nome_mae,data_nascimento,sexo,cpf,cns,corrupcoes,evaluation_weight\\n");
+            "observacao_id,base_person_id,particao,gestor,nome,nome_mae,data_nascimento,sexo,cpf,cns,corrupcoes,evaluation_weight\n");
         for (var i = 0; i < 30000; i++)
         {
-            peopleBuilder.Append("P").Append(i).Append(",TRAIN,A,B,2000-01-01,F,,,,1\\n");
+            peopleBuilder.Append("P").Append(i).Append(",TRAIN,A,B,2000-01-01,F,,,,1\n");
             observationBuilder.Append("O").Append(i).Append(",P").Append(i)
-                .Append(",TRAIN,G0,A,B,2000-01-01,F,,,,1\\n");
+                .Append(",TRAIN,G0,A,B,2000-01-01,F,,,,1\n");
         }
         var people = peopleBuilder.ToString();
         var observations = observationBuilder.ToString();
