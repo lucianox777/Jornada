@@ -66,7 +66,7 @@ public static class V9GoldIndependentHoldoutContract
         RequireSha(manifest.CohortFingerprintSha256);
         RequireSha(manifest.GoldFittedSnapshotSha256);
         RequireSha(actualCsvSha256);
-        if (candidate.ContractVersion != "GOLD_V6_KNEE_VALIDATION_CANDIDATE_V1"
+        if (candidate.ContractVersion != "GOLD_V6_FROZEN_KNEE_VALIDATION_CANDIDATE_V1"
             || candidate.IndependentlyValidated || candidate.TestUsed
             || candidate.Certified || candidate.OperationallyActivated
             || candidate.CandidateLowerThreshold <= 0m || candidate.CandidateLowerThreshold >= 1m)
