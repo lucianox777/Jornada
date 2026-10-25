@@ -81,4 +81,39 @@ public sealed class V9GoldIndependentHoldoutContractTests
             Manifest() with { CohortFingerprintSha256 = Sha(9) }, Sha(5), LocalDb);
         Assert.That(a.IdentityNamespaceSha256, Is.Not.EqualTo(b.IdentityNamespaceSha256));
     }
+    [Test]
+    public async Task External_physical_cli_rejects_invalid_policy_or_operational_connection_before_reading_cohort()
+    {
+        var parameters = new[] {
+            "--v9-gold-holdout-harness", "candidate.json", "new-cohort",
+            "selection.json", "validation.json", "fit.json", "output", "BASELINE_G0_G1_G2_G3", "INVALID"
+        };
+        Assert.ThrowsAsync<ArgumentException>(new Func<Task>(async () =>
+            await V9GoldHarnessCommand.RunIndependentHoldoutAsync(parameters, LocalDb)));
+
+        parameters[8] = "CURRENT";
+        Assert.ThrowsAsync<InvalidOperationException>(new Func<Task>(async () =>
+            await V9GoldHarnessCommand.RunIndependentHoldoutAsync(parameters,
+                "Server=production;Database=JornadaLocal;Integrated Security=true;")));
+    }
+
+    [Test]
+    public void Frozen_candidate_manifest_is_both_external_and_non_operational()
+    {
+        // The actual V6 evidence is a distinct new JSON input pinned under
+        // data/calibration. A holdout cannot invent a knee in SQL or reopen TEST.
+        var a = Candidate();
+        var plan = V9GoldIndependentHoldoutContract.Prepare(a, Manifest(), Sha(5), LocalDb);
+        Assert.Multiple((System.Action)(() =>
+        {
+            Assert.That(plan.ContractVersion, Is.EqualTo(V9GoldIndependentHoldoutContract.Version));
+            Assert.That(plan.Seed, Is.EqualTo(20261025001UL));
+            Assert.That(plan.EvidenceScope, Is.EqualTo(V9GoldIndependentHoldoutContract.Scope));
+            Assert.That(plan.RequiredPhysicalTrials, Is.EqualTo(6));
+            Assert.That(plan.CandidateLowerThreshold, Is.EqualTo(a.CandidateLowerThreshold));
+            Assert.That(plan.TestUsed || plan.OperationallyActivated || plan.IndependentlyCertified,
+                Is.False);
+        }));
+    }
+
 }
