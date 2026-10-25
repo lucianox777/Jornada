@@ -72,9 +72,18 @@ public static class V9GoldHarnessCommand
             ?? throw new InvalidDataException("Candidato congelado ausente.");
         var plan = await V9GoldIndependentHoldoutProvenance.VerifyAsync(
             candidate, args[2], connectionString);
+        var goldBytes = await File.ReadAllBytesAsync(args[5]);
+        var gold = V9FittedSnapshot.Load(goldBytes, Sha(goldBytes));
         if (!string.Equals(plan.GoldFittedSnapshotSha256,
-                Sha(await File.ReadAllBytesAsync(args[5])), StringComparison.OrdinalIgnoreCase)
+                gold.ContentSha256, StringComparison.OrdinalIgnoreCase)
+            || gold.Payload.Threshold != .8671875m
             || plan.Seed != 20261025001UL || plan.CandidateLowerThreshold != .05m
+            || !string.Equals(candidate.TrainingCorpusSha256,
+                "28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17",
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(candidate.SourceMatrixSha256,
+                "147ce1a0efe111d93465b9c375308284cbe8e9678b98df911a8546ff7f1fbb77",
+                StringComparison.OrdinalIgnoreCase)
             || !string.Equals(candidate.SourceArtifactSha256,
                 "79b2b1a19dc60344a33069ca5a4b4d4d539a06b92058bff61087dfa89699056c",
                 StringComparison.OrdinalIgnoreCase))
