@@ -1,0 +1,56 @@
+name: v9-gold-disposable-dt10-physical-preflight
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-gold-disposable-dt10-physical-preflight.yml'
+      - 'Solution/src/Jornada.Linkage.Runner/V9GoldDisposableLowerProcedurePatch.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9GoldHarnessDatabasePreparation.cs'
+      - 'Solution/database/migrations/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  localdb-dt10-patch-readonly-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          global-json-file: Solution/global.json
+      - name: Locate and persist installed LocalDB executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $found = Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue
+          $binary = if ($found) { $found.Source } else { $null }
+          if (-not $binary) {
+            $root = Join-Path $env:ProgramFiles 'Microsoft SQL Server'
+            if (Test-Path -LiteralPath $root -PathType Container) {
+              $match = Get-ChildItem -LiteralPath $root -Filter SqlLocalDB.exe -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($match) { $binary = $match.FullName }
+            }
+          }
+          if (-not $binary -or -not (Test-Path -LiteralPath $binary -PathType Leaf)) {
+            throw 'Disposable LocalDB is required; no operational SQL fallback.'
+          }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value (Split-Path -Path $binary -Parent) -Encoding utf8
+          & $binary info
+          if ($LASTEXITCODE -ne 0) { throw 'LocalDB cannot list instances.' }
+      - name: Provision real canonical DT-10 and reject unrecognized module before expensive TRAIN waves
+        shell: pwsh
+        working-directory: Solution
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet build src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release
+          $runner = Join-Path $PWD 'src/Jornada.Linkage.Runner/bin/Release/net10.0/Jornada.Linkage.Runner.dll'
+          $output = Join-Path $env:RUNNER_TEMP 'gold-dt10-localdb-preflight'
+          dotnet $runner --v9-gold-harness-create $output (Join-Path $PWD 'database')
+          if (-not (Test-Path -LiteralPath (Join-Path $output 'schema-ready.json') -PathType Leaf)) {
+            throw 'Disposable SQL preflight did not create its readiness manifest.'
+          }

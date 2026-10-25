@@ -77,6 +77,41 @@ public static class V9GoldHarnessDatabasePreparation
                 EXEC sys.sp_addextendedproperty @name=N'Jornada.V9.ExperimentalHarness',@value=N'PINNED_FIT_PREVIEW_NO_ACTIVATION';
                 """, sql))
                 await mark.ExecuteNonQueryAsync();
+            // Cheap fail-closed physical SQL patch preflight: must pass BEFORE
+            // any hour-long TRAIN corpus replay or physical control trials.
+            // The permanent canonical DT-10 module is never mutated here.
+            await using (var definitionQuery = new SqlCommand(
+                "SELECT OBJECT_DEFINITION(OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote', N'P'));",
+                sql))
+            {
+                var actualDefinition = await definitionQuery.ExecuteScalarAsync() as string
+                    ?? throw new InvalidDataException("DT-10 batch procedure missing in disposable SQL.");
+                // Compile the real experimental SQL in a transaction, then
+                // ROLLBACK: even CURRENT controls must start with the exact
+                // canonical DT-10 procedure. This prevents test instrumentation
+                // from changing the baseline while proving the SQL Server 17
+                // normalized header and SQL syntax will execute in LocalDB.
+                var experimentalSql = V9GoldDisposableLowerProcedurePatch.Apply(actualDefinition);
+                await using (var trialTransaction = (SqlTransaction)await sql.BeginTransactionAsync())
+                {
+                    try
+                    {
+                        await using var patchCommand = new SqlCommand(experimentalSql, sql, trialTransaction)
+                        { CommandTimeout = 900 };
+                        await patchCommand.ExecuteNonQueryAsync();
+                    }
+                    finally
+                    {
+                        await trialTransaction.RollbackAsync();
+                    }
+                }
+                await using var checkRestored = new SqlCommand(
+                    "SELECT OBJECT_DEFINITION(OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote', N'P'));",
+                    sql);
+                var restoredDefinition = await checkRestored.ExecuteScalarAsync() as string;
+                if (!string.Equals(actualDefinition, restoredDefinition, StringComparison.Ordinal))
+                    throw new InvalidDataException("DT-10 original altered by disposable preflight.");
+            }
             await WriteNewAsync(Path.Combine(output, "schema-ready.json"), new
             {
                 instance, database = "JornadaHarness", canonicalFiles = files.Length,
