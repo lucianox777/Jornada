@@ -103,8 +103,8 @@ jobs:
           name: v9-gold-independent-holdout-${{ github.run_id }}
           retention-days: 30
           if-no-files-found: warn
+          # Raw per-trial reports stay on ephemeral runners; they can contain run GUIDs.
           path: |
             ${{ runner.temp }}/gold-independent-holdout-v6/holdout-plan.json
             ${{ runner.temp }}/gold-independent-holdout-v6/holdout-six-trial-matrix.json
             ${{ runner.temp }}/gold-independent-holdout-v6/new-cohort-seed-20261025001/generation-manifest.json
-            # Per-trial raw reports stay on ephemeral runners: they may contain run GUIDs.
