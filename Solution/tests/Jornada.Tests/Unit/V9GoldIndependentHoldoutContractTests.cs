@@ -1,4 +1,5 @@
 using Jornada.Linkage.Runner;
+using Jornada.Contracts;
 
 namespace Jornada.Tests.Unit;
 
@@ -113,6 +114,44 @@ public sealed class V9GoldIndependentHoldoutContractTests
             Assert.That(plan.CandidateLowerThreshold, Is.EqualTo(a.CandidateLowerThreshold));
             Assert.That(plan.TestUsed || plan.OperationallyActivated || plan.IndependentlyCertified,
                 Is.False);
+        }));
+    }
+
+    [Test]
+    public void Identical_physical_candidate_frames_use_value_equality_not_list_reference()
+    {
+        // A final reevaluation can score two distinct observations whose
+        // person/mother/birth values coincide. Every invocation materializes
+        // a fresh ReadOnlyCollection even when all FS evidence is identical.
+        // It must not be misdiagnosed as an inconsistent scorer.
+        var model = Guid.Parse("12345678-1234-4123-8123-123456789abc");
+        var candidateId = Guid.Parse("87654321-4321-4123-8123-abcdef123456");
+        var left = new[] { new V9SnapshotCandidate(candidateId, "MARIA LIMA",
+            new DateOnly(1980, 1, 2), "ANA LIMA") };
+        var right = new List<V9SnapshotCandidate> {
+            new(candidateId, "MARIA LIMA", new DateOnly(1980, 1, 2), "ANA LIMA")
+        }.AsReadOnly();
+        var decision = new ProbabilisticLinkageDecision(
+            ResolutionStatus.RESOLVIDO, candidateId, candidateId, .95m,
+            null, null, null, model);
+        var retrieval = new V9LowerNonMatchPreview.VerifiedRetrieval(
+            Sha(1), Sha(2), 1, true, true, true);
+
+        Assert.Multiple((System.Action)(() =>
+        {
+            Assert.That(ReferenceEquals(left, right), Is.False);
+            Assert.That(V9GoldHarnessCommand.SameFrozenDiagnosticFrame(
+                decision, retrieval, left, decision with { }, retrieval with { }, right), Is.True);
+            Assert.That(V9GoldHarnessCommand.SameFrozenDiagnosticFrame(
+                decision, retrieval, left, decision with { MelhorScore = .93m }, retrieval, right),
+                Is.False, "real FS divergence is still rejected");
+            Assert.That(V9GoldHarnessCommand.SameFrozenDiagnosticFrame(
+                decision, retrieval, left, decision, retrieval with { CandidateFrameSha256 = Sha(3) },
+                right), Is.False, "candidate-retrieval drift is still rejected");
+            Assert.That(V9GoldHarnessCommand.SameFrozenDiagnosticFrame(
+                decision, retrieval, left, decision, retrieval,
+                new[] { right[0] with { MotherName = "BIA LIMA" } }),
+                Is.False, "candidate value drift is still rejected");
         }));
     }
 
