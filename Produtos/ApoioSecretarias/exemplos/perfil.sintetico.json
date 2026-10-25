@@ -1,0 +1,36 @@
+{
+  "versao": 1,
+  "gestor": "SEHAB",
+  "sistemaOrigem": "SEHAB",
+  "pessoaSchemaVersao": 5,
+  "dataReferencia": "2026-09-27T00:00:00-03:00",
+  "natureza": null,
+  "codigoTipo": null,
+  "tipoVersao": null,
+  "enviar": false,
+  "endpoint": "https://api.exemplo.invalid/api/v1/ingestao/entregas",
+  "arquivos": [
+    {
+      "padrao": "pessoas.csv",
+      "papel": "pessoas",
+      "formato": "csv",
+      "delimitador": ";",
+      "colunas": {
+        "idPessoaEntrega": "id",
+        "codigoPessoaOrigem": "codigo",
+        "nomeCompleto": "nome",
+        "dataNascimento": "nascimento",
+        "cpf": "cpf",
+        "cpfAusenteMotivo": "cpf_ausente_motivo",
+        "nomeMae": "mae"
+      }
+    }
+  ],
+  "contratos": {
+    "pessoas": {
+      "arquivo": "esquemas/pessoa.sintetica.schema.json",
+      "sha256": "8863d2a99d5a9880e8dddc60426763df9b216540614f2f2f5df56d58baa4f10d",
+      "versao": 5
+    }
+  }
+}

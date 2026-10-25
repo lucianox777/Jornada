@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "EXEMPLO SINTETICO: NAO E CONTRATO FACTUAL AA01 APROVADO",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["idPessoaEntrega", "codigoRegistroOrigem", "operacao"],
+  "properties": {
+    "idPessoaEntrega": {"type": "string", "minLength": 1},
+    "codigoRegistroOrigem": {"type": "string", "minLength": 1},
+    "operacao": {"enum": ["INCLUSAO", "ALTERACAO", "RETIFICACAO", "EXCLUSAO"]}
+  }
+}

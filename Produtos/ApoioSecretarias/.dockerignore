@@ -1,0 +1,9 @@
+.git
+.github
+__pycache__
+.pytest_cache
+*.exe
+*.zip
+*.pyc
+exemplos
+saida

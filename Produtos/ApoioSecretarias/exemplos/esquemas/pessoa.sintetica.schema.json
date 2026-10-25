@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$comment": "EXEMPLO SINTETICO: NAO E CONTRATO APROVADO DE NENHUMA SECRETARIA",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["idPessoaEntrega", "nomeCompleto", "dataNascimento"],
+  "properties": {
+    "idPessoaEntrega": {"type": "string", "minLength": 1, "maxLength": 120},
+    "codigoPessoaOrigem": {"type": "string", "minLength": 1, "maxLength": 255},
+    "nomeCompleto": {"type": "string", "minLength": 1, "maxLength": 500},
+    "dataNascimento": {"type": "string", "format": "date"},
+    "nomeMae": {"type": "string", "minLength": 1},
+    "cpf": {"type": ["string", "null"], "pattern": "^[0-9]{11}$"},
+    "cpfAusenteMotivo": {"type": "string", "enum": ["NAO_INFORMADO_ORIGEM", "SEM_DOCUMENTACAO_BASE_DECLARADA", "COM_DOCUMENTACAO_SEM_CPF_CONHECIDO", "EM_REGULARIZACAO"]}
+  }
+}
