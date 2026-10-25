@@ -188,6 +188,118 @@ public static class GoldTrainThreeOrderProtocol
     }
 
     /// <summary>
+    /// Lock a Gold V6 knee as a CANDIDATE for a genuinely new, independently
+    /// evaluated synthetic cohort. No model promotion, TEST reservation, CSV
+    /// rewriting, database connection, reranking or refit occurs here.
+    /// The threshold is supplied by the human-reviewed TRAIN evidence; this
+    /// method NEVER hardcodes or discovers a threshold from validation data.
+    /// </summary>
+    public sealed record FrozenGoldValidationCandidate(
+        string ContractVersion,
+        decimal CandidateLowerThreshold,
+        string TrainingCorpusSha256,
+        string GoldFittedSnapshotSha256,
+        string SourceArtifactSha256,
+        string SourceMatrixSha256,
+        ulong ProposedHoldoutSeed,
+        long SourceCount,
+        long IndependentTrainingIdentityGroups,
+        long WorstPendingSources,
+        long WorstFalseNewIdentityCreations,
+        long WorstFalseGoldPairs,
+        double WorstCoverageAwareBcubedF1,
+        bool IndependentlyValidated,
+        bool TestUsed,
+        bool Certified,
+        bool OperationallyActivated);
+
+    public static FrozenGoldValidationCandidate FreezeKneeForIndependentValidation(
+        GoldTrainLowerNonMatchMatrixCommand.Matrix matrix,
+        decimal selectedLowerThreshold,
+        string sourceArtifactSha256,
+        string sourceMatrixSha256,
+        ulong proposedHoldoutSeed)
+    {
+        ArgumentNullException.ThrowIfNull(matrix);
+        RequireSha(sourceArtifactSha256);
+        RequireSha(sourceMatrixSha256);
+        RequireSha(matrix.OriginalCorpusSha256);
+        RequireSha(matrix.FrozenSnapshotSha256);
+        if (proposedHoldoutSeed is 0 or 42 or 43 or 44 or 20261019001)
+            throw new InvalidDataException("VALIDATION externa exige semente nova, não usada em TRAIN/ensaios históricos.");
+        if (selectedLowerThreshold <= 0m || selectedLowerThreshold >= 1m
+            || matrix.Version != "GOLD_TRAIN_LOWER_NONMATCH_MATRIX_V2"
+            || !matrix.TrainOnly || matrix.IndependentlyCertified || matrix.OperationallyActivated
+            || matrix.FinalistCount is < 1 or > 3
+            || matrix.ExecutedTrialCount != 3 * (1 + matrix.FinalistCount)
+            || matrix.Rows is null || matrix.Rows.Count != matrix.ExecutedTrialCount)
+            throw new InvalidDataException("Não é matriz Gold V6 TRAIN completa e não certificada.");
+
+        var policies = matrix.Rows.GroupBy(row => row.PolicySlot, StringComparer.Ordinal).ToArray();
+        if (policies.Length != 1 + matrix.FinalistCount
+            || policies.Select(x => x.Key).Distinct(StringComparer.Ordinal).Count() != policies.Length
+            || policies.Count(x => x.Key == "CURRENT") != 1
+            || policies.Count(x => x.Key == "KNEE") != 1)
+            throw new InvalidDataException("Políticas Gold incompletas ou sem joelho.");
+        var observedLower = new HashSet<decimal>();
+        long? originalSources = null;
+        long? originalIdentities = null;
+        foreach (var group in policies)
+        {
+            if (group.Count() != 3 || !group.Select(x => x.Metrics.OrderId)
+                .SequenceEqual(OrderIds, StringComparer.Ordinal))
+                throw new InvalidDataException("Cada política precisa das mesmas três ordens pré-declaradas.");
+            var isControl = group.Key == "CURRENT";
+            if (!isControl && !group.Key.StartsWith("FINALIST_", StringComparison.Ordinal)
+                && group.Key != "KNEE")
+                throw new InvalidDataException("Slot experimental desconhecido.");
+            if (!isControl && (group.First().LowerThreshold is not { } lower
+                || lower <= 0m || lower >= 1m || !observedLower.Add(lower)
+                || group.Any(row => row.LowerThreshold != lower
+                    || row.Policy != "EXPERIMENTAL_LOWER_TRAIN_ONLY")))
+                throw new InvalidDataException("Limiar experimental muda entre ordens ou está duplicado.");
+            foreach (var row in group)
+            {
+                var m = row.Metrics;
+                if (m is null || m.Sources <= 0 || m.TrueIdentities <= 0
+                    || m.Sources < m.TrueIdentities
+                    || m.PendingSources < 0 || m.PendingSources > m.Sources
+                    || m.PublishedSources != m.Sources - m.PendingSources
+                    || row.FalseNewIdentityCreations < 0 || row.FalseNewIdentityCreations > m.Sources
+                    || m.FalseGoldPairs < 0 || m.FalseAcceptedLinks < 0
+                    || !double.IsFinite(m.BcubedCoverageAwarePrecision)
+                    || !double.IsFinite(m.BcubedCoverageAwareRecall)
+                    || m.BcubedCoverageAwarePrecision is < 0 or > 1
+                    || m.BcubedCoverageAwareRecall is < 0 or > 1
+                    || (m.AcceptedLinkFdr is { } fdr && (!double.IsFinite(fdr) || fdr is < 0 or > 1))
+                    || (isControl && (row.Policy != "CURRENT" || row.LowerThreshold is not null)))
+                    throw new InvalidDataException("Métrica, política ou denominador Gold inválido.");
+                if (originalSources is null) { originalSources = m.Sources; originalIdentities = m.TrueIdentities; }
+                else if (originalSources != m.Sources || originalIdentities != m.TrueIdentities)
+                    throw new InvalidDataException("Universo de identidade deve ser idêntico entre políticas/ordens.");
+            }
+        }
+        var knee = policies.Single(x => x.Key == "KNEE").ToArray();
+        if (knee[0].LowerThreshold != selectedLowerThreshold
+            || observedLower.Count != matrix.FinalistCount)
+            throw new InvalidDataException("Candidato precisa ser exatamente o joelho efetivamente medido no TRAIN.");
+
+        static double F1(double p, double r) => p + r == 0 ? 0 : 2 * p * r / (p + r);
+        return new FrozenGoldValidationCandidate(
+            "GOLD_V6_FROZEN_KNEE_VALIDATION_CANDIDATE_V1",
+            selectedLowerThreshold, matrix.OriginalCorpusSha256, matrix.FrozenSnapshotSha256,
+            sourceArtifactSha256, sourceMatrixSha256, proposedHoldoutSeed,
+            originalSources!.Value, originalIdentities!.Value,
+            knee.Max(x => x.Metrics.PendingSources),
+            knee.Max(x => x.FalseNewIdentityCreations),
+            knee.Max(x => x.Metrics.FalseGoldPairs),
+            knee.Min(x => F1(x.Metrics.BcubedCoverageAwarePrecision,
+                x.Metrics.BcubedCoverageAwareRecall)),
+            IndependentlyValidated: false, TestUsed: false,
+            Certified: false, OperationallyActivated: false);
+    }
+
+    /// <summary>
     /// SHA-256 of the COMPLETE final source membership, including pending
     /// source flags. Source keys MUST be stable IDs read from the frozen TRAIN
     /// CSV, not SQL identity columns. No labels or person UUIDs are exported.
