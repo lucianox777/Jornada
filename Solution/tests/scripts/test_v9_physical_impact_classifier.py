@@ -24,6 +24,17 @@ class V9PhysicalImpactTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertFalse(self.changes(path))
 
+    def test_gold_holdout_contract_and_tests_skip_physical(self):
+        self.assertFalse(self.changes(
+            "Solution/src/Jornada.Linkage.Runner/V9GoldIndependentHoldoutContract.cs",
+            "Solution/tests/Jornada.Tests/Unit/V9GoldIndependentHoldoutContractTests.cs",
+            "Solution/docs/V9_Gold_Holdout_Contrato_Preflight_20261025.md",
+        ))
+        self.assertTrue(self.changes(
+            "Solution/src/Jornada.Linkage.Runner/V9GoldIndependentHoldoutContract.cs",
+            "Solution/src/Jornada.Linkage.Core/FellegiSunterScoring.cs",
+        ))
+
     def test_only_markdown_skips(self):
         self.assertFalse(self.changes("Solution/docs/X.md", "Documentos/README.md"))
         self.assertTrue(self.changes("Solution/docs/evidence/E2E_B_Baseline_20261001.yml"))
