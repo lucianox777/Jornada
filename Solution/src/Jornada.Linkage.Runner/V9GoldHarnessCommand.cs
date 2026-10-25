@@ -25,6 +25,7 @@ public static class V9GoldHarnessCommand
     public const string Flag = "--v9-gold-harness";
     private const string Marker = "PINNED_FIT_PREVIEW_NO_ACTIVATION";
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions FrozenCandidateJson = new() { PropertyNameCaseInsensitive = true };
     private sealed record Source(long Id, string Truth, string Manager, IdentityObservation Observation);
     private sealed record Outcome(bool Eligible, bool TrueAccepted, bool FalseAccepted, string Status,
         bool PublishedTrueAssociation, bool PublishedFalseAssociation, string PublicationResult, bool LowerBandProposal);
