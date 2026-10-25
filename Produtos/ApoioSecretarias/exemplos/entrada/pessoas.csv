@@ -1,0 +1,3 @@
+id;codigo;nome;nascimento;cpf;cpf_ausente_motivo;mae
+P1;S1;Pessoa Inteiramente Ficticia;1990-01-02;11144477735;;Mae Sintetica
+P2;S2;Pessoa de Teste Sem CPF;1991-02-03;;NAO_INFORMADO_ORIGEM;Mae Sintetica B
