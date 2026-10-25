@@ -806,6 +806,18 @@ public static class V9GoldHarnessCommand
         V9LowerNonMatchPreview.VerifiedRetrieval Retrieval,
         IReadOnlyList<V9SnapshotCandidate> Candidates);
 
+    // Internal only: production linkage is never changed; friend tests can
+    // exercise structural capture identity without exposing diagnostic data.
+    internal static bool SameFrozenDiagnosticFrame(
+        ProbabilisticLinkageDecision leftDecision,
+        V9LowerNonMatchPreview.VerifiedRetrieval leftRetrieval,
+        IReadOnlyList<V9SnapshotCandidate> leftCandidates,
+        ProbabilisticLinkageDecision rightDecision,
+        V9LowerNonMatchPreview.VerifiedRetrieval rightRetrieval,
+        IReadOnlyList<V9SnapshotCandidate> rightCandidates) =>
+        leftDecision == rightDecision && leftRetrieval == rightRetrieval
+        && leftCandidates.SequenceEqual(rightCandidates);
+
     // One row per distinct physical error event, NO source IDs/labels, names,
     // birth dates, candidate UUIDs or score-bearing raw observations.
     private sealed record GoldErrorForensicCase(
@@ -951,9 +963,9 @@ public static class V9GoldHarnessCommand
                 // scientific disagreement, and never silently accept genuinely
                 // different evidence for the same input.
                 if (!dictionary.TryAdd(key, value) && dictionary.TryGetValue(key, out var earlier)
-                    && (earlier.Decision != value.Decision
-                        || earlier.Retrieval != value.Retrieval
-                        || !earlier.Candidates.SequenceEqual(value.Candidates)))
+                    && !SameFrozenDiagnosticFrame(
+                        earlier.Decision, earlier.Retrieval, earlier.Candidates,
+                        value.Decision, value.Retrieval, value.Candidates))
                     throw new InvalidDataException(
                         "Observações idênticas tiveram quadro real FS/blocking divergente.");
             }
