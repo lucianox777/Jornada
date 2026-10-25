@@ -54,8 +54,44 @@ public static class V9GoldHarnessCommand
         string[] args, string connectionString) =>
         RunInternalAsync(args, connectionString, captureTrainEvidence: true);
 
+    /// <summary>
+    /// Six-trial external evaluation uses the SAME physical incremental/Gold
+    /// measurement pipeline, but an independently verified CSV and an explicit
+    /// INDEPENDENT_HOLDOUT scope. The TRAIN entry point never accepts that CSV.
+    /// No refit, threshold selection or operational model publication occurs.
+    /// </summary>
+    public static async Task RunIndependentHoldoutAsync(string[] args, string connectionString)
+    {
+        if (args is null || args.Length != 9 || args[0] != "--v9-gold-holdout-harness"
+            || args[8] is not ("CURRENT" or "KNEE"))
+            throw new ArgumentException(
+                "Uso: --v9-gold-holdout-harness <frozen-candidate.json> <cohort-dir> <TRAIN-selection.json> <finalist-validation.json> <Gold-fitted.json> <output-new> <order> <CURRENT|KNEE>.");
+        ValidateDisposableConnection(connectionString);
+        var candidate = JsonSerializer.Deserialize<GoldTrainThreeOrderProtocol.FrozenGoldValidationCandidate>(
+            await File.ReadAllBytesAsync(args[1]), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+            ?? throw new InvalidDataException("Candidato congelado ausente.");
+        var plan = await V9GoldIndependentHoldoutProvenance.VerifyAsync(
+            candidate, args[2], connectionString);
+        if (!string.Equals(plan.GoldFittedSnapshotSha256,
+                Sha(await File.ReadAllBytesAsync(args[5])), StringComparison.OrdinalIgnoreCase)
+            || plan.Seed != 20261025001UL || plan.CandidateLowerThreshold != .05m
+            || !string.Equals(candidate.SourceArtifactSha256,
+                "79b2b1a19dc60344a33069ca5a4b4d4d539a06b92058bff61087dfa89699056c",
+                StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Holdout não usa fit, seed e candidato do registro V6 congelado.");
+        var translated = new List<string> {
+            Flag, args[3], args[4], args[5], Path.Combine(args[2], "observacoes.csv"),
+            args[6], args[7] };
+        if (args[8] == "KNEE")
+            translated.Add("LOWER_NONMATCH=" +
+                plan.CandidateLowerThreshold.ToString(CultureInfo.InvariantCulture));
+        _ = await RunInternalAsync(translated.ToArray(), connectionString,
+            captureTrainEvidence: false, holdout: plan);
+    }
+
     private static async Task<IReadOnlyList<V9GoldTrainPhysicalEvidence>> RunInternalAsync(
-        string[] args, string connectionString, bool captureTrainEvidence)
+        string[] args, string connectionString, bool captureTrainEvidence,
+        V9GoldIndependentHoldoutContract.Plan? holdout = null)
     {
         if (args.Length is < 6 or > 8 || args[0] != Flag)
             throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2] [LOWER_NONMATCH=<decimal>]; usar exclusivamente LocalDB descartável.");
@@ -81,13 +117,18 @@ public static class V9GoldHarnessCommand
         var parent = V9FittedSnapshot.Load(await File.ReadAllBytesAsync(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[1]))!, winner + ".fitted.json")), winner);
         if (!parent.CreateGoldHarnessVariant().SerializeUtf8().AsSpan().SequenceEqual(fitBytes))
             throw new InvalidDataException("Variante altera parâmetros além do contrato Gold permitido.");
-        await using (var input = File.OpenRead(args[4]))
-            if (!string.Equals(Convert.ToHexString(await SHA256.HashDataAsync(input)), selection.RootElement.GetProperty("originalObservationsSha256").GetString(), StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("CSV não é o TRAIN original fixado.");
-        var identities = result.GetProperty("Split").GetProperty("Assignments").EnumerateArray()
-            .Where(x => x.GetProperty("Purpose").GetString() == "TRAIN_SELECTION")
-            .Select(x => x.GetProperty("BaseIdentity").GetString()!).ToHashSet(StringComparer.Ordinal);
-        var sources = ReadTrainSelection(args[4], identities);
+        var csvSha = Sha(await File.ReadAllBytesAsync(args[4]));
+        if (!string.Equals(csvSha, holdout?.CsvSha256
+                ?? selection.RootElement.GetProperty("originalObservationsSha256").GetString(),
+                StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("CSV diverge do corpus fixado para o escopo solicitado.");
+        var identities = holdout is null
+            ? result.GetProperty("Split").GetProperty("Assignments").EnumerateArray()
+                .Where(x => x.GetProperty("Purpose").GetString() == "TRAIN_SELECTION")
+                .Select(x => x.GetProperty("BaseIdentity").GetString()!).ToHashSet(StringComparer.Ordinal)
+            : new HashSet<string>(StringComparer.Ordinal);
+        var sources = ReadSources(args[4], holdout is null ? identities : null,
+            holdout?.IdentityNamespaceSha256);
         var wavesByManager = sources.GroupBy(x => x.Manager, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
         // Validate the PRE-REGISTERED order against the complete same CSV
@@ -105,6 +146,11 @@ public static class V9GoldHarnessCommand
         var trialOrderId = orderOptions.Length == 1 ? orderOptions[0] : GoldTrainThreeOrderProtocol.Baseline;
         var executedWaveOrder = GoldTrainThreeOrderProtocol.ResolveOrder(
             trialOrderId, wavesByManager.Keys);
+        if (holdout is not null && (captureTrainEvidence
+            || (lowerNonMatchThreshold is not null &&
+                lowerNonMatchThreshold != holdout.CandidateLowerThreshold)
+            || sources.Select(x => x.Truth).Distinct(StringComparer.Ordinal).Count() < 1000))
+            throw new InvalidDataException("Plano holdout: somente CURRENT/KNEE congelado e coorte suficiente.");
         if (captureTrainEvidence && (lowerNonMatchThreshold is not null
             || trialOrderId != GoldTrainThreeOrderProtocol.Baseline))
             throw new InvalidOperationException(
@@ -135,7 +181,7 @@ public static class V9GoldHarnessCommand
         try
         {
             var modelId = Guid.NewGuid();
-            await InsertDraftAsync(owner, modelId, snapshot);
+            await InsertDraftAsync(owner, modelId, snapshot, holdout is not null);
             var runtime = V9FittedSnapshotExecutionRuntime.Load(fitBytes, snapshot.ContentSha256);
             var preview = new IsolatedPreview(sql, runtime, new(modelId, 1, LinkageParameterCatalog.CompositeNominalDecisionEvidenceAlgorithmVersion,
                 snapshot.Payload.Threshold, snapshot.Payload.ConflictMargin)
@@ -165,7 +211,9 @@ public static class V9GoldHarnessCommand
                 foreach (var item in added) truthByObservation.Add(item.Key, item.Value);
                 if (captureTrainEvidence) preview.BeginWave();
                 var summary = await runner.RunAsync(new(LinkageRunType.INCREMENTAL, 1, null, manager, null,
-                    1000, 2, null, "V9_DISPOSABLE_HARNESS", "PINNED_FIT_TRAIN_SELECTION_DIAGNOSTIC", Guid.NewGuid(), true), CancellationToken.None);
+                    1000, 2, null, "V9_DISPOSABLE_HARNESS", holdout is null
+                        ? "PINNED_FIT_TRAIN_SELECTION_DIAGNOSTIC"
+                        : "PINNED_FIT_INDEPENDENT_HOLDOUT_DIAGNOSTIC", Guid.NewGuid(), true), CancellationToken.None);
                 if (summary.Status != LinkageRunStatus.PUBLICADO || summary.Avaliados != added.Count)
                     throw new InvalidDataException("Runner incremental não publicou exatamente a onda congelada.");
                 var measured = await ReadOutcomesAsync(owner, summary.RunId, truthByObservation, ownership);
@@ -273,9 +321,14 @@ public static class V9GoldHarnessCommand
                     throw new InvalidDataException("Modelo experimental sofreu promoção indevida.");
             await WriteNewAsync(Path.Combine(output, "gold-runner-study.json"), new
             {
-                version = "V9_REAL_INCREMENTAL_RUNNER_GOLD_TRAIN_SELECTION_V1", snapshotSha256 = snapshot.ContentSha256,
+                version = holdout is null ? "V9_REAL_INCREMENTAL_RUNNER_GOLD_TRAIN_SELECTION_V1"
+                    : "V9_REAL_INCREMENTAL_RUNNER_GOLD_INDEPENDENT_HOLDOUT_V1",
+                snapshotSha256 = snapshot.ContentSha256,
                 parentSnapshotSha256 = winner, fitFingerprintSha256 = snapshot.Payload.FitFingerprintSha256,
-                selectionEnvelopeSha256 = selectionSha, observations = sources.Count, identityGroups = identities.Count,
+                selectionEnvelopeSha256 = selectionSha, observations = sources.Count,
+                identityGroups = holdout is null ? identities.Count
+                    : sources.Select(x => x.Truth).Distinct(StringComparer.Ordinal).Count(),
+                independentHoldout = holdout,
                 eligibleSourcesWithPriorGold = eligible, trueAccepted, falseAccepted, conflicts, unresolved,
                 recallWithPriorGold = eligible == 0 ? (double?)null : (double)trueAccepted / eligible,
                 fdrAfterResolve = trueAccepted + falseAccepted == 0 ? (double?)null : (double)falseAccepted / (trueAccepted + falseAccepted),
@@ -283,7 +336,9 @@ public static class V9GoldHarnessCommand
                 goldEndToEnd, goldBcubed, pendingReasonBreakdown,
                 lowerNonMatchExperiment = new
                 {
-                    policy = lowerNonMatchThreshold.HasValue ? "EXPERIMENTAL_LOWER_TRAIN_ONLY" : "CURRENT",
+                    policy = lowerNonMatchThreshold.HasValue
+                        ? (holdout is null ? "EXPERIMENTAL_LOWER_TRAIN_ONLY" : "EXPERIMENTAL_LOWER_HOLDOUT_ONLY")
+                        : "CURRENT",
                     threshold = lowerNonMatchThreshold,
                     scorerReused = true, operationalActivation = false,
                     disposableProcedureSha256,
@@ -302,8 +357,10 @@ public static class V9GoldHarnessCommand
                     protocol = GoldTrainThreeOrderProtocol.Version,
                     orderId = trialOrderId,
                     executedWaveOrder,
-                    sourceKeyContract = GoldTrainThreeOrderProtocol.StableSourceKeyContract,
-                    originalCorpusSha256 = selection.RootElement.GetProperty("originalObservationsSha256").GetString(),
+                    sourceKeyContract = holdout is null
+                        ? GoldTrainThreeOrderProtocol.StableSourceKeyContract
+                        : "GOLD_HOLDOUT_NAMESPACE_SHA256_OBSERVACAO_ID_V1",
+                    originalCorpusSha256 = csvSha,
                     frozenSnapshotSha256 = snapshot.ContentSha256,
                     isolatedRunFingerprintSha256,
                     elapsedMilliseconds = physicalTrialTimer.ElapsedMilliseconds,
@@ -311,7 +368,7 @@ public static class V9GoldHarnessCommand
                     allFourWavesPublished = true,
                     sourceCount = stableTruth.Count,
                     publishedSourceCount = stableGold.Count,
-                    evidenceScope = "TRAIN_SELECTION",
+                    evidenceScope = holdout is null ? "TRAIN_SELECTION" : "INDEPENDENT_HOLDOUT",
                     truthExported = false, uuidExported = false, testUsed = false,
                     independentlyCertified = false, activated = false
                 },
@@ -327,7 +384,9 @@ public static class V9GoldHarnessCommand
                 actualRunnerExecuted = true, canonicalGoldPublishedInDisposableHarness = true,
                 ingestionMode = "CONTROLLED_SYNTHETIC_SILVER_INSERTION",
                 productionDispatchUsed = false, truthUsedForGroupingOrRetrieval = false,
-                scope = "TRAIN_SELECTION_POST_SELECTION_DIAGNOSTIC_NOT_EXTERNAL_CERTIFICATION",
+                scope = holdout is null
+                    ? "TRAIN_SELECTION_POST_SELECTION_DIAGNOSTIC_NOT_EXTERNAL_CERTIFICATION"
+                    : "INDEPENDENT_HOLDOUT_FIXED_V6_CANDIDATE_UNCERTIFIED",
                 refitted = false, validationReopened = false, testUsed = false, certified = false, activated = false
             });
             return trainingEvidence.AsReadOnly();
@@ -396,7 +455,8 @@ public static class V9GoldHarnessCommand
         await command.ExecuteNonQueryAsync();
     }
 
-    private static List<Source> ReadTrainSelection(string file, HashSet<string> identities)
+    private static List<Source> ReadSources(
+        string file, HashSet<string>? identities, string? holdoutNamespace)
     {
         using var csv = new TextFieldParser(file);
         csv.SetDelimiters(",");
@@ -409,7 +469,11 @@ public static class V9GoldHarnessCommand
             var f = csv.ReadFields() ?? throw new InvalidDataException("CSV malformado.");
             string Get(string name) => f[columns[name]];
             // Do not interpret TEST/VALIDATION attribute values or use labels in any decision.
-            if (Get("particao") != "TRAIN" || !identities.Contains(Get("base_person_id"))) continue;
+            // Use the newly generated cohort's TRAIN-tagged subpopulation as
+            // a blind-to-score, predeclared inclusion rule, NOT historical TEST
+            // or VALIDATION. Never mix groups selected from the old envelope.
+            if (Get("particao") != "TRAIN"
+                || (identities is not null && !identities.Contains(Get("base_person_id")))) continue;
             if (!string.IsNullOrWhiteSpace(Get("cpf"))) continue;
             var birth = Get("data_nascimento");
             var manager = Get("gestor");
@@ -418,29 +482,37 @@ public static class V9GoldHarnessCommand
             // Use the actual frozen synthetic CSV observacao_id (hashed to a
             // private long), NOT filtered row ordinal or SQL IDENTITY values.
             // A duplicate/collision is a hard error, never silently rekeyed.
-            var stableKey = GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(Get("observacao_id"));
+            var stableKey = GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(
+                holdoutNamespace is null ? Get("observacao_id")
+                    : holdoutNamespace + "|" + Get("observacao_id"));
             if (!stableSourceKeys.Add(stableKey))
                 throw new InvalidDataException("observacao_id TRAIN repetido ou colisão da chave estável.");
-            rows.Add(new(stableKey, Get("base_person_id"), manager, new(null, "SEM_CPF", Get("nome"),
+            rows.Add(new(stableKey,
+                holdoutNamespace is null ? Get("base_person_id") : holdoutNamespace + "|" + Get("base_person_id"),
+                manager, new(null, "SEM_CPF", Get("nome"),
                 string.IsNullOrWhiteSpace(birth) ? null : DateOnly.ParseExact(birth, "yyyy-MM-dd", CultureInfo.InvariantCulture), Get("nome_mae"))));
         }
-        if (rows.Count == 0 || !rows.Select(x => x.Truth).ToHashSet(StringComparer.Ordinal).SetEquals(identities))
-            throw new InvalidDataException("TRAIN_SELECTION não reproduz as identidades do manifesto.");
+        if (rows.Count == 0 || (identities is not null &&
+            !rows.Select(x => x.Truth).ToHashSet(StringComparer.Ordinal).SetEquals(identities)))
+            throw new InvalidDataException("Coorte não reproduz as identidades permitidas no escopo.");
         if (rows.GroupBy(x => (x.Truth, x.Manager)).Any(g => g.Count() > 1))
             throw new InvalidDataException("Ensaio por gestores exige uma observação por identidade/gestor; versões repetidas requerem o bridge temporal.");
         return rows;
     }
 
-    private static async Task InsertDraftAsync(SqlConnection connection, Guid modelId, V9FittedSnapshot snapshot)
+    private static async Task InsertDraftAsync(SqlConnection connection, Guid modelId,
+        V9FittedSnapshot snapshot, bool independentHoldout)
     {
         await using var command = new SqlCommand("""
             INSERT identidade.modelo_linkage(modelo_id,versao,status,algoritmo_versao,normalizacao_versao,deduplicacao_metodo,base_referencia,snapshot_referencia,gerado_em)
-            VALUES(@id,1,N'RASCUNHO',@algorithm,@normalization,N'PINNED_FIT_HARNESS_PREVIEW',N'SYNTHETIC_TRAIN_SELECTION',@sha,SYSDATETIMEOFFSET());
+            VALUES(@id,1,N'RASCUNHO',@algorithm,@normalization,N'PINNED_FIT_HARNESS_PREVIEW',@scope,@sha,SYSDATETIMEOFFSET());
             """, connection);
         command.Parameters.AddWithValue("@id", modelId);
         command.Parameters.AddWithValue("@algorithm", LinkageParameterCatalog.CompositeNominalDecisionEvidenceAlgorithmVersion);
         command.Parameters.AddWithValue("@normalization", IdentityComparison.NormalizationVersion);
         command.Parameters.AddWithValue("@sha", snapshot.ContentSha256);
+        command.Parameters.AddWithValue("@scope", independentHoldout
+            ? "SYNTHETIC_INDEPENDENT_HOLDOUT" : "SYNTHETIC_TRAIN_SELECTION");
         await command.ExecuteNonQueryAsync();
     }
 
