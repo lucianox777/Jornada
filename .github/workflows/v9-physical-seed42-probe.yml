@@ -2,28 +2,62 @@ name: v9-physical-seed42-probe
 
 on:
   pull_request:
-    paths:
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9*.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/Program.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/BlockingRuleSetSearch.cs'
-      - 'Solution/src/Jornada.Contracts/V9*.cs'
-      - 'Solution/src/Jornada.Contracts/SyntheticObservationMultiplicityContract.cs'
-      - 'Solution/src/Jornada.Linkage.SyntheticCorpus/**'
-      - 'Solution/src/Jornada.Linkage.Core/V9*.cs'
-      - 'Solution/src/Jornada.Linkage.Runner/V9*.cs'
-      - 'Solution/tests/Jornada.Tests/Unit/V9*.cs'
-      - 'Solution/data/calibration/v9/**'
-      - 'Solution/scripts/v9-nested-*.py'
-      - 'Solution/scripts/v9-integral-search-study.py'
-      - '.github/workflows/v9-physical-seed42-probe.yml'
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  physical-seed42:
-    name: SQL físico 30k clean — FS blind Rank-Resolve TF0
+  impact:
+    name: V9 30k - classify impact
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      run_physical_30k: ${{ steps.classify.outputs.run_physical_30k }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Regression tests for fail-closed path classification
+        run: python3 -m unittest discover -s Solution/tests/scripts -p test_v9_physical_impact_classifier.py
+      - name: Classify complete PR merge diff (manual dispatch always runs)
+        id: classify
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CHECKOUT_SHA: ${{ github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            python3 Solution/scripts/v9-physical-impact-classifier.py --manual \
+              --summary v9-physical-30k-impact.json --github-output "$GITHUB_OUTPUT"
+          else
+            if [[ ! "$BASE_SHA" =~ ^[0-9a-f]{40}$ || ! "$CHECKOUT_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "Cannot verify exact GitHub SHA; fail closed" >&2
+              exit 1
+            fi
+            git cat-file -e "${BASE_SHA}^{commit}"
+            test "$(git rev-parse HEAD)" = "$CHECKOUT_SHA"
+            git diff --name-status -z --find-renames "$BASE_SHA" "$CHECKOUT_SHA" > changed-name-status.z
+            python3 Solution/scripts/v9-physical-impact-classifier.py \
+              --name-status-z changed-name-status.z \
+              --summary v9-physical-30k-impact.json --github-output "$GITHUB_OUTPUT"
+          fi
+      - name: Archive impact decision for audit
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-physical-30k-impact-${{ github.run_id }}
+          path: v9-physical-30k-impact.json
+          retention-days: 30
+          if-no-files-found: warn
+
+  physical-30k:
+    name: V9 full physical 30k SQL TRAIN (when impacted)
+    needs: impact
+    if: needs.impact.outputs.run_physical_30k == 'true'
     runs-on: ubuntu-latest
     # Full adaptive batches now survive the old all-cell veto and execute 20
     # complete latency replays per feasible candidate; preserve every gate.
@@ -127,3 +161,40 @@ jobs:
             Solution/.local/v9-nested-ci/fixture-train/generation-manifest.json
             Solution/.local/v9-nested-ci/fixture-validation/generation-manifest.json
             Solution/.local/v9-nested-ci/development-30k/generation-manifest.json
+
+  # Stable required check preserves the old status context without faking execution.
+  physical-seed42:
+    name: SQL físico 30k clean — FS blind Rank-Resolve TF0
+    needs: [impact, physical-30k]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Enforce all impacted full-probe runs and record legitimate no-op
+        shell: bash
+        env:
+          IMPACT_RESULT: ${{ needs.impact.result }}
+          REQUIRES_PHYSICAL: ${{ needs.impact.outputs.run_physical_30k }}
+          PHYSICAL_RESULT: ${{ needs.physical-30k.result }}
+        run: |
+          set -euo pipefail
+          if [[ "$IMPACT_RESULT" != "success" ]]; then
+            echo "Impact classification did not succeed; no skipping permitted." >&2
+            exit 1
+          fi
+          if [[ "$REQUIRES_PHYSICAL" == "true" ]]; then
+            test "$PHYSICAL_RESULT" = "success" || {
+              echo "Required V9 30k physical probe failed or was not run: $PHYSICAL_RESULT" >&2
+              exit 1
+            }
+            echo "PASS: the real SQL physical V9 TRAIN 30k probe completed."
+          elif [[ "$REQUIRES_PHYSICAL" == "false" ]]; then
+            test "$PHYSICAL_RESULT" = "skipped" || {
+              echo "Unexpected physical job result for a Gold-only/docs change: $PHYSICAL_RESULT" >&2
+              exit 1
+            }
+            echo "NOT_REQUIRED_FOR_THIS_DIFF: the physical calibration was not run."
+          else
+            echo "No valid impact decision; fail closed." >&2
+            exit 1
+          fi
