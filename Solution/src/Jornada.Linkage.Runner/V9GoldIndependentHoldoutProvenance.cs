@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Microsoft.VisualBasic.FileIO;
 
 namespace Jornada.Linkage.Runner;
 
@@ -76,6 +77,18 @@ public static class V9GoldIndependentHoldoutProvenance
                 StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Gabarito não reconcilia com manifesto do gerador.");
 
+        var people = ReadCsvIds(Path.Combine(root, "pessoas_verdade.csv"),
+            ["base_person_id", "particao", "nome", "nome_mae", "data_nascimento",
+             "sexo", "cpf", "cns", "cns_scenario", "evaluation_weight"], null);
+        if (people.Count != V9GoldIndependentHoldoutContract.RequiredPeople)
+            throw new InvalidDataException("Contagem real de pessoas difere do gabarito.");
+        var observations = ReadCsvIds(Path.Combine(root, "observacoes.csv"),
+            ["observacao_id", "base_person_id", "particao", "gestor", "nome",
+             "nome_mae", "data_nascimento", "sexo", "cpf", "cns", "corrupcoes",
+             "evaluation_weight"], people);
+        if (observations.Count != t.GetProperty("observations").GetInt32())
+            throw new InvalidDataException("Contagem real de observações difere do gabarito.");
+
         // Identity namespace derives from the generator's input fingerprint and seed.
         // This is integrity/provenance checking, NOT independent statistical certification.
         var declared = new V9GoldIndependentHoldoutContract.CohortManifest(
@@ -101,6 +114,31 @@ public static class V9GoldIndependentHoldoutProvenance
         var output = Path.GetFullPath(args[3]);
         await using var file = new FileStream(output, FileMode.CreateNew, FileAccess.Write, FileShare.None);
         await JsonSerializer.SerializeAsync(file, plan, Json);
+    }
+
+    private static HashSet<string> ReadCsvIds(
+        string path, string[] header, HashSet<string>? knownPeople)
+    {
+        using var parser = new TextFieldParser(path)
+        {
+            HasFieldsEnclosedInQuotes = true,
+            TrimWhiteSpace = false
+        };
+        parser.SetDelimiters(",");
+        var actualHeader = parser.ReadFields();
+        if (actualHeader is null || !actualHeader.SequenceEqual(header, StringComparer.Ordinal))
+            throw new InvalidDataException("Layout CSV sintético inesperado.");
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        while (!parser.EndOfData)
+        {
+            var fields = parser.ReadFields();
+            if (fields is null || fields.Length != header.Length
+                || string.IsNullOrWhiteSpace(fields[0])
+                || (knownPeople is not null && !knownPeople.Contains(fields[1]))
+                || !ids.Add(fields[0]))
+                throw new InvalidDataException("Identidade CSV duplicada, desconhecida ou inválida.");
+        }
+        return ids;
     }
 
     private static string RequiredText(JsonElement element, string property)
