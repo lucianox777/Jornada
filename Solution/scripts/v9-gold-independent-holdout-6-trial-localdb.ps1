@@ -203,7 +203,7 @@ try {
         }
     }
     $matrix = [pscustomobject]@{
-        Version = if ($Policy) { 'GOLD_INDEPENDENT_HOLDOUT_ONE_PHYSICAL_TRIAL_V1' } else { 'GOLD_INDEPENDENT_HOLDOUT_SIX_PHYSICAL_TRIALS_V1' }
+        Version = if ($expectedTrials -eq 1) { 'GOLD_INDEPENDENT_HOLDOUT_ONE_PHYSICAL_TRIAL_V1' } else { 'GOLD_INDEPENDENT_HOLDOUT_SIX_PHYSICAL_TRIALS_V1' }
         Scope = 'INDEPENDENT_HOLDOUT'
         Seed = [uint64]20261025001
         NewCorpusSha256 = $csvSha
@@ -217,7 +217,7 @@ try {
         TestUsed = $false; IndependentlyCertified = $false
         OperationallyActivated = $false; Retuned = $false
     }
-    $fileName = if ($Policy) { 'holdout-trial.json' } else { 'holdout-six-trial-matrix.json' }
+    $fileName = if ($expectedTrials -eq 1) { 'holdout-trial.json' } else { 'holdout-six-trial-matrix.json' }
     $matrix | ConvertTo-Json -Depth 30 |
         Set-Content -LiteralPath (Join-Path $root $fileName) -Encoding utf8 -NoNewline
     Write-Host "Independent holdout physical trials complete: $expectedTrials. Aggregate-only output: $fileName"
