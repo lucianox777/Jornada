@@ -71,14 +71,14 @@ public sealed class V9GoldIndependentHoldoutProvenanceTests
         try
         {
             var plan = await V9GoldIndependentHoldoutProvenance.VerifyAsync(Candidate(), root, LocalDb);
-            Assert.Multiple(() =>
+            Assert.Multiple((System.Action)(() =>
             {
                 Assert.That(plan.RequiredPhysicalTrials, Is.EqualTo(6));
                 Assert.That(plan.CandidateLowerThreshold, Is.EqualTo(0.05m));
                 Assert.That(plan.IndependentlyCertified, Is.False);
                 Assert.That(plan.TestUsed, Is.False);
                 Assert.That(plan.OperationallyActivated, Is.False);
-            });
+            }));
         }
         finally { Directory.Delete(root, true); }
     }
@@ -90,8 +90,8 @@ public sealed class V9GoldIndependentHoldoutProvenanceTests
         try
         {
             await File.AppendAllTextAsync(Path.Combine(root, "observacoes.csv"), "O2,P2\n");
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await V9GoldIndependentHoldoutProvenance.VerifyAsync(Candidate(), root, LocalDb));
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await V9GoldIndependentHoldoutProvenance.VerifyAsync(Candidate(), root, LocalDb)));
         }
         finally { Directory.Delete(root, true); }
     }
@@ -102,8 +102,8 @@ public sealed class V9GoldIndependentHoldoutProvenanceTests
         var root = await FixtureAsync(42);
         try
         {
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await V9GoldIndependentHoldoutProvenance.VerifyAsync(Candidate(), root, LocalDb));
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await V9GoldIndependentHoldoutProvenance.VerifyAsync(Candidate(), root, LocalDb)));
         }
         finally { Directory.Delete(root, true); }
     }
@@ -111,8 +111,8 @@ public sealed class V9GoldIndependentHoldoutProvenanceTests
     [Test]
     public async Task Operational_database_is_rejected_before_reading_any_corpus()
     {
-        Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
             await V9GoldIndependentHoldoutProvenance.VerifyAsync(
-                Candidate(), "/does-not-exist", "Server=production;Database=Jornada;Integrated Security=true;"));
+                Candidate(), "/does-not-exist", "Server=production;Database=Jornada;Integrated Security=true;")));
     }
 }
