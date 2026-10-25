@@ -28,8 +28,8 @@ public sealed class V9GoldIndependentHoldoutProvenanceTests
             "observacao_id,base_person_id,particao,gestor,nome,nome_mae,data_nascimento,sexo,cpf,cns,corrupcoes,evaluation_weight\n");
         for (var i = 0; i < 30000; i++)
         {
-            peopleBuilder.Append("P").Append(i).Append(",TRAIN,A,B,2000-01-01,F,,,,1\n");
-            observationBuilder.Append("O").Append(i).Append(",P").Append(i)
+            peopleBuilder.Append('P').Append(i).Append(",TRAIN,A,B,2000-01-01,F,,,,1\n");
+            observationBuilder.Append('O').Append(i).Append(",P").Append(i)
                 .Append(",TRAIN,G0,A,B,2000-01-01,F,,,,1\n");
         }
         var people = peopleBuilder.ToString();
