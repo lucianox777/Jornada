@@ -1,4 +1,4 @@
-# Solução independente de Apoio às Secretarias — protótipo funcional V0.1
+# Solução independente de Apoio às Secretarias — protótipo funcional V0.3
 
 > **Não é o instalador da Jornada**, não integra `Solution/Jornada.sln` e **não contém contratos homologados nem credenciais**. O perfil e o contrato anexados são **exclusivamente sintéticos**. **Não usar dados reais nem ativar envio de produção sem homologação do perfil, contrato, destino e ambiente institucional**.
 
@@ -52,12 +52,12 @@ O perfil também aceita `"enviar": true`. O parâmetro CLI `--nao-enviar` desabi
 ## Docker (execução sem GUI)
 
 ```bash
-docker build -t apoio-secretarias:0.1 .
+docker build -t apoio-secretarias:0.3 .
 docker run --rm \
   -v "$(pwd)/exemplos/entrada:/origem:ro" \
   -v "$(pwd)/exemplos:/perfil:ro" \
   -v "$(pwd)/saida:/saida" \
-  apoio-secretarias:0.1 --entrada /origem --perfil /perfil/perfil.sintetico.json --saida /saida --nao-enviar
+  apoio-secretarias:0.3 --entrada /origem --perfil /perfil/perfil.sintetico.json --saida /saida --nao-enviar
 ```
 
 **Em Windows PowerShell**, ajuste as expressões de diretório para caminhos absolutos e permissões dos volumes. A imagem não é do banco da Jornada: carrega somente aplicação e dependências, recebendo schemas/mapeamentos montados em `/perfil:ro`. Para envio, monte segredo de modo protegido/secret manager e injete `JORNADA_ACCESS_KEY`, sem colocá-lo na linha de comando visível a outras contas.
@@ -99,3 +99,10 @@ A versão de protótipo não deve receber dados reais até concluir segurança d
 - A transmissão calcula o hash a partir dos **mesmos bytes imutáveis** enviados, não de uma leitura separada do arquivo.
 - Mesmo com `--saida` incorretamente apontando para dentro da origem, relatórios de erro vão para um diretório seguro temporário em vez de modificar a seleção.
 - Testes negativos cobrem as três garantias. A proteção contra escrita por processos externos ou em dispositivos remotos ainda depende de ACLs e montagem somente-leitura; não considerar isso substituto de homologação.
+
+## Endurecimento V0.3 — integridade de seleção e contratos
+
+- Uma linha vazia dentro de `registros.jsonl` não é ignorada silenciosamente: aborta toda a execução com `JSONL_LINHA_VAZIA`, arquivo e linha. Arquivo factual inteiramente vazio continua permitido.
+- Depois de validar todas as entradas, uma nova enumeração garante que **nenhum arquivo foi incluído/excluído** na pasta de origem durante o preparo e que seus bytes permanecem idênticos. Alterações geram `ORIGEM_ALTERADA`.
+- O perfil de parametrização e os schemas fixados por SHA-256 são revalidados imediatamente antes de publicar o pacote. Modificações concorrentes causam `PERFIL_ALTERADO` ou `CONTRATO_ALTERADO`; não há ZIP nem envio.
+- Quatro novos testes negativos executam essas corridas deliberadamente. São **30 testes locais** no total, mas build do EXE, imagem Docker, GitHub CI e envio real continuam gates pendentes.

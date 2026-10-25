@@ -224,7 +224,12 @@ def _ler_arquivo(path: Path, rule: dict, schema: dict) -> list[dict]:
                         yield rd.line_num, mapped
                 iterator = lines_csv()
             else:
-                iterator = ((i, json_estrito(line.encode("utf-8"), str(path))) for i, line in enumerate(f, 1) if line.strip())
+                def lines_jsonl():
+                    for line_no, line in enumerate(f, 1):
+                        if not line.strip():
+                            raise Falha("JSONL_LINHA_VAZIA", "Linha vazia não é permitida em JSONL com registros", str(path), line_no)
+                        yield line_no, json_estrito(line.encode("utf-8"), str(path))
+                iterator = lines_jsonl()
             for line_no, obj in iterator:
                 if line_no > MAX_ROWS + 1 or len(output) >= MAX_ROWS:
                     raise Falha("LIMITE_EXCEDIDO", "Número máximo de linhas excedido", str(path), line_no)
@@ -303,6 +308,14 @@ def _inventario(entrada: Path, saida: Path, profile: dict, schemas: dict) -> tup
                 "codigoSistemaOrigem": profile["sistemaOrigem"],
                 "natureza": profile.get("natureza"), "codigoTipo": profile.get("codigoTipo"),
                 "tipoVersao": profile.get("tipoVersao"), "dataReferencia": profile["dataReferencia"]}
+    # A origem pode ganhar novos arquivos entre o inventário inicial e a
+    # publicação: a seleção inteira precisa continuar exatamente a mesma.
+    after = _arquivos(entrada, saida)
+    if [str(p.resolve()) for p in after] != [str(p.resolve()) for p in candidates]:
+        raise Falha("ORIGEM_ALTERADA", "Seleção de arquivos alterada durante a preparação")
+    for row, path in zip(observations, candidates):
+        if path.stat().st_size != row["tamanho"] or sha256(path) != row["sha256"]:
+            raise Falha("ORIGEM_ALTERADA", "Arquivo mudou após a validação", row["arquivo"])
     entries = {"manifest.json": (json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8"),
                "pessoas.jsonl": _bytes_jsonl(groups["pessoas"]),
                "registros.jsonl": _bytes_jsonl(groups["registros"])}
@@ -405,6 +418,13 @@ def executar(entrada: str | Path, perfil: str | Path, saida: str | Path, *, envi
                 raise Falha("CREDENCIAL_AUSENTE", "JORNADA_ACCESS_KEY não configurada")
         entries, origins = _inventario(entrada, saida, cfg, schemas)
         report["arquivos"] = origins
+        # A política e as referências também são parte do snapshot validado.
+        if sha256(perfil) != report["sha256Perfil"]:
+            raise Falha("PERFIL_ALTERADO", "O mapeamento mudou durante o processamento")
+        for role, item in cfg["contratos"].items():
+            contract = perfil.parent / item["arquivo"]
+            if contract.is_symlink() or sha256(contract) != schemas[role][1]:
+                raise Falha("CONTRATO_ALTERADO", "O schema mudou durante o processamento", str(contract))
         saida.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(dir=saida, prefix=".jornada-", suffix=".tmp", delete=False) as t:
             tmp = Path(t.name)

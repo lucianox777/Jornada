@@ -225,6 +225,53 @@ class ApoioTestes(unittest.TestCase):
         self.assertEqual(core.hashlib.sha256(sent['data']).hexdigest(), core.sha256(pacote))
         self.assertEqual(sent['idempotency'], 'sha256:' + core.sha256(pacote))
 
+    def test_linha_em_branco_jsonl_bloqueada(self):
+        self.config_records()
+        (self.origin / 'registros.jsonl').write_text(
+            '{"idPessoaEntrega":"P1","codigoRegistroOrigem":"AA01","operacao":"INCLUSAO"}\n\n'
+        )
+        report = self.run_it()
+        self.assertEqual(report['estado'], 'BLOQUEADO')
+        self.assertEqual(report['erros'][0]['codigo'], 'JSONL_LINHA_VAZIA')
+        self.assertFalse(list(self.out.glob('*.zip')))
+
+    def test_pasta_recebe_arquivo_tardio_bloqueia(self):
+        original = core._ler_arquivo
+        def alterar(path, rule, schema):
+            rows = original(path, rule, schema)
+            (self.origin / 'arquivo_tardio.csv').write_text('nao mapeado')
+            return rows
+        with patch.object(core, '_ler_arquivo', side_effect=alterar):
+            report = self.run_it()
+        self.assertEqual(report['estado'], 'BLOQUEADO')
+        self.assertEqual(report['erros'][0]['codigo'], 'ORIGEM_ALTERADA')
+        self.assertFalse(list(self.out.glob('*.zip')))
+
+    def test_perfil_muda_durante_entrada_bloqueia(self):
+        original = core._inventario
+        def alterar(*args):
+            ret = original(*args)
+            self.profile.write_text(self.profile.read_text() + '\n')
+            return ret
+        with patch.object(core, '_inventario', side_effect=alterar):
+            report = self.run_it()
+        self.assertEqual(report['estado'], 'BLOQUEADO')
+        self.assertEqual(report['erros'][0]['codigo'], 'PERFIL_ALTERADO')
+        self.assertFalse(list(self.out.glob('*.zip')))
+
+    def test_schema_muda_durante_entrada_bloqueia(self):
+        original = core._inventario
+        def alterar(*args):
+            ret = original(*args)
+            schema = self.cfgdir / 'pessoas.schema.json'
+            schema.write_bytes(schema.read_bytes() + b' ')
+            return ret
+        with patch.object(core, '_inventario', side_effect=alterar):
+            report = self.run_it()
+        self.assertEqual(report['estado'], 'BLOQUEADO')
+        self.assertEqual(report['erros'][0]['codigo'], 'CONTRATO_ALTERADO')
+        self.assertFalse(list(self.out.glob('*.zip')))
+
     def test_config_unknown_trava(self):
         self.change(lambda x: x.update({'ignorarErros': True}))
         r = self.run_it()
