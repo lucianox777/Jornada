@@ -24,6 +24,29 @@ class V9PhysicalImpactTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertFalse(self.changes(path))
 
+    def test_gold_holdout_preflight_does_not_recalibrate_train(self):
+        # Audited isolated contract and unit tests cannot alter the 30k
+        # calibrator. Adding shared files or modifying the runner entrypoint
+        # still requires the full physical probe.
+        for path in (
+            "Solution/src/Jornada.Linkage.Runner/V9GoldIndependentHoldoutContract.cs",
+            "Solution/tests/Jornada.Tests/Unit/V9GoldIndependentHoldoutContractTests.cs",
+        ):
+            with self.subTest(path=path):
+                self.assertFalse(self.changes(path))
+                self.assertFalse(m.classify([("A", path)])["run_physical_30k"])
+                self.assertTrue(m.classify([("D", path)])["run_physical_30k"])
+        self.assertTrue(self.changes(
+            "Solution/src/Jornada.Linkage.Runner/V9GoldIndependentHoldoutContract.cs",
+            "Solution/src/Jornada.Linkage.Runner/Program.cs"
+        ))
+        self.assertTrue(self.changes(
+            "Solution/src/Jornada.Linkage.Runner/V9GoldIndependentHoldoutExecutor.cs"
+        ))
+        self.assertTrue(self.changes(
+            "Solution/src/Jornada.Linkage.Core/V9LowerNonMatchTrainCalibrator.cs"
+        ))
+
     def test_only_markdown_skips(self):
         self.assertFalse(self.changes("Solution/docs/X.md", "Documentos/README.md"))
         self.assertTrue(self.changes("Solution/docs/evidence/E2E_B_Baseline_20261001.yml"))
