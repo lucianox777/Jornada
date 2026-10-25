@@ -17,7 +17,7 @@
 | ARQ-ID-01 | `initial_uuid` identifica proveniência de origem, `canonical_uuid` identifica estado corrente; âncora CPF é permanente; divisão/fusão governada, sem sobrevivente artificial; fato válido não se perde com identidade pendente. | [DC-ID-01/02](Decisoes_Canonicas_Identidade_Linkage_20260929.md), [invariantes](Invariantes_Arquitetura.md), [ledger](Identity_Decision_Ledger.md) | DECIDIDO; conferir contratos e gates para cada mudança concreta. |
 | ARQ-LK-01 | **V9 nominal composta é a única arquitetura-alvo de novo desenvolvimento**. V8/V6/V7 persistem apenas onde necessários à reprodução/compatibilidade histórica; não abrir segundo scorer operacional. Nome integral e componentes de pessoa/mãe exigem modelagem conjunta/mutuamente exclusiva para evitar dupla contagem. Splink externo é conferência opcional, nunca motor operacional. | [DC-LK-V9/TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md), [transição](Linkage_V9_Composite_Nominal_Transition_20261012.md), [FS](Calibrador_FS_Specification.md) | DECIDIDO; execução V9 operacional e promoção **não certificadas**. |
 | ARQ-LK-02 | Um único **Calibrador V9 C#** descobre no bootstrap `m/u`, TF, passes, normalização, limiares, margem, prior e abstenção; números encontrados não se tornam constantes definitivas. Snapshot integral versionado/congelado em `ref`; subida da aplicação **carrega/verifica**, sem treinar. Recalibração posterior apenas por comando manual e aprovação. | [calibrador único](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md), [seleção interna](V9_Selecao_Interna_TRAIN_Finalistas_20261019.md), [congelamento](V9_Congelamento_Local_TEST_Independente.md) | DECIDIDO, implementação e operacionalização ainda sujeitas à [issue #1089](https://github.com/lucianox777/Jornada/issues/1089) e gates. |
-| ARQ-LK-03 | `LLR=ln(m/u)`, fator de Bayes **1** produz contribuição zero; `w_TF=0` desliga **somente TF**, `w_TF=1` a aplica integralmente; peso parcial é possível. Atributo legitimamente ausente, contribuição neutra por contrato e **parâmetro obrigatório desconhecido** são estados distintos; nunca substituir silently erro de modelo por zero. | [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md), [snapshot V9](V9_Integracao_Local_20261019.md) | DECIDIDO; não atribuir pesos invariáveis aos atributos. |
+| ARQ-LK-03 | `LLR=ln(m/u)`, fator de Bayes **1** produz contribuição zero; `w_TF=0` desliga **somente TF**, `w_TF=1` a aplica integralmente; peso parcial é possível. Atributo legitimamente ausente, contribuição neutra por contrato e **parâmetro obrigatório desconhecido** são estados distintos; nunca substituir silenciosamente falta de parâmetro obrigatório por zero. | [DC-LK-TF](Decisoes_Canonicas_Identidade_Linkage_20260929.md), [snapshot V9](V9_Integracao_Local_20261019.md) | DECIDIDO; não atribuir pesos invariáveis aos atributos. |
 | ARQ-LK-04 | Campos da Pessoa **não são universalmente obrigatórios** (nome civil, mãe, nascimento, CPF). Quem exige campos é o contrato versionado do Gestor/Base/remessa. Blocking só recupera candidatos; não decide identidade, não assume que homônimo exato é pessoa única e não converte busca truncada/erro em `SEM_CANDIDATO`. Resolver por identidade candidata, publicar decisão final por observação-fonte. | [DC-LK-V9/entradas parciais](Decisoes_Canonicas_Identidade_Linkage_20260929.md), [fluxos/contratos](Fluxos_Blocking_Selecao_Registro.md), [seletor pós-Resolve](V9_Seletor_Pos_Resolve_20261019.md) | DECIDIDO; a evidência física sintética não autoriza ativação de um scorer V9. |
 | ARQ-BOOT-01 | Bootstrap DEV usa **30.000 identidades sintéticas clean** (seed 42 e referências IBGE com proveniência). São suficientes para **começar**, não para atestar suporte universal nas 81 células nem eficácia municipal. `correlated` é referência histórica, não segundo perfil automático. Núcleos de suporte por classe, fallback conjunto/marginal e ESS exigem auditoria explícita: suavização não cria observações. | [juízo 30k](Parecer_Suficiencia_Bootstrap_30mil_V9_20261012.md), [DC-LK-30K](Decisoes_Canonicas_Identidade_Linkage_20260929.md), [suporte V3](V9_Suporte_Massa_Backoff_20261019.md) | DECIDIDO; suficiência estatística por célula/estrato e TEST independente não certificadas. |
 | ARQ-SEL-01 | Buscar configurações comparáveis no TRAIN, observar **recall global por fonte × FDR pós-Resolve** do bootstrap geral; escolher/recomendar pela evidência com limites e incerteza, sem substituir o seletor por regras estáticas. A seleção interna atual se desdobra em TRAIN_ADJUST e TRAIN_SELECTION; não reutilizar VALIDATION/TEST consumidos como holdout novo. | [seleção TRAIN](V9_Selecao_Interna_TRAIN_Finalistas_20261019.md), [Pareto geral](V9_Bootstrap_Equilibrio_Congelamento_Unificado_20261017.md), [TEST independente](V9_Congelamento_Local_TEST_Independente.md) | DECIDIDO; selecionar, congelar, validar e ativar são gates separados. |
@@ -44,6 +44,32 @@
 ## 5. Diagramas e rastreabilidade
 
 Os diagramas em [UML_Arquitetura_Indice.md](UML_Arquitetura_Indice.md) e [Invariantes_Arquitetura.md](Invariantes_Arquitetura.md) são vistas de revisão com baselines próprias; **não devem ser lidos como diagrama V9+Gold V6 integral e atualizado**. O fluxo normativo, para esta frente, deve ser lido nos contratos citados acima: ingestão → blocking versionado (recuperação) → FS C# V9 + TF do snapshot → Rank por identidade → Resolve por fonte → proposta de vínculo/não-vínculo → publicação Gold governada, com trilha versionada. A seleção e os ensaios do calibrador são **offline**, não um controlador que altera pesos dinamicamente na ingestão.
+
+### Fluxo lógico de revisão — **alvo V9 não ativado**
+
+```mermaid
+flowchart LR
+    subgraph ESTUDO["Pesquisa / bootstrap DEV: fora do runtime operacional"]
+        CORPUS["Corpus clean 30 mil; TRAIN com verdade sintética"] --> CAL["Calibrador único V9 C#: blocking + M/U + TF + prior + limiares"]
+        CAL --> PAR["Pareto geral: recall global por fonte × FDR pós-Resolve"]
+        CAL --> PG["Pareto Gold: falsas criações × pendências"]
+        PG --> FAIXAS["Joelho + representantes de faixas descritivas V6"]
+        FAIXAS --> ENSAIO["Gold descartável: CURRENT e até 3 finalistas × 3 ordens"]
+        ENSAIO --> GATES["Evidência independente / TEST novo lacrado / governança DT-15"]
+        PAR --> GATES
+        GATES --> SNAP["Snapshot completo congelado em ref; ativação explícita separada"]
+    end
+    subgraph ALVO["Pipeline alvo: desenho lógico, não ativação V9 em PROD"]
+        INPUT["Observação admitida conforme contrato de origem"] --> BLOCK["Blocking: união de candidatos"]
+        BLOCK --> FS["Scorer FS C# V9 + TF do snapshot"]
+        FS --> RANK["Rank por identidade candidata"]
+        RANK --> RES["Resolve: decisão final por fonte"]
+        RES --> PUB["Publicação Gold governada; ledger"]
+    end
+    SNAP -. "Somente após autorização" .-> FS
+```
+
+A seta pontilhada **não indica implantação realizada**. A prévia do limiar inferior usa a decisão existente do Rank/Resolve; a mudança experimental na procedure DT-10 fica restrita à infraestrutura isolada e não entra neste fluxo operacional sem nova autorização e migration canônica.
 
 Regeneração de UML/DER e DOCX/PDF institucionais exige etapa editorial e gate de publicação próprios; **não substituir arquivos selados** por uma figura ou estado experimental.
 
