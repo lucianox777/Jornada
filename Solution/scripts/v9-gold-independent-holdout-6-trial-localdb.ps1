@@ -82,9 +82,9 @@ $rows = [System.Collections.Generic.List[object]]::new()
 $seenFingerprints = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 $previousConnection = [Environment]::GetEnvironmentVariable('ConnectionStrings__Jornada', 'Process')
 try {
-    foreach ($policy in $policies) {
+    foreach ($policySpec in $policies) {
         foreach ($order in $orders) {
-            $label = $policy.Slot + '_' + $order
+            $label = $policySpec.Slot + '_' + $order
             $dbOut = Join-Path $root ($label + '_database')
             $reportOut = Join-Path $root ($label + '_report')
             & dotnet $runner --v9-gold-harness-create $dbOut $schema
@@ -109,7 +109,7 @@ try {
                 }
             }
             & dotnet $runner --v9-gold-holdout-harness $candidatePath $cohort `
-                $selection $validation $goldFit $reportOut $order $policy.Slot
+                $selection $validation $goldFit $reportOut $order $policySpec.Slot
             if ($LASTEXITCODE -ne 0) { throw "Ensaio físico abortado: $label" }
             $reportFile = Join-Path $reportOut 'gold-runner-study.json'
             $report = Get-Content -LiteralPath $reportFile -Raw | ConvertFrom-Json -Depth 100
@@ -129,7 +129,7 @@ try {
             if (-not $seenFingerprints.Add([string]$trial.isolatedRunFingerprintSha256)) {
                 throw "Ensaio físico duplicado: $label"
             }
-            if ($policy.Slot -eq 'CURRENT') {
+            if ($policySpec.Slot -eq 'CURRENT') {
                 if ($report.lowerNonMatchExperiment.policy -cne 'CURRENT' -or
                     $null -ne $report.lowerNonMatchExperiment.threshold) {
                     throw 'Controle CURRENT não pode receber limiar KNEE.'
@@ -150,7 +150,7 @@ try {
                 throw "Perícia sem identificação não reconcilia as criações físicas: $label"
             }
             $rows.Add([pscustomobject]@{
-                Policy = $policy.Slot; OrderId = $order
+                Policy = $policySpec.Slot; OrderId = $order
                 ErrorForensicCases = @($forensic.cases)
                 ErrorForensicFalseCreations = [long]$forensic.falseCreationCaseCount
                 ErrorForensicFalseAcceptedEvents = [long]$forensic.falseAcceptedEventCaseCount
@@ -192,10 +192,10 @@ try {
         throw 'Seis execuções físicas únicas da mesma coorte são obrigatórias.'
     }
     $worst = @()
-    foreach ($policy in @('CURRENT','KNEE')) {
-        $subset = @($rows | Where-Object { $_.Policy -ceq $policy })
+    foreach ($policyName in @('CURRENT','KNEE')) {
+        $subset = @($rows | Where-Object { $_.Policy -ceq $policyName })
         $worst += [pscustomobject]@{
-            Policy = $policy; MaxPending = ($subset.Pending | Measure-Object -Maximum).Maximum
+            Policy = $policyName; MaxPending = ($subset.Pending | Measure-Object -Maximum).Maximum
             MaxFalseAcceptedLinks = ($subset.FalseAcceptedLinks | Measure-Object -Maximum).Maximum
             MaxFalseGoldPairs = ($subset.FalseGoldPairs | Measure-Object -Maximum).Maximum
             MaxFalseNewIdentityCreations = ($subset.FalseNewIdentityCreations | Measure-Object -Maximum).Maximum
