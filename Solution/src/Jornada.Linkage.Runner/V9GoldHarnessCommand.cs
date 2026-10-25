@@ -203,13 +203,13 @@ public static class V9GoldHarnessCommand
             var bronzeRoot = Path.Combine(output, "bronze");
             // The external 30k holdout uses canonical publication SQL on a disposable
             // LocalDB. Its G2 publication exceeded the default 900s command timeout
-            // (physical run 40212632707). Raise ONLY this experiment's SQL command
+            // (physical run 40212632707). A second run 40225343759 exhausted 3600s in Gold recompose phase 2/4. Raise ONLY this experiment's SQL command
             // timeout; do not alter production settings, scoring or SQL atomicity.
             var harnessConfiguration = holdout is null
                 ? new ConfigurationBuilder().Build()
                 : new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
                 {
-                    ["ProbabilisticLinkage:CommandTimeoutSeconds"] = "3600"
+                    ["ProbabilisticLinkage:CommandTimeoutSeconds"] = "10800"
                 }).Build();
             var runner = new ProbabilisticLinkageBatchRunner(harnessConfiguration, sql, preview,
                 new SqlPipelineCoordinator(sql), new Dt05ReplaySql(sql),
