@@ -943,10 +943,19 @@ public static class V9GoldHarnessCommand
             {
                 var key = ObservationKey.From(observation);
                 var value = new CapturedDecision(decision, retrieval, candidates.AsReadOnly());
+                // ReadOnlyCollection equality is REFERENCE equality, even when
+                // every candidate is identical. A repeated observation can be
+                // independently scored during final pending reevaluation.
+                // Compare the actual frozen decisions, retrieval frame, and
+                // candidate values; never treat separate list allocations as
+                // scientific disagreement, and never silently accept genuinely
+                // different evidence for the same input.
                 if (!dictionary.TryAdd(key, value) && dictionary.TryGetValue(key, out var earlier)
-                    && earlier != value)
+                    && (earlier.Decision != value.Decision
+                        || earlier.Retrieval != value.Retrieval
+                        || !earlier.Candidates.SequenceEqual(value.Candidates)))
                     throw new InvalidDataException(
-                        "Observações homônimas idênticas receberam decisões FS divergentes.");
+                        "Observações idênticas tiveram quadro real FS/blocking divergente.");
             }
             return lowerNonMatchThreshold is { } lower && eligiblePasses
                 ? V9GoldLowerNonMatchExperiment.Apply(decision, retrieval,
