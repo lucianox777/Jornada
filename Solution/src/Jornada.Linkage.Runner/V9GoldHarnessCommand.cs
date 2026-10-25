@@ -68,7 +68,7 @@ public static class V9GoldHarnessCommand
                 "Uso: --v9-gold-holdout-harness <frozen-candidate.json> <cohort-dir> <TRAIN-selection.json> <finalist-validation.json> <Gold-fitted.json> <output-new> <order> <CURRENT|KNEE>.");
         ValidateDisposableConnection(connectionString);
         var candidate = JsonSerializer.Deserialize<GoldTrainThreeOrderProtocol.FrozenGoldValidationCandidate>(
-            await File.ReadAllBytesAsync(args[1]), new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
+            await File.ReadAllBytesAsync(args[1]), Json)
             ?? throw new InvalidDataException("Candidato congelado ausente.");
         var plan = await V9GoldIndependentHoldoutProvenance.VerifyAsync(
             candidate, args[2], connectionString);
