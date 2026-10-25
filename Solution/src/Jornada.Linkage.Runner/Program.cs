@@ -37,6 +37,14 @@ if (args.FirstOrDefault() == V9GoldIndependentHoldoutProvenance.Flag)
     return;
 }
 
+if (args.FirstOrDefault() == "--v9-gold-holdout-harness")
+{
+    var holdoutConnection = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+        ?? throw new InvalidOperationException("Holdout exige LocalDB descartável.");
+    await V9GoldHarnessCommand.RunIndependentHoldoutAsync(args, holdoutConnection);
+    return;
+}
+
 if (args.FirstOrDefault() == V9GoldHarnessCommand.Flag)
 {
     var harnessConnection = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
