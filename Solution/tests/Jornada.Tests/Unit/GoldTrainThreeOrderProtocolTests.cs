@@ -238,4 +238,116 @@ public sealed class GoldTrainThreeOrderProtocolTests
             Assert.That(report.LargestPendingDifference, Is.EqualTo(3));
         });
     }
+    private static GoldTrainLowerNonMatchMatrixCommand.Matrix FrozenKneeFixture()
+    {
+        var rows = new List<GoldTrainLowerNonMatchMatrixCommand.Row>();
+        foreach (var slot in new[] { "CURRENT", "KNEE" })
+        {
+            var knee = slot == "KNEE";
+            for (var i = 0; i < GoldTrainThreeOrderProtocol.OrderIds.Count; i++)
+            {
+                var pending = knee ? 26 + i : 2788 + i;
+                var metrics = new GoldTrainThreeOrderAggregateCommand.OrderMetric(
+                    OrderId: GoldTrainThreeOrderProtocol.OrderIds[i],
+                    StablePartitionSha256: Sha(100 + rows.Count),
+                    Sources: 9240,
+                    TrueIdentities: 5003,
+                    PublishedSources: 9240 - pending,
+                    PendingSources: pending,
+                    PendingSourceRate: pending / 9240.0,
+                    GoldReferences: 5003,
+                    FragmentedTrueIdentities: knee ? 5 : 2,
+                    ImpureGoldReferences: i == 1 ? 0 : 1,
+                    FalseGoldPairs: i == 0 ? 3 : i == 1 ? 0 : 6,
+                    PairRecall: 0.9, PairPrecision: 0.99,
+                    BcubedStandardPrecision: 0.999, BcubedStandardRecall: 0.995,
+                    BcubedCoverageAwarePrecision: knee ? 0.997 : 0.70,
+                    BcubedCoverageAwareRecall: knee ? 0.995 : 0.69,
+                    CorrectAcceptedLinks: 1000, FalseAcceptedLinks: i == 1 ? 0 : 3,
+                    AcceptedLinkFdr: i == 1 ? 0 : 0.003);
+                rows.Add(new GoldTrainLowerNonMatchMatrixCommand.Row(
+                    slot,
+                    knee ? "EXPERIMENTAL_LOWER_TRAIN_ONLY" : "CURRENT",
+                    knee ? 0.05m : null,
+                    metrics,
+                    60_000,
+                    15,
+                    knee ? 10 : 0,
+                    knee ? 4 + i : 1,
+                    knee ? 4 + i : 0,
+                    Array.Empty<GoldTrainLowerNonMatchMatrixCommand.PendingReason>()));
+            }
+        }
+        return new GoldTrainLowerNonMatchMatrixCommand.Matrix(
+            "GOLD_TRAIN_LOWER_NONMATCH_MATRIX_V2", Sha(900), Sha(901),
+            rows, TrainOnly: true, IndependentlyCertified: false,
+            OperationallyActivated: false)
+        {
+            FinalistCount = 1, ExecutedTrialCount = 6
+        };
+    }
+
+    [Test]
+    public void Gold_V6_knee_can_be_frozen_only_for_new_validation_without_implicit_activation()
+    {
+        var candidate = GoldTrainThreeOrderProtocol.FreezeKneeForIndependentValidation(
+            FrozenKneeFixture(), 0.05m, Sha(902), Sha(903), 20261025001);
+        Multiple(() =>
+        {
+            Assert.That(candidate.ContractVersion, Is.EqualTo("GOLD_V6_FROZEN_KNEE_VALIDATION_CANDIDATE_V1"));
+            Assert.That(candidate.CandidateLowerThreshold, Is.EqualTo(0.05m));
+            Assert.That(candidate.TrainingCorpusSha256, Is.EqualTo(Sha(900)));
+            Assert.That(candidate.GoldFittedSnapshotSha256, Is.EqualTo(Sha(901)));
+            Assert.That(candidate.ProposedHoldoutSeed, Is.EqualTo(20261025001UL));
+            Assert.That(candidate.SourceCount, Is.EqualTo(9240));
+            Assert.That(candidate.IndependentTrainingIdentityGroups, Is.EqualTo(5003));
+            Assert.That(candidate.WorstPendingSources, Is.EqualTo(28));
+            Assert.That(candidate.WorstFalseNewIdentityCreations, Is.EqualTo(6));
+            Assert.That(candidate.WorstFalseGoldPairs, Is.EqualTo(6));
+            Assert.That(candidate.WorstCoverageAwareBcubedF1, Is.GreaterThan(0.99));
+            Assert.That(candidate.IndependentlyValidated, Is.False);
+            Assert.That(candidate.TestUsed, Is.False);
+            Assert.That(candidate.Certified, Is.False);
+            Assert.That(candidate.OperationallyActivated, Is.False);
+        });
+    }
+
+    [Test]
+    public void Gold_V6_freeze_rejects_retuning_history_missing_evidence_and_untrusted_metrics()
+    {
+        var good = FrozenKneeFixture();
+        void Freeze(GoldTrainLowerNonMatchMatrixCommand.Matrix matrix,
+            decimal threshold = 0.05m, ulong seed = 20261025001,
+            string? matrixSha = null)
+        {
+            _ = GoldTrainThreeOrderProtocol.FreezeKneeForIndependentValidation(
+                matrix, threshold, Sha(902), matrixSha ?? Sha(903), seed);
+        }
+        Reject<InvalidDataException>(() => Freeze(good, threshold: 0.5m));
+        foreach (var usedSeed in new ulong[] { 0, 42, 43, 44, 20261019001 })
+            Reject<InvalidDataException>(() => Freeze(good, seed: usedSeed));
+        Reject<InvalidDataException>(() => Freeze(good, matrixSha: "invalid"));
+        Reject<InvalidDataException>(() => Freeze(good with { TrainOnly = false }));
+        Reject<InvalidDataException>(() => Freeze(good with { IndependentlyCertified = true }));
+        Reject<InvalidDataException>(() => Freeze(good with { OperationallyActivated = true }));
+        Reject<InvalidDataException>(() => Freeze(good with { ExecutedTrialCount = 3 }));
+        Reject<InvalidDataException>(() => Freeze(good with { FinalistCount = 0 }));
+        Reject<InvalidDataException>(() => Freeze(good with
+        {
+            Rows = good.Rows.Take(5).ToArray()
+        }));
+        var rows = good.Rows.ToArray();
+        rows[3] = rows[3] with { LowerThreshold = 0.5m };
+        Reject<InvalidDataException>(() => Freeze(good with { Rows = rows }));
+        rows = good.Rows.ToArray();
+        rows[5] = rows[5] with { Metrics = rows[5].Metrics with { AcceptedLinkFdr = 1.1 } };
+        Reject<InvalidDataException>(() => Freeze(good with { Rows = rows }));
+        rows = good.Rows.ToArray();
+        rows[2] = rows[2] with { Metrics = rows[2].Metrics with { Sources = 9999 } };
+        Reject<InvalidDataException>(() => Freeze(good with { Rows = rows }));
+        rows = good.Rows.ToArray();
+        rows[5] = rows[5] with { Metrics = rows[5].Metrics with { OrderId = GoldTrainThreeOrderProtocol.Baseline } };
+        Reject<InvalidDataException>(() => Freeze(good with { Rows = rows }));
+    }
+
 }
