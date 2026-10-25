@@ -1,3 +1,5 @@
+> **Conferência arquitetural de 24/10/2026:** diagramas de 21/09 e os UML de Calibrador/Linkage listados abaixo têm baselines próprias; **não representam automaticamente o desenho V9 composto, a seleção Gold Pareto V6 ou o ensaio incremental DT-10**. A interpretação vigente para essa frente está no [mapa consolidado V9/Gold](Mapa_Decisoes_Arquiteturais_V9_Gold_20261024.md) (decisões, estados e fluxo lógico de revisão), com fontes de contrato em [Calibrador único](Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014.md), [Gold V6](V9_Registro_Decisoes_Bootstrap_Gold_20261020.md) e [orquestração isolada](Gold_Orquestracao_Matriz_12_LocalDB_TRAIN_20261021.md). **O novo fluxo lógico não declara V9 ativada, não substitui UML institucional e não atualiza sozinho figuras DOCX/PDF**. Atualizações formais dos diagramas derivados pertencem a change-set/release próprios, respeitando histórico e baselines seladas.
+
 > **Enquadramento 09/10/2026:** o catálogo de diagramas
 > permanece versão datada; novos fluxos do sandbox de workers,
 > Console e split CI (PRs #845–#859) estão descritos no
