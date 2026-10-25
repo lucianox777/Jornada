@@ -229,23 +229,31 @@ public static class V9GoldHarnessCommand
                 if (summary.Status != LinkageRunStatus.PUBLICADO || summary.Avaliados != added.Count)
                     throw new InvalidDataException("Runner incremental não publicou exatamente a onda congelada.");
                 var measured = await ReadOutcomesAsync(owner, summary.RunId, truthByObservation, ownership);
-                var captured = captureTrainEvidence || holdout is not null ? preview.DrainWave() : null;
+                IReadOnlyDictionary<ObservationKey, CapturedDecision>? captured = null;
+                if (captureTrainEvidence || holdout is not null)
+                    captured = preview.DrainWave();
                 if (holdout is not null)
+                {
+                    var holdoutCapture = captured ?? throw new InvalidDataException(
+                        "Captura pré-publicação holdout ausente.");
                     AppendGoldErrorForensics(measured, truthByObservation, ownership,
-                        captured!, snapshot, manager, forensicSeen, forensicCases);
+                        holdoutCapture, snapshot, manager, forensicSeen, forensicCases);
+                }
                 if (captureTrainEvidence)
                 {
+                    var trainCapture = captured ?? throw new InvalidDataException(
+                        "Captura pré-publicação TRAIN ausente.");
                     var represented = ownership.Values.SelectMany(x => x)
                         .ToHashSet(StringComparer.Ordinal);
                     var distinctWave = added.Values
                         .Select(source => ObservationKey.From(source.Observation))
                         .Distinct().Count();
-                    if (captured.Count != distinctWave || measured.Count != added.Count)
+                    if (trainCapture.Count != distinctWave || measured.Count != added.Count)
                         throw new InvalidDataException(
                             "Captura pré-publicação não reconcilia todas as observações da onda.");
                     foreach (var source in added.Values)
                     {
-                        if (!captured.TryGetValue(ObservationKey.From(source.Observation), out var diagnostic))
+                        if (!trainCapture.TryGetValue(ObservationKey.From(source.Observation), out var diagnostic))
                             throw new InvalidDataException("Score FS pré-publicação ausente na captura física.");
                         trainingEvidence.Add(new(
                             Sha(System.Text.Encoding.UTF8.GetBytes("GOLD_TRAIN_SOURCE_V1|" + source.Id.ToString(CultureInfo.InvariantCulture))),
