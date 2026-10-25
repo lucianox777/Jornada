@@ -22,7 +22,7 @@ public sealed class V9GoldHoldoutReplayIntegrityTests
             var id = $"P{i:D7}";
             people.Append(id).Append(",TRAIN,NOME,MAE,1990-01-01,F,,,,1\n");
             observations.Append(id).Append("-G0-0,").Append(id)
-                .Append(",TRAIN,G0,NOME,MAE,1990-01-01,F,,,,,1\n");
+                .Append(",TRAIN,G0,NOME,MAE,1990-01-01,F,,,,1\n");
         }
         var peopleBytes = Encoding.UTF8.GetBytes(people.ToString());
         var observationsBytes = Encoding.UTF8.GetBytes(observations.ToString());
