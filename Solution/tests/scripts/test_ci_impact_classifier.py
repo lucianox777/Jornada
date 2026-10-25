@@ -47,4 +47,21 @@ class CiImpactClassifierTests(unittest.TestCase):
     def test_unknown_requires_full_ci(self):
         self.assertTrue(m.classify(["unexpected/new.surface"])["run_full"])
 
+    def test_v9_30k_probe_gold_only_vs_calibrator_impact(self):
+        """Run the new probe classifier assertions in the existing mandatory CI impact job."""
+        p = Path(__file__).resolve().parents[2] / "scripts" / "v9-physical-impact-classifier.py"
+        probe_spec = importlib.util.spec_from_file_location("v9_physical_impact_ci", p)
+        probe = importlib.util.module_from_spec(probe_spec)
+        probe_spec.loader.exec_module(probe)
+        gold_only = [("M", "Solution/src/Jornada.Linkage.Runner/V9GoldDisposableLowerProcedurePatch.cs")]
+        self.assertFalse(probe.classify(gold_only)["run_physical_30k"])
+        self.assertFalse(probe.classify([("M", "Solution/docs/Indice_Decisoes_Vigentes.md")])["run_physical_30k"])
+        mixed = gold_only + [("M", "Solution/src/Jornada.Linkage.Core/FellegiSunterScoring.cs")]
+        self.assertTrue(probe.classify(mixed)["run_physical_30k"])
+        self.assertTrue(probe.classify([("M", "Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs")])["run_physical_30k"])
+        self.assertTrue(probe.classify([("M", ".github/workflows/v9-physical-seed42-probe.yml")])["run_physical_30k"])
+        self.assertTrue(probe.classify([])["run_physical_30k"])
+        self.assertTrue(probe.classify([], manual=True)["run_physical_30k"])
+
+
 if __name__=="__main__": unittest.main()
