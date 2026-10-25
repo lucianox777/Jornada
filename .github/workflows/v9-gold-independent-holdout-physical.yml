@@ -2,6 +2,15 @@ name: v9-gold-independent-holdout-physical
 
 on:
   workflow_dispatch:
+  # Run the real six-trial experiment on the existing holdout PR branch;
+  # workflow_dispatch is not available until this workflow reaches default.
+  pull_request:
+    paths:
+      - '.github/workflows/v9-gold-independent-holdout-physical.yml'
+      - 'Solution/scripts/v9-gold-independent-holdout-6-trial-localdb.ps1'
+      - 'Solution/src/Jornada.Linkage.Runner/**'
+      - 'Solution/data/calibration/v9/independent-holdout-20261025/**'
+
 
 permissions:
   contents: read
@@ -9,6 +18,8 @@ permissions:
 jobs:
   gold-holdout-six-trials:
     name: Gold V6 independent holdout — six physical LocalDB trials (NO TEST)
+    # Never execute the costly experimental job on unrelated pull requests.
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/v9-gold-independent-holdout-contract-20261025'
     runs-on: windows-latest
     timeout-minutes: 360
     steps:
@@ -96,4 +107,4 @@ jobs:
             ${{ runner.temp }}/gold-independent-holdout-v6/holdout-plan.json
             ${{ runner.temp }}/gold-independent-holdout-v6/holdout-six-trial-matrix.json
             ${{ runner.temp }}/gold-independent-holdout-v6/new-cohort-seed-20261025001/generation-manifest.json
-            ${{ runner.temp }}/gold-independent-holdout-v6/*_report/gold-runner-study.json
+            # Per-trial raw reports stay on ephemeral runners: they may contain run GUIDs.
