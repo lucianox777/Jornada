@@ -16,8 +16,31 @@ permissions:
   contents: read
 
 jobs:
+  release-compile:
+    name: Preflight — Release compile warnings-as-errors (no data, no LocalDB)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          global-json-file: Solution/global.json
+      - name: Compile BOTH executables before the costly physical SQL experiment
+        shell: pwsh
+        working-directory: Solution
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet build src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj -c Release -p:TreatWarningsAsErrors=true
+          if ($LASTEXITCODE -ne 0) { throw 'Synthetic generator Release build failed' }
+          dotnet build src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release -p:TreatWarningsAsErrors=true
+          if ($LASTEXITCODE -ne 0) { throw 'Runner Release build failed' }
+
   gold-holdout-six-trials:
     name: Gold V6 independent holdout — six physical LocalDB trials (NO TEST)
+    needs: release-compile
     # Never execute the costly experimental job on unrelated pull requests.
     if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/v9-gold-independent-holdout-contract-20261025'
     runs-on: windows-latest
