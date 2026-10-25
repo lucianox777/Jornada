@@ -1,6 +1,11 @@
 name: v9-gold-physical-train-matrix
 
 on:
+  push:
+    branches:
+      - experiment/v9-gold-v6-train-20261024
+    paths:
+      - '.github/workflows/v9-gold-physical-train-matrix.yml'
   workflow_dispatch:
     inputs:
       lower_thresholds:
@@ -73,9 +78,9 @@ jobs:
         shell: pwsh
         working-directory: Solution
         env:
-          CANDIDATES: ${{ inputs.lower_thresholds }}
-          MIN_GROUPS: ${{ inputs.minimum_independent_identity_groups }}
-          MIN_PRESENT: ${{ inputs.minimum_already_represented_sources }}
+          CANDIDATES: ${{ inputs.lower_thresholds || '0.001,0.005,0.01,0.02,0.05,0.1,0.2,0.3,0.5,0.7,0.8' }}
+          MIN_GROUPS: ${{ inputs.minimum_independent_identity_groups || '1000' }}
+          MIN_PRESENT: ${{ inputs.minimum_already_represented_sources || '100' }}
         run: |
           $ErrorActionPreference = 'Stop'
           $PSNativeCommandUseErrorActionPreference = $true
