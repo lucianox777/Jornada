@@ -1,0 +1,99 @@
+name: v9-gold-independent-holdout-physical
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  gold-holdout-six-trials:
+    name: Gold V6 independent holdout — six physical LocalDB trials (NO TEST)
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          global-json-file: Solution/global.json
+      - name: Locate Windows LocalDB across steps
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $item = Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue
+          $binary = if ($item) { $item.Source } else { $null }
+          if (-not $binary) {
+            $sqlRoot = Join-Path $env:ProgramFiles 'Microsoft SQL Server'
+            if (Test-Path -LiteralPath $sqlRoot) {
+              $match = Get-ChildItem -LiteralPath $sqlRoot -Filter SqlLocalDB.exe -File -Recurse -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+              if ($match) { $binary = $match.FullName }
+            }
+          }
+          if (-not $binary -or -not (Test-Path -LiteralPath $binary -PathType Leaf)) {
+            throw 'Holdout requires Windows LocalDB; operational fallback prohibited.'
+          }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value (Split-Path $binary -Parent) -Encoding utf8
+          & $binary info
+          if ($LASTEXITCODE -ne 0) { throw 'LocalDB unavailable.' }
+      - name: Reproduce original frozen V6 model and generate NEW independent cohort
+        shell: pwsh
+        working-directory: Solution
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $inputs = Join-Path $env:RUNNER_TEMP 'holdout-pinned-inputs'
+          [IO.Directory]::CreateDirectory($inputs) | Out-Null
+          $source = Join-Path $PWD 'data/calibration/v9/mass-support-20261020'
+          $selectionSha = 'b98121f9b4854e0db56026df1ddaef30e0f8c32717baa88a68549bd0ad08d75a'
+          $goldSha = '6d93690dccac2c92dc4d3113cbb9169dd19156c4f9b3d849ededfb4c54ae5f3f'
+          $parentSha = '0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b'
+          $compressed = Join-Path $source "$selectionSha.selection.json.gz"
+          $selection = Join-Path $inputs "$selectionSha.selection.json"
+          $read = [IO.File]::OpenRead($compressed)
+          try {
+            $gunzip = [IO.Compression.GZipStream]::new($read,[IO.Compression.CompressionMode]::Decompress)
+            try {
+              $target = [IO.File]::Create($selection)
+              try { $gunzip.CopyTo($target) } finally { $target.Dispose() }
+            } finally { $gunzip.Dispose() }
+          } finally { $read.Dispose() }
+          if ((Get-FileHash -LiteralPath $selection -Algorithm SHA256).Hash.ToLowerInvariant() -ne $selectionSha) {
+            throw 'Original immutable TRAIN selection envelope changed.'
+          }
+          Copy-Item -LiteralPath (Join-Path $source "$parentSha.fitted.json") -Destination $inputs
+          $goldFit = Join-Path $source "$goldSha.fitted.json"
+          if ((Get-FileHash -LiteralPath (Join-Path $inputs "$parentSha.fitted.json") -Algorithm SHA256).Hash.ToLowerInvariant() -ne $parentSha -or
+              (Get-FileHash -LiteralPath $goldFit -Algorithm SHA256).Hash.ToLowerInvariant() -ne $goldSha) {
+            throw 'V6 original Gold/parent fit changed.'
+          }
+          dotnet build src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj -c Release
+          dotnet build src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release
+          $runner = Join-Path $PWD 'src/Jornada.Linkage.Runner/bin/Release/net10.0/Jornada.Linkage.Runner.dll'
+          $generator = Join-Path $PWD 'src/Jornada.Linkage.SyntheticCorpus/bin/Release/net10.0/Jornada.Linkage.SyntheticCorpus.dll'
+          $candidate = Join-Path $PWD 'data/calibration/v9/independent-holdout-20261025/frozen-knee-candidate.json'
+          $out = Join-Path $env:RUNNER_TEMP 'gold-independent-holdout-v6'
+          & pwsh -NoProfile -File scripts/v9-gold-independent-holdout-6-trial-localdb.ps1 `
+            -RunnerDll $runner -SyntheticGeneratorDll $generator -DatabaseSchema "$PWD/database" `
+            -FrozenCandidate $candidate -TrainingSelectionEnvelope $selection `
+            -FinalistValidation (Join-Path $source 'finalist-validation.json') -GoldFittedSnapshot $goldFit `
+            -ReferenceRoot "$PWD/data/reference/ibge-nomes-2022" `
+            -BirthDailySource "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" `
+            -OutputRoot $out
+          if (-not (Test-Path -LiteralPath (Join-Path $out 'holdout-six-trial-matrix.json') -PathType Leaf)) {
+            throw 'Six independent holdout physical reports were not completed.'
+          }
+      - name: Publish aggregate-only independent holdout evidence (partial on failure)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-gold-independent-holdout-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/gold-independent-holdout-v6/holdout-plan.json
+            ${{ runner.temp }}/gold-independent-holdout-v6/holdout-six-trial-matrix.json
+            ${{ runner.temp }}/gold-independent-holdout-v6/new-cohort-seed-20261025001/generation-manifest.json
+            ${{ runner.temp }}/gold-independent-holdout-v6/*_report/gold-runner-study.json
