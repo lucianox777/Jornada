@@ -1,3 +1,5 @@
+> **Decisão complementar de 24/10/2026 — execução por impacto do V9 30k:** [CI-V9-PROBE-01](Decisao_CI_Probe_V9_Por_Impacto_20261024.md) foi aprovada **somente como arquitetura**. Seu futuro classificador conservará o job físico completo quando houver alteração do Calibrador/FS/TF/dependências, e dispensará a repetição em mudanças Gold demonstravelmente isoladas, sem enfraquecer CI geral, preflight DT-10 ou checks requeridos. Medir a economia **após** implementação e validação em SHAs comparáveis; não confundir não execução deliberada do probe com aprovação física.
+
 # CI — Baseline mensurável de duração e builds observados
 
 **Escopo (12/10/2026):** segunda etapa incremental de refatoração da CI, após #928 (preservar execução em andamento), #929 (diagnóstico somente leitura) e #930 (watchdog horário com token efêmero).
