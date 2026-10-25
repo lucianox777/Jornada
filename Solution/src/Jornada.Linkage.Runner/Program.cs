@@ -29,6 +29,14 @@ if (args.FirstOrDefault() == V9GoldHarnessDatabasePreparation.Flag)
     return;
 }
 
+if (args.FirstOrDefault() == V9GoldIndependentHoldoutProvenance.Flag)
+{
+    var holdoutConnection = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+        ?? throw new InvalidOperationException("Conexão LocalDB descartável ausente.");
+    await V9GoldIndependentHoldoutProvenance.RunAsync(args, holdoutConnection);
+    return;
+}
+
 if (args.FirstOrDefault() == V9GoldHarnessCommand.Flag)
 {
     var harnessConnection = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
