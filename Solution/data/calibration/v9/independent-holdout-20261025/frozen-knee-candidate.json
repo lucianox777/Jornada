@@ -1,0 +1,19 @@
+{
+  "ContractVersion": "GOLD_V6_FROZEN_KNEE_VALIDATION_CANDIDATE_V1",
+  "CandidateLowerThreshold": 0.05,
+  "TrainingCorpusSha256": "28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17",
+  "GoldFittedSnapshotSha256": "6d93690dccac2c92dc4d3113cbb9169dd19156c4f9b3d849ededfb4c54ae5f3f",
+  "SourceArtifactSha256": "79b2b1a19dc60344a33069ca5a4b4d4d539a06b92058bff61087dfa89699056c",
+  "SourceMatrixSha256": "147ce1a0efe111d93465b9c375308284cbe8e9678b98df911a8546ff7f1fbb77",
+  "ProposedHoldoutSeed": 20261025001,
+  "SourceCount": 9240,
+  "IndependentTrainingIdentityGroups": 5003,
+  "WorstPendingSources": 28,
+  "WorstFalseNewIdentityCreations": 5,
+  "WorstFalseGoldPairs": 6,
+  "WorstCoverageAwareBcubedF1": 0.9962296097437594,
+  "IndependentlyValidated": false,
+  "TestUsed": false,
+  "Certified": false,
+  "OperationallyActivated": false
+}
