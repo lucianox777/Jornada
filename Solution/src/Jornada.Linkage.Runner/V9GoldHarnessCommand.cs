@@ -924,7 +924,7 @@ public static class V9GoldHarnessCommand
         {
             version = V9GoldPreCreationSecondSearch.Version,
             enabled = expandedPreCreationSearch,
-            scope = "TRAIN_SELECTION_ONLY",
+            scope = expandedPreCreationSearch ? "TRAIN_SELECTION_ONLY" : "DISABLED",
             cataloguePasses = V9GoldPreCreationSecondSearch.Catalogue.Count,
             invoked = Interlocked.Read(ref _secondSearchCalls),
             noNewCandidate = Interlocked.Read(ref _secondSearchNoNewCandidate),
@@ -1015,6 +1015,19 @@ public static class V9GoldHarnessCommand
             // resolved/conflict observations, and reads ONLY real pre-wave Gold.
             // No labels, CPF, fallback projections, TOP or silent truncation.
             Interlocked.Increment(ref _secondSearchCalls);
+            // Wave zero has no reference Gold. An empty Gold universe makes
+            // any second candidate search provably empty, with no label lookup.
+            if (candidates.Count == 0)
+            {
+                await using var goldExists = connection.CreateCommand();
+                goldExists.CommandText =
+                    "SELECT TOP (1) 1 FROM gold.pessoa WHERE estado_identidade=N'REFERENCIA';";
+                if (await goldExists.ExecuteScalarAsync(ct) is null)
+                {
+                    Interlocked.Increment(ref _secondSearchNoNewCandidate);
+                    return proposed;
+                }
+            }
             await using var expandedCommand = connection.CreateCommand();
             expandedCommand.CommandTimeout = 900;
             var expandedQuery = V9GoldPreCreationSecondSearch.BuildQuery(
