@@ -1,0 +1,206 @@
+name: v9-gold-second-search-physical-train
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-gold-second-search-physical-train.yml'
+      - 'Solution/scripts/v9-gold-knee-second-search-train-localdb.ps1'
+      - 'Solution/src/Jornada.Linkage.Runner/V9GoldPreCreationSecondSearch.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9GoldHarnessCommand.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/V9GoldPreCreationSecondSearchTests.cs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-and-unit:
+    name: Release + second-search unit safeguards
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          global-json-file: Solution/global.json
+      - name: Compile and test before expensive SQL
+        shell: pwsh
+        working-directory: Solution
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet build src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj -c Release -p:TreatWarningsAsErrors=true
+          if ($LASTEXITCODE -ne 0) { throw 'Generator Release build failed.' }
+          dotnet build src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release -p:TreatWarningsAsErrors=true
+          if ($LASTEXITCODE -ne 0) { throw 'Runner Release build failed.' }
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release -p:TreatWarningsAsErrors=true --filter 'FullyQualifiedName~V9GoldPreCreationSecondSearchTests'
+          if ($LASTEXITCODE -ne 0) { throw 'Second-search unit test failed.' }
+
+  six-physical-train:
+    name: Gold TRAIN ${{ matrix.variant }} / ${{ matrix.order }}
+    needs: compile-and-unit
+    if: github.event_name == 'workflow_dispatch' || (github.head_ref == 'feat/v9-gold-second-search-train-20261026' && github.event.pull_request.head.repo.full_name == github.repository)
+    strategy:
+      fail-fast: false
+      matrix:
+        variant: [KNEE, KNEE_SECOND_SEARCH]
+        order: [BASELINE_G0_G1_G2_G3, REVERSE_G3_G2_G1_G0, INTERLEAVED_G1_G3_G0_G2]
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          global-json-file: Solution/global.json
+      - name: Discover Windows SQL LocalDB without fallback
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $found = Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue
+          $binary = if ($found) { $found.Source } else { $null }
+          if (-not $binary) {
+            $root = Join-Path $env:ProgramFiles 'Microsoft SQL Server'
+            if (Test-Path -LiteralPath $root) {
+              $item = Get-ChildItem -LiteralPath $root -Filter SqlLocalDB.exe -File -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+              if ($item) { $binary = $item.FullName }
+            }
+          }
+          if (-not $binary -or -not (Test-Path -LiteralPath $binary -PathType Leaf)) { throw 'SQL LocalDB unavailable.' }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value (Split-Path $binary -Parent) -Encoding utf8
+          & $binary info
+          if ($LASTEXITCODE -ne 0) { throw 'SQL LocalDB cannot enumerate instances.' }
+      - name: Reproduce original TRAIN and execute one physical Gold trial
+        shell: pwsh
+        working-directory: Solution
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $inputs = Join-Path $env:RUNNER_TEMP 'v9-second-search-frozen'
+          [IO.Directory]::CreateDirectory($inputs) | Out-Null
+          $root = Join-Path $PWD 'data/calibration/v9/mass-support-20261020'
+          $selectionSha = 'b98121f9b4854e0db56026df1ddaef30e0f8c32717baa88a68549bd0ad08d75a'
+          $parentSha = '0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b'
+          $goldSha = '6d93690dccac2c92dc4d3113cbb9169dd19156c4f9b3d849ededfb4c54ae5f3f'
+          $csvSha = '28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17'
+          $selection = Join-Path $inputs "$selectionSha.selection.json"
+          $read = [IO.File]::OpenRead((Join-Path $root "$selectionSha.selection.json.gz"))
+          try {
+            $gzip = [IO.Compression.GZipStream]::new($read,[IO.Compression.CompressionMode]::Decompress)
+            try {
+              $write = [IO.File]::Create($selection)
+              try { $gzip.CopyTo($write) } finally { $write.Dispose() }
+            } finally { $gzip.Dispose() }
+          } finally { $read.Dispose() }
+          if ((Get-FileHash $selection -Algorithm SHA256).Hash.ToLowerInvariant() -ne $selectionSha) { throw 'Frozen selection mismatch.' }
+          Copy-Item -LiteralPath (Join-Path $root "$parentSha.fitted.json") -Destination $inputs
+          $goldFit = Join-Path $root "$goldSha.fitted.json"
+          if ((Get-FileHash $goldFit -Algorithm SHA256).Hash.ToLowerInvariant() -ne $goldSha -or
+              (Get-FileHash (Join-Path $inputs "$parentSha.fitted.json") -Algorithm SHA256).Hash.ToLowerInvariant() -ne $parentSha) {
+            throw 'Frozen Gold/parent fit mismatch.'
+          }
+          dotnet build src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj -c Release -p:TreatWarningsAsErrors=true
+          if ($LASTEXITCODE -ne 0) { throw 'Generator compilation failed.' }
+          dotnet build src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release -p:TreatWarningsAsErrors=true
+          if ($LASTEXITCODE -ne 0) { throw 'Runner compilation failed.' }
+          $runner = Join-Path $PWD 'src/Jornada.Linkage.Runner/bin/Release/net10.0/Jornada.Linkage.Runner.dll'
+          $generator = Join-Path $PWD 'src/Jornada.Linkage.SyntheticCorpus/bin/Release/net10.0/Jornada.Linkage.SyntheticCorpus.dll'
+          $corpus = Join-Path $env:RUNNER_TEMP 'v9-clean-original-seed42'
+          $genArgs = @('generate', '--reference-root', "$PWD/data/reference/ibge-nomes-2022",
+            '--population-profile', 'demographic-primary', '--birth-daily-source',
+            "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json",
+            '--error-profile', 'clean', '--people', '30000', '--seed', '42', '--out', $corpus)
+          & dotnet $generator @genArgs
+          if ($LASTEXITCODE -ne 0) { throw 'Original TRAIN generation failed.' }
+          $csv = Join-Path $corpus 'observacoes.csv'
+          if ((Get-FileHash $csv -Algorithm SHA256).Hash.ToLowerInvariant() -ne $csvSha) { throw 'Original TRAIN hash mismatch.' }
+          $output = Join-Path $env:RUNNER_TEMP 'v9-gold-second-search-trial'
+          $studyArgs = @('-RunnerDll', $runner, '-DatabaseSchema', "$PWD/database",
+            '-TrainSelectionEnvelope', $selection, '-FinalistValidation', (Join-Path $root 'finalist-validation.json'),
+            '-GoldFittedSnapshot', $goldFit, '-OriginalTrainCsv', $csv,
+            '-FrozenCandidate', "$PWD/data/calibration/v9/independent-holdout-20261025/frozen-knee-candidate.json",
+            '-OutputRoot', $output, '-Variant', '${{ matrix.variant }}', '-Order', '${{ matrix.order }}')
+          & pwsh -NoProfile -File scripts/v9-gold-knee-second-search-train-localdb.ps1 @studyArgs
+          if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $output 'second-search-one-train.json'))) {
+            throw 'Physical incremental trial incomplete.'
+          }
+      - name: Preserve aggregate-only TRAIN result, including partial failure
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-second-search-train-${{ matrix.variant }}-${{ matrix.order }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/v9-gold-second-search-trial/second-search-one-train.json
+
+  compare-paired-train:
+    name: Reconcile six LocalDB trials and compare paired TRAIN outcomes
+    needs: six-physical-train
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: v9-second-search-train-*
+          path: ${{ runner.temp }}/v9-second-search-parts
+          merge-multiple: false
+      - name: Fail-closed comparison with original V6 provenance
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP']) / 'v9-second-search-parts'
+          parts = sorted(root.glob('*/second-search-one-train.json'))
+          assert len(parts) == 6, f'Required exactly six LocalDB reports, found {len(parts)}'
+          orders = ('BASELINE_G0_G1_G2_G3','REVERSE_G3_G2_G1_G0','INTERLEAVED_G1_G3_G0_G2')
+          variants = ('KNEE','KNEE_SECOND_SEARCH')
+          expected = {(v,o) for v in variants for o in orders}
+          seen, fingerprints, rows = set(),set(),[]
+          for path in parts:
+              t = json.loads(path.read_text(encoding='utf-8-sig'))
+              assert t['version'] == 'V9_GOLD_SECOND_SEARCH_TRAIN_ONE_PHYSICAL_TRIAL_V1'
+              assert t['status'] == 'COMPLETE_DESCRIPTIVE_ONLY' and t['scope'] == 'TRAIN_SELECTION'
+              assert t['physicalTrialCount'] == 1 and t['lowerThreshold'] == 0.05
+              assert not any(t[k] for k in ('testUsed','retuned','independentlyValidated','operationallyActivated'))
+              assert t['frozenFitSha256'] == '6d93690dccac2c92dc4d3113cbb9169dd19156c4f9b3d849ededfb4c54ae5f3f'
+              assert t['originalTrainCsvSha256'] == '28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17'
+              r=t['row']; k=(r['policy'],r['order'])
+              assert k in expected and k not in seen
+              seen.add(k)
+              assert r['runFingerprint'] not in fingerprints and len(r['runFingerprint']) == 64
+              fingerprints.add(r['runFingerprint'])
+              assert r['sources'] > 0 and r['trueIdentities'] > 0
+              assert r['published'] + r['pending'] == r['sources']
+              assert all(r[a]>=0 for a in ('falseCreations','falseAccepted','falseGoldPairs','secondSearchInvoked','secondSearchRecoveredAdditional','secondSearchAbstained'))
+              assert 0 <= r['bcubedCoverageRecall'] <= 1
+              if r['policy'] == 'KNEE': assert r['secondSearchInvoked'] == 0
+              else: assert r['secondSearchInvoked'] >= r['secondSearchRecoveredAdditional'] >= r['secondSearchAbstained']
+              rows.append(r)
+          assert seen == expected
+          assert len({r['sources'] for r in rows}) == len({r['trueIdentities'] for r in rows}) == 1
+          pairs=[]
+          for order in orders:
+              base=next(r for r in rows if r['policy']=='KNEE' and r['order']==order)
+              new=next(r for r in rows if r['policy']=='KNEE_SECOND_SEARCH' and r['order']==order)
+              pairs.append({'order':order, **{'delta_'+a:new[a]-base[a] for a in ('pending','falseCreations','falseAccepted','falseGoldPairs','fragmentedIdentities','bcubedCoverageRecall','seconds')},
+                            'invoked':new['secondSearchInvoked'],'recoveredAdditional':new['secondSearchRecoveredAdditional'],'abstained':new['secondSearchAbstained']})
+          result={'version':'V9_GOLD_SECOND_SEARCH_PAIRED_TRAIN_SIX_PHYSICAL_TRIALS_V1',
+                  'scope':'TRAIN_SELECTION','testUsed':False,'retuned':False,'independentlyCertified':False,'operationallyActivated':False,
+                  'physicalTrialCount':6,'rows':sorted(rows,key=lambda r:(r['policy'],r['order'])),'differences':pairs}
+          path=root.parent/'second-search-paired-train.json'
+          path.write_text(json.dumps(result,indent=2,ensure_ascii=False),encoding='utf-8')
+          print('Six physical TRAIN trials reconciled; no independent certification, no TEST.')
+          PY
+      - name: Upload anonymous paired TRAIN matrix
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-gold-second-search-paired-train-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/second-search-paired-train.json
