@@ -1,0 +1,230 @@
+name: v9-gold-independent-holdout-physical
+
+on:
+  workflow_dispatch:
+  # Run the real six-trial experiment on the existing holdout PR branch;
+  # workflow_dispatch is not available until this workflow reaches default.
+  pull_request:
+    paths:
+      - '.github/workflows/v9-gold-independent-holdout-physical.yml'
+      - 'Solution/scripts/v9-gold-independent-holdout-6-trial-localdb.ps1'
+      - 'Solution/src/Jornada.Linkage.Runner/**'
+      - 'Solution/data/calibration/v9/independent-holdout-20261025/**'
+
+
+permissions:
+  contents: read
+
+jobs:
+  release-compile:
+    name: Preflight — Release compile warnings-as-errors (no data, no LocalDB)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          global-json-file: Solution/global.json
+      - name: Compile BOTH executables before the costly physical SQL experiment
+        shell: pwsh
+        working-directory: Solution
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          dotnet build src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj -c Release -p:TreatWarningsAsErrors=true
+          if ($LASTEXITCODE -ne 0) { throw 'Synthetic generator Release build failed' }
+          dotnet build src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release -p:TreatWarningsAsErrors=true
+          if ($LASTEXITCODE -ne 0) { throw 'Runner Release build failed' }
+
+  gold-holdout-six-trials:
+    name: Gold holdout physical ${{ matrix.policy }} / ${{ matrix.order }} (NO TEST)
+    needs: release-compile
+    strategy:
+      fail-fast: false
+      matrix:
+        policy: [CURRENT, KNEE]
+        order: [BASELINE_G0_G1_G2_G3, REVERSE_G3_G2_G1_G0, INTERLEAVED_G1_G3_G0_G2]
+    # Never execute the costly experimental job on unrelated pull requests.
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'feat/v9-gold-independent-holdout-contract-20261025'
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          global-json-file: Solution/global.json
+      - name: Locate Windows LocalDB across steps
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $item = Get-Command SqlLocalDB.exe -ErrorAction SilentlyContinue
+          $binary = if ($item) { $item.Source } else { $null }
+          if (-not $binary) {
+            $sqlRoot = Join-Path $env:ProgramFiles 'Microsoft SQL Server'
+            if (Test-Path -LiteralPath $sqlRoot) {
+              $match = Get-ChildItem -LiteralPath $sqlRoot -Filter SqlLocalDB.exe -File -Recurse -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+              if ($match) { $binary = $match.FullName }
+            }
+          }
+          if (-not $binary -or -not (Test-Path -LiteralPath $binary -PathType Leaf)) {
+            throw 'Holdout requires Windows LocalDB; operational fallback prohibited.'
+          }
+          Add-Content -LiteralPath $env:GITHUB_PATH -Value (Split-Path $binary -Parent) -Encoding utf8
+          & $binary info
+          if ($LASTEXITCODE -ne 0) { throw 'LocalDB unavailable.' }
+      - name: Reproduce original frozen V6 model and generate NEW independent cohort
+        shell: pwsh
+        working-directory: Solution
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $inputs = Join-Path $env:RUNNER_TEMP 'holdout-pinned-inputs'
+          [IO.Directory]::CreateDirectory($inputs) | Out-Null
+          $source = Join-Path $PWD 'data/calibration/v9/mass-support-20261020'
+          $selectionSha = 'b98121f9b4854e0db56026df1ddaef30e0f8c32717baa88a68549bd0ad08d75a'
+          $goldSha = '6d93690dccac2c92dc4d3113cbb9169dd19156c4f9b3d849ededfb4c54ae5f3f'
+          $parentSha = '0a3459585fcf3d20fbd0854e977b84a769127a9ab01ab0d72417dff42d0b3e5b'
+          $compressed = Join-Path $source "$selectionSha.selection.json.gz"
+          $selection = Join-Path $inputs "$selectionSha.selection.json"
+          $read = [IO.File]::OpenRead($compressed)
+          try {
+            $gunzip = [IO.Compression.GZipStream]::new($read,[IO.Compression.CompressionMode]::Decompress)
+            try {
+              $target = [IO.File]::Create($selection)
+              try { $gunzip.CopyTo($target) } finally { $target.Dispose() }
+            } finally { $gunzip.Dispose() }
+          } finally { $read.Dispose() }
+          if ((Get-FileHash -LiteralPath $selection -Algorithm SHA256).Hash.ToLowerInvariant() -ne $selectionSha) {
+            throw 'Original immutable TRAIN selection envelope changed.'
+          }
+          Copy-Item -LiteralPath (Join-Path $source "$parentSha.fitted.json") -Destination $inputs
+          $goldFit = Join-Path $source "$goldSha.fitted.json"
+          if ((Get-FileHash -LiteralPath (Join-Path $inputs "$parentSha.fitted.json") -Algorithm SHA256).Hash.ToLowerInvariant() -ne $parentSha -or
+              (Get-FileHash -LiteralPath $goldFit -Algorithm SHA256).Hash.ToLowerInvariant() -ne $goldSha) {
+            throw 'V6 original Gold/parent fit changed.'
+          }
+          dotnet build src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj -c Release
+          dotnet build src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj -c Release
+          $runner = Join-Path $PWD 'src/Jornada.Linkage.Runner/bin/Release/net10.0/Jornada.Linkage.Runner.dll'
+          $generator = Join-Path $PWD 'src/Jornada.Linkage.SyntheticCorpus/bin/Release/net10.0/Jornada.Linkage.SyntheticCorpus.dll'
+          $candidate = Join-Path $PWD 'data/calibration/v9/independent-holdout-20261025/frozen-knee-candidate.json'
+          $out = Join-Path $env:RUNNER_TEMP 'gold-independent-holdout-v6'
+          & pwsh -NoProfile -File scripts/v9-gold-independent-holdout-6-trial-localdb.ps1 `
+            -RunnerDll $runner -SyntheticGeneratorDll $generator -DatabaseSchema "$PWD/database" `
+            -FrozenCandidate $candidate -TrainingSelectionEnvelope $selection `
+            -FinalistValidation (Join-Path $source 'finalist-validation.json') -GoldFittedSnapshot $goldFit `
+            -ReferenceRoot "$PWD/data/reference/ibge-nomes-2022" `
+            -BirthDailySource "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" `
+            -OutputRoot $out -Policy '${{ matrix.policy }}' -Order '${{ matrix.order }}'
+          if (-not (Test-Path -LiteralPath (Join-Path $out 'holdout-trial.json') -PathType Leaf)) {
+            throw 'Independent physical trial aggregate was not completed.'
+          }
+      - name: Publish aggregate-only independent holdout evidence (partial on failure)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-holdout-trial-${{ matrix.policy }}-${{ matrix.order }}
+          retention-days: 30
+          if-no-files-found: warn
+          # Raw per-trial reports stay on ephemeral runners; they can contain run GUIDs.
+          path: |
+            ${{ runner.temp }}/gold-independent-holdout-v6/holdout-plan.json
+            ${{ runner.temp }}/gold-independent-holdout-v6/holdout-trial.json
+            ${{ runner.temp }}/gold-independent-holdout-v6/new-cohort-seed-20261025001/generation-manifest.json
+
+  aggregate-six-trials:
+    name: Verify and aggregate six independent physical LocalDB results
+    needs: gold-holdout-six-trials
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Retrieve all six aggregate-only artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: v9-holdout-trial-*
+          path: ${{ runner.temp }}/holdout-six-parts
+          merge-multiple: false
+      - name: Fail-closed verification of six physical trials and common frozen provenance
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "holdout-six-parts"
+          paths = sorted(root.glob("*/holdout-trial.json"))
+          assert len(paths) == 6, f"Exactly six physical trial artifacts required, found {len(paths)}"
+          expected = {(p, o) for p in ("CURRENT", "KNEE") for o in (
+              "BASELINE_G0_G1_G2_G3", "REVERSE_G3_G2_G1_G0", "INTERLEAVED_G1_G3_G0_G2")}
+          fields = ("Scope", "Seed", "NewCorpusSha256", "CohortFingerprintSha256",
+                    "IdentityNamespaceSha256", "FrozenGoldFitSha256", "FrozenTrainMatrixSha256",
+                    "TestUsed", "IndependentlyCertified", "OperationallyActivated", "Retuned")
+          first, rows, plans, fingerprints, found = None, [], [], set(), set()
+          for path in paths:
+              part = json.loads(path.read_text(encoding="utf-8-sig"))
+              plan = json.loads((path.parent / "holdout-plan.json").read_text(encoding="utf-8-sig"))
+              assert part["Version"] == "GOLD_INDEPENDENT_HOLDOUT_ONE_PHYSICAL_TRIAL_V1"
+              assert part["PhysicalTrialCount"] == 1 and len(part["Rows"]) == 1
+              assert part["Scope"] == plan["EvidenceScope"] == "INDEPENDENT_HOLDOUT"
+              assert part["Seed"] == plan["Seed"] == 20261025001
+              assert part["FrozenGoldFitSha256"].lower() == plan["GoldFittedSnapshotSha256"].lower() == (
+                  "6d93690dccac2c92dc4d3113cbb9169dd19156c4f9b3d849ededfb4c54ae5f3f")
+              assert plan["RequiredPhysicalTrials"] == 6
+              assert part["NewCorpusSha256"].lower() == plan["CsvSha256"].lower()
+              assert part["IdentityNamespaceSha256"].lower() == plan["IdentityNamespaceSha256"].lower()
+              assert part["CohortFingerprintSha256"].lower() == plan["CohortFingerprintSha256"].lower()
+              assert not any(part[k] for k in ("TestUsed", "IndependentlyCertified",
+                                                "OperationallyActivated", "Retuned"))
+              assert not any(plan[k] for k in ("TestUsed", "IndependentlyCertified", "OperationallyActivated"))
+              if first is None:
+                  first = part
+              else:
+                  assert all(part[k] == first[k] for k in fields), "Inconsistent frozen provenance"
+              assert not plans or plan == plans[0], "Generator/preflight changed across runners"
+              plans.append(plan)
+              row = part["Rows"][0]
+              key = (row["Policy"], row["OrderId"])
+              assert key in expected and key not in found, "Unexpected or repeated policy/order"
+              found.add(key)
+              fingerprint = row["RunFingerprintSha256"]
+              assert len(fingerprint) == 64 and fingerprint not in fingerprints, "Duplicate physical trial"
+              fingerprints.add(fingerprint)
+              assert row["Pending"] + row["Published"] == row["Sources"]
+              assert row["Sources"] > 0 and row["TrueIdentities"] > 0
+              assert row["ErrorForensicFalseCreations"] == row["FalseNewIdentityCreations"]
+              rows.append(row)
+          assert found == expected, "Six pre-registered policy/order combinations required"
+          assert len({r["Sources"] for r in rows}) == len({r["TrueIdentities"] for r in rows}) == 1
+          worst = []
+          for policy in ("CURRENT", "KNEE"):
+              subset = [r for r in rows if r["Policy"] == policy]
+              worst.append({
+                  "Policy": policy,
+                  "MaxPending": max(r["Pending"] for r in subset),
+                  "MaxFalseAcceptedLinks": max(r["FalseAcceptedLinks"] for r in subset),
+                  "MaxFalseGoldPairs": max(r["FalseGoldPairs"] for r in subset),
+                  "MaxFalseNewIdentityCreations": max(r["FalseNewIdentityCreations"] for r in subset),
+                  "MinCoverageAwareBcubedRecall": min(r["CoverageAwareBcubedRecall"] for r in subset),
+              })
+          matrix = {k: first[k] for k in fields}
+          matrix.update(Version="GOLD_INDEPENDENT_HOLDOUT_SIX_PHYSICAL_TRIALS_V1",
+                        PhysicalTrialCount=6, Rows=sorted(rows, key=lambda r: (r["Policy"], r["OrderId"])),
+                        WorstByPolicy=worst)
+          output = root.parent / "holdout-six-trial-matrix.json"
+          output.write_text(json.dumps(matrix, ensure_ascii=False, indent=2), encoding="utf-8")
+          (root.parent / "holdout-plan.json").write_text(json.dumps(plans[0], indent=2), encoding="utf-8")
+          print("Six physically independent trials verified; aggregate matrix emitted, no certification.")
+          PY
+      - name: Publish aggregate-only six-trial matrix
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-gold-independent-holdout-six-trial-matrix-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/holdout-six-trial-matrix.json
+            ${{ runner.temp }}/holdout-plan.json

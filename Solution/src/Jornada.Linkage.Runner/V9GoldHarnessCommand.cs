@@ -25,6 +25,7 @@ public static class V9GoldHarnessCommand
     public const string Flag = "--v9-gold-harness";
     private const string Marker = "PINNED_FIT_PREVIEW_NO_ACTIVATION";
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions FrozenCandidateJson = new() { PropertyNameCaseInsensitive = true };
     private sealed record Source(long Id, string Truth, string Manager, IdentityObservation Observation);
     private sealed record Outcome(bool Eligible, bool TrueAccepted, bool FalseAccepted, string Status,
         bool PublishedTrueAssociation, bool PublishedFalseAssociation, string PublicationResult, bool LowerBandProposal);
@@ -54,8 +55,53 @@ public static class V9GoldHarnessCommand
         string[] args, string connectionString) =>
         RunInternalAsync(args, connectionString, captureTrainEvidence: true);
 
+    /// <summary>
+    /// Six-trial external evaluation uses the SAME physical incremental/Gold
+    /// measurement pipeline, but an independently verified CSV and an explicit
+    /// INDEPENDENT_HOLDOUT scope. The TRAIN entry point never accepts that CSV.
+    /// No refit, threshold selection or operational model publication occurs.
+    /// </summary>
+    public static async Task RunIndependentHoldoutAsync(string[] args, string connectionString)
+    {
+        if (args is null || args.Length != 9 || args[0] != "--v9-gold-holdout-harness"
+            || args[8] is not ("CURRENT" or "KNEE"))
+            throw new ArgumentException(
+                "Uso: --v9-gold-holdout-harness <frozen-candidate.json> <cohort-dir> <TRAIN-selection.json> <finalist-validation.json> <Gold-fitted.json> <output-new> <order> <CURRENT|KNEE>.");
+        ValidateDisposableConnection(connectionString);
+        var candidate = JsonSerializer.Deserialize<GoldTrainThreeOrderProtocol.FrozenGoldValidationCandidate>(
+            await File.ReadAllBytesAsync(args[1]), Json)
+            ?? throw new InvalidDataException("Candidato congelado ausente.");
+        var plan = await V9GoldIndependentHoldoutProvenance.VerifyAsync(
+            candidate, args[2], connectionString);
+        var goldBytes = await File.ReadAllBytesAsync(args[5]);
+        var gold = V9FittedSnapshot.Load(goldBytes, Sha(goldBytes));
+        if (!string.Equals(plan.GoldFittedSnapshotSha256,
+                gold.ContentSha256, StringComparison.OrdinalIgnoreCase)
+            || gold.Payload.Threshold != .8671875m
+            || plan.Seed != 20261025001UL || plan.CandidateLowerThreshold != .05m
+            || !string.Equals(candidate.TrainingCorpusSha256,
+                "28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17",
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(candidate.SourceMatrixSha256,
+                "147ce1a0efe111d93465b9c375308284cbe8e9678b98df911a8546ff7f1fbb77",
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(candidate.SourceArtifactSha256,
+                "79b2b1a19dc60344a33069ca5a4b4d4d539a06b92058bff61087dfa89699056c",
+                StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Holdout não usa fit, seed e candidato do registro V6 congelado.");
+        var translated = new List<string> {
+            Flag, args[3], args[4], args[5], Path.Combine(args[2], "observacoes.csv"),
+            args[6], args[7] };
+        if (args[8] == "KNEE")
+            translated.Add("LOWER_NONMATCH=" +
+                plan.CandidateLowerThreshold.ToString(CultureInfo.InvariantCulture));
+        _ = await RunInternalAsync(translated.ToArray(), connectionString,
+            captureTrainEvidence: false, holdout: plan);
+    }
+
     private static async Task<IReadOnlyList<V9GoldTrainPhysicalEvidence>> RunInternalAsync(
-        string[] args, string connectionString, bool captureTrainEvidence)
+        string[] args, string connectionString, bool captureTrainEvidence,
+        V9GoldIndependentHoldoutContract.Plan? holdout = null)
     {
         if (args.Length is < 6 or > 8 || args[0] != Flag)
             throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2] [LOWER_NONMATCH=<decimal>]; usar exclusivamente LocalDB descartável.");
@@ -81,13 +127,18 @@ public static class V9GoldHarnessCommand
         var parent = V9FittedSnapshot.Load(await File.ReadAllBytesAsync(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(args[1]))!, winner + ".fitted.json")), winner);
         if (!parent.CreateGoldHarnessVariant().SerializeUtf8().AsSpan().SequenceEqual(fitBytes))
             throw new InvalidDataException("Variante altera parâmetros além do contrato Gold permitido.");
-        await using (var input = File.OpenRead(args[4]))
-            if (!string.Equals(Convert.ToHexString(await SHA256.HashDataAsync(input)), selection.RootElement.GetProperty("originalObservationsSha256").GetString(), StringComparison.OrdinalIgnoreCase))
-                throw new InvalidDataException("CSV não é o TRAIN original fixado.");
-        var identities = result.GetProperty("Split").GetProperty("Assignments").EnumerateArray()
-            .Where(x => x.GetProperty("Purpose").GetString() == "TRAIN_SELECTION")
-            .Select(x => x.GetProperty("BaseIdentity").GetString()!).ToHashSet(StringComparer.Ordinal);
-        var sources = ReadTrainSelection(args[4], identities);
+        var csvSha = Sha(await File.ReadAllBytesAsync(args[4]));
+        if (!string.Equals(csvSha, holdout?.CsvSha256
+                ?? selection.RootElement.GetProperty("originalObservationsSha256").GetString(),
+                StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("CSV diverge do corpus fixado para o escopo solicitado.");
+        var identities = holdout is null
+            ? result.GetProperty("Split").GetProperty("Assignments").EnumerateArray()
+                .Where(x => x.GetProperty("Purpose").GetString() == "TRAIN_SELECTION")
+                .Select(x => x.GetProperty("BaseIdentity").GetString()!).ToHashSet(StringComparer.Ordinal)
+            : new HashSet<string>(StringComparer.Ordinal);
+        var sources = ReadSources(args[4], holdout is null ? identities : null,
+            holdout?.IdentityNamespaceSha256);
         var wavesByManager = sources.GroupBy(x => x.Manager, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
         // Validate the PRE-REGISTERED order against the complete same CSV
@@ -105,6 +156,11 @@ public static class V9GoldHarnessCommand
         var trialOrderId = orderOptions.Length == 1 ? orderOptions[0] : GoldTrainThreeOrderProtocol.Baseline;
         var executedWaveOrder = GoldTrainThreeOrderProtocol.ResolveOrder(
             trialOrderId, wavesByManager.Keys);
+        if (holdout is not null && (captureTrainEvidence
+            || (lowerNonMatchThreshold is not null &&
+                lowerNonMatchThreshold != holdout.CandidateLowerThreshold)
+            || sources.Select(x => x.Truth).Distinct(StringComparer.Ordinal).Count() < 1000))
+            throw new InvalidDataException("Plano holdout: somente CURRENT/KNEE congelado e coorte suficiente.");
         if (captureTrainEvidence && (lowerNonMatchThreshold is not null
             || trialOrderId != GoldTrainThreeOrderProtocol.Baseline))
             throw new InvalidOperationException(
@@ -135,17 +191,27 @@ public static class V9GoldHarnessCommand
         try
         {
             var modelId = Guid.NewGuid();
-            await InsertDraftAsync(owner, modelId, snapshot);
+            await InsertDraftAsync(owner, modelId, snapshot, holdout is not null);
             var runtime = V9FittedSnapshotExecutionRuntime.Load(fitBytes, snapshot.ContentSha256);
             var preview = new IsolatedPreview(sql, runtime, new(modelId, 1, LinkageParameterCatalog.CompositeNominalDecisionEvidenceAlgorithmVersion,
                 snapshot.Payload.Threshold, snapshot.Payload.ConflictMargin)
             {
                 BlockingContract = new("PINNED_GOLD_HARNESS_" + snapshot.ContentSha256, snapshot.ContentSha256,
                     runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256)
-            }, lowerNonMatchThreshold, captureTrainEvidence);
+            }, lowerNonMatchThreshold, captureTrainEvidence, holdout is not null);
             var trainingEvidence = new List<V9GoldTrainPhysicalEvidence>();
             var bronzeRoot = Path.Combine(output, "bronze");
-            var runner = new ProbabilisticLinkageBatchRunner(new ConfigurationBuilder().Build(), sql, preview,
+            // The external 30k holdout uses canonical publication SQL on a disposable
+            // LocalDB. Its G2 publication exceeded the default 900s command timeout
+            // (physical run 40212632707). A second run 40225343759 exhausted 3600s in Gold recompose phase 2/4. Raise ONLY this experiment's SQL command
+            // timeout; do not alter production settings, scoring or SQL atomicity.
+            var harnessConfiguration = holdout is null
+                ? new ConfigurationBuilder().Build()
+                : new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
+                {
+                    ["ProbabilisticLinkage:CommandTimeoutSeconds"] = "10800"
+                }).Build();
+            var runner = new ProbabilisticLinkageBatchRunner(harnessConfiguration, sql, preview,
                 new SqlPipelineCoordinator(sql), new Dt05ReplaySql(sql),
                 new Dt05ReplayManifestPublisher(new FileSystemBronzeObjectStore(bronzeRoot), bronzeRoot),
                 new Dt05CandidateStateSnapshotPublisher(sql, bronzeRoot), new Dt05BlockingProjectionSnapshotPublisher(sql, bronzeRoot),
@@ -154,6 +220,8 @@ public static class V9GoldHarnessCommand
             var truthByObservation = new Dictionary<long, Source>();
             var outcomes = new Dictionary<long, Outcome>();
             var creationAudit = new V9GoldPhysicalCreationAudit();
+            var forensicCases = new List<GoldErrorForensicCase>();
+            var forensicSeen = new HashSet<(long Source, string Failure)>();
             var waves = new List<object>();
             foreach (var manager in executedWaveOrder)
             {
@@ -163,26 +231,39 @@ public static class V9GoldHarnessCommand
                 var ownership = await OwnershipAsync(owner, truthByObservation);
                 var added = await InsertWaveAsync(owner, wave);
                 foreach (var item in added) truthByObservation.Add(item.Key, item.Value);
-                if (captureTrainEvidence) preview.BeginWave();
+                if (captureTrainEvidence || holdout is not null) preview.BeginWave();
                 var summary = await runner.RunAsync(new(LinkageRunType.INCREMENTAL, 1, null, manager, null,
-                    1000, 2, null, "V9_DISPOSABLE_HARNESS", "PINNED_FIT_TRAIN_SELECTION_DIAGNOSTIC", Guid.NewGuid(), true), CancellationToken.None);
+                    1000, 2, null, "V9_DISPOSABLE_HARNESS", holdout is null
+                        ? "PINNED_FIT_TRAIN_SELECTION_DIAGNOSTIC"
+                        : "PINNED_FIT_INDEPENDENT_HOLDOUT_DIAGNOSTIC", Guid.NewGuid(), true), CancellationToken.None);
                 if (summary.Status != LinkageRunStatus.PUBLICADO || summary.Avaliados != added.Count)
                     throw new InvalidDataException("Runner incremental não publicou exatamente a onda congelada.");
                 var measured = await ReadOutcomesAsync(owner, summary.RunId, truthByObservation, ownership);
+                IReadOnlyDictionary<ObservationKey, CapturedDecision>? captured = null;
+                if (captureTrainEvidence || holdout is not null)
+                    captured = preview.DrainWave();
+                if (holdout is not null)
+                {
+                    var holdoutCapture = captured ?? throw new InvalidDataException(
+                        "Captura pré-publicação holdout ausente.");
+                    AppendGoldErrorForensics(measured, truthByObservation, ownership,
+                        holdoutCapture, snapshot, manager, forensicSeen, forensicCases);
+                }
                 if (captureTrainEvidence)
                 {
-                    var captured = preview.DrainWave();
+                    var trainCapture = captured ?? throw new InvalidDataException(
+                        "Captura pré-publicação TRAIN ausente.");
                     var represented = ownership.Values.SelectMany(x => x)
                         .ToHashSet(StringComparer.Ordinal);
                     var distinctWave = added.Values
                         .Select(source => ObservationKey.From(source.Observation))
                         .Distinct().Count();
-                    if (captured.Count != distinctWave || measured.Count != added.Count)
+                    if (trainCapture.Count != distinctWave || measured.Count != added.Count)
                         throw new InvalidDataException(
                             "Captura pré-publicação não reconcilia todas as observações da onda.");
                     foreach (var source in added.Values)
                     {
-                        if (!captured.TryGetValue(ObservationKey.From(source.Observation), out var diagnostic))
+                        if (!trainCapture.TryGetValue(ObservationKey.From(source.Observation), out var diagnostic))
                             throw new InvalidDataException("Score FS pré-publicação ausente na captura física.");
                         trainingEvidence.Add(new(
                             Sha(System.Text.Encoding.UTF8.GetBytes("GOLD_TRAIN_SOURCE_V1|" + source.Id.ToString(CultureInfo.InvariantCulture))),
@@ -211,11 +292,18 @@ public static class V9GoldHarnessCommand
                     .Distinct(StringComparer.Ordinal).Count() != sources.Count))
                 throw new InvalidDataException("Captura TRAIN incompleta ou com fonte duplicada.");
             var beforeReevaluation = await OwnershipAsync(owner, truthByObservation);
+            if (holdout is not null) preview.BeginWave();
             var reevaluation = await runner.RunAsync(new(LinkageRunType.INCREMENTAL, 1, null, null, null,
                 1000, 2, null, "V9_DISPOSABLE_HARNESS", "REEVALUATE_PENDING_AFTER_ALL_MANAGER_WAVES", Guid.NewGuid(), true), CancellationToken.None);
             if (reevaluation.Status != LinkageRunStatus.PUBLICADO || reevaluation.FreshPending != 0)
                 throw new InvalidDataException("Reavaliação final deve conter somente pendências do corpus já carregado.");
-            foreach (var item in await ReadOutcomesAsync(owner, reevaluation.RunId, truthByObservation, beforeReevaluation))
+            var reevaluated = await ReadOutcomesAsync(owner, reevaluation.RunId,
+                truthByObservation, beforeReevaluation);
+            if (holdout is not null)
+                AppendGoldErrorForensics(reevaluated, truthByObservation, beforeReevaluation,
+                    preview.DrainWave(), snapshot, "FINAL_REEVALUATION",
+                    forensicSeen, forensicCases);
+            foreach (var item in reevaluated)
             {
                 outcomes[item.Key] = item.Value; // Final association metric: last result wins.
                 creationAudit.Observe(item.Key, item.Value.Eligible,
@@ -230,6 +318,9 @@ public static class V9GoldHarnessCommand
             if (outcomes.Count != sources.Count || trueAccepted > eligible)
                 throw new InvalidDataException("Métricas finais não reconciliam fontes distintas e elegibilidade anterior ao score.");
             var physicalCreations = creationAudit.Snapshot();
+            if (holdout is not null && forensicCases.LongCount(x => x.Failure == "FALSE_CREATION")
+                != physicalCreations.FalseNewIdentityCreations)
+                throw new InvalidDataException("Perícia de criação falsa não reconcilia ledger físico de eventos.");
             if (physicalCreations.LowerBandCreated > physicalCreations.LowerBandProposals
                 || physicalCreations.FalseLowerBandCreations > physicalCreations.LowerBandCreated
                 || physicalCreations.FalseLowerBandCreations > physicalCreations.FalseNewIdentityCreations)
@@ -273,9 +364,25 @@ public static class V9GoldHarnessCommand
                     throw new InvalidDataException("Modelo experimental sofreu promoção indevida.");
             await WriteNewAsync(Path.Combine(output, "gold-runner-study.json"), new
             {
-                version = "V9_REAL_INCREMENTAL_RUNNER_GOLD_TRAIN_SELECTION_V1", snapshotSha256 = snapshot.ContentSha256,
+                version = holdout is null ? "V9_REAL_INCREMENTAL_RUNNER_GOLD_TRAIN_SELECTION_V1"
+                    : "V9_REAL_INCREMENTAL_RUNNER_GOLD_INDEPENDENT_HOLDOUT_V1",
+                snapshotSha256 = snapshot.ContentSha256,
                 parentSnapshotSha256 = winner, fitFingerprintSha256 = snapshot.Payload.FitFingerprintSha256,
-                selectionEnvelopeSha256 = selectionSha, observations = sources.Count, identityGroups = identities.Count,
+                selectionEnvelopeSha256 = selectionSha, observations = sources.Count,
+                identityGroups = holdout is null ? identities.Count
+                    : sources.Select(x => x.Truth).Distinct(StringComparer.Ordinal).Count(),
+                independentHoldout = holdout,
+                holdoutErrorForensics = holdout is null ? null : new
+                {
+                    contract = "GOLD_HOLDOUT_ERROR_FORENSICS_NO_IDENTIFIERS_V1",
+                    scope = "INDEPENDENT_HOLDOUT",
+                    falseCreationCaseCount = forensicCases.Count(x => x.Failure == "FALSE_CREATION"),
+                    falseAcceptedEventCaseCount = forensicCases.Count(x => x.Failure == "FALSE_ACCEPTED_LINK"),
+                    cases = forensicCases,
+                    diagnosticRule = "TRUE_GOLD_REPRESENTED_PRE_RUN_AND_PRESENT_IN_ACTUAL_BLOCKING_FRAME",
+                    interpretation = "NO_TRUE_GOLD_CANDIDATE_MAY_MEAN_UNREPRESENTED_NOT_BLOCKING_FAILURE",
+                    noPii = true, exportedIds = false
+                },
                 eligibleSourcesWithPriorGold = eligible, trueAccepted, falseAccepted, conflicts, unresolved,
                 recallWithPriorGold = eligible == 0 ? (double?)null : (double)trueAccepted / eligible,
                 fdrAfterResolve = trueAccepted + falseAccepted == 0 ? (double?)null : (double)falseAccepted / (trueAccepted + falseAccepted),
@@ -283,7 +390,9 @@ public static class V9GoldHarnessCommand
                 goldEndToEnd, goldBcubed, pendingReasonBreakdown,
                 lowerNonMatchExperiment = new
                 {
-                    policy = lowerNonMatchThreshold.HasValue ? "EXPERIMENTAL_LOWER_TRAIN_ONLY" : "CURRENT",
+                    policy = lowerNonMatchThreshold.HasValue
+                        ? (holdout is null ? "EXPERIMENTAL_LOWER_TRAIN_ONLY" : "EXPERIMENTAL_LOWER_HOLDOUT_ONLY")
+                        : "CURRENT",
                     threshold = lowerNonMatchThreshold,
                     scorerReused = true, operationalActivation = false,
                     disposableProcedureSha256,
@@ -302,8 +411,10 @@ public static class V9GoldHarnessCommand
                     protocol = GoldTrainThreeOrderProtocol.Version,
                     orderId = trialOrderId,
                     executedWaveOrder,
-                    sourceKeyContract = GoldTrainThreeOrderProtocol.StableSourceKeyContract,
-                    originalCorpusSha256 = selection.RootElement.GetProperty("originalObservationsSha256").GetString(),
+                    sourceKeyContract = holdout is null
+                        ? GoldTrainThreeOrderProtocol.StableSourceKeyContract
+                        : "GOLD_HOLDOUT_NAMESPACE_SHA256_OBSERVACAO_ID_V1",
+                    originalCorpusSha256 = csvSha,
                     frozenSnapshotSha256 = snapshot.ContentSha256,
                     isolatedRunFingerprintSha256,
                     elapsedMilliseconds = physicalTrialTimer.ElapsedMilliseconds,
@@ -311,7 +422,7 @@ public static class V9GoldHarnessCommand
                     allFourWavesPublished = true,
                     sourceCount = stableTruth.Count,
                     publishedSourceCount = stableGold.Count,
-                    evidenceScope = "TRAIN_SELECTION",
+                    evidenceScope = holdout is null ? "TRAIN_SELECTION" : "INDEPENDENT_HOLDOUT",
                     truthExported = false, uuidExported = false, testUsed = false,
                     independentlyCertified = false, activated = false
                 },
@@ -327,7 +438,9 @@ public static class V9GoldHarnessCommand
                 actualRunnerExecuted = true, canonicalGoldPublishedInDisposableHarness = true,
                 ingestionMode = "CONTROLLED_SYNTHETIC_SILVER_INSERTION",
                 productionDispatchUsed = false, truthUsedForGroupingOrRetrieval = false,
-                scope = "TRAIN_SELECTION_POST_SELECTION_DIAGNOSTIC_NOT_EXTERNAL_CERTIFICATION",
+                scope = holdout is null
+                    ? "TRAIN_SELECTION_POST_SELECTION_DIAGNOSTIC_NOT_EXTERNAL_CERTIFICATION"
+                    : "INDEPENDENT_HOLDOUT_FIXED_V6_CANDIDATE_UNCERTIFIED",
                 refitted = false, validationReopened = false, testUsed = false, certified = false, activated = false
             });
             return trainingEvidence.AsReadOnly();
@@ -396,7 +509,8 @@ public static class V9GoldHarnessCommand
         await command.ExecuteNonQueryAsync();
     }
 
-    private static List<Source> ReadTrainSelection(string file, HashSet<string> identities)
+    private static List<Source> ReadSources(
+        string file, HashSet<string>? identities, string? holdoutNamespace)
     {
         using var csv = new TextFieldParser(file);
         csv.SetDelimiters(",");
@@ -409,7 +523,11 @@ public static class V9GoldHarnessCommand
             var f = csv.ReadFields() ?? throw new InvalidDataException("CSV malformado.");
             string Get(string name) => f[columns[name]];
             // Do not interpret TEST/VALIDATION attribute values or use labels in any decision.
-            if (Get("particao") != "TRAIN" || !identities.Contains(Get("base_person_id"))) continue;
+            // Use the newly generated cohort's TRAIN-tagged subpopulation as
+            // a blind-to-score, predeclared inclusion rule, NOT historical TEST
+            // or VALIDATION. Never mix groups selected from the old envelope.
+            if (Get("particao") != "TRAIN"
+                || (identities is not null && !identities.Contains(Get("base_person_id")))) continue;
             if (!string.IsNullOrWhiteSpace(Get("cpf"))) continue;
             var birth = Get("data_nascimento");
             var manager = Get("gestor");
@@ -418,29 +536,37 @@ public static class V9GoldHarnessCommand
             // Use the actual frozen synthetic CSV observacao_id (hashed to a
             // private long), NOT filtered row ordinal or SQL IDENTITY values.
             // A duplicate/collision is a hard error, never silently rekeyed.
-            var stableKey = GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(Get("observacao_id"));
+            var stableKey = GoldTrainThreeOrderProtocol.StableKeyFromCsvObservationId(
+                holdoutNamespace is null ? Get("observacao_id")
+                    : holdoutNamespace + "|" + Get("observacao_id"));
             if (!stableSourceKeys.Add(stableKey))
                 throw new InvalidDataException("observacao_id TRAIN repetido ou colisão da chave estável.");
-            rows.Add(new(stableKey, Get("base_person_id"), manager, new(null, "SEM_CPF", Get("nome"),
+            rows.Add(new(stableKey,
+                holdoutNamespace is null ? Get("base_person_id") : holdoutNamespace + "|" + Get("base_person_id"),
+                manager, new(null, "SEM_CPF", Get("nome"),
                 string.IsNullOrWhiteSpace(birth) ? null : DateOnly.ParseExact(birth, "yyyy-MM-dd", CultureInfo.InvariantCulture), Get("nome_mae"))));
         }
-        if (rows.Count == 0 || !rows.Select(x => x.Truth).ToHashSet(StringComparer.Ordinal).SetEquals(identities))
-            throw new InvalidDataException("TRAIN_SELECTION não reproduz as identidades do manifesto.");
+        if (rows.Count == 0 || (identities is not null &&
+            !rows.Select(x => x.Truth).ToHashSet(StringComparer.Ordinal).SetEquals(identities)))
+            throw new InvalidDataException("Coorte não reproduz as identidades permitidas no escopo.");
         if (rows.GroupBy(x => (x.Truth, x.Manager)).Any(g => g.Count() > 1))
             throw new InvalidDataException("Ensaio por gestores exige uma observação por identidade/gestor; versões repetidas requerem o bridge temporal.");
         return rows;
     }
 
-    private static async Task InsertDraftAsync(SqlConnection connection, Guid modelId, V9FittedSnapshot snapshot)
+    private static async Task InsertDraftAsync(SqlConnection connection, Guid modelId,
+        V9FittedSnapshot snapshot, bool independentHoldout)
     {
         await using var command = new SqlCommand("""
             INSERT identidade.modelo_linkage(modelo_id,versao,status,algoritmo_versao,normalizacao_versao,deduplicacao_metodo,base_referencia,snapshot_referencia,gerado_em)
-            VALUES(@id,1,N'RASCUNHO',@algorithm,@normalization,N'PINNED_FIT_HARNESS_PREVIEW',N'SYNTHETIC_TRAIN_SELECTION',@sha,SYSDATETIMEOFFSET());
+            VALUES(@id,1,N'RASCUNHO',@algorithm,@normalization,N'PINNED_FIT_HARNESS_PREVIEW',@scope,@sha,SYSDATETIMEOFFSET());
             """, connection);
         command.Parameters.AddWithValue("@id", modelId);
         command.Parameters.AddWithValue("@algorithm", LinkageParameterCatalog.CompositeNominalDecisionEvidenceAlgorithmVersion);
         command.Parameters.AddWithValue("@normalization", IdentityComparison.NormalizationVersion);
         command.Parameters.AddWithValue("@sha", snapshot.ContentSha256);
+        command.Parameters.AddWithValue("@scope", independentHoldout
+            ? "SYNTHETIC_INDEPENDENT_HOLDOUT" : "SYNTHETIC_TRAIN_SELECTION");
         await command.ExecuteNonQueryAsync();
     }
 
@@ -677,18 +803,108 @@ public static class V9GoldHarnessCommand
     }
 
     private sealed record CapturedDecision(ProbabilisticLinkageDecision Decision,
-        V9LowerNonMatchPreview.VerifiedRetrieval Retrieval);
+        V9LowerNonMatchPreview.VerifiedRetrieval Retrieval,
+        IReadOnlyList<V9SnapshotCandidate> Candidates);
+
+    // Internal only: production linkage is never changed; friend tests can
+    // exercise structural capture identity without exposing diagnostic data.
+    internal static bool SameFrozenDiagnosticFrame(
+        ProbabilisticLinkageDecision leftDecision,
+        V9LowerNonMatchPreview.VerifiedRetrieval leftRetrieval,
+        IReadOnlyList<V9SnapshotCandidate> leftCandidates,
+        ProbabilisticLinkageDecision rightDecision,
+        V9LowerNonMatchPreview.VerifiedRetrieval rightRetrieval,
+        IReadOnlyList<V9SnapshotCandidate> rightCandidates) =>
+        leftDecision == rightDecision && leftRetrieval == rightRetrieval
+        && leftCandidates.SequenceEqual(rightCandidates);
+
+    // One row per distinct physical error event, NO source IDs/labels, names,
+    // birth dates, candidate UUIDs or score-bearing raw observations.
+    private sealed record GoldErrorForensicCase(
+        string Failure, string Stage, string PriorGoldTruth,
+        string TruthAmongBlockingCandidates, string EvidenceTarget,
+        string PersonNominalState, string MotherNominalState,
+        string JointMMethod, string JointUMethod, string BirthAgreement,
+        decimal BestPosterior, decimal? SecondPosterior,
+        decimal? ResolverMargin, string MarginSpace);
+
+    private static void AppendGoldErrorForensics(
+        IReadOnlyDictionary<long, Outcome> measured,
+        IReadOnlyDictionary<long, Source> truth,
+        IReadOnlyDictionary<Guid, HashSet<string>> priorOwnership,
+        IReadOnlyDictionary<ObservationKey, CapturedDecision> captured,
+        V9FittedSnapshot snapshot, string stage,
+        HashSet<(long Source, string Failure)> seen,
+        List<GoldErrorForensicCase> evidence)
+    {
+        foreach (var entry in measured)
+        {
+            var outcome = entry.Value;
+            var failures = new List<string>(2);
+            if (outcome.Eligible && outcome.PublicationResult == "NOVA_IDENTIDADE")
+                failures.Add("FALSE_CREATION");
+            if (outcome.FalseAccepted)
+                failures.Add("FALSE_ACCEPTED_LINK");
+            if (failures.Count == 0) continue;
+            var source = truth[entry.Key];
+            if (!captured.TryGetValue(ObservationKey.From(source.Observation), out var frame))
+                throw new InvalidDataException("Captura real de blocking/FS ausente para evento falso.");
+            var trulyRepresented = priorOwnership.Where(x => x.Value.Contains(source.Truth))
+                .Select(x => x.Key).ToHashSet();
+            bool truthRetrieved = frame.Candidates.Any(x => trulyRepresented.Contains(x.PersonUuid));
+            var trueCandidate = frame.Candidates.FirstOrDefault(x =>
+                trulyRepresented.Contains(x.PersonUuid));
+            var topCandidate = frame.Candidates.FirstOrDefault(x =>
+                x.PersonUuid == frame.Decision.MelhorCandidatoUuid);
+            foreach (var failure in failures)
+            {
+                if (!seen.Add((source.Id, failure))) continue;
+                var compared = failure == "FALSE_CREATION"
+                    ? trueCandidate ?? topCandidate : topCandidate;
+                var personState = compared is null ? "NOT_APPLICABLE" :
+                    CompositeNominalComparisonV9.Classify(source.Observation.NomeCompleto,
+                        compared.FullName).ToString();
+                var motherState = compared is null ? "NOT_APPLICABLE" :
+                    CompositeNominalComparisonV9.Classify(source.Observation.NomeMae,
+                        compared.MotherName).ToString();
+                var methods = compared is null ? null : snapshot.Payload.JointSupport?.Cells
+                    .FirstOrDefault(x => x.Person.ToString() == personState
+                        && x.Mother.ToString() == motherState);
+                var birth = compared is null ? "NOT_APPLICABLE"
+                    : source.Observation.DataNascimento is null || compared.BirthDate is null
+                        ? "MISSING" : source.Observation.DataNascimento == compared.BirthDate
+                            ? "EXACT" : "DIFFERENT";
+                evidence.Add(new GoldErrorForensicCase(
+                    failure, stage,
+                    trulyRepresented.Count > 0 ? "REPRESENTED" : "NOT_REPRESENTED",
+                    trulyRepresented.Count == 0 ? "NOT_APPLICABLE" :
+                        truthRetrieved ? "YES" : "NO",
+                    compared is null ? "NONE" :
+                        failure == "FALSE_CREATION" && trueCandidate is not null
+                            ? "TRUE_RETRIEVED" : "TOP_RANKED",
+                    personState, motherState,
+                    methods?.MethodM ?? "UNKNOWN", methods?.MethodU ?? "UNKNOWN",
+                    birth,
+                    decimal.Round(frame.Decision.MelhorScore, 4),
+                    frame.Decision.SegundoScore is { } second
+                        ? decimal.Round(second, 4) : null,
+                    frame.Decision.Margem is { } margin
+                        ? decimal.Round(margin, 4) : null,
+                    "FROZEN_DECISION_LOG_ODDS_MARGIN_V6"));
+            }
+        }
+    }
 
     private sealed class IsolatedPreview(IOperationalSqlAdapter sql, V9FittedSnapshotExecutionRuntime runtime,
         ProbabilisticLinkageModelRef model, decimal? lowerNonMatchThreshold,
-        bool captureTrainEvidence) : IProbabilisticIdentityLinkage
+        bool captureTrainEvidence, bool captureHoldoutEvidence) : IProbabilisticIdentityLinkage
     {
         private ConcurrentDictionary<ObservationKey, CapturedDecision>? _wave;
 
         public void BeginWave()
         {
-            if (!captureTrainEvidence || _wave is not null)
-                throw new InvalidOperationException("Captura TRAIN inicializada fora de onda exclusiva.");
+            if (!(captureTrainEvidence || captureHoldoutEvidence) || _wave is not null)
+                throw new InvalidOperationException("Captura física inicializada fora de onda exclusiva.");
             _wave = new();
         }
 
@@ -718,7 +934,8 @@ public static class V9GoldHarnessCommand
             var decision = runtime.ResolveRetrievedCandidatesPreview(modeloId, observation, new(runtime.SnapshotSha256,
                 runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256, true, candidates));
             var eligiblePasses = runtime.Plan(observation).Count != 0;
-            if (!captureTrainEvidence && (lowerNonMatchThreshold is null || !eligiblePasses))
+            if (!(captureTrainEvidence || captureHoldoutEvidence)
+                && (lowerNonMatchThreshold is null || !eligiblePasses))
                 return decision;
             // Query has no TOP/paging: read the full UNION of blocking passes
             // and the actual Gold columns before invoking the SAME frozen scorer.
@@ -734,14 +951,23 @@ public static class V9GoldHarnessCommand
             // Only the four manager waves are training evidence. The final
             // pending reevaluation must run normally but must NOT replace or
             // contaminate the frozen prepublication TRAIN observations.
-            if (captureTrainEvidence && _wave is { } dictionary)
+            if ((captureTrainEvidence || captureHoldoutEvidence) && _wave is { } dictionary)
             {
                 var key = ObservationKey.From(observation);
-                var value = new CapturedDecision(decision, retrieval);
+                var value = new CapturedDecision(decision, retrieval, candidates.AsReadOnly());
+                // ReadOnlyCollection equality is REFERENCE equality, even when
+                // every candidate is identical. A repeated observation can be
+                // independently scored during final pending reevaluation.
+                // Compare the actual frozen decisions, retrieval frame, and
+                // candidate values; never treat separate list allocations as
+                // scientific disagreement, and never silently accept genuinely
+                // different evidence for the same input.
                 if (!dictionary.TryAdd(key, value) && dictionary.TryGetValue(key, out var earlier)
-                    && earlier != value)
+                    && !SameFrozenDiagnosticFrame(
+                        earlier.Decision, earlier.Retrieval, earlier.Candidates,
+                        value.Decision, value.Retrieval, value.Candidates))
                     throw new InvalidDataException(
-                        "Observações homônimas idênticas receberam decisões FS divergentes.");
+                        "Observações idênticas tiveram quadro real FS/blocking divergente.");
             }
             return lowerNonMatchThreshold is { } lower && eligiblePasses
                 ? V9GoldLowerNonMatchExperiment.Apply(decision, retrieval,
