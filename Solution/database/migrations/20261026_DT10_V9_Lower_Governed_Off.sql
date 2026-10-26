@@ -310,8 +310,22 @@ BEGIN
              @modelo_id=@v9_modelo,@fingerprint=@v9_atual OUTPUT;
         IF @v9_atual IS NULL OR @v9_atual<>@v9_fingerprint
             THROW 51831, 'DT-10 V9: fingerprint do modelo mudou apos aprovacao.', 1;
-        EXEC auditoria.sp_assert_dossie_decisao_modelo_linkage
-             @modelo_id=@v9_modelo,@dossie_sha256=@v9_dossie;
+        -- sp_assert_dossie_decisao_modelo_linkage is a PRE-ACTIVATION
+        -- guard: it requires the old active model to remain unchanged.
+        -- Recalling it after ACTIVATE would reject every legitimate run.
+        -- Verify the approved dossier's immutable fingerprint, completeness
+        -- and expiry against the now-active V9 model instead.
+        IF NOT EXISTS(
+            SELECT 1
+            FROM auditoria.modelo_linkage_dossie_decisao d WITH(HOLDLOCK)
+            WHERE d.modelo_id=@v9_modelo AND d.dossie_sha256=@v9_dossie
+              AND d.modelo_snapshot_sha256=@v9_fingerprint
+              AND d.estado=N'COMPLETO' AND d.valido_ate>SYSDATETIMEOFFSET()
+              AND d.modelo_linkage_dossie_decisao_id=(
+                  SELECT MAX(d2.modelo_linkage_dossie_decisao_id)
+                  FROM auditoria.modelo_linkage_dossie_decisao d2 WITH(HOLDLOCK)
+                  WHERE d2.modelo_id=@v9_modelo AND d2.dossie_sha256=@v9_dossie))
+            THROW 51833, 'DT-10 V9: dossie DT-15 aprovado ausente, expirado ou divergente.', 1;
     END;
 
     IF EXISTS(
