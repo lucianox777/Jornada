@@ -243,6 +243,7 @@ BEGIN
               AND (p.politica_versao IS NULL
                    OR p.modelo_id<>l.modelo_id OR p.modelo_versao<>l.modelo_versao
                    OR m.modelo_id IS NULL OR m.status<>N'ATIVO' OR m.versao<>p.modelo_versao
+                   OR m.algoritmo_versao<>N'FELLEGI_SUNTER_DECISION_EVIDENCE_COMPOSITE_NOMINAL_V9'
                    OR a.aprovacao_id IS NULL OR a.acao<>N'ACTIVATE'
                    OR a.modelo_id<>p.modelo_id OR a.modelo_snapshot_sha256<>p.modelo_fingerprint
                    OR a.dossie_sha256 IS NULL
@@ -250,18 +251,18 @@ BEGIN
                        SELECT MAX(a2.modelo_linkage_aprovacao_id)
                        FROM auditoria.modelo_linkage_aprovacao a2 WITH(HOLDLOCK)
                        WHERE a2.modelo_id=p.modelo_id AND a2.acao=N'ACTIVATE')
-                   OR l.motivo_publicacao<>N'NOVA_IDENTIDADE_LIMIAR_INFERIOR_V9_GOVERNADO'
+                   OR COALESCE(l.motivo_publicacao,N'')<>N'NOVA_IDENTIDADE_LIMIAR_INFERIOR_V9_GOVERNADO'
                    OR l.universo_referencia<>CONCAT(N'V9_SNAPSHOT_SHA256:',
                          CONVERT(VARCHAR(64),p.snapshot_sha256,2))
                    OR HASHBYTES('SHA2_256',p.snapshot_bytes)<>p.snapshot_sha256
                    OR COALESCE(ISJSON(CONVERT(VARCHAR(MAX),p.snapshot_bytes)
                          COLLATE Latin1_General_100_CI_AS_SC_UTF8),0)<>1
-                   OR JSON_VALUE(CONVERT(VARCHAR(MAX),p.snapshot_bytes)
+                   OR COALESCE(JSON_VALUE(CONVERT(VARCHAR(MAX),p.snapshot_bytes)
                          COLLATE Latin1_General_100_CI_AS_SC_UTF8,
-                         '$.SchemaVersion')<>N'V9_FITTED_SNAPSHOT_V3'
-                   OR JSON_VALUE(CONVERT(VARCHAR(MAX),p.snapshot_bytes)
+                         '$.SchemaVersion'),N'')<>N'V9_FITTED_SNAPSHOT_V3'
+                   OR COALESCE(JSON_VALUE(CONVERT(VARCHAR(MAX),p.snapshot_bytes)
                          COLLATE Latin1_General_100_CI_AS_SC_UTF8,
-                         '$.CandidateGrouping.CandidateGrouping')<>N'GOLD'
+                         '$.CandidateGrouping.CandidateGrouping'),N'')<>N'GOLD'
                    OR TRY_CONVERT(BINARY(32),JSON_VALUE(
                          CONVERT(VARCHAR(MAX),p.snapshot_bytes)
                          COLLATE Latin1_General_100_CI_AS_SC_UTF8,
@@ -287,10 +288,12 @@ BEGIN
         -- The DT-15 approval must still match the CURRENT model and dossier,
         -- not merely an ID copied into a policy row.
         DECLARE @v9_modelo UNIQUEIDENTIFIER, @v9_fingerprint BINARY(32),
-                @v9_atual BINARY(32), @v9_dossie BINARY(32);
+                @v9_atual BINARY(32), @v9_dossie BINARY(32),
+                @v9_politica NVARCHAR(120);
         SELECT TOP(1) @v9_modelo=p.modelo_id,
                       @v9_fingerprint=p.modelo_fingerprint,
-                      @v9_dossie=a.dossie_sha256
+                      @v9_dossie=a.dossie_sha256,
+                      @v9_politica=p.politica_versao
         FROM #dt10_leaders l
         JOIN identidade.v9_dt10_lower_policy p WITH(HOLDLOCK)
           ON p.politica_versao=l.politica_publicacao_versao
@@ -298,6 +301,11 @@ BEGIN
           ON a.aprovacao_id=p.aprovacao_id
         WHERE l.replay_version IS NULL AND l.resultado_publicacao=N'NOVA_IDENTIDADE'
           AND l.raw_motivo=N'LIMIAR_INFERIOR_V9_GOVERNADO';
+        IF EXISTS(SELECT 1 FROM #dt10_leaders l
+                  WHERE l.replay_version IS NULL AND l.resultado_publicacao=N'NOVA_IDENTIDADE'
+                    AND l.raw_motivo=N'LIMIAR_INFERIOR_V9_GOVERNADO'
+                    AND (l.modelo_id<>@v9_modelo OR l.politica_publicacao_versao<>@v9_politica))
+            THROW 51832, 'DT-10 V9: run mistura politicas ou modelos inferiores.', 1;
         EXEC auditoria.sp_calcular_fingerprint_modelo_linkage
              @modelo_id=@v9_modelo,@fingerprint=@v9_atual OUTPUT;
         IF @v9_atual IS NULL OR @v9_atual<>@v9_fingerprint
