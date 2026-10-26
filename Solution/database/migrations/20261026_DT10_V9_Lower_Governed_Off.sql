@@ -263,6 +263,10 @@ BEGIN
                    OR COALESCE(JSON_VALUE(CONVERT(VARCHAR(MAX),p.snapshot_bytes)
                          COLLATE Latin1_General_100_CI_AS_SC_UTF8,
                          '$.CandidateGrouping.CandidateGrouping'),N'')<>N'GOLD'
+                   OR LEN(COALESCE(JSON_VALUE(
+                         CONVERT(VARCHAR(MAX),p.snapshot_bytes)
+                         COLLATE Latin1_General_100_CI_AS_SC_UTF8,
+                         '$.FitFingerprintSha256'),N''))<>64
                    OR TRY_CONVERT(BINARY(32),JSON_VALUE(
                          CONVERT(VARCHAR(MAX),p.snapshot_bytes)
                          COLLATE Latin1_General_100_CI_AS_SC_UTF8,
@@ -282,7 +286,11 @@ BEGIN
                    OR LEN(COALESCE(JSON_VALUE(
                          CONVERT(VARCHAR(MAX),p.snapshot_bytes)
                          COLLATE Latin1_General_100_CI_AS_SC_UTF8,
-                         '$.GoldParentSnapshotSha256'),N''))<>64))
+                         '$.GoldParentSnapshotSha256'),N''))<>64
+                   OR TRY_CONVERT(BINARY(32),JSON_VALUE(
+                         CONVERT(VARCHAR(MAX),p.snapshot_bytes)
+                         COLLATE Latin1_General_100_CI_AS_SC_UTF8,
+                         '$.GoldParentSnapshotSha256'),2) IS NULL))
             THROW 51830, 'DT-10 V9: flag, modelo ATIVO, aprovacao DT-15 ou snapshot/fit divergem.', 1;
 
         -- The DT-15 approval must still match the CURRENT model and dossier,
