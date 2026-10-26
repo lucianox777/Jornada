@@ -110,6 +110,18 @@ class V9PhysicalImpactTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue(self.changes(path))
 
+    def test_malformed_diff_rejected_fail_closed(self):
+        for raw in (
+            b"",
+            b"M\\0Solution/docs/a.md",
+            b"R100\\0Solution/docs/old.md\\0",
+            b"Q\\0Solution/docs/a.md\\0",
+            b"M\\0../Solution/docs/a.md\\0",
+        ):
+            with self.subTest(raw=raw):
+                with self.assertRaises(ValueError):
+                    m.parse_name_status_z(raw)
+
     def test_manual_always_requires_probe(self):
         self.assertTrue(m.classify([], manual=True)["run_physical_30k"])
 
