@@ -6,6 +6,7 @@ on:
       - 'Solution/src/Jornada.Linkage.Runner/V9GoldDisposableLowerProcedurePatch.cs'
       - 'Solution/src/Jornada.Linkage.Runner/V9GoldHarnessDatabasePreparation.cs'
       - 'Solution/database/migrations/**'
+      - 'Solution/tests/Jornada.Integration.Tests/Integration/Dt10V9LowerCanonicalLocalDbTests.cs'
   workflow_dispatch:
 
 permissions:
@@ -54,3 +55,37 @@ jobs:
           if (-not (Test-Path -LiteralPath (Join-Path $output 'schema-ready.json') -PathType Leaf)) {
             throw 'Disposable SQL preflight did not create its readiness manifest.'
           }
+
+      - name: Execute DT-10 V9 disabled-policy, experimental-reason and legacy replay proofs in owned LocalDB
+        shell: pwsh
+        working-directory: Solution
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $PSNativeCommandUseErrorActionPreference = $true
+          $output = Join-Path $env:RUNNER_TEMP 'gold-dt10-localdb-preflight'
+          $ready = Get-Content -LiteralPath (Join-Path $output 'schema-ready.json') -Raw -Encoding utf8 | ConvertFrom-Json
+          if ($ready.completed -ne $true -or $ready.database -ne 'JornadaHarness' -or
+              $ready.certified -ne $false -or $ready.activated -ne $false -or
+              $ready.instance -cnotmatch '^JornadaV9Gold[0-9]{8}_[0-9a-f]{8}$') {
+            throw 'DT-10 requires a new positively identified disposable, uncertified, inactive LocalDB.'
+          }
+          # No connection to any user-provided instance or operational database:
+          # use the exact create-only instance from this job's readiness receipt.
+          $env:JORNADA_DT10_V9_HARNESS_CONNECTION = "Data Source=(localdb)\\$($ready.instance);Initial Catalog=JornadaHarness;Integrated Security=True;Encrypt=Optional"
+          $evidence = Join-Path $env:RUNNER_TEMP 'dt10-v9-lower-localdb'
+          New-Item -ItemType Directory -Path $evidence -Force | Out-Null
+          dotnet test tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj -c Release `
+            --filter 'TestCategory=DT10V9' `
+            --logger "trx;LogFileName=$evidence/dt10-v9-lower.trx"
+          if ($LASTEXITCODE -ne 0) { throw 'Physical DT-10 V9 LocalDB integration test failed.' }
+          python scripts/test-evidence-gate.py "$evidence/dt10-v9-lower.trx" `
+            --forbid-skipped --minimum-tests 1 --summary "$evidence/summary.json"
+          if ($LASTEXITCODE -ne 0) { throw 'Physical DT-10 V9 evidence missing or skipped.' }
+      - name: Upload physical DT-10 V9 negative and legacy replay evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: dt10-v9-lower-localdb-evidence
+          path: ${{ runner.temp }}/dt10-v9-lower-localdb
+          if-no-files-found: warn
+          retention-days: 30
