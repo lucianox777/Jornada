@@ -109,11 +109,18 @@ try {
             $rows.Add([pscustomobject]@{
                 policy = $variantName; order = $order
                 runFingerprint = $trial.isolatedRunFingerprintSha256
+                sources = [long]$trial.sourceCount
+                trueIdentities = [long]$report.goldEndToEnd.TrueIdentities
+                published = [long]$report.goldEndToEnd.PublishedSources
                 pending = [long]$report.goldEndToEnd.PendingSources
                 falseCreations = [long]$report.lowerNonMatchExperiment.finalFalseNewIdentityCreations
                 falseAccepted = [long]$report.publication.falseExistingLinks
+                falseGoldPairs = [long]$report.goldEndToEnd.FalseGoldObservationPairs
+                fragmentedIdentities = [long]$report.goldEndToEnd.FragmentedTrueIdentities
+                bcubedCoverageRecall = [double]$report.goldBcubed.CoverageAwareRecall
                 secondSearchInvoked = [long]$report.secondSearch.invoked
                 secondSearchRecoveredAdditional = [long]$report.secondSearch.expandedWithAdditionalGold
+                secondSearchAccepted = [long]$report.secondSearch.newlyAccepted
                 secondSearchAbstained = [long]$report.secondSearch.abstained
                 seconds = [math]::Round([double]$trial.elapsedMilliseconds / 1000, 2)
             })
