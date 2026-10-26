@@ -103,8 +103,8 @@ public static class V9GoldHarnessCommand
         string[] args, string connectionString, bool captureTrainEvidence,
         V9GoldIndependentHoldoutContract.Plan? holdout = null)
     {
-        if (args.Length is < 6 or > 8 || args[0] != Flag)
-            throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2] [LOWER_NONMATCH=<decimal>]; usar exclusivamente LocalDB descartável.");
+        if (args.Length is < 6 or > 9 || args[0] != Flag)
+            throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2] [LOWER_NONMATCH=<decimal>] [SECOND_SEARCH=EXPANDED_19]; usar exclusivamente LocalDB descartável.");
         ValidateDisposableConnection(connectionString);
         var selectionBytes = await File.ReadAllBytesAsync(args[1]);
         var selectionSha = Sha(selectionBytes);
@@ -146,10 +146,17 @@ public static class V9GoldHarnessCommand
         var optional = args.Skip(6).ToArray();
         var lowerOptions = optional.Where(x => x.StartsWith(
             V9GoldLowerNonMatchExperiment.ArgumentPrefix, StringComparison.Ordinal)).ToArray();
-        var orderOptions = optional.Where(x => !x.StartsWith(
-            V9GoldLowerNonMatchExperiment.ArgumentPrefix, StringComparison.Ordinal)).ToArray();
-        if (lowerOptions.Length > 1 || orderOptions.Length > 1)
-            throw new ArgumentException("Ordem ou LOWER_NONMATCH duplicados.");
+        var secondSearchOptions = optional.Where(x => x.StartsWith(
+            "SECOND_SEARCH=", StringComparison.Ordinal)).ToArray();
+        var orderOptions = optional.Where(x =>
+            !x.StartsWith(V9GoldLowerNonMatchExperiment.ArgumentPrefix, StringComparison.Ordinal)
+            && !x.StartsWith("SECOND_SEARCH=", StringComparison.Ordinal)).ToArray();
+        if (lowerOptions.Length > 1 || orderOptions.Length > 1 || secondSearchOptions.Length > 1)
+            throw new ArgumentException("Ordem, LOWER_NONMATCH ou SECOND_SEARCH duplicados.");
+        if (secondSearchOptions.Length == 1
+            && secondSearchOptions[0] != V9GoldPreCreationSecondSearch.Option)
+            throw new ArgumentException("Modo de busca ampliada desconhecido.");
+        var useSecondSearch = secondSearchOptions.Length == 1;
         decimal? lowerNonMatchThreshold = lowerOptions.Length == 1
             ? V9GoldLowerNonMatchExperiment.ParseThreshold(lowerOptions[0], snapshot.Payload.Threshold)
             : null;
@@ -165,6 +172,10 @@ public static class V9GoldHarnessCommand
             || trialOrderId != GoldTrainThreeOrderProtocol.Baseline))
             throw new InvalidOperationException(
                 "Captura para o Pareto exige política CURRENT e ordem BASELINE pré-registrada.");
+        if (useSecondSearch && (holdout is not null || captureTrainEvidence
+            || lowerNonMatchThreshold != .05m))
+            throw new InvalidOperationException(
+                "Segunda busca: somente KNEE 0,05 no experimento TRAIN; holdout, fit e TEST lacrados.");
         var output = Path.GetFullPath(args[5]);
         if (Directory.Exists(output) || File.Exists(output)) throw new IOException("Gold preview exige saída nova.");
         var physicalTrialTimer = System.Diagnostics.Stopwatch.StartNew();
@@ -198,7 +209,7 @@ public static class V9GoldHarnessCommand
             {
                 BlockingContract = new("PINNED_GOLD_HARNESS_" + snapshot.ContentSha256, snapshot.ContentSha256,
                     runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256)
-            }, lowerNonMatchThreshold, captureTrainEvidence, holdout is not null);
+            }, lowerNonMatchThreshold, captureTrainEvidence, holdout is not null, useSecondSearch);
             var trainingEvidence = new List<V9GoldTrainPhysicalEvidence>();
             var bronzeRoot = Path.Combine(output, "bronze");
             // The external 30k holdout uses canonical publication SQL on a disposable
@@ -388,6 +399,7 @@ public static class V9GoldHarnessCommand
                 fdrAfterResolve = trueAccepted + falseAccepted == 0 ? (double?)null : (double)falseAccepted / (trueAccepted + falseAccepted),
                 goldIdentities = finalOwnership.Count, impureGoldIdentities = impure, waves, reevaluation,
                 goldEndToEnd, goldBcubed, pendingReasonBreakdown,
+                secondSearch = preview.SecondSearchAudit,
                 lowerNonMatchExperiment = new
                 {
                     policy = lowerNonMatchThreshold.HasValue
@@ -897,9 +909,31 @@ public static class V9GoldHarnessCommand
 
     private sealed class IsolatedPreview(IOperationalSqlAdapter sql, V9FittedSnapshotExecutionRuntime runtime,
         ProbabilisticLinkageModelRef model, decimal? lowerNonMatchThreshold,
-        bool captureTrainEvidence, bool captureHoldoutEvidence) : IProbabilisticIdentityLinkage
+        bool captureTrainEvidence, bool captureHoldoutEvidence,
+        bool expandedPreCreationSearch) : IProbabilisticIdentityLinkage
     {
         private ConcurrentDictionary<ObservationKey, CapturedDecision>? _wave;
+        private long _secondSearchCalls;
+        private long _secondSearchNoNewCandidate;
+        private long _secondSearchExpanded;
+        private long _secondSearchAccepted;
+        private long _secondSearchAbstentions;
+        private long _secondSearchConflicts;
+
+        public object SecondSearchAudit => new
+        {
+            version = V9GoldPreCreationSecondSearch.Version,
+            enabled = expandedPreCreationSearch,
+            scope = "TRAIN_SELECTION_ONLY",
+            cataloguePasses = V9GoldPreCreationSecondSearch.Catalogue.Count,
+            invoked = Interlocked.Read(ref _secondSearchCalls),
+            noNewCandidate = Interlocked.Read(ref _secondSearchNoNewCandidate),
+            expandedWithAdditionalGold = Interlocked.Read(ref _secondSearchExpanded),
+            newlyAccepted = Interlocked.Read(ref _secondSearchAccepted),
+            abstained = Interlocked.Read(ref _secondSearchAbstentions),
+            conflicts = Interlocked.Read(ref _secondSearchConflicts),
+            refit = false, testUsed = false, operationallyActivated = false
+        };
 
         public void BeginWave()
         {
@@ -969,10 +1003,62 @@ public static class V9GoldHarnessCommand
                     throw new InvalidDataException(
                         "Observações idênticas tiveram quadro real FS/blocking divergente.");
             }
-            return lowerNonMatchThreshold is { } lower && eligiblePasses
+            var proposed = lowerNonMatchThreshold is { } lower && eligiblePasses
                 ? V9GoldLowerNonMatchExperiment.Apply(decision, retrieval,
                     runtime.SnapshotSha256, lower, model.Threshold)
                 : decision;
+            if (!expandedPreCreationSearch
+                || !V9GoldPreCreationSecondSearch.IsProspectiveCreation(proposed))
+                return proposed;
+
+            // This query precedes the SQL publication decision, never runs on
+            // resolved/conflict observations, and reads ONLY real pre-wave Gold.
+            // No labels, CPF, fallback projections, TOP or silent truncation.
+            Interlocked.Increment(ref _secondSearchCalls);
+            await using var expandedCommand = connection.CreateCommand();
+            expandedCommand.CommandTimeout = 900;
+            var expandedQuery = V9GoldPreCreationSecondSearch.BuildQuery(
+                expandedCommand, runtime, observation);
+            expandedCommand.CommandText =
+                $"SELECT g.pessoa_uuid,g.nome_completo,g.data_nascimento,g.nome_mae FROM ({expandedQuery}) c " +
+                "JOIN gold.pessoa g ON g.pessoa_uuid=c.pessoa_uuid " +
+                "WHERE g.estado_identidade=N'REFERENCIA' ORDER BY g.pessoa_uuid;";
+            var expanded = new List<V9SnapshotCandidate>();
+            await using (var expandedReader = await expandedCommand.ExecuteReaderAsync(ct))
+            {
+                while (await expandedReader.ReadAsync(ct))
+                {
+                    if (expanded.Count >= V9GoldPreCreationSecondSearch.MaximumCandidates)
+                        throw new InvalidDataException(
+                            "Busca ampliada excedeu fanout máximo: abortar ensaio sem truncar candidatos.");
+                    expanded.Add(new(expandedReader.GetGuid(0),
+                        expandedReader.IsDBNull(1) ? null : expandedReader.GetString(1),
+                        expandedReader.IsDBNull(2) ? null
+                            : DateOnly.FromDateTime(expandedReader.GetDateTime(2)),
+                        expandedReader.IsDBNull(3) ? null : expandedReader.GetString(3)));
+                }
+            }
+            var primaryIds = candidates.Select(c => c.PersonUuid).ToHashSet();
+            var expandedIds = expanded.Select(c => c.PersonUuid).ToHashSet();
+            if (!primaryIds.IsSubsetOf(expandedIds) || expandedIds.Count != expanded.Count)
+                throw new InvalidDataException("Segundo blocking não preservou a união primária completa.");
+            if (expandedIds.Count == primaryIds.Count)
+            {
+                Interlocked.Increment(ref _secondSearchNoNewCandidate);
+                return proposed;
+            }
+            Interlocked.Increment(ref _secondSearchExpanded);
+            var rescored = runtime.ResolveRetrievedCandidatesPreview(modeloId, observation,
+                new(runtime.SnapshotSha256, runtime.ProjectionSchemaVersion,
+                    runtime.ProjectionFingerprintSha256, true, expanded));
+            var guarded = V9GoldPreCreationSecondSearch.Decide(proposed, rescored, true);
+            if (guarded.Status == ResolutionStatus.RESOLVIDO)
+                Interlocked.Increment(ref _secondSearchAccepted);
+            else if (guarded.Status == ResolutionStatus.CONFLITO)
+                Interlocked.Increment(ref _secondSearchConflicts);
+            else if (guarded.Motivo == V9GoldPreCreationSecondSearch.AbstentionReason)
+                Interlocked.Increment(ref _secondSearchAbstentions);
+            return guarded;
         }
     }
 
