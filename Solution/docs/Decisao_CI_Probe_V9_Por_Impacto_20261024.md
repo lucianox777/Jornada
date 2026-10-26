@@ -2,6 +2,21 @@
 
 > **Estado atualizado em 26/10/2026:** decisão implementada e integrada à `master` pela PR #1188 (merge `2857ab3083e1162788a282d748835f8ca672ff22`). O aviso histórico **AINDA NÃO IMPLEMENTADO** abaixo refere-se exclusivamente ao corte `master ea814e461d21d543254f64a2618ef8e2c6992bf5`, não ao estado atual. O classificador está em `Solution/scripts/v9-physical-impact-classifier.py`; o workflow mantém job de impacto, probe físico condicional e agregador de status estável. A auditoria de desempenho e regressões adicionais são acompanhadas na issue #1200. **A integração da #1188 não comprova redução de tempo quantificada** nem dispensa o probe para alterações SQL/DT-10 ou compartilhadas; estas continuam fail-closed.
 
+## Situação operacional vigente (26/10/2026)
+
+A PR #1188 está **integrada** (merge confirmado: `2857ab3083e1162788a282d748835f8ca672ff22`). Esta seção prevalece **apenas quanto ao estado operacional atual**; os verbos no futuro e a descrição do gatilho antigo nas seções seguintes documentam a decisão e o contexto histórico de 24/10, não instruções para implementar novamente o classificador.
+
+| Item | Estado verificado | Evidência / limite |
+| --- | --- | --- |
+| Classificador de impacto e teste inicial | IMPLEMENTADO e integrado | PR #1188; `Solution/scripts/v9-physical-impact-classifier.py` e testes em `Solution/tests/scripts/`. |
+| Job de impacto, probe condicional e agregador obrigatório | IMPLEMENTADO e integrado | `.github/workflows/v9-physical-seed42-probe.yml`; mudanças SQL, compartilhadas ou desconhecidas exigem execução. |
+| Redução do tempo do probe **quando necessário** | NÃO COMPROVADA | A classificação elimina apenas repetições dispensáveis; o job físico conserva limite de 360 minutos. |
+| Testes adicionais de diff malformado e DT-10 | EM DESENVOLVIMENTO, NÃO INTEGRADOS | Branch `test/ci-impact-fail-closed-20261026`; requer CI e PR antes de ser considerada evidência de `master`. |
+| Validação física da PR #1199 | EM EXECUÇÃO na última consulta | Run #40396877513; não afirmar aprovação física enquanto incompleto. |
+| Economia medida por comparação equivalente | PENDENTE | Issue #1200; não inferir economia a partir de job intencionalmente dispensado. |
+
+**Regra documental:** não confundir código integrado com prova de desempenho, nem resultado da CI principal com conclusão do probe físico. Atualizar este quadro quando houver evidência verificável, preservando a decisão histórica abaixo.
+
 **Decisão:** CI-V9-PROBE-01  
 **Aprovada para implementação:** 24/10/2026  
 **Estado deste documento:** DECIDIDO, **AINDA NÃO IMPLEMENTADO** no corte `master ea814e461d21d543254f64a2618ef8e2c6992bf5`. Não altera o comportamento atual do GitHub Actions, os checks obrigatórios nem a seleção científica do V9.  
