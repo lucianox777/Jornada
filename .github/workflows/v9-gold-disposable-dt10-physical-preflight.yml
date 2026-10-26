@@ -71,6 +71,7 @@ jobs:
           }
           # No connection to any user-provided instance or operational database:
           # use the exact create-only instance from this job's readiness receipt.
+          $env:JORNADA_DT10_V9_DEDICATED = '1'
           $env:JORNADA_DT10_V9_HARNESS_CONNECTION = "Data Source=(localdb)\$($ready.instance);Initial Catalog=JornadaHarness;Integrated Security=True;Encrypt=Optional"
           $evidence = Join-Path $env:RUNNER_TEMP 'dt10-v9-lower-localdb'
           New-Item -ItemType Directory -Path $evidence -Force | Out-Null
