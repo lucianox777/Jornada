@@ -98,3 +98,7 @@ Os testes unitários do classificador devem executar no `jornada-ci` e na própr
 - [Decisões arquiteturais V9/Gold](Mapa_Decisoes_Arquiteturais_V9_Gold_20261024.md), [baseline da CI](CI_Baseline_Tempo_Execucao.md), [orquestração da matriz Gold](Gold_Orquestracao_Matriz_12_LocalDB_TRAIN_20261021.md), [índice de decisões](Indice_Decisoes_Vigentes.md).
 
 **Precedência:** esta decisão é **específica do acionamento da CI**; não modifica nenhuma regra científica V9, política Gold, condição DT-15, baseline selada ou modelo ATIVO. A implementação futura deve cumprir integralmente os critérios acima e registrar evidências no commit exato.
+
+## Otimização incremental — cache NuGet do probe físico (26/10/2026)
+
+Na branch da PR #1201, o workflow `v9-physical-seed42-probe.yml` passou a configurar o cache de pacotes do `actions/setup-dotnet`, indexado pelos `Solution/**/packages.lock.json` (commit `6829a653af1fbea2cc933254c34c73cdf1c84426`). O cache **não** elimina build, restore, SQL, 30 mil TRAIN, 20 replays nem os gates. Trata-se de otimização potencial de downloads/restauração; ganho de tempo ainda **não medido** e CI no novo HEAD ainda **não aprovada**. A classificação docs-only continua sendo feita pelo job `impact` para manter o check agregador estável; excluir o workflow inteiro por filtro de paths poderia deixar check obrigatório pendente. A PR #1199 permanece independente e bloqueada pela prova física positiva DT-15/DT-10.
