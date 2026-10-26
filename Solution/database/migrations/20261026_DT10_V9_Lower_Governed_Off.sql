@@ -238,9 +238,20 @@ BEGIN
               ON m.modelo_id=p.modelo_id
             LEFT JOIN auditoria.modelo_linkage_aprovacao a WITH(HOLDLOCK)
               ON a.aprovacao_id=p.aprovacao_id
+            -- The lower band is a claim about the SAME raw Rank/Resolve
+            -- observation. Never trust the proposed publication reason alone:
+            -- the strongest candidate and posterior must really be persisted.
+            LEFT JOIN identidade.linkage_resultado r WITH(HOLDLOCK)
+              ON r.linkage_run_id=@linkage_run_id
+             AND r.pessoa_observacao_id=l.leader_observacao_id
             WHERE l.replay_version IS NULL AND l.resultado_publicacao=N'NOVA_IDENTIDADE'
               AND l.raw_motivo=N'LIMIAR_INFERIOR_V9_GOVERNADO'
-              AND (p.politica_versao IS NULL
+              AND (r.linkage_resultado_id IS NULL
+                   OR r.status<>N'NAO_RESOLVIDO'
+                   OR r.melhor_candidato_uuid IS NULL
+                   OR r.score_melhor IS NULL
+                   OR r.score_melhor>=p.limiar_inferior
+                   OR p.politica_versao IS NULL
                    OR p.modelo_id<>l.modelo_id OR p.modelo_versao<>l.modelo_versao
                    OR m.modelo_id IS NULL OR m.status<>N'ATIVO' OR m.versao<>p.modelo_versao
                    OR m.algoritmo_versao<>N'FELLEGI_SUNTER_DECISION_EVIDENCE_COMPOSITE_NOMINAL_V9'
