@@ -68,7 +68,7 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
         {
             await using var mutation = connection.CreateCommand();
             mutation.CommandText = statement;
-            var exception = Assert.ThrowsAsync<SqlException>(async () => await mutation.ExecuteNonQueryAsync());
+            var exception = Assert.ThrowsAsync<SqlException>(async () => { await mutation.ExecuteNonQueryAsync(); });
             Assert.That(exception!.Number, Is.EqualTo(51834), "DT-15 authorizations must be append-only.");
         }
 
