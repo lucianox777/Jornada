@@ -70,7 +70,8 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
             Assert.That(migration, Does.Contain("a.acao<>N'ACTIVATE'"));
             Assert.That(migration, Does.Contain("m.status<>N'ATIVO'"));
             Assert.That(migration, Does.Contain("sp_calcular_fingerprint_modelo_linkage"));
-            Assert.That(migration, Does.Contain("sp_assert_dossie_decisao_modelo_linkage"));
+            Assert.That(migration, Does.Contain("auditoria.modelo_linkage_dossie_decisao"));
+            Assert.That(migration, Does.Contain("d.valido_ate>SYSDATETIMEOFFSET()"));
             Assert.That(migration, Does.Contain("HASHBYTES('SHA2_256',p.snapshot_bytes)"));
             Assert.That(migration, Does.Contain("THROW 51830"));
             Assert.That(migration, Does.Contain("THROW 51810"));
