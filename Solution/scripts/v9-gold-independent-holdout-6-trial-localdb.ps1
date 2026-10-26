@@ -149,7 +149,7 @@ try {
                     [long]$report.lowerNonMatchExperiment.finalFalseNewIdentityCreations) {
                 throw "Perícia sem identificação não reconcilia as criações físicas: $label"
             }
-            $rows.Add([pscustomobject]@{
+            $trialRow = [pscustomobject]@{
                 Policy = $policySpec.Slot; OrderId = $order
                 ErrorForensicCases = @($forensic.cases)
                 ErrorForensicFalseCreations = [long]$forensic.falseCreationCaseCount
@@ -179,11 +179,11 @@ try {
                 StablePartitionSha256 = [string]$trial.stablePartitionSha256
                 RunFingerprintSha256 = [string]$trial.isolatedRunFingerprintSha256
                 ElapsedMilliseconds = [long]$trial.elapsedMilliseconds
-            })
-            if ($rows[$rows.Count-1].Pending + $rows[$rows.Count-1].Published -ne
-                $rows[$rows.Count-1].Sources) {
+            }
+            if ($trialRow.Pending + $trialRow.Published -ne $trialRow.Sources) {
                 throw 'Partição de fontes não reconcilia.'
             }
+            $rows.Add($trialRow)
         }
     }
     if ($rows.Count -ne $expectedTrials -or $seenFingerprints.Count -ne $expectedTrials -or
@@ -192,7 +192,8 @@ try {
         throw 'Seis execuções físicas únicas da mesma coorte são obrigatórias.'
     }
     $worst = @()
-    foreach ($policyName in @('CURRENT','KNEE')) {
+    foreach ($policySpec in $policies) {
+        $policyName = [string]$policySpec.Slot
         $subset = @($rows | Where-Object { $_.Policy -ceq $policyName })
         $worst += [pscustomobject]@{
             Policy = $policyName; MaxPending = ($subset.Pending | Measure-Object -Maximum).Maximum
