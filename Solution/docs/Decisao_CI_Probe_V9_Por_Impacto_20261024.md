@@ -1,5 +1,7 @@
 # Decisão de arquitetura — escopo por impacto para o probe físico V9 de 30 mil
 
+> **Estado atualizado em 26/10/2026:** decisão implementada e integrada à `master` pela PR #1188 (merge `2857ab3083e1162788a282d748835f8ca672ff22`). O aviso histórico **AINDA NÃO IMPLEMENTADO** abaixo refere-se exclusivamente ao corte `master ea814e461d21d543254f64a2618ef8e2c6992bf5`, não ao estado atual. O classificador está em `Solution/scripts/v9-physical-impact-classifier.py`; o workflow mantém job de impacto, probe físico condicional e agregador de status estável. A auditoria de desempenho e regressões adicionais são acompanhadas na issue #1200. **A integração da #1188 não comprova redução de tempo quantificada** nem dispensa o probe para alterações SQL/DT-10 ou compartilhadas; estas continuam fail-closed.
+
 **Decisão:** CI-V9-PROBE-01  
 **Aprovada para implementação:** 24/10/2026  
 **Estado deste documento:** DECIDIDO, **AINDA NÃO IMPLEMENTADO** no corte `master ea814e461d21d543254f64a2618ef8e2c6992bf5`. Não altera o comportamento atual do GitHub Actions, os checks obrigatórios nem a seleção científica do V9.  
