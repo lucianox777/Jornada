@@ -122,6 +122,24 @@ class V9PhysicalImpactTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     m.parse_name_status_z(raw)
 
+    def test_end_to_end_diff_parser_preserves_probe_decision(self):
+        # Exercise the real byte parser before classification, not just the
+        # classify() helper fed with synthetic tuples.
+        cases = (
+            (b"M\\0Solution/docs/decision.md\\0", False),
+            (b"A\\0Solution/docs/new.md\\0", False),
+            (b"M\\0Solution/database/migrations/20261026_DT10_V9_Lower_Governed_Off.sql\\0", True),
+            (b"M\\0Solution/docs/decision.md\\0M\\0Solution/database/Jornada_Fase1_v3.70.sql\\0", True),
+            (b"D\\0Solution/docs/decision.md\\0", True),
+            (b"R100\\0Solution/docs/old.md\\0Solution/docs/new.md\\0", True),
+        )
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                parsed = m.parse_name_status_z(raw)
+                result = m.classify(parsed)
+                self.assertEqual(result["run_physical_30k"], expected)
+                self.assertEqual(result["decision"], "RUN" if expected else "NOT_REQUIRED_FOR_THIS_DIFF")
+
     def test_manual_always_requires_probe(self):
         self.assertTrue(m.classify([], manual=True)["run_physical_30k"])
 
