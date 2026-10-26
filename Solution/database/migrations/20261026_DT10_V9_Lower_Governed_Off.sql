@@ -33,6 +33,31 @@ BEGIN
 END;
 GO
 
+-- DT-15 authorization is a separate append-only attestation. An approval of
+-- the model alone does NOT authorize a mutable DT-10 lower-band policy.
+-- The approving governance process must insert the exact policy digest after
+-- verifying the policy; the migration deliberately inserts no authorization.
+IF OBJECT_ID(N'auditoria.v9_dt10_lower_policy_autorizacao',N'U') IS NULL
+BEGIN
+    CREATE TABLE auditoria.v9_dt10_lower_policy_autorizacao(
+        aprovacao_id UNIQUEIDENTIFIER NOT NULL PRIMARY KEY
+            REFERENCES auditoria.modelo_linkage_aprovacao(aprovacao_id),
+        politica_versao NVARCHAR(120) NOT NULL,
+        politica_sha256 BINARY(32) NOT NULL,
+        autorizado_em DATETIMEOFFSET(7) NOT NULL DEFAULT SYSUTCDATETIME()
+    );
+END;
+GO
+CREATE OR ALTER TRIGGER auditoria.tr_v9_dt10_lower_policy_autorizacao_append_only
+ON auditoria.v9_dt10_lower_policy_autorizacao
+AFTER UPDATE, DELETE
+AS
+BEGIN
+    SET NOCOUNT ON;
+    THROW 51834, 'DT-15 V9: autorizacao de politica e imutavel.', 1;
+END;
+GO
+
 -- Explicit canonical redefinition. The preceding DT-10 batch body is retained
 -- in full, including the serializable transaction, source-wide precedence,
 -- idempotent replay, locks, and append-only event ledger.
@@ -255,6 +280,23 @@ BEGIN
                    OR p.modelo_id<>l.modelo_id OR p.modelo_versao<>l.modelo_versao
                    OR m.modelo_id IS NULL OR m.status<>N'ATIVO' OR m.versao<>p.modelo_versao
                    OR m.algoritmo_versao<>N'FELLEGI_SUNTER_DECISION_EVIDENCE_COMPOSITE_NOMINAL_V9'
+                   -- Canonical UTF-16 SQL Server serialization, field order fixed.
+                   -- The digest is sealed independently in an append-only
+                   -- DT-15 authorization, not recomputed in the policy row.
+                   OR NOT EXISTS(
+                       SELECT 1
+                       FROM auditoria.v9_dt10_lower_policy_autorizacao pa WITH(HOLDLOCK)
+                       WHERE pa.aprovacao_id=p.aprovacao_id
+                         AND pa.politica_versao=p.politica_versao
+                         AND pa.politica_sha256=HASHBYTES('SHA2_256',CONCAT(
+                             N'JORNADA_DT10_V9_POLICY_V1|',p.politica_versao,N'|',
+                             CONVERT(NVARCHAR(36),p.modelo_id),N'|',
+                             CONVERT(NVARCHAR(20),p.modelo_versao),N'|',
+                             CONVERT(VARCHAR(64),p.modelo_fingerprint,2),N'|',
+                             CONVERT(VARCHAR(64),p.fit_fingerprint,2),N'|',
+                             CONVERT(VARCHAR(64),p.snapshot_sha256,2),N'|',
+                             CONVERT(NVARCHAR(40),p.limiar_inferior),N'|',
+                             CONVERT(NVARCHAR(40),p.limiar_superior))))
                    OR a.aprovacao_id IS NULL OR a.acao<>N'ACTIVATE'
                    OR a.modelo_id<>p.modelo_id OR a.modelo_snapshot_sha256<>p.modelo_fingerprint
                    OR a.dossie_sha256 IS NULL
