@@ -38,12 +38,23 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
                   AND EXISTS(SELECT 1 FROM sys.extended_properties
                     WHERE class=0 AND name=N'Jornada.V9.ExperimentalHarness'
                       AND CONVERT(NVARCHAR(200),value)=N'PINNED_FIT_PREVIEW_NO_ACTIVATION')
+                  AND OBJECT_ID(N'auditoria.v9_dt10_lower_policy_autorizacao',N'U') IS NOT NULL
+                  AND OBJECT_ID(N'auditoria.tr_v9_dt10_lower_policy_autorizacao_append_only',N'TR') IS NOT NULL
                   AND OBJECT_ID(N'identidade.v9_dt10_lower_policy',N'U') IS NOT NULL
                   AND OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote',N'P') IS NOT NULL
                   THEN 1 ELSE 0 END;
                 """;
             Assert.That(Convert.ToInt32(await guard.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture), Is.EqualTo(1),
                 "The test must NEVER initialize or modify an unowned database.");
+        }
+
+        // The migration must never pre-authorize a policy. A model ACTIVATE
+        // record alone cannot authorize lower-band publication.
+        await using (var noSeed = connection.CreateCommand())
+        {
+            noSeed.CommandText = "SELECT COUNT_BIG(*) FROM auditoria.v9_dt10_lower_policy_autorizacao;";
+            Assert.That(Convert.ToInt64(await noSeed.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture),
+                Is.Zero, "Disposable harness must start with no DT-15 policy authorizations.");
         }
 
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
