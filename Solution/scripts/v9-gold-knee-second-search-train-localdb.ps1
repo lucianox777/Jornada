@@ -15,8 +15,13 @@ param(
     [Parameter(Mandatory)][string]$GoldFittedSnapshot,
     [Parameter(Mandatory)][string]$OriginalTrainCsv,
     [Parameter(Mandatory)][string]$FrozenCandidate,
-    [Parameter(Mandatory)][string]$OutputRoot
+    [Parameter(Mandatory)][string]$OutputRoot,
+    [ValidateSet('KNEE','KNEE_SECOND_SEARCH')][string]$Variant,
+    [ValidateSet('BASELINE_G0_G1_G2_G3','REVERSE_G3_G2_G1_G0','INTERLEAVED_G1_G3_G0_G2')][string]$Order
 )
+if ([bool]$Variant -ne [bool]$Order) {
+    throw 'Variant e Order devem ser informados juntos para uma corrida física isolada.'
+}
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
@@ -57,15 +62,16 @@ $orders = @(
     'REVERSE_G3_G2_G1_G0',
     'INTERLEAVED_G1_G3_G0_G2'
 )
-$variants = @('KNEE', 'KNEE_SECOND_SEARCH')
+$variantNames = if ($Variant) { @($Variant) } else { @('KNEE', 'KNEE_SECOND_SEARCH') }
+if ($Order) { $orders = @($Order) }
 [IO.Directory]::CreateDirectory($root) | Out-Null
 $rows = [Collections.Generic.List[object]]::new()
 $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
 $previousConnection = [Environment]::GetEnvironmentVariable('ConnectionStrings__Jornada', 'Process')
 try {
-    foreach ($variant in $variants) {
+    foreach ($variantName in $variantNames) {
         foreach ($order in $orders) {
-            $slot = $variant + '_' + $order
+            $slot = $variantName + '_' + $order
             $databaseOutput = Join-Path $root ($slot + '_database')
             $trialOutput = Join-Path $root ($slot + '_report')
             & dotnet $runner --v9-gold-harness-create $databaseOutput $schema
@@ -78,7 +84,7 @@ try {
             $env:ConnectionStrings__Jornada = "Server=(localdb)\$($ready.instance);Database=JornadaHarness;Integrated Security=true;Encrypt=Optional"
             $argv = @('--v9-gold-harness', $selection, $validation, $goldFit, $csv,
                 $trialOutput, $order, 'LOWER_NONMATCH=0.05')
-            if ($variant -ceq 'KNEE_SECOND_SEARCH') {
+            if ($variantName -ceq 'KNEE_SECOND_SEARCH') {
                 $argv += 'SECOND_SEARCH=EXPANDED_19'
             }
             & dotnet $runner @argv
@@ -94,14 +100,14 @@ try {
                 $report.refitted -ne $false -or $report.certified -ne $false -or
                 $report.lowerNonMatchExperiment.policy -cne 'EXPERIMENTAL_LOWER_TRAIN_ONLY' -or
                 [decimal]$report.lowerNonMatchExperiment.threshold -ne [decimal]'0.05' -or
-                $report.secondSearch.enabled -ne ($variant -ceq 'KNEE_SECOND_SEARCH')) {
+                $report.secondSearch.enabled -ne ($variantName -ceq 'KNEE_SECOND_SEARCH')) {
                 throw "Proveniência de pesquisa mudou: $slot"
             }
             if (-not $seen.Add([string]$trial.isolatedRunFingerprintSha256)) {
                 throw "Repetição de execução física: $slot"
             }
             $rows.Add([pscustomobject]@{
-                policy = $variant; order = $order
+                policy = $variantName; order = $order
                 runFingerprint = $trial.isolatedRunFingerprintSha256
                 pending = [long]$report.goldEndToEnd.PendingSources
                 falseCreations = [long]$report.lowerNonMatchExperiment.finalFalseNewIdentityCreations
@@ -112,6 +118,25 @@ try {
                 seconds = [math]::Round([double]$trial.elapsedMilliseconds / 1000, 2)
             })
         }
+    }
+    if ($Variant) {
+        if ($rows.Count -ne 1 -or $seen.Count -ne 1) { throw 'Corrida física isolada incompleta.' }
+        [ordered]@{
+            version = 'V9_GOLD_SECOND_SEARCH_TRAIN_ONE_PHYSICAL_TRIAL_V1'
+            status = 'COMPLETE_DESCRIPTIVE_ONLY'
+            scope = 'TRAIN_SELECTION'
+            frozenFitSha256 = $fitSha
+            originalTrainCsvSha256 = $csvSha
+            lowerThreshold = [decimal]'0.05'
+            testUsed = $false
+            retuned = $false
+            independentlyValidated = $false
+            operationallyActivated = $false
+            physicalTrialCount = 1
+            row = $rows[0]
+        } | ConvertTo-Json -Depth 8 |
+            Set-Content -LiteralPath (Join-Path $root 'second-search-one-train.json') -Encoding utf8
+        return
     }
     if ($rows.Count -ne 6 -or $seen.Count -ne 6) { throw 'Esperadas seis corridas físicas distintas.' }
     $paired = @(
