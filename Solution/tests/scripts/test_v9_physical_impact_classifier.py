@@ -99,6 +99,17 @@ class V9PhysicalImpactTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             m.parse_name_status_z(b"")
 
+    def test_dt10_sql_and_governance_changes_require_probe(self):
+        for path in (
+            "Solution/database/migrations/20261026_DT10_V9_Lower_Governed_Off.sql",
+            "Solution/database/Jornada_Fase1_v3.70.sql",
+            "Solution/database/rollback/20261026_DT10_V9_Lower_Disable_Restore.sql",
+            "Solution/tests/Jornada.Integration.Tests/Integration/Dt10V9LowerCanonicalLocalDbTests.cs",
+            ".github/workflows/ci.yml",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(self.changes(path))
+
     def test_manual_always_requires_probe(self):
         self.assertTrue(m.classify([], manual=True)["run_physical_30k"])
 
