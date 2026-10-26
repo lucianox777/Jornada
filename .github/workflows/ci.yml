@@ -798,10 +798,14 @@ jobs:
         # using a newly provisioned and positively owned JornadaHarness.
         # Excluding it here prevents a platform-incompatible Assert.Ignore
         # from silently making the whole Linux integration evidence fail.
+        # ExternalRealData needs a private SEHAB source ZIP, unavailable and
+        # forbidden in hosted CI; its six Assert.Ignore cases are not SQL
+        # integration evidence. Keep this category opt-in and separately
+        # auditable. Every selected integration test still forbids skips.
         run: |
           mkdir -p .local/test-evidence/integration
           dotnet test tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj --configuration Release --no-build \
-            --filter "TestCategory!=DT10V9" \
+            --filter "TestCategory!=DT10V9&TestCategory!=ExternalRealData" \
             --logger "trx;LogFileName=$PWD/.local/test-evidence/integration/integration.trx"
           python3 scripts/test-evidence-gate.py .local/test-evidence/integration/integration.trx \
             --forbid-skipped --minimum-tests 1 --summary .local/test-evidence/integration/summary.json
