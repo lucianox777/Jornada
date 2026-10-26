@@ -42,7 +42,7 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
                   AND OBJECT_ID(N'identidade.sp_publicar_resolucao_progressiva_linkage_lote',N'P') IS NOT NULL
                   THEN 1 ELSE 0 END;
                 """;
-            Assert.That(Convert.ToInt32(await guard.ExecuteScalarAsync()), Is.EqualTo(1),
+            Assert.That(Convert.ToInt32(await guard.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture), Is.EqualTo(1),
                 "The test must NEVER initialize or modify an unowned database.");
         }
 
@@ -52,7 +52,7 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
         {
             scaleCheck.CommandText =
                 "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';";
-            if (Convert.ToInt64(await scaleCheck.ExecuteScalarAsync()) == 0)
+            if (Convert.ToInt64(await scaleCheck.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture) == 0)
                 await SqlBatchRunner.ExecuteFileWithSqlCmdVariablesAsync(
                     connection, Path.Combine(databaseDir, "Jornada_Dev_SyntheticScale.sql"),
                     new Dictionary<string, string>(StringComparer.Ordinal)
@@ -202,6 +202,6 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
         cmd.CommandText =
             "SELECT COUNT_BIG(*) FROM identidade.pessoa_origem_progressiva_evento WHERE linkage_run_id=@run;";
         cmd.Parameters.AddWithValue("@run", run);
-        return Convert.ToInt64(await cmd.ExecuteScalarAsync());
+        return Convert.ToInt64(await cmd.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture);
     }
 }
