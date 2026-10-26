@@ -126,12 +126,12 @@ class V9PhysicalImpactTests(unittest.TestCase):
         # Exercise the real byte parser before classification, not just the
         # classify() helper fed with synthetic tuples.
         cases = (
-            (b"M\\0Solution/docs/decision.md\\0", False),
-            (b"A\\0Solution/docs/new.md\\0", False),
-            (b"M\\0Solution/database/migrations/20261026_DT10_V9_Lower_Governed_Off.sql\\0", True),
-            (b"M\\0Solution/docs/decision.md\\0M\\0Solution/database/Jornada_Fase1_v3.70.sql\\0", True),
-            (b"D\\0Solution/docs/decision.md\\0", True),
-            (b"R100\\0Solution/docs/old.md\\0Solution/docs/new.md\\0", True),
+            (b"M\0Solution/docs/decision.md\0", False),
+            (b"A\0Solution/docs/new.md\0", False),
+            (b"M\0Solution/database/migrations/20261026_DT10_V9_Lower_Governed_Off.sql\0", True),
+            (b"M\0Solution/docs/decision.md\0M\0Solution/database/Jornada_Fase1_v3.70.sql\0", True),
+            (b"D\0Solution/docs/decision.md\0", True),
+            (b"R100\0Solution/docs/old.md\0Solution/docs/new.md\0", True),
         )
         for raw, expected in cases:
             with self.subTest(raw=raw):
