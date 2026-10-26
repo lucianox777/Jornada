@@ -79,11 +79,16 @@ public static class V9GoldPreCreationSecondSearch
                 selected.Add(extra);
                 continue;
             }
-            // A duplicate PassId with different actual clauses is not an
-            // equivalent union and must never silently replace the frozen fit.
-            if (existing.Clauses.Count != extra.Clauses.Count
-                || existing.Clauses.Where((c, i) => c.Feature != extra.Clauses[i].Feature
-                    || !c.Values.SequenceEqual(extra.Clauses[i].Values)).Any())
+            // The frozen V6 fit orders fields canonically, while the exploratory
+            // catalogue can list the same fields in another order. Compare the
+            // complete clauses by feature without changing the frozen pass.
+            // A genuine difference still fails closed; never replace the fit.
+            var frozenClauses = existing.Clauses.OrderBy(c => c.Feature, StringComparer.Ordinal).ToArray();
+            var catalogueClauses = extra.Clauses.OrderBy(c => c.Feature, StringComparer.Ordinal).ToArray();
+            if (frozenClauses.Length != catalogueClauses.Length
+                || frozenClauses.Where((c, i) =>
+                    !string.Equals(c.Feature, catalogueClauses[i].Feature, StringComparison.Ordinal)
+                    || !c.Values.SequenceEqual(catalogueClauses[i].Values, StringComparer.Ordinal)).Any())
                 throw new InvalidDataException("Catálogo ampliado colide com o passe do fit congelado.");
         }
         return selected.AsReadOnly();

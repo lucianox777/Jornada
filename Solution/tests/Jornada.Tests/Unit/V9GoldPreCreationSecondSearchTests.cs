@@ -25,7 +25,7 @@ public sealed class V9GoldPreCreationSecondSearchTests
         new(ResolutionStatus.NAO_RESOLVIDO, null, Candidate, p, null, null, null,
             Model, "ABAIXO_T_LINKAGE");
 
-    private static V9FittedSnapshotExecutionRuntime Runtime()
+    private static V9FittedSnapshotExecutionRuntime Runtime(string[]? fittedFields = null)
     {
         var levels = Enum.GetValues<CompositeNominalLevelV9>();
         var fit = V9FittedSnapshot.Create(new(V9FittedSnapshot.SchemaVersion,
@@ -33,7 +33,7 @@ public sealed class V9GoldPreCreationSecondSearchTests
             V9CalibrationBlockingProjection.ComputeSchemaFingerprint(4),
             Hash('b'), Hash('c'), Hash('d'), Hash('e'), Hash('f'),
             "adapter-v1", "frozen-fit", .8671875m, .5m, 0m,
-            [new("P_FIRST_M_FIRST", ["name_first", "mother_name_first"])],
+            [new("P_FIRST_M_FIRST", fittedFields ?? ["mother_name_first", "name_first"])],
             levels.SelectMany(p => levels.Select(m =>
                 new FellegiSunterJointNominalCellV9(p, m, 1m / 81m, 1m / 81m))).ToArray(),
             new Dictionary<string, decimal>
@@ -122,6 +122,8 @@ public sealed class V9GoldPreCreationSecondSearchTests
             Assert.That(V9GoldPreCreationSecondSearch.Catalogue.Select(p => p.PassId).Distinct().Count(),
                 Is.EqualTo(19));
             Assert.That(plan.Select(p => p.PassId).Count(id => id == "P_FIRST_M_FIRST"), Is.EqualTo(1));
+            Assert.That(plan.Single(p => p.PassId == "P_FIRST_M_FIRST").Clauses.Select(c => c.Feature),
+                Is.EqualTo(new[] { "mother_name_first", "name_first" }));
             Assert.That(plan.Any(p => p.PassId == "P_LAST_M_FIRST"), Is.True);
             Assert.That(plan.Any(p => p.PassId == "P_ANY_DOB_MONTHDAY"), Is.True);
             Assert.That(query, Does.Contain(" UNION ").And.Contain(" INTERSECT "));
@@ -132,6 +134,15 @@ public sealed class V9GoldPreCreationSecondSearchTests
             Assert.That(command.Parameters["@blocking_projection_fingerprint"].Value,
                 Is.EqualTo(runtime.ProjectionFingerprintSha256));
         });
+    }
+
+    [Test]
+    public void Same_pass_id_with_genuinely_different_frozen_fields_still_fails_closed()
+    {
+        var runtime = Runtime(["name_first", "birth_year"]);
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA",
+            new DateOnly(1980, 5, 6), "ANA COSTA");
+        Reject<InvalidDataException>(() => V9GoldPreCreationSecondSearch.Plan(runtime, observation));
     }
 
     [Test]
