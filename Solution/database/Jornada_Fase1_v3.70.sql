@@ -77,4 +77,5 @@
 :r database/migrations/20261003_SolutionSchema_371_Participantes_Divergencia.sql
 :r database/migrations/20261003_SolutionSchema_371_Possivel_Apresentacao.sql
 :r database/migrations/20261011_DT23_Diagnostico_Politica_Versionada.sql
+:r database/migrations/20261026_DT10_V9_Lower_Governed_Off.sql
 :r database/migrations/20260910_Schema_Consolidation_370.sql
