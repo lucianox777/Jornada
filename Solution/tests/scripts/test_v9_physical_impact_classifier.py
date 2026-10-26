@@ -113,10 +113,10 @@ class V9PhysicalImpactTests(unittest.TestCase):
     def test_malformed_diff_rejected_fail_closed(self):
         for raw in (
             b"",
-            b"M\\0Solution/docs/a.md",
-            b"R100\\0Solution/docs/old.md\\0",
-            b"Q\\0Solution/docs/a.md\\0",
-            b"M\\0../Solution/docs/a.md\\0",
+            b"M\0Solution/docs/a.md",
+            b"R100\0Solution/docs/old.md\0",
+            b"Q\0Solution/docs/a.md\0",
+            b"M\0../Solution/docs/a.md\0",
         ):
             with self.subTest(raw=raw):
                 with self.assertRaises(ValueError):
