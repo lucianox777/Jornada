@@ -1,0 +1,20 @@
+# DT-10 — contrato canônico de publicação V9 inferior (DESLIGADO)
+
+**Estado: implementação de guarda SQL em PR, sem certificação nem ativação.**
+O candidato Gold KNEE `0,05` é um parâmetro do snapshot de bootstrap e **não** foi codificado como limiar universal. O experimento #1192, seed 20261025001, já foi observado e não é TEST novo. A regressão de #1197 não autoriza novos ajustes de limiar ou blocking.
+
+## Escopo e invariantes
+
+A migration `20261026_DT10_V9_Lower_Governed_Off.sql` cria `identidade.v9_dt10_lower_policy` **sem inserir linha e com `habilitada=0` por padrão**, e redefine explicitamente a procedure canônica de lote. A lógica antiga de transação SERIALIZABLE, locks, precedência determinística/governada por origem, ledger e replay permanece idêntica fora da nova guarda. O motivo operacional `LIMIAR_INFERIOR_V9_GOVERNADO` é distinto do `LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL`, que continua rejeitado pela DT-10 canônica.
+
+Uma nova identidade por limiar inferior somente poderá ser publicada quando, **simultaneamente**, houver modelo V9 ATIVO de versão idêntica à evidência, política explicitamente habilitada e versionada, aprovação DT-15 `ACTIVATE` mais recente vinculada a dossiê válido, fingerprint atual do modelo idêntico ao aprovado, snapshot Gold V3 com bytes conferidos por SHA-256, fit conferido, limiar superior do snapshot igual ao contrato, universo do run vinculado ao SHA do snapshot, e motivo de publicação operacional exato. Qualquer falta/divergência aborta a transação **antes do primeiro evento**. O limite inferior é campo versionado da política, sujeito a `0 < inferior < superior <= 1`; **não é constante do scorer**.
+
+A tabela guarda os bytes do snapshot exclusivamente para vinculação por conteúdo. A migration **não** instala loader de bootstrap `ref`, não valida por si a certificação estatística do snapshot e **não** produz o novo motivo: o Runner operacional continua sem roteamento V9. Por isso, mesmo que a migration passe na CI, **a função não está habilitada e não está pronta para operação**. O vínculo governado de `ref`, a integração no Calibrador C# único (#1089), o TEST final novo e a aprovação formal são gates independentes, não inferíveis deste SQL.
+
+## Testes e rollback
+
+O teste unitário `Dt10V9LowerCanonicalMigrationTests` verifica que todo o corpo da procedure anterior foi preservado, exceto a guarda explicitamente substituída, além de manifesto, instalador, razão não experimental, fingerprint, aprovação e rollback. O teste de integração `Dt10V9LowerCanonicalLocalDbTests` é **opt-in** e recusa conexão que não seja LocalDB `JornadaHarness` com marcadores explícitos de propriedade; cobre recusa por flag desligada, recusa do motivo experimental, ausência de eventos após falha e replay idempotente do caminho antigo. Não representa teste positivo com modelo V9 certificado: tal teste permanece pendente de ambiente de certificação autorizado.
+
+Rollback manual sob governança: aplicar `database/rollback/20261026_DT10_V9_Lower_Disable_Restore.sql` em ambiente permitido; ele desabilita todas as políticas e restaura a definição exata da procedure DT-10 anterior. **Não** apaga registros, aprovações ou eventos históricos; se a política já tiver sido usada, rollback de código não desfaz identidades persistidas e exige plano institucional de recomposição. O rollback não está no manifesto de instalação.
+
+**Proibido:** ativar flag, publicar V9/DT-15, consumir TEST ou holdout observado, migrar bases reais, alterar V8, Gold, `ref` ATIVA, JornadaLocal, HML/PROD, IBGE original, NODE/NAS. A migration adiciona contrato, não concede autorização.
