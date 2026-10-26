@@ -57,6 +57,21 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
                 Is.Zero, "Disposable harness must start with no DT-15 policy authorizations.");
         }
 
+        // Exercise the real SQL trigger on a disposable harness. A statement
+        // affecting zero rows must still be rejected: nobody may rewrite or
+        // erase a previously sealed DT-15 authorization.
+        foreach (var statement in new[]
+        {
+            "UPDATE auditoria.v9_dt10_lower_policy_autorizacao SET politica_versao=politica_versao WHERE 1=0;",
+            "DELETE FROM auditoria.v9_dt10_lower_policy_autorizacao WHERE 1=0;"
+        })
+        {
+            await using var mutation = connection.CreateCommand();
+            mutation.CommandText = statement;
+            var exception = Assert.ThrowsAsync<SqlException>(async () => await mutation.ExecuteNonQueryAsync());
+            Assert.That(exception!.Number, Is.EqualTo(51834), "DT-15 authorizations must be append-only.");
+        }
+
         var databaseDir = Path.Combine(AppContext.BaseDirectory, "database");
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(databaseDir, "Jornada_Seed_Dev.sql"));
         await using (var scaleCheck = connection.CreateCommand())
