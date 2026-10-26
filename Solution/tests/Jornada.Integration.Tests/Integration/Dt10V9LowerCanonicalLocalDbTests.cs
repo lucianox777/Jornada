@@ -152,6 +152,13 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             var error = await TryPublishAsync(connection, run);
             Assert.That(error, Is.EqualTo(expected));
             Assert.That(await CountEventsAsync(connection, run), Is.Zero);
+            // Rejection must not partially commit a run or promote its identity.
+            Assert.That(await ReadProgressiveStateAsync(connection, sourceId),
+                Is.EqualTo(("PROVISORIA", initial)));
+            Assert.That(await ReadRunStatusAsync(connection, run),
+                Is.EqualTo("EXECUTANDO"));
+            Assert.That(await TryPublishAsync(connection, run), Is.EqualTo(expected));
+            Assert.That(await CountEventsAsync(connection, run), Is.Zero);
         }
 
         // Unchanged no-candidate path must still publish exactly once,
@@ -220,6 +227,25 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             if (tx.Connection is not null) await tx.RollbackAsync();
             return ex.Number;
         }
+    }
+
+    private static async Task<(string State, Guid Canonical)> ReadProgressiveStateAsync(
+        SqlConnection sql, long source)
+    {
+        await using var cmd = sql.CreateCommand();
+        cmd.CommandText = "SELECT estado, canonical_uuid FROM identidade.pessoa_origem_progressiva WHERE pessoa_origem_id=@source;";
+        cmd.Parameters.AddWithValue("@source", source);
+        await using var reader = await cmd.ExecuteReaderAsync();
+        Assert.That(await reader.ReadAsync(), Is.True);
+        return (reader.GetString(0), reader.GetGuid(1));
+    }
+
+    private static async Task<string> ReadRunStatusAsync(SqlConnection sql, Guid run)
+    {
+        await using var cmd = sql.CreateCommand();
+        cmd.CommandText = "SELECT status FROM identidade.linkage_run WHERE linkage_run_id=@run;";
+        cmd.Parameters.AddWithValue("@run", run);
+        return (string)(await cmd.ExecuteScalarAsync())!;
     }
 
     private static async Task<long> CountEventsAsync(SqlConnection sql, Guid run)
