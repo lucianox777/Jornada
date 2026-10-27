@@ -8,6 +8,8 @@ A tabela `auditoria.v9_dt10_lower_policy_autorizacao` vincula `aprovacao_id`, `p
 
 **Serialização canônica V1:** `HASHBYTES('SHA2_256', CONCAT(...))`, com texto SQL Server Unicode e campos nesta ordem: prefixo literal `JORNADA_DT10_V9_POLICY_V1`, `politica_versao`, `modelo_id` (UUID), `modelo_versao`, `modelo_fingerprint` (hex), `fit_fingerprint` (hex), `snapshot_sha256` (hex), `limiar_inferior`, `limiar_superior`, separados por `|`. Os decimais são convertidos a NVARCHAR(40) a partir de DECIMAL(18,8), preservando oito casas. A verificação é realizada na procedure de publicação antes de escrever o ledger. Não aceitar digest enviado pelo produtor como substituto da recomputação SQL.
 
+A guarda de publicação canônica exige também `origem_evidencia` do dossiê DT-15 em `REPRESENTATIVA_HML` ou `REPRESENTATIVA_PROD`. `SINTETICA_DEV` é rejeitada mesmo com estado `COMPLETO`, digest correto e aprovação ACTIVATE. A origem declarada como representativa é **condição necessária, não prova de representatividade estatística, aprovação institucional ou liberação de TEST**. O ensaio positivo em LocalDB deve permanecer claramente técnico e não pode ser usado para declarar certificação.
+
 O snapshot é verificado por hash do conteúdo, schema, fit e threshold superior, além da aprovação do modelo e dossiê vigentes. Alterações na versão, no modelo, no fit, no snapshot ou nos limiares invalidam o digest. A trigger impede reescrever ou apagar a autorização existente; controles de permissão devem restringir INSERT a operadores DT-15 autorizados.
 
 ## Evidências ainda obrigatórias antes do merge
