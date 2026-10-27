@@ -16,7 +16,7 @@ internal static class TestAsserts
         => Assert.Multiple(assertions);
 }
 
-[TestFixture]
+[TestFixture, Category("Integration")]
 internal sealed class TestAssertsContractTests
 {
     [Test]
