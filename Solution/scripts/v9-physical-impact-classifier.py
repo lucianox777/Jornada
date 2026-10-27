@@ -57,6 +57,13 @@ def reason_for_safe(path: str) -> str | None:
         return "gold-exclusive-test"
     if path in GOLD_ONLY_SCRIPTS:
         return "gold-exclusive-orchestration"
+    # Tests do not change the production 30k calibrator. Keep helper/source
+    # files without a Tests suffix fail-closed, even under a test project.
+    for root in ("Solution/tests/Jornada.Tests/", "Solution/tests/Jornada.Integration.Tests/"):
+        if path.startswith(root) and path.endswith("Tests.cs"):
+            return "test-only"
+    if path.startswith("Solution/tests/scripts/test_") and path.endswith(".py"):
+        return "test-only"
     return None
 
 
