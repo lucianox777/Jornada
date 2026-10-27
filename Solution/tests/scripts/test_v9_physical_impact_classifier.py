@@ -10,6 +10,17 @@ spec.loader.exec_module(m)
 
 
 class V9PhysicalImpactTests(unittest.TestCase):
+    def test_dependabot_metadata_only_sha_97195227(self):
+        # Regression for #1203 (97195227): Dependabot groups and schedules
+        # cannot change the physical 30k model or its SQL inputs.
+        for path in (".github/dependabot.yml", ".github/dependabot.yaml"):
+            with self.subTest(path=path):
+                self.assertFalse(self.changes(path))
+                self.assertFalse(m.classify([("A", path)])["run_physical_30k"])
+                self.assertTrue(m.classify([("D", path)])["run_physical_30k"])
+        self.assertTrue(self.changes(".github/workflows/v9-physical-seed42-probe.yml"))
+        self.assertTrue(self.changes(".github/dependabot.yml", "Solution/database/Jornada_Fase1_v3.70.sql"))
+
     def changes(self, *paths):
         return m.classify([("M", p) for p in paths])["run_physical_30k"]
 
