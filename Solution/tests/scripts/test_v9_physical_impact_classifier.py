@@ -73,6 +73,24 @@ class V9PhysicalImpactTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue(self.changes(path))
 
+    def test_only_test_changes_skip_expensive_30k(self):
+        paths = (
+            "Solution/tests/Jornada.Integration.Tests/Integration/Dt10V9LowerCanonicalLocalDbTests.cs",
+            "Solution/tests/Jornada.Integration.Tests/Integration/NameFrequencyReferenceSqlServerTests.cs",
+            "Solution/tests/Jornada.Tests/Unit/SomeNewRegressionTests.cs",
+            "Solution/tests/scripts/test_new_regression.py",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertFalse(self.changes(path))
+                self.assertFalse(m.classify([("A", path)])["run_physical_30k"])
+                self.assertTrue(m.classify([("D", path)])["run_physical_30k"])
+        self.assertTrue(self.changes(paths[0], "Solution/database/Jornada_Fase1_v3.70.sql"))
+        self.assertTrue(self.changes("Solution/tests/Jornada.Integration.Tests/Integration/TestAsserts.cs"))
+        self.assertTrue(self.changes("Solution/tests/Jornada.Integration.Tests/Fixtures/PhysicalProbeTests.cs"))
+        self.assertTrue(self.changes("Solution/tests/Jornada.Tests/Shared/SharedProbeTests.cs"))
+        self.assertTrue(self.changes("Solution/tests/scripts/test_v9_physical_impact_classifier.py"))
+
     def test_mixed_gold_and_worker_requires(self):
         self.assertTrue(self.changes(
             "Solution/src/Jornada.Linkage.Runner/V9GoldDisposableLowerProcedurePatch.cs",
@@ -98,6 +116,46 @@ class V9PhysicalImpactTests(unittest.TestCase):
             m.parse_name_status_z(b"M\0Solution/docs/a.md")
         with self.assertRaises(ValueError):
             m.parse_name_status_z(b"")
+
+    def test_dt10_sql_and_governance_changes_require_probe(self):
+        for path in (
+            "Solution/database/migrations/20261026_DT10_V9_Lower_Governed_Off.sql",
+            "Solution/database/Jornada_Fase1_v3.70.sql",
+            "Solution/database/rollback/20261026_DT10_V9_Lower_Disable_Restore.sql",
+            ".github/workflows/ci.yml",
+        ):
+            with self.subTest(path=path):
+                self.assertTrue(self.changes(path))
+
+    def test_malformed_diff_rejected_fail_closed(self):
+        for raw in (
+            b"",
+            b"M\0Solution/docs/a.md",
+            b"R100\0Solution/docs/old.md\0",
+            b"Q\0Solution/docs/a.md\0",
+            b"M\0../Solution/docs/a.md\0",
+        ):
+            with self.subTest(raw=raw):
+                with self.assertRaises(ValueError):
+                    m.parse_name_status_z(raw)
+
+    def test_end_to_end_diff_parser_preserves_probe_decision(self):
+        # Exercise the real byte parser before classification, not just the
+        # classify() helper fed with synthetic tuples.
+        cases = (
+            (b"M\0Solution/docs/decision.md\0", False),
+            (b"A\0Solution/docs/new.md\0", False),
+            (b"M\0Solution/database/migrations/20261026_DT10_V9_Lower_Governed_Off.sql\0", True),
+            (b"M\0Solution/docs/decision.md\0M\0Solution/database/Jornada_Fase1_v3.70.sql\0", True),
+            (b"D\0Solution/docs/decision.md\0", True),
+            (b"R100\0Solution/docs/old.md\0Solution/docs/new.md\0", True),
+        )
+        for raw, expected in cases:
+            with self.subTest(raw=raw):
+                parsed = m.parse_name_status_z(raw)
+                result = m.classify(parsed)
+                self.assertEqual(result["run_physical_30k"], expected)
+                self.assertEqual(result["decision"], "RUN" if expected else "NOT_REQUIRED_FOR_THIS_DIFF")
 
     def test_manual_always_requires_probe(self):
         self.assertTrue(m.classify([], manual=True)["run_physical_30k"])

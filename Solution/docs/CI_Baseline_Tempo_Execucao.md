@@ -1,4 +1,4 @@
-> **Decisão complementar de 24/10/2026 — execução por impacto do V9 30k:** [CI-V9-PROBE-01](Decisao_CI_Probe_V9_Por_Impacto_20261024.md) foi aprovada **somente como arquitetura**. Seu futuro classificador conservará o job físico completo quando houver alteração do Calibrador/FS/TF/dependências, e dispensará a repetição em mudanças Gold demonstravelmente isoladas, sem enfraquecer CI geral, preflight DT-10 ou checks requeridos. Medir a economia **após** implementação e validação em SHAs comparáveis; não confundir não execução deliberada do probe com aprovação física.
+> **Estado de 26/10/2026 — execução por impacto do V9 30k:** [CI-V9-PROBE-01](Decisao_CI_Probe_V9_Por_Impacto_20261024.md) foi implementada e integrada à `master` pela PR #1188. O classificador conservador preserva o probe completo quando houver alteração do Calibrador/FS/TF/dependências, SQL/DT-10, CI ou caminho desconhecido; dispensa a repetição apenas em mudanças Gold comprovadamente isoladas ou documentação permitida. Permanecem obrigatórios CI geral, preflight DT-10 e status agregador. **Economia ainda não quantificada em runs equivalentes**; não confundir não execução deliberada do probe com aprovação física. Medições e novos testes de regressão: issue #1200.
 
 # CI — Baseline mensurável de duração e builds observados
 
@@ -19,6 +19,16 @@ A saída registra:
 - compilação .NET **explicitamente nomeada** nas etapas e seus tempos. O contador é um limite inferior, pois scripts invocados indiretamente podem compilar sem essa informação no nome do passo.
 
 Não denominar o job de maior duração de caminho crítico do grafo: as dependências e filas precisam de análise adicional. Não atribuir economia em minutos antes de comparar execuções equivalentes.
+
+## Diagnóstico incremental — PR #1199, 26/10/2026 (19h29 BRT)
+
+**Evidência de execução, não benchmark concluído.** No workflow `v9-physical-seed42-probe`, run [#40396877513](https://github.com/lucianox777/Jornada/actions/runs/40396877513), o job `V9 full physical 30k SQL TRAIN (when impacted)` ainda estava **in_progress**. A API de jobs/steps já indicava **concluídos com sucesso**: preparação do contêiner SQL, checkout, setup .NET, builds, criação de `JornadaHarness`, geração dos corpora 1k/1k/30k e busca/validação SQL da fixture. O passo **`Calibrate 30k using ONLY TRAIN-adjust and TRAIN-selection`** permanecia **in_progress**; exportação dos gráficos e artefatos ainda não começara. A CI principal `jornada-ci` da mesma PR estava concluída com sucesso, mas **não substitui** esse probe.
+
+**Consequência operacional:** o gargalo **observado neste instante** está no passo de calibração física 30k, não no restore/build, bootstrap SQL ou geração dos dados já finalizados. Não afirmar que o passo está travado nem estimar economia ou duração final sem timestamps de conclusão. O limite do job é `timeout-minutes: 360`.
+
+O plano gerado por `Solution/scripts/v9-nested-calibration-study.py` para o corpus real de desenvolvimento declara `MaximumBatches=32`, `BootstrapRepetitions=2000`, `MaximumSearchConfigurations=1000000`, `MaximumComparedConfigurations=1000000`, `MaximumParallelRuleSets=2` e `Execution.EndToEndRepetitions=20`. Esses são **tetos/configurações**, não contagens efetivamente realizadas. Antes de propor redução de custo, medir no artefato final a quantidade efetiva de candidatos, lotes, bootstrap, repetições e tempo por fase; não reduzir esses limites arbitrariamente, pois isso poderia alterar seleção, evidência estatística ou certificação.
+
+**Próxima medição necessária:** quando o run concluir, coletar durações de cada step e o `bootstrap-search` auditável, comparar com outro run de HEAD/corpus/seed equivalentes e só então priorizar otimização interna. Não iniciar nova execução física apenas para obter esta medição.
 
 ## Invariantes
 
