@@ -382,6 +382,11 @@ BEGIN
             WHERE d.modelo_id=@v9_modelo AND d.dossie_sha256=@v9_dossie
               AND d.modelo_snapshot_sha256=@v9_fingerprint
               AND d.estado=N'COMPLETO' AND d.valido_ate>SYSDATETIMEOFFSET()
+              -- Synthetic DEV evidence may prove SQL behavior but cannot
+              -- authorize canonical V9 lower-band publication. A declared
+              -- representative origin is necessary, never sufficient for
+              -- institutional certification or TEST release.
+              AND d.origem_evidencia IN(N'REPRESENTATIVA_HML',N'REPRESENTATIVA_PROD')
               AND d.modelo_linkage_dossie_decisao_id=(
                   SELECT MAX(d2.modelo_linkage_dossie_decisao_id)
                   FROM auditoria.modelo_linkage_dossie_decisao d2 WITH(HOLDLOCK)
