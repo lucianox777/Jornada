@@ -154,7 +154,7 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             Assert.That(await CountEventsAsync(connection, run), Is.Zero);
             // Rejection must not partially commit a run or promote its identity.
             Assert.That(await ReadProgressiveStateAsync(connection, sourceId),
-                Is.EqualTo(("PROVISORIA", initial)));
+                Is.EqualTo(("PROVISORIA", (Guid?)null)));
             Assert.That(await ReadRunStatusAsync(connection, run),
                 Is.EqualTo("EXECUTANDO"));
             Assert.That(await TryPublishAsync(connection, run), Is.EqualTo(expected));
@@ -229,7 +229,7 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
         }
     }
 
-    private static async Task<(string State, Guid Canonical)> ReadProgressiveStateAsync(
+    private static async Task<(string State, Guid? Canonical)> ReadProgressiveStateAsync(
         SqlConnection sql, long source)
     {
         await using var cmd = sql.CreateCommand();
@@ -237,7 +237,7 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
         cmd.Parameters.AddWithValue("@source", source);
         await using var reader = await cmd.ExecuteReaderAsync();
         Assert.That(await reader.ReadAsync(), Is.True);
-        return (reader.GetString(0), reader.GetGuid(1));
+        return (reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetGuid(1));
     }
 
     private static async Task<string> ReadRunStatusAsync(SqlConnection sql, Guid run)
