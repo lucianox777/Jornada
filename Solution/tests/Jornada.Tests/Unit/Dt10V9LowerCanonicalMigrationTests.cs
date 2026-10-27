@@ -77,6 +77,10 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
             Assert.That(migration, Does.Contain("sp_calcular_fingerprint_modelo_linkage"));
             Assert.That(migration, Does.Contain("auditoria.modelo_linkage_dossie_decisao"));
             Assert.That(migration, Does.Contain("d.valido_ate>SYSDATETIMEOFFSET()"));
+            // A synthetic DEV dossier may exercise disposable SQL tests but
+            // cannot satisfy the canonical publication authorization.
+            Assert.That(migration, Does.Contain("d.origem_evidencia IN(N'REPRESENTATIVA_HML',N'REPRESENTATIVA_PROD')"));
+            Assert.That(migration, Does.Not.Contain("d.origem_evidencia IN(N'SINTETICA_DEV'"));
             Assert.That(migration, Does.Contain("HASHBYTES('SHA2_256',p.snapshot_bytes)"));
             Assert.That(migration, Does.Contain("THROW 51830"));
             Assert.That(migration, Does.Contain("THROW 51810"));
