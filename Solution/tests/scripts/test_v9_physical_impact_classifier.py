@@ -87,6 +87,8 @@ class V9PhysicalImpactTests(unittest.TestCase):
                 self.assertTrue(m.classify([("D", path)])["run_physical_30k"])
         self.assertTrue(self.changes(paths[0], "Solution/database/Jornada_Fase1_v3.70.sql"))
         self.assertTrue(self.changes("Solution/tests/Jornada.Integration.Tests/Integration/TestAsserts.cs"))
+        self.assertTrue(self.changes("Solution/tests/Jornada.Integration.Tests/Fixtures/PhysicalProbeTests.cs"))
+        self.assertTrue(self.changes("Solution/tests/Jornada.Tests/Shared/SharedProbeTests.cs"))
         self.assertTrue(self.changes("Solution/tests/scripts/test_v9_physical_impact_classifier.py"))
 
     def test_mixed_gold_and_worker_requires(self):
