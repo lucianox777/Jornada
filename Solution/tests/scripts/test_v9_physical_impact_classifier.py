@@ -73,6 +73,22 @@ class V9PhysicalImpactTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertTrue(self.changes(path))
 
+    def test_only_test_changes_skip_expensive_30k(self):
+        paths = (
+            "Solution/tests/Jornada.Integration.Tests/Integration/Dt10V9LowerCanonicalLocalDbTests.cs",
+            "Solution/tests/Jornada.Integration.Tests/Integration/NameFrequencyReferenceSqlServerTests.cs",
+            "Solution/tests/Jornada.Tests/Unit/SomeNewRegressionTests.cs",
+            "Solution/tests/scripts/test_new_regression.py",
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                self.assertFalse(self.changes(path))
+                self.assertFalse(m.classify([("A", path)])["run_physical_30k"])
+                self.assertTrue(m.classify([("D", path)])["run_physical_30k"])
+        self.assertTrue(self.changes(paths[0], "Solution/database/Jornada_Fase1_v3.70.sql"))
+        self.assertTrue(self.changes("Solution/tests/Jornada.Integration.Tests/Integration/TestAsserts.cs"))
+        self.assertTrue(self.changes("Solution/tests/scripts/test_v9_physical_impact_classifier.py"))
+
     def test_mixed_gold_and_worker_requires(self):
         self.assertTrue(self.changes(
             "Solution/src/Jornada.Linkage.Runner/V9GoldDisposableLowerProcedurePatch.cs",
@@ -104,7 +120,6 @@ class V9PhysicalImpactTests(unittest.TestCase):
             "Solution/database/migrations/20261026_DT10_V9_Lower_Governed_Off.sql",
             "Solution/database/Jornada_Fase1_v3.70.sql",
             "Solution/database/rollback/20261026_DT10_V9_Lower_Disable_Restore.sql",
-            "Solution/tests/Jornada.Integration.Tests/Integration/Dt10V9LowerCanonicalLocalDbTests.cs",
             ".github/workflows/ci.yml",
         ):
             with self.subTest(path=path):
