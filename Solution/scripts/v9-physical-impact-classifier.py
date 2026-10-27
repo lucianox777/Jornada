@@ -62,7 +62,7 @@ def reason_for_safe(path: str) -> str | None:
     for root in ("Solution/tests/Jornada.Tests/", "Solution/tests/Jornada.Integration.Tests/"):
         if path.startswith(root) and path.endswith("Tests.cs"):
             return "test-only"
-    if path.startswith("Solution/tests/scripts/test_") and path.endswith(".py"):
+    if path.startswith("Solution/tests/scripts/test_") and path.endswith(".py") and path != "Solution/tests/scripts/test_v9_physical_impact_classifier.py":
         return "test-only"
     return None
 
