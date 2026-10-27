@@ -52,7 +52,7 @@ public sealed class NameFrequencyReferenceSqlServerTests
         {
             forbiddenMutation.CommandText = "UPDATE ref.frequencia_nome SET frequencia=frequencia+1 WHERE frequencia_nome_versao_id=@id;";
             forbiddenMutation.Parameters.AddWithValue("@id", firstId);
-            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await forbiddenMutation.ExecuteNonQueryAsync()));
+            var ex = TestAsserts.ThrowsAsync<SqlException>(async () => await forbiddenMutation.ExecuteNonQueryAsync());
             Assert.That(ex!.Number, Is.EqualTo(51630));
         }
 
@@ -86,14 +86,14 @@ public sealed class NameFrequencyReferenceSqlServerTests
                 """;
             forbiddenRunMutation.Parameters.AddWithValue("@third", thirdId);
             forbiddenRunMutation.Parameters.AddWithValue("@run", runId);
-            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await forbiddenRunMutation.ExecuteNonQueryAsync()));
+            var ex = TestAsserts.ThrowsAsync<SqlException>(async () => await forbiddenRunMutation.ExecuteNonQueryAsync());
             Assert.That(ex!.Number, Is.EqualTo(51651),
                 "O artefato de replay não pode ser reendereçado para uma referência mais nova.");
         }
 
         var staleReferenceModel = Guid.NewGuid();
-        var staleReference = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
-            await InsertGeneratingModelAsync(connection, staleReferenceModel, suffix + "-STALE", secondId)));
+        var staleReference = TestAsserts.ThrowsAsync<SqlException>(async () =>
+            await InsertGeneratingModelAsync(connection, staleReferenceModel, suffix + "-STALE", secondId));
         Assert.That(staleReference!.Number, Is.EqualTo(51641),
             "Novo modelo GERANDO não pode contornar a captura da referência ATIVA informando versão obsoleta.");
 
@@ -102,7 +102,7 @@ public sealed class NameFrequencyReferenceSqlServerTests
             forbiddenModelMutation.CommandText = "UPDATE identidade.modelo_linkage SET frequencia_nome_versao_id=@third WHERE modelo_id=@model;";
             forbiddenModelMutation.Parameters.AddWithValue("@third", thirdId);
             forbiddenModelMutation.Parameters.AddWithValue("@model", modelId);
-            var ex = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await forbiddenModelMutation.ExecuteNonQueryAsync()));
+            var ex = TestAsserts.ThrowsAsync<SqlException>(async () => await forbiddenModelMutation.ExecuteNonQueryAsync());
             Assert.That(ex!.Number, Is.EqualTo(51640));
         }
 
@@ -136,8 +136,8 @@ public sealed class NameFrequencyReferenceSqlServerTests
         }
 
         var noReferenceModel = Guid.NewGuid();
-        var failClosed = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
-            await InsertGeneratingModelAsync(connection, noReferenceModel, suffix + "-NOREF")));
+        var failClosed = TestAsserts.ThrowsAsync<SqlException>(async () =>
+            await InsertGeneratingModelAsync(connection, noReferenceModel, suffix + "-NOREF"));
         Assert.That(failClosed!.Number, Is.EqualTo(51639),
             "Calibrador deve falhar fechado quando não existe referência ATIVA.");
     }
@@ -160,9 +160,9 @@ public sealed class NameFrequencyReferenceSqlServerTests
         }
 
         var adapter = new Jornada.Operational.Sql.OperationalSqlAdapter(connectionString);
-        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+        TestAsserts.ThrowsAsync<InvalidOperationException>(async () =>
             await Jornada.Linkage.Parameters.Worker.GenerateDraftIbgePrecondition.RequireActiveAsync(
-                () => Jornada.Linkage.Parameters.Worker.ActiveNameFrequencyReferenceQuery.HasActiveAsync(adapter))));
+                () => Jornada.Linkage.Parameters.Worker.ActiveNameFrequencyReferenceQuery.HasActiveAsync(adapter)));
 
         var code = $"TEST-DRAFT-GATE-{Guid.NewGuid():N}";
         var versionId = await CreateVersionWithMinimumReferenceAsync(connection, code, 1000, 400);
@@ -195,7 +195,7 @@ public sealed class NameFrequencyReferenceSqlServerTests
                 remove.Parameters.AddWithValue("@tipo", missingType);
                 await remove.ExecuteNonQueryAsync();
             }
-            var error = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await PublishAsync(connection, id, 0x42)));
+            var error = TestAsserts.ThrowsAsync<SqlException>(async () => await PublishAsync(connection, id, 0x42));
             Assert.That(error!.Number, Is.EqualTo(missingType == "NOME" ? 51637 : 51638));
         }
 
@@ -205,7 +205,7 @@ public sealed class NameFrequencyReferenceSqlServerTests
         publish.CommandText = "EXEC ref.sp_publicar_frequencia_nome_versao @id, @sha;";
         publish.Parameters.AddWithValue("@id", nullHashId);
         publish.Parameters.Add("@sha", System.Data.SqlDbType.Binary, 32).Value = DBNull.Value;
-        var nullHash = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await publish.ExecuteNonQueryAsync()));
+        var nullHash = TestAsserts.ThrowsAsync<SqlException>(async () => await publish.ExecuteNonQueryAsync());
         Assert.That(nullHash!.Number, Is.EqualTo(51633));
     }
 
@@ -232,7 +232,7 @@ public sealed class NameFrequencyReferenceSqlServerTests
             WHERE frequencia_nome_versao_id=@id;
             """;
         forceSecondActive.Parameters.AddWithValue("@id", secondId);
-        var duplicate = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () => await forceSecondActive.ExecuteNonQueryAsync()));
+        var duplicate = TestAsserts.ThrowsAsync<SqlException>(async () => await forceSecondActive.ExecuteNonQueryAsync());
         Assert.That(duplicate!.Number, Is.AnyOf(2601, 2627));
         Assert.That(await Jornada.Linkage.Parameters.Worker.ActiveNameFrequencyReferenceQuery.HasActiveAsync(
             new Jornada.Operational.Sql.OperationalSqlAdapter(connectionString)), Is.True);
