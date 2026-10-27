@@ -254,15 +254,17 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
         await using (var gold = sql.CreateCommand())
         {
             gold.CommandText = """
-                SELECT CASE WHEN EXISTS(
+                SELECT CASE WHEN OBJECT_ID(N'gold.pessoa', N'U') IS NOT NULL
+                  AND EXISTS (
                     SELECT 1 FROM sys.columns
-                    WHERE object_id=OBJECT_ID(N'gold.pessoa')
-                      AND name=N'pessoa_uuid' AND is_nullable=1
-                ) THEN 1 ELSE 0 END;
+                    WHERE object_id=OBJECT_ID(N'gold.pessoa', N'U')
+                      AND name=N'pessoa_uuid' AND is_nullable=0
+                  )
+                THEN 1 ELSE 0 END;
                 """;
             Assert.That(Convert.ToInt32(await gold.ExecuteScalarAsync(),
-                System.Globalization.CultureInfo.InvariantCulture), Is.Zero,
-                "gold.pessoa.pessoa_uuid must be NOT NULL for every Gold person.");
+                System.Globalization.CultureInfo.InvariantCulture), Is.EqualTo(1),
+                "gold.pessoa must exist and expose a NOT NULL pessoa_uuid column.");
         }
 
         await using (var goldIdentity = sql.CreateCommand())
@@ -274,7 +276,8 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             // A Gold shell may be materialized asynchronously; when present
             // it must use the immutable initial UUID, never a NULL key.
             Assert.That(Convert.ToInt64(await goldIdentity.ExecuteScalarAsync(),
-                System.Globalization.CultureInfo.InvariantCulture), Is.InRange(0L, 1L));
+                System.Globalization.CultureInfo.InvariantCulture), Is.LessThanOrEqualTo(1L),
+                "A materialized Gold identity cannot duplicate its initial UUID.");
         }
     }
 
