@@ -4,13 +4,13 @@ on:
   pull_request:
   workflow_dispatch:
 
-# Never cancel a running scientific probe when a new PR commit arrives.
-# A newer pending run may supersede an older pending run in the same group,
-# but GitHub must preserve the in-progress run and its evidence.
-# Manual dispatch and evidence branches remain independently identified.
+# Supersede obsolete automatic PR probes to prevent runner saturation.
+# Explicit manual dispatch and experiment/evidence branches are isolated by run_id
+# so governed scientific runs are never canceled by unrelated PR updates.
+# A canceled automatic probe is NOT evidence for certification of any SHA.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}-${{ (startsWith(github.head_ref, 'experiment/') || startsWith(github.head_ref, 'evidence/') || startsWith(github.head_ref, 'exp/')) && github.run_id || 'latest' }}
-  cancel-in-progress: false
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && !(startsWith(github.head_ref, 'experiment/') || startsWith(github.head_ref, 'evidence/') || startsWith(github.head_ref, 'exp/')) }}
 
 permissions:
   contents: read
