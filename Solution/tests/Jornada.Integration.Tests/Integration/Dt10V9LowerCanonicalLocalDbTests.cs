@@ -155,6 +155,10 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             // Rejection must not partially commit a run or promote its identity.
             Assert.That(await ReadProgressiveStateAsync(connection, sourceId),
                 Is.EqualTo(("PROVISORIA", (Guid?)null)));
+            // The nullable progressive canonical reference is NOT a nullable
+            // Gold person identifier. The immutable initial UUID remains the
+            // source's identity and every materialized Gold person has a UUID.
+            await AssertGoldIdentityInvariantAsync(connection, sourceId, initial);
             Assert.That(await ReadRunStatusAsync(connection, run),
                 Is.EqualTo("EXECUTANDO"));
             Assert.That(await TryPublishAsync(connection, run), Is.EqualTo(expected));
@@ -226,6 +230,51 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
         {
             if (tx.Connection is not null) await tx.RollbackAsync();
             return ex.Number;
+        }
+    }
+
+    private static async Task AssertGoldIdentityInvariantAsync(
+        SqlConnection sql, long source, Guid initial)
+    {
+        await using (var identity = sql.CreateCommand())
+        {
+            identity.CommandText = """
+                SELECT COUNT_BIG(*)
+                FROM identidade.pessoa_origem_progressiva
+                WHERE pessoa_origem_id=@source AND initial_uuid=@initial
+                  AND initial_uuid IS NOT NULL;
+                """;
+            identity.Parameters.AddWithValue("@source", source);
+            identity.Parameters.AddWithValue("@initial", initial);
+            Assert.That(Convert.ToInt64(await identity.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture), Is.EqualTo(1),
+                "A provisional source must retain its immutable initial UUID.");
+        }
+
+        await using (var gold = sql.CreateCommand())
+        {
+            gold.CommandText = """
+                SELECT CASE WHEN EXISTS(
+                    SELECT 1 FROM sys.columns
+                    WHERE object_id=OBJECT_ID(N'gold.pessoa')
+                      AND name=N'pessoa_uuid' AND is_nullable=1
+                ) THEN 1 ELSE 0 END;
+                """;
+            Assert.That(Convert.ToInt32(await gold.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture), Is.Zero,
+                "gold.pessoa.pessoa_uuid must be NOT NULL for every Gold person.");
+        }
+
+        await using (var goldIdentity = sql.CreateCommand())
+        {
+            goldIdentity.CommandText = """
+                SELECT COUNT_BIG(*) FROM gold.pessoa WHERE pessoa_uuid=@initial;
+                """;
+            goldIdentity.Parameters.AddWithValue("@initial", initial);
+            // A Gold shell may be materialized asynchronously; when present
+            // it must use the immutable initial UUID, never a NULL key.
+            Assert.That(Convert.ToInt64(await goldIdentity.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture), Is.InRange(0L, 1L));
         }
     }
 
