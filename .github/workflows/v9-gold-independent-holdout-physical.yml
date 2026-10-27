@@ -126,7 +126,7 @@ jobs:
           }
       - name: Publish aggregate-only independent holdout evidence (partial on failure)
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: v9-holdout-trial-${{ matrix.policy }}-${{ matrix.order }}
           retention-days: 30
@@ -220,7 +220,7 @@ jobs:
           print("Six physically independent trials verified; aggregate matrix emitted, no certification.")
           PY
       - name: Publish aggregate-only six-trial matrix
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: v9-gold-independent-holdout-six-trial-matrix-${{ github.run_id }}
           retention-days: 30

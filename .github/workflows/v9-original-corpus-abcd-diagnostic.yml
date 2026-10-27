@@ -30,7 +30,7 @@ jobs:
           python3 scripts/v9-freeze-canonical-name-frequency.py --canonical-csv .local/v9-original/canonical.csv --snapshot-dir .local/v9-original/frozen --projection-version BLOCKING_PROJECTION_KEY_PROJECTOR_V4
           python3 scripts/v9-focused-union-comparison.py --canonical-csv .local/v9-original/frozen/canonical_observations.csv --out .local/v9-original/focused-union-report.json
           python3 scripts/v9-adaptive-frozen-plans.py --snapshot-dir .local/v9-original/frozen --out .local/v9-original/adaptive-plans.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: v9-original-abcd-diagnostic
