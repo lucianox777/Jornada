@@ -42,3 +42,8 @@ Repetir com autorização ausente, `aprovacao_id` incorreto, digest divergente e
 ### Publicação de evidências e ordem de merge
 
 Publicar na PR #1199 tabela por caso (PASS/FAIL), SHA do HEAD, identificador da execução física, digest/snapshot em formato não sensível e contagens antes/depois. **Não retirar de draft nem mesclar** enquanto qualquer caso não passar e todos os gates aplicáveis não estiverem verdes no mesmo HEAD. A PR #1202 do helper NUnit é independente; substituir os usos ambíguos existentes e validar build Release com warnings-as-errors antes de seu merge. Não ativar V9/DT-15 em ambiente persistente.
+
+
+## Registro de conciliação — 27/10/2026
+
+A decisão vigente exige a execução **positiva** da procedure canônica em `JornadaHarness` LocalDB descartável **antes** do merge da PR #1199, usando as procedures DT-15 normais e dossiê de fixture segregado; não adiar o primeiro sucesso para HML/PROD. A etiqueta representativa em fixture não é certificação estatística ou institucional. A matriz LOWER/INTERMEDIÁRIO/SEM CANDIDATO/REPLAY, adulteração de cada campo do digest, origem `SINTETICA_DEV`, replay e atomicidade permanece **NÃO IMPLEMENTADA/NÃO TESTADA** no HEAD `c4c748b6ea54717f6ec0dd74e2057b54d32ca281`. O preflight físico atual testa apenas OFF, recusa do motivo experimental, append-only e replay legado. Os seis workflows SUCCESS nesse HEAD, inclusive [TRAIN 30k #40509840420](https://github.com/lucianox777/Jornada/actions/runs/40509840420), não autorizam ativação nem merge. O loader REF #1089 e TEST final independente permanecem gates separados. Esta conciliação documental não altera nem substitui o digest SQL e exige revalidação no HEAD posterior.
