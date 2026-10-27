@@ -1,6 +1,6 @@
 # DT-10 V9 — vínculo imutável de autorização DT-15 (em implementação)
 
-**Estado em 26/10/2026:** o guard SQL foi adicionado à branch da PR #1199 no commit `12dadabff6d05ca81fc2cd1098f799defbcf0f71`. **Não testado fisicamente nem integrado à master**. A política continua desabilitada por padrão, sem registros de política ou autorização gerados pela migração. A aprovação de um modelo DT-15 isoladamente **não** autoriza a política inferior.
+**Estado em 26/10/2026:** o guard SQL foi adicionado à branch da PR #1199 no commit `12dadabff6d05ca81fc2cd1098f799defbcf0f71`. **Teste físico negativo e replay legado aprovados em LocalDB descartável no HEAD 5a9e68e; a prova positiva governada permanece pendente; não integrado à master**. A política continua desabilitada por padrão, sem registros de política ou autorização gerados pela migração. A aprovação de um modelo DT-15 isoladamente **não** autoriza a política inferior.
 
 ## Contrato de autorização
 
@@ -17,3 +17,26 @@ O snapshot é verificado por hash do conteúdo, schema, fit e threshold superior
 3. Validação do schema, testes de regressão e CI aplicável no HEAD final; atualização de matriz de gates e instruções operacionais antes da ativação.
 
 **Não ativar em produção nem inferir aprovação de CI a partir deste documento.**
+
+## Critério de aceite verificável da onda positiva (bloqueante para retirar draft)
+
+A prova deve ocorrer em **um único LocalDB descartável JornadaHarness**, usando o fluxo real de aprovação DT-15 (aprovação ACTIVATE e dossiê vigente), nunca um INSERT artificial de autorização tomado como prova de governança. O digest deve ser calculado e conferido pelo SQL a partir de modelo, versão, fit, snapshot imutável e ambos os limiares. O valor **0,05 é configuração da política aprovada na fixture**, não constante de modelo ou do procedimento.
+
+Executar **na mesma onda**, sob a mesma política aprovada, e registrar PASS/FAIL por caso na PR #1199:
+
+| Caso | Preparação | Asserções obrigatórias |
+| --- | --- | --- |
+| LOWER | Candidato persistido, posterior estritamente abaixo de 0,05 | Exatamente uma publicação `LIMIAR_INFERIOR_V9_GOVERNADO`, uma nova identidade e um evento no ledger, com vínculo à política e ao snapshot aprovados |
+| INTERMEDIÁRIO | Candidato persistido, posterior >= 0,05 e abaixo do limiar superior aprovado | Continua pendente; zero identidades criadas, zero eventos de criação |
+| SEM CANDIDATO | Busca completa sem candidato | Caminho existente `SEM_CANDIDATO_NO_RULESET_BLOCKING`, sem depender da autorização lower |
+| REPLAY | Reexecutar a mesma onda sem alterar inputs | Zero publicações adicionais; mesmos UUIDs, estados e contagens de eventos |
+
+O teste deve comparar **estado final de cada origem e contagem de eventos por origem/run** antes e depois do replay, não apenas ausência de exceções. Não marcar como aprovado quando a fixture contiver somente registros artificiais sem passar pela aprovação DT-15 real.
+
+### Mutações negativas e atomicidade
+
+Repetir com autorização ausente, `aprovacao_id` incorreto, digest divergente e alteração individual de versão, modelo, fit, snapshot, limiar inferior e superior. Em cada rejeição, exigir **zero eventos parciais, zero promoção de identidade e estado do run preservado**; UPDATE e DELETE de autorização devem falhar. Registrar o erro SQL esperado e observado para cada caso.
+
+### Publicação de evidências e ordem de merge
+
+Publicar na PR #1199 tabela por caso (PASS/FAIL), SHA do HEAD, identificador da execução física, digest/snapshot em formato não sensível e contagens antes/depois. **Não retirar de draft nem mesclar** enquanto qualquer caso não passar e todos os gates aplicáveis não estiverem verdes no mesmo HEAD. A PR #1202 do helper NUnit é independente; substituir os usos ambíguos existentes e validar build Release com warnings-as-errors antes de seu merge. Não ativar V9/DT-15 em ambiente persistente.
