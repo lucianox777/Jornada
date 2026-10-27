@@ -136,6 +136,18 @@ jobs:
             .local/v9-nested-ci/fixture-train/observacoes.csv \
             .local/v9-nested-ci/fixture-validation/observacoes.csv \
             .local/v9-nested-ci/regression
+      - name: Reject stale PR before 30k calibration
+        if: github.event_name == 'pull_request'
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          latest=$(curl --fail --silent --show-error --retry 3 \
+            -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER" | python3 -c 'import json,sys; print(json.load(sys.stdin)["head"]["sha"])')
+          test "$latest" = "$EXPECTED_HEAD_SHA" || { echo "::error::PR HEAD superseded"; exit 1; }
       - name: Calibrate 30k using ONLY TRAIN-adjust and TRAIN-selection
         working-directory: Solution
         run: |
