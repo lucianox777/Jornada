@@ -7,7 +7,7 @@ on:
 # PR runs supersede older runs of the same PR. Explicit evidence branches
 # retain independent runs for audit; manual dispatch is never superseded.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}-${{ startsWith(github.head_ref, 'experiment/') || startsWith(github.head_ref, 'evidence/') || startsWith(github.head_ref, 'exp/') && github.run_id || 'latest' }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}-${{ (startsWith(github.head_ref, 'experiment/') || startsWith(github.head_ref, 'evidence/') || startsWith(github.head_ref, 'exp/')) && github.run_id || 'latest' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && !startsWith(github.head_ref, 'experiment/') && !startsWith(github.head_ref, 'evidence/') && !startsWith(github.head_ref, 'exp/') }}
 
 permissions:
