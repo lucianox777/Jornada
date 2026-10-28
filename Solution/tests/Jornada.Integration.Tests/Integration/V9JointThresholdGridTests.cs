@@ -15,31 +15,31 @@ public sealed class V9JointThresholdGridTests
             new[] { .05m, .10m }, new[] { .80m, .90m });
         var second = V9JointThresholdGrid.Preregister(Snapshot, Train,
             new[] { .10m, .05m }, new[] { .90m, .80m });
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(first.Pairs, Has.Count.EqualTo(4));
             Assert.That(first.GridSha256, Is.EqualTo(second.GridSha256));
             Assert.That(first.DeclarationSha256, Is.EqualTo(second.DeclarationSha256));
             Assert.That(first.UsesTestForSelection, Is.False);
             Assert.That(first.PermitsAutomaticActivation, Is.False);
-        });
+        }));
     }
 
     [Test]
     public void Invalid_or_ambiguous_grids_are_rejected()
     {
-        Assert.Throws<InvalidDataException>(() =>
+        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
             V9JointThresholdGrid.Preregister(Snapshot, Train,
-                new[] { .85m }, new[] { .80m, .90m }));
-        Assert.Throws<InvalidDataException>(() =>
+                new[] { .85m }, new[] { .80m, .90m })));
+        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
             V9JointThresholdGrid.Preregister(Snapshot, Train,
-                new[] { .05m, .05m }, new[] { .90m }));
-        Assert.Throws<InvalidDataException>(() =>
+                new[] { .05m, .05m }, new[] { .90m })));
+        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
             V9JointThresholdGrid.Preregister(Snapshot, Train,
-                new[] { 0m }, new[] { .90m }));
-        Assert.Throws<InvalidDataException>(() =>
+                new[] { 0m }, new[] { .90m })));
+        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
             V9JointThresholdGrid.Preregister("invalid", Train,
-                new[] { .05m }, new[] { .90m }));
+                new[] { .05m }, new[] { .90m })));
     }
 
     [Test]
