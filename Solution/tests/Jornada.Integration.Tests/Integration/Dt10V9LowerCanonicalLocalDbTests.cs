@@ -169,14 +169,19 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
         // candidate must never bypass the guarded lower-band publication.
         // Only the disposable LocalDB created for this test is mutated.
         Guid existingCandidate;
+        Guid distinctSecondCandidate;
         await using (var candidateQuery = connection.CreateCommand())
         {
             candidateQuery.CommandText =
-                "SELECT TOP(1) pessoa_uuid FROM identidade.pessoa ORDER BY pessoa_uuid;";
-            var candidate = await candidateQuery.ExecuteScalarAsync();
-            Assert.That(candidate, Is.TypeOf<Guid>(),
+                "SELECT TOP(2) pessoa_uuid FROM identidade.pessoa ORDER BY pessoa_uuid;";
+            await using var candidates = await candidateQuery.ExecuteReaderAsync();
+            Assert.That(await candidates.ReadAsync(), Is.True,
                 "Synthetic disposable fixture must have a referenced identity.");
-            existingCandidate = (Guid)candidate!;
+            existingCandidate = candidates.GetGuid(0);
+            Assert.That(await candidates.ReadAsync(), Is.True,
+                "A second distinct synthetic identity is required by the SQL candidate-order constraint.");
+            distinctSecondCandidate = candidates.GetGuid(0);
+            Assert.That(distinctSecondCandidate, Is.Not.EqualTo(existingCandidate));
         }
         foreach (var candidateColumn in new[]
         {
@@ -189,8 +194,10 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             // forged candidate as part of the initial INSERT, never UPDATE it.
             await SeedRunAsync(connection, forged, model, version, sourceId,
                 observationId, initial, "SEM_CANDIDATO_NO_RULESET_BLOCKING",
-                bestCandidate: candidateColumn == "melhor_candidato_uuid" ? existingCandidate : null,
-                secondCandidate: candidateColumn == "segundo_candidato_uuid" ? existingCandidate : null);
+                // SQL requires a second-ranked candidate to have a distinct best-ranked candidate.
+                // Test best-only and best-plus-second; never fabricate an invalid SQL row.
+                bestCandidate: existingCandidate,
+                secondCandidate: candidateColumn == "segundo_candidato_uuid" ? distinctSecondCandidate : null);
             Assert.That(await TryPublishAsync(connection, forged), Is.EqualTo(51835),
                 "Forged absence with a persisted candidate must abort publication.");
             Assert.That(await CountEventsAsync(connection, forged), Is.Zero,
