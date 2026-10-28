@@ -150,3 +150,9 @@ O fluxo implementado preserva uma fronteira deliberada entre **evidência técni
 - HML/PROD não recebem identidade fictícia nem promoção automática: a autorização institucional continua deny-by-default até integração real com IdP/RBAC e evidência representativa.
 
 Assim, a dívida de **bypass técnico e rastreabilidade da decisão** fica encerrada sem declarar que massa sintética equivale a validação municipal. A homologação HML/PROD é um gate operacional/institucional posterior e não pode ser simulada em DEV.
+
+## Complemento de gate DT-10/V9 — 28/10/2026 (não ativado)
+
+Na candidata [#1199](https://github.com/lucianox777/Jornada/pull/1199), a guarda de `LIMIAR_INFERIOR_V9_GOVERNADO` vincula a política versionada, modelo, fit, SHA do snapshot e limiares a digest append-only de autorização DT-15; a *existência* de aprovação de modelo não substitui aprovação **da política exata**. A prova positiva com o fluxo institucionalmente governado de aprovação e negativas de alteração ainda **não foi cumprida**; a PR segue DRAFT. Não retrovalidar aprovações antigas, não preencher a tabela de políticas no instalador nem acionar o Runner para publicar a faixa inferior.
+
+Também é proibido obter a mesma criação pelo caminho legado alegando `SEM_CANDIDATO_%` enquanto o resultado de Rank contém candidato: a candidata acrescentou guarda SQL sobre melhor/segundo candidato e UUID resolvido na observação líder (`THROW 51835`), com teste físico negativo pendente de confirmação da CI no novo HEAD. A razão persistida não é prova de ausência no universo Gold; bloquear quando os passes ou a cobertura física forem incompletos. TEST final novo, review REF/Calibrador #1089, validação representativa e autorização institucional são gates **separados** de build e teste de segurança em LocalDB.
