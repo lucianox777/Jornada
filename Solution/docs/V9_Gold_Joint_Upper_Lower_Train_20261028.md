@@ -10,7 +10,7 @@ A grade, o plano de risco e a regra de seleção precisam ser pré-registrados e
 
 ## Medição obrigatória e limitações
 
-Cada célula upper × lower deve ser medida no **mesmo Rank/Resolve FS/TF Gold congelado**, recalculando fisicamente a decisão superior para cada upper, em LocalDB descartável e nas três ordens `G0_G3`, `G3_G0`, `G1_G3_G0_G2`. O contrato recebe métricas agregadas: falsos vínculos, falsas criações, pendências, B³ F1 e grupos independentes. Recusa TEST, VALIDATION, grade incompleta, replay de ordem ausente, busca física incompleta, SHA divergente e decisão superior não recalculada.
+Cada célula upper × lower deve ser medida no **mesmo Rank/Resolve FS/TF Gold congelado**, recalculando fisicamente a decisão superior para cada upper, em LocalDB descartável e nas três ordens `G0_G3`, `G3_G0`, `G1_G3_G0_G2`. O contrato recebe métricas agregadas: falsos vínculos, falsas criações, pendências, B³ F1 e grupos independentes. Recusa TEST, VALIDATION, grade incompleta, replay de ordem ausente, **reutilização do mesmo SHA de execução física em células/ordens distintas**, busca física incompleta, SHA divergente e decisão superior não recalculada. SHAs distintos são necessários, mas não bastam: o runner ainda deve provar a execução real e sua proveniência por artefatos verificáveis.
 
 A API não recalcula por si a decisão superior: **o runner físico deve produzir e atestar os dados**. Não adaptar os resultados do `FsDecisionThresholdCalibrator` V6 (seleção em VALIDATION) ao Gold V9 TRAIN; particionamento e evidência são distintos. O `V9LowerNonMatchStudyCli` atual ainda usa superior congelado do fit e não é um executor da busca conjunta.
 

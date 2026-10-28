@@ -1,4 +1,6 @@
 using Jornada.Linkage.Parameters.Worker;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace Jornada.Tests.Unit;
 
@@ -8,15 +10,18 @@ public sealed class V9GoldJointThresholdTrainTests
     private static readonly string Fit = new('a', 64);
     private static readonly string Snapshot = new('b', 64);
     private static readonly string Plan = new('c', 64);
-    private static readonly string Run = new('d', 64);
+    private static string RunHash(int index) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes($"JOINT-TRAIN-RUN-{index}")))
+            .ToLowerInvariant();
 
     private static V9LowerNonMatchTrainCalibrator.JointMeasurement[] Measurements()
     {
         var result = new List<V9LowerNonMatchTrainCalibrator.JointMeasurement>();
+        var runIndex = 0;
         foreach (var upper in new[] { .8m, .9m })
         foreach (var lower in new[] { .1m, .2m })
         foreach (var order in V9LowerNonMatchTrainCalibrator.JointOrders)
-            result.Add(new(order, "TRAIN_SELECTION", Fit, Snapshot, Run,
+            result.Add(new(order, "TRAIN_SELECTION", Fit, Snapshot, RunHash(++runIndex),
                 upper, lower, 30, 100, upper == .8m ? 1 : 0,
                 lower == .2m ? 2 : 1, lower == .2m ? 5 : 10, .8m,
                 true, true, true, true));
@@ -83,6 +88,16 @@ public sealed class V9GoldJointThresholdTrainTests
         Assert.Throws<InvalidDataException>((Action)(() =>
             V9LowerNonMatchTrainCalibrator.SearchJoint(
                 Policy(rows) with { CandidateLowerThresholds = [.1m, .85m] }, rows)));
+    }
+
+    [Test]
+    public void Rejects_reused_physical_run_even_when_evidence_fingerprint_is_recomputed()
+    {
+        var rows = Measurements();
+        var duplicated = rows.ToArray();
+        duplicated[1] = duplicated[1] with { PhysicalRunSha256 = duplicated[0].PhysicalRunSha256 };
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(duplicated), duplicated)));
     }
 
     [Test]

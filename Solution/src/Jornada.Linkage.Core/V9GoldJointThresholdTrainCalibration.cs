@@ -131,6 +131,7 @@ public static partial class V9LowerNonMatchTrainCalibrator
             throw new InvalidDataException("TRAIN physical evidence incomplete or fingerprint mismatch.");
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        var physicalRuns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var row in measurements)
         {
             if (row is null || row.Partition != "TRAIN_SELECTION"
@@ -151,6 +152,10 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 || row.BCubedF1 is < 0m or > 1m)
                 throw new InvalidDataException("Gold TRAIN order, physical rerun or metrics invalid.");
             CheckSha(row.PhysicalRunSha256, "physical run");
+            // A repeated run fingerprint cannot attest independent physical
+            // replay for a different threshold pair or insertion order.
+            if (!physicalRuns.Add(row.PhysicalRunSha256))
+                throw new InvalidDataException("Physical TRAIN run reused across joint threshold cells/orders.");
             var key = DecimalJoint(row.UpperThreshold) + "|" + DecimalJoint(row.LowerThreshold)
                 + "|" + row.OrderId;
             if (!seen.Add(key))
