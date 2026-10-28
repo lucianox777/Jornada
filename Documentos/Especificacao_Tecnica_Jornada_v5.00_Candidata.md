@@ -255,3 +255,7 @@ A PR [#1199](https://github.com/lucianox777/Jornada/pull/1199) implementa em bra
 ### Emenda de precisão do motivo DT-10 — 28/10/2026 (PR #1199, não integrada)
 
 O prefixo `SEM_CANDIDATO_` deve ser interpretado **literalmente** em todas as guardas da procedure canônica: `LIKE N'SEM[_]CANDIDATO[_]%'`. Usar `LIKE N'SEM_CANDIDATO_%'` interpreta `_` como curinga e poderia admitir motivos quase iguais sem aplicar a proteção de evidência física. A regressão LocalDB deve rejeitar as duas variantes de prefixo com `THROW 51810`, sem ledger, promoção de UUID ou sucesso em replay. Essa correção é distinta da prova de busca completa e da autorização positiva DT-15, ambas ainda pendentes; o estado da especificação permanece **candidata**.
+
+## Adendo de rastreabilidade — 28/10/2026, correção de preflight e vínculo estrutural
+
+A assinatura canônica de ausência de candidato é `SEM[_]CANDIDATO[_]%`, com `_` literal; o patch de ensaio TRAIN em LocalDB deve reconhecê-la exatamente e rejeitar variantes desconhecidas, sem bypass operacional. Os três schemas SQL Server do [run 40659908716](https://github.com/lucianox777/Jornada/actions/runs/40659908716) tiveram fingerprint idêntico `8fe1db4da72aa420f3741c625270e5a6cd9cee2217ec9f60effbee8466a08a21`, agora declarado em `CANDIDATE_INFO.json`. Falhas do HEAD `b79e167` em schema binding e patch de preflight foram corrigidas em branch de preparação, mas **aceite depende de novo CI no HEAD da PR**. A implementação positiva DT-15, prova de completude da busca e loader REF #1089 seguem pendentes; não liberar merge nem ativação.
