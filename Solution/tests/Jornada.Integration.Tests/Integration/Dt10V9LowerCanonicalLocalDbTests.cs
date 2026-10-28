@@ -185,17 +185,12 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
         })
         {
             var forged = Guid.NewGuid();
+            // Raw linkage evidence is immutable (SQL trigger 51822). Seed the
+            // forged candidate as part of the initial INSERT, never UPDATE it.
             await SeedRunAsync(connection, forged, model, version, sourceId,
-                observationId, initial, "SEM_CANDIDATO_NO_RULESET_BLOCKING");
-            await using (var mutate = connection.CreateCommand())
-            {
-                // Whitelisted static SQL column names, never external input.
-                mutate.CommandText = "UPDATE identidade.linkage_resultado SET "
-                    + candidateColumn + "=@candidate WHERE linkage_run_id=@run;";
-                mutate.Parameters.AddWithValue("@candidate", existingCandidate);
-                mutate.Parameters.AddWithValue("@run", forged);
-                Assert.That(await mutate.ExecuteNonQueryAsync(), Is.EqualTo(1));
-            }
+                observationId, initial, "SEM_CANDIDATO_NO_RULESET_BLOCKING",
+                bestCandidate: candidateColumn == "melhor_candidato_uuid" ? existingCandidate : null,
+                secondCandidate: candidateColumn == "segundo_candidato_uuid" ? existingCandidate : null);
             Assert.That(await TryPublishAsync(connection, forged), Is.EqualTo(51835),
                 "Forged absence with a persisted candidate must abort publication.");
             Assert.That(await CountEventsAsync(connection, forged), Is.Zero,
@@ -221,7 +216,8 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
     }
 
     private static async Task SeedRunAsync(SqlConnection sql, Guid run, Guid model, int version,
-        long source, long observation, Guid initial, string reason)
+        long source, long observation, Guid initial, string reason,
+        Guid? bestCandidate = null, Guid? secondCandidate = null)
     {
         await using var cmd = sql.CreateCommand();
         cmd.CommandText = """
@@ -240,7 +236,8 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
               segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
               resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
               pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
-            VALUES(@run,@model,@version,@obs,NULL,NULL,0,NULL,NULL,NULL,N'NAO_RESOLVIDO',
+            VALUES(@run,@model,@version,@obs,NULL,@best,0,@second,
+              CASE WHEN @second IS NULL THEN NULL ELSE 0 END,NULL,N'NAO_RESOLVIDO',
               @reason,SYSUTCDATETIME(),N'NOVA_IDENTIDADE',@initial,N'RESOLVIDO',
               N'NOVA_IDENTIDADE_LIMIAR_INFERIOR_V9_GOVERNADO',@source,
               N'V9_DT10_LOWER_TEST_DISABLED',N'RUN_COMPLETO_DT10',SYSUTCDATETIME());
@@ -252,6 +249,8 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
         cmd.Parameters.AddWithValue("@obs", observation);
         cmd.Parameters.AddWithValue("@initial", initial);
         cmd.Parameters.AddWithValue("@reason", reason);
+        cmd.Parameters.Add("@best", SqlDbType.UniqueIdentifier).Value = (object?)bestCandidate ?? DBNull.Value;
+        cmd.Parameters.Add("@second", SqlDbType.UniqueIdentifier).Value = (object?)secondCandidate ?? DBNull.Value;
         await cmd.ExecuteNonQueryAsync();
     }
 
