@@ -73,6 +73,12 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
             // o score real do melhor candidato deve estar abaixo do piso.
             Assert.That(migration, Does.Contain("r.melhor_candidato_uuid IS NULL"));
             Assert.That(migration, Does.Contain("r.score_melhor>=p.limiar_inferior"));
+            // A claimed no-candidate branch cannot carry ANY retrieved
+            // candidate: this protects the legacy promotion from forged reasons.
+            Assert.That(migration, Does.Contain("l.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%'"));
+            Assert.That(migration, Does.Contain("r.melhor_candidato_uuid IS NOT NULL"));
+            Assert.That(migration, Does.Contain("r.segundo_candidato_uuid IS NOT NULL"));
+            Assert.That(migration, Does.Contain("THROW 51835"));
             Assert.That(migration, Does.Contain("r.pessoa_observacao_id=l.leader_observacao_id"));
             Assert.That(migration, Does.Contain("sp_calcular_fingerprint_modelo_linkage"));
             Assert.That(migration, Does.Contain("auditoria.modelo_linkage_dossie_decisao"));
