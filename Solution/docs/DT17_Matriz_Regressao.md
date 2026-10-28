@@ -69,3 +69,7 @@ A separação da CI está excluída desta frente. A DT-10, que era a última ent
 | Calibrador C# único, loader REF, TEST final | Mesmo fit, proveniência, separação TEST/DT-15 e ausência de ativação automática | **Pendente (#1089 / gates institucionais)** |
 
 Esta matriz é **adendo da candidata em PR**, não revisão retroativa dos E2E históricos nem certificação operacional. Registros reais de CI/artefatos só serão atribuídos após execução dos jobs no SHA exato. A auditoria de risco SEM_CANDIDATO era hipótese estática até sua reprodução física; não alegar exploração comprovada.
+
+## Adendo de rastreabilidade — 28/10/2026, correção de preflight e vínculo estrutural
+
+Evidência CI no SHA `b79e167`: `jornada-ci`, inventário e instalador SUCCESS; preflight Windows [40659908775](https://github.com/lucianox777/Jornada/actions/runs/40659908775) FAILURE por assinatura antiga no patch TRAIN; schema [40659908716](https://github.com/lucianox777/Jornada/actions/runs/40659908716) FAILURE por hash stale, embora clean/upgrade/flattened tenham produzido SHA idêntico `8fe1db4da72aa420f3741c625270e5a6cd9cee2217ec9f60effbee8466a08a21`. Correções e testes unitários preparados na mesma PR; **não marcar TESTADO/SUCCESS no novo HEAD sem nova CI**. Matriz física positiva DT-10/DT-15, negativos governados, completude da busca e loader REF #1089 seguem PENDENTES.
