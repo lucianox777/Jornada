@@ -193,3 +193,9 @@ Os ensaios locais de escala, perda de coordenação e restore estão em `Runbook
 ## Novos modelos V8 — ausência neutra (28/09/2026)
 
 Novos RASCUNHOS usam `FELLEGI_SUNTER_DECISION_EVIDENCE_NEUTRAL_MISSING_V8`. Nome, nome da mãe e nascimento ausentes são indisponíveis (LLR zero); a ausência materna permanece auditável nos suportes `SUPPORT_M_NOME_MAE_MISSING` e `SUPPORT_U_NOME_MAE_MISSING`, sem probabilidades m/u na V8. A V6 ATIVA não é alterada. Aplicar `20260928_Linkage_Neutral_Missing_V8.sql` antes de gerar ou promover V8. Como o scorer mudou, reexecutar a conferência governada para o novo modelo e manter VALIDATE/ACTIVATE fail-closed. Plano de comparação por estrato: `Linkage_Ausencia_Neutra_V8.md`.
+
+## Alerta de implantação — DT-10 V9 inferior (28/10/2026; PR DRAFT)
+
+**NÃO HABILITAR** `identidade.v9_dt10_lower_policy`, DT-15 para V9 nem emissão operacional de `LIMIAR_INFERIOR_V9_GOVERNADO` com base em CI verde ou ensaio sintético. A migration da PR #1199 continua em revisão; instala contrato **default OFF**, não publicação funcional certificada. O limiar `0,05` é candidato do bootstrap, não configuração permanente.
+
+Antes de qualquer promoção, exigir prova positiva e negativa no LocalDB isolado, autorização da política por digest DT-15, revisão da integração do Calibrador C# único com REF, TEST independente novo e decisão institucional. No modo legado `SEM_CANDIDATO_%`, qualquer `melhor_candidato_uuid`, `segundo_candidato_uuid` ou UUID resolvido na observação líder deve impedir evento de nova identidade (`THROW 51835` proposto pela PR #1199). A ausência desses campos não substitui a prova da busca completa. Para incidentes, registrar SHA, política, run e observação sem alterar Gold, REF ativa, V8, bases reais ou produzir identidades por replay manual. O rollback do código **não** reverte identidades já persistidas.
