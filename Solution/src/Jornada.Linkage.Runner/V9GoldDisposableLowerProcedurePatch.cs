@@ -10,7 +10,8 @@ namespace Jornada.Linkage.Runner;
 public static class V9GoldDisposableLowerProcedurePatch
 {
     public const string ProcedureName = "identidade.sp_publicar_resolucao_progressiva_linkage_lote";
-    private const string OldGuard = "l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'";
+    // Keep the exact literal-underscore prefix in sync with the DT-10 canonical migration.
+    private const string OldGuard = "l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%'";
     // SqlLocalDB/SQL Server 17 normalizes CREATE OR ALTER PROCEDURE into
     // ' CREATE   PROCEDURE ...' in OBJECT_DEFINITION. The actual disposable
     // schema run #40132062400 proved the exact guard occurs once and THROW
@@ -35,7 +36,7 @@ public static class V9GoldDisposableLowerProcedurePatch
         // new reason is accepted only under the same isolated DB ownership marker
         // that the C# harness checks before publication.
         const string alternative = """
-            (l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'
+            (l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%'
                 AND NOT (l.raw_motivo=N'LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL'
                     AND DB_NAME()=N'JornadaHarness'
                     AND CONVERT(int,SERVERPROPERTY(N'IsLocalDB'))=1
