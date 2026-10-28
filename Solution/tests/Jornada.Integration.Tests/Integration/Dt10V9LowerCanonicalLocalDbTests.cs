@@ -211,6 +211,30 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             Assert.That(await CountEventsAsync(connection, forged), Is.Zero);
         }
 
+        // SQL LIKE treats '_' as a wildcard unless escaped. Both near-match
+        // reasons were previously accepted by the generic NOVA_IDENTIDADE gate
+        // while escaping the SEM_CANDIDATO candidate-evidence guard.
+        foreach (var forgedReason in new[]
+        {
+            "SEMXCANDIDATO_NO_RULESET_BLOCKING",
+            "SEM_CANDIDATOXNO_RULESET_BLOCKING"
+        })
+        {
+            var forged = Guid.NewGuid();
+            await SeedRunAsync(connection, forged, model, version, sourceId,
+                observationId, initial, forgedReason, bestCandidate: existingCandidate);
+            Assert.That(await TryPublishAsync(connection, forged), Is.EqualTo(51810),
+                "Only the literal SEM_CANDIDATO_ prefix may enter the legacy no-candidate path.");
+            Assert.That(await CountEventsAsync(connection, forged), Is.Zero);
+            Assert.That(await ReadProgressiveStateAsync(connection, sourceId),
+                Is.EqualTo(("PROVISORIA", (Guid?)null)));
+            Assert.That(await ReadRunStatusAsync(connection, forged),
+                Is.EqualTo("EXECUTANDO"));
+            Assert.That(await TryPublishAsync(connection, forged), Is.EqualTo(51810),
+                "Replay must reject a near-match reason without side effects.");
+            Assert.That(await CountEventsAsync(connection, forged), Is.Zero);
+        }
+
         // Unchanged no-candidate path must still publish exactly once,
         // including when the same EXECUTANDO run is replayed.
         var legacy = Guid.NewGuid();

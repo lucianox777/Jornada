@@ -76,6 +76,8 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
             // A claimed no-candidate branch cannot carry ANY retrieved
             // candidate: this protects the legacy promotion from forged reasons.
             Assert.That(migration, Does.Contain("l.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%'"));
+            Assert.That(migration, Does.Contain("l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%'"));
+            Assert.That(migration, Does.Not.Contain("l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'"));
             Assert.That(migration, Does.Contain("r.melhor_candidato_uuid IS NOT NULL"));
             Assert.That(migration, Does.Contain("r.segundo_candidato_uuid IS NOT NULL"));
             Assert.That(migration, Does.Contain("THROW 51835"));

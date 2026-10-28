@@ -398,7 +398,7 @@ BEGIN
         SELECT 1 FROM #dt10_leaders l
         WHERE l.replay_version IS NULL AND l.resultado_publicacao=N'NOVA_IDENTIDADE'
           AND (l.raw_status<>N'NAO_RESOLVIDO' OR l.raw_motivo IS NULL
-               OR (l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'
+               OR (l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%'
                    AND l.raw_motivo<>N'LIMIAR_INFERIOR_V9_GOVERNADO')))
         THROW 51810, 'DT-10: NOVA_IDENTIDADE exige sem candidato ou V9 governado.', 1;
 
