@@ -165,6 +165,50 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             Assert.That(await CountEventsAsync(connection, run), Is.Zero);
         }
 
+        // Regression for forged SEM_CANDIDATO: a persisted best/second
+        // candidate must never bypass the guarded lower-band publication.
+        // Only the disposable LocalDB created for this test is mutated.
+        Guid existingCandidate;
+        await using (var candidateQuery = connection.CreateCommand())
+        {
+            candidateQuery.CommandText =
+                "SELECT TOP(1) pessoa_uuid FROM identidade.pessoa ORDER BY pessoa_uuid;";
+            var candidate = await candidateQuery.ExecuteScalarAsync();
+            Assert.That(candidate, Is.TypeOf<Guid>(),
+                "Synthetic disposable fixture must have a referenced identity.");
+            existingCandidate = (Guid)candidate!;
+        }
+        foreach (var candidateColumn in new[]
+        {
+            "melhor_candidato_uuid",
+            "segundo_candidato_uuid"
+        })
+        {
+            var forged = Guid.NewGuid();
+            await SeedRunAsync(connection, forged, model, version, sourceId,
+                observationId, initial, "SEM_CANDIDATO_NO_RULESET_BLOCKING");
+            await using (var mutate = connection.CreateCommand())
+            {
+                // Whitelisted static SQL column names, never external input.
+                mutate.CommandText = "UPDATE identidade.linkage_resultado SET "
+                    + candidateColumn + "=@candidate WHERE linkage_run_id=@run;";
+                mutate.Parameters.AddWithValue("@candidate", existingCandidate);
+                mutate.Parameters.AddWithValue("@run", forged);
+                Assert.That(await mutate.ExecuteNonQueryAsync(), Is.EqualTo(1));
+            }
+            Assert.That(await TryPublishAsync(connection, forged), Is.EqualTo(51835),
+                "Forged absence with a persisted candidate must abort publication.");
+            Assert.That(await CountEventsAsync(connection, forged), Is.Zero,
+                "A rejected fake no-candidate result must write no ledger events.");
+            Assert.That(await ReadProgressiveStateAsync(connection, sourceId),
+                Is.EqualTo(("PROVISORIA", (Guid?)null)));
+            Assert.That(await ReadRunStatusAsync(connection, forged),
+                Is.EqualTo("EXECUTANDO"));
+            Assert.That(await TryPublishAsync(connection, forged), Is.EqualTo(51835),
+                "Retry of forged absence must also fail without side effects.");
+            Assert.That(await CountEventsAsync(connection, forged), Is.Zero);
+        }
+
         // Unchanged no-candidate path must still publish exactly once,
         // including when the same EXECUTANDO run is replayed.
         var legacy = Guid.NewGuid();
