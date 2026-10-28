@@ -56,3 +56,16 @@ Testes SQL desta frente usam somente o banco sintético/isolado configurado pelo
 **Contratos/SQL afetados:** nenhum contrato, DDL, migration ou SQL de produção alterado; testes apenas leem contratos/DDL existentes. **Dependências:** DC-ID-01/DC-ID-02 e DC-LK-01 de 29/09. **Testes/gates:** os oito jobs do jornada-ci, contabilizados somente se executados. **Riscos:** testes de contrato estrutural podem detectar mudança legítima futura e exigir reconciliação documental; não corrigir produção nesta frente. **Rollback:** reverter documentação e arquivos de teste novos/ajustados.
 
 A separação da CI está excluída desta frente. A DT-10, que era a última entrega técnica antes do baseline, foi concluída em 01/10/2026. **E2E-A/DT-17A foi EXECUTADA** no HEAD `406732a4351313d0e411a010f370073e8a4ce3c4`, com `jornada-ci` #36866260882 e DT-05 E2E #36866260886 verdes; ver [registro de execução](evidence/E2E_A_Execution_20261001.md). **E2E-B/DT-17B foi EXECUTADA** no HEAD `1f647053c186834998b4526b9fb33b09df033c0a`, com `jornada-ci` #36886632283 e DT-05 E2E #36886632424 verdes; ver [registro de execução](evidence/E2E_B_Execution_20261001.md). **E2E-C/DT-17C foi EXECUTADA** no HEAD `e51876b175ad212344033fd08d7f32687b2ed323`, com `jornada-ci` #36950535828 e DT-05 E2E #36950535827 verdes após a DT-12; ver [registro de execução](evidence/E2E_C_Execution_20261001.md). A comparação A × B × C não detectou regressão coberta por esses gates após a limpeza; lacunas externas/institucionais permanecem explicitamente preservadas.
+
+## Matriz complementar DT-10/V9 — 28/10/2026 (PR #1199, não integrada)
+
+| Caso | Prova exigida | Estado neste adendo |
+| --- | --- | --- |
+| `SEM_CANDIDATO_%` com melhor candidato persistido | `THROW 51835`, 0 evento, origem `PROVISORIA`, falha idem em replay | Teste integrado na branch; **CI física do novo HEAD pendente** |
+| `SEM_CANDIDATO_%` com segundo candidato persistido | Mesma recusa e atomicidade, sem promover `initial_uuid` | Teste integrado na branch; **CI física do novo HEAD pendente** |
+| Ausência legítima de candidatos | Um único evento, mesmo UUID e nenhum evento extra em replay | Coberto pelo teste LocalDB anterior; reexecução no novo HEAD pendente |
+| `LIMIAR_INFERIOR_V9_GOVERNADO` | Melhor candidato real, score físico abaixo de piso bootstrap, política por digest DT-15 e snapshot corretos | Guardas SQL em branch; **teste positivo governado pendente** |
+| Faixa intermediária, políticas/fit alterados, origem sintética | Abstenção ou recusa; nenhum ledger parcial; rollback comprovado | **Matriz física completa pendente** |
+| Calibrador C# único, loader REF, TEST final | Mesmo fit, proveniência, separação TEST/DT-15 e ausência de ativação automática | **Pendente (#1089 / gates institucionais)** |
+
+Esta matriz é **adendo da candidata em PR**, não revisão retroativa dos E2E históricos nem certificação operacional. Registros reais de CI/artefatos só serão atribuídos após execução dos jobs no SHA exato. A auditoria de risco SEM_CANDIDATO era hipótese estática até sua reprodução física; não alegar exploração comprovada.
