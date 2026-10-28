@@ -23,7 +23,7 @@ public sealed class V9GoldDisposableLowerProcedurePatchTests
     public void Recognizes_current_literal_prefix_and_preserves_disposable_only_gates()
     {
         var patched = V9GoldDisposableLowerProcedurePatch.Apply(CanonicalDefinition);
-        Assert.Multiple(() =>
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(patched, Does.StartWith("ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote"));
             Assert.That(patched, Does.Contain("l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%'"));
@@ -32,7 +32,7 @@ public sealed class V9GoldDisposableLowerProcedurePatchTests
             Assert.That(patched, Does.Contain("SERVERPROPERTY(N'IsLocalDB')"));
             Assert.That(patched, Does.Contain("Jornada.V9.ExperimentalHarness"));
             Assert.That(patched, Does.Not.Contain("NOT LIKE N'SEM_CANDIDATO_%'"));
-        });
+        }));
     }
 
     [Test]
@@ -56,6 +56,6 @@ public sealed class V9GoldDisposableLowerProcedurePatchTests
             CanonicalDefinition + " LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL"
         };
         foreach (var definition in invalid)
-            Assert.Throws<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(definition));
+            Assert.Throws<InvalidDataException>((TestDelegate)(() => { _ = V9GoldDisposableLowerProcedurePatch.Apply(definition); }));
     }
 }
