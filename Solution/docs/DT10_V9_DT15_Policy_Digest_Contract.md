@@ -56,3 +56,12 @@ A validação geral de `NOVA_IDENTIDADE` e a guarda contra candidatos persistido
 ## Adendo de rastreabilidade — 28/10/2026, correção de preflight e vínculo estrutural
 
 Reconciliação do guard `SEM_CANDIDATO` no harness TRAIN: a variante literal `SEM[_]CANDIDATO[_]%` é agora a única reconhecida pelo patch de LocalDB descartável, sem alterar a política SQL default OFF ou autorizações DT-15. Regressões unitárias rejeitam guarda antiga, guarda adulterada, declaração divergente, duplicação e ausência de `THROW 51810`. Schema triplo medido em [40659908716](https://github.com/lucianox777/Jornada/actions/runs/40659908716): SHA-256 `8fe1db4da72aa420f3741c625270e5a6cd9cee2217ec9f60effbee8466a08a21`, vinculado ao candidato; preflight físico e CI do novo HEAD pendentes. Digest governado, autorização legítima e matriz positiva continuam sem prova de aceite.
+
+
+## Emissor DT-15 vinculado ao motivo imutável — implementação em avaliação
+
+A migration inclui agora auditoria.sp_autorizar_v9_dt10_lower_policy. O emissor não aprova modelos, não habilita políticas e não concede permissões. A aprovação ACTIVATE deve ser registrada pelo procedimento DT-15 normal, com o motivo humano contendo literalmente DT10_POLICY_SHA256= seguido do SHA-256 canônico em 64 caracteres hexadecimais maiúsculos. A política é registrada depois da aprovação, com habilitada=0, e só então pode receber uma autorização append-only pelo emissor. O digest precisa ter sido calculado a partir do payload planejado antes da aprovação, sem confiar em um hash fornecido pelo produtor.
+
+O emissor exige modelo V9 ATIVO, aprovação ACTIVATE mais recente, dossiê completo e vigente de origem representativa declarada, fingerprint atual, snapshot/fit e threshold superior coerentes. A própria publicação confere o vínculo entre digest selado e motivo imutável: INSERT isolado na tabela de autorização não basta. Nenhum EXECUTE ou INSERT é concedido por esta migration; revisar e restringir privilégios DT-15 antes de qualquer uso. A etiqueta de origem representativa não certifica a evidência.
+
+Esta é uma implementação técnica não certificada: ainda faltam matriz SQL positiva/negativa e atomicidade no LocalDB descartável, revisão REF #1089, busca física completa, revisão de segurança e fingerprint de schema recalculado. Não retirar o DRAFT nem ativar a política por causa desta alteração.

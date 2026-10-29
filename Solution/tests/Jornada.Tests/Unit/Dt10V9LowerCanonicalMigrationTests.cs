@@ -50,6 +50,37 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
     }
 
     [Test]
+    public void Policy_issuer_requires_normal_immutable_dt15_digest_approval()
+    {
+        var sql = File.ReadAllText(Path.Combine(Root(), "Solution", "database",
+            "migrations", "20261026_DT10_V9_Lower_Governed_Off.sql"));
+        var start = sql.IndexOf("CREATE OR ALTER PROCEDURE auditoria.sp_autorizar_v9_dt10_lower_policy",
+            StringComparison.Ordinal);
+        var end = sql.IndexOf("CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote",
+            StringComparison.Ordinal);
+        Assert.That(start, Is.GreaterThan(0));
+        Assert.That(end, Is.GreaterThan(start));
+        var issuer = sql[start..end];
+        var publisher = sql[end..];
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(issuer, Does.Contain("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"));
+            Assert.That(issuer, Does.Contain("a.acao=N'ACTIVATE'"));
+            Assert.That(issuer, Does.Contain("d.origem_evidencia IN(N'REPRESENTATIVA_HML',N'REPRESENTATIVA_PROD')"));
+            Assert.That(issuer, Does.Contain("sp_calcular_fingerprint_modelo_linkage"));
+            Assert.That(issuer, Does.Contain("HASHBYTES('SHA2_256',@bytes)"));
+            Assert.That(issuer, Does.Contain("N'DT10_POLICY_SHA256='"));
+            Assert.That(issuer, Does.Contain("a.motivo COLLATE Latin1_General_100_BIN2"));
+            Assert.That(issuer, Does.Contain("THROW 51839"));
+            Assert.That(issuer, Does.Contain("THROW 51840"));
+            Assert.That(issuer, Does.Not.Contain("GRANT EXECUTE"));
+            Assert.That(issuer, Does.Not.Contain("SET habilitada=1"));
+            Assert.That(publisher, Does.Contain("CONVERT(NVARCHAR(64),pa.politica_sha256,2)"));
+            Assert.That(publisher, Does.Contain("a.motivo COLLATE Latin1_General_100_BIN2"));
+        }));
+    }
+
+    [Test]
     public void V9_gate_is_disabled_by_default_and_requires_independent_governance()
     {
         var root = Root();

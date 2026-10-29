@@ -58,6 +58,103 @@ BEGIN
 END;
 GO
 
+-- DT-15 policy issuer. No policy is activated, no rights are granted.
+-- The immutable normal ACTIVATE approval must already name this exact digest.
+CREATE OR ALTER PROCEDURE auditoria.sp_autorizar_v9_dt10_lower_policy
+    @politica_versao NVARCHAR(120), @aprovacao_id UNIQUEIDENTIFIER
+AS
+BEGIN
+    SET NOCOUNT ON;
+    SET XACT_ABORT ON;
+    IF NULLIF(LTRIM(RTRIM(@politica_versao)),N'') IS NULL OR @aprovacao_id IS NULL
+        THROW 51836, 'DT-15 V9: politica e aprovacao obrigatorias.', 1;
+    SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+    BEGIN TRY
+        BEGIN TRANSACTION;
+        DECLARE @modelo UNIQUEIDENTIFIER,@versao INT,@fingerprint BINARY(32),
+                @atual BINARY(32),@fit BINARY(32),@snapshot BINARY(32),
+                @bytes VARBINARY(MAX),@lower DECIMAL(18,8),@upper DECIMAL(18,8),
+                @habilitada BIT,@digest BINARY(32);
+        SELECT @modelo=p.modelo_id,@versao=p.modelo_versao,
+               @fingerprint=p.modelo_fingerprint,@fit=p.fit_fingerprint,
+               @snapshot=p.snapshot_sha256,@bytes=p.snapshot_bytes,
+               @lower=p.limiar_inferior,@upper=p.limiar_superior,
+               @habilitada=p.habilitada
+        FROM identidade.v9_dt10_lower_policy p WITH(UPDLOCK,HOLDLOCK)
+        WHERE p.politica_versao=@politica_versao AND p.aprovacao_id=@aprovacao_id;
+        IF @modelo IS NULL OR @habilitada<>0
+            THROW 51836, 'DT-15 V9: politica ausente, divergente ou habilitada.', 1;
+        IF NOT EXISTS(
+            SELECT 1 FROM auditoria.modelo_linkage_aprovacao a WITH(HOLDLOCK)
+            JOIN identidade.modelo_linkage m WITH(HOLDLOCK) ON m.modelo_id=a.modelo_id
+            JOIN auditoria.modelo_linkage_dossie_decisao d WITH(HOLDLOCK)
+              ON d.modelo_id=a.modelo_id AND d.dossie_sha256=a.dossie_sha256
+            WHERE a.aprovacao_id=@aprovacao_id AND a.modelo_id=@modelo
+              AND a.acao=N'ACTIVATE' AND a.modelo_snapshot_sha256=@fingerprint
+              AND a.modelo_linkage_aprovacao_id=(
+                  SELECT MAX(a2.modelo_linkage_aprovacao_id)
+                  FROM auditoria.modelo_linkage_aprovacao a2 WITH(HOLDLOCK)
+                  WHERE a2.modelo_id=@modelo AND a2.acao=N'ACTIVATE')
+              AND m.status=N'ATIVO' AND m.versao=@versao
+              AND m.algoritmo_versao=N'FELLEGI_SUNTER_DECISION_EVIDENCE_COMPOSITE_NOMINAL_V9'
+              AND d.modelo_snapshot_sha256=@fingerprint
+              AND d.estado=N'COMPLETO' AND d.valido_ate>SYSDATETIMEOFFSET()
+              AND d.origem_evidencia IN(N'REPRESENTATIVA_HML',N'REPRESENTATIVA_PROD')
+              AND d.modelo_linkage_dossie_decisao_id=(
+                  SELECT MAX(d2.modelo_linkage_dossie_decisao_id)
+                  FROM auditoria.modelo_linkage_dossie_decisao d2 WITH(HOLDLOCK)
+                  WHERE d2.modelo_id=@modelo AND d2.dossie_sha256=a.dossie_sha256))
+            THROW 51837, 'DT-15 V9: ACTIVATE/dossie vigente nao comprovados.', 1;
+        EXEC auditoria.sp_calcular_fingerprint_modelo_linkage
+            @modelo_id=@modelo,@fingerprint=@atual OUTPUT;
+        IF @atual IS NULL OR @atual<>@fingerprint
+           OR HASHBYTES('SHA2_256',@bytes)<>@snapshot
+           OR COALESCE(ISJSON(CONVERT(VARCHAR(MAX),@bytes)
+                COLLATE Latin1_General_100_CI_AS_SC_UTF8),0)<>1
+           OR COALESCE(JSON_VALUE(CONVERT(VARCHAR(MAX),@bytes)
+                COLLATE Latin1_General_100_CI_AS_SC_UTF8,'$.SchemaVersion'),N'')
+                <>N'V9_FITTED_SNAPSHOT_V3'
+           OR COALESCE(JSON_VALUE(CONVERT(VARCHAR(MAX),@bytes)
+                COLLATE Latin1_General_100_CI_AS_SC_UTF8,
+                '$.CandidateGrouping.CandidateGrouping'),N'')<>N'GOLD'
+           OR TRY_CONVERT(BINARY(32),JSON_VALUE(CONVERT(VARCHAR(MAX),@bytes)
+                COLLATE Latin1_General_100_CI_AS_SC_UTF8,'$.FitFingerprintSha256'),2)<>@fit
+           OR TRY_CONVERT(DECIMAL(18,8),JSON_VALUE(CONVERT(VARCHAR(MAX),@bytes)
+                COLLATE Latin1_General_100_CI_AS_SC_UTF8,'$.Threshold'))<>@upper
+           OR LEN(COALESCE(JSON_VALUE(CONVERT(VARCHAR(MAX),@bytes)
+                COLLATE Latin1_General_100_CI_AS_SC_UTF8,
+                '$.GoldParentSnapshotSha256'),N''))<>64
+            THROW 51838, 'DT-15 V9: modelo, fit ou snapshot divergente.', 1;
+        SET @digest=HASHBYTES('SHA2_256',CONCAT(
+            N'JORNADA_DT10_V9_POLICY_V1|',@politica_versao,N'|',
+            CONVERT(NVARCHAR(36),@modelo),N'|',CONVERT(NVARCHAR(20),@versao),N'|',
+            CONVERT(VARCHAR(64),@fingerprint,2),N'|',
+            CONVERT(VARCHAR(64),@fit,2),N'|',
+            CONVERT(VARCHAR(64),@snapshot,2),N'|',
+            CONVERT(NVARCHAR(40),@lower),N'|',CONVERT(NVARCHAR(40),@upper)));
+        IF NOT EXISTS(
+            SELECT 1 FROM auditoria.modelo_linkage_aprovacao a WITH(HOLDLOCK)
+            WHERE a.aprovacao_id=@aprovacao_id
+              AND CHARINDEX(N'DT10_POLICY_SHA256='+
+                  CONVERT(NVARCHAR(64),@digest,2),
+                  a.motivo COLLATE Latin1_General_100_BIN2)>0)
+            THROW 51839, 'DT-15 V9: motivo humano nao autorizou digest.', 1;
+        IF EXISTS(
+            SELECT 1 FROM auditoria.v9_dt10_lower_policy_autorizacao WITH(UPDLOCK,HOLDLOCK)
+            WHERE aprovacao_id=@aprovacao_id)
+            THROW 51840, 'DT-15 V9: autorizacao ja selada.', 1;
+        INSERT auditoria.v9_dt10_lower_policy_autorizacao
+            (aprovacao_id,politica_versao,politica_sha256)
+        VALUES(@aprovacao_id,@politica_versao,@digest);
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        IF XACT_STATE()<>0 ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH;
+END;
+GO
+
 -- Explicit canonical redefinition. The preceding DT-10 batch body is retained
 -- in full, including the serializable transaction, source-wide precedence,
 -- idempotent replay, locks, and append-only event ledger.
@@ -296,7 +393,11 @@ BEGIN
                              CONVERT(VARCHAR(64),p.fit_fingerprint,2),N'|',
                              CONVERT(VARCHAR(64),p.snapshot_sha256,2),N'|',
                              CONVERT(NVARCHAR(40),p.limiar_inferior),N'|',
-                             CONVERT(NVARCHAR(40),p.limiar_superior))))
+                             CONVERT(NVARCHAR(40),p.limiar_superior)))
+                          AND CHARINDEX(
+                              N'DT10_POLICY_SHA256='+
+                                  CONVERT(NVARCHAR(64),pa.politica_sha256,2),
+                              a.motivo COLLATE Latin1_General_100_BIN2)>0)
                    OR a.aprovacao_id IS NULL OR a.acao<>N'ACTIVATE'
                    OR a.modelo_id<>p.modelo_id OR a.modelo_snapshot_sha256<>p.modelo_fingerprint
                    OR a.dossie_sha256 IS NULL
