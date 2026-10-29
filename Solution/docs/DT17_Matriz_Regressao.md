@@ -59,7 +59,7 @@ A separação da CI está excluída desta frente. A DT-10, que era a última ent
 
 ## Adendo DT-10 — guarda literal SEM_CANDIDATO, PR #1210 (29/10/2026)
 
-A migration aditiva `20261029_Linkage_NoCandidate_Literal_Guards.sql` redefine as procedures escalar e lote sem editar migrations históricas. `SEM[_]CANDIDATO[_]% ` (sem o espaço final; padrão SQL `SEM[_]CANDIDATO[_]%`) exige underscores literais. `51810` rejeita os quase-prefixos `SEMXCANDIDATO_` e `SEM_CANDIDATOX`; `51835` rejeita ausência alegada com melhor/segundo candidato persistido. A guarda não certifica a completude do blocking.
+A migration aditiva `20261029_Linkage_NoCandidate_Literal_Guards.sql` redefine as procedures escalar e lote sem editar migrations históricas. `SEM[_]CANDIDATO[_]%` exige underscores literais. `51810` rejeita os quase-prefixos `SEMXCANDIDATO_` e `SEM_CANDIDATOX`; `51835` rejeita ausência alegada com melhor/segundo candidato persistido. A guarda não certifica a completude do blocking.
 
 A matriz de evidência obrigatória é `LinkageNoCandidateLiteralGuardsSqlServerTests` (11 casos físicos SQL, sem skip): quatro quase-prefixos escalar/lote; quatro contradições de candidato; lote misto com zero eventos e estado/versão inalterados; dois cenários de ausência legítima e replay idempotente. Testes estruturais e sucesso do `integration-sql` anterior **não** atestam esses novos casos. A fixture usa apenas SQL Test/Dev isolado/Testcontainers e deve registrar TRX, run/job e SHA exato após inclusão na #1210. A prova está **preparada em branch isolada, não executada nem aprovada** nesta data.
 
