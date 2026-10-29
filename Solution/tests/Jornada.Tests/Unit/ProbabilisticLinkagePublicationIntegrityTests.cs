@@ -46,6 +46,26 @@ public sealed class ProbabilisticLinkagePublicationIntegrityTests
     }
 
     [Test]
+    public void Progressive_publication_rejects_persisted_candidates_for_no_candidate_reason_before_update()
+    {
+        var sql = ProbabilisticLinkageBatchRunner.ProgressivePublicationSql();
+        var guardPosition = sql.IndexOf("THROW 51835", StringComparison.Ordinal);
+        var updatePosition = sql.IndexOf("UPDATE r", StringComparison.Ordinal);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(sql, Does.Contain("r.motivo LIKE N'SEM[_]CANDIDATO[_]%'"));
+            Assert.That(sql, Does.Contain("r.status=N'NAO_RESOLVIDO'"));
+            Assert.That(sql, Does.Contain("r.melhor_candidato_uuid IS NOT NULL"));
+            Assert.That(sql, Does.Contain("r.segundo_candidato_uuid IS NOT NULL"));
+            Assert.That(sql, Does.Contain("r.pessoa_uuid_resolvido IS NOT NULL"));
+            Assert.That(guardPosition, Is.GreaterThanOrEqualTo(0));
+            Assert.That(updatePosition, Is.GreaterThan(guardPosition),
+                "Forged no-candidate evidence must abort before any publication update.");
+        }));
+    }
+
+    [Test]
     public void Progressive_publication_only_promotes_initial_uuid_after_explicit_no_candidate()
     {
         var sql = ProbabilisticLinkageBatchRunner.ProgressivePublicationSql();
