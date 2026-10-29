@@ -233,7 +233,7 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
                     resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
                     pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
                 VALUES(@run,@model,@version,@obs,
-                    NULL,@best,CASE WHEN @best IS NULL THEN NULL ELSE 0.9 END,
+                    NULL,@best,CASE WHEN @best IS NULL THEN 0 ELSE 0.9 END,
                     @second,CASE WHEN @second IS NULL THEN NULL ELSE 0.8 END,NULL,
                     N'NAO_RESOLVIDO',@reason,SYSUTCDATETIME(),
                     N'NOVA_IDENTIDADE',@initial,N'RESOLVIDO',N'NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA',
