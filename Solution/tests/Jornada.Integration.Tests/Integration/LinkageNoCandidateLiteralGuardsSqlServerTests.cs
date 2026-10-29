@@ -23,10 +23,13 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
         _cs = Environment.GetEnvironmentVariable("JORNADA_TEST_SQL_CONNECTION")
             ?? throw new InvalidOperationException("Disposable SQL integration fixture required.");
         var catalog = new SqlConnectionStringBuilder(_cs).InitialCatalog;
+        // CI integration-sql provisions a disposable JornadaE2E catalog on localhost.
+        // Keep the existing Test/Dev opt-in for isolated local harnesses.
         if (string.IsNullOrWhiteSpace(catalog) ||
-            (!catalog.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
+            (!catalog.Equals("JornadaE2E", StringComparison.OrdinalIgnoreCase) &&
+             !catalog.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
              !catalog.Contains("Dev", StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException("Physical evidence requires an isolated Test/Dev database.");
+            throw new InvalidOperationException("Physical evidence requires an isolated Test/Dev/JornadaE2E database.");
         await using var connection = new SqlConnection(_cs);
         await connection.OpenAsync();
         var dir = Path.Combine(AppContext.BaseDirectory, "database");
