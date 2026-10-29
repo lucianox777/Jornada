@@ -61,3 +61,14 @@ Em 27/10, a [PR #1203](https://github.com/lucianox777/Jornada/pull/1203), HEAD `
 **NÃO APROVADO / NÃO ATIVADO:** a PR #1205 permanece aberta; não há benchmark equivalente de wall-clock/runner-minutes que demonstre economia. A issue [#1200](https://github.com/lucianox777/Jornada/issues/1200) acompanha medições e critérios. A dispensa seletiva de probe não altera a obrigação de CI geral, preflight DT-10, agregador fail-closed nem aprovação humana posterior da política V9.
 
 **Reconciliação pendente:** registrar a decisão e casos negativos na [ADR CI-V9-PROBE-01](Decisao_CI_Probe_V9_Por_Impacto_20261024.md) e na matriz de gates aplicável, no mesmo PR antes do merge. Preservar os estados históricos acima; acrescentar evidências do novo SHA em adendo, sem substituir os runs antigos.
+
+
+## Adendo observacional pós-merge — CI-V9-PROBE-01 / #1205 (29/10/2026)
+
+**Mudança de estado desde o adendo de 28/10:** a [PR #1205](https://github.com/lucianox777/Jornada/pull/1205) foi **MERGED** em 29/10/2026 19:36:12 UTC, merge \`b4fdc3f80310eeff9b48a4cf01429f485583e49a\`. O HEAD testado foi \`7ca4fcec0ba67741b96b40dd0bcd0e21624ae5c5\`. Os runs [jornada-ci #40895343764](https://github.com/lucianox777/Jornada/actions/runs/40895343764), [fast PR #40895343762](https://github.com/lucianox777/Jornada/actions/runs/40895343762) e [probe #40895343763](https://github.com/lucianox777/Jornada/actions/runs/40895343763) concluíram \`SUCCESS\`; neste último, classificação, TRAIN físico 30k e agregador clean também foram \`SUCCESS\`.
+
+**O que mudou:** o classificador integrado trata \`.github/dependabot.yml\` e \`.yaml\` e a composição com documentação permitida; diffs desconhecidos ou mistos com SQL/Gold/workflow/FS/TF continuam fail-closed. O script de testes contém os casos positivos e negativos correspondentes. Isso é evidência de implementação e de workflows verdes no SHA, **não** de economia medida nem de execução efetiva da via de dispensa em uma PR exclusivamente Dependabot.
+
+**Baseline científico e financeiro inalterado:** não foi produzida comparação A/B com filas, runner-minutes, tempo de calibração TRAIN, mesmo corpus/seed/perfil e gates equivalentes. Portanto, a economia de wall-clock ou custo permanece **NÃO DEMONSTRADA** na [issue #1200](https://github.com/lucianox777/Jornada/issues/1200); não inventar minutos poupados. As observações históricas, inclusive CANCELLED e IN_PROGRESS dos SHAs anteriores, continuam válidas como retratos daquele instante e não devem ser reclassificadas retroativamente.
+
+**Governança:** esta reconciliação documental foi feita **após** o merge da #1205, não no PR original; registrar explicitamente essa dívida de processo. Nenhuma dispensa de TEST independente, aprovação humana, política DT-10/DT-15 ou ativação V9 é inferida destes resultados. A ADR CI-V9-PROBE-01 e a matriz DT-17 recebem adendos correspondentes neste changeset.
