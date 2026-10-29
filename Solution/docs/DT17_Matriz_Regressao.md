@@ -73,3 +73,21 @@ Este adendo é transversal à DT-17 e **não altera** os resultados históricos 
 **Rastreabilidade de execução:** no HEAD anterior `4e71f14b44e520a1f32f829ce2e501b536e226c7`, `jornada-ci` [40760201313](https://github.com/lucianox777/Jornada/actions/runs/40760201313) e `v9-experimental-fast-pr` [40760201311](https://github.com/lucianox777/Jornada/actions/runs/40760201311) terminaram SUCCESS, mas o probe [40760201315](https://github.com/lucianox777/Jornada/actions/runs/40760201315) estava IN_PROGRESS na consulta. O HEAD `eae8279d5a39800893f6a56cb3df426c09fc9bdb` iniciou `jornada-ci` [40778210984](https://github.com/lucianox777/Jornada/actions/runs/40778210984) **IN_PROGRESS**, fast PR [40778210986](https://github.com/lucianox777/Jornada/actions/runs/40778210986) **SUCCESS** e probe [40778211023](https://github.com/lucianox777/Jornada/actions/runs/40778211023) **PENDING** na consulta. Nenhum deles certifica antecipadamente o próximo commit deste documento.
 
 **Estado:** proposta implementada na PR, documentação em reconciliação, **não aprovada nem integrada**; não há economia medida nem ativação de política V9. Preservar REF/IBGE, FS/TF, DT-10/DT-15, 30k sintéticos e aprovação humana posterior. A evidência deve ser atualizada por novo adendo após a conclusão dos checks do HEAD final, nunca por substituição de registros históricos.
+
+
+## Adendo CI-V9-PROBE-01 — evidência pós-merge da #1205 (29/10/2026)
+
+**Estado vigente: INTEGRADO**, sem apagar a matriz de proposta de 28/10 acima. A [#1205](https://github.com/lucianox777/Jornada/pull/1205) foi integrada pelo merge \`b4fdc3f80310eeff9b48a4cf01429f485583e49a\`, após checks no HEAD \`7ca4fcec0ba67741b96b40dd0bcd0e21624ae5c5\`.
+
+| Classe de diff / gate | Comportamento exigido pelo classificador integrado | Evidência e limite |
+| --- | --- | --- |
+| Somente \`.github/dependabot.yml\` ou \`.yaml\`, status \`A\`/\`M\` | \`NOT_REQUIRED_FOR_THIS_DIFF\` | Casos unitários presentes; não equivale a TRAIN executado. |
+| Dependabot \`.yml\`/\`.yaml\` **mais** documentação segura, status \`A\`/\`M\` | Composição segura, \`NOT_REQUIRED_FOR_THIS_DIFF\` | \`test_dependabot_metadata_mixed_with_safe_docs_skips_probe\` implementado no HEAD. |
+| Mistura acima com SQL, workflow, FS/TF, calibrador ou caminho desconhecido | \`RUN\` fail-closed | Regressões negativas no script; não dispensar gates físicos. |
+| Diff ausente/truncado ou status \`D\`, \`R\`, \`C\`, \`T\` | \`RUN\` ou rejeição do diff | Cobertura no parser/testes; não interpretar falha de leitura como dispensa. |
+| Alteração do classificador e de seus testes | \`RUN\` | A própria #1205 exigiu TRAIN físico 30k. |
+| Agregador e HEAD de referência | \`SUCCESS\` somente com gates efetivamente exigidos no SHA certo | SKIPPED/CANCELLED não são evidência de execução física. |
+
+**Checks verificados do HEAD da #1205:** [jornada-ci #40895343764](https://github.com/lucianox777/Jornada/actions/runs/40895343764) \`SUCCESS\`; [fast PR #40895343762](https://github.com/lucianox777/Jornada/actions/runs/40895343762) \`SUCCESS\`; [probe #40895343763](https://github.com/lucianox777/Jornada/actions/runs/40895343763) \`SUCCESS\` para classificação, TRAIN e agregador. Não extrapolar esses resultados para um teste operacional de cancelamento seletivo, para a economia de CI ou para SHA posterior.
+
+**PENDENTE:** comparação controlada de tempo/runner-minutes na [#1200](https://github.com/lucianox777/Jornada/issues/1200), prova operacional de cancelamento seletivo, e gates DT-10/DT-15/TEST independente em suas frentes próprias. A V9 continua default OFF, sem aprovação humana nem ativação. A documentação da #1205 foi corrigida em PR posterior ao merge; a divergência histórica não deve ser apagada.
