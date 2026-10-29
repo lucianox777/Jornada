@@ -615,6 +615,21 @@ public sealed class ProbabilisticLinkageBatchRunner(
                        WHERE linkage_run_id=@run_id
                          AND motivo=N'LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL')
             THROW 51822,'Limiar inferior experimental recusado fora do harness Gold TRAIN.',1;
+
+        -- A no-candidate label is not evidence of an empty candidate set.
+        -- Reject contradictory persisted evidence BEFORE deriving the
+        -- publication decision or invoking the DT-10 batch procedure.
+        -- This mirrors THROW 51835 in the governed DT-10 candidate (#1199).
+        IF EXISTS(
+            SELECT 1
+            FROM identidade.linkage_resultado r WITH(UPDLOCK,HOLDLOCK)
+            WHERE r.linkage_run_id=@run_id
+              AND r.status=N'NAO_RESOLVIDO'
+              AND r.motivo LIKE N'SEM[_]CANDIDATO[_]%'
+              AND (r.melhor_candidato_uuid IS NOT NULL
+                   OR r.segundo_candidato_uuid IS NOT NULL
+                   OR r.pessoa_uuid_resolvido IS NOT NULL))
+            THROW 51835, 'SEM_CANDIDATO contradiz candidatos persistidos; publicacao recusada.',1;
         DECLARE @politica_publicacao NVARCHAR(120)=N'LINKAGE_PROGRESSIVE_PUBLICATION_V1';
         DECLARE @universo_publicacao NVARCHAR(255)=CONCAT(
             N'LINKAGE_RUN:',CONVERT(NVARCHAR(36),@run_id),
