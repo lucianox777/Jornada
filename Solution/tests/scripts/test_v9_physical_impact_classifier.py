@@ -10,6 +10,33 @@ spec.loader.exec_module(m)
 
 
 class V9PhysicalImpactTests(unittest.TestCase):
+    def test_dependabot_metadata_only_sha_97195227(self):
+        # Regression for #1203 (97195227): Dependabot groups and schedules
+        # cannot change the physical 30k model or its SQL inputs.
+        for path in (".github/dependabot.yml", ".github/dependabot.yaml"):
+            with self.subTest(path=path):
+                self.assertFalse(self.changes(path))
+                self.assertFalse(m.classify([("A", path)])["run_physical_30k"])
+                self.assertTrue(m.classify([("D", path)])["run_physical_30k"])
+        self.assertTrue(self.changes(".github/workflows/v9-physical-seed42-probe.yml"))
+        self.assertTrue(self.changes(".github/dependabot.yml", "Solution/database/Jornada_Fase1_v3.70.sql"))
+
+    def test_dependabot_metadata_mixed_with_safe_docs_skips_probe(self):
+        # A mixed metadata + Markdown-only change remains non-physical.
+        for metadata in (".github/dependabot.yml", ".github/dependabot.yaml"):
+            for status in ("A", "M"):
+                with self.subTest(metadata=metadata, status=status):
+                    records = [(status, metadata),
+                               ("M", "Solution/docs/decision.md"),
+                               ("A", "Documentos/README.md")]
+                    result = m.classify(records)
+                    self.assertFalse(result["run_physical_30k"])
+                    self.assertEqual(result["decision"], "NOT_REQUIRED_FOR_THIS_DIFF")
+                    # Adding a physical input to the same diff must fail closed.
+                    self.assertTrue(m.classify(records + [
+                        ("M", "Solution/database/Jornada_Fase1_v3.70.sql")
+                    ])["run_physical_30k"])
+
     def changes(self, *paths):
         return m.classify([("M", p) for p in paths])["run_physical_30k"]
 
