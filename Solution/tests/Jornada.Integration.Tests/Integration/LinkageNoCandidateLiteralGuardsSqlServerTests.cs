@@ -33,6 +33,26 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
         await SqlBatchRunner.ExecuteCanonicalSchemaAsync(connection, dir);
         await SqlBatchRunner.ExecuteFileAsync(connection, Path.Combine(dir, "Jornada_Seed_Dev.sql"));
 
+        // DEV seed contains two CPF-less origins but no progressive initial UUIDs.
+        // Materialize them using the installed procedure on the disposable database.
+        await using (var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable))
+        {
+            await using var ensure = connection.CreateCommand();
+            ensure.Transaction = tx;
+            ensure.CommandText = """
+                DECLARE @a BIGINT = (SELECT TOP(1) pessoa_origem_id FROM silver.pessoa_observacao
+                                    WHERE codigo_pessoa_origem=N'SEH005' AND cpf IS NULL);
+                DECLARE @b BIGINT = (SELECT TOP(1) pessoa_origem_id FROM silver.pessoa_observacao
+                                    WHERE codigo_pessoa_origem=N'SEH006' AND cpf IS NULL);
+                IF @a IS NULL OR @b IS NULL OR @a=@b
+                    THROW 51836,'Missing two distinct CPF-less synthetic DEV origins.',1;
+                EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@a;
+                EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@b;
+                """;
+            await ensure.ExecuteNonQueryAsync();
+            await tx.CommitAsync();
+        }
+
         await using (var cmd = connection.CreateCommand())
         {
             cmd.CommandText = "SELECT TOP(1) modelo_id,versao FROM identidade.modelo_linkage ORDER BY CASE WHEN status=N'ATIVO' THEN 0 ELSE 1 END,versao DESC;";
@@ -56,6 +76,7 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
                     FROM silver.pessoa_observacao po
                     JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=po.pessoa_origem_id
                     WHERE po.pessoa_origem_id IS NOT NULL AND po.cpf IS NULL
+                      AND po.codigo_pessoa_origem IN (N'SEH005',N'SEH006')
                       AND p.estado=N'PROVISORIA' AND p.canonical_uuid IS NULL
                 )
                 SELECT TOP(2) pessoa_observacao_id,pessoa_origem_id,initial_uuid
@@ -122,7 +143,8 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
                 Assert.That(first.Status, Is.EqualTo("REFERENCIA"));
                 Assert.That(first.Uuid, Is.EqualTo(_sources[0].InitialUuid));
                 Assert.That(first.Events, Is.EqualTo(1));
-                Assert.That(first.ProgressiveVersion, Is.Not.Null);
+                Assert.That(first.Version, Is.GreaterThan(0));
+                Assert.That(first.ProgressiveVersion, batch ? Is.Not.Null : Is.Null);
             }));
             await PublishAsync(conn, tx, run, _sources[0], batch);
             Assert.That(await StateAsync(conn, tx, run, _sources[0]), Is.EqualTo(first));
