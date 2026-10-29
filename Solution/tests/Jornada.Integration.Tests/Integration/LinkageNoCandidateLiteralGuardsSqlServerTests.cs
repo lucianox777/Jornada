@@ -15,6 +15,7 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
     private string _cs = null!;
     private Model _model = null!;
     private Guid _candidate;
+    private Guid _secondCandidate;
     private IReadOnlyList<Source> _sources = null!;
 
     [OneTimeSetUp]
@@ -63,9 +64,16 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
         }
         await using (var cmd = connection.CreateCommand())
         {
-            cmd.CommandText = "SELECT TOP(1) pessoa_uuid FROM identidade.pessoa ORDER BY pessoa_uuid;";
-            _candidate = (Guid)(await cmd.ExecuteScalarAsync() ??
-                throw new InvalidOperationException("Missing FK-valid synthetic candidate."));
+            cmd.CommandText = "SELECT TOP(2) pessoa_uuid FROM identidade.pessoa ORDER BY pessoa_uuid;";
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (!await reader.ReadAsync())
+                throw new InvalidOperationException("Missing first FK-valid synthetic candidate.");
+            _candidate = reader.GetGuid(0);
+            if (!await reader.ReadAsync())
+                throw new InvalidOperationException("Missing second distinct FK-valid synthetic candidate.");
+            _secondCandidate = reader.GetGuid(0);
+            if (_candidate == _secondCandidate)
+                throw new InvalidOperationException("Synthetic candidates must be distinct.");
         }
         await using (var cmd = connection.CreateCommand())
         {
@@ -112,7 +120,7 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
     {
         var run = Guid.NewGuid();
         await SeedAsync(run, (_sources[0], "SEM_CANDIDATO_NO_RULESET_BLOCKING",
-            second ? null : _candidate, second ? _candidate : null));
+            _candidate, second ? _secondCandidate : null));
         await RejectAndCheckAsync(run, new[] { _sources[0] }, batch, 51835);
     }
 
