@@ -118,12 +118,19 @@ BEGIN
                 COLLATE Latin1_General_100_CI_AS_SC_UTF8,
                 '$.CandidateGrouping.CandidateGrouping'),N'')<>N'GOLD'
            OR TRY_CONVERT(BINARY(32),JSON_VALUE(CONVERT(VARCHAR(MAX),@bytes)
+                COLLATE Latin1_General_100_CI_AS_SC_UTF8,'$.FitFingerprintSha256'),2) IS NULL
+           OR TRY_CONVERT(BINARY(32),JSON_VALUE(CONVERT(VARCHAR(MAX),@bytes)
                 COLLATE Latin1_General_100_CI_AS_SC_UTF8,'$.FitFingerprintSha256'),2)<>@fit
+           OR TRY_CONVERT(DECIMAL(18,8),JSON_VALUE(CONVERT(VARCHAR(MAX),@bytes)
+                COLLATE Latin1_General_100_CI_AS_SC_UTF8,'$.Threshold')) IS NULL
            OR TRY_CONVERT(DECIMAL(18,8),JSON_VALUE(CONVERT(VARCHAR(MAX),@bytes)
                 COLLATE Latin1_General_100_CI_AS_SC_UTF8,'$.Threshold'))<>@upper
            OR LEN(COALESCE(JSON_VALUE(CONVERT(VARCHAR(MAX),@bytes)
                 COLLATE Latin1_General_100_CI_AS_SC_UTF8,
                 '$.GoldParentSnapshotSha256'),N''))<>64
+           OR TRY_CONVERT(BINARY(32),JSON_VALUE(CONVERT(VARCHAR(MAX),@bytes)
+                COLLATE Latin1_General_100_CI_AS_SC_UTF8,
+                '$.GoldParentSnapshotSha256'),2) IS NULL
             THROW 51838, 'DT-15 V9: modelo, fit ou snapshot divergente.', 1;
         SET @digest=HASHBYTES('SHA2_256',CONCAT(
             N'JORNADA_DT10_V9_POLICY_V1|',@politica_versao,N'|',

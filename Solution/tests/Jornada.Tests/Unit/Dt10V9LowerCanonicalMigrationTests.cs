@@ -69,6 +69,9 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
             Assert.That(issuer, Does.Contain("d.origem_evidencia IN(N'REPRESENTATIVA_HML',N'REPRESENTATIVA_PROD')"));
             Assert.That(issuer, Does.Contain("sp_calcular_fingerprint_modelo_linkage"));
             Assert.That(issuer, Does.Contain("HASHBYTES('SHA2_256',@bytes)"));
+            Assert.That(issuer, Does.Contain("'$.FitFingerprintSha256'),2) IS NULL"));
+            Assert.That(issuer, Does.Contain("'$.Threshold')) IS NULL"));
+            Assert.That(issuer, Does.Contain("'$.GoldParentSnapshotSha256'),2) IS NULL"));
             Assert.That(issuer, Does.Contain("N'DT10_POLICY_SHA256='"));
             Assert.That(issuer, Does.Contain("a.motivo COLLATE Latin1_General_100_BIN2"));
             Assert.That(issuer, Does.Contain("THROW 51839"));

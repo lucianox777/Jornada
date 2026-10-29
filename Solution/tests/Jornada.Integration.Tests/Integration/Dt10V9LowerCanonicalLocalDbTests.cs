@@ -57,6 +57,30 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
                 Is.Zero, "Disposable harness must start with no DT-15 policy authorizations.");
         }
 
+        // Physical negative: a nonexistent policy/approval cannot create a
+        // digest attestation. This is NOT the still-missing positive DT-15 test.
+        await using (var missingPolicy = connection.CreateCommand())
+        {
+            missingPolicy.CommandText = """
+                EXEC auditoria.sp_autorizar_v9_dt10_lower_policy
+                    @politica_versao=N'V9_DT10_LOWER_NONEXISTENT_CI',
+                    @aprovacao_id=@approval;
+                """;
+            missingPolicy.Parameters.AddWithValue("@approval", Guid.NewGuid());
+            var denied = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
+            {
+                await missingPolicy.ExecuteNonQueryAsync();
+            }));
+            Assert.That(denied!.Number, Is.EqualTo(51836));
+        }
+        await using (var afterDenied = connection.CreateCommand())
+        {
+            afterDenied.CommandText =
+                "SELECT COUNT_BIG(*) FROM auditoria.v9_dt10_lower_policy_autorizacao;";
+            Assert.That(Convert.ToInt64(await afterDenied.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture), Is.Zero);
+        }
+
         // Exercise the real SQL trigger on a disposable harness. A statement
         // affecting zero rows must still be rejected: nobody may rewrite or
         // erase a previously sealed DT-15 authorization.
