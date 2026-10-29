@@ -53,7 +53,7 @@ public sealed class ProbabilisticLinkagePublicationIntegrityTests
         Assert.Multiple((Action)(() =>
         {
             Assert.That(sql, Does.Contain("c.raw_status=N'NAO_RESOLVIDO'"));
-            Assert.That(sql, Does.Contain("c.raw_motivo LIKE N'SEM_CANDIDATO_%'"));
+            Assert.That(sql, Does.Contain("c.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%'"));
             Assert.That(sql, Does.Contain("c.initial_uuid"));
             Assert.That(sql, Does.Contain("c.ultimo_destino_externo_uuid IS NULL"));
             Assert.That(sql, Does.Contain("N'ASSOCIACAO_EXISTENTE'"));
