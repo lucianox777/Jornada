@@ -259,6 +259,95 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             Assert.That(await CountEventsAsync(connection, forged), Is.Zero);
         }
 
+        // Mixed-batch atomicity: one valid legacy no-candidate observation
+        // must NOT be committed if a second source in the SAME run forges
+        // absence despite a persisted candidate. A one-row rejection alone
+        // cannot prove all-or-nothing ledger semantics.
+        long secondSourceId;
+        long secondObservationId;
+        await using (var second = connection.CreateCommand())
+        {
+            second.CommandText = """
+                SELECT TOP(1) o.pessoa_origem_id, po.pessoa_observacao_id
+                FROM silver.pessoa_origem o
+                JOIN silver.pessoa_observacao po ON po.pessoa_origem_id=o.pessoa_origem_id
+                LEFT JOIN identidade.pessoa_origem_progressiva p ON p.pessoa_origem_id=o.pessoa_origem_id
+                WHERE o.codigo_pessoa_origem LIKE N'SCALE-%'
+                  AND o.pessoa_origem_id<>@source AND po.cpf IS NULL
+                  AND (p.estado=N'PROVISORIA' OR p.pessoa_origem_id IS NULL)
+                ORDER BY po.pessoa_observacao_id DESC;
+                """;
+            second.Parameters.AddWithValue("@source", sourceId);
+            await using var reader = await second.ExecuteReaderAsync();
+            Assert.That(await reader.ReadAsync(), Is.True, "A second isolated synthetic source is required.");
+            secondSourceId = reader.GetInt64(0);
+            secondObservationId = reader.GetInt64(1);
+        }
+        await using (var tx = (SqlTransaction)await connection.BeginTransactionAsync(IsolationLevel.Serializable))
+        {
+            await using var ensureSecond = connection.CreateCommand();
+            ensureSecond.Transaction = tx;
+            ensureSecond.CommandText = "EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source;";
+            ensureSecond.Parameters.AddWithValue("@source", secondSourceId);
+            await ensureSecond.ExecuteNonQueryAsync();
+            await tx.CommitAsync();
+        }
+        Guid secondInitial;
+        await using (var secondIdentity = connection.CreateCommand())
+        {
+            secondIdentity.CommandText =
+                "SELECT initial_uuid FROM identidade.pessoa_origem_progressiva WHERE pessoa_origem_id=@source;";
+            secondIdentity.Parameters.AddWithValue("@source", secondSourceId);
+            secondInitial = (Guid)(await secondIdentity.ExecuteScalarAsync())!;
+        }
+        var mixedRun = Guid.NewGuid();
+        await SeedRunAsync(connection, mixedRun, model, version, sourceId,
+            observationId, initial, "SEM_CANDIDATO_NO_RULESET_BLOCKING");
+        await using (var append = connection.CreateCommand())
+        {
+            append.CommandText = """
+                UPDATE identidade.linkage_run
+                   SET limite_solicitado=2,registros_elegiveis=2,avaliados=2,nao_resolvidos=2,
+                       pessoa_observacao_id_high_watermark=
+                           CASE WHEN pessoa_observacao_id_high_watermark<@secondObs
+                                THEN @secondObs ELSE pessoa_observacao_id_high_watermark END
+                 WHERE linkage_run_id=@run;
+                INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
+                  VALUES(@run,@secondObs);
+                INSERT identidade.linkage_resultado(
+                  linkage_run_id,modelo_id,modelo_versao,pessoa_observacao_id,
+                  pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,
+                  segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
+                  resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
+                  pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
+                VALUES(@run,@model,@version,@secondObs,NULL,@candidate,0,
+                  NULL,NULL,NULL,N'NAO_RESOLVIDO',N'SEM_CANDIDATO_NO_RULESET_BLOCKING',
+                  SYSUTCDATETIME(),N'NOVA_IDENTIDADE',@secondInitial,N'RESOLVIDO',
+                  N'NOVA_IDENTIDADE_LIMIAR_INFERIOR_V9_GOVERNADO',@secondSource,
+                  N'V9_DT10_LOWER_TEST_DISABLED',N'RUN_COMPLETO_DT10',SYSUTCDATETIME());
+                """;
+            append.Parameters.AddWithValue("@run", mixedRun);
+            append.Parameters.AddWithValue("@model", model);
+            append.Parameters.AddWithValue("@version", version);
+            append.Parameters.AddWithValue("@secondObs", secondObservationId);
+            append.Parameters.AddWithValue("@secondSource", secondSourceId);
+            append.Parameters.AddWithValue("@secondInitial", secondInitial);
+            append.Parameters.AddWithValue("@candidate", existingCandidate);
+            await append.ExecuteNonQueryAsync();
+        }
+        foreach (var attempt in new[] { 1, 2 })
+        {
+            Assert.That(await TryPublishAsync(connection, mixedRun), Is.EqualTo(51835),
+                $"Mixed batch attempt {attempt} must fail on persisted candidate.");
+            Assert.That(await CountEventsAsync(connection, mixedRun), Is.Zero,
+                "The valid source must not be partially published before the forged source fails.");
+            Assert.That(await ReadRunStatusAsync(connection, mixedRun), Is.EqualTo("EXECUTANDO"));
+            Assert.That(await ReadProgressiveStateAsync(connection, sourceId),
+                Is.EqualTo(("PROVISORIA", (Guid?)null)));
+            Assert.That(await ReadProgressiveStateAsync(connection, secondSourceId),
+                Is.EqualTo(("PROVISORIA", (Guid?)null)));
+        }
+
         // Unchanged no-candidate path must still publish exactly once,
         // including when the same EXECUTANDO run is replayed.
         var legacy = Guid.NewGuid();

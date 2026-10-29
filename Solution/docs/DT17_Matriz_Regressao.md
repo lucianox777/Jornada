@@ -61,9 +61,10 @@ A separação da CI está excluída desta frente. A DT-10, que era a última ent
 
 | Caso | Prova exigida | Estado neste adendo |
 | --- | --- | --- |
-| `SEM_CANDIDATO_%` com melhor candidato persistido | `THROW 51835`, 0 evento, origem `PROVISORIA`, falha idem em replay | Teste integrado na branch; **CI física do novo HEAD pendente** |
-| `SEM_CANDIDATO_%` com segundo candidato persistido | Mesma recusa e atomicidade, sem promover `initial_uuid` | Teste integrado na branch; **CI física do novo HEAD pendente** |
-| Ausência legítima de candidatos | Um único evento, mesmo UUID e nenhum evento extra em replay | Coberto pelo teste LocalDB anterior; reexecução no novo HEAD pendente |
+| `SEM_CANDIDATO_%` com melhor candidato persistido | `THROW 51835`, 0 evento, origem `PROVISORIA`, falha idem em replay | Preflight LocalDB #40805124598 SUCCESS no SHA `3017f048` (1 teste físico) |
+| `SEM_CANDIDATO_%` com segundo candidato persistido | Mesma recusa e atomicidade, sem promover `initial_uuid` | Preflight LocalDB #40805124598 SUCCESS no SHA `3017f048` (1 teste físico) |
+| Ausência legítima de candidatos | Um único evento, mesmo UUID e nenhum evento extra em replay | Preflight LocalDB #40805124598 SUCCESS no SHA `3017f048` (1 teste físico) |
+| Lote misto com ausência legítima e ausência forjada com candidato | Rejeitar o lote inteiro com `51835`, zero eventos de ambas as origens, ambas `PROVISORIA`, retry igualmente negado | Novo cenário de atomicidade na branch; **CI do novo SHA ainda não executada** |
 | `LIMIAR_INFERIOR_V9_GOVERNADO` | Melhor candidato real, score físico abaixo de piso bootstrap, política por digest DT-15 e snapshot corretos | Guardas SQL em branch; **teste positivo governado pendente** |
 | Faixa intermediária, políticas/fit alterados, origem sintética | Abstenção ou recusa; nenhum ledger parcial; rollback comprovado | **Matriz física completa pendente** |
 | Calibrador C# único, loader REF, TEST final | Mesmo fit, proveniência, separação TEST/DT-15 e ausência de ativação automática | **Pendente (#1089 / gates institucionais)** |
@@ -73,3 +74,7 @@ Esta matriz é **adendo da candidata em PR**, não revisão retroativa dos E2E h
 ## Adendo de rastreabilidade — 28/10/2026, correção de preflight e vínculo estrutural
 
 Evidência CI no SHA `b79e167`: `jornada-ci`, inventário e instalador SUCCESS; preflight Windows [40659908775](https://github.com/lucianox777/Jornada/actions/runs/40659908775) FAILURE por assinatura antiga no patch TRAIN; schema [40659908716](https://github.com/lucianox777/Jornada/actions/runs/40659908716) FAILURE por hash stale, embora clean/upgrade/flattened tenham produzido SHA idêntico `8fe1db4da72aa420f3741c625270e5a6cd9cee2217ec9f60effbee8466a08a21`. Correções e testes unitários preparados na mesma PR; **não marcar TESTADO/SUCCESS no novo HEAD sem nova CI**. Matriz física positiva DT-10/DT-15, negativos governados, completude da busca e loader REF #1089 seguem PENDENTES.
+
+## Evidência adicional DT-10 — 29/10/2026
+
+No SHA `3017f048`, [preflight LocalDB #40805124598](https://github.com/lucianox777/Jornada/actions/runs/40805124598) executou 1 teste físico, 1 aprovado, 0 falhas, 0 ignorados. [Probe TRAIN 30k #40805124534](https://github.com/lucianox777/Jornada/actions/runs/40805124534) concluiu SUCCESS; isso não prova a matriz governada DT-15 nem as seis corridas físicas de holdout (ignoradas no workflow #40805124555). O cenário de lote misto acima reforça somente a atomicidade do caminho legado quando o motivo de ausência é forjado; não substitui o teste positivo governado, prova de completude da busca, nem a revisão REF #1089. Nenhuma política operacional foi habilitada.
