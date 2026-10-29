@@ -112,6 +112,37 @@ public sealed class ProbabilisticLinkageProgressivePublicationTests
         }));
     }
 
+    [Test]
+    public void Forward_only_no_candidate_migration_guards_both_installed_procedures()
+    {
+        var root = FindSolutionRoot();
+        var migrationName = "20261029_Linkage_NoCandidate_Literal_Guards.sql";
+        var migration = File.ReadAllText(Path.Combine(root, "database", "migrations", migrationName));
+        var manifest = File.ReadAllText(Path.Combine(root, "database", "migrations", "manifest.txt"));
+        var consolidated = File.ReadAllText(Path.Combine(root, "database", "Jornada_Fase1_v3.70.sql"));
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(migration, Does.Contain(
+                "CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage\n"));
+            Assert.That(migration, Does.Contain(
+                "CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote\n"));
+            Assert.That(migration, Does.Contain("@raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%'"));
+            Assert.That(migration, Does.Contain("l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%'"));
+            Assert.That(migration, Does.Not.Contain("N'SEM_CANDIDATO_%'"));
+            Assert.That(migration.Split("THROW 51835", StringSplitOptions.None).Length - 1,
+                Is.EqualTo(2), "Both scalar and batch paths must reject persisted candidates.");
+            Assert.That(migration, Does.Contain("r.melhor_candidato_uuid IS NOT NULL"));
+            Assert.That(migration, Does.Contain("r.segundo_candidato_uuid IS NOT NULL"));
+            Assert.That(migration, Does.Contain("r.pessoa_uuid_resolvido IS NOT NULL"));
+            Assert.That(manifest, Does.Contain("migrations/" + migrationName));
+            Assert.That(consolidated, Does.Contain(":r database/migrations/" + migrationName));
+            Assert.That(manifest.IndexOf(migrationName, StringComparison.Ordinal),
+                Is.GreaterThan(manifest.IndexOf(
+                    "20260926_Linkage_Publicacao_Progressiva_Lote.sql", StringComparison.Ordinal)));
+        }));
+    }
+
     private static string FindSolutionRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
