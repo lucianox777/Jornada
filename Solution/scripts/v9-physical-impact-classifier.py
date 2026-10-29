@@ -43,6 +43,10 @@ GOLD_ONLY_SCRIPTS = frozenset({
 
 def reason_for_safe(path: str) -> str | None:
     """Whitelist, never a negative broad substring filter over V9 files."""
+    # Dependabot scheduling/grouping only changes PR automation, not the
+    # calibrator, SQL schema, fixtures, or physical probe configuration.
+    if path in {".github/dependabot.yml", ".github/dependabot.yaml"}:
+        return "dependabot-metadata"
     if path.startswith("Solution/docs/") and path.lower().endswith((".md", ".txt")):
         return "documentation"
     if path.startswith("Documentos/") and path.lower().endswith(".md"):
