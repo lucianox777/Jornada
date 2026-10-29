@@ -25,8 +25,9 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
         var catalog = new SqlConnectionStringBuilder(_cs).InitialCatalog;
         if (string.IsNullOrWhiteSpace(catalog) ||
             (!catalog.Contains("Test", StringComparison.OrdinalIgnoreCase) &&
-             !catalog.Contains("Dev", StringComparison.OrdinalIgnoreCase)))
-            throw new InvalidOperationException("Physical evidence requires an isolated Test/Dev database.");
+             !catalog.Contains("Dev", StringComparison.OrdinalIgnoreCase) &&
+             !catalog.Equals("JornadaE2E", StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("Physical evidence requires an isolated Test/Dev/JornadaE2E database.");
         await using var connection = new SqlConnection(_cs);
         await connection.OpenAsync();
         var dir = Path.Combine(AppContext.BaseDirectory, "database");
