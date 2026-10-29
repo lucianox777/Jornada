@@ -15,6 +15,7 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
     private string _cs = null!;
     private Model _model = null!;
     private Guid _candidate;
+    private Guid _otherCandidate;
     private IReadOnlyList<Source> _sources = null!;
 
     [OneTimeSetUp]
@@ -63,9 +64,16 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
         }
         await using (var cmd = connection.CreateCommand())
         {
-            cmd.CommandText = "SELECT TOP(1) pessoa_uuid FROM identidade.pessoa ORDER BY pessoa_uuid;";
-            _candidate = (Guid)(await cmd.ExecuteScalarAsync() ??
-                throw new InvalidOperationException("Missing FK-valid synthetic candidate."));
+            cmd.CommandText = "SELECT TOP(2) pessoa_uuid FROM identidade.pessoa ORDER BY pessoa_uuid;";
+            await using var reader = await cmd.ExecuteReaderAsync();
+            if (!await reader.ReadAsync())
+                throw new InvalidOperationException("Missing first FK-valid synthetic candidate.");
+            _candidate = reader.GetGuid(0);
+            if (!await reader.ReadAsync())
+                throw new InvalidOperationException("Missing distinct second FK-valid synthetic candidate.");
+            _otherCandidate = reader.GetGuid(0);
+            if (_candidate == _otherCandidate)
+                throw new InvalidOperationException("Synthetic candidates must be distinct.");
         }
         await using (var cmd = connection.CreateCommand())
         {
@@ -112,7 +120,7 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
     {
         var run = Guid.NewGuid();
         await SeedAsync(run, (_sources[0], "SEM_CANDIDATO_NO_RULESET_BLOCKING",
-            second ? null : _candidate, second ? _candidate : null));
+            second ? _otherCandidate : _candidate, second ? _candidate : null));
         await RejectAndCheckAsync(run, new[] { _sources[0] }, batch, 51835);
     }
 
@@ -225,7 +233,8 @@ public sealed class LinkageNoCandidateLiteralGuardsSqlServerTests
                     resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
                     pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
                 VALUES(@run,@model,@version,@obs,
-                    NULL,@best,0,@second,CASE WHEN @second IS NULL THEN NULL ELSE 0.8 END,NULL,
+                    NULL,@best,CASE WHEN @best IS NULL THEN NULL ELSE 0.9 END,
+                    @second,CASE WHEN @second IS NULL THEN NULL ELSE 0.8 END,NULL,
                     N'NAO_RESOLVIDO',@reason,SYSUTCDATETIME(),
                     N'NOVA_IDENTIDADE',@initial,N'RESOLVIDO',N'NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA',
                     @source,N'LINKAGE_PROGRESSIVE_PUBLICATION_V1',N'RUN_COMPLETO_TESTE',SYSUTCDATETIME());
