@@ -77,17 +77,17 @@ Este adendo é transversal à DT-17 e **não altera** os resultados históricos 
 
 ## Adendo CI-V9-PROBE-01 — evidência pós-merge da #1205 (29/10/2026)
 
-**Estado vigente: INTEGRADO**, sem apagar a matriz de proposta de 28/10 acima. A [#1205](https://github.com/lucianox777/Jornada/pull/1205) foi integrada pelo merge \`b4fdc3f80310eeff9b48a4cf01429f485583e49a\`, após checks no HEAD \`7ca4fcec0ba67741b96b40dd0bcd0e21624ae5c5\`.
+**Estado vigente: INTEGRADO**, sem apagar a matriz de proposta de 28/10 acima. A [#1205](https://github.com/lucianox777/Jornada/pull/1205) foi integrada pelo merge `b4fdc3f80310eeff9b48a4cf01429f485583e49a`, após checks no HEAD `7ca4fcec0ba67741b96b40dd0bcd0e21624ae5c5`.
 
 | Classe de diff / gate | Comportamento exigido pelo classificador integrado | Evidência e limite |
 | --- | --- | --- |
-| Somente \`.github/dependabot.yml\` ou \`.yaml\`, status \`A\`/\`M\` | \`NOT_REQUIRED_FOR_THIS_DIFF\` | Casos unitários presentes; não equivale a TRAIN executado. |
-| Dependabot \`.yml\`/\`.yaml\` **mais** documentação segura, status \`A\`/\`M\` | Composição segura, \`NOT_REQUIRED_FOR_THIS_DIFF\` | \`test_dependabot_metadata_mixed_with_safe_docs_skips_probe\` implementado no HEAD. |
-| Mistura acima com SQL, workflow, FS/TF, calibrador ou caminho desconhecido | \`RUN\` fail-closed | Regressões negativas no script; não dispensar gates físicos. |
-| Diff ausente/truncado ou status \`D\`, \`R\`, \`C\`, \`T\` | \`RUN\` ou rejeição do diff | Cobertura no parser/testes; não interpretar falha de leitura como dispensa. |
-| Alteração do classificador e de seus testes | \`RUN\` | A própria #1205 exigiu TRAIN físico 30k. |
-| Agregador e HEAD de referência | \`SUCCESS\` somente com gates efetivamente exigidos no SHA certo | SKIPPED/CANCELLED não são evidência de execução física. |
+| Somente `.github/dependabot.yml` ou `.yaml`, status `A`/`M` | `NOT_REQUIRED_FOR_THIS_DIFF` | Casos unitários presentes; não equivale a TRAIN executado. |
+| Dependabot `.yml`/`.yaml` **mais** documentação segura, status `A`/`M` | Composição segura, `NOT_REQUIRED_FOR_THIS_DIFF` | `test_dependabot_metadata_mixed_with_safe_docs_skips_probe` implementado no HEAD. |
+| Mistura acima com SQL, workflow, FS/TF, calibrador ou caminho desconhecido | `RUN` fail-closed | Regressões negativas no script; não dispensar gates físicos. |
+| Diff ausente/truncado ou status `D`, `R`, `C`, `T` | `RUN` ou rejeição do diff | Cobertura no parser/testes; não interpretar falha de leitura como dispensa. |
+| Alteração do classificador e de seus testes | `RUN` | A própria #1205 exigiu TRAIN físico 30k. |
+| Agregador e HEAD de referência | `SUCCESS` somente com gates efetivamente exigidos no SHA certo | SKIPPED/CANCELLED não são evidência de execução física. |
 
-**Checks verificados do HEAD da #1205:** [jornada-ci #40895343764](https://github.com/lucianox777/Jornada/actions/runs/40895343764) \`SUCCESS\`; [fast PR #40895343762](https://github.com/lucianox777/Jornada/actions/runs/40895343762) \`SUCCESS\`; [probe #40895343763](https://github.com/lucianox777/Jornada/actions/runs/40895343763) \`SUCCESS\` para classificação, TRAIN e agregador. Não extrapolar esses resultados para um teste operacional de cancelamento seletivo, para a economia de CI ou para SHA posterior.
+**Checks verificados do HEAD da #1205:** [jornada-ci #40895343764](https://github.com/lucianox777/Jornada/actions/runs/40895343764) `SUCCESS`; [fast PR #40895343762](https://github.com/lucianox777/Jornada/actions/runs/40895343762) `SUCCESS`; [probe #40895343763](https://github.com/lucianox777/Jornada/actions/runs/40895343763) `SUCCESS` para classificação, TRAIN e agregador. Não extrapolar esses resultados para um teste operacional de cancelamento seletivo, para a economia de CI ou para SHA posterior.
 
 **PENDENTE:** comparação controlada de tempo/runner-minutes na [#1200](https://github.com/lucianox777/Jornada/issues/1200), prova operacional de cancelamento seletivo, e gates DT-10/DT-15/TEST independente em suas frentes próprias. A V9 continua default OFF, sem aprovação humana nem ativação. A documentação da #1205 foi corrigida em PR posterior ao merge; a divergência histórica não deve ser apagada.
