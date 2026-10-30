@@ -111,7 +111,11 @@ public sealed class FrozenIbgeNominalTfV9
         // geographies: person=SP municipality 3550308/TODOS, mother=BRASIL/FEMININO.
         var prepared = await NominalTermFrequencyReferenceStore.PrepareAsync(
             connection, referenceVersionId, ct);
-        return BindPublished(prepared, code, hash, blockingFrameFingerprint, bootstrap);
+        var surnames = await LoadSurnameEntriesAsync(connection, referenceVersionId, ct);
+        var entries = prepared.Entries.Concat(surnames).ToArray();
+        return BindPublished(new PreparedNominalTermFrequency(
+            NominalTermFrequencySnapshot.Create(entries), entries, referenceVersionId),
+            code, hash, blockingFrameFingerprint, bootstrap);
     }
 
     /// <summary>
@@ -213,6 +217,58 @@ public sealed class FrozenIbgeNominalTfV9
             level == CompositeNominalLevelV9.ExactLast ? NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy : NominalFrequencySourceV9.IbgePublishedMarginal,
             $"IBGE_PUBLISHED:{code}:{sha}:{(side == CompositeNominalTfSideV9.Person ? "SP_3550308_TODOS" : "BR_FEMININO")}",
             blockingFrameFingerprint, 0, false, bootstrap);
+
+    // The published surname marginal counts a surname in any position.
+    // It is only an explicitly labeled proxy for LastContentSurname.
+    private static async Task<IReadOnlyList<NominalTermFrequencyEntry>> LoadSurnameEntriesAsync(
+        SqlConnection connection, long referenceVersionId, CancellationToken ct)
+    {
+        var rows = new List<NominalTermFrequencyEntry>();
+        await using var cmd = new SqlCommand(
+            """
+            WITH names AS (
+              SELECT N'NOME_ULTIMO_SOBRENOME' atributo, valor_normalizado,
+                     SUM(CONVERT(bigint,frequencia)) ocorrencias
+              FROM ref.frequencia_nome
+              WHERE frequencia_nome_versao_id=@ref AND tipo=N'SOBRENOME'
+                AND sexo=N'TODOS' AND periodo_nascimento=N'TODOS'
+                AND escopo_geografico=N'MUNICIPIO'
+                AND uf_codigo='35' AND municipio_codigo='3550308'
+              GROUP BY valor_normalizado
+              UNION ALL
+              SELECT N'NOME_MAE_ULTIMO_SOBRENOME', valor_normalizado,
+                     SUM(CONVERT(bigint,frequencia))
+              FROM ref.frequencia_nome
+              WHERE frequencia_nome_versao_id=@ref AND tipo=N'SOBRENOME'
+                AND sexo=N'TODOS' AND periodo_nascimento=N'TODOS'
+                AND escopo_geografico=N'BRASIL'
+                AND uf_codigo='00' AND municipio_codigo='0000000'
+              GROUP BY valor_normalizado
+            ), totals AS (
+              SELECT atributo, SUM(ocorrencias) populacao
+              FROM names GROUP BY atributo
+            )
+            SELECT n.atributo,n.valor_normalizado,n.ocorrencias,t.populacao
+            FROM names n JOIN totals t ON t.atributo=n.atributo
+            ORDER BY n.atributo,n.valor_normalizado;
+            """, connection);
+        cmd.Parameters.Add("@ref", SqlDbType.BigInt).Value = referenceVersionId;
+        await using var reader = await cmd.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+        {
+            var count = reader.GetInt64(2);
+            var total = reader.GetInt64(3);
+            if (count <= 0 || total <= 0 || count > total)
+                throw new InvalidDataException("Frequência de sobrenome IBGE inválida.");
+            rows.Add(new NominalTermFrequencyEntry(reader.GetString(0),
+                reader.GetString(1), count, total,
+                Math.Round(decimal.Divide(count, total), 12, MidpointRounding.ToEven)));
+        }
+        if (!rows.Any(x => x.Attribute == NominalTermFrequencySnapshot.PersonLastSurnameAttribute)
+            || !rows.Any(x => x.Attribute == NominalTermFrequencySnapshot.MotherLastSurnameAttribute))
+            throw new InvalidOperationException("Marginais de sobrenome IBGE congeladas ausentes.");
+        return rows;
+    }
 
     private static bool IsSha256(string? sha) =>
         sha is { Length: 64 } && sha.All(static c =>
