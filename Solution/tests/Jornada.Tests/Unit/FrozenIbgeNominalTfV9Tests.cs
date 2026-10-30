@@ -214,5 +214,21 @@ public sealed class FrozenIbgeNominalTfV9Tests
             FullPublishedSha, "SQL_BLOCKING_FRAME_PINNED", Bootstrap);
         Assert.That(b.MaterializedFrequencySha256, Is.EqualTo(a.MaterializedFrequencySha256));
         Assert.That(b.ReferenceVersionId, Is.EqualTo(a.ReferenceVersionId));
+
+        // Same published reference identity cannot hide a changed materialized
+        // count/frequency. The snapshot must be rebuilt from the changed rows.
+        var changedRows = original.Entries.Select(x =>
+            x.Attribute == NominalTermFrequencySnapshot.PersonFirstNameAttribute
+                && x.ValueNormalized == "MARIA"
+                ? x with { Occurrences = 61, Frequency = .61m }
+                : x).ToArray();
+        var changed = FrozenIbgeNominalTfV9.BindPublished(
+            new PreparedNominalTermFrequency(
+                NominalTermFrequencySnapshot.Create(changedRows), changedRows,
+                original.ReferenceVersionId),
+            "CENSO2022_NOMES_BRASIL_V1", FullPublishedSha,
+            "SQL_BLOCKING_FRAME_PINNED", Bootstrap);
+        Assert.That(changed.MaterializedFrequencySha256,
+            Is.Not.EqualTo(a.MaterializedFrequencySha256));
     }
 }
