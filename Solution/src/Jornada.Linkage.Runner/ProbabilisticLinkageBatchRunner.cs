@@ -615,6 +615,21 @@ public sealed class ProbabilisticLinkageBatchRunner(
                        WHERE linkage_run_id=@run_id
                          AND motivo=N'LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL')
             THROW 51822,'Limiar inferior experimental recusado fora do harness Gold TRAIN.',1;
+
+        -- A no-candidate label is not evidence of an empty candidate set.
+        -- Reject contradictory persisted evidence BEFORE deriving the
+        -- publication decision or invoking the DT-10 batch procedure.
+        -- This mirrors THROW 51835 in the governed DT-10 candidate (#1199).
+        IF EXISTS(
+            SELECT 1
+            FROM identidade.linkage_resultado r WITH(UPDLOCK,HOLDLOCK)
+            WHERE r.linkage_run_id=@run_id
+              AND r.status=N'NAO_RESOLVIDO'
+              AND r.motivo LIKE N'SEM[_]CANDIDATO[_]%'
+              AND (r.melhor_candidato_uuid IS NOT NULL
+                   OR r.segundo_candidato_uuid IS NOT NULL
+                   OR r.pessoa_uuid_resolvido IS NOT NULL))
+            THROW 51835, 'SEM_CANDIDATO contradiz candidatos persistidos; publicacao recusada.',1;
         DECLARE @politica_publicacao NVARCHAR(120)=N'LINKAGE_PROGRESSIVE_PUBLICATION_V1';
         DECLARE @universo_publicacao NVARCHAR(255)=CONCAT(
             N'LINKAGE_RUN:',CONVERT(NVARCHAR(36),@run_id),
@@ -681,7 +696,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                  WHEN c.estado_progressivo=N'REFERENCIA' AND c.canonical_uuid IS NOT NULL THEN N'ASSOCIACAO_EXISTENTE'
                  WHEN c.raw_status=N'RESOLVIDO' AND c.destino_estabelecido=1 THEN N'ASSOCIACAO_EXISTENTE'
                  WHEN c.raw_status=N'NAO_RESOLVIDO'
-                      AND (c.raw_motivo LIKE N'SEM_CANDIDATO_%' OR (c.raw_motivo=N'LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL' AND @experimental_lower_harness=1))
+                      AND (c.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%' OR (c.raw_motivo=N'LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL' AND @experimental_lower_harness=1))
                       AND c.pessoa_origem_id IS NOT NULL
                       AND c.initial_uuid IS NOT NULL
                       AND c.ultimo_destino_externo_uuid IS NULL THEN N'NOVA_IDENTIDADE'
@@ -693,7 +708,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                  WHEN c.estado_progressivo=N'REFERENCIA' AND c.canonical_uuid IS NOT NULL THEN c.canonical_uuid
                  WHEN c.raw_status=N'RESOLVIDO' AND c.destino_estabelecido=1 THEN c.raw_uuid
                  WHEN c.raw_status=N'NAO_RESOLVIDO'
-                      AND (c.raw_motivo LIKE N'SEM_CANDIDATO_%' OR (c.raw_motivo=N'LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL' AND @experimental_lower_harness=1))
+                      AND (c.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%' OR (c.raw_motivo=N'LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL' AND @experimental_lower_harness=1))
                       AND c.pessoa_origem_id IS NOT NULL
                       AND c.initial_uuid IS NOT NULL
                       AND c.ultimo_destino_externo_uuid IS NULL THEN c.initial_uuid
@@ -706,7 +721,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                  WHEN c.estado_progressivo=N'REFERENCIA' AND c.canonical_uuid IS NOT NULL THEN N'RESOLVIDO'
                  WHEN c.raw_status=N'RESOLVIDO' AND c.destino_estabelecido=1 THEN N'RESOLVIDO'
                  WHEN c.raw_status=N'NAO_RESOLVIDO'
-                      AND (c.raw_motivo LIKE N'SEM_CANDIDATO_%' OR (c.raw_motivo=N'LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL' AND @experimental_lower_harness=1))
+                      AND (c.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%' OR (c.raw_motivo=N'LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL' AND @experimental_lower_harness=1))
                       AND c.pessoa_origem_id IS NOT NULL
                       AND c.initial_uuid IS NOT NULL
                       AND c.ultimo_destino_externo_uuid IS NULL THEN N'RESOLVIDO'
@@ -728,13 +743,13 @@ public sealed class ProbabilisticLinkageBatchRunner(
                     THEN N'ASSOCIACAO_EXISTENTE_LINKAGE'
                  WHEN c.raw_status=N'RESOLVIDO'
                     THEN N'DESTINO_LINKAGE_NAO_ESTABELECIDO'
-                 WHEN c.raw_status=N'NAO_RESOLVIDO' AND c.raw_motivo LIKE N'SEM_CANDIDATO_%'
+                 WHEN c.raw_status=N'NAO_RESOLVIDO' AND c.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%'
                       AND c.pessoa_origem_id IS NULL
                     THEN N'SEM_ORIGEM_PERSISTENTE_PARA_NOVA_IDENTIDADE'
-                 WHEN c.raw_status=N'NAO_RESOLVIDO' AND c.raw_motivo LIKE N'SEM_CANDIDATO_%'
+                 WHEN c.raw_status=N'NAO_RESOLVIDO' AND c.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%'
                       AND c.ultimo_destino_externo_uuid IS NOT NULL
                     THEN N'RECOMPOSICAO_REQUERIDA_ANTES_NOVA_IDENTIDADE'
-                 WHEN c.raw_status=N'NAO_RESOLVIDO' AND c.raw_motivo LIKE N'SEM_CANDIDATO_%'
+                 WHEN c.raw_status=N'NAO_RESOLVIDO' AND c.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%'
                       AND c.pessoa_origem_id IS NOT NULL AND c.initial_uuid IS NOT NULL
                     THEN N'NOVA_IDENTIDADE_APOS_BUSCA_COMPLETA'
                  WHEN c.raw_status=N'NAO_RESOLVIDO' AND c.raw_motivo=N'LIMIAR_INFERIOR_GOLD_TRAIN_EXPERIMENTAL'

@@ -1,0 +1,162 @@
+name: Jornada coding agent - GitHub Models diagnostic
+on:
+  workflow_dispatch:
+    inputs:
+      front:
+        description: 'Development front'
+        type: choice
+        required: true
+        options:
+          - v9
+          - dt10
+permissions:
+  contents: write
+  pull-requests: read
+  checks: read
+  models: read
+concurrency:
+  group: jornada-coding-${{ github.event.inputs.front || 'hourly' }}
+  cancel-in-progress: false
+jobs:
+  develop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - front: v9
+            branch: integration/v9-soft-merge-20261030
+            pr: 1215
+          - front: dt10
+            branch: feat/dt10-v9-governed-lower-policy-20261026
+            pr: 1199
+    steps:
+      - name: Select front
+        id: select
+        env:
+          REQUESTED_FRONT: ${{ inputs.front }}
+          FRONT: ${{ matrix.front }}
+        run: |
+          if [ -n "$REQUESTED_FRONT" ] && [ "$REQUESTED_FRONT" != "$FRONT" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.select.outputs.enabled == 'true'
+        with:
+          ref: ${{ matrix.branch }}
+          fetch-depth: 1
+          persist-credentials: true
+      - uses: actions/setup-dotnet@v4
+        if: steps.select.outputs.enabled == 'true'
+        with:
+          dotnet-version: '9.0.x'
+      - name: GitHub Models coding pass
+        if: steps.select.outputs.enabled == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          FRONT: ${{ matrix.front }}
+          PR: ${{ matrix.pr }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess, urllib.request, urllib.error
+          token=os.environ['GH_TOKEN']
+          front=os.environ['FRONT']
+          pr=os.environ['PR']
+          # Bounded context: only changed source/test files in the active PR.
+          result=subprocess.run(['gh','pr','diff',pr,'--name-only'],capture_output=True,text=True,check=True)
+          paths=[]
+          for line in result.stdout.splitlines():
+              p=pathlib.Path(line)
+              if (str(p).startswith('Solution/src/') or str(p).startswith('Solution/tests/')) and p.suffix=='.cs' and p.is_file() and p.stat().st_size<24000:
+                  paths.append(p)
+              if len(paths)>=4: break
+          if not paths:
+              print('No eligible C# files for bounded correction; no changes made')
+              raise SystemExit(0)
+          context='\n\n'.join(f'FILE: {p}\n{p.read_text(errors="replace")[:16000]}' for p in paths)
+          prompt=('You are correcting a C# Jornada PR. Return ONLY JSON {"path":"one of listed paths","old":"exact existing snippet","new":"replacement snippet"}. '
+                  'Choose a concrete correctness bug with strong evidence; if uncertain return {"path":"","old":"","new":""}. '
+                  'Do not weaken tests, change security gates, introduce TODOs or claim tests passed. '
+                  'Respect frozen V9 adaptive calibration, TF=0 neutrality, pinned IBGE surname any-position proxy, Rank->Resolve; '
+                  'DT10 lower default OFF, conditioned on upper, no false SEM_CANDIDATO.\n'+context)
+          payload=json.dumps({'model':'openai/gpt-4.1','messages':[{'role':'user','content':prompt}],'temperature':0,'max_tokens':1800}).encode()
+          req=urllib.request.Request('https://models.github.ai/inference/chat/completions',data=payload,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/vnd.github+json'},method='POST')
+          try:
+              with urllib.request.urlopen(req,timeout=90) as http:
+                  status=http.status
+                  content_type=http.headers.get('Content-Type','')
+                  raw=http.read(200000)
+          except urllib.error.HTTPError as e:
+              body=e.read(1000).decode('utf-8','replace')
+              print(f'::error::GitHub Models HTTP {e.code}: {body}')
+              raise SystemExit(1)
+          except urllib.error.URLError as e:
+              print(f'::error::GitHub Models transport error: {e.reason}')
+              raise SystemExit(1)
+          if raw.strip() == b'OK':
+              print('::error::GitHub Models endpoint returned plain OK, not an inference response; executor is not authenticated/operational. No code was changed. Check endpoint routing and GitHub Models access before enabling schedules.')
+              raise SystemExit(1)
+          if not raw.strip():
+              print(f'::error::GitHub Models returned empty response (HTTP {status}, type={content_type})')
+              raise SystemExit(1)
+          try:
+              data=json.loads(raw)
+          except json.JSONDecodeError:
+              print(f'::error::GitHub Models non-JSON response (HTTP {status}, type={content_type}, length={len(raw)}, preview={raw[:180]!r})')
+              raise SystemExit(1)
+          if 'error' in data:
+              print(f'::error::GitHub Models error: {str(data["error"])[:400]}')
+              raise SystemExit(1)
+          try:
+              response=data['choices'][0]['message']['content']
+          except (KeyError, IndexError, TypeError):
+              print(f'::error::Unexpected GitHub Models response keys: {list(data)}')
+              raise SystemExit(1)
+          if not isinstance(response,str) or not response.strip():
+              print('::warning::Model returned no correction text; no changes made')
+              raise SystemExit(0)
+          response=response.strip()
+          if response.startswith('```'):
+              response=response.split('\\n',1)[1].rsplit('```',1)[0].strip()
+          try:
+              change=json.loads(response)
+          except json.JSONDecodeError:
+              print('::warning::Model returned invalid JSON patch; no changes made')
+              raise SystemExit(0)
+          if not isinstance(change,dict):
+              print('::warning::Model patch must be an object; no changes made')
+              raise SystemExit(0)
+          allowed={str(p):p for p in paths}
+          target=allowed.get(change.get('path'))
+          old=change.get('old','')
+          new=change.get('new','')
+          if not target or not old or not new or old==new or len(new)>10000:
+              print('No validated proposed correction')
+              raise SystemExit(0)
+          original=target.read_text()
+          if original.count(old)!=1:
+              print('Proposed correction did not match exactly once; rejected')
+              raise SystemExit(0)
+          target.write_text(original.replace(old,new,1))
+          print(f'Proposed correction in {target}')
+          PY
+      - name: Validate and commit bounded correction
+        if: steps.select.outputs.enabled == 'true'
+        env:
+          FRONT: ${{ matrix.front }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then echo 'No correction'; exit 0; fi
+          git diff --check
+          dotnet test Solution/tests/Jornada.Tests/Jornada.Tests.csproj --verbosity quiet --filter 'FullyQualifiedName~Unit'
+          git add -- 'Solution/src/**/*.cs' 'Solution/tests/**/*.cs'
+          if git diff --cached --quiet; then exit 0; fi
+          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "fix($FRONT): verified GitHub Models correction"
+          git push
