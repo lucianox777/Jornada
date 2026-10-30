@@ -74,3 +74,28 @@ A implementação na branch `integration/v9-soft-merge-20261030` passa a exigir 
 **Limite essencial:** `V9FellegiSunterAdaptiveCalibrationAdapter.ExportFrozenSnapshot` continua chamando explicitamente `ExactFirst`, porque o contrato portátil `V9SnapshotFirstNameTf` e `V9TrainSqlFirstNameUCalibration` estimam/consomem apenas a unidade de prenome. O novo export de sobrenomes **não é ativação nem integração operacional**: ainda faltam `u` da unidade `LastContentSurname` condicionado ao blocking TRAIN, esquema portátil compatível, execução Rank→Resolve, avaliação VALIDATION/TEST selada e aprovação DT-15. Nenhuma frequência de sobrenome foi interpretada como observação da última posição; nenhuma métrica de desempenho foi inferida.
 
 Estado desta integração: **IMPLEMENTADO NA BRANCH DA PR #1215**, **NÃO TESTADO NA NOVA HEAD**, **NÃO APROVADO**, **NÃO ATIVADO**. A probe física anterior passou na HEAD `bc24e341`, mas não certifica o código novo; validar os checks e gates na HEAD resultante antes de qualquer merge.
+
+
+## Contrato de operação, calibração e convergência — decisão de 30/10/2026
+
+Esta seção explicita decisões de governança e planejamento; não certifica execução física, nem altera a política operacional.
+
+### Três operações distintas
+
+1. **Solicitar nova calibração:** ato explícito do operador. A decisão de recalibrar não é tomada automaticamente pelo sistema. A solicitação abre o fluxo governado de rascunho e validação; não ativa modelo.
+2. **Descobrir e selecionar parâmetros:** após solicitação autorizada de calibração, o calibrador pesquisa e seleciona automaticamente a configuração segundo métricas, orçamento de falsos vínculos e critérios estatísticos fixados antes da avaliação. Essa seleção técnica não substitui a decisão do operador, a validação selada nem a autorização operacional. Não impor previamente que TF=0, TF=1 ou uma estratégia específica vença.
+3. **Autorizar uso operacional:** ato explícito de governança, com participação do operador, após evidências exigidas, validação e rito DT-15. Aprovar um rascunho ou escolher parâmetros não equivale a ativar. A política inferior DT-10 permanece **default OFF** até autorização formal.
+
+**Exceção delimitada:** bootstrap estatístico não é uma solicitação de recalibração operacional e não segue o rito de autorização de modelo; seus resultados não podem, isoladamente, promover um modelo a produção.
+
+### Rascunho, validação e ativação
+
+Registrar separadamente: quem solicitou a recalibração, identidade dos dados e do snapshot, espaço de busca e critérios pré-declarados, parâmetros selecionados, resultados TRAIN, VALIDATION e TEST selado, decisão do operador e autorização DT-15. Falhas de contrato, proveniência ou gates impedem a promoção (fail-closed). A seleção automática ocorre **dentro** da calibração solicitada, não na decisão de iniciar ou ativar.
+
+### Convergência do desenvolvimento
+
+O gargalo identificado é **dispersão**: calibração exploratória prolongada, PRs paralelos e documentação fragmentada; não se reduz a um problema exclusivamente documental. Congelar a expansão exploratória da V9 e concentrar o trabalho em um candidato identificável, integração, evidências na HEAD exata, TEST inédito selado e gates DT-15. Não abrir nova busca upper × lower antes de decisão explícita de retomada. Uma CI verde, um preview ou uma probe TRAIN não demonstram certificação.
+
+### Entrega consolidada à PRODAM
+
+Preparar especificação única com arquitetura, contratos de dados, APIs, instalação, segurança, operação, recuperação, rastreabilidade, calibração e critérios de aceite, distinguindo **decidido**, **implementado**, **testado**, **aprovado** e **ativado**. SQL local é ambiente de desenvolvimento; SQL Fabric Database é alternativa de banco SQL em homologação e produção, **sem dependência do Fabric Analytics**. A especificação não deve descrever a escolha automática de parâmetros como recalibração automática ou ativação automática.
