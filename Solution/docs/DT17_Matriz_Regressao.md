@@ -78,3 +78,28 @@ Evidência CI no SHA `b79e167`: `jornada-ci`, inventário e instalador SUCCESS; 
 ## Evidência adicional DT-10 — 29/10/2026
 
 No SHA `3017f048`, [preflight LocalDB #40805124598](https://github.com/lucianox777/Jornada/actions/runs/40805124598) executou 1 teste físico, 1 aprovado, 0 falhas, 0 ignorados. [Probe TRAIN 30k #40805124534](https://github.com/lucianox777/Jornada/actions/runs/40805124534) concluiu SUCCESS; isso não prova a matriz governada DT-15 nem as seis corridas físicas de holdout (ignoradas no workflow #40805124555). O cenário de lote misto acima reforça somente a atomicidade do caminho legado quando o motivo de ausência é forjado; não substitui o teste positivo governado, prova de completude da busca, nem a revisão REF #1089. Nenhuma política operacional foi habilitada.
+
+## Adendo CI-V9-PROBE-01 — matriz de impacto da PR #1205 (28/10/2026)
+
+Este adendo é transversal à DT-17 e **não altera** os resultados históricos de identidade/linkage acima. A [PR #1205](https://github.com/lucianox777/Jornada/pull/1205) implementa a proposta de isentar o probe físico somente quando o diff comprovado altera exclusivamente `.github/dependabot.yml`; código e testes estão em `Solution/scripts/v9-physical-impact-classifier.py` e `Solution/tests/scripts/test_v9_physical_impact_classifier.py`. A [ADR](Decisao_CI_Probe_V9_Por_Impacto_20261024.md) descreve as condições de segurança.
+
+| Caso de regressão de classificação | Resultado obrigatório | Estado da evidência |
+| --- | --- | --- |
+| Diff comprovado e exclusivamente `.github/dependabot.yml` | Pode dispensar TRAIN 30k; **não** dispensar CI geral nem agregador obrigatório | **IMPLEMENTADO NA PR / não integrado**; validar teste específico e status no HEAD final. |
+| `.github/dependabot.yml` misturado a SQL, Gold, FS/TF, calibrador, dependências ou outro arquivo | Não aplicar exceção isolada; classificar pelo impacto total, conservadoramente | **GATE EXIGIDO**; conferir regressões negativas no HEAD final. |
+| Diff ausente, parcial, desconhecido ou ambíguo | Fail-closed; não aprovar probe por ausência de evidência | **GATE EXIGIDO**; conferir regressões negativas no HEAD final. |
+| Alteração de workflow, classificador ou dos próprios testes do classificador | Não usar exceção Dependabot; preservar validação física aplicável | **GATE EXIGIDO**; a própria #1205 altera classificador/testes. |
+| Probe cancelado, SKIPPED indevido ou HEAD divergente | Não declarar sucesso físico; agregador deve recusar certificação indevida | **GATE EXIGIDO**; cancelamento não é aprovação. |
+
+**Rastreabilidade de execução:** no HEAD anterior `4e71f14b44e520a1f32f829ce2e501b536e226c7`, `jornada-ci` [40760201313](https://github.com/lucianox777/Jornada/actions/runs/40760201313) e `v9-experimental-fast-pr` [40760201311](https://github.com/lucianox777/Jornada/actions/runs/40760201311) terminaram SUCCESS, mas o probe [40760201315](https://github.com/lucianox777/Jornada/actions/runs/40760201315) estava IN_PROGRESS na consulta. O HEAD `eae8279d5a39800893f6a56cb3df426c09fc9bdb` iniciou `jornada-ci` [40778210984](https://github.com/lucianox777/Jornada/actions/runs/40778210984) **IN_PROGRESS**, fast PR [40778210986](https://github.com/lucianox777/Jornada/actions/runs/40778210986) **SUCCESS** e probe [40778211023](https://github.com/lucianox777/Jornada/actions/runs/40778211023) **PENDING** na consulta. Nenhum deles certifica antecipadamente o próximo commit deste documento.
+
+**Estado:** proposta implementada na PR, documentação em reconciliação, **não aprovada nem integrada**; não há economia medida nem ativação de política V9. Preservar REF/IBGE, FS/TF, DT-10/DT-15, 30k sintéticos e aprovação humana posterior. A evidência deve ser atualizada por novo adendo após a conclusão dos checks do HEAD final, nunca por substituição de registros históricos.
+
+
+## Adendo DT-10 — guarda literal SEM_CANDIDATO, PR #1210 (29/10/2026)
+
+A migration aditiva `20261029_Linkage_NoCandidate_Literal_Guards.sql` redefine as procedures escalar e lote sem editar migrations históricas. `SEM[_]CANDIDATO[_]%` exige underscores literais. `51810` rejeita os quase-prefixos `SEMXCANDIDATO_` e `SEM_CANDIDATOX`; `51835` rejeita ausência alegada com melhor/segundo candidato persistido. A guarda não certifica a completude do blocking.
+
+A matriz de evidência obrigatória é `LinkageNoCandidateLiteralGuardsSqlServerTests` (11 casos físicos SQL, sem skip): quatro quase-prefixos escalar/lote; quatro contradições de candidato; lote misto com zero eventos e estado/versão inalterados; dois cenários de ausência legítima e replay idempotente. Testes estruturais e sucesso do `integration-sql` anterior **não** atestam esses novos casos. A fixture usa apenas SQL Test/Dev isolado/Testcontainers e deve registrar TRX, run/job e SHA exato após inclusão na #1210. A prova foi incorporada ao HEAD da PR #1210 em `7f999ebb9a9039c2e673148c4317ea3636d4428c`, mas permanece **sem resultado físico comprovado** até a execução dos checks no HEAD definitivo. Não usar os resultados do HEAD anterior como certificação.
+
+O ajuste DT-06 de 73 para 74 migrations foi validado no HEAD `e2fb16cb7e5fbec764485eb26cd7cd2f17464fcd` pela CI [40918850891](https://github.com/lucianox777/Jornada/actions/runs/40918850891), mas a prova 30k [40918851020](https://github.com/lucianox777/Jornada/actions/runs/40918851020) ainda estava em andamento na auditoria. Não transportar SUCCESS para um HEAD posterior; SKIPPED não é execução física. A #1199 permanece independente, com autorização DT-15 default OFF.

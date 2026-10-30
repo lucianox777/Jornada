@@ -43,6 +43,10 @@ GOLD_ONLY_SCRIPTS = frozenset({
 
 def reason_for_safe(path: str) -> str | None:
     """Whitelist, never a negative broad substring filter over V9 files."""
+    # Dependabot scheduling/grouping only changes PR automation, not the
+    # calibrator, SQL schema, fixtures, or physical probe configuration.
+    if path in {".github/dependabot.yml", ".github/dependabot.yaml"}:
+        return "dependabot-metadata"
     if path.startswith("Solution/docs/") and path.lower().endswith((".md", ".txt")):
         return "documentation"
     if path.startswith("Documentos/") and path.lower().endswith(".md"):
@@ -57,6 +61,16 @@ def reason_for_safe(path: str) -> str | None:
         return "gold-exclusive-test"
     if path in GOLD_ONLY_SCRIPTS:
         return "gold-exclusive-orchestration"
+    # Tests do not change the production 30k calibrator. Keep helper/source
+    # files without a Tests suffix fail-closed, even under a test project.
+    for root in ("Solution/tests/Jornada.Tests/Unit/", "Solution/tests/Jornada.Integration.Tests/Integration/"):
+        if path.startswith(root) and path.endswith("Tests.cs"):
+            # Explicitly exclude test fixtures that could be shared by the
+            # physical probe; never infer safety from an arbitrary test folder.
+            if not any(part in path for part in ("/Fixtures/", "/Shared/", "/Data/", "/Helpers/")):
+                return "test-only"
+    if path.startswith("Solution/tests/scripts/test_") and path.endswith(".py") and path != "Solution/tests/scripts/test_v9_physical_impact_classifier.py":
+        return "test-only"
     return None
 
 
