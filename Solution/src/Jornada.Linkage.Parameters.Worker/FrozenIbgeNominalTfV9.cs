@@ -10,11 +10,11 @@ using Microsoft.Data.SqlClient;
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
-/// Immutable IBGE first-name marginal snapshot bound to an explicitly pinned,
+/// Immutable IBGE first-name marginal and surname-proxy snapshot bound to an explicitly pinned,
 /// already published SQL reference version. This is a V9 PREVIEW bridge only:
 /// it does not estimate U, a TF weight, a joint surname frequency or an
-/// operational model. Full-name/first-last-joint/last-surname are unsupported
-/// by this FIRST-NAME-only materialization.
+/// operational model. Full-name and first-last-joint frequencies remain unsupported;
+/// surname marginals are explicitly labeled ANY-POSITION proxies for ExactLast.
 /// </summary>
 public sealed class FrozenIbgeNominalTfV9
 {
@@ -149,8 +149,8 @@ public sealed class FrozenIbgeNominalTfV9
         var rebuilt = NominalTermFrequencySnapshot.Create(prepared.Entries);
         if (!Same(rebuilt.PersonFirstNames, prepared.Snapshot.PersonFirstNames)
             || !Same(rebuilt.MotherFirstNames, prepared.Snapshot.MotherFirstNames)
-            || rebuilt.PersonLastSurnameCount != prepared.Snapshot.PersonLastSurnameCount
-            || rebuilt.MotherLastSurnameCount != prepared.Snapshot.MotherLastSurnameCount)
+            || !Same(rebuilt.PersonLastSurnames, prepared.Snapshot.PersonLastSurnames)
+            || !Same(rebuilt.MotherLastSurnames, prepared.Snapshot.MotherLastSurnames))
             throw new InvalidOperationException("Entradas TF divergentes do snapshot materializado.");
         if (rebuilt.PersonFirstNameCount == 0 || rebuilt.MotherFirstNameCount == 0)
             throw new InvalidOperationException("A referência TF exige marginal de prenomes de pessoa e mãe.");
@@ -162,7 +162,7 @@ public sealed class FrozenIbgeNominalTfV9
 
     /// <summary>
     /// Returns null ONLY for explicit disabled TF (weight=0). An unknown name,
-    /// mismatched first token or unsupported level with positive weight FAILS.
+    /// mismatched nominal unit or unsupported level with positive weight FAILS.
     /// Neither U nor the TF weight is guessed from the reference snapshot.
     /// </summary>
     public CompositeNominalTfPreviewV9? CreatePreview(
@@ -183,7 +183,7 @@ public sealed class FrozenIbgeNominalTfV9
             return null; // neutral Bayes factor 1 by explicit model choice
         if (level is not (CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactLast))
             throw new InvalidOperationException(
-                "Snapshot IBGE de prenomes não estima TF integral, primeiro+último ou último sobrenome.");
+                "Marginais IBGE não estimam TF integral ou conjunto primeiro+último.");
         if (unitReferenceU <= 0m || unitReferenceU > 1m
             || minimumFrequency < 0m || minimumFrequency > 1m
             || minimumIndependentSupport <= 0)
@@ -191,7 +191,7 @@ public sealed class FrozenIbgeNominalTfV9
         var value = level == CompositeNominalLevelV9.ExactFirst ? FirstNameV9(leftName) : BrazilianNameComponents.Project(leftName)?.LastContentSurname;
         var other = level == CompositeNominalLevelV9.ExactFirst ? FirstNameV9(rightName) : BrazilianNameComponents.Project(rightName)?.LastContentSurname;
         if (value is null || !string.Equals(value, other, StringComparison.Ordinal))
-            throw new InvalidOperationException("TF V9 exige igualdade da unidade de primeiro nome.");
+            throw new InvalidOperationException("TF V9 exige igualdade da unidade nominal comparada.");
         var domain = level == CompositeNominalLevelV9.ExactFirst
             ? (side == CompositeNominalTfSideV9.Person ? personFirst : motherFirst)
             : (side == CompositeNominalTfSideV9.Person ? personLast : motherLast);
