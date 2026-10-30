@@ -29,7 +29,9 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Regression tests for fail-closed path classification
-        run: python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_*probe*.py'
+        run: |
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_physical_impact_classifier.py
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_manual_probe_evidence.py
       - name: Classify complete PR merge diff (manual dispatch always runs)
         id: classify
         shell: bash
