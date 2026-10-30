@@ -62,6 +62,14 @@ public sealed class NominalTermFrequencySnapshot
             .Select(static x => new NominalTermFrequencyValue(x.Key, x.Value))
             .ToArray();
 
+    public IReadOnlyList<NominalTermFrequencyValue> PersonLastSurnames =>
+        personLast.OrderBy(static x => x.Key, StringComparer.Ordinal)
+            .Select(static x => new NominalTermFrequencyValue(x.Key, x.Value)).ToArray();
+
+    public IReadOnlyList<NominalTermFrequencyValue> MotherLastSurnames =>
+        motherLast.OrderBy(static x => x.Key, StringComparer.Ordinal)
+            .Select(static x => new NominalTermFrequencyValue(x.Key, x.Value)).ToArray();
+
     public static NominalTermFrequencySnapshot Create(IEnumerable<NominalTermFrequencyEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
