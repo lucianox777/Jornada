@@ -65,8 +65,9 @@ jobs:
   physical-30k:
     name: V9 full physical 30k SQL TRAIN (when impacted)
     needs: impact
-    if: needs.impact.outputs.run_physical_30k == 'true'
+    if: github.event_name == 'workflow_dispatch' && needs.impact.outputs.run_physical_30k == 'true'
     runs-on: ubuntu-latest
+    # PO: full 30k only on explicit final dispatch; PR preflight remains fail-closed.
     # Full adaptive batches now survive the old all-cell veto and execute 20
     # complete latency replays per feasible candidate; preserve every gate.
     timeout-minutes: 360
@@ -199,6 +200,7 @@ jobs:
           IMPACT_RESULT: ${{ needs.impact.result }}
           REQUIRES_PHYSICAL: ${{ needs.impact.outputs.run_physical_30k }}
           PHYSICAL_RESULT: ${{ needs.physical-30k.result }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           if [[ "$IMPACT_RESULT" != "success" ]]; then
@@ -207,7 +209,8 @@ jobs:
           fi
           if [[ "$REQUIRES_PHYSICAL" == "true" ]]; then
             test "$PHYSICAL_RESULT" = "success" || {
-              echo "Required V9 30k physical probe failed or was not run: $PHYSICAL_RESULT" >&2
+              echo "DEFERRED_NOT_CERTIFIED: required V9 30k not approved on this SHA (event=$EVENT_NAME, result=$PHYSICAL_RESULT)." >&2
+                echo "DEFERRED_NOT_CERTIFIED: required physical probe was not successful; merge blocked." >> "$GITHUB_STEP_SUMMARY"
               exit 1
             }
             echo "PASS: the real SQL physical V9 TRAIN 30k probe completed."
