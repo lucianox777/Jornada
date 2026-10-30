@@ -41,6 +41,21 @@ class ManualEvidenceTests(unittest.TestCase):
                 return {"jobs": jobs} if "/runs/7/jobs" in url else {"workflow_runs": [good]}
             self.assertFalse(module.check("owner/repo", SHA, "token", fetch))
 
+    def test_pagination_finds_evidence_beyond_first_page(self):
+        wrong = {"event": "workflow_dispatch", "head_sha": "b" * 40, "status": "completed", "conclusion": "success", "id": 3}
+        good = {**wrong, "head_sha": SHA, "id": 7}
+        physical = {"name": module.PHYSICAL_JOB, "status": "completed", "conclusion": "success"}
+        seen = []
+        def fetch(url, token):
+            seen.append(url)
+            if "/runs/7/jobs" in url:
+                return {"jobs": [physical]}
+            if "page=2" in url:
+                return {"workflow_runs": [good]}
+            return {"workflow_runs": [wrong] * 100}
+        self.assertTrue(module.check("owner/repo", SHA, "token", fetch))
+        self.assertTrue(any("page=2" in url for url in seen))
+
     def test_invalid_sha_fails_closed(self):
         with self.assertRaises(ValueError):
             module.check("owner/repo", "not-a-sha", "token", lambda url, token: {})
