@@ -282,4 +282,29 @@ public sealed class FrozenIbgeNominalTfV9Tests
             Throws.InvalidDataException);
     }
 
+
+    [Test]
+    public void Surname_export_fails_closed_when_proxy_marginal_is_missing_without_disabling_first_name()
+    {
+        var prepared = Prepared();
+        var firstNamesOnly = prepared.Entries.Where(x =>
+            x.Attribute is NominalTermFrequencySnapshot.PersonFirstNameAttribute
+                or NominalTermFrequencySnapshot.MotherFirstNameAttribute).ToArray();
+        var frozen = FrozenIbgeNominalTfV9.BindPublished(
+            new PreparedNominalTermFrequency(
+                NominalTermFrequencySnapshot.Create(firstNamesOnly),
+                firstNamesOnly, prepared.ReferenceVersionId),
+            "CENSO2022_NOMES_BRASIL_V1", FullPublishedSha,
+            "SQL_BLOCKING_FRAME_PINNED", Bootstrap);
+
+        Assert.That(frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFirst)
+            .Frequencies.ContainsKey("MARIA"), Is.True);
+        Assert.That((Action)(() => frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactLast)),
+            Throws.TypeOf<InvalidDataException>());
+    }
 }
