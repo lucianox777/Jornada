@@ -52,7 +52,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         if: steps.select.outputs.enabled == 'true'
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
       - name: GitHub Models coding pass
         if: steps.select.outputs.enabled == 'true'
         env:
@@ -73,7 +73,7 @@ jobs:
           paths=[]
           for line in result.stdout.splitlines():
               p=pathlib.Path(line)
-              if (str(p).startswith('Solution/src/') or str(p).startswith('Solution/tests/')) and p.suffix=='.cs' and p.is_file() and p.stat().st_size<24000:
+              if str(p).startswith('Solution/src/') and p.suffix=='.cs' and p.is_file() and p.stat().st_size<24000:
                   paths.append(p)
               if len(paths)>=4: break
           if not paths:
@@ -82,7 +82,7 @@ jobs:
           context='\n\n'.join(f'FILE: {p}\n{p.read_text(errors="replace")[:16000]}' for p in paths)
           prompt=('You are correcting a C# Jornada PR. Return ONLY JSON {"path":"one of listed paths","old":"exact existing snippet","new":"replacement snippet"}. '
                   'Choose a concrete correctness bug with strong evidence; if uncertain return {"path":"","old":"","new":""}. '
-                  'Do not weaken tests, change security gates, introduce TODOs or claim tests passed. '
+                  'Edit one existing production C# file only, never tests, schemas, migrations, authentication, audit or CI. Do not weaken gates, introduce TODOs or claim tests passed. '
                   'Respect frozen V9 adaptive calibration, TF=0 neutrality, pinned IBGE surname any-position proxy, Rank->Resolve; '
                   'DT10 lower default OFF, conditioned on upper, no false SEM_CANDIDATO.\n'+context)
           payload=json.dumps({'model':'openai/gpt-4.1','messages':[{'role':'user','content':prompt}],'temperature':0,'max_tokens':1800}).encode()
@@ -123,7 +123,11 @@ jobs:
               raise SystemExit(0)
           response=response.strip()
           if response.startswith('```'):
-              response=response.split('\\n',1)[1].rsplit('```',1)[0].strip()
+              fenced=response.splitlines()
+              if len(fenced)<3 or fenced[-1].strip()!='```':
+                  print('::warning::Malformed fenced model patch; no changes made')
+                  raise SystemExit(0)
+              response='\n'.join(fenced[1:-1]).strip()
           try:
               change=json.loads(response)
           except json.JSONDecodeError:
@@ -133,9 +137,13 @@ jobs:
               print('::warning::Model patch must be an object; no changes made')
               raise SystemExit(0)
           allowed={str(p):p for p in paths}
-          target=allowed.get(change.get('path'))
-          old=change.get('old','')
-          new=change.get('new','')
+          patch_path=change.get('path')
+          old=change.get('old')
+          new=change.get('new')
+          if (not isinstance(patch_path,str) or not isinstance(old,str) or not isinstance(new,str)):
+              print('::warning::Invalid patch field types; no changes made')
+              raise SystemExit(0)
+          target=allowed.get(patch_path)
           if not target or not old or not new or old==new or len(new)>10000:
               print('No validated proposed correction')
               raise SystemExit(0)
@@ -154,9 +162,34 @@ jobs:
         run: |
           set -euo pipefail
           if git diff --quiet; then echo 'No correction'; exit 0; fi
+          CHANGED_FILE="$(git diff --name-only)"
+          if [ "$(printf '%s\n' "$CHANGED_FILE" | wc -l)" -ne 1 ]; then
+            echo "::error::Coding agent must change exactly one tracked source file"
+            exit 1
+          fi
+          case "$CHANGED_FILE" in
+            Solution/src/*.cs) ;;
+            *) echo "::error::Coding agent changed an unauthorized path"; exit 1 ;;
+          esac
           git diff --check
-          dotnet test Solution/tests/Jornada.Tests/Jornada.Tests.csproj --verbosity quiet --filter 'FullyQualifiedName~Unit'
-          git add -- 'Solution/src/**/*.cs' 'Solution/tests/**/*.cs'
-          if git diff --cached --quiet; then exit 0; fi
+          RESULTS_DIR="$RUNNER_TEMP/jornada-coding-agent-tests"
+          mkdir -p "$RESULTS_DIR"
+          dotnet test Solution/tests/Jornada.Tests/Jornada.Tests.csproj --configuration Release -warnaserror --verbosity quiet --filter 'FullyQualifiedName~Unit' --logger 'trx;LogFileName=coding-agent.trx' --results-directory "$RESULTS_DIR"
+          RESULTS_DIR="$RESULTS_DIR" python3 - <<'PY'
+          import os, pathlib, xml.etree.ElementTree as ET
+          files=list(pathlib.Path(os.environ['RESULTS_DIR']).glob('*.trx'))
+          if len(files)!=1:
+              raise SystemExit('Expected exactly one NUnit/TRX test result')
+          root=ET.parse(files[0]).getroot()
+          counters=root.find('.//{*}Counters')
+          if counters is None:
+              raise SystemExit('Missing TRX counters; rejecting unverified correction')
+          total=int(counters.attrib.get('total',0))
+          failed=int(counters.attrib.get('failed',0))
+          if total<1 or failed!=0:
+              raise SystemExit(f'Invalid test gate: total={total}, failed={failed}')
+          print(f'PASS: {total} real Unit tests, {failed} failures')
+          PY
+          git add -- "$CHANGED_FILE"
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "fix($FRONT): verified GitHub Models correction"
           git push
