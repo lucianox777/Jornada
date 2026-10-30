@@ -333,7 +333,7 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
                             segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
                             resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
                             pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
-                        VALUES(@run,@model,@version,@newer,NULL,NULL,NULL,NULL,NULL,NULL,
+                        VALUES(@run,@model,@version,@newer,NULL,NULL,CONVERT(DECIMAL(9,6),0),NULL,NULL,NULL,
                             N'NAO_RESOLVIDO',N'SEM_CANDIDATO_NO_RULESET_BLOCKING',
                             SYSUTCDATETIME(),N'NOVA_IDENTIDADE',@initial,N'RESOLVIDO',
                             N'NOVA_IDENTIDADE_LIMIAR_INFERIOR_V9_GOVERNADO',@source,
