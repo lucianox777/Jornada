@@ -119,7 +119,11 @@ jobs:
               raise SystemExit(0)
           response=response.strip()
           if response.startswith('```'):
-              response=response.split('\\n',1)[1].rsplit('```',1)[0].strip()
+              lines=response.splitlines()
+              if len(lines)<3 or not lines[-1].strip().startswith('```'):
+                  print('::warning::Malformed fenced model response; no changes made')
+                  raise SystemExit(0)
+              response='\n'.join(lines[1:-1]).strip()
           try:
               change=json.loads(response)
           except json.JSONDecodeError:
