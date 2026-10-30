@@ -65,7 +65,10 @@ jobs:
   physical-30k:
     name: V9 full physical 30k SQL TRAIN (when impacted)
     needs: impact
-    if: needs.impact.outputs.run_physical_30k == 'true'
+    # Heavy 30k is an explicit final gate, never a per-commit PR job.
+    # PRs still run the lightweight impact classifier and archive its decision.
+    # Dispatch this workflow at the exact reviewed head SHA for final evidence.
+    if: github.event_name == 'workflow_dispatch' && needs.impact.outputs.run_physical_30k == 'true'
     runs-on: ubuntu-latest
     # Full adaptive batches now survive the old all-cell veto and execute 20
     # complete latency replays per feasible candidate; preserve every gate.
