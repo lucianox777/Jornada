@@ -230,5 +230,20 @@ public sealed class FrozenIbgeNominalTfV9Tests
             "SQL_BLOCKING_FRAME_PINNED", Bootstrap);
         Assert.That(changed.MaterializedFrequencySha256,
             Is.Not.EqualTo(a.MaterializedFrequencySha256));
+
+        // The digest must bind surname-proxy materialization too, not just first names.
+        var surnameChangedRows = original.Entries.Select(x =>
+            x.Attribute == NominalTermFrequencySnapshot.MotherLastSurnameAttribute
+                && x.ValueNormalized == "SOUZA"
+                ? x with { Occurrences = 21, Frequency = .21m }
+                : x).ToArray();
+        var surnameChanged = FrozenIbgeNominalTfV9.BindPublished(
+            new PreparedNominalTermFrequency(
+                NominalTermFrequencySnapshot.Create(surnameChangedRows),
+                surnameChangedRows, original.ReferenceVersionId),
+            "CENSO2022_NOMES_BRASIL_V1", FullPublishedSha,
+            "SQL_BLOCKING_FRAME_PINNED", Bootstrap);
+        Assert.That(surnameChanged.MaterializedFrequencySha256,
+            Is.Not.EqualTo(a.MaterializedFrequencySha256));
     }
 }
