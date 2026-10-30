@@ -23,9 +23,6 @@ on:
           - apply
 permissions:
   contents: read
-  pull-requests: read
-  checks: read
-  models: read
 concurrency:
   group: jornada-coding-${{ github.event.inputs.front || 'hourly' }}
   cancel-in-progress: false
