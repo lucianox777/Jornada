@@ -31,15 +31,31 @@ public sealed class FrozenIbgeNominalTfV9
 
     // Exports the exact pinned values, not a fresh SQL lookup or an ATIVA
     // reference. The portable artifact digest binds these values with TRAIN U.
-    internal (NominalFrequencyReferenceContractV9 Reference,
+    /// <summary>
+    /// Exports a pinned marginal for one explicit nominal unit. ExactLast is
+    /// an IBGE ANY-POSITION surname proxy for LastContentSurname, not an
+    /// observed last-position distribution. Export alone does NOT fit TRAIN U,
+    /// enable this unit in the portable runtime, or authorize activation.
+    /// </summary>
+    public (NominalFrequencyReferenceContractV9 Reference,
         IReadOnlyDictionary<string, decimal> Frequencies) ExportForSnapshot(
-        CompositeNominalTfSideV9 side)
+        CompositeNominalTfSideV9 side, CompositeNominalLevelV9 level)
     {
         if (!Enum.IsDefined(side))
             throw new InvalidDataException("Lado TF do snapshot desconhecido.");
-        var values = side == CompositeNominalTfSideV9.Person ? personFirst : motherFirst;
+        var values = (side, level) switch
+        {
+            (CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFirst) => personFirst,
+            (CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactFirst) => motherFirst,
+            (CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast) => personLast,
+            (CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactLast) => motherLast,
+            _ => throw new InvalidDataException(
+                "Exportação de marginal IBGE exige ExactFirst ou ExactLast; não há frequência conjunta.")
+        };
+        if (values.Count == 0)
+            throw new InvalidDataException("Marginal IBGE fixada ausente; exportação fail-closed.");
         return (MakeReference(side, ReferenceCode, PublishedReferenceSha256,
-                BlockingFrameFingerprint, Bootstrap),
+                BlockingFrameFingerprint, Bootstrap, level),
             new System.Collections.ObjectModel.ReadOnlyDictionary<string, decimal>(
                 values.ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal)));
     }
