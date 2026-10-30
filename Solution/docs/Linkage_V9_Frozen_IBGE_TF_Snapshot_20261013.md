@@ -33,3 +33,21 @@ Recortes imutáveis por versão publicada: pessoa, São Paulo município 3550308
 ExactFirst utiliza a marginal de prenome; ExactLast utiliza o proxy de sobrenome. ExactFull e ExactFirstLast não podem receber uma marginal simples nem o produto de marginais como frequência conjunta. Frequência ausente ou suprimida não equivale a zero. TF=0 é neutralização explícita; TF positivo exige frequência publicada, unidade compatível e referência congelada. O peso TF é escolhido pelo calibrador V9, sem preferência fixa, com avaliação final Rank e Resolve, recall e orçamento de falsos vínculos em VALIDATION e TEST selado antes de ativação.
 
 Os testes devem verificar a decisão acima, inclusive os dois recortes e a origem proxy, sem exigir que TF=0 ou TF=1 vença antecipadamente. A implementação na PR #1215 ainda exige confirmação de compilação, uso pelo coordenador e gates do mesmo SHA; não se deve declarar a CI aprovada nem efetuar merge com base em revisão anterior.
+
+
+## Correção de identidade do frame materno — PR #1215 (30/10/2026)
+
+O commit `ea98edec7f35b92dfd2cdeba962f97b59d59562f` corrigiu a montagem de `NominalFrequencyReferenceContractV9.PopulationFrameFingerprint` em `FrozenIbgeNominalTfV9.MakeReference`: o nível `ExactLast` da mãe agora é identificado como `BR_TODOS`, em consonância com a consulta SQL de sobrenomes `tipo=SOBRENOME, sexo=TODOS, escopo=BRASIL`. Antes da correção, esse caminho usava indevidamente o rótulo `BR_FEMININO` de prenomes maternos, mesmo lendo sobrenomes `TODOS`.
+
+A matriz canônica de recortes, fixada pelo ID/SHA-256 da versão publicada, é:
+
+| Lado | Nível nominal | Marginal IBGE | Frame declarado |
+| --- | --- | --- | --- |
+| Pessoa | `ExactFirst` | Prenome, município São Paulo 3550308, TODOS | `SP_3550308_TODOS` |
+| Pessoa | `ExactLast` | Sobrenome em qualquer posição, município São Paulo 3550308, TODOS | `SP_3550308_TODOS` |
+| Mãe | `ExactFirst` | Prenome, Brasil, FEMININO | `BR_FEMININO` |
+| Mãe | `ExactLast` | Sobrenome em qualquer posição, Brasil, TODOS | `BR_TODOS` |
+
+`ExactLast` continua sendo uma **projeção do último sobrenome significativo**, cuja frequência é aproximada pela marginal IBGE **em qualquer posição**; o rótulo `BR_TODOS` não converte esse proxy em observação da última posição. O código não deve somar marginais como se fossem distribuição conjunta nem tratar frequências suprimidas como zero. `TF=0` continua neutro por escolha explícita do modelo; `TF>0` exige referência e unidade válidas.
+
+O teste `Frozen_surname_proxy_uses_last_content_surname_and_distinct_ibge_frames` verifica explicitamente `BR_TODOS` para a mãe e `SP_3550308_TODOS` para a pessoa. A presença desse teste **não comprova sua execução**: compilação, CI e gates da HEAD exata da PR #1215 devem ser consultados antes de merge. A correção altera a identidade declarada do frame, não os dados SQL, o bootstrap sintético, a calibração ou a ativação do modelo.
