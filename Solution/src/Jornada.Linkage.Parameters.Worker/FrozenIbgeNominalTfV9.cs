@@ -107,8 +107,8 @@ public sealed class FrozenIbgeNominalTfV9
                 throw new InvalidOperationException("Identidade de versão IBGE ambígua.");
         }
 
-        // The SQL store already constrains the two different reference
-        // geographies: person=SP municipality 3550308/TODOS, mother=BRASIL/FEMININO.
+        // First names: person=SP municipality 3550308/TODOS, mother=BRASIL/FEMININO.
+        // Surname proxies: person=SP municipality 3550308/TODOS, mother=BRASIL/TODOS.
         var prepared = await NominalTermFrequencyReferenceStore.PrepareAsync(
             connection, referenceVersionId, ct);
         var surnames = await LoadSurnameEntriesAsync(connection, referenceVersionId, ct);
@@ -223,6 +223,33 @@ public sealed class FrozenIbgeNominalTfV9
     private static async Task<IReadOnlyList<NominalTermFrequencyEntry>> LoadSurnameEntriesAsync(
         SqlConnection connection, long referenceVersionId, CancellationToken ct)
     {
+        // First-name coverage does not establish surname coverage. Both source
+        // frames must be explicitly published in the same pinned reference.
+        await using (var coverage = new SqlCommand(
+            """
+            SELECT
+                COALESCE(MAX(CASE WHEN tipo=N'SOBRENOME'
+                    AND escopo_geografico=N'MUNICIPIO'
+                    AND cobertura IN(N'PARCIAL',N'COMPLETA')
+                    AND ausencia_semantica=N'NAO_PUBLICADA_OU_SUPRIMIDA'
+                    THEN 1 ELSE 0 END),0),
+                COALESCE(MAX(CASE WHEN tipo=N'SOBRENOME'
+                    AND escopo_geografico=N'BRASIL'
+                    AND cobertura=N'COMPLETA'
+                    AND ausencia_semantica=N'NAO_PUBLICADA_OU_SUPRIMIDA'
+                    THEN 1 ELSE 0 END),0)
+            FROM ref.frequencia_nome_cobertura
+            WHERE frequencia_nome_versao_id=@ref;
+            """, connection))
+        {
+            coverage.Parameters.Add("@ref", SqlDbType.BigInt).Value = referenceVersionId;
+            await using var reader = await coverage.ExecuteReaderAsync(ct);
+            if (!await reader.ReadAsync(ct)
+                || reader.GetInt32(0) != 1 || reader.GetInt32(1) != 1)
+                throw new InvalidOperationException(
+                    "TF V9 exige cobertura publicada de SOBRENOME municipal e Brasil completo na versão IBGE fixada.");
+        }
+
         var rows = new List<NominalTermFrequencyEntry>();
         await using var cmd = new SqlCommand(
             """
