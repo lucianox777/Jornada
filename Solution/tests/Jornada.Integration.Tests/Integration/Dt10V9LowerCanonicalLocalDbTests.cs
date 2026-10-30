@@ -48,15 +48,32 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
                 "The test must NEVER initialize or modify an unowned database.");
         }
 
-        // Physical fail-closed check of the DT06 verifier on this explicitly
-        // owned disposable LocalDB. A trigger that merely EXISTS but is
-        // disabled must not certify the append-only DT-15 contract. Always
-        // restore the trigger, including when the assertion fails.
+        // This harness provisions only the canonical DT-10 subset, not the
+        // complete 75-migration baseline. Exercise the *actual* DT06 trigger
+        // predicate without invoking its unrelated full-install ledger gate.
+        // The complete DT06 verifier is covered by the schema-install CI.
         var dt06Verifier = Path.Combine(AppContext.BaseDirectory, "database",
             "tests", "DT06_Verificar_Schema_370.sql");
         Assert.That(File.Exists(dt06Verifier), Is.True,
-            "The installed read-only DT06 verifier must be available in the harness.");
-        await SqlBatchRunner.ExecuteFileAsync(connection, dt06Verifier);
+            "The read-only DT06 verifier must be available in the harness.");
+        var verifierText = await File.ReadAllTextAsync(dt06Verifier);
+        var triggerGuardStart = verifierText.LastIndexOf("IF EXISTS(", StringComparison.Ordinal);
+        var verifierSuccessStart = verifierText.IndexOf("SELECT N'DT06_VERIFY_OK'", StringComparison.Ordinal);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(triggerGuardStart, Is.GreaterThanOrEqualTo(0));
+            Assert.That(verifierSuccessStart, Is.GreaterThan(triggerGuardStart));
+        }));
+        var triggerGuard = verifierText[triggerGuardStart..verifierSuccessStart];
+        Assert.That(triggerGuard, Does.Contain("t.is_disabled=1"));
+        Assert.That(triggerGuard, Does.Contain("THROW 51374"));
+        async Task VerifyAppendOnlyTriggerAsync()
+        {
+            await using var check = connection.CreateCommand();
+            check.CommandText = triggerGuard;
+            await check.ExecuteNonQueryAsync();
+        }
+        await VerifyAppendOnlyTriggerAsync();
         try
         {
             await using (var disable = connection.CreateCommand())
@@ -64,12 +81,9 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
                 disable.CommandText = "DISABLE TRIGGER auditoria.tr_v9_dt10_lower_policy_autorizacao_append_only ON auditoria.v9_dt10_lower_policy_autorizacao;";
                 await disable.ExecuteNonQueryAsync();
             }
-            var rejected = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
-            {
-                await SqlBatchRunner.ExecuteFileAsync(connection, dt06Verifier);
-            }));
+            var rejected = Assert.ThrowsAsync<SqlException>((Func<Task>)VerifyAppendOnlyTriggerAsync);
             Assert.That(rejected!.Number, Is.EqualTo(51374),
-                "DT06 must reject a disabled DT-15 append-only trigger, not just a missing trigger.");
+                "DT06 must reject a disabled DT-15 append-only trigger.");
         }
         finally
         {
@@ -77,7 +91,7 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             enable.CommandText = "ENABLE TRIGGER auditoria.tr_v9_dt10_lower_policy_autorizacao_append_only ON auditoria.v9_dt10_lower_policy_autorizacao;";
             await enable.ExecuteNonQueryAsync();
         }
-        await SqlBatchRunner.ExecuteFileAsync(connection, dt06Verifier);
+        await VerifyAppendOnlyTriggerAsync();
 
         // The migration must never pre-authorize a policy. A model ACTIVATE
         // record alone cannot authorize lower-band publication.
