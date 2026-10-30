@@ -1,0 +1,22 @@
+name: Jornada coding agent - GitHub connectivity
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  github-auth-smoke-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Verify built-in GitHub token and repository access
+        run: |
+          set -euo pipefail
+          gh auth status
+          gh api "repos/$GH_REPO" --jq '{full_name,default_branch,private}'
+          gh api "repos/$GH_REPO/pulls/1215" --jq '{number,state,head:.head.ref}'
+          gh api "repos/$GH_REPO/pulls/1199" --jq '{number,state,head:.head.ref}'
+          echo "GitHub access verified. No OpenAI API credential used."
