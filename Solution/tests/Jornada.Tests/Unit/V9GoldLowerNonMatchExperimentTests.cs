@@ -72,7 +72,7 @@ public sealed class V9GoldLowerNonMatchExperimentTests
     {
         var canonical =
             "CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote AS BEGIN " +
-            "IF l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%' THROW 51810,'blocked',1; END";
+            "IF l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%' THROW 51810,'blocked',1; END";
         var patched = V9GoldDisposableLowerProcedurePatch.Apply(canonical);
         // SQL Server 17 LocalDB OBJECT_DEFINITION normalization was measured
         // physically in run #40132062400: ' CREATE   PROCEDURE ...'.
@@ -90,7 +90,7 @@ public sealed class V9GoldLowerNonMatchExperimentTests
             Assert.That(patched, Does.Contain("SERVERPROPERTY(N'IsLocalDB')"));
             Assert.That(patched, Does.Contain("Jornada.V9.ExperimentalHarness"));
             Assert.That(patched, Does.Contain(V9GoldLowerNonMatchExperiment.PublicationReason));
-            Assert.That(patched, Does.Contain("l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'"));
+            Assert.That(patched, Does.Contain("l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%'"));
         });
         Reject<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(patched));
         Reject<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
@@ -101,7 +101,7 @@ public sealed class V9GoldLowerNonMatchExperimentTests
             normalized.Replace("identidade.sp_publicar_resolucao_progressiva_linkage_lote",
                 "identidade.sp_other_unknown_procedure", StringComparison.Ordinal)));
         Reject<InvalidDataException>(() => V9GoldDisposableLowerProcedurePatch.Apply(
-            canonical.Replace("THROW", "OR l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%' THROW",
+            canonical.Replace("THROW", "OR l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%' THROW",
                 StringComparison.Ordinal)));
     }
 
@@ -117,7 +117,7 @@ public sealed class V9GoldLowerNonMatchExperimentTests
             Assert.That(sql, Does.Contain("THROW 51822"));
             Assert.That(sql, Does.Contain(V9GoldLowerNonMatchExperiment.PublicationReason));
             Assert.That(sql, Does.Contain("N'NOVA_IDENTIDADE_LIMIAR_INFERIOR_TRAIN'"));
-            Assert.That(sql, Does.Contain("c.raw_motivo LIKE N'SEM_CANDIDATO_%'"));
+            Assert.That(sql, Does.Contain("c.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%'"));
             Assert.That(sql, Does.Contain("c.ultimo_destino_externo_uuid IS NULL"));
         });
     }
