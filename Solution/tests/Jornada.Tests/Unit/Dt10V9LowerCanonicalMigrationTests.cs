@@ -251,6 +251,9 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
             Assert.That(verifier, Does.Contain("sys.default_constraints"));
             Assert.That(verifier, Does.Contain("c.name=N'habilitada'"));
             Assert.That(verifier, Does.Contain("THROW 51373"));
+            Assert.That(verifier, Does.Contain("FROM sys.triggers t"));
+            Assert.That(verifier, Does.Contain("t.is_disabled=1"));
+            Assert.That(verifier, Does.Contain("THROW 51374"));
         }));
     }
 
