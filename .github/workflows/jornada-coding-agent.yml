@@ -1,5 +1,9 @@
 name: Jornada coding agent - GitHub Models diagnostic
 on:
+  pull_request:
+    paths:
+      - '.github/workflows/jornada-coding-agent.yml'
+      - 'Solution/tests/scripts/test_coding_agent_workflow.py'
   workflow_dispatch:
     inputs:
       front:
@@ -10,7 +14,7 @@ on:
           - v9
           - dt10
 permissions:
-  contents: write
+  contents: read
   pull-requests: read
   checks: read
   models: read
@@ -18,7 +22,21 @@ concurrency:
   group: jornada-coding-${{ github.event.inputs.front || 'hourly' }}
   cancel-in-progress: false
 jobs:
+  selftest:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Hermetic coding-agent regression checks (no inference, no push)
+        run: python3 -m unittest -v Solution/tests/scripts/test_coding_agent_workflow.py
   develop:
+    if: github.event_name == 'workflow_dispatch'
+    permissions:
+      contents: write
+      pull-requests: read
+      checks: read
+      models: read
     runs-on: ubuntu-latest
     timeout-minutes: 35
     strategy:
