@@ -243,9 +243,9 @@ public sealed class FrozenIbgeNominalTfV9
             """, connection))
         {
             coverage.Parameters.Add("@ref", SqlDbType.BigInt).Value = referenceVersionId;
-            await using var reader = await coverage.ExecuteReaderAsync(ct);
-            if (!await reader.ReadAsync(ct)
-                || reader.GetInt32(0) != 1 || reader.GetInt32(1) != 1)
+            await using var coverageReader = await coverage.ExecuteReaderAsync(ct);
+            if (!await coverageReader.ReadAsync(ct)
+                || coverageReader.GetInt32(0) != 1 || coverageReader.GetInt32(1) != 1)
                 throw new InvalidOperationException(
                     "TF V9 exige cobertura publicada de SOBRENOME municipal e Brasil completo na versão IBGE fixada.");
         }
