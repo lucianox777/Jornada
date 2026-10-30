@@ -202,6 +202,7 @@ jobs:
           IMPACT_RESULT: ${{ needs.impact.result }}
           REQUIRES_PHYSICAL: ${{ needs.impact.outputs.run_physical_30k }}
           PHYSICAL_RESULT: ${{ needs.physical-30k.result }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           if [[ "$IMPACT_RESULT" != "success" ]]; then
@@ -209,6 +210,11 @@ jobs:
             exit 1
           fi
           if [[ "$REQUIRES_PHYSICAL" == "true" ]]; then
+            if [[ "$EVENT_NAME" == "pull_request" && "$PHYSICAL_RESULT" == "skipped" ]]; then
+              echo "DEFERRED_NOT_CERTIFIED: 30k is required for final acceptance; dispatch on reviewed SHA." >> "$GITHUB_STEP_SUMMARY"
+              echo "DEFERRED_NOT_CERTIFIED: PR preflight only; no physical 30k evidence."
+              exit 0
+            fi
             test "$PHYSICAL_RESULT" = "success" || {
               echo "Required V9 30k physical probe failed or was not run: $PHYSICAL_RESULT" >&2
               exit 1
