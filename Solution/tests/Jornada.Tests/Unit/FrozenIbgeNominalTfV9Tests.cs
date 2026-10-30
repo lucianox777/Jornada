@@ -19,7 +19,9 @@ public sealed class FrozenIbgeNominalTfV9Tests
             new NominalTermFrequencyEntry("NOME_PRENOME", "MARIA", 60, 100, .60m),
             new NominalTermFrequencyEntry("NOME_PRENOME", "ZULEICA", 5, 100, .05m),
             new NominalTermFrequencyEntry("NOME_MAE_PRENOME", "ANA", 30, 100, .30m),
-            new NominalTermFrequencyEntry("NOME_MAE_PRENOME", "EVA", 10, 100, .10m)
+            new NominalTermFrequencyEntry("NOME_MAE_PRENOME", "EVA", 10, 100, .10m),
+            new NominalTermFrequencyEntry("NOME_ULTIMO_SOBRENOME", "SILVA", 40, 100, .40m),
+            new NominalTermFrequencyEntry("NOME_MAE_ULTIMO_SOBRENOME", "SOUZA", 20, 100, .20m)
         };
         return new PreparedNominalTermFrequency(
             NominalTermFrequencySnapshot.Create(rows), rows, 9123);
@@ -110,6 +112,35 @@ public sealed class FrozenIbgeNominalTfV9Tests
             Assert.That(mother.Reference.PopulationFrameFingerprint, Does.Not.Contain("SP_3550308_TODOS"));
             Assert.That(mother.Reference.Unit, Is.EqualTo(NominalFrequencyUnitV9.FirstName));
         }));
+    }
+
+    [Test]
+    public void Frozen_surname_proxy_uses_last_content_surname_and_distinct_ibge_frames()
+    {
+        var frozen = Bound();
+        var person = frozen.CreatePreview(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast,
+            "Maria da Silva", "Ana Silva", .10m, .5m, .00001m, 100)!;
+        var mother = frozen.CreatePreview(
+            CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactLast,
+            "Ana de Souza", "Eva Souza", .10m, 1m, .00001m, 100)!;
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(person.TermFrequency, Is.EqualTo(.40m));
+            Assert.That(mother.TermFrequency, Is.EqualTo(.20m));
+            Assert.That(person.Reference.Unit, Is.EqualTo(NominalFrequencyUnitV9.LastContentSurname));
+            Assert.That(person.Reference.Source, Is.EqualTo(NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy));
+            Assert.That(mother.Reference.Source, Is.EqualTo(NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy));
+            Assert.That(person.Reference.PopulationFrameFingerprint, Does.Contain("SP_3550308_TODOS"));
+            Assert.That(mother.Reference.PopulationFrameFingerprint, Does.Contain("BR_TODOS"));
+        }));
+        Assert.That(frozen.CreatePreview(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast,
+            "Nome ausente", "Nome ausente", .10m, 0m, .00001m, 100), Is.Null);
+        Assert.That((Action)(() => frozen.CreatePreview(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast,
+            "Maria Lima", "Ana Lima", .10m, 1m, .00001m, 100)),
+            Throws.InvalidOperationException);
     }
 
     [Test]
