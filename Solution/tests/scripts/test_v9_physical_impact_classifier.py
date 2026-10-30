@@ -12,7 +12,9 @@ spec.loader.exec_module(m)
 class V9PhysicalImpactTests(unittest.TestCase):
     def test_policy_only_bootstrap(self):
         paths = sorted(m.CI_POLICY_ONLY)
-        self.assertFalse(m.classify([("M", p) for p in paths])["run_physical_30k"])
+        self.assertFalse(m.classify([("M", p) for p in paths], bootstrap_pr="1222")["run_physical_30k"])
+        self.assertTrue(m.classify([("M", p) for p in paths])["run_physical_30k"])
+        self.assertTrue(m.classify([("M", p) for p in paths], bootstrap_pr="1223")["run_physical_30k"])
         self.assertTrue(m.classify([("M", paths[0]), ("M", "Solution/database/schema.sql")])["run_physical_30k"])
         self.assertTrue(m.classify([("D", paths[0])])["run_physical_30k"])
         self.assertTrue(m.classify([("M", paths[0])], manual=True)["run_physical_30k"])
@@ -25,7 +27,7 @@ class V9PhysicalImpactTests(unittest.TestCase):
                 self.assertFalse(self.changes(path))
                 self.assertFalse(m.classify([("A", path)])["run_physical_30k"])
                 self.assertTrue(m.classify([("D", path)])["run_physical_30k"])
-        self.assertFalse(self.changes(".github/workflows/v9-physical-seed42-probe.yml"))
+        self.assertTrue(self.changes(".github/workflows/v9-physical-seed42-probe.yml"))
         self.assertTrue(self.changes(".github/dependabot.yml", "Solution/database/Jornada_Fase1_v3.70.sql"))
 
     def test_dependabot_metadata_mixed_with_safe_docs_skips_probe(self):
@@ -120,7 +122,7 @@ class V9PhysicalImpactTests(unittest.TestCase):
         self.assertTrue(self.changes("Solution/tests/Jornada.Integration.Tests/Integration/TestAsserts.cs"))
         self.assertTrue(self.changes("Solution/tests/Jornada.Integration.Tests/Fixtures/PhysicalProbeTests.cs"))
         self.assertTrue(self.changes("Solution/tests/Jornada.Tests/Shared/SharedProbeTests.cs"))
-        self.assertFalse(self.changes("Solution/tests/scripts/test_v9_physical_impact_classifier.py"))
+        self.assertTrue(self.changes("Solution/tests/scripts/test_v9_physical_impact_classifier.py"))
 
     def test_mixed_gold_and_worker_requires(self):
         self.assertTrue(self.changes(
