@@ -236,6 +236,25 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
     }
 
     [Test]
+    public void Dt06_verifier_fails_closed_when_dt10_governed_contract_is_missing()
+    {
+        var verifier = File.ReadAllText(Path.Combine(Root(), "Solution", "database",
+            "tests", "DT06_Verificar_Schema_370.sql"));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(verifier, Does.Contain("OBJECT_ID(N'identidade.v9_dt10_lower_policy',N'U')"));
+            Assert.That(verifier, Does.Contain("OBJECT_ID(N'auditoria.v9_dt10_lower_policy_autorizacao',N'U')"));
+            Assert.That(verifier, Does.Contain("OBJECT_ID(N'auditoria.tr_v9_dt10_lower_policy_autorizacao_append_only',N'TR')"));
+            Assert.That(verifier, Does.Contain("OBJECT_ID(N'auditoria.sp_autorizar_v9_dt10_lower_policy',N'P')"));
+            Assert.That(verifier, Does.Contain("COL_LENGTH(N'identidade.v9_dt10_lower_policy',N'fit_fingerprint')"));
+            Assert.That(verifier, Does.Contain("COL_LENGTH(N'identidade.v9_dt10_lower_policy',N'snapshot_sha256')"));
+            Assert.That(verifier, Does.Contain("sys.default_constraints"));
+            Assert.That(verifier, Does.Contain("c.name=N'habilitada'"));
+            Assert.That(verifier, Does.Contain("THROW 51373"));
+        }));
+    }
+
+    [Test]
     public void Heavy_v9_30k_is_explicit_dispatch_only_while_pr_impact_preflight_remains()
     {
         var workflow = File.ReadAllText(Path.Combine(Root(), ".github", "workflows",
