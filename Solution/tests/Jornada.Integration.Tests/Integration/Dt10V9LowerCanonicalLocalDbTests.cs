@@ -259,6 +259,87 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             Assert.That(await CountEventsAsync(connection, forged), Is.Zero);
         }
 
+        // Origin-wide physical regression: the older observation has a real
+        // candidate, while the newest leader claims SEM_CANDIDATO. The gate
+        // must inspect every observation of this origin, not just its leader.
+        // The disposable fixture must provide two observations of one source;
+        // absence is explicitly reported as an untested scenario, not success.
+        await using (var sibling = connection.CreateCommand())
+        {
+            sibling.CommandText = """
+                SELECT TOP(1) older.pessoa_observacao_id, newer.pessoa_observacao_id,
+                       older.pessoa_origem_id, p.initial_uuid
+                FROM silver.pessoa_observacao older
+                JOIN silver.pessoa_observacao newer
+                  ON newer.pessoa_origem_id=older.pessoa_origem_id
+                 AND newer.versao_interna>older.versao_interna
+                JOIN silver.pessoa_origem o
+                  ON o.pessoa_origem_id=older.pessoa_origem_id
+                JOIN identidade.pessoa_origem_progressiva p
+                  ON p.pessoa_origem_id=older.pessoa_origem_id
+                WHERE o.codigo_pessoa_origem LIKE N'SCALE-%'
+                  AND older.cpf IS NULL AND newer.cpf IS NULL
+                  AND p.estado=N'PROVISORIA'
+                ORDER BY newer.versao_interna DESC;
+                """;
+            await using var reader = await sibling.ExecuteReaderAsync();
+            if (await reader.ReadAsync())
+            {
+                var olderId = reader.GetInt64(0);
+                var newerId = reader.GetInt64(1);
+                var siblingSource = reader.GetInt64(2);
+                var siblingInitial = reader.GetGuid(3);
+                await reader.CloseAsync();
+                var siblingRun = Guid.NewGuid();
+                await SeedRunAsync(connection, siblingRun, model, version, siblingSource,
+                    olderId, siblingInitial, "SEM_CANDIDATO_NO_RULESET_BLOCKING",
+                    bestCandidate: existingCandidate);
+                await using (var appendSibling = connection.CreateCommand())
+                {
+                    appendSibling.CommandText = """
+                        UPDATE identidade.linkage_run
+                        SET limite_solicitado=2,registros_elegiveis=2,avaliados=2,
+                            nao_resolvidos=2,
+                            pessoa_observacao_id_high_watermark=
+                                CASE WHEN pessoa_observacao_id_high_watermark<@newer
+                                     THEN @newer ELSE pessoa_observacao_id_high_watermark END
+                        WHERE linkage_run_id=@run;
+                        INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
+                            VALUES(@run,@newer);
+                        INSERT identidade.linkage_resultado(
+                            linkage_run_id,modelo_id,modelo_versao,pessoa_observacao_id,
+                            pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,
+                            segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
+                            resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
+                            pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
+                        VALUES(@run,@model,@version,@newer,NULL,NULL,NULL,NULL,NULL,NULL,
+                            N'NAO_RESOLVIDO',N'SEM_CANDIDATO_NO_RULESET_BLOCKING',
+                            SYSUTCDATETIME(),N'NOVA_IDENTIDADE',@initial,N'RESOLVIDO',
+                            N'NOVA_IDENTIDADE_LIMIAR_INFERIOR_V9_GOVERNADO',@source,
+                            N'V9_DT10_LOWER_TEST_DISABLED',N'RUN_COMPLETO_DT10',SYSUTCDATETIME());
+                        """;
+                    appendSibling.Parameters.AddWithValue("@run", siblingRun);
+                    appendSibling.Parameters.AddWithValue("@model", model);
+                    appendSibling.Parameters.AddWithValue("@version", version);
+                    appendSibling.Parameters.AddWithValue("@newer", newerId);
+                    appendSibling.Parameters.AddWithValue("@initial", siblingInitial);
+                    appendSibling.Parameters.AddWithValue("@source", siblingSource);
+                    await appendSibling.ExecuteNonQueryAsync();
+                }
+                Assert.That(await TryPublishAsync(connection, siblingRun), Is.EqualTo(51835),
+                    "Older sibling candidate must block the newer no-candidate leader.");
+                Assert.That(await CountEventsAsync(connection, siblingRun), Is.Zero);
+                Assert.That(await ReadRunStatusAsync(connection, siblingRun), Is.EqualTo("EXECUTANDO"));
+                Assert.That(await TryPublishAsync(connection, siblingRun), Is.EqualTo(51835));
+                Assert.That(await CountEventsAsync(connection, siblingRun), Is.Zero);
+            }
+            else
+            {
+                TestContext.Progress.WriteLine(
+                    "DT10 origin-wide physical scenario NOT COVERED: disposable fixture has no two-version SCALE source.");
+            }
+        }
+
         // Mixed-batch atomicity: one valid legacy no-candidate observation
         // must NOT be committed if a second source in the SAME run forges
         // absence despite a persisted candidate. A one-row rejection alone
