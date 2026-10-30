@@ -60,7 +60,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, os, pathlib, subprocess, urllib.request, urllib.error
+          import difflib, json, os, pathlib, subprocess, urllib.request, urllib.error
           token=os.environ['GH_TOKEN']
           front=os.environ['FRONT']
           pr=os.environ['PR']
@@ -139,18 +139,32 @@ jobs:
           if original.count(old)!=1:
               print('Proposed correction did not match exactly once; rejected')
               raise SystemExit(0)
-          target.write_text(original.replace(old,new,1))
-          print(f'Proposed correction in {target}')
+          proposed=original.replace(old,new,1)
+          patch=''.join(difflib.unified_diff(
+              original.splitlines(keepends=True), proposed.splitlines(keepends=True),
+              fromfile=f'a/{target}', tofile=f'b/{target}', n=3))
+          if not patch:
+              raise SystemExit('::error::Could not generate a non-empty proposed patch')
+          pathlib.Path('proposed-correction.patch').write_text(patch)
+          print(f'Generated proposal only for {target}; no source file modified')
           PY
       - name: Diagnostic diff only (never push)
         if: steps.select.outputs.enabled == 'true'
         shell: bash
         run: |
           set -euo pipefail
-          git diff --check
-          git diff --stat
-          git diff --no-ext-diff > proposed-correction.patch
-          echo 'Diagnostic only: no commit, push, or automatic application to the PR branch.'
+          if [ -s proposed-correction.patch ]; then
+            git apply --check -- proposed-correction.patch
+            sha256sum proposed-correction.patch
+            echo 'Proposal generated and git apply --check succeeded (dry run; not applied).'
+          else
+            echo 'No correction proposed.'
+          fi
+          if [ -n "$(git status --porcelain -- Solution/src Solution/tests)" ]; then
+            echo '::error::Diagnostic agent modified source/tests unexpectedly'
+            exit 1
+          fi
+          echo 'Diagnostic only: no source changes, apply, commit, or push.'
       - uses: actions/upload-artifact@v4
         if: steps.select.outputs.enabled == 'true'
         with:
