@@ -99,3 +99,10 @@ O gargalo identificado é **dispersão**: calibração exploratória prolongada,
 ### Entrega consolidada à PRODAM
 
 Preparar especificação única com arquitetura, contratos de dados, APIs, instalação, segurança, operação, recuperação, rastreabilidade, calibração e critérios de aceite, distinguindo **decidido**, **implementado**, **testado**, **aprovado** e **ativado**. SQL local é ambiente de desenvolvimento; SQL Fabric Database é alternativa de banco SQL em homologação e produção, **sem dependência do Fabric Analytics**. A especificação não deve descrever a escolha automática de parâmetros como recalibração automática ou ativação automática.
+
+
+### Consistência da unidade de prenome (correção preparada, ainda não integrada)
+
+O contrato `ExactFirst`, a estimação de U dos pares SQL TRAIN e o lookup da frequência IBGE congelada devem usar **a mesma projeção de prenome**. A projeção `BrazilianNameComponents` reconhece título prefixal apenas quando aplicável; o título permanece no nome integral, mas não substitui o prenome na unidade auxiliar. Foi encontrada uma divergência: `NominalTermFrequencySnapshot.TryGetFirstToken` usava o primeiro token bruto, enquanto o classificador, o calibrador de U e o preview já removiam o título prefixal reconhecido. A correção preparada alinha o lookup ao mesmo método de projeção e acrescenta regressão para pessoa e mãe. Não altera frequências publicadas, pesos, limiares, o corpus ou a ativação.
+
+**Estado:** PROPOSTO/CÓDIGO PREPARADO em `prep/v9-first-token-consistency-20261030`; NÃO INTEGRADO à #1215, NÃO TESTADO em CI, NÃO APROVADO e NÃO ATIVADO. A integração aguarda a conclusão da probe física que executa na HEAD `5dcacc6971457d3a43d0d97804caa0c192ed4982`, para não cancelá-la. Após integrar, verificar novamente o SHA e os gates obrigatórios; não inferir validação do teste apenas por sua presença.
