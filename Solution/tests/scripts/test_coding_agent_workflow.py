@@ -37,6 +37,16 @@ def embedded_python_blocks():
 
 
 class CodingAgentWorkflowTests(unittest.TestCase):
+    def setUp(self):
+        self.saved_mode = os.environ.get('MODE')
+        os.environ['MODE'] = 'apply'
+
+    def tearDown(self):
+        if self.saved_mode is None:
+            os.environ.pop('MODE', None)
+        else:
+            os.environ['MODE'] = self.saved_mode
+
     @classmethod
     def setUpClass(cls):
         cls.workflow = WORKFLOW.read_text(encoding="utf-8")
@@ -57,6 +67,8 @@ class CodingAgentWorkflowTests(unittest.TestCase):
         self.assertIn("if: github.event_name == 'pull_request'", self.workflow)
         self.assertIn("if: github.event_name == 'workflow_dispatch'", self.workflow)
         self.assertIn("dotnet-version: '10.0.x'", self.workflow)
+        self.assertIn("default: diagnostic", self.workflow)
+        self.assertIn("MODE: ${{ inputs.mode }}", self.workflow)
         self.assertIn("contents: read", self.workflow)
         self.assertIn("contents: write", self.workflow)
         self.assertIn("if str(p).startswith('Solution/src/')", self.workflow)
@@ -68,7 +80,7 @@ class CodingAgentWorkflowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             target = Path(temporary) / "safe.cs"
             target.write_text(initial, encoding="utf-8")
-            variables = {"json": json, "pathlib": __import__("pathlib"),
+            variables = {"json": json, "os": os, "pathlib": __import__("pathlib"),
                          "paths": [target], "response": response}
             try:
                 exec(compile(self.patch_fragment, str(WORKFLOW), "exec"), variables)
@@ -92,10 +104,23 @@ class CodingAgentWorkflowTests(unittest.TestCase):
                 if fenced:
                     payload = "&#96;&#96;&#96;json\n" + payload + "\n&#96;&#96;&#96;"
                 payload = payload.replace("&#96;", "\x60")
-                scope = {"json": json, "pathlib": __import__("pathlib"),
+                scope = {"json": json, "os": os, "pathlib": __import__("pathlib"),
                          "paths": [target], "response": payload}
                 exec(compile(self.patch_fragment, str(WORKFLOW), "exec"), scope)
                 self.assertEqual(target.read_text(encoding="utf-8"), "B")
+
+    def test_diagnostic_mode_validates_proposal_without_modifying_source(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            target = Path(temporary) / 'safe.cs'
+            target.write_text('A', encoding='utf-8')
+            os.environ['MODE'] = 'diagnostic'
+            payload = self.proposal(target, 'A', 'B')
+            with self.assertRaises(SystemExit) as result:
+                exec(compile(self.patch_fragment, str(WORKFLOW), 'exec'),
+                     {'json': json, 'os': os, 'pathlib': __import__('pathlib'),
+                      'paths': [target], 'response': payload})
+            self.assertEqual(result.exception.code, 0)
+            self.assertEqual(target.read_text(encoding='utf-8'), 'A')
 
     def test_patch_rejects_invalid_types_unapproved_path_and_nonunique_old(self):
         for payload, source in (
@@ -115,7 +140,7 @@ class CodingAgentWorkflowTests(unittest.TestCase):
             payload = self.proposal(target, "A", "B")
             with self.assertRaises(SystemExit) as result:
                 exec(compile(self.patch_fragment, str(WORKFLOW), "exec"),
-                     {"json": json, "pathlib": __import__("pathlib"),
+                     {"json": json, "os": os, "pathlib": __import__("pathlib"),
                       "paths": [target], "response": payload})
             self.assertEqual(result.exception.code, 0)
             self.assertEqual(target.read_text(encoding="utf-8"), "A A")
@@ -140,14 +165,22 @@ class CodingAgentWorkflowTests(unittest.TestCase):
                     os.environ["RESULTS_DIR"] = old
 
     def test_trx_gate_requires_nonempty_successful_tests(self):
-        def trx(total, failed):
+        def trx(total, passed, failed, executed=None, errors=0, timeouts=0, aborted=0):
+            if executed is None:
+                executed = passed + failed
             return (f'<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">'
-                    f'<ResultSummary><Counters total="{total}" failed="{failed}" />'
+                    f'<ResultSummary><Counters total="{total}" executed="{executed}" '
+                    f'passed="{passed}" failed="{failed}" error="{errors}" '
+                    f'timeout="{timeouts}" aborted="{aborted}" />'
                     '</ResultSummary></TestRun>')
-        self.assertTrue(self.execute_trx_gate(trx(5, 0)))
+        self.assertTrue(self.execute_trx_gate(trx(5, 5, 0)))
         self.assertFalse(self.execute_trx_gate(None))
-        self.assertFalse(self.execute_trx_gate(trx(0, 0)))
-        self.assertFalse(self.execute_trx_gate(trx(5, 1)))
+        self.assertFalse(self.execute_trx_gate(trx(0, 0, 0)))
+        self.assertFalse(self.execute_trx_gate(trx(5, 0, 0, executed=0)))
+        self.assertFalse(self.execute_trx_gate(trx(5, 4, 1)))
+        self.assertFalse(self.execute_trx_gate(trx(5, 4, 0, errors=1)))
+        self.assertFalse(self.execute_trx_gate(trx(5, 4, 0, timeouts=1)))
+        self.assertFalse(self.execute_trx_gate(trx(5, 4, 0, aborted=1)))
         self.assertFalse(self.execute_trx_gate('<TestRun />'))
 
 

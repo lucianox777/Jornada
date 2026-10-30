@@ -13,6 +13,14 @@ on:
         options:
           - v9
           - dt10
+      mode:
+        description: 'Diagnostic validates the GitHub Models response without writing; apply writes only after test gates'
+        type: choice
+        required: true
+        default: diagnostic
+        options:
+          - diagnostic
+          - apply
 permissions:
   contents: read
   pull-requests: read
@@ -78,6 +86,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           FRONT: ${{ matrix.front }}
           PR: ${{ matrix.pr }}
+          MODE: ${{ inputs.mode }}
         shell: bash
         run: |
           set -euo pipefail
@@ -169,6 +178,13 @@ jobs:
           if original.count(old)!=1:
               print('Proposed correction did not match exactly once; rejected')
               raise SystemExit(0)
+          mode=os.environ.get('MODE', 'diagnostic')
+          if mode not in ('diagnostic', 'apply'):
+              print('::error::Unrecognized coding-agent mode; refusing patch')
+              raise SystemExit(1)
+          if mode == 'diagnostic':
+              print(f'MODEL_DIAGNOSTIC_VALID_PATCH path={target} exact_match=1; no file changed')
+              raise SystemExit(0)
           target.write_text(original.replace(old,new,1))
           print(f'Proposed correction in {target}')
           PY
@@ -203,10 +219,15 @@ jobs:
           if counters is None:
               raise SystemExit('Missing TRX counters; rejecting unverified correction')
           total=int(counters.attrib.get('total',0))
+          executed=int(counters.attrib.get('executed',0))
+          passed=int(counters.attrib.get('passed',0))
           failed=int(counters.attrib.get('failed',0))
-          if total<1 or failed!=0:
-              raise SystemExit(f'Invalid test gate: total={total}, failed={failed}')
-          print(f'PASS: {total} real Unit tests, {failed} failures')
+          errors=int(counters.attrib.get('error',0))
+          timeouts=int(counters.attrib.get('timeout',0))
+          aborted=int(counters.attrib.get('aborted',0))
+          if total<1 or executed<1 or passed<1 or failed or errors or timeouts or aborted:
+              raise SystemExit(f'Invalid TRX gate: total={total}, executed={executed}, passed={passed}, failed={failed}, error={errors}, timeout={timeouts}, aborted={aborted}')
+          print(f'PASS: {passed} executed Unit tests, 0 failures/errors/timeouts')
           PY
           git add -- "$CHANGED_FILE"
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "fix($FRONT): verified GitHub Models correction"
