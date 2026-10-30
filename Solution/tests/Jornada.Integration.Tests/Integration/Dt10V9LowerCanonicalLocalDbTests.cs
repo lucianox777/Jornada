@@ -477,7 +477,7 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
               segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
               resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
               pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
-            VALUES(@run,@model,@version,@obs,NULL,@best,0,@second,
+            VALUES(@run,@model,@version,@obs,NULL,@best,CONVERT(DECIMAL(9,6),0),@second,
               CASE WHEN @second IS NULL THEN NULL ELSE 0 END,NULL,N'NAO_RESOLVIDO',
               @reason,SYSUTCDATETIME(),N'NOVA_IDENTIDADE',@initial,N'RESOLVIDO',
               N'NOVA_IDENTIDADE_LIMIAR_INFERIOR_V9_GOVERNADO',@source,
