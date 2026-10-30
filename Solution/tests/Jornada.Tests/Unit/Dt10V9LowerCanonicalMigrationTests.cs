@@ -154,4 +154,44 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
         }));
     }
 
+
+    [Test]
+    public void Governed_batch_must_be_last_redefinition_after_literal_no_candidate_hardening()
+    {
+        var database = Path.Combine(Root(), "Solution", "database");
+        var manifest = File.ReadAllText(Path.Combine(database, "migrations", "manifest.txt"));
+        var installer = File.ReadAllText(Path.Combine(database, "Jornada_Fase1_v3.70.sql"));
+        const string hardened = "20261029_Linkage_NoCandidate_Literal_Guards.sql";
+        const string governed = "DT10_V9_Lower_Governed_Off.sql";
+        var hardenedFile = Path.Combine(database, "migrations", hardened);
+        var hardenedInManifest = manifest.IndexOf(hardened, StringComparison.Ordinal);
+        var governedInManifest = manifest.IndexOf(governed, StringComparison.Ordinal);
+        var hardenedInInstaller = installer.IndexOf(hardened, StringComparison.Ordinal);
+        var governedInInstaller = installer.IndexOf(governed, StringComparison.Ordinal);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(governedInManifest, Is.GreaterThanOrEqualTo(0));
+            Assert.That(governedInInstaller, Is.GreaterThanOrEqualTo(0));
+            // Once #1210 is reconciled, neither clean installs nor upgrades
+            // may silently overwrite the governed V9 publisher with the older
+            // hardened pre-V9 publisher. Keep both orders identical.
+            if (File.Exists(hardenedFile))
+            {
+                Assert.That(hardenedInManifest, Is.GreaterThanOrEqualTo(0),
+                    "A present security migration cannot be omitted from upgrade order.");
+                Assert.That(hardenedInInstaller, Is.GreaterThanOrEqualTo(0),
+                    "A present security migration cannot be omitted from clean installs.");
+            }
+            if (hardenedInManifest >= 0 || hardenedInInstaller >= 0)
+            {
+                Assert.That(hardenedInManifest, Is.GreaterThanOrEqualTo(0));
+                Assert.That(hardenedInInstaller, Is.GreaterThanOrEqualTo(0));
+                Assert.That(governedInManifest, Is.GreaterThan(hardenedInManifest),
+                    "V9 must be the final batch procedure redefinition on upgrades.");
+                Assert.That(governedInInstaller, Is.GreaterThan(hardenedInInstaller),
+                    "V9 must be the final batch procedure redefinition on clean installs.");
+            }
+        }));
+    }
 }
