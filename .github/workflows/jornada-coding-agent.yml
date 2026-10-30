@@ -1,4 +1,4 @@
-name: Jornada autonomous coding - GitHub Models
+name: Jornada coding agent - GitHub Models diagnostic
 on:
   workflow_dispatch:
     inputs:
@@ -9,8 +9,6 @@ on:
         options:
           - v9
           - dt10
-  schedule:
-    - cron: '41 * * * *'
 permissions:
   contents: write
   pull-requests: read
@@ -100,6 +98,9 @@ jobs:
               raise SystemExit(1)
           except urllib.error.URLError as e:
               print(f'::error::GitHub Models transport error: {e.reason}')
+              raise SystemExit(1)
+          if raw.strip() == b'OK':
+              print('::error::GitHub Models endpoint returned plain OK, not an inference response; executor is not authenticated/operational. No code was changed. Check endpoint routing and GitHub Models access before enabling schedules.')
               raise SystemExit(1)
           if not raw.strip():
               print(f'::error::GitHub Models returned empty response (HTTP {status}, type={content_type})')
