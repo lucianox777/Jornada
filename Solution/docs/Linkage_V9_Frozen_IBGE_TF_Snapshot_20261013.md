@@ -22,3 +22,14 @@ O retorno `null` com `weight=0` tem sentido **único e intencional de BF=1**, se
 O caminho SQL `LoadAsync` é o único que **confere** status/digest contra a versão publicada em `ref`. O caminho puro `BindPublished` só combina dados **já autenticados**; ele pode receber entradas artificiais em testes e **não certifica** a procedência por si. A hash materializada não equivale a validação populacional, e metadados `SINTETICO_IBGE` não provam amostragem real.
 
 **Escopo estritamente PREVIEW/read-only:** o caminho de `GENERATE_DRAFT`, pesos V8, Rank/Resolve, VALIDATE/ACTIVATE, tabelas de modelos, referências IBGE publicadas e `JornadaLocal` não foram alterados. A PR não promete vinculação operacional V9 completa. Para avançar são necessários integração explícita com calibração/score V9 congelado, `u` dos passes de blocking SQL reais, holdout comparável V8×V9 e DT-15. A matriz 30 mil da PR #993 mede somente suporte M/U em seleção proxy; não autoriza afirmar suficiência.
+
+
+## Decisão vigente: proxy de sobrenome congelado (30/10/2026)
+
+O IBGE publica frequência de sobrenomes independentemente da posição. Portanto, a marginal SOBRENOME/TODOS é somente um proxy inicial para o último sobrenome significativo, nunca frequência observada dessa posição. A coleta pode registrar somente o último sobrenome quando não for possível registrar todos. A extração V9 utiliza BrazilianNameComponents.LastContentSurname e identifica a origem como IbgeSurnameAnyPositionProxy.
+
+Recortes imutáveis por versão publicada: pessoa, São Paulo município 3550308, NOME/TODOS e SOBRENOME/TODOS; mãe, Brasil, NOME/FEMININO e SOBRENOME/TODOS. O LoadAsync vincula a referência pelo ID e SHA-256 publicados; não consulta a versão ativa do dia. A materialização de sobrenomes foi acrescentada no ramo de integração da PR #1215. Os parágrafos originais acima descrevem o escopo anterior de 13/10, não o código atualizado.
+
+ExactFirst utiliza a marginal de prenome; ExactLast utiliza o proxy de sobrenome. ExactFull e ExactFirstLast não podem receber uma marginal simples nem o produto de marginais como frequência conjunta. Frequência ausente ou suprimida não equivale a zero. TF=0 é neutralização explícita; TF positivo exige frequência publicada, unidade compatível e referência congelada. O peso TF é escolhido pelo calibrador V9, sem preferência fixa, com avaliação final Rank e Resolve, recall e orçamento de falsos vínculos em VALIDATION e TEST selado antes de ativação.
+
+Os testes devem verificar a decisão acima, inclusive os dois recortes e a origem proxy, sem exigir que TF=0 ou TF=1 vença antecipadamente. A implementação na PR #1215 ainda exige confirmação de compilação, uso pelo coordenador e gates do mesmo SHA; não se deve declarar a CI aprovada nem efetuar merge com base em revisão anterior.
