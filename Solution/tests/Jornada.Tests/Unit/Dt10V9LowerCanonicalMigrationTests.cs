@@ -156,6 +156,33 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
 
 
     [Test]
+    public void Controlled_rollback_restores_exact_hardened_pre_v9_batch_when_integrated()
+    {
+        // #1210 supplies the pre-V9 security migration. The two branches
+        // are still separate: compare the exact installed procedure once
+        // both files are present, not just a handful of safety tokens.
+        var database = Path.Combine(Root(), "Solution", "database");
+        var hardenedPath = Path.Combine(database, "migrations",
+            "20261029_Linkage_NoCandidate_Literal_Guards.sql");
+        if (!File.Exists(hardenedPath))
+            Assert.Ignore("The #1210 security migration has not yet been integrated.");
+
+        var hardened = File.ReadAllText(hardenedPath);
+        var rollback = File.ReadAllText(Path.Combine(database, "rollback",
+            "20261026_DT10_V9_Lower_Disable_Restore.sql"));
+        const string batch = "CREATE OR ALTER PROCEDURE identidade.sp_publicar_resolucao_progressiva_linkage_lote";
+        var expectedStart = hardened.IndexOf(batch, StringComparison.Ordinal);
+        var actualStart = rollback.IndexOf(batch, StringComparison.Ordinal);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(expectedStart, Is.GreaterThanOrEqualTo(0));
+            Assert.That(actualStart, Is.GreaterThanOrEqualTo(0));
+        }));
+        Assert.That(rollback[actualStart..].Trim(), Is.EqualTo(hardened[expectedStart..].Trim()),
+            "Disabling V9 must restore the entire #1210 hardened batch procedure, including every guard, not a hand-copied approximation.");
+    }
+
+    [Test]
     public void Governed_batch_must_be_last_redefinition_after_literal_no_candidate_hardening()
     {
         var database = Path.Combine(Root(), "Solution", "database");
