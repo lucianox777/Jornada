@@ -33,5 +33,12 @@ IF NOT EXISTS(
       AND c.name=N'habilitada'
       AND REPLACE(REPLACE(REPLACE(dc.definition,N'(',N''),N')',N''),N' ',N'')=N'0')
     THROW 51373, 'DT06: DT-10 V9 sem default OFF verificavel.', 1;
+-- Existence alone is insufficient: a disabled append-only trigger would leave
+-- the DT-15 attestation mutable while a schema-only preflight still passed.
+IF EXISTS(
+    SELECT 1 FROM sys.triggers t
+    WHERE t.object_id=OBJECT_ID(N'auditoria.tr_v9_dt10_lower_policy_autorizacao_append_only',N'TR')
+      AND t.is_disabled=1)
+    THROW 51374, 'DT06: trigger append-only DT-15 desabilitada.', 1;
 SELECT N'DT06_VERIFY_OK' AS resultado, (SELECT COUNT(*) FROM jornada.schema_migration) AS migrations;
 GO
