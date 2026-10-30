@@ -22,6 +22,29 @@ class ManualEvidenceTests(unittest.TestCase):
         self.assertFalse(module.valid_physical_job([{**job, "name": "SQL físico 30k clean — FS blind Rank-Resolve TF0"}]))
         self.assertFalse(module.valid_physical_job([{**job, "conclusion": "skipped"}]))
 
+    def test_missing_and_incomplete_manual_evidence(self):
+        good = {"event": "workflow_dispatch", "head_sha": SHA, "status": "completed", "conclusion": "success", "id": 7}
+        physical = {"name": module.PHYSICAL_JOB, "status": "completed", "conclusion": "success"}
+        for altered in (
+            {"event": "pull_request"},
+            {"head_sha": "b" * 40},
+            {"status": "in_progress"},
+            {"conclusion": "failure"},
+        ):
+            def fetch(url, token, altered=altered):
+                if "/runs/7/jobs" in url:
+                    return {"jobs": [physical]}
+                return {"workflow_runs": [{**good, **altered}]}
+            self.assertFalse(module.check("owner/repo", SHA, "token", fetch))
+        for jobs in ([], [{**physical, "conclusion": "skipped"}], [{"name": "unrelated", "status": "completed", "conclusion": "success"}]):
+            def fetch(url, token, jobs=jobs):
+                return {"jobs": jobs} if "/runs/7/jobs" in url else {"workflow_runs": [good]}
+            self.assertFalse(module.check("owner/repo", SHA, "token", fetch))
+
+    def test_invalid_sha_fails_closed(self):
+        with self.assertRaises(ValueError):
+            module.check("owner/repo", "not-a-sha", "token", lambda url, token: {})
+
     def test_end_to_end_positive_negative_and_api_failure(self):
         run = {"event": "workflow_dispatch", "head_sha": SHA, "status": "completed", "conclusion": "success", "id": 7}
         job = {"name": module.PHYSICAL_JOB, "status": "completed", "conclusion": "success"}
