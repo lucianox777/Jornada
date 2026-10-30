@@ -223,6 +223,39 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void Train_SQL_U_and_positive_TF_use_the_same_first_token_after_recognized_titles()
+    {
+        var train = Frame().Pairs.Where(x => x.Partition == "TRAIN")
+            .Select(x => x.IsTruePair ? x : x with
+            {
+                LeftPersonName = "Dra. Maria Costa",
+                RightPersonName = "Dra. Maria Lima",
+                LeftMotherName = "Dra. Ana Souza",
+                RightMotherName = "Dra. Ana Silva"
+            }).ToArray();
+        var pair = train.First(x => !x.IsTruePair);
+        var personLevel = CompositeNominalComparisonV9.Classify(
+            pair.LeftPersonName, pair.RightPersonName);
+        var motherLevel = CompositeNominalComparisonV9.Classify(
+            pair.LeftMotherName, pair.RightMotherName);
+        Assert.That(personLevel, Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
+        Assert.That(motherLevel, Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
+
+        var personU = V9TrainSqlFirstNameUCalibration.Fit(
+            train, CompositeNominalTfSideV9.Person, .5m, TrainCorpus);
+        var motherU = V9TrainSqlFirstNameUCalibration.Fit(
+            train, CompositeNominalTfSideV9.Mother, .5m, TrainCorpus);
+        Assert.That(personU.FirstNameUnitUByValue, Does.ContainKey("MARIA"));
+        Assert.That(motherU.FirstNameUnitUByValue, Does.ContainKey("ANA"));
+        Assert.That(V9TrainSqlFirstNameUCalibration.Preview(
+            personU, Reference(), personLevel, motherLevel, pair,
+            1m, .000001m, 1), Is.Not.Null);
+        Assert.That(V9TrainSqlFirstNameUCalibration.Preview(
+            motherU, Reference(), personLevel, motherLevel, pair,
+            1m, .000001m, 1), Is.Not.Null);
+    }
+
+    [Test]
     public void Positive_TF_requires_pinned_snapshot_known_term_and_enough_train_U_support()
     {
         var config = new V9FsAdaptiveOptionConfiguration("TF", .5m, .55m, 1m);
