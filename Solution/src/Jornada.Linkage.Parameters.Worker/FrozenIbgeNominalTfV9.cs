@@ -20,6 +20,8 @@ public sealed class FrozenIbgeNominalTfV9
 {
     private readonly IReadOnlyDictionary<string, decimal> personFirst;
     private readonly IReadOnlyDictionary<string, decimal> motherFirst;
+    private readonly IReadOnlyDictionary<string, decimal> personLast;
+    private readonly IReadOnlyDictionary<string, decimal> motherLast;
     public long ReferenceVersionId { get; }
     public string ReferenceCode { get; }
     public string PublishedReferenceSha256 { get; }
@@ -58,6 +60,8 @@ public sealed class FrozenIbgeNominalTfV9
             x => x.ValueNormalized, x => x.Frequency, StringComparer.Ordinal);
         motherFirst = prepared.Snapshot.MotherFirstNames.ToDictionary(
             x => x.ValueNormalized, x => x.Frequency, StringComparer.Ordinal);
+        personLast = prepared.Snapshot.PersonLastSurnames.ToDictionary(x => x.ValueNormalized, x => x.Frequency, StringComparer.Ordinal);
+        motherLast = prepared.Snapshot.MotherLastSurnames.ToDictionary(x => x.ValueNormalized, x => x.Frequency, StringComparer.Ordinal);
         MaterializedFrequencySha256 = ComputeMaterializedDigest(prepared.Entries);
     }
 
@@ -173,23 +177,26 @@ public sealed class FrozenIbgeNominalTfV9
             throw new InvalidOperationException("Peso TF V9 fora de [0,1].");
         if (weight == 0m)
             return null; // neutral Bayes factor 1 by explicit model choice
-        if (level != CompositeNominalLevelV9.ExactFirst)
+        if (level is not (CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactLast))
             throw new InvalidOperationException(
                 "Snapshot IBGE de prenomes não estima TF integral, primeiro+último ou último sobrenome.");
         if (unitReferenceU <= 0m || unitReferenceU > 1m
             || minimumFrequency < 0m || minimumFrequency > 1m
             || minimumIndependentSupport <= 0)
             throw new InvalidOperationException("Parâmetros U/floor/suporte TF V9 inválidos.");
-        var value = FirstNameV9(leftName);
-        if (value is null || !string.Equals(value, FirstNameV9(rightName), StringComparison.Ordinal))
+        var value = level == CompositeNominalLevelV9.ExactFirst ? FirstNameV9(leftName) : BrazilianNameComponents.Project(leftName)?.LastContentSurname;
+        var other = level == CompositeNominalLevelV9.ExactFirst ? FirstNameV9(rightName) : BrazilianNameComponents.Project(rightName)?.LastContentSurname;
+        if (value is null || !string.Equals(value, other, StringComparison.Ordinal))
             throw new InvalidOperationException("TF V9 exige igualdade da unidade de primeiro nome.");
-        var domain = side == CompositeNominalTfSideV9.Person ? personFirst : motherFirst;
+        var domain = level == CompositeNominalLevelV9.ExactFirst
+            ? (side == CompositeNominalTfSideV9.Person ? personFirst : motherFirst)
+            : (side == CompositeNominalTfSideV9.Person ? personLast : motherLast);
         if (!domain.TryGetValue(value, out var frequency))
             throw new InvalidOperationException(
                 "Prenome ausente/suprimido no snapshot IBGE fixado; não inferir frequência zero.");
 
         var reference = MakeReference(side, ReferenceCode,
-            PublishedReferenceSha256, BlockingFrameFingerprint, Bootstrap);
+            PublishedReferenceSha256, BlockingFrameFingerprint, Bootstrap, level);
         CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
             level, reference, minimumIndependentSupport);
         return new CompositeNominalTfPreviewV9(
@@ -199,10 +206,11 @@ public sealed class FrozenIbgeNominalTfV9
 
     private static NominalFrequencyReferenceContractV9 MakeReference(
         CompositeNominalTfSideV9 side, string code, string sha,
-        string blockingFrameFingerprint, NominalSyntheticIbgeBootstrapV9 bootstrap) =>
+        string blockingFrameFingerprint, NominalSyntheticIbgeBootstrapV9 bootstrap,
+        CompositeNominalLevelV9 level = CompositeNominalLevelV9.ExactFirst) =>
         new(
-            NominalFrequencyUnitV9.FirstName,
-            NominalFrequencySourceV9.IbgePublishedMarginal,
+            level == CompositeNominalLevelV9.ExactLast ? NominalFrequencyUnitV9.LastContentSurname : NominalFrequencyUnitV9.FirstName,
+            level == CompositeNominalLevelV9.ExactLast ? NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy : NominalFrequencySourceV9.IbgePublishedMarginal,
             $"IBGE_PUBLISHED:{code}:{sha}:{(side == CompositeNominalTfSideV9.Person ? "SP_3550308_TODOS" : "BR_FEMININO")}",
             blockingFrameFingerprint, 0, false, bootstrap);
 
