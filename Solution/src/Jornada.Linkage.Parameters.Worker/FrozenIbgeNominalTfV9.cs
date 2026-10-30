@@ -215,7 +215,7 @@ public sealed class FrozenIbgeNominalTfV9
         new(
             level == CompositeNominalLevelV9.ExactLast ? NominalFrequencyUnitV9.LastContentSurname : NominalFrequencyUnitV9.FirstName,
             level == CompositeNominalLevelV9.ExactLast ? NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy : NominalFrequencySourceV9.IbgePublishedMarginal,
-            $"IBGE_PUBLISHED:{code}:{sha}:{(side == CompositeNominalTfSideV9.Person ? "SP_3550308_TODOS" : "BR_FEMININO")}",
+            $"IBGE_PUBLISHED:{code}:{sha}:{(side == CompositeNominalTfSideV9.Person ? "SP_3550308_TODOS" : level == CompositeNominalLevelV9.ExactLast ? "BR_TODOS" : "BR_FEMININO")}",
             blockingFrameFingerprint, 0, false, bootstrap);
 
     // The published surname marginal counts a surname in any position.
