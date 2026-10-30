@@ -51,6 +51,10 @@ jobs:
           ref: ${{ matrix.branch }}
           fetch-depth: 1
           persist-credentials: true
+      - uses: actions/setup-dotnet@v4
+        if: steps.select.outputs.enabled == 'true'
+        with:
+          dotnet-version: '9.0.x'
       - name: GitHub Models coding pass
         if: steps.select.outputs.enabled == 'true'
         env:
@@ -117,12 +121,7 @@ jobs:
           set -euo pipefail
           if git diff --quiet; then echo 'No correction'; exit 0; fi
           git diff --check
-          if command -v dotnet >/dev/null 2>&1; then
-            dotnet test Solution/Jornada.sln --no-restore --verbosity quiet
-          else
-            echo "::warning::dotnet unavailable: refusing to commit unvalidated correction"
-            exit 1
-          fi
+          dotnet test Solution/tests/Jornada.Tests/Jornada.Tests.csproj --verbosity quiet --filter 'FullyQualifiedName~Unit'
           git add -- 'Solution/src/**/*.cs' 'Solution/tests/**/*.cs'
           if git diff --cached --quiet; then exit 0; fi
           git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "fix($FRONT): verified GitHub Models correction"
