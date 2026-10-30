@@ -114,12 +114,12 @@ def ci_policy_only(entries: list[tuple[str, str]]) -> bool:
                                  for status, path in entries)
 
 
-def classify(entries: list[tuple[str, str]], *, manual: bool = False) -> dict:
+def classify(entries: list[tuple[str, str]], *, manual: bool = False, bootstrap_pr: str = "") -> dict:
     if manual:
         return {"run_physical_30k": True, "decision": "RUN", "reason": "manual-dispatch-always-full", "changes": []}
     if not entries:
         return {"run_physical_30k": True, "decision": "RUN", "reason": "empty-or-unreadable-diff", "changes": []}
-    if ci_policy_only(entries):
+    if bootstrap_pr == "1222" and ci_policy_only(entries):
         return {
             "run_physical_30k": False,
             "decision": "NOT_REQUIRED_FOR_THIS_DIFF",
@@ -151,10 +151,11 @@ def main() -> None:
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument("--name-status-z", type=Path)
     group.add_argument("--manual", action="store_true")
+    ap.add_argument("--bootstrap-pr", default="")
     ap.add_argument("--summary", type=Path, required=True)
     ap.add_argument("--github-output", type=Path, required=True)
     args = ap.parse_args()
-    result = classify(parse_name_status_z(args.name_status_z.read_bytes()) if args.name_status_z else [], manual=args.manual)
+    result = classify(parse_name_status_z(args.name_status_z.read_bytes()) if args.name_status_z else [], manual=args.manual, bootstrap_pr=args.bootstrap_pr)
     args.summary.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     with args.github_output.open("a", encoding="utf-8") as fh:
         fh.write(f"run_physical_30k={str(result['run_physical_30k']).lower()}\n")
