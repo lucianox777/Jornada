@@ -213,4 +213,26 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
                 "V9 must be the final batch procedure redefinition on clean installs.");
         }));
     }
+    [Test]
+    public void No_candidate_guard_checks_every_observation_of_the_origin_before_publication()
+    {
+        var sql = File.ReadAllText(Path.Combine(Root(), "Solution", "database", "migrations",
+            "20261026_DT10_V9_Lower_Governed_Off.sql"));
+        var guard = sql.IndexOf("THROW 51835", StringComparison.Ordinal);
+        Assert.That(guard, Is.GreaterThan(0));
+        var start = sql.LastIndexOf("IF EXISTS(", guard, StringComparison.Ordinal);
+        Assert.That(start, Is.GreaterThanOrEqualTo(0));
+        var clause = sql.Substring(start, guard - start);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(clause, Does.Contain("JOIN #dt10_rows origin_row"));
+            Assert.That(clause, Does.Contain("origin_row.pessoa_origem_id=l.pessoa_origem_id"));
+            Assert.That(clause, Does.Contain("r.pessoa_observacao_id=origin_row.pessoa_observacao_id"));
+            Assert.That(clause, Does.Contain("l.replay_version IS NULL"));
+            Assert.That(clause, Does.Contain("r.melhor_candidato_uuid IS NOT NULL"));
+            Assert.That(clause, Does.Contain("r.segundo_candidato_uuid IS NOT NULL"));
+            Assert.That(clause, Does.Contain("r.pessoa_uuid_resolvido IS NOT NULL"));
+        }));
+    }
+
 }
