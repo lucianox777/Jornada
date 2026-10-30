@@ -246,4 +246,40 @@ public sealed class FrozenIbgeNominalTfV9Tests
         Assert.That(surnameChanged.MaterializedFrequencySha256,
             Is.Not.EqualTo(a.MaterializedFrequencySha256));
     }
+    [Test]
+    public void Exported_frozen_marginals_keep_explicit_unit_and_surname_proxy_provenance()
+    {
+        var frozen = Bound();
+        var personFirst = frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFirst);
+        var motherFirst = frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactFirst);
+        var personLast = frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast);
+        var motherLast = frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactLast);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(personFirst.Reference.Unit, Is.EqualTo(NominalFrequencyUnitV9.FirstName));
+            Assert.That(motherFirst.Reference.PopulationFrameFingerprint, Does.Contain("BR_FEMININO"));
+            Assert.That(personFirst.Frequencies["MARIA"], Is.EqualTo(.60m));
+            Assert.That(motherFirst.Frequencies["ANA"], Is.EqualTo(.30m));
+            Assert.That(personLast.Reference.Unit, Is.EqualTo(NominalFrequencyUnitV9.LastContentSurname));
+            Assert.That(personLast.Reference.Source, Is.EqualTo(NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy));
+            Assert.That(motherLast.Reference.Source, Is.EqualTo(NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy));
+            Assert.That(personLast.Reference.PopulationFrameFingerprint, Does.Contain("SP_3550308_TODOS"));
+            Assert.That(motherLast.Reference.PopulationFrameFingerprint, Does.Contain("BR_TODOS"));
+            Assert.That(personLast.Frequencies["SILVA"], Is.EqualTo(.40m));
+            Assert.That(motherLast.Frequencies["SOUZA"], Is.EqualTo(.20m));
+            Assert.That(personLast.Frequencies.ContainsKey("MARIA"), Is.False);
+            Assert.That(motherLast.Frequencies.ContainsKey("ANA"), Is.False);
+        }));
+        Assert.That((Action)(() => frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFull)),
+            Throws.InvalidDataException);
+        Assert.That((Action)(() => frozen.ExportForSnapshot(
+            (CompositeNominalTfSideV9)99, CompositeNominalLevelV9.ExactFirst)),
+            Throws.InvalidDataException);
+    }
+
 }
