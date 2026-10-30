@@ -1,0 +1,23 @@
+name: Jornada coding agent
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check agent configuration
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          if [ -z "$OPENAI_API_KEY" ]; then
+            echo 'OPENAI_API_KEY must be configured as a repository secret'
+            exit 1
+          fi
+      - name: Run coding agent
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt: 'Review the V9 implementation, identify a concrete fix, and report the proposed change. Do not push or merge.'
