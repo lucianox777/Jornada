@@ -200,7 +200,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 || frozen.TrainUnitU.TrainFingerprintSha256 != frame.TrainCorpusFingerprintSha256
                 || frozen.TrainUnitU.Side != config.TfSide)
                 throw new InvalidDataException("Referência TF ou baseline U TRAIN não coincide com o fit congelado.");
-            var reference = frozenTfReference.ExportForSnapshot(config.TfSide);
+            var reference = frozenTfReference.ExportForSnapshot(config.TfSide, CompositeNominalLevelV9.ExactFirst);
             tf = new V9SnapshotFirstNameTf(config.TfSide, reference.Reference,
                 reference.Frequencies, frozen.TrainUnitU.FirstNameUnitUByValue,
                 frozen.TrainUnitU.FingerprintSha256, config.TfMinimumFrequency,
