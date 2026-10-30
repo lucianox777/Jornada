@@ -2,12 +2,19 @@ name: Jornada coding agent
 on:
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
+  pull-requests: write
 jobs:
   agent:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Verify GitHub authentication
+        run: gh auth status
       - name: Check agent configuration
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
