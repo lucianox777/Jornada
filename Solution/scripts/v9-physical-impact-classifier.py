@@ -19,6 +19,7 @@ CI_POLICY_ONLY = frozenset({
     "Solution/tests/scripts/test_v9_physical_impact_classifier.py",
     "Solution/tests/scripts/test_v9_manual_probe_evidence.py",
     "Solution/tests/scripts/test_ci_impact_classifier.py",
+    "Solution/docs/Decisao_CI_Probe_V9_Por_Impacto_20261024.md",
 })
 
 GOLD_ONLY_RUNNER = frozenset({
