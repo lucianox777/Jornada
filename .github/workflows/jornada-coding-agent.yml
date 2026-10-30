@@ -8,9 +8,8 @@ on:
         required: true
         options:
           - v9
-          - dt10
 permissions:
-  contents: write
+  contents: read
   pull-requests: read
   checks: read
   models: read
@@ -28,9 +27,6 @@ jobs:
           - front: v9
             branch: integration/v9-soft-merge-20261030
             pr: 1215
-          - front: dt10
-            branch: feat/dt10-v9-governed-lower-policy-20261026
-            pr: 1199
     steps:
       - name: Select front
         id: select
@@ -48,11 +44,11 @@ jobs:
         with:
           ref: ${{ matrix.branch }}
           fetch-depth: 1
-          persist-credentials: true
+          persist-credentials: false
       - uses: actions/setup-dotnet@v4
         if: steps.select.outputs.enabled == 'true'
         with:
-          dotnet-version: '9.0.x'
+          dotnet-version: '10.0.x'
       - name: GitHub Models coding pass
         if: steps.select.outputs.enabled == 'true'
         env:
@@ -146,17 +142,18 @@ jobs:
           target.write_text(original.replace(old,new,1))
           print(f'Proposed correction in {target}')
           PY
-      - name: Validate and commit bounded correction
+      - name: Diagnostic diff only (never push)
         if: steps.select.outputs.enabled == 'true'
-        env:
-          FRONT: ${{ matrix.front }}
         shell: bash
         run: |
           set -euo pipefail
-          if git diff --quiet; then echo 'No correction'; exit 0; fi
           git diff --check
-          dotnet test Solution/tests/Jornada.Tests/Jornada.Tests.csproj --verbosity quiet --filter 'FullyQualifiedName~Unit'
-          git add -- 'Solution/src/**/*.cs' 'Solution/tests/**/*.cs'
-          if git diff --cached --quiet; then exit 0; fi
-          git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m "fix($FRONT): verified GitHub Models correction"
-          git push
+          git diff --stat
+          git diff --no-ext-diff > proposed-correction.patch
+          echo 'Diagnostic only: no commit, push, or automatic application to the PR branch.'
+      - uses: actions/upload-artifact@v4
+        if: steps.select.outputs.enabled == 'true'
+        with:
+          name: v9-proposed-correction
+          path: proposed-correction.patch
+          if-no-files-found: ignore
