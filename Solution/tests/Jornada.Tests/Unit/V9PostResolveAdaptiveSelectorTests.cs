@@ -41,6 +41,36 @@ public sealed class V9PostResolveAdaptiveSelectorTests
     }
 
     [Test]
+    public void Tf_zero_half_and_one_compete_on_final_safe_resolution_without_preference_for_positive_Tf()
+    {
+        // All three options share the same pre-blocking cohort and thresholds.
+        // The winner must be determined by final Resolve outcomes, not TF magnitude.
+        var zero = Row("TF0", 98) with { TfWeight = 0m };
+        var half = Row("TF_HALF", 97) with { TfWeight = .5m };
+        var full = Row("TF1", 99, 1) with { TfWeight = 1m };
+        var result = Evaluate("VALIDATION", false, Budget, [full, half, zero]);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.ComparedConfigurations, Is.EqualTo(3));
+            Assert.That(result.BestDescriptiveConfiguration!.OptionId, Is.EqualTo("TF0"));
+            Assert.That(result.BestDescriptiveConfiguration.TfWeight, Is.Zero);
+            Assert.That(result.AutomaticActivationAllowed, Is.False);
+            Assert.That(result.TestUsed, Is.False);
+        }));
+
+        // If a positive weight genuinely resolves more safely, it must win.
+        var improvedHalf = half with
+        {
+            TrueAcceptedSourceObservations = 99,
+            Unresolved = 1,
+            GlobalSourceRecall = .99
+        };
+        var improved = Evaluate("VALIDATION", false, Budget, [zero, improvedHalf, full]);
+        Assert.That(improved.BestDescriptiveConfiguration!.OptionId, Is.EqualTo("TF_HALF"));
+    }
+
+    [Test]
     public void Missing_or_excessive_fanout_never_suggests_configuration()
     {
         Assert.That(V9PostResolveAdaptiveSelector.EvaluateValidation("VALIDATION", false, Budget,
