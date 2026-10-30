@@ -158,14 +158,13 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
     [Test]
     public void Controlled_rollback_restores_exact_hardened_pre_v9_batch_when_integrated()
     {
-        // #1210 supplies the pre-V9 security migration. The two branches
-        // are still separate: compare the exact installed procedure once
-        // both files are present, not just a handful of safety tokens.
+        // #1210 is integrated in this branch. Missing security migration
+        // must FAIL the gate, never turn rollback verification into SKIP.
         var database = Path.Combine(Root(), "Solution", "database");
         var hardenedPath = Path.Combine(database, "migrations",
             "20261029_Linkage_NoCandidate_Literal_Guards.sql");
-        if (!File.Exists(hardenedPath))
-            Assert.Ignore("The #1210 security migration has not yet been integrated.");
+        Assert.That(File.Exists(hardenedPath), Is.True,
+            "The integrated #1210 hardening migration is mandatory for safe V9 rollback.");
 
         var hardened = File.ReadAllText(hardenedPath);
         var rollback = File.ReadAllText(Path.Combine(database, "rollback",
@@ -200,25 +199,18 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
         {
             Assert.That(governedInManifest, Is.GreaterThanOrEqualTo(0));
             Assert.That(governedInInstaller, Is.GreaterThanOrEqualTo(0));
-            // Once #1210 is reconciled, neither clean installs nor upgrades
-            // may silently overwrite the governed V9 publisher with the older
-            // hardened pre-V9 publisher. Keep both orders identical.
-            if (File.Exists(hardenedFile))
-            {
-                Assert.That(hardenedInManifest, Is.GreaterThanOrEqualTo(0),
-                    "A present security migration cannot be omitted from upgrade order.");
-                Assert.That(hardenedInInstaller, Is.GreaterThanOrEqualTo(0),
-                    "A present security migration cannot be omitted from clean installs.");
-            }
-            if (hardenedInManifest >= 0 || hardenedInInstaller >= 0)
-            {
-                Assert.That(hardenedInManifest, Is.GreaterThanOrEqualTo(0));
-                Assert.That(hardenedInInstaller, Is.GreaterThanOrEqualTo(0));
-                Assert.That(governedInManifest, Is.GreaterThan(hardenedInManifest),
-                    "V9 must be the final batch procedure redefinition on upgrades.");
-                Assert.That(governedInInstaller, Is.GreaterThan(hardenedInInstaller),
-                    "V9 must be the final batch procedure redefinition on clean installs.");
-            }
+            // #1210 is already integrated. Missing migration or manifest entry
+            // must FAIL instead of silently skipping the precedence assertions.
+            Assert.That(File.Exists(hardenedFile), Is.True,
+                "Integrated #1210 migration is required by both install paths.");
+            Assert.That(hardenedInManifest, Is.GreaterThanOrEqualTo(0),
+                "Security hardening cannot be omitted from upgrade order.");
+            Assert.That(hardenedInInstaller, Is.GreaterThanOrEqualTo(0),
+                "Security hardening cannot be omitted from clean installs.");
+            Assert.That(governedInManifest, Is.GreaterThan(hardenedInManifest),
+                "V9 must be the final batch procedure redefinition on upgrades.");
+            Assert.That(governedInInstaller, Is.GreaterThan(hardenedInInstaller),
+                "V9 must be the final batch procedure redefinition on clean installs.");
         }));
     }
 }
