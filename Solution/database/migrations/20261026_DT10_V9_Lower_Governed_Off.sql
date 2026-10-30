@@ -510,17 +510,19 @@ BEGIN
                    AND l.raw_motivo<>N'LIMIAR_INFERIOR_V9_GOVERNADO')))
         THROW 51810, 'DT-10: NOVA_IDENTIDADE exige sem candidato ou V9 governado.', 1;
 
-    -- O motivo SEM_CANDIDATO nao substitui a evidencia de Rank. Se a mesma
-    -- observacao tiver candidato real (melhor ou segundo), o caminho legado
+    -- O motivo SEM_CANDIDATO nao substitui a evidencia de Rank. Se QUALQUER
+    -- observacao da mesma origem no run tiver candidato real, o caminho legado
     -- nao pode promover initial_uuid e contornar o gate V9/DT-15. Executar
     -- antes de qualquer insert no ledger; replay do run ja publicado segue
     -- a semantica anterior, sem reescrever a decisao historica.
     IF EXISTS(
         SELECT 1
         FROM #dt10_leaders l
+        JOIN #dt10_rows origin_row
+          ON origin_row.pessoa_origem_id=l.pessoa_origem_id
         JOIN identidade.linkage_resultado r WITH(HOLDLOCK)
           ON r.linkage_run_id=@linkage_run_id
-         AND r.pessoa_observacao_id=l.leader_observacao_id
+         AND r.pessoa_observacao_id=origin_row.pessoa_observacao_id
         WHERE l.replay_version IS NULL
           AND l.resultado_publicacao=N'NOVA_IDENTIDADE'
           AND l.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%'
