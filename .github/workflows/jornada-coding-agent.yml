@@ -90,14 +90,47 @@ jobs:
           payload=json.dumps({'model':'openai/gpt-4.1','messages':[{'role':'user','content':prompt}],'temperature':0,'max_tokens':1800}).encode()
           req=urllib.request.Request('https://models.github.ai/inference/chat/completions',data=payload,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Accept':'application/vnd.github+json'},method='POST')
           try:
-              with urllib.request.urlopen(req,timeout=90) as response: data=json.load(response)
+              with urllib.request.urlopen(req,timeout=90) as http:
+                  status=http.status
+                  content_type=http.headers.get('Content-Type','')
+                  raw=http.read(200000)
           except urllib.error.HTTPError as e:
-              print(f'GitHub Models unavailable (HTTP {e.code}); no changes made')
+              body=e.read(1000).decode('utf-8','replace')
+              print(f'::error::GitHub Models HTTP {e.code}: {body}')
               raise SystemExit(1)
-          response=data['choices'][0]['message']['content'].strip()
+          except urllib.error.URLError as e:
+              print(f'::error::GitHub Models transport error: {e.reason}')
+              raise SystemExit(1)
+          if not raw.strip():
+              print(f'::error::GitHub Models returned empty response (HTTP {status}, type={content_type})')
+              raise SystemExit(1)
+          try:
+              data=json.loads(raw)
+          except json.JSONDecodeError:
+              print(f'::error::GitHub Models non-JSON response (HTTP {status}, type={content_type}, length={len(raw)}, preview={raw[:180]!r})')
+              raise SystemExit(1)
+          if 'error' in data:
+              print(f'::error::GitHub Models error: {str(data["error"])[:400]}')
+              raise SystemExit(1)
+          try:
+              response=data['choices'][0]['message']['content']
+          except (KeyError, IndexError, TypeError):
+              print(f'::error::Unexpected GitHub Models response keys: {list(data)}')
+              raise SystemExit(1)
+          if not isinstance(response,str) or not response.strip():
+              print('::warning::Model returned no correction text; no changes made')
+              raise SystemExit(0)
+          response=response.strip()
           if response.startswith('```'):
-              response=response.split('\n',1)[1].rsplit('```',1)[0].strip()
-          change=json.loads(response)
+              response=response.split('\\n',1)[1].rsplit('```',1)[0].strip()
+          try:
+              change=json.loads(response)
+          except json.JSONDecodeError:
+              print('::warning::Model returned invalid JSON patch; no changes made')
+              raise SystemExit(0)
+          if not isinstance(change,dict):
+              print('::warning::Model patch must be an object; no changes made')
+              raise SystemExit(0)
           allowed={str(p):p for p in paths}
           target=allowed.get(change.get('path'))
           old=change.get('old','')
