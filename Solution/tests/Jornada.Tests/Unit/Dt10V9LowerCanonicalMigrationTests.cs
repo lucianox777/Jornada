@@ -235,4 +235,22 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
         }));
     }
 
+    [Test]
+    public void Heavy_v9_30k_is_explicit_dispatch_only_while_pr_impact_preflight_remains()
+    {
+        var workflow = File.ReadAllText(Path.Combine(Root(), ".github", "workflows",
+            "v9-physical-seed42-probe.yml"));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(workflow, Does.Contain("pull_request:"),
+                "PRs must still classify impact and archive the decision.");
+            Assert.That(workflow, Does.Contain("workflow_dispatch:"),
+                "The final physical gate must remain executable explicitly.");
+            Assert.That(workflow, Does.Contain(
+                "if: github.event_name == 'workflow_dispatch' && needs.impact.outputs.run_physical_30k == 'true'"),
+                "A PR update must never launch the expensive 30k physical job.");
+            Assert.That(workflow, Does.Contain("name: V9 30k - classify impact"));
+        }));
+    }
+
 }
