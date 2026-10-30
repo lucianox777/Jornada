@@ -7,7 +7,8 @@ GO
 IF OBJECT_ID(N'identidade.v9_dt10_lower_policy',N'U') IS NOT NULL
     UPDATE identidade.v9_dt10_lower_policy SET habilitada=0 WHERE habilitada=1;
 GO
--- Restore the exact previous canonical batch definition (20260926).
+-- Restore the hardened pre-V9 canonical batch definition from the 20261029 literal-guards migration.
+-- Keep the SEM_CANDIDATO literal LIKE escape and 51835 leader-candidate rejection on rollback.
 -- DT-10: publicação progressiva em lote, sem cursor por origem.
 -- Todas as transições, eventos e propagação do run usam a transação SERIALIZABLE
 -- do Runner. A iteração de applocks abaixo é SOMENTE por referência distinta:
@@ -197,8 +198,23 @@ BEGIN
         SELECT 1 FROM #dt10_leaders l
         WHERE l.replay_version IS NULL AND l.resultado_publicacao=N'NOVA_IDENTIDADE'
           AND (l.raw_status<>N'NAO_RESOLVIDO' OR l.raw_motivo IS NULL
-               OR l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'))
+               OR l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%'))
         THROW 51810, 'DT-10: NOVA_IDENTIDADE exige busca completa sem candidato.', 1;
+    -- Complete the legacy batch guard before writing ANY event for this run;
+    -- this is the same leader-observation invariant as governed DT-10 #1199.
+    IF EXISTS(
+        SELECT 1
+        FROM #dt10_leaders l
+        JOIN identidade.linkage_resultado r WITH(UPDLOCK,HOLDLOCK)
+          ON r.linkage_run_id=@linkage_run_id
+         AND r.pessoa_observacao_id=l.leader_observacao_id
+        WHERE l.replay_version IS NULL
+          AND l.resultado_publicacao=N'NOVA_IDENTIDADE'
+          AND l.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%'
+          AND (r.melhor_candidato_uuid IS NOT NULL
+               OR r.segundo_candidato_uuid IS NOT NULL
+               OR r.pessoa_uuid_resolvido IS NOT NULL))
+        THROW 51835, 'DT-10: SEM_CANDIDATO contradiz candidatos persistidos.', 1;
 
     IF EXISTS(
         SELECT 1 FROM #dt10_leaders l

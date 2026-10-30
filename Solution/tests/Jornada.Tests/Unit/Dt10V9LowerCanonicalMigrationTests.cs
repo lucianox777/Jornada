@@ -135,4 +135,23 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
             Assert.That(rollback, Does.Contain("THROW 51810"));
         }));
     }
+    [Test]
+    public void Controlled_rollback_preserves_hardened_no_candidate_publication()
+    {
+        var rollback = File.ReadAllText(Path.Combine(Root(), "Solution", "database",
+            "rollback", "20261026_DT10_V9_Lower_Disable_Restore.sql"));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(rollback, Does.Contain("SET habilitada=0"));
+            Assert.That(rollback, Does.Contain("l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%'"));
+            Assert.That(rollback, Does.Contain("l.raw_motivo LIKE N'SEM[_]CANDIDATO[_]%'"));
+            Assert.That(rollback, Does.Contain("r.pessoa_observacao_id=l.leader_observacao_id"));
+            Assert.That(rollback, Does.Contain("r.melhor_candidato_uuid IS NOT NULL"));
+            Assert.That(rollback, Does.Contain("r.segundo_candidato_uuid IS NOT NULL"));
+            Assert.That(rollback, Does.Contain("r.pessoa_uuid_resolvido IS NOT NULL"));
+            Assert.That(rollback, Does.Contain("THROW 51835"));
+            Assert.That(rollback, Does.Not.Contain("l.raw_motivo NOT LIKE N'SEM_CANDIDATO_%'"));
+        }));
+    }
+
 }
