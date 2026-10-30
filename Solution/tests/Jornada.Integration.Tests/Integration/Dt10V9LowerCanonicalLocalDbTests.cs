@@ -259,6 +259,26 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
             Assert.That(await CountEventsAsync(connection, forged), Is.Zero);
         }
 
+        // Build the second observation explicitly in the disposable fixture.
+        await using (var makeSecondVersion = connection.CreateCommand())
+        {
+            makeSecondVersion.CommandText = """
+                INSERT silver.pessoa_observacao(
+                    pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
+                    versao_interna,conteudo_hash,cpf,cpf_ausente_motivo,
+                    nome_completo,nome_cmp,data_nascimento,nome_mae,nome_mae_cmp,source_as_of)
+                SELECT pessoa_origem_id,lote_id,gestor_id,codigo_pessoa_origem,
+                       versao_interna+1,
+                       LOWER(CONVERT(VARCHAR(64),HASHBYTES('SHA2_256',CONVERT(VARCHAR(36),NEWID())),2)),
+                       cpf,cpf_ausente_motivo,nome_completo,nome_cmp,
+                       data_nascimento,nome_mae,nome_mae_cmp,source_as_of
+                FROM silver.pessoa_observacao
+                WHERE pessoa_observacao_id=@older;
+                """;
+            makeSecondVersion.Parameters.AddWithValue("@older", observationId);
+            Assert.That(await makeSecondVersion.ExecuteNonQueryAsync(), Is.EqualTo(1));
+        }
+
         // Origin-wide physical regression: the older observation has a real
         // candidate, while the newest leader claims SEM_CANDIDATO. The gate
         // must inspect every observation of this origin, not just its leader.
@@ -283,7 +303,8 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
                 ORDER BY newer.versao_interna DESC;
                 """;
             await using var reader = await sibling.ExecuteReaderAsync();
-            if (await reader.ReadAsync())
+            Assert.That(await reader.ReadAsync(), Is.True,
+                "The two-version regression must never be skipped.");
             {
                 var olderId = reader.GetInt64(0);
                 var newerId = reader.GetInt64(1);
@@ -332,11 +353,6 @@ public sealed class Dt10V9LowerCanonicalLocalDbTests
                 Assert.That(await ReadRunStatusAsync(connection, siblingRun), Is.EqualTo("EXECUTANDO"));
                 Assert.That(await TryPublishAsync(connection, siblingRun), Is.EqualTo(51835));
                 Assert.That(await CountEventsAsync(connection, siblingRun), Is.Zero);
-            }
-            else
-            {
-                TestContext.Progress.WriteLine(
-                    "DT10 origin-wide physical scenario NOT COVERED: disposable fixture has no two-version SCALE source.");
             }
         }
 
