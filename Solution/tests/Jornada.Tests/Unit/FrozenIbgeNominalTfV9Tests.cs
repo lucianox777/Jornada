@@ -276,10 +276,10 @@ public sealed class FrozenIbgeNominalTfV9Tests
         }));
         Assert.That((Action)(() => frozen.ExportForSnapshot(
             CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFull)),
-            Throws.InvalidDataException);
+            Throws.TypeOf<InvalidDataException>());
         Assert.That((Action)(() => frozen.ExportForSnapshot(
             (CompositeNominalTfSideV9)99, CompositeNominalLevelV9.ExactFirst)),
-            Throws.InvalidDataException);
+            Throws.TypeOf<InvalidDataException>());
     }
 
 
