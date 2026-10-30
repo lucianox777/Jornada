@@ -121,13 +121,20 @@ jobs:
               --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
               --error-profile clean --people "$1" --seed "$2" --out "$root/$3" > "$root/$3-generation.log"
           }
+          # Independent, deterministic outputs: generate the 30k corpus in the
+          # same batch as both fixtures instead of waiting for fixture generation.
+          # Preserve every exit code; a failed generator must fail the physical gate.
           generate 1000 42 fixture-train &
           a=$!
           generate 1000 20261019001 fixture-validation &
           b=$!
-          wait "$a"
-          wait "$b"
-          generate 30000 42 development-30k
+          generate 30000 42 development-30k &
+          c=$!
+          failed=0
+          wait "$a" || failed=1
+          wait "$b" || failed=1
+          wait "$c" || failed=1
+          test "$failed" -eq 0
       - name: Real SQL nested search and one-time frozen finalist validation - fixture only
         working-directory: Solution
         env:
