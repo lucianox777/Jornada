@@ -69,6 +69,33 @@ public static class SplinkCompatibleTermFrequency
         return Math.Min(0d, adjustment);
     }
 
+    /// <summary>
+    /// Explicit V9 TF mode selector. Zero disables TF; symmetric preserves V8;
+    /// asymmetric only penalizes common terms. No operational activation implied.
+    /// </summary>
+    public enum AdjustmentModeV9 { Zero, Symmetric, Asymmetric }
+
+    public static double LogBayesAdjustmentV9(
+        AdjustmentModeV9 mode,
+        decimal leftFrequency,
+        decimal rightFrequency,
+        decimal referenceUProbability,
+        decimal weight = 1m,
+        decimal minimumUValue = 0m)
+    {
+        if (!Enum.IsDefined(mode))
+            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown V9 TF mode.");
+        return mode switch
+        {
+            AdjustmentModeV9.Zero => 0d,
+            AdjustmentModeV9.Symmetric => LogBayesAdjustment(
+                leftFrequency, rightFrequency, referenceUProbability, weight, minimumUValue),
+            AdjustmentModeV9.Asymmetric => LogBayesAdjustmentAsymmetric(
+                leftFrequency, rightFrequency, referenceUProbability, weight, minimumUValue),
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown V9 TF mode.")
+        };
+    }
+
     private static void ValidateProbability(decimal value, string parameterName)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 0m, parameterName);
