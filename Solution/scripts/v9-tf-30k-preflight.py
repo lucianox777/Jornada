@@ -60,8 +60,8 @@ def main():
             "Do not activate or certify any model from this experiment"
         ],
     }
-    if args.output.exists():
-        raise SystemExit("Preflight output already exists: immutable evidence required")
+    if args.output.resolve() in {args.train_csv.resolve(), args.candidate_frame.resolve(), (root / FITTED).resolve()}:
+        raise SystemExit("Output must not overwrite any input evidence")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("x", encoding="utf-8") as handle:
         handle.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
