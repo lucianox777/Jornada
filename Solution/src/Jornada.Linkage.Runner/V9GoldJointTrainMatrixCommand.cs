@@ -15,7 +15,12 @@ public static class V9GoldJointTrainMatrixCommand
     public const string Flag = "--v9-gold-joint-train-matrix-aggregate";
     public const string Version = "V9_GOLD_JOINT_TRAIN_PREREGISTERED_MATRIX_V1";
     public const string PlanSuffix = ".joint-train-plan.json";
-    private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    private static readonly JsonSerializerOptions Json = new()
+    {
+        WriteIndented = true,
+        RespectRequiredConstructorParameters = true,
+        UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
+    };
     private static readonly Regex OwnedInstance = new(
         @"^\(localdb\)\\JornadaV9Gold[0-9]{8}_[a-f0-9]{8}$",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
