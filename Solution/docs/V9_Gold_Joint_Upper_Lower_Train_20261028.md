@@ -21,6 +21,14 @@ Não há teto percentual pré-declarado de falsos vínculos: todas as células v
 ## Primeira ligação física do limiar superior (TRAIN)
 O Runner Gold agora admite `UPPER_TRAIN=<decimal>` **somente** para execução manual `TRAIN_SELECTION` em uma LocalDB nova, opcionalmente com `LOWER_NONMATCH=<decimal>` e uma ordem completa. Primeiro valida os bytes da variante Gold canônica do fit congelado e então deriva **em memória** nova variante content-addressed mudando **apenas** `Threshold`; o Rank/Resolve e a publicação SQL recebem a nova variante e registram seu SHA e o limiar superior no recibo `jointUpperTrain`. Proibido na execução de holdout ou na captura baseline; nenhum treino, refit ou ativação. Ainda falta automatizar a matriz física completa, verificar o plano/grade preregistrados contra cada execução e produzir os `JointMeasurement` atestados com denominadores por identidade-base; esta ligação, isoladamente, não certifica a seleção.
 
+## Orquestração manual física da grade pré-registrada (31/10/2026)
+
+O script `Solution/scripts/v9-gold-joint-train-matrix-localdb.ps1` agora percorre **todas** as combinações upper × lower × três ordens canônicas do plano SHA-nomeado. Em Windows/LocalDB, cada célula provisiona uma instância inédita com `--v9-gold-harness-create`, executa `--v9-gold-joint-train-trial` no **Runner C# real** com `UPPER_TRAIN` e `LOWER_NONMATCH`, verifica o recibo e chama `--v9-gold-joint-train-matrix-aggregate` para seleção descritiva pelo calibrador C# único. Não utiliza mocks para gerar as medições.
+
+Exige explicitamente `-RunnerDll`, `-DatabaseSchema`, `-TrainSelectionEnvelope`, `-FinalistValidation`, `-GoldFittedSnapshot`, `-OriginalTrainCsv`, `-PreregisteredPlan` e `-OutputRoot` **inédito**. O preflight recusa SHA de plano, seleção, variante Gold ou CSV divergentes e planos com TEST/sem solicitação manual. A validação de grade/fingerprint completa permanece no C# por célula e na agregação final. Falha parcial deixa instâncias e recibos intactos para auditoria; nunca reutiliza ou apaga banco, não toca REF/PROD e não promove modelo.
+
+**Estado de evidência:** a existência do executor e dos testes de contrato **não prova execução física desta grade**. O script ainda precisa ser exercitado em Windows/LocalDB no SHA final, com inspeção de artefatos e CI; a matriz produzida é `IndependentlyCertified=false` e `OperationallyActivated=false`. A anterioridade do plano exige registro externo auditável, além do SHA. Nenhuma campanha 30k ou TEST independente foi disparada por esta mudança.
+
 ## Gates antes de merge técnico desta frente
 
 - Integrar ao runner físico o replay de todas as células, recalcular superior, comprovar busca completa e proveniência por identidade-base sem TEST na seleção.
