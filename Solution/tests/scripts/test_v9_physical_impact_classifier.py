@@ -14,6 +14,7 @@ class V9PhysicalImpactTests(unittest.TestCase):
         paths = sorted(m.CI_POLICY_ONLY)
         self.assertFalse(m.classify([("M", p) for p in paths], bootstrap_pr="1222")["run_physical_30k"])
         self.assertTrue(m.classify([("M", p) for p in paths])["run_physical_30k"])
+        self.assertFalse(m.classify([("M", p) for p in paths], bootstrap_pr="1227")["run_physical_30k"])
         self.assertTrue(m.classify([("M", p) for p in paths], bootstrap_pr="1223")["run_physical_30k"])
         self.assertTrue(m.classify([("M", paths[0]), ("M", "Solution/database/schema.sql")])["run_physical_30k"])
         self.assertTrue(m.classify([("D", paths[0])])["run_physical_30k"])
