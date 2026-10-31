@@ -14,6 +14,7 @@ class V9PhysicalImpactTests(unittest.TestCase):
         paths = sorted(m.CI_POLICY_ONLY)
         self.assertFalse(m.classify([("M", p) for p in paths], bootstrap_pr="1222")["run_physical_30k"])
         self.assertTrue(m.classify([("M", p) for p in paths])["run_physical_30k"])
+        self.assertFalse(m.classify([("M", p) for p in paths], bootstrap_pr="1227")["run_physical_30k"])
         self.assertTrue(m.classify([("M", p) for p in paths], bootstrap_pr="1223")["run_physical_30k"])
         self.assertTrue(m.classify([("M", paths[0]), ("M", "Solution/database/schema.sql")])["run_physical_30k"])
         self.assertTrue(m.classify([("D", paths[0])])["run_physical_30k"])
@@ -132,7 +133,7 @@ class V9PhysicalImpactTests(unittest.TestCase):
 
     def test_empty_rename_delete_copy_typechange_fail_closed(self):
         self.assertTrue(m.classify([])["run_physical_30k"])
-        self.assertTrue(m.classify([("D", "Solution/docs/old.md")])["run_physical_30k"])
+        self.assertFalse(m.classify([("D", "Solution/docs/old.md")])["run_physical_30k"])
         self.assertTrue(m.classify([
             ("R100", "Solution/docs/old.md"), ("R100", "Solution/docs/new.md")
         ])["run_physical_30k"])
@@ -180,7 +181,7 @@ class V9PhysicalImpactTests(unittest.TestCase):
             (b"A\0Solution/docs/new.md\0", False),
             (b"M\0Solution/database/migrations/20261026_DT10_V9_Lower_Governed_Off.sql\0", True),
             (b"M\0Solution/docs/decision.md\0M\0Solution/database/Jornada_Fase1_v3.70.sql\0", True),
-            (b"D\0Solution/docs/decision.md\0", True),
+            (b"D\0Solution/docs/decision.md\0", False),
             (b"R100\0Solution/docs/old.md\0Solution/docs/new.md\0", True),
         )
         for raw, expected in cases:
@@ -189,6 +190,27 @@ class V9PhysicalImpactTests(unittest.TestCase):
                 result = m.classify(parsed)
                 self.assertEqual(result["run_physical_30k"], expected)
                 self.assertEqual(result["decision"], "RUN" if expected else "NOT_REQUIRED_FOR_THIS_DIFF")
+
+    def test_audited_markdown_deletions_and_mixed_changes(self):
+        for path in ("Documentos/old.md", "Solution/docs/old.md",
+                     "Solution/docs/nested/old.MD"):
+            result = m.classify([("D", path)])
+            self.assertFalse(result["run_physical_30k"], path)
+            self.assertEqual(result["decision"], "NOT_REQUIRED_FOR_THIS_DIFF")
+        self.assertFalse(m.classify([
+            ("D", "Documentos/old.md"), ("M", "Solution/docs/new.md")
+        ])["run_physical_30k"])
+        for path in ("Solution/docs/contract.yml", "Solution/docs/notes.txt",
+                     "Solution/database/schema.sql",
+                     "Solution/scripts/v9-physical-impact-classifier.py"):
+            self.assertTrue(m.classify([("D", path)])["run_physical_30k"], path)
+        self.assertTrue(m.classify([
+            ("D", "Documentos/old.md"), ("M", "Solution/database/schema.sql")
+        ])["run_physical_30k"])
+        self.assertTrue(m.classify([
+            ("R100", "Solution/docs/old.md"), ("R100", "Solution/docs/new.md")
+        ])["run_physical_30k"])
+        self.assertTrue(m.classify([("D", "Documentos/old.md")], manual=True)["run_physical_30k"])
 
     def test_manual_always_requires_probe(self):
         self.assertTrue(m.classify([], manual=True)["run_physical_30k"])
