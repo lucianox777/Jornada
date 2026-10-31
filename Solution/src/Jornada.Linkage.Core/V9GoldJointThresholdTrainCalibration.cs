@@ -13,7 +13,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static partial class V9LowerNonMatchTrainCalibrator
 {
-    public const string JointVersion = "V9_GOLD_JOINT_UPPER_LOWER_TRAIN_CONTRACT_V2";
+    public const string JointVersion = "V9_GOLD_JOINT_UPPER_LOWER_TRAIN_CONTRACT_V3";
     public static readonly IReadOnlyList<string> JointOrders =
         Array.AsReadOnly(new[] { "G0_G3", "G3_G0", "G1_G3_G0_G2" });
 
@@ -44,6 +44,7 @@ public static partial class V9LowerNonMatchTrainCalibrator
         int IndependentIdentityGroups,
         long AcceptedLinks,
         long FalseLinks,
+        long TrueLinkOpportunities,
         long FalseNewReferences,
         long PendingAfter,
         decimal BCubedF1,
@@ -63,6 +64,23 @@ public static partial class V9LowerNonMatchTrainCalibrator
         decimal WorstBCubedF1,
         bool IsParetoFrontier);
 
+    /// <summary>Upper selection: accepted-link recall versus observed accepted-link FDR.</summary>
+    public sealed record JointUpperCandidate(
+        decimal UpperThreshold,
+        decimal WorstObservedRecall,
+        decimal? WorstObservedFdr,
+        int UndefinedFdrCells,
+        bool IsParetoFrontier);
+
+    /// <summary>Lower selection: false physical creations versus pending, conditioned on the selected upper.</summary>
+    public sealed record JointLowerCandidate(
+        decimal LowerThreshold,
+        long FalseNewReferencesAcrossOrders,
+        long PendingAcrossOrders,
+        long WorstOrderFalseNewReferences,
+        long WorstOrderPending,
+        bool IsParetoFrontier);
+
     public sealed record JointStudy(
         string Version,
         string FrozenGoldFitSha256,
@@ -76,7 +94,10 @@ public static partial class V9LowerNonMatchTrainCalibrator
         string Status,
         bool TestUsed,
         bool OperationalActivationAllowed,
-        bool StatisticallyCertified);
+        bool StatisticallyCertified,
+        IReadOnlyList<JointUpperCandidate> UpperCandidates,
+        IReadOnlyList<JointLowerCandidate> LowerCandidates,
+        IReadOnlyList<decimal> DescriptiveLowerFinalists);
 
     public static string JointGridFingerprint(
         IReadOnlyList<decimal> upper, IReadOnlyList<decimal> lower)
@@ -91,7 +112,7 @@ public static partial class V9LowerNonMatchTrainCalibrator
     public static string JointEvidenceFingerprint(IReadOnlyList<JointMeasurement> measurements)
     {
         ArgumentNullException.ThrowIfNull(measurements);
-        // Stable ordering and JSON property names are part of V1's evidence contract.
+        // Stable ordering and JSON property names are part of V3's evidence contract.
         return HashJoint(JsonSerializer.Serialize(measurements
             .OrderBy(x => x.UpperThreshold).ThenBy(x => x.LowerThreshold)
             .ThenBy(x => x.OrderId, StringComparer.Ordinal).ToArray()));
@@ -146,6 +167,8 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 || row.IndependentIdentityGroups < policy.MinimumIndependentIdentityGroups
                 || row.AcceptedLinks < 0 || row.FalseLinks < 0
                 || row.FalseLinks > row.AcceptedLinks
+                || row.TrueLinkOpportunities <= 0
+                || row.AcceptedLinks - row.FalseLinks > row.TrueLinkOpportunities
                 || row.FalseNewReferences < 0 || row.PendingAfter < 0
                 || row.BCubedF1 is < 0m or > 1m)
                 throw new InvalidDataException("Gold TRAIN order, physical rerun or metrics invalid.");
@@ -160,8 +183,11 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 throw new InvalidDataException("Repeated physical order/pair.");
         }
 
-        // TRAIN measurements are descriptive; no preset percentage may veto a
-        // candidate before the Pareto search. Undefined rates stay undefined.
+        // The full four-objective frontier is EXPLORATORY ONLY. The normative
+        // selection consists of TWO separate problems (v5.00 §7.20):
+        // upper = accepted-link recall × accepted-link FDR; then lower =
+        // false physical creations × pendencies at the automatically chosen upper.
+        // The runner still must independently attest all physical rows.
         var table = measurements.GroupBy(x => (x.UpperThreshold, x.LowerThreshold))
             .Select(g =>
             {
@@ -175,7 +201,7 @@ public static partial class V9LowerNonMatchTrainCalibrator
                     rows.Length - definedRates.Length,
                     rows.Min(x => x.BCubedF1), false);
             }).OrderBy(x => x.UpperThreshold).ThenBy(x => x.LowerThreshold).ToArray();
-        var frontier = table.Select(x => x with
+        var exploratory = table.Select(x => x with
         {
             IsParetoFrontier = !table.Any(y => y.FalseLinksAcrossOrders <= x.FalseLinksAcrossOrders
                 && y.FalseNewReferencesAcrossOrders <= x.FalseNewReferencesAcrossOrders
@@ -186,46 +212,127 @@ public static partial class V9LowerNonMatchTrainCalibrator
                     || y.PendingAcrossOrders < x.PendingAcrossOrders
                     || y.WorstBCubedF1 > x.WorstBCubedF1))
         }).ToArray();
-        // Reproducible normalized ideal over observed TRAIN objectives. This
-        // descriptive choice is not an FDR confidence bound or DT-15 approval.
-        var nondominated = frontier.Where(x => x.IsParetoFrontier).ToArray();
-        var minLinks = nondominated.Min(x => x.FalseLinksAcrossOrders);
-        var maxLinks = nondominated.Max(x => x.FalseLinksAcrossOrders);
-        var minCreates = nondominated.Min(x => x.FalseNewReferencesAcrossOrders);
-        var maxCreates = nondominated.Max(x => x.FalseNewReferencesAcrossOrders);
-        var minPending = nondominated.Min(x => x.PendingAcrossOrders);
-        var maxPending = nondominated.Max(x => x.PendingAcrossOrders);
-        var minBCubed = nondominated.Min(x => x.WorstBCubedF1);
-        var maxBCubed = nondominated.Max(x => x.WorstBCubedF1);
-        double Distance(JointCandidate x)
+
+        // A zero-accepted-links cell has undefined FDR, not an invented zero.
+        // Upper options without ANY defined FDR cannot win an optimization
+        // based on FDR. Recall denominator must be explicit for every cell.
+        // Worst-case across lower sensitivities and physical orders preserves
+        // the adverse order instead of silently taking an average.
+        var upperTable = upper.OrderBy(x => x).Select(value =>
         {
-            var links = maxLinks == minLinks ? 0d
-                : (double)(x.FalseLinksAcrossOrders - minLinks) / (maxLinks - minLinks);
-            var creates = maxCreates == minCreates ? 0d
-                : (double)(x.FalseNewReferencesAcrossOrders - minCreates) / (maxCreates - minCreates);
-            var pending = maxPending == minPending ? 0d
-                : (double)(x.PendingAcrossOrders - minPending) / (maxPending - minPending);
-            var bcubed = maxBCubed == minBCubed ? 0d
-                : (double)(maxBCubed - x.WorstBCubedF1) / (double)(maxBCubed - minBCubed);
-            return links * links + creates * creates + pending * pending + bcubed * bcubed;
+            var rows = measurements.Where(x => x.UpperThreshold == value).ToArray();
+            var definedFdr = rows.Where(x => x.AcceptedLinks > 0)
+                .Select(x => (decimal)x.FalseLinks / x.AcceptedLinks).ToArray();
+            var worstRecall = rows.Min(x =>
+                (decimal)(x.AcceptedLinks - x.FalseLinks) / x.TrueLinkOpportunities);
+            return new JointUpperCandidate(value, worstRecall,
+                definedFdr.Length == 0 ? null : definedFdr.Max(),
+                rows.Length - definedFdr.Length, false);
+        }).ToArray();
+        var measurableUppers = upperTable.Where(x => x.WorstObservedFdr.HasValue).ToArray();
+        var upperFrontier = upperTable.Select(x => x with
+        {
+            IsParetoFrontier = x.WorstObservedFdr.HasValue
+                && !measurableUppers.Any(y =>
+                    y.WorstObservedRecall >= x.WorstObservedRecall
+                    && y.WorstObservedFdr!.Value <= x.WorstObservedFdr!.Value
+                    && (y.WorstObservedRecall > x.WorstObservedRecall
+                        || y.WorstObservedFdr!.Value < x.WorstObservedFdr!.Value))
+        }).ToArray();
+        var upperPareto = upperFrontier.Where(x => x.IsParetoFrontier).ToArray();
+        decimal? selectedUpper = null;
+        if (upperPareto.Length > 0)
+        {
+            var minFdr = upperPareto.Min(x => x.WorstObservedFdr!.Value);
+            var maxFdr = upperPareto.Max(x => x.WorstObservedFdr!.Value);
+            var minRecall = upperPareto.Min(x => x.WorstObservedRecall);
+            var maxRecall = upperPareto.Max(x => x.WorstObservedRecall);
+            double UpperDistance(JointUpperCandidate x)
+            {
+                var fdr = maxFdr == minFdr ? 0d
+                    : (double)(x.WorstObservedFdr!.Value - minFdr) / (double)(maxFdr - minFdr);
+                var recall = maxRecall == minRecall ? 0d
+                    : (double)(maxRecall - x.WorstObservedRecall) / (double)(maxRecall - minRecall);
+                return fdr * fdr + recall * recall;
+            }
+            selectedUpper = upperPareto.OrderBy(UpperDistance)
+                .ThenBy(x => x.WorstObservedFdr)
+                .ThenByDescending(x => x.WorstObservedRecall)
+                .ThenByDescending(x => x.UpperThreshold)
+                .First().UpperThreshold;
         }
-        var suggestion = nondominated.OrderBy(Distance)
-            .ThenBy(x => x.FalseLinksAcrossOrders)
-            .ThenBy(x => x.FalseNewReferencesAcrossOrders)
-            .ThenBy(x => x.PendingAcrossOrders)
-            .ThenByDescending(x => x.WorstBCubedF1)
-            .ThenBy(x => x.UpperThreshold).ThenBy(x => x.LowerThreshold)
-            .First();
+
+        // Lower values are evaluated ONLY at the upper selected by the first
+        // problem. Do not use link FDR, recall or B-cubed as lower objectives.
+        JointLowerCandidate[] lowerFrontier = [];
+        decimal? selectedLower = null;
+        decimal[] finalists = [];
+        if (selectedUpper.HasValue)
+        {
+            var lowerTable = measurements.Where(x => x.UpperThreshold == selectedUpper.Value)
+                .GroupBy(x => x.LowerThreshold)
+                .Select(g =>
+                {
+                    var rows = g.ToArray();
+                    return new JointLowerCandidate(g.Key,
+                        rows.Sum(x => x.FalseNewReferences), rows.Sum(x => x.PendingAfter),
+                        rows.Max(x => x.FalseNewReferences), rows.Max(x => x.PendingAfter),
+                        false);
+                }).OrderBy(x => x.LowerThreshold).ToArray();
+            lowerFrontier = lowerTable.Select(x => x with
+            {
+                IsParetoFrontier = !lowerTable.Any(y =>
+                    y.FalseNewReferencesAcrossOrders <= x.FalseNewReferencesAcrossOrders
+                    && y.PendingAcrossOrders <= x.PendingAcrossOrders
+                    && (y.FalseNewReferencesAcrossOrders < x.FalseNewReferencesAcrossOrders
+                        || y.PendingAcrossOrders < x.PendingAcrossOrders))
+            }).ToArray();
+            var lowerPareto = lowerFrontier.Where(x => x.IsParetoFrontier).ToArray();
+            var minCreates = lowerPareto.Min(x => x.FalseNewReferencesAcrossOrders);
+            var maxCreates = lowerPareto.Max(x => x.FalseNewReferencesAcrossOrders);
+            var minPending = lowerPareto.Min(x => x.PendingAcrossOrders);
+            var maxPending = lowerPareto.Max(x => x.PendingAcrossOrders);
+            double LowerDistance(JointLowerCandidate x)
+            {
+                var creates = maxCreates == minCreates ? 0d
+                    : (double)(x.FalseNewReferencesAcrossOrders - minCreates) / (maxCreates - minCreates);
+                var pending = maxPending == minPending ? 0d
+                    : (double)(x.PendingAcrossOrders - minPending) / (maxPending - minPending);
+                return creates * creates + pending * pending;
+            }
+            selectedLower = lowerPareto.OrderBy(LowerDistance)
+                .ThenBy(x => x.FalseNewReferencesAcrossOrders)
+                .ThenBy(x => x.PendingAcrossOrders)
+                .ThenBy(x => x.LowerThreshold).First().LowerThreshold;
+            // Descriptive robust finalists: knee, fewest false creations,
+            // fewest pendencies. No preset error budget or percentage cutoff.
+            finalists = new[]
+            {
+                selectedLower.Value,
+                lowerPareto.OrderBy(x => x.FalseNewReferencesAcrossOrders)
+                    .ThenBy(x => x.WorstOrderFalseNewReferences)
+                    .ThenBy(x => x.PendingAcrossOrders)
+                    .ThenBy(x => x.LowerThreshold).First().LowerThreshold,
+                lowerPareto.OrderBy(x => x.PendingAcrossOrders)
+                    .ThenBy(x => x.WorstOrderPending)
+                    .ThenBy(x => x.FalseNewReferencesAcrossOrders)
+                    .ThenBy(x => x.LowerThreshold).First().LowerThreshold
+            }.Distinct().ToArray();
+        }
 
         return new JointStudy(JointVersion, policy.FrozenGoldFitSha256,
             policy.FrozenGoldSnapshotSha256, policy.TrainEvidenceSha256,
             policy.DeclaredGridSha256,
             HashJoint(JsonSerializer.Serialize(policy)),
-            Array.AsReadOnly(frontier), suggestion.UpperThreshold,
-            suggestion.LowerThreshold,
-            "TRAIN_DESCRIPTIVE_PARETO_ONLY_UNCERTIFIED_REQUIRES_INDEPENDENT_VALIDATION",
+            Array.AsReadOnly(exploratory), selectedUpper, selectedLower,
+            selectedUpper.HasValue
+                ? "TRAIN_TWO_STAGE_UPPER_RECALL_FDR_LOWER_CREATIONS_PENDING_UNCERTIFIED_PHYSICAL_ATTESTATION_REQUIRED"
+                : "TRAIN_INSUFFICIENT_DEFINED_UPPER_FDR_NO_SELECTION_UNCERTIFIED",
             TestUsed: false, OperationalActivationAllowed: false,
-            StatisticallyCertified: false);
+            StatisticallyCertified: false,
+            UpperCandidates: Array.AsReadOnly(upperFrontier),
+            LowerCandidates: Array.AsReadOnly(lowerFrontier),
+            DescriptiveLowerFinalists: Array.AsReadOnly(finalists));
     }
 
     private static string DecimalJoint(decimal x) =>

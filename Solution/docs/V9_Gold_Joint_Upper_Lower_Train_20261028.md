@@ -1,6 +1,6 @@
 # V9 Gold — calibração conjunta dos limiares superior e inferior (28/10/2026)
 
-**Estado: contrato C# de exploração TRAIN implementado em PR técnica DRAFT (V2 sem veto percentual prévio); executor físico conjunto ainda NÃO integrado. Testes desta revisão dependem de CI no SHA exato. Não aprovado, não ativado.**
+**Estado: contrato C# TRAIN V3 com seleção superior e inferior em dois problemas distintos; executor físico conjunto ainda NÃO integrado. Testes desta revisão dependem de CI no SHA exato. Não aprovado, não ativado.**
 
 ## Decisão
 
@@ -14,7 +14,7 @@ Cada célula upper × lower deve ser medida no **mesmo Rank/Resolve FS/TF Gold c
 
 A API não recalcula por si a decisão superior: **o runner físico deve produzir e atestar os dados**. Não adaptar os resultados do `FsDecisionThresholdCalibrator` V6 (seleção em VALIDATION) ao Gold V9 TRAIN; particionamento e evidência são distintos. O `V9LowerNonMatchStudyCli` atual ainda usa superior congelado do fit e não é um executor da busca conjunta.
 
-Não há teto percentual pré-declarado de falsos vínculos: todas as células válidas entram na exploração TRAIN. A fronteira considera falsos vínculos, falsas criações, pendências e B³ F1; a sugestão determinística minimiza a distância normalizada ao ideal da fronteira, sem preferências percentuais prévias. Taxas com denominador zero são registradas como indefinidas, não como 100%. A sugestão é apenas descritiva, não equivale a limite estatístico de FDR, validação independente, DT-15 ou ativação. Nenhum limiar é publicado ou ativado.
+Não há teto percentual pré-declarado de falsos vínculos: todas as células válidas entram na exploração TRAIN. **A escolha normativa é sequencial e não otimiza quatro objetivos juntos (especificação v5.00, §7.20)**: primeiro constrói Pareto superior entre recall real de vínculos aceitos (verdadeiro aceito / `TrueLinkOpportunities` explicitamente declarado) e FDR observado (falsos aceitos / total aceito); escolhe o ideal normalizado, com piores taxas por ordem e limiar inferior de sensibilidade. Depois, fixa o superior selecionado e constrói Pareto inferior entre falsas criações físicas e pendências no Runner incremental, selecionando o joelho normalizado. Retém finalistas descritivos (joelho, menor criação falsa, menor pendência) e máximos da pior ordem. A fronteira original de quatro objetivos continua **apenas exploratória**, sem autoridade para definir parâmetros. Taxas sem denominador são indefinidas, nunca artificialmente zero; um superior sem FDR observado não pode vencer a seleção. A sugestão é apenas descritiva, não equivale a limite estatístico de FDR, validação independente, DT-15 ou ativação. Nenhum limiar é publicado ou ativado.
 
 ## Gates antes de merge técnico desta frente
 

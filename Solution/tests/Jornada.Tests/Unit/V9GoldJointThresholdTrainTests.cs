@@ -22,7 +22,7 @@ public sealed class V9GoldJointThresholdTrainTests
         foreach (var lower in new[] { .1m, .2m })
         foreach (var order in V9LowerNonMatchTrainCalibrator.JointOrders)
             result.Add(new(order, "TRAIN_SELECTION", Fit, Snapshot, RunHash(++runIndex),
-                upper, lower, 30, 100, upper == .8m ? 1 : 0,
+                upper, lower, 30, 100, upper == .8m ? 1 : 0, 100,
                 lower == .2m ? 2 : 1, lower == .2m ? 5 : 10, .8m,
                 true, true, true, true));
         return result.ToArray();
@@ -47,6 +47,10 @@ public sealed class V9GoldJointThresholdTrainTests
             Assert.That(study.SuggestedUpperThreshold, Is.EqualTo(.9m));
             Assert.That(study.SuggestedLowerThreshold, Is.EqualTo(.1m));
             Assert.That(study.Candidates.Count(x => x.IsParetoFrontier), Is.GreaterThan(0));
+            Assert.That(study.UpperCandidates, Has.Count.EqualTo(2));
+            Assert.That(study.UpperCandidates.Single(x => x.IsParetoFrontier).UpperThreshold, Is.EqualTo(.9m));
+            Assert.That(study.LowerCandidates, Has.Count.EqualTo(2));
+            Assert.That(study.DescriptiveLowerFinalists, Does.Contain(.1m));
             Assert.That(study.TestUsed, Is.False);
             Assert.That(study.OperationalActivationAllowed, Is.False);
             Assert.That(study.StatisticallyCertified, Is.False);
@@ -111,6 +115,48 @@ public sealed class V9GoldJointThresholdTrainTests
         Assert.That(study.Candidates.Any(x => x.FalseLinksAcrossOrders > 0), Is.True);
         Assert.That(study.StatisticallyCertified, Is.False);
         Assert.That(study.OperationalActivationAllowed, Is.False);
+    }
+
+    [Test]
+    public void Upper_selection_ignores_four_objective_creation_tradeoffs()
+    {
+        var rows = Measurements().Select(x => x.UpperThreshold == .8m
+            ? x with { FalseNewReferences = 0, PendingAfter = 0, BCubedF1 = 1m }
+            : x with { FalseNewReferences = 100, PendingAfter = 100, BCubedF1 = .2m })
+            .ToArray();
+        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(study.SuggestedUpperThreshold, Is.EqualTo(.9m),
+                "Upper is selected from recall and FDR, never from Gold creation/pending.");
+            Assert.That(study.LowerCandidates.All(x => x.FalseNewReferencesAcrossOrders == 300), Is.True);
+            Assert.That(study.UpperCandidates.Single(x => x.UpperThreshold == .9m).WorstObservedRecall,
+                Is.EqualTo(1m));
+        }));
+    }
+
+    [Test]
+    public void Rejects_missing_or_inconsistent_recall_denominator()
+    {
+        var rows = Measurements();
+        var changed = rows.ToArray();
+        changed[0] = changed[0] with { TrueLinkOpportunities = 0 };
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(changed), changed)));
+        changed = rows.ToArray();
+        changed[0] = changed[0] with { TrueLinkOpportunities = 1 };
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(changed), changed)));
+    }
+
+    [Test]
+    public void Fdr_undefined_for_all_cells_of_upper_cannot_be_treated_as_zero()
+    {
+        var rows = Measurements().Select(x => x.UpperThreshold == .9m
+            ? x with { AcceptedLinks = 0, FalseLinks = 0 } : x).ToArray();
+        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows);
+        Assert.That(study.UpperCandidates.Single(x => x.UpperThreshold == .9m).WorstObservedFdr, Is.Null);
+        Assert.That(study.SuggestedUpperThreshold, Is.EqualTo(.8m));
     }
 
     [Test]
