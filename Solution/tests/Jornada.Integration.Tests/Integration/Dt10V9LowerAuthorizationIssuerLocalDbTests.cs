@@ -47,6 +47,19 @@ public sealed class Dt10V9LowerAuthorizationIssuerLocalDbTests
                 "Never run synthetic ACTIVATE proof against a non-disposable database.");
         }
 
+        // The disposable harness is intentionally unseeded. Provision the
+        // synthetic development model only after the LocalDB ownership guard.
+        // This seed is test data, not an institutional model activation.
+        var seedPath = Path.Combine(AppContext.BaseDirectory, "database", "Jornada_Seed_Dev.sql");
+        Assert.That(File.Exists(seedPath), Is.True, "Disposable model seed must be available.");
+        await SqlBatchRunner.ExecuteFileAsync(sql, seedPath);
+        await using (var modelCheck = sql.CreateCommand())
+        {
+            modelCheck.CommandText = "SELECT COUNT_BIG(*) FROM identidade.modelo_linkage WHERE status=N'ATIVO';";
+            Assert.That(Convert.ToInt64(await modelCheck.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture),
+                Is.GreaterThan(0), "The positive DT-15 fixture requires an active synthetic model.");
+        }
+
         // The outer transaction is rolled back even after successful issuer
         // execution. The SQL procedure's own COMMIT only closes its nested
         // transaction and cannot persist this synthetic approval.
