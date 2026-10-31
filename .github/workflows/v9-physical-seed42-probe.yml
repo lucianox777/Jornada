@@ -14,6 +14,7 @@ concurrency:
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   impact:
@@ -28,7 +29,9 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
       - name: Regression tests for fail-closed path classification
-        run: python3 -m unittest discover -s Solution/tests/scripts -p test_v9_physical_impact_classifier.py
+        run: |
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_physical_impact_classifier.py
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_manual_probe_evidence.py
       - name: Classify complete PR merge diff (manual dispatch always runs)
         id: classify
         shell: bash
@@ -36,6 +39,9 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CHECKOUT_SHA: ${{ github.sha }}
           EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
@@ -65,8 +71,9 @@ jobs:
   physical-30k:
     name: V9 full physical 30k SQL TRAIN (when impacted)
     needs: impact
-    if: needs.impact.outputs.run_physical_30k == 'true'
+    if: github.event_name == 'workflow_dispatch' && needs.impact.outputs.run_physical_30k == 'true'
     runs-on: ubuntu-latest
+    # PO: full 30k only on explicit final dispatch; PR preflight remains fail-closed.
     # Full adaptive batches now survive the old all-cell veto and execute 20
     # complete latency replays per feasible candidate; preserve every gate.
     timeout-minutes: 360
@@ -121,20 +128,13 @@ jobs:
               --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
               --error-profile clean --people "$1" --seed "$2" --out "$root/$3" > "$root/$3-generation.log"
           }
-          # Independent, deterministic outputs: generate the 30k corpus in the
-          # same batch as both fixtures instead of waiting for fixture generation.
-          # Preserve every exit code; a failed generator must fail the physical gate.
           generate 1000 42 fixture-train &
           a=$!
           generate 1000 20261019001 fixture-validation &
           b=$!
-          generate 30000 42 development-30k &
-          c=$!
-          failed=0
-          wait "$a" || failed=1
-          wait "$b" || failed=1
-          wait "$c" || failed=1
-          test "$failed" -eq 0
+          wait "$a"
+          wait "$b"
+          generate 30000 42 development-30k
       - name: Real SQL nested search and one-time frozen finalist validation - fixture only
         working-directory: Solution
         env:
@@ -200,12 +200,19 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
       - name: Enforce all impacted full-probe runs and record legitimate no-op
         shell: bash
         env:
           IMPACT_RESULT: ${{ needs.impact.result }}
           REQUIRES_PHYSICAL: ${{ needs.impact.outputs.run_physical_30k }}
           PHYSICAL_RESULT: ${{ needs.physical-30k.result }}
+          EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           if [[ "$IMPACT_RESULT" != "success" ]]; then
@@ -213,11 +220,18 @@ jobs:
             exit 1
           fi
           if [[ "$REQUIRES_PHYSICAL" == "true" ]]; then
-            test "$PHYSICAL_RESULT" = "success" || {
-              echo "Required V9 30k physical probe failed or was not run: $PHYSICAL_RESULT" >&2
+            if [[ "$PHYSICAL_RESULT" == "success" ]]; then
+              echo "PASS: physical 30k succeeded in this workflow on $HEAD_SHA."
+            elif [[ "$EVENT_NAME" == "pull_request" && "$PHYSICAL_RESULT" == "skipped" ]]; then
+              # A manual dispatch on the exact PR head SHA is independently verifiable.
+              # A prior success on another SHA, an in-progress run, or a skipped
+              # physical job must never count as acceptance.
+              export HEAD_SHA GH_TOKEN REPOSITORY
+              python3 Solution/scripts/v9_manual_probe_evidence.py
+            else
+              echo "::error title=DEFERRED_NOT_CERTIFIED::Required V9 30k has no successful evidence for this run (event=$EVENT_NAME, result=$PHYSICAL_RESULT)." >&2
               exit 1
-            }
-            echo "PASS: the real SQL physical V9 TRAIN 30k probe completed."
+            fi
           elif [[ "$REQUIRES_PHYSICAL" == "false" ]]; then
             test "$PHYSICAL_RESULT" = "skipped" || {
               echo "Unexpected physical job result for a Gold-only/docs change: $PHYSICAL_RESULT" >&2
