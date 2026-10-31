@@ -192,6 +192,20 @@ public sealed class V9GoldJointTrainMatrixTests
     }
 
     [Test]
+    public void Rejects_duplicate_top_level_receipt_fields_before_matrix_aggregation()
+    {
+        var plan = PlanBytes();
+        var receipts = PhysicalReceipts(plan);
+        var json = Encoding.UTF8.GetString(receipts[0]);
+        Assert.That(json, Does.StartWith("{"));
+        // Duplicate root property is ambiguous even when its value is identical.
+        var ambiguous = "{\\\"jointTrainPhysicalTrial\\\":null," + json[1..];
+        receipts[0] = Encoding.UTF8.GetBytes(ambiguous);
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
+    }
+
+    [Test]
     public async Task Plan_preflight_rejects_alias_and_invalid_grid_before_any_SQL()
     {
         var directory = Path.Combine(Path.GetTempPath(), "v9-joint-plan-" + Guid.NewGuid().ToString("N"));
