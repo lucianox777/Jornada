@@ -136,6 +136,23 @@ public sealed class V9GoldRunnerVariantPreparationTests
         Reject(receipt);
     }
 
+    [TestCase("PreBlockingBaseIdentities")]
+    [TestCase("GlobalSourceRecall")]
+    public void Rejects_non_numeric_physical_metric_fields_with_contract_exception(string field)
+    {
+        var receipt = ConditionalReceipt();
+        ((JsonObject)receipt["measured"]![0]!["Metric"]!)[field] = "not-a-number";
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_non_numeric_false_degree_with_contract_exception()
+    {
+        var receipt = ConditionalReceipt();
+        ((JsonObject)receipt["measured"]![0]!)["FalseDegreeP99"] = "not-a-number";
+        Reject(receipt);
+    }
+
     [Test]
     public void Rejects_missing_group_support_or_fabricated_metric_provenance()
     {
