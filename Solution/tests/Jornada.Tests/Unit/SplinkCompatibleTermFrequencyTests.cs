@@ -56,6 +56,34 @@ public sealed class SplinkCompatibleTermFrequencyTests
     }
 
     [Test]
+    public void AsymmetricTf_PenalizesCommonTermButDoesNotRewardRareTerm()
+    {
+        var common = SplinkCompatibleTermFrequency.LogBayesAdjustmentAsymmetric(
+            0.2m, 0.1m, 0.01m);
+        var rare = SplinkCompatibleTermFrequency.LogBayesAdjustmentAsymmetric(
+            0.0001m, 0.0002m, 0.01m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(common, Is.EqualTo(Math.Log(0.05d)).Within(1e-12));
+            Assert.That(rare, Is.Zero);
+        }));
+    }
+
+    [Test]
+    public void AsymmetricTf_ZeroWeightIsNeutralAndSymmetricRemainsUnchanged()
+    {
+        var zero = SplinkCompatibleTermFrequency.LogBayesAdjustmentAsymmetric(
+            0.2m, 0.1m, 0.01m, weight: 0m);
+        var symmetric = SplinkCompatibleTermFrequency.LogBayesAdjustment(
+            0.0001m, 0.0002m, 0.01m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(zero, Is.Zero);
+            Assert.That(symmetric, Is.EqualTo(Math.Log(50d)).Within(1e-12));
+        }));
+    }
+
+    [Test]
     public void Pareto_DoesNotInventPreferenceBetweenFalsePositiveAndFalseNegative()
     {
         var a = new CalibrationEvaluation("A", 90, 90, 1, 8, 11, 200);
