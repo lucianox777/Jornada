@@ -116,6 +116,30 @@ public static class V9NestedCalibrationCli
             finalists = result.FinalistSnapshotShas.Count, result.StopReason, externalValidationUsed = false, testUsed = false, activated = false }));
     }
 
+    /// <summary>
+    /// Before consuming the one-time external VALIDATION receipt, ensure a positive-TF
+    /// finalist is bound to the published IBGE digest pinned by the selection plan.
+    /// The portable fit contains the selected marginal, not the entire materialized
+    /// IBGE catalogue: this check does NOT claim independent full-catalogue attestation.
+    /// </summary>
+    public static void RequirePinnedFinalistReference(V9NestedCalibrationPlan plan, V9FittedSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Payload.TfWeight == 0m) return;
+        var tf = snapshot.Payload.TfCalibration
+            ?? throw new InvalidDataException("Finalista TF positivo sem parâmetros TRAIN congelados.");
+        var frame = tf.Reference.PopulationFrameFingerprint.Split(':');
+        if (plan.PinnedIbgeReferenceVersionId is null or <= 0
+            || plan.PinnedIbgePublishedSha256 is not { Length: 64 } digest
+            || !digest.All(Uri.IsHexDigit)
+            || tf.Reference.Source != NominalFrequencySourceV9.IbgePublishedMarginal
+            || frame.Length != 4
+            || frame[0] != "IBGE_PUBLISHED"
+            || !string.Equals(frame[2], digest, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Finalista TF não corresponde ao digest IBGE publicado fixado no plano.");
+    }
+
     private static async Task ValidateAsync(string selectionFile, string source, string output,
         V9NestedCalibrationPlan plan, string connectionString)
     {
@@ -144,7 +168,9 @@ public static class V9NestedCalibrationCli
         foreach (var id in ids)
         {
             if (id is not { Length: 64 } || !id.All(Uri.IsHexDigit)) throw new InvalidDataException("SHA de finalista inválido.");
-            snapshots.Add(await V9FittedSnapshotArtifact.ReadPinnedAsync(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(selectionFile))!, id + ".fitted.json"), id));
+            var snapshot = await V9FittedSnapshotArtifact.ReadPinnedAsync(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(selectionFile))!, id + ".fitted.json"), id);
+            RequirePinnedFinalistReference(plan, snapshot);
+            snapshots.Add(snapshot);
         }
         var registry = Environment.GetEnvironmentVariable("JORNADA_V9_HOLDOUT_REGISTRY")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Jornada", "V9", "holdout-exposures");
