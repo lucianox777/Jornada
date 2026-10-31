@@ -45,6 +45,14 @@ if (args.FirstOrDefault() == "--v9-gold-holdout-harness")
     return;
 }
 
+if (args.FirstOrDefault() == V9GoldHarnessCommand.JointTrainTrialFlag)
+{
+    var jointConnection = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+        ?? throw new InvalidOperationException("Joint TRAIN exige LocalDB descartável.");
+    _ = await V9GoldHarnessCommand.RunJointTrainTrialAsync(args, jointConnection);
+    return;
+}
+
 if (args.FirstOrDefault() == V9GoldHarnessCommand.Flag)
 {
     var harnessConnection = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")

@@ -34,6 +34,40 @@ public sealed class V9GoldHarnessSafetyTests
             .ParseJointUpperArgument("UPPER_TRAIN=1.0"), Is.EqualTo(1m));
     }
 
+    private static string[] JointTrial(string order, string lower, string upper) =>
+        [V9GoldHarnessCommand.JointTrainTrialFlag, "selection", "validation", "fit",
+            "train.csv", "new-output", order, lower, upper];
+
+    [Test]
+    public void Joint_train_accepts_only_explicit_three_order_physical_pair()
+    {
+        foreach (var order in Jornada.Linkage.Parameters.Worker.V9LowerNonMatchTrainCalibrator.JointOrders)
+            Assert.DoesNotThrow((Action)(() => V9GoldHarnessCommand.ValidateJointTrainTrialArguments(
+                JointTrial(order, "LOWER_NONMATCH=0.1", "UPPER_TRAIN=1"))));
+    }
+
+    [TestCase("G0_G3", "LOWER_NONMATCH=0.1", "UPPER_TRAIN=0.9")]
+    [TestCase("BASELINE_G0_G1_G2_G3", "LOWER_NONMATCH=0.9", "UPPER_TRAIN=0.9")]
+    [TestCase("BASELINE_G0_G1_G2_G3", "LOWER_NONMATCH=0.91", "UPPER_TRAIN=0.9")]
+    [TestCase("BASELINE_G0_G1_G2_G3", "LOWER_NONMATCH=0", "UPPER_TRAIN=0.9")]
+    [TestCase("BASELINE_G0_G1_G2_G3", "LOWER_NONMATCH=0.1", "UPPER_TRAIN=1.01")]
+    [TestCase("BASELINE_G0_G1_G2_G3", "LOWER_NONMATCH=0,1", "UPPER_TRAIN=0.9")]
+    public void Joint_train_rejects_invalid_or_unregistered_cells(string order, string lower, string upper) =>
+        Assert.Throws<ArgumentException>((Action)(() =>
+            V9GoldHarnessCommand.ValidateJointTrainTrialArguments(JointTrial(order, lower, upper))));
+
+    [Test]
+    public void Joint_train_rejects_missing_or_duplicate_trial_options_before_sql()
+    {
+        var valid = JointTrial("BASELINE_G0_G1_G2_G3", "LOWER_NONMATCH=0.1", "UPPER_TRAIN=0.9");
+        Assert.Throws<ArgumentException>((Action)(() =>
+            V9GoldHarnessCommand.ValidateJointTrainTrialArguments(valid[..^1])));
+        var duplicate = (string[])valid.Clone();
+        duplicate[8] = duplicate[7];
+        Assert.Throws<ArgumentException>((Action)(() =>
+            V9GoldHarnessCommand.ValidateJointTrainTrialArguments(duplicate)));
+    }
+
     [Test]
     public void Accepts_only_explicit_disposable_instance_contract_before_resident_marker_and_empty_checks() =>
         Assert.DoesNotThrow((Action)(() => V9GoldHarnessCommand.ValidateDisposableConnection(

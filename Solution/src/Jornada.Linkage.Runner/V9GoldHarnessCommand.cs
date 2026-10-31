@@ -24,6 +24,7 @@ namespace Jornada.Linkage.Runner;
 public static class V9GoldHarnessCommand
 {
     public const string Flag = "--v9-gold-harness";
+    public const string JointTrainTrialFlag = "--v9-gold-joint-train-trial";
     private const string Marker = "PINNED_FIT_PREVIEW_NO_ACTIVATION";
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
     private static readonly JsonSerializerOptions FrozenCandidateJson = new() { PropertyNameCaseInsensitive = true };
@@ -55,6 +56,42 @@ public static class V9GoldHarnessCommand
     public static Task<IReadOnlyList<V9GoldTrainPhysicalEvidence>> RunTrainStudyAsync(
         string[] args, string connectionString) =>
         RunInternalAsync(args, connectionString, captureTrainEvidence: true);
+
+    /// <summary>
+    /// Execute exactly ONE preregistered upper/lower/order TRAIN cell using the
+    /// real incremental Runner and an empty, exclusive disposable LocalDB.
+    /// The original baseline TRAIN capture remains fixed to CURRENT/baseline.
+    /// Callers must provide a new LocalDB and output directory for every cell;
+    /// this is not the matrix orchestrator or an independent certification.
+    /// </summary>
+    public static Task<IReadOnlyList<V9GoldTrainPhysicalEvidence>> RunJointTrainTrialAsync(
+        string[] args, string connectionString)
+    {
+        ValidateJointTrainTrialArguments(args);
+        var translated = (string[])args.Clone();
+        translated[0] = Flag;
+        return RunInternalAsync(translated, connectionString,
+            captureTrainEvidence: true, jointTrainTrial: true);
+    }
+
+    /// <summary>
+    /// Pure fail-closed validation, before file reads or SQL access.
+    /// The candidate pair and one of the three canonical Gold orders are explicit.
+    /// </summary>
+    public static void ValidateJointTrainTrialArguments(string[] args)
+    {
+        if (args is null || args.Length != 9 || args[0] != JointTrainTrialFlag)
+            throw new ArgumentException("Joint TRAIN requires selection, validation, frozen Gold fit, original TRAIN CSV, new output, canonical order, LOWER_NONMATCH and UPPER_TRAIN.");
+        var options = args.Skip(6).ToArray();
+        var orders = options.Where(x => GoldTrainThreeOrderProtocol.OrderIds.Contains(x)).ToArray();
+        var uppers = options.Where(x => x.StartsWith("UPPER_TRAIN=", StringComparison.Ordinal)).ToArray();
+        var lowers = options.Where(x => x.StartsWith(
+            V9GoldLowerNonMatchExperiment.ArgumentPrefix, StringComparison.Ordinal)).ToArray();
+        if (orders.Length != 1 || uppers.Length != 1 || lowers.Length != 1)
+            throw new ArgumentException("Joint TRAIN requires exactly one canonical order, one upper and one lower; no aliases or extra options.");
+        var upper = V9LowerNonMatchTrainCalibrator.ParseJointUpperArgument(uppers[0]);
+        _ = V9GoldLowerNonMatchExperiment.ParseThreshold(lowers[0], upper);
+    }
 
     /// <summary>
     /// Six-trial external evaluation uses the SAME physical incremental/Gold
@@ -102,8 +139,11 @@ public static class V9GoldHarnessCommand
 
     private static async Task<IReadOnlyList<V9GoldTrainPhysicalEvidence>> RunInternalAsync(
         string[] args, string connectionString, bool captureTrainEvidence,
-        V9GoldIndependentHoldoutContract.Plan? holdout = null)
+        V9GoldIndependentHoldoutContract.Plan? holdout = null,
+        bool jointTrainTrial = false)
     {
+        if (jointTrainTrial && (!captureTrainEvidence || holdout is not null))
+            throw new InvalidOperationException("Joint physical TRAIN cannot run without TRAIN capture or with holdout.");
         if (args.Length is < 6 or > 9 || args[0] != Flag)
             throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2] [LOWER_NONMATCH=<decimal>] [UPPER_TRAIN=<decimal>]; usar exclusivamente LocalDB descartável.");
         ValidateDisposableConnection(connectionString);
@@ -157,9 +197,9 @@ public static class V9GoldHarnessCommand
         decimal? upperTrain = upperOptions.Length == 1
             ? V9LowerNonMatchTrainCalibrator.ParseJointUpperArgument(upperOptions[0])
             : null;
-        if (upperTrain.HasValue && (holdout is not null || captureTrainEvidence))
+        if (upperTrain.HasValue && (holdout is not null || (captureTrainEvidence && !jointTrainTrial)))
             throw new InvalidOperationException(
-                "UPPER_TRAIN is restricted to manual TRAIN_SELECTION; holdout and baseline evidence are frozen.");
+                "UPPER_TRAIN is restricted to manual or explicit joint TRAIN; holdout and baseline evidence are frozen.");
         var canonicalGoldSnapshotSha256 = snapshot.ContentSha256;
         if (upperTrain.HasValue)
         {
@@ -179,7 +219,7 @@ public static class V9GoldHarnessCommand
                 lowerNonMatchThreshold != holdout.CandidateLowerThreshold)
             || sources.Select(x => x.Truth).Distinct(StringComparer.Ordinal).Count() < 1000))
             throw new InvalidDataException("Plano holdout: somente CURRENT/KNEE congelado e coorte suficiente.");
-        if (captureTrainEvidence && (lowerNonMatchThreshold is not null
+        if (captureTrainEvidence && !jointTrainTrial && (lowerNonMatchThreshold is not null
             || trialOrderId != GoldTrainThreeOrderProtocol.Baseline))
             throw new InvalidOperationException(
                 "Captura para o Pareto exige política CURRENT e ordem BASELINE pré-registrada.");
@@ -386,6 +426,17 @@ public static class V9GoldHarnessCommand
                     : "V9_REAL_INCREMENTAL_RUNNER_GOLD_INDEPENDENT_HOLDOUT_V1",
                 snapshotSha256 = snapshot.ContentSha256,
                 parentSnapshotSha256 = winner, fitFingerprintSha256 = snapshot.Payload.FitFingerprintSha256,
+                jointTrainPhysicalTrial = jointTrainTrial ? new
+                {
+                    contract = "V9_GOLD_JOINT_TRAIN_PHYSICAL_TRIAL_V1",
+                    orderId = trialOrderId,
+                    upperThreshold = upperTrain,
+                    lowerThreshold = lowerNonMatchThreshold,
+                    capturedTrainSources = trainingEvidence.Count,
+                    sourceCount = sources.Count,
+                    scope = "TRAIN_SELECTION",
+                    refitted = false, testUsed = false, certified = false, activated = false
+                } : null,
                 jointUpperTrain = upperTrain.HasValue ? new
                 {
                     contract = "V9_GOLD_JOINT_UPPER_PHYSICAL_RERUN_V1",
