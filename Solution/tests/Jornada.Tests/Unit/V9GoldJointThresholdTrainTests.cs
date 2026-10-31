@@ -47,9 +47,23 @@ public sealed class V9GoldJointThresholdTrainTests
             directory = directory.Parent;
         Assert.That(directory, Is.Not.Null);
         const string sourceSha = "613f914114073d4a9100e848a01a56321354ae9a7885a77462941ae86936953d";
-        var source = await V9FittedSnapshotArtifact.ReadPinnedAsync(Path.Combine(
+        var bootstrapV2 = await V9FittedSnapshotArtifact.ReadPinnedAsync(Path.Combine(
             directory!.FullName, "Solution", "data", "calibration", "v9", "bootstrap-v0",
             sourceSha + ".fitted.json"), sourceSha);
+        // The checked-in bootstrap is V2 and has NO JointSupport. Build a
+        // deterministic V3 test fixture from synthetic TRAIN-only cell counts;
+        // this is a unit test, not a physical Gold or statistical certification.
+        var observed = Enum.GetValues<Jornada.Contracts.CompositeNominalLevelV9>()
+            .SelectMany(person => Enum.GetValues<Jornada.Contracts.CompositeNominalLevelV9>()
+                .Select(mother => new V9JointObservedCell(person, mother, 1, 1))).ToArray();
+        var fitted = V9JointSupportEstimation.Estimate(observed,
+            new V9JointSupportPolicy(.99m, 0, 0), 1m, bootstrapV2.Payload.TrainCorpusSha256);
+        var source = V9FittedSnapshot.Create(bootstrapV2.Payload with
+        {
+            SchemaVersion = V9FittedSnapshot.SupportSchemaVersion,
+            JointCells = fitted.Probabilities,
+            JointSupport = fitted.Provenance
+        });
         var variant = source.CreateGoldHarnessVariantAtUpper(1m);
         var reloaded = V9FittedSnapshot.Load(variant.SerializeUtf8(), variant.ContentSha256);
         Assert.Multiple((Action)(() =>
