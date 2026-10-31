@@ -32,13 +32,13 @@ public sealed record V9NestedCalibrationSearchResult(string Version, string Plan
 public static class V9NestedCalibrationCoordinator
 {
     public const string Version = "V9_INTERNAL_TRAIN_BATCH_PARETO_FINALISTS_V1";
-    private sealed record Request(IReadOnlyList<LinkageBlockingPass> Passes, V9FsAdaptiveOptionConfiguration Option, decimal Margin)
+    private sealed record Request(IReadOnlyList<LinkageBlockingPass> Passes, V9FsAdaptiveOptionConfiguration Option, decimal Margin, string RootOptionId)
     {
         internal string Sha => V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(new
         {
             Passes = Passes.OrderBy(p => p.PassId, StringComparer.Ordinal),
-            Alpha = Option.SmoothingAlpha.ToString("G29", CultureInfo.InvariantCulture),
-            Threshold = Option.DecisionThreshold.ToString("G29", CultureInfo.InvariantCulture),
+            OptionFingerprint = Option.FingerprintSha256,
+            RootOptionId,
             Margin = Margin.ToString("G29", CultureInfo.InvariantCulture)
         }));
     }
@@ -100,10 +100,14 @@ public static class V9NestedCalibrationCoordinator
             .Any(g => g.Select(p => string.Join('|', p.Fields)).Distinct(StringComparer.Ordinal).Count() > 1))
             throw new InvalidDataException("PassId não pode representar predicados diferentes entre lotes.");
         var requests = ruleSets.SelectMany(passes => calibration.ModelOptions.SelectMany(option => calibration.ConflictMargins
-            .Select(margin => new Request(passes, option with { OptionId = OptionId(option.SmoothingAlpha, option.DecisionThreshold) }, margin))))
+            .Select(margin => new Request(passes, option, margin, option.OptionId))))
             .DistinctBy(x => x.Sha).OrderBy(x => x.Sha, StringComparer.Ordinal).ToArray();
         if (requests.Length > plan.MaximumSearchConfigurations)
             throw new InvalidDataException("Lote inicial excede orçamento declarado; nenhuma configuração foi eliminada por resultado.");
+        // The candidate snapshot only stores OptionId. Keep the complete frozen
+        // configuration and its root identity so refinements cannot silently
+        // reset TF, support policy or other model dimensions.
+        var optionTemplates = new Dictionary<string, Request>(StringComparer.Ordinal);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var evaluations = new List<V9NestedCandidateEvaluation>();
         var progress = new List<V9TrainingBatchProgress>();
@@ -116,7 +120,17 @@ public static class V9NestedCalibrationCoordinator
             cancellationToken.ThrowIfCancellationRequested();
             var previous = frontier;
             var batchIndex = batch;
-            foreach (var request in requests) seen.Add(request.Sha);
+            foreach (var request in requests)
+            {
+                seen.Add(request.Sha);
+                if (optionTemplates.TryGetValue(request.Option.OptionId, out var existing))
+                {
+                    if (existing.Option.FingerprintSha256 != request.Option.FingerprintSha256
+                        || existing.RootOptionId != request.RootOptionId)
+                        throw new InvalidDataException("OptionId reutilizado para configurações diferentes na busca interna.");
+                }
+                else optionTemplates.Add(request.Option.OptionId, request);
+            }
             var groups = requests.GroupBy(r => JsonSerializer.Serialize(new { r.Passes,
                     Margin = r.Margin.ToString("G29", CultureInfo.InvariantCulture) }))
                 .SelectMany(g => g.Chunk(64)).ToArray();
@@ -178,7 +192,7 @@ public static class V9NestedCalibrationCoordinator
             if (frontier.Count == 0) { stop = "NO_FEASIBLE_CONFIGURATION_NO_HOLDOUT_USED"; break; }
             if (stagnant >= 2) { stop = "TWO_STAGNANT_BATCHES_HEURISTIC_NOT_OPTIMALITY"; break; }
             if (evaluations.Count >= plan.MaximumSearchConfigurations) { stop = "COMPUTE_BUDGET_EXHAUSTED_NOT_OPTIMALITY"; break; }
-            requests = Refine(frontier, catalogue, plan, batch).Where(x => !seen.Contains(x.Sha)).DistinctBy(x => x.Sha)
+            requests = Refine(frontier, catalogue, plan, batch, optionTemplates).Where(x => !seen.Contains(x.Sha)).DistinctBy(x => x.Sha)
                 .OrderBy(x => x.Sha, StringComparer.Ordinal).Take(plan.MaximumSearchConfigurations - evaluations.Count).ToArray();
             if (requests.Length == 0) { stop = "DECLARED_NEIGHBOURHOOD_EXHAUSTED_NOT_GLOBAL_OPTIMALITY"; break; }
         }
@@ -188,18 +202,27 @@ public static class V9NestedCalibrationCoordinator
             finalists.Select(x => x.Snapshot.ContentSha256).ToArray(), stop);
     }
 
-    private static string OptionId(decimal alpha, decimal threshold) =>
-        "A" + alpha.ToString("G29", CultureInfo.InvariantCulture) + "_T"
-        + threshold.ToString("G29", CultureInfo.InvariantCulture) + "_TF0";
+    private static V9FsAdaptiveOptionConfiguration RefinedOption(
+        V9FsAdaptiveOptionConfiguration template, string rootOptionId, decimal threshold) =>
+        template with
+        {
+            OptionId = "NESTED_" + V9InternalTrainingSplit.Hash(rootOptionId) + "_A"
+                + template.SmoothingAlpha.ToString("G29", CultureInfo.InvariantCulture) + "_T"
+                + threshold.ToString("G29", CultureInfo.InvariantCulture),
+            DecisionThreshold = threshold
+        };
 
     private static IEnumerable<Request> Refine(IReadOnlyList<V9TrainingCandidate> frontier,
-        IReadOnlyList<LinkageBlockingPass> catalogue, V9NestedCalibrationPlan plan, int batch)
+        IReadOnlyList<LinkageBlockingPass> catalogue, V9NestedCalibrationPlan plan, int batch,
+        IReadOnlyDictionary<string, Request> optionTemplates)
     {
         var divisor = (decimal)Math.Pow(2, Math.Min(batch - 1, 24));
         var dt = plan.InitialThresholdStep / divisor; var dm = plan.InitialMarginStep / divisor;
         foreach (var candidate in frontier)
         {
             var p = candidate.Snapshot.Payload;
+            if (!optionTemplates.TryGetValue(p.OptionId, out var template))
+                throw new InvalidDataException("Finalista sem configuração original congelada.");
             var ruleSets = new List<IReadOnlyList<LinkageBlockingPass>> { p.BlockingPasses };
             foreach (var pass in catalogue)
             {
@@ -211,7 +234,9 @@ public static class V9NestedCalibrationCoordinator
             foreach (var passes in ruleSets)
             foreach (var threshold in new[] { p.Threshold - dt, p.Threshold, p.Threshold + dt }.Where(x => x is > 0 and < 1))
             foreach (var margin in new[] { p.ConflictMargin - dm, p.ConflictMargin, p.ConflictMargin + dm }.Where(x => x is > 0 and <= 1000))
-                yield return new(passes, new(OptionId(candidate.Support.SmoothingAlpha, threshold), candidate.Support.SmoothingAlpha, threshold), margin);
+                yield return new(passes,
+                    RefinedOption(template.Option, template.RootOptionId, threshold),
+                    margin, template.RootOptionId);
         }
     }
 
