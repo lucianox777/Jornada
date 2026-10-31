@@ -1,0 +1,49 @@
+name: Jornada continuity watchdog
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+  checks: read
+  actions: read
+concurrency:
+  group: jornada-continuity-watchdog
+  cancel-in-progress: false
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - name: Audit V9 and DT-10 and persist resumable status
+        shell: bash
+        run: |
+          set -euo pipefail
+          for pr in 1215 1199; do
+            data="$(gh api "repos/$GH_REPO/pulls/$pr" 2>/dev/null || true)"
+            if [ -z "$data" ]; then
+              echo "::warning::PR #$pr unavailable"
+              continue
+            fi
+            state="$(jq -r '.state' <<<"$data")"
+            draft="$(jq -r '.draft' <<<"$data")"
+            head="$(jq -r '.head.sha' <<<"$data")"
+            mergeable="$(jq -r '.mergeable // "unknown"' <<<"$data")"
+            title="Jornada continuity checkpoint PR #$pr"
+            checks="$(gh api "repos/$GH_REPO/commits/$head/check-runs?per_page=100" --jq '[.check_runs[] | {name,status,conclusion}]' 2>/dev/null || echo '[]')"
+            statuses="$(gh api "repos/$GH_REPO/commits/$head/status" --jq '[.statuses[] | {context,state}]' 2>/dev/null || echo '[]')"
+            report="$(jq -n --argjson pr "$pr" --arg state "$state" --arg draft "$draft" --arg head "$head" --arg mergeable "$mergeable" --argjson checks "$checks" --argjson statuses "$statuses" '{pr:$pr,state:$state,draft:($draft=="true"),head:$head,mergeable:$mergeable,checks:$checks,statuses:$statuses}')"
+            body="$(printf 'Checkpoint automático, retomável pelo SHA atual. Não substitui revisão arquitetural nem autoriza merge sem gates substantivos.\n\n```json\n%s\n```\n\nPendências: corrigir checks falhos no PR correspondente; confirmar contratos, testes, documentação e gates no mesmo SHA; merge somente após validação completa.\n' "$report")"
+            existing="$(gh issue list --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -1)"
+            if [ -n "$existing" ]; then
+              gh issue edit "$existing" --body "$body"
+            elif [ "$state" = "open" ]; then
+              gh issue create --title "$title" --body "$body"
+            fi
+            echo "PR #$pr: $state head=$head mergeable=$mergeable"
+          done
