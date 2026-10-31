@@ -97,6 +97,32 @@ public sealed class CompositeNominalFrequencyV9Tests
     }
 
     [Test]
+    public void ExactFullFirstNameProxy_IsExplicitAndDoesNotWeakenStrictFullNameGuard()
+    {
+        var first = IbgeBootstrap(NominalFrequencyUnitV9.FirstName,
+            NominalFrequencySourceV9.IbgePublishedMarginal);
+        Assert.DoesNotThrow((Action)(() =>
+            CompositeNominalTermFrequencyContractV9.RequireFirstNameProxyForExactFull(
+                CompositeNominalLevelV9.ExactFull, first, 100)));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That((Action)(() =>
+                CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                    CompositeNominalLevelV9.ExactFull, first, 100)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CompositeNominalTermFrequencyContractV9.RequireFirstNameProxyForExactFull(
+                    CompositeNominalLevelV9.ExactLast, first, 100)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() =>
+                CompositeNominalTermFrequencyContractV9.RequireFirstNameProxyForExactFull(
+                    CompositeNominalLevelV9.ExactFull,
+                    first with { Unit = NominalFrequencyUnitV9.FullName }, 100)),
+                Throws.InvalidOperationException);
+        }));
+    }
+
+    [Test]
     public void AllowsCanonicalIbgeSurnameMarginalOnlyAsExplicitLastSurnameProxy()
     {
         // DC-LK-TF line 95 and Calibrador FS section 10 authorize an
