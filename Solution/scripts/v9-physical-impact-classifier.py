@@ -11,6 +11,17 @@ import json
 import re
 from pathlib import Path
 
+# Audited CI policy paths only. Never include arbitrary workflows or product inputs.
+CI_POLICY_ONLY = frozenset({
+    ".github/workflows/v9-physical-seed42-probe.yml",
+    "Solution/scripts/v9-physical-impact-classifier.py",
+    "Solution/scripts/v9_manual_probe_evidence.py",
+    "Solution/tests/scripts/test_v9_physical_impact_classifier.py",
+    "Solution/tests/scripts/test_v9_manual_probe_evidence.py",
+    "Solution/tests/scripts/test_ci_impact_classifier.py",
+    "Solution/docs/Decisao_CI_Probe_V9_Por_Impacto_20261024.md",
+})
+
 GOLD_ONLY_RUNNER = frozenset({
     "GoldPartitionBcubedAudit.cs",
     "GoldTrainLowerNonMatchMatrixCommand.cs",
@@ -61,6 +72,8 @@ def reason_for_safe(path: str) -> str | None:
         return "gold-exclusive-test"
     if path in GOLD_ONLY_SCRIPTS:
         return "gold-exclusive-orchestration"
+    if path in CI_POLICY_ONLY:
+        return "ci-policy-only"
     # Tests do not change the production 30k calibrator. Keep helper/source
     # files without a Tests suffix fail-closed, even under a test project.
     for root in ("Solution/tests/Jornada.Tests/Unit/", "Solution/tests/Jornada.Integration.Tests/Integration/"):
@@ -107,9 +120,11 @@ def classify(entries: list[tuple[str, str]], *, manual: bool = False) -> dict:
     require_probe = False
     for status, path in entries:
         safe = reason_for_safe(path)
-        # Conservative: only normal modifications and additions of known-safe paths.
-        # Renames, deletions, copies and type changes can conceal a dependency move.
-        if status not in {"M", "A"}:
+        # A deleted Markdown document under audited documentation roots cannot
+        # alter executable calibration inputs. Keep all other deletions,
+        # renames/copies and type changes fail-closed.
+        documented_deletion = status == "D" and safe == "documentation" and path.lower().endswith(".md")
+        if status not in {"M", "A"} and not documented_deletion:
             safe = None
         if safe is None:
             require_probe = True
@@ -117,7 +132,7 @@ def classify(entries: list[tuple[str, str]], *, manual: bool = False) -> dict:
     return {
         "run_physical_30k": require_probe,
         "decision": "RUN" if require_probe else "NOT_REQUIRED_FOR_THIS_DIFF",
-        "reason": "shared-unknown-or-ambiguous-impact" if require_probe else "only-audited-docs-or-gold-exclusive-paths",
+        "reason": "shared-unknown-or-ambiguous-impact" if require_probe else "only-audited-safe-and-ci-policy-paths",
         "changes": changes,
     }
 
