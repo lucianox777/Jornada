@@ -60,8 +60,11 @@ def main():
             "Do not activate or certify any model from this experiment"
         ],
     }
-    if args.output.resolve() in {args.train_csv.resolve(), args.candidate_frame.resolve(), (root / FITTED).resolve()}:
+    evidence_paths = (args.train_csv, args.candidate_frame, root / FITTED)
+    if args.output.resolve() in {source.resolve() for source in evidence_paths}:
         raise SystemExit("Output must not overwrite any input evidence")
+    if args.output.is_symlink():
+        raise SystemExit("Output symlink forbidden: immutable evidence required")
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("x", encoding="utf-8") as handle:
         handle.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
