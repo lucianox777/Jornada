@@ -43,7 +43,7 @@ public sealed class Dt10V9LowerAuthorizationIssuerLocalDbTests
                       AND CONVERT(NVARCHAR(200),value)=N'PINNED_FIT_PREVIEW_NO_ACTIVATION')
                 THEN 1 ELSE 0 END;
                 """;
-            Assert.That(Convert.ToInt32(await guard.ExecuteScalarAsync()), Is.EqualTo(1),
+            Assert.That(Convert.ToInt32(await guard.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture), Is.EqualTo(1),
                 "Never run synthetic ACTIVATE proof against a non-disposable database.");
         }
 
@@ -143,7 +143,7 @@ public sealed class Dt10V9LowerAuthorizationIssuerLocalDbTests
             SELECT COUNT_BIG(*) FROM identidade.v9_dt10_lower_policy
              WHERE politica_versao=N'V9_DT10_LOWER_CI_POSITIVE';
             """;
-        Assert.That(Convert.ToInt64(await noLeak.ExecuteScalarAsync()), Is.Zero,
+        Assert.That(Convert.ToInt64(await noLeak.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture), Is.Zero,
             "Synthetic DT-15 evidence must not survive the test transaction.");
     }
 }
