@@ -101,6 +101,11 @@ foreach ($upper in $upperValues) {
     }
 }
 
+# Validate the ENTIRE preregistered plan with the C# canonical parser and
+# fingerprint rules before creating any LocalDB instance or output directory.
+# PowerShell's own structural checks are not a substitute for ReadPlan.
+RunRunner -argv @('--v9-gold-joint-train-plan-preflight', $planPath) -label 'frozen TRAIN plan preflight'
+
 # Preserve any caller connection and never accept it as a physical destination.
 $previousConnection = [Environment]::GetEnvironmentVariable('ConnectionStrings__Jornada', 'Process')
 $instances = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)

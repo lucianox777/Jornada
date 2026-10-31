@@ -13,6 +13,7 @@ namespace Jornada.Linkage.Runner;
 public static class V9GoldJointTrainMatrixCommand
 {
     public const string Flag = "--v9-gold-joint-train-matrix-aggregate";
+    public const string PreflightFlag = "--v9-gold-joint-train-plan-preflight";
     public const string Version = "V9_GOLD_JOINT_TRAIN_PREREGISTERED_MATRIX_V1";
     public const string PlanSuffix = ".joint-train-plan.json";
     private static readonly JsonSerializerOptions Json = new()
@@ -161,6 +162,29 @@ public static class V9GoldJointTrainMatrixCommand
         return new Matrix(Version, planSha, plan.OriginalTrainCsvSha256,
             plan.SelectionEnvelopeSha256, frozen.Count, frozen, study,
             TestUsed: false, IndependentlyCertified: false, OperationallyActivated: false);
+    }
+
+    /// <summary>
+    /// Validates the complete content-addressed TRAIN plan before any disposable
+    /// LocalDB is created. No SQL connection, output artifact or TEST is touched.
+    /// </summary>
+    public static async Task<string> ValidatePlanFileAsync(string path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+            throw new ArgumentException("A frozen plan file path is required.", nameof(path));
+        var bytes = await File.ReadAllBytesAsync(path);
+        var sha = Sha(bytes);
+        if (!string.Equals(Path.GetFileName(path), sha + PlanSuffix, StringComparison.Ordinal))
+            throw new InvalidDataException("Joint TRAIN plan filename must match its SHA-256.");
+        _ = ReadPlan(bytes);
+        return sha;
+    }
+
+    public static async Task RunPlanPreflightAsync(string[] args)
+    {
+        if (args is null || args.Length != 2 || args[0] != PreflightFlag)
+            throw new ArgumentException("Use --v9-gold-joint-train-plan-preflight <SHA.joint-train-plan.json>.");
+        Console.WriteLine("Validated frozen Gold TRAIN plan: " + await ValidatePlanFileAsync(args[1]));
     }
 
     public static async Task<Matrix> RunAsync(string[] args)
