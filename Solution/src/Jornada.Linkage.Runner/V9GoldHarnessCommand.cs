@@ -390,6 +390,10 @@ public static class V9GoldHarnessCommand
                 || trainingEvidence.Select(x => x.SourceFingerprintSha256)
                     .Distinct(StringComparer.Ordinal).Count() != sources.Count))
                 throw new InvalidDataException("Captura TRAIN incompleta ou com fonte duplicada.");
+            if (jointTrainTrial && (trainingEvidence.Count != sources.Count
+                || trainingEvidence.Any(x => !x.Retrieval.CompleteCandidateUniverse
+                    || !x.Retrieval.IndexMaterializationVerified)))
+                throw new InvalidDataException("Joint TRAIN requires complete physical blocking/FS retrieval for every source.");
             var beforeReevaluation = await OwnershipAsync(owner, truthByObservation);
             if (holdout is not null) preview.BeginWave();
             var reevaluation = await runner.RunAsync(new(LinkageRunType.INCREMENTAL, 1, null, null, null,
@@ -477,6 +481,9 @@ public static class V9GoldHarnessCommand
                     sourceCount = sources.Count,
                     trueLinkOpportunities = preregisteredTrueLinkOpportunities,
                     trueLinkOpportunityRule = "PRIOR_CSV_WAVE_TRUTH_PRESENT_IN_EARLIER_WAVE_INDEPENDENT_OF_THRESHOLDS",
+                    completeCandidateUniverseVerified = true,
+                    disposableLocalDbVerified = true,
+                    goldPreWaveTruthFrozen = true,
                     scope = "TRAIN_SELECTION",
                     refitted = false, testUsed = false, certified = false, activated = false
                 } : null,
@@ -490,7 +497,9 @@ public static class V9GoldHarnessCommand
                     refitted = false, testUsed = false, activated = false
                 } : null,
                 selectionEnvelopeSha256 = selectionSha, observations = sources.Count,
-                identityGroups = holdout is null ? identities.Count
+                identityGroups = jointTrainTrial
+                    ? sources.Select(x => x.Truth).Distinct(StringComparer.Ordinal).Count()
+                    : holdout is null ? identities.Count
                     : sources.Select(x => x.Truth).Distinct(StringComparer.Ordinal).Count(),
                 independentHoldout = holdout,
                 holdoutErrorForensics = holdout is null ? null : new
