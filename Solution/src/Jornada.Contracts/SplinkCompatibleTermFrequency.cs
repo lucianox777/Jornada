@@ -44,12 +44,65 @@ public static class SplinkCompatibleTermFrequency
         ValidateProbability(referenceUProbability, nameof(referenceUProbability));
         ArgumentOutOfRangeException.ThrowIfLessThan(weight, 0m);
 
+        // Validate the full contract even when TF is disabled by weight zero.
+        _ = EffectiveFrequency(leftFrequency, rightFrequency, minimumUValue);
         if (weight == 0m)
             return 0d;
 
         var effectiveFrequency = EffectiveFrequency(leftFrequency, rightFrequency, minimumUValue);
         var bayesFactor = (double)(referenceUProbability / effectiveFrequency);
         return (double)weight * Math.Log(bayesFactor);
+    }
+
+    /// <summary>
+    /// V9: ajuste assimétrico conservador. Nunca bonifica termos raros.
+    /// Preserva a rotina histórica de ajuste simétrico e seu resultado para peso zero.
+    /// O chamador deve fornecer u da MESMA unidade nominal da frequência.
+    /// </summary>
+    public static double LogBayesAdjustmentAsymmetric(
+        decimal leftFrequency,
+        decimal rightFrequency,
+        decimal referenceUProbability,
+        decimal weight = 1m,
+        decimal minimumUValue = 0m)
+    {
+        var adjustment = LogBayesAdjustment(
+            leftFrequency, rightFrequency, referenceUProbability, weight, minimumUValue);
+        return Math.Min(0d, adjustment);
+    }
+
+    /// <summary>
+    /// Explicit V9 TF mode selector. Zero disables TF; symmetric preserves V8;
+    /// asymmetric only penalizes common terms. No operational activation implied.
+    /// </summary>
+    public enum AdjustmentModeV9 { Zero, Symmetric, Asymmetric }
+
+    public static double LogBayesAdjustmentV9(
+        AdjustmentModeV9 mode,
+        decimal leftFrequency,
+        decimal rightFrequency,
+        decimal referenceUProbability,
+        decimal weight = 1m,
+        decimal minimumUValue = 0m)
+    {
+        if (!Enum.IsDefined(mode))
+            throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown V9 TF mode.");
+        // Zero disables the adjustment, but invalid inputs must not be silently accepted.
+        ValidateProbability(leftFrequency, nameof(leftFrequency));
+        ValidateProbability(rightFrequency, nameof(rightFrequency));
+        ValidateProbability(referenceUProbability, nameof(referenceUProbability));
+        ArgumentOutOfRangeException.ThrowIfLessThan(weight, 0m);
+        ArgumentOutOfRangeException.ThrowIfLessThan(minimumUValue, 0m);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(minimumUValue, 1m);
+        return mode switch
+        {
+            AdjustmentModeV9.Zero => 0d,
+            AdjustmentModeV9.Symmetric => LogBayesAdjustment(
+                leftFrequency, rightFrequency, referenceUProbability, weight, minimumUValue),
+            AdjustmentModeV9.Asymmetric => LogBayesAdjustmentAsymmetric(
+                leftFrequency, rightFrequency, referenceUProbability, weight, minimumUValue),
+            _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown V9 TF mode.")
+        };
     }
 
     private static void ValidateProbability(decimal value, string parameterName)

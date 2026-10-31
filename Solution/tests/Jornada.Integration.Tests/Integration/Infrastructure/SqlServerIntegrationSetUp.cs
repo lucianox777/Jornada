@@ -37,6 +37,64 @@ public sealed class SqlServerIntegrationSetUp
         _previousConnectionString = Environment.GetEnvironmentVariable(
             Infrastructure.SqlIntegrationEnvironment.ConnectionStringVariable);
 
+        // The DT-10 V9 contract has an independent Windows-only physical
+        // integration test. Its workflow creates a fresh LocalDB by ownership
+        // receipt, then runs ONLY category DT10V9. Testcontainers' Linux SQL
+        // image is neither available nor needed in that explicitly isolated
+        // test process. Never bypass the normal integration setup otherwise.
+        if (string.Equals(
+                Environment.GetEnvironmentVariable("JORNADA_DT10_V9_DEDICATED"),
+                "1", StringComparison.Ordinal))
+        {
+            var disposable = Environment.GetEnvironmentVariable(
+                "JORNADA_DT10_V9_HARNESS_CONNECTION");
+            if (!OperatingSystem.IsWindows() || string.IsNullOrWhiteSpace(disposable)
+                || !string.IsNullOrWhiteSpace(_previousConnectionString))
+            {
+                throw new InvalidOperationException(
+                    "DT-10 dedicated mode requires Windows, owned LocalDB and no general integration target.");
+            }
+
+            var local = new SqlConnectionStringBuilder(disposable);
+            if (!System.Text.RegularExpressions.Regex.IsMatch(
+                    local.DataSource,
+                    @"^\(localdb\)\\JornadaV9Gold[0-9]{8}_[a-f0-9]{8}$",
+                    System.Text.RegularExpressions.RegexOptions.CultureInvariant)
+                || !string.Equals(local.InitialCatalog, "JornadaHarness", StringComparison.Ordinal)
+                || !local.IntegratedSecurity || local.AttachDBFilename.Length != 0
+                || local.UserInstance || local.FailoverPartner.Length != 0)
+            {
+                throw new InvalidOperationException(
+                    "DT-10 dedicated mode refuses connections outside the disposable V9 Gold LocalDB.");
+            }
+
+            await using var owned = new SqlConnection(local.ConnectionString);
+            await owned.OpenAsync().ConfigureAwait(false);
+            await using var marker = owned.CreateCommand();
+            marker.CommandText = """
+                SELECT CASE WHEN DB_NAME()=N'JornadaHarness'
+                  AND COALESCE(TRY_CONVERT(INT,SERVERPROPERTY(N'IsLocalDB')),0)=1
+                  AND EXISTS(SELECT 1 FROM sys.extended_properties
+                    WHERE class=0 AND name=N'Jornada.EnvironmentProfile'
+                      AND CONVERT(NVARCHAR(200),value)=N'Development')
+                  AND EXISTS(SELECT 1 FROM sys.extended_properties
+                    WHERE class=0 AND name=N'Jornada.V9.ExperimentalHarness'
+                      AND CONVERT(NVARCHAR(200),value)=N'PINNED_FIT_PREVIEW_NO_ACTIVATION')
+                  THEN 1 ELSE 0 END;
+                """;
+            if (Convert.ToInt32(
+                    await marker.ExecuteScalarAsync().ConfigureAwait(false),
+                    System.Globalization.CultureInfo.InvariantCulture) != 1)
+            {
+                throw new InvalidOperationException(
+                    "DT-10 dedicated fixture refuses unmarked or operational databases.");
+            }
+
+            TestContext.Progress.WriteLine(
+                "DT-10 V9: isolated LocalDB ownership verified; no shared Docker/SQL target initialized.");
+            return;
+        }
+
         if (Infrastructure.SqlIntegrationEnvironment.IsFabricSqlDatabase
             && string.IsNullOrWhiteSpace(_previousConnectionString))
         {

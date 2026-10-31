@@ -75,6 +75,26 @@ public static class CompositeNominalTermFrequencyContractV9
         };
 
     /// <summary>
+    /// Explicit V8-compatible first-name proxy for full-name equality.
+    /// The matched event is FirstName, NOT FullName; callers must independently
+    /// verify first-token equality and use a first-name-compatible TRAIN U.
+    /// The legacy strict RequiredUnit/RequireMatchingReference guards remain
+    /// unchanged for consumers that request actual full-name frequencies.
+    /// </summary>
+    public static void RequireFirstNameProxyForExactFull(
+        CompositeNominalLevelV9 level,
+        NominalFrequencyReferenceContractV9 reference,
+        long minimumIndependentSupport)
+    {
+        if (level != CompositeNominalLevelV9.ExactFull
+            && level != CompositeNominalLevelV9.ExactFirst)
+            throw new InvalidOperationException(
+                "Proxy de prenome só é aplicável a ExactFull ou ExactFirst.");
+        RequireMatchingReference(CompositeNominalLevelV9.ExactFirst,
+            reference, minimumIndependentSupport);
+    }
+
+    /// <summary>
     /// Gates the *eligibility of a reference contract only*; the canonical
     /// SINTETICO_IBGE bootstrap uses a versioned 30k synthetic corpus and
     /// does not require real observed support or population validation.

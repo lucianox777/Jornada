@@ -11,6 +11,18 @@ if (args.FirstOrDefault() == V9LowerNonMatchStudyCli.Flag)
     return;
 }
 
+if (args.FirstOrDefault() == V9GoldJointTrainMatrixCommand.PreflightFlag)
+{
+    await V9GoldJointTrainMatrixCommand.RunPlanPreflightAsync(args);
+    return;
+}
+
+if (args.FirstOrDefault() == V9GoldJointTrainMatrixCommand.Flag)
+{
+    await V9GoldJointTrainMatrixCommand.RunAsync(args);
+    return;
+}
+
 if (args.FirstOrDefault() == GoldTrainLowerNonMatchMatrixCommand.Flag)
 {
     await GoldTrainLowerNonMatchMatrixCommand.RunAsync(args);
@@ -42,6 +54,14 @@ if (args.FirstOrDefault() == "--v9-gold-holdout-harness")
     var holdoutConnection = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
         ?? throw new InvalidOperationException("Holdout exige LocalDB descartável.");
     await V9GoldHarnessCommand.RunIndependentHoldoutAsync(args, holdoutConnection);
+    return;
+}
+
+if (args.FirstOrDefault() == V9GoldHarnessCommand.JointTrainTrialFlag)
+{
+    var jointConnection = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+        ?? throw new InvalidOperationException("Joint TRAIN exige LocalDB descartável.");
+    _ = await V9GoldHarnessCommand.RunJointTrainTrialAsync(args, jointConnection);
     return;
 }
 

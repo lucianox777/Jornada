@@ -439,38 +439,3 @@ conflito/homônimo operacionais, TF positiva estatisticamente
 fundamentada ou TEST novo independente. Correlated fica
 somente no histórico e não deve voltar à CI automática.
 Consultar [revisão integral e dados dos runs](V9_Reconciliacao_Decisoes_Evidencias_Runners_20261018.md).
-
-
-## 30/10/2026 — implementação em preparação, sem certificação
-
-**Estado: implementado em branch de preparação; testes no SHA final pendentes;
-não aprovado; não ativado.** Esta seção descreve código, não resultados
-estatísticos nem uma decisão de promoção.
-
-- A busca aninhada preserva a identidade integral da opção (incluindo TF,
-  lado nominal, smoothing e suporte) entre refinamentos e elimina pedidos
-  semanticamente repetidos. O espaço de candidatos não recebe preferência
-  prévia por TF=0 ou por peso positivo.
-- Para TF positivo, o plano exige **ID de versão IBGE publicada**, digest
-  publicado, digest das frequências materializadas e proveniência do
-  bootstrap. A CLI carrega essa versão explícita por SQL; não escolhe
-  automaticamente a referência `ATIVA`. A referência congelada deve
-  coincidir com o fingerprint do frame de blocking físico.
-- O replay de finalistas congelados usa o TF embutido no snapshot, inclusive
-  o U ajustado em TRAIN; não converte silenciosamente um finalista TF
-  positivo em TF=0. TF=0 continua neutro. O scorer portátil atual só aplica
-  TF à unidade **ExactFirst**; frequência IBGE de sobrenome em qualquer
-  posição continua **proxy explicitamente rotulado** para
-  `LastContentSurname`, nunca frequência observada da última posição.
-- `TRAIN_SELECTION` é subdivisão interna de TRAIN, não VALIDATION externa.
-  A avaliação externa e TEST selado não podem ser reutilizados para refit,
-  escolha de hiperparâmetros ou nova tentativa oportunista.
-- Esta implementação não prova m/u representativos do blocking real,
-  estabilidade estatística, custo, FDR, DT-15 ou equivalência operacional
-  Gold. Exige testes unitários/SQL menores e revisão do seletor global,
-  seguidos de **uma única** probe física final no SHA consolidado e
-  gates VALIDATION/TEST/DT-15 antes de qualquer merge ou autorização.
-
-A execução física histórica #41110928184 é somente referência; não é
-certificação deste código. A PR #1199 (DT-10) é independente e não foi
-alterada nesta preparação.
