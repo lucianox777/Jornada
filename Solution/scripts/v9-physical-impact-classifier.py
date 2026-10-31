@@ -119,7 +119,7 @@ def classify(entries: list[tuple[str, str]], *, manual: bool = False, bootstrap_
         return {"run_physical_30k": True, "decision": "RUN", "reason": "manual-dispatch-always-full", "changes": []}
     if not entries:
         return {"run_physical_30k": True, "decision": "RUN", "reason": "empty-or-unreadable-diff", "changes": []}
-    if bootstrap_pr == "1222" and ci_policy_only(entries):
+    if bootstrap_pr in {"1222", "1227"} and ci_policy_only(entries):
         return {
             "run_physical_30k": False,
             "decision": "NOT_REQUIRED_FOR_THIS_DIFF",
