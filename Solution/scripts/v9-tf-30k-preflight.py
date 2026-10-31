@@ -23,7 +23,10 @@ def main():
     if args.ibge_reference_id <= 0:
         parser.error("IBGE reference version ID must be positive")
     root = Path(__file__).resolve().parents[1] / "data/calibration/v9/mass-support-20261020"
-    snapshot = json.loads((root / FITTED).read_text(encoding="utf-8"))
+    snapshot_path = root / FITTED
+    with snapshot_path.open("rb") as source:
+        baseline_sha = hashlib.file_digest(source, "sha256").hexdigest()
+    snapshot = json.loads(snapshot_path.read_text(encoding="utf-8"))
     if snapshot["TfWeight"] != 0 or snapshot["TfCalibration"] is not None:
         raise SystemExit("Unexpected historical baseline: fail closed")
     if str(snapshot["Threshold"]) != "0.8671875" or str(snapshot["ConflictMargin"]) != "0.609375":
@@ -45,6 +48,7 @@ def main():
         "train_sha256": digest,
         "ibge_reference_version_id": args.ibge_reference_id,
         "historical_fitted_snapshot": FITTED,
+        "historical_fitted_snapshot_sha256": baseline_sha,
         "candidate_frame": str(args.candidate_frame),
         "candidate_frame_sha256": frame_digest,
         "tf_weights": WEIGHTS,
