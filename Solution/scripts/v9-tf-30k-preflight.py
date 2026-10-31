@@ -35,12 +35,14 @@ def main():
         raise SystemExit(f"TRAIN CSV fingerprint mismatch: {digest}")
     if args.candidate_frame is None or not args.candidate_frame.is_file():
         raise SystemExit("Candidate frame missing: cannot compute conditional TRAIN U or TF decisions")
+    frame_digest = hashlib.sha256(args.candidate_frame.read_bytes()).hexdigest()
     payload = {
         "status": "PREFLIGHT_ONLY_NOT_SCORED_NOT_CERTIFIED",
         "train_sha256": digest,
         "ibge_reference_version_id": args.ibge_reference_id,
         "historical_fitted_snapshot": FITTED,
         "candidate_frame": str(args.candidate_frame),
+        "candidate_frame_sha256": frame_digest,
         "tf_weights": WEIGHTS,
         "smoothing_alpha": "0.1",
         "decision_threshold": "0.8671875",
@@ -54,8 +56,11 @@ def main():
             "Do not activate or certify any model from this experiment"
         ],
     }
+    if args.output.exists():
+        raise SystemExit("Preflight output already exists: immutable evidence required")
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    args.output.write_text(json.dumps(payload, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    with args.output.open("x", encoding="utf-8") as handle:
+        handle.write(json.dumps(payload, indent=2, ensure_ascii=False) + "\n")
     print(f"Verified historical input and wrote preflight: {args.output}")
     print("No TF scores calculated; scoring runner still required.")
 
