@@ -139,6 +139,8 @@ public static class V9GoldJointPhysicalReceipt
         Equal(String(upperTrial, "scope"), "TRAIN_SELECTION", "upper scope");
         Equal(String(upperTrial, "canonicalGoldSnapshotSha256"), canonicalGoldSnapshotSha256, "canonical Gold");
         Equal(String(upperTrial, "distinctRecomputedSnapshotSha256"), String(root, "snapshotSha256"), "upper rerun");
+        if (string.Equals(String(root, "snapshotSha256"), canonicalGoldSnapshotSha256, StringComparison.Ordinal))
+            throw new InvalidDataException("Joint TRAIN upper rerun must use a distinct physical Gold snapshot.");
         if (Fraction(upperTrial, "upperThreshold") != upper)
             throw new InvalidDataException("Joint TRAIN upper override differs from trial.");
         foreach (var name in new[] { "refitted", "testUsed", "activated" })
@@ -161,6 +163,8 @@ public static class V9GoldJointPhysicalReceipt
         var executed = Required(threeOrder, "executedWaveOrder");
         var canonical = GoldTrainThreeOrderProtocol.ResolveOrder(order, ["G0", "G1", "G2", "G3"]);
         if (executed.ValueKind != JsonValueKind.Array
+            || executed.GetArrayLength() != canonical.Count
+            || executed.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String)
             || !executed.EnumerateArray().Select(x => x.GetString()).SequenceEqual(canonical))
             throw new InvalidDataException("Joint TRAIN physical wave order mismatch.");
 
