@@ -38,6 +38,36 @@ public sealed class V9GoldJointThresholdTrainTests
             [.8m, .9m], [.1m, .2m], 10, true, false);
 
     [Test]
+    public async Task Gold_train_upper_one_preserves_frozen_fit_and_content_addressed_provenance()
+    {
+        // Regression: the TRAIN parser and joint grid already accept upper=1,
+        // but immutable snapshot validation previously rejected that endpoint.
+        var directory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+        while (directory is not null && !Directory.Exists(Path.Combine(directory.FullName, "Solution", "src")))
+            directory = directory.Parent;
+        Assert.That(directory, Is.Not.Null);
+        const string sourceSha = "613f914114073d4a9100e848a01a56321354ae9a7885a77462941ae86936953d";
+        var source = await V9FittedSnapshotArtifact.ReadPinnedAsync(Path.Combine(
+            directory!.FullName, "Solution", "data", "calibration", "v9", "bootstrap-v0",
+            sourceSha + ".fitted.json"), sourceSha);
+        var variant = source.CreateGoldHarnessVariantAtUpper(1m);
+        var reloaded = V9FittedSnapshot.Load(variant.SerializeUtf8(), variant.ContentSha256);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(variant.Payload.Threshold, Is.EqualTo(1m));
+            Assert.That(variant.Payload.CandidateGrouping!.CandidateGrouping, Is.EqualTo("GOLD"));
+            Assert.That(variant.Payload.GoldParentSnapshotSha256, Is.EqualTo(source.ContentSha256));
+            Assert.That(variant.Payload.FitFingerprintSha256, Is.EqualTo(source.Payload.FitFingerprintSha256));
+            Assert.That(variant.Payload.JointCells, Is.EqualTo(source.Payload.JointCells));
+            Assert.That(variant.Payload.Parameters, Is.EquivalentTo(source.Payload.Parameters));
+            Assert.That(reloaded.ContentSha256, Is.EqualTo(variant.ContentSha256));
+            Assert.That(variant.ContentSha256, Is.Not.EqualTo(source.ContentSha256));
+        }));
+        Assert.Throws<InvalidDataException>((Action)(() => source.CreateGoldHarnessVariantAtUpper(1.0001m)));
+        Assert.Throws<InvalidDataException>((Action)(() => source.CreateGoldHarnessVariantAtUpper(0m)));
+    }
+
+    [Test]
     public void Joint_orders_match_actual_four_wave_gold_runner_protocol()
     {
         Assert.That(V9LowerNonMatchTrainCalibrator.JointOrders,
