@@ -39,7 +39,6 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CHECKOUT_SHA: ${{ github.sha }}
           EVENT_NAME: ${{ github.event_name }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
@@ -57,7 +56,7 @@ jobs:
             test "$(git rev-parse HEAD)" = "$CHECKOUT_SHA"
             git diff --name-status -z --find-renames "$BASE_SHA" "$CHECKOUT_SHA" > changed-name-status.z
             python3 Solution/scripts/v9-physical-impact-classifier.py \
-              --bootstrap-pr "$PR_NUMBER" --name-status-z changed-name-status.z \
+              --name-status-z changed-name-status.z \
               --summary v9-physical-30k-impact.json --github-output "$GITHUB_OUTPUT"
           fi
       - name: Archive impact decision for audit
