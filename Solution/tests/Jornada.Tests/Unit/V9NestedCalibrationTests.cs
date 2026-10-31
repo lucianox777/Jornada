@@ -158,6 +158,14 @@ public sealed class V9NestedCalibrationTests
 
         Assert.That(sha.GetValue(Create(original)), Is.Not.EqualTo(sha.GetValue(Create(withTf))));
         Assert.That(sha.GetValue(Create(original)), Is.EqualTo(sha.GetValue(Create(original))));
+
+        // A refined ID must not consume a second physical evaluation when
+        // the underlying configuration and root option are unchanged.
+        var refine = typeof(V9NestedCalibrationCoordinator).GetMethod(
+            "RefinedOption", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var sameConfigurationNewId = (V9FsAdaptiveOptionConfiguration)refine.Invoke(
+            null, [original, "ROOT", original.DecisionThreshold])!;
+        Assert.That(sha.GetValue(Create(original)), Is.EqualTo(sha.GetValue(Create(sameConfigurationNewId))));
     }
 
     [Test]
