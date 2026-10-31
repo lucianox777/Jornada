@@ -151,6 +151,16 @@ public sealed class V9GoldJointTrainMatrixTests
     }
 
     [Test]
+    public void Rejects_ambiguous_duplicate_json_properties_in_frozen_plan()
+    {
+        var plan = Encoding.UTF8.GetString(PlanBytes());
+        var ambiguous = plan.Replace("\"TestUsed\":false", "\"TestUsed\":true,\"TestUsed\":false", StringComparison.Ordinal);
+        Assert.That(ambiguous, Is.Not.EqualTo(plan));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.ReadPlan(Encoding.UTF8.GetBytes(ambiguous))));
+    }
+
+    [Test]
     public void Rejects_unfrozen_grid_or_test_in_preregistered_plan()
     {
         var node = JsonNode.Parse(PlanBytes())!.AsObject();
