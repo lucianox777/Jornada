@@ -104,6 +104,26 @@ public sealed class SplinkCompatibleTermFrequencyTests
     }
 
     [Test]
+    public void ExplicitV9Modes_KeepZeroNeutralAndMatchExistingImplementations()
+    {
+        const decimal left = 0.2m, right = 0.1m, u = 0.01m;
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(SplinkCompatibleTermFrequency.LogBayesAdjustmentV9(
+                SplinkCompatibleTermFrequency.AdjustmentModeV9.Zero, left, right, u), Is.Zero);
+            Assert.That(SplinkCompatibleTermFrequency.LogBayesAdjustmentV9(
+                SplinkCompatibleTermFrequency.AdjustmentModeV9.Symmetric, left, right, u),
+                Is.EqualTo(SplinkCompatibleTermFrequency.LogBayesAdjustment(left, right, u)));
+            Assert.That(SplinkCompatibleTermFrequency.LogBayesAdjustmentV9(
+                SplinkCompatibleTermFrequency.AdjustmentModeV9.Asymmetric, left, right, u),
+                Is.EqualTo(SplinkCompatibleTermFrequency.LogBayesAdjustmentAsymmetric(left, right, u)));
+            Assert.That((Action)(() => SplinkCompatibleTermFrequency.LogBayesAdjustmentV9(
+                (SplinkCompatibleTermFrequency.AdjustmentModeV9)99, left, right, u)),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+        }));
+    }
+
+    [Test]
     public void Pareto_DoesNotInventPreferenceBetweenFalsePositiveAndFalseNegative()
     {
         var a = new CalibrationEvaluation("A", 90, 90, 1, 8, 11, 200);
