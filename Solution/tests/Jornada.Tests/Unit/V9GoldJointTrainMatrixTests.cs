@@ -207,8 +207,8 @@ public sealed class V9GoldJointTrainMatrixTests
 
             var aliasPath = Path.Combine(directory, "mutable.joint-train-plan.json");
             await File.WriteAllBytesAsync(aliasPath, validBytes);
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await V9GoldJointTrainMatrixCommand.ValidatePlanFileAsync(aliasPath));
+            Assert.ThrowsAsync<InvalidDataException>((AsyncTestDelegate)(async () =>
+                await V9GoldJointTrainMatrixCommand.ValidatePlanFileAsync(aliasPath)));
 
             var invalid = JsonNode.Parse(validBytes)!.AsObject();
             invalid["DeclaredGridSha256"] = new string('f', 64);
@@ -216,8 +216,8 @@ public sealed class V9GoldJointTrainMatrixTests
             var invalidPath = Path.Combine(directory,
                 V9GoldJointTrainMatrixCommand.Sha(invalidBytes) + V9GoldJointTrainMatrixCommand.PlanSuffix);
             await File.WriteAllBytesAsync(invalidPath, invalidBytes);
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await V9GoldJointTrainMatrixCommand.ValidatePlanFileAsync(invalidPath));
+            Assert.ThrowsAsync<InvalidDataException>((AsyncTestDelegate)(async () =>
+                await V9GoldJointTrainMatrixCommand.ValidatePlanFileAsync(invalidPath)));
         }
         finally
         {
