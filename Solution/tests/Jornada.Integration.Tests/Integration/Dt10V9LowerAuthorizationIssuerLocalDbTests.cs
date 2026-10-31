@@ -13,7 +13,7 @@ namespace Jornada.Tests.Integration;
 public sealed class Dt10V9LowerAuthorizationIssuerLocalDbTests
 {
     [Test]
-    public async Task Synthetic_valid_dt15_activeness_and_digest_seal_once_while_policy_stays_off()
+    public async Task Synthetic_dt15_digest_seals_then_governed_lower_publishes_once_and_replays()
     {
         var cs = Environment.GetEnvironmentVariable("JORNADA_DT10_V9_HARNESS_CONNECTION");
         if (string.IsNullOrWhiteSpace(cs))
@@ -60,6 +60,23 @@ public sealed class Dt10V9LowerAuthorizationIssuerLocalDbTests
                 Is.GreaterThan(0), "The positive DT-15 fixture requires an active synthetic model.");
         }
 
+        // Ensure an unused synthetic CPF-free source exists in the owned harness.
+        // Only the disposable LocalDB is seeded; this is not operational Gold.
+        await using (var countScale = sql.CreateCommand())
+        {
+            countScale.CommandText = "SELECT COUNT_BIG(*) FROM silver.pessoa_origem WHERE codigo_pessoa_origem LIKE N'SCALE-%';";
+            if (Convert.ToInt64(await countScale.ExecuteScalarAsync(), System.Globalization.CultureInfo.InvariantCulture) == 0)
+                await SqlBatchRunner.ExecuteFileWithSqlCmdVariablesAsync(
+                    sql, Path.Combine(AppContext.BaseDirectory, "database", "Jornada_Dev_SyntheticScale.sql"),
+                    new Dictionary<string, string>(StringComparer.Ordinal)
+                    {
+                        ["SCALE_PEOPLE"] = "1000", ["SCALE_PAIRED"] = "2",
+                        ["SCALE_PENDING"] = "1000", ["SCALE_SEED"] = "991",
+                        ["SCALE_COLLISION_MODULO"] = "37",
+                        ["SCALE_BIRTH_SHIFT_MODULO"] = "29"
+                    });
+        }
+
         // The outer transaction is rolled back even after successful issuer
         // execution. The SQL procedure's own COMMIT only closes its nested
         // transaction and cannot persist this synthetic approval.
@@ -68,6 +85,7 @@ public sealed class Dt10V9LowerAuthorizationIssuerLocalDbTests
         cmd.CommandText = """
             SET NOCOUNT ON;
             SET XACT_ABORT ON;
+            SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
             BEGIN TRY
               BEGIN TRANSACTION;
               DECLARE @model UNIQUEIDENTIFIER, @version INT, @fingerprint BINARY(32),
@@ -141,6 +159,74 @@ public sealed class Dt10V9LowerAuthorizationIssuerLocalDbTests
               IF (SELECT habilitada FROM identidade.v9_dt10_lower_policy
                   WHERE politica_versao=@policy)<>0
                 THROW 51904, 'Issuer must never enable the lower policy.', 1;
+
+              -- The issuer itself must never enable the policy. This one
+              -- synthetic publication is enabled exclusively within the
+              -- never-committed LocalDB test transaction below.
+              UPDATE identidade.v9_dt10_lower_policy SET habilitada=1
+                WHERE politica_versao=@policy;
+              DECLARE @source BIGINT, @obs BIGINT,
+                      @initial UNIQUEIDENTIFIER, @candidate UNIQUEIDENTIFIER,
+                      @run UNIQUEIDENTIFIER=NEWID();
+              SELECT TOP(1) @source=o.pessoa_origem_id,
+                            @obs=po.pessoa_observacao_id
+                FROM silver.pessoa_origem o
+                JOIN silver.pessoa_observacao po ON po.pessoa_origem_id=o.pessoa_origem_id
+                LEFT JOIN identidade.pessoa_origem_progressiva p
+                  ON p.pessoa_origem_id=o.pessoa_origem_id
+                WHERE o.codigo_pessoa_origem LIKE N'SCALE-%'
+                  AND po.cpf IS NULL
+                  AND (p.estado=N'PROVISORIA' OR p.pessoa_origem_id IS NULL)
+                ORDER BY po.pessoa_observacao_id DESC;
+              IF @source IS NULL OR @obs IS NULL
+                THROW 51905, 'No synthetic source available for governed LOWER.', 1;
+              EXEC identidade.sp_assegurar_origem_progressiva @pessoa_origem_id=@source;
+              SELECT @initial=initial_uuid FROM identidade.pessoa_origem_progressiva
+                WHERE pessoa_origem_id=@source;
+              SELECT TOP(1) @candidate=pessoa_uuid FROM identidade.pessoa
+                WHERE pessoa_uuid<>@initial ORDER BY pessoa_uuid;
+              IF @initial IS NULL OR @candidate IS NULL
+                THROW 51906, 'A distinct ranked candidate is required.', 1;
+
+              INSERT identidade.linkage_run(
+                linkage_run_id,modelo_id,modelo_versao,tipo_run,status,limite_solicitado,
+                escopo_json,batch_size,max_parallelism,pessoa_observacao_id_high_watermark,
+                registros_elegiveis,avaliados,resolvidos,nao_resolvidos,conflitos,
+                sem_candidato_no_bloco,solicitado_por,motivo,correlation_id,iniciado_em)
+              VALUES(@run,@model,@version,N'FULL',N'EXECUTANDO',1,
+                N'{"test":"dt10-v9-disposable-positive"}',1,1,@obs,1,1,0,1,0,0,
+                N'CI',N'Owned synthetic LocalDB only',NEWID(),SYSUTCDATETIME());
+              INSERT identidade.linkage_run_item(linkage_run_id,pessoa_observacao_id)
+                VALUES(@run,@obs);
+              INSERT identidade.linkage_resultado(
+                linkage_run_id,modelo_id,modelo_versao,pessoa_observacao_id,
+                pessoa_uuid_resolvido,melhor_candidato_uuid,score_melhor,
+                segundo_candidato_uuid,score_segundo,margem,status,motivo,calculado_em,
+                resultado_publicacao,pessoa_uuid_publicado,status_publicacao,motivo_publicacao,
+                pessoa_origem_id_publicado,politica_publicacao_versao,universo_referencia,publicado_em)
+              VALUES(@run,@model,@version,@obs,NULL,@candidate,
+                CONVERT(DECIMAL(9,6),0.100000),NULL,NULL,NULL,
+                N'NAO_RESOLVIDO',N'LIMIAR_INFERIOR_V9_GOVERNADO',
+                SYSUTCDATETIME(),N'NOVA_IDENTIDADE',@initial,N'RESOLVIDO',
+                N'NOVA_IDENTIDADE_LIMIAR_INFERIOR_V9_GOVERNADO',@source,
+                @policy,CONCAT(N'V9_SNAPSHOT_SHA256:',CONVERT(VARCHAR(64),@snapshot,2)),
+                SYSUTCDATETIME());
+
+              EXEC identidade.sp_publicar_resolucao_progressiva_linkage_lote @linkage_run_id=@run;
+              IF (SELECT COUNT_BIG(*) FROM identidade.pessoa_origem_progressiva_evento
+                  WHERE linkage_run_id=@run)<>1
+                THROW 51907, 'LOWER requires one ledger event.', 1;
+              IF NOT EXISTS(SELECT 1 FROM identidade.pessoa_origem_progressiva
+                  WHERE pessoa_origem_id=@source AND estado=N'REFERENCIA'
+                    AND initial_uuid=@initial AND canonical_uuid=@initial)
+                THROW 51908, 'LOWER must promote only initial_uuid.', 1;
+              EXEC identidade.sp_publicar_resolucao_progressiva_linkage_lote @linkage_run_id=@run;
+              IF (SELECT COUNT_BIG(*) FROM identidade.pessoa_origem_progressiva_evento
+                  WHERE linkage_run_id=@run)<>1
+                THROW 51909, 'LOWER replay must be idempotent.', 1;
+              IF (SELECT COUNT_BIG(*) FROM auditoria.v9_dt10_lower_policy_autorizacao
+                  WHERE aprovacao_id=@approval AND politica_sha256=@digest)<>1
+                THROW 51910, 'Published policy must match sealed DT-15 digest.', 1;
 
               ROLLBACK TRANSACTION;
             END TRY
