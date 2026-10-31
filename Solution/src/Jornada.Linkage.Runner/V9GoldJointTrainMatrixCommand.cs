@@ -116,6 +116,7 @@ public static class V9GoldJointTrainMatrixCommand
         var planSha = Sha(planBytes);
         var instances = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var runs = new HashSet<string>(StringComparer.Ordinal);
+        var physicalRuns = new HashSet<string>(StringComparer.Ordinal);
         var measurements = new List<V9LowerNonMatchTrainCalibrator.JointMeasurement>(expected);
         foreach (var bytes in receipts)
         {
@@ -137,6 +138,14 @@ public static class V9GoldJointTrainMatrixCommand
                 plan.OriginalTrainCsvSha256, plan.SelectionEnvelopeSha256);
             if (!runs.Add(row.PhysicalRunSha256))
                 throw new InvalidDataException("Physical Gold TRAIN receipt reused.");
+            // The receipt digest identifies JSON bytes, not the SQL execution.
+            // An attacker or accidental copy can change the receipt metadata
+            // (including the claimed LocalDB instance) while preserving the
+            // underlying physical run. Enforce both independent identities.
+            var physicalRun = root.GetProperty("goldThreeOrderTrial")
+                .GetProperty("isolatedRunFingerprintSha256").GetString()!;
+            if (!physicalRuns.Add(physicalRun))
+                throw new InvalidDataException("Physical Gold TRAIN SQL run fingerprint reused across cells.");
             measurements.Add(row);
         }
         var frozen = measurements.AsReadOnly();
