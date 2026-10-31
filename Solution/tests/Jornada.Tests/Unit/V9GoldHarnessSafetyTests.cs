@@ -36,7 +36,8 @@ public sealed class V9GoldHarnessSafetyTests
 
     private static string[] JointTrial(string order, string lower, string upper) =>
         [V9GoldHarnessCommand.JointTrainTrialFlag, "selection", "validation", "fit",
-            "train.csv", "new-output", order, lower, upper];
+            "train.csv", "new-output", order, lower, upper,
+            new string('a', 64) + V9GoldJointTrainMatrixCommand.PlanSuffix];
 
     [Test]
     public void Joint_train_accepts_only_explicit_three_order_physical_pair()
@@ -55,6 +56,21 @@ public sealed class V9GoldHarnessSafetyTests
     public void Joint_train_rejects_invalid_or_unregistered_cells(string order, string lower, string upper) =>
         Assert.Throws<ArgumentException>((Action)(() =>
             V9GoldHarnessCommand.ValidateJointTrainTrialArguments(JointTrial(order, lower, upper))));
+
+    [Test]
+    public void Joint_train_requires_preregistered_plan_and_rejects_extra_options_before_sql()
+    {
+        var valid = JointTrial("BASELINE_G0_G1_G2_G3", "LOWER_NONMATCH=0.1", "UPPER_TRAIN=0.9");
+        Assert.DoesNotThrow((Action)(() =>
+            V9GoldHarnessCommand.ValidateJointTrainTrialArguments(valid)));
+        Assert.Throws<ArgumentException>((Action)(() =>
+            V9GoldHarnessCommand.ValidateJointTrainTrialArguments(valid[..^1])),
+            "No joint TRAIN physical cell may execute without a frozen preregistered plan.");
+        var badPlan = (string[])valid.Clone();
+        badPlan[9] = "unregistered.json";
+        Assert.Throws<ArgumentException>((Action)(() =>
+            V9GoldHarnessCommand.ValidateJointTrainTrialArguments(badPlan)));
+    }
 
     [Test]
     public void Joint_train_rejects_missing_or_duplicate_trial_options_before_sql()
