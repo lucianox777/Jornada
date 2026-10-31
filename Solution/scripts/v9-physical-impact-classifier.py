@@ -11,6 +11,17 @@ import json
 import re
 from pathlib import Path
 
+# Bootstrap exemption restricted to CI governance files; no product paths.
+CI_POLICY_ONLY = frozenset({
+    ".github/workflows/v9-physical-seed42-probe.yml",
+    "Solution/scripts/v9-physical-impact-classifier.py",
+    "Solution/scripts/v9_manual_probe_evidence.py",
+    "Solution/tests/scripts/test_v9_physical_impact_classifier.py",
+    "Solution/tests/scripts/test_v9_manual_probe_evidence.py",
+    "Solution/tests/scripts/test_ci_impact_classifier.py",
+    "Solution/docs/Decisao_CI_Probe_V9_Por_Impacto_20261024.md",
+})
+
 GOLD_ONLY_RUNNER = frozenset({
     "GoldPartitionBcubedAudit.cs",
     "GoldTrainLowerNonMatchMatrixCommand.cs",
@@ -98,18 +109,33 @@ def parse_name_status_z(raw: bytes) -> list[tuple[str, str]]:
     return entries
 
 
-def classify(entries: list[tuple[str, str]], *, manual: bool = False) -> dict:
+def ci_policy_only(entries: list[tuple[str, str]]) -> bool:
+    return bool(entries) and all(status in {"M", "A"} and path in CI_POLICY_ONLY
+                                 for status, path in entries)
+
+
+def classify(entries: list[tuple[str, str]], *, manual: bool = False, bootstrap_pr: str = "") -> dict:
     if manual:
         return {"run_physical_30k": True, "decision": "RUN", "reason": "manual-dispatch-always-full", "changes": []}
     if not entries:
         return {"run_physical_30k": True, "decision": "RUN", "reason": "empty-or-unreadable-diff", "changes": []}
+    if bootstrap_pr in {"1222", "1227"} and ci_policy_only(entries):
+        return {
+            "run_physical_30k": False,
+            "decision": "NOT_REQUIRED_FOR_THIS_DIFF",
+            "reason": "ci-policy-only-bootstrap-independent-review-required",
+            "changes": [{"status": status, "path": path, "classification": "ci-policy-only"}
+                        for status, path in entries],
+        }
     changes: list[dict] = []
     require_probe = False
     for status, path in entries:
         safe = reason_for_safe(path)
-        # Conservative: only normal modifications and additions of known-safe paths.
-        # Renames, deletions, copies and type changes can conceal a dependency move.
-        if status not in {"M", "A"}:
+        # A deleted Markdown document under audited documentation roots cannot
+        # alter executable calibration inputs. Keep all other deletions,
+        # renames/copies and type changes fail-closed.
+        documented_deletion = status == "D" and safe == "documentation" and path.lower().endswith(".md")
+        if status not in {"M", "A"} and not documented_deletion:
             safe = None
         if safe is None:
             require_probe = True
@@ -127,10 +153,11 @@ def main() -> None:
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument("--name-status-z", type=Path)
     group.add_argument("--manual", action="store_true")
+    ap.add_argument("--bootstrap-pr", default="")
     ap.add_argument("--summary", type=Path, required=True)
     ap.add_argument("--github-output", type=Path, required=True)
     args = ap.parse_args()
-    result = classify(parse_name_status_z(args.name_status_z.read_bytes()) if args.name_status_z else [], manual=args.manual)
+    result = classify(parse_name_status_z(args.name_status_z.read_bytes()) if args.name_status_z else [], manual=args.manual, bootstrap_pr=args.bootstrap_pr)
     args.summary.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     with args.github_output.open("a", encoding="utf-8") as fh:
         fh.write(f"run_physical_30k={str(result['run_physical_30k']).lower()}\n")
