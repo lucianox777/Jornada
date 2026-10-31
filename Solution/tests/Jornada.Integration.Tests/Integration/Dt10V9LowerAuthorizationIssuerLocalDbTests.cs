@@ -237,6 +237,47 @@ public sealed class Dt10V9LowerAuthorizationIssuerLocalDbTests
             """;
         await cmd.ExecuteNonQueryAsync();
 
+        // Fail-closed cases share the exact positive fixture and differ in ONE
+        // piece of Rank evidence. The scored intermediate candidate is not a
+        // lower-band rejection, and no-candidate evidence cannot masquerade as
+        // a ranked lower-band rejection. Both must be rejected before ledger
+        // publication and rolled back by the original SQL TRY/CATCH.
+        const string BelowLower = "CONVERT(DECIMAL(9,6),0.100000),NULL,NULL,NULL,";
+        const string Intermediate = "CONVERT(DECIMAL(9,6),0.500000),NULL,NULL,NULL,";
+        const string RankedCandidate = "VALUES(@run,@model,@version,@obs,NULL,@candidate,";
+        const string MissingCandidate = "VALUES(@run,@model,@version,@obs,NULL,NULL,";
+        var negativeScenarios = new[]
+        {
+            (Description: "intermediate score between lower and upper",
+                Old: BelowLower, Replacement: Intermediate),
+            (Description: "no ranked candidate with governed lower reason",
+                Old: RankedCandidate, Replacement: MissingCandidate)
+        };
+        foreach (var scenario in negativeScenarios)
+        {
+            Assert.That(cmd.CommandText.Split(scenario.Old, StringSplitOptions.None),
+                Has.Length.EqualTo(2), "Fixture mutation must be exact and unique.");
+            var modified = cmd.CommandText.Replace(scenario.Old, scenario.Replacement,
+                StringComparison.Ordinal);
+            await using var negative = sql.CreateCommand();
+            negative.CommandTimeout = 120;
+            negative.CommandText = modified;
+            var rejected = Assert.ThrowsAsync<SqlException>((Func<Task>)(async () =>
+            {
+                await negative.ExecuteNonQueryAsync();
+            }), scenario.Description);
+            Assert.That(rejected!.Number, Is.EqualTo(51830), scenario.Description);
+
+            await using var noNegativeLeak = sql.CreateCommand();
+            noNegativeLeak.CommandText = """
+                SELECT COUNT_BIG(*) FROM identidade.v9_dt10_lower_policy
+                WHERE politica_versao=N'V9_DT10_LOWER_CI_POSITIVE';
+                """;
+            Assert.That(Convert.ToInt64(await noNegativeLeak.ExecuteScalarAsync(),
+                System.Globalization.CultureInfo.InvariantCulture), Is.Zero,
+                "Rejected scenario must roll back the synthetic policy: " + scenario.Description);
+        }
+
         await using var noLeak = sql.CreateCommand();
         noLeak.CommandText = """
             SELECT COUNT_BIG(*) FROM identidade.v9_dt10_lower_policy
