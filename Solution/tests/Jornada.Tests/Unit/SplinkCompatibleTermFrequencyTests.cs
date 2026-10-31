@@ -141,6 +141,21 @@ public sealed class SplinkCompatibleTermFrequencyTests
     }
 
     [Test]
+    public void ZeroWeight_RejectsInvalidInputsInLegacyAndAsymmetricModes()
+    {
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That((Action)(() => SplinkCompatibleTermFrequency.LogBayesAdjustment(
+                0m, 0.1m, 0.01m, weight: 0m)), Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() => SplinkCompatibleTermFrequency.LogBayesAdjustmentAsymmetric(
+                0.1m, 0m, 0.01m, weight: 0m)), Throws.TypeOf<ArgumentOutOfRangeException>());
+            Assert.That((Action)(() => SplinkCompatibleTermFrequency.LogBayesAdjustment(
+                0.1m, 0.1m, 0.01m, weight: 0m, minimumUValue: 2m)),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+        }));
+    }
+
+    [Test]
     public void Pareto_DoesNotInventPreferenceBetweenFalsePositiveAndFalseNegative()
     {
         var a = new CalibrationEvaluation("A", 90, 90, 1, 8, 11, 200);
