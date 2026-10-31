@@ -179,6 +179,25 @@ public sealed class V9GoldJointPhysicalReceiptTests
     }
 
     [Test]
+    public void Rejects_reused_canonical_gold_snapshot_as_claimed_physical_upper_rerun()
+    {
+        var receipt = Receipt();
+        receipt["snapshotSha256"] = Gold;
+        ((JsonObject)receipt["jointUpperTrain"]!)["distinctRecomputedSnapshotSha256"] = Gold;
+        ((JsonObject)receipt["goldThreeOrderTrial"]!)["frozenSnapshotSha256"] = Gold;
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_non_string_wave_order_without_runtime_type_exception()
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["goldThreeOrderTrial"]!)["executedWaveOrder"] =
+            new JsonArray("G0", 1, "G2", "G3");
+        Reject(receipt);
+    }
+
+    [Test]
     public void Rejects_certification_and_production_activation_claims()
     {
         var receipt = Receipt();
