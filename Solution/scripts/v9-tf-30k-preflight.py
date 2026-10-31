@@ -30,12 +30,16 @@ def main():
         raise SystemExit("Historical decision policy differs: fail closed")
     if not args.train_csv.is_file():
         raise SystemExit("TRAIN CSV missing: cannot certify or simulate")
-    digest = hashlib.file_digest(args.train_csv.open("rb"), "sha256").hexdigest()
+    with args.train_csv.open("rb") as source:
+        digest = hashlib.file_digest(source, "sha256").hexdigest()
     if digest != EXPECTED_TRAIN_SHA256:
         raise SystemExit(f"TRAIN CSV fingerprint mismatch: {digest}")
     if args.candidate_frame is None or not args.candidate_frame.is_file():
         raise SystemExit("Candidate frame missing: cannot compute conditional TRAIN U or TF decisions")
-    frame_digest = hashlib.sha256(args.candidate_frame.read_bytes()).hexdigest()
+    if args.candidate_frame.stat().st_size == 0:
+        raise SystemExit("Candidate frame empty: cannot evaluate TF decisions")
+    with args.candidate_frame.open("rb") as source:
+        frame_digest = hashlib.file_digest(source, "sha256").hexdigest()
     payload = {
         "status": "PREFLIGHT_ONLY_NOT_SCORED_NOT_CERTIFIED",
         "train_sha256": digest,
