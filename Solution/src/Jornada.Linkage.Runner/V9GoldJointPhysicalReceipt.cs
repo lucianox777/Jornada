@@ -145,6 +145,9 @@ public static class V9GoldJointPhysicalReceipt
             Bool(upperTrial, name, false);
 
         var threeOrder = Required(root, "goldThreeOrderTrial");
+        Equal(String(threeOrder, "protocol"), GoldTrainThreeOrderProtocol.Version, "Gold protocol");
+        Equal(String(threeOrder, "sourceKeyContract"),
+            GoldTrainThreeOrderProtocol.StableSourceKeyContract, "stable CSV source key");
         Equal(String(threeOrder, "orderId"), order, "Gold order");
         Equal(String(threeOrder, "evidenceScope"), "TRAIN_SELECTION", "Gold scope");
         Equal(String(threeOrder, "originalCorpusSha256"), originalTrainCsvSha256, "CSV");
@@ -197,6 +200,16 @@ public static class V9GoldJointPhysicalReceipt
             || Count(gold, "PendingSources") != Count(Required(root, "publication"), "pendingSources"))
             throw new InvalidDataException("Joint TRAIN B-cubed/Gold denominator mismatch.");
         var pending = Count(gold, "PendingSources");
+        var published = Count(threeOrder, "publishedSourceCount");
+        var goldPublished = Count(gold, "PublishedSources");
+        var goldGroups = Count(gold, "GoldIdentityGroups");
+        // A claimed stable partition is not comparable across physical orders
+        // unless its complete source universe reconciles with Gold and B-cubed.
+        // Never infer missing published sources from the pending count alone.
+        if (published != goldPublished || published > sourceCount
+            || pending != sourceCount - published
+            || goldGroups > published || (goldGroups == 0) != (published == 0))
+            throw new InvalidDataException("Joint TRAIN stable Gold/B-cubed publication universe mismatch.");
         var f1 = Fraction(gold, "CoverageAwareF1");
         return new(order, "TRAIN_SELECTION", frozenFitSha256, canonicalGoldSnapshotSha256,
             Convert.ToHexString(SHA256.HashData(studyBytes)).ToLowerInvariant(),
