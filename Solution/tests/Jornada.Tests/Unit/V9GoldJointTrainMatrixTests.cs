@@ -199,7 +199,7 @@ public sealed class V9GoldJointTrainMatrixTests
         var json = Encoding.UTF8.GetString(receipts[0]);
         Assert.That(json, Does.StartWith("{"));
         // Duplicate root property is ambiguous even when its value is identical.
-        var ambiguous = "{\\\"jointTrainPhysicalTrial\\\":null," + json[1..];
+        var ambiguous = "{\"jointTrainPhysicalTrial\":null," + json[1..];
         receipts[0] = Encoding.UTF8.GetBytes(ambiguous);
         Assert.Throws<InvalidDataException>((Action)(() =>
             V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
