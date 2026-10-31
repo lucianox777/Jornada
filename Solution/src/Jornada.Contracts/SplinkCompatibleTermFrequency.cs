@@ -52,6 +52,23 @@ public static class SplinkCompatibleTermFrequency
         return (double)weight * Math.Log(bayesFactor);
     }
 
+    /// <summary>
+    /// V9: ajuste assimétrico conservador. Nunca bonifica termos raros.
+    /// Preserva a rotina histórica de ajuste simétrico e seu resultado para peso zero.
+    /// O chamador deve fornecer u da MESMA unidade nominal da frequência.
+    /// </summary>
+    public static double LogBayesAdjustmentAsymmetric(
+        decimal leftFrequency,
+        decimal rightFrequency,
+        decimal referenceUProbability,
+        decimal weight = 1m,
+        decimal minimumUValue = 0m)
+    {
+        var adjustment = LogBayesAdjustment(
+            leftFrequency, rightFrequency, referenceUProbability, weight, minimumUValue);
+        return Math.Min(0d, adjustment);
+    }
+
     private static void ValidateProbability(decimal value, string parameterName)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(value, 0m, parameterName);
