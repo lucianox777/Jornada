@@ -82,3 +82,30 @@ A migration aditiva `20261029_Linkage_NoCandidate_Literal_Guards.sql` redefine a
 A matriz de evidência obrigatória é `LinkageNoCandidateLiteralGuardsSqlServerTests` (11 casos físicos SQL, sem skip): quatro quase-prefixos escalar/lote; quatro contradições de candidato; lote misto com zero eventos e estado/versão inalterados; dois cenários de ausência legítima e replay idempotente. Testes estruturais e sucesso do `integration-sql` anterior **não** atestam esses novos casos. A fixture usa apenas SQL Test/Dev isolado/Testcontainers e deve registrar TRX, run/job e SHA exato após inclusão na #1210. A prova foi incorporada ao HEAD da PR #1210 em `7f999ebb9a9039c2e673148c4317ea3636d4428c`, mas permanece **sem resultado físico comprovado** até a execução dos checks no HEAD definitivo. Não usar os resultados do HEAD anterior como certificação.
 
 O ajuste DT-06 de 73 para 74 migrations foi validado no HEAD `e2fb16cb7e5fbec764485eb26cd7cd2f17464fcd` pela CI [40918850891](https://github.com/lucianox777/Jornada/actions/runs/40918850891), mas a prova 30k [40918851020](https://github.com/lucianox777/Jornada/actions/runs/40918851020) ainda estava em andamento na auditoria. Não transportar SUCCESS para um HEAD posterior; SKIPPED não é execução física. A #1199 permanece independente, com autorização DT-15 default OFF.
+
+## Adendo CI-V9-PROBE-01 — evidência pós-merge da #1205 (29/10/2026)
+
+**Estado vigente: INTEGRADO**, sem apagar a matriz de proposta de 28/10 acima. A [#1205](https://github.com/lucianox777/Jornada/pull/1205) foi integrada pelo merge `b4fdc3f80310eeff9b48a4cf01429f485583e49a`, após checks no HEAD `7ca4fcec0ba67741b96b40dd0bcd0e21624ae5c5`.
+
+| Classe de diff / gate | Comportamento exigido pelo classificador integrado | Evidência e limite |
+| --- | --- | --- |
+| Somente `.github/dependabot.yml` ou `.yaml`, status `A`/`M` | `NOT_REQUIRED_FOR_THIS_DIFF` | Casos unitários presentes; não equivale a TRAIN executado. |
+| Dependabot `.yml`/`.yaml` **mais** documentação segura, status `A`/`M` | Composição segura, `NOT_REQUIRED_FOR_THIS_DIFF` | `test_dependabot_metadata_mixed_with_safe_docs_skips_probe` implementado no HEAD. |
+| Mistura acima com SQL, workflow, FS/TF, calibrador ou caminho desconhecido | `RUN` fail-closed | Regressões negativas no script; não dispensar gates físicos. |
+| Diff ausente/truncado ou status `D`, `R`, `C`, `T` | `RUN` ou rejeição do diff | Cobertura no parser/testes; não interpretar falha de leitura como dispensa. |
+| Alteração do classificador e de seus testes | `RUN` | A própria #1205 exigiu TRAIN físico 30k. |
+| Agregador e HEAD de referência | `SUCCESS` somente com gates efetivamente exigidos no SHA certo | SKIPPED/CANCELLED não são evidência de execução física. |
+
+**Checks verificados do HEAD da #1205:** [jornada-ci #40895343764](https://github.com/lucianox777/Jornada/actions/runs/40895343764) `SUCCESS`; [fast PR #40895343762](https://github.com/lucianox777/Jornada/actions/runs/40895343762) `SUCCESS`; [probe #40895343763](https://github.com/lucianox777/Jornada/actions/runs/40895343763) `SUCCESS` para classificação, TRAIN e agregador. Não extrapolar esses resultados para um teste operacional de cancelamento seletivo, para a economia de CI ou para SHA posterior.
+
+**PENDENTE:** comparação controlada de tempo/runner-minutes na [#1200](https://github.com/lucianox777/Jornada/issues/1200), prova operacional de cancelamento seletivo, e gates DT-10/DT-15/TEST independente em suas frentes próprias. A V9 continua default OFF, sem aprovação humana nem ativação. A documentação da #1205 foi corrigida em PR posterior ao merge; a divergência histórica não deve ser apagada.
+
+## Complemento de integração documental — #1210 e #1211 (30/10/2026)
+
+**Histórico preservado:** o adendo DT-10 da #1210 acima descreve o estado e os bloqueios observados em 29/10; o adendo CI-V9-PROBE-01 registra a #1205. A presente reconciliação reúne ambos após a integração da [#1210](https://github.com/lucianox777/Jornada/pull/1210) à master, merge `c03e3ef07f2b2bbf1374c37836d931a2705f1cfd`, sem reescrever as observações anteriores.
+
+**Implementado e testado no HEAD da #1210 `fdc45924ee48610ec87094cc3bcb3b7ca7bf7f2e`:** [jornada-ci #40991772026](https://github.com/lucianox777/Jornada/actions/runs/40991772026) terminou SUCCESS; o job `integration-sql` registrou **162 PASS, 0 FAIL, 0 SKIP** no TRX principal e **2 PASS, 0 FAIL, 0 SKIP** no TRX de fault injection. A [probe #40991771989](https://github.com/lucianox777/Jornada/actions/runs/40991771989) terminou SUCCESS em classificação, TRAIN físico 30k e SQL clean. Essas contagens são do conjunto executado; não devem ser convertidas sem inspeção individual do TRX em certificação isolada de cada um dos 11 cenários DT-10.
+
+**Limites e governança:** o resultado da #1210 não certifica completude do blocking, aprovação positiva governada DT-15, TEST independente, ganho de runner-minutes nem ativação V9. A [#1199](https://github.com/lucianox777/Jornada/pull/1199) continua DRAFT, com política default OFF e testes governados pendentes. A #1211 é uma correção documental posterior aos merges, não uma alegação de que a documentação já estava sincronizada nos merges anteriores. REF/IBGE, FS/TF, corpus sintético 30k e dados reais permanecem fora do escopo desta atualização.
+
+**Changelog documental:** adendos #1205 e #1210 reunidos nesta matriz após os merges, com evidência física do SHA da #1210 adicionada sem alterar registros históricos.
