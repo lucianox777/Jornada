@@ -10,6 +10,7 @@ namespace Jornada.Linkage.Runner;
 public static class V9GoldDisposableLowerProcedurePatch
 {
     public const string ProcedureName = "identidade.sp_publicar_resolucao_progressiva_linkage_lote";
+    // Keep the exact literal-underscore prefix in sync with the DT-10 canonical migration.
     private const string OldGuard = "l.raw_motivo NOT LIKE N'SEM[_]CANDIDATO[_]%'";
     // SqlLocalDB/SQL Server 17 normalizes CREATE OR ALTER PROCEDURE into
     // ' CREATE   PROCEDURE ...' in OBJECT_DEFINITION. The actual disposable
