@@ -22,6 +22,18 @@ public static partial class V9LowerNonMatchTrainCalibrator
             "INTERLEAVED_G1_G3_G0_G2"
         });
 
+    /// <summary>Pure parser for a manual Gold TRAIN upper candidate (never TEST).</summary>
+    public static decimal ParseJointUpperArgument(string argument)
+    {
+        const string prefix = "UPPER_TRAIN=";
+        if (argument is null || !argument.StartsWith(prefix, StringComparison.Ordinal)
+            || !decimal.TryParse(argument.AsSpan(prefix.Length),
+                NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var upper)
+            || upper is <= 0m or >= 1m)
+            throw new ArgumentException("UPPER_TRAIN requires invariant 0 < upper < 1.");
+        return upper;
+    }
+
     public sealed record JointPolicy(
         string FrozenGoldFitSha256,
         string FrozenGoldSnapshotSha256,

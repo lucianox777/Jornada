@@ -103,8 +103,8 @@ public static class V9GoldHarnessCommand
         string[] args, string connectionString, bool captureTrainEvidence,
         V9GoldIndependentHoldoutContract.Plan? holdout = null)
     {
-        if (args.Length is < 6 or > 8 || args[0] != Flag)
-            throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2] [LOWER_NONMATCH=<decimal>]; usar exclusivamente LocalDB descartável.");
+        if (args.Length is < 6 or > 9 || args[0] != Flag)
+            throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2] [LOWER_NONMATCH=<decimal>] [UPPER_TRAIN=<decimal>]; usar exclusivamente LocalDB descartável.");
         ValidateDisposableConnection(connectionString);
         var selectionBytes = await File.ReadAllBytesAsync(args[1]);
         var selectionSha = Sha(selectionBytes);
@@ -144,12 +144,29 @@ public static class V9GoldHarnessCommand
         // Validate the PRE-REGISTERED order against the complete same CSV
         // before any SQL connection, database write or output directory.
         var optional = args.Skip(6).ToArray();
+        const string upperPrefix = "UPPER_TRAIN=";
+        var upperOptions = optional.Where(x => x.StartsWith(upperPrefix, StringComparison.Ordinal)).ToArray();
         var lowerOptions = optional.Where(x => x.StartsWith(
             V9GoldLowerNonMatchExperiment.ArgumentPrefix, StringComparison.Ordinal)).ToArray();
         var orderOptions = optional.Where(x => !x.StartsWith(
-            V9GoldLowerNonMatchExperiment.ArgumentPrefix, StringComparison.Ordinal)).ToArray();
-        if (lowerOptions.Length > 1 || orderOptions.Length > 1)
-            throw new ArgumentException("Ordem ou LOWER_NONMATCH duplicados.");
+            V9GoldLowerNonMatchExperiment.ArgumentPrefix, StringComparison.Ordinal)
+            && !x.StartsWith(upperPrefix, StringComparison.Ordinal)).ToArray();
+        if (lowerOptions.Length > 1 || upperOptions.Length > 1 || orderOptions.Length > 1)
+            throw new ArgumentException("Ordem, UPPER_TRAIN ou LOWER_NONMATCH duplicados.");
+        decimal? upperTrain = upperOptions.Length == 1
+            ? V9LowerNonMatchTrainCalibrator.ParseJointUpperArgument(upperOptions[0])
+            : null;
+        if (upperTrain.HasValue && (holdout is not null || captureTrainEvidence))
+            throw new InvalidOperationException(
+                "UPPER_TRAIN is restricted to manual TRAIN_SELECTION; holdout and baseline evidence are frozen.");
+        var canonicalGoldSnapshotSha256 = snapshot.ContentSha256;
+        if (upperTrain.HasValue)
+        {
+            // Rebuild from the verified TRAIN parent, not from unchecked JSON.
+            // This changes ONLY the upper decision threshold, with new content SHA.
+            snapshot = parent.CreateGoldHarnessVariantAtUpper(upperTrain.Value);
+            fitBytes = snapshot.SerializeUtf8();
+        }
         decimal? lowerNonMatchThreshold = lowerOptions.Length == 1
             ? V9GoldLowerNonMatchExperiment.ParseThreshold(lowerOptions[0], snapshot.Payload.Threshold)
             : null;
@@ -368,6 +385,15 @@ public static class V9GoldHarnessCommand
                     : "V9_REAL_INCREMENTAL_RUNNER_GOLD_INDEPENDENT_HOLDOUT_V1",
                 snapshotSha256 = snapshot.ContentSha256,
                 parentSnapshotSha256 = winner, fitFingerprintSha256 = snapshot.Payload.FitFingerprintSha256,
+                jointUpperTrain = upperTrain.HasValue ? new
+                {
+                    contract = "V9_GOLD_JOINT_UPPER_PHYSICAL_RERUN_V1",
+                    canonicalGoldSnapshotSha256,
+                    upperThreshold = upperTrain.Value,
+                    distinctRecomputedSnapshotSha256 = snapshot.ContentSha256,
+                    scope = "TRAIN_SELECTION",
+                    refitted = false, testUsed = false, activated = false
+                } : null,
                 selectionEnvelopeSha256 = selectionSha, observations = sources.Count,
                 identityGroups = holdout is null ? identities.Count
                     : sources.Select(x => x.Truth).Distinct(StringComparer.Ordinal).Count(),
