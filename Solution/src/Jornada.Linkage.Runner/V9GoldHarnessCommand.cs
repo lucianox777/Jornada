@@ -64,14 +64,30 @@ public static class V9GoldHarnessCommand
     /// Callers must provide a new LocalDB and output directory for every cell;
     /// this is not the matrix orchestrator or an independent certification.
     /// </summary>
-    public static Task<IReadOnlyList<V9GoldTrainPhysicalEvidence>> RunJointTrainTrialAsync(
+    public static async Task<IReadOnlyList<V9GoldTrainPhysicalEvidence>> RunJointTrainTrialAsync(
         string[] args, string connectionString)
     {
         ValidateJointTrainTrialArguments(args);
-        var translated = (string[])args.Clone();
+        string? planSha = null;
+        if (args.Length == 10)
+        {
+            var bytes = await File.ReadAllBytesAsync(args[9]);
+            planSha = V9GoldJointTrainMatrixCommand.Sha(bytes);
+            if (Path.GetFileName(args[9]) != planSha + V9GoldJointTrainMatrixCommand.PlanSuffix)
+                throw new InvalidDataException("Joint TRAIN preregistered plan must be SHA-named.");
+            var options = args.Skip(6).Take(3).ToArray();
+            var upper = V9LowerNonMatchTrainCalibrator.ParseJointUpperArgument(
+                options.Single(x => x.StartsWith("UPPER_TRAIN=", StringComparison.Ordinal)));
+            var lower = V9GoldLowerNonMatchExperiment.ParseThreshold(
+                options.Single(x => x.StartsWith(V9GoldLowerNonMatchExperiment.ArgumentPrefix,
+                    StringComparison.Ordinal)), upper);
+            var order = options.Single(x => GoldTrainThreeOrderProtocol.OrderIds.Contains(x));
+            V9GoldJointTrainMatrixCommand.ValidateCellPlan(bytes, upper, lower, order);
+        }
+        var translated = args.Take(9).ToArray();
         translated[0] = Flag;
-        return RunInternalAsync(translated, connectionString,
-            captureTrainEvidence: true, jointTrainTrial: true);
+        return await RunInternalAsync(translated, connectionString,
+            captureTrainEvidence: true, jointTrainTrial: true, preregisteredPlanSha256: planSha);
     }
 
     /// <summary>
@@ -80,7 +96,9 @@ public static class V9GoldHarnessCommand
     /// </summary>
     public static void ValidateJointTrainTrialArguments(string[] args)
     {
-        if (args is null || args.Length != 9 || args[0] != JointTrainTrialFlag)
+        if (args is null || args.Length is not (9 or 10) || args[0] != JointTrainTrialFlag
+            || (args.Length == 10 && !args[9].EndsWith(V9GoldJointTrainMatrixCommand.PlanSuffix,
+                StringComparison.Ordinal)))
             throw new ArgumentException("Joint TRAIN requires selection, validation, frozen Gold fit, original TRAIN CSV, new output, canonical order, LOWER_NONMATCH and UPPER_TRAIN.");
         var options = args.Skip(6).ToArray();
         var orders = options.Where(x => GoldTrainThreeOrderProtocol.OrderIds.Contains(x)).ToArray();
@@ -175,7 +193,7 @@ public static class V9GoldHarnessCommand
     private static async Task<IReadOnlyList<V9GoldTrainPhysicalEvidence>> RunInternalAsync(
         string[] args, string connectionString, bool captureTrainEvidence,
         V9GoldIndependentHoldoutContract.Plan? holdout = null,
-        bool jointTrainTrial = false)
+        bool jointTrainTrial = false, string? preregisteredPlanSha256 = null)
     {
         if (jointTrainTrial && (!captureTrainEvidence || holdout is not null))
             throw new InvalidOperationException("Joint physical TRAIN cannot run without TRAIN capture or with holdout.");
@@ -474,6 +492,8 @@ public static class V9GoldHarnessCommand
                 jointTrainPhysicalTrial = jointTrainTrial ? new
                 {
                     contract = "V9_GOLD_JOINT_TRAIN_PHYSICAL_TRIAL_V1",
+                    preregisteredPlanSha256,
+                    disposableLocalDbInstance = new SqlConnectionStringBuilder(connectionString).DataSource,
                     orderId = trialOrderId,
                     upperThreshold = upperTrain,
                     lowerThreshold = lowerNonMatchThreshold,

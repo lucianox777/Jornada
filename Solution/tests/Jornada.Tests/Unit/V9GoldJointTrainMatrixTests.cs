@@ -1,0 +1,125 @@
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Jornada.Linkage.Parameters.Worker;
+using Jornada.Linkage.Runner;
+
+namespace Jornada.Tests.Unit;
+
+[TestFixture, Category("Unit")]
+public sealed class V9GoldJointTrainMatrixTests
+{
+    private static readonly string Fit = new('a', 64);
+    private static readonly string Gold = new('b', 64);
+    private static readonly string Csv = new('c', 64);
+    private static readonly string Selection = new('d', 64);
+    private static readonly decimal[] Uppers = [.8m, .9m];
+    private static readonly decimal[] Lowers = [.1m, .2m];
+
+    private static byte[] PlanBytes()
+    {
+        var plan = new V9GoldJointTrainMatrixCommand.Plan(
+            V9GoldJointTrainMatrixCommand.Version, Fit, Gold, Csv, Selection,
+            Uppers, Lowers, 2, ManualCalibrationRequested: true, TestUsed: false,
+            V9LowerNonMatchTrainCalibrator.JointGridFingerprint(Uppers, Lowers));
+        return JsonSerializer.SerializeToUtf8Bytes(plan);
+    }
+
+    private static string Digest(string value) =>
+        Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+
+    private static byte[][] PhysicalReceipts(byte[] plan)
+    {
+        var rows = new List<byte[]>();
+        var n = 0;
+        foreach (var upper in Uppers)
+        foreach (var lower in Lowers)
+        foreach (var order in V9LowerNonMatchTrainCalibrator.JointOrders)
+        {
+            var root = V9GoldJointPhysicalReceiptTests.Receipt();
+            var trial = (JsonObject)root["jointTrainPhysicalTrial"]!;
+            trial["preregisteredPlanSha256"] = V9GoldJointTrainMatrixCommand.Sha(plan);
+            trial["disposableLocalDbInstance"] =
+                "(localdb)\\JornadaV9Gold20261031_" + n.ToString("x8");
+            trial["upperThreshold"] = upper;
+            trial["lowerThreshold"] = lower;
+            trial["orderId"] = order;
+            ((JsonObject)root["jointUpperTrain"]!)["upperThreshold"] = upper;
+            ((JsonObject)root["lowerNonMatchExperiment"]!)["threshold"] = lower;
+            var three = (JsonObject)root["goldThreeOrderTrial"]!;
+            three["orderId"] = order;
+            three["executedWaveOrder"] = new JsonArray(
+                GoldTrainThreeOrderProtocol.ResolveOrder(order, ["G0", "G1", "G2", "G3"])
+                    .Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
+            three["isolatedRunFingerprintSha256"] = Digest("physical-" + n);
+            rows.Add(JsonSerializer.SerializeToUtf8Bytes(root));
+            n++;
+        }
+        return rows.ToArray();
+    }
+
+    [Test]
+    public void Aggregates_exact_preregistered_real_receipt_contract_without_certification()
+    {
+        var plan = PlanBytes();
+        var result = V9GoldJointTrainMatrixCommand.Aggregate(plan, PhysicalReceipts(plan));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.PhysicalCellCount, Is.EqualTo(12));
+            Assert.That(result.Study.Candidates, Has.Count.EqualTo(4));
+            Assert.That(result.Study.SuggestedUpperThreshold, Is.Not.Null);
+            Assert.That(result.TestUsed, Is.False);
+            Assert.That(result.IndependentlyCertified, Is.False);
+            Assert.That(result.OperationallyActivated, Is.False);
+        }));
+    }
+
+    [Test]
+    public void Rejects_missing_repeated_or_cross_plan_cells()
+    {
+        var plan = PlanBytes();
+        var receipts = PhysicalReceipts(plan);
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts[..^1])));
+        var duplicate = PhysicalReceipts(plan);
+        duplicate[1] = duplicate[0];
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, duplicate)));
+        var cross = PhysicalReceipts(plan);
+        var node = JsonNode.Parse(cross[0])!.AsObject();
+        ((JsonObject)node["jointTrainPhysicalTrial"]!)["preregisteredPlanSha256"] = new string('f', 64);
+        cross[0] = JsonSerializer.SerializeToUtf8Bytes(node);
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, cross)));
+    }
+
+    [Test]
+    public void Rejects_reused_disposable_database_and_unregistered_threshold()
+    {
+        var plan = PlanBytes();
+        var receipts = PhysicalReceipts(plan);
+        var node = JsonNode.Parse(receipts[1])!.AsObject();
+        ((JsonObject)node["jointTrainPhysicalTrial"]!)["disposableLocalDbInstance"] =
+            "(localdb)\\JornadaV9Gold20261031_00000000";
+        receipts[1] = JsonSerializer.SerializeToUtf8Bytes(node);
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.ValidateCellPlan(plan, .7m, .1m,
+                V9LowerNonMatchTrainCalibrator.JointOrders[0])));
+    }
+
+    [Test]
+    public void Rejects_unfrozen_grid_or_test_in_preregistered_plan()
+    {
+        var node = JsonNode.Parse(PlanBytes())!.AsObject();
+        node["TestUsed"] = true;
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.ReadPlan(JsonSerializer.SerializeToUtf8Bytes(node))));
+        node = JsonNode.Parse(PlanBytes())!.AsObject();
+        node["DeclaredGridSha256"] = new string('f', 64);
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.ReadPlan(JsonSerializer.SerializeToUtf8Bytes(node))));
+    }
+}

@@ -11,6 +11,12 @@ if (args.FirstOrDefault() == V9LowerNonMatchStudyCli.Flag)
     return;
 }
 
+if (args.FirstOrDefault() == V9GoldJointTrainMatrixCommand.Flag)
+{
+    await V9GoldJointTrainMatrixCommand.RunAsync(args);
+    return;
+}
+
 if (args.FirstOrDefault() == GoldTrainLowerNonMatchMatrixCommand.Flag)
 {
     await GoldTrainLowerNonMatchMatrixCommand.RunAsync(args);

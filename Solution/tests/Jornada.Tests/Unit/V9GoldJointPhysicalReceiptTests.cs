@@ -14,7 +14,7 @@ public sealed class V9GoldJointPhysicalReceiptTests
     private static readonly string Rerun = new('e', 64);
     private static readonly string Partition = new('f', 64);
 
-    private static JsonObject Receipt() => JsonSerializer.SerializeToNode(new
+    internal static JsonObject Receipt() => JsonSerializer.SerializeToNode(new
     {
         version = "V9_REAL_INCREMENTAL_RUNNER_GOLD_TRAIN_SELECTION_V1",
         selectionEnvelopeSha256 = Selection, fitFingerprintSha256 = Fit, snapshotSha256 = Rerun,
