@@ -68,22 +68,18 @@ public static class V9GoldHarnessCommand
         string[] args, string connectionString)
     {
         ValidateJointTrainTrialArguments(args);
-        string? planSha = null;
-        if (args.Length == 10)
-        {
-            var bytes = await File.ReadAllBytesAsync(args[9]);
-            planSha = V9GoldJointTrainMatrixCommand.Sha(bytes);
-            if (Path.GetFileName(args[9]) != planSha + V9GoldJointTrainMatrixCommand.PlanSuffix)
-                throw new InvalidDataException("Joint TRAIN preregistered plan must be SHA-named.");
-            var options = args.Skip(6).Take(3).ToArray();
-            var upper = V9LowerNonMatchTrainCalibrator.ParseJointUpperArgument(
-                options.Single(x => x.StartsWith("UPPER_TRAIN=", StringComparison.Ordinal)));
-            var lower = V9GoldLowerNonMatchExperiment.ParseThreshold(
-                options.Single(x => x.StartsWith(V9GoldLowerNonMatchExperiment.ArgumentPrefix,
-                    StringComparison.Ordinal)), upper);
-            var order = options.Single(x => GoldTrainThreeOrderProtocol.OrderIds.Contains(x));
-            V9GoldJointTrainMatrixCommand.ValidateCellPlan(bytes, upper, lower, order);
-        }
+        var bytes = await File.ReadAllBytesAsync(args[9]);
+        var planSha = V9GoldJointTrainMatrixCommand.Sha(bytes);
+        if (Path.GetFileName(args[9]) != planSha + V9GoldJointTrainMatrixCommand.PlanSuffix)
+            throw new InvalidDataException("Joint TRAIN preregistered plan must be SHA-named.");
+        var options = args.Skip(6).Take(3).ToArray();
+        var upper = V9LowerNonMatchTrainCalibrator.ParseJointUpperArgument(
+            options.Single(x => x.StartsWith("UPPER_TRAIN=", StringComparison.Ordinal)));
+        var lower = V9GoldLowerNonMatchExperiment.ParseThreshold(
+            options.Single(x => x.StartsWith(V9GoldLowerNonMatchExperiment.ArgumentPrefix,
+                StringComparison.Ordinal)), upper);
+        var order = options.Single(x => GoldTrainThreeOrderProtocol.OrderIds.Contains(x));
+        V9GoldJointTrainMatrixCommand.ValidateCellPlan(bytes, upper, lower, order);
         var translated = args.Take(9).ToArray();
         translated[0] = Flag;
         return await RunInternalAsync(translated, connectionString,
@@ -96,9 +92,10 @@ public static class V9GoldHarnessCommand
     /// </summary>
     public static void ValidateJointTrainTrialArguments(string[] args)
     {
-        if (args is null || args.Length is not (9 or 10) || args[0] != JointTrainTrialFlag
-            || (args.Length == 10 && !args[9].EndsWith(V9GoldJointTrainMatrixCommand.PlanSuffix,
-                StringComparison.Ordinal)))
+        if (args is null || args.Length != 10 || args[0] != JointTrainTrialFlag
+            || string.IsNullOrWhiteSpace(args[9])
+            || !args[9].EndsWith(V9GoldJointTrainMatrixCommand.PlanSuffix,
+                StringComparison.Ordinal))
             throw new ArgumentException("Joint TRAIN requires selection, validation, frozen Gold fit, original TRAIN CSV, new output, canonical order, LOWER_NONMATCH and UPPER_TRAIN.");
         var options = args.Skip(6).ToArray();
         var orders = options.Where(x => GoldTrainThreeOrderProtocol.OrderIds.Contains(x)).ToArray();
