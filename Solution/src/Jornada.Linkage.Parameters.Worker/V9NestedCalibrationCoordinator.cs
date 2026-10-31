@@ -14,7 +14,11 @@ public sealed record V9NestedCalibrationPlan(V9AdaptiveCalibrationPlan Calibrati
     double MinimumFdrImprovement = .00001, string Purpose = "BOOTSTRAP_CANDIDATE_SELECTION",
     decimal ClassMassCoverage = .99m,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    string? SupportedTailRule = null);
+    string? SupportedTailRule = null,
+    long? PinnedIbgeReferenceVersionId = null,
+    string? PinnedIbgePublishedSha256 = null,
+    string? PinnedIbgeMaterializedFrequencySha256 = null,
+    NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null);
 
 public sealed record V9NestedCandidateEvaluation(string RequestSha256, int Batch,
     V9TrainingCandidate? Candidate, IReadOnlyList<string> Rejections);
@@ -58,10 +62,18 @@ public static class V9NestedCalibrationCoordinator
             || plan.Calibration.MaximumAcceptedPerBaseIdentity != SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity
             || plan.Calibration.ShardCount != 1 || plan.Calibration.Execution.EndToEndRepetitions < 20)
             throw new InvalidDataException("Busca interna exige política, custos, suporte, faixas e orçamento explícitos.");
+        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m)
+            && (plan.PinnedIbgeReferenceVersionId is null or <= 0
+                || !ValidSha(plan.PinnedIbgePublishedSha256)
+                || !ValidSha(plan.PinnedIbgeMaterializedFrequencySha256)
+                || plan.PinnedIbgeBootstrap is null))
+            throw new InvalidDataException("TF positivo exige versão IBGE publicada, digests e bootstrap congelados no plano.");
         if (plan.Purpose is not ("BOOTSTRAP_CANDIDATE_SELECTION" or "PLUMBING_FIXTURE_NOT_CERTIFICATION")
             || plan.Purpose == "BOOTSTRAP_CANDIDATE_SELECTION" && (plan.MinimumObservedMPerCell < 1 || plan.MinimumObservedUPerCell < 1))
             throw new InvalidDataException("Bootstrap exige suporte observado positivo no núcleo de massa de cada classe; piso zero é exclusivo da fixture sem certificação.");
     }
+
+    private static bool ValidSha(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
 
     public static async Task<V9NestedCalibrationSearchResult> SearchAsync(
         Func<CancellationToken, Task<SqlConnection>> openIndependentConnection,
@@ -147,8 +159,11 @@ public static class V9NestedCalibrationCoordinator
                     await referenceLease.WaitAsync(ct);
                     try { frozenReference = await frozenTfReferenceForRuleset!(group[0].Passes, ct); }
                     finally { referenceLease.Release(); }
-                    if (frozenReference is null)
-                        throw new InvalidDataException("TF positivo sem referência IBGE congelada para o ruleset.");
+                    if (frozenReference is null
+                        || frozenReference.ReferenceVersionId != plan.PinnedIbgeReferenceVersionId
+                        || !string.Equals(frozenReference.PublishedReferenceSha256, plan.PinnedIbgePublishedSha256, StringComparison.OrdinalIgnoreCase)
+                        || !string.Equals(frozenReference.MaterializedFrequencySha256, plan.PinnedIbgeMaterializedFrequencySha256, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("TF positivo sem versão/digests IBGE idênticos ao plano congelado.");
                 }
                 var connection = await openIndependentConnection(ct);
                 lock (active) if (!active.Add(connection)) throw new InvalidDataException("Workers exigem conexões SQL independentes.");
