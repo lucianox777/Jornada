@@ -1,3 +1,5 @@
+> **AVISO DE PRECEDÊNCIA (30/10/2026):** este estado de engenharia é um registro histórico da candidata de setembro. Para decisões técnicas atuais da candidata v5.00, prevalece a [Especificação Técnica — visão unificada de 29/10](Especificacao_Tecnica_Jornada_v5.00_Visao_Unificada_SQL_Fabric_Alternativo_2026-10-29.md). Em particular, **SQL Server institucional ou SQL Database in Microsoft Fabric são alternativas de hospedagem em HML e Produção**, sob a mesma autoridade transacional SQL e dependentes da homologação do ambiente. A afirmação histórica abaixo de que Fabric não é alvo operacional **não representa a decisão corrente**. Este aviso não altera a publicação normativa nem atesta homologação.
+
 # Estado de Engenharia — candidato Solution Engenharia v5.00
 
 **Data de consolidação:** 20/09/2026  
