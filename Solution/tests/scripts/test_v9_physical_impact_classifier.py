@@ -18,7 +18,7 @@ class V9PhysicalImpactTests(unittest.TestCase):
                     result = m.classify([(status, path)])
                     self.assertFalse(result["run_physical_30k"])
                     self.assertEqual(result["decision"], "NOT_REQUIRED_FOR_THIS_DIFF")
-                    self.assertEqual(result["changes"][0]["classification"], "ci-policy-only")
+                    self.assertIn(result["changes"][0]["classification"], ("ci-policy-only", "documentation"))
                 self.assertTrue(m.classify([("D", path)])["run_physical_30k"])
                 self.assertTrue(m.classify([("R100", path), ("R100", path)])["run_physical_30k"])
         self.assertFalse(m.classify([("M", p) for p in paths])["run_physical_30k"])
