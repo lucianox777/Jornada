@@ -95,8 +95,8 @@ public sealed class V9FittedSnapshot
     /// </summary>
     public V9FittedSnapshot CreateGoldHarnessVariantAtUpper(decimal upper)
     {
-        if (upper is <= 0m or >= 1m)
-            throw new InvalidDataException("Joint Gold TRAIN upper must satisfy 0 < upper < 1.");
+        if (upper is <= 0m or > 1m)
+            throw new InvalidDataException("Joint Gold TRAIN upper must satisfy 0 < upper <= 1.");
         var baseVariant = CreateGoldHarnessVariant();
         return Create(baseVariant.Payload with { Threshold = upper });
     }

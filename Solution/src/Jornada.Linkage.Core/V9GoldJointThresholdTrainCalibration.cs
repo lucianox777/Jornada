@@ -29,8 +29,8 @@ public static partial class V9LowerNonMatchTrainCalibrator
         if (argument is null || !argument.StartsWith(prefix, StringComparison.Ordinal)
             || !decimal.TryParse(argument.AsSpan(prefix.Length),
                 NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out var upper)
-            || upper is <= 0m or >= 1m)
-            throw new ArgumentException("UPPER_TRAIN requires invariant 0 < upper < 1.");
+            || upper is <= 0m or > 1m)
+            throw new ArgumentException("UPPER_TRAIN requires invariant 0 < upper <= 1.");
         return upper;
     }
 

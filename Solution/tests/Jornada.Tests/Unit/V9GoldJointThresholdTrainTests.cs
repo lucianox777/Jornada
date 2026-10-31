@@ -83,6 +83,23 @@ public sealed class V9GoldJointThresholdTrainTests
     }
 
     [Test]
+    public void Supports_normative_upper_one_without_excluding_the_train_grid_endpoint()
+    {
+        var rows = Measurements().Select(x => x.UpperThreshold == .9m
+            ? x with { UpperThreshold = 1m } : x).ToArray();
+        var policy = Policy(rows) with
+        {
+            CandidateUpperThresholds = [.8m, 1m],
+            DeclaredGridSha256 = V9LowerNonMatchTrainCalibrator.JointGridFingerprint(
+                [.8m, 1m], [.1m, .2m])
+        };
+        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(policy, rows);
+        Assert.That(study.SuggestedUpperThreshold, Is.EqualTo(1m));
+        Assert.That(study.StatisticallyCertified, Is.False);
+        Assert.That(study.OperationalActivationAllowed, Is.False);
+    }
+
+    [Test]
     public void Rejects_test_leakage_missing_order_and_stale_evidence()
     {
         var rows = Measurements();

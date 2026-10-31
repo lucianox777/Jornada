@@ -14,7 +14,6 @@ public sealed class V9GoldHarnessSafetyTests
         Assert.Throws<InvalidOperationException>((Action)(() => V9GoldHarnessCommand.ValidateDisposableConnection(connection)));
 
     [TestCase("UPPER_TRAIN=0")]
-    [TestCase("UPPER_TRAIN=1")]
     [TestCase("UPPER_TRAIN=0.0")]
     [TestCase("UPPER_TRAIN=0,7")]
     [TestCase("UPPER_TRAIN=invalid")]
@@ -29,6 +28,10 @@ public sealed class V9GoldHarnessSafetyTests
     {
         Assert.That(Jornada.Linkage.Parameters.Worker.V9LowerNonMatchTrainCalibrator
             .ParseJointUpperArgument("UPPER_TRAIN=0.85"), Is.EqualTo(0.85m));
+        Assert.That(Jornada.Linkage.Parameters.Worker.V9LowerNonMatchTrainCalibrator
+            .ParseJointUpperArgument("UPPER_TRAIN=1"), Is.EqualTo(1m));
+        Assert.That(Jornada.Linkage.Parameters.Worker.V9LowerNonMatchTrainCalibrator
+            .ParseJointUpperArgument("UPPER_TRAIN=1.0"), Is.EqualTo(1m));
     }
 
     [Test]
