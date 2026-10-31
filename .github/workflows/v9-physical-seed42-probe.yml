@@ -201,6 +201,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
       - name: Enforce all impacted full-probe runs and record legitimate no-op
         shell: bash
         env:
@@ -208,6 +211,9 @@ jobs:
           REQUIRES_PHYSICAL: ${{ needs.impact.outputs.run_physical_30k }}
           PHYSICAL_RESULT: ${{ needs.physical-30k.result }}
           EVENT_NAME: ${{ github.event_name }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
           if [[ "$IMPACT_RESULT" != "success" ]]; then
