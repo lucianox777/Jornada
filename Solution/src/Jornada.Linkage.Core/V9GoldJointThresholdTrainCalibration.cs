@@ -13,9 +13,14 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static partial class V9LowerNonMatchTrainCalibrator
 {
-    public const string JointVersion = "V9_GOLD_JOINT_UPPER_LOWER_TRAIN_CONTRACT_V3";
+    public const string JointVersion = "V9_GOLD_JOINT_UPPER_LOWER_TRAIN_CONTRACT_V4";
     public static readonly IReadOnlyList<string> JointOrders =
-        Array.AsReadOnly(new[] { "G0_G3", "G3_G0", "G1_G3_G0_G2" });
+        Array.AsReadOnly(new[]
+        {
+            "BASELINE_G0_G1_G2_G3",
+            "REVERSE_G3_G2_G1_G0",
+            "INTERLEAVED_G1_G3_G0_G2"
+        });
 
     public sealed record JointPolicy(
         string FrozenGoldFitSha256,
@@ -112,7 +117,7 @@ public static partial class V9LowerNonMatchTrainCalibrator
     public static string JointEvidenceFingerprint(IReadOnlyList<JointMeasurement> measurements)
     {
         ArgumentNullException.ThrowIfNull(measurements);
-        // Stable ordering and JSON property names are part of V3's evidence contract.
+        // Stable ordering and JSON property names are part of V4's evidence contract.
         return HashJoint(JsonSerializer.Serialize(measurements
             .OrderBy(x => x.UpperThreshold).ThenBy(x => x.LowerThreshold)
             .ThenBy(x => x.OrderId, StringComparer.Ordinal).ToArray()));

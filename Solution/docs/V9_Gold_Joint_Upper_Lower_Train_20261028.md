@@ -1,6 +1,6 @@
 # V9 Gold — calibração conjunta dos limiares superior e inferior (28/10/2026)
 
-**Estado: contrato C# TRAIN V3 com seleção superior e inferior em dois problemas distintos; executor físico conjunto ainda NÃO integrado. Testes desta revisão dependem de CI no SHA exato. Não aprovado, não ativado.**
+**Estado: contrato C# TRAIN V4 com seleção superior e inferior em dois problemas distintos; executor físico conjunto ainda NÃO integrado. Testes desta revisão dependem de CI no SHA exato. Não aprovado, não ativado.**
 
 ## Decisão
 
@@ -10,7 +10,7 @@ A grade, o plano de risco e a regra de seleção precisam ser pré-registrados e
 
 ## Medição obrigatória e limitações
 
-Cada célula upper × lower deve ser medida no **mesmo Rank/Resolve FS/TF Gold congelado**, recalculando fisicamente a decisão superior para cada upper, em LocalDB descartável e nas três ordens `G0_G3`, `G3_G0`, `G1_G3_G0_G2`. O contrato recebe métricas agregadas: falsos vínculos, falsas criações, pendências, B³ F1 e grupos independentes. Recusa TEST, VALIDATION, grade incompleta, replay de ordem ausente, **reutilização do mesmo SHA de execução física em células/ordens distintas**, busca física incompleta, SHA divergente e decisão superior não recalculada. SHAs distintos são necessários, mas não bastam: o runner ainda deve provar a execução real e sua proveniência por artefatos verificáveis.
+Cada célula upper × lower deve ser medida no **mesmo Rank/Resolve FS/TF Gold congelado**, recalculando fisicamente a decisão superior para cada upper, em LocalDB descartável e nas três ordens canônicas do Runner `BASELINE_G0_G1_G2_G3`, `REVERSE_G3_G2_G1_G0`, `INTERLEAVED_G1_G3_G0_G2` (todas as quatro ondas obrigatórias por ordem; abreviações não são admitidas). O contrato recebe métricas agregadas: falsos vínculos, falsas criações, pendências, B³ F1 e grupos independentes. Recusa TEST, VALIDATION, grade incompleta, replay de ordem ausente, **reutilização do mesmo SHA de execução física em células/ordens distintas**, busca física incompleta, SHA divergente e decisão superior não recalculada. SHAs distintos são necessários, mas não bastam: o runner ainda deve provar a execução real e sua proveniência por artefatos verificáveis.
 
 Para cada ordem física, o denominador de oportunidades de vínculos verdadeiros e a contagem de grupos independentes são invariantes entre limiares; o contrato recusa medições que mudem esse universo mesmo com fingerprint TRAIN recalculado. Isso não substitui auditoria externa da proveniência dos grupos.
 

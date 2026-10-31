@@ -1,4 +1,5 @@
 using Jornada.Linkage.Parameters.Worker;
+using Jornada.Linkage.Runner;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -35,6 +36,30 @@ public sealed class V9GoldJointThresholdTrainTests
             V9LowerNonMatchTrainCalibrator.JointGridFingerprint(
                 [.8m, .9m], [.1m, .2m]), Plan,
             [.8m, .9m], [.1m, .2m], 10, true, false);
+
+    [Test]
+    public void Joint_orders_match_actual_four_wave_gold_runner_protocol()
+    {
+        Assert.That(V9LowerNonMatchTrainCalibrator.JointOrders,
+            Is.EqualTo(GoldTrainThreeOrderProtocol.OrderIds),
+            "Joint calibration and Gold Runner must use the same canonical order IDs.");
+        foreach (var order in V9LowerNonMatchTrainCalibrator.JointOrders)
+        {
+            var waveOrder = GoldTrainThreeOrderProtocol.ResolveOrder(
+                order, ["G0", "G1", "G2", "G3"]);
+            Assert.That(waveOrder, Has.Count.EqualTo(4));
+        }
+    }
+
+    [Test]
+    public void Rejects_abbreviated_order_alias_even_when_fingerprint_is_recomputed()
+    {
+        var rows = Measurements();
+        var changed = rows.ToArray();
+        changed[0] = changed[0] with { OrderId = "G0_G3" };
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(changed), changed)));
+    }
 
     [Test]
     public void Produces_both_thresholds_from_full_three_order_train_grid_only()
