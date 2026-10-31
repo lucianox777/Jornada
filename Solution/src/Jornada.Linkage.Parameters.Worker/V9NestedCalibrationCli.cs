@@ -131,12 +131,13 @@ public static class V9NestedCalibrationCli
             ?? throw new InvalidDataException("Finalista TF positivo sem parâmetros TRAIN congelados.");
         var frame = tf.Reference.PopulationFrameFingerprint.Split(':');
         if (plan.PinnedIbgeReferenceVersionId is null or <= 0
-            || plan.PinnedIbgePublishedSha256 is not { Length: 64 } digest
-            || !digest.All(Uri.IsHexDigit)
+            || plan.PinnedIbgePublishedSha256 is null
+            || plan.PinnedIbgePublishedSha256.Length != 64
+            || !plan.PinnedIbgePublishedSha256.All(Uri.IsHexDigit)
             || tf.Reference.Source != NominalFrequencySourceV9.IbgePublishedMarginal
             || frame.Length != 4
             || frame[0] != "IBGE_PUBLISHED"
-            || !string.Equals(frame[2], digest, StringComparison.OrdinalIgnoreCase))
+            || !string.Equals(frame[2], plan.PinnedIbgePublishedSha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Finalista TF não corresponde ao digest IBGE publicado fixado no plano.");
     }
 
