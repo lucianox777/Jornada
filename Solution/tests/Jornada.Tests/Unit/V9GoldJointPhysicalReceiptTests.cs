@@ -198,6 +198,29 @@ public sealed class V9GoldJointPhysicalReceiptTests
     }
 
     [Test]
+    public void Rejects_impossible_frozen_truth_denominators()
+    {
+        var receipt = Receipt();
+        receipt["identityGroups"] = 21; // 20 sources cannot represent 21 independent identities.
+        Reject(receipt);
+        receipt = Receipt();
+        ((JsonObject)receipt["jointTrainPhysicalTrial"]!)["trueLinkOpportunities"] = 21;
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_non_sha_recomputed_gold_snapshot_even_when_fields_agree()
+    {
+        var receipt = Receipt();
+        receipt["snapshotSha256"] = "not-a-content-addressed-snapshot";
+        ((JsonObject)receipt["jointUpperTrain"]!)["distinctRecomputedSnapshotSha256"] =
+            "not-a-content-addressed-snapshot";
+        ((JsonObject)receipt["goldThreeOrderTrial"]!)["frozenSnapshotSha256"] =
+            "not-a-content-addressed-snapshot";
+        Reject(receipt);
+    }
+
+    [Test]
     public void Rejects_certification_and_production_activation_claims()
     {
         var receipt = Receipt();
