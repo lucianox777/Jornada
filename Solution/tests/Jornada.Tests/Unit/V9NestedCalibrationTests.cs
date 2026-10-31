@@ -138,6 +138,62 @@ public sealed class V9NestedCalibrationTests
         }
     }
 
+    [Test]
+    public void Nested_request_hash_distinguishes_full_option_fingerprint_not_only_alpha_threshold()
+    {
+        // The old request hash omitted TF, side and support policy, silently
+        // collapsing distinct configurations into one physical evaluation.
+        var type = typeof(V9NestedCalibrationCoordinator).GetNestedType(
+            "Request", System.Reflection.BindingFlags.NonPublic)!;
+        var sha = type.GetProperty("Sha",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+            | System.Reflection.BindingFlags.Public)!;
+        var original = new V9FsAdaptiveOptionConfiguration("ROOT", .5m, .6m);
+        var withTf = original with { TfWeight = .3m, TfSide = CompositeNominalTfSideV9.Mother };
+        object Create(V9FsAdaptiveOptionConfiguration option) =>
+            Activator.CreateInstance(type,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
+                | System.Reflection.BindingFlags.NonPublic, null,
+                [Array.Empty<LinkageBlockingPass>(), option, .5m, "ROOT"], null)!;
+
+        Assert.That(sha.GetValue(Create(original)), Is.Not.EqualTo(sha.GetValue(Create(withTf))));
+        Assert.That(sha.GetValue(Create(original)), Is.EqualTo(sha.GetValue(Create(original))));
+
+        // A refined ID must not consume a second physical evaluation when
+        // the underlying configuration and root option are unchanged.
+        var refine = typeof(V9NestedCalibrationCoordinator).GetMethod(
+            "RefinedOption", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var sameConfigurationNewId = (V9FsAdaptiveOptionConfiguration)refine.Invoke(
+            null, [original, "ROOT", original.DecisionThreshold])!;
+        Assert.That(sha.GetValue(Create(original)), Is.EqualTo(sha.GetValue(Create(sameConfigurationNewId))));
+    }
+
+    [Test]
+    public void Nested_refinement_preserves_tf_side_floor_and_support_without_hardcoded_TF0()
+    {
+        var method = typeof(V9NestedCalibrationCoordinator).GetMethod(
+            "RefinedOption", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var original = new V9FsAdaptiveOptionConfiguration("ROOT", .5m, .6m,
+            TfWeight: .25m, TfSide: CompositeNominalTfSideV9.Mother,
+            TfMinimumFrequency: .00001m, TfMinimumIndependentSupport: 5);
+        V9FsAdaptiveOptionConfiguration Refine(decimal threshold) =>
+            (V9FsAdaptiveOptionConfiguration)method.Invoke(null, [original, "ROOT", threshold])!;
+
+        var refined = Refine(.7m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(refined.DecisionThreshold, Is.EqualTo(.7m));
+            Assert.That(refined.SmoothingAlpha, Is.EqualTo(original.SmoothingAlpha));
+            Assert.That(refined.TfWeight, Is.EqualTo(original.TfWeight));
+            Assert.That(refined.TfSide, Is.EqualTo(original.TfSide));
+            Assert.That(refined.TfMinimumFrequency, Is.EqualTo(original.TfMinimumFrequency));
+            Assert.That(refined.TfMinimumIndependentSupport, Is.EqualTo(original.TfMinimumIndependentSupport));
+            Assert.That(refined.OptionId, Is.Not.EqualTo(original.OptionId));
+            Assert.That(refined.OptionId, Is.EqualTo(Refine(.7m).OptionId));
+            Assert.That(refined.OptionId, Is.Not.EqualTo(Refine(.8m).OptionId));
+        }));
+    }
+
     private static V9TrainingCandidate Candidate(long tp, long fp, decimal threshold)
     {
         var directory = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
