@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Jornada.Contracts;
 using Jornada.Linkage.Runner;
 using Microsoft.Data.SqlClient;
 
@@ -59,6 +60,18 @@ public static class V9NestedCalibrationCli
             throw new InvalidDataException("Bootstrap padrão exige clean conservador provisório e produtor fixado.");
         var train = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(source, 4,
             declaration.MaximumObservationsPerBaseIdentity, onlyPartition: "TRAIN");
+        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? referenceFactory = null;
+        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m))
+            referenceFactory = async (passes, ct) =>
+            {
+                // The reference version is explicit; no mutable ATIVA fallback.
+                await using var referenceSql = new SqlConnection(connectionString);
+                await referenceSql.OpenAsync(ct);
+                return await FrozenIbgeNominalTfV9.LoadAsync(referenceSql,
+                    plan.PinnedIbgeReferenceVersionId!.Value,
+                    V9PhysicalSqlAdaptiveCalibrationProbe.ComputeBlockingFingerprint(passes),
+                    plan.PinnedIbgeBootstrap!, ct);
+            };
         var result = await V9NestedCalibrationCoordinator.SearchAsync(async ct =>
         {
             var connection = new SqlConnection(connectionString);
@@ -69,19 +82,7 @@ public static class V9NestedCalibrationCli
             var line = JsonSerializer.Serialize(progress);
             File.AppendAllText(Path.Combine(output, "batch-progress.jsonl"), line + Environment.NewLine);
             Console.Error.WriteLine(line);
-        }, frozenTfReferenceForRuleset: plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m)
-            ? async (passes, ct) =>
-            {
-                // Version ID and digests are declared in the immutable plan.
-                // Never resolve the current ATIVA row as an implicit fallback.
-                await using var referenceSql = new SqlConnection(connectionString);
-                await referenceSql.OpenAsync(ct);
-                return await FrozenIbgeNominalTfV9.LoadAsync(referenceSql,
-                    plan.PinnedIbgeReferenceVersionId!.Value,
-                    V9PhysicalSqlAdaptiveCalibrationProbe.ComputeBlockingFingerprint(passes),
-                    plan.PinnedIbgeBootstrap!, ct);
-            }
-            : null);
+        }, frozenTfReferenceForRuleset: referenceFactory);
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
             .DistinctBy(x => x.ContentSha256))
             await V9FittedSnapshotArtifact.WriteNewAsync(Path.Combine(output, fit.ContentSha256 + ".fitted.json"), fit);
