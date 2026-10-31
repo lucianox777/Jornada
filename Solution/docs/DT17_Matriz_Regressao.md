@@ -57,6 +57,27 @@ Testes SQL desta frente usam somente o banco sintético/isolado configurado pelo
 
 A separação da CI está excluída desta frente. A DT-10, que era a última entrega técnica antes do baseline, foi concluída em 01/10/2026. **E2E-A/DT-17A foi EXECUTADA** no HEAD `406732a4351313d0e411a010f370073e8a4ce3c4`, com `jornada-ci` #36866260882 e DT-05 E2E #36866260886 verdes; ver [registro de execução](evidence/E2E_A_Execution_20261001.md). **E2E-B/DT-17B foi EXECUTADA** no HEAD `1f647053c186834998b4526b9fb33b09df033c0a`, com `jornada-ci` #36886632283 e DT-05 E2E #36886632424 verdes; ver [registro de execução](evidence/E2E_B_Execution_20261001.md). **E2E-C/DT-17C foi EXECUTADA** no HEAD `e51876b175ad212344033fd08d7f32687b2ed323`, com `jornada-ci` #36950535828 e DT-05 E2E #36950535827 verdes após a DT-12; ver [registro de execução](evidence/E2E_C_Execution_20261001.md). A comparação A × B × C não detectou regressão coberta por esses gates após a limpeza; lacunas externas/institucionais permanecem explicitamente preservadas.
 
+## Matriz complementar DT-10/V9 — 28/10/2026 (PR #1199, não integrada)
+
+| Caso | Prova exigida | Estado neste adendo |
+| --- | --- | --- |
+| `SEM_CANDIDATO_%` com melhor candidato persistido | `THROW 51835`, 0 evento, origem `PROVISORIA`, falha idem em replay | Preflight LocalDB #40805124598 SUCCESS no SHA `3017f048` (1 teste físico) |
+| `SEM_CANDIDATO_%` com segundo candidato persistido | Mesma recusa e atomicidade, sem promover `initial_uuid` | Preflight LocalDB #40805124598 SUCCESS no SHA `3017f048` (1 teste físico) |
+| Ausência legítima de candidatos | Um único evento, mesmo UUID e nenhum evento extra em replay | Preflight LocalDB #40805124598 SUCCESS no SHA `3017f048` (1 teste físico) |
+| Lote misto com ausência legítima e ausência forjada com candidato | Rejeitar o lote inteiro com `51835`, zero eventos de ambas as origens, ambas `PROVISORIA`, retry igualmente negado | Novo cenário de atomicidade na branch; **CI do novo SHA ainda não executada** |
+| `LIMIAR_INFERIOR_V9_GOVERNADO` | Melhor candidato real, score físico abaixo de piso bootstrap, política por digest DT-15 e snapshot corretos | Guardas SQL em branch; **teste positivo governado pendente** |
+| Faixa intermediária, políticas/fit alterados, origem sintética | Abstenção ou recusa; nenhum ledger parcial; rollback comprovado | **Matriz física completa pendente** |
+| Calibrador C# único, loader REF, TEST final | Mesmo fit, proveniência, separação TEST/DT-15 e ausência de ativação automática | **Pendente (#1089 / gates institucionais)** |
+
+Esta matriz é **adendo da candidata em PR**, não revisão retroativa dos E2E históricos nem certificação operacional. Registros reais de CI/artefatos só serão atribuídos após execução dos jobs no SHA exato. A auditoria de risco SEM_CANDIDATO era hipótese estática até sua reprodução física; não alegar exploração comprovada.
+
+## Adendo de rastreabilidade — 28/10/2026, correção de preflight e vínculo estrutural
+
+Evidência CI no SHA `b79e167`: `jornada-ci`, inventário e instalador SUCCESS; preflight Windows [40659908775](https://github.com/lucianox777/Jornada/actions/runs/40659908775) FAILURE por assinatura antiga no patch TRAIN; schema [40659908716](https://github.com/lucianox777/Jornada/actions/runs/40659908716) FAILURE por hash stale, embora clean/upgrade/flattened tenham produzido SHA idêntico `8fe1db4da72aa420f3741c625270e5a6cd9cee2217ec9f60effbee8466a08a21`. Correções e testes unitários preparados na mesma PR; **não marcar TESTADO/SUCCESS no novo HEAD sem nova CI**. Matriz física positiva DT-10/DT-15, negativos governados, completude da busca e loader REF #1089 seguem PENDENTES.
+
+## Evidência adicional DT-10 — 29/10/2026
+
+No SHA `3017f048`, [preflight LocalDB #40805124598](https://github.com/lucianox777/Jornada/actions/runs/40805124598) executou 1 teste físico, 1 aprovado, 0 falhas, 0 ignorados. [Probe TRAIN 30k #40805124534](https://github.com/lucianox777/Jornada/actions/runs/40805124534) concluiu SUCCESS; isso não prova a matriz governada DT-15 nem as seis corridas físicas de holdout (ignoradas no workflow #40805124555). O cenário de lote misto acima reforça somente a atomicidade do caminho legado quando o motivo de ausência é forjado; não substitui o teste positivo governado, prova de completude da busca, nem a revisão REF #1089. Nenhuma política operacional foi habilitada.
 
 ## Adendo CI-V9-PROBE-01 — matriz de impacto da PR #1205 (28/10/2026)
 
@@ -82,6 +103,20 @@ A migration aditiva `20261029_Linkage_NoCandidate_Literal_Guards.sql` redefine a
 A matriz de evidência obrigatória é `LinkageNoCandidateLiteralGuardsSqlServerTests` (11 casos físicos SQL, sem skip): quatro quase-prefixos escalar/lote; quatro contradições de candidato; lote misto com zero eventos e estado/versão inalterados; dois cenários de ausência legítima e replay idempotente. Testes estruturais e sucesso do `integration-sql` anterior **não** atestam esses novos casos. A fixture usa apenas SQL Test/Dev isolado/Testcontainers e deve registrar TRX, run/job e SHA exato após inclusão na #1210. A prova foi incorporada ao HEAD da PR #1210 em `7f999ebb9a9039c2e673148c4317ea3636d4428c`, mas permanece **sem resultado físico comprovado** até a execução dos checks no HEAD definitivo. Não usar os resultados do HEAD anterior como certificação.
 
 O ajuste DT-06 de 73 para 74 migrations foi validado no HEAD `e2fb16cb7e5fbec764485eb26cd7cd2f17464fcd` pela CI [40918850891](https://github.com/lucianox777/Jornada/actions/runs/40918850891), mas a prova 30k [40918851020](https://github.com/lucianox777/Jornada/actions/runs/40918851020) ainda estava em andamento na auditoria. Não transportar SUCCESS para um HEAD posterior; SKIPPED não é execução física. A #1199 permanece independente, com autorização DT-15 default OFF.
+
+
+## Checkpoint DT-10 de integração — 30/10/2026 (PR #1199, sem ativação)
+
+**Ordem e rollback.** A migration `20261029_Linkage_NoCandidate_Literal_Guards.sql` (#1210) precede `20261026_DT10_V9_Lower_Governed_Off.sql` (#1199) no manifesto e no instalador. A procedure de lote governada deve preservar o prefixo literal `SEM[_]CANDIDATO[_]%` e o erro 51835. O rollback controlado restaura a procedure **endurecida após a #1210**, nunca a definição histórica anterior. Qualquer formulação antiga de “procedure anterior” refere-se à versão endurecida imediatamente anterior à redefinição governada.
+
+**Decisão multiobservação.** Para a mesma origem no mesmo run, a líder não pode publicar `SEM_CANDIDATO_*` se qualquer observação irmã materializada tiver `melhor_candidato_uuid`, `segundo_candidato_uuid` ou `pessoa_uuid_resolvido`. A guarda SQL percorre `#dt10_rows` por `pessoa_origem_id` e deve abortar o lote antes de qualquer evento, inclusive em lote misto; retry não pode produzir ledger. Isso não prova que o produtor executou todos os passes físicos de blocking.
+
+**Evidência no SHA auditado `28125456ab349a865a52dc66f6d1e15234dbfa21`.** [Preflight LocalDB #41098709724](https://github.com/lucianox777/Jornada/actions/runs/41098709724): 1 teste NUnit PASS, 0 FAIL, 0 SKIP, TRX validado; cobre recusas OFF, candidato forjado na líder e em observação irmã, atomicidade mista e replay legado. [CI #41098709798](https://github.com/lucianox777/Jornada/actions/runs/41098709798), [schema #41098709771](https://github.com/lucianox777/Jornada/actions/runs/41098709771), [instalador #41098709760](https://github.com/lucianox777/Jornada/actions/runs/41098709760) e [validação independente #41098709936](https://github.com/lucianox777/Jornada/actions/runs/41098709936) concluíram SUCCESS. O candidato declara fingerprint estrutural `8b9adae24654e94bc668385ca9aa5c6c906744c0d8d88bd5b457f7ae9caa1f68` e SHA de manifest `c1d7d37f505563baea5d71d310e996945f5ffbf59d34fa6e24defbed3252e4b8`. [Holdout #41098709711](https://github.com/lucianox777/Jornada/actions/runs/41098709711): workflow SUCCESS, corridas físicas e agregador **SKIPPED**; não prova TEST selado. [Probe #41098709730](https://github.com/lucianox777/Jornada/actions/runs/41098709730): SUCCESS, job TRAIN 30k **SKIPPED**; não é novo ensaio de calibração.
+
+**Bloqueios para merge.** Falta prova SQL **positiva** de autorização DT-15 ACTIVATE/digest legítimos (LOWER/intermediário/SEM_CANDIDATO/replay), negativos de adulteração individual de digest/fit/snapshot/limiares, atestado verificável de completude da busca física, contrato `upper` produzido pelo calibrador V9 e `lower` otimizado condicionado ao `upper`, revisão REF/loader #1089, VALIDATION/TEST selados e revisão humana. A PR segue DRAFT, política default OFF, sem aprovação, merge ou ativação. Revalidar todos os checks no SHA final após reconciliação com master. Os resultados históricos acima não certificam commits posteriores.
+
+Matriz física ainda exigida: LOWER autorizado; faixa intermediária; ausência genuína com blocking completo; replay; mutações isoladas de digest, modelo, fit, snapshot, lower e upper; rollback endurecido; atomicidade e contagens de eventos. Registrar TRX, SHA, run/job e estado final; não contar cenários apenas descritos como executados.
+
 
 ## Adendo CI-V9-PROBE-01 — evidência pós-merge da #1205 (29/10/2026)
 

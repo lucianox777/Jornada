@@ -40,6 +40,7 @@
     <None Include="..\..\database\Jornada_Dev_SyntheticCalibration_Cleanup.sql" Link="database\Jornada_Dev_SyntheticCalibration_Cleanup.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\migrations\*.sql" Link="database\migrations\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\database\migrations\manifest.txt" Link="database\migrations\manifest.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\database\tests\DT06_Verificar_Schema_370.sql" Link="database\tests\DT06_Verificar_Schema_370.sql" CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\config\contracts\**\*.json" Link="config\contracts\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- Somente fixture de integração: schemas SEHAB externos, não distribuídos na configuração operacional. -->
     <None Include="..\fixtures\external-contracts\gestores\SEHAB\**\*.json" Link="config\contracts\gestores\SEHAB\%(RecursiveDir)%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
