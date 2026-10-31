@@ -87,6 +87,20 @@ public sealed class V9FittedSnapshot
         return Create(Payload with { CandidateGrouping = new("GOLD", 0, 0), GoldParentSnapshotSha256 = ContentSha256 });
     }
 
+    /// <summary>
+    /// TRAIN-only frozen Gold scoring variant for an explicitly declared upper
+    /// candidate. No m/u, TF, blocking, prior, fit fingerprint or gold grouping
+    /// is refitted or changed. This immutable snapshot gets a distinct SHA per
+    /// upper and must be executed on a fresh disposable Gold LocalDB.
+    /// </summary>
+    public V9FittedSnapshot CreateGoldHarnessVariantAtUpper(decimal upper)
+    {
+        if (upper is <= 0m or > 1m)
+            throw new InvalidDataException("Joint Gold TRAIN upper must satisfy 0 < upper <= 1.");
+        var baseVariant = CreateGoldHarnessVariant();
+        return Create(baseVariant.Payload with { Threshold = upper });
+    }
+
     /// <summary>The expected digest must come from the pinned reference, not the payload.</summary>
     public static V9FittedSnapshot Load(ReadOnlySpan<byte> content, string expectedSha256)
     {
@@ -182,7 +196,7 @@ public sealed class V9FittedSnapshot
         if (p.SchemaVersion != (p.JointSupport is null ? SchemaVersion : SupportSchemaVersion) || p.NominalContractVersion != CompositeNominalComparisonV9.ContractVersion
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)
-            || p.Threshold is <= 0m or >= 1m || p.ConflictMargin is < 0m or > 1000m
+            || p.Threshold is <= 0m or > 1m || p.ConflictMargin is < 0m or > 1000m
             || p.TfWeight is < 0m or > 1m || (p.TfWeight == 0m) != (p.TfCalibration is null)
             || p.BlockingPasses is null || p.BlockingPasses.Count == 0
             || p.JointCells is null || p.Parameters is null)

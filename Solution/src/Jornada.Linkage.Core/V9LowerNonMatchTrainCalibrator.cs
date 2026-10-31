@@ -10,7 +10,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// over all retrieved Gold candidates, NOT a proof of global novelty.
 /// Keeps existing FS acceptance/FDR decisions unchanged. Does not publish.
 /// </summary>
-public static class V9LowerNonMatchTrainCalibrator
+public static partial class V9LowerNonMatchTrainCalibrator
 {
     public const string Version = "V9_TRAIN_SELECTION_LOWER_NONMATCH_PARETO_V6";
 
