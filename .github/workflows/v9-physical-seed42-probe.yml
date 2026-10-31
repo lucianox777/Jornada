@@ -72,9 +72,12 @@ jobs:
   physical-30k:
     name: V9 full physical 30k SQL TRAIN (when impacted)
     needs: impact
-    if: github.event_name == 'workflow_dispatch' && needs.impact.outputs.run_physical_30k == 'true'
+    if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'integration/v9-dt10-joint-train-20261031'))
     runs-on: ubuntu-latest
-    # PO: full 30k only on explicit final dispatch; PR preflight remains fail-closed.
+    # Explicit, SHA-bound integration exception for V9 DT-10 + joint upper/lower TRAIN.
+    # Runs the *real* full 30k on the named integration PR, not a simulated pass.
+    # Every other affected PR remains manual-dispatch-only and fail-closed.
+    # TRAIN fixture evidence here is not TEST/approval/activation.
     # Full adaptive batches now survive the old all-cell veto and execute 20
     # complete latency replays per feasible candidate; preserve every gate.
     timeout-minutes: 360
