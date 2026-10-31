@@ -85,6 +85,13 @@ public static class SplinkCompatibleTermFrequency
     {
         if (!Enum.IsDefined(mode))
             throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown V9 TF mode.");
+        // Zero disables the adjustment, but invalid inputs must not be silently accepted.
+        ValidateProbability(leftFrequency, nameof(leftFrequency));
+        ValidateProbability(rightFrequency, nameof(rightFrequency));
+        ValidateProbability(referenceUProbability, nameof(referenceUProbability));
+        ArgumentOutOfRangeException.ThrowIfLessThan(weight, 0m);
+        ArgumentOutOfRangeException.ThrowIfLessThan(minimumUValue, 0m);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(minimumUValue, 1m);
         return mode switch
         {
             AdjustmentModeV9.Zero => 0d,
