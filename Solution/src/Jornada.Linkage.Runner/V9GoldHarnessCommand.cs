@@ -93,6 +93,41 @@ public static class V9GoldHarnessCommand
         _ = V9GoldLowerNonMatchExperiment.ParseThreshold(lowers[0], upper);
     }
 
+
+    /// <summary>
+    /// Fixed truth opportunity denominator from the preregistered CSV wave order,
+    /// BEFORE any SQL execution, scoring, threshold choice or Gold publication.
+    /// A truth first seen in the current wave is not a prior-Gold opportunity;
+    /// every later source with that truth is, even if an earlier policy abstained.
+    /// This avoids threshold-dependent recall denominators.
+    /// </summary>
+    public static long CountPreregisteredTrueLinkOpportunities(
+        IReadOnlyDictionary<string, IReadOnlyList<string>> wavesByManager,
+        IReadOnlyList<string> waveOrder)
+    {
+        if (wavesByManager is null || waveOrder is null || wavesByManager.Count == 0
+            || waveOrder.Count != wavesByManager.Count)
+            throw new InvalidDataException("Preregistered Gold wave universe is incomplete.");
+        var managers = new HashSet<string>(StringComparer.Ordinal);
+        var previouslySeenTruth = new HashSet<string>(StringComparer.Ordinal);
+        long opportunities = 0;
+        foreach (var manager in waveOrder)
+        {
+            if (string.IsNullOrWhiteSpace(manager) || !managers.Add(manager)
+                || !wavesByManager.TryGetValue(manager, out var wave)
+                || wave is null || wave.Count == 0 || wave.Any(string.IsNullOrWhiteSpace))
+                throw new InvalidDataException("Gold wave order, manager or truth is invalid.");
+            foreach (var truth in wave)
+                if (previouslySeenTruth.Contains(truth))
+                    opportunities++;
+            foreach (var truth in wave)
+                previouslySeenTruth.Add(truth);
+        }
+        if (managers.Count != wavesByManager.Count)
+            throw new InvalidDataException("Gold wave order omits a preregistered manager.");
+        return opportunities;
+    }
+
     /// <summary>
     /// Six-trial external evaluation uses the SAME physical incremental/Gold
     /// measurement pipeline, but an independently verified CSV and an explicit
@@ -214,6 +249,12 @@ public static class V9GoldHarnessCommand
         var trialOrderId = orderOptions.Length == 1 ? orderOptions[0] : GoldTrainThreeOrderProtocol.Baseline;
         var executedWaveOrder = GoldTrainThreeOrderProtocol.ResolveOrder(
             trialOrderId, wavesByManager.Keys);
+        // The recall denominator must be independent of the upper/lower pair:
+        // use prior-wave truth presence in the frozen CSV, never published Gold.
+        var preregisteredTrueLinkOpportunities = CountPreregisteredTrueLinkOpportunities(
+            wavesByManager.ToDictionary(x => x.Key,
+                x => (IReadOnlyList<string>)x.Value.Select(source => source.Truth).ToArray(),
+                StringComparer.Ordinal), executedWaveOrder);
         if (holdout is not null && (captureTrainEvidence
             || (lowerNonMatchThreshold is not null &&
                 lowerNonMatchThreshold != holdout.CandidateLowerThreshold)
@@ -434,6 +475,8 @@ public static class V9GoldHarnessCommand
                     lowerThreshold = lowerNonMatchThreshold,
                     capturedTrainSources = trainingEvidence.Count,
                     sourceCount = sources.Count,
+                    trueLinkOpportunities = preregisteredTrueLinkOpportunities,
+                    trueLinkOpportunityRule = "PRIOR_CSV_WAVE_TRUTH_PRESENT_IN_EARLIER_WAVE_INDEPENDENT_OF_THRESHOLDS",
                     scope = "TRAIN_SELECTION",
                     refitted = false, testUsed = false, certified = false, activated = false
                 } : null,

@@ -68,6 +68,51 @@ public sealed class V9GoldHarnessSafetyTests
             V9GoldHarnessCommand.ValidateJointTrainTrialArguments(duplicate)));
     }
 
+
+    [Test]
+    public void Joint_train_recall_denominator_is_frozen_before_threshold_dependent_publication()
+    {
+        IReadOnlyDictionary<string, IReadOnlyList<string>> waves =
+            new Dictionary<string, IReadOnlyList<string>>(StringComparer.Ordinal)
+            {
+                ["G0"] = ["A", "B", "A"],
+                ["G1"] = ["A", "C"],
+                ["G2"] = ["C", "A", "D"],
+                ["G3"] = ["B", "D", "E"]
+            };
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(V9GoldHarnessCommand.CountPreregisteredTrueLinkOpportunities(
+                waves, ["G0", "G1", "G2", "G3"]), Is.EqualTo(5));
+            Assert.That(V9GoldHarnessCommand.CountPreregisteredTrueLinkOpportunities(
+                waves, ["G3", "G2", "G1", "G0"]), Is.EqualTo(6));
+            // Duplicate A inside first G0 wave is not an earlier-wave link.
+            Assert.That(V9GoldHarnessCommand.CountPreregisteredTrueLinkOpportunities(
+                new Dictionary<string, IReadOnlyList<string>> { ["G0"] = ["A", "A"] },
+                ["G0"]), Is.Zero);
+        }));
+    }
+
+    [Test]
+    public void Joint_train_denominator_rejects_missing_duplicate_and_corrupt_waves()
+    {
+        IReadOnlyDictionary<string, IReadOnlyList<string>> waves =
+            new Dictionary<string, IReadOnlyList<string>>
+            {
+                ["G0"] = ["A"], ["G1"] = ["A"]
+            };
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldHarnessCommand.CountPreregisteredTrueLinkOpportunities(waves, ["G0"])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldHarnessCommand.CountPreregisteredTrueLinkOpportunities(waves, ["G0", "G0"])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldHarnessCommand.CountPreregisteredTrueLinkOpportunities(
+                new Dictionary<string, IReadOnlyList<string>>
+                {
+                    ["G0"] = ["A"], ["G1"] = [""]
+                }, ["G0", "G1"])));
+    }
+
     [Test]
     public void Accepts_only_explicit_disposable_instance_contract_before_resident_marker_and_empty_checks() =>
         Assert.DoesNotThrow((Action)(() => V9GoldHarnessCommand.ValidateDisposableConnection(
