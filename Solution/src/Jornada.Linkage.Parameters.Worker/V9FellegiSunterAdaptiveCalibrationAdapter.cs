@@ -80,6 +80,15 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         Dictionary<(CompositeNominalLevelV9 Person, CompositeNominalLevelV9 Mother), int> U);
 
     private readonly Lazy<NominalCounts> trainingNominalCounts;
+    // These arrays and birth counts depend only on the frozen SQL TRAIN frame.
+    // Reuse them for every adaptive option; never mix in VALIDATION or TEST.
+    private readonly V9FsAdaptiveCandidatePair[] trainingRows;
+    private readonly V9FsAdaptiveCandidatePair[] matchedTrainingRows;
+    private readonly V9FsAdaptiveCandidatePair[] unmatchedTrainingRows;
+    private readonly (int Exact, int Diff, int Total) matchedBirthCounts;
+    private readonly (int Exact, int Diff, int Total) unmatchedBirthCounts;
+    private readonly Dictionary<(CompositeNominalTfSideV9 Side, decimal Alpha),
+        V9TrainSqlFirstNameUCalibration.Frozen> trainingUnitUCache = new();
     private readonly V9FsAdaptiveCandidateFrame frame;
     private readonly IReadOnlyDictionary<string, V9FsAdaptiveOptionConfiguration> options;
     private readonly FrozenIbgeNominalTfV9? frozenTfReference;
@@ -155,11 +164,15 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             throw new InvalidDataException("Referência TF divergente do frame blocking calibrado.");
 
         ValidateFrame();
+        trainingRows = this.frame.Pairs.Where(x => x.Partition == "TRAIN").ToArray();
+        matchedTrainingRows = trainingRows.Where(x => x.IsTruePair).ToArray();
+        unmatchedTrainingRows = trainingRows.Where(x => !x.IsTruePair).ToArray();
+        matchedBirthCounts = BirthCounts(matchedTrainingRows);
+        unmatchedBirthCounts = BirthCounts(unmatchedTrainingRows);
         // Classification is a pure function of this immutable TRAIN frame, not
         // alpha/threshold/margin. Never cache across frames or include holdouts.
         trainingNominalCounts = new(() => new NominalCounts(
-            CountNominal(this.frame.Pairs.Where(x => x.Partition == "TRAIN" && x.IsTruePair)),
-            CountNominal(this.frame.Pairs.Where(x => x.Partition == "TRAIN" && !x.IsTruePair))));
+            CountNominal(matchedTrainingRows), CountNominal(unmatchedTrainingRows)));
     }
 
     public string ModelFamily => Family;
@@ -200,7 +213,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 || frozen.TrainUnitU.TrainFingerprintSha256 != frame.TrainCorpusFingerprintSha256
                 || frozen.TrainUnitU.Side != config.TfSide)
                 throw new InvalidDataException("Referência TF ou baseline U TRAIN não coincide com o fit congelado.");
-            var reference = frozenTfReference.ExportForSnapshot(config.TfSide);
+            var reference = frozenTfReference.ExportForSnapshot(config.TfSide, CompositeNominalLevelV9.ExactFirst);
             tf = new V9SnapshotFirstNameTf(config.TfSide, reference.Reference,
                 reference.Frequencies, frozen.TrainUnitU.FirstNameUnitUByValue,
                 frozen.TrainUnitU.FingerprintSha256, config.TfMinimumFrequency,
@@ -250,9 +263,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             || schema.Cells.Count(x => x.AttributeCode == PersonResolutionContractCatalog.MotherName) != 9)
             throw new InvalidDataException("Catálogo V9 não contém os nove níveis nominais canônicos.");
 
-        var rows = frame.Pairs.Where(x => x.Partition == "TRAIN").ToArray();
-        var matched = rows.Where(x => x.IsTruePair).ToArray();
-        var unmatched = rows.Where(x => !x.IsTruePair).ToArray();
+        var matched = matchedTrainingRows;
+        var unmatched = unmatchedTrainingRows;
         RequireClassSupport(matched, "M");
         RequireClassSupport(unmatched, "U");
 
@@ -284,8 +296,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             support = estimated.Provenance;
         }
 
-        var mBirth = BirthCounts(matched);
-        var uBirth = BirthCounts(unmatched);
+        var mBirth = matchedBirthCounts;
+        var uBirth = unmatchedBirthCounts;
         if (mBirth.Total < 2 || uBirth.Total < 2)
             throw new InvalidDataException("Nascimento TRAIN exige ao menos dois pares observáveis por classe.");
 
@@ -307,8 +319,13 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         {
             if (frozenTfReference is null)
                 throw new InvalidOperationException("TF positiva exige snapshot IBGE fixado.");
-            trainU = V9TrainSqlFirstNameUCalibration.Fit(
-                rows, config.TfSide, alpha, frame.TrainCorpusFingerprintSha256);
+            var key = (config.TfSide, alpha);
+            if (!trainingUnitUCache.TryGetValue(key, out trainU))
+            {
+                trainU = V9TrainSqlFirstNameUCalibration.Fit(
+                    trainingRows, config.TfSide, alpha, frame.TrainCorpusFingerprintSha256);
+                trainingUnitUCache.Add(key, trainU);
+            }
         }
 
         var fitSha = FittedFingerprintSha256(config, cells, parameters, schema.FingerprintSha256,

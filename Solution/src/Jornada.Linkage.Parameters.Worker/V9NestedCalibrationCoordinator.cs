@@ -14,7 +14,11 @@ public sealed record V9NestedCalibrationPlan(V9AdaptiveCalibrationPlan Calibrati
     double MinimumFdrImprovement = .00001, string Purpose = "BOOTSTRAP_CANDIDATE_SELECTION",
     decimal ClassMassCoverage = .99m,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    string? SupportedTailRule = null);
+    string? SupportedTailRule = null,
+    long? PinnedIbgeReferenceVersionId = null,
+    string? PinnedIbgePublishedSha256 = null,
+    string? PinnedIbgeMaterializedFrequencySha256 = null,
+    NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null);
 
 public sealed record V9NestedCandidateEvaluation(string RequestSha256, int Batch,
     V9TrainingCandidate? Candidate, IReadOnlyList<string> Rejections);
@@ -32,13 +36,13 @@ public sealed record V9NestedCalibrationSearchResult(string Version, string Plan
 public static class V9NestedCalibrationCoordinator
 {
     public const string Version = "V9_INTERNAL_TRAIN_BATCH_PARETO_FINALISTS_V1";
-    private sealed record Request(IReadOnlyList<LinkageBlockingPass> Passes, V9FsAdaptiveOptionConfiguration Option, decimal Margin)
+    private sealed record Request(IReadOnlyList<LinkageBlockingPass> Passes, V9FsAdaptiveOptionConfiguration Option, decimal Margin, string RootOptionId)
     {
         internal string Sha => V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(new
         {
             Passes = Passes.OrderBy(p => p.PassId, StringComparer.Ordinal),
-            Alpha = Option.SmoothingAlpha.ToString("G29", CultureInfo.InvariantCulture),
-            Threshold = Option.DecisionThreshold.ToString("G29", CultureInfo.InvariantCulture),
+            OptionFingerprint = (Option with { OptionId = RootOptionId }).FingerprintSha256,
+            RootOptionId,
             Margin = Margin.ToString("G29", CultureInfo.InvariantCulture)
         }));
     }
@@ -54,24 +58,34 @@ public static class V9NestedCalibrationCoordinator
             || plan.InitialThresholdStep is <= 0 or >= 1 || plan.InitialMarginStep <= 0
             || !double.IsFinite(plan.MinimumRecallImprovement) || plan.MinimumRecallImprovement <= 0
             || !double.IsFinite(plan.MinimumFdrImprovement) || plan.MinimumFdrImprovement <= 0
-            || plan.Calibration.ModelOptions.Any(x => x.TfWeight != 0)
             || plan.Calibration.RiskCeilings is not { Count: > 0 }
             || plan.Calibration.MaximumAcceptedPerBaseIdentity != SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity
             || plan.Calibration.ShardCount != 1 || plan.Calibration.Execution.EndToEndRepetitions < 20)
-            throw new InvalidDataException("Busca interna exige política, custos, suporte, TF0, faixas e orçamento explícitos.");
+            throw new InvalidDataException("Busca interna exige política, custos, suporte, faixas e orçamento explícitos.");
+        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m)
+            && (plan.PinnedIbgeReferenceVersionId is null or <= 0
+                || !ValidSha(plan.PinnedIbgePublishedSha256)
+                || !ValidSha(plan.PinnedIbgeMaterializedFrequencySha256)
+                || plan.PinnedIbgeBootstrap is null))
+            throw new InvalidDataException("TF positivo exige versão IBGE publicada, digests e bootstrap congelados no plano.");
         if (plan.Purpose is not ("BOOTSTRAP_CANDIDATE_SELECTION" or "PLUMBING_FIXTURE_NOT_CERTIFICATION")
             || plan.Purpose == "BOOTSTRAP_CANDIDATE_SELECTION" && (plan.MinimumObservedMPerCell < 1 || plan.MinimumObservedUPerCell < 1))
             throw new InvalidDataException("Bootstrap exige suporte observado positivo no núcleo de massa de cada classe; piso zero é exclusivo da fixture sem certificação.");
     }
 
+    private static bool ValidSha(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
+
     public static async Task<V9NestedCalibrationSearchResult> SearchAsync(
         Func<CancellationToken, Task<SqlConnection>> openIndependentConnection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> originalTrain,
         V9NestedCalibrationPlan plan, CancellationToken cancellationToken,
-        Action<V9TrainingBatchProgress>? reportProgress = null)
+        Action<V9TrainingBatchProgress>? reportProgress = null,
+        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset = null)
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
         ValidatePlan(plan);
+        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m) && frozenTfReferenceForRuleset is null)
+            throw new InvalidDataException("TF positivo na busca aninhada exige referência IBGE publicada e congelada por frame SQL.");
         originalTrain = Array.AsReadOnly(originalTrain.ToArray());
         // Deep freeze before asynchronous execution. Search never receives a VALIDATION/TEST cohort.
         plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(JsonSerializer.Serialize(plan))!;
@@ -100,10 +114,14 @@ public static class V9NestedCalibrationCoordinator
             .Any(g => g.Select(p => string.Join('|', p.Fields)).Distinct(StringComparer.Ordinal).Count() > 1))
             throw new InvalidDataException("PassId não pode representar predicados diferentes entre lotes.");
         var requests = ruleSets.SelectMany(passes => calibration.ModelOptions.SelectMany(option => calibration.ConflictMargins
-            .Select(margin => new Request(passes, option with { OptionId = OptionId(option.SmoothingAlpha, option.DecisionThreshold) }, margin))))
+            .Select(margin => new Request(passes, option, margin, option.OptionId))))
             .DistinctBy(x => x.Sha).OrderBy(x => x.Sha, StringComparer.Ordinal).ToArray();
         if (requests.Length > plan.MaximumSearchConfigurations)
             throw new InvalidDataException("Lote inicial excede orçamento declarado; nenhuma configuração foi eliminada por resultado.");
+        // The candidate snapshot only stores OptionId. Keep the complete frozen
+        // configuration and its root identity so refinements cannot silently
+        // reset TF, support policy or other model dimensions.
+        var optionTemplates = new Dictionary<string, Request>(StringComparer.Ordinal);
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var evaluations = new List<V9NestedCandidateEvaluation>();
         var progress = new List<V9TrainingBatchProgress>();
@@ -111,20 +129,45 @@ public static class V9NestedCalibrationCoordinator
         var stagnant = 0;
         var stop = "BATCH_BUDGET_EXHAUSTED_NOT_OPTIMALITY";
         var active = new HashSet<SqlConnection>(ReferenceEqualityComparer.Instance);
+        using var referenceLease = new SemaphoreSlim(1);
         for (var batch = 1; batch <= plan.MaximumBatches; batch++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var previous = frontier;
             var batchIndex = batch;
-            foreach (var request in requests) seen.Add(request.Sha);
+            foreach (var request in requests)
+            {
+                seen.Add(request.Sha);
+                if (optionTemplates.TryGetValue(request.Option.OptionId, out var existing))
+                {
+                    if (existing.Option.FingerprintSha256 != request.Option.FingerprintSha256
+                        || existing.RootOptionId != request.RootOptionId)
+                        throw new InvalidDataException("OptionId reutilizado para configurações diferentes na busca interna.");
+                }
+                else optionTemplates.Add(request.Option.OptionId, request);
+            }
             var groups = requests.GroupBy(r => JsonSerializer.Serialize(new { r.Passes,
                     Margin = r.Margin.ToString("G29", CultureInfo.InvariantCulture) }))
                 .SelectMany(g => g.Chunk(64)).ToArray();
             var results = await V9ParallelWork.MapAsync(groups, calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
+                FrozenIbgeNominalTfV9? frozenReference = null;
+                if (group.Any(x => x.Option.TfWeight > 0m))
+                {
+                    // Resolve the immutable published IBGE version for this exact
+                    // blocking frame, never the mutable currently-active reference.
+                    await referenceLease.WaitAsync(ct);
+                    try { frozenReference = await frozenTfReferenceForRuleset!(group[0].Passes, ct); }
+                    finally { referenceLease.Release(); }
+                    if (frozenReference is null
+                        || frozenReference.ReferenceVersionId != plan.PinnedIbgeReferenceVersionId
+                        || !string.Equals(frozenReference.PublishedReferenceSha256, plan.PinnedIbgePublishedSha256, StringComparison.OrdinalIgnoreCase)
+                        || !string.Equals(frozenReference.MaterializedFrequencySha256, plan.PinnedIbgeMaterializedFrequencySha256, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("TF positivo sem versão/digests IBGE idênticos ao plano congelado.");
+                }
                 var connection = await openIndependentConnection(ct);
                 lock (active) if (!active.Add(connection)) throw new InvalidDataException("Workers exigem conexões SQL independentes.");
-                try { return await EvaluateAsync(connection, frame, plan, group, batchIndex, ct); }
+                try { return await EvaluateAsync(connection, frame, plan, group, batchIndex, frozenReference, ct); }
                 finally { lock (active) active.Remove(connection); await connection.DisposeAsync(); }
             }, cancellationToken);
             evaluations.AddRange(results.SelectMany(x => x).OrderBy(x => x.RequestSha256, StringComparer.Ordinal));
@@ -178,7 +221,7 @@ public static class V9NestedCalibrationCoordinator
             if (frontier.Count == 0) { stop = "NO_FEASIBLE_CONFIGURATION_NO_HOLDOUT_USED"; break; }
             if (stagnant >= 2) { stop = "TWO_STAGNANT_BATCHES_HEURISTIC_NOT_OPTIMALITY"; break; }
             if (evaluations.Count >= plan.MaximumSearchConfigurations) { stop = "COMPUTE_BUDGET_EXHAUSTED_NOT_OPTIMALITY"; break; }
-            requests = Refine(frontier, catalogue, plan, batch).Where(x => !seen.Contains(x.Sha)).DistinctBy(x => x.Sha)
+            requests = Refine(frontier, catalogue, plan, batch, optionTemplates).Where(x => !seen.Contains(x.Sha)).DistinctBy(x => x.Sha)
                 .OrderBy(x => x.Sha, StringComparer.Ordinal).Take(plan.MaximumSearchConfigurations - evaluations.Count).ToArray();
             if (requests.Length == 0) { stop = "DECLARED_NEIGHBOURHOOD_EXHAUSTED_NOT_GLOBAL_OPTIMALITY"; break; }
         }
@@ -188,18 +231,27 @@ public static class V9NestedCalibrationCoordinator
             finalists.Select(x => x.Snapshot.ContentSha256).ToArray(), stop);
     }
 
-    private static string OptionId(decimal alpha, decimal threshold) =>
-        "A" + alpha.ToString("G29", CultureInfo.InvariantCulture) + "_T"
-        + threshold.ToString("G29", CultureInfo.InvariantCulture) + "_TF0";
+    private static V9FsAdaptiveOptionConfiguration RefinedOption(
+        V9FsAdaptiveOptionConfiguration template, string rootOptionId, decimal threshold) =>
+        template with
+        {
+            OptionId = "NESTED_" + V9InternalTrainingSplit.Hash(rootOptionId) + "_A"
+                + template.SmoothingAlpha.ToString("G29", CultureInfo.InvariantCulture) + "_T"
+                + threshold.ToString("G29", CultureInfo.InvariantCulture),
+            DecisionThreshold = threshold
+        };
 
     private static IEnumerable<Request> Refine(IReadOnlyList<V9TrainingCandidate> frontier,
-        IReadOnlyList<LinkageBlockingPass> catalogue, V9NestedCalibrationPlan plan, int batch)
+        IReadOnlyList<LinkageBlockingPass> catalogue, V9NestedCalibrationPlan plan, int batch,
+        IReadOnlyDictionary<string, Request> optionTemplates)
     {
         var divisor = (decimal)Math.Pow(2, Math.Min(batch - 1, 24));
         var dt = plan.InitialThresholdStep / divisor; var dm = plan.InitialMarginStep / divisor;
         foreach (var candidate in frontier)
         {
             var p = candidate.Snapshot.Payload;
+            if (!optionTemplates.TryGetValue(p.OptionId, out var template))
+                throw new InvalidDataException("Finalista sem configuração original congelada.");
             var ruleSets = new List<IReadOnlyList<LinkageBlockingPass>> { p.BlockingPasses };
             foreach (var pass in catalogue)
             {
@@ -211,13 +263,16 @@ public static class V9NestedCalibrationCoordinator
             foreach (var passes in ruleSets)
             foreach (var threshold in new[] { p.Threshold - dt, p.Threshold, p.Threshold + dt }.Where(x => x is > 0 and < 1))
             foreach (var margin in new[] { p.ConflictMargin - dm, p.ConflictMargin, p.ConflictMargin + dm }.Where(x => x is > 0 and <= 1000))
-                yield return new(passes, new(OptionId(candidate.Support.SmoothingAlpha, threshold), candidate.Support.SmoothingAlpha, threshold), margin);
+                yield return new(passes,
+                    RefinedOption(template.Option, template.RootOptionId, threshold),
+                    margin, template.RootOptionId);
         }
     }
 
     private static async Task<IReadOnlyList<V9NestedCandidateEvaluation>> EvaluateAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> frame, V9NestedCalibrationPlan plan,
-        IReadOnlyList<Request> requests, int batch, CancellationToken cancellationToken)
+        IReadOnlyList<Request> requests, int batch, FrozenIbgeNominalTfV9? frozenTfReference,
+        CancellationToken cancellationToken)
     {
         var c = plan.Calibration;
         try
@@ -225,6 +280,7 @@ public static class V9NestedCalibrationCoordinator
             var first = requests[0];
             var run = await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(connection, frame, first.Passes,
                 requests.Select(x => x.Option).ToArray(), c.Budget, c.StudyFingerprintSha256, cancellationToken,
+                frozenTfReference: frozenTfReference,
                 evaluateFinalResolve: true, finalConflictMargin: first.Margin,
                 predeclaredMaximumAcceptedPerBaseIdentity: c.MaximumAcceptedPerBaseIdentity,
                 includeFsBlindGrouping: true, minimumFsGroupingPosterior: c.MinimumGroupingPosterior,

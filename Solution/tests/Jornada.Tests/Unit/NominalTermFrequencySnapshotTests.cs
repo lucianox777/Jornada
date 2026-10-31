@@ -25,6 +25,12 @@ public sealed class NominalTermFrequencySnapshotTests
         {
             Assert.That(snapshot.TryGetPersonFirstName("Maria da Silva", out var maria), Is.True);
             Assert.That(maria, Is.EqualTo(0.6m));
+            // ExactFirst and TRAIN SQL U strip a recognized title only for
+            // the auxiliary nominal component; snapshot lookup must agree.
+            Assert.That(snapshot.TryGetPersonFirstName("Dra. Maria da Silva", out var titledMaria), Is.True);
+            Assert.That(titledMaria, Is.EqualTo(0.6m));
+            Assert.That(snapshot.TryGetMotherFirstName("Dra. Maria Souza", out var titledMother), Is.True);
+            Assert.That(titledMother, Is.EqualTo(0.3m));
             Assert.That(snapshot.TryGetMotherFirstName("Maria Souza", out var motherMaria), Is.True);
             Assert.That(motherMaria, Is.EqualTo(0.3m));
             Assert.That(snapshot.TryGetPersonFirstName("Zuleica Krause", out var rare), Is.True);
