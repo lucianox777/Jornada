@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
@@ -41,7 +42,7 @@ public sealed class V9GoldJointTrainMatrixTests
             var trial = (JsonObject)root["jointTrainPhysicalTrial"]!;
             trial["preregisteredPlanSha256"] = V9GoldJointTrainMatrixCommand.Sha(plan);
             trial["disposableLocalDbInstance"] =
-                "(localdb)\\JornadaV9Gold20261031_" + n.ToString("x8");
+                "(localdb)\\JornadaV9Gold20261031_" + n.ToString("x8", CultureInfo.InvariantCulture);
             trial["upperThreshold"] = upper;
             trial["lowerThreshold"] = lower;
             trial["orderId"] = order;
