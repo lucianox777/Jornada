@@ -6,6 +6,7 @@ using System.Text.Json;
 using Jornada.Bronze.Storage;
 using Jornada.Contracts;
 using Jornada.Operational.Sql;
+using Jornada.Linkage.Parameters.Worker;
 using Jornada.Pipeline.Coordination;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Logging.Abstractions;
