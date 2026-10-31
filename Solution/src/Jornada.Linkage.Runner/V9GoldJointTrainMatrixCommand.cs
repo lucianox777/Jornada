@@ -123,6 +123,9 @@ public static class V9GoldJointTrainMatrixCommand
         {
             using var document = JsonDocument.Parse(bytes);
             var root = document.RootElement;
+            if (root.ValueKind != JsonValueKind.Object
+                || root.EnumerateObject().GroupBy(x => x.Name, StringComparer.Ordinal).Any(g => g.Count() > 1))
+                throw new InvalidDataException("Physical Gold TRAIN receipt has invalid or duplicate top-level properties.");
             if (!root.TryGetProperty("jointTrainPhysicalTrial", out var trial)
                 || trial.ValueKind != JsonValueKind.Object
                 || !trial.TryGetProperty("preregisteredPlanSha256", out var preregistered)
