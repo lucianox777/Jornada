@@ -45,12 +45,15 @@ public sealed class V9GoldJointPhysicalReceiptTests
         },
         goldThreeOrderTrial = new
         {
+            protocol = GoldTrainThreeOrderProtocol.Version,
+            sourceKeyContract = GoldTrainThreeOrderProtocol.StableSourceKeyContract,
             orderId = "BASELINE_G0_G1_G2_G3", evidenceScope = "TRAIN_SELECTION",
             originalCorpusSha256 = Csv, frozenSnapshotSha256 = Rerun,
             isolatedRunFingerprintSha256 = Rerun, stablePartitionSha256 = Partition,
             allFourWavesPublished = true,
             executedWaveOrder = new[] { "G0", "G1", "G2", "G3" },
-            sourceCount = 20, truthExported = false, uuidExported = false,
+            sourceCount = 20, publishedSourceCount = 16,
+            truthExported = false, uuidExported = false,
             testUsed = false, independentlyCertified = false, activated = false
         },
         lowerNonMatchExperiment = new
@@ -62,7 +65,8 @@ public sealed class V9GoldJointPhysicalReceiptTests
         goldBcubed = new
         {
             ContractVersion = GoldPartitionBcubedAudit.Version,
-            Sources = 20, TrueIdentityGroups = 5, PendingSources = 4,
+            Sources = 20, PublishedSources = 16, TrueIdentityGroups = 5,
+            GoldIdentityGroups = 4, PendingSources = 4,
             CoverageAwareF1 = .8
         },
         publication = new { pendingSources = 4 }
@@ -141,6 +145,36 @@ public sealed class V9GoldJointPhysicalReceiptTests
         Reject(receipt);
         receipt = Receipt();
         receipt["trueAccepted"] = 9;
+        Reject(receipt);
+    }
+
+    [TestCase("protocol")]
+    [TestCase("sourceKeyContract")]
+    public void Rejects_missing_or_forged_physical_source_protocol(string field)
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["goldThreeOrderTrial"]!)[field] = "UNVERIFIED_SOURCE_OR_PROTOCOL";
+        Reject(receipt);
+        receipt = Receipt();
+        ((JsonObject)receipt["goldThreeOrderTrial"]!).Remove(field);
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_unreconciled_gold_publication_and_bcubed_counts()
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["goldThreeOrderTrial"]!)["publishedSourceCount"] = 15;
+        Reject(receipt);
+        receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!)["PublishedSources"] = 15;
+        Reject(receipt);
+        receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!)["GoldIdentityGroups"] = 18;
+        Reject(receipt);
+        receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!)["PendingSources"] = 5;
+        ((JsonObject)receipt["publication"]!)["pendingSources"] = 5;
         Reject(receipt);
     }
 
