@@ -81,6 +81,24 @@ public static class V9GoldJointPhysicalReceipt
             (originalTrainCsvSha256, "TRAIN CSV"), (selectionEnvelopeSha256, "selection") })
             Sha(value, name);
         using var document = JsonDocument.Parse(studyBytes);
+        // A physical receipt must have one unambiguous value per field, at every depth.
+        // JsonElement.TryGetProperty otherwise accepts the last duplicate silently.
+        static void RequireUniqueKeys(JsonElement element)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                var names = new HashSet<string>(StringComparer.Ordinal);
+                foreach (var property in element.EnumerateObject())
+                {
+                    if (!names.Add(property.Name))
+                        throw new InvalidDataException("Joint TRAIN receipt has duplicate JSON fields.");
+                    RequireUniqueKeys(property.Value);
+                }
+            }
+            else if (element.ValueKind == JsonValueKind.Array)
+                foreach (var item in element.EnumerateArray()) RequireUniqueKeys(item);
+        }
+        RequireUniqueKeys(document.RootElement);
         var root = document.RootElement;
         Equal(String(root, "version"), "V9_REAL_INCREMENTAL_RUNNER_GOLD_TRAIN_SELECTION_V1", "version");
         Equal(String(root, "selectionEnvelopeSha256"), selectionEnvelopeSha256, "selection");
