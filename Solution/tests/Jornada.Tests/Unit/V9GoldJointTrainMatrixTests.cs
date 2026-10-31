@@ -161,6 +161,19 @@ public sealed class V9GoldJointTrainMatrixTests
     }
 
     [Test]
+    public void Rejects_nested_duplicate_receipt_fields_before_matrix_aggregation()
+    {
+        var plan = PlanBytes();
+        var receipts = PhysicalReceipts(plan);
+        var json = Encoding.UTF8.GetString(receipts[0]);
+        var ambiguous = json.Replace("\"testUsed\":false", "\"testUsed\":true,\"testUsed\":false", StringComparison.Ordinal);
+        Assert.That(ambiguous, Is.Not.EqualTo(json));
+        receipts[0] = Encoding.UTF8.GetBytes(ambiguous);
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
+    }
+
+    [Test]
     public void Rejects_unfrozen_grid_or_test_in_preregistered_plan()
     {
         var node = JsonNode.Parse(PlanBytes())!.AsObject();
