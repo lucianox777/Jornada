@@ -131,9 +131,11 @@ def classify(entries: list[tuple[str, str]], *, manual: bool = False, bootstrap_
     require_probe = False
     for status, path in entries:
         safe = reason_for_safe(path)
-        # Conservative: only normal modifications and additions of known-safe paths.
-        # Renames, deletions, copies and type changes can conceal a dependency move.
-        if status not in {"M", "A"}:
+        # A deleted Markdown document under audited documentation roots cannot
+        # alter executable calibration inputs. Keep all other deletions,
+        # renames/copies and type changes fail-closed.
+        documented_deletion = status == "D" and safe == "documentation" and path.lower().endswith(".md")
+        if status not in {"M", "A"} and not documented_deletion:
             safe = None
         if safe is None:
             require_probe = True
