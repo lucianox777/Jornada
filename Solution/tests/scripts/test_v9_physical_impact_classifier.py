@@ -10,14 +10,21 @@ spec.loader.exec_module(m)
 
 
 class V9PhysicalImpactTests(unittest.TestCase):
-    def test_policy_only_bootstrap(self):
+    def test_generic_ci_policy_exemption_requires_no_pr_or_branch_identity(self):
         paths = sorted(m.CI_POLICY_ONLY)
-        self.assertFalse(m.classify([("M", p) for p in paths], bootstrap_pr="1222")["run_physical_30k"])
-        self.assertTrue(m.classify([("M", p) for p in paths])["run_physical_30k"])
-        self.assertFalse(m.classify([("M", p) for p in paths], bootstrap_pr="1227")["run_physical_30k"])
-        self.assertTrue(m.classify([("M", p) for p in paths], bootstrap_pr="1223")["run_physical_30k"])
+        for path in paths:
+            with self.subTest(path=path):
+                for status in ("M", "A"):
+                    result = m.classify([(status, path)])
+                    self.assertFalse(result["run_physical_30k"])
+                    self.assertEqual(result["decision"], "NOT_REQUIRED_FOR_THIS_DIFF")
+                    self.assertEqual(result["changes"][0]["classification"], "ci-policy-only")
+                self.assertTrue(m.classify([("D", path)])["run_physical_30k"])
+                self.assertTrue(m.classify([("R100", path), ("R100", path)])["run_physical_30k"])
+        self.assertFalse(m.classify([("M", p) for p in paths])["run_physical_30k"])
+        self.assertFalse(m.classify([("M", paths[0]), ("M", "Solution/docs/safe.md")])["run_physical_30k"])
         self.assertTrue(m.classify([("M", paths[0]), ("M", "Solution/database/schema.sql")])["run_physical_30k"])
-        self.assertTrue(m.classify([("D", paths[0])])["run_physical_30k"])
+        self.assertTrue(m.classify([("M", paths[0]), ("M", ".github/workflows/ci.yml")])["run_physical_30k"])
         self.assertTrue(m.classify([("M", paths[0])], manual=True)["run_physical_30k"])
 
     def test_dependabot_metadata_only_sha_97195227(self):
@@ -28,7 +35,7 @@ class V9PhysicalImpactTests(unittest.TestCase):
                 self.assertFalse(self.changes(path))
                 self.assertFalse(m.classify([("A", path)])["run_physical_30k"])
                 self.assertTrue(m.classify([("D", path)])["run_physical_30k"])
-        self.assertTrue(self.changes(".github/workflows/v9-physical-seed42-probe.yml"))
+        self.assertFalse(self.changes(".github/workflows/v9-physical-seed42-probe.yml"))
         self.assertTrue(self.changes(".github/dependabot.yml", "Solution/database/Jornada_Fase1_v3.70.sql"))
 
     def test_dependabot_metadata_mixed_with_safe_docs_skips_probe(self):
@@ -123,7 +130,7 @@ class V9PhysicalImpactTests(unittest.TestCase):
         self.assertTrue(self.changes("Solution/tests/Jornada.Integration.Tests/Integration/TestAsserts.cs"))
         self.assertTrue(self.changes("Solution/tests/Jornada.Integration.Tests/Fixtures/PhysicalProbeTests.cs"))
         self.assertTrue(self.changes("Solution/tests/Jornada.Tests/Shared/SharedProbeTests.cs"))
-        self.assertTrue(self.changes("Solution/tests/scripts/test_v9_physical_impact_classifier.py"))
+        self.assertFalse(self.changes("Solution/tests/scripts/test_v9_physical_impact_classifier.py"))
 
     def test_mixed_gold_and_worker_requires(self):
         self.assertTrue(self.changes(
