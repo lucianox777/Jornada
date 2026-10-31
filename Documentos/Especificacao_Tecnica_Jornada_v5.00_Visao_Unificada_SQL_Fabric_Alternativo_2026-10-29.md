@@ -2960,3 +2960,35 @@ A decisão sobre a alternativa de banco em HML/Produção deve constar do plano 
 #### 27.3. Retificação técnica do item 28 — blocking multi-passe (30/10/2026)
 
 A linha 28 da matriz técnica da seção 21 passa a exigir **validação do blocking multi-passe parametrizado e descoberto pelo Calibrador V9**, e não homologação prévia de um bloqueio exato obrigatório por data de nascimento. Divergências na data são tratadas conforme os passes efetivamente selecionados e versionados. Os ensaios com dados autorizados devem medir recall, completude da busca, falsos negativos, cobertura, custo e ausência de candidatos por estrato, Gestor e Sistema de Origem, sem fallback silencioso. Esta é uma retificação de requisito da candidata, **não** declaração de que o código, TEST independente, DT-15 ou ativação já estejam certificados. O texto publicado anteriormente e o DOCX histórico permanecem preservados; a edição formal em DOCX/PDF deverá refletir esta retificação no próximo ciclo de aprovação.
+
+
+### Adendo às seções 7.15–7.16 — decisão TF de 31/10/2026
+
+## DC-V9-TF-20261031 — TF nominal sobre as 81 células (decisões 0–19)
+
+**Natureza:** decisão de produto e especificação de implementação candidata, **não** certificação estatística, execução concluída ou autorização DT-15. A calibração histórica documentada em `V9_Suporte_Massa_Backoff_20261019.md` já usava as 81 células conjuntas com **TF=0**; o recall TRAIN_SELECTION de **97,4754%** e o recall VALIDATION de **97,5417%** são referências históricas, não resultados novos.
+
+0. **Princípio operacional.** As correções de frequência de prenome da pessoa e da mãe são separadas e aditivas no log-odds, como na V8: hipótese operacional de fatoração das contribuições, **não comprovação de independência estatística** das frequências. Dependência dos níveis de concordância permanece nas 81 células conjuntas.
+1. **ExactFull.** Igualdade do **nome inteiro**; corrigir TF pela frequência do **prenome**, como na V8; não somar segunda correção de sobrenome dentro de ExactFull.
+2. **Pessoa.** Restaurar TF do prenome da pessoa.
+3. **Mãe.** Restaurar TF do prenome da mãe.
+4. **Pesos.** Pesos separados e calibráveis por lado, incluindo zero.
+5. **TF0.** Preservar como controle a configuração histórica com TF=0, sem alterar snapshot, dados ou condições do ensaio de 97,4754%.
+6. **Simétrico.** Avaliar penalização de frequentes e possível bonificação de raros.
+7. **Assimétrico.** Avaliar penalização de frequentes, sem bonificação: `min(0, ajuste)`.
+8. **Seleção.** Calibrador V9 existente compara TF0, simétrico e assimétrico, com mesmos candidatos e critérios de Pareto recall × FDR e demais gates; não presumir vencedor.
+9. **Último sobrenome.** Usar frequência publicada pelo IBGE de sobrenome em **qualquer posição**, explicitamente como *proxy* do último sobrenome significativo, sem inventar frequência conjunta.
+10. **ExactFirst.** Aplicar TF de prenome quando houver concordância do prenome e fonte compatível.
+11. **ExactLast.** Aplicar TF do último sobrenome significativo quando houver concordância e proxy compatível.
+12. **Sobrenome compartilhado.** Comparar experimentalmente **TF bilateral de sobrenome** versus **TF de sobrenome com contribuição única quando compartilhado**, além do TF0; informar quantidade de pares afetados. Corpus de 30 mil aceito pelo PO para o ensaio, sem alegar prova de dependência familiar universal.
+13. **81 células.** Preservar tabela conjunta 9×9 `m/u` e o tratamento vigente de suporte/backoff; não recriar nem substituir a arquitetura.
+14. **Blocking.** Não modificar.
+15. **Calibrador.** Reutilizar Calibrador C# existente, sem segundo motor.
+16. **Sem fonte conjunta.** Não derivar frequência de `FullName` ou `FirstLastJoint` de marginais IBGE; essas unidades permanecem sem fonte válida própria. A correção de prenome em `ExactFull` é explicitamente um **proxy por prenome**, não frequência de nome completo.
+17. **Zeros distintos.** Persistir separadamente: peso zero escolhido pelo calibrador; insuficiência de suporte estatístico; ausência de fonte compatível, mesmo quando o efeito numérico é zero.
+18. **Validação.** Reutilizar candidatos, separar TRAIN/VALIDATION e medir recall, FDR, falsos vínculos, cobertura, suporte e gates V9; manter rastreabilidade do snapshot e das modalidades.
+19. **Integração candidata TF × 81 células.** Reaproveitar `SplinkCompatibleTermFrequency.LogBayesAdjustment`: `peso × ln(u_ref / max(freq_esquerda, freq_direita, piso))`, com variante assimétrica `min(0, ajuste)`. Somar correção ao log-score da célula conjunta **sem alterar seus m/u**. `u_ref` deve medir o evento nominal da frequência: para prenome, `P(prenomes coincidem | não par)`; para último sobrenome, `P(últimos sobrenomes coincidem | não par)`. Derivar das marginais das 81 células **somente após auditar a semântica e exaustividade dos níveis do classificador**, sem assumir de antemão que uma lista específica de níveis cobre o evento. Se não for possível derivar uma referência compatível, não aplicar ajuste silencioso. A fórmula é **candidata**, não validada.
+
+**Critérios obrigatórios de aceite:** (a) TF com pesos zero reproduz o controle TF0 **bit a bit** no mesmo pipeline; (b) ensaio histórico dos **97,4754%** é reproduzido nas condições originais, como verificação separada; (c) `u_ref` e evento de frequência compatíveis; (d) casos MARIA SILVA × MARIA SILVA / MARIA SOUZA / ANA SILVA, raro × comum, mãe e filho com sobrenome compartilhado, nome de um token, ausência neutra, falta de fonte e três tipos de zero; (e) registrar distribuição e média dos ajustes simétricos e assimétricos **como diagnósticos**, sem exigir média zero no assimétrico; (f) execução física final de 30 mil somente após implementação, integração e testes. Sem ativação de modelo sem autorização DT-15.
+
+**Precedência:** esta decisão detalha a regra TF nominal vigente e corrige leituras anteriores que usavam `u` de ExactFull como se fosse probabilidade de concordância de prenome. Não declara código implementado.
