@@ -44,6 +44,8 @@ public static class SplinkCompatibleTermFrequency
         ValidateProbability(referenceUProbability, nameof(referenceUProbability));
         ArgumentOutOfRangeException.ThrowIfLessThan(weight, 0m);
 
+        // Validate the full contract even when TF is disabled by weight zero.
+        _ = EffectiveFrequency(leftFrequency, rightFrequency, minimumUValue);
         if (weight == 0m)
             return 0d;
 
