@@ -151,6 +151,9 @@ public static partial class V9LowerNonMatchTrainCalibrator
 
         var seen = new HashSet<string>(StringComparer.Ordinal);
         var physicalRuns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        // Thresholds alter decisions, never the frozen truth universe for one
+        // insertion order. Otherwise recall denominators are incomparable.
+        var universeByOrder = new Dictionary<string, (long TrueLinks, int IdentityGroups)>(StringComparer.Ordinal);
         foreach (var row in measurements)
         {
             if (row is null || row.Partition != "TRAIN_SELECTION"
@@ -173,6 +176,18 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 || row.BCubedF1 is < 0m or > 1m)
                 throw new InvalidDataException("Gold TRAIN order, physical rerun or metrics invalid.");
             CheckSha(row.PhysicalRunSha256, "physical run");
+            if (universeByOrder.TryGetValue(row.OrderId, out var universe))
+            {
+                if (universe.TrueLinks != row.TrueLinkOpportunities
+                    || universe.IdentityGroups != row.IndependentIdentityGroups)
+                    throw new InvalidDataException(
+                        "TRAIN frozen truth denominator or independent-group count varies across thresholds in one order.");
+            }
+            else
+            {
+                universeByOrder.Add(row.OrderId,
+                    (row.TrueLinkOpportunities, row.IndependentIdentityGroups));
+            }
             // A repeated run fingerprint cannot attest independent physical
             // replay for a different threshold pair or insertion order.
             if (!physicalRuns.Add(row.PhysicalRunSha256))

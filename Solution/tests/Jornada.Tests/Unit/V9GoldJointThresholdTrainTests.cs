@@ -160,6 +160,28 @@ public sealed class V9GoldJointThresholdTrainTests
     }
 
     [Test]
+    public void Rejects_threshold_dependent_truth_denominator_with_valid_recomputed_evidence_sha()
+    {
+        var rows = Measurements();
+        var changed = rows.ToArray();
+        changed[0] = changed[0] with { TrueLinkOpportunities = 101 };
+        // The fingerprint is deliberately recomputed: provenance hashing alone
+        // must not make incomparable recall denominators acceptable.
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(changed), changed)));
+    }
+
+    [Test]
+    public void Rejects_threshold_dependent_independent_group_support_in_same_order()
+    {
+        var rows = Measurements();
+        var changed = rows.ToArray();
+        changed[0] = changed[0] with { IndependentIdentityGroups = 31 };
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(changed), changed)));
+    }
+
+    [Test]
     public void Undefined_observed_rate_is_not_invented_when_no_links_accepted()
     {
         var rows = Measurements().Select(x => x.UpperThreshold == .9m
