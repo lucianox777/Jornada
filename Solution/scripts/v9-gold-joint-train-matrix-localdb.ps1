@@ -118,7 +118,7 @@ try {
                 $trialOutput = Join-Path $root ($label + '_report')
 
                 # Create-only instance: never reuse a database or reset prior evidence.
-                RunRunner @('--v9-gold-harness-create', $databaseOutput, $schema) "LocalDB $label"
+                RunRunner -argv @('--v9-gold-harness-create', $databaseOutput, $schema) -label "LocalDB $label"
                 $readyFile = Join-Path $databaseOutput 'schema-ready.json'
                 if (-not (Test-Path -LiteralPath $readyFile -PathType Leaf)) {
                     throw "Missing LocalDB readiness evidence for $label"
@@ -133,8 +133,8 @@ try {
                 $env:ConnectionStrings__Jornada = "Server=(localdb)\$instance;Database=JornadaHarness;Integrated Security=true;Encrypt=Optional"
                 $upperArg = 'UPPER_TRAIN=' + $upper.ToString($invariant)
                 $lowerArg = 'LOWER_NONMATCH=' + $lower.ToString($invariant)
-                RunRunner @('--v9-gold-joint-train-trial', $selection, $validation,
-                    $gold, $csv, $trialOutput, $order, $lowerArg, $upperArg, $planPath) "physical TRAIN $label"
+                RunRunner -argv @('--v9-gold-joint-train-trial', $selection, $validation,
+                    $gold, $csv, $trialOutput, $order, $lowerArg, $upperArg, $planPath) -label "physical TRAIN $label"
 
                 $reportPath = Join-Path $trialOutput 'gold-runner-study.json'
                 if (-not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
