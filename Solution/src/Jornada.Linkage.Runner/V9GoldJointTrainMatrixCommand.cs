@@ -64,7 +64,7 @@ public static class V9GoldJointTrainMatrixCommand
             foreach (var property in document.RootElement.EnumerateObject())
                 if (!seen.Add(property.Name))
                     throw new InvalidDataException("Joint TRAIN plan has ambiguous duplicate JSON properties.");
-            plan = JsonSerializer.Deserialize<Plan>(bytes)
+            plan = JsonSerializer.Deserialize<Plan>(bytes, Json)
                 ?? throw new InvalidDataException("Joint TRAIN plan absent.");
         }
         catch (JsonException ex)
