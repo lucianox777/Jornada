@@ -204,6 +204,28 @@ public sealed class FrozenIbgeNominalTfV9Tests
     }
 
     [Test]
+    public void Nested_search_rejects_changed_bootstrap_even_with_identical_ibge_digests()
+    {
+        var frozen = Bound();
+        var plan = new V9NestedCalibrationPlan(null!, "fixture", 1, 1, 100, 42, 1, 1, .1m, .1m,
+            PinnedIbgeReferenceVersionId: frozen.ReferenceVersionId,
+            PinnedIbgePublishedSha256: frozen.PublishedReferenceSha256,
+            PinnedIbgeMaterializedFrequencySha256: frozen.MaterializedFrequencySha256,
+            PinnedIbgeBootstrap: Bootstrap);
+        Assert.DoesNotThrow((Action)(() =>
+            V9NestedCalibrationCoordinator.RequirePinnedTfReference(plan, frozen)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCoordinator.RequirePinnedTfReference(
+                plan with { PinnedIbgeBootstrap = Bootstrap with { GeneratorSeed = 43UL } }, frozen)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCoordinator.RequirePinnedTfReference(
+                plan with { PinnedIbgeBootstrap = null }, frozen)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCoordinator.RequirePinnedTfReference(
+                plan with { PinnedIbgeMaterializedFrequencySha256 = new string('0', 64) }, frozen)));
+    }
+
+    [Test]
     public void Frozen_frequency_digest_is_order_independent_but_changes_with_data()
     {
         var original = Prepared();
