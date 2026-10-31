@@ -135,6 +135,8 @@ public static class V9NestedCalibrationCli
             || plan.PinnedIbgePublishedSha256.Length != 64
             || !plan.PinnedIbgePublishedSha256.All(Uri.IsHexDigit)
             || tf.Reference.Source != NominalFrequencySourceV9.IbgePublishedMarginal
+            || plan.PinnedIbgeBootstrap is null
+            || tf.Reference.SyntheticBootstrap != plan.PinnedIbgeBootstrap
             || frame.Length != 4
             || frame[0] != "IBGE_PUBLISHED"
             || !string.Equals(frame[2], plan.PinnedIbgePublishedSha256, StringComparison.OrdinalIgnoreCase))
