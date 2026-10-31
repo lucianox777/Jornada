@@ -77,6 +77,31 @@ public sealed class V9GoldJointTrainMatrixTests
     }
 
     [Test]
+    public void Physical_orchestrator_grid_cells_must_all_be_preregistered_before_SQL()
+    {
+        var plan = PlanBytes();
+        var fingerprint = V9GoldJointTrainMatrixCommand.Sha(plan);
+        var count = 0;
+        foreach (var upper in Uppers)
+        foreach (var lower in Lowers)
+        foreach (var order in V9LowerNonMatchTrainCalibrator.JointOrders)
+        {
+            Assert.That(V9GoldJointTrainMatrixCommand.ValidateCellPlan(plan, upper, lower, order),
+                Is.EqualTo(fingerprint));
+            count++;
+        }
+        Assert.That(count, Is.EqualTo(12));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.ValidateCellPlan(plan, .8m, .1m, "BASELINE")));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.ValidateCellPlan(plan, .95m, .1m,
+                V9LowerNonMatchTrainCalibrator.JointOrders[0])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.ValidateCellPlan(plan, .8m, .3m,
+                V9LowerNonMatchTrainCalibrator.JointOrders[0])));
+    }
+
+    [Test]
     public void Rejects_missing_repeated_or_cross_plan_cells()
     {
         var plan = PlanBytes();
