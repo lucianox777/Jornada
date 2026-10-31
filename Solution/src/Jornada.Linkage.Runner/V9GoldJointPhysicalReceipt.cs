@@ -103,6 +103,7 @@ public static class V9GoldJointPhysicalReceipt
         Equal(String(root, "version"), "V9_REAL_INCREMENTAL_RUNNER_GOLD_TRAIN_SELECTION_V1", "version");
         Equal(String(root, "selectionEnvelopeSha256"), selectionEnvelopeSha256, "selection");
         Equal(String(root, "fitFingerprintSha256"), frozenFitSha256, "fit");
+        Sha(String(root, "snapshotSha256"), "recomputed Gold snapshot");
         Equal(String(root, "scope"),
             "TRAIN_SELECTION_POST_SELECTION_DIAGNOSTIC_NOT_EXTERNAL_CERTIFICATION", "scope");
         Equal(String(root, "sourceMetricRule"),
@@ -174,10 +175,10 @@ public static class V9GoldJointPhysicalReceipt
             || Count(threeOrder, "sourceCount") != sourceCount)
             throw new InvalidDataException("Joint TRAIN capture does not cover all sources.");
         var groups = Count(root, "identityGroups");
-        if (groups < 2 || groups > int.MaxValue)
+        if (groups < 2 || groups > int.MaxValue || groups > sourceCount)
             throw new InvalidDataException("Joint TRAIN independent group count invalid.");
         var opportunities = Count(trial, "trueLinkOpportunities");
-        if (opportunities == 0)
+        if (opportunities == 0 || opportunities > sourceCount)
             throw new InvalidDataException("Joint TRAIN no true link opportunities.");
 
         var lowerTrial = Required(root, "lowerNonMatchExperiment");
