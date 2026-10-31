@@ -258,7 +258,7 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
     }
 
     [Test]
-    public void Heavy_v9_30k_is_explicit_dispatch_only_while_pr_impact_preflight_remains()
+    public void Heavy_v9_30k_is_manual_or_scoped_integration_only_while_pr_preflight_remains()
     {
         var workflow = File.ReadAllText(Path.Combine(Root(), ".github", "workflows",
             "v9-physical-seed42-probe.yml"));
@@ -269,8 +269,12 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
             Assert.That(workflow, Does.Contain("workflow_dispatch:"),
                 "The final physical gate must remain executable explicitly.");
             Assert.That(workflow, Does.Contain(
-                "if: github.event_name == 'workflow_dispatch' && needs.impact.outputs.run_physical_30k == 'true'"),
-                "A PR update must never launch the expensive 30k physical job.");
+                "if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.head.ref == 'integration/v9-dt10-joint-train-20261031'))"),
+                "The expensive 30k probe must run only for an explicit dispatch or the exact V9 integration branch, when impact requires it.");
+            Assert.That(workflow, Does.Contain("test \"$latest\" = \"$EXPECTED_HEAD_SHA\""),
+                "The scoped integration run must reject a superseded pull request head.");
+            Assert.That(workflow, Does.Contain("python3 Solution/scripts/v9_manual_probe_evidence.py"),
+                "All other impacted PRs must still fail closed until exact-SHA physical evidence is available.");
             Assert.That(workflow, Does.Contain("name: V9 30k - classify impact"));
         }));
     }
