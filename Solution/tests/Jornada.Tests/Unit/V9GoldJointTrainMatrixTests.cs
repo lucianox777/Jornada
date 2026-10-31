@@ -137,6 +137,20 @@ public sealed class V9GoldJointTrainMatrixTests
     }
 
     [Test]
+    public void Rejects_incomplete_or_unknown_preregistered_plan_fields()
+    {
+        var missing = JsonNode.Parse(PlanBytes())!.AsObject();
+        missing.Remove("SelectionEnvelopeSha256");
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.ReadPlan(JsonSerializer.SerializeToUtf8Bytes(missing))));
+
+        var unknown = JsonNode.Parse(PlanBytes())!.AsObject();
+        unknown["TestApproved"] = true;
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.ReadPlan(JsonSerializer.SerializeToUtf8Bytes(unknown))));
+    }
+
+    [Test]
     public void Rejects_unfrozen_grid_or_test_in_preregistered_plan()
     {
         var node = JsonNode.Parse(PlanBytes())!.AsObject();
