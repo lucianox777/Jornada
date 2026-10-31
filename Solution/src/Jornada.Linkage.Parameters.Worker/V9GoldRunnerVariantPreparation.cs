@@ -65,8 +65,10 @@ public static class V9GoldRunnerVariantPreparation
                 || grouping.ValueKind != JsonValueKind.String
                 || grouping.GetString() != "BLIND_FS_COMPLETE_LINK_CANDIDATES"
                 || !metric.TryGetProperty("PreBlockingBaseIdentities", out var groups)
+                || groups.ValueKind != JsonValueKind.Number
                 || !groups.TryGetInt32(out var nGroups) || nGroups < 2
                 || !metric.TryGetProperty("GlobalSourceRecall", out var recall)
+                || recall.ValueKind != JsonValueKind.Number
                 || !recall.TryGetDouble(out var recallValue)
                 || !double.IsFinite(recallValue) || recallValue is < 0d or > 1d
                 || !metric.TryGetProperty("BonferroniComparedConfigurations", out var multiplicity)
@@ -76,6 +78,7 @@ public static class V9GoldRunnerVariantPreparation
                 || protocol.ValueKind != JsonValueKind.String
                 || protocol.GetString() != RequiredLatencyProtocol
                 || !row.TryGetProperty("FalseDegreeP99", out var falseDegree)
+                || falseDegree.ValueKind != JsonValueKind.Number
                 || !falseDegree.TryGetDouble(out var p99FalseDegree)
                 || !double.IsFinite(p99FalseDegree) || p99FalseDegree < 0)
                 throw new InvalidDataException("Finalistas V9 incompletos, repetidos ou não comparáveis.");
