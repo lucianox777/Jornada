@@ -62,6 +62,14 @@ public sealed class NominalTermFrequencySnapshot
             .Select(static x => new NominalTermFrequencyValue(x.Key, x.Value))
             .ToArray();
 
+    public IReadOnlyList<NominalTermFrequencyValue> PersonLastSurnames =>
+        personLast.OrderBy(static x => x.Key, StringComparer.Ordinal)
+            .Select(static x => new NominalTermFrequencyValue(x.Key, x.Value)).ToArray();
+
+    public IReadOnlyList<NominalTermFrequencyValue> MotherLastSurnames =>
+        motherLast.OrderBy(static x => x.Key, StringComparer.Ordinal)
+            .Select(static x => new NominalTermFrequencyValue(x.Key, x.Value)).ToArray();
+
     public static NominalTermFrequencySnapshot Create(IEnumerable<NominalTermFrequencyEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
@@ -129,15 +137,31 @@ public sealed class NominalTermFrequencySnapshot
         string? fullName,
         out decimal frequency)
     {
-        var normalized = IdentityComparison.NormalizeText(fullName);
-        if (normalized is null)
+        // Use the same first-name projection as CompositeNominalComparisonV9
+        // and the TRAIN SQL U calibrator. A recognized title is diagnostic,
+        // not the nominal value whose IBGE frequency is being looked up.
+        var projection = BrazilianNameComponents.Project(fullName);
+        if (projection is null)
         {
             frequency = default;
             return false;
         }
 
-        var separator = normalized.IndexOf(' ');
-        var token = separator < 0 ? normalized : normalized[..separator];
+        var tokens = projection.NormalizedFull.Split(' ',
+            StringSplitOptions.RemoveEmptyEntries);
+        var index = projection.TitlePrefix is null ? 0 : 1;
+        if (index >= tokens.Length)
+        {
+            frequency = default;
+            return false;
+        }
+
+        var token = tokens[index].Trim('.', ',');
+        if (token.Length == 0)
+        {
+            frequency = default;
+            return false;
+        }
         return source.TryGetValue(token, out frequency);
     }
 }
