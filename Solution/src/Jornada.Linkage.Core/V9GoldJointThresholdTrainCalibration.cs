@@ -206,7 +206,7 @@ public static partial class V9LowerNonMatchTrainCalibrator
             var pending = maxPending == minPending ? 0d
                 : (double)(x.PendingAcrossOrders - minPending) / (maxPending - minPending);
             var bcubed = maxBCubed == minBCubed ? 0d
-                : (double)(maxBCubed - x.WorstBCubedF1) / (maxBCubed - minBCubed);
+                : (double)(maxBCubed - x.WorstBCubedF1) / (double)(maxBCubed - minBCubed);
             return links * links + creates * creates + pending * pending + bcubed * bcubed;
         }
         var suggestion = nondominated.OrderBy(Distance)
