@@ -37,7 +37,7 @@ public static class V9NestedCalibrationCoordinator
         internal string Sha => V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(new
         {
             Passes = Passes.OrderBy(p => p.PassId, StringComparer.Ordinal),
-            OptionFingerprint = Option.FingerprintSha256,
+            OptionFingerprint = (Option with { OptionId = RootOptionId }).FingerprintSha256,
             RootOptionId,
             Margin = Margin.ToString("G29", CultureInfo.InvariantCulture)
         }));
