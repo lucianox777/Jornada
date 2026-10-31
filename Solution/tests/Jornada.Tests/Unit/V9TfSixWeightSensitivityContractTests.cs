@@ -74,15 +74,12 @@ public sealed class V9TfSixWeightSensitivityContractTests
             return (option.TfWeight, Metrics: adapter.EvaluateValidation(fit, selection));
         }).ToArray();
 
-        var baseline = outcomes.Single(x => x.TfWeight == 0m).Metrics;
-        var baselineCounts = (baseline.TrueAcceptedLinks, baseline.FalseAcceptedLinks);
         Assert.Multiple((Action)(() =>
         {
             Assert.That(outcomes.Select(x => x.TfWeight), Is.EqualTo(Weights));
             Assert.That(outcomes, Has.Length.EqualTo(6));
             Assert.That(outcomes.All(x => x.Metrics.TrueAcceptedLinks >= 0), Is.True);
             Assert.That(outcomes.All(x => x.Metrics.FalseAcceptedLinks >= 0), Is.True);
-            Assert.That(baselineCounts.TrueAcceptedLinks + baselineCounts.FalseAcceptedLinks, Is.GreaterThanOrEqualTo(0));
             Assert.That(outcomes.Select(x => x.TfWeight).Distinct().Count(), Is.EqualTo(6),
                 "The sensitivity grid must not repeat a weight.");
             Assert.That(frame.Pairs.Count, Is.EqualTo(8),
