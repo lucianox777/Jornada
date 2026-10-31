@@ -156,7 +156,7 @@ public static class V9GoldJointTrainMatrixCommand
         var planBytes = await File.ReadAllBytesAsync(paths[0]);
         if (Path.GetFileName(paths[0]) != Sha(planBytes) + PlanSuffix)
             throw new InvalidDataException("Joint TRAIN plan file must be content-addressed before trials.");
-        var receipts = await Task.WhenAll(paths.Skip(1).SkipLast(1).Select(File.ReadAllBytesAsync));
+        var receipts = await Task.WhenAll(paths.Skip(1).SkipLast(1).Select(path => File.ReadAllBytesAsync(path)));
         var matrix = Aggregate(planBytes, receipts);
         await using var stream = new FileStream(paths[^1], FileMode.CreateNew, FileAccess.Write, FileShare.None);
         await JsonSerializer.SerializeAsync(stream, matrix, Json);
