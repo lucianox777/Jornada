@@ -11,7 +11,7 @@ import json
 import re
 from pathlib import Path
 
-# Bootstrap exemption restricted to CI governance files; no product paths.
+# Audited CI policy paths only. Never include arbitrary workflows or product inputs.
 CI_POLICY_ONLY = frozenset({
     ".github/workflows/v9-physical-seed42-probe.yml",
     "Solution/scripts/v9-physical-impact-classifier.py",
@@ -72,6 +72,8 @@ def reason_for_safe(path: str) -> str | None:
         return "gold-exclusive-test"
     if path in GOLD_ONLY_SCRIPTS:
         return "gold-exclusive-orchestration"
+    if path in CI_POLICY_ONLY:
+        return "ci-policy-only"
     # Tests do not change the production 30k calibrator. Keep helper/source
     # files without a Tests suffix fail-closed, even under a test project.
     for root in ("Solution/tests/Jornada.Tests/Unit/", "Solution/tests/Jornada.Integration.Tests/Integration/"):
@@ -109,24 +111,11 @@ def parse_name_status_z(raw: bytes) -> list[tuple[str, str]]:
     return entries
 
 
-def ci_policy_only(entries: list[tuple[str, str]]) -> bool:
-    return bool(entries) and all(status in {"M", "A"} and path in CI_POLICY_ONLY
-                                 for status, path in entries)
-
-
-def classify(entries: list[tuple[str, str]], *, manual: bool = False, bootstrap_pr: str = "") -> dict:
+def classify(entries: list[tuple[str, str]], *, manual: bool = False) -> dict:
     if manual:
         return {"run_physical_30k": True, "decision": "RUN", "reason": "manual-dispatch-always-full", "changes": []}
     if not entries:
         return {"run_physical_30k": True, "decision": "RUN", "reason": "empty-or-unreadable-diff", "changes": []}
-    if bootstrap_pr in {"1222", "1227"} and ci_policy_only(entries):
-        return {
-            "run_physical_30k": False,
-            "decision": "NOT_REQUIRED_FOR_THIS_DIFF",
-            "reason": "ci-policy-only-bootstrap-independent-review-required",
-            "changes": [{"status": status, "path": path, "classification": "ci-policy-only"}
-                        for status, path in entries],
-        }
     changes: list[dict] = []
     require_probe = False
     for status, path in entries:
@@ -143,7 +132,7 @@ def classify(entries: list[tuple[str, str]], *, manual: bool = False, bootstrap_
     return {
         "run_physical_30k": require_probe,
         "decision": "RUN" if require_probe else "NOT_REQUIRED_FOR_THIS_DIFF",
-        "reason": "shared-unknown-or-ambiguous-impact" if require_probe else "only-audited-docs-or-gold-exclusive-paths",
+        "reason": "shared-unknown-or-ambiguous-impact" if require_probe else "only-audited-safe-and-ci-policy-paths",
         "changes": changes,
     }
 
@@ -153,11 +142,10 @@ def main() -> None:
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument("--name-status-z", type=Path)
     group.add_argument("--manual", action="store_true")
-    ap.add_argument("--bootstrap-pr", default="")
     ap.add_argument("--summary", type=Path, required=True)
     ap.add_argument("--github-output", type=Path, required=True)
     args = ap.parse_args()
-    result = classify(parse_name_status_z(args.name_status_z.read_bytes()) if args.name_status_z else [], manual=args.manual, bootstrap_pr=args.bootstrap_pr)
+    result = classify(parse_name_status_z(args.name_status_z.read_bytes()) if args.name_status_z else [], manual=args.manual)
     args.summary.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     with args.github_output.open("a", encoding="utf-8") as fh:
         fh.write(f"run_physical_30k={str(result['run_physical_30k']).lower()}\n")
