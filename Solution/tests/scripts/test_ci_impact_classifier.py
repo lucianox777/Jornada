@@ -60,6 +60,7 @@ class CiImpactClassifierTests(unittest.TestCase):
         self.assertTrue(probe.classify(mixed)["run_physical_30k"])
         self.assertTrue(probe.classify([("M", "Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs")])["run_physical_30k"])
         self.assertTrue(probe.classify([("M", ".github/workflows/v9-physical-seed42-probe.yml")])["run_physical_30k"])
+        self.assertFalse(probe.classify([("M", ".github/workflows/v9-physical-seed42-probe.yml")], bootstrap_pr="1222")["run_physical_30k"])
         self.assertTrue(probe.classify([])["run_physical_30k"])
         self.assertTrue(probe.classify([], manual=True)["run_physical_30k"])
 

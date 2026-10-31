@@ -10,6 +10,15 @@ spec.loader.exec_module(m)
 
 
 class V9PhysicalImpactTests(unittest.TestCase):
+    def test_policy_only_bootstrap(self):
+        paths = sorted(m.CI_POLICY_ONLY)
+        self.assertFalse(m.classify([("M", p) for p in paths], bootstrap_pr="1222")["run_physical_30k"])
+        self.assertTrue(m.classify([("M", p) for p in paths])["run_physical_30k"])
+        self.assertTrue(m.classify([("M", p) for p in paths], bootstrap_pr="1223")["run_physical_30k"])
+        self.assertTrue(m.classify([("M", paths[0]), ("M", "Solution/database/schema.sql")])["run_physical_30k"])
+        self.assertTrue(m.classify([("D", paths[0])])["run_physical_30k"])
+        self.assertTrue(m.classify([("M", paths[0])], manual=True)["run_physical_30k"])
+
     def test_dependabot_metadata_only_sha_97195227(self):
         # Regression for #1203 (97195227): Dependabot groups and schedules
         # cannot change the physical 30k model or its SQL inputs.
@@ -92,9 +101,6 @@ class V9PhysicalImpactTests(unittest.TestCase):
             "Solution/src/Jornada.Linkage.Core/Jornada.Linkage.Core.csproj",
             "Solution/src/Jornada.Linkage.Core/packages.lock.json",
             "Solution/global.json",
-            ".github/workflows/v9-physical-seed42-probe.yml",
-            "Solution/scripts/v9-physical-impact-classifier.py",
-            "Solution/tests/scripts/test_v9_physical_impact_classifier.py",
             "unexpected/unclassified.surface",
         ):
             with self.subTest(path=path):
