@@ -192,6 +192,40 @@ public sealed class V9GoldJointTrainMatrixTests
     }
 
     [Test]
+    public async Task Plan_preflight_rejects_alias_and_invalid_grid_before_any_SQL()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "v9-joint-plan-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var validBytes = PlanBytes();
+            var validSha = V9GoldJointTrainMatrixCommand.Sha(validBytes);
+            var validPath = Path.Combine(directory, validSha + V9GoldJointTrainMatrixCommand.PlanSuffix);
+            await File.WriteAllBytesAsync(validPath, validBytes);
+            Assert.That(await V9GoldJointTrainMatrixCommand.ValidatePlanFileAsync(validPath),
+                Is.EqualTo(validSha));
+
+            var aliasPath = Path.Combine(directory, "mutable.joint-train-plan.json");
+            await File.WriteAllBytesAsync(aliasPath, validBytes);
+            Assert.ThrowsAsync<InvalidDataException>(async () =>
+                await V9GoldJointTrainMatrixCommand.ValidatePlanFileAsync(aliasPath));
+
+            var invalid = JsonNode.Parse(validBytes)!.AsObject();
+            invalid["DeclaredGridSha256"] = new string('f', 64);
+            var invalidBytes = JsonSerializer.SerializeToUtf8Bytes(invalid);
+            var invalidPath = Path.Combine(directory,
+                V9GoldJointTrainMatrixCommand.Sha(invalidBytes) + V9GoldJointTrainMatrixCommand.PlanSuffix);
+            await File.WriteAllBytesAsync(invalidPath, invalidBytes);
+            Assert.ThrowsAsync<InvalidDataException>(async () =>
+                await V9GoldJointTrainMatrixCommand.ValidatePlanFileAsync(invalidPath));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Test]
     public void Rejects_unfrozen_grid_or_test_in_preregistered_plan()
     {
         var node = JsonNode.Parse(PlanBytes())!.AsObject();
