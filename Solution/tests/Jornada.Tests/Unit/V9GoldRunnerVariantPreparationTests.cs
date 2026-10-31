@@ -26,9 +26,20 @@ public sealed class V9GoldRunnerVariantPreparationTests
         {
             ["SnapshotSha256"] = Winner,
             ["Refitted"] = false,
+            ["LatencyProtocol"] = "V9_FROZEN_HOLDOUT_FULL_SQL_FS_BLIND_SOURCE_RESOLVE_V1",
+            ["FalseDegreeP99"] = 2.0,
+            ["P95Milliseconds"] = 10.0,
+            ["SamplesMilliseconds"] = new JsonArray(Enumerable.Range(0, 20)
+                .Select(_ => (JsonNode?)JsonValue.Create(10.0)).ToArray()),
             ["Metric"] = new JsonObject
             {
                 ["SyntheticGoldOracleGrouping"] = false,
+                ["OperationallyCertified"] = false,
+                ["ClusterIidIndependentlyValidated"] = false,
+                ["OptionId"] = Winner,
+                ["CandidateGrouping"] = "BLIND_FS_COMPLETE_LINK_CANDIDATES",
+                ["PreBlockingBaseIdentities"] = 100,
+                ["GlobalSourceRecall"] = 0.85,
                 ["BonferroniComparedConfigurations"] = 1,
                 ["ConditionalClusterCpFdrUpper"] = 0.009
             }
@@ -105,4 +116,44 @@ public sealed class V9GoldRunnerVariantPreparationTests
         receipt["comparedConfigurations"] = 2;
         Reject(receipt);
     }
+    [Test]
+    public void Rejects_missing_or_mismatched_physical_latency_evidence()
+    {
+        var receipt = ConditionalReceipt();
+        ((JsonObject)receipt["measured"]![0]!)["P95Milliseconds"] = null;
+        Reject(receipt);
+        receipt = ConditionalReceipt();
+        ((JsonObject)receipt["measured"]![0]!)["P95Milliseconds"] = 11.0;
+        Reject(receipt);
+        receipt = ConditionalReceipt();
+        ((JsonObject)receipt["measured"]![0]!)["LatencyProtocol"] = "SYNTHETIC";
+        Reject(receipt);
+        receipt = ConditionalReceipt();
+        ((JsonObject)receipt["measured"]![0]!).Remove("SamplesMilliseconds");
+        Reject(receipt);
+        receipt = ConditionalReceipt();
+        ((JsonArray)receipt["measured"]![0]!["SamplesMilliseconds"]!)[0] = -1.0;
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_missing_group_support_or_fabricated_metric_provenance()
+    {
+        var receipt = ConditionalReceipt();
+        ((JsonObject)receipt["measured"]![0]!["Metric"]!)["PreBlockingBaseIdentities"] = 0;
+        Reject(receipt);
+        receipt = ConditionalReceipt();
+        ((JsonObject)receipt["measured"]![0]!["Metric"]!)["OptionId"] = new string('c', 64);
+        Reject(receipt);
+        receipt = ConditionalReceipt();
+        ((JsonObject)receipt["measured"]![0]!["Metric"]!)["OperationallyCertified"] = true;
+        Reject(receipt);
+        receipt = ConditionalReceipt();
+        ((JsonObject)receipt["measured"]![0]!["Metric"]!)["GlobalSourceRecall"] = 1.2;
+        Reject(receipt);
+        receipt = ConditionalReceipt();
+        ((JsonObject)receipt["measured"]![0]!)["FalseDegreeP99"] = -2.0;
+        Reject(receipt);
+    }
+
 }

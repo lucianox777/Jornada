@@ -8,6 +8,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 public static class V9GoldRunnerVariantPreparation
 {
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    private const string RequiredLatencyProtocol = "V9_FROZEN_HOLDOUT_FULL_SQL_FS_BLIND_SOURCE_RESOLVE_V1";
     /// <summary>
     /// Validate the complete, still-uncertified conditional VALIDATION receipt
     /// before preparing a pinned Gold variant. The receipt is NOT an approval,
@@ -55,17 +56,67 @@ public static class V9GoldRunnerVariantPreparation
                 || !row.TryGetProperty("Metric", out var metric)
                 || metric.ValueKind != JsonValueKind.Object
                 || !False(metric, "SyntheticGoldOracleGrouping")
+                || !False(metric, "OperationallyCertified")
+                || !False(metric, "ClusterIidIndependentlyValidated")
+                || !metric.TryGetProperty("OptionId", out var option)
+                || option.ValueKind != JsonValueKind.String
+                || option.GetString() != candidate
+                || !metric.TryGetProperty("CandidateGrouping", out var grouping)
+                || grouping.ValueKind != JsonValueKind.String
+                || grouping.GetString() != "BLIND_FS_COMPLETE_LINK_CANDIDATES"
+                || !metric.TryGetProperty("PreBlockingBaseIdentities", out var groups)
+                || !groups.TryGetInt32(out var nGroups) || nGroups < 2
+                || !metric.TryGetProperty("GlobalSourceRecall", out var recall)
+                || !recall.TryGetDouble(out var recallValue)
+                || !double.IsFinite(recallValue) || recallValue is < 0d or > 1d
                 || !metric.TryGetProperty("BonferroniComparedConfigurations", out var multiplicity)
                 || multiplicity.ValueKind != JsonValueKind.Number
-                || !multiplicity.TryGetInt32(out var rowCount) || rowCount != count)
+                || !multiplicity.TryGetInt32(out var rowCount) || rowCount != count
+                || !row.TryGetProperty("LatencyProtocol", out var protocol)
+                || protocol.ValueKind != JsonValueKind.String
+                || protocol.GetString() != RequiredLatencyProtocol
+                || !row.TryGetProperty("FalseDegreeP99", out var falseDegree)
+                || !falseDegree.TryGetDouble(out var p99FalseDegree)
+                || !double.IsFinite(p99FalseDegree) || p99FalseDegree < 0)
                 throw new InvalidDataException("Finalistas V9 incompletos, repetidos ou não comparáveis.");
 
-            if (candidate == winner
-                && metric.TryGetProperty("ConditionalClusterCpFdrUpper", out var bound)
-                && bound.ValueKind == JsonValueKind.Number
-                && bound.TryGetDouble(out var rate)
-                && double.IsFinite(rate) && rate is >= 0d and <= 1d)
-                winnerHasConditionalBound = true;
+            if (!row.TryGetProperty("SamplesMilliseconds", out var samples)
+                || samples.ValueKind != JsonValueKind.Array
+                || samples.GetArrayLength() is < 1 or > 10_000)
+                throw new InvalidDataException("Sem amostras físicas de latência para o finalista.");
+            var timings = new List<double>(samples.GetArrayLength());
+            foreach (var sample in samples.EnumerateArray())
+            {
+                if (sample.ValueKind != JsonValueKind.Number
+                    || !sample.TryGetDouble(out var ms)
+                    || !double.IsFinite(ms) || ms < 0)
+                    throw new InvalidDataException("Amostra de tempo físico inválida.");
+                timings.Add(ms);
+            }
+            if (!row.TryGetProperty("P95Milliseconds", out var p95)
+                || p95.ValueKind is not (JsonValueKind.Null or JsonValueKind.Number))
+                throw new InvalidDataException("P95 do relatório físico ausente ou inválido.");
+            var hasP95 = p95.ValueKind == JsonValueKind.Number;
+            if (hasP95
+                && (!p95.TryGetDouble(out var declaredP95)
+                    || !double.IsFinite(declaredP95) || declaredP95 < 0
+                    || timings.Count < 20
+                    || declaredP95 != V9PhysicalSqlCostQuantiles
+                        .FromMeasuredMilliseconds(timings).P95Milliseconds))
+                throw new InvalidDataException("P95 físico não corresponde às repetições do mesmo finalista.");
+
+            if (candidate == winner)
+            {
+                // The selection CLI requires an observed P95. Never prepare a
+                // Gold variant from a fabricated or unmeasured winner receipt.
+                if (!hasP95)
+                    throw new InvalidDataException("Vencedor condicional sem P95 físico mensurado.");
+                if (metric.TryGetProperty("ConditionalClusterCpFdrUpper", out var bound)
+                    && bound.ValueKind == JsonValueKind.Number
+                    && bound.TryGetDouble(out var rate)
+                    && double.IsFinite(rate) && rate is >= 0d and <= 1d)
+                    winnerHasConditionalBound = true;
+            }
         }
         if (!winnerHasConditionalBound)
             throw new InvalidDataException("Vencedor V9 sem medição condicional de risco rastreável.");
