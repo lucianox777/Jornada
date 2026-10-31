@@ -84,6 +84,26 @@ public sealed class SplinkCompatibleTermFrequencyTests
     }
 
     [Test]
+    public void AsymmetricTf_NeverRewardsAcrossFrequencyAndWeightGrid()
+    {
+        var frequencies = new[] { 0.000001m, 0.0001m, 0.01m, 0.2m, 1m };
+        var weights = new[] { 0m, 0.25m, 1m, 2m };
+        foreach (var left in frequencies)
+        foreach (var right in frequencies)
+        foreach (var referenceU in frequencies)
+        foreach (var weight in weights)
+        {
+            var symmetric = SplinkCompatibleTermFrequency.LogBayesAdjustment(
+                left, right, referenceU, weight);
+            var asymmetric = SplinkCompatibleTermFrequency.LogBayesAdjustmentAsymmetric(
+                left, right, referenceU, weight);
+            Assert.That(asymmetric, Is.EqualTo(Math.Min(0d, symmetric)).Within(1e-12),
+                $"left={left}, right={right}, u={referenceU}, weight={weight}");
+            Assert.That(asymmetric, Is.LessThanOrEqualTo(0d));
+        }
+    }
+
+    [Test]
     public void Pareto_DoesNotInventPreferenceBetweenFalsePositiveAndFalseNegative()
     {
         var a = new CalibrationEvaluation("A", 90, 90, 1, 8, 11, 200);
