@@ -54,11 +54,10 @@ public static class V9NestedCalibrationCoordinator
             || plan.InitialThresholdStep is <= 0 or >= 1 || plan.InitialMarginStep <= 0
             || !double.IsFinite(plan.MinimumRecallImprovement) || plan.MinimumRecallImprovement <= 0
             || !double.IsFinite(plan.MinimumFdrImprovement) || plan.MinimumFdrImprovement <= 0
-            || plan.Calibration.ModelOptions.Any(x => x.TfWeight != 0)
             || plan.Calibration.RiskCeilings is not { Count: > 0 }
             || plan.Calibration.MaximumAcceptedPerBaseIdentity != SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity
             || plan.Calibration.ShardCount != 1 || plan.Calibration.Execution.EndToEndRepetitions < 20)
-            throw new InvalidDataException("Busca interna exige política, custos, suporte, TF0, faixas e orçamento explícitos.");
+            throw new InvalidDataException("Busca interna exige política, custos, suporte, faixas e orçamento explícitos.");
         if (plan.Purpose is not ("BOOTSTRAP_CANDIDATE_SELECTION" or "PLUMBING_FIXTURE_NOT_CERTIFICATION")
             || plan.Purpose == "BOOTSTRAP_CANDIDATE_SELECTION" && (plan.MinimumObservedMPerCell < 1 || plan.MinimumObservedUPerCell < 1))
             throw new InvalidDataException("Bootstrap exige suporte observado positivo no núcleo de massa de cada classe; piso zero é exclusivo da fixture sem certificação.");
@@ -68,10 +67,13 @@ public static class V9NestedCalibrationCoordinator
         Func<CancellationToken, Task<SqlConnection>> openIndependentConnection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> originalTrain,
         V9NestedCalibrationPlan plan, CancellationToken cancellationToken,
-        Action<V9TrainingBatchProgress>? reportProgress = null)
+        Action<V9TrainingBatchProgress>? reportProgress = null,
+        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset = null)
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
         ValidatePlan(plan);
+        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m) && frozenTfReferenceForRuleset is null)
+            throw new InvalidDataException("TF positivo na busca aninhada exige referência IBGE publicada e congelada por frame SQL.");
         originalTrain = Array.AsReadOnly(originalTrain.ToArray());
         // Deep freeze before asynchronous execution. Search never receives a VALIDATION/TEST cohort.
         plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(JsonSerializer.Serialize(plan))!;
@@ -115,6 +117,7 @@ public static class V9NestedCalibrationCoordinator
         var stagnant = 0;
         var stop = "BATCH_BUDGET_EXHAUSTED_NOT_OPTIMALITY";
         var active = new HashSet<SqlConnection>(ReferenceEqualityComparer.Instance);
+        using var referenceLease = new SemaphoreSlim(1);
         for (var batch = 1; batch <= plan.MaximumBatches; batch++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -136,9 +139,20 @@ public static class V9NestedCalibrationCoordinator
                 .SelectMany(g => g.Chunk(64)).ToArray();
             var results = await V9ParallelWork.MapAsync(groups, calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
+                FrozenIbgeNominalTfV9? frozenReference = null;
+                if (group.Any(x => x.Option.TfWeight > 0m))
+                {
+                    // Resolve the immutable published IBGE version for this exact
+                    // blocking frame, never the mutable currently-active reference.
+                    await referenceLease.WaitAsync(ct);
+                    try { frozenReference = await frozenTfReferenceForRuleset!(group[0].Passes, ct); }
+                    finally { referenceLease.Release(); }
+                    if (frozenReference is null)
+                        throw new InvalidDataException("TF positivo sem referência IBGE congelada para o ruleset.");
+                }
                 var connection = await openIndependentConnection(ct);
                 lock (active) if (!active.Add(connection)) throw new InvalidDataException("Workers exigem conexões SQL independentes.");
-                try { return await EvaluateAsync(connection, frame, plan, group, batchIndex, ct); }
+                try { return await EvaluateAsync(connection, frame, plan, group, batchIndex, frozenReference, ct); }
                 finally { lock (active) active.Remove(connection); await connection.DisposeAsync(); }
             }, cancellationToken);
             evaluations.AddRange(results.SelectMany(x => x).OrderBy(x => x.RequestSha256, StringComparer.Ordinal));
@@ -242,7 +256,8 @@ public static class V9NestedCalibrationCoordinator
 
     private static async Task<IReadOnlyList<V9NestedCandidateEvaluation>> EvaluateAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> frame, V9NestedCalibrationPlan plan,
-        IReadOnlyList<Request> requests, int batch, CancellationToken cancellationToken)
+        IReadOnlyList<Request> requests, int batch, FrozenIbgeNominalTfV9? frozenTfReference,
+        CancellationToken cancellationToken)
     {
         var c = plan.Calibration;
         try
@@ -250,6 +265,7 @@ public static class V9NestedCalibrationCoordinator
             var first = requests[0];
             var run = await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(connection, frame, first.Passes,
                 requests.Select(x => x.Option).ToArray(), c.Budget, c.StudyFingerprintSha256, cancellationToken,
+                frozenTfReference: frozenTfReference,
                 evaluateFinalResolve: true, finalConflictMargin: first.Margin,
                 predeclaredMaximumAcceptedPerBaseIdentity: c.MaximumAcceptedPerBaseIdentity,
                 includeFsBlindGrouping: true, minimumFsGroupingPosterior: c.MinimumGroupingPosterior,
