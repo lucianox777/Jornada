@@ -137,6 +137,24 @@ public sealed class V9GoldJointTrainMatrixTests
     }
 
     [Test]
+    public void Rejects_reused_physical_SQL_run_fingerprint_despite_distinct_receipt_bytes()
+    {
+        var plan = PlanBytes();
+        var receipts = PhysicalReceipts(plan);
+        var first = JsonNode.Parse(receipts[0])!.AsObject();
+        var second = JsonNode.Parse(receipts[1])!.AsObject();
+        var firstRun = ((JsonObject)first["goldThreeOrderTrial"]!)["isolatedRunFingerprintSha256"]!
+            .GetValue<string>();
+        ((JsonObject)second["goldThreeOrderTrial"]!)["isolatedRunFingerprintSha256"] = firstRun;
+        receipts[1] = JsonSerializer.SerializeToUtf8Bytes(second);
+
+        // Different LocalDB instance labels and JSON digests must not conceal
+        // a duplicated physical SQL run in the preregistered TRAIN matrix.
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
+    }
+
+    [Test]
     public void Rejects_incomplete_or_unknown_preregistered_plan_fields()
     {
         var missing = JsonNode.Parse(PlanBytes())!.AsObject();
