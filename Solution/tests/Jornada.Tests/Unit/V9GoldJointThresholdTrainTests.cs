@@ -34,7 +34,7 @@ public sealed class V9GoldJointThresholdTrainTests
             V9LowerNonMatchTrainCalibrator.JointEvidenceFingerprint(rows),
             V9LowerNonMatchTrainCalibrator.JointGridFingerprint(
                 [.8m, .9m], [.1m, .2m]), Plan,
-            [.8m, .9m], [.1m, .2m], 0m, 10, true, false);
+            [.8m, .9m], [.1m, .2m], 10, true, false);
 
     [Test]
     public void Produces_both_thresholds_from_full_three_order_train_grid_only()
@@ -101,14 +101,27 @@ public sealed class V9GoldJointThresholdTrainTests
     }
 
     [Test]
-    public void Predeclared_observed_risk_bound_is_not_an_activation_gate()
+    public void Preserves_nonzero_observed_false_links_without_preset_risk_veto()
     {
         var rows = Measurements();
-        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(
-            Policy(rows) with { MaximumObservedFalseLinkFraction = .02m }, rows);
-        Assert.That(study.Candidates.Count(x => x.MeetsPredeclaredObservedRiskConstraint),
-            Is.EqualTo(4));
+        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows);
+        Assert.That(study.Candidates, Has.Count.EqualTo(4));
+        Assert.That(study.Candidates.Where(x => x.UpperThreshold == .8m)
+            .All(x => x.WorstObservedFalseLinkFraction == .01m), Is.True);
+        Assert.That(study.Candidates.Any(x => x.FalseLinksAcrossOrders > 0), Is.True);
         Assert.That(study.StatisticallyCertified, Is.False);
         Assert.That(study.OperationalActivationAllowed, Is.False);
+    }
+
+    [Test]
+    public void Undefined_observed_rate_is_not_invented_when_no_links_accepted()
+    {
+        var rows = Measurements().Select(x => x.UpperThreshold == .9m
+            ? x with { AcceptedLinks = 0, FalseLinks = 0 } : x).ToArray();
+        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows);
+        Assert.That(study.Candidates.Where(x => x.UpperThreshold == .9m)
+            .All(x => x.WorstObservedFalseLinkFraction is null
+                && x.UndefinedObservedFalseLinkRateOrders == 3), Is.True);
+        Assert.That(study.Candidates, Has.Count.EqualTo(4));
     }
 }

@@ -1,6 +1,6 @@
 # V9 Gold — calibração conjunta dos limiares superior e inferior (28/10/2026)
 
-**Estado: contrato C# implementado em PR técnica DRAFT; executor físico conjunto ainda NÃO integrado. Não aprovado, não ativado.**
+**Estado: contrato C# de exploração TRAIN implementado em PR técnica DRAFT (V2 sem veto percentual prévio); executor físico conjunto ainda NÃO integrado. Testes desta revisão dependem de CI no SHA exato. Não aprovado, não ativado.**
 
 ## Decisão
 
@@ -14,12 +14,12 @@ Cada célula upper × lower deve ser medida no **mesmo Rank/Resolve FS/TF Gold c
 
 A API não recalcula por si a decisão superior: **o runner físico deve produzir e atestar os dados**. Não adaptar os resultados do `FsDecisionThresholdCalibrator` V6 (seleção em VALIDATION) ao Gold V9 TRAIN; particionamento e evidência são distintos. O `V9LowerNonMatchStudyCli` atual ainda usa superior congelado do fit e não é um executor da busca conjunta.
 
-A restrição observada de falsos vínculos é pré-declarada, sem autorização automática por joelho. A fronteira considera falsos vínculos, falsas criações, pendências e B³ F1. A sugestão é apenas descritiva; taxa observada não é limite estatístico de FDR. Nenhum limiar é publicado ou ativado.
+Não há teto percentual pré-declarado de falsos vínculos: todas as células válidas entram na exploração TRAIN. A fronteira considera falsos vínculos, falsas criações, pendências e B³ F1; a sugestão determinística minimiza a distância normalizada ao ideal da fronteira, sem preferências percentuais prévias. Taxas com denominador zero são registradas como indefinidas, não como 100%. A sugestão é apenas descritiva, não equivale a limite estatístico de FDR, validação independente, DT-15 ou ativação. Nenhum limiar é publicado ou ativado.
 
 ## Gates antes de merge técnico desta frente
 
 - Integrar ao runner físico o replay de todas as células, recalcular superior, comprovar busca completa e proveniência por identidade-base sem TEST na seleção.
-- Congelar grade, regra e limite estatístico de falso vínculo antes dos resultados; testar casos positivos e negativos e as três ordens reais, não apenas registros agregados fabricados.
+- Congelar grade, regra de seleção e plano de evidência antes dos resultados, sem teto de falso vínculo antecipado; medir incerteza e FDR dependente posteriormente, testar casos positivos e negativos e as três ordens reais, não apenas registros agregados fabricados.
 - Verificar compatibilidade com loader REF e snapshot versionado (#1089), documentação transversal, CI no SHA exato e revisão sem bloqueios.
 - TEST independente **novo**, somente após congelar a seleção TRAIN; não reutilizar seeds 42/43/44, 20261019001 ou holdout 20261025001. Aprovação institucional e ativação são gates separados.
 

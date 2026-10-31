@@ -13,7 +13,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static partial class V9LowerNonMatchTrainCalibrator
 {
-    public const string JointVersion = "V9_GOLD_JOINT_UPPER_LOWER_TRAIN_CONTRACT_V1";
+    public const string JointVersion = "V9_GOLD_JOINT_UPPER_LOWER_TRAIN_CONTRACT_V2";
     public static readonly IReadOnlyList<string> JointOrders =
         Array.AsReadOnly(new[] { "G0_G3", "G3_G0", "G1_G3_G0_G2" });
 
@@ -25,7 +25,6 @@ public static partial class V9LowerNonMatchTrainCalibrator
         string PreregisteredPlanSha256,
         IReadOnlyList<decimal> CandidateUpperThresholds,
         IReadOnlyList<decimal> CandidateLowerThresholds,
-        decimal MaximumObservedFalseLinkFraction,
         int MinimumIndependentIdentityGroups,
         bool ManualCalibrationRequested,
         bool TestUsed);
@@ -59,9 +58,9 @@ public static partial class V9LowerNonMatchTrainCalibrator
         long FalseLinksAcrossOrders,
         long FalseNewReferencesAcrossOrders,
         long PendingAcrossOrders,
-        decimal WorstObservedFalseLinkFraction,
+        decimal? WorstObservedFalseLinkFraction,
+        int UndefinedObservedFalseLinkRateOrders,
         decimal WorstBCubedF1,
-        bool MeetsPredeclaredObservedRiskConstraint,
         bool IsParetoFrontier);
 
     public sealed record JointStudy(
@@ -119,9 +118,8 @@ public static partial class V9LowerNonMatchTrainCalibrator
             || upper.Distinct().Count() != upper.Count
             || lower.Distinct().Count() != lower.Count
             || lower.Max() >= upper.Min()
-            || policy.MaximumObservedFalseLinkFraction is < 0m or > 1m
             || policy.MinimumIndependentIdentityGroups < 2)
-            throw new InvalidDataException("Invalid preregistered upper/lower grid or observed-risk constraint.");
+            throw new InvalidDataException("Invalid preregistered upper/lower grid or independent-group support.");
         if (!string.Equals(JointGridFingerprint(upper, lower), policy.DeclaredGridSha256,
             StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("Grid differs from preregistered fingerprint.");
@@ -162,50 +160,70 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 throw new InvalidDataException("Repeated physical order/pair.");
         }
 
+        // TRAIN measurements are descriptive; no preset percentage may veto a
+        // candidate before the Pareto search. Undefined rates stay undefined.
         var table = measurements.GroupBy(x => (x.UpperThreshold, x.LowerThreshold))
             .Select(g =>
             {
                 var rows = g.ToArray();
-                var eligible = rows.All(x => x.AcceptedLinks > 0
-                    && (decimal)x.FalseLinks / x.AcceptedLinks
-                        <= policy.MaximumObservedFalseLinkFraction);
+                var definedRates = rows.Where(x => x.AcceptedLinks > 0)
+                    .Select(x => (decimal)x.FalseLinks / x.AcceptedLinks).ToArray();
                 return new JointCandidate(g.Key.UpperThreshold, g.Key.LowerThreshold,
                     rows.Sum(x => x.FalseLinks), rows.Sum(x => x.FalseNewReferences),
                     rows.Sum(x => x.PendingAfter),
-                    rows.Max(x => x.AcceptedLinks == 0 ? 1m
-                        : (decimal)x.FalseLinks / x.AcceptedLinks),
-                    rows.Min(x => x.BCubedF1), eligible, false);
+                    definedRates.Length == 0 ? null : definedRates.Max(),
+                    rows.Length - definedRates.Length,
+                    rows.Min(x => x.BCubedF1), false);
             }).OrderBy(x => x.UpperThreshold).ThenBy(x => x.LowerThreshold).ToArray();
-        var admissible = table.Where(x => x.MeetsPredeclaredObservedRiskConstraint).ToArray();
         var frontier = table.Select(x => x with
         {
-            IsParetoFrontier = x.MeetsPredeclaredObservedRiskConstraint
-                && !admissible.Any(y => y.FalseLinksAcrossOrders <= x.FalseLinksAcrossOrders
-                    && y.FalseNewReferencesAcrossOrders <= x.FalseNewReferencesAcrossOrders
-                    && y.PendingAcrossOrders <= x.PendingAcrossOrders
-                    && y.WorstBCubedF1 >= x.WorstBCubedF1
-                    && (y.FalseLinksAcrossOrders < x.FalseLinksAcrossOrders
-                        || y.FalseNewReferencesAcrossOrders < x.FalseNewReferencesAcrossOrders
-                        || y.PendingAcrossOrders < x.PendingAcrossOrders
-                        || y.WorstBCubedF1 > x.WorstBCubedF1))
+            IsParetoFrontier = !table.Any(y => y.FalseLinksAcrossOrders <= x.FalseLinksAcrossOrders
+                && y.FalseNewReferencesAcrossOrders <= x.FalseNewReferencesAcrossOrders
+                && y.PendingAcrossOrders <= x.PendingAcrossOrders
+                && y.WorstBCubedF1 >= x.WorstBCubedF1
+                && (y.FalseLinksAcrossOrders < x.FalseLinksAcrossOrders
+                    || y.FalseNewReferencesAcrossOrders < x.FalseNewReferencesAcrossOrders
+                    || y.PendingAcrossOrders < x.PendingAcrossOrders
+                    || y.WorstBCubedF1 > x.WorstBCubedF1))
         }).ToArray();
-        // Deterministic descriptive suggestion, NEVER a safety approval or
-        // automatic publication. A statistical FDR gate is still required.
-        var suggestion = frontier.Where(x => x.IsParetoFrontier)
-            .OrderBy(x => x.FalseLinksAcrossOrders)
+        // Reproducible normalized ideal over observed TRAIN objectives. This
+        // descriptive choice is not an FDR confidence bound or DT-15 approval.
+        var nondominated = frontier.Where(x => x.IsParetoFrontier).ToArray();
+        var minLinks = nondominated.Min(x => x.FalseLinksAcrossOrders);
+        var maxLinks = nondominated.Max(x => x.FalseLinksAcrossOrders);
+        var minCreates = nondominated.Min(x => x.FalseNewReferencesAcrossOrders);
+        var maxCreates = nondominated.Max(x => x.FalseNewReferencesAcrossOrders);
+        var minPending = nondominated.Min(x => x.PendingAcrossOrders);
+        var maxPending = nondominated.Max(x => x.PendingAcrossOrders);
+        var minBCubed = nondominated.Min(x => x.WorstBCubedF1);
+        var maxBCubed = nondominated.Max(x => x.WorstBCubedF1);
+        double Distance(JointCandidate x)
+        {
+            var links = maxLinks == minLinks ? 0d
+                : (double)(x.FalseLinksAcrossOrders - minLinks) / (maxLinks - minLinks);
+            var creates = maxCreates == minCreates ? 0d
+                : (double)(x.FalseNewReferencesAcrossOrders - minCreates) / (maxCreates - minCreates);
+            var pending = maxPending == minPending ? 0d
+                : (double)(x.PendingAcrossOrders - minPending) / (maxPending - minPending);
+            var bcubed = maxBCubed == minBCubed ? 0d
+                : (double)(maxBCubed - x.WorstBCubedF1) / (maxBCubed - minBCubed);
+            return links * links + creates * creates + pending * pending + bcubed * bcubed;
+        }
+        var suggestion = nondominated.OrderBy(Distance)
+            .ThenBy(x => x.FalseLinksAcrossOrders)
             .ThenBy(x => x.FalseNewReferencesAcrossOrders)
             .ThenBy(x => x.PendingAcrossOrders)
             .ThenByDescending(x => x.WorstBCubedF1)
             .ThenBy(x => x.UpperThreshold).ThenBy(x => x.LowerThreshold)
-            .FirstOrDefault();
+            .First();
+
         return new JointStudy(JointVersion, policy.FrozenGoldFitSha256,
             policy.FrozenGoldSnapshotSha256, policy.TrainEvidenceSha256,
             policy.DeclaredGridSha256,
             HashJoint(JsonSerializer.Serialize(policy)),
-            Array.AsReadOnly(frontier), suggestion?.UpperThreshold,
-            suggestion?.LowerThreshold,
-            suggestion is null ? "TRAIN_NO_PAIR_WITHIN_PREDECLARED_OBSERVED_RISK_CONSTRAINT"
-                : "TRAIN_DESCRIPTIVE_PAIR_ONLY_UNCERTIFIED_REQUIRES_INDEPENDENT_VALIDATION",
+            Array.AsReadOnly(frontier), suggestion.UpperThreshold,
+            suggestion.LowerThreshold,
+            "TRAIN_DESCRIPTIVE_PARETO_ONLY_UNCERTIFIED_REQUIRES_INDEPENDENT_VALIDATION",
             TestUsed: false, OperationalActivationAllowed: false,
             StatisticallyCertified: false);
     }
