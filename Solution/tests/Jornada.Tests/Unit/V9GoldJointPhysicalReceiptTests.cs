@@ -74,6 +74,16 @@ public sealed class V9GoldJointPhysicalReceiptTests
             V9GoldJointPhysicalReceipt.Read(Bytes(node), Fit, Gold, Csv, Selection)));
 
     [Test]
+    public void Rejects_duplicate_receipt_fields_even_when_last_value_is_valid()
+    {
+        var json = System.Text.Encoding.UTF8.GetString(Bytes(Receipt()));
+        var ambiguous = json.Replace("\"testUsed\":false", "\"testUsed\":true,\"testUsed\":false", StringComparison.Ordinal);
+        Assert.That(ambiguous, Is.Not.EqualTo(json));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointPhysicalReceipt.Read(System.Text.Encoding.UTF8.GetBytes(ambiguous), Fit, Gold, Csv, Selection)));
+    }
+
+    [Test]
     public void Extracts_real_runner_receipt_into_uncertified_train_measurement()
     {
         var row = V9GoldJointPhysicalReceipt.Read(Bytes(Receipt()), Fit, Gold, Csv, Selection);
