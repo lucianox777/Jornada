@@ -32,6 +32,47 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void Tf0_snapshot_and_four_explicit_baseline_units_have_bit_exact_fs_scores()
+    {
+        var historical = V9FittedSnapshot.Create(Payload());
+        var zeroUnits = new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother }
+            .SelectMany(side => new[] { NominalFrequencyUnitV9.FirstName,
+                NominalFrequencyUnitV9.LastContentSurname }
+                .Select(unit => new V9SnapshotUnitTf(
+                    side, unit, V9SnapshotTfFitState.BaselineTf0, null)))
+            .ToArray();
+        var explicitZero = V9FittedSnapshot.Create(
+            Payload() with { UnitTfCalibrations = zeroUnits });
+        // Compare all relevant nominal paths including absent mother and DOB,
+        // without changing the fixed joint 81-cell m/u or the actual birth factor.
+        var probes = new[]
+        {
+            ("MARIA SILVA", "MARIA SILVA", "ANA COSTA", "ANA COSTA", (DateOnly?)new DateOnly(1980, 2, 3), (DateOnly?)new DateOnly(1980, 2, 3)),
+            ("MARIA SILVA", "MARIA SOUZA", "ANA COSTA", "ANA LIMA", (DateOnly?)new DateOnly(1980, 2, 3), (DateOnly?)new DateOnly(1980, 2, 4)),
+            ("MARIA SILVA", "JOANA SILVA", "ANA COSTA", "EVA COSTA", (DateOnly?)null, (DateOnly?)null),
+            ("MARIA SILVA", "JOANA PEREIRA", (string?)null, (string?)null, (DateOnly?)null, (DateOnly?)null)
+        };
+        foreach (var (left, right, leftMother, rightMother, birthA, birthB) in probes)
+        {
+            var observation = new IdentityObservation(null, "SEM_CPF", left, birthA, leftMother);
+            var candidate = new V9SnapshotCandidate(Guid.NewGuid(), right, birthB, rightMother);
+            var a = historical.RankPreview(observation, [candidate]).Single();
+            var b = explicitZero.RankPreview(observation, [candidate]).Single();
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(BitConverter.DoubleToInt64Bits((double)a.LogOdds),
+                    Is.EqualTo(BitConverter.DoubleToInt64Bits((double)b.LogOdds)));
+                Assert.That(a.LogOdds, Is.EqualTo(b.LogOdds));
+                Assert.That(a.Score, Is.EqualTo(b.Score));
+            }));
+        }
+        Assert.That(V9FittedSnapshot.Load(historical.SerializeUtf8(), historical.ContentSha256).ContentSha256,
+            Is.EqualTo(historical.ContentSha256));
+        // This is a bit-exact *score* regression. The historical 97.4754%
+        // aggregate requires a separate replay on the original physical corpus.
+    }
+
+    [Test]
     public void Pinned_snapshot_roundtrips_and_runs_same_shared_resolve_without_retraining()
     {
         var snapshot = V9FittedSnapshot.Create(Payload());
