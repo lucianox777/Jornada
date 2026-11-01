@@ -439,72 +439,36 @@ public sealed class FellegiSunterV9JointNominalTests
     }
 
     [Test]
-    public void V9MotherExactFullTfUsesMotherUnitWithoutAddingSecondNominalContribution()
+    public void V9ExactFullUsesFirstNameIbgeProxyForPersonAndMother()
     {
-        var cells = FullFrame(
-            CompositeNominalLevelV9.Missing,
+        var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
             CompositeNominalLevelV9.ExactFull, .20m, .05m);
+        var personTf = FirstNameTf("MARIA", .25m);
         var motherTf = FirstNameTf("ANA", .25m) with
         {
-            Side = CompositeNominalTfSideV9.Mother,
-            MatchedNormalizedValue = "ANA COSTA",
-            Reference = new NominalFrequencyReferenceContractV9(
-                NominalFrequencyUnitV9.FullName,
-                NominalFrequencySourceV9.IndependentlyObservedPopulation,
-                "POPULATION", "BLOCKING", 2_000, true)
+            Side = CompositeNominalTfSideV9.Mother
         };
         var plain = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
-            PreviewParameters(), null, null, "Ana Costa", "ANA COSTA",
+            PreviewParameters(), "Maria Silva", "MARIA SILVA", "Ana Costa", "ANA COSTA",
             cells, CompositeNominalComparisonV9.ContractVersion);
-        var adjusted = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
-            PreviewParameters(), null, null, "Ana Costa", "ANA COSTA",
-            cells, CompositeNominalComparisonV9.ContractVersion, nominalTf: motherTf);
-
+        FellegiSunterScoreBreakdown Score(CompositeNominalTfPreviewV9 tf) =>
+            FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                PreviewParameters(), "Maria Silva", "MARIA SILVA", "Ana Costa", "ANA COSTA",
+                cells, CompositeNominalComparisonV9.ContractVersion, nominalTf: tf);
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(adjusted.Score.LogOdds - plain.Score.LogOdds,
+            Assert.That(Score(personTf).Score.LogOdds - plain.Score.LogOdds,
                 Is.EqualTo((decimal)Math.Log(.10d / .25d)).Within(.0000001m));
-            Assert.That(adjusted.Contributions.Count(c => c.Evidence == "NOMINAL_CONJUNTO_V9"),
+            Assert.That(Score(motherTf).Score.LogOdds - plain.Score.LogOdds,
+                Is.EqualTo((decimal)Math.Log(.10d / .25d)).Within(.0000001m));
+            Assert.That(Score(personTf).Contributions.Count(c => c.Evidence == "NOMINAL_CONJUNTO_V9"),
                 Is.EqualTo(1));
-            Assert.That(adjusted.Contributions, Has.Count.EqualTo(2));
-            Assert.That((Action)(() =>
-                FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
-                    PreviewParameters(), null, null, "Ana Costa", "ANA COSTA",
-                    cells, CompositeNominalComparisonV9.ContractVersion,
-                    nominalTf: motherTf with { Reference = motherTf.Reference with
-                        { Unit = NominalFrequencyUnitV9.FirstName } })),
+            Assert.That((Action)(() => Score(personTf with { MatchedNormalizedValue = "SILVA" })),
                 Throws.InvalidOperationException);
-        }));
-    }
-
-    [Test]
-    public void V9MotherExactFullTfRejectsWrongMatchedValueAndUnapprovedPopulation()
-    {
-        var cells = FullFrame(
-            CompositeNominalLevelV9.Missing,
-            CompositeNominalLevelV9.ExactFull, .20m, .05m);
-        var tf = FirstNameTf("ANA", .25m) with
-        {
-            Side = CompositeNominalTfSideV9.Mother,
-            MatchedNormalizedValue = "ANA COSTA",
-            Reference = new NominalFrequencyReferenceContractV9(
-                NominalFrequencyUnitV9.FullName,
-                NominalFrequencySourceV9.IndependentlyObservedPopulation,
-                "POPULATION", "BLOCKING", 2_000, true)
-        };
-        void Reject(CompositeNominalTfPreviewV9 bad) =>
-            Assert.That((Action)(() =>
-                FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
-                    PreviewParameters(), null, null, "Ana Costa", "ANA COSTA",
-                    cells, CompositeNominalComparisonV9.ContractVersion, nominalTf: bad)),
+            Assert.That((Action)(() => Score(motherTf with { TermFrequency = 0m })),
                 Throws.InvalidOperationException);
-        Assert.Multiple((Action)(() =>
-        {
-            Reject(tf with { MatchedNormalizedValue = "ANA SILVA" });
-            Reject(tf with { Reference = tf.Reference with
-                { IndependentPopulationValidationApproved = false } });
-            Reject(tf with { TermFrequency = 0m });
-            Reject(tf with { UnitReferenceU = 0m });
+            Assert.That((Action)(() => Score(motherTf with { UnitReferenceU = 0m })),
+                Throws.InvalidOperationException);
         }));
     }
 
