@@ -38,7 +38,7 @@ def _write_frozen_outputs(destination: Path, plan: dict, cost: dict | None = Non
             with path.open("x", encoding="utf-8") as stream:
                 created.append(path)
                 json.dump(payload, stream, indent=2)
-                stream.write("\\n")
+                stream.write("\n")
     except Exception:
         for path in reversed(created):
             path.unlink(missing_ok=True)
