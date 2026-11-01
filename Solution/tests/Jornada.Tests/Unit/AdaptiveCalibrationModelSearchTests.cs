@@ -18,7 +18,8 @@ public sealed class AdaptiveCalibrationModelSearchTests
         => Assert.That(action, Throws.TypeOf<TException>());
 
     private sealed class FakeAdapter(
-        string family, long tp, long fp, bool wrongTrain = false, long? abstentionsOverride = null)
+        string family, long tp, long fp, bool wrongTrain = false, long? abstentionsOverride = null,
+        long? truePairsOverride = null, long? falseCandidatesOverride = null)
         : IAdaptiveCalibrationFamilyAdapter
     {
         public string ModelFamily => family;
@@ -42,11 +43,11 @@ public sealed class AdaptiveCalibrationModelSearchTests
             EvaluatedValidationOnly = validation.Partition == "VALIDATION"
                 && !validation.UsesTestLabels;
             return new AdaptiveCalibrationHoldoutMetrics(
-                TruePairsWithoutCpf: 1000,
+                TruePairsWithoutCpf: truePairsOverride ?? 1000,
                 TrueAcceptedLinks: tp,
                 FalseAcceptedLinks: fp,
                 Abstentions: abstentionsOverride ?? (1000 - tp),
-                BlockingFalseCandidatePairs: 200,
+                BlockingFalseCandidatePairs: falseCandidatesOverride ?? 200,
                 BlockingFalseDegreeP99: 8.0,
                 IndependentlyLabeledIdentityGroups: 600);
         }
@@ -217,6 +218,21 @@ public sealed class AdaptiveCalibrationModelSearchTests
         AssertThrows<InvalidDataException>(() =>
             AdaptiveCalibrationModelSearch.Evaluate(Request(Budget()), [
                 new FakeAdapter("FAMILY_FS_V9", 980, 201),
+                new FakeAdapter("FAMILY_FUTURE", 980, 2)
+            ]));
+    }
+
+    [Test]
+    public void Accepted_link_counter_overflow_is_invalid_validation_evidence()
+    {
+        // The adapter may report individually nonnegative counters that fit
+        // Int64 but whose accepted total does not. Reject as invalid evidence,
+        // never leak an arithmetic OverflowException from the preview.
+        AssertThrows<InvalidDataException>(() =>
+            AdaptiveCalibrationModelSearch.Evaluate(Request(), [
+                new FakeAdapter("FAMILY_FS_V9", long.MaxValue, long.MaxValue,
+                    abstentionsOverride: 0, truePairsOverride: long.MaxValue,
+                    falseCandidatesOverride: long.MaxValue),
                 new FakeAdapter("FAMILY_FUTURE", 980, 2)
             ]));
     }
