@@ -238,6 +238,44 @@ public sealed class V9FittedSnapshotTests
         })));
     }
 
+
+    [Test]
+    public void Shared_last_surname_mode_roundtrips_without_doubling_same_surname_tf()
+    {
+        var baseline = FourUnitTfPayload();
+        var units = baseline.UnitTfCalibrations!.ToArray();
+        units[3] = units[3] with
+        {
+            Calibration = units[3].Calibration! with
+            {
+                Frequencies = new Dictionary<string, decimal> { ["SILVA"] = .5m },
+                TrainUnitUByValue = new Dictionary<string, decimal> { ["SILVA"] = .1m }
+            }
+        };
+        var revised = baseline with { UnitTfCalibrations = units };
+        var bilateral = V9FittedSnapshot.Create(revised);
+        var single = V9FittedSnapshot.Create(revised with
+        {
+            SharedSurnameMode = V9SharedSurnameModeV9.ConservativeSingleWhenShared
+        });
+        var roundtrip = V9FittedSnapshot.Load(single.SerializeUtf8(), single.ContentSha256);
+        var observation = new IdentityObservation(null, "SEM_CPF",
+            "JOANA SILVA", null, "ANA SILVA");
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(),
+            "BEATRIZ SILVA", null, "EVA SILVA");
+        var bilateralScore = bilateral.RankPreview(observation, [candidate]).Single().LogOdds;
+        var singleScore = roundtrip.RankPreview(observation, [candidate]).Single().LogOdds;
+        Assert.That(roundtrip.Payload.SharedSurnameMode,
+            Is.EqualTo(V9SharedSurnameModeV9.ConservativeSingleWhenShared));
+        Assert.That(singleScore, Is.GreaterThan(bilateralScore));
+        Assert.That(singleScore - bilateralScore,
+            Is.EqualTo((decimal)Math.Abs(Math.Log(.1d / .5d))).Within(.00000002m));
+        Assert.That((Action)(() => V9FittedSnapshot.Create(revised with
+        {
+            SharedSurnameMode = (V9SharedSurnameModeV9)123
+        })), Throws.TypeOf<InvalidDataException>());
+    }
+
     [Test]
     public void External_validation_rejects_positive_tf_with_foreign_published_digest_before_exposure()
     {

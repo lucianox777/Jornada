@@ -28,7 +28,15 @@ public sealed record V9AdaptiveCalibrationPlan(
     V9StatisticalSamplePlan.Design? SampleDesign = null,
     V9DeclaredBlockingSearchSpace? DeclaredSearchSpace = null,
     bool CollapseEquivalentCandidateFrames = false,
-    int ShardIndex = 0, int ShardCount = 1);
+    int ShardIndex = 0, int ShardCount = 1,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    long? PinnedIbgeReferenceVersionId = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? PinnedIbgePublishedSha256 = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? PinnedIbgeMaterializedFrequencySha256 = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null);
 
 public sealed record V9AdaptiveCandidateRejection(string RulesetSha256,
     IReadOnlyList<string> ConfigurationIds, string Reason);

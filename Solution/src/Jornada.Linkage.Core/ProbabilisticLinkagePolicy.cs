@@ -277,7 +277,8 @@ internal static class ProbabilisticLinkageDecisions
         Func<IdentityObservation, LinkageCandidate, NominalFrequencyUnitV9?>? personUnitForPair = null,
         Func<IdentityObservation, LinkageCandidate, NominalFrequencyUnitV9?>? motherUnitForPair = null,
         Func<IdentityObservation, LinkageCandidate, bool>? personRequiredForPair = null,
-        Func<IdentityObservation, LinkageCandidate, bool>? motherRequiredForPair = null)
+        Func<IdentityObservation, LinkageCandidate, bool>? motherRequiredForPair = null,
+        V9SharedSurnameModeV9 sharedSurnameMode = V9SharedSurnameModeV9.Bilateral)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(numericParameters);
@@ -322,7 +323,7 @@ internal static class ProbabilisticLinkageDecisions
                 parameters, observation.NomeCompleto, candidate.NomeCompleto,
                 observation.NomeMae, candidate.NomeMae, frozen, unique.Count,
                 observation.DataNascimento, candidate.DataNascimento,
-                person, mother, numericParameters);
+                person, mother, numericParameters, sharedSurnameMode);
             var fullExact = CompositeNominalComparisonV9.Classify(
                 observation.NomeCompleto, candidate.NomeCompleto) == CompositeNominalLevelV9.ExactFull;
             var exactBirth = observation.DataNascimento is { } birth && candidate.DataNascimento == birth;

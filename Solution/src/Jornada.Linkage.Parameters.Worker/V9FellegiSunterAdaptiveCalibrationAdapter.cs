@@ -52,7 +52,8 @@ public sealed record V9FsAdaptiveOptionConfiguration(
     CompositeNominalTfSideV9 TfSide = CompositeNominalTfSideV9.Person,
     decimal TfMinimumFrequency = 0.000001m,
     long TfMinimumIndependentSupport = 1, V9JointSupportPolicy? JointSupportPolicy = null,
-    IReadOnlyList<V9FsUnitTfOption>? UnitTfOptions = null)
+    IReadOnlyList<V9FsUnitTfOption>? UnitTfOptions = null,
+    V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral)
 {
     public string FingerprintSha256 => V9FellegiSunterAdaptiveCalibrationAdapter
         .ConfigurationFingerprintSha256(this);
@@ -294,7 +295,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             blockingPasses, frozen.Cells, frozen.Parameters,
             BlockingFrameFingerprintSha256: frame.BlockingFrameFingerprintSha256,
             CandidateGrouping: candidateGrouping, JointSupport: frozen.JointSupport,
-            UnitTfCalibrations: unitFits));
+            UnitTfCalibrations: unitFits, SharedSurnameMode: config.SharedSurnameMode));
     }
 
     private static bool BlockingPassesEqual(
@@ -558,7 +559,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             personUnitForPair: (_, candidate) => SelectedUnit(candidate, CompositeNominalTfSideV9.Person),
             motherUnitForPair: (_, candidate) => SelectedUnit(candidate, CompositeNominalTfSideV9.Mother),
             personRequiredForPair: (_, candidate) => Required(candidate, CompositeNominalTfSideV9.Person),
-            motherRequiredForPair: (_, candidate) => Required(candidate, CompositeNominalTfSideV9.Mother));
+            motherRequiredForPair: (_, candidate) => Required(candidate, CompositeNominalTfSideV9.Mother),
+            sharedSurnameMode: config.SharedSurnameMode);
     }
 
     public AdaptiveCalibrationHoldoutMetrics EvaluateValidation(
@@ -610,7 +612,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 activeUnits.Add((side, unit), fittedUnit);
             }
         }
-        long tp = 0, fp = 0;
+        long tp = 0, fp = 0, sharedSurnamePairs = 0;
         foreach (var row in rows)
         {
             var personLevel = CompositeNominalComparisonV9.Classify(
@@ -622,15 +624,19 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             {
                 return PreviewFrozenTf(frozen, config, row, side, personLevel, motherLevel);
             }
+            var personTerm = Term(CompositeNominalTfSideV9.Person, personLevel);
+            var motherTerm = Term(CompositeNominalTfSideV9.Mother, motherLevel);
+            if (CompositeNominalTfPreviewEvaluatorV9.IsSharedSurname(personTerm, motherTerm))
+                sharedSurnamePairs++;
             var score = FellegiSunterScoring.CalculateFrozenCompositeNominalV9BilateralPreviewScore(
                 frozen.Parameters,
                 row.LeftPersonName, row.RightPersonName,
                 row.LeftMotherName, row.RightMotherName,
                 frozenNominal,
                 leftBirthDate: row.LeftBirthDate, rightBirthDate: row.RightBirthDate,
-                personTf: Term(CompositeNominalTfSideV9.Person, personLevel),
-                motherTf: Term(CompositeNominalTfSideV9.Mother, motherLevel),
-                numericParameters: frozen.NumericParameters);
+                personTf: personTerm, motherTf: motherTerm,
+                numericParameters: frozen.NumericParameters,
+                sharedSurnameMode: config.SharedSurnameMode);
             var accepted = score.Posterior >= frozen.Threshold;
             if (accepted && row.IsTruePair) tp++;
             else if (accepted) fp++;
@@ -652,7 +658,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             Abstentions: truePairs - tp,
             BlockingFalseCandidatePairs: falsePairs,
             BlockingFalseDegreeP99: p99,
-            IndependentlyLabeledIdentityGroups: groups);
+            IndependentlyLabeledIdentityGroups: groups,
+            SharedSurnameCandidatePairs: sharedSurnamePairs);
     }
 
 
@@ -1236,6 +1243,17 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             "TF_SIDE=" + config.TfSide,
             "TF_MIN_FREQ=" + config.TfMinimumFrequency.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "TF_SUPPORT=" + config.TfMinimumIndependentSupport);
+        if (!Enum.IsDefined(config.SharedSurnameMode))
+            throw new InvalidDataException("Modo de sobrenome compartilhado desconhecido.");
+        if (config.SharedSurnameMode == V9SharedSurnameModeV9.ConservativeSingleWhenShared)
+        {
+            if (config.UnitTfOptions is not { } unitOptions
+                || !new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother }
+                    .All(side => unitOptions.Any(x => x.Side == side
+                        && x.Unit == NominalFrequencyUnitV9.LastContentSurname && x.Weight > 0m)))
+                throw new InvalidDataException("Modo de sobrenome único exige ambos os pesos de sobrenome positivos.");
+            canonical += "|SHARED_SURNAME_MODE=" + config.SharedSurnameMode;
+        }
         if (config.UnitTfOptions is not null)
         {
             // A four-unit TF0 candidate must not accidentally inherit the

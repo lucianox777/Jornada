@@ -10,8 +10,16 @@ import importlib.util
 import json
 from pathlib import Path
 
+def _tf_helper():
+    spec = importlib.util.spec_from_file_location(
+        "v9_tf_option_grid", Path(__file__).with_name("v9-tf-option-grid.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
-def prepare(corpus: Path, destination: Path, fixture: bool = False):
+
+def prepare(corpus: Path, destination: Path, fixture: bool = False,
+            tf_search: bool = False, pinned_ibge: Path | None = None):
     if destination.exists():
         raise FileExistsError(destination)
     manifest_path = corpus.parent / "generation-manifest.json"
@@ -31,7 +39,20 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False):
     models = [{"OptionId": f"A{alpha}_T{threshold}_TF0", "SmoothingAlpha": alpha,
         "DecisionThreshold": threshold, "TfWeight": 0}
         for alpha in ([.5] if fixture else [.1, .5, 1]) for threshold in [.90, .95, .99]]
-    maximum = 24 if fixture else 1000000
+    if tf_search:
+        if fixture:
+            raise ValueError("TF search requires the real 30k study, not plumbing fixture")
+        if pinned_ibge is None:
+            raise ValueError("TF search requires --pinned-ibge with exact reference/digests")
+        helper = _tf_helper()
+        models = helper.option_grid(alpha=.5, threshold=.95)
+        pinned = helper.pinned_reference(json.loads(pinned_ibge.read_bytes()))
+    else:
+        pinned = None
+    # Predeclared stage 1+2 and shared surname: 45 options × two margins ×
+    # two initial rule sets (19-pass union and baseline) = 180 comparisons.
+    # Further adaptive refinement is bounded to 512 including initial set.
+    maximum = 24 if fixture else (512 if tf_search else 1000000)
     calibration = dict(StudyFingerprintSha256=study,
         Discovery=dict(MaximumPrefixLength=4), ModelOptions=models, ConflictMargins=[.5, 2],
         Budget=dict(Version="ADAPTIVE_CALIBRATION_PREVIEW_BUDGET_V1", StudyFingerprintSha256=study,
@@ -57,9 +78,26 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False):
         InitialThresholdStep=.025, InitialMarginStep=.25, AdjustmentFraction=.7,
         MinimumRecallImprovement=.0001, MinimumFdrImprovement=.00001,
         Purpose="PLUMBING_FIXTURE_NOT_CERTIFICATION" if fixture else "BOOTSTRAP_CANDIDATE_SELECTION")
+    if tf_search:
+        plan.update(pinned)
+        # No subset selected from VALIDATION. Candidate neighbours continue
+        # using the same 19-pass TRAIN catalogue and existing C# Pareto.
+        calibration["MaximumComparedConfigurations"] = maximum
+        calibration["MaximumPhysicalRuleSets"] = 2
+        cost = helper.budget_estimate(models, rulesets=2,
+                                     margins=len(calibration["ConflictMargins"]))
+        if cost["predeclared_comparisons"] > maximum:
+            raise ValueError("TF initial family exceeds the predeclared compute budget")
+        sidecar = destination.with_suffix(".tf-budget.json")
+        if sidecar.exists():
+            raise FileExistsError(sidecar)
     with destination.open("x", encoding="utf-8") as stream:
         json.dump(plan, stream, indent=2)
         stream.write("\n")
+    if tf_search:
+        with sidecar.open("x", encoding="utf-8") as stream:
+            json.dump(cost, stream, indent=2)
+            stream.write("\n")
 
 
 if __name__ == "__main__":
@@ -67,5 +105,12 @@ if __name__ == "__main__":
     parser.add_argument("corpus", type=Path)
     parser.add_argument("new_plan", type=Path)
     parser.add_argument("--plumbing-fixture", action="store_true")
+    parser.add_argument("--tf-search", action="store_true",
+                        help="45 predeclared TF unit combinations (manual 30k only)")
+    parser.add_argument("--pinned-ibge", type=Path,
+                        help="Existing pinned SQL IBGE version, digests and bootstrap JSON")
     args = parser.parse_args()
-    prepare(args.corpus, args.new_plan, args.plumbing_fixture)
+    if args.pinned_ibge is not None and not args.tf_search:
+        parser.error("--pinned-ibge requires --tf-search")
+    prepare(args.corpus, args.new_plan, args.plumbing_fixture,
+            tf_search=args.tf_search, pinned_ibge=args.pinned_ibge)

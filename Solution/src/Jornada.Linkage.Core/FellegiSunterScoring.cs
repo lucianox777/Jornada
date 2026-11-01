@@ -131,7 +131,8 @@ public static class FellegiSunterScoring
         DateOnly? leftBirthDate = null, DateOnly? rightBirthDate = null,
         CompositeNominalTfPreviewV9? personTf = null,
         CompositeNominalTfPreviewV9? motherTf = null,
-        IReadOnlyDictionary<string, double>? numericParameters = null)
+        IReadOnlyDictionary<string, double>? numericParameters = null,
+        V9SharedSurnameModeV9 sharedSurnameMode = V9SharedSurnameModeV9.Bilateral)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(frozen);
@@ -140,7 +141,7 @@ public static class FellegiSunterScoring
         var selected = frozen.Classify(leftPersonName, rightPersonName, leftMotherName, rightMotherName);
         var adjustment = CompositeNominalTfPreviewEvaluatorV9.CalculateBilateral(
             selected.Person, selected.Mother, leftPersonName, rightPersonName,
-            leftMotherName, rightMotherName, personTf, motherTf);
+            leftMotherName, rightMotherName, personTf, motherTf, sharedSurnameMode);
         var raw = Evaluate(numericParameters ?? ToDoubleParameters(parameters),
             nameState: null, motherNameState: null, blockCandidateCount, leftBirthDate, rightBirthDate,
             captureBreakdown: false,

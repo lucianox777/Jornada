@@ -562,6 +562,39 @@ public sealed class FellegiSunterV9JointNominalTests
         Assert.That((Action)(() => Evaluate(mother, person)), Throws.InvalidOperationException);
     }
 
+
+    [Test]
+    public void V9SharedSurnameDeclaresBilateralOrOneConservativeContributionAndNeverInfersFamily()
+    {
+        var person = FirstNameTf("SILVA", .25m) with
+        {
+            Reference = FirstNameTf("MARIA", .25m).Reference with
+            {
+                Unit = NominalFrequencyUnitV9.LastContentSurname,
+                Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
+            }
+        };
+        var mother = person with { Side = CompositeNominalTfSideV9.Mother, TermFrequency = .5m };
+        double Score(V9SharedSurnameModeV9 mode, CompositeNominalTfPreviewV9? m) =>
+            CompositeNominalTfPreviewEvaluatorV9.CalculateBilateral(
+                CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactLast,
+                "Maria Silva", "Joana Silva", "Ana Silva", "Beatriz Silva",
+                person, m, mode);
+        var p = Math.Log(.10d / .25d);
+        var m = Math.Log(.10d / .50d);
+        Assert.That(CompositeNominalTfPreviewEvaluatorV9.IsSharedSurname(person, mother), Is.True);
+        Assert.That(Score(V9SharedSurnameModeV9.Bilateral, mother),
+            Is.EqualTo(p + m).Within(1e-12));
+        Assert.That(Score(V9SharedSurnameModeV9.ConservativeSingleWhenShared, mother),
+            Is.EqualTo(Math.Min(p, m)).Within(1e-12));
+        Assert.That((Action)(() => Score(V9SharedSurnameModeV9.ConservativeSingleWhenShared,
+            mother with { MatchedNormalizedValue = "COSTA" })),
+            Throws.TypeOf<InvalidOperationException>()); // inconsistent surname must fail closed
+        Assert.That(Score(V9SharedSurnameModeV9.ConservativeSingleWhenShared, null),
+            Is.EqualTo(p).Within(1e-12));
+        Assert.That((Action)(() => Score((V9SharedSurnameModeV9)99, mother)),
+            Throws.InvalidOperationException);
+    }
     [Test]
     public void V9DeclaredBirthEvidenceRequiresCompleteParametersEvenWhenBirthInputIsMissing()
     {

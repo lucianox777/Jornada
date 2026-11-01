@@ -12,6 +12,9 @@ public enum CompositeNominalTfSideV9 { Person, Mother }
 /// <summary>How a calibrated TF log-factor affects the single joint FS LLR.</summary>
 public enum CompositeNominalTfAdjustmentModeV9 { Symmetric = 0, AsymmetricPenaltyOnly = 1 }
 
+/// <summary>Experimental shared-surname dependence assumption, not a family relationship.</summary>
+public enum V9SharedSurnameModeV9 { Bilateral = 0, ConservativeSingleWhenShared = 1 }
+
 public sealed record CompositeNominalTfPreviewV9(
     CompositeNominalTfSideV9 Side,
     NominalFrequencyReferenceContractV9 Reference,
@@ -110,8 +113,11 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
         string? leftMother,
         string? rightMother,
         CompositeNominalTfPreviewV9? personTf,
-        CompositeNominalTfPreviewV9? motherTf)
+        CompositeNominalTfPreviewV9? motherTf,
+        V9SharedSurnameModeV9 sharedSurnameMode = V9SharedSurnameModeV9.Bilateral)
     {
+        if (!Enum.IsDefined(sharedSurnameMode))
+            throw new InvalidOperationException("Modo TF de sobrenome compartilhado inválido.");
         if (personTf is not null && personTf.Side != CompositeNominalTfSideV9.Person)
             throw new InvalidOperationException("TF bilateral exige referência de pessoa no lado pessoa.");
         if (motherTf is not null && motherTf.Side != CompositeNominalTfSideV9.Mother)
@@ -120,8 +126,21 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
             leftPerson, rightPerson, leftMother, rightMother, personTf);
         var motherAdjustment = Calculate(personLevel, motherLevel,
             leftPerson, rightPerson, leftMother, rightMother, motherTf);
+        if (sharedSurnameMode == V9SharedSurnameModeV9.ConservativeSingleWhenShared
+            && IsSharedSurname(personTf, motherTf))
+            return Math.Min(personAdjustment, motherAdjustment);
         return personAdjustment + motherAdjustment;
     }
+
+    /// <summary>Count only real bilateral ExactLast TF events with the same normalized surname.</summary>
+    internal static bool IsSharedSurname(
+        CompositeNominalTfPreviewV9? personTf, CompositeNominalTfPreviewV9? motherTf) =>
+        personTf is { Side: CompositeNominalTfSideV9.Person,
+            Reference.Unit: NominalFrequencyUnitV9.LastContentSurname, Weight: > 0m }
+        && motherTf is { Side: CompositeNominalTfSideV9.Mother,
+            Reference.Unit: NominalFrequencyUnitV9.LastContentSurname, Weight: > 0m }
+        && string.Equals(personTf.MatchedNormalizedValue, motherTf.MatchedNormalizedValue,
+            StringComparison.Ordinal);
 
     private static string? ProjectUnit(string? name, NominalFrequencyUnitV9 unit)
     {

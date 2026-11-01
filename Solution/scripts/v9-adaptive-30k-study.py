@@ -4,10 +4,20 @@ import argparse
 import hashlib
 import json
 import math
+import importlib.util
 from pathlib import Path
 
 
-def prepare(corpus: Path, plan_path: Path, cap_four: bool = False) -> None:
+def _tf_helper():
+    spec = importlib.util.spec_from_file_location(
+        "v9_tf_option_grid", Path(__file__).with_name("v9-tf-option-grid.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def prepare(corpus: Path, plan_path: Path, cap_four: bool = False,
+            tf_search: bool = False, pinned_ibge: Path | None = None) -> None:
     manifest = json.loads((corpus.parent / "generation-manifest.json").read_bytes())
     assert manifest["seed"] == 42
     assert manifest["population_profile"] == "DEMOGRAPHIC_PRIMARY_V1"
@@ -63,9 +73,36 @@ def prepare(corpus: Path, plan_path: Path, cap_four: bool = False) -> None:
             "ManifestSha256": manifest_sha, "ObservationsSha256": input_sha
         }
         # Source population cap differs from the blind candidate size guard (16).
+    if tf_search:
+        if not cap_four or pinned_ibge is None:
+            raise ValueError("TF physical study requires cap4 and --pinned-ibge")
+        helper = _tf_helper()
+        grid = helper.option_grid(alpha=.5, threshold=.95)
+        grid[0]["OptionId"] = "T0.95_TF0"  # preserve the known historical TF0 control ID
+        plan["ModelOptions"] = grid
+        # Isolate the TF comparison to ONE predeclared, unchanged 3-pass
+        # SQL blocking control; no 137 × 41 grid or TEST-driven pruning.
+        base_passes = plan["BaselineRuleSets"][0]
+        plan["DeclaredSearchSpace"] = {
+            "Catalogue": base_passes, "MinimumPasses": len(base_passes),
+            "MaximumPasses": len(base_passes)
+        }
+        plan["MaximumPhysicalRuleSets"] = 1
+        plan["PreviouslyComparedValidationConfigurations"] = 3726
+        cost = helper.budget_estimate(grid, rulesets=1,
+            margins=len(plan["ConflictMargins"]), previous=3726)
+        plan["MaximumComparedConfigurations"] = cost["predeclared_comparisons"]
+        plan.update(helper.pinned_reference(json.loads(pinned_ibge.read_bytes())))
+        sidecar = plan_path.with_suffix(".tf-budget.json")
+        if sidecar.exists():
+            raise FileExistsError(sidecar)
     with plan_path.open("x", encoding="utf-8") as stream:
         json.dump(plan, stream, indent=2)
         stream.write("\n")
+    if tf_search:
+        with sidecar.open("x", encoding="utf-8") as stream:
+            json.dump(cost, stream, indent=2)
+            stream.write("\n")
 
 
 def verify(root: Path) -> None:
@@ -161,10 +198,17 @@ if __name__ == "__main__":
     prep_cap = commands.add_parser("prepare-cap4")
     prep_cap.add_argument("corpus", type=Path)
     prep_cap.add_argument("plan", type=Path)
+    prep_tf = commands.add_parser("prepare-tf")
+    prep_tf.add_argument("corpus", type=Path)
+    prep_tf.add_argument("plan", type=Path)
+    prep_tf.add_argument("--pinned-ibge", type=Path, required=True)
     check = commands.add_parser("verify")
     check.add_argument("result", type=Path)
     args = parser.parse_args()
-    if args.mode in ("prepare", "prepare-cap4"):
-        prepare(args.corpus, args.plan, cap_four=args.mode == "prepare-cap4")
+    if args.mode in ("prepare", "prepare-cap4", "prepare-tf"):
+        prepare(args.corpus, args.plan,
+                cap_four=args.mode in ("prepare-cap4", "prepare-tf"),
+                tf_search=args.mode == "prepare-tf",
+                pinned_ibge=getattr(args, "pinned_ibge", None))
     else:
         verify(args.result)

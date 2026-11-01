@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Jornada.Contracts;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Parameters.Worker;
@@ -27,10 +28,17 @@ public static class V9AdaptiveCalibrationStudyCli
         var plan = JsonSerializer.Deserialize<V9AdaptiveCalibrationPlan>(await File.ReadAllBytesAsync(planPath), Json)
             ?? throw new InvalidDataException("Plano V9 ausente.");
         V9AdaptiveCalibrationCoordinator.ValidatePlan(plan);
-        // The programmatic coordinator accepts a pinned TF provider per ruleset.
-        // This file-only entry point must never silently replace positive TF with zero.
-        if (plan.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf))
-            throw new InvalidDataException("CLI requer TF=0; TF positiva usa RunAsync com referência IBGE fixada por frame.");
+        // Positive TF must have an explicit immutable published reference;
+        // it is loaded by exact version per SQL blocking frame, never ATIVA.
+        var positiveTf = plan.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf);
+        if (positiveTf
+            && (args[0] == "--v9-adaptive-census"
+                || plan.PinnedIbgeReferenceVersionId is null or <= 0
+                || plan.PinnedIbgePublishedSha256 is not { Length: 64 }
+                || plan.PinnedIbgeMaterializedFrequencySha256 is not { Length: 64 }
+                || plan.PinnedIbgeBootstrap is null))
+            throw new InvalidDataException(
+                "CLI TF positiva exige versão, digests, bootstrap IBGE fixados e estudo físico (não censo).");
         if (plan.ObservationCapDeclaration is { } declaration)
         {
             var manifestPath = Path.Combine(Path.GetDirectoryName(inputPath)!, "generation-manifest.json");
@@ -52,6 +60,26 @@ public static class V9AdaptiveCalibrationStudyCli
         var builder = new SqlConnectionStringBuilder(connectionString);
         if (!string.Equals(builder.InitialCatalog, "JornadaHarness", StringComparison.Ordinal))
             throw new InvalidOperationException("Estudo físico aceita exclusivamente o banco descartável JornadaHarness.");
+
+        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken,
+            Task<FrozenIbgeNominalTfV9?>>? referenceFactory = null;
+        if (positiveTf)
+        {
+            referenceFactory = async (passes, ct) =>
+            {
+                await using var referenceSql = new SqlConnection(connectionString);
+                await referenceSql.OpenAsync(ct);
+                var pinned = await FrozenIbgeNominalTfV9.LoadAsync(
+                    referenceSql, plan.PinnedIbgeReferenceVersionId!.Value,
+                    V9PhysicalSqlAdaptiveCalibrationProbe.ComputeBlockingFingerprint(passes),
+                    plan.PinnedIbgeBootstrap!, ct);
+                V9NestedCalibrationCoordinator.RequirePinnedTfReference(
+                    plan.PinnedIbgeReferenceVersionId, plan.PinnedIbgePublishedSha256,
+                    plan.PinnedIbgeMaterializedFrequencySha256,
+                    plan.PinnedIbgeBootstrap, pinned);
+                return pinned;
+            };
+        }
 
         Directory.CreateDirectory(outputPath);
         // CreateNew is also the concurrency guard for two invocations targeting the same directory.
@@ -84,7 +112,8 @@ public static class V9AdaptiveCalibrationStudyCli
                 try { await connection.OpenAsync(ct); return connection; }
                 catch { await connection.DisposeAsync(); throw; }
             },
-                observations, plan, CancellationToken.None);
+                observations, plan, CancellationToken.None,
+                frozenTfReferenceForRuleset: referenceFactory);
             foreach (var configuration in result.FrozenConfigurations)
             {
                 var path = Path.Combine(outputPath, configuration.Snapshot.ContentSha256 + ".fitted.json");

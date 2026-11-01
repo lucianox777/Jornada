@@ -27,7 +27,9 @@ public sealed record V9FittedSnapshotPayload(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     V9SnapshotFirstNameTf? MotherTfCalibration = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    IReadOnlyList<V9SnapshotUnitTf>? UnitTfCalibrations = null);
+    IReadOnlyList<V9SnapshotUnitTf>? UnitTfCalibrations = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral);
 
 public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
     decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
@@ -204,7 +206,8 @@ public sealed class V9FittedSnapshot
                 personRequiredForPair: (o, c) =>
                     Select(o, c, CompositeNominalTfSideV9.Person)?.State == V9SnapshotTfFitState.Active,
                 motherRequiredForPair: (o, c) =>
-                    Select(o, c, CompositeNominalTfSideV9.Mother)?.State == V9SnapshotTfFitState.Active);
+                    Select(o, c, CompositeNominalTfSideV9.Mother)?.State == V9SnapshotTfFitState.Active,
+                sharedSurnameMode: Payload.SharedSurnameMode);
         }
         // Legacy slots remain temporarily until snapshot producers are migrated.
         if (Payload.MotherTfCalibration is not null)
@@ -280,6 +283,7 @@ public sealed class V9FittedSnapshot
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)
             || p.Threshold is <= 0m or > 1m || p.ConflictMargin is < 0m or > 1000m
+            || !Enum.IsDefined(p.SharedSurnameMode)
             || p.TfWeight is < 0m or > 1m
             || (p.UnitTfCalibrations is null
                 && (p.TfWeight == 0m) != (p.TfCalibration is null))
@@ -338,6 +342,13 @@ public sealed class V9FittedSnapshot
                      LinkageParameterCatalog.LegacyBirthComponentScoring })
             if (parameters.GetValueOrDefault(unsupported) != 0m)
                 throw new InvalidDataException("Estratégia de nascimento não suportada pelo schema do snapshot.");
+        if (p.SharedSurnameMode == V9SharedSurnameModeV9.ConservativeSingleWhenShared
+            && (p.UnitTfCalibrations is null
+                || !new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother }
+                    .All(side => p.UnitTfCalibrations.Any(x => x.Side == side
+                        && x.Unit == NominalFrequencyUnitV9.LastContentSurname
+                        && x.State == V9SnapshotTfFitState.Active))))
+            throw new InvalidDataException("Sobrenome único exige dois slots de sobrenome TF ativos.");
         // New multi-unit fitting metadata is validated independently of the
         // legacy two-slot execution path. Never accept duplicate or contradictory
         // state/reference combinations.

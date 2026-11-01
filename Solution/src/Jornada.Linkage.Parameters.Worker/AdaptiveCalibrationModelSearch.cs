@@ -58,7 +58,10 @@ public sealed record AdaptiveCalibrationHoldoutMetrics(
     long Abstentions,
     long BlockingFalseCandidatePairs,
     double BlockingFalseDegreeP99,
-    int IndependentlyLabeledIdentityGroups);
+    int IndependentlyLabeledIdentityGroups,
+    [property: System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    long SharedSurnameCandidatePairs = 0);
 
 public sealed record AdaptiveCalibrationPreviewBudget(
     string Version,
