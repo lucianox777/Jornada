@@ -473,6 +473,37 @@ public sealed class FellegiSunterV9JointNominalTests
     }
 
     [Test]
+    public void V9ExactFullFirstNameProxyAsymmetricModeNeverRewardsRareName()
+    {
+        var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.Missing, .20m, .05m);
+        FellegiSunterScoreBreakdown Score(CompositeNominalTfPreviewV9? tf) =>
+            FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                PreviewParameters(), "Maria Silva", "MARIA SILVA", null, null,
+                cells, CompositeNominalComparisonV9.ContractVersion, nominalTf: tf);
+        var baseline = Score(null).Score.LogOdds;
+        var rare = FirstNameTf("MARIA", .01m);
+        var common = FirstNameTf("MARIA", .25m);
+        var rareSymmetric = Score(rare).Score.LogOdds;
+        var rareAsymmetric = Score(rare with
+        {
+            Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+        }).Score.LogOdds;
+        var commonAsymmetric = Score(common with
+        {
+            Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+        }).Score.LogOdds;
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(rareSymmetric, Is.GreaterThan(baseline));
+            Assert.That(rareAsymmetric, Is.EqualTo(baseline).Within(.0000001m));
+            Assert.That(commonAsymmetric, Is.LessThan(baseline));
+            Assert.That(Score(rare with { Weight = 0m }).Score.LogOdds,
+                Is.EqualTo(baseline).Within(.0000001m));
+        }));
+    }
+
+    [Test]
     public void V9DeclaredBirthEvidenceRequiresCompleteParametersEvenWhenBirthInputIsMissing()
     {
         var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
