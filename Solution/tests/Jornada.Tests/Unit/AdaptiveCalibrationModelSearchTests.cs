@@ -19,7 +19,8 @@ public sealed class AdaptiveCalibrationModelSearchTests
 
     private sealed class FakeAdapter(
         string family, long tp, long fp, bool wrongTrain = false, long? abstentionsOverride = null,
-        long? truePairsOverride = null, long? falseCandidatesOverride = null)
+        long? truePairsOverride = null, long? falseCandidatesOverride = null,
+        int? labeledGroupsOverride = null)
         : IAdaptiveCalibrationFamilyAdapter
     {
         public string ModelFamily => family;
@@ -49,7 +50,7 @@ public sealed class AdaptiveCalibrationModelSearchTests
                 Abstentions: abstentionsOverride ?? (1000 - tp),
                 BlockingFalseCandidatePairs: falseCandidatesOverride ?? 200,
                 BlockingFalseDegreeP99: 8.0,
-                IndependentlyLabeledIdentityGroups: 600);
+                IndependentlyLabeledIdentityGroups: labeledGroupsOverride ?? 600);
         }
     }
 
@@ -101,6 +102,21 @@ public sealed class AdaptiveCalibrationModelSearchTests
                 new FakeAdapter("FAMILY_FS_V9", 980, 2, abstentionsOverride: 21),
                 new FakeAdapter("FAMILY_FUTURE", 980, 2)
             ]));
+    }
+
+    [Test]
+    public void Validation_requires_at_least_two_independently_labeled_identity_groups()
+    {
+        // A source slice attestation cannot substitute for the adapter's actual
+        // labeled identity-group denominator. One or zero groups is not an
+        // independently measured VALIDATION result, even without a preview budget.
+        foreach (var groups in new[] { 0, 1 })
+            AssertThrows<InvalidDataException>(() =>
+                AdaptiveCalibrationModelSearch.Evaluate(Request(), [
+                    new FakeAdapter("FAMILY_FS_V9", 980, 2,
+                        labeledGroupsOverride: groups),
+                    new FakeAdapter("FAMILY_FUTURE", 980, 2)
+                ]));
     }
 
     [Test]
