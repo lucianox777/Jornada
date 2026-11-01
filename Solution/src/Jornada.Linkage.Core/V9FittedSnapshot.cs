@@ -169,32 +169,45 @@ public sealed class V9FittedSnapshot
     {
         var converted = candidates.Select(c =>
             new LinkageCandidate(c.PersonUuid, c.FullName, c.BirthDate, c.MotherName)).ToArray();
-        // Multi-unit fits take precedence: select exactly one eligible unit
-        // per side, reusing the existing CreateTf projection and scoring.
+        // Select one calibrated TF unit per nominal event and side, without
+        // introducing a second FS engine or modifying the joint 81-cell m/u.
         if (Payload.UnitTfCalibrations is { } fits)
         {
-            V9SnapshotUnitTf? Select(CompositeNominalTfSideV9 side,
-                string? left, string? right)
+            V9SnapshotUnitTf? Select(IdentityObservation o, LinkageCandidate c,
+                CompositeNominalTfSideV9 side)
             {
-                var level = CompositeNominalComparisonV9.Classify(left, right);
-                var unit = level == CompositeNominalLevelV9.ExactLast
-                    ? NominalFrequencyUnitV9.LastContentSurname
-                    : NominalFrequencyUnitV9.FirstName;
-                return fits.SingleOrDefault(x => x.Side == side && x.Unit == unit);
+                var level = side == CompositeNominalTfSideV9.Person
+                    ? CompositeNominalComparisonV9.Classify(o.NomeCompleto, c.NomeCompleto)
+                    : CompositeNominalComparisonV9.Classify(o.NomeMae, c.NomeMae);
+                NominalFrequencyUnitV9? unit = level switch
+                {
+                    CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactFull
+                        => NominalFrequencyUnitV9.FirstName,
+                    CompositeNominalLevelV9.ExactLast => NominalFrequencyUnitV9.LastContentSurname,
+                    _ => null
+                };
+                return unit is null ? null
+                    : fits.SingleOrDefault(x => x.Side == side && x.Unit == unit.Value);
             }
             CompositeNominalTfPreviewV9? Term(IdentityObservation o, LinkageCandidate c,
                 CompositeNominalTfSideV9 side)
             {
-                var fit = side == CompositeNominalTfSideV9.Person
-                    ? Select(side, o.NomeCompleto, c.NomeCompleto)
-                    : Select(side, o.NomeMae, c.NomeMae);
+                var fit = Select(o, c, side);
+                // A chosen zero keeps its frozen reference but has no score.
+                // Only an active fit requires per-pair frequency and U.
                 return fit?.State == V9SnapshotTfFitState.Active
                     ? CreateTf(o, c, fit.Calibration!) : null;
             }
             return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
                 Payload.Parameters, numericParameters, observation, converted, frozenNominal,
                 (o, c) => Term(o, c, CompositeNominalTfSideV9.Person),
-                (o, c) => Term(o, c, CompositeNominalTfSideV9.Mother));
+                (o, c) => Term(o, c, CompositeNominalTfSideV9.Mother),
+                personUnitForPair: (o, c) => Select(o, c, CompositeNominalTfSideV9.Person)?.Unit,
+                motherUnitForPair: (o, c) => Select(o, c, CompositeNominalTfSideV9.Mother)?.Unit,
+                personRequiredForPair: (o, c) =>
+                    Select(o, c, CompositeNominalTfSideV9.Person)?.State == V9SnapshotTfFitState.Active,
+                motherRequiredForPair: (o, c) =>
+                    Select(o, c, CompositeNominalTfSideV9.Mother)?.State == V9SnapshotTfFitState.Active);
         }
         // Legacy slots remain temporarily until snapshot producers are migrated.
         if (Payload.MotherTfCalibration is not null)
@@ -333,9 +346,12 @@ public sealed class V9FittedSnapshot
         {
             if (p.TfCalibration is not null || p.MotherTfCalibration is not null)
                 throw new InvalidDataException("TF V9 não admite fontes paralelas: use somente UnitTfCalibrations.");
-            if (unitFits.Count > 4 || unitFits.Any(x => x is null
-                || !Enum.IsDefined(x.Side) || !Enum.IsDefined(x.Unit)
-                || !Enum.IsDefined(x.State))
+            if (unitFits.Count is < 1 or > 4
+                || p.TfWeight != 0m || p.TfCalibration is not null || p.MotherTfCalibration is not null
+                || unitFits.Any(x => x is null
+                    || !Enum.IsDefined(x.Side) || !Enum.IsDefined(x.Unit)
+                    || x.Unit is not (NominalFrequencyUnitV9.FirstName or NominalFrequencyUnitV9.LastContentSurname)
+                    || !Enum.IsDefined(x.State))
                 || unitFits.Select(x => (x.Side, x.Unit)).Distinct().Count() != unitFits.Count)
                 throw new InvalidDataException("Configurações TF por lado/unidade inválidas ou duplicadas.");
             foreach (var fit in unitFits)
