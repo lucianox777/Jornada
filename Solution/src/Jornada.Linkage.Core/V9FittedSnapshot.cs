@@ -342,7 +342,7 @@ public sealed class V9FittedSnapshot
                      LinkageParameterCatalog.LegacyBirthComponentScoring })
             if (parameters.GetValueOrDefault(unsupported) != 0m)
                 throw new InvalidDataException("Estratégia de nascimento não suportada pelo schema do snapshot.");
-        if (p.SharedSurnameMode == V9SharedSurnameModeV9.ConservativeSingleWhenShared
+        if (p.SharedSurnameMode == V9SharedSurnameModeV9.PersonSideOnlyWhenShared
             && (p.UnitTfCalibrations is null
                 || !new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother }
                     .All(side => p.UnitTfCalibrations.Any(x => x.Side == side
