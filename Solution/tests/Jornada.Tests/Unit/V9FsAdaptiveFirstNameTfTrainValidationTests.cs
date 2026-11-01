@@ -195,9 +195,12 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         Assert.That(units.Single(x => x.Side == CompositeNominalTfSideV9.Person
             && x.Unit == NominalFrequencyUnitV9.FirstName).State,
             Is.EqualTo(V9SnapshotTfFitState.Active));
-        Assert.That(units.Count(x => x.State == V9SnapshotTfFitState.InsufficientSupport),
-            Is.EqualTo(3));
-        Assert.That(units.Where(x => x.State == V9SnapshotTfFitState.InsufficientSupport)
+        Assert.That(units.Single(x => x.Side == CompositeNominalTfSideV9.Mother
+            && x.Unit == NominalFrequencyUnitV9.FirstName).State,
+            Is.EqualTo(V9SnapshotTfFitState.InsufficientSupport));
+        Assert.That(units.Count(x => x.State == V9SnapshotTfFitState.NoSource),
+            Is.EqualTo(2));
+        Assert.That(units.Where(x => x.State != V9SnapshotTfFitState.Active)
             .All(x => x.Calibration is null), Is.True);
     }
 
