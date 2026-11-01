@@ -60,7 +60,8 @@ public sealed class V9GoldJointPhysicalReceiptTests
         {
             policy = "EXPERIMENTAL_LOWER_TRAIN_ONLY", threshold = .1m,
             scorerReused = true, operationalActivation = false,
-            disposableProcedureSha256 = Partition, finalFalseNewIdentityCreations = 2
+            disposableProcedureSha256 = Partition, finalFalseNewIdentityCreations = 2,
+            finalLowerBandProposals = 4, finalLowerBandCreated = 3, finalFalseLowerBandCreations = 1
         },
         goldBcubed = new
         {
@@ -189,14 +190,34 @@ public sealed class V9GoldJointPhysicalReceiptTests
     }
 
     [Test]
-    public void Rejects_false_new_identity_creations_exceeding_physical_new_identities()
+    public void Rejects_impossible_historical_creation_event_subsets()
     {
         var receipt = Receipt();
-        // The physical Gold publication created nine new identities. Ten false
-        // creations cannot be a subset of those nine, even though both counts
-        // fit within the frozen 20-source universe.
-        ((JsonObject)receipt["lowerNonMatchExperiment"]!)["finalFalseNewIdentityCreations"] = 10;
+        var historical = (JsonObject)receipt["lowerNonMatchExperiment"]!;
+        historical["finalLowerBandCreated"] = 5; // exceeds four proposals
         Reject(receipt);
+
+        receipt = Receipt();
+        historical = (JsonObject)receipt["lowerNonMatchExperiment"]!;
+        historical["finalFalseLowerBandCreations"] = 4; // exceeds three lower-band creations
+        Reject(receipt);
+
+        receipt = Receipt();
+        historical = (JsonObject)receipt["lowerNonMatchExperiment"]!;
+        historical["finalFalseLowerBandCreations"] = 3; // exceeds two false creations
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Historical_false_creations_may_exceed_final_new_identity_outcomes()
+    {
+        var receipt = Receipt();
+        // The producer preserves deduplicated physical creation EVENTS across
+        // waves and final reevaluation; final publication outcomes are last-result
+        // per source. They are not interchangeable denominators.
+        ((JsonObject)receipt["lowerNonMatchExperiment"]!)["finalFalseNewIdentityCreations"] = 10;
+        Assert.DoesNotThrow((TestDelegate)(() =>
+            V9GoldJointPhysicalReceipt.Read(Bytes(receipt), Fit, Gold, Csv, Selection)));
     }
 
     [Test]
