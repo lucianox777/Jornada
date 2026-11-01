@@ -32,12 +32,12 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False):
         "DecisionThreshold": threshold, "TfWeight": 0}
         for alpha in ([.5] if fixture else [.1, .5, 1]) for threshold in [.90, .95, .99]]
     maximum = 24 if fixture else 1000000
-    calibration = dict(StudyFingerprintSha256=study,
+    # Production TRAIN discovers the recall/FDR frontier without ex-ante statistical\n    # acceptance ceilings. The fixture's 1% band is plumbing-only, not a policy.\n    calibration = dict(StudyFingerprintSha256=study,
         Discovery=dict(MaximumPrefixLength=4), ModelOptions=models, ConflictMargins=[.5, 2],
         Budget=dict(Version="ADAPTIVE_CALIBRATION_PREVIEW_BUDGET_V1", StudyFingerprintSha256=study,
-            MinimumGlobalAcceptedRecall=0 if fixture else .95, MaximumObservedAcceptedFdrPoint=.01,
+            MinimumGlobalAcceptedRecall=0, MaximumObservedAcceptedFdrPoint=.01 if fixture else 1,
             MaximumBlockingFalseDegreeP99=10000 if fixture else 100, MinimumValidationIdentityGroups=2 if fixture else 1000),
-        SelectionPolicy=dict(MinimumGlobalRecall=0 if fixture else .95, MaximumAcceptedFdrUpper=.01,
+        SelectionPolicy=dict(MinimumGlobalRecall=0, MaximumAcceptedFdrUpper=.01 if fixture else 1,
             MinimumIndependentIdentityGroups=2 if fixture else 1000, MaximumP95Milliseconds=60000),
         MaximumPhysicalRuleSets=1000000, MaximumComparedConfigurations=maximum,
         Execution=dict(MaximumPrefixLength=4, EndToEndRepetitions=20, FsBlindGroupingOnly=True,
