@@ -297,7 +297,7 @@ public sealed class V9FittedSnapshotTests
         var bilateral = V9FittedSnapshot.Create(revised);
         var single = V9FittedSnapshot.Create(revised with
         {
-            SharedSurnameMode = V9SharedSurnameModeV9.ConservativeSingleWhenShared
+            SharedSurnameMode = V9SharedSurnameModeV9.PersonSideOnlyWhenShared
         });
         var roundtrip = V9FittedSnapshot.Load(single.SerializeUtf8(), single.ContentSha256);
         var observation = new IdentityObservation(null, "SEM_CPF",
@@ -307,7 +307,7 @@ public sealed class V9FittedSnapshotTests
         var bilateralScore = bilateral.RankPreview(observation, [candidate]).Single().LogOdds;
         var singleScore = roundtrip.RankPreview(observation, [candidate]).Single().LogOdds;
         Assert.That(roundtrip.Payload.SharedSurnameMode,
-            Is.EqualTo(V9SharedSurnameModeV9.ConservativeSingleWhenShared));
+            Is.EqualTo(V9SharedSurnameModeV9.PersonSideOnlyWhenShared));
         Assert.That(singleScore, Is.GreaterThan(bilateralScore));
         Assert.That(singleScore - bilateralScore,
             Is.EqualTo((decimal)Math.Abs(Math.Log(.1d / .5d))).Within(.00000002m));
