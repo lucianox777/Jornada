@@ -80,7 +80,16 @@ public static class V9GoldJointPhysicalReceipt
             (frozenFitSha256, "fit"), (canonicalGoldSnapshotSha256, "snapshot"),
             (originalTrainCsvSha256, "TRAIN CSV"), (selectionEnvelopeSha256, "selection") })
             Sha(value, name);
-        using var document = JsonDocument.Parse(studyBytes);
+        JsonDocument parsed;
+        try
+        {
+            parsed = JsonDocument.Parse(studyBytes);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException("Physical Gold TRAIN receipt is malformed JSON.", ex);
+        }
+        using var document = parsed;
         // A physical receipt must have one unambiguous value per field, at every depth.
         // JsonElement.TryGetProperty otherwise accepts the last duplicate silently.
         static void RequireUniqueKeys(JsonElement element)
