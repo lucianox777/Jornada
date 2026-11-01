@@ -283,7 +283,9 @@ public sealed class V9FittedSnapshot
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)
             || p.Threshold is <= 0m or > 1m || p.ConflictMargin is < 0m or > 1000m
-            || p.TfWeight is < 0m or > 1m || (p.TfWeight == 0m) != (p.TfCalibration is null)
+            || p.TfWeight is < 0m or > 1m
+            || (p.UnitTfCalibrations is null
+                && (p.TfWeight == 0m) != (p.TfCalibration is null))
             || p.BlockingPasses is null || p.BlockingPasses.Count == 0
             || p.JointCells is null || p.Parameters is null)
             throw new InvalidDataException("Snapshot V9 incompleto, incompatível ou TF sem referência congelada.");
