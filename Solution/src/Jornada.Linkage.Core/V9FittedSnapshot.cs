@@ -335,7 +335,7 @@ public sealed class V9FittedSnapshot
             RequireSha(p.BlockingFrameFingerprintSha256!);
             if (!tf.TrainCorpusFingerprintSha256.Equals(p.TrainCorpusSha256, StringComparison.OrdinalIgnoreCase)
                 || !Enum.IsDefined(tf.Side) || !Enum.IsDefined(tf.Mode) || tf.Reference is null
-                || (tf.Weight is { } ownWeight && (ownWeight <= 0m || ownWeight > 1m))
+                || (tf.Weight is { } ownWeight && (ownWeight < 0m || ownWeight > 1m))
                 || !p.BlockingFrameFingerprintSha256!.Equals(tf.Reference.BlockingFrameFingerprint,
                     StringComparison.OrdinalIgnoreCase)
                 || tf.MinimumFrequency is < 0m or > 1m || tf.MinimumIndependentSupport <= 0)
