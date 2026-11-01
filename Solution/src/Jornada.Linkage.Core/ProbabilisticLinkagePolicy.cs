@@ -273,7 +273,11 @@ internal static class ProbabilisticLinkageDecisions
         Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? personTf,
         Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? motherTf,
         NominalFrequencyUnitV9? personUnit = null,
-        NominalFrequencyUnitV9? motherUnit = null)
+        NominalFrequencyUnitV9? motherUnit = null,
+        Func<IdentityObservation, LinkageCandidate, NominalFrequencyUnitV9?>? personUnitForPair = null,
+        Func<IdentityObservation, LinkageCandidate, NominalFrequencyUnitV9?>? motherUnitForPair = null,
+        Func<IdentityObservation, LinkageCandidate, bool>? personRequiredForPair = null,
+        Func<IdentityObservation, LinkageCandidate, bool>? motherRequiredForPair = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(numericParameters);
@@ -308,10 +312,12 @@ internal static class ProbabilisticLinkageDecisions
             }
             Validate(CompositeNominalTfSideV9.Person,
                 CompositeNominalComparisonV9.Classify(observation.NomeCompleto, candidate.NomeCompleto),
-                personTf is not null, personUnit, person);
+                personRequiredForPair?.Invoke(observation, candidate) ?? personTf is not null,
+                personUnitForPair?.Invoke(observation, candidate) ?? personUnit, person);
             Validate(CompositeNominalTfSideV9.Mother,
                 CompositeNominalComparisonV9.Classify(observation.NomeMae, candidate.NomeMae),
-                motherTf is not null, motherUnit, mother);
+                motherRequiredForPair?.Invoke(observation, candidate) ?? motherTf is not null,
+                motherUnitForPair?.Invoke(observation, candidate) ?? motherUnit, mother);
             var score = FellegiSunterScoring.CalculateFrozenCompositeNominalV9BilateralPreviewScore(
                 parameters, observation.NomeCompleto, candidate.NomeCompleto,
                 observation.NomeMae, candidate.NomeMae, frozen, unique.Count,
