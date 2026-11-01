@@ -268,13 +268,35 @@ public sealed class AdaptiveCalibrationModelSearchTests
     }
 
     [Test]
-    public void Unsafe_Budget_Must_Not_Be_Loosened_Silently()
+    public void Explicit_Fdr_preview_budget_above_one_percent_is_descriptive_not_an_activation_gate()
     {
+        // No implicit 1% cap: risk budgets are explicit study inputs and
+        // never create an operational model or certify identity-dependent FDR.
         var request = Request(Budget() with { MaximumObservedAcceptedFdrPoint = 0.2 });
-        AssertThrows<InvalidDataException>(() =>
-            AdaptiveCalibrationModelSearch.Evaluate(request, [
-                new FakeAdapter("FAMILY_FS_V9", 980, 2),
-                new FakeAdapter("FAMILY_FUTURE", 980, 2)
-            ]));
+        var report = AdaptiveCalibrationModelSearch.Evaluate(request, [
+            new FakeAdapter("FAMILY_FS_V9", 980, 2),
+            new FakeAdapter("FAMILY_FUTURE", 980, 2)
+        ]);
+        Assert.That(report.Options, Has.Count.EqualTo(2));
+        Assert.That(report.Options.All(x => x.MeetsDescriptiveBudgetOnly), Is.True);
+        Assert.That(report.OperationalModelCreated, Is.False);
+        Assert.That(report.ConfidenceBoundForFdrMeasured, Is.False);
+        Assert.That(report.AutomaticRecalibrationOrActivationAllowed, Is.False);
+        Assert.That(report.TestUsed, Is.False);
+    }
+
+    [Test]
+    public void Explicit_Fdr_preview_budget_rejects_values_outside_probability_domain()
+    {
+        var adapters = new IAdaptiveCalibrationFamilyAdapter[]
+        {
+            new FakeAdapter("FAMILY_FS_V9", 980, 2),
+            new FakeAdapter("FAMILY_FUTURE", 980, 2)
+        };
+        foreach (var invalid in new[] { -0.01d, 1.01d, double.NaN,
+                                        double.PositiveInfinity, double.NegativeInfinity })
+            AssertThrows<InvalidDataException>(() =>
+                AdaptiveCalibrationModelSearch.Evaluate(
+                    Request(Budget() with { MaximumObservedAcceptedFdrPoint = invalid }), adapters));
     }
 }
