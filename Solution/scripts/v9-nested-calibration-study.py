@@ -31,7 +31,11 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
     spec = importlib.util.spec_from_file_location("catalogue", Path(__file__).with_name("v9-integral-search-study.py"))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    study = hashlib.sha256(("V9_INTERNAL_TRAIN_PARETO_V1|" + source_sha + "|" + str(fixture)).encode()).hexdigest()
+    # Distinct calibration families must never share a frozen study identity.
+    # Include the generation manifest as well as the source and search mode.
+    study = hashlib.sha256(("V9_INTERNAL_TRAIN_PARETO_V2|" + source_sha + "|"
+                            + manifest_sha + "|" + str(fixture) + "|"
+                            + str(tf_search)).encode()).hexdigest()
     catalogue = [{"PassId": key, "Fields": fields} for key, fields in sorted(module.CATALOGUE.items())]
     control = [p for p in catalogue if p["PassId"] in ["P_PHON_M_LAST", "P_LAST_M_PHON", "P_FIRST_BIRTH_YEAR"]]
     if fixture:
