@@ -439,6 +439,45 @@ public sealed class FellegiSunterV9JointNominalTests
     }
 
     [Test]
+    public void V9MotherExactFullTfUsesMotherUnitWithoutAddingSecondNominalContribution()
+    {
+        var cells = FullFrame(
+            CompositeNominalLevelV9.Missing,
+            CompositeNominalLevelV9.ExactFull, .20m, .05m);
+        var motherTf = FirstNameTf("ANA", .25m) with
+        {
+            Side = CompositeNominalTfSideV9.Mother,
+            MatchedNormalizedValue = "ANA COSTA",
+            Reference = new NominalFrequencyReferenceContractV9(
+                NominalFrequencyUnitV9.FullName,
+                NominalFrequencySourceV9.IndependentlyObservedPopulation,
+                "POPULATION", "BLOCKING", 2_000, true)
+        };
+        var plain = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            PreviewParameters(), null, null, "Ana Costa", "ANA COSTA",
+            cells, CompositeNominalComparisonV9.ContractVersion);
+        var adjusted = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            PreviewParameters(), null, null, "Ana Costa", "ANA COSTA",
+            cells, CompositeNominalComparisonV9.ContractVersion, nominalTf: motherTf);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(adjusted.Score.LogOdds - plain.Score.LogOdds,
+                Is.EqualTo((decimal)Math.Log(.10d / .25d)).Within(.0000001m));
+            Assert.That(adjusted.Contributions.Count(c => c.Evidence == "NOMINAL_CONJUNTO_V9"),
+                Is.EqualTo(1));
+            Assert.That(adjusted.Contributions, Has.Count.EqualTo(2));
+            Assert.That((Action)(() =>
+                FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                    PreviewParameters(), null, null, "Ana Costa", "ANA COSTA",
+                    cells, CompositeNominalComparisonV9.ContractVersion,
+                    nominalTf: motherTf with { Reference = motherTf.Reference with
+                        { Unit = NominalFrequencyUnitV9.FirstName } })),
+                Throws.InvalidOperationException);
+        }));
+    }
+
+    [Test]
     public void V9DeclaredBirthEvidenceRequiresCompleteParametersEvenWhenBirthInputIsMissing()
     {
         var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
