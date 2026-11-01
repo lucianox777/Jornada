@@ -153,7 +153,9 @@ public sealed class V9FittedSnapshot
             return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
                 Payload.Parameters, numericParameters, observation, converted, frozenNominal,
                 (o, c) => CreateTf(o, c, Payload.TfCalibration!),
-                (o, c) => CreateTf(o, c, Payload.MotherTfCalibration!));
+                (o, c) => CreateTf(o, c, Payload.MotherTfCalibration!),
+                Payload.TfCalibration!.Reference.Unit,
+                Payload.MotherTfCalibration!.Reference.Unit);
         return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9Preview(
             Payload.Parameters, numericParameters, observation, converted, frozenNominal,
             Payload.TfCalibration is null ? null : (o, c) => CreateTf(o, c, Payload.TfCalibration!),
