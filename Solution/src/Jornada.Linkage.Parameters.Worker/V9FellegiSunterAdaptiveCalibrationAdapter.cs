@@ -1245,7 +1245,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             "TF_SUPPORT=" + config.TfMinimumIndependentSupport);
         if (!Enum.IsDefined(config.SharedSurnameMode))
             throw new InvalidDataException("Modo de sobrenome compartilhado desconhecido.");
-        if (config.SharedSurnameMode == V9SharedSurnameModeV9.ConservativeSingleWhenShared)
+        if (config.SharedSurnameMode == V9SharedSurnameModeV9.PersonSideOnlyWhenShared)
         {
             if (config.UnitTfOptions is not { } unitOptions
                 || !new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother }
