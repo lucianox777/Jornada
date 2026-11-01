@@ -116,6 +116,125 @@ public sealed class V9FittedSnapshotTests
             new string('a', 64), .000001m, 1, p.TrainCorpusSha256) };
     }
 
+    private static V9FittedSnapshotPayload FourUnitTfPayload()
+    {
+        var p = PositiveTfPayload();
+        var personFirst = p.TfCalibration! with
+        {
+            Weight = 1m,
+            Frequencies = new Dictionary<string, decimal> { ["MARIA"] = .5m },
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["MARIA"] = .1m }
+        };
+        var motherFirst = personFirst with
+        {
+            Side = CompositeNominalTfSideV9.Mother,
+            Reference = personFirst.Reference with
+            {
+                PopulationFrameFingerprint = "IBGE_PUBLISHED:test:" + new string('a', 64) + ":BR_FEMININO"
+            },
+            Frequencies = new Dictionary<string, decimal> { ["ANA"] = .5m },
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["ANA"] = .1m }
+        };
+        var personLast = personFirst with
+        {
+            Reference = personFirst.Reference with
+            {
+                Unit = NominalFrequencyUnitV9.LastContentSurname,
+                Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
+            },
+            Frequencies = new Dictionary<string, decimal> { ["SILVA"] = .5m },
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["SILVA"] = .1m }
+        };
+        var motherLast = motherFirst with
+        {
+            Reference = motherFirst.Reference with
+            {
+                Unit = NominalFrequencyUnitV9.LastContentSurname,
+                Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
+            },
+            Frequencies = new Dictionary<string, decimal> { ["COSTA"] = .5m },
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["COSTA"] = .1m }
+        };
+        return p with
+        {
+            TfWeight = 0m, TfCalibration = null, MotherTfCalibration = null,
+            UnitTfCalibrations =
+            [
+                new(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,
+                    V9SnapshotTfFitState.Active, personFirst),
+                new(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.LastContentSurname,
+                    V9SnapshotTfFitState.Active, personLast),
+                new(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName,
+                    V9SnapshotTfFitState.Active, motherFirst),
+                new(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.LastContentSurname,
+                    V9SnapshotTfFitState.Active, motherLast)
+            ]
+        };
+    }
+
+    [Test]
+    public void Four_unit_tf_reuses_one_frozen_scorer_for_first_full_last_and_both_sides()
+    {
+        var fitted = V9FittedSnapshot.Create(FourUnitTfPayload());
+        var restored = V9FittedSnapshot.Load(fitted.SerializeUtf8(), fitted.ContentSha256);
+        var neutral = V9FittedSnapshot.Create(Payload());
+        decimal Score(V9FittedSnapshot snapshot, string personLeft, string personRight,
+            string? motherLeft = null, string? motherRight = null)
+        {
+            var observation = new IdentityObservation(null, "SEM_CPF", personLeft, null, motherLeft);
+            var candidate = new V9SnapshotCandidate(Guid.NewGuid(), personRight, null, motherRight);
+            return snapshot.RankPreview(observation, [candidate]).Single().LogOdds;
+        }
+        foreach (var pair in new[]
+        {
+            ("MARIA SILVA", "MARIA SOUZA", (string?)null, (string?)null), // ExactFirst
+            ("MARIA SILVA", "MARIA SILVA", (string?)null, (string?)null), // ExactFull proxy
+            ("JOANA SILVA", "BEATRIZ SILVA", (string?)null, (string?)null), // ExactLast
+            ("JOANA LIMA", "BEATRIZ SOUZA", (string?)"ANA COSTA", (string?)"ANA LIMA"), // Mother ExactFirst
+            ("JOANA LIMA", "BEATRIZ SOUZA", (string?)"ANA COSTA", (string?)"BEATRIZ COSTA") // Mother ExactLast
+        })
+        {
+            Assert.That(Score(fitted, pair.Item1, pair.Item2, pair.Item3, pair.Item4),
+                Is.LessThan(Score(neutral, pair.Item1, pair.Item2, pair.Item3, pair.Item4)));
+            Assert.That(Score(restored, pair.Item1, pair.Item2, pair.Item3, pair.Item4),
+                Is.EqualTo(Score(fitted, pair.Item1, pair.Item2, pair.Item3, pair.Item4)));
+        }
+        Assert.That(restored.ContentSha256, Is.EqualTo(fitted.ContentSha256));
+    }
+
+    [Test]
+    public void Four_unit_tf_preserves_chosen_zero_and_rejects_missing_active_surname()
+    {
+        var p = FourUnitTfPayload();
+        var units = p.UnitTfCalibrations!.ToArray();
+        units[1] = units[1] with
+        {
+            State = V9SnapshotTfFitState.ZeroChosen,
+            Calibration = units[1].Calibration! with { Weight = 0m }
+        };
+        var zero = V9FittedSnapshot.Create(p with { UnitTfCalibrations = units });
+        var neutral = V9FittedSnapshot.Create(Payload());
+        var observation = new IdentityObservation(null, "SEM_CPF", "JOANA SILVA", null, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "BEATRIZ SILVA", null, null);
+        Assert.That(zero.RankPreview(observation, [candidate]).Single().LogOdds,
+            Is.EqualTo(neutral.RankPreview(observation, [candidate]).Single().LogOdds));
+        Assert.That(V9FittedSnapshot.Load(zero.SerializeUtf8(), zero.ContentSha256)
+            .Payload.UnitTfCalibrations![1].State, Is.EqualTo(V9SnapshotTfFitState.ZeroChosen));
+        units[1] = units[1] with
+        {
+            State = V9SnapshotTfFitState.Active,
+            Calibration = units[1].Calibration! with { Weight = 1m }
+        };
+        var active = V9FittedSnapshot.Create(p with { UnitTfCalibrations = units });
+        Assert.Throws<InvalidDataException>((Action)(() => active.RankPreview(
+            new IdentityObservation(null, "SEM_CPF", "JOANA COSTA", null, null),
+            [candidate with { FullName = "BEATRIZ COSTA" }])));
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(p with
+        {
+            UnitTfCalibrations = [units[0], units[0]]
+        })));
+    }
+
     [Test]
     public void External_validation_rejects_positive_tf_with_foreign_published_digest_before_exposure()
     {
