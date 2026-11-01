@@ -228,10 +228,17 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 unitFits.Add(new V9SnapshotUnitTf(side, unit, V9SnapshotTfFitState.Active,
                     tf with { Weight = config.TfWeight }));
             }
+            else if (config.TfWeight == 0m)
+            {
+                // Explicit TF0 is a scoring baseline, not a claim that each
+                // nominal unit was statistically fitted or had an IBGE source.
+                // No active TF means the frozen 81-cell scorer stays unchanged.
+                unitFits.Add(new V9SnapshotUnitTf(side, unit,
+                    V9SnapshotTfFitState.ZeroChosen, null));
+            }
             else
             {
-                // Unfitted is not NoSource, InsufficientSupport or ZeroChosen.
-                // Fail closed rather than publish a misleading four-unit snapshot.
+                // Positive TF still requires the missing units to be fitted.
                 throw new InvalidOperationException(
                     $"Exportação TF V9 incompleta: {side}/{unit} não foi calibrada no TRAIN.");
             }
