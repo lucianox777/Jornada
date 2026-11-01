@@ -97,6 +97,32 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
             ? Math.Min(0d, adjustment) : adjustment;
     }
 
+    /// <summary>
+    /// Combines one calibrated TF correction per distinct side without
+    /// duplicating either side or the nominal joint-cell LLR. A caller must
+    /// supply the two independently fitted U references and weights.
+    /// </summary>
+    internal static double CalculateBilateral(
+        CompositeNominalLevelV9 personLevel,
+        CompositeNominalLevelV9 motherLevel,
+        string? leftPerson,
+        string? rightPerson,
+        string? leftMother,
+        string? rightMother,
+        CompositeNominalTfPreviewV9? personTf,
+        CompositeNominalTfPreviewV9? motherTf)
+    {
+        if (personTf is not null && personTf.Side != CompositeNominalTfSideV9.Person)
+            throw new InvalidOperationException("TF bilateral exige referência de pessoa no lado pessoa.");
+        if (motherTf is not null && motherTf.Side != CompositeNominalTfSideV9.Mother)
+            throw new InvalidOperationException("TF bilateral exige referência de mãe no lado mãe.");
+        var personAdjustment = Calculate(personLevel, motherLevel,
+            leftPerson, rightPerson, leftMother, rightMother, personTf);
+        var motherAdjustment = Calculate(personLevel, motherLevel,
+            leftPerson, rightPerson, leftMother, rightMother, motherTf);
+        return personAdjustment + motherAdjustment;
+    }
+
     private static string? ProjectUnit(string? name, NominalFrequencyUnitV9 unit)
     {
         var projection = BrazilianNameComponents.Project(name);
