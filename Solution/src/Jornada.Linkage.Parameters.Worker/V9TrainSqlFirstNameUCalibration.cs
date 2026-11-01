@@ -22,7 +22,10 @@ public static class V9TrainSqlFirstNameUCalibration
         int UnmatchedExactFirstCandidatePairs,
         IReadOnlyDictionary<string, decimal> FirstNameUnitUByValue,
         string FingerprintSha256,
-        NominalFrequencyUnitV9 Unit = NominalFrequencyUnitV9.FirstName);
+        NominalFrequencyUnitV9 Unit = NominalFrequencyUnitV9.FirstName)
+    {
+        public bool HasSufficientSupport => UnmatchedExactFirstCandidatePairs >= 2 && FirstNameUnitUByValue.Count > 0;
+    }
 
     public static Frozen Fit(
         IReadOnlyCollection<V9FsAdaptiveCandidatePair> trainSqlCandidates,
@@ -61,8 +64,15 @@ public static class V9TrainSqlFirstNameUCalibration
             n = checked(n + 1);
         }
         if (n < 2 || counts.Count == 0)
-            throw new InvalidDataException(
-                "TF positiva exige suporte TRAIN U na unidade ExactFirst do mesmo SQL.");
+        {
+            var insufficientCanonical = $"{Version}|INSUFFICIENT_SUPPORT|{side}|{unit}|{trainFingerprintSha256}|{n}";
+            var insufficientSha = Convert.ToHexString(
+                SHA256.HashData(Encoding.UTF8.GetBytes(insufficientCanonical))).ToLowerInvariant();
+            return new Frozen(side, trainFingerprintSha256, checked((int)n),
+                new ReadOnlyDictionary<string, decimal>(
+                    new Dictionary<string, decimal>(StringComparer.Ordinal)),
+                insufficientSha, unit);
+        }
         // The additional unseen bucket is reserved for diagnostic support
         // accounting, but unseen terms are always rejected by Preview.
         var denominator = n + smoothingAlpha * (counts.Count + 1);

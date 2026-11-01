@@ -236,21 +236,13 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         {
             if (frozenTfReference is null)
                 throw new InvalidDataException("Exportação TF positiva sem referência IBGE fixada.");
-            if (frozen.TrainUnitUs is null || frozen.TrainUnitUs.Count != 4)
-                throw new InvalidDataException("Exportação TF positiva exige as quatro unidades U TRAIN congeladas.");
+            RequireFrozenTrainUnits(frozen.TrainUnitUs);
             foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
             foreach (var unit in new[] { NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.LastContentSurname })
             {
-                if (!frozen.TrainUnitUs.TryGetValue((side, unit), out var value)
-                    || value.Side != side || value.Unit != unit
-                    || value.TrainFingerprintSha256 != frame.TrainCorpusFingerprintSha256)
-                    throw new InvalidDataException($"Exportação TF positiva sem U TRAIN válido: {side}/{unit}.");
                 // Validate the actual pinned marginal for this side and unit,
                 // not the legacy ExactFirst marginal for all four entries.
-                var level = unit == NominalFrequencyUnitV9.FirstName
-                    ? CompositeNominalLevelV9.ExactFirst
-                    : CompositeNominalLevelV9.ExactLast;
-                var marginal = frozenTfReference.ExportForSnapshot(side, level);
+                var marginal = ExportPinnedUnitMarginal(side, unit);
                 if (marginal.Frequencies.Count == 0)
                     throw new InvalidDataException($"Marginal IBGE vazia: {side}/{unit}.");
             }
@@ -269,16 +261,22 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             // Legacy positive TF selects one first-name unit. Other units
             // are NotSelected: they were not fitted to a zero-weight choice.
             var active = side == config.TfSide && unit == NominalFrequencyUnitV9.FirstName;
+            var trainU = frozen.TrainUnitUs![(side, unit)];
+            if (!trainU.HasSufficientSupport)
+            {
+                if (active)
+                    throw new InvalidDataException($"TF ativa sem suporte TRAIN U: {side}/{unit}.");
+                unitFits.Add(new V9SnapshotUnitTf(side, unit,
+                    V9SnapshotTfFitState.InsufficientSupport, null));
+                continue;
+            }
             if (!active)
             {
                 unitFits.Add(new V9SnapshotUnitTf(side, unit,
                     V9SnapshotTfFitState.NotSelected, null));
                 continue;
             }
-            var trainU = frozen.TrainUnitUs![(side, unit)];
-            var level = unit == NominalFrequencyUnitV9.FirstName
-                ? CompositeNominalLevelV9.ExactFirst : CompositeNominalLevelV9.ExactLast;
-            var marginal = frozenTfReference!.ExportForSnapshot(side, level);
+            var marginal = ExportPinnedUnitMarginal(side, unit);
             var calibration = new V9SnapshotFirstNameTf(
                 side, marginal.Reference, marginal.Frequencies,
                 trainU.FirstNameUnitUByValue, trainU.FingerprintSha256,
@@ -311,6 +309,42 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         var b = right.OrderBy(x => x.PassId, StringComparer.Ordinal).ToArray();
         return a.Zip(b).All(x => x.First.PassId == x.Second.PassId
             && x.First.Fields.SequenceEqual(x.Second.Fields, StringComparer.Ordinal));
+    }
+
+    private (NominalFrequencyReferenceContractV9 Reference, IReadOnlyDictionary<string, decimal> Frequencies)
+        ExportPinnedUnitMarginal(CompositeNominalTfSideV9 side, NominalFrequencyUnitV9 unit)
+    {
+        if (frozenTfReference is null)
+            throw new InvalidDataException("TF positivo exige referência IBGE congelada.");
+        var level = unit switch
+        {
+            NominalFrequencyUnitV9.FirstName => CompositeNominalLevelV9.ExactFirst,
+            NominalFrequencyUnitV9.LastContentSurname => CompositeNominalLevelV9.ExactLast,
+            _ => throw new InvalidDataException($"Unidade TF desconhecida: {unit}.")
+        };
+        var marginal = frozenTfReference.ExportForSnapshot(side, level);
+        if (marginal.Frequencies.Count == 0)
+            throw new InvalidDataException($"Marginal IBGE vazia: {side}/{unit}.");
+        return (marginal.Reference, marginal.Frequencies);
+    }
+
+    // TRAIN and snapshot export must agree on the complete frozen four-unit
+    // contract. VALIDATION consumes this same fit; it must never re-fit U.
+    private void RequireFrozenTrainUnits(
+        IReadOnlyDictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit),
+            V9TrainSqlFirstNameUCalibration.Frozen>? units)
+    {
+        if (units is null || units.Count != 4)
+            throw new InvalidDataException("TF positivo exige quatro unidades U TRAIN congeladas.");
+        foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
+        foreach (var unit in new[] { NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.LastContentSurname })
+        {
+            if (!units.TryGetValue((side, unit), out var value)
+                || value.Side != side || value.Unit != unit
+                || value.TrainFingerprintSha256 != frame.TrainCorpusFingerprintSha256
+                || string.IsNullOrWhiteSpace(value.FingerprintSha256))
+                throw new InvalidDataException($"U TRAIN inválido: {side}/{unit}.");
+        }
     }
 
     public AdaptiveCalibrationFitDraft FitTrain(
@@ -408,19 +442,14 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
 
         var fitSha = FittedFingerprintSha256(config, cells, parameters, schema.FingerprintSha256,
             frame.TrainCorpusFingerprintSha256, frame.TrainIdentityFingerprintSha256);
-        if (config.TfWeight > 0m && (trainUnitUs.Count != 4
-            || !trainUnitUs.ContainsKey((config.TfSide, NominalFrequencyUnitV9.FirstName))))
-            throw new InvalidDataException("TF positivo exige as quatro unidades U TRAIN e a unidade ativa.");
+        if (config.TfWeight > 0m)
+        {
+            RequireFrozenTrainUnits(trainUnitUs);
+            if (!trainUnitUs.ContainsKey((config.TfSide, NominalFrequencyUnitV9.FirstName)))
+                throw new InvalidDataException("TF positivo exige a unidade ativa congelada.");
+        }
         if (config.TfWeight == 0m && trainUnitUs.Count != 0)
             throw new InvalidDataException("Baseline TF0 não pode carregar U TRAIN calibrado.");
-        foreach (var entry in trainUnitUs)
-        {
-            if (entry.Value.Side != entry.Key.Side || entry.Value.Unit != entry.Key.Unit
-                || entry.Value.TrainFingerprintSha256 != frame.TrainCorpusFingerprintSha256
-                || string.IsNullOrWhiteSpace(entry.Value.FingerprintSha256))
-                throw new InvalidDataException(
-                    $"Unidade U TRAIN congelada inconsistente: {entry.Key.Side}/{entry.Key.Unit}.");
-        }
         if (trainUnitUs.Count == 4)
             fitSha = Sha(string.Join("|", fitSha,
                 string.Join("|", trainUnitUs.OrderBy(x => x.Key.Side).ThenBy(x => x.Key.Unit)
@@ -482,8 +511,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             CompositeNominalTfPreviewV9? nominalTf = null;
             if (config.TfWeight > 0m)
             {
-                if (frozen.TrainUnitU is null || frozenTfReference is null)
-                    throw new InvalidDataException("Fit TF V9 inconsistente.");
+                RequireFrozenTrainUnits(frozen.TrainUnitUs);
+                if (frozen.TrainUnitU is null || !frozen.TrainUnitU.HasSufficientSupport
+                    || frozenTfReference is null)
+                    throw new InvalidDataException($"TF ativa sem suporte TRAIN U: {config.TfSide}/{NominalFrequencyUnitV9.FirstName}.");
                 nominalTf = V9TrainSqlFirstNameUCalibration.Preview(
                     frozen.TrainUnitU, frozenTfReference,
                     CompositeNominalComparisonV9.Classify(row.LeftPersonName, row.RightPersonName),
