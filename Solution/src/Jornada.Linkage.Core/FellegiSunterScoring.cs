@@ -122,6 +122,33 @@ public static class FellegiSunterScoring
             leftMotherName, rightMotherName, frozen, blockCandidateCount, leftBirthDate, rightBirthDate,
             nominalTf, numericParameters, captureBreakdown: false).Raw.Score);
 
+    // Bilateral fitted TF uses the same frozen 81-cell FS likelihood, adding
+    // one calibrated adjustment per nominal side. No second nominal cell.
+    internal static FellegiSunterScore CalculateFrozenCompositeNominalV9BilateralPreviewScore(
+        IReadOnlyDictionary<string, decimal> parameters,
+        string? leftPersonName, string? rightPersonName, string? leftMotherName, string? rightMotherName,
+        FrozenFellegiSunterJointNominalV9 frozen, int? blockCandidateCount = null,
+        DateOnly? leftBirthDate = null, DateOnly? rightBirthDate = null,
+        CompositeNominalTfPreviewV9? personTf = null,
+        CompositeNominalTfPreviewV9? motherTf = null,
+        IReadOnlyDictionary<string, double>? numericParameters = null)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(frozen);
+        if (parameters.GetValueOrDefault(LinkageParameterCatalog.DecisionEvidenceScoring) < 1m)
+            throw new InvalidOperationException("Preview V9 exige FS decision-evidence habilitado.");
+        var selected = frozen.Classify(leftPersonName, rightPersonName, leftMotherName, rightMotherName);
+        var adjustment = CompositeNominalTfPreviewEvaluatorV9.CalculateBilateral(
+            selected.Person, selected.Mother, leftPersonName, rightPersonName,
+            leftMotherName, rightMotherName, personTf, motherTf);
+        var raw = Evaluate(numericParameters ?? ToDoubleParameters(parameters),
+            nameState: null, motherNameState: null, blockCandidateCount, leftBirthDate, rightBirthDate,
+            captureBreakdown: false,
+            v9Joint: (string.Empty, (double)selected.M, (double)selected.U,
+                selected.LogLikelihoodRatio + adjustment));
+        return ToContractScore(raw.Score);
+    }
+
     private static (RawEvaluation Raw, FrozenNominalStateV9 Cell) EvaluateFrozenCompositeNominalV9(
         IReadOnlyDictionary<string, decimal> parameters,
         string? leftPersonName, string? rightPersonName, string? leftMotherName, string? rightMotherName,
