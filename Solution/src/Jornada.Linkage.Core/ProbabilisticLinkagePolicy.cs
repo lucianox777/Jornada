@@ -288,8 +288,13 @@ internal static class ProbabilisticLinkageDecisions
             static void Validate(CompositeNominalTfSideV9 side,
                 CompositeNominalLevelV9 level, bool configured, CompositeNominalTfPreviewV9? term)
             {
-                var eligible = level is CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactFull;
-                if ((configured && eligible && term is null)
+                var firstEligible = level is CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactFull;
+                var lastEligible = level == CompositeNominalLevelV9.ExactLast;
+                // ExactLast is a separate statistical event: never substitute
+                // first-name frequencies or a full-name marginal for its U.
+                var eligible = term?.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
+                    ? lastEligible : firstEligible;
+                if ((configured && (firstEligible || lastEligible) && term is null)
                     || (term is not null && (term.Side != side || !eligible || term.Weight <= 0m)))
                     throw new InvalidOperationException("TF bilateral V9 sem unidade ou frequência TRAIN válida.");
             }
