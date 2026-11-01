@@ -237,15 +237,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             if (frozenTfReference is null)
                 throw new InvalidDataException("Exportação TF positiva sem referência IBGE fixada.");
             RequireFrozenTrainUnits(frozen.TrainUnitUs);
-            foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
-            foreach (var unit in new[] { NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.LastContentSurname })
-            {
-                // Validate the actual pinned marginal for this side and unit,
-                // not the legacy ExactFirst marginal for all four entries.
-                var marginal = ExportPinnedUnitMarginal(side, unit);
-                if (marginal.Frequencies.Count == 0)
-                    throw new InvalidDataException($"Marginal IBGE vazia: {side}/{unit}.");
-            }
+
         }
         var unitFits = new List<V9SnapshotUnitTf>(4);
         foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
@@ -270,13 +262,27 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     V9SnapshotTfFitState.InsufficientSupport, null));
                 continue;
             }
+            (NominalFrequencyReferenceContractV9 Reference, IReadOnlyDictionary<string, decimal> Frequencies) marginal;
+            try
+            {
+                marginal = ExportPinnedUnitMarginal(side, unit);
+            }
+            catch (InvalidDataException ex) when (
+                ex.Message.Contains("Marginal IBGE fixada ausente", StringComparison.Ordinal)
+                || ex.Message.Contains("Marginal IBGE vazia", StringComparison.Ordinal))
+            {
+                if (active)
+                    throw new InvalidDataException($"TF ativa sem referência IBGE: {side}/{unit}.", ex);
+                unitFits.Add(new V9SnapshotUnitTf(side, unit,
+                    V9SnapshotTfFitState.NoSource, null));
+                continue;
+            }
             if (!active)
             {
                 unitFits.Add(new V9SnapshotUnitTf(side, unit,
                     V9SnapshotTfFitState.NotSelected, null));
                 continue;
             }
-            var marginal = ExportPinnedUnitMarginal(side, unit);
             var calibration = new V9SnapshotFirstNameTf(
                 side, marginal.Reference, marginal.Frequencies,
                 trainU.FirstNameUnitUByValue, trainU.FingerprintSha256,
@@ -445,8 +451,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         if (config.TfWeight > 0m)
         {
             RequireFrozenTrainUnits(trainUnitUs);
-            if (!trainUnitUs.ContainsKey((config.TfSide, NominalFrequencyUnitV9.FirstName)))
-                throw new InvalidDataException("TF positivo exige a unidade ativa congelada.");
+            if (!trainUnitUs.TryGetValue((config.TfSide, NominalFrequencyUnitV9.FirstName), out var activeU)
+                || !activeU.HasSufficientSupport)
+                throw new InvalidDataException(
+                    $"TF ativa sem suporte TRAIN U: {config.TfSide}/{NominalFrequencyUnitV9.FirstName}.");
         }
         if (config.TfWeight == 0m && trainUnitUs.Count != 0)
             throw new InvalidDataException("Baseline TF0 não pode carregar U TRAIN calibrado.");
