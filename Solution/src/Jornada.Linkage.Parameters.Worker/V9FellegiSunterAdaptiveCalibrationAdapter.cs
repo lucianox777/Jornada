@@ -349,12 +349,20 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         {
             if (frozenTfReference is null)
                 throw new InvalidOperationException("TF positiva exige snapshot IBGE fixado.");
-            var key = (config.TfSide, NominalFrequencyUnitV9.FirstName, alpha);
-            if (!trainingUnitUCache.TryGetValue(key, out trainU))
+            // Fit the four independent TRAIN conditional-U distributions before
+            // any positive-TF candidate is eligible for selection or export.
+            foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
+            foreach (var unit in new[] { NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.LastContentSurname })
             {
-                trainU = V9TrainSqlFirstNameUCalibration.Fit(
-                    trainingRows, config.TfSide, alpha, frame.TrainCorpusFingerprintSha256);
-                trainingUnitUCache.Add(key, trainU);
+                var key = (side, unit, alpha);
+                if (!trainingUnitUCache.TryGetValue(key, out var fittedUnit))
+                {
+                    fittedUnit = V9TrainSqlFirstNameUCalibration.Fit(
+                        trainingRows, side, alpha, frame.TrainCorpusFingerprintSha256, unit);
+                    trainingUnitUCache.Add(key, fittedUnit);
+                }
+                if (side == config.TfSide && unit == NominalFrequencyUnitV9.FirstName)
+                    trainU = fittedUnit;
             }
         }
 
