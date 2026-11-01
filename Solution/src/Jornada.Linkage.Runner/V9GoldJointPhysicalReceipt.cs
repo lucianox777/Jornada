@@ -240,11 +240,17 @@ public static class V9GoldJointPhysicalReceipt
             || falseLinksPublished > published - trueLinksPublished
             || newIdentitiesPublished != published - trueLinksPublished - falseLinksPublished)
             throw new InvalidDataException("Joint TRAIN publication categories do not reconcile the frozen Gold universe.");
-        // False new identities are a subset of the physically published new
-        // identities. Source-universe bounds alone cannot detect a receipt
-        // that claims more false creations than the Runner actually created.
-        if (falseCreations > newIdentitiesPublished)
-            throw new InvalidDataException("Joint TRAIN false creations exceed physically published new identities.");
+        // Historical creation counters are deduplicated physical EVENTS over
+        // all waves plus final reevaluation, not the last publication outcome.
+        // Never compare them with final newIdentitySources: a source may have
+        // been created earlier and subsequently associated on reevaluation.
+        // The producer guarantees these nested event-set relationships.
+        var lowerProposals = Count(lowerTrial, "finalLowerBandProposals");
+        var lowerCreated = Count(lowerTrial, "finalLowerBandCreated");
+        var falseLowerCreated = Count(lowerTrial, "finalFalseLowerBandCreations");
+        if (lowerProposals > sourceCount || lowerCreated > lowerProposals
+            || falseLowerCreated > lowerCreated || falseLowerCreated > falseCreations)
+            throw new InvalidDataException("Joint TRAIN historical creation event subsets are inconsistent.");
         var f1 = Fraction(gold, "CoverageAwareF1");
         return new(order, "TRAIN_SELECTION", frozenFitSha256, canonicalGoldSnapshotSha256,
             Convert.ToHexString(SHA256.HashData(studyBytes)).ToLowerInvariant(),
