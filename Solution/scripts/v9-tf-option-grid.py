@@ -40,14 +40,14 @@ def option_grid(alpha=0.5, threshold=0.95):
                 selected = {(first[0], first[1]): (weight, mode),
                             (second[0], second[1]): (weight, mode)}
                 results.append(make(f"TWO_{first[2]}_{second[2]}_W{weight:g}_M{mode}", selected))
-    # Decision 12: exact same positive surnames on person and mother can
-    # be treated as ONE conservative adjustment (min of the two LLRs).
-    # Only the two-surname pair tests this alternative, not other pairs.
+    # Decision 12: bilateral is the production candidate. Shared-surname
+    # person-side-only is diagnostic evidence, never an automatic finalist.
+    # The nested plan excludes these four options from ModelOptions.
     for weight in WEIGHTS:
         for mode in MODES:
             selected = {(0, 3): (weight, mode), (1, 3): (weight, mode)}
             variant = make(f"SHARED_PL_ML_W{weight:g}_M{mode}", selected)
-            variant["SharedSurnameMode"] = 1
+            variant["SharedSurnameMode"] = 1  # PersonSideOnlyWhenShared
             results.append(variant)
     if len(results) != 45 or len({item["OptionId"] for item in results}) != 45:
         raise AssertionError("V9 TF grid does not match its frozen predeclared size")
