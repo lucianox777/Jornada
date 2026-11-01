@@ -112,7 +112,7 @@ public static class V9AdaptiveCalibrationCoordinator
         if (budget.Version != AdaptiveCalibrationPreviewBudget.CurrentVersion
             || budget.StudyFingerprintSha256 != plan.StudyFingerprintSha256
             || !double.IsFinite(budget.MinimumGlobalAcceptedRecall) || budget.MinimumGlobalAcceptedRecall is < 0 or > 1
-            || !double.IsFinite(budget.MaximumObservedAcceptedFdrPoint) || budget.MaximumObservedAcceptedFdrPoint is < 0 or > .01
+            || !double.IsFinite(budget.MaximumObservedAcceptedFdrPoint) || budget.MaximumObservedAcceptedFdrPoint is < 0 or > 1
             || budget.MinimumValidationIdentityGroups < 2
             || !double.IsFinite(budget.MaximumBlockingFalseDegreeP99) || budget.MaximumBlockingFalseDegreeP99 < 0
             || !double.IsFinite(policy.MinimumGlobalRecall) || policy.MinimumGlobalRecall is < 0 or > 1

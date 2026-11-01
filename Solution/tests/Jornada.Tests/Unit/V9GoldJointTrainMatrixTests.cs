@@ -108,6 +108,16 @@ public sealed class V9GoldJointTrainMatrixTests
     }
 
     [Test]
+    public void Rejects_malformed_physical_receipt_as_invalid_evidence()
+    {
+        var plan = PlanBytes();
+        var receipts = PhysicalReceipts(plan);
+        receipts[0] = Encoding.UTF8.GetBytes("{\"jointTrainPhysicalTrial\":");
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
+    }
+
+    [Test]
     public void Rejects_missing_repeated_or_cross_plan_cells()
     {
         var plan = PlanBytes();
@@ -140,6 +150,22 @@ public sealed class V9GoldJointTrainMatrixTests
         Assert.Throws<InvalidDataException>((Action)(() =>
             V9GoldJointTrainMatrixCommand.ValidateCellPlan(plan, .7m, .1m,
                 V9LowerNonMatchTrainCalibrator.JointOrders[0])));
+    }
+
+    [Test]
+    public void Rejects_disposable_instance_with_trailing_newline_instead_of_exact_localdb_name()
+    {
+        var plan = PlanBytes();
+        var receipts = PhysicalReceipts(plan);
+        var node = JsonNode.Parse(receipts[0])!.AsObject();
+        var trial = (JsonObject)node["jointTrainPhysicalTrial"]!;
+        trial["disposableLocalDbInstance"] =
+            trial["disposableLocalDbInstance"]!.GetValue<string>() + "\n";
+        receipts[0] = JsonSerializer.SerializeToUtf8Bytes(node);
+
+        // A terminal newline must not be accepted as part of the LocalDB instance name.
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
     }
 
     [Test]

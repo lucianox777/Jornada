@@ -80,6 +80,12 @@ def prepare(corpus: Path, plan_path: Path, cap_four: bool = False,
         grid = helper.option_grid(alpha=.5, threshold=.95)
         grid[0]["OptionId"] = "T0.95_TF0"  # preserve the known historical TF0 control ID
         plan["ModelOptions"] = grid
+        # The exploratory search must not pre-exclude a risk region before
+        # TRAIN evidence: Pareto/frontier is descriptive, gates come later.
+        plan["Budget"]["MinimumGlobalAcceptedRecall"] = 0
+        plan["Budget"]["MaximumObservedAcceptedFdrPoint"] = 1
+        plan["SelectionPolicy"]["MinimumGlobalRecall"] = 0
+        plan["SelectionPolicy"]["MaximumAcceptedFdrUpper"] = 1
         # Isolate the TF comparison to ONE predeclared, unchanged 3-pass
         # SQL blocking control; no 137 × 41 grid or TEST-driven pruning.
         base_passes = plan["BaselineRuleSets"][0]

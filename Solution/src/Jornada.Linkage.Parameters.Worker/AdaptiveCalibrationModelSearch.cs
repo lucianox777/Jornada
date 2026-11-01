@@ -179,7 +179,7 @@ public static class AdaptiveCalibrationModelSearch
                 || !double.IsFinite(budget.MinimumGlobalAcceptedRecall)
                 || budget.MinimumGlobalAcceptedRecall is < 0 or > 1
                 || !double.IsFinite(budget.MaximumObservedAcceptedFdrPoint)
-                || budget.MaximumObservedAcceptedFdrPoint is < 0 or > 0.01
+                || budget.MaximumObservedAcceptedFdrPoint is < 0 or > 1
                 || !double.IsFinite(budget.MaximumBlockingFalseDegreeP99)
                 || budget.MaximumBlockingFalseDegreeP99 < 0
                 || budget.MinimumValidationIdentityGroups < 2)
@@ -213,12 +213,16 @@ public static class AdaptiveCalibrationModelSearch
                 || validation.Abstentions > validation.TruePairsWithoutCpf - validation.TrueAcceptedLinks
                 || validation.BlockingFalseCandidatePairs < 0
                 || validation.FalseAcceptedLinks > validation.BlockingFalseCandidatePairs
-                || validation.IndependentlyLabeledIdentityGroups < 0
+                || validation.IndependentlyLabeledIdentityGroups < 2
                 || validation.IndependentlyLabeledIdentityGroups > request.Validation.DistinctIdentityGroups
                 || !double.IsFinite(validation.BlockingFalseDegreeP99)
                 || validation.BlockingFalseDegreeP99 < 0)
                 throw new InvalidDataException("Métricas de VALIDATION inválidas.");
-            var accepted = checked(validation.TrueAcceptedLinks + validation.FalseAcceptedLinks);
+            // Exact master guard: two valid Int64 counts may overflow jointly.
+            // Reject inconsistent validation evidence with a domain error.
+            if (validation.TrueAcceptedLinks > long.MaxValue - validation.FalseAcceptedLinks)
+                throw new InvalidDataException("Métricas de VALIDATION excedem o total representável de vínculos aceitos.");
+            var accepted = validation.TrueAcceptedLinks + validation.FalseAcceptedLinks;
             var recall = (double)validation.TrueAcceptedLinks / validation.TruePairsWithoutCpf;
             double? fdrPoint = accepted > 0
                 ? (double)validation.FalseAcceptedLinks / accepted : null;

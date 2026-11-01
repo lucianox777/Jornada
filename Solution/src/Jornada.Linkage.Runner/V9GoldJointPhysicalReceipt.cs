@@ -80,7 +80,16 @@ public static class V9GoldJointPhysicalReceipt
             (frozenFitSha256, "fit"), (canonicalGoldSnapshotSha256, "snapshot"),
             (originalTrainCsvSha256, "TRAIN CSV"), (selectionEnvelopeSha256, "selection") })
             Sha(value, name);
-        using var document = JsonDocument.Parse(studyBytes);
+        JsonDocument parsed;
+        try
+        {
+            parsed = JsonDocument.Parse(studyBytes);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException("Physical Gold TRAIN receipt is malformed JSON.", ex);
+        }
+        using var document = parsed;
         // A physical receipt must have one unambiguous value per field, at every depth.
         // JsonElement.TryGetProperty otherwise accepts the last duplicate silently.
         static void RequireUniqueKeys(JsonElement element)
@@ -191,9 +200,13 @@ public static class V9GoldJointPhysicalReceipt
 
         var acceptedTrue = Count(root, "trueAccepted");
         var acceptedFalse = Count(root, "falseAccepted");
-        var accepted = checked(acceptedTrue + acceptedFalse);
-        if (acceptedTrue > opportunities || accepted > sourceCount)
+        // Check against the frozen source universe BEFORE summing. A malformed
+        // receipt can carry Int64.MaxValue counters; it must fail as invalid
+        // evidence, not escape the evidence contract as OverflowException.
+        if (acceptedTrue > opportunities || acceptedTrue > sourceCount
+            || acceptedFalse > sourceCount - acceptedTrue)
             throw new InvalidDataException("Joint TRAIN accepted links exceed frozen opportunities/sources.");
+        var accepted = acceptedTrue + acceptedFalse;
         var falseCreations = Count(lowerTrial, "finalFalseNewIdentityCreations");
         if (falseCreations > sourceCount)
             throw new InvalidDataException("Joint TRAIN physical creations exceed sources.");
@@ -215,6 +228,29 @@ public static class V9GoldJointPhysicalReceipt
             || pending != sourceCount - published
             || goldGroups > published || (goldGroups == 0) != (published == 0))
             throw new InvalidDataException("Joint TRAIN stable Gold/B-cubed publication universe mismatch.");
+        // The real Runner reports mutually exclusive final publication outcomes.
+        // Verify their sum against the physically published source universe, not
+        // just the pending count. Subtraction avoids overflowing hostile Int64
+        // counters before they can be rejected as invalid evidence.
+        var publication = Required(root, "publication");
+        var trueLinksPublished = Count(publication, "trueExistingLinks");
+        var falseLinksPublished = Count(publication, "falseExistingLinks");
+        var newIdentitiesPublished = Count(publication, "newIdentitySources");
+        if (trueLinksPublished > published
+            || falseLinksPublished > published - trueLinksPublished
+            || newIdentitiesPublished != published - trueLinksPublished - falseLinksPublished)
+            throw new InvalidDataException("Joint TRAIN publication categories do not reconcile the frozen Gold universe.");
+        // Historical creation counters are deduplicated physical EVENTS over
+        // all waves plus final reevaluation, not the last publication outcome.
+        // Never compare them with final newIdentitySources: a source may have
+        // been created earlier and subsequently associated on reevaluation.
+        // The producer guarantees these nested event-set relationships.
+        var lowerProposals = Count(lowerTrial, "finalLowerBandProposals");
+        var lowerCreated = Count(lowerTrial, "finalLowerBandCreated");
+        var falseLowerCreated = Count(lowerTrial, "finalFalseLowerBandCreations");
+        if (lowerProposals > sourceCount || lowerCreated > lowerProposals
+            || falseLowerCreated > lowerCreated || falseLowerCreated > falseCreations)
+            throw new InvalidDataException("Joint TRAIN historical creation event subsets are inconsistent.");
         var f1 = Fraction(gold, "CoverageAwareF1");
         return new(order, "TRAIN_SELECTION", frozenFitSha256, canonicalGoldSnapshotSha256,
             Convert.ToHexString(SHA256.HashData(studyBytes)).ToLowerInvariant(),

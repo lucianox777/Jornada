@@ -60,7 +60,8 @@ public sealed class V9GoldJointPhysicalReceiptTests
         {
             policy = "EXPERIMENTAL_LOWER_TRAIN_ONLY", threshold = .1m,
             scorerReused = true, operationalActivation = false,
-            disposableProcedureSha256 = Partition, finalFalseNewIdentityCreations = 2
+            disposableProcedureSha256 = Partition, finalFalseNewIdentityCreations = 2,
+            finalLowerBandProposals = 4, finalLowerBandCreated = 3, finalFalseLowerBandCreations = 1
         },
         goldBcubed = new
         {
@@ -69,13 +70,23 @@ public sealed class V9GoldJointPhysicalReceiptTests
             GoldIdentityGroups = 4, PendingSources = 4,
             CoverageAwareF1 = .8
         },
-        publication = new { pendingSources = 4 }
+        publication = new { trueExistingLinks = 6, falseExistingLinks = 1, newIdentitySources = 9, pendingSources = 4 }
     })!.AsObject();
 
     private static byte[] Bytes(JsonObject node) => JsonSerializer.SerializeToUtf8Bytes(node);
     private static void Reject(JsonObject node) =>
         Assert.Throws<InvalidDataException>((Action)(() =>
             V9GoldJointPhysicalReceipt.Read(Bytes(node), Fit, Gold, Csv, Selection)));
+
+    [Test]
+    public void Rejects_malformed_standalone_physical_receipt_with_contract_exception()
+    {
+        // Direct receipt validation must fail closed with the same evidence
+        // exception as matrix aggregation; raw JsonException is not the contract.
+        var truncated = System.Text.Encoding.UTF8.GetBytes("{\"jointTrainPhysicalTrial\":");
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointPhysicalReceipt.Read(truncated, Fit, Gold, Csv, Selection)));
+    }
 
     [Test]
     public void Rejects_duplicate_receipt_fields_even_when_last_value_is_valid()
@@ -161,6 +172,55 @@ public sealed class V9GoldJointPhysicalReceiptTests
     }
 
     [Test]
+    public void Rejects_publication_counts_that_do_not_partition_the_frozen_source_universe()
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["publication"]!)["newIdentitySources"] = 10;
+        // 6 true links + 1 false link + 10 new identities + 4 pending
+        // cannot be reconciled with 20 frozen observations or 16 published.
+        Reject(receipt);
+
+        receipt = Receipt();
+        ((JsonObject)receipt["publication"]!).Remove("trueExistingLinks");
+        Reject(receipt);
+
+        receipt = Receipt();
+        ((JsonObject)receipt["publication"]!)["falseExistingLinks"] = long.MaxValue;
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_impossible_historical_creation_event_subsets()
+    {
+        var receipt = Receipt();
+        var historical = (JsonObject)receipt["lowerNonMatchExperiment"]!;
+        historical["finalLowerBandCreated"] = 5; // exceeds four proposals
+        Reject(receipt);
+
+        receipt = Receipt();
+        historical = (JsonObject)receipt["lowerNonMatchExperiment"]!;
+        historical["finalFalseLowerBandCreations"] = 4; // exceeds three lower-band creations
+        Reject(receipt);
+
+        receipt = Receipt();
+        historical = (JsonObject)receipt["lowerNonMatchExperiment"]!;
+        historical["finalFalseLowerBandCreations"] = 3; // exceeds two false creations
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Historical_false_creations_may_exceed_final_new_identity_outcomes()
+    {
+        var receipt = Receipt();
+        // The producer preserves deduplicated physical creation EVENTS across
+        // waves and final reevaluation; final publication outcomes are last-result
+        // per source. They are not interchangeable denominators.
+        ((JsonObject)receipt["lowerNonMatchExperiment"]!)["finalFalseNewIdentityCreations"] = 10;
+        Assert.DoesNotThrow((Action)(() =>
+            V9GoldJointPhysicalReceipt.Read(Bytes(receipt), Fit, Gold, Csv, Selection)));
+    }
+
+    [Test]
     public void Rejects_unreconciled_gold_publication_and_bcubed_counts()
     {
         var receipt = Receipt();
@@ -194,6 +254,17 @@ public sealed class V9GoldJointPhysicalReceiptTests
         var receipt = Receipt();
         ((JsonObject)receipt["goldThreeOrderTrial"]!)["executedWaveOrder"] =
             new JsonArray("G0", 1, "G2", "G3");
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_accepted_link_counter_overflow_as_invalid_physical_evidence()
+    {
+        var receipt = Receipt();
+        receipt["trueAccepted"] = long.MaxValue;
+        receipt["falseAccepted"] = 1;
+        // The frozen 20-source universe must reject impossible counters as
+        // InvalidDataException, never leak a checked arithmetic overflow.
         Reject(receipt);
     }
 
