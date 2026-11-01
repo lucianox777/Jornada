@@ -169,7 +169,34 @@ public sealed class V9FittedSnapshot
     {
         var converted = candidates.Select(c =>
             new LinkageCandidate(c.PersonUuid, c.FullName, c.BirthDate, c.MotherName)).ToArray();
-        // A second side must never silently fall back to the legacy one-sided path.
+        // Multi-unit fits take precedence: select exactly one eligible unit
+        // per side, reusing the existing CreateTf projection and scoring.
+        if (Payload.UnitTfCalibrations is { } fits)
+        {
+            V9SnapshotUnitTf? Select(CompositeNominalTfSideV9 side,
+                string? left, string? right)
+            {
+                var level = CompositeNominalComparisonV9.Classify(left, right);
+                var unit = level == CompositeNominalLevelV9.ExactLast
+                    ? NominalFrequencyUnitV9.LastContentSurname
+                    : NominalFrequencyUnitV9.FirstName;
+                return fits.SingleOrDefault(x => x.Side == side && x.Unit == unit);
+            }
+            CompositeNominalTfPreviewV9? Term(IdentityObservation o, LinkageCandidate c,
+                CompositeNominalTfSideV9 side)
+            {
+                var fit = side == CompositeNominalTfSideV9.Person
+                    ? Select(side, o.NomeCompleto, c.NomeCompleto)
+                    : Select(side, o.NomeMae, c.NomeMae);
+                return fit?.State == V9SnapshotTfFitState.Active
+                    ? CreateTf(o, c, fit.Calibration!) : null;
+            }
+            return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
+                Payload.Parameters, numericParameters, observation, converted, frozenNominal,
+                (o, c) => Term(o, c, CompositeNominalTfSideV9.Person),
+                (o, c) => Term(o, c, CompositeNominalTfSideV9.Mother));
+        }
+        // Legacy slots remain temporarily until snapshot producers are migrated.
         if (Payload.MotherTfCalibration is not null)
             return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
                 Payload.Parameters, numericParameters, observation, converted, frozenNominal,
