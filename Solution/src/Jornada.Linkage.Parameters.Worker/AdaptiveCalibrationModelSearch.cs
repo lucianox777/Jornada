@@ -210,7 +210,7 @@ public static class AdaptiveCalibrationModelSearch
                 || validation.Abstentions > validation.TruePairsWithoutCpf - validation.TrueAcceptedLinks
                 || validation.BlockingFalseCandidatePairs < 0
                 || validation.FalseAcceptedLinks > validation.BlockingFalseCandidatePairs
-                || validation.IndependentlyLabeledIdentityGroups < 0
+                || validation.IndependentlyLabeledIdentityGroups < 2
                 || validation.IndependentlyLabeledIdentityGroups > request.Validation.DistinctIdentityGroups
                 || !double.IsFinite(validation.BlockingFalseDegreeP99)
                 || validation.BlockingFalseDegreeP99 < 0)
