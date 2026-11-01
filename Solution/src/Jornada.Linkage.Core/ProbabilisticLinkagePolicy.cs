@@ -271,7 +271,9 @@ internal static class ProbabilisticLinkageDecisions
         IdentityObservation observation, IReadOnlyList<LinkageCandidate> candidates,
         FrozenFellegiSunterJointNominalV9 frozen,
         Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? personTf,
-        Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? motherTf)
+        Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? motherTf,
+        NominalFrequencyUnitV9? personUnit = null,
+        NominalFrequencyUnitV9? motherUnit = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(numericParameters);
@@ -286,24 +288,27 @@ internal static class ProbabilisticLinkageDecisions
             var person = personTf?.Invoke(observation, candidate);
             var mother = motherTf?.Invoke(observation, candidate);
             static void Validate(CompositeNominalTfSideV9 side,
-                CompositeNominalLevelV9 level, bool configured, CompositeNominalTfPreviewV9? term)
+                CompositeNominalLevelV9 level, bool configured, NominalFrequencyUnitV9? unit,
+                CompositeNominalTfPreviewV9? term)
             {
-                var firstEligible = level is CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactFull;
-                var lastEligible = level == CompositeNominalLevelV9.ExactLast;
-                // ExactLast is a separate statistical event: never substitute
-                // first-name frequencies or a full-name marginal for its U.
-                var eligible = term?.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
-                    ? lastEligible : firstEligible;
-                if ((configured && (firstEligible || lastEligible) && term is null)
-                    || (term is not null && (term.Side != side || !eligible || term.Weight <= 0m)))
+                // Eligibility must be derived from the FROZEN reference, not
+                // the optional term: otherwise a missing ExactLast term
+                // cannot be distinguished from an ineligible comparison.
+                var declaredUnit = unit ?? term?.Reference.Unit ?? NominalFrequencyUnitV9.FirstName;
+                var eligible = declaredUnit == NominalFrequencyUnitV9.LastContentSurname
+                    ? level == CompositeNominalLevelV9.ExactLast
+                    : level is CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactFull;
+                if ((configured && eligible && term is null)
+                    || (term is not null && (term.Side != side || !eligible
+                        || term.Reference.Unit != declaredUnit || term.Weight <= 0m)))
                     throw new InvalidOperationException("TF bilateral V9 sem unidade ou frequência TRAIN válida.");
             }
             Validate(CompositeNominalTfSideV9.Person,
                 CompositeNominalComparisonV9.Classify(observation.NomeCompleto, candidate.NomeCompleto),
-                personTf is not null, person);
+                personTf is not null, personUnit, person);
             Validate(CompositeNominalTfSideV9.Mother,
                 CompositeNominalComparisonV9.Classify(observation.NomeMae, candidate.NomeMae),
-                motherTf is not null, mother);
+                motherTf is not null, motherUnit, mother);
             var score = FellegiSunterScoring.CalculateFrozenCompositeNominalV9BilateralPreviewScore(
                 parameters, observation.NomeCompleto, candidate.NomeCompleto,
                 observation.NomeMae, candidate.NomeMae, frozen, unique.Count,
