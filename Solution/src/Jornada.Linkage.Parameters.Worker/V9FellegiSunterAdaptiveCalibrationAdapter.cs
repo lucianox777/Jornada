@@ -230,9 +230,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             }
             else
             {
-                // Do not invent a zero-chosen calibration without TRAIN evidence.
-                // These slots must be fitted before they can become active.
-                unitFits.Add(new V9SnapshotUnitTf(side, unit, V9SnapshotTfFitState.NoSource, null));
+                // Unfitted is not NoSource, InsufficientSupport or ZeroChosen.
+                // Fail closed rather than publish a misleading four-unit snapshot.
+                throw new InvalidOperationException(
+                    $"Exportação TF V9 incompleta: {side}/{unit} não foi calibrada no TRAIN.");
             }
         }
         return V9FittedSnapshot.Create(new V9FittedSnapshotPayload(
