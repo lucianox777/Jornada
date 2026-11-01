@@ -108,6 +108,16 @@ public sealed class V9GoldJointTrainMatrixTests
     }
 
     [Test]
+    public void Rejects_malformed_physical_receipt_as_invalid_evidence()
+    {
+        var plan = PlanBytes();
+        var receipts = PhysicalReceipts(plan);
+        receipts[0] = Encoding.UTF8.GetBytes("{\\\"jointTrainPhysicalTrial\\\":");
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
+    }
+
+    [Test]
     public void Rejects_missing_repeated_or_cross_plan_cells()
     {
         var plan = PlanBytes();
