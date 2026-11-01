@@ -82,7 +82,7 @@ public sealed class V9GoldJointPhysicalReceiptTests
     {
         // Direct receipt validation must fail closed with the same evidence
         // exception as matrix aggregation; raw JsonException is not the contract.
-        var truncated = System.Text.Encoding.UTF8.GetBytes("{\\\"jointTrainPhysicalTrial\\\":");
+        var truncated = System.Text.Encoding.UTF8.GetBytes("{\"jointTrainPhysicalTrial\":");
         Assert.Throws<InvalidDataException>((Action)(() =>
             V9GoldJointPhysicalReceipt.Read(truncated, Fit, Gold, Csv, Selection)));
     }
