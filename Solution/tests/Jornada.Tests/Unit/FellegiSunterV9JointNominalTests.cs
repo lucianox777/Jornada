@@ -478,6 +478,37 @@ public sealed class FellegiSunterV9JointNominalTests
     }
 
     [Test]
+    public void V9MotherExactFullTfRejectsWrongMatchedValueAndUnapprovedPopulation()
+    {
+        var cells = FullFrame(
+            CompositeNominalLevelV9.Missing,
+            CompositeNominalLevelV9.ExactFull, .20m, .05m);
+        var tf = FirstNameTf("ANA", .25m) with
+        {
+            Side = CompositeNominalTfSideV9.Mother,
+            MatchedNormalizedValue = "ANA COSTA",
+            Reference = new NominalFrequencyReferenceContractV9(
+                NominalFrequencyUnitV9.FullName,
+                NominalFrequencySourceV9.IndependentlyObservedPopulation,
+                "POPULATION", "BLOCKING", 2_000, true)
+        };
+        void Reject(CompositeNominalTfPreviewV9 bad) =>
+            Assert.That((Action)(() =>
+                FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                    PreviewParameters(), null, null, "Ana Costa", "ANA COSTA",
+                    cells, CompositeNominalComparisonV9.ContractVersion, nominalTf: bad)),
+                Throws.InvalidOperationException);
+        Assert.Multiple((Action)(() =>
+        {
+            Reject(tf with { MatchedNormalizedValue = "ANA SILVA" });
+            Reject(tf with { Reference = tf.Reference with
+                { IndependentPopulationValidationApproved = false } });
+            Reject(tf with { TermFrequency = 0m });
+            Reject(tf with { UnitReferenceU = 0m });
+        }));
+    }
+
+    [Test]
     public void V9DeclaredBirthEvidenceRequiresCompleteParametersEvenWhenBirthInputIsMissing()
     {
         var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
