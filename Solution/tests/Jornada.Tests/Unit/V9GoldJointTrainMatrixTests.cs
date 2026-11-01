@@ -313,12 +313,6 @@ public sealed class V9GoldJointTrainMatrixTests
         Assert.Throws<InvalidDataException>((Action)(() =>
             V9GoldJointTrainMatrixCommand.ReadPlan(JsonSerializer.SerializeToUtf8Bytes(node))));
     }
-}
- matches before a terminal newline; physical instance names
-        // must match the entire string, not just a prefix.
-        Assert.Throws<InvalidDataException>((Action)(() =>
-            V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
-    }
 
     [Test]
     public void Rejects_reused_physical_SQL_run_fingerprint_despite_distinct_receipt_bytes()
