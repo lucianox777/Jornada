@@ -6,7 +6,7 @@
 
 1. `Solution/src/Jornada.Linkage.Core/V9FittedSnapshot.cs`: `V9FittedSnapshotPayload.TfCalibration` contém um único `V9SnapshotFirstNameTf` com `Side` e `Reference`. `RankPreview` passa `CreateTf` e `TfCalibration?.Side` ao ranker.
 2. `CreateTf` retorna `null` quando o lado selecionado não é `ExactFirst`. Procura apenas `FirstName` e a frequência e U TRAIN dessa chave; portanto o caminho **congelado** não cobre TF em `ExactFull`, `ExactLast` ou os dois lados conjuntamente.
-3. `Solution/src/Jornada.Linkage.Core/CompositeNominalTfPreviewV9.cs`: o DTO representa um ajuste em um lado; o avaliador valida compatibilidade de unidade com nível e produz um único `LogBayesAdjustment`. **Não** remover a validação nem somar dois ajustes não calibrados.
+3. `Solution/src/Jornada.Linkage.Core/CompositeNominalTfPreviewV9.cs`: o DTO representa um ajuste em um lado; o avaliador valida compatibilidade de unidade com nível e produz um único `LogBayesAdjustment`. **Decisão 0:** somar os dois ajustes calibrados, um de pessoa e um de mãe, no mesmo LLR conjunto. É proibido duplicar o ajuste no mesmo lado ou somar ajustes sem referência U compatível. **Decisão 1:** em ExactFull, usar o prenome FirstName IBGE como proxy explícito (V8); FullName requer fonte real observada.
 4. `Solution/tests/Jornada.Tests/Unit/FellegiSunterV9JointNominalTests.cs` já testa ajuste diagnóstico de `ExactFirst`, rejeição de referência incompatível e `ExactFull` com referência independente. Isso **não comprova** suporte equivalente no snapshot congelado.
 
 ## Critérios de aceite para a correção funcional
@@ -14,7 +14,7 @@
 | Critério | Estado em 01/11 | Prova exigida |
 |---|---|---|
 | TF pessoa e mãe no mesmo par | **Pendente** | Caso com duas frequências distintas e referência U consistente; comparação com cálculo esperado |
-| `ExactFull` no snapshot congelado | **Pendente** | Round-trip de snapshot, score idêntico antes/depois |
+| `ExactFull` no snapshot congelado | **Pendente** | Proxy FirstName IBGE para nome inteiro igual, round-trip de snapshot, score idêntico antes/depois |
 | Último sobrenome `ExactLast` | **Pendente** | Teste de projeção do último sobrenome e referência por unidade |
 | Modos zero, simétrico e assimétrico | **Pendente no caminho congelado** | Scores e seleção de modo reproduzíveis, sem misturar TRAIN/TEST |
 | Falha fechada por frequência/U ausentes | **Parcial: primeiro nome** | Testes para todos os lados e níveis habilitados |
