@@ -60,6 +60,34 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
     }
 
     [Test]
+    public void Calibration_options_are_materialized_exactly_once_before_fitting()
+    {
+        // A lazy option generator is a valid IEnumerable. Re-enumerating it
+        // can change the calibrated search space or fail before TRAIN starts.
+        var option = new V9FsAdaptiveOptionConfiguration("ONCE", .5m, .5m);
+        var enumerations = 0;
+        IEnumerable<V9FsAdaptiveOptionConfiguration> OneShotOptions()
+        {
+            if (++enumerations != 1)
+                throw new InvalidOperationException("Options enumerated twice");
+            yield return option;
+        }
+
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(), OneShotOptions());
+        var model = new AdaptiveCalibrationModelOption(
+            V9FellegiSunterAdaptiveCalibrationAdapter.Family,
+            V9FellegiSunterAdaptiveCalibrationAdapter.Version,
+            option.OptionId, option.FingerprintSha256);
+        var fit = adapter.FitTrain(model, Slice("TRAIN", TrainSha, TrainGroupsSha, 6));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(enumerations, Is.EqualTo(1));
+            Assert.That(fit.TrainOnly, Is.True);
+            Assert.That(fit.ConfigurationFingerprintSha256, Is.EqualTo(option.FingerprintSha256));
+        }));
+    }
+
+    [Test]
     public void Reused_train_statistics_match_independent_fits_for_distinct_options()
     {
         // Reuse of immutable TRAIN arrays/counts must not mix options, and
