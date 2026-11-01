@@ -64,8 +64,9 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         pinned = helper.pinned_reference(json.loads(pinned_ibge.read_bytes()))
     else:
         pinned = None
-    # Predeclared stage 1+2 and shared surname: 45 options × two margins ×
-    # two initial rule sets (19-pass union and baseline) = 180 comparisons.
+    # PO decision 12: 41 eligible models x two margins x two initial rule
+    # sets = 164 initial selection comparisons. Four shared-surname variants
+    # are diagnostics only, excluded from ModelOptions and this budget.
     # Further adaptive refinement is bounded to 512 including initial set.
     maximum = 24 if fixture else (512 if tf_search else 1000000)
     calibration = dict(StudyFingerprintSha256=study,
@@ -126,7 +127,7 @@ if __name__ == "__main__":
     parser.add_argument("new_plan", type=Path)
     parser.add_argument("--plumbing-fixture", action="store_true")
     parser.add_argument("--tf-search", action="store_true",
-                        help="45 predeclared TF unit combinations (manual 30k only)")
+                        help="41 eligible TF configurations; four shared-surname variants are diagnostics only (manual 30k)")
     parser.add_argument("--pinned-ibge", type=Path,
                         help="Existing pinned SQL IBGE version, digests and bootstrap JSON")
     args = parser.parse_args()
