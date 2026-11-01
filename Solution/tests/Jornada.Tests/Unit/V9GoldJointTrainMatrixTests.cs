@@ -112,7 +112,7 @@ public sealed class V9GoldJointTrainMatrixTests
     {
         var plan = PlanBytes();
         var receipts = PhysicalReceipts(plan);
-        receipts[0] = Encoding.UTF8.GetBytes("{\\\"jointTrainPhysicalTrial\\\":");
+        receipts[0] = Encoding.UTF8.GetBytes("{\"jointTrainPhysicalTrial\":");
         Assert.Throws<InvalidDataException>((Action)(() =>
             V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
     }
