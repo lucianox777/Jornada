@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.Security.Cryptography;
 using System.Text;
 using Jornada.Contracts;
@@ -36,6 +37,13 @@ public sealed record V9FsAdaptiveCandidateFrame(
     string? ProjectionFingerprintSha256 = null,
     string? BlockingFrameFingerprintSha256 = null);
 
+/// <summary>One explicitly selected TF configuration for one nominal side and unit.</summary>
+public sealed record V9FsUnitTfOption(
+    CompositeNominalTfSideV9 Side,
+    NominalFrequencyUnitV9 Unit,
+    decimal Weight,
+    CompositeNominalTfAdjustmentModeV9 Mode);
+
 public sealed record V9FsAdaptiveOptionConfiguration(
     string OptionId,
     decimal SmoothingAlpha,
@@ -43,7 +51,8 @@ public sealed record V9FsAdaptiveOptionConfiguration(
     decimal TfWeight = 0m,
     CompositeNominalTfSideV9 TfSide = CompositeNominalTfSideV9.Person,
     decimal TfMinimumFrequency = 0.000001m,
-    long TfMinimumIndependentSupport = 1, V9JointSupportPolicy? JointSupportPolicy = null)
+    long TfMinimumIndependentSupport = 1, V9JointSupportPolicy? JointSupportPolicy = null,
+    IReadOnlyList<V9FsUnitTfOption>? UnitTfOptions = null)
 {
     public string FingerprintSha256 => V9FellegiSunterAdaptiveCalibrationAdapter
         .ConfigurationFingerprintSha256(this);
@@ -68,8 +77,16 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         decimal Threshold,
         IReadOnlyList<FellegiSunterJointNominalCellV9> Cells,
         IReadOnlyDictionary<string, decimal> Parameters,
-        V9TrainSqlFirstNameUCalibration.Frozen? TrainUnitU, V9JointSupportProvenance? JointSupport)
+        CompositeNominalTfSideV9 SelectedLegacyTfSide, V9JointSupportProvenance? JointSupport,
+        IReadOnlyDictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlFirstNameUCalibration.Frozen>? TrainUnitUs = null)
     {
+        // Legacy single-side consumers read a projection of the four-unit
+        // immutable TRAIN map; no second copy of U is retained in the fit.
+        internal V9TrainSqlFirstNameUCalibration.Frozen? TrainUnitU =>
+            TrainUnitUs is not null
+                && TrainUnitUs.TryGetValue((SelectedLegacyTfSide, NominalFrequencyUnitV9.FirstName), out var unit)
+                ? unit : null;
+
         internal FrozenFellegiSunterJointNominalV9 FrozenNominal { get; } =
             FrozenFellegiSunterJointNominalV9.Freeze(Cells, CompositeNominalComparisonV9.ContractVersion);
         internal IReadOnlyDictionary<string, double> NumericParameters { get; } = FellegiSunterScoring.ToDoubleParameters(Parameters);
@@ -143,7 +160,15 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     new LinkageBlockingPass(x.PassId, Array.AsReadOnly(x.Fields.ToArray()))).ToArray())
         };
 
-        var byId = options.ToArray();
+        // Freeze caller-owned option collections at the adapter boundary.
+        // Otherwise a mutable UnitTfOptions list could change after its
+        // fingerprint is computed, invalidating TRAIN/VALIDATION reproducibility.
+        var byId = options.Select(option => option is null ? null
+            : option with
+            {
+                UnitTfOptions = option.UnitTfOptions is null ? null
+                    : Array.AsReadOnly(option.UnitTfOptions.ToArray())
+            }).ToArray();
         if (byId.Length is < 1 or > 64
             || byId.Any(x => x is null || string.IsNullOrWhiteSpace(x.OptionId)
                 || x.SmoothingAlpha <= 0m || x.SmoothingAlpha > 1000m
@@ -206,47 +231,63 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             || !fits.TryGetValue(fitted.FittedParametersFingerprintSha256, out var frozen)
             || frozen.OptionId != fitted.OptionId)
             throw new InvalidDataException("Exportação exige fit TRAIN congelado por este adaptador.");
-        V9SnapshotFirstNameTf? tf = null;
         if (config.TfWeight > 0m)
         {
-            if (frozen.TrainUnitU is null || frozenTfReference is null
-                || frozen.TrainUnitU.TrainFingerprintSha256 != frame.TrainCorpusFingerprintSha256
-                || frozen.TrainUnitU.Side != config.TfSide)
-                throw new InvalidDataException("Referência TF ou baseline U TRAIN não coincide com o fit congelado.");
-            var reference = frozenTfReference.ExportForSnapshot(config.TfSide, CompositeNominalLevelV9.ExactFirst);
-            tf = new V9SnapshotFirstNameTf(config.TfSide, reference.Reference,
-                reference.Frequencies, frozen.TrainUnitU.FirstNameUnitUByValue,
-                frozen.TrainUnitU.FingerprintSha256, config.TfMinimumFrequency,
-                config.TfMinimumIndependentSupport, frame.TrainCorpusFingerprintSha256);
+            if (frozenTfReference is null)
+                throw new InvalidDataException("Exportação TF positiva sem referência IBGE fixada.");
+            if (frozen.TrainUnitUs is null || frozen.TrainUnitUs.Count != 4)
+                throw new InvalidDataException("Exportação TF positiva exige as quatro unidades U TRAIN congeladas.");
+            foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
+            foreach (var unit in new[] { NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.LastContentSurname })
+            {
+                if (!frozen.TrainUnitUs.TryGetValue((side, unit), out var value)
+                    || value.Side != side || value.Unit != unit
+                    || value.TrainFingerprintSha256 != frame.TrainCorpusFingerprintSha256)
+                    throw new InvalidDataException($"Exportação TF positiva sem U TRAIN válido: {side}/{unit}.");
+                // Validate the actual pinned marginal for this side and unit,
+                // not the legacy ExactFirst marginal for all four entries.
+                var level = unit == NominalFrequencyUnitV9.FirstName
+                    ? CompositeNominalLevelV9.ExactFirst
+                    : CompositeNominalLevelV9.ExactLast;
+                var marginal = frozenTfReference.ExportForSnapshot(side, level);
+                if (marginal.Frequencies.Count == 0)
+                    throw new InvalidDataException($"Marginal IBGE vazia: {side}/{unit}.");
+            }
         }
-        // A positive single-side fit cannot be represented as a complete
-        // four-unit calibration. Reject before building any partial payload.
-        if (config.TfWeight > 0m)
-            throw new InvalidOperationException(
-                "TF positivo requer ajuste conjunto das quatro unidades antes da exportação.");
         var unitFits = new List<V9SnapshotUnitTf>(4);
         foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
         foreach (var unit in new[] { NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.LastContentSurname })
         {
-            if (tf is not null && side == config.TfSide && unit == NominalFrequencyUnitV9.FirstName)
+            if (config.TfWeight == 0m)
             {
-                unitFits.Add(new V9SnapshotUnitTf(side, unit, V9SnapshotTfFitState.Active,
-                    tf with { Weight = config.TfWeight }));
-            }
-            else if (config.TfWeight == 0m)
-            {
-                // Explicit TF0 is a scoring baseline, not a claim that each
-                // nominal unit was statistically fitted or had an IBGE source.
-                // No active TF means the frozen 81-cell scorer stays unchanged.
                 unitFits.Add(new V9SnapshotUnitTf(side, unit,
                     V9SnapshotTfFitState.BaselineTf0, null));
+                continue;
             }
-            else
+
+            // Legacy positive TF selects one first-name unit. Other units
+            // retain BaselineTf0; a four-unit selection must explicitly
+            // choose its own zero weights before claiming ZeroChosen.
+            var active = side == config.TfSide && unit == NominalFrequencyUnitV9.FirstName;
+            if (!active)
             {
-                // Positive TF still requires the missing units to be fitted.
-                throw new InvalidOperationException(
-                    $"Exportação TF V9 incompleta: {side}/{unit} não foi calibrada no TRAIN.");
+                unitFits.Add(new V9SnapshotUnitTf(side, unit,
+                    V9SnapshotTfFitState.BaselineTf0, null));
+                continue;
             }
+            var trainU = frozen.TrainUnitUs![(side, unit)];
+            var level = unit == NominalFrequencyUnitV9.FirstName
+                ? CompositeNominalLevelV9.ExactFirst : CompositeNominalLevelV9.ExactLast;
+            var marginal = frozenTfReference!.ExportForSnapshot(side, level);
+            var calibration = new V9SnapshotFirstNameTf(
+                side, marginal.Reference, marginal.Frequencies,
+                trainU.FirstNameUnitUByValue, trainU.FingerprintSha256,
+                config.TfMinimumFrequency, config.TfMinimumIndependentSupport,
+                frame.TrainCorpusFingerprintSha256,
+                CompositeNominalTfAdjustmentModeV9.Symmetric,
+                config.TfWeight);
+            unitFits.Add(new V9SnapshotUnitTf(side, unit,
+                V9SnapshotTfFitState.Active, calibration));
         }
         return V9FittedSnapshot.Create(new V9FittedSnapshotPayload(
             (frozen.JointSupport is null ? V9FittedSnapshot.SchemaVersion : V9FittedSnapshot.SupportSchemaVersion), CompositeNominalComparisonV9.ContractVersion,
@@ -344,7 +385,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             ["U_DATA_NASCIMENTO_DIFF"] = (uBirth.Diff + alpha) / (uBirth.Total + 2m * alpha)
         };
 
-        V9TrainSqlFirstNameUCalibration.Frozen? trainU = null;
+        var trainUnitUs = new Dictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlFirstNameUCalibration.Frozen>();
         if (config.TfWeight > 0m)
         {
             if (frozenTfReference is null)
@@ -361,15 +402,29 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                         trainingRows, side, alpha, frame.TrainCorpusFingerprintSha256, unit);
                     trainingUnitUCache.Add(key, fittedUnit);
                 }
-                if (side == config.TfSide && unit == NominalFrequencyUnitV9.FirstName)
-                    trainU = fittedUnit;
+                trainUnitUs.Add((side, unit), fittedUnit);
             }
         }
 
         var fitSha = FittedFingerprintSha256(config, cells, parameters, schema.FingerprintSha256,
             frame.TrainCorpusFingerprintSha256, frame.TrainIdentityFingerprintSha256);
-        if (trainU is not null)
-            fitSha = Sha(string.Join("|", fitSha, trainU.FingerprintSha256,
+        if (config.TfWeight > 0m && (trainUnitUs.Count != 4
+            || !trainUnitUs.ContainsKey((config.TfSide, NominalFrequencyUnitV9.FirstName))))
+            throw new InvalidDataException("TF positivo exige as quatro unidades U TRAIN e a unidade ativa.");
+        if (config.TfWeight == 0m && trainUnitUs.Count != 0)
+            throw new InvalidDataException("Baseline TF0 não pode carregar U TRAIN calibrado.");
+        foreach (var entry in trainUnitUs)
+        {
+            if (entry.Value.Side != entry.Key.Side || entry.Value.Unit != entry.Key.Unit
+                || entry.Value.TrainFingerprintSha256 != frame.TrainCorpusFingerprintSha256
+                || string.IsNullOrWhiteSpace(entry.Value.FingerprintSha256))
+                throw new InvalidDataException(
+                    $"Unidade U TRAIN congelada inconsistente: {entry.Key.Side}/{entry.Key.Unit}.");
+        }
+        if (trainUnitUs.Count == 4)
+            fitSha = Sha(string.Join("|", fitSha,
+                string.Join("|", trainUnitUs.OrderBy(x => x.Key.Side).ThenBy(x => x.Key.Unit)
+                    .Select(x => $"{x.Key.Side}:{x.Key.Unit}:{x.Value.FingerprintSha256}")),
                 frozenTfReference!.ReferenceVersionId,
                 frozenTfReference.ReferenceCode,
                 frozenTfReference.PublishedReferenceSha256,
@@ -386,7 +441,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         if (support is not null) fitSha = Sha(fitSha + "|JOINT_SUPPORT|" + System.Text.Json.JsonSerializer.Serialize(support));
         fits[fitSha] = new FrozenFit(fitSha, config.OptionId, config.DecisionThreshold,
             Array.AsReadOnly(cells.ToArray()),
-            new Dictionary<string, decimal>(parameters, StringComparer.Ordinal), trainU, support);
+            new Dictionary<string, decimal>(parameters, StringComparer.Ordinal), config.TfSide, support,
+            new ReadOnlyDictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlFirstNameUCalibration.Frozen>(
+                new Dictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlFirstNameUCalibration.Frozen>(trainUnitUs)));
 
         return new AdaptiveCalibrationFitDraft(
             Family, Version, config.OptionId, config.FingerprintSha256, fitSha,
@@ -1089,6 +1146,30 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             "TF_SIDE=" + config.TfSide,
             "TF_MIN_FREQ=" + config.TfMinimumFrequency.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "TF_SUPPORT=" + config.TfMinimumIndependentSupport);
+        if (config.UnitTfOptions is not null)
+        {
+            // A four-unit TF0 candidate must not accidentally inherit the
+            // legacy single-side positive weight, which is still used by scoring.
+            if (config.TfWeight != 0m)
+                throw new InvalidDataException(
+                    "Configuração TF por unidade não pode coexistir com peso TF legado positivo.");
+            // Legacy single-side scoring cannot safely consume four independently
+            // selected weights/modes. Reject until the scorer and snapshot are migrated.
+            if (config.UnitTfOptions.Any(x => x is not null && x.Weight > 0m))
+                throw new InvalidDataException(
+                    "Configuração TF bilateral positiva exige scorer e snapshot por unidade; contrato ainda não ativado.");
+
+            var units = config.UnitTfOptions;
+            if (units.Count != 4
+                || units.Any(x => x is null || !Enum.IsDefined(x.Side)
+                    || x.Unit is not (NominalFrequencyUnitV9.FirstName or NominalFrequencyUnitV9.LastContentSurname)
+                    || !Enum.IsDefined(x.Mode) || x.Weight < 0m || x.Weight > 1m)
+                || units.Select(x => (x.Side, x.Unit)).Distinct().Count() != 4)
+                throw new InvalidDataException("Configuração TF V9 exige quatro unidades distintas e pesos/modos válidos.");
+            canonical += "|UNIT_TF_V1|" + string.Join("|", units
+                .OrderBy(x => x.Side).ThenBy(x => x.Unit)
+                .Select(x => $"{x.Side}:{x.Unit}:{x.Weight.ToString(System.Globalization.CultureInfo.InvariantCulture)}:{x.Mode}"));
+        }
         if (config.JointSupportPolicy is not null) canonical += "|JOINT_SUPPORT|" + System.Text.Json.JsonSerializer.Serialize(config.JointSupportPolicy);
         return Sha(canonical);
     }
