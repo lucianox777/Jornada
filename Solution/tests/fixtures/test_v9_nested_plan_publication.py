@@ -35,7 +35,7 @@ class V9NestedPlanPublicationTests(unittest.TestCase):
 
             with mock.patch.object(Path, "open", new=failing_open):
                 with self.assertRaisesRegex(OSError, "injected TF budget"):
-                    study._write_frozen_outputs(destination, {"StudyFingerprintSha256": "abc"}, {"models": 41})
+                    study._write_frozen_outputs(destination, {"Calibration": {"StudyFingerprintSha256": "abc"}}, {"models": 41, "study_fingerprint_sha256": "abc"})
             self.assertFalse(destination.exists(), "orphan plan must not be published")
             self.assertFalse(sidecar.exists())
 
@@ -46,7 +46,7 @@ class V9NestedPlanPublicationTests(unittest.TestCase):
             sidecar = destination.with_suffix(".tf-budget.json")
             sidecar.write_text("original frozen budget", encoding="utf-8")
             with self.assertRaises(FileExistsError):
-                study._write_frozen_outputs(destination, {"StudyFingerprintSha256": "abc"}, {"models": 41})
+                study._write_frozen_outputs(destination, {"Calibration": {"StudyFingerprintSha256": "abc"}}, {"models": 41, "study_fingerprint_sha256": "abc"})
             self.assertFalse(destination.exists())
             self.assertEqual(sidecar.read_text(encoding="utf-8"), "original frozen budget")
 
@@ -54,12 +54,23 @@ class V9NestedPlanPublicationTests(unittest.TestCase):
         study = load_study()
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "plan.json"
-            study._write_frozen_outputs(destination, {"StudyFingerprintSha256": "abc"}, {"models": 41})
-            self.assertEqual(json.loads(destination.read_text(encoding="utf-8"))["StudyFingerprintSha256"], "abc")
+            study._write_frozen_outputs(destination, {"Calibration": {"StudyFingerprintSha256": "abc"}}, {"models": 41, "study_fingerprint_sha256": "abc"})
+            self.assertEqual(json.loads(destination.read_text(encoding="utf-8"))["Calibration"]["StudyFingerprintSha256"], "abc")
             self.assertEqual(json.loads(destination.with_suffix(".tf-budget.json").read_text(encoding="utf-8"))["models"], 41)
             with self.assertRaises(FileExistsError):
-                study._write_frozen_outputs(destination, {"StudyFingerprintSha256": "different"}, {"models": 0})
+                study._write_frozen_outputs(destination, {"Calibration": {"StudyFingerprintSha256": "different"}}, {"models": 0, "study_fingerprint_sha256": "different"})
 
+
+    def test_mismatched_tf_budget_is_rejected_before_any_publication(self):
+        study = load_study()
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "plan.json"
+            with self.assertRaisesRegex(ValueError, "fingerprint"):
+                study._write_frozen_outputs(
+                    destination, {"Calibration": {"StudyFingerprintSha256": "plan-sha"}},
+                    {"models": 41, "study_fingerprint_sha256": "different-sha"})
+            self.assertFalse(destination.exists())
+            self.assertFalse(destination.with_suffix(".tf-budget.json").exists())
 
     def test_tf_budget_identifies_exact_frozen_train_study(self):
         study = load_study()
