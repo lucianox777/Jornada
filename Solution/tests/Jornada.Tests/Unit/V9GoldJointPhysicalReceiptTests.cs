@@ -208,6 +208,17 @@ public sealed class V9GoldJointPhysicalReceiptTests
     }
 
     [Test]
+    public void Rejects_accepted_link_counter_overflow_as_invalid_physical_evidence()
+    {
+        var receipt = Receipt();
+        receipt["trueAccepted"] = long.MaxValue;
+        receipt["falseAccepted"] = 1;
+        // The frozen 20-source universe must reject impossible counters as
+        // InvalidDataException, never leak a checked arithmetic overflow.
+        Reject(receipt);
+    }
+
+    [Test]
     public void Rejects_impossible_frozen_truth_denominators()
     {
         var receipt = Receipt();
