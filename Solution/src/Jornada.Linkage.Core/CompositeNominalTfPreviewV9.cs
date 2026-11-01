@@ -128,7 +128,15 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
             leftPerson, rightPerson, leftMother, rightMother, motherTf);
         if (sharedSurnameMode == V9SharedSurnameModeV9.ConservativeSingleWhenShared
             && IsSharedSurname(personTf, motherTf))
+        {
+            // One overlapping surname is one nominal event. Retain only the
+            // smaller positive reward, or the less severe of two penalties.
+            // Opposite signs retain the penalty without adding a second event.
+            // This rule never modifies the frozen joint-cell LLR.
+            if (personAdjustment < 0d && motherAdjustment < 0d)
+                return Math.Max(personAdjustment, motherAdjustment);
             return Math.Min(personAdjustment, motherAdjustment);
+        }
         return personAdjustment + motherAdjustment;
     }
 

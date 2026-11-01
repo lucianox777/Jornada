@@ -586,7 +586,30 @@ public sealed class FellegiSunterV9JointNominalTests
         Assert.That(Score(V9SharedSurnameModeV9.Bilateral, mother),
             Is.EqualTo(p + m).Within(1e-12));
         Assert.That(Score(V9SharedSurnameModeV9.ConservativeSingleWhenShared, mother),
-            Is.EqualTo(Math.Min(p, m)).Within(1e-12));
+            Is.EqualTo(Math.Max(p, m)).Within(1e-12)); // do not amplify two penalties
+
+        double ScoreBoth(CompositeNominalTfPreviewV9 pTf, CompositeNominalTfPreviewV9 mTf,
+            V9SharedSurnameModeV9 mode) =>
+            CompositeNominalTfPreviewEvaluatorV9.CalculateBilateral(
+                CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactLast,
+                "Maria Silva", "Joana Silva", "Ana Silva", "Beatriz Silva",
+                pTf, mTf, mode);
+        var positivePerson = person with { TermFrequency = .05m };
+        var positiveMother = mother with { TermFrequency = .025m };
+        var personReward = Math.Log(.10d / .05d);
+        var motherReward = Math.Log(.10d / .025d);
+        Assert.That(ScoreBoth(positivePerson, positiveMother,
+                V9SharedSurnameModeV9.ConservativeSingleWhenShared),
+            Is.EqualTo(Math.Min(personReward, motherReward)).Within(1e-12));
+        Assert.That(ScoreBoth(positivePerson, positiveMother,
+                V9SharedSurnameModeV9.Bilateral),
+            Is.EqualTo(personReward + motherReward).Within(1e-12));
+        Assert.That(ScoreBoth(positivePerson, mother,
+                V9SharedSurnameModeV9.ConservativeSingleWhenShared),
+            Is.EqualTo(m).Within(1e-12)); // opposite signs: no extra reward
+        Assert.That(ScoreBoth(person with { TermFrequency = .10m }, positiveMother,
+                V9SharedSurnameModeV9.ConservativeSingleWhenShared),
+            Is.EqualTo(0d).Within(1e-12)); // neutral plus positive: one event
         Assert.That((Action)(() => Score(V9SharedSurnameModeV9.ConservativeSingleWhenShared,
             mother with { MatchedNormalizedValue = "COSTA" })),
             Throws.TypeOf<InvalidOperationException>()); // inconsistent surname must fail closed
