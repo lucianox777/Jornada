@@ -219,6 +219,11 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 frozen.TrainUnitU.FingerprintSha256, config.TfMinimumFrequency,
                 config.TfMinimumIndependentSupport, frame.TrainCorpusFingerprintSha256);
         }
+        // A positive single-side fit cannot be represented as a complete
+        // four-unit calibration. Reject before building any partial payload.
+        if (config.TfWeight > 0m)
+            throw new InvalidOperationException(
+                "TF positivo requer ajuste conjunto das quatro unidades antes da exportação.");
         var unitFits = new List<V9SnapshotUnitTf>(4);
         foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
         foreach (var unit in new[] { NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.LastContentSurname })
