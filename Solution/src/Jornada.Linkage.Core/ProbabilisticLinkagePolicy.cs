@@ -298,7 +298,10 @@ internal static class ProbabilisticLinkageDecisions
                 var eligible = declaredUnit == NominalFrequencyUnitV9.LastContentSurname
                     ? level == CompositeNominalLevelV9.ExactLast
                     : level is CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactFull;
-                if ((configured && eligible && term is null)
+                // Without a declared unit, null means no active adjustment
+                // (e.g. calibrated zero), not an unknown TRAIN frequency.
+                // Frozen-unit callers still fail closed for missing eligible TF.
+                if ((configured && unit is not null && eligible && term is null)
                     || (term is not null && (term.Side != side || !eligible
                         || term.Reference.Unit != declaredUnit || term.Weight <= 0m)))
                     throw new InvalidOperationException("TF bilateral V9 sem unidade ou frequência TRAIN válida.");
