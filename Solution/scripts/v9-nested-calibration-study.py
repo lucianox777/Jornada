@@ -52,11 +52,19 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         if len(models) != 41 or len(diagnostic) != 4:
             raise ValueError("Unexpected TF diagnostic partition")
         eligible = {x["OptionId"] for x in models}
+        by_id = {x["OptionId"]: x for x in models}
         diagnostic_pairs = []
         for item in diagnostic:
             baseline_id = item["OptionId"].replace("SHARED_PL_ML_", "TWO_PL_ML_", 1)
             if baseline_id not in eligible:
                 raise ValueError("Missing bilateral reference")
+            baseline = by_id[baseline_id]
+            if (item["UnitTfOptions"] != baseline["UnitTfOptions"]
+                    or item["SmoothingAlpha"] != baseline["SmoothingAlpha"]
+                    or item["DecisionThreshold"] != baseline["DecisionThreshold"]):
+                raise ValueError("Diagnostic and bilateral TF configurations must match")
+            if item.get("SharedSurnameMode") != 1 or baseline.get("SharedSurnameMode", 0) != 0:
+                raise ValueError("Diagnostic and bilateral TF modes must differ only by shared surname")
             diagnostic_pairs.append({"DiagnosticOptionId": item["OptionId"],
                                      "BilateralOptionId": baseline_id,
                                      "EligibleForAutomaticSelection": False,
