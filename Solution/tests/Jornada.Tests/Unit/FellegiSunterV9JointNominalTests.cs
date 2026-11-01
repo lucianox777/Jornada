@@ -586,7 +586,7 @@ public sealed class FellegiSunterV9JointNominalTests
         Assert.That(Score(V9SharedSurnameModeV9.Bilateral, mother),
             Is.EqualTo(p + m).Within(1e-12));
         Assert.That(Score(V9SharedSurnameModeV9.ConservativeSingleWhenShared, mother),
-            Is.EqualTo(Math.Max(p, m)).Within(1e-12)); // do not amplify two penalties
+            Is.EqualTo(p).Within(1e-12)); // person side only, even for negative corrections
 
         double ScoreBoth(CompositeNominalTfPreviewV9 pTf, CompositeNominalTfPreviewV9 mTf,
             V9SharedSurnameModeV9 mode) =>
@@ -600,16 +600,16 @@ public sealed class FellegiSunterV9JointNominalTests
         var motherReward = Math.Log(.10d / .025d);
         Assert.That(ScoreBoth(positivePerson, positiveMother,
                 V9SharedSurnameModeV9.ConservativeSingleWhenShared),
-            Is.EqualTo(Math.Min(personReward, motherReward)).Within(1e-12));
+            Is.EqualTo(personReward).Within(1e-12));
         Assert.That(ScoreBoth(positivePerson, positiveMother,
                 V9SharedSurnameModeV9.Bilateral),
             Is.EqualTo(personReward + motherReward).Within(1e-12));
         Assert.That(ScoreBoth(positivePerson, mother,
                 V9SharedSurnameModeV9.ConservativeSingleWhenShared),
-            Is.EqualTo(m).Within(1e-12)); // opposite signs: no extra reward
+            Is.EqualTo(personReward).Within(1e-12)); // opposite signs: person side only
         Assert.That(ScoreBoth(person with { TermFrequency = .10m }, positiveMother,
                 V9SharedSurnameModeV9.ConservativeSingleWhenShared),
-            Is.EqualTo(0d).Within(1e-12)); // neutral plus positive: one event
+            Is.EqualTo(0d).Within(1e-12)); // neutral person remains neutral
         Assert.That((Action)(() => Score(V9SharedSurnameModeV9.ConservativeSingleWhenShared,
             mother with { MatchedNormalizedValue = "COSTA" })),
             Throws.TypeOf<InvalidOperationException>()); // inconsistent surname must fail closed
