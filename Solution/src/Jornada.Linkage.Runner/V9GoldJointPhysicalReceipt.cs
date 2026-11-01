@@ -228,6 +228,18 @@ public static class V9GoldJointPhysicalReceipt
             || pending != sourceCount - published
             || goldGroups > published || (goldGroups == 0) != (published == 0))
             throw new InvalidDataException("Joint TRAIN stable Gold/B-cubed publication universe mismatch.");
+        // The real Runner reports mutually exclusive final publication outcomes.
+        // Verify their sum against the physically published source universe, not
+        // just the pending count. Subtraction avoids overflowing hostile Int64
+        // counters before they can be rejected as invalid evidence.
+        var publication = Required(root, "publication");
+        var trueLinksPublished = Count(publication, "trueExistingLinks");
+        var falseLinksPublished = Count(publication, "falseExistingLinks");
+        var newIdentitiesPublished = Count(publication, "newIdentitySources");
+        if (trueLinksPublished > published
+            || falseLinksPublished > published - trueLinksPublished
+            || newIdentitiesPublished != published - trueLinksPublished - falseLinksPublished)
+            throw new InvalidDataException("Joint TRAIN publication categories do not reconcile the frozen Gold universe.");
         var f1 = Fraction(gold, "CoverageAwareF1");
         return new(order, "TRAIN_SELECTION", frozenFitSha256, canonicalGoldSnapshotSha256,
             Convert.ToHexString(SHA256.HashData(studyBytes)).ToLowerInvariant(),
