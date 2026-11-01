@@ -49,7 +49,8 @@ public enum V9SnapshotTfFitState
     Active,
     ZeroChosen,
     InsufficientSupport,
-    NoSource
+    NoSource,
+    BaselineTf0
 }
 
 /// <summary>
@@ -360,12 +361,11 @@ public sealed class V9FittedSnapshot
             foreach (var fit in unitFits)
             {
                 var hasFit = fit.State is V9SnapshotTfFitState.Active or V9SnapshotTfFitState.ZeroChosen;
-                // TF0 is an explicit baseline: neutral slots do not assert
-                // that a per-unit TRAIN calibration was performed.
-                var neutralBaseline = p.TfWeight == 0m
-                    && fit.State == V9SnapshotTfFitState.ZeroChosen
-                    && fit.Calibration is null;
-                if ((!neutralBaseline && hasFit != (fit.Calibration is not null))
+                // BaselineTf0 is a deliberate uncalibrated neutral slot.
+                // ZeroChosen is reserved for a fitted, frozen zero weight.
+                if (hasFit != (fit.Calibration is not null)
+                    || (fit.State == V9SnapshotTfFitState.BaselineTf0
+                        && (p.TfWeight != 0m || fit.Calibration is not null))
                     || (fit.Calibration is { } config
                         && (config.Side != fit.Side || config.Reference.Unit != fit.Unit
                             || (fit.State == V9SnapshotTfFitState.ZeroChosen && config.Weight != 0m)
