@@ -87,7 +87,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
     private readonly V9FsAdaptiveCandidatePair[] unmatchedTrainingRows;
     private readonly (int Exact, int Diff, int Total) matchedBirthCounts;
     private readonly (int Exact, int Diff, int Total) unmatchedBirthCounts;
-    private readonly Dictionary<(CompositeNominalTfSideV9 Side, decimal Alpha),
+    private readonly Dictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit, decimal Alpha),
         V9TrainSqlFirstNameUCalibration.Frozen> trainingUnitUCache = new();
     private readonly V9FsAdaptiveCandidateFrame frame;
     private readonly IReadOnlyDictionary<string, V9FsAdaptiveOptionConfiguration> options;
@@ -337,7 +337,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         {
             if (frozenTfReference is null)
                 throw new InvalidOperationException("TF positiva exige snapshot IBGE fixado.");
-            var key = (config.TfSide, alpha);
+            var key = (config.TfSide, NominalFrequencyUnitV9.FirstName, alpha);
             if (!trainingUnitUCache.TryGetValue(key, out trainU))
             {
                 trainU = V9TrainSqlFirstNameUCalibration.Fit(
