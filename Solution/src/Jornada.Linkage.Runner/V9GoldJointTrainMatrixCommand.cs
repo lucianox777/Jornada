@@ -126,7 +126,16 @@ public static class V9GoldJointTrainMatrixCommand
         var measurements = new List<V9LowerNonMatchTrainCalibrator.JointMeasurement>(expected);
         foreach (var bytes in receipts)
         {
-            using var document = JsonDocument.Parse(bytes);
+            JsonDocument parsed;
+            try
+            {
+                parsed = JsonDocument.Parse(bytes);
+            }
+            catch (JsonException ex)
+            {
+                throw new InvalidDataException("Physical Gold TRAIN receipt is malformed JSON.", ex);
+            }
+            using var document = parsed;
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object
                 || root.EnumerateObject().GroupBy(x => x.Name, StringComparer.Ordinal).Any(g => g.Count() > 1))
