@@ -171,8 +171,10 @@ public sealed class V9FittedSnapshot
         var left = tf.Side == CompositeNominalTfSideV9.Person ? observation.NomeCompleto : observation.NomeMae;
         var right = tf.Side == CompositeNominalTfSideV9.Person ? candidate.NomeCompleto : candidate.NomeMae;
         var level = CompositeNominalComparisonV9.Classify(left, right);
-        if (level != CompositeNominalLevelV9.ExactFirst
-            && level != CompositeNominalLevelV9.ExactFull)
+        var eligible = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
+            ? level == CompositeNominalLevelV9.ExactLast
+            : level is CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactFull;
+        if (!eligible)
             return null;
         var term = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
             ? BrazilianNameComponents.Project(left)?.LastContentSurname : FirstName(left);
@@ -295,7 +297,9 @@ public sealed class V9FittedSnapshot
                 || tf.MinimumFrequency is < 0m or > 1m || tf.MinimumIndependentSupport <= 0)
                 throw new InvalidDataException("Snapshot TF incompatível com TRAIN ou configuração.");
             CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
-                CompositeNominalLevelV9.ExactFirst, tf.Reference, tf.MinimumIndependentSupport);
+                tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
+                    ? CompositeNominalLevelV9.ExactLast : CompositeNominalLevelV9.ExactFirst,
+                tf.Reference, tf.MinimumIndependentSupport);
             if (tf.Reference.Source == NominalFrequencySourceV9.IbgePublishedMarginal
                 && (!tf.Reference.PopulationFrameFingerprint.StartsWith("IBGE_PUBLISHED:", StringComparison.Ordinal)
                     || !tf.Reference.PopulationFrameFingerprint.EndsWith(
