@@ -65,6 +65,8 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
                 raise ValueError("Diagnostic and bilateral TF configurations must match")
             if item.get("SharedSurnameMode") != 1 or baseline.get("SharedSurnameMode", 0) != 0:
                 raise ValueError("Diagnostic and bilateral TF modes must differ only by shared surname")
+            # Both options must evaluate the identical candidate set; a
+            # separate physical executor must enforce and attest that fact.
             diagnostic_pairs.append({"DiagnosticOptionId": item["OptionId"],
                                      "BilateralOptionId": baseline_id,
                                      "EligibleForAutomaticSelection": False,
