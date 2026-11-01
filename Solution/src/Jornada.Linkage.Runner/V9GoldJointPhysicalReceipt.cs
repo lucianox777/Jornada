@@ -103,6 +103,7 @@ public static class V9GoldJointPhysicalReceipt
         Equal(String(root, "version"), "V9_REAL_INCREMENTAL_RUNNER_GOLD_TRAIN_SELECTION_V1", "version");
         Equal(String(root, "selectionEnvelopeSha256"), selectionEnvelopeSha256, "selection");
         Equal(String(root, "fitFingerprintSha256"), frozenFitSha256, "fit");
+        Sha(String(root, "snapshotSha256"), "recomputed Gold snapshot");
         Equal(String(root, "scope"),
             "TRAIN_SELECTION_POST_SELECTION_DIAGNOSTIC_NOT_EXTERNAL_CERTIFICATION", "scope");
         Equal(String(root, "sourceMetricRule"),
@@ -139,12 +140,17 @@ public static class V9GoldJointPhysicalReceipt
         Equal(String(upperTrial, "scope"), "TRAIN_SELECTION", "upper scope");
         Equal(String(upperTrial, "canonicalGoldSnapshotSha256"), canonicalGoldSnapshotSha256, "canonical Gold");
         Equal(String(upperTrial, "distinctRecomputedSnapshotSha256"), String(root, "snapshotSha256"), "upper rerun");
+        if (string.Equals(String(root, "snapshotSha256"), canonicalGoldSnapshotSha256, StringComparison.Ordinal))
+            throw new InvalidDataException("Joint TRAIN upper rerun must use a distinct physical Gold snapshot.");
         if (Fraction(upperTrial, "upperThreshold") != upper)
             throw new InvalidDataException("Joint TRAIN upper override differs from trial.");
         foreach (var name in new[] { "refitted", "testUsed", "activated" })
             Bool(upperTrial, name, false);
 
         var threeOrder = Required(root, "goldThreeOrderTrial");
+        Equal(String(threeOrder, "protocol"), GoldTrainThreeOrderProtocol.Version, "Gold protocol");
+        Equal(String(threeOrder, "sourceKeyContract"),
+            GoldTrainThreeOrderProtocol.StableSourceKeyContract, "stable CSV source key");
         Equal(String(threeOrder, "orderId"), order, "Gold order");
         Equal(String(threeOrder, "evidenceScope"), "TRAIN_SELECTION", "Gold scope");
         Equal(String(threeOrder, "originalCorpusSha256"), originalTrainCsvSha256, "CSV");
@@ -158,6 +164,8 @@ public static class V9GoldJointPhysicalReceipt
         var executed = Required(threeOrder, "executedWaveOrder");
         var canonical = GoldTrainThreeOrderProtocol.ResolveOrder(order, ["G0", "G1", "G2", "G3"]);
         if (executed.ValueKind != JsonValueKind.Array
+            || executed.GetArrayLength() != canonical.Count
+            || executed.EnumerateArray().Any(x => x.ValueKind != JsonValueKind.String)
             || !executed.EnumerateArray().Select(x => x.GetString()).SequenceEqual(canonical))
             throw new InvalidDataException("Joint TRAIN physical wave order mismatch.");
 
@@ -167,10 +175,10 @@ public static class V9GoldJointPhysicalReceipt
             || Count(threeOrder, "sourceCount") != sourceCount)
             throw new InvalidDataException("Joint TRAIN capture does not cover all sources.");
         var groups = Count(root, "identityGroups");
-        if (groups < 2 || groups > int.MaxValue)
+        if (groups < 2 || groups > int.MaxValue || groups > sourceCount)
             throw new InvalidDataException("Joint TRAIN independent group count invalid.");
         var opportunities = Count(trial, "trueLinkOpportunities");
-        if (opportunities == 0)
+        if (opportunities == 0 || opportunities > sourceCount)
             throw new InvalidDataException("Joint TRAIN no true link opportunities.");
 
         var lowerTrial = Required(root, "lowerNonMatchExperiment");
@@ -197,6 +205,16 @@ public static class V9GoldJointPhysicalReceipt
             || Count(gold, "PendingSources") != Count(Required(root, "publication"), "pendingSources"))
             throw new InvalidDataException("Joint TRAIN B-cubed/Gold denominator mismatch.");
         var pending = Count(gold, "PendingSources");
+        var published = Count(threeOrder, "publishedSourceCount");
+        var goldPublished = Count(gold, "PublishedSources");
+        var goldGroups = Count(gold, "GoldIdentityGroups");
+        // A claimed stable partition is not comparable across physical orders
+        // unless its complete source universe reconciles with Gold and B-cubed.
+        // Never infer missing published sources from the pending count alone.
+        if (published != goldPublished || published > sourceCount
+            || pending != sourceCount - published
+            || goldGroups > published || (goldGroups == 0) != (published == 0))
+            throw new InvalidDataException("Joint TRAIN stable Gold/B-cubed publication universe mismatch.");
         var f1 = Fraction(gold, "CoverageAwareF1");
         return new(order, "TRAIN_SELECTION", frozenFitSha256, canonicalGoldSnapshotSha256,
             Convert.ToHexString(SHA256.HashData(studyBytes)).ToLowerInvariant(),

@@ -19,7 +19,9 @@ public sealed class FrozenIbgeNominalTfV9Tests
             new NominalTermFrequencyEntry("NOME_PRENOME", "MARIA", 60, 100, .60m),
             new NominalTermFrequencyEntry("NOME_PRENOME", "ZULEICA", 5, 100, .05m),
             new NominalTermFrequencyEntry("NOME_MAE_PRENOME", "ANA", 30, 100, .30m),
-            new NominalTermFrequencyEntry("NOME_MAE_PRENOME", "EVA", 10, 100, .10m)
+            new NominalTermFrequencyEntry("NOME_MAE_PRENOME", "EVA", 10, 100, .10m),
+            new NominalTermFrequencyEntry("NOME_ULTIMO_SOBRENOME", "SILVA", 40, 100, .40m),
+            new NominalTermFrequencyEntry("NOME_MAE_ULTIMO_SOBRENOME", "SOUZA", 20, 100, .20m)
         };
         return new PreparedNominalTermFrequency(
             NominalTermFrequencySnapshot.Create(rows), rows, 9123);
@@ -113,6 +115,35 @@ public sealed class FrozenIbgeNominalTfV9Tests
     }
 
     [Test]
+    public void Frozen_surname_proxy_uses_last_content_surname_and_distinct_ibge_frames()
+    {
+        var frozen = Bound();
+        var person = frozen.CreatePreview(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast,
+            "Maria da Silva", "Ana Silva", .10m, .5m, .00001m, 100)!;
+        var mother = frozen.CreatePreview(
+            CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactLast,
+            "Ana de Souza", "Eva Souza", .10m, 1m, .00001m, 100)!;
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(person.TermFrequency, Is.EqualTo(.40m));
+            Assert.That(mother.TermFrequency, Is.EqualTo(.20m));
+            Assert.That(person.Reference.Unit, Is.EqualTo(NominalFrequencyUnitV9.LastContentSurname));
+            Assert.That(person.Reference.Source, Is.EqualTo(NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy));
+            Assert.That(mother.Reference.Source, Is.EqualTo(NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy));
+            Assert.That(person.Reference.PopulationFrameFingerprint, Does.Contain("SP_3550308_TODOS"));
+            Assert.That(mother.Reference.PopulationFrameFingerprint, Does.Contain("BR_TODOS"));
+        }));
+        Assert.That(frozen.CreatePreview(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast,
+            "Nome ausente", "Nome ausente", .10m, 0m, .00001m, 100), Is.Null);
+        Assert.That((Action)(() => frozen.CreatePreview(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast,
+            "Maria Lima", "Ana Lima", .10m, 1m, .00001m, 100)),
+            Throws.InvalidOperationException);
+    }
+
+    [Test]
     public void Zero_weight_is_explicit_neutral_even_when_name_is_unknown_but_unknown_positive_weight_fails()
     {
         var frozen = Bound();
@@ -173,6 +204,28 @@ public sealed class FrozenIbgeNominalTfV9Tests
     }
 
     [Test]
+    public void Nested_search_rejects_changed_bootstrap_even_with_identical_ibge_digests()
+    {
+        var frozen = Bound();
+        var plan = new V9NestedCalibrationPlan(null!, "fixture", 1, 1, 100, 42, 1, 1, .1m, .1m,
+            PinnedIbgeReferenceVersionId: frozen.ReferenceVersionId,
+            PinnedIbgePublishedSha256: frozen.PublishedReferenceSha256,
+            PinnedIbgeMaterializedFrequencySha256: frozen.MaterializedFrequencySha256,
+            PinnedIbgeBootstrap: Bootstrap);
+        Assert.DoesNotThrow((Action)(() =>
+            V9NestedCalibrationCoordinator.RequirePinnedTfReference(plan, frozen)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCoordinator.RequirePinnedTfReference(
+                plan with { PinnedIbgeBootstrap = Bootstrap with { GeneratorSeed = 43UL } }, frozen)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCoordinator.RequirePinnedTfReference(
+                plan with { PinnedIbgeBootstrap = null }, frozen)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCoordinator.RequirePinnedTfReference(
+                plan with { PinnedIbgeMaterializedFrequencySha256 = new string('0', 64) }, frozen)));
+    }
+
+    [Test]
     public void Frozen_frequency_digest_is_order_independent_but_changes_with_data()
     {
         var original = Prepared();
@@ -183,5 +236,97 @@ public sealed class FrozenIbgeNominalTfV9Tests
             FullPublishedSha, "SQL_BLOCKING_FRAME_PINNED", Bootstrap);
         Assert.That(b.MaterializedFrequencySha256, Is.EqualTo(a.MaterializedFrequencySha256));
         Assert.That(b.ReferenceVersionId, Is.EqualTo(a.ReferenceVersionId));
+
+        // Same published reference identity cannot hide a changed materialized
+        // count/frequency. The snapshot must be rebuilt from the changed rows.
+        var changedRows = original.Entries.Select(x =>
+            x.Attribute == NominalTermFrequencySnapshot.PersonFirstNameAttribute
+                && x.ValueNormalized == "MARIA"
+                ? x with { Occurrences = 61, Frequency = .61m }
+                : x).ToArray();
+        var changed = FrozenIbgeNominalTfV9.BindPublished(
+            new PreparedNominalTermFrequency(
+                NominalTermFrequencySnapshot.Create(changedRows), changedRows,
+                original.ReferenceVersionId),
+            "CENSO2022_NOMES_BRASIL_V1", FullPublishedSha,
+            "SQL_BLOCKING_FRAME_PINNED", Bootstrap);
+        Assert.That(changed.MaterializedFrequencySha256,
+            Is.Not.EqualTo(a.MaterializedFrequencySha256));
+
+        // The digest must bind surname-proxy materialization too, not just first names.
+        var surnameChangedRows = original.Entries.Select(x =>
+            x.Attribute == NominalTermFrequencySnapshot.MotherLastSurnameAttribute
+                && x.ValueNormalized == "SOUZA"
+                ? x with { Occurrences = 21, Frequency = .21m }
+                : x).ToArray();
+        var surnameChanged = FrozenIbgeNominalTfV9.BindPublished(
+            new PreparedNominalTermFrequency(
+                NominalTermFrequencySnapshot.Create(surnameChangedRows),
+                surnameChangedRows, original.ReferenceVersionId),
+            "CENSO2022_NOMES_BRASIL_V1", FullPublishedSha,
+            "SQL_BLOCKING_FRAME_PINNED", Bootstrap);
+        Assert.That(surnameChanged.MaterializedFrequencySha256,
+            Is.Not.EqualTo(a.MaterializedFrequencySha256));
+    }
+    [Test]
+    public void Exported_frozen_marginals_keep_explicit_unit_and_surname_proxy_provenance()
+    {
+        var frozen = Bound();
+        var personFirst = frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFirst);
+        var motherFirst = frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactFirst);
+        var personLast = frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast);
+        var motherLast = frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactLast);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(personFirst.Reference.Unit, Is.EqualTo(NominalFrequencyUnitV9.FirstName));
+            Assert.That(motherFirst.Reference.PopulationFrameFingerprint, Does.Contain("BR_FEMININO"));
+            Assert.That(personFirst.Frequencies["MARIA"], Is.EqualTo(.60m));
+            Assert.That(motherFirst.Frequencies["ANA"], Is.EqualTo(.30m));
+            Assert.That(personLast.Reference.Unit, Is.EqualTo(NominalFrequencyUnitV9.LastContentSurname));
+            Assert.That(personLast.Reference.Source, Is.EqualTo(NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy));
+            Assert.That(motherLast.Reference.Source, Is.EqualTo(NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy));
+            Assert.That(personLast.Reference.PopulationFrameFingerprint, Does.Contain("SP_3550308_TODOS"));
+            Assert.That(motherLast.Reference.PopulationFrameFingerprint, Does.Contain("BR_TODOS"));
+            Assert.That(personLast.Frequencies["SILVA"], Is.EqualTo(.40m));
+            Assert.That(motherLast.Frequencies["SOUZA"], Is.EqualTo(.20m));
+            Assert.That(personLast.Frequencies.ContainsKey("MARIA"), Is.False);
+            Assert.That(motherLast.Frequencies.ContainsKey("ANA"), Is.False);
+        }));
+        Assert.That((Action)(() => frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFull)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => frozen.ExportForSnapshot(
+            (CompositeNominalTfSideV9)99, CompositeNominalLevelV9.ExactFirst)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+
+    [Test]
+    public void Surname_export_fails_closed_when_proxy_marginal_is_missing_without_disabling_first_name()
+    {
+        var prepared = Prepared();
+        var firstNamesOnly = prepared.Entries.Where(x =>
+            x.Attribute is NominalTermFrequencySnapshot.PersonFirstNameAttribute
+                or NominalTermFrequencySnapshot.MotherFirstNameAttribute).ToArray();
+        var frozen = FrozenIbgeNominalTfV9.BindPublished(
+            new PreparedNominalTermFrequency(
+                NominalTermFrequencySnapshot.Create(firstNamesOnly),
+                firstNamesOnly, prepared.ReferenceVersionId),
+            "CENSO2022_NOMES_BRASIL_V1", FullPublishedSha,
+            "SQL_BLOCKING_FRAME_PINNED", Bootstrap);
+
+        Assert.That(frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFirst)
+            .Frequencies.ContainsKey("MARIA"), Is.True);
+        Assert.That((Action)(() => frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => frozen.ExportForSnapshot(
+            CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactLast)),
+            Throws.TypeOf<InvalidDataException>());
     }
 }

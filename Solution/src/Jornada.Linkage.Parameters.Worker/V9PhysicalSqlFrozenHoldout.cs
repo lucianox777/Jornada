@@ -30,8 +30,11 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             throw new InvalidDataException("Avaliação congelada exige VALIDATION válida, cap e até três finalistas.");
         var expectedProjection = execution.MaximumPrefixLength == 0 ? PersonResolutionProjectionContract.FingerprintSha256
             : V9CalibrationBlockingProjection.ComputeSchemaFingerprint(execution.MaximumPrefixLength);
-        if (snapshot.Payload.ProjectionFingerprintSha256 != expectedProjection || snapshot.Payload.TfWeight != 0)
-            throw new InvalidDataException("Snapshot, projeção e TF0 do protocolo devem coincidir.");
+        // Frozen replay uses the snapshot's embedded TRAIN-fitted U and pinned
+        // published IBGE frequencies for TF-positive options. No reference SQL
+        // lookup, re-fit, or implicit TF0 substitution is permitted here.
+        if (snapshot.Payload.ProjectionFingerprintSha256 != expectedProjection)
+            throw new InvalidDataException("Snapshot e projeção do protocolo devem coincidir.");
         await RequireHarnessAsync(connection, cancellationToken);
         var byId = validation.ToDictionary(x => x.ObservationId);
         var eligible = validation.GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
@@ -58,7 +61,8 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             var trueSources = edges.Where(e => byId[e.A].BasePersonId == byId[e.B].BasePersonId)
                 .SelectMany(e => new[] { e.A, e.B }).Distinct().LongCount();
             var replay = V9FrozenSourceResolveReplay.Replay(snapshot, validation, edges);
-            var baseline = new V9PhysicalSourceResolveMetric(snapshot.ContentSha256, snapshot.Payload.Threshold, 0,
+            var baseline = new V9PhysicalSourceResolveMetric(snapshot.ContentSha256, snapshot.Payload.Threshold,
+                snapshot.Payload.TfWeight,
                 snapshot.Payload.ConflictMargin, "BLIND_FS_COMPLETE_LINK_CANDIDATES", validation.Count,
                 eligible, trueSources, 0, 0, 0, validation.Count, (double)trueSources / eligible,
                 0, null, null, validation.Select(x => x.BasePersonId).Distinct(StringComparer.Ordinal).Count(),

@@ -60,6 +60,32 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
     }
 
     [Test]
+    public void Reused_train_statistics_match_independent_fits_for_distinct_options()
+    {
+        // Reuse of immutable TRAIN arrays/counts must not mix options, and
+        // fitting order must not change fitted digests or holdout metrics.
+        var a = new V9FsAdaptiveOptionConfiguration("A", .5m, .50m);
+        var b = new V9FsAdaptiveOptionConfiguration("B", 1m, .70m);
+        var shared = new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(), [a, b]);
+        var train = Slice("TRAIN", TrainSha, TrainGroupsSha, 6);
+        var validation = Slice("VALIDATION", ValidationSha, ValidationGroupsSha, 6);
+        foreach (var option in new[] { b, a, b, a })
+        {
+            var model = new AdaptiveCalibrationModelOption(
+                V9FellegiSunterAdaptiveCalibrationAdapter.Family,
+                V9FellegiSunterAdaptiveCalibrationAdapter.Version,
+                option.OptionId, option.FingerprintSha256);
+            var reusedFit = shared.FitTrain(model, train);
+            var isolated = new V9FellegiSunterAdaptiveCalibrationAdapter(Frame(), [option]);
+            var isolatedFit = isolated.FitTrain(model, train);
+            Assert.That(reusedFit.FittedParametersFingerprintSha256,
+                Is.EqualTo(isolatedFit.FittedParametersFingerprintSha256));
+            Assert.That(shared.EvaluateValidation(reusedFit, validation),
+                Is.EqualTo(isolated.EvaluateValidation(isolatedFit, validation)));
+        }
+    }
+
+    [Test]
     public void Configuration_fingerprint_is_bound_to_threshold_and_fit_is_train_only()
     {
         var option = new V9FsAdaptiveOptionConfiguration("T090", .5m, .90m);

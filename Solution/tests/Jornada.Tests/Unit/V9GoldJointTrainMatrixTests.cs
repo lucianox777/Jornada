@@ -50,6 +50,12 @@ public sealed class V9GoldJointTrainMatrixTests
             ((JsonObject)root["lowerNonMatchExperiment"]!)["threshold"] = lower;
             var three = (JsonObject)root["goldThreeOrderTrial"]!;
             three["orderId"] = order;
+            // A frozen fit and one upper must yield the SAME content-addressed
+            // snapshot across every lower/order; different uppers must not alias.
+            var recomputed = Digest("frozen-gold-upper-" + upper.ToString(CultureInfo.InvariantCulture));
+            root["snapshotSha256"] = recomputed;
+            ((JsonObject)root["jointUpperTrain"]!)["distinctRecomputedSnapshotSha256"] = recomputed;
+            three["frozenSnapshotSha256"] = recomputed;
             three["executedWaveOrder"] = new JsonArray(
                 GoldTrainThreeOrderProtocol.ResolveOrder(order, ["G0", "G1", "G2", "G3"])
                     .Select(x => (JsonNode?)JsonValue.Create(x)).ToArray());
@@ -150,6 +156,42 @@ public sealed class V9GoldJointTrainMatrixTests
 
         // Different LocalDB instance labels and JSON digests must not conceal
         // a duplicated physical SQL run in the preregistered TRAIN matrix.
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
+    }
+
+    [Test]
+    public void Rejects_inconsistent_recomputed_upper_snapshot_across_lower_or_order()
+    {
+        var plan = PlanBytes();
+        var receipts = PhysicalReceipts(plan);
+        var altered = JsonNode.Parse(receipts[1])!.AsObject();
+        var different = Digest("forged-upper-snapshot-within-same-upper");
+        altered["snapshotSha256"] = different;
+        ((JsonObject)altered["jointUpperTrain"]!)["distinctRecomputedSnapshotSha256"] = different;
+        ((JsonObject)altered["goldThreeOrderTrial"]!)["frozenSnapshotSha256"] = different;
+        receipts[1] = JsonSerializer.SerializeToUtf8Bytes(altered);
+
+        // Every individual receipt is internally consistent, yet the same
+        // frozen fit and upper produces contradictory snapshot identities.
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
+    }
+
+    [Test]
+    public void Rejects_same_recomputed_snapshot_claimed_for_different_uppers()
+    {
+        var plan = PlanBytes();
+        var receipts = PhysicalReceipts(plan);
+        var first = JsonNode.Parse(receipts[0])!.AsObject();
+        var otherUpper = JsonNode.Parse(receipts[6])!.AsObject();
+        var firstSha = first["snapshotSha256"]!.GetValue<string>();
+        otherUpper["snapshotSha256"] = firstSha;
+        ((JsonObject)otherUpper["jointUpperTrain"]!)["distinctRecomputedSnapshotSha256"] = firstSha;
+        ((JsonObject)otherUpper["goldThreeOrderTrial"]!)["frozenSnapshotSha256"] = firstSha;
+        receipts[6] = JsonSerializer.SerializeToUtf8Bytes(otherUpper);
+
+        // Upper=0.8 and upper=0.9 cannot be represented by the same variant.
         Assert.Throws<InvalidDataException>((Action)(() =>
             V9GoldJointTrainMatrixCommand.Aggregate(plan, receipts)));
     }

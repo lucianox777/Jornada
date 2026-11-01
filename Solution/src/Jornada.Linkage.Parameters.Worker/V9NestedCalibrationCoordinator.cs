@@ -73,6 +73,24 @@ public static class V9NestedCalibrationCoordinator
             throw new InvalidDataException("Bootstrap exige suporte observado positivo no núcleo de massa de cada classe; piso zero é exclusivo da fixture sem certificação.");
     }
 
+    /// <summary>
+    /// Fail closed before TRAIN fitting when the SQL reference is not the exact
+    /// version, published/materialized digest AND synthetic bootstrap declared
+    /// by the immutable plan. Matching IBGE marginals alone cannot attest the
+    /// generator, corpus, seed or hypotheses of the synthetic training frame.
+    /// </summary>
+    public static void RequirePinnedTfReference(V9NestedCalibrationPlan plan, FrozenIbgeNominalTfV9? reference)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        if (reference is null
+            || reference.ReferenceVersionId != plan.PinnedIbgeReferenceVersionId
+            || !string.Equals(reference.PublishedReferenceSha256, plan.PinnedIbgePublishedSha256, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(reference.MaterializedFrequencySha256, plan.PinnedIbgeMaterializedFrequencySha256, StringComparison.OrdinalIgnoreCase)
+            || plan.PinnedIbgeBootstrap is null
+            || reference.Bootstrap != plan.PinnedIbgeBootstrap)
+            throw new InvalidDataException("TF positivo sem versão, digests ou bootstrap IBGE idênticos ao plano congelado.");
+    }
+
     private static bool ValidSha(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
 
     public static async Task<V9NestedCalibrationSearchResult> SearchAsync(
@@ -159,11 +177,7 @@ public static class V9NestedCalibrationCoordinator
                     await referenceLease.WaitAsync(ct);
                     try { frozenReference = await frozenTfReferenceForRuleset!(group[0].Passes, ct); }
                     finally { referenceLease.Release(); }
-                    if (frozenReference is null
-                        || frozenReference.ReferenceVersionId != plan.PinnedIbgeReferenceVersionId
-                        || !string.Equals(frozenReference.PublishedReferenceSha256, plan.PinnedIbgePublishedSha256, StringComparison.OrdinalIgnoreCase)
-                        || !string.Equals(frozenReference.MaterializedFrequencySha256, plan.PinnedIbgeMaterializedFrequencySha256, StringComparison.OrdinalIgnoreCase))
-                        throw new InvalidDataException("TF positivo sem versão/digests IBGE idênticos ao plano congelado.");
+                    RequirePinnedTfReference(plan, frozenReference);
                 }
                 var connection = await openIndependentConnection(ct);
                 lock (active) if (!active.Add(connection)) throw new InvalidDataException("Workers exigem conexões SQL independentes.");

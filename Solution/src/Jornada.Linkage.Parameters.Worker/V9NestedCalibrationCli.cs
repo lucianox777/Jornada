@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Jornada.Contracts;
 using Jornada.Linkage.Runner;
 using Microsoft.Data.SqlClient;
 
@@ -59,6 +60,18 @@ public static class V9NestedCalibrationCli
             throw new InvalidDataException("Bootstrap padrão exige clean conservador provisório e produtor fixado.");
         var train = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(source, 4,
             declaration.MaximumObservationsPerBaseIdentity, onlyPartition: "TRAIN");
+        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? referenceFactory = null;
+        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m))
+            referenceFactory = async (passes, ct) =>
+            {
+                // The reference version is explicit; no mutable ATIVA fallback.
+                await using var referenceSql = new SqlConnection(connectionString);
+                await referenceSql.OpenAsync(ct);
+                return await FrozenIbgeNominalTfV9.LoadAsync(referenceSql,
+                    plan.PinnedIbgeReferenceVersionId!.Value,
+                    V9PhysicalSqlAdaptiveCalibrationProbe.ComputeBlockingFingerprint(passes),
+                    plan.PinnedIbgeBootstrap!, ct);
+            };
         var result = await V9NestedCalibrationCoordinator.SearchAsync(async ct =>
         {
             var connection = new SqlConnection(connectionString);
@@ -69,7 +82,7 @@ public static class V9NestedCalibrationCli
             var line = JsonSerializer.Serialize(progress);
             File.AppendAllText(Path.Combine(output, "batch-progress.jsonl"), line + Environment.NewLine);
             Console.Error.WriteLine(line);
-        });
+        }, frozenTfReferenceForRuleset: referenceFactory);
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
             .DistinctBy(x => x.ContentSha256))
             await V9FittedSnapshotArtifact.WriteNewAsync(Path.Combine(output, fit.ContentSha256 + ".fitted.json"), fit);
@@ -103,6 +116,33 @@ public static class V9NestedCalibrationCli
             finalists = result.FinalistSnapshotShas.Count, result.StopReason, externalValidationUsed = false, testUsed = false, activated = false }));
     }
 
+    /// <summary>
+    /// Before consuming the one-time external VALIDATION receipt, ensure a positive-TF
+    /// finalist is bound to the published IBGE digest pinned by the selection plan.
+    /// The portable fit contains the selected marginal, not the entire materialized
+    /// IBGE catalogue: this check does NOT claim independent full-catalogue attestation.
+    /// </summary>
+    public static void RequirePinnedFinalistReference(V9NestedCalibrationPlan plan, V9FittedSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(plan);
+        ArgumentNullException.ThrowIfNull(snapshot);
+        if (snapshot.Payload.TfWeight == 0m) return;
+        var tf = snapshot.Payload.TfCalibration
+            ?? throw new InvalidDataException("Finalista TF positivo sem parâmetros TRAIN congelados.");
+        var frame = tf.Reference.PopulationFrameFingerprint.Split(':');
+        if (plan.PinnedIbgeReferenceVersionId is null or <= 0
+            || plan.PinnedIbgePublishedSha256 is null
+            || plan.PinnedIbgePublishedSha256.Length != 64
+            || !plan.PinnedIbgePublishedSha256.All(Uri.IsHexDigit)
+            || tf.Reference.Source != NominalFrequencySourceV9.IbgePublishedMarginal
+            || plan.PinnedIbgeBootstrap is null
+            || tf.Reference.SyntheticBootstrap != plan.PinnedIbgeBootstrap
+            || frame.Length != 4
+            || frame[0] != "IBGE_PUBLISHED"
+            || !string.Equals(frame[2], plan.PinnedIbgePublishedSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Finalista TF não corresponde ao digest IBGE publicado fixado no plano.");
+    }
+
     private static async Task ValidateAsync(string selectionFile, string source, string output,
         V9NestedCalibrationPlan plan, string connectionString)
     {
@@ -131,7 +171,9 @@ public static class V9NestedCalibrationCli
         foreach (var id in ids)
         {
             if (id is not { Length: 64 } || !id.All(Uri.IsHexDigit)) throw new InvalidDataException("SHA de finalista inválido.");
-            snapshots.Add(await V9FittedSnapshotArtifact.ReadPinnedAsync(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(selectionFile))!, id + ".fitted.json"), id));
+            var snapshot = await V9FittedSnapshotArtifact.ReadPinnedAsync(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(selectionFile))!, id + ".fitted.json"), id);
+            RequirePinnedFinalistReference(plan, snapshot);
+            snapshots.Add(snapshot);
         }
         var registry = Environment.GetEnvironmentVariable("JORNADA_V9_HOLDOUT_REGISTRY")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Jornada", "V9", "holdout-exposures");

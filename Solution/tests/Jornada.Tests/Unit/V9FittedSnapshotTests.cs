@@ -117,6 +117,34 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void External_validation_rejects_positive_tf_with_foreign_published_digest_before_exposure()
+    {
+        var positive = V9FittedSnapshot.Create(PositiveTfPayload());
+        var bootstrap = positive.Payload.TfCalibration!.Reference.SyntheticBootstrap!;
+        var plan = new V9NestedCalibrationPlan(null!, "fixture", 1, 1, 100, 42, 1, 1, .1m, .1m,
+            PinnedIbgeReferenceVersionId: 7, PinnedIbgePublishedSha256: new string('a', 64),
+            PinnedIbgeBootstrap: bootstrap);
+        Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.RequirePinnedFinalistReference(plan, positive)));
+        // The published marginal SHA alone does not pin synthetic generator provenance.
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(
+                plan with { PinnedIbgeBootstrap = bootstrap with { GeneratorSeed = 43UL } }, positive)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(
+                plan with { PinnedIbgeBootstrap = null }, positive)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(
+                plan with { PinnedIbgePublishedSha256 = new string('b', 64) }, positive)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(
+                plan with { PinnedIbgeReferenceVersionId = null }, positive)));
+        Assert.DoesNotThrow((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(
+                plan with { PinnedIbgePublishedSha256 = null, PinnedIbgeReferenceVersionId = null },
+                V9FittedSnapshot.Create(Payload()))));
+    }
+
+    [Test]
     public void Positive_tf_rejects_other_train_frame_and_person_mother_reference_swap()
     {
         var p = PositiveTfPayload();
