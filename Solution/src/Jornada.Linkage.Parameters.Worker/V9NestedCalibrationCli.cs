@@ -137,7 +137,7 @@ public static class V9NestedCalibrationCli
             ? units.Where(x => x.Calibration is not null)
                 .Select(x => x.Calibration!).ToArray()
             : snapshot.Payload.TfCalibration is { } legacy
-                ? [legacy] : Array.Empty<V9SnapshotFirstNameTf>();
+                ? [legacy] : Array.Empty<V9SnapshotNominalUnitTfCalibration>();
         if (calibrations.Length == 0 || plan.PinnedIbgeReferenceVersionId is null or <= 0
             || plan.PinnedIbgePublishedSha256 is null
             || plan.PinnedIbgePublishedSha256.Length != 64
