@@ -28,6 +28,10 @@ def _write_frozen_outputs(destination: Path, plan: dict, cost: dict | None = Non
     """
     outputs = [(destination, plan)]
     if cost is not None:
+        expected = plan.get("Calibration", {}).get("StudyFingerprintSha256")
+        if (not isinstance(expected, str) or not expected
+                or cost.get("study_fingerprint_sha256") != expected):
+            raise ValueError("Frozen TF budget fingerprint must match TRAIN plan")
         outputs.append((destination.with_suffix(".tf-budget.json"), cost))
     for path, _ in outputs:
         if path.exists():
