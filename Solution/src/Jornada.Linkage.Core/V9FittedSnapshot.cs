@@ -25,7 +25,9 @@ public sealed record V9FittedSnapshotPayload(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? GoldParentSnapshotSha256 = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    V9SnapshotFirstNameTf? MotherTfCalibration = null);
+    V9SnapshotFirstNameTf? MotherTfCalibration = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<V9SnapshotUnitTf>? UnitTfCalibrations = null);
 
 public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
     decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
@@ -297,6 +299,27 @@ public sealed class V9FittedSnapshot
                      LinkageParameterCatalog.LegacyBirthComponentScoring })
             if (parameters.GetValueOrDefault(unsupported) != 0m)
                 throw new InvalidDataException("Estratégia de nascimento não suportada pelo schema do snapshot.");
+        // New multi-unit fitting metadata is validated independently of the
+        // legacy two-slot execution path. Never accept duplicate or contradictory
+        // state/reference combinations.
+        if (p.UnitTfCalibrations is { } unitFits)
+        {
+            if (unitFits.Count > 4 || unitFits.Any(x => x is null
+                || !Enum.IsDefined(x.Side) || !Enum.IsDefined(x.Unit)
+                || !Enum.IsDefined(x.State))
+                || unitFits.Select(x => (x.Side, x.Unit)).Distinct().Count() != unitFits.Count)
+                throw new InvalidDataException("Configurações TF por lado/unidade inválidas ou duplicadas.");
+            foreach (var fit in unitFits)
+            {
+                var hasFit = fit.State is V9SnapshotTfFitState.Active or V9SnapshotTfFitState.ZeroChosen;
+                if (hasFit != (fit.Calibration is not null)
+                    || (fit.Calibration is { } config
+                        && (config.Side != fit.Side || config.Reference.Unit != fit.Unit
+                            || (fit.State == V9SnapshotTfFitState.ZeroChosen && config.Weight != 0m)
+                            || (fit.State == V9SnapshotTfFitState.Active && config.Weight is not > 0m))))
+                    throw new InvalidDataException("Estado TF incompatível com referência e peso calibrados.");
+            }
+        }
         // The mother reference is separately fitted and must not reuse a person-side U.
         if (p.MotherTfCalibration is { } mother &&
             (p.TfCalibration?.Side != CompositeNominalTfSideV9.Person
