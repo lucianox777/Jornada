@@ -18,6 +18,33 @@ def _tf_helper():
     return module
 
 
+
+def _write_frozen_outputs(destination: Path, plan: dict, cost: dict | None = None):
+    """Publish a new TRAIN plan and optional TF budget, never overwriting either.
+
+    If the second write fails, remove only files created by this invocation.
+    This is rollback on ordinary I/O errors, not an atomic multi-file filesystem
+    transaction; consumers must still verify both fingerprints before use.
+    """
+    outputs = [(destination, plan)]
+    if cost is not None:
+        outputs.append((destination.with_suffix(".tf-budget.json"), cost))
+    for path, _ in outputs:
+        if path.exists():
+            raise FileExistsError(path)
+    created = []
+    try:
+        for path, payload in outputs:
+            with path.open("x", encoding="utf-8") as stream:
+                created.append(path)
+                json.dump(payload, stream, indent=2)
+                stream.write("\\n")
+    except Exception:
+        for path in reversed(created):
+            path.unlink(missing_ok=True)
+        raise
+
+
 def prepare(corpus: Path, destination: Path, fixture: bool = False,
             tf_search: bool = False, pinned_ibge: Path | None = None):
     if destination.exists():
@@ -138,16 +165,7 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         cost["shared_surname_candidate_pairs"] = None
         if cost["predeclared_comparisons"] > maximum:
             raise ValueError("TF initial family exceeds the predeclared compute budget")
-        sidecar = destination.with_suffix(".tf-budget.json")
-        if sidecar.exists():
-            raise FileExistsError(sidecar)
-    with destination.open("x", encoding="utf-8") as stream:
-        json.dump(plan, stream, indent=2)
-        stream.write("\n")
-    if tf_search:
-        with sidecar.open("x", encoding="utf-8") as stream:
-            json.dump(cost, stream, indent=2)
-            stream.write("\n")
+    _write_frozen_outputs(destination, plan, cost if tf_search else None)
 
 
 if __name__ == "__main__":
