@@ -47,15 +47,15 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         helper = _tf_helper()
         full_grid = helper.option_grid(alpha=.5, threshold=.95)
         # PO decision 12: shared surname alternatives are diagnostic only.
-        diagnostic = [x for x in full_grid if x["OptionId"].startswith("SHARED_PL_ML_")]
-        models = [x for x in full_grid if not x["OptionId"].startswith("SHARED_PL_ML_")]
+        diagnostic = [x for x in full_grid if x["OptionId"].startswith("TF_SHARED_PL_ML_")]
+        models = [x for x in full_grid if not x["OptionId"].startswith("TF_SHARED_PL_ML_")]
         if len(models) != 41 or len(diagnostic) != 4:
             raise ValueError("Unexpected TF diagnostic partition")
         eligible = {x["OptionId"] for x in models}
         by_id = {x["OptionId"]: x for x in models}
         diagnostic_pairs = []
         for item in diagnostic:
-            baseline_id = item["OptionId"].replace("SHARED_PL_ML_", "TWO_PL_ML_", 1)
+            baseline_id = item["OptionId"].replace("TF_SHARED_PL_ML_", "TF_TWO_PL_ML_", 1)
             if baseline_id not in eligible:
                 raise ValueError("Missing bilateral reference")
             baseline = by_id[baseline_id]
