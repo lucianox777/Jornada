@@ -13,7 +13,7 @@ public enum CompositeNominalTfSideV9 { Person, Mother }
 public enum CompositeNominalTfAdjustmentModeV9 { Symmetric = 0, AsymmetricPenaltyOnly = 1 }
 
 /// <summary>Experimental shared-surname dependence assumption, not a family relationship.</summary>
-public enum V9SharedSurnameModeV9 { Bilateral = 0, PersonSideOnlyWhenShared = 1, ConservativeSingleWhenShared = PersonSideOnlyWhenShared }
+public enum V9SharedSurnameModeV9 { Bilateral = 0, PersonSideOnlyWhenShared = 1 }
 
 public sealed record CompositeNominalTfPreviewV9(
     CompositeNominalTfSideV9 Side,
@@ -126,10 +126,13 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
             leftPerson, rightPerson, leftMother, rightMother, personTf);
         var motherAdjustment = Calculate(personLevel, motherLevel,
             leftPerson, rightPerson, leftMother, rightMother, motherTf);
-        if (sharedSurnameMode == V9SharedSurnameModeV9.ConservativeSingleWhenShared
+        if (sharedSurnameMode == V9SharedSurnameModeV9.PersonSideOnlyWhenShared
             && IsSharedSurname(personTf, motherTf))
         {
-            // Diagnostic variant only: one shared surname uses the person's\n            // signed correction, independent of the mother's correction.\n            // Bilateral remains the default for scoring and selection.\n            return personAdjustment;
+            // Diagnostic variant only: one shared surname uses the person's
+            // signed correction, independent of the mother's correction.
+            // Bilateral remains the default for scoring and selection.
+            return personAdjustment;
         }
         return personAdjustment + motherAdjustment;
     }
