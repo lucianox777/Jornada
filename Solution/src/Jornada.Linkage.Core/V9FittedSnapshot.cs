@@ -148,6 +148,7 @@ public sealed class V9FittedSnapshot
     {
         var converted = candidates.Select(c =>
             new LinkageCandidate(c.PersonUuid, c.FullName, c.BirthDate, c.MotherName)).ToArray();
+        // A second side must never silently fall back to the legacy one-sided path.
         if (Payload.MotherTfCalibration is not null)
             return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
                 Payload.Parameters, numericParameters, observation, converted, frozenNominal,
