@@ -229,13 +229,15 @@ internal static class ProbabilisticLinkageDecisions
                             observation.NomeCompleto, candidate.NomeCompleto)
                         : CompositeNominalComparisonV9.Classify(
                             observation.NomeMae, candidate.NomeMae);
-                    if ((level == CompositeNominalLevelV9.ExactFirst && term is null)
+                    if (((level == CompositeNominalLevelV9.ExactFirst
+                            || level == CompositeNominalLevelV9.ExactFull) && term is null)
                         || (term is not null
                             && (term.Side != side
-                                || level != CompositeNominalLevelV9.ExactFirst
+                                || (level != CompositeNominalLevelV9.ExactFirst
+                                    && level != CompositeNominalLevelV9.ExactFull)
                                 || term.Weight <= 0m)))
                         throw new InvalidOperationException(
-                            "TF V9 positiva sem unidade ExactFirst válida ou frequência disponível.");
+                            "TF V9 positiva sem unidade ExactFirst/ExactFull válida ou frequência disponível.");
                 }
                 var score = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewScore(
                     parameters,
