@@ -56,7 +56,7 @@ public enum V9SnapshotTfFitState
 
 /// <summary>
 /// One independent TF fit per (side, unit). A zero chosen by the calibrator
-/// retains its frozen reference; missing evidence is never labelled zero.
+/// retains its frozen reference with Weight=0; missing evidence is never labelled zero.
 /// </summary>
 public sealed record V9SnapshotUnitTf(
     CompositeNominalTfSideV9 Side,
@@ -111,6 +111,7 @@ public sealed class V9FittedSnapshot
     public V9FittedSnapshot CreateGoldHarnessVariant()
     {
         if (Payload.JointSupport is null || Payload.TfWeight != 0
+            || Payload.UnitTfCalibrations?.Any(x => x.State == V9SnapshotTfFitState.Active) == true
             || Payload.CandidateGrouping?.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES")
             throw new InvalidDataException("Variante Gold exige fit V3 BLIND TF0 congelado.");
         return Create(Payload with { CandidateGrouping = new("GOLD", 0, 0), GoldParentSnapshotSha256 = ContentSha256 });
@@ -181,13 +182,7 @@ public sealed class V9FittedSnapshot
                 var level = side == CompositeNominalTfSideV9.Person
                     ? CompositeNominalComparisonV9.Classify(o.NomeCompleto, c.NomeCompleto)
                     : CompositeNominalComparisonV9.Classify(o.NomeMae, c.NomeMae);
-                NominalFrequencyUnitV9? unit = level switch
-                {
-                    CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactFull
-                        => NominalFrequencyUnitV9.FirstName,
-                    CompositeNominalLevelV9.ExactLast => NominalFrequencyUnitV9.LastContentSurname,
-                    _ => null
-                };
+                var unit = V9NominalTfUnitSelection.ForLevel(level);
                 return unit is null ? null
                     : fits.SingleOrDefault(x => x.Side == side && x.Unit == unit.Value);
             }
@@ -350,31 +345,50 @@ public sealed class V9FittedSnapshot
         {
             if (p.TfCalibration is not null || p.MotherTfCalibration is not null)
                 throw new InvalidDataException("TF V9 não admite fontes paralelas: use somente UnitTfCalibrations.");
-            if (unitFits.Count != 4
-                || (p.TfWeight == 0m && unitFits.Any(x => x.State == V9SnapshotTfFitState.Active))
-                || (p.TfWeight > 0m && !unitFits.Any(x => x.State == V9SnapshotTfFitState.Active))
-                || unitFits.Any(x => x is null
+            if (unitFits.Count != 4 || unitFits.Any(x => x is null
                     || !Enum.IsDefined(x.Side) || !Enum.IsDefined(x.Unit)
                     || x.Unit is not (NominalFrequencyUnitV9.FirstName or NominalFrequencyUnitV9.LastContentSurname)
                     || !Enum.IsDefined(x.State))
-                || unitFits.Select(x => (x.Side, x.Unit)).Distinct().Count() != unitFits.Count)
+                || unitFits.Select(x => (x.Side, x.Unit)).Distinct().Count() != 4)
                 throw new InvalidDataException("Configurações TF por lado/unidade inválidas ou duplicadas.");
+            var activeCount = 0;
             foreach (var fit in unitFits)
             {
-                var hasFit = fit.State is V9SnapshotTfFitState.Active or V9SnapshotTfFitState.ZeroChosen;
-                // BaselineTf0 is a deliberate uncalibrated neutral slot.
-                // ZeroChosen is reserved for a fitted, frozen zero weight.
-                if (hasFit != (fit.Calibration is not null)
-                    || (fit.State == V9SnapshotTfFitState.BaselineTf0
-                        && (p.TfWeight != 0m || fit.Calibration is not null))
-                    || (fit.State == V9SnapshotTfFitState.NotSelected
-                        && (p.TfWeight <= 0m || fit.Calibration is not null))
-                    || (fit.Calibration is { } config
-                        && (config.Side != fit.Side || config.Reference.Unit != fit.Unit
-                            || (fit.State == V9SnapshotTfFitState.ZeroChosen && config.Weight != 0m)
-                            || (fit.State == V9SnapshotTfFitState.Active && config.Weight is not > 0m))))
-                    throw new InvalidDataException("Estado TF incompatível com referência e peso calibrados.");
+                var config = fit.Calibration;
+                switch (fit.State)
+                {
+                    case V9SnapshotTfFitState.Active:
+                        if (config?.Weight is not { } activeWeight || activeWeight <= 0m || activeWeight > 1m)
+                            throw new InvalidDataException("TF ativo exige peso individual positivo em [0,1].");
+                        activeCount++;
+                        break;
+                    case V9SnapshotTfFitState.ZeroChosen:
+                        if (config?.Weight != 0m)
+                            throw new InvalidDataException("TF ZeroChosen exige referência congelada de peso zero.");
+                        break;
+                    case V9SnapshotTfFitState.BaselineTf0:
+                    case V9SnapshotTfFitState.NotSelected:
+                    case V9SnapshotTfFitState.NoSource:
+                    case V9SnapshotTfFitState.InsufficientSupport:
+                        if (config is not null
+                            || (fit.State == V9SnapshotTfFitState.BaselineTf0 && p.TfWeight != 0m)
+                            || (fit.State == V9SnapshotTfFitState.NotSelected && p.TfWeight == 0m))
+                            throw new InvalidDataException("Estado TF sem calibração incompatível com o fit.");
+                        break;
+                    default:
+                        throw new InvalidDataException("Estado TF V9 desconhecido.");
+                }
+                if (config is not null && (config.Side != fit.Side || config.Reference is null
+                    || config.Reference.Unit != fit.Unit))
+                    throw new InvalidDataException("Configuração TF por unidade não corresponde ao estado.");
             }
+            if ((activeCount > 0) != (p.TfWeight > 0m || unitFits.Any(x =>
+                    x.Calibration?.Weight is > 0m))
+                || (p.TfWeight > 0m && (activeCount != 1 || !unitFits.Any(x =>
+                    x.Unit == NominalFrequencyUnitV9.FirstName
+                    && x.State == V9SnapshotTfFitState.Active
+                    && x.Calibration?.Weight == p.TfWeight))))
+                throw new InvalidDataException("Peso TF geral e pesos independentes contraditórios.");
         }
         // The mother reference is separately fitted and must not reuse a person-side U.
         if (p.MotherTfCalibration is { } mother &&
@@ -422,8 +436,8 @@ public sealed class V9FittedSnapshot
         }
         var frozenTf = FreezeTf(p.TfCalibration);
         var frozenMotherTf = FreezeTf(p.MotherTfCalibration);
-        // Reuse the proven prenome freeze/validation path for every unit.
-        // A configured zero remains a fitted reference, not missing evidence.
+        // Reuse the proven TF freeze/validation path for every unit.
+        // ZeroChosen keeps its pinned reference and U while runtime gives it BF=1.
         var frozenUnits = p.UnitTfCalibrations is null ? null
             : Array.AsReadOnly(p.UnitTfCalibrations.Select(fit =>
                 fit with { Calibration = FreezeTf(fit.Calibration) })

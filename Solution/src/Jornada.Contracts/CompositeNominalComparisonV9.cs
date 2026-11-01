@@ -92,3 +92,26 @@ public static class CompositeNominalComparisonV9
         return token.Length == 0 ? null : token;
     }
 }
+
+/// <summary>
+/// Shared TF applicability rule for TRAIN preview, VALIDATION and runtime.
+/// ExactFull proves the first-name equality but uses only its first-name marginal.
+/// </summary>
+public static class V9NominalTfUnitSelection
+{
+    public static NominalFrequencyUnitV9? ForLevel(CompositeNominalLevelV9 level) => level switch
+    {
+        CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactFull
+            => NominalFrequencyUnitV9.FirstName,
+        CompositeNominalLevelV9.ExactLast => NominalFrequencyUnitV9.LastContentSurname,
+        _ => null
+    };
+
+    public static CompositeNominalLevelV9 MarginalLevel(NominalFrequencyUnitV9 unit) =>
+        unit switch
+        {
+            NominalFrequencyUnitV9.FirstName => CompositeNominalLevelV9.ExactFirst,
+            NominalFrequencyUnitV9.LastContentSurname => CompositeNominalLevelV9.ExactLast,
+            _ => throw new ArgumentOutOfRangeException(nameof(unit))
+        };
+}

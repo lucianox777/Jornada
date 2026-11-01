@@ -8,7 +8,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
 /// Preview-only U calibration on the same TRAIN SQL candidate-pair frame used
-/// by the FS scorer: p(first-name VALUE | U, exact-first agreement, blocking).
+/// by the FS scorer: p(unit VALUE | U, unit-selected agreement, blocking).
 /// This is not the marginal frequency of people in the population and not a
 /// valid identity-cluster confidence bound. No TEST or automated promotion.
 /// </summary>
@@ -53,13 +53,14 @@ public static class V9TrainSqlFirstNameUCalibration
                 ? row.LeftPersonName : row.LeftMotherName;
             var right = side == CompositeNominalTfSideV9.Person
                 ? row.RightPersonName : row.RightMotherName;
-            if (CompositeNominalComparisonV9.Classify(left, right)
-                != (unit == NominalFrequencyUnitV9.FirstName
-                    ? CompositeNominalLevelV9.ExactFirst : CompositeNominalLevelV9.ExactLast))
+            // TRAIN support must count the exact same nominal events that
+            // VALIDATION/runtime select (ExactFull also selects FirstName).
+            if (V9NominalTfUnitSelection.ForLevel(
+                    CompositeNominalComparisonV9.Classify(left, right)) != unit)
                 continue;
             var name = UnitToken(left, unit);
             if (name is null || name != UnitToken(right, unit))
-                throw new InvalidDataException($"Unidade TF do par U não coincide com {side}/{(unit == NominalFrequencyUnitV9.FirstName ? CompositeNominalLevelV9.ExactFirst : CompositeNominalLevelV9.ExactLast)}.");
+                throw new InvalidDataException($"Unidade TF do par U não coincide com {side}/{unit}.");
             counts[name] = checked(counts.GetValueOrDefault(name) + 1L);
             n = checked(n + 1);
         }
@@ -107,14 +108,16 @@ public static class V9TrainSqlFirstNameUCalibration
         V9FsAdaptiveCandidatePair pair,
         decimal weight,
         decimal minimumFrequency,
-        long minimumIndependentSupport)
+        long minimumIndependentSupport,
+        CompositeNominalTfAdjustmentModeV9 mode = CompositeNominalTfAdjustmentModeV9.Symmetric)
     {
         ArgumentNullException.ThrowIfNull(calibration);
         ArgumentNullException.ThrowIfNull(reference);
         ArgumentNullException.ThrowIfNull(pair);
         if (weight <= 0m || weight > 1m
             || minimumFrequency < 0m || minimumFrequency > 1m
-            || minimumIndependentSupport <= 0 || !Enum.IsDefined(calibration.Side))
+            || minimumIndependentSupport <= 0 || !Enum.IsDefined(calibration.Side)
+            || !Enum.IsDefined(mode))
             throw new InvalidDataException("Preview U positivo exige configuração TF válida.");
         // Applicability is evidence, not caller policy. A stale/mismatched
         // level must not turn an applicable positive TF into a neutral null.
@@ -125,9 +128,9 @@ public static class V9TrainSqlFirstNameUCalibration
             throw new InvalidDataException("Estados TF V9 divergem do par nominal observado.");
         var level = calibration.Side == CompositeNominalTfSideV9.Person
             ? personLevel : motherLevel;
-        if (level != (calibration.Unit == NominalFrequencyUnitV9.FirstName
-                ? CompositeNominalLevelV9.ExactFirst : CompositeNominalLevelV9.ExactLast))
+        if (V9NominalTfUnitSelection.ForLevel(level) != calibration.Unit)
             return null;
+        var marginalLevel = V9NominalTfUnitSelection.MarginalLevel(calibration.Unit);
         var left = calibration.Side == CompositeNominalTfSideV9.Person
             ? pair.LeftPersonName : pair.LeftMotherName;
         var right = calibration.Side == CompositeNominalTfSideV9.Person
@@ -137,9 +140,11 @@ public static class V9TrainSqlFirstNameUCalibration
             || !calibration.FirstNameUnitUByValue.TryGetValue(value, out var unitU))
             throw new InvalidDataException(
                 "TF positiva desconhecida/sem suporte U TRAIN: não converter em peso zero ou BF=1.");
-        return reference.CreatePreview(
-            calibration.Side, level, left, right,
-            unitU, weight, minimumFrequency, minimumIndependentSupport);
+        var preview = reference.CreatePreview(
+            calibration.Side, marginalLevel, left, right,
+            unitU, weight, minimumFrequency, minimumIndependentSupport)
+            ?? throw new InvalidDataException("TF positiva não pode gerar preview nulo.");
+        return preview with { Mode = mode };
     }
 
     private static string? UnitToken(string? input, NominalFrequencyUnitV9 unit)

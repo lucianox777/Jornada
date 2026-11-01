@@ -8,6 +8,28 @@ namespace Jornada.Tests.Unit;
 [TestFixture, Category("Unit")]
 public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
 {
+    // One parameterized regression protects the shared TRAIN/runtime selector;
+    // do not duplicate these nine cases in separate test fixtures.
+    [TestCase(CompositeNominalLevelV9.Missing, null)]
+    [TestCase(CompositeNominalLevelV9.ExactFull, NominalFrequencyUnitV9.FirstName)]
+    [TestCase(CompositeNominalLevelV9.ExactFirstLast, null)]
+    [TestCase(CompositeNominalLevelV9.ReversedFirstLast, null)]
+    [TestCase(CompositeNominalLevelV9.HighFull, null)]
+    [TestCase(CompositeNominalLevelV9.HighFirstLast, null)]
+    [TestCase(CompositeNominalLevelV9.ExactLast, NominalFrequencyUnitV9.LastContentSurname)]
+    [TestCase(CompositeNominalLevelV9.ExactFirst, NominalFrequencyUnitV9.FirstName)]
+    [TestCase(CompositeNominalLevelV9.Other, null)]
+    public void Shared_TF_selector_covers_each_nominal_state_without_duplicate_scoring(
+        CompositeNominalLevelV9 level, NominalFrequencyUnitV9? expected)
+    {
+        Assert.That(V9NominalTfUnitSelection.ForLevel(level), Is.EqualTo(expected));
+        if (expected.HasValue)
+            Assert.That(V9NominalTfUnitSelection.MarginalLevel(expected.Value),
+                Is.EqualTo(expected == NominalFrequencyUnitV9.FirstName
+                    ? CompositeNominalLevelV9.ExactFirst
+                    : CompositeNominalLevelV9.ExactLast));
+    }
+
     private static readonly string TrainCorpus = new('a', 64);
     private static readonly string ValidationCorpus = new('b', 64);
     private static readonly string TrainGroups = new('c', 64);
@@ -251,7 +273,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
-    public void Inapplicable_TF_is_neutral_but_still_rejects_invalid_configuration()
+    public void ExactFull_uses_first_name_marginal_and_rejects_invalid_configuration()
     {
         var rows = Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray();
         var fitted = V9TrainSqlFirstNameUCalibration.Fit(
@@ -259,9 +281,11 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var pair = rows[0] with { RightPersonName = rows[0].LeftPersonName };
         Assert.That(CompositeNominalComparisonV9.Classify(
             pair.LeftPersonName, pair.RightPersonName), Is.EqualTo(CompositeNominalLevelV9.ExactFull));
-        Assert.That(V9TrainSqlFirstNameUCalibration.Preview(
+        var exactFullPreview = V9TrainSqlFirstNameUCalibration.Preview(
             fitted, Reference(), CompositeNominalLevelV9.ExactFull,
-            CompositeNominalLevelV9.Missing, pair, 1m, .000001m, 1), Is.Null);
+            CompositeNominalLevelV9.Missing, pair, 1m, .000001m, 1);
+        Assert.That(exactFullPreview, Is.Not.Null);
+        Assert.That(exactFullPreview!.TermFrequency, Is.EqualTo(.60m));
         Assert.That((Action)(() => V9TrainSqlFirstNameUCalibration.Preview(
             fitted, Reference(), CompositeNominalLevelV9.ExactFull,
             CompositeNominalLevelV9.Missing, pair, 1m, -1m, 1)),
@@ -321,5 +345,208 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var fit = unknown.FitTrain(Model(config), Slice("TRAIN"));
         Assert.That((Action)(() => unknown.EvaluateValidation(fit, Slice("VALIDATION"))),
             Throws.TypeOf<InvalidDataException>());
+    }
+
+    private static V9FsAdaptiveCandidateFrame FrameWithMotherTf()
+    {
+        var frame = Frame();
+        return frame with
+        {
+            Pairs = frame.Pairs.Select(pair => pair with
+            {
+                LeftMotherName = "ANA COSTA", RightMotherName = "ANA LIMA"
+            }).ToArray()
+        };
+    }
+
+    private static V9FsAdaptiveOptionConfiguration FourUnits(
+        string id, CompositeNominalTfAdjustmentModeV9 personMode,
+        CompositeNominalTfAdjustmentModeV9 motherMode, decimal motherWeight = .5m) =>
+        new(id, .5m, .55m, UnitTfOptions:
+        [
+            new(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName, 1m, personMode),
+            new(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.LastContentSurname, 0m,
+                CompositeNominalTfAdjustmentModeV9.Symmetric),
+            new(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName, motherWeight, motherMode),
+            new(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.LastContentSurname, 0m,
+                CompositeNominalTfAdjustmentModeV9.Symmetric)
+        ]);
+
+    [TestCase(CompositeNominalTfAdjustmentModeV9.Symmetric,
+        CompositeNominalTfAdjustmentModeV9.Symmetric)]
+    [TestCase(CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly,
+        CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly)]
+    [TestCase(CompositeNominalTfAdjustmentModeV9.Symmetric,
+        CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly)]
+    public void Bilateral_independent_TF_modes_match_holdout_and_frozen_runtime(
+        CompositeNominalTfAdjustmentModeV9 personMode,
+        CompositeNominalTfAdjustmentModeV9 motherMode)
+    {
+        var frame = FrameWithMotherTf();
+        var config = FourUnits("BILATERAL", personMode, motherMode);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            frame, [config], Reference());
+        var fitted = adapter.FitTrain(Model(config), Slice("TRAIN"));
+        var snapshot = adapter.ExportFrozenSnapshot(fitted,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m);
+        var replay = V9FittedSnapshot.Load(snapshot.SerializeUtf8(), snapshot.ContentSha256);
+        var unitFits = replay.Payload.UnitTfCalibrations!;
+        Assert.That(unitFits.Count, Is.EqualTo(4));
+        Assert.That(unitFits.Count(x => x.State == V9SnapshotTfFitState.Active), Is.EqualTo(2));
+        var person = unitFits.Single(x => x.Side == CompositeNominalTfSideV9.Person
+            && x.Unit == NominalFrequencyUnitV9.FirstName);
+        var mother = unitFits.Single(x => x.Side == CompositeNominalTfSideV9.Mother
+            && x.Unit == NominalFrequencyUnitV9.FirstName);
+        Assert.That(person.Calibration!.Mode, Is.EqualTo(personMode));
+        Assert.That(person.Calibration.Weight, Is.EqualTo(1m));
+        Assert.That(mother.Calibration!.Mode, Is.EqualTo(motherMode));
+        Assert.That(mother.Calibration.Weight, Is.EqualTo(.5m));
+        Assert.That(unitFits.Count(x => x.State == V9SnapshotTfFitState.NoSource),
+            Is.EqualTo(2));
+
+        var validationPair = frame.Pairs.First(x => x.Partition == "VALIDATION");
+        var trainingPairs = frame.Pairs.Where(x => x.Partition == "TRAIN").ToArray();
+        CompositeNominalTfPreviewV9 Term(CompositeNominalTfSideV9 side,
+            decimal weight, CompositeNominalTfAdjustmentModeV9 mode)
+        {
+            var frozenU = V9TrainSqlFirstNameUCalibration.Fit(
+                trainingPairs, side, config.SmoothingAlpha, TrainCorpus);
+            return V9TrainSqlFirstNameUCalibration.Preview(
+                frozenU, Reference(), CompositeNominalLevelV9.ExactFirst,
+                CompositeNominalLevelV9.ExactFirst, validationPair,
+                weight, config.TfMinimumFrequency, config.TfMinimumIndependentSupport,
+                mode)!;
+        }
+        var nominal = FrozenFellegiSunterJointNominalV9.Freeze(
+            replay.Payload.JointCells, replay.Payload.NominalContractVersion);
+        var expected = FellegiSunterScoring.CalculateFrozenCompositeNominalV9BilateralPreviewScore(
+            replay.Payload.Parameters,
+            validationPair.LeftPersonName, validationPair.RightPersonName,
+            validationPair.LeftMotherName, validationPair.RightMotherName,
+            nominal, leftBirthDate: Birth, rightBirthDate: Birth,
+            personTf: Term(CompositeNominalTfSideV9.Person, 1m, personMode),
+            motherTf: Term(CompositeNominalTfSideV9.Mother, .5m, motherMode));
+        var observed = replay.RankPreview(
+            new IdentityObservation(null, "SEM_CPF",
+                validationPair.LeftPersonName, Birth, validationPair.LeftMotherName),
+            [new V9SnapshotCandidate(Guid.NewGuid(),
+                validationPair.RightPersonName, Birth, validationPair.RightMotherName)]).Single();
+        Assert.That(observed.LogOdds, Is.EqualTo(expected.LogOdds));
+        Assert.That(observed.Score, Is.EqualTo(expected.Posterior));
+        var metrics = adapter.EvaluateValidation(fitted, Slice("VALIDATION"));
+        var expectedAccepted = expected.Posterior >= config.DecisionThreshold ? 2 : 0;
+        Assert.That(metrics.TrueAcceptedLinks, Is.EqualTo(expectedAccepted));
+        Assert.That(metrics.FalseAcceptedLinks, Is.EqualTo(expectedAccepted));
+    }
+
+    [Test]
+    public void ZeroChosen_is_frozen_but_neutral_while_NotSelected_and_no_source_are_distinct()
+    {
+        var frame = FrameWithMotherTf();
+        var config = FourUnits("ZERO_CHOSEN",
+            CompositeNominalTfAdjustmentModeV9.Symmetric,
+            CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly, 0m);
+        var legacy = new V9FsAdaptiveOptionConfiguration("LEGACY", .5m, .55m, 1m);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            frame, [config, legacy], Reference());
+        V9FittedSnapshot Freeze(V9FsAdaptiveOptionConfiguration c) =>
+            adapter.ExportFrozenSnapshot(adapter.FitTrain(Model(c), Slice("TRAIN")),
+                [new LinkageBlockingPass("NAME", ["NOME"])],
+                "PROJECTION_V1", new string('f', 64), .2m);
+        var snap = Freeze(config);
+        var replay = V9FittedSnapshot.Load(snap.SerializeUtf8(), snap.ContentSha256);
+        var zero = replay.Payload.UnitTfCalibrations!.Single(
+            x => x.Side == CompositeNominalTfSideV9.Mother
+                && x.Unit == NominalFrequencyUnitV9.FirstName);
+        Assert.That(zero.State, Is.EqualTo(V9SnapshotTfFitState.ZeroChosen));
+        Assert.That(zero.Calibration, Is.Not.Null);
+        Assert.That(zero.Calibration!.Weight, Is.Zero);
+        Assert.That(zero.Calibration.Mode,
+            Is.EqualTo(CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly));
+        Assert.That(zero.Calibration.TrainUnitUByValue["ANA"], Is.GreaterThan(0m));
+        var legacySnap = Freeze(legacy);
+        Assert.That(legacySnap.Payload.UnitTfCalibrations!.Single(x =>
+                x.Side == CompositeNominalTfSideV9.Mother
+                && x.Unit == NominalFrequencyUnitV9.FirstName).State,
+            Is.EqualTo(V9SnapshotTfFitState.NotSelected));
+
+        var unitFits = replay.Payload.UnitTfCalibrations!;
+        var malformed = replay.Payload with
+        {
+            UnitTfCalibrations = unitFits.Select(x => x == zero
+                ? x with { Calibration = x.Calibration! with { Weight = .2m } } : x).ToArray()
+        };
+        Assert.That((Action)(() => V9FittedSnapshot.Create(malformed)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9FittedSnapshot.Create(replay.Payload with
+        {
+            UnitTfCalibrations = unitFits.Select(x => x == zero
+                ? x with { State = V9SnapshotTfFitState.Active } : x).ToArray()
+        })), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9FittedSnapshot.Create(replay.Payload with
+        {
+            UnitTfCalibrations = unitFits.Select(x => x == zero
+                ? x with { Calibration = null } : x).ToArray()
+        })), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Four_unit_positive_TF_rejects_missing_reference_bad_mode_and_wrong_blocking_frame()
+    {
+        var good = FourUnits("FOUR", CompositeNominalTfAdjustmentModeV9.Symmetric,
+            CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly);
+        Assert.That((Action)(() => new V9FellegiSunterAdaptiveCalibrationAdapter(
+            FrameWithMotherTf(), [good])),
+            Throws.TypeOf<ArgumentException>());
+        var wrongMode = good with
+        {
+            UnitTfOptions = good.UnitTfOptions!.Select((x, i) =>
+                i == 0 ? x with { Mode = (CompositeNominalTfAdjustmentModeV9)100 } : x).ToArray()
+        };
+        Assert.That((Action)(() => new V9FellegiSunterAdaptiveCalibrationAdapter(
+            FrameWithMotherTf(), [wrongMode], Reference())),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => new V9FellegiSunterAdaptiveCalibrationAdapter(
+            FrameWithMotherTf() with { BlockingFrameFingerprintSha256 = new string('2', 64) },
+            [good], Reference())), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void All_four_TRAIN_U_distributions_follow_the_same_ExactFull_and_ExactLast_selector()
+    {
+        var first = FrameWithMotherTf().Pairs.Where(x => x.Partition == "TRAIN" && !x.IsTruePair).ToArray();
+        var full = first.Select(x => x with
+        {
+            RightPersonName = x.LeftPersonName,
+            RightMotherName = x.LeftMotherName
+        });
+        var last = first.Select(x => x with
+        {
+            LeftPersonName = "MARIA SILVA", RightPersonName = "JOAO SILVA",
+            LeftMotherName = "ANA SOUZA", RightMotherName = "EVA SOUZA"
+        });
+        var all = first.Concat(full).Concat(last).ToArray();
+        var fits = new[]
+        {
+            V9TrainSqlFirstNameUCalibration.Fit(all, CompositeNominalTfSideV9.Person,
+                .5m, TrainCorpus, NominalFrequencyUnitV9.FirstName),
+            V9TrainSqlFirstNameUCalibration.Fit(all, CompositeNominalTfSideV9.Person,
+                .5m, TrainCorpus, NominalFrequencyUnitV9.LastContentSurname),
+            V9TrainSqlFirstNameUCalibration.Fit(all, CompositeNominalTfSideV9.Mother,
+                .5m, TrainCorpus, NominalFrequencyUnitV9.FirstName),
+            V9TrainSqlFirstNameUCalibration.Fit(all, CompositeNominalTfSideV9.Mother,
+                .5m, TrainCorpus, NominalFrequencyUnitV9.LastContentSurname)
+        };
+        Assert.That(fits.All(x => x.HasSufficientSupport), Is.True);
+        Assert.That(fits.Select(x => x.FingerprintSha256).Distinct().Count(), Is.EqualTo(4));
+        Assert.That(fits[0].UnmatchedExactFirstCandidatePairs, Is.EqualTo(4));
+        Assert.That(fits[1].UnmatchedExactFirstCandidatePairs, Is.EqualTo(2));
+        Assert.That(fits[2].UnmatchedExactFirstCandidatePairs, Is.EqualTo(4));
+        Assert.That(fits[3].UnmatchedExactFirstCandidatePairs, Is.EqualTo(2));
+        Assert.That(fits[0].FirstNameUnitUByValue.ContainsKey("MARIA"), Is.True);
+        Assert.That(fits[1].FirstNameUnitUByValue.ContainsKey("SILVA"), Is.True);
+        Assert.That(fits[2].FirstNameUnitUByValue.ContainsKey("ANA"), Is.True);
+        Assert.That(fits[3].FirstNameUnitUByValue.ContainsKey("SOUZA"), Is.True);
     }
 }
