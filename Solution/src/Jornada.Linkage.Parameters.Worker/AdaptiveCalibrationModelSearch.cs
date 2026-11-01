@@ -215,7 +215,13 @@ public static class AdaptiveCalibrationModelSearch
                 || !double.IsFinite(validation.BlockingFalseDegreeP99)
                 || validation.BlockingFalseDegreeP99 < 0)
                 throw new InvalidDataException("Métricas de VALIDATION inválidas.");
-            var accepted = checked(validation.TrueAcceptedLinks + validation.FalseAcceptedLinks);
+            // Adapters are external evidence producers. Both counters can be
+            // individually valid Int64 values yet have an impossible total.
+            // Fail closed under the validation evidence contract, not with an
+            // unrelated arithmetic OverflowException.
+            if (validation.TrueAcceptedLinks > long.MaxValue - validation.FalseAcceptedLinks)
+                throw new InvalidDataException("Métricas de VALIDATION excedem o total representável de vínculos aceitos.");
+            var accepted = validation.TrueAcceptedLinks + validation.FalseAcceptedLinks;
             var recall = (double)validation.TrueAcceptedLinks / validation.TruePairsWithoutCpf;
             double? fdrPoint = accepted > 0
                 ? (double)validation.FalseAcceptedLinks / accepted : null;
