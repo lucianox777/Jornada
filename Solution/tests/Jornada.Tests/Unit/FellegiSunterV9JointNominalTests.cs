@@ -504,6 +504,33 @@ public sealed class FellegiSunterV9JointNominalTests
     }
 
     [Test]
+    public void V9BilateralEvaluatorAddsExactlyOneCalibratedAdjustmentPerSide()
+    {
+        var person = FirstNameTf("MARIA", .25m);
+        var mother = FirstNameTf("ANA", .50m) with
+        {
+            Side = CompositeNominalTfSideV9.Mother
+        };
+        double Evaluate(CompositeNominalTfPreviewV9? p, CompositeNominalTfPreviewV9? m) =>
+            CompositeNominalTfPreviewEvaluatorV9.CalculateBilateral(
+                CompositeNominalLevelV9.ExactFull, CompositeNominalLevelV9.ExactFull,
+                "Maria Silva", "MARIA SILVA", "Ana Costa", "ANA COSTA", p, m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(Evaluate(person, mother),
+                Is.EqualTo(Math.Log(.10d / .25d) + Math.Log(.10d / .50d)).Within(1e-12));
+            Assert.That(Evaluate(person, null),
+                Is.EqualTo(Math.Log(.10d / .25d)).Within(1e-12));
+            Assert.That(Evaluate(null, mother),
+                Is.EqualTo(Math.Log(.10d / .50d)).Within(1e-12));
+            Assert.That((Action)(() => Evaluate(person, person)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() => Evaluate(mother, mother)),
+                Throws.InvalidOperationException);
+        }));
+    }
+
+    [Test]
     public void V9DeclaredBirthEvidenceRequiresCompleteParametersEvenWhenBirthInputIsMissing()
     {
         var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
