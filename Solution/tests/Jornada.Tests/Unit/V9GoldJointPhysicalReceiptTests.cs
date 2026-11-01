@@ -189,6 +189,17 @@ public sealed class V9GoldJointPhysicalReceiptTests
     }
 
     [Test]
+    public void Rejects_false_new_identity_creations_exceeding_physical_new_identities()
+    {
+        var receipt = Receipt();
+        // The physical Gold publication created nine new identities. Ten false
+        // creations cannot be a subset of those nine, even though both counts
+        // fit within the frozen 20-source universe.
+        ((JsonObject)receipt["lowerNonMatchExperiment"]!)["finalFalseNewIdentityCreations"] = 10;
+        Reject(receipt);
+    }
+
+    [Test]
     public void Rejects_unreconciled_gold_publication_and_bcubed_counts()
     {
         var receipt = Receipt();
