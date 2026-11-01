@@ -348,8 +348,9 @@ public sealed class V9FittedSnapshot
         {
             if (p.TfCalibration is not null || p.MotherTfCalibration is not null)
                 throw new InvalidDataException("TF V9 não admite fontes paralelas: use somente UnitTfCalibrations.");
-            if (unitFits.Count is < 1 or > 4
-                || p.TfWeight != 0m || p.TfCalibration is not null || p.MotherTfCalibration is not null
+            if (unitFits.Count != 4
+                || (p.TfWeight == 0m && unitFits.Any(x => x.State == V9SnapshotTfFitState.Active))
+                || (p.TfWeight > 0m && !unitFits.Any(x => x.State == V9SnapshotTfFitState.Active))
                 || unitFits.Any(x => x is null
                     || !Enum.IsDefined(x.Side) || !Enum.IsDefined(x.Unit)
                     || x.Unit is not (NominalFrequencyUnitV9.FirstName or NominalFrequencyUnitV9.LastContentSurname)
