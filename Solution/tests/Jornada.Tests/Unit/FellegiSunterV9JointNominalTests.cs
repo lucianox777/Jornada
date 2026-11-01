@@ -531,6 +531,32 @@ public sealed class FellegiSunterV9JointNominalTests
     }
 
     [Test]
+    public void V9BilateralExactLastUsesDeclaredSurnameUnitAndRejectsSwappedSides()
+    {
+        var person = FirstNameTf("SILVA", .25m) with
+        {
+            Reference = FirstNameTf("MARIA", .25m).Reference with
+            {
+                Unit = NominalFrequencyUnitV9.LastContentSurname,
+                Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
+            }
+        };
+        var mother = person with
+        {
+            Side = CompositeNominalTfSideV9.Mother,
+            MatchedNormalizedValue = "COSTA",
+            TermFrequency = .50m
+        };
+        double Evaluate(CompositeNominalTfPreviewV9? p, CompositeNominalTfPreviewV9? m) =>
+            CompositeNominalTfPreviewEvaluatorV9.CalculateBilateral(
+                CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactLast,
+                "Maria Silva", "Joana Silva", "Ana Costa", "Beatriz Costa", p, m);
+        Assert.That(Evaluate(person, mother),
+            Is.EqualTo(Math.Log(.10d / .25d) + Math.Log(.10d / .50d)).Within(1e-12));
+        Assert.That((Action)(() => Evaluate(mother, person)), Throws.InvalidOperationException);
+    }
+
+    [Test]
     public void V9DeclaredBirthEvidenceRequiresCompleteParametersEvenWhenBirthInputIsMissing()
     {
         var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
