@@ -118,9 +118,13 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             passes, "PROJECTION_V1", new string('f', 64), .2m);
         var positiveReplay = V9FittedSnapshot.Load(positiveSnapshot.SerializeUtf8(),
             positiveSnapshot.ContentSha256);
-        Assert.That(positiveReplay.Payload.TfCalibration, Is.Not.Null);
-        Assert.That(positiveReplay.Payload.TfCalibration!.Frequencies["MARIA"], Is.EqualTo(.60m));
-        Assert.That(positiveReplay.Payload.TfCalibration.TrainUnitUByValue["MARIA"],
+        var activeTf = positiveReplay.Payload.UnitTfCalibrations!
+            .Single(x => x.Side == CompositeNominalTfSideV9.Person
+                && x.Unit == NominalFrequencyUnitV9.FirstName);
+        Assert.That(activeTf.State, Is.EqualTo(V9SnapshotTfFitState.Active));
+        Assert.That(activeTf.Calibration, Is.Not.Null);
+        Assert.That(activeTf.Calibration!.Frequencies["MARIA"], Is.EqualTo(.60m));
+        Assert.That(activeTf.Calibration.TrainUnitUByValue["MARIA"],
             Is.EqualTo(2.5m / 3m));
         var source = new IdentityObservation(null, "SEM_CPF", "MARIA COSTA", Birth, null);
         var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "MARIA LIMA", Birth, null);
