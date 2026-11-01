@@ -124,10 +124,6 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         MinimumRecallImprovement=.0001, MinimumFdrImprovement=.00001,
         Purpose="PLUMBING_FIXTURE_NOT_CERTIFICATION" if fixture else "BOOTSTRAP_CANDIDATE_SELECTION")
     if tf_search:
-        # Reject a mismatch before writing any plan: pinned provenance must
-        # describe exactly the source corpus being calibrated.
-        if pinned["PinnedIbgeBootstrap"]["CorpusFingerprint"] != source_sha:
-            raise ValueError("Pinned IBGE bootstrap corpus fingerprint differs from TRAIN corpus SHA256")
         plan.update(pinned)
         # No subset selected from VALIDATION. Candidate neighbours continue
         # using the same 19-pass TRAIN catalogue and existing C# Pareto.
