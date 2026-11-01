@@ -240,6 +240,11 @@ public static class V9GoldJointPhysicalReceipt
             || falseLinksPublished > published - trueLinksPublished
             || newIdentitiesPublished != published - trueLinksPublished - falseLinksPublished)
             throw new InvalidDataException("Joint TRAIN publication categories do not reconcile the frozen Gold universe.");
+        // False new identities are a subset of the physically published new
+        // identities. Source-universe bounds alone cannot detect a receipt
+        // that claims more false creations than the Runner actually created.
+        if (falseCreations > newIdentitiesPublished)
+            throw new InvalidDataException("Joint TRAIN false creations exceed physically published new identities.");
         var f1 = Fraction(gold, "CoverageAwareF1");
         return new(order, "TRAIN_SELECTION", frozenFitSha256, canonicalGoldSnapshotSha256,
             Convert.ToHexString(SHA256.HashData(studyBytes)).ToLowerInvariant(),
