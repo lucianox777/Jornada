@@ -515,13 +515,18 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         var frozenNominal = frozen.FrozenNominal;
         // Check frozen TRAIN evidence once per holdout, never once per candidate.
         // VALIDATION must consume the fitted parameters without fitting again.
+        V9TrainSqlFirstNameUCalibration.Frozen? activeU = null;
+        FrozenIbgeNominalTfV9? activeReference = null;
         if (config.TfWeight > 0m)
         {
             RequireFrozenTrainUnits(frozen.TrainUnitUs);
-            if (frozen.TrainUnitU is null || !frozen.TrainUnitU.HasSufficientSupport
-                || frozenTfReference is null)
+            activeU = frozen.TrainUnitU ?? throw new InvalidDataException(
+                $"TF ativa sem suporte TRAIN U: {config.TfSide}/{NominalFrequencyUnitV9.FirstName}.");
+            if (!activeU.HasSufficientSupport)
                 throw new InvalidDataException(
                     $"TF ativa sem suporte TRAIN U: {config.TfSide}/{NominalFrequencyUnitV9.FirstName}.");
+            activeReference = frozenTfReference ?? throw new InvalidDataException(
+                "TF ativa sem referência IBGE congelada.");
         }
         long tp = 0, fp = 0;
         foreach (var row in rows)
@@ -530,7 +535,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             if (config.TfWeight > 0m)
             {
                 nominalTf = V9TrainSqlFirstNameUCalibration.Preview(
-                    frozen.TrainUnitU, frozenTfReference,
+                    activeU!, activeReference!,
                     CompositeNominalComparisonV9.Classify(row.LeftPersonName, row.RightPersonName),
                     CompositeNominalComparisonV9.Classify(row.LeftMotherName, row.RightMotherName),
                     row, config.TfWeight, config.TfMinimumFrequency,
