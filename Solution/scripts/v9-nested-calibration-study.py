@@ -82,6 +82,13 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         if len({pair["BilateralOptionId"] for pair in diagnostic_pairs}) != 4:
             raise ValueError("Diagnostic TF options do not have unique bilateral controls")
         pinned = helper.pinned_reference(json.loads(pinned_ibge.read_bytes()))
+        # The published IBGE version, both digests and the bootstrap provenance
+        # influence the TRAIN TF fit. Never reuse a frozen study identity when
+        # any of these inputs change, even if the synthetic corpus is identical.
+        # Canonical JSON avoids accidental changes from manifest key order.
+        pinned_identity = json.dumps(pinned, sort_keys=True, separators=(",", ":"))
+        study = hashlib.sha256(("V9_INTERNAL_TRAIN_PARETO_V3|" + study + "|"
+                                + pinned_identity).encode()).hexdigest()
     else:
         pinned = None
     # PO decision 12: 41 eligible models x two margins x two initial rule
