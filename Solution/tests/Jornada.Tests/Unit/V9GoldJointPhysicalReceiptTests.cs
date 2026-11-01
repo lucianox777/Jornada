@@ -69,7 +69,7 @@ public sealed class V9GoldJointPhysicalReceiptTests
             GoldIdentityGroups = 4, PendingSources = 4,
             CoverageAwareF1 = .8
         },
-        publication = new { pendingSources = 4 }
+        publication = new { trueExistingLinks = 6, falseExistingLinks = 1, newIdentitySources = 9, pendingSources = 4 }
     })!.AsObject();
 
     private static byte[] Bytes(JsonObject node) => JsonSerializer.SerializeToUtf8Bytes(node);
@@ -167,6 +167,24 @@ public sealed class V9GoldJointPhysicalReceiptTests
         Reject(receipt);
         receipt = Receipt();
         ((JsonObject)receipt["goldThreeOrderTrial"]!).Remove(field);
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_publication_counts_that_do_not_partition_the_frozen_source_universe()
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["publication"]!)["newIdentitySources"] = 10;
+        // 6 true links + 1 false link + 10 new identities + 4 pending
+        // cannot be reconciled with 20 frozen observations or 16 published.
+        Reject(receipt);
+
+        receipt = Receipt();
+        ((JsonObject)receipt["publication"]!).Remove("trueExistingLinks");
+        Reject(receipt);
+
+        receipt = Receipt();
+        ((JsonObject)receipt["publication"]!)["falseExistingLinks"] = long.MaxValue;
         Reject(receipt);
     }
 
