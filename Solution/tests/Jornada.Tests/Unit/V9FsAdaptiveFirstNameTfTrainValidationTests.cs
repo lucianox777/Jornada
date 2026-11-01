@@ -144,6 +144,26 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void Pinned_IBGE_marginal_availability_is_typed_and_unit_specific()
+    {
+        var reference = Reference();
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(reference.HasMarginal(CompositeNominalTfSideV9.Person,
+                CompositeNominalLevelV9.ExactFirst), Is.True);
+            Assert.That(reference.HasMarginal(CompositeNominalTfSideV9.Mother,
+                CompositeNominalLevelV9.ExactFirst), Is.True);
+            Assert.That(reference.HasMarginal(CompositeNominalTfSideV9.Person,
+                CompositeNominalLevelV9.ExactLast), Is.False);
+            Assert.That(reference.HasMarginal(CompositeNominalTfSideV9.Mother,
+                CompositeNominalLevelV9.ExactLast), Is.False);
+        }));
+        Assert.That((Action)(() => reference.HasMarginal(
+            CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFull)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Partial_TRAIN_support_exports_one_active_unit_and_three_insufficient_units()
     {
         var config = new V9FsAdaptiveOptionConfiguration("PARTIAL_TF", .5m, .55m, 1m);
