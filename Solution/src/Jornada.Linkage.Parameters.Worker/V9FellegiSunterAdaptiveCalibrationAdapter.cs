@@ -505,16 +505,22 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         // The fitted table is immutable across the whole holdout: validate and
         // precompute its 81 log ratios once, rather than hashing it per pair.
         var frozenNominal = frozen.FrozenNominal;
+        // Check frozen TRAIN evidence once per holdout, never once per candidate.
+        // VALIDATION must consume the fitted parameters without fitting again.
+        if (config.TfWeight > 0m)
+        {
+            RequireFrozenTrainUnits(frozen.TrainUnitUs);
+            if (frozen.TrainUnitU is null || !frozen.TrainUnitU.HasSufficientSupport
+                || frozenTfReference is null)
+                throw new InvalidDataException(
+                    $"TF ativa sem suporte TRAIN U: {config.TfSide}/{NominalFrequencyUnitV9.FirstName}.");
+        }
         long tp = 0, fp = 0;
         foreach (var row in rows)
         {
             CompositeNominalTfPreviewV9? nominalTf = null;
             if (config.TfWeight > 0m)
             {
-                RequireFrozenTrainUnits(frozen.TrainUnitUs);
-                if (frozen.TrainUnitU is null || !frozen.TrainUnitU.HasSufficientSupport
-                    || frozenTfReference is null)
-                    throw new InvalidDataException($"TF ativa sem suporte TRAIN U: {config.TfSide}/{NominalFrequencyUnitV9.FirstName}.");
                 nominalTf = V9TrainSqlFirstNameUCalibration.Preview(
                     frozen.TrainUnitU, frozenTfReference,
                     CompositeNominalComparisonV9.Classify(row.LeftPersonName, row.RightPersonName),
