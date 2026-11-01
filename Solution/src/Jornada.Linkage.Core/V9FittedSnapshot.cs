@@ -156,7 +156,9 @@ public sealed class V9FittedSnapshot
         var tf = Payload.TfCalibration!;
         var left = tf.Side == CompositeNominalTfSideV9.Person ? observation.NomeCompleto : observation.NomeMae;
         var right = tf.Side == CompositeNominalTfSideV9.Person ? candidate.NomeCompleto : candidate.NomeMae;
-        if (CompositeNominalComparisonV9.Classify(left, right) != CompositeNominalLevelV9.ExactFirst)
+        var level = CompositeNominalComparisonV9.Classify(left, right);
+        if (level != CompositeNominalLevelV9.ExactFirst
+            && level != CompositeNominalLevelV9.ExactFull)
             return null;
         var term = FirstName(left);
         if (term is null || term != FirstName(right)
