@@ -33,7 +33,9 @@ public sealed record V9SnapshotFirstNameTf(
     IReadOnlyDictionary<string, decimal> Frequencies,
     IReadOnlyDictionary<string, decimal> TrainUnitUByValue,
     string TrainUnitFingerprintSha256, decimal MinimumFrequency,
-    long MinimumIndependentSupport, string TrainCorpusFingerprintSha256);
+    long MinimumIndependentSupport, string TrainCorpusFingerprintSha256,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    CompositeNominalTfAdjustmentModeV9 Mode = CompositeNominalTfAdjustmentModeV9.Symmetric);
 
 public sealed record V9SnapshotCandidate(
     Guid PersonUuid, string? FullName, DateOnly? BirthDate, string? MotherName);
@@ -162,7 +164,7 @@ public sealed class V9FittedSnapshot
             || !tf.TrainUnitUByValue.TryGetValue(term, out var unitU))
             throw new InvalidDataException("TF positiva desconhecida: referência ou U TRAIN ausente no snapshot.");
         return new CompositeNominalTfPreviewV9(tf.Side, tf.Reference, term, frequency,
-            unitU, Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport);
+            unitU, Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport, tf.Mode);
     }
 
     private static string? FirstName(string? name)
@@ -260,7 +262,7 @@ public sealed class V9FittedSnapshot
             RequireSha(tf.TrainCorpusFingerprintSha256);
             RequireSha(p.BlockingFrameFingerprintSha256!);
             if (!tf.TrainCorpusFingerprintSha256.Equals(p.TrainCorpusSha256, StringComparison.OrdinalIgnoreCase)
-                || !Enum.IsDefined(tf.Side) || tf.Reference is null
+                || !Enum.IsDefined(tf.Side) || !Enum.IsDefined(tf.Mode) || tf.Reference is null
                 || !p.BlockingFrameFingerprintSha256!.Equals(tf.Reference.BlockingFrameFingerprint,
                     StringComparison.OrdinalIgnoreCase)
                 || tf.MinimumFrequency is < 0m or > 1m || tf.MinimumIndependentSupport <= 0)
