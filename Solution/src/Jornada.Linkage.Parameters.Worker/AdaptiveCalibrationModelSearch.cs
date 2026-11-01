@@ -176,7 +176,7 @@ public static class AdaptiveCalibrationModelSearch
                 || !double.IsFinite(budget.MinimumGlobalAcceptedRecall)
                 || budget.MinimumGlobalAcceptedRecall is < 0 or > 1
                 || !double.IsFinite(budget.MaximumObservedAcceptedFdrPoint)
-                || budget.MaximumObservedAcceptedFdrPoint is < 0 or > 0.01
+                || budget.MaximumObservedAcceptedFdrPoint is < 0 or > 1
                 || !double.IsFinite(budget.MaximumBlockingFalseDegreeP99)
                 || budget.MaximumBlockingFalseDegreeP99 < 0
                 || budget.MinimumValidationIdentityGroups < 2)
