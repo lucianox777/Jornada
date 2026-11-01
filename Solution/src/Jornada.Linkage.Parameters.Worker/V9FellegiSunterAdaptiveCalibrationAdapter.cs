@@ -253,15 +253,6 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             // Legacy positive TF selects one first-name unit. Other units
             // are NotSelected: they were not fitted to a zero-weight choice.
             var active = side == config.TfSide && unit == NominalFrequencyUnitV9.FirstName;
-            var trainU = frozen.TrainUnitUs![(side, unit)];
-            if (!trainU.HasSufficientSupport)
-            {
-                if (active)
-                    throw new InvalidDataException($"TF ativa sem suporte TRAIN U: {side}/{unit}.");
-                unitFits.Add(new V9SnapshotUnitTf(side, unit,
-                    V9SnapshotTfFitState.InsufficientSupport, null));
-                continue;
-            }
             var level = unit == NominalFrequencyUnitV9.FirstName
                 ? CompositeNominalLevelV9.ExactFirst : CompositeNominalLevelV9.ExactLast;
             if (!frozenTfReference!.HasMarginal(side, level))
@@ -270,6 +261,15 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     throw new InvalidDataException($"TF ativa sem referência IBGE: {side}/{unit}.");
                 unitFits.Add(new V9SnapshotUnitTf(side, unit,
                     V9SnapshotTfFitState.NoSource, null));
+                continue;
+            }
+            var trainU = frozen.TrainUnitUs![(side, unit)];
+            if (!trainU.HasSufficientSupport)
+            {
+                if (active)
+                    throw new InvalidDataException($"TF ativa sem suporte TRAIN U: {side}/{unit}.");
+                unitFits.Add(new V9SnapshotUnitTf(side, unit,
+                    V9SnapshotTfFitState.InsufficientSupport, null));
                 continue;
             }
             var marginal = ExportPinnedUnitMarginal(side, unit);
