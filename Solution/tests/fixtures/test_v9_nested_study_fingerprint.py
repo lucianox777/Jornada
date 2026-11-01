@@ -79,6 +79,27 @@ class V9NestedStudyFingerprintTests(unittest.TestCase):
         self.assertNotEqual(first["Calibration"]["StudyFingerprintSha256"],
                             second["Calibration"]["StudyFingerprintSha256"])
 
+    def test_invalid_bootstrap_metadata_is_rejected_before_plan_creation(self):
+        pin = self.pinned("guard", "a")
+        valid = json.loads(pin.read_text(encoding="utf-8"))
+        invalid = (
+            ("Provenance", "UNVERIFIED_SOURCE"),
+            ("GeneratorSeed", True),
+            ("GeneratorSeed", 1 << 64),
+            ("GeneratorVersion", ["invalid-type"]),
+            ("CorpusFingerprint", {"untrusted": "value"}),
+        )
+        for index, (field, value) in enumerate(invalid):
+            with self.subTest(field=field, value=value):
+                candidate = json.loads(json.dumps(valid))
+                candidate["PinnedIbgeBootstrap"][field] = value
+                pin.write_text(json.dumps(candidate), encoding="utf-8")
+                destination = self.root / f"invalid-{index}.json"
+                with self.assertRaises(ValueError):
+                    nested.prepare(self.corpus, destination, tf_search=True,
+                                   pinned_ibge=pin)
+                self.assertFalse(destination.exists())
+
     def test_missing_published_ibge_reference_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "pinned-ibge"):
             self.prepare("no-pin", tf_search=True)
