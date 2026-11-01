@@ -216,7 +216,7 @@ public sealed class V9GoldJointPhysicalReceiptTests
         // waves and final reevaluation; final publication outcomes are last-result
         // per source. They are not interchangeable denominators.
         ((JsonObject)receipt["lowerNonMatchExperiment"]!)["finalFalseNewIdentityCreations"] = 10;
-        Assert.DoesNotThrow((TestDelegate)(() =>
+        Assert.DoesNotThrow((Action)(() =>
             V9GoldJointPhysicalReceipt.Read(Bytes(receipt), Fit, Gold, Csv, Selection)));
     }
 
