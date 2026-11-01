@@ -239,7 +239,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 // nominal unit was statistically fitted or had an IBGE source.
                 // No active TF means the frozen 81-cell scorer stays unchanged.
                 unitFits.Add(new V9SnapshotUnitTf(side, unit,
-                    V9SnapshotTfFitState.ZeroChosen, null));
+                    V9SnapshotTfFitState.BaselineTf0, null));
             }
             else
             {
