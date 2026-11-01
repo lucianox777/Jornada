@@ -61,7 +61,7 @@ public static class V9NestedCalibrationCli
         var train = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(source, 4,
             declaration.MaximumObservationsPerBaseIdentity, onlyPartition: "TRAIN");
         Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? referenceFactory = null;
-        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m))
+        if (plan.Calibration.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf))
             referenceFactory = async (passes, ct) =>
             {
                 // The reference version is explicit; no mutable ATIVA fallback.

@@ -285,7 +285,8 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         // A positive TF option can only run against the SAME pinned physical
         // SQL blocking frame and preloaded immutable reference. Do not query
         // whichever reference happens to be active at evaluation time.
-        if (options.Any(x => x is not null && x.TfWeight > 0m)
+        if (options.Any(x => x is not null &&
+                V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(x))
             && (frozenTfReference is null
                 || frozenTfReference.BlockingFrameFingerprint != blockingFingerprint))
             throw new InvalidDataException(

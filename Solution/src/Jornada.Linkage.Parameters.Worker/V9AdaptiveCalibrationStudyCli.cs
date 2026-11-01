@@ -29,7 +29,7 @@ public static class V9AdaptiveCalibrationStudyCli
         V9AdaptiveCalibrationCoordinator.ValidatePlan(plan);
         // The programmatic coordinator accepts a pinned TF provider per ruleset.
         // This file-only entry point must never silently replace positive TF with zero.
-        if (plan.ModelOptions.Any(x => x.TfWeight > 0m))
+        if (plan.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf))
             throw new InvalidDataException("CLI requer TF=0; TF positiva usa RunAsync com referência IBGE fixada por frame.");
         if (plan.ObservationCapDeclaration is { } declaration)
         {
