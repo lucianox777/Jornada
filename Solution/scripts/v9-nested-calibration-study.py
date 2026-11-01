@@ -52,6 +52,10 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         if len(models) != 41 or len(diagnostic) != 4:
             raise ValueError("Unexpected TF diagnostic partition")
         eligible = {x["OptionId"] for x in models}
+        diagnostic_ids = {x["OptionId"] for x in diagnostic}
+        if (len(eligible) != len(models) or len(diagnostic_ids) != len(diagnostic)
+                or eligible.intersection(diagnostic_ids)):
+            raise ValueError("Duplicate or overlapping TF option identifiers")
         by_id = {x["OptionId"]: x for x in models}
         diagnostic_pairs = []
         for item in diagnostic:
@@ -71,6 +75,8 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
                                      "BilateralOptionId": baseline_id,
                                      "EligibleForAutomaticSelection": False,
                                      "RequiresSameCandidatePairs": True})
+        if len({pair["BilateralOptionId"] for pair in diagnostic_pairs}) != 4:
+            raise ValueError("Diagnostic TF options do not have unique bilateral controls")
         pinned = helper.pinned_reference(json.loads(pinned_ibge.read_bytes()))
     else:
         pinned = None
