@@ -23,7 +23,7 @@ public static class V9GoldJointTrainMatrixCommand
         UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
     };
     private static readonly Regex OwnedInstance = new(
-        @"^\(localdb\)\\JornadaV9Gold[0-9]{8}_[a-f0-9]{8}$",
+        @"\A\(localdb\)\\JornadaV9Gold[0-9]{8}_[a-f0-9]{8}\z",
         RegexOptions.CultureInvariant | RegexOptions.Compiled);
 
     public sealed record Plan(
