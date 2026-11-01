@@ -9,6 +9,9 @@ namespace Jornada.Linkage.Runner;
 /// </summary>
 public enum CompositeNominalTfSideV9 { Person, Mother }
 
+/// <summary>How a calibrated TF log-factor affects the single joint FS LLR.</summary>
+public enum CompositeNominalTfAdjustmentModeV9 { Symmetric = 0, AsymmetricPenaltyOnly = 1 }
+
 public sealed record CompositeNominalTfPreviewV9(
     CompositeNominalTfSideV9 Side,
     NominalFrequencyReferenceContractV9 Reference,
@@ -17,7 +20,8 @@ public sealed record CompositeNominalTfPreviewV9(
     decimal UnitReferenceU,
     decimal Weight,
     decimal MinimumFrequency,
-    long MinimumIndependentSupport);
+    long MinimumIndependentSupport,
+    CompositeNominalTfAdjustmentModeV9 Mode = CompositeNominalTfAdjustmentModeV9.Symmetric);
 
 /// <summary>
 /// Evaluates one, explicitly selected, level-specific TF correction in the
@@ -41,6 +45,8 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
             return 0d;
         if (!Enum.IsDefined(input.Side))
             throw new InvalidOperationException("TF V9 exige lado nominal pessoa ou mãe.");
+        if (!Enum.IsDefined(input.Mode))
+            throw new InvalidOperationException("Modo de ajuste TF V9 desconhecido.");
         if (input.Weight < 0m || input.Weight > 1m
             || input.TermFrequency <= 0m || input.TermFrequency > 1m
             || input.UnitReferenceU <= 0m || input.UnitReferenceU > 1m
@@ -73,9 +79,13 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
         // calibration, never joint-cell U or historical U_NOME_EXACT.
         // Metadata cannot attest that the supplied values were actually
         // estimated: this pathway is strictly diagnostic/preview.
-        return SplinkCompatibleTermFrequency.LogBayesAdjustment(
+        var adjustment = SplinkCompatibleTermFrequency.LogBayesAdjustment(
             input.TermFrequency, input.TermFrequency,
             input.UnitReferenceU, input.Weight, input.MinimumFrequency);
+        // A non-positive-only mode must not reward rare values. The same
+        // calibrated U, frequency and joint 81-cell LLR remain untouched.
+        return input.Mode == CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+            ? Math.Min(0d, adjustment) : adjustment;
     }
 
     private static string? ProjectUnit(string? name, NominalFrequencyUnitV9 unit)
