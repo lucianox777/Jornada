@@ -79,13 +79,18 @@ def pinned_reference(raw):
               "GeneratorVersion", "GeneratorSeed", "GenerationHypothesesFingerprint"}
     if not isinstance(bootstrap, dict) or set(bootstrap) != needed:
         raise ValueError("Pinned synthetic provenance must be complete and exact")
-    if not bootstrap["Provenance"] or bootstrap["People"] != 30000 or (
-        not isinstance(bootstrap["GeneratorSeed"], int)
-        or bootstrap["GeneratorSeed"] < 0
-        or not bootstrap["GeneratorVersion"]
-        or not bootstrap["GenerationHypothesesFingerprint"]
-        or not bootstrap["CorpusFingerprint"]
-    ):
+    # Match the C# NominalSyntheticIbgeBootstrapV9 contract before
+    # freezing a TF study. In Python, bool is an int and truthy lists/dicts
+    # can masquerade as strings unless each field is checked explicitly.
+    if (bootstrap["Provenance"] != "SINTETICO_IBGE"
+            or type(bootstrap["People"]) is not int
+            or bootstrap["People"] != 30000
+            or type(bootstrap["GeneratorSeed"]) is not int
+            or not 0 <= bootstrap["GeneratorSeed"] <= (1 << 64) - 1
+            or any(not isinstance(bootstrap[field], str)
+                   or not bootstrap[field].strip()
+                   for field in ("CorpusFingerprint", "GeneratorVersion",
+                                 "GenerationHypothesesFingerprint"))):
         raise ValueError("Pinned synthetic bootstrap invalid")
     return {key: raw[key] for key in keys}
 
