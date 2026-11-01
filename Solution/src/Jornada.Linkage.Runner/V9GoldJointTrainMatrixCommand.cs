@@ -118,6 +118,11 @@ public static class V9GoldJointTrainMatrixCommand
         var instances = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var runs = new HashSet<string>(StringComparer.Ordinal);
         var physicalRuns = new HashSet<string>(StringComparer.Ordinal);
+        // The physical Runner derives the Gold snapshot solely from the frozen
+        // fit and UPPER_TRAIN. LOWER and insertion order must never change its
+        // content SHA; distinct uppers must not silently share one snapshot.
+        var snapshotsByUpper = new Dictionary<decimal, string>();
+        var uppersBySnapshot = new Dictionary<string, decimal>(StringComparer.Ordinal);
         var measurements = new List<V9LowerNonMatchTrainCalibrator.JointMeasurement>(expected);
         foreach (var bytes in receipts)
         {
@@ -150,6 +155,19 @@ public static class V9GoldJointTrainMatrixCommand
                 .GetProperty("isolatedRunFingerprintSha256").GetString()!;
             if (!physicalRuns.Add(physicalRun))
                 throw new InvalidDataException("Physical Gold TRAIN SQL run fingerprint reused across cells.");
+            var recomputedSnapshot = root.GetProperty("snapshotSha256").GetString()!;
+            if (snapshotsByUpper.TryGetValue(row.UpperThreshold, out var priorSnapshot))
+            {
+                if (!string.Equals(priorSnapshot, recomputedSnapshot, StringComparison.Ordinal))
+                    throw new InvalidDataException("Same frozen TRAIN upper produced different Gold snapshot SHAs across physical cells.");
+            }
+            else snapshotsByUpper.Add(row.UpperThreshold, recomputedSnapshot);
+            if (uppersBySnapshot.TryGetValue(recomputedSnapshot, out var priorUpper))
+            {
+                if (priorUpper != row.UpperThreshold)
+                    throw new InvalidDataException("Different TRAIN upper thresholds reused one Gold snapshot SHA.");
+            }
+            else uppersBySnapshot.Add(recomputedSnapshot, row.UpperThreshold);
             measurements.Add(row);
         }
         var frozen = measurements.AsReadOnly();
