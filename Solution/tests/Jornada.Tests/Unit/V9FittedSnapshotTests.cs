@@ -150,7 +150,8 @@ public sealed class V9FittedSnapshotTests
             Reference = motherFirst.Reference with
             {
                 Unit = NominalFrequencyUnitV9.LastContentSurname,
-                Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
+                Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy,
+                PopulationFrameFingerprint = "IBGE_PUBLISHED:test:" + new string('a', 64) + ":BR_TODOS"
             },
             Frequencies = new Dictionary<string, decimal> { ["COSTA"] = .5m },
             TrainUnitUByValue = new Dictionary<string, decimal> { ["COSTA"] = .1m }
@@ -263,6 +264,21 @@ public sealed class V9FittedSnapshotTests
             V9NestedCalibrationCli.RequirePinnedFinalistReference(
                 plan with { PinnedIbgePublishedSha256 = null, PinnedIbgeReferenceVersionId = null },
                 V9FittedSnapshot.Create(Payload()))));
+        var four = V9FittedSnapshot.Create(FourUnitTfPayload());
+        Assert.DoesNotThrow((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(plan, four)));
+        Assert.That(four.Payload.TfWeight, Is.Zero);
+        Assert.That(four.Payload.UnitTfCalibrations!.Count(x =>
+            x.State == V9SnapshotTfFitState.Active), Is.EqualTo(4));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(
+                plan with { PinnedIbgePublishedSha256 = null }, four)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(
+                plan with { PinnedIbgeBootstrap = bootstrap with { GeneratorSeed = 44UL } }, four)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(
+                plan with { PinnedIbgeReferenceVersionId = null }, four)));
     }
 
     [Test]
