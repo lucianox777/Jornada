@@ -78,6 +78,16 @@ public sealed class V9GoldJointPhysicalReceiptTests
             V9GoldJointPhysicalReceipt.Read(Bytes(node), Fit, Gold, Csv, Selection)));
 
     [Test]
+    public void Rejects_malformed_standalone_physical_receipt_with_contract_exception()
+    {
+        // Direct receipt validation must fail closed with the same evidence
+        // exception as matrix aggregation; raw JsonException is not the contract.
+        var truncated = System.Text.Encoding.UTF8.GetBytes("{\\\"jointTrainPhysicalTrial\\\":");
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointPhysicalReceipt.Read(truncated, Fit, Gold, Csv, Selection)));
+    }
+
+    [Test]
     public void Rejects_duplicate_receipt_fields_even_when_last_value_is_valid()
     {
         var json = System.Text.Encoding.UTF8.GetString(Bytes(Receipt()));
