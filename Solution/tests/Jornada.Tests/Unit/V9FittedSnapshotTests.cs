@@ -145,6 +145,61 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void Frozen_tf_asymmetric_penalizes_common_but_never_rewards_rare_first_names()
+    {
+        var payload = PositiveTfPayload();
+        var neutral = V9FittedSnapshot.Create(Payload());
+        var symmetric = V9FittedSnapshot.Create(payload);
+        var asymmetric = V9FittedSnapshot.Create(payload with
+        {
+            TfCalibration = payload.TfCalibration! with
+            {
+                Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+            }
+        });
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "MARIA COSTA", null, null);
+        decimal Score(V9FittedSnapshot snapshot) =>
+            snapshot.RankPreview(observation, [candidate]).Single().LogOdds;
+
+        // Rare MARIA: the symmetric factor is positive, the asymmetric one is
+        // exactly neutral. TF0 and asymmetric must share the scoring kernel.
+        Assert.That(Score(symmetric), Is.GreaterThan(Score(neutral)));
+        Assert.That(Score(asymmetric), Is.EqualTo(Score(neutral)));
+        var restored = V9FittedSnapshot.Load(asymmetric.SerializeUtf8(), asymmetric.ContentSha256);
+        Assert.That(Score(restored), Is.EqualTo(Score(asymmetric)));
+        Assert.That(restored.ContentSha256, Is.EqualTo(asymmetric.ContentSha256));
+
+        // Common MARIA: both modes apply the same negative adjustment.
+        var frequent = payload with
+        {
+            TfCalibration = payload.TfCalibration! with
+            {
+                Frequencies = new Dictionary<string, decimal> { ["MARIA"] = .9m }
+            }
+        };
+        var frequentSymmetric = V9FittedSnapshot.Create(frequent);
+        var frequentAsymmetric = V9FittedSnapshot.Create(frequent with
+        {
+            TfCalibration = frequent.TfCalibration! with
+            {
+                Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+            }
+        });
+        Assert.That(Score(frequentSymmetric), Is.LessThan(Score(neutral)));
+        Assert.That(Score(frequentAsymmetric), Is.EqualTo(Score(frequentSymmetric)));
+
+        // Unknown modes are not silently treated as symmetric.
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(payload with
+        {
+            TfCalibration = payload.TfCalibration! with
+            {
+                Mode = (CompositeNominalTfAdjustmentModeV9)99
+            }
+        })));
+    }
+
+    [Test]
     public void Positive_tf_rejects_other_train_frame_and_person_mother_reference_swap()
     {
         var p = PositiveTfPayload();
