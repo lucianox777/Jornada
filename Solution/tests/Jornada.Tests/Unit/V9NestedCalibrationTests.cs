@@ -174,7 +174,7 @@ public sealed class V9NestedCalibrationTests
                     0m, CompositeNominalTfAdjustmentModeV9.Symmetric)
             }
         };
-        Assert.That(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(withFourUnits), Is.True);
+        Assert.That(withFourUnits.TfWeight, Is.Zero); // Four independent weights, not legacy TF.
         Assert.That(sha.GetValue(Create(withFourUnits)), Is.Not.EqualTo(sha.GetValue(Create(original))));
         Assert.That(sha.GetValue(Create(withFourUnits)), Is.Not.EqualTo(sha.GetValue(Create(withTf))));
 
