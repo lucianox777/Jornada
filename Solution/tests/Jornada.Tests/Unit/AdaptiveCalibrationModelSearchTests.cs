@@ -18,7 +18,9 @@ public sealed class AdaptiveCalibrationModelSearchTests
         => Assert.That(action, Throws.TypeOf<TException>());
 
     private sealed class FakeAdapter(
-        string family, long tp, long fp, bool wrongTrain = false, long? abstentionsOverride = null)
+        string family, long tp, long fp, bool wrongTrain = false, long? abstentionsOverride = null,
+        long? truePairsOverride = null, long? falseCandidatesOverride = null,
+        int? labeledGroupsOverride = null)
         : IAdaptiveCalibrationFamilyAdapter
     {
         public string ModelFamily => family;
@@ -42,13 +44,13 @@ public sealed class AdaptiveCalibrationModelSearchTests
             EvaluatedValidationOnly = validation.Partition == "VALIDATION"
                 && !validation.UsesTestLabels;
             return new AdaptiveCalibrationHoldoutMetrics(
-                TruePairsWithoutCpf: 1000,
+                TruePairsWithoutCpf: truePairsOverride ?? 1000,
                 TrueAcceptedLinks: tp,
                 FalseAcceptedLinks: fp,
                 Abstentions: abstentionsOverride ?? (1000 - tp),
-                BlockingFalseCandidatePairs: 200,
+                BlockingFalseCandidatePairs: falseCandidatesOverride ?? 200,
                 BlockingFalseDegreeP99: 8.0,
-                IndependentlyLabeledIdentityGroups: 600);
+                IndependentlyLabeledIdentityGroups: labeledGroupsOverride ?? 600);
         }
     }
 
@@ -100,6 +102,21 @@ public sealed class AdaptiveCalibrationModelSearchTests
                 new FakeAdapter("FAMILY_FS_V9", 980, 2, abstentionsOverride: 21),
                 new FakeAdapter("FAMILY_FUTURE", 980, 2)
             ]));
+    }
+
+    [Test]
+    public void Validation_requires_at_least_two_independently_labeled_identity_groups()
+    {
+        // A source slice attestation cannot substitute for the adapter's actual
+        // labeled identity-group denominator. One or zero groups is not an
+        // independently measured VALIDATION result, even without a preview budget.
+        foreach (var groups in new[] { 0, 1 })
+            AssertThrows<InvalidDataException>(() =>
+                AdaptiveCalibrationModelSearch.Evaluate(Request(), [
+                    new FakeAdapter("FAMILY_FS_V9", 980, 2,
+                        labeledGroupsOverride: groups),
+                    new FakeAdapter("FAMILY_FUTURE", 980, 2)
+                ]));
     }
 
     [Test]
@@ -222,6 +239,21 @@ public sealed class AdaptiveCalibrationModelSearchTests
     }
 
     [Test]
+    public void Accepted_link_counter_overflow_is_invalid_validation_evidence()
+    {
+        // The adapter may report individually nonnegative counters that fit
+        // Int64 but whose accepted total does not. Reject as invalid evidence,
+        // never leak an arithmetic OverflowException from the preview.
+        AssertThrows<InvalidDataException>(() =>
+            AdaptiveCalibrationModelSearch.Evaluate(Request(), [
+                new FakeAdapter("FAMILY_FS_V9", long.MaxValue, long.MaxValue,
+                    abstentionsOverride: 0, truePairsOverride: long.MaxValue,
+                    falseCandidatesOverride: long.MaxValue),
+                new FakeAdapter("FAMILY_FUTURE", 980, 2)
+            ]));
+    }
+
+    [Test]
     public void Explicit_90_percent_recall_target_is_valid_without_universal_95_floor()
     {
         var adapters = new IAdaptiveCalibrationFamilyAdapter[]
@@ -268,13 +300,35 @@ public sealed class AdaptiveCalibrationModelSearchTests
     }
 
     [Test]
-    public void Unsafe_Budget_Must_Not_Be_Loosened_Silently()
+    public void Explicit_Fdr_preview_budget_above_one_percent_is_descriptive_not_an_activation_gate()
     {
+        // No implicit 1% cap: risk budgets are explicit study inputs and
+        // never create an operational model or certify identity-dependent FDR.
         var request = Request(Budget() with { MaximumObservedAcceptedFdrPoint = 0.2 });
-        AssertThrows<InvalidDataException>(() =>
-            AdaptiveCalibrationModelSearch.Evaluate(request, [
-                new FakeAdapter("FAMILY_FS_V9", 980, 2),
-                new FakeAdapter("FAMILY_FUTURE", 980, 2)
-            ]));
+        var report = AdaptiveCalibrationModelSearch.Evaluate(request, [
+            new FakeAdapter("FAMILY_FS_V9", 980, 2),
+            new FakeAdapter("FAMILY_FUTURE", 980, 2)
+        ]);
+        Assert.That(report.Options, Has.Count.EqualTo(2));
+        Assert.That(report.Options.All(x => x.MeetsDescriptiveBudgetOnly), Is.True);
+        Assert.That(report.OperationalModelCreated, Is.False);
+        Assert.That(report.ConfidenceBoundForFdrMeasured, Is.False);
+        Assert.That(report.AutomaticRecalibrationOrActivationAllowed, Is.False);
+        Assert.That(report.TestUsed, Is.False);
+    }
+
+    [Test]
+    public void Explicit_Fdr_preview_budget_rejects_values_outside_probability_domain()
+    {
+        var adapters = new IAdaptiveCalibrationFamilyAdapter[]
+        {
+            new FakeAdapter("FAMILY_FS_V9", 980, 2),
+            new FakeAdapter("FAMILY_FUTURE", 980, 2)
+        };
+        foreach (var invalid in new[] { -0.01d, 1.01d, double.NaN,
+                                        double.PositiveInfinity, double.NegativeInfinity })
+            AssertThrows<InvalidDataException>(() =>
+                AdaptiveCalibrationModelSearch.Evaluate(
+                    Request(Budget() with { MaximumObservedAcceptedFdrPoint = invalid }), adapters));
     }
 }
