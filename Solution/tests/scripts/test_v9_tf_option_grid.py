@@ -111,6 +111,40 @@ class V9UnitTfDeclaredGridTests(unittest.TestCase):
                 self.assertIn(pair["BilateralOptionId"], {x["OptionId"] for x in a["ModelOptions"]})
             self.assertFalse(ab["test_used"])
 
+    def test_pinned_bootstrap_rejects_noncanonical_provenance_and_invalid_types(self):
+        # The C# runtime requires the exact SINTETICO_IBGE provenance and a
+        # numeric generator seed. Python plan preparation must reject invalid
+        # declarations before any TRAIN configuration is frozen.
+        helper = load("v9-tf-option-grid.py", "tf_grid_bootstrap_guard")
+        reference = {
+            "PinnedIbgeReferenceVersionId": 7,
+            "PinnedIbgePublishedSha256": "a" * 64,
+            "PinnedIbgeMaterializedFrequencySha256": "b" * 64,
+            "PinnedIbgeBootstrap": {
+                "Provenance": "SINTETICO_IBGE",
+                "People": 30000,
+                "CorpusFingerprint": "c" * 64,
+                "GeneratorVersion": "JORNADA_SYNTH_CORPUS_CSHARP_V1",
+                "GeneratorSeed": 42,
+                "GenerationHypothesesFingerprint": "d" * 64,
+            },
+        }
+        self.assertEqual(helper.pinned_reference(reference), reference)
+        bad_values = (
+            ("Provenance", "UNIT_TEST_ONLY_NOT_PUBLISHED"),
+            ("Provenance", ["SINTETICO_IBGE"]),
+            ("GeneratorSeed", True),
+            ("GeneratorVersion", ["generator"]),
+            ("CorpusFingerprint", ["not-a-fingerprint"]),
+            ("GenerationHypothesesFingerprint", {"value": "untrusted"}),
+        )
+        for field, value in bad_values:
+            with self.subTest(field=field, value=value):
+                mutated = json.loads(json.dumps(reference))
+                mutated["PinnedIbgeBootstrap"][field] = value
+                with self.assertRaises(ValueError):
+                    helper.pinned_reference(mutated)
+
     def test_bad_pinned_reference_fails_closed(self):
         helper = load("v9-tf-option-grid.py", "tf_grid_guard")
         with self.assertRaises(ValueError):
