@@ -174,8 +174,11 @@ public sealed class V9FittedSnapshot
         if (level != CompositeNominalLevelV9.ExactFirst
             && level != CompositeNominalLevelV9.ExactFull)
             return null;
-        var term = FirstName(left);
-        if (term is null || term != FirstName(right)
+        var term = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
+            ? BrazilianNameComponents.Project(left)?.LastContentSurname : FirstName(left);
+        var rightTerm = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
+            ? BrazilianNameComponents.Project(right)?.LastContentSurname : FirstName(right);
+        if (term is null || term != rightTerm
             || !tf.Frequencies.TryGetValue(term, out var frequency)
             || !tf.TrainUnitUByValue.TryGetValue(term, out var unitU))
             throw new InvalidDataException("TF positiva desconhecida: referência ou U TRAIN ausente no snapshot.");
