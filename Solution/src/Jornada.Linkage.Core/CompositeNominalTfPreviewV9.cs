@@ -25,7 +25,8 @@ public sealed record CompositeNominalTfPreviewV9(
 
 /// <summary>
 /// Evaluates one, explicitly selected, level-specific TF correction in the
-/// SAME FS scorer. Never applies a first-name marginal to full-name exact.
+/// SAME FS scorer. ExactFull may use the explicitly declared V8-compatible
+/// first-name proxy; it is not a measured full-name frequency.
 /// No second nominal m/u contribution is introduced; the only V9 joint
 /// nominal LLR receives an optional additive correction. Two uncalibrated
 /// person/mother adjustments are intentionally NOT summed.
@@ -62,11 +63,19 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
             return 0d;
 
         var level = input.Side == CompositeNominalTfSideV9.Person ? personLevel : motherLevel;
-        CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
-            level, input.Reference, input.MinimumIndependentSupport);
+        var firstNameProxy = level == CompositeNominalLevelV9.ExactFull
+            && input.Reference.Unit == NominalFrequencyUnitV9.FirstName;
+        if (firstNameProxy)
+            CompositeNominalTermFrequencyContractV9.RequireFirstNameProxyForExactFull(
+                level, input.Reference, input.MinimumIndependentSupport);
+        else
+            CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                level, input.Reference, input.MinimumIndependentSupport);
         var left = input.Side == CompositeNominalTfSideV9.Person ? leftPerson : leftMother;
         var right = input.Side == CompositeNominalTfSideV9.Person ? rightPerson : rightMother;
-        var expectedUnit = CompositeNominalTermFrequencyContractV9.RequiredUnit(level)!.Value;
+        var expectedUnit = firstNameProxy
+            ? NominalFrequencyUnitV9.FirstName
+            : CompositeNominalTermFrequencyContractV9.RequiredUnit(level)!.Value;
         var leftValue = ProjectUnit(left, expectedUnit);
         var rightValue = ProjectUnit(right, expectedUnit);
         if (leftValue is null
