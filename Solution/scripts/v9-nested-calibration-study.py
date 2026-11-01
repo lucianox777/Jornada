@@ -45,7 +45,22 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         if pinned_ibge is None:
             raise ValueError("TF search requires --pinned-ibge with exact reference/digests")
         helper = _tf_helper()
-        models = helper.option_grid(alpha=.5, threshold=.95)
+        full_grid = helper.option_grid(alpha=.5, threshold=.95)
+        # PO decision 12: shared surname alternatives are diagnostic only.
+        diagnostic = [x for x in full_grid if x["OptionId"].startswith("SHARED_PL_ML_")]
+        models = [x for x in full_grid if not x["OptionId"].startswith("SHARED_PL_ML_")]
+        if len(models) != 41 or len(diagnostic) != 4:
+            raise ValueError("Unexpected TF diagnostic partition")
+        eligible = {x["OptionId"] for x in models}
+        diagnostic_pairs = []
+        for item in diagnostic:
+            baseline_id = item["OptionId"].replace("SHARED_PL_ML_", "TWO_PL_ML_", 1)
+            if baseline_id not in eligible:
+                raise ValueError("Missing bilateral reference")
+            diagnostic_pairs.append({"DiagnosticOptionId": item["OptionId"],
+                                     "BilateralOptionId": baseline_id,
+                                     "EligibleForAutomaticSelection": False,
+                                     "RequiresSameCandidatePairs": True})
         pinned = helper.pinned_reference(json.loads(pinned_ibge.read_bytes()))
     else:
         pinned = None
@@ -86,6 +101,11 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         calibration["MaximumPhysicalRuleSets"] = 2
         cost = helper.budget_estimate(models, rulesets=2,
                                      margins=len(calibration["ConflictMargins"]))
+        cost["diagnostic_comparison_only"] = diagnostic_pairs
+        cost["diagnostic_models_excluded_from_selection"] = len(diagnostic)
+        cost["initial_grid_total"] = len(full_grid)
+        cost["diagnostic_physically_executed"] = False
+        cost["shared_surname_candidate_pairs"] = None
         if cost["predeclared_comparisons"] > maximum:
             raise ValueError("TF initial family exceeds the predeclared compute budget")
         sidecar = destination.with_suffix(".tf-budget.json")
