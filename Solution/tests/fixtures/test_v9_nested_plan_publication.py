@@ -61,5 +61,39 @@ class V9NestedPlanPublicationTests(unittest.TestCase):
                 study._write_frozen_outputs(destination, {"StudyFingerprintSha256": "different"}, {"models": 0})
 
 
+    def test_tf_budget_identifies_exact_frozen_train_study(self):
+        study = load_study()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            corpus = root / "observations.csv"
+            corpus.write_text("synthetic plan fixture only\\n", encoding="utf-8")
+            (root / "generation-manifest.json").write_text(json.dumps({
+                "error_profile": "clean",
+                "population_profile": "DEMOGRAPHIC_PRIMARY_V1",
+                "observation_multiplicity": {"contract_version": "V9_TEST_CAP"},
+                "generator_version": "V9_TEST_GENERATOR"
+            }), encoding="utf-8")
+            pinned = root / "pinned.json"
+            pinned.write_text(json.dumps({
+                "PinnedIbgeReferenceVersionId": 1,
+                "PinnedIbgePublishedSha256": "a" * 64,
+                "PinnedIbgeMaterializedFrequencySha256": "b" * 64,
+                "PinnedIbgeBootstrap": {
+                    "Provenance": "SINTETICO_IBGE", "People": 30000,
+                    "CorpusFingerprint": "fixture-fingerprint",
+                    "GeneratorVersion": "fixture-generator", "GeneratorSeed": 42,
+                    "GenerationHypothesesFingerprint": "fixture-hypotheses"
+                }
+            }), encoding="utf-8")
+            destination = root / "plan.json"
+            study.prepare(corpus, destination, tf_search=True, pinned_ibge=pinned)
+            plan = json.loads(destination.read_text(encoding="utf-8"))
+            budget = json.loads(destination.with_suffix(".tf-budget.json").read_text(encoding="utf-8"))
+            self.assertEqual(budget["study_fingerprint_sha256"],
+                             plan["Calibration"]["StudyFingerprintSha256"])
+            self.assertEqual(budget["models"], 41)
+            self.assertFalse(budget["test_used"])
+
+
 if __name__ == "__main__":
     unittest.main()
