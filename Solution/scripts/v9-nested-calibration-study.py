@@ -24,6 +24,8 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         raise FileExistsError(destination)
     manifest_path = corpus.parent / "generation-manifest.json"
     manifest = json.loads(manifest_path.read_bytes())
+    if not isinstance(manifest, dict):
+        raise ValueError("Generation manifest must be a JSON object")
     if manifest["error_profile"] != "clean" or manifest["population_profile"] != "DEMOGRAPHIC_PRIMARY_V1":
         raise ValueError("Accepted provisional clean demographic bootstrap required")
     source_sha = hashlib.sha256(corpus.read_bytes()).hexdigest()
@@ -122,6 +124,10 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         MinimumRecallImprovement=.0001, MinimumFdrImprovement=.00001,
         Purpose="PLUMBING_FIXTURE_NOT_CERTIFICATION" if fixture else "BOOTSTRAP_CANDIDATE_SELECTION")
     if tf_search:
+        # Reject a mismatch before writing any plan: pinned provenance must
+        # describe exactly the source corpus being calibrated.
+        if pinned["PinnedIbgeBootstrap"]["CorpusFingerprint"] != source_sha:
+            raise ValueError("Pinned IBGE bootstrap corpus fingerprint differs from TRAIN corpus SHA256")
         plan.update(pinned)
         # No subset selected from VALIDATION. Candidate neighbours continue
         # using the same 19-pass TRAIN catalogue and existing C# Pareto.
