@@ -200,6 +200,51 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void Frozen_bilateral_tf_uses_independent_person_and_mother_weights_and_roundtrips()
+    {
+        var p = PositiveTfPayload();
+        var motherReference = p.TfCalibration!.Reference with
+        {
+            PopulationFrameFingerprint = "IBGE_PUBLISHED:test:" + new string('a', 64) + ":BR_FEMININO"
+        };
+        var mother = p.TfCalibration with
+        {
+            Side = CompositeNominalTfSideV9.Mother,
+            Reference = motherReference,
+            Frequencies = new Dictionary<string, decimal> { ["ANA"] = .9m },
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["ANA"] = .8m },
+            Weight = .75m,
+            Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+        };
+        var single = V9FittedSnapshot.Create(p);
+        var dual = V9FittedSnapshot.Create(p with { MotherTfCalibration = mother });
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, "ANA COSTA");
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "MARIA SILVA", null, "ANA COSTA");
+        decimal Score(V9FittedSnapshot snapshot) =>
+            snapshot.RankPreview(observation, [candidate]).Single().LogOdds;
+        Assert.That(Score(dual), Is.LessThan(Score(single)));
+        var loaded = V9FittedSnapshot.Load(dual.SerializeUtf8(), dual.ContentSha256);
+        Assert.That(loaded.ContentSha256, Is.EqualTo(dual.ContentSha256));
+        Assert.That(Score(loaded), Is.EqualTo(Score(dual)));
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(p with
+        {
+            MotherTfCalibration = mother with { Side = CompositeNominalTfSideV9.Person }
+        })));
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(p with
+        {
+            MotherTfCalibration = mother with { Weight = null }
+        })));
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(p with
+        {
+            MotherTfCalibration = mother with { Mode = (CompositeNominalTfAdjustmentModeV9)99 }
+        })));
+        var unknown = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, "JOANA COSTA");
+        var unknownCandidate = candidate with { MotherName = "JOANA COSTA" };
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            dual.RankPreview(unknown, [unknownCandidate])));
+    }
+
+    [Test]
     public void Positive_tf_rejects_other_train_frame_and_person_mother_reference_swap()
     {
         var p = PositiveTfPayload();
@@ -218,7 +263,7 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
-    public void Positive_tf_unknown_applicable_term_throws_while_nonapplicable_full_exact_keeps_real_score()
+    public void Positive_tf_unknown_applicable_term_fails_closed_for_full_exact_too()
     {
         var snapshot = V9FittedSnapshot.Create(PositiveTfPayload());
         var observation = new IdentityObservation(null, "SEM_CPF", "JOANA SILVA", null, null);
@@ -226,14 +271,9 @@ public sealed class V9FittedSnapshotTests
         Assert.That(CompositeNominalComparisonV9.Classify(observation.NomeCompleto, candidate.FullName),
             Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
         Assert.Throws<InvalidDataException>((Action)(() => snapshot.ResolvePreview(Guid.NewGuid(), observation, [candidate])));
-        var id = Guid.NewGuid();
         candidate = candidate with { FullName = observation.NomeCompleto };
-        var actual = snapshot.ResolvePreview(id, observation, [candidate]);
-        var expected = ProbabilisticLinkageDecisions.ResolveCompositeNominalV9Preview(id,
-            snapshot.Payload.Parameters, observation,
-            [new LinkageCandidate(candidate.PersonUuid, candidate.FullName, null, null)], snapshot.Payload.JointCells,
-            snapshot.Payload.NominalContractVersion, snapshot.Payload.Threshold, snapshot.Payload.ConflictMargin);
-        Assert.That(actual, Is.EqualTo(expected));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            snapshot.ResolvePreview(Guid.NewGuid(), observation, [candidate])));
     }
 
     [Test]
