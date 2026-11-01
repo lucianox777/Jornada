@@ -37,6 +37,21 @@ public sealed class FrozenIbgeNominalTfV9
     /// observed last-position distribution. Export alone does NOT fit TRAIN U,
     /// enable this unit in the portable runtime, or authorize activation.
     /// </summary>
+    public bool HasMarginal(CompositeNominalTfSideV9 side, CompositeNominalLevelV9 level)
+    {
+        if (!Enum.IsDefined(side))
+            throw new InvalidDataException("Lado TF do snapshot desconhecido.");
+        return (side, level) switch
+        {
+            (CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFirst) => personFirst.Count > 0,
+            (CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactFirst) => motherFirst.Count > 0,
+            (CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast) => personLast.Count > 0,
+            (CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactLast) => motherLast.Count > 0,
+            _ => throw new InvalidDataException(
+                "Consulta de marginal IBGE exige ExactFirst ou ExactLast.")
+        };
+    }
+
     public (NominalFrequencyReferenceContractV9 Reference,
         IReadOnlyDictionary<string, decimal> Frequencies) ExportForSnapshot(
         CompositeNominalTfSideV9 side, CompositeNominalLevelV9 level)

@@ -262,21 +262,17 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     V9SnapshotTfFitState.InsufficientSupport, null));
                 continue;
             }
-            (NominalFrequencyReferenceContractV9 Reference, IReadOnlyDictionary<string, decimal> Frequencies) marginal;
-            try
-            {
-                marginal = ExportPinnedUnitMarginal(side, unit);
-            }
-            catch (InvalidDataException ex) when (
-                ex.Message.Contains("Marginal IBGE fixada ausente", StringComparison.Ordinal)
-                || ex.Message.Contains("Marginal IBGE vazia", StringComparison.Ordinal))
+            var level = unit == NominalFrequencyUnitV9.FirstName
+                ? CompositeNominalLevelV9.ExactFirst : CompositeNominalLevelV9.ExactLast;
+            if (!frozenTfReference!.HasMarginal(side, level))
             {
                 if (active)
-                    throw new InvalidDataException($"TF ativa sem referência IBGE: {side}/{unit}.", ex);
+                    throw new InvalidDataException($"TF ativa sem referência IBGE: {side}/{unit}.");
                 unitFits.Add(new V9SnapshotUnitTf(side, unit,
                     V9SnapshotTfFitState.NoSource, null));
                 continue;
             }
+            var marginal = ExportPinnedUnitMarginal(side, unit);
             if (!active)
             {
                 unitFits.Add(new V9SnapshotUnitTf(side, unit,
