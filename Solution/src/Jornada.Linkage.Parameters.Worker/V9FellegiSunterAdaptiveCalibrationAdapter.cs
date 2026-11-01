@@ -219,6 +219,22 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 frozen.TrainUnitU.FingerprintSha256, config.TfMinimumFrequency,
                 config.TfMinimumIndependentSupport, frame.TrainCorpusFingerprintSha256);
         }
+        var unitFits = new List<V9SnapshotUnitTf>(4);
+        foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
+        foreach (var unit in new[] { NominalFrequencyUnitV9.FirstName, NominalFrequencyUnitV9.LastContentSurname })
+        {
+            if (tf is not null && side == config.TfSide && unit == NominalFrequencyUnitV9.FirstName)
+            {
+                unitFits.Add(new V9SnapshotUnitTf(side, unit, V9SnapshotTfFitState.Active,
+                    tf with { Weight = config.TfWeight }));
+            }
+            else
+            {
+                // Do not invent a zero-chosen calibration without TRAIN evidence.
+                // These slots must be fitted before they can become active.
+                unitFits.Add(new V9SnapshotUnitTf(side, unit, V9SnapshotTfFitState.NoSource, null));
+            }
+        }
         return V9FittedSnapshot.Create(new V9FittedSnapshotPayload(
             (frozen.JointSupport is null ? V9FittedSnapshot.SchemaVersion : V9FittedSnapshot.SupportSchemaVersion), CompositeNominalComparisonV9.ContractVersion,
             projectionSchemaVersion, projectionFingerprintSha256,
@@ -226,9 +242,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             frame.TrainCorpusFingerprintSha256, frame.ValidationCorpusFingerprintSha256,
             frame.TrainIdentityFingerprintSha256, frame.ValidationIdentityFingerprintSha256,
             Version, frozen.OptionId, frozen.Threshold, conflictMargin, config.TfWeight,
-            blockingPasses, frozen.Cells, frozen.Parameters, tf,
+            blockingPasses, frozen.Cells, frozen.Parameters,
             BlockingFrameFingerprintSha256: frame.BlockingFrameFingerprintSha256,
-            CandidateGrouping: candidateGrouping, JointSupport: frozen.JointSupport));
+            CandidateGrouping: candidateGrouping, JointSupport: frozen.JointSupport,
+            UnitTfCalibrations: unitFits));
     }
 
     private static bool BlockingPassesEqual(
