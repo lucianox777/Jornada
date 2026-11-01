@@ -59,13 +59,13 @@ public static class V9TrainSqlFirstNameUCalibration
                 continue;
             var name = UnitToken(left, unit);
             if (name is null || name != UnitToken(right, unit))
-                throw new InvalidDataException("Unidade TF do par U não coincide com ExactFirst.");
+                throw new InvalidDataException($"Unidade TF do par U não coincide com {side}/{(unit == NominalFrequencyUnitV9.FirstName ? CompositeNominalLevelV9.ExactFirst : CompositeNominalLevelV9.ExactLast)}.");
             counts[name] = checked(counts.GetValueOrDefault(name) + 1L);
             n = checked(n + 1);
         }
         if (n < 2 || counts.Count == 0)
         {
-            var insufficientCanonical = $"{Version}|INSUFFICIENT_SUPPORT|{side}|{unit}|{trainFingerprintSha256}|{n}";
+            var insufficientCanonical = $"{Version}|INSUFFICIENT_SUPPORT|{side}|{unit}|{trainFingerprintSha256}|{smoothingAlpha.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{n}";
             var insufficientSha = Convert.ToHexString(
                 SHA256.HashData(Encoding.UTF8.GetBytes(insufficientCanonical))).ToLowerInvariant();
             return new Frozen(side, trainFingerprintSha256, checked((int)n),
