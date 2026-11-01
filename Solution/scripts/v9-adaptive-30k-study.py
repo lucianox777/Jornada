@@ -77,8 +77,27 @@ def prepare(corpus: Path, plan_path: Path, cap_four: bool = False,
         if not cap_four or pinned_ibge is None:
             raise ValueError("TF physical study requires cap4 and --pinned-ibge")
         helper = _tf_helper()
-        grid = helper.option_grid(alpha=.5, threshold=.95)
-        grid[0]["OptionId"] = "T0.95_TF0"  # preserve the known historical TF0 control ID
+        full_grid = helper.option_grid(alpha=.5, threshold=.95)
+        full_grid[0]["OptionId"] = "T0.95_TF0"  # historical TF0 control ID
+        diagnostic = [x for x in full_grid if x["OptionId"].startswith("TF_SHARED_PL_ML_")]
+        grid = [x for x in full_grid if not x["OptionId"].startswith("TF_SHARED_PL_ML_")]
+        if len(grid) != 41 or len(diagnostic) != 4:
+            raise ValueError("Unexpected adaptive TF diagnostic partition")
+        by_id = {x["OptionId"]: x for x in grid}
+        diagnostic_pairs = []
+        for item in diagnostic:
+            baseline_id = item["OptionId"].replace("TF_SHARED_PL_ML_", "TF_TWO_PL_ML_", 1)
+            baseline = by_id.get(baseline_id)
+            if baseline is None or (item["UnitTfOptions"] != baseline["UnitTfOptions"]
+                    or item["SmoothingAlpha"] != baseline["SmoothingAlpha"]
+                    or item["DecisionThreshold"] != baseline["DecisionThreshold"]
+                    or item.get("SharedSurnameMode") != 1
+                    or baseline.get("SharedSurnameMode", 0) != 0):
+                raise ValueError("Shared diagnostic must match bilateral TF parameters")
+            diagnostic_pairs.append({"DiagnosticOptionId": item["OptionId"],
+                                     "BilateralOptionId": baseline_id,
+                                     "EligibleForAutomaticSelection": False,
+                                     "RequiresSameCandidatePairs": True})
         plan["ModelOptions"] = grid
         # The exploratory search must not pre-exclude a risk region before
         # TRAIN evidence: Pareto/frontier is descriptive, gates come later.
@@ -98,6 +117,11 @@ def prepare(corpus: Path, plan_path: Path, cap_four: bool = False,
         cost = helper.budget_estimate(grid, rulesets=1,
             margins=len(plan["ConflictMargins"]), previous=3726)
         plan["MaximumComparedConfigurations"] = cost["predeclared_comparisons"]
+        cost["diagnostic_comparison_only"] = diagnostic_pairs
+        cost["diagnostic_models_excluded_from_selection"] = len(diagnostic)
+        cost["initial_grid_total"] = len(full_grid)
+        cost["diagnostic_physically_executed"] = False
+        cost["shared_surname_candidate_pairs"] = None
         plan.update(helper.pinned_reference(json.loads(pinned_ibge.read_bytes())))
         sidecar = plan_path.with_suffix(".tf-budget.json")
         if sidecar.exists():
