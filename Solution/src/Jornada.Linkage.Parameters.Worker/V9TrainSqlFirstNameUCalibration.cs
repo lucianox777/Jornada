@@ -21,16 +21,19 @@ public static class V9TrainSqlFirstNameUCalibration
         string TrainFingerprintSha256,
         int UnmatchedExactFirstCandidatePairs,
         IReadOnlyDictionary<string, decimal> FirstNameUnitUByValue,
-        string FingerprintSha256);
+        string FingerprintSha256,
+        NominalFrequencyUnitV9 Unit = NominalFrequencyUnitV9.FirstName);
 
     public static Frozen Fit(
         IReadOnlyCollection<V9FsAdaptiveCandidatePair> trainSqlCandidates,
         CompositeNominalTfSideV9 side,
         decimal smoothingAlpha,
-        string trainFingerprintSha256)
+        string trainFingerprintSha256,
+        NominalFrequencyUnitV9 unit = NominalFrequencyUnitV9.FirstName)
     {
         ArgumentNullException.ThrowIfNull(trainSqlCandidates);
-        if (!Enum.IsDefined(side) || smoothingAlpha <= 0m
+        if (!Enum.IsDefined(side) || unit is not (NominalFrequencyUnitV9.FirstName or NominalFrequencyUnitV9.LastContentSurname)
+            || smoothingAlpha <= 0m
             || trainFingerprintSha256 is null || trainFingerprintSha256.Length != 64
             || trainFingerprintSha256.Any(x => !Uri.IsHexDigit(x)))
             throw new InvalidDataException("Parâmetros U de prenome TRAIN inválidos.");
@@ -48,10 +51,11 @@ public static class V9TrainSqlFirstNameUCalibration
             var right = side == CompositeNominalTfSideV9.Person
                 ? row.RightPersonName : row.RightMotherName;
             if (CompositeNominalComparisonV9.Classify(left, right)
-                != CompositeNominalLevelV9.ExactFirst)
+                != (unit == NominalFrequencyUnitV9.FirstName
+                    ? CompositeNominalLevelV9.ExactFirst : CompositeNominalLevelV9.ExactLast))
                 continue;
-            var name = FirstToken(left);
-            if (name is null || name != FirstToken(right))
+            var name = UnitToken(left, unit);
+            if (name is null || name != UnitToken(right, unit))
                 throw new InvalidDataException("Unidade TF do par U não coincide com ExactFirst.");
             counts[name] = checked(counts.GetValueOrDefault(name) + 1L);
             n = checked(n + 1);
@@ -66,7 +70,7 @@ public static class V9TrainSqlFirstNameUCalibration
             .ToDictionary(x => x.Key, x => (x.Value + smoothingAlpha) / denominator,
                 StringComparer.Ordinal);
         var canonical = new StringBuilder()
-            .Append(Version).Append('|').Append(side).Append('|')
+            .Append(Version).Append('|').Append(side).Append('|').Append(unit).Append('|')
             .Append(trainFingerprintSha256).Append('|')
             .Append(smoothingAlpha.ToString(System.Globalization.CultureInfo.InvariantCulture))
             .Append('|').Append(n).Append('\n');
@@ -77,7 +81,7 @@ public static class V9TrainSqlFirstNameUCalibration
         var digest = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
         return new Frozen(side, trainFingerprintSha256, checked((int)n),
-            new ReadOnlyDictionary<string, decimal>(units), digest);
+            new ReadOnlyDictionary<string, decimal>(units), digest, unit);
     }
 
     /// <summary>
@@ -111,20 +115,28 @@ public static class V9TrainSqlFirstNameUCalibration
             throw new InvalidDataException("Estados TF V9 divergem do par nominal observado.");
         var level = calibration.Side == CompositeNominalTfSideV9.Person
             ? personLevel : motherLevel;
-        if (level != CompositeNominalLevelV9.ExactFirst)
+        if (level != (calibration.Unit == NominalFrequencyUnitV9.FirstName
+                ? CompositeNominalLevelV9.ExactFirst : CompositeNominalLevelV9.ExactLast))
             return null;
         var left = calibration.Side == CompositeNominalTfSideV9.Person
             ? pair.LeftPersonName : pair.LeftMotherName;
         var right = calibration.Side == CompositeNominalTfSideV9.Person
             ? pair.RightPersonName : pair.RightMotherName;
-        var value = FirstToken(left);
-        if (value is null || value != FirstToken(right)
+        var value = UnitToken(left, calibration.Unit);
+        if (value is null || value != UnitToken(right, calibration.Unit)
             || !calibration.FirstNameUnitUByValue.TryGetValue(value, out var unitU))
             throw new InvalidDataException(
                 "TF positiva desconhecida/sem suporte U TRAIN: não converter em peso zero ou BF=1.");
         return reference.CreatePreview(
             calibration.Side, level, left, right,
             unitU, weight, minimumFrequency, minimumIndependentSupport);
+    }
+
+    private static string? UnitToken(string? input, NominalFrequencyUnitV9 unit)
+    {
+        if (unit == NominalFrequencyUnitV9.LastContentSurname)
+            return BrazilianNameComponents.Project(input)?.LastContentSurname;
+        return FirstToken(input);
     }
 
     private static string? FirstToken(string? input)
