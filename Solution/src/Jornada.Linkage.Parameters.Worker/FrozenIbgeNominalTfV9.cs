@@ -29,13 +29,9 @@ public sealed class FrozenIbgeNominalTfV9
     public string BlockingFrameFingerprint { get; }
     public NominalSyntheticIbgeBootstrapV9 Bootstrap { get; }
 
-    // Exports the exact pinned values, not a fresh SQL lookup or an ATIVA
-    // reference. The portable artifact digest binds these values with TRAIN U.
     /// <summary>
-    /// Exports a pinned marginal for one explicit nominal unit. ExactLast is
-    /// an IBGE ANY-POSITION surname proxy for LastContentSurname, not an
-    /// observed last-position distribution. Export alone does NOT fit TRAIN U,
-    /// enable this unit in the portable runtime, or authorize activation.
+    /// Reports whether the pinned IBGE marginal exists for a side and nominal unit.
+    /// Invalid nominal levels fail closed.
     /// </summary>
     public bool HasMarginal(CompositeNominalTfSideV9 side, CompositeNominalLevelV9 level)
     {
@@ -52,6 +48,14 @@ public sealed class FrozenIbgeNominalTfV9
         };
     }
 
+    // Exports the exact pinned values, not a fresh SQL lookup or an ATIVA
+    // reference. The portable artifact digest binds these values with TRAIN U.
+    /// <summary>
+    /// Exports a pinned marginal for one explicit nominal unit. ExactLast is
+    /// an IBGE ANY-POSITION surname proxy for LastContentSurname, not an
+    /// observed last-position distribution. Export alone does NOT fit TRAIN U,
+    /// enable this unit in the portable runtime, or authorize activation.
+    /// </summary>
     public (NominalFrequencyReferenceContractV9 Reference,
         IReadOnlyDictionary<string, decimal> Frequencies) ExportForSnapshot(
         CompositeNominalTfSideV9 side, CompositeNominalLevelV9 level)
