@@ -144,6 +144,22 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void Insufficient_TRAIN_U_fingerprint_is_sensitive_to_smoothing_alpha()
+    {
+        var rows = Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray();
+        var first = V9TrainSqlFirstNameUCalibration.Fit(
+            rows, CompositeNominalTfSideV9.Mother, .5m, TrainCorpus);
+        var second = V9TrainSqlFirstNameUCalibration.Fit(
+            rows, CompositeNominalTfSideV9.Mother, 1m, TrainCorpus);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(first.HasSufficientSupport, Is.False);
+            Assert.That(second.HasSufficientSupport, Is.False);
+            Assert.That(first.FingerprintSha256, Is.Not.EqualTo(second.FingerprintSha256));
+        }));
+    }
+
+    [Test]
     public void Pinned_IBGE_marginal_availability_is_typed_and_unit_specific()
     {
         var reference = Reference();
