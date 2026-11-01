@@ -41,6 +41,25 @@ public sealed record V9SnapshotFirstNameTf(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     decimal? Weight = null);
 
+/// <summary>Explicit outcome of fitting a TF unit, including calibrated zero.</summary>
+public enum V9SnapshotTfFitState
+{
+    Active,
+    ZeroChosen,
+    InsufficientSupport,
+    NoSource
+}
+
+/// <summary>
+/// One independent TF fit per (side, unit). A zero chosen by the calibrator
+/// retains its frozen reference; missing evidence is never labelled zero.
+/// </summary>
+public sealed record V9SnapshotUnitTf(
+    CompositeNominalTfSideV9 Side,
+    NominalFrequencyUnitV9 Unit,
+    V9SnapshotTfFitState State,
+    V9SnapshotFirstNameTf? Calibration);
+
 public sealed record V9SnapshotCandidate(
     Guid PersonUuid, string? FullName, DateOnly? BirthDate, string? MotherName);
 
