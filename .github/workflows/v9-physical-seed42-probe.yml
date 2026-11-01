@@ -2,10 +2,12 @@ name: v9-physical-seed42-probe
 
 on:
   pull_request:
+  push:
+    branches: [master]
   workflow_dispatch:
 
 # Supersede obsolete automatic PR probes to prevent runner saturation.
-# Explicit manual dispatch and experiment/evidence branches are isolated by run_id
+# Master push, manual dispatch and experiment/evidence branches are isolated by run_id
 # so governed scientific runs are never canceled by unrelated PR updates.
 # A canceled automatic probe is NOT evidence for certification of any SHA.
 concurrency:
@@ -44,7 +46,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "push" ]]; then
             python3 Solution/scripts/v9-physical-impact-classifier.py --manual \
               --summary v9-physical-30k-impact.json --github-output "$GITHUB_OUTPUT"
           else
@@ -71,9 +73,9 @@ jobs:
   physical-30k:
     name: V9 full physical 30k SQL TRAIN (when impacted)
     needs: impact
-    if: github.event_name == 'workflow_dispatch' && needs.impact.outputs.run_physical_30k == 'true'
+    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'push') && needs.impact.outputs.run_physical_30k == 'true'
     runs-on: ubuntu-latest
-    # PO: full 30k only on explicit final dispatch; PR preflight remains fail-closed.
+    # Full 30k runs on master push or explicit dispatch; PR preflight remains fail-closed.
     # Full adaptive batches now survive the old all-cell veto and execute 20
     # complete latency replays per feasible candidate; preserve every gate.
     timeout-minutes: 360
