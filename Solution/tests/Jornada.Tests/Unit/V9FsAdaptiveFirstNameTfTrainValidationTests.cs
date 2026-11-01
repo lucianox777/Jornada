@@ -140,6 +140,28 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void Partial_TRAIN_support_exports_one_active_unit_and_three_insufficient_units()
+    {
+        var config = new V9FsAdaptiveOptionConfiguration("PARTIAL_TF", .5m, .55m, 1m);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            Frame(), [config], Reference());
+        var fit = adapter.FitTrain(Model(config), Slice("TRAIN"));
+        var snapshot = adapter.ExportFrozenSnapshot(fit,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m);
+        var replay = V9FittedSnapshot.Load(snapshot.SerializeUtf8(), snapshot.ContentSha256);
+        var units = replay.Payload.UnitTfCalibrations!;
+        Assert.That(units, Has.Count.EqualTo(4));
+        Assert.That(units.Single(x => x.Side == CompositeNominalTfSideV9.Person
+            && x.Unit == NominalFrequencyUnitV9.FirstName).State,
+            Is.EqualTo(V9SnapshotTfFitState.Active));
+        Assert.That(units.Count(x => x.State == V9SnapshotTfFitState.InsufficientSupport),
+            Is.EqualTo(3));
+        Assert.That(units.Where(x => x.State == V9SnapshotTfFitState.InsufficientSupport)
+            .All(x => x.Calibration is null), Is.True);
+    }
+
+    [Test]
     public void Positive_TF_cannot_use_reference_from_another_blocking_frame()
     {
         var config = new V9FsAdaptiveOptionConfiguration("TF", .5m, .55m, 1m);
