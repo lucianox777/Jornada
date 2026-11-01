@@ -158,6 +158,9 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
         calibration["MaximumPhysicalRuleSets"] = 2
         cost = helper.budget_estimate(models, rulesets=2,
                                      margins=len(calibration["ConflictMargins"]))
+        # Bind the companion budget to the exact frozen TRAIN study. A budget
+        # from another pinned IBGE snapshot must never authorize this plan.
+        cost["study_fingerprint_sha256"] = study
         cost["diagnostic_comparison_only"] = diagnostic_pairs
         cost["diagnostic_models_excluded_from_selection"] = len(diagnostic)
         cost["initial_grid_total"] = len(full_grid)
