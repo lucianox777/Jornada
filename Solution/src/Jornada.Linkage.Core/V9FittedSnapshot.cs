@@ -366,8 +366,15 @@ public sealed class V9FittedSnapshot
         }
         var frozenTf = FreezeTf(p.TfCalibration);
         var frozenMotherTf = FreezeTf(p.MotherTfCalibration);
+        // Reuse the proven prenome freeze/validation path for every unit.
+        // A configured zero remains a fitted reference, not missing evidence.
+        var frozenUnits = p.UnitTfCalibrations is null ? null
+            : Array.AsReadOnly(p.UnitTfCalibrations.Select(fit =>
+                fit with { Calibration = FreezeTf(fit.Calibration) })
+                .OrderBy(fit => fit.Side).ThenBy(fit => fit.Unit).ToArray());
         return p with { BlockingPasses = Array.AsReadOnly(passes), JointCells = cells,
             Parameters = parameters, TfCalibration = frozenTf, MotherTfCalibration = frozenMotherTf,
+            UnitTfCalibrations = frozenUnits,
             JointSupport = p.JointSupport is null ? null : V9JointSupportEstimation.VerifyAndFreeze(p.JointSupport, cells, p.TrainCorpusSha256) };
     }
 
