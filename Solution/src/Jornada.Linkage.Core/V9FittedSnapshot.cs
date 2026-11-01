@@ -50,7 +50,8 @@ public enum V9SnapshotTfFitState
     ZeroChosen,
     InsufficientSupport,
     NoSource,
-    BaselineTf0
+    BaselineTf0,
+    NotSelected
 }
 
 /// <summary>
@@ -366,6 +367,8 @@ public sealed class V9FittedSnapshot
                 if (hasFit != (fit.Calibration is not null)
                     || (fit.State == V9SnapshotTfFitState.BaselineTf0
                         && (p.TfWeight != 0m || fit.Calibration is not null))
+                    || (fit.State == V9SnapshotTfFitState.NotSelected
+                        && (p.TfWeight <= 0m || fit.Calibration is not null))
                     || (fit.Calibration is { } config
                         && (config.Side != fit.Side || config.Reference.Unit != fit.Unit
                             || (fit.State == V9SnapshotTfFitState.ZeroChosen && config.Weight != 0m)

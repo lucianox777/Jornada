@@ -266,13 +266,12 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             }
 
             // Legacy positive TF selects one first-name unit. Other units
-            // retain BaselineTf0; a four-unit selection must explicitly
-            // choose its own zero weights before claiming ZeroChosen.
+            // are NotSelected: they were not fitted to a zero-weight choice.
             var active = side == config.TfSide && unit == NominalFrequencyUnitV9.FirstName;
             if (!active)
             {
                 unitFits.Add(new V9SnapshotUnitTf(side, unit,
-                    V9SnapshotTfFitState.BaselineTf0, null));
+                    V9SnapshotTfFitState.NotSelected, null));
                 continue;
             }
             var trainU = frozen.TrainUnitUs![(side, unit)];
