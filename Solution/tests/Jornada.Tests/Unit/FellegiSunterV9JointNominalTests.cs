@@ -376,7 +376,13 @@ public sealed class FellegiSunterV9JointNominalTests
 
         Assert.Multiple((Action)(() =>
         {
-            Reject(tf); // IBGE first-name marginal cannot price ExactFull
+            // ExactFull explicitly supports the declared first-name IBGE proxy.
+            Assert.That((Action)(() =>
+                FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                    PreviewParameters(), "Maria Silva", "MARIA SILVA",
+                    "Ana Costa", "ANA COSTA", cells,
+                    CompositeNominalComparisonV9.ContractVersion, nominalTf: tf)),
+                Throws.Nothing);
             Reject(tf with { Side = (CompositeNominalTfSideV9)99 });
             Reject(tf with { Weight = -1m });
             Reject(tf with { Weight = 1.5m });
