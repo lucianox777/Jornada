@@ -163,8 +163,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         // Freeze caller-owned option collections at the adapter boundary.
         // Otherwise a mutable UnitTfOptions list could change after its
         // fingerprint is computed, invalidating TRAIN/VALIDATION reproducibility.
-        var byId = options.Select(option => option is null ? null
-            : option with
+        if (options.Any(option => option is null))
+            throw new InvalidDataException("Opções FS V9 não podem conter entradas nulas.");
+        var byId = options.Select(option => option! with
             {
                 UnitTfOptions = option.UnitTfOptions is null ? null
                     : Array.AsReadOnly(option.UnitTfOptions.ToArray())
