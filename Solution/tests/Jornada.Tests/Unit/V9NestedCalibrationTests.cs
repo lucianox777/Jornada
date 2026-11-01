@@ -158,6 +158,25 @@ public sealed class V9NestedCalibrationTests
 
         Assert.That(sha.GetValue(Create(original)), Is.Not.EqualTo(sha.GetValue(Create(withTf))));
         Assert.That(sha.GetValue(Create(original)), Is.EqualTo(sha.GetValue(Create(original))));
+        // A four-unit option must have a distinct frozen identity even when
+        // the legacy TF field remains TF0.
+        var withFourUnits = original with
+        {
+            UnitTfOptions = new[]
+            {
+                new V9FsUnitTfOption(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,
+                    .7m, CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly),
+                new V9FsUnitTfOption(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.LastContentSurname,
+                    0m, CompositeNominalTfAdjustmentModeV9.Symmetric),
+                new V9FsUnitTfOption(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName,
+                    .2m, CompositeNominalTfAdjustmentModeV9.Symmetric),
+                new V9FsUnitTfOption(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.LastContentSurname,
+                    0m, CompositeNominalTfAdjustmentModeV9.Symmetric)
+            }
+        };
+        Assert.That(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(withFourUnits), Is.True);
+        Assert.That(sha.GetValue(Create(withFourUnits)), Is.Not.EqualTo(sha.GetValue(Create(original))));
+        Assert.That(sha.GetValue(Create(withFourUnits)), Is.Not.EqualTo(sha.GetValue(Create(withTf))));
 
         // A refined ID must not consume a second physical evaluation when
         // the underlying configuration and root option are unchanged.

@@ -496,7 +496,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     {
         var good = FourUnits("FOUR", CompositeNominalTfAdjustmentModeV9.Symmetric,
             CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly);
-        Assert.That((Action)(() => new V9FellegiSunterAdaptiveCalibrationAdapter(
+        Assert.That((Action)(() => _ = new V9FellegiSunterAdaptiveCalibrationAdapter(
             FrameWithMotherTf(), [good])),
             Throws.TypeOf<ArgumentException>());
         var wrongMode = good with
@@ -504,10 +504,10 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             UnitTfOptions = good.UnitTfOptions!.Select((x, i) =>
                 i == 0 ? x with { Mode = (CompositeNominalTfAdjustmentModeV9)100 } : x).ToArray()
         };
-        Assert.That((Action)(() => new V9FellegiSunterAdaptiveCalibrationAdapter(
+        Assert.That((Action)(() => _ = new V9FellegiSunterAdaptiveCalibrationAdapter(
             FrameWithMotherTf(), [wrongMode], Reference())),
             Throws.TypeOf<InvalidDataException>());
-        Assert.That((Action)(() => new V9FellegiSunterAdaptiveCalibrationAdapter(
+        Assert.That((Action)(() => _ = new V9FellegiSunterAdaptiveCalibrationAdapter(
             FrameWithMotherTf() with { BlockingFrameFingerprintSha256 = new string('2', 64) },
             [good], Reference())), Throws.TypeOf<InvalidDataException>());
     }

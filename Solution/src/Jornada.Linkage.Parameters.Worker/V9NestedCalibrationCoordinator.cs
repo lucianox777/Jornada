@@ -62,7 +62,7 @@ public static class V9NestedCalibrationCoordinator
             || plan.Calibration.MaximumAcceptedPerBaseIdentity != SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity
             || plan.Calibration.ShardCount != 1 || plan.Calibration.Execution.EndToEndRepetitions < 20)
             throw new InvalidDataException("Busca interna exige política, custos, suporte, faixas e orçamento explícitos.");
-        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m)
+        if (plan.Calibration.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf)
             && (plan.PinnedIbgeReferenceVersionId is null or <= 0
                 || !ValidSha(plan.PinnedIbgePublishedSha256)
                 || !ValidSha(plan.PinnedIbgeMaterializedFrequencySha256)
@@ -102,7 +102,7 @@ public static class V9NestedCalibrationCoordinator
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
         ValidatePlan(plan);
-        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m) && frozenTfReferenceForRuleset is null)
+        if (plan.Calibration.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf) && frozenTfReferenceForRuleset is null)
             throw new InvalidDataException("TF positivo na busca aninhada exige referência IBGE publicada e congelada por frame SQL.");
         originalTrain = Array.AsReadOnly(originalTrain.ToArray());
         // Deep freeze before asynchronous execution. Search never receives a VALIDATION/TEST cohort.
@@ -170,7 +170,7 @@ public static class V9NestedCalibrationCoordinator
             var results = await V9ParallelWork.MapAsync(groups, calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
                 FrozenIbgeNominalTfV9? frozenReference = null;
-                if (group.Any(x => x.Option.TfWeight > 0m))
+                if (group.Any(x => V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(x.Option)))
                 {
                     // Resolve the immutable published IBGE version for this exact
                     // blocking frame, never the mutable currently-active reference.

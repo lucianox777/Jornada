@@ -157,8 +157,9 @@ public sealed class V9FittedSnapshotTests
         };
         return p with
         {
-            // Four active TF units constitute a positive fitted model, not a TF0 baseline.
-            TfWeight = 1m, TfCalibration = null, MotherTfCalibration = null,
+            // Four independently active TF slots carry positive own weights;
+            // legacy single-side TfWeight must remain zero in this model.
+            TfWeight = 0m, TfCalibration = null, MotherTfCalibration = null,
             UnitTfCalibrations =
             [
                 new(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,

@@ -481,7 +481,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             train.CorpusFingerprintSha256, TrainOnly: true);
     }
 
-    private static bool HasPositiveTf(V9FsAdaptiveOptionConfiguration config) =>
+    internal static bool HasPositiveTf(V9FsAdaptiveOptionConfiguration config) =>
         config.TfWeight > 0m || config.UnitTfOptions?.Any(x => x is { Weight: > 0m }) == true;
 
     private static decimal UnitWeight(V9FsAdaptiveOptionConfiguration config,

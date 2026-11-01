@@ -96,6 +96,9 @@ public static class V9AdaptiveCalibrationCoordinator
             || plan.ConflictMargins.Any(x => x is <= 0 or > 1000)
             || plan.ConflictMargins.Distinct().Count() != plan.ConflictMargins.Count)
             throw new InvalidDataException("Plano V9 incompleto, duplicado ou fora do contrato.");
+        // Validate the four independent nominal weight/mode choices before SQL.
+        foreach (var option in plan.ModelOptions)
+            _ = V9FellegiSunterAdaptiveCalibrationAdapter.ConfigurationFingerprintSha256(option);
         var budget = plan.Budget;
         var policy = plan.SelectionPolicy;
         if (budget.Version != AdaptiveCalibrationPreviewBudget.CurrentVersion
@@ -121,7 +124,7 @@ public static class V9AdaptiveCalibrationCoordinator
         if (plan.DeclaredSearchSpace is { } space && space.Count() > plan.MaximumPhysicalRuleSets)
             throw new InvalidDataException("Espaço integral excede orçamento declarado: amplie o orçamento; nenhuma união será descartada.");
         if (plan.CollapseEquivalentCandidateFrames
-            && (plan.DeclaredSearchSpace is null || plan.ModelOptions.Any(x => x.TfWeight != 0)))
+            && (plan.DeclaredSearchSpace is null || plan.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf)))
             throw new InvalidDataException("Equivalência exata exige catálogo declarado e TF zero; TF positiva precisa de prova própria.");
         if (plan.ShardCount != 1 && !plan.CollapseEquivalentCandidateFrames)
             throw new InvalidDataException("Shards exigem família integral e equivalência física fixadas.");
@@ -204,7 +207,9 @@ public static class V9AdaptiveCalibrationCoordinator
         ValidatePlan(plan);
         // Freeze mutable collections before discovery or any asynchronous boundary.
         observations = Array.AsReadOnly(observations.ToArray());
-        plan = plan with { ModelOptions = Array.AsReadOnly(plan.ModelOptions.ToArray()),
+        plan = plan with { ModelOptions = Array.AsReadOnly(plan.ModelOptions.Select(option =>
+                option with { UnitTfOptions = option.UnitTfOptions is null ? null
+                    : Array.AsReadOnly(option.UnitTfOptions.ToArray()) }).ToArray()),
             ConflictMargins = Array.AsReadOnly(plan.ConflictMargins.ToArray()),
             RiskCeilings = plan.RiskCeilings is null ? null : Array.AsReadOnly(plan.RiskCeilings.ToArray()),
             DeclaredSearchSpace = plan.DeclaredSearchSpace is null ? null : plan.DeclaredSearchSpace with
@@ -223,7 +228,7 @@ public static class V9AdaptiveCalibrationCoordinator
         if (validation.Length < 2 || train.Select(x => x.BasePersonId).Intersect(
                 validation.Select(x => x.BasePersonId), StringComparer.Ordinal).Any())
             throw new InvalidDataException("VALIDATION ausente ou vazamento de identidade TRAIN/VALIDATION.");
-        if (plan.ModelOptions.Any(x => x.TfWeight > 0) && frozenTfReferenceForRuleset is null)
+        if (plan.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf) && frozenTfReferenceForRuleset is null)
             throw new InvalidDataException("Busca TF positiva exige referência imutável por frame SQL.");
         var discovery = V9TrainBlockingCandidateDiscovery.Discover(train, plan.Discovery);
         V9CandidateFrameEquivalence.Report? coverage = null;
