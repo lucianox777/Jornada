@@ -13,7 +13,7 @@ public enum CompositeNominalTfSideV9 { Person, Mother }
 public enum CompositeNominalTfAdjustmentModeV9 { Symmetric = 0, AsymmetricPenaltyOnly = 1 }
 
 /// <summary>Experimental shared-surname dependence assumption, not a family relationship.</summary>
-public enum V9SharedSurnameModeV9 { Bilateral = 0, ConservativeSingleWhenShared = 1 }
+public enum V9SharedSurnameModeV9 { Bilateral = 0, PersonSideOnlyWhenShared = 1, ConservativeSingleWhenShared = PersonSideOnlyWhenShared }
 
 public sealed record CompositeNominalTfPreviewV9(
     CompositeNominalTfSideV9 Side,
@@ -129,13 +129,7 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
         if (sharedSurnameMode == V9SharedSurnameModeV9.ConservativeSingleWhenShared
             && IsSharedSurname(personTf, motherTf))
         {
-            // One overlapping surname is one nominal event. Retain only the
-            // smaller positive reward, or the less severe of two penalties.
-            // Opposite signs retain the penalty without adding a second event.
-            // This rule never modifies the frozen joint-cell LLR.
-            if (personAdjustment < 0d && motherAdjustment < 0d)
-                return Math.Max(personAdjustment, motherAdjustment);
-            return Math.Min(personAdjustment, motherAdjustment);
+            // Diagnostic variant only: one shared surname uses the person's\n            // signed correction, independent of the mother's correction.\n            // Bilateral remains the default for scoring and selection.\n            return personAdjustment;
         }
         return personAdjustment + motherAdjustment;
     }
