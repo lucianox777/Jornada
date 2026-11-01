@@ -331,6 +331,8 @@ public sealed class V9FittedSnapshot
         // state/reference combinations.
         if (p.UnitTfCalibrations is { } unitFits)
         {
+            if (p.TfCalibration is not null || p.MotherTfCalibration is not null)
+                throw new InvalidDataException("TF V9 não admite fontes paralelas: use somente UnitTfCalibrations.");
             if (unitFits.Count > 4 || unitFits.Any(x => x is null
                 || !Enum.IsDefined(x.Side) || !Enum.IsDefined(x.Unit)
                 || !Enum.IsDefined(x.State))
