@@ -169,9 +169,9 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     public void Insufficient_TRAIN_U_fingerprint_is_sensitive_to_smoothing_alpha()
     {
         var rows = Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray();
-        var first = V9TrainSqlFirstNameUCalibration.Fit(
+        var first = V9TrainSqlNominalUCalibration.Fit(
             rows, CompositeNominalTfSideV9.Mother, .5m, TrainCorpus);
-        var second = V9TrainSqlFirstNameUCalibration.Fit(
+        var second = V9TrainSqlNominalUCalibration.Fit(
             rows, CompositeNominalTfSideV9.Mother, 1m, TrainCorpus);
         Assert.Multiple((Action)(() =>
         {
@@ -255,16 +255,16 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     public void Positive_TF_cannot_be_silently_disabled_by_a_stale_comparison_level()
     {
         var rows = Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray();
-        var fitted = V9TrainSqlFirstNameUCalibration.Fit(
+        var fitted = V9TrainSqlNominalUCalibration.Fit(
             rows, CompositeNominalTfSideV9.Person, .5m, TrainCorpus);
         var pair = Frame().Pairs.First(x => x.Partition == "VALIDATION");
         Assert.That(CompositeNominalComparisonV9.Classify(
             pair.LeftPersonName, pair.RightPersonName), Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
-        Assert.That((Action)(() => V9TrainSqlFirstNameUCalibration.Preview(
+        Assert.That((Action)(() => V9TrainSqlNominalUCalibration.Preview(
             fitted, Reference(), CompositeNominalLevelV9.Other,
             CompositeNominalLevelV9.Missing, pair, 1m, .000001m, 1)),
             Throws.TypeOf<InvalidDataException>().With.Message.Contains("divergem"));
-        var preview = V9TrainSqlFirstNameUCalibration.Preview(
+        var preview = V9TrainSqlNominalUCalibration.Preview(
             fitted, Reference(), CompositeNominalLevelV9.ExactFirst,
             CompositeNominalLevelV9.Missing, pair, 1m, .000001m, 1);
         Assert.That(preview, Is.Not.Null);
@@ -276,21 +276,21 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     public void ExactFull_uses_first_name_marginal_and_rejects_invalid_configuration()
     {
         var rows = Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray();
-        var fitted = V9TrainSqlFirstNameUCalibration.Fit(
+        var fitted = V9TrainSqlNominalUCalibration.Fit(
             rows, CompositeNominalTfSideV9.Person, .5m, TrainCorpus);
         var pair = rows[0] with { RightPersonName = rows[0].LeftPersonName };
         Assert.That(CompositeNominalComparisonV9.Classify(
             pair.LeftPersonName, pair.RightPersonName), Is.EqualTo(CompositeNominalLevelV9.ExactFull));
-        var exactFullPreview = V9TrainSqlFirstNameUCalibration.Preview(
+        var exactFullPreview = V9TrainSqlNominalUCalibration.Preview(
             fitted, Reference(), CompositeNominalLevelV9.ExactFull,
             CompositeNominalLevelV9.Missing, pair, 1m, .000001m, 1);
         Assert.That(exactFullPreview, Is.Not.Null);
         Assert.That(exactFullPreview!.TermFrequency, Is.EqualTo(.60m));
-        Assert.That((Action)(() => V9TrainSqlFirstNameUCalibration.Preview(
+        Assert.That((Action)(() => V9TrainSqlNominalUCalibration.Preview(
             fitted, Reference(), CompositeNominalLevelV9.ExactFull,
             CompositeNominalLevelV9.Missing, pair, 1m, -1m, 1)),
             Throws.TypeOf<InvalidDataException>());
-        Assert.That((Action)(() => V9TrainSqlFirstNameUCalibration.Preview(
+        Assert.That((Action)(() => V9TrainSqlNominalUCalibration.Preview(
             fitted with { Side = (CompositeNominalTfSideV9)99 }, Reference(),
             CompositeNominalLevelV9.ExactFull, CompositeNominalLevelV9.Missing,
             pair, 1m, .000001m, 1)), Throws.TypeOf<InvalidDataException>());
@@ -300,13 +300,13 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     public void Train_U_reference_counts_exact_first_values_and_refuses_test_leakage()
     {
         var frame = Frame();
-        var fitted = V9TrainSqlFirstNameUCalibration.Fit(
+        var fitted = V9TrainSqlNominalUCalibration.Fit(
             frame.Pairs.Where(x => x.Partition == "TRAIN").ToArray(),
             CompositeNominalTfSideV9.Person, .5m, TrainCorpus);
-        Assert.That(fitted.UnmatchedExactFirstCandidatePairs, Is.EqualTo(2));
-        Assert.That(fitted.FirstNameUnitUByValue["MARIA"], Is.EqualTo(2.5m/3m));
+        Assert.That(fitted.UnmatchedUnitCandidatePairs, Is.EqualTo(2));
+        Assert.That(fitted.UnitUByValue["MARIA"], Is.EqualTo(2.5m/3m));
         Assert.That(fitted.FingerprintSha256, Has.Length.EqualTo(64));
-        Assert.That((Action)(() => V9TrainSqlFirstNameUCalibration.Fit(
+        Assert.That((Action)(() => V9TrainSqlNominalUCalibration.Fit(
             frame.Pairs, CompositeNominalTfSideV9.Person, .5m, TrainCorpus)),
             Throws.TypeOf<InvalidDataException>());
     }
@@ -410,9 +410,9 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         CompositeNominalTfPreviewV9 Term(CompositeNominalTfSideV9 side,
             decimal weight, CompositeNominalTfAdjustmentModeV9 mode)
         {
-            var frozenU = V9TrainSqlFirstNameUCalibration.Fit(
+            var frozenU = V9TrainSqlNominalUCalibration.Fit(
                 trainingPairs, side, config.SmoothingAlpha, TrainCorpus);
-            return V9TrainSqlFirstNameUCalibration.Preview(
+            return V9TrainSqlNominalUCalibration.Preview(
                 frozenU, Reference(), CompositeNominalLevelV9.ExactFirst,
                 CompositeNominalLevelV9.ExactFirst, validationPair,
                 weight, config.TfMinimumFrequency, config.TfMinimumIndependentSupport,
@@ -529,24 +529,24 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var all = first.Concat(full).Concat(last).ToArray();
         var fits = new[]
         {
-            V9TrainSqlFirstNameUCalibration.Fit(all, CompositeNominalTfSideV9.Person,
+            V9TrainSqlNominalUCalibration.Fit(all, CompositeNominalTfSideV9.Person,
                 .5m, TrainCorpus, NominalFrequencyUnitV9.FirstName),
-            V9TrainSqlFirstNameUCalibration.Fit(all, CompositeNominalTfSideV9.Person,
+            V9TrainSqlNominalUCalibration.Fit(all, CompositeNominalTfSideV9.Person,
                 .5m, TrainCorpus, NominalFrequencyUnitV9.LastContentSurname),
-            V9TrainSqlFirstNameUCalibration.Fit(all, CompositeNominalTfSideV9.Mother,
+            V9TrainSqlNominalUCalibration.Fit(all, CompositeNominalTfSideV9.Mother,
                 .5m, TrainCorpus, NominalFrequencyUnitV9.FirstName),
-            V9TrainSqlFirstNameUCalibration.Fit(all, CompositeNominalTfSideV9.Mother,
+            V9TrainSqlNominalUCalibration.Fit(all, CompositeNominalTfSideV9.Mother,
                 .5m, TrainCorpus, NominalFrequencyUnitV9.LastContentSurname)
         };
         Assert.That(fits.All(x => x.HasSufficientSupport), Is.True);
         Assert.That(fits.Select(x => x.FingerprintSha256).Distinct().Count(), Is.EqualTo(4));
-        Assert.That(fits[0].UnmatchedExactFirstCandidatePairs, Is.EqualTo(4));
-        Assert.That(fits[1].UnmatchedExactFirstCandidatePairs, Is.EqualTo(2));
-        Assert.That(fits[2].UnmatchedExactFirstCandidatePairs, Is.EqualTo(4));
-        Assert.That(fits[3].UnmatchedExactFirstCandidatePairs, Is.EqualTo(2));
-        Assert.That(fits[0].FirstNameUnitUByValue.ContainsKey("MARIA"), Is.True);
-        Assert.That(fits[1].FirstNameUnitUByValue.ContainsKey("SILVA"), Is.True);
-        Assert.That(fits[2].FirstNameUnitUByValue.ContainsKey("ANA"), Is.True);
-        Assert.That(fits[3].FirstNameUnitUByValue.ContainsKey("SOUZA"), Is.True);
+        Assert.That(fits[0].UnmatchedUnitCandidatePairs, Is.EqualTo(4));
+        Assert.That(fits[1].UnmatchedUnitCandidatePairs, Is.EqualTo(2));
+        Assert.That(fits[2].UnmatchedUnitCandidatePairs, Is.EqualTo(4));
+        Assert.That(fits[3].UnmatchedUnitCandidatePairs, Is.EqualTo(2));
+        Assert.That(fits[0].UnitUByValue.ContainsKey("MARIA"), Is.True);
+        Assert.That(fits[1].UnitUByValue.ContainsKey("SILVA"), Is.True);
+        Assert.That(fits[2].UnitUByValue.ContainsKey("ANA"), Is.True);
+        Assert.That(fits[3].UnitUByValue.ContainsKey("SOUZA"), Is.True);
     }
 }

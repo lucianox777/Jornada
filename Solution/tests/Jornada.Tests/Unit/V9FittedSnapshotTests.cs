@@ -109,7 +109,7 @@ public sealed class V9FittedSnapshotTests
             new NominalSyntheticIbgeBootstrapV9(CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance,
                 30000, new string('a', 64), "GENERATOR_V1", 42, new string('b', 64)));
         return p with { TfWeight = 1m, BlockingFrameFingerprintSha256 = new string('c', 64),
-            TfCalibration = new V9SnapshotFirstNameTf(
+            TfCalibration = new V9SnapshotNominalUnitTfCalibration(
             CompositeNominalTfSideV9.Person, reference,
             new Dictionary<string, decimal> { ["MARIA"] = .00001m },
             new Dictionary<string, decimal> { ["MARIA"] = .8m },

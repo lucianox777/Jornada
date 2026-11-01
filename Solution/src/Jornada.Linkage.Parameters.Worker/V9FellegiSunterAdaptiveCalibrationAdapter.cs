@@ -79,11 +79,11 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         IReadOnlyList<FellegiSunterJointNominalCellV9> Cells,
         IReadOnlyDictionary<string, decimal> Parameters,
         CompositeNominalTfSideV9 SelectedLegacyTfSide, V9JointSupportProvenance? JointSupport,
-        IReadOnlyDictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlFirstNameUCalibration.Frozen>? TrainUnitUs = null)
+        IReadOnlyDictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlNominalUCalibration.Frozen>? TrainUnitUs = null)
     {
         // Legacy single-side consumers read a projection of the four-unit
         // immutable TRAIN map; no second copy of U is retained in the fit.
-        internal V9TrainSqlFirstNameUCalibration.Frozen? TrainUnitU =>
+        internal V9TrainSqlNominalUCalibration.Frozen? TrainUnitU =>
             TrainUnitUs is not null
                 && TrainUnitUs.TryGetValue((SelectedLegacyTfSide, NominalFrequencyUnitV9.FirstName), out var unit)
                 ? unit : null;
@@ -106,7 +106,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
     private readonly (int Exact, int Diff, int Total) matchedBirthCounts;
     private readonly (int Exact, int Diff, int Total) unmatchedBirthCounts;
     private readonly Dictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit, decimal Alpha),
-        V9TrainSqlFirstNameUCalibration.Frozen> trainingUnitUCache = new();
+        V9TrainSqlNominalUCalibration.Frozen> trainingUnitUCache = new();
     private readonly V9FsAdaptiveCandidateFrame frame;
     private readonly IReadOnlyDictionary<string, V9FsAdaptiveOptionConfiguration> options;
     private readonly FrozenIbgeNominalTfV9? frozenTfReference;
@@ -273,9 +273,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 continue;
             }
             var marginal = ExportPinnedUnitMarginal(side, unit);
-            var calibration = new V9SnapshotFirstNameTf(
+            var calibration = new V9SnapshotNominalUnitTfCalibration(
                 side, marginal.Reference, marginal.Frequencies,
-                trainU.FirstNameUnitUByValue, trainU.FingerprintSha256,
+                trainU.UnitUByValue, trainU.FingerprintSha256,
                 config.TfMinimumFrequency, config.TfMinimumIndependentSupport,
                 frame.TrainCorpusFingerprintSha256,
                 UnitMode(config, side, unit), weight);
@@ -330,7 +330,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
     // contract. VALIDATION consumes this same fit; it must never re-fit U.
     private void RequireFrozenTrainUnits(
         IReadOnlyDictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit),
-            V9TrainSqlFirstNameUCalibration.Frozen>? units)
+            V9TrainSqlNominalUCalibration.Frozen>? units)
     {
         if (units is null || units.Count != 4)
             throw new InvalidDataException("TF positivo exige quatro unidades U TRAIN congeladas.");
@@ -417,7 +417,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             ["U_DATA_NASCIMENTO_DIFF"] = (uBirth.Diff + alpha) / (uBirth.Total + 2m * alpha)
         };
 
-        var trainUnitUs = new Dictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlFirstNameUCalibration.Frozen>();
+        var trainUnitUs = new Dictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlNominalUCalibration.Frozen>();
         if (HasPositiveTf(config))
         {
             if (frozenTfReference is null)
@@ -430,7 +430,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 var key = (side, unit, alpha);
                 if (!trainingUnitUCache.TryGetValue(key, out var fittedUnit))
                 {
-                    fittedUnit = V9TrainSqlFirstNameUCalibration.Fit(
+                    fittedUnit = V9TrainSqlNominalUCalibration.Fit(
                         trainingRows, side, alpha, frame.TrainCorpusFingerprintSha256, unit);
                     trainingUnitUCache.Add(key, fittedUnit);
                 }
@@ -474,8 +474,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         fits[fitSha] = new FrozenFit(fitSha, config.OptionId, config.DecisionThreshold,
             Array.AsReadOnly(cells.ToArray()),
             new Dictionary<string, decimal>(parameters, StringComparer.Ordinal), config.TfSide, support,
-            new ReadOnlyDictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlFirstNameUCalibration.Frozen>(
-                new Dictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlFirstNameUCalibration.Frozen>(trainUnitUs)));
+            new ReadOnlyDictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlNominalUCalibration.Frozen>(
+                new Dictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit), V9TrainSqlNominalUCalibration.Frozen>(trainUnitUs)));
 
         return new AdaptiveCalibrationFitDraft(
             Family, Version, config.OptionId, config.FingerprintSha256, fitSha,
@@ -514,7 +514,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             || !frozenU.HasSufficientSupport
             || !frozenTfReference.HasMarginal(side, V9NominalTfUnitSelection.MarginalLevel(unit.Value)))
             throw new InvalidDataException($"TF ativa sem referência/suporte TRAIN: {side}/{unit}.");
-        return V9TrainSqlFirstNameUCalibration.Preview(
+        return V9TrainSqlNominalUCalibration.Preview(
             frozenU, frozenTfReference, personLevel, motherLevel, pair,
             UnitWeight(config, side, unit.Value), config.TfMinimumFrequency,
             config.TfMinimumIndependentSupport, UnitMode(config, side, unit.Value));
@@ -591,7 +591,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         var frozenNominal = frozen.FrozenNominal;
         // Freeze and validate all active units once. Holdout never refits U.
         var activeUnits = new Dictionary<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit),
-            V9TrainSqlFirstNameUCalibration.Frozen>();
+            V9TrainSqlNominalUCalibration.Frozen>();
         var activeReference = HasPositiveTf(config)
             ? frozenTfReference ?? throw new InvalidDataException(
                 "TF ativa sem referência IBGE congelada.")

@@ -16,7 +16,7 @@ public sealed record V9FittedSnapshotPayload(
     decimal TfWeight, IReadOnlyList<LinkageBlockingPass> BlockingPasses,
     IReadOnlyList<FellegiSunterJointNominalCellV9> JointCells,
     IReadOnlyDictionary<string, decimal> Parameters,
-    V9SnapshotFirstNameTf? TfCalibration = null,
+    V9SnapshotNominalUnitTfCalibration? TfCalibration = null,
     string? BlockingFrameFingerprintSha256 = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     V9SnapshotCandidateGrouping? CandidateGrouping = null,
@@ -25,7 +25,7 @@ public sealed record V9FittedSnapshotPayload(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     string? GoldParentSnapshotSha256 = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    V9SnapshotFirstNameTf? MotherTfCalibration = null,
+    V9SnapshotNominalUnitTfCalibration? MotherTfCalibration = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<V9SnapshotUnitTf>? UnitTfCalibrations = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
@@ -34,7 +34,7 @@ public sealed record V9FittedSnapshotPayload(
 public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
     decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
 
-public sealed record V9SnapshotFirstNameTf(
+public sealed record V9SnapshotNominalUnitTfCalibration(
     CompositeNominalTfSideV9 Side, NominalFrequencyReferenceContractV9 Reference,
     IReadOnlyDictionary<string, decimal> Frequencies,
     IReadOnlyDictionary<string, decimal> TrainUnitUByValue,
@@ -64,7 +64,7 @@ public sealed record V9SnapshotUnitTf(
     CompositeNominalTfSideV9 Side,
     NominalFrequencyUnitV9 Unit,
     V9SnapshotTfFitState State,
-    V9SnapshotFirstNameTf? Calibration);
+    V9SnapshotNominalUnitTfCalibration? Calibration);
 
 public sealed record V9SnapshotCandidate(
     Guid PersonUuid, string? FullName, DateOnly? BirthDate, string? MotherName);
@@ -229,7 +229,7 @@ public sealed class V9FittedSnapshot
             Payload.Parameters, ranking, Payload.Threshold, Payload.ConflictMargin);
 
     private CompositeNominalTfPreviewV9? CreateTf(IdentityObservation observation, LinkageCandidate candidate,
-        V9SnapshotFirstNameTf tf)
+        V9SnapshotNominalUnitTfCalibration tf)
     {
         var left = tf.Side == CompositeNominalTfSideV9.Person ? observation.NomeCompleto : observation.NomeMae;
         var right = tf.Side == CompositeNominalTfSideV9.Person ? candidate.NomeCompleto : candidate.NomeMae;
@@ -408,7 +408,7 @@ public sealed class V9FittedSnapshot
              || mother.Weight is null || mother.Weight <= 0m || mother.Weight > 1m))
             throw new InvalidDataException("TF bilateral exige lados distintos e peso calibrado da mãe.");
 
-        V9SnapshotFirstNameTf? FreezeTf(V9SnapshotFirstNameTf? tf)
+        V9SnapshotNominalUnitTfCalibration? FreezeTf(V9SnapshotNominalUnitTfCalibration? tf)
         {
             if (tf is null) return null;
             RequireSha(tf.TrainUnitFingerprintSha256);

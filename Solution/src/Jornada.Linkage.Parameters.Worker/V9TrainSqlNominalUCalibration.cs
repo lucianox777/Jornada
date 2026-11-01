@@ -12,19 +12,19 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// This is not the marginal frequency of people in the population and not a
 /// valid identity-cluster confidence bound. No TEST or automated promotion.
 /// </summary>
-public static class V9TrainSqlFirstNameUCalibration
+public static class V9TrainSqlNominalUCalibration
 {
     public const string Version = "V9_TRAIN_SQL_CONDITIONAL_FIRST_NAME_U_V1";
 
     public sealed record Frozen(
         CompositeNominalTfSideV9 Side,
         string TrainFingerprintSha256,
-        int UnmatchedExactFirstCandidatePairs,
-        IReadOnlyDictionary<string, decimal> FirstNameUnitUByValue,
+        int UnmatchedUnitCandidatePairs,
+        IReadOnlyDictionary<string, decimal> UnitUByValue,
         string FingerprintSha256,
         NominalFrequencyUnitV9 Unit = NominalFrequencyUnitV9.FirstName)
     {
-        public bool HasSufficientSupport => UnmatchedExactFirstCandidatePairs >= 2 && FirstNameUnitUByValue.Count > 0;
+        public bool HasSufficientSupport => UnmatchedUnitCandidatePairs >= 2 && UnitUByValue.Count > 0;
     }
 
     public static Frozen Fit(
@@ -137,7 +137,7 @@ public static class V9TrainSqlFirstNameUCalibration
             ? pair.RightPersonName : pair.RightMotherName;
         var value = UnitToken(left, calibration.Unit);
         if (value is null || value != UnitToken(right, calibration.Unit)
-            || !calibration.FirstNameUnitUByValue.TryGetValue(value, out var unitU))
+            || !calibration.UnitUByValue.TryGetValue(value, out var unitU))
             throw new InvalidDataException(
                 "TF positiva desconhecida/sem suporte U TRAIN: não converter em peso zero ou BF=1.");
         var preview = reference.CreatePreview(
