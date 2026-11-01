@@ -38,7 +38,7 @@ class V9NestedStudyFingerprintTests(unittest.TestCase):
             "PinnedIbgePublishedSha256": published_hash * 64,
             "PinnedIbgeMaterializedFrequencySha256": "c" * 64,
             "PinnedIbgeBootstrap": {
-                "Provenance": "UNIT_TEST_ONLY_NOT_PUBLISHED",
+                "Provenance": "SINTETICO_IBGE",
                 "People": 30000,
                 "CorpusFingerprint": hashlib.sha256(self.corpus.read_bytes()).hexdigest(),
                 "GeneratorVersion": "UNIT_TEST_GENERATOR_V1",
