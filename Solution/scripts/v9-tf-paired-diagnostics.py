@@ -7,6 +7,7 @@ runner must attest identical candidate-pair SHA for diagnostic and control.
 import hashlib
 import importlib.util
 import json
+import math
 from pathlib import Path
 
 GRID = Path(__file__).with_name("v9-tf-option-grid.py")
@@ -57,10 +58,20 @@ def paired_manifest(candidate_pairs_sha256: str, *, alpha=0.5, threshold=0.95):
 
 
 def verify_receipts(manifest: dict, receipts: dict):
-    """Reject missing, duplicated or unpaired physical results; never invent metrics."""
+    """Fail closed on incomplete, unpaired, or numerically invalid physical results.
+
+    Physical runner is responsible for producing receipts; this verifier never
+    claims the preregistration itself is physical evidence.
+    """
+    if not isinstance(manifest, dict) or manifest.get("PhysicallyExecuted") is not False:
+        raise ValueError("Expected preregistered, not pre-certified, manifest")
     expected = manifest["Pairs"]
-    if set(receipts) != {p["DiagnosticOptionId"] for p in expected}:
+    if not isinstance(receipts, dict) or set(receipts) != {
+            p["DiagnosticOptionId"] for p in expected}:
         raise ValueError("Missing/extra diagnostic physical receipts")
+    count_fields = ("SharedSurnameCandidatePairs", "FalseNewIdentityCreations",
+                    "PendingDecisions")
+    ratio_fields = ("Recall", "Fdr")
     for pair in expected:
         record = receipts[pair["DiagnosticOptionId"]]
         if (not isinstance(record, dict)
@@ -69,6 +80,13 @@ def verify_receipts(manifest: dict, receipts: dict):
                 or record.get("DiagnosticCandidatePairsSha256") != pair["CandidatePairsSha256"]
                 or record.get("BilateralCandidatePairsSha256") != pair["CandidatePairsSha256"]):
             raise ValueError("Physical diagnostic/control candidates differ")
-        if any(name not in record for name in pair["RequiredPhysicalMetrics"]):
-            raise ValueError("Incomplete physical paired metrics")
+        for name in count_fields:
+            value = record.get(name)
+            if type(value) is not int or value < 0:
+                raise ValueError(f"Missing/invalid physical count: {name}")
+        for name in ratio_fields:
+            value = record.get(name)
+            if (type(value) not in (float, int) or not math.isfinite(value)
+                    or not 0 <= value <= 1):
+                raise ValueError(f"Missing/invalid physical ratio: {name}")
     return True
