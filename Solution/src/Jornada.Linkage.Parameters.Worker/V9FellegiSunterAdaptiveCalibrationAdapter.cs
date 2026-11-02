@@ -436,7 +436,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 {
                     fittedUnit = V9TrainSqlNominalUCalibration.Fit(
                         trainingRows, side, alpha, frame.TrainCorpusFingerprintSha256, unit,
-                        frozenTfReference.FrequenciesForUnit(side, unit));
+                        frozenTfReference.HasMarginal(side, V9NominalTfUnitSelection.MarginalLevel(unit))
+                            ? frozenTfReference.FrequenciesForUnit(side, unit) : null);
                     trainingUnitUCache.Add(key, fittedUnit);
                 }
                 trainUnitUs.Add((side, unit), fittedUnit);
