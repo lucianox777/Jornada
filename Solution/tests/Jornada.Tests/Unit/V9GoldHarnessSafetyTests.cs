@@ -177,7 +177,7 @@ public sealed class V9GoldHarnessSafetyTests
                 selectionPath, validationPath, goldPath, csvPath, output,
                 "BASELINE_G0_G1_G2_G3", "LOWER_NONMATCH=0.1", "UPPER_TRAIN=0.8",
                 planPath };
-            var exception = Assert.ThrowsAsync<InvalidDataException>((NUnit.Framework.AsyncTestDelegate)(async () =>
+            var exception = Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             {
                 _ = await V9GoldHarnessCommand.RunJointTrainTrialAsync(args,
                     "Server=(localdb)\\JornadaV9Gold20261031_00000001;Database=JornadaHarness;Integrated Security=true");
