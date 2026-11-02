@@ -201,6 +201,36 @@ public sealed class V9GoldHarnessSafetyTests
     }
 
 
+    [Test]
+    public void Frozen_gold_train_csv_rejects_invalid_utf8_before_sql()
+    {
+        // TextFieldParser's default UTF-8 decoding can replace malformed bytes
+        // with U+FFFD. Frozen identity evidence must not be silently changed.
+        var directory = Path.Combine(Path.GetTempPath(), "v9-gold-utf8-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "observacoes.csv");
+            var header = System.Text.Encoding.UTF8.GetBytes(
+                "observacao_id,base_person_id,particao,gestor,nome,nome_mae,data_nascimento,cpf\\n" +
+                "O1,B1,TRAIN,G0,");
+            var suffix = System.Text.Encoding.UTF8.GetBytes(",Maria,1990-01-01,\\n");
+            // C3 28 is not a valid UTF-8 sequence; the old parser accepted it.
+            File.WriteAllBytes(path, [.. header, 0xC3, 0x28, .. suffix]);
+            var reader = typeof(V9GoldHarnessCommand).GetMethod("ReadSources",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(reader, Is.Not.Null);
+            var error = Assert.Throws<System.Reflection.TargetInvocationException>((Action)(() =>
+                _ = reader!.Invoke(null, new object?[] { path, null, null })));
+            Assert.That(error!.InnerException is System.Text.DecoderFallbackException or InvalidDataException,
+                Is.True, "Invalid UTF-8 must fail closed before physical SQL replay.");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
+
     [TestCase("extra_column")]
     [TestCase("missing_column")]
     [TestCase("unknown_partition")]
