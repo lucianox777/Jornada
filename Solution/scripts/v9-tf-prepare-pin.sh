@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Shared by preflight and execute_30k. Never runs calibration or TEST.
 set -euo pipefail
-if [[ "$#" != 1 ]]; then
-  echo "Usage: v9-tf-prepare-pin.sh <new-evidence-dir>" >&2
+if [[ "$#" -lt 1 || "$#" -gt 2 ]]; then
+  echo "Usage: v9-tf-prepare-pin.sh <new-evidence-dir> [pin-filename]" >&2
   exit 64
 fi
 root="$1"
