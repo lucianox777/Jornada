@@ -219,6 +219,13 @@ public static class V9GoldJointPhysicalReceipt
             throw new InvalidDataException("Joint TRAIN lower threshold mismatch.");
         Bool(lowerTrial, "scorerReused", true);
         Bool(lowerTrial, "operationalActivation", false);
+        // These physical event definitions are part of the LOWER objective.
+        // A different creation-count rule or publication reason can change
+        // false-creation totals without changing the receipt schema or hashes.
+        Equal(String(lowerTrial, "creationCountRule"),
+            "ANY_PHYSICAL_RUN_SOURCE_UNION_PREPUBLICATION_GOLD_TRUTH", "creation event rule");
+        Equal(String(lowerTrial, "publicationReason"),
+            V9GoldLowerNonMatchExperiment.PublicationReason, "lower publication reason");
         Sha(String(lowerTrial, "disposableProcedureSha256"), "disposable procedure");
 
         var acceptedTrue = Count(root, "trueAccepted");
