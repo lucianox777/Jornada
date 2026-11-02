@@ -235,7 +235,9 @@ public sealed class V9GoldHarnessSafetyTests
     [TestCase("missing_column")]
     [TestCase("unknown_partition")]
     [TestCase("duplicate_header")]
-    public void Frozen_gold_train_csv_rejects_noncanonical_row_shape_or_partition(string mutation)
+    [TestCase("missing_observation_id")]
+    [TestCase("missing_base_identity")]
+    public void Frozen_gold_train_csv_rejects_noncanonical_row_shape_partition_or_identity_keys(string mutation)
     {
         // Exercise the actual Runner CSV reader without SQL or a model.
         // The old reader silently ignored surplus fields and unknown partitions.
@@ -252,6 +254,8 @@ public sealed class V9GoldHarnessSafetyTests
                 "missing_column" => new[] { header, "O1,B1,TRAIN,G0,Ana,Maria,1990-01-01" },
                 "unknown_partition" => new[] { header, good, "O2,B2,UNKNOWN,G1,Beto,Lucia,1991-01-01," },
                 "duplicate_header" => new[] { header + ",cpf", good + "," },
+                "missing_observation_id" => new[] { header, ",B1,TRAIN,G0,Ana,Maria,1990-01-01," },
+                "missing_base_identity" => new[] { header, "O1,,TRAIN,G0,Ana,Maria,1990-01-01," },
                 _ => throw new ArgumentOutOfRangeException(nameof(mutation))
             };
             File.WriteAllLines(path, rows);
