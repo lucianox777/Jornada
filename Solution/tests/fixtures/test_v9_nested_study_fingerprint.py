@@ -100,6 +100,13 @@ class V9NestedStudyFingerprintTests(unittest.TestCase):
                                    pinned_ibge=pin)
                 self.assertFalse(destination.exists())
 
+    def test_pinned_reference_without_tf_search_is_rejected_not_ignored(self):
+        pin = self.pinned("unexpected", "a")
+        destination = self.root / "unexpected-pin.json"
+        with self.assertRaisesRegex(ValueError, "requires TF search"):
+            nested.prepare(self.corpus, destination, pinned_ibge=pin)
+        self.assertFalse(destination.exists())
+
     def test_missing_published_ibge_reference_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "pinned-ibge"):
             self.prepare("no-pin", tf_search=True)
