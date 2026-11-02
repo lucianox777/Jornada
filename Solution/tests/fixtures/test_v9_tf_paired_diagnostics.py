@@ -42,6 +42,34 @@ class TfPairedDiagnosticContractTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.verify_receipts(plan, receipts)
 
+    def test_nonfinite_and_negative_metrics_fail_closed(self):
+        plan = module.paired_manifest(SHA)
+        def complete():
+            return {
+                pair["DiagnosticOptionId"]: {
+                    "DiagnosticOptionId": pair["DiagnosticOptionId"],
+                    "BilateralOptionId": pair["BilateralOptionId"],
+                    "DiagnosticCandidatePairsSha256": SHA,
+                    "BilateralCandidatePairsSha256": SHA,
+                    "SharedSurnameCandidatePairs": 10,
+                    "Recall": 0.9, "Fdr": 0.1,
+                    "FalseNewIdentityCreations": 0, "PendingDecisions": 2,
+                } for pair in plan["Pairs"]
+            }
+        self.assertTrue(module.verify_receipts(plan, complete()))
+        first = plan["Pairs"][0]["DiagnosticOptionId"]
+        for key, invalid in (("Recall", float("nan")), ("Fdr", float("inf")),
+                             ("Recall", -0.1), ("Fdr", 1.1),
+                             ("PendingDecisions", -1),
+                             ("FalseNewIdentityCreations", True),
+                             ("SharedSurnameCandidatePairs", 1.5)):
+            with self.subTest(field=key, invalid=invalid):
+                receipts = complete()
+                receipts[first][key] = invalid
+                with self.assertRaises(ValueError):
+                    module.verify_receipts(plan, receipts)
+
+
 
 if __name__ == "__main__":
     unittest.main()
