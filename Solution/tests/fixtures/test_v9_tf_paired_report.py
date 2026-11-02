@@ -24,7 +24,9 @@ def fixture():
             Diagnostic=metrics.copy(), Bilateral=metrics.copy())
         for p in pairs}
     return {"ContractVersion": "V9_TF_SHARED_SURNAME_PAIRED_DIAGNOSTIC_V1",
-            "Pairs": pairs}, receipts
+            "CandidatePairsSha256": SHA, "PhysicallyExecuted": False,
+            "TestUsed": False, "EligibleTfModels": 41,
+            "DiagnosticModels": 4, "Pairs": pairs}, receipts
 
 
 class PairedReportTests(unittest.TestCase):
@@ -32,6 +34,7 @@ class PairedReportTests(unittest.TestCase):
         manifest, receipts = fixture()
         report = module.report(manifest, receipts)
         self.assertEqual(len(report["Pairs"]), 4)
+        self.assertFalse(report["PhysicallyMeasured"])
         self.assertTrue(all(all(value == 0 for value in p[
             "DeltaDiagnosticMinusBilateral"].values()) for p in report["Pairs"]))
 
