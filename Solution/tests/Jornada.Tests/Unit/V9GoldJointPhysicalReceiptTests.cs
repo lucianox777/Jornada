@@ -435,6 +435,28 @@ public sealed class V9GoldJointPhysicalReceiptTests
     }
 
     [Test]
+    public void Rejects_nonzero_decimal_underflow_in_coverage_aware_f1()
+    {
+        // A numeric token must not be rounded to zero when the physical
+        // B-cubed F1 is deserialized as decimal instead of double.
+        var json = System.Text.Encoding.UTF8.GetString(Bytes(ZeroPublishedReceipt()));
+        const string key = "\"CoverageAwareF1\":";
+        var start = json.IndexOf(key, StringComparison.Ordinal);
+        Assert.That(start, Is.GreaterThanOrEqualTo(0));
+        var valueStart = start + key.Length;
+        var valueEnd = json.IndexOf(',', valueStart);
+        Assert.That(valueEnd, Is.GreaterThan(valueStart));
+        var forged = json[..valueStart] + "1e-999" + json[valueEnd..];
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointPhysicalReceipt.Read(
+                System.Text.Encoding.UTF8.GetBytes(forged), Fit, Gold, Csv, Selection)));
+        var trueZero = json[..valueStart] + "0e-999" + json[valueEnd..];
+        Assert.DoesNotThrow((Action)(() =>
+            V9GoldJointPhysicalReceipt.Read(
+                System.Text.Encoding.UTF8.GetBytes(trueZero), Fit, Gold, Csv, Selection)));
+    }
+
+    [Test]
     public void Rejects_certification_and_production_activation_claims()
     {
         var receipt = Receipt();
