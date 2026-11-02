@@ -212,9 +212,9 @@ public sealed class V9GoldHarnessSafetyTests
         {
             var path = Path.Combine(directory, "observacoes.csv");
             var header = System.Text.Encoding.UTF8.GetBytes(
-                "observacao_id,base_person_id,particao,gestor,nome,nome_mae,data_nascimento,cpf\\n" +
+                "observacao_id,base_person_id,particao,gestor,nome,nome_mae,data_nascimento,cpf\n" +
                 "O1,B1,TRAIN,G0,");
-            var suffix = System.Text.Encoding.UTF8.GetBytes(",Maria,1990-01-01,\\n");
+            var suffix = System.Text.Encoding.UTF8.GetBytes(",Maria,1990-01-01,\n");
             // C3 28 is not a valid UTF-8 sequence; the old parser accepted it.
             File.WriteAllBytes(path, [.. header, 0xC3, 0x28, .. suffix]);
             var reader = typeof(V9GoldHarnessCommand).GetMethod("ReadSources",
