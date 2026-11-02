@@ -51,6 +51,10 @@ def _write_frozen_outputs(destination: Path, plan: dict, cost: dict | None = Non
 
 def prepare(corpus: Path, destination: Path, fixture: bool = False,
             tf_search: bool = False, pinned_ibge: Path | None = None):
+    # The CLI rejects this combination; direct Python callers must obey the
+    # same fail-closed contract instead of silently dropping REF provenance.
+    if pinned_ibge is not None and not tf_search:
+        raise ValueError("Pinned IBGE reference requires TF search")
     if destination.exists():
         raise FileExistsError(destination)
     manifest_path = corpus.parent / "generation-manifest.json"
