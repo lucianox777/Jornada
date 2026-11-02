@@ -18,10 +18,15 @@ def _tf_helper():
 
 def prepare(corpus: Path, plan_path: Path, cap_four: bool = False,
             tf_search: bool = False, pinned_ibge: Path | None = None) -> None:
+    if pinned_ibge is not None and not tf_search:
+        raise ValueError("Pinned IBGE reference requires TF search")
     manifest = json.loads((corpus.parent / "generation-manifest.json").read_bytes())
-    assert manifest["seed"] == 42
-    assert manifest["population_profile"] == "DEMOGRAPHIC_PRIMARY_V1"
-    assert manifest["error_profile"] == "clean"
+    # Assertions disappear under python -O: provenance gates must not.
+    if (not isinstance(manifest, dict) or type(manifest.get("seed")) is not int
+            or manifest["seed"] != 42
+            or manifest.get("population_profile") != "DEMOGRAPHIC_PRIMARY_V1"
+            or manifest.get("error_profile") != "clean"):
+        raise ValueError("Invalid V9 TRAIN generation manifest")
     input_sha = hashlib.sha256(corpus.read_bytes()).hexdigest()
     study = hashlib.sha256(("V9_ADAPTIVE_30K_TRAIN_ONLY_PROPOSALS_WITH_BASELINE_GRID_V2|" + input_sha).encode()).hexdigest()
     plan = {
@@ -55,10 +60,13 @@ def prepare(corpus: Path, plan_path: Path, cap_four: bool = False,
     }
     if cap_four:
         multiplicity = manifest["observation_multiplicity"]
-        assert manifest["generator_version"] == "JORNADA_SYNTH_CORPUS_CSHARP_V1"
-        assert multiplicity["contract_version"] == "SYNTHETIC_BASE_OBSERVATION_MULTIPLICITY_V1"
-        assert multiplicity["maximum_observations_per_base_identity"] == 4
-        assert multiplicity["scope"] == "BASE_CORPUS_ONLY_NOT_INGESTION_WAVES"
+        if (not isinstance(multiplicity, dict)
+                or manifest.get("generator_version") != "JORNADA_SYNTH_CORPUS_CSHARP_V1"
+                or multiplicity.get("contract_version") != "SYNTHETIC_BASE_OBSERVATION_MULTIPLICITY_V1"
+                or type(multiplicity.get("maximum_observations_per_base_identity")) is not int
+                or multiplicity["maximum_observations_per_base_identity"] != 4
+                or multiplicity.get("scope") != "BASE_CORPUS_ONLY_NOT_INGESTION_WAVES"):
+            raise ValueError("Invalid V9 TRAIN cap-four multiplicity manifest")
         manifest_sha = hashlib.sha256((corpus.parent / "generation-manifest.json").read_bytes()).hexdigest()
         study = hashlib.sha256(("V9_ADAPTIVE_30K_BASE_CAP4_V3|" + input_sha + "|" + manifest_sha).encode()).hexdigest()
         plan["StudyFingerprintSha256"] = plan["Budget"]["StudyFingerprintSha256"] = study
@@ -136,6 +144,10 @@ def prepare(corpus: Path, plan_path: Path, cap_four: bool = False,
 
 
 def verify(root: Path) -> None:
+    # This historical diagnostic verifier uses assertions throughout. Refuse
+    # optimized Python rather than silently skipping every evidence gate.
+    if not __debug__:
+        raise RuntimeError("V9 evidence verification disabled by optimized Python")
     result = json.loads((root / "study.json").read_bytes())
     plan = json.loads((root / "plan.json").read_bytes())
     comparisons = plan["MaximumComparedConfigurations"]
