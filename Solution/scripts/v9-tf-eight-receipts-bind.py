@@ -29,6 +29,7 @@ def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000
         raise ValueError("Physical evidence directory is mandatory")
     digest = contract["CandidatePairsSha256"]
     used_run_artifacts = set()
+    used_model_artifacts = set()
     for option_id in expected:
         row = receipts[option_id]
         if (not isinstance(row, dict)
@@ -48,6 +49,10 @@ def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000
         if run_artifact in used_run_artifacts:
             raise ValueError("Physical run evidence reused across TF models")
         used_run_artifacts.add(run_artifact)
+        model_artifact = row.get("FittedModelArtifact")
+        if model_artifact in used_model_artifacts:
+            raise ValueError("Fitted model artifact reused across TF models")
+        used_model_artifacts.add(model_artifact)
         for key, file_key in (("PhysicalRunSha256", "PhysicalRunArtifact"),
                               ("FittedModelSha256", "FittedModelArtifact")):
             filename = row.get(file_key)
