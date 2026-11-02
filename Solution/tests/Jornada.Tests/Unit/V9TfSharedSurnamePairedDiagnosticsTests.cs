@@ -16,7 +16,7 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
         {
             new("T0.95_TF0", .5m, .95m)
         };
-        for (int i = 0; i < 32; i++)
+        for (int i = 0; i < 36; i++)
             options.Add(new("CONTROL_" + i, .5m, .95m));
         foreach (var suffix in Suffixes)
         {
@@ -62,6 +62,9 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
         return (rows, counts);
     }
 
+    private static IReadOnlyDictionary<string, string> CandidateDigests() =>
+        new Dictionary<string, string>(StringComparer.Ordinal) { [Ruleset] = new string('f', 64) };
+
     [Test]
     public void Physical_budget_counts_all_45_but_selection_multiplicity_counts_only_41()
     {
@@ -84,12 +87,13 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
     public void All_four_diagnostic_arms_use_the_same_SQL_ruleset_and_measured_pair_count()
     {
         var (rows, counts) = Evidence();
-        var report = V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts);
+        var report = V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts, CandidateDigests());
         Assert.Multiple((Action)(() =>
         {
             Assert.That(report, Has.Count.EqualTo(4));
             Assert.That(report.All(x => !x.EligibleForSelection && x.SharedSurnameCountMeasured), Is.True);
-            Assert.That(report.All(x => x.SharedSurnameCandidatePairs == 7 && x.RulesetSha256 == Ruleset), Is.True);
+            Assert.That(report.All(x => x.SharedSurnameCandidatePairs == 7 && x.RulesetSha256 == Ruleset
+                && x.CandidatePairsSha256 == new string('f', 64)), Is.True);
             Assert.That(report.All(x => x.DeltaFalseAcceptedSources == 1), Is.True);
             Assert.That(report.All(x => !x.FalseCreationsMeasured
                 && x.SharedFalseCreations is null && x.BilateralFalseCreations is null), Is.True);
@@ -102,7 +106,7 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
         var (rows, counts) = Evidence();
         counts[rows[0].OptionId] = 8;
         Assert.Throws<InvalidDataException>((Action)(() =>
-            V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts)));
+            V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts, CandidateDigests())));
     }
 
     [Test]
@@ -113,7 +117,16 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
         rows[0] = changed;
         counts.Add(changed.OptionId, 7);
         Assert.Throws<InvalidDataException>((Action)(() =>
-            V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts)));
+            V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts, CandidateDigests())));
+    }
+
+    [Test]
+    public void Missing_SQL_edge_digest_never_produces_a_physical_pair_receipt()
+    {
+        var (rows, counts) = Evidence();
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts,
+                new Dictionary<string, string>())));
     }
 
     [Test]

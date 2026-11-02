@@ -16,7 +16,7 @@ public static class V9TfSharedSurnamePairedDiagnostics
 
     public sealed record Row(
         string RulesetSha256, string DiagnosticOptionId, string BilateralOptionId,
-        decimal ConflictMargin, string CandidateGrouping,
+        decimal ConflictMargin, string CandidateGrouping, string CandidatePairsSha256,
         long SharedSurnameCandidatePairs, bool SharedSurnameCountMeasured,
         Metrics Shared, Metrics Bilateral,
         double DeltaRecall, double? DeltaFdr,
@@ -61,7 +61,8 @@ public static class V9TfSharedSurnamePairedDiagnostics
     public static IReadOnlyList<Row> Build(
         IReadOnlyList<V9FsAdaptiveOptionConfiguration> options,
         IReadOnlyList<V9PhysicalSourceResolveMetric> measurements,
-        IReadOnlyDictionary<string, long> sharedSurnamePairsByOption)
+        IReadOnlyDictionary<string, long> sharedSurnamePairsByOption,
+        IReadOnlyDictionary<string, string> candidatePairsSha256ByRuleset)
     {
         ValidateOptions(options);
         var diagnosticIds = options.Where(x => !x.EligibleForSelection)
@@ -69,6 +70,7 @@ public static class V9TfSharedSurnamePairedDiagnostics
         if (diagnosticIds.Count == 0) return [];
         ArgumentNullException.ThrowIfNull(measurements);
         ArgumentNullException.ThrowIfNull(sharedSurnamePairsByOption);
+        ArgumentNullException.ThrowIfNull(candidatePairsSha256ByRuleset);
         var keyed = new Dictionary<(string Option, decimal Margin, string Grouping), V9PhysicalSourceResolveMetric>();
         foreach (var row in measurements)
         {
@@ -85,6 +87,10 @@ public static class V9TfSharedSurnamePairedDiagnostics
             var (ruleset, id) = ParseQualifiedOption(diagnostic.OptionId);
             var bilateralId = TwoPrefix + id[SharedPrefix.Length..];
             var bilateralQualified = ruleset + ":" + bilateralId;
+            if (!candidatePairsSha256ByRuleset.TryGetValue(ruleset, out var candidateSha)
+                || candidateSha is not { Length: 64 }
+                || !candidateSha.All(Uri.IsHexDigit))
+                throw new InvalidDataException("SHA das arestas físicas SQL ausente para o par TF.");
             if (!keyed.TryGetValue((bilateralQualified, diagnostic.ConflictMargin,
                     diagnostic.CandidateGrouping), out var bilateral)
                 || !sharedSurnamePairsByOption.TryGetValue(diagnostic.OptionId, out var sharedPairs)
@@ -96,7 +102,7 @@ public static class V9TfSharedSurnamePairedDiagnostics
             var control = new Metrics(bilateral.GlobalSourceRecall, bilateral.FdrAfterResolve,
                 bilateral.FalseAcceptedSourceObservations, bilateral.Unresolved);
             result.Add(new Row(ruleset, id, bilateralId, diagnostic.ConflictMargin,
-                diagnostic.CandidateGrouping, sharedPairs, true, shared, control,
+                diagnostic.CandidateGrouping, candidateSha, sharedPairs, true, shared, control,
                 shared.Recall - control.Recall,
                 shared.Fdr.HasValue && control.Fdr.HasValue ? shared.Fdr.Value - control.Fdr.Value : null,
                 shared.FalseAcceptedSources - control.FalseAcceptedSources,

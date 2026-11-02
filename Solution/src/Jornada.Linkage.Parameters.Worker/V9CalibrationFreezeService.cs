@@ -240,6 +240,13 @@ public static class V9CalibrationFreezeService
     private static V9CalibrationFreezeMetadata NormalizeAndValidate(V9FittedSnapshot snapshot,
         V9CalibrationFreezeMetadata metadata, V9BootstrapPareto2D.Result selection)
     {
+        // Diagnostics may be replayed physically but must never be frozen for
+        // publishing, including through manually assembled Pareto evidence.
+        var snapshotOptionId = snapshot.Payload.OptionId;
+        var unqualified = snapshotOptionId.Length > 65 && snapshotOptionId[64] == ':'
+            ? snapshotOptionId[65..] : snapshotOptionId;
+        if (unqualified.StartsWith("TF_SHARED_PL_ML_", StringComparison.Ordinal))
+            throw new InvalidDataException("Diagnóstico TF inelegível para publicação ou ativação.");
         Identifier(metadata.Version);
         if (metadata.PredecessorEnvelopeSha256 is not null) RequireSha(metadata.PredecessorEnvelopeSha256);
         RequireSha(metadata.SelectionReportSha256);

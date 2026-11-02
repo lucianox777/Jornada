@@ -55,7 +55,8 @@ public sealed record V9AdaptiveCalibrationStudyResult(string Version, string Pla
     V9CandidateFrameEquivalence.Report? CandidateFrameCoverage = null,
     V9PhysicalCatalogueCensus? CatalogueCensus = null,
     V9IntegralSearchShard? Shard = null,
-    IReadOnlyDictionary<string, long>? SharedSurnameCandidatePairsByOption = null);
+    IReadOnlyDictionary<string, long>? SharedSurnameCandidatePairsByOption = null,
+    IReadOnlyDictionary<string, string>? CandidatePairsSha256ByRuleset = null);
 
 public sealed record V9IntegralSearchShard(string FamilyPlanSha256, int Index, int Count,
     int TotalRepresentativeRuleSets, int EvaluatedRepresentativeRuleSets,
@@ -299,6 +300,7 @@ public static class V9AdaptiveCalibrationCoordinator
         var rejected = new List<V9AdaptiveCandidateRejection>();
         var failedOptions = new List<V9BootstrapPareto2D.CandidateOption>();
         var sharedSurnamePairs = new Dictionary<string, long>(StringComparer.Ordinal);
+        var candidatePairsByRuleset = new Dictionary<string, string>(StringComparer.Ordinal);
         var eligibleSources = validation.GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
             .Where(g => g.Select(x => x.Gestor).Distinct(StringComparer.Ordinal).Skip(1).Any()).Sum(g => (long)g.Count());
         if (eligibleSources == 0) throw new InvalidDataException("VALIDATION sem fontes elegíveis pré-blocking.");
@@ -335,6 +337,9 @@ public static class V9AdaptiveCalibrationCoordinator
             foreach (var pair in run.SharedSurnamePairs)
                 if (!sharedSurnamePairs.TryAdd(pair.Key, pair.Value))
                     throw new InvalidDataException("Contagem TF duplicada entre rulesets físicos.");
+            if (run.CandidatePairsSha256 is { } physicalSha
+                && !candidatePairsByRuleset.TryAdd(run.RulesetSha256, physicalSha))
+                throw new InvalidDataException("Censo físico duplicado para ruleset.");
         }
         // Preserve diagnostic measurements while excluding them from all selection paths.
         var eligibleIds = new HashSet<string>(plan.ModelOptions
@@ -384,14 +389,15 @@ public static class V9AdaptiveCalibrationCoordinator
             plan.SampleDesign is null ? null : V9StatisticalSamplePlan.Calculate(plan.SampleDesign, plan.RiskCeilings!),
             coverage, census, new(Sha(JsonSerializer.Serialize(plan with { ShardIndex = 0 })),
                 plan.ShardIndex, plan.ShardCount, totalRepresentatives, candidates.Count, plan.ShardCount == 1),
-            sharedSurnamePairs);
+            sharedSurnamePairs, candidatePairsByRuleset);
     }
 
     private sealed record RulesetResult(
         List<V9PhysicalSourceResolveMetric> Measurements, List<V9PhysicalFrozenConfiguration> Frozen,
         List<V9PhysicalEndToEndMeasurement> Timings, Dictionary<string, double> Fanout,
         List<V9AdaptiveCandidateRejection> Rejected, List<V9BootstrapPareto2D.CandidateOption> FailedOptions,
-        Dictionary<string, long> SharedSurnamePairs);
+        Dictionary<string, long> SharedSurnamePairs,
+        string RulesetSha256, string? CandidatePairsSha256);
 
     private static async Task<RulesetResult> EvaluateRulesetAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations, V9AdaptiveCalibrationPlan plan,
@@ -405,6 +411,7 @@ public static class V9AdaptiveCalibrationCoordinator
         var rejected = new List<V9AdaptiveCandidateRejection>();
         var failedOptions = new List<V9BootstrapPareto2D.CandidateOption>();
         var sharedSurnamePairs = new Dictionary<string, long>(StringComparer.Ordinal);
+        string? candidatePairsSha = null;
         cancellationToken.ThrowIfCancellationRequested();
         var rulesetSha = Sha(JsonSerializer.Serialize(passes));
         var options = plan.ModelOptions.Select(x => x with { OptionId = rulesetSha + ":" + x.OptionId }).ToArray();
@@ -422,6 +429,14 @@ public static class V9AdaptiveCalibrationCoordinator
                     minimumFsGroupingPosterior: plan.MinimumGroupingPosterior,
                     predeclaredMaximumAcceptedPerBaseIdentity: plan.MaximumAcceptedPerBaseIdentity,
                     adaptiveExecution: plan.Execution with { TotalComparedConfigurations = selectableCompared });
+                if (run.PhysicalCandidatePairsSha256 is not { Length: 64 } physicalSha
+                    || !physicalSha.All(Uri.IsHexDigit))
+                    throw new InvalidDataException("Digest das arestas SQL físicas não foi medido.");
+                if (candidatePairsSha is not null
+                    && !string.Equals(candidatePairsSha, physicalSha, StringComparison.Ordinal))
+                    throw new InvalidDataException(
+                        "O universo de candidatos SQL variou entre lotes TF da mesma regra.");
+                candidatePairsSha = physicalSha;
                 measurements.AddRange(run.SourceResolveValidation!);
                 frozen.AddRange(run.FrozenConfigurations!);
                 timings.AddRange(run.EndToEndMeasurements!);
@@ -447,7 +462,8 @@ public static class V9AdaptiveCalibrationCoordinator
                     EvidenceRejectionReasons: ["CANDIDATO_FISICO_NAO_MENSURAVEL: " + exception.Message])));
             }
         }
-        return new(measurements, frozen, timings, fanout, rejected, failedOptions, sharedSurnamePairs);
+        return new(measurements, frozen, timings, fanout, rejected, failedOptions,
+            sharedSurnamePairs, rulesetSha, candidatePairsSha);
     }
 
     private static string InputSha(IEnumerable<V9PhysicalCalibrationObservation> observations) =>

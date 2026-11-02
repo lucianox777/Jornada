@@ -87,7 +87,8 @@ public sealed record V9PhysicalCalibrationRunResult(
     IReadOnlyList<V9PhysicalSourceResolveMetric>? SourceResolveValidation = null,
     V9PostResolveSelectionReport? PostResolveSelection = null,
     IReadOnlyList<V9PhysicalFrozenConfiguration>? FrozenConfigurations = null,
-    IReadOnlyList<V9PhysicalEndToEndMeasurement>? EndToEndMeasurements = null);
+    IReadOnlyList<V9PhysicalEndToEndMeasurement>? EndToEndMeasurements = null,
+    string? PhysicalCandidatePairsSha256 = null);
 
 /// <summary>
 /// Cohort is defined BEFORE SQL blocking and includes every base identity,
@@ -331,6 +332,9 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             createMs, observationsMs, signaturesMs, materializeMs, readMs);
         if (rows.Count != physicalPairs)
             throw new InvalidDataException("Contagem da união SQL diverge da leitura do frame.");
+        // Stable observation IDs from the pinned CSV; hash the actual physical
+        // SQL edges (TRAIN and VALIDATION) rather than the blocking rule names.
+        var candidatePairsSha = await ReadCandidatePairsSha256Async(connection, cancellationToken);
 
         // Repeat only AFTER verifying the first materialization and BEFORE
         // calibrating/reading TEST. The existing RepeatPhysicalMaterialization
@@ -543,7 +547,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
                         option.EligibleForSelection && option.OptionId == x.OptionId))
                     .ToDictionary(x => x.OptionId,
                         x => x.Validation.BlockingFalseDegreeP99, StringComparer.Ordinal)),
-            frozen.AsReadOnly(), endToEnd.AsReadOnly());
+            frozen.AsReadOnly(), endToEnd.AsReadOnly(), candidatePairsSha);
     }
 
     /// <summary>
@@ -1061,6 +1065,38 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         return Convert.ToInt64(
             await command.ExecuteScalarAsync(cancellationToken),
             System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>
+    /// Exact frozen SQL edge universe. ObservationId comes from the input CSV
+    /// and is stable across SQL insertions; no database surrogate IDs are used.
+    /// This is descriptive physical evidence, not an activation authorization.
+    /// </summary>
+    private static async Task<string> ReadCandidatePairsSha256Async(
+        SqlConnection connection, CancellationToken cancellationToken)
+    {
+        await using var command = new SqlCommand(
+            "SELECT part,a,b FROM #v9_cal_pairs ORDER BY part,a,b;", connection)
+        { CommandTimeout = 300 };
+        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+        long count = 0;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            var partition = reader.GetString(0);
+            if (partition is not ("TRAIN" or "VALIDATION"))
+                throw new InvalidDataException("Partição SQL inesperada no digest de candidatos.");
+            var left = reader.GetInt32(1);
+            var right = reader.GetInt32(2);
+            if (left >= right)
+                throw new InvalidDataException("Aresta física sem orientação canônica.");
+            hash.AppendData(Encoding.UTF8.GetBytes(
+                FormattableString.Invariant($"{partition}|{left}|{right}\n")));
+            count++;
+        }
+        if (count == 0)
+            throw new InvalidDataException("Digest físico sem arestas de candidatos.");
+        return Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
     }
 
     private static async Task<IReadOnlyList<V9FsAdaptiveCandidatePair>> ReadCandidatePairsAsync(

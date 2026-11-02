@@ -117,7 +117,8 @@ public static class V9AdaptiveCalibrationStudyCli
             // Reject missing or unpaired physical evidence before exporting fit artifacts.
             var paired = V9TfSharedSurnamePairedDiagnostics.Build(
                 plan.ModelOptions, result.SourceMeasurements,
-                result.SharedSurnameCandidatePairsByOption ?? new Dictionary<string, long>());
+                result.SharedSurnameCandidatePairsByOption ?? new Dictionary<string, long>(),
+                result.CandidatePairsSha256ByRuleset ?? new Dictionary<string, string>());
             // Diagnostic fit snapshots remain in the descriptive study evidence;
             // they are NOT emitted as standalone, potentially publishable .fitted.json files.
             var selectableIds = plan.ModelOptions.Where(x => x.EligibleForSelection)
