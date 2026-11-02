@@ -269,7 +269,7 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
             Assert.That(workflow, Does.Contain("workflow_dispatch:"),
                 "The final physical gate must remain executable explicitly.");
             Assert.That(workflow, Does.Contain(
-                "if: github.event_name == 'workflow_dispatch' && needs.impact.outputs.run_physical_30k == 'true'"),
+                "if: github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k' && needs.impact.outputs.run_physical_30k == 'true'"),
                 "A PR update must never launch the expensive 30k physical job.");
             Assert.That(workflow, Does.Contain("name: V9 30k - classify impact"));
         }));

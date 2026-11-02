@@ -37,11 +37,11 @@ public sealed class V9PhysicalCalibrationEvidenceCliTests
         try
         {
             File.WriteAllText(path, Header
-                + "TRAIN-A,TRAIN,G1,MARIA,ANA,1980-01-01,\\n"
-                + "TRAIN-A,TRAIN,G2,MARIA,ANA,1980-01-01,\\n"
-                + "VAL-A,VALIDATION,G1,MARIA,ANA,1980-01-01,\\n"
-                + "VAL-A,VALIDATION,G2,MARIA,ANA,1980-01-01,\\n"
-                + "TEST-ONLY,TEST,G1,NOT_PARSED,NOT_PARSED,NOT_A_DATE,\\n");
+                + "TRAIN-A,TRAIN,G1,MARIA,ANA,1980-01-01,\n"
+                + "TRAIN-A,TRAIN,G2,MARIA,ANA,1980-01-01,\n"
+                + "VAL-A,VALIDATION,G1,MARIA,ANA,1980-01-01,\n"
+                + "VAL-A,VALIDATION,G2,MARIA,ANA,1980-01-01,\n"
+                + "TEST-ONLY,TEST,G1,NOT_PARSED,NOT_PARSED,NOT_A_DATE,\n");
             Assert.That(V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(
                 path, minimumObservationCount: 4, expectedBaseIdentityCount: 3),
                 Has.Length.EqualTo(4));
