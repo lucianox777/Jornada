@@ -54,7 +54,8 @@ public sealed record V9AdaptiveCalibrationStudyResult(string Version, string Pla
     V9StatisticalSamplePlan.Report? SamplePlan = null,
     V9CandidateFrameEquivalence.Report? CandidateFrameCoverage = null,
     V9PhysicalCatalogueCensus? CatalogueCensus = null,
-    V9IntegralSearchShard? Shard = null);
+    V9IntegralSearchShard? Shard = null,
+    IReadOnlyDictionary<string, long>? SharedSurnameCandidatePairsByOption = null);
 
 public sealed record V9IntegralSearchShard(string FamilyPlanSha256, int Index, int Count,
     int TotalRepresentativeRuleSets, int EvaluatedRepresentativeRuleSets,
@@ -108,6 +109,7 @@ public static class V9AdaptiveCalibrationCoordinator
         // Validate the four independent nominal weight/mode choices before SQL.
         foreach (var option in plan.ModelOptions)
             _ = V9FellegiSunterAdaptiveCalibrationAdapter.ConfigurationFingerprintSha256(option);
+        V9TfSharedSurnamePairedDiagnostics.ValidateOptions(plan.ModelOptions);
         var budget = plan.Budget;
         var policy = plan.SelectionPolicy;
         if (budget.Version != AdaptiveCalibrationPreviewBudget.CurrentVersion
@@ -279,6 +281,7 @@ public static class V9AdaptiveCalibrationCoordinator
         var fanout = new Dictionary<string, double>(StringComparer.Ordinal);
         var rejected = new List<V9AdaptiveCandidateRejection>();
         var failedOptions = new List<V9BootstrapPareto2D.CandidateOption>();
+        var sharedSurnamePairs = new Dictionary<string, long>(StringComparer.Ordinal);
         var eligibleSources = validation.GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
             .Where(g => g.Select(x => x.Gestor).Distinct(StringComparer.Ordinal).Skip(1).Any()).Sum(g => (long)g.Count());
         if (eligibleSources == 0) throw new InvalidDataException("VALIDATION sem fontes elegíveis pré-blocking.");
@@ -312,12 +315,15 @@ public static class V9AdaptiveCalibrationCoordinator
             measurements.AddRange(run.Measurements); frozen.AddRange(run.Frozen); timings.AddRange(run.Timings);
             foreach (var pair in run.Fanout) fanout.Add(pair.Key, pair.Value);
             rejected.AddRange(run.Rejected); failedOptions.AddRange(run.FailedOptions);
+            foreach (var pair in run.SharedSurnamePairs)
+                if (!sharedSurnamePairs.TryAdd(pair.Key, pair.Value))
+                    throw new InvalidDataException("Contagem TF duplicada entre rulesets físicos.");
         }
         // Preserve diagnostic measurements while excluding them from all selection paths.
         var eligibleIds = new HashSet<string>(plan.ModelOptions
             .Where(x => x.EligibleForSelection).Select(x => x.OptionId), StringComparer.Ordinal);
-        bool EligibleOption(string id) => eligibleIds.Any(option =>
-            id.EndsWith(":" + option, StringComparison.Ordinal));
+        bool EligibleOption(string id) => id.Length > 65 && id[64] == ':'
+            && eligibleIds.Contains(id[65..]);
         bool EligibleConfiguration(string id)
         {
             var separator = id.IndexOf(':');
@@ -360,13 +366,15 @@ public static class V9AdaptiveCalibrationCoordinator
                 pareto.Table.Select(x => x.Option), plan.RiskCeilings, plan.SelectionPolicy),
             plan.SampleDesign is null ? null : V9StatisticalSamplePlan.Calculate(plan.SampleDesign, plan.RiskCeilings!),
             coverage, census, new(Sha(JsonSerializer.Serialize(plan with { ShardIndex = 0 })),
-                plan.ShardIndex, plan.ShardCount, totalRepresentatives, candidates.Count, plan.ShardCount == 1));
+                plan.ShardIndex, plan.ShardCount, totalRepresentatives, candidates.Count, plan.ShardCount == 1),
+            sharedSurnamePairs);
     }
 
     private sealed record RulesetResult(
         List<V9PhysicalSourceResolveMetric> Measurements, List<V9PhysicalFrozenConfiguration> Frozen,
         List<V9PhysicalEndToEndMeasurement> Timings, Dictionary<string, double> Fanout,
-        List<V9AdaptiveCandidateRejection> Rejected, List<V9BootstrapPareto2D.CandidateOption> FailedOptions);
+        List<V9AdaptiveCandidateRejection> Rejected, List<V9BootstrapPareto2D.CandidateOption> FailedOptions,
+        Dictionary<string, long> SharedSurnamePairs);
 
     private static async Task<RulesetResult> EvaluateRulesetAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations, V9AdaptiveCalibrationPlan plan,
@@ -379,6 +387,7 @@ public static class V9AdaptiveCalibrationCoordinator
         var fanout = new Dictionary<string, double>(StringComparer.Ordinal);
         var rejected = new List<V9AdaptiveCandidateRejection>();
         var failedOptions = new List<V9BootstrapPareto2D.CandidateOption>();
+        var sharedSurnamePairs = new Dictionary<string, long>(StringComparer.Ordinal);
         cancellationToken.ThrowIfCancellationRequested();
         var rulesetSha = Sha(JsonSerializer.Serialize(passes));
         var options = plan.ModelOptions.Select(x => x with { OptionId = rulesetSha + ":" + x.OptionId }).ToArray();
@@ -400,7 +409,13 @@ public static class V9AdaptiveCalibrationCoordinator
                 frozen.AddRange(run.FrozenConfigurations!);
                 timings.AddRange(run.EndToEndMeasurements!);
                 foreach (var option in run.CalibrationReport.Options)
+                {
                     fanout[option.OptionId] = option.Validation.BlockingFalseDegreeP99;
+                    // Counted by the C# scorer on real SQL VALIDATION candidate pairs.
+                    if (!sharedSurnamePairs.TryAdd(option.OptionId,
+                            option.Validation.SharedSurnameCandidatePairs))
+                        throw new InvalidDataException("Opção TF recebeu múltiplos recibos físicos.");
+                }
             }
             catch (InvalidDataException exception) when
                 (exception.Data[V9PhysicalSqlAdaptiveCalibrationProbe.CandidateRejectionKey] is true)
@@ -415,7 +430,7 @@ public static class V9AdaptiveCalibrationCoordinator
                     EvidenceRejectionReasons: ["CANDIDATO_FISICO_NAO_MENSURAVEL: " + exception.Message])));
             }
         }
-        return new(measurements, frozen, timings, fanout, rejected, failedOptions);
+        return new(measurements, frozen, timings, fanout, rejected, failedOptions, sharedSurnamePairs);
     }
 
     private static string InputSha(IEnumerable<V9PhysicalCalibrationObservation> observations) =>
