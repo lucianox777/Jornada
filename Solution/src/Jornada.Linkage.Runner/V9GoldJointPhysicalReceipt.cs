@@ -56,6 +56,15 @@ public static class V9GoldJointPhysicalReceipt
         return number;
     }
 
+    private static double UnitMetric(JsonElement obj, string name)
+    {
+        var value = Required(obj, name);
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetDouble(out var number)
+            || !double.IsFinite(number) || number is < 0d or > 1d)
+            throw new InvalidDataException("Joint TRAIN invalid B-cubed metric " + name);
+        return number;
+    }
+
     private static decimal Fraction(JsonElement obj, string name)
     {
         var value = Required(obj, name);
@@ -251,7 +260,22 @@ public static class V9GoldJointPhysicalReceipt
         if (lowerProposals > sourceCount || lowerCreated > lowerProposals
             || falseLowerCreated > lowerCreated || falseLowerCreated > falseCreations)
             throw new InvalidDataException("Joint TRAIN historical creation event subsets are inconsistent.");
+        // B-cubed is a real Runner measurement, not an independently trusted
+        // self-attested scalar. Pending observations have zero coverage-aware
+        // precision/recall, and the published F1 must be their harmonic mean.
+        const double tolerance = 1e-10;
+        var pendingRate = UnitMetric(gold, "PendingSourceRate");
+        var coveragePrecision = UnitMetric(gold, "CoverageAwarePrecision");
+        var coverageRecall = UnitMetric(gold, "CoverageAwareRecall");
         var f1 = Fraction(gold, "CoverageAwareF1");
+        var publishedRate = (double)published / sourceCount;
+        var harmonic = coveragePrecision + coverageRecall == 0d ? 0d
+            : 2d * coveragePrecision * coverageRecall / (coveragePrecision + coverageRecall);
+        if (Math.Abs(pendingRate - (double)pending / sourceCount) > tolerance
+            || coveragePrecision > publishedRate + tolerance
+            || coverageRecall > publishedRate + tolerance
+            || Math.Abs((double)f1 - harmonic) > tolerance)
+            throw new InvalidDataException("Joint TRAIN B-cubed rates contradict physical Gold coverage.");
         return new(order, "TRAIN_SELECTION", frozenFitSha256, canonicalGoldSnapshotSha256,
             Convert.ToHexString(SHA256.HashData(studyBytes)).ToLowerInvariant(),
             upper, lower, checked((int)groups), accepted, acceptedFalse,
