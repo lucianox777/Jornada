@@ -95,7 +95,8 @@ public static class V9AdaptiveCalibrationCoordinator
             || plan.PreviouslyComparedValidationConfigurations < 0
             || plan.MaximumAcceptedPerBaseIdentity < 1
             || plan.MinimumGroupingPosterior is <= .5m or >= 1m
-            || plan.ModelOptions.Count == 0 || plan.ConflictMargins.Count == 0
+            || plan.ModelOptions.Count == 0 || !plan.ModelOptions.Any(x => x.EligibleForSelection)
+            || plan.ConflictMargins.Count == 0
             || plan.ModelOptions.Any(x => x is null || string.IsNullOrWhiteSpace(x.OptionId)
                 || x.SmoothingAlpha is <= 0 or > 1000 || x.DecisionThreshold is <= 0 or >= 1
                 || x.TfWeight is < 0 or > 1 || !Enum.IsDefined(x.TfSide)
@@ -312,14 +313,21 @@ public static class V9AdaptiveCalibrationCoordinator
             foreach (var pair in run.Fanout) fanout.Add(pair.Key, pair.Value);
             rejected.AddRange(run.Rejected); failedOptions.AddRange(run.FailedOptions);
         }
+        // Preserve diagnostic measurements while excluding them from all selection paths.
+        var eligibleIds = new HashSet<string>(plan.ModelOptions
+            .Where(x => x.EligibleForSelection).Select(x => x.OptionId), StringComparer.Ordinal);
+        bool Eligible(string id) => eligibleIds.Any(option =>
+            id == option || id.EndsWith(":" + option, StringComparison.Ordinal)
+            || id.Contains(":" + option + ":", StringComparison.Ordinal));
+        var selectableMeasurements = measurements.Where(x => Eligible(x.OptionId)).ToArray();
         V9ParetoSourceSelectionReport? selection = null;
-        if (measurements.Count > 0)
+        if (selectableMeasurements.Length > 0)
         {
             var fittedByKey = frozen.ToDictionary(x => (x.OptionId, x.ConflictMargin));
             var timingByKey = timings.ToDictionary(x => (x.OptionId, x.ConflictMargin));
             var source = V9PostResolveAdaptiveSelector.EvaluateValidation("VALIDATION", false,
-                plan.Budget, measurements, fanout);
-            var evidence = measurements.Select(row =>
+                plan.Budget, selectableMeasurements, fanout);
+            var evidence = selectableMeasurements.Select(row =>
             {
                 var key = (row.OptionId, row.ConflictMargin);
                 var snapshot = fittedByKey[key].Snapshot;
@@ -331,10 +339,11 @@ public static class V9AdaptiveCalibrationCoordinator
                     time?.Quantiles.P95Milliseconds, time is not null);
             }).ToArray();
             selection = V9ParetoSourceSelection.EvaluateValidation("VALIDATION", false, plan.Budget,
-                measurements, fanout, evidence, plan.SelectionPolicy);
+                selectableMeasurements, fanout, evidence, plan.SelectionPolicy);
         }
         var pareto = V9BootstrapPareto2D.Evaluate(
-            (selection?.Pareto.Table.Select(x => x.Option) ?? []).Concat(failedOptions), plan.SelectionPolicy);
+            (selection?.Pareto.Table.Select(x => x.Option) ?? []).Concat(
+                failedOptions.Where(x => Eligible(x.OptionId))), plan.SelectionPolicy);
         if (plan.ShardCount > 1)
             pareto = pareto with { InitialSuggestedOptionId = null, Status = "PARTIAL_SEARCH_NO_GLOBAL_SUGGESTION" };
         return new(Version, Sha(JsonSerializer.Serialize(plan)), trainSha, validationSha,
