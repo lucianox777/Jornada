@@ -237,6 +237,10 @@ public sealed class V9GoldHarnessSafetyTests
     [TestCase("duplicate_header")]
     [TestCase("missing_observation_id")]
     [TestCase("missing_base_identity")]
+    [TestCase("name_only")]
+    [TestCase("mother_only")]
+    [TestCase("birth_only")]
+    [TestCase("missing_name_with_mother_and_birth")]
     public void Frozen_gold_train_csv_rejects_noncanonical_row_shape_partition_or_identity_keys(string mutation)
     {
         // Exercise the actual Runner CSV reader without SQL or a model.
@@ -256,6 +260,10 @@ public sealed class V9GoldHarnessSafetyTests
                 "duplicate_header" => new[] { header + ",cpf", good + "," },
                 "missing_observation_id" => new[] { header, ",B1,TRAIN,G0,Ana,Maria,1990-01-01," },
                 "missing_base_identity" => new[] { header, "O1,,TRAIN,G0,Ana,Maria,1990-01-01," },
+                "name_only" => new[] { header, "O1,B1,TRAIN,G0,Ana,,," },
+                "mother_only" => new[] { header, "O1,B1,TRAIN,G0,,Maria,," },
+                "birth_only" => new[] { header, "O1,B1,TRAIN,G0,,,1990-01-01," },
+                "missing_name_with_mother_and_birth" => new[] { header, "O1,B1,TRAIN,G0,,Maria,1990-01-01," },
                 _ => throw new ArgumentOutOfRangeException(nameof(mutation))
             };
             File.WriteAllLines(path, rows);
