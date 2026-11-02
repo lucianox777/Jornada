@@ -8,6 +8,7 @@ import argparse
 import hashlib
 import importlib.util
 import json
+import math
 from pathlib import Path
 
 def _load_unique_json(path: Path):
@@ -28,8 +29,16 @@ def _load_unique_json(path: Path):
         # NaN and infinities are not JSON and cannot enter frozen REF/TRAIN.
         raise ValueError(f"Non-finite JSON constant in frozen input: {token}")
 
+    def finite_float(token):
+        # JSON numeric exponents such as 1e999 are syntactically valid, but
+        # float() overflows them to infinity without calling parse_constant.
+        value = float(token)
+        if not math.isfinite(value):
+            raise ValueError(f"Non-finite JSON number in frozen input: {token}")
+        return value
+
     return json.loads(path.read_bytes(), object_pairs_hook=unique_object,
-                      parse_constant=reject_nonfinite)
+                      parse_constant=reject_nonfinite, parse_float=finite_float)
 
 
 def _tf_helper():
