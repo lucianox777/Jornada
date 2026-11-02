@@ -261,10 +261,15 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 definedFdr.Length == 0 ? null : definedFdr.Max(),
                 rows.Length - definedFdr.Length, false);
         }).ToArray();
-        var measurableUppers = upperTable.Where(x => x.WorstObservedFdr.HasValue).ToArray();
+        // An undefined accepted-link FDR in ANY lower/order TRAIN cell is
+        // insufficient evidence for automatic upper selection. Preserve the
+        // observed FDR and UndefinedFdrCells for descriptive diagnostics, but
+        // never treat a partially measured worst-case as a complete risk bound.
+        var measurableUppers = upperTable.Where(x =>
+            x.WorstObservedFdr.HasValue && x.UndefinedFdrCells == 0).ToArray();
         var upperFrontier = upperTable.Select(x => x with
         {
-            IsParetoFrontier = x.WorstObservedFdr.HasValue
+            IsParetoFrontier = x.WorstObservedFdr.HasValue && x.UndefinedFdrCells == 0
                 && !measurableUppers.Any(y =>
                     y.WorstObservedRecall >= x.WorstObservedRecall
                     && y.WorstObservedFdr!.Value <= x.WorstObservedFdr!.Value
