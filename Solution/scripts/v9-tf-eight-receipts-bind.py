@@ -17,8 +17,12 @@ spec.loader.exec_module(preflight)
 
 
 def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000,
-                  evidence_dir: Path | None = None):
-    contract = preflight.preflight(candidate_csv, source_count=source_count)
+                  evidence_dir: Path | None = None,
+                  source_ids_csv: Path | None = None):
+    if source_ids_csv is None:
+        raise ValueError("Physical source stable-ID census is mandatory")
+    contract = preflight.preflight(candidate_csv, source_count=source_count,
+                                   source_ids_csv=source_ids_csv)
     expected = {}
     for pair in contract["Pairs"]:
         expected[pair["DiagnosticOptionId"]] = pair["BilateralOptionId"]
@@ -35,6 +39,7 @@ def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000
         if (not isinstance(row, dict)
                 or row.get("OptionId") != option_id
                 or row.get("CandidatePairsSha256") != digest
+                or row.get("SourceStableIdsSha256") != contract["SourceStableIdsSha256"]
                 or type(row.get("SourceRecords")) is not int
                 or row["SourceRecords"] != source_count
                 or row.get("TestUsed") is not False
@@ -65,7 +70,9 @@ def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000
                     or hashlib.sha256(artifact.read_bytes()).hexdigest() != row[key]):
                 raise ValueError("Physical artifact missing or hash mismatch")
     return {"ContractVersion": "V9_TF_30K_EIGHT_RECEIPTS_BOUND_V1",
-            "CandidatePairsSha256": digest, "SourceRecords": source_count,
+            "CandidatePairsSha256": digest,
+            "SourceStableIdsSha256": contract["SourceStableIdsSha256"],
+            "SourceRecords": source_count,
             "PhysicalReceiptsVerified": 8, "TestUsed": False,
             "Receipts": receipts}
 
@@ -74,6 +81,7 @@ def main():
     import argparse
     parser = argparse.ArgumentParser()
     parser.add_argument("--candidate-csv", type=Path, required=True)
+    parser.add_argument("--source-ids-csv", type=Path, required=True)
     parser.add_argument("--receipts", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--evidence-dir", type=Path, required=True)
@@ -90,7 +98,8 @@ def main():
     receipts = json.loads(args.receipts.read_text(encoding="utf-8"),
                           object_pairs_hook=unique, parse_constant=reject)
     result = bind_receipts(args.candidate_csv, receipts,
-                           evidence_dir=args.evidence_dir)
+                           evidence_dir=args.evidence_dir,
+                           source_ids_csv=args.source_ids_csv)
     with args.output.open("x", encoding="utf-8") as out:
         json.dump(result, out, indent=2, allow_nan=False)
         out.write("\n")
