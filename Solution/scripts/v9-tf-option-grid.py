@@ -62,6 +62,8 @@ def option_grid(alpha=0.5, threshold=0.95):
 
 def pinned_reference(raw):
     """Do not guess published IBGE SHA/bootstrap from the synthetic corpus."""
+    if not isinstance(raw, dict):
+        raise ValueError("Pinned IBGE reference must be a JSON object")
     keys = ("PinnedIbgeReferenceVersionId", "PinnedIbgePublishedSha256",
             "PinnedIbgeMaterializedFrequencySha256", "PinnedIbgeBootstrap")
     if set(raw) != set(keys):
