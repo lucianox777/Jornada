@@ -18,6 +18,9 @@ on:
       - 'Solution/tests/fixtures/v9-*.jsonl'
       - 'Solution/tests/fixtures/v9-*.json'
       - '.github/workflows/v9-memory-batch.yml'
+concurrency:
+  group: v9-memory-batch-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 permissions:
   contents: read
   actions: read
