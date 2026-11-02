@@ -147,6 +147,13 @@ class V9UnitTfDeclaredGridTests(unittest.TestCase):
 
     def test_bad_pinned_reference_fails_closed(self):
         helper = load("v9-tf-option-grid.py", "tf_grid_guard")
+        for malformed in (None, [], ["PinnedIbgeReferenceVersionId",
+                                    "PinnedIbgePublishedSha256",
+                                    "PinnedIbgeMaterializedFrequencySha256",
+                                    "PinnedIbgeBootstrap"]):
+            with self.subTest(malformed=malformed):
+                with self.assertRaisesRegex(ValueError, "JSON object"):
+                    helper.pinned_reference(malformed)
         with self.assertRaises(ValueError):
             helper.pinned_reference({})
         with self.assertRaises(ValueError):
