@@ -316,10 +316,17 @@ public static class V9AdaptiveCalibrationCoordinator
         // Preserve diagnostic measurements while excluding them from all selection paths.
         var eligibleIds = new HashSet<string>(plan.ModelOptions
             .Where(x => x.EligibleForSelection).Select(x => x.OptionId), StringComparer.Ordinal);
-        bool Eligible(string id) => eligibleIds.Any(option =>
-            id == option || id.EndsWith(":" + option, StringComparison.Ordinal)
-            || id.Contains(":" + option + ":", StringComparison.Ordinal));
-        var selectableMeasurements = measurements.Where(x => Eligible(x.OptionId)).ToArray();
+        bool EligibleOption(string id) => eligibleIds.Any(option =>
+            id.EndsWith(":" + option, StringComparison.Ordinal));
+        bool EligibleConfiguration(string id)
+        {
+            var separator = id.IndexOf(':');
+            if (separator <= 0 || !int.TryParse(id.AsSpan(0, separator), out var length)
+                || length <= 0 || id.Length <= separator + length + 1
+                || id[separator + length + 1] != '|') return false;
+            return EligibleOption(id.Substring(separator + 1, length));
+        }
+        var selectableMeasurements = measurements.Where(x => EligibleOption(x.OptionId)).ToArray();
         V9ParetoSourceSelectionReport? selection = null;
         if (selectableMeasurements.Length > 0)
         {
@@ -343,7 +350,7 @@ public static class V9AdaptiveCalibrationCoordinator
         }
         var pareto = V9BootstrapPareto2D.Evaluate(
             (selection?.Pareto.Table.Select(x => x.Option) ?? []).Concat(
-                failedOptions.Where(x => Eligible(x.OptionId))), plan.SelectionPolicy);
+                failedOptions.Where(x => EligibleConfiguration(x.OptionId))), plan.SelectionPolicy);
         if (plan.ShardCount > 1)
             pareto = pareto with { InitialSuggestedOptionId = null, Status = "PARTIAL_SEARCH_NO_GLOBAL_SUGGESTION" };
         return new(Version, Sha(JsonSerializer.Serialize(plan)), trainSha, validationSha,
