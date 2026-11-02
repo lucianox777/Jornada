@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using System.Text.Json;
 using Jornada.Linkage.Runner;
 
@@ -180,7 +179,7 @@ public sealed class V9GoldHarnessSafetyTests
                 planPath };
             var exception = Assert.ThrowsAsync<InvalidDataException>(async () =>
                 await V9GoldHarnessCommand.RunJointTrainTrialAsync(args,
-                    "Server=(localdb)\\\\JornadaV9Gold20261031_00000001;Database=JornadaHarness;Integrated Security=true"));
+                    "Server=(localdb)\\JornadaV9Gold20261031_00000001;Database=JornadaHarness;Integrated Security=true"));
             Assert.That(exception!.Message, Does.Contain("frozen input provenance"));
             Assert.That(Directory.Exists(output), Is.False,
                 "Rejected TRAIN evidence must not create an output directory.");
