@@ -107,6 +107,31 @@ class V9NestedStudyFingerprintTests(unittest.TestCase):
             nested.prepare(self.corpus, destination, pinned_ibge=pin)
         self.assertFalse(destination.exists())
 
+    def test_duplicate_generation_manifest_key_fails_closed(self):
+        original = self.manifest.read_text(encoding="utf-8")
+        self.manifest.write_text(
+            original.replace('"generator_version": "UNIT_TEST_GENERATOR_V1"',
+                             '"generator_version": "UNIT_TEST_GENERATOR_V1", '
+                             '"generator_version": "TAMPERED"'),
+            encoding="utf-8")
+        destination = self.root / "duplicate-manifest.json"
+        with self.assertRaisesRegex(ValueError, "Duplicate JSON key"):
+            nested.prepare(self.corpus, destination, fixture=True)
+        self.assertFalse(destination.exists())
+
+    def test_duplicate_nested_pinned_ibge_key_fails_closed(self):
+        pin = self.pinned("duplicate-nested", "a")
+        original = pin.read_text(encoding="utf-8")
+        pin.write_text(
+            original.replace('"GeneratorSeed": 42',
+                             '"GeneratorSeed": 42, "GeneratorSeed": 43'),
+            encoding="utf-8")
+        destination = self.root / "duplicate-pinned.json"
+        with self.assertRaisesRegex(ValueError, "Duplicate JSON key"):
+            nested.prepare(self.corpus, destination, tf_search=True,
+                           pinned_ibge=pin)
+        self.assertFalse(destination.exists())
+
     def test_missing_published_ibge_reference_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "pinned-ibge"):
             self.prepare("no-pin", tf_search=True)
