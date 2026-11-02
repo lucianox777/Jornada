@@ -156,6 +156,28 @@ class V9NestedStudyFingerprintTests(unittest.TestCase):
                            pinned_ibge=pin)
         self.assertFalse(destination.exists())
 
+    def test_overflow_exponent_in_generation_manifest_fails_closed(self):
+        # Valid JSON syntax can still overflow Python float to infinity.
+        # This must never enter a frozen TRAIN study fingerprint.
+        self.manifest.write_text(
+            json.dumps(self.manifest_data)[:-1] +
+            ', "extra_metric": 1e999}', encoding="utf-8")
+        destination = self.root / "overflow-manifest.json"
+        with self.assertRaisesRegex(ValueError, "Non-finite JSON"):
+            nested.prepare(self.corpus, destination, fixture=True)
+        self.assertFalse(destination.exists())
+
+    def test_overflow_exponent_in_pinned_ibge_fails_closed(self):
+        pin = self.pinned("overflow", "a")
+        pin.write_text(pin.read_text(encoding="utf-8")[:-1] +
+                       ', "extra_metric": -1e999}', encoding="utf-8")
+        destination = self.root / "overflow-pinned.json"
+        with self.assertRaisesRegex(ValueError, "Non-finite JSON"):
+            nested.prepare(self.corpus, destination, tf_search=True,
+                           pinned_ibge=pin)
+        self.assertFalse(destination.exists())
+        self.assertFalse(destination.with_suffix(".tf-budget.json").exists())
+
     def test_missing_published_ibge_reference_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "pinned-ibge"):
             self.prepare("no-pin", tf_search=True)
