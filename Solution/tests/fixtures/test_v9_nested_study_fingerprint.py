@@ -178,6 +178,31 @@ class V9NestedStudyFingerprintTests(unittest.TestCase):
         self.assertFalse(destination.exists())
         self.assertFalse(destination.with_suffix(".tf-budget.json").exists())
 
+    def test_frozen_plan_rejects_nonfinite_output_and_rolls_back(self):
+        # json.dump defaults to allow_nan=True, which publishes invalid JSON.
+        destination = self.root / "invalid-frozen-plan.json"
+        plan = {"Calibration": {"Score": float("nan")}}
+        with self.assertRaises(ValueError):
+            nested._write_frozen_outputs(destination, plan)
+        self.assertFalse(destination.exists())
+
+    def test_frozen_tf_budget_rejects_nonfinite_output_and_rolls_back_both(self):
+        destination = self.root / "invalid-frozen-budget.json"
+        plan = {"Calibration": {"StudyFingerprintSha256": "fixed"}}
+        budget = {"study_fingerprint_sha256": "fixed", "risk": float("inf")}
+        with self.assertRaises(ValueError):
+            nested._write_frozen_outputs(destination, plan, budget)
+        self.assertFalse(destination.exists())
+        self.assertFalse(destination.with_suffix(".tf-budget.json").exists())
+
+    def test_frozen_plan_and_budget_finite_roundtrip(self):
+        destination = self.root / "valid-frozen-plan.json"
+        plan = {"Calibration": {"StudyFingerprintSha256": "fixed", "score": 0.25}}
+        budget = {"study_fingerprint_sha256": "fixed", "risk": 0.1}
+        nested._write_frozen_outputs(destination, plan, budget)
+        self.assertEqual(json.loads(destination.read_text()), plan)
+        self.assertEqual(json.loads(destination.with_suffix(".tf-budget.json").read_text()), budget)
+
     def test_missing_published_ibge_reference_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "pinned-ibge"):
             self.prepare("no-pin", tf_search=True)
