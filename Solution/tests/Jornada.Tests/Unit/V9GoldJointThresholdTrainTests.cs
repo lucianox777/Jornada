@@ -282,6 +282,34 @@ public sealed class V9GoldJointThresholdTrainTests
     }
 
     [Test]
+    public void Rejects_order_dependent_independent_identity_universe_even_with_recomputed_evidence()
+    {
+        // The three Gold insertion orders use the SAME frozen TRAIN corpus.
+        // A different independent-identity-group count for an entire order
+        // must not pass merely because every upper/lower cell in that order agrees.
+        var rows = Measurements().Select(x =>
+            x.OrderId == "REVERSE_G3_G2_G1_G0"
+                ? x with { IndependentIdentityGroups = 31 }
+                : x).ToArray();
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows)));
+    }
+
+    [Test]
+    public void Allows_order_dependent_true_link_opportunities_with_same_identity_universe()
+    {
+        // Earlier-wave opportunity counts legitimately change with insertion
+        // order. Only the fixed corpus identity-group count is order invariant.
+        var rows = Measurements().Select(x =>
+            x.OrderId == "REVERSE_G3_G2_G1_G0"
+                ? x with { TrueLinkOpportunities = 101 }
+                : x).ToArray();
+        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows);
+        Assert.That(study.StatisticallyCertified, Is.False);
+        Assert.That(study.OperationalActivationAllowed, Is.False);
+    }
+
+    [Test]
     public void Rejects_threshold_dependent_truth_denominator_with_valid_recomputed_evidence_sha()
     {
         var rows = Measurements();
