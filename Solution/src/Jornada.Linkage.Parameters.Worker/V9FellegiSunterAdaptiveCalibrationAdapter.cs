@@ -53,7 +53,8 @@ public sealed record V9FsAdaptiveOptionConfiguration(
     decimal TfMinimumFrequency = 0.000001m,
     long TfMinimumIndependentSupport = 1, V9JointSupportPolicy? JointSupportPolicy = null,
     IReadOnlyList<V9FsUnitTfOption>? UnitTfOptions = null,
-    V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral)
+    V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
+    bool EligibleForSelection = true)
 {
     public string FingerprintSha256 => V9FellegiSunterAdaptiveCalibrationAdapter
         .ConfigurationFingerprintSha256(this);
