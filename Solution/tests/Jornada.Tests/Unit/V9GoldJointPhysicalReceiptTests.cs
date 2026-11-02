@@ -60,7 +60,10 @@ public sealed class V9GoldJointPhysicalReceiptTests
         {
             policy = "EXPERIMENTAL_LOWER_TRAIN_ONLY", threshold = .1m,
             scorerReused = true, operationalActivation = false,
-            disposableProcedureSha256 = Partition, finalFalseNewIdentityCreations = 2,
+            disposableProcedureSha256 = Partition,
+            publicationReason = V9GoldLowerNonMatchExperiment.PublicationReason,
+            creationCountRule = "ANY_PHYSICAL_RUN_SOURCE_UNION_PREPUBLICATION_GOLD_TRUTH",
+            finalFalseNewIdentityCreations = 2,
             finalLowerBandProposals = 4, finalLowerBandCreated = 3, finalFalseLowerBandCreations = 1
         },
         goldBcubed = new
@@ -454,6 +457,20 @@ public sealed class V9GoldJointPhysicalReceiptTests
         Assert.DoesNotThrow((Action)(() =>
             V9GoldJointPhysicalReceipt.Read(
                 System.Text.Encoding.UTF8.GetBytes(trueZero), Fit, Gold, Csv, Selection)));
+    }
+
+    [TestCase("publicationReason")]
+    [TestCase("creationCountRule")]
+    public void Rejects_forged_or_missing_physical_creation_semantics(string field)
+    {
+        // A syntactically valid receipt must not silently change the definition
+        // of historical false-creation events used to select LOWER.
+        var receipt = Receipt();
+        ((JsonObject)receipt["lowerNonMatchExperiment"]!)[field] = "UNRELATED_EVENT_RULE";
+        Reject(receipt);
+        receipt = Receipt();
+        ((JsonObject)receipt["lowerNonMatchExperiment"]!).Remove(field);
+        Reject(receipt);
     }
 
     [Test]
