@@ -30,6 +30,16 @@ public static class V9ParetoSourceSelection
     {
         ArgumentNullException.ThrowIfNull(physicalEvidence);
         ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(measurements);
+        // Guard this boundary too: even a hand-crafted caller may not inject
+        // SHARED diagnostic hypotheses into Pareto or finalist selection.
+        if (measurements.Any(row =>
+        {
+            var id = row?.OptionId ?? "";
+            var unqualified = id.Length > 65 && id[64] == ':' ? id[65..] : id;
+            return unqualified.StartsWith("TF_SHARED_PL_ML_", StringComparison.Ordinal);
+        }))
+            throw new InvalidDataException("Diagnóstico TF inelegível não pode entrar no Pareto.");
         // Existing service enforces VALIDATION, no TEST, same denominator/cohort,
         // one decision per source, coherent TP/FP and actual cluster bound semantics.
         var source = V9PostResolveAdaptiveSelector.EvaluateValidation(partition, usesTestLabels,

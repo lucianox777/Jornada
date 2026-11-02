@@ -30,6 +30,31 @@ public sealed class V9PhysicalCalibrationEvidenceCliTests
         finally { File.Delete(path); }
     }
 
+    [Test]
+    public void Tf30k_base_identity_census_counts_people_across_all_partitions_not_rows()
+    {
+        var path = Path.GetTempFileName();
+        try
+        {
+            File.WriteAllText(path, Header
+                + "TRAIN-A,TRAIN,G1,MARIA,ANA,1980-01-01,\n"
+                + "TRAIN-A,TRAIN,G2,MARIA,ANA,1980-01-01,\n"
+                + "VAL-A,VALIDATION,G1,MARIA,ANA,1980-01-01,\n"
+                + "VAL-A,VALIDATION,G2,MARIA,ANA,1980-01-01,\n"
+                + "TEST-ONLY,TEST,G1,NOT_PARSED,NOT_PARSED,NOT_A_DATE,\n");
+            Assert.That(V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(
+                path, minimumObservationCount: 4, expectedBaseIdentityCount: 3),
+                Has.Length.EqualTo(4));
+            Assert.That((Action)(() => V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(
+                path, minimumObservationCount: 4, expectedBaseIdentityCount: 5)),
+                Throws.TypeOf<InvalidDataException>().With.Message.Contains("pessoas-base"));
+            Assert.That((Action)(() => V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(
+                path, minimumObservationCount: 4, expectedBaseIdentityCount: 0)),
+                Throws.TypeOf<ArgumentOutOfRangeException>());
+        }
+        finally { File.Delete(path); }
+    }
+
     [TestCase("TRAIN", "VALIDATION", "")]
     [TestCase("TRAIN", "TEST", "")]
     [TestCase("VALIDATION", "TEST", "12345678909")]

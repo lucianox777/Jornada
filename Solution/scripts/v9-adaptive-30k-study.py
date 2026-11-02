@@ -106,7 +106,10 @@ def prepare(corpus: Path, plan_path: Path, cap_four: bool = False,
                                      "BilateralOptionId": baseline_id,
                                      "EligibleForAutomaticSelection": False,
                                      "RequiresSameCandidatePairs": True})
-        plan["ModelOptions"] = grid
+        # All 45 arms use the existing C# physical evaluator. The four SHARED
+        # diagnostics remain observable but are ineligible for automatic selection.
+        plan["ModelOptions"] = [dict(x, EligibleForSelection=not x["OptionId"].startswith(
+            "TF_SHARED_PL_ML_")) for x in full_grid]
         # The exploratory search must not pre-exclude a risk region before
         # TRAIN evidence: Pareto/frontier is descriptive, gates come later.
         plan["Budget"]["MinimumGlobalAcceptedRecall"] = 0
@@ -122,13 +125,13 @@ def prepare(corpus: Path, plan_path: Path, cap_four: bool = False,
         }
         plan["MaximumPhysicalRuleSets"] = 1
         plan["PreviouslyComparedValidationConfigurations"] = 3726
-        cost = helper.budget_estimate(grid, rulesets=1,
+        cost = helper.budget_estimate(full_grid, rulesets=1,
             margins=len(plan["ConflictMargins"]), previous=3726)
         plan["MaximumComparedConfigurations"] = cost["predeclared_comparisons"]
         cost["diagnostic_comparison_only"] = diagnostic_pairs
         cost["diagnostic_models_excluded_from_selection"] = len(diagnostic)
         cost["initial_grid_total"] = len(full_grid)
-        cost["diagnostic_physically_executed"] = False
+        cost["diagnostic_physically_executed"] = False  # Only true after actual SQL evidence
         cost["shared_surname_candidate_pairs"] = None
         plan.update(helper.pinned_reference(json.loads(pinned_ibge.read_bytes())))
         sidecar = plan_path.with_suffix(".tf-budget.json")
