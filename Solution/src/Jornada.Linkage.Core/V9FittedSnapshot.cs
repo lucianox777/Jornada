@@ -43,7 +43,9 @@ public sealed record V9SnapshotNominalUnitTfCalibration(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     CompositeNominalTfAdjustmentModeV9 Mode = CompositeNominalTfAdjustmentModeV9.Symmetric,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    decimal? Weight = null);
+    decimal? Weight = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    V9UnseenTfUAllocation? UnseenAllocation = null);
 
 /// <summary>Explicit outcome of fitting a TF unit, including calibrated zero.</summary>
 public enum V9SnapshotTfFitState
@@ -244,9 +246,10 @@ public sealed class V9FittedSnapshot
         var rightTerm = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
             ? BrazilianNameComponents.Project(right)?.LastContentSurname : FirstName(right);
         if (term is null || term != rightTerm
-            || !tf.Frequencies.TryGetValue(term, out var frequency)
-            || !tf.TrainUnitUByValue.TryGetValue(term, out var unitU))
-            throw new InvalidDataException("TF positiva desconhecida: referência ou U TRAIN ausente no snapshot.");
+            || !tf.Frequencies.TryGetValue(term, out var frequency))
+            throw new InvalidDataException("TF positiva sem frequência IBGE ou termo coincidente.");
+        var unitU = V9UnseenTfUDistribution.Resolve(
+            tf.TrainUnitUByValue, tf.Frequencies, tf.UnseenAllocation, term);
         return new CompositeNominalTfPreviewV9(tf.Side, tf.Reference, term, frequency,
             unitU, tf.Weight ?? Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport, tf.Mode);
     }
@@ -441,6 +444,8 @@ public sealed class V9FittedSnapshot
             }
             var frequencies = FreezeTerms(tf.Frequencies);
             var trainU = FreezeTerms(tf.TrainUnitUByValue);
+            if (tf.UnseenAllocation is not null)
+                V9UnseenTfUDistribution.Validate(tf.UnseenAllocation, trainU, frequencies);
             if (trainU.Values.Sum() > 1.000001m)
                 throw new InvalidDataException("Distribuição condicional U TRAIN excede um.");
             return tf with { Frequencies = frequencies, TrainUnitUByValue = trainU };

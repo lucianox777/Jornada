@@ -48,6 +48,17 @@ public sealed class FrozenIbgeNominalTfV9
         };
     }
 
+    /// <summary>Read-only TRAIN fit input; this is the already frozen published marginal.</summary>
+    public IReadOnlyDictionary<string, decimal> FrequenciesForUnit(
+        CompositeNominalTfSideV9 side, NominalFrequencyUnitV9 unit) => (side, unit) switch
+    {
+        (CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName) => personFirst,
+        (CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName) => motherFirst,
+        (CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.LastContentSurname) => personLast,
+        (CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.LastContentSurname) => motherLast,
+        _ => throw new InvalidDataException("Marginal IBGE por lado/unidade desconhecida.")
+    };
+
     // Exports the exact pinned values, not a fresh SQL lookup or an ATIVA
     // reference. The portable artifact digest binds these values with TRAIN U.
     /// <summary>

@@ -22,7 +22,8 @@ public static class V9TrainSqlNominalUCalibration
         int UnmatchedUnitCandidatePairs,
         IReadOnlyDictionary<string, decimal> UnitUByValue,
         string FingerprintSha256,
-        NominalFrequencyUnitV9 Unit = NominalFrequencyUnitV9.FirstName)
+        NominalFrequencyUnitV9 Unit = NominalFrequencyUnitV9.FirstName,
+        V9UnseenTfUAllocation? UnseenAllocation = null)
     {
         public bool HasSufficientSupport => UnmatchedUnitCandidatePairs >= 2 && UnitUByValue.Count > 0;
     }
@@ -32,7 +33,8 @@ public static class V9TrainSqlNominalUCalibration
         CompositeNominalTfSideV9 side,
         decimal smoothingAlpha,
         string trainFingerprintSha256,
-        NominalFrequencyUnitV9 unit = NominalFrequencyUnitV9.FirstName)
+        NominalFrequencyUnitV9 unit = NominalFrequencyUnitV9.FirstName,
+        IReadOnlyDictionary<string, decimal>? publishedFrequencies = null)
     {
         ArgumentNullException.ThrowIfNull(trainSqlCandidates);
         if (!Enum.IsDefined(side) || unit is not (NominalFrequencyUnitV9.FirstName or NominalFrequencyUnitV9.LastContentSurname)
@@ -80,6 +82,8 @@ public static class V9TrainSqlNominalUCalibration
         var units = counts.OrderBy(x => x.Key, StringComparer.Ordinal)
             .ToDictionary(x => x.Key, x => (x.Value + smoothingAlpha) / denominator,
                 StringComparer.Ordinal);
+        var allocation = publishedFrequencies is null ? null
+            : V9UnseenTfUDistribution.Fit(units, publishedFrequencies, n, smoothingAlpha);
         var canonical = new StringBuilder()
             .Append(Version).Append('|').Append(side).Append('|').Append(unit).Append('|')
             .Append(trainFingerprintSha256).Append('|')
@@ -89,10 +93,14 @@ public static class V9TrainSqlNominalUCalibration
             canonical.Append(term.Key).Append('=')
                 .Append(term.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .Append('\n');
+        if (allocation is not null)
+            canonical.Append("|").Append(allocation.PolicyVersion).Append("|")
+                .Append(allocation.ReservedUProbability).Append("|")
+                .Append(allocation.UnseenReferenceMass);
         var digest = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
         return new Frozen(side, trainFingerprintSha256, checked((int)n),
-            new ReadOnlyDictionary<string, decimal>(units), digest, unit);
+            new ReadOnlyDictionary<string, decimal>(units), digest, unit, allocation);
     }
 
     /// <summary>
@@ -136,10 +144,12 @@ public static class V9TrainSqlNominalUCalibration
         var right = calibration.Side == CompositeNominalTfSideV9.Person
             ? pair.RightPersonName : pair.RightMotherName;
         var value = UnitToken(left, calibration.Unit);
-        if (value is null || value != UnitToken(right, calibration.Unit)
-            || !calibration.UnitUByValue.TryGetValue(value, out var unitU))
-            throw new InvalidDataException(
-                "TF positiva desconhecida/sem suporte U TRAIN: não converter em peso zero ou BF=1.");
+        if (value is null || value != UnitToken(right, calibration.Unit))
+            throw new InvalidDataException("TF positiva sem unidade nominal coincidente.");
+        var unitU = V9UnseenTfUDistribution.Resolve(
+            calibration.UnitUByValue,
+            reference.FrequenciesForUnit(calibration.Side, calibration.Unit),
+            calibration.UnseenAllocation, value);
         var preview = reference.CreatePreview(
             calibration.Side, marginalLevel, left, right,
             unitU, weight, minimumFrequency, minimumIndependentSupport)
