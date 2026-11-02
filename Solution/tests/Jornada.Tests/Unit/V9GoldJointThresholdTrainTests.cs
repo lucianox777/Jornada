@@ -314,4 +314,22 @@ public sealed class V9GoldJointThresholdTrainTests
                 && x.UndefinedObservedFalseLinkRateOrders == 3), Is.True);
         Assert.That(study.Candidates, Has.Count.EqualTo(4));
     }
+
+    [TestCase(true)]
+    [TestCase(false)]
+    public void Rejects_overflowed_physical_count_aggregation_as_invalid_train_evidence(bool falseCreations)
+    {
+        // Every row is individually nonnegative and has a valid evidence SHA,
+        // but summing independent physical orders must not overflow Int64.
+        // A raw OverflowException is not an accepted evidence-validation result.
+        var rows = Measurements();
+        for (var i = 0; i < 2; i++)
+        {
+            rows[i] = falseCreations
+                ? rows[i] with { FalseNewReferences = long.MaxValue }
+                : rows[i] with { PendingAfter = long.MaxValue };
+        }
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows)));
+    }
 }
