@@ -14,6 +14,12 @@ public sealed class V9GoldHarnessSafetyTests
     public void Rejects_original_remote_and_non_owned_database_before_connecting(string connection) =>
         Assert.Throws<InvalidOperationException>((Action)(() => V9GoldHarnessCommand.ValidateDisposableConnection(connection)));
 
+    [TestCase("Server=(localdb)\\JornadaV9Gold20261019_0000abcd;Database=JornadaHarness;\nIntegrated Security=true")]
+    [TestCase("Server=\"(localdb)\\JornadaV9Gold20261019_0000abcd\n\";Database=JornadaHarness;Integrated Security=true")]
+    public void Rejects_control_characters_in_disposable_connection_before_sql(string connection) =>
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            V9GoldHarnessCommand.ValidateDisposableConnection(connection)));
+
     [TestCase("UPPER_TRAIN=0")]
     [TestCase("UPPER_TRAIN=0.0")]
     [TestCase("UPPER_TRAIN=0,7")]
