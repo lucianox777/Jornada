@@ -68,7 +68,8 @@ public sealed class V9GoldJointPhysicalReceiptTests
             ContractVersion = GoldPartitionBcubedAudit.Version,
             Sources = 20, PublishedSources = 16, TrueIdentityGroups = 5,
             GoldIdentityGroups = 4, PendingSources = 4,
-            CoverageAwareF1 = .8
+            PendingSourceRate = .2, CoverageAwarePrecision = .8,
+            CoverageAwareRecall = .8, CoverageAwareF1 = .8
         },
         publication = new { trueExistingLinks = 6, falseExistingLinks = 1, newIdentitySources = 9, pendingSources = 4 }
     })!.AsObject();
@@ -288,6 +289,35 @@ public sealed class V9GoldJointPhysicalReceiptTests
             "not-a-content-addressed-snapshot";
         ((JsonObject)receipt["goldThreeOrderTrial"]!)["frozenSnapshotSha256"] =
             "not-a-content-addressed-snapshot";
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_inconsistent_coverage_aware_bcubed_harmonic_mean()
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!)["CoverageAwareF1"] = .95;
+        // The physical receipt cannot claim an F1 unrelated to its P/R.
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_bcubed_precision_above_physically_published_coverage()
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!)["CoverageAwarePrecision"] = .95;
+        // Pending sources contribute zero; only 16/20 sources are published.
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_missing_or_wrong_bcubed_coverage_denominator()
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!)["PendingSourceRate"] = .1;
+        Reject(receipt);
+        receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!).Remove("CoverageAwareRecall");
         Reject(receipt);
     }
 
