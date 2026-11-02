@@ -18,19 +18,21 @@ class EightReceiptsBindTests(unittest.TestCase):
                             encoding="utf-8")
         contract = module.preflight.preflight(self.csv, source_count=30000)
         self.evidence = Path(self.tmp.name)
-        (self.evidence / "model.bin").write_bytes(b"fitted-model")
         self.receipts = {}
         for pair in contract["Pairs"]:
             for option in (pair["DiagnosticOptionId"], pair["BilateralOptionId"]):
                 run_name = f"{option}.bin"
                 run_bytes = ("physical-run-" + option).encode()
                 (self.evidence / run_name).write_bytes(run_bytes)
+                model_name = f"{option}.fitted.bin"
+                model_bytes = ("fitted-model-" + option).encode()
+                (self.evidence / model_name).write_bytes(model_bytes)
                 self.receipts[option] = dict(
                     OptionId=option, CandidatePairsSha256=contract["CandidatePairsSha256"],
                     SourceRecords=30000, TestUsed=False, PhysicallyExecuted=True,
                     PhysicalRunSha256=hashlib.sha256(run_bytes).hexdigest(),
-                    FittedModelSha256=hashlib.sha256(b"fitted-model").hexdigest(),
-                    PhysicalRunArtifact=run_name, FittedModelArtifact="model.bin")
+                    FittedModelSha256=hashlib.sha256(model_bytes).hexdigest(),
+                    PhysicalRunArtifact=run_name, FittedModelArtifact=model_name)
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -51,6 +53,14 @@ class EightReceiptsBindTests(unittest.TestCase):
         ids = list(self.receipts)
         self.receipts[ids[1]]["PhysicalRunArtifact"] = self.receipts[ids[0]]["PhysicalRunArtifact"]
         self.receipts[ids[1]]["PhysicalRunSha256"] = self.receipts[ids[0]]["PhysicalRunSha256"]
+        with self.assertRaises(ValueError):
+            module.bind_receipts(self.csv, self.receipts,
+                                 evidence_dir=self.evidence)
+
+    def test_reused_model_artifact_rejected(self):
+        ids = list(self.receipts)
+        self.receipts[ids[1]]["FittedModelArtifact"] = self.receipts[ids[0]]["FittedModelArtifact"]
+        self.receipts[ids[1]]["FittedModelSha256"] = self.receipts[ids[0]]["FittedModelSha256"]
         with self.assertRaises(ValueError):
             module.bind_receipts(self.csv, self.receipts,
                                  evidence_dir=self.evidence)
