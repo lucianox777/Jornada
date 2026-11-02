@@ -187,6 +187,20 @@ public static class V9AdaptiveCalibrationCoordinator
         return checked((int)count);
     }
 
+    /// <summary>
+    /// Selection-only multiplicity; physical costs still account for all 45 arms.
+    /// Previously compared hypotheses remain included conservatively.
+    /// </summary>
+    public static int CountSelectableConfigurations(V9AdaptiveCalibrationPlan plan, long ruleSets)
+    {
+        _ = CountComparedConfigurations(plan, ruleSets);
+        var eligible = plan.ModelOptions.Count(x => x.EligibleForSelection);
+        if (eligible == 0)
+            throw new InvalidDataException("Nenhuma configuração TF elegível para seleção.");
+        return checked((int)checked(ruleSets * eligible * plan.ConflictMargins.Count
+            + plan.PreviouslyComparedValidationConfigurations));
+    }
+
     public static Task<V9AdaptiveCalibrationStudyResult> RunAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
         V9AdaptiveCalibrationPlan plan, CancellationToken cancellationToken,
@@ -246,6 +260,7 @@ public static class V9AdaptiveCalibrationCoordinator
         V9PhysicalCatalogueCensus? census = null;
         IReadOnlyList<IReadOnlyList<LinkageBlockingPass>> candidates;
         int compared;
+        int selectableCompared;
         if (plan.CollapseEquivalentCandidateFrames)
         {
             // Count the ENTIRE family before quotienting. Baselines are counted
@@ -253,6 +268,7 @@ public static class V9AdaptiveCalibrationCoordinator
             var fullCount = checked((long)plan.DeclaredSearchSpace!.Count()
                 + (plan.BaselineRuleSets?.Count ?? 0));
             compared = CountComparedConfigurations(plan, fullCount);
+            selectableCompared = CountSelectableConfigurations(plan, fullCount);
             var censusConnection = await openIndependentConnection(cancellationToken);
             try
             {
@@ -268,6 +284,7 @@ public static class V9AdaptiveCalibrationCoordinator
             candidates = CombineCandidateRuleSets(plan.DeclaredSearchSpace is null ? discovery.Candidates
                 : plan.DeclaredSearchSpace.Enumerate(), plan.BaselineRuleSets);
             compared = CountComparedConfigurations(plan, candidates.Count);
+            selectableCompared = CountSelectableConfigurations(plan, candidates.Count);
         }
         var totalRepresentatives = candidates.Count;
         if (plan.ShardCount > totalRepresentatives)
@@ -303,7 +320,7 @@ public static class V9AdaptiveCalibrationCoordinator
             lock (activeConnections)
                 if (!activeConnections.Add(worker))
                     throw new InvalidDataException("Conexão SQL compartilhada entre workers é proibida.");
-            try { return await EvaluateRulesetAsync(worker, observations, plan, passes, compared, eligibleSources, reference, ct); }
+            try { return await EvaluateRulesetAsync(worker, observations, plan, passes, compared, selectableCompared, eligibleSources, reference, ct); }
             finally
             {
                 lock (activeConnections) activeConnections.Remove(worker);
@@ -378,7 +395,7 @@ public static class V9AdaptiveCalibrationCoordinator
 
     private static async Task<RulesetResult> EvaluateRulesetAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations, V9AdaptiveCalibrationPlan plan,
-        IReadOnlyList<LinkageBlockingPass> passes, int compared, long eligibleSources,
+        IReadOnlyList<LinkageBlockingPass> passes, int compared, int selectableCompared, long eligibleSources,
         FrozenIbgeNominalTfV9? pinnedTfReference, CancellationToken cancellationToken)
     {
         var measurements = new List<V9PhysicalSourceResolveMetric>();
@@ -404,7 +421,7 @@ public static class V9AdaptiveCalibrationCoordinator
                     finalConflictMargins: margins, includeFsBlindGrouping: true,
                     minimumFsGroupingPosterior: plan.MinimumGroupingPosterior,
                     predeclaredMaximumAcceptedPerBaseIdentity: plan.MaximumAcceptedPerBaseIdentity,
-                    adaptiveExecution: plan.Execution with { TotalComparedConfigurations = compared });
+                    adaptiveExecution: plan.Execution with { TotalComparedConfigurations = selectableCompared });
                 measurements.AddRange(run.SourceResolveValidation!);
                 frozen.AddRange(run.FrozenConfigurations!);
                 timings.AddRange(run.EndToEndMeasurements!);
@@ -426,7 +443,7 @@ public static class V9AdaptiveCalibrationCoordinator
                 failedOptions.AddRange(ids.Select(id => new V9BootstrapPareto2D.CandidateOption(
                     id, Sha(id), 0, null, null, 0, 0, eligibleSources,
                     observations.Where(x => x.Partition == "VALIDATION").Select(x => x.BasePersonId).Distinct(StringComparer.Ordinal).Count(),
-                    false, false, MultiplicityComparedConfigurations: compared,
+                    false, false, MultiplicityComparedConfigurations: selectableCompared,
                     EvidenceRejectionReasons: ["CANDIDATO_FISICO_NAO_MENSURAVEL: " + exception.Message])));
             }
         }

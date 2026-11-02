@@ -42,8 +42,8 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
     private static V9PhysicalSourceResolveMetric Metric(string id, int falseAccepted = 1) => new(
         Ruleset + ":" + id, .95m, 0m, .5m,
         "BLIND_FS_COMPLETE_LINK_CANDIDATES", 200, 200, 200,
-        160, falseAccepted, 0, 39 - falseAccepted,
-        1, .8, .01, .05, 100,
+        160, falseAccepted, 0, 40 - falseAccepted,
+        1, .8, falseAccepted / (160d + falseAccepted), .05, 100,
         new Dictionary<string, long>(), false, false, 0);
 
     private static (List<V9PhysicalSourceResolveMetric> Rows, Dictionary<string, long> Counts) Evidence()
@@ -63,11 +63,29 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
     }
 
     [Test]
+    public void Physical_budget_counts_all_45_but_selection_multiplicity_counts_only_41()
+    {
+        var sha = new string('a', 64);
+        var plan = new V9AdaptiveCalibrationPlan(
+            sha, new V9TrainBlockingDiscoveryOptions(), Options(), [1m, 2m],
+            new(AdaptiveCalibrationPreviewBudget.CurrentVersion, sha, .95, .01, 100, 2),
+            new(.95, .01, 2), 100, 1000,
+            new(MaximumPrefixLength: 4, EndToEndRepetitions: 20,
+                FsBlindGroupingOnly: true, MaximumBlindClusterSize: 16),
+            PreviouslyComparedValidationConfigurations: 30);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(V9AdaptiveCalibrationCoordinator.CountComparedConfigurations(plan, 2), Is.EqualTo(210));
+            Assert.That(V9AdaptiveCalibrationCoordinator.CountSelectableConfigurations(plan, 2), Is.EqualTo(194));
+        }));
+    }
+
+    [Test]
     public void All_four_diagnostic_arms_use_the_same_SQL_ruleset_and_measured_pair_count()
     {
         var (rows, counts) = Evidence();
         var report = V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(report, Has.Count.EqualTo(4));
             Assert.That(report.All(x => !x.EligibleForSelection && x.SharedSurnameCountMeasured), Is.True);
@@ -75,7 +93,7 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
             Assert.That(report.All(x => x.DeltaFalseAcceptedSources == 1), Is.True);
             Assert.That(report.All(x => !x.FalseCreationsMeasured
                 && x.SharedFalseCreations is null && x.BilateralFalseCreations is null), Is.True);
-        });
+        }));
     }
 
     [Test]
@@ -83,8 +101,8 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
     {
         var (rows, counts) = Evidence();
         counts[rows[0].OptionId] = 8;
-        Assert.Throws<InvalidDataException>(() =>
-            V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts)));
     }
 
     [Test]
@@ -94,8 +112,8 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
         var changed = rows[0] with { OptionId = new string('b', 64) + ":" + "TF_TWO_PL_ML_" + Suffixes[0] };
         rows[0] = changed;
         counts.Add(changed.OptionId, 7);
-        Assert.Throws<InvalidDataException>(() =>
-            V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.Build(Options(), rows, counts)));
     }
 
     [Test]
@@ -105,7 +123,7 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
         V9TfSharedSurnamePairedDiagnostics.ValidateOptions(options);
         var diagnosticIndex = Array.FindIndex(options, x => !x.EligibleForSelection);
         options[diagnosticIndex] = options[diagnosticIndex] with { EligibleForSelection = true };
-        Assert.Throws<InvalidDataException>(() =>
-            V9TfSharedSurnamePairedDiagnostics.ValidateOptions(options));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.ValidateOptions(options)));
     }
 }

@@ -932,8 +932,13 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             throw new InvalidDataException("Cobertura SQL por fonte inconsistente.");
 
         var metrics = new List<V9PhysicalSourceResolveMetric>();
+        // Bonferroni hypotheses are only options allowed into the Pareto selector.
+        // Diagnostics still receive physical SQL scoring without influencing bounds.
+        var localSelectableOptions = options.Values.Count(x => x.EligibleForSelection
+            && (evaluatedOptionIds is null || evaluatedOptionIds.Contains(x.OptionId)));
         var localComparedConfigurations = checked(
-            (evaluatedOptionIds?.Count ?? options.Count) * conflictMargins.Count * (fsBlindGroupingOnly ? 1 : includeFsBlindGrouping ? 4 : 3));
+            localSelectableOptions * conflictMargins.Count
+            * (fsBlindGroupingOnly ? 1 : includeFsBlindGrouping ? 4 : 3));
         var predeclaredComparedConfigurations = totalComparedConfigurations ?? localComparedConfigurations;
         if (predeclaredComparedConfigurations < localComparedConfigurations)
             throw new InvalidDataException("Multiplicidade global não pode omitir configurações comparadas.");

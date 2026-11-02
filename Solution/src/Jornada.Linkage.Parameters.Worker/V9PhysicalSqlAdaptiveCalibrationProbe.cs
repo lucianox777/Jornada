@@ -535,9 +535,14 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             finalResolve,
             sourceResolve,
             sourceResolve is null ? null : V9PostResolveAdaptiveSelector.EvaluateValidation(
-                "VALIDATION", usesTestLabels: false, budget, sourceResolve,
-                physicalReport.Options.ToDictionary(x => x.OptionId,
-                    x => x.Validation.BlockingFalseDegreeP99, StringComparer.Ordinal)),
+                "VALIDATION", usesTestLabels: false, budget,
+                sourceResolve.Where(row => optionList.Any(option =>
+                    option.EligibleForSelection && option.OptionId == row.OptionId)).ToArray(),
+                physicalReport.Options
+                    .Where(x => optionList.Any(option =>
+                        option.EligibleForSelection && option.OptionId == x.OptionId))
+                    .ToDictionary(x => x.OptionId,
+                        x => x.Validation.BlockingFalseDegreeP99, StringComparer.Ordinal)),
             frozen.AsReadOnly(), endToEnd.AsReadOnly());
     }
 
