@@ -67,6 +67,19 @@ class EightReceiptsBindTests(unittest.TestCase):
             module.bind_receipts(self.csv, self.receipts,
                                  evidence_dir=self.evidence)
 
+    def test_source_census_changed_after_receipts_rejected(self):
+        original = self.sources.read_text(encoding="utf-8")
+        self.sources.write_text(original.replace("id0\\n", "changed0\\n", 1), encoding="utf-8")
+        with self.assertRaises(ValueError):
+            module.bind_receipts(self.csv, self.receipts,
+                                 evidence_dir=self.evidence, source_ids_csv=self.sources)
+
+    def test_candidate_universe_changed_after_receipts_rejected(self):
+        self.csv.write_text("LeftStableId,RightStableId,SharedSurname\\na,b,0\\n", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            module.bind_receipts(self.csv, self.receipts,
+                                 evidence_dir=self.evidence, source_ids_csv=self.sources)
+
     def test_missing_receipt_rejected(self):
         self.receipts.pop(next(iter(self.receipts)))
         with self.assertRaises(ValueError):
