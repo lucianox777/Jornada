@@ -243,7 +243,9 @@ jobs:
   physical-seed42:
     name: SQL físico 30k clean — FS blind Rank-Resolve TF0
     needs: [impact, physical-30k]
-    if: always()
+    # Manual preflight is deliberately NOT physical evidence. The physical check
+    # is skipped (not green) in this mode; PR and execute_30k remain fail-closed.
+    if: ${{ always() && !(github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

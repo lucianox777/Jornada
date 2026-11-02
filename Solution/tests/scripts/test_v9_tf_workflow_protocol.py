@@ -28,6 +28,14 @@ class TfWorkflowProtocolTests(unittest.TestCase):
         self.assertIn("git-rechecked.json", script)
         self.assertIn("tf-shared-paired-diagnostics.json", script)
         self.assertIn("DEFERRED_NOT_CERTIFIED", script)
+        self.assertIn(
+            "if: ${{ always() && !(github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight') }}",
+            script,
+        )  # Only preflight skips the physical certification check.
+        self.assertIn(
+            "if: github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k' && needs.impact.outputs.run_physical_30k == 'true'",
+            script,
+        )  # Executing 30k still requires manual mode AND impacted physical gate.
 
 
 if __name__ == "__main__":
