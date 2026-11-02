@@ -227,8 +227,8 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 var definedRates = rows.Where(x => x.AcceptedLinks > 0)
                     .Select(x => (decimal)x.FalseLinks / x.AcceptedLinks).ToArray();
                 return new JointCandidate(g.Key.UpperThreshold, g.Key.LowerThreshold,
-                    rows.Sum(x => x.FalseLinks), rows.Sum(x => x.FalseNewReferences),
-                    rows.Sum(x => x.PendingAfter),
+                    CheckedJointSum(rows, x => x.FalseLinks, "false links"), CheckedJointSum(rows, x => x.FalseNewReferences, "false new references"),
+                    CheckedJointSum(rows, x => x.PendingAfter, "pending sources"),
                     definedRates.Length == 0 ? null : definedRates.Max(),
                     rows.Length - definedRates.Length,
                     rows.Min(x => x.BCubedF1), false);
@@ -312,7 +312,7 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 {
                     var rows = g.ToArray();
                     return new JointLowerCandidate(g.Key,
-                        rows.Sum(x => x.FalseNewReferences), rows.Sum(x => x.PendingAfter),
+                        CheckedJointSum(rows, x => x.FalseNewReferences, "false new references"), CheckedJointSum(rows, x => x.PendingAfter, "pending sources"),
                         rows.Max(x => x.FalseNewReferences), rows.Max(x => x.PendingAfter),
                         false);
                 }).OrderBy(x => x.LowerThreshold).ToArray();
@@ -370,6 +370,22 @@ public static partial class V9LowerNonMatchTrainCalibrator
             UpperCandidates: Array.AsReadOnly(upperFrontier),
             LowerCandidates: Array.AsReadOnly(lowerFrontier),
             DescriptiveLowerFinalists: Array.AsReadOnly(finalists));
+    }
+
+    private static long CheckedJointSum(IEnumerable<JointMeasurement> rows,
+        Func<JointMeasurement, long> selector, string metric)
+    {
+        try
+        {
+            return rows.Sum(selector);
+        }
+        catch (OverflowException ex)
+        {
+            // Every input count can fit Int64 individually while the total
+            // across physical orders cannot. Reject the receipt as invalid
+            // evidence instead of exposing an arithmetic runtime exception.
+            throw new InvalidDataException("Gold TRAIN aggregate overflows Int64: " + metric, ex);
+        }
     }
 
     private static string DecimalJoint(decimal x) =>
