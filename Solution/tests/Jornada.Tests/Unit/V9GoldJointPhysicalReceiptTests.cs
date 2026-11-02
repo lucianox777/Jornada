@@ -363,6 +363,38 @@ public sealed class V9GoldJointPhysicalReceiptTests
     }
 
     [Test]
+    public void Zero_published_sources_require_null_published_only_metrics()
+    {
+        var receipt = Receipt();
+        var gold = (JsonObject)receipt["goldBcubed"]!;
+        gold["PublishedSources"] = 0;
+        gold["GoldIdentityGroups"] = 0;
+        gold["PendingSources"] = 20;
+        gold["PendingSourceRate"] = 1.0;
+        gold["StandardPrecision"] = 1.0;
+        gold["StandardRecall"] = .25;
+        gold["StandardF1"] = .4;
+        gold["CoverageAwarePrecision"] = 0.0;
+        gold["CoverageAwareRecall"] = 0.0;
+        gold["CoverageAwareF1"] = 0.0;
+        gold["PublishedOnlyPrecision"] = null;
+        gold["PublishedOnlyRecall"] = null;
+        ((JsonObject)receipt["goldThreeOrderTrial"]!)["publishedSourceCount"] = 0;
+        var publication = (JsonObject)receipt["publication"]!;
+        publication["trueExistingLinks"] = 0;
+        publication["falseExistingLinks"] = 0;
+        publication["newIdentitySources"] = 0;
+        publication["pendingSources"] = 20;
+        receipt["trueAccepted"] = 0;
+        receipt["falseAccepted"] = 0;
+        Assert.DoesNotThrow((Action)(() =>
+            V9GoldJointPhysicalReceipt.Read(Bytes(receipt), Fit, Gold, Csv, Selection)));
+
+        gold["PublishedOnlyPrecision"] = 1.0;
+        Reject(receipt);
+    }
+
+    [Test]
     public void Rejects_certification_and_production_activation_claims()
     {
         var receipt = Receipt();
