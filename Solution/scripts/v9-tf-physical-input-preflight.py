@@ -27,6 +27,7 @@ def preflight(candidate_csv: Path, *, source_count: int, alpha=.5, threshold=.95
             raise ValueError("Physical candidate CSV must have exact stable-ID schema")
         seen = set()
         shared = 0
+        source_ids = set()
         for row in reader:
             left, right = row["LeftStableId"], row["RightStableId"]
             if not left or not right or left == right:
@@ -37,9 +38,12 @@ def preflight(candidate_csv: Path, *, source_count: int, alpha=.5, threshold=.95
             if pair in seen:
                 raise ValueError("Repeated candidate pair")
             seen.add(pair)
+            source_ids.update(pair)
             shared += row["SharedSurname"] == "1"
     if not seen:
         raise ValueError("No physically produced candidate pairs")
+    if len(source_ids) > source_count:
+        raise ValueError("Candidate pairs reference more stable IDs than declared sources")
     options = grid.option_grid(alpha=alpha, threshold=threshold)
     by_id = {x["OptionId"]: x for x in options}
     diagnostics = [x for x in options if x["OptionId"].startswith("TF_SHARED_PL_ML_")]
