@@ -42,13 +42,13 @@ class PhysicalInputTests(unittest.TestCase):
         with self.csv.open("a", encoding="utf-8") as stream:
             stream.write("b,a,1\n")
         with self.assertRaises(ValueError):
-            module.preflight(self.csv, source_count=30000)
+            module.preflight(self.csv, source_count=30000, source_ids_csv=self.sources)
 
     def test_invalid_shared_flag_fails(self):
         self.csv.write_text("LeftStableId,RightStableId,SharedSurname\na,b,unknown\n",
                             encoding="utf-8")
         with self.assertRaises(ValueError):
-            module.preflight(self.csv, source_count=30000)
+            module.preflight(self.csv, source_count=30000, source_ids_csv=self.sources)
 
 
 if __name__ == "__main__":
