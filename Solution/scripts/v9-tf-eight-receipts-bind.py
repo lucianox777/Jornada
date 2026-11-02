@@ -16,7 +16,8 @@ preflight = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(preflight)
 
 
-def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000):
+def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000,
+                  evidence_dir: Path | None = None):
     contract = preflight.preflight(candidate_csv, source_count=source_count)
     expected = {}
     for pair in contract["Pairs"]:
@@ -24,6 +25,8 @@ def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000
         expected[pair["BilateralOptionId"]] = pair["DiagnosticOptionId"]
     if not isinstance(receipts, dict) or set(receipts) != set(expected):
         raise ValueError("Exactly eight physical TF model receipts required")
+    if evidence_dir is None or not evidence_dir.is_dir():
+        raise ValueError("Physical evidence directory is mandatory")
     digest = contract["CandidatePairsSha256"]
     for option_id in expected:
         row = receipts[option_id]
@@ -40,6 +43,16 @@ def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000
             if (not isinstance(value, str) or len(value) != 64
                     or any(ch not in "0123456789abcdef" for ch in value)):
                 raise ValueError("Missing physical evidence hash: " + key)
+        for key, file_key in (("PhysicalRunSha256", "PhysicalRunArtifact"),
+                              ("FittedModelSha256", "FittedModelArtifact")):
+            filename = row.get(file_key)
+            if (not isinstance(filename, str) or not filename
+                    or Path(filename).name != filename):
+                raise ValueError("Evidence artifact must be a simple filename")
+            artifact = evidence_dir / filename
+            if (not artifact.is_file() or artifact.is_symlink()
+                    or hashlib.sha256(artifact.read_bytes()).hexdigest() != row[key]):
+                raise ValueError("Physical artifact missing or hash mismatch")
     return {"ContractVersion": "V9_TF_30K_EIGHT_RECEIPTS_BOUND_V1",
             "CandidatePairsSha256": digest, "SourceRecords": source_count,
             "PhysicalReceiptsVerified": 8, "TestUsed": False,
@@ -52,6 +65,7 @@ def main():
     parser.add_argument("--candidate-csv", type=Path, required=True)
     parser.add_argument("--receipts", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--evidence-dir", type=Path, required=True)
     args = parser.parse_args()
     def unique(pairs):
         obj = {}
@@ -64,7 +78,8 @@ def main():
         raise ValueError("Nonfinite JSON constant: " + token)
     receipts = json.loads(args.receipts.read_text(encoding="utf-8"),
                           object_pairs_hook=unique, parse_constant=reject)
-    result = bind_receipts(args.candidate_csv, receipts)
+    result = bind_receipts(args.candidate_csv, receipts,
+                           evidence_dir=args.evidence_dir)
     with args.output.open("x", encoding="utf-8") as out:
         json.dump(result, out, indent=2, allow_nan=False)
         out.write("\n")
