@@ -203,6 +203,18 @@ class V9NestedStudyFingerprintTests(unittest.TestCase):
         self.assertEqual(json.loads(destination.read_text()), plan)
         self.assertEqual(json.loads(destination.with_suffix(".tf-budget.json").read_text()), budget)
 
+    def test_preexisting_tf_budget_blocks_plan_before_corpus_read(self):
+        # An existing frozen budget is never overwritten or paired with a new
+        # plan, even if the caller supplies an unreadable/missing corpus.
+        destination = self.root / "already-budgeted.json"
+        budget = destination.with_suffix(".tf-budget.json")
+        budget.write_text("preserved\\n", encoding="utf-8")
+        with self.assertRaises(FileExistsError):
+            nested.prepare(self.root / "missing-corpus.csv", destination,
+                           tf_search=True)
+        self.assertFalse(destination.exists())
+        self.assertEqual(budget.read_text(encoding="utf-8"), "preserved\\n")
+
     def test_missing_published_ibge_reference_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "pinned-ibge"):
             self.prepare("no-pin", tf_search=True)
