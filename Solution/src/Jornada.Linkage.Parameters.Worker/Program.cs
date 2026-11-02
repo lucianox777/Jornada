@@ -2,6 +2,14 @@ using Jornada.Operational.Sql;
 using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Parameters.Worker;
 
+// Explicitly read the freshly published SQL IBGE reference for the 30k preflight.
+// This entry point never fits, certifies, or activates a model.
+if (args.Length > 0 && args[0] == "--v9-tf-export-ibge-pin")
+{
+    await V9TfPinnedIbgePreflightCli.RunAsync(args);
+    return;
+}
+
 if (args.Length > 0 && args[0] == "--v9-prepare-gold-runner")
 {
     await V9GoldRunnerVariantPreparation.RunAsync(args);
