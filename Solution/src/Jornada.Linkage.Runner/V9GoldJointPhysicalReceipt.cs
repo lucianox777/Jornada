@@ -56,11 +56,24 @@ public static class V9GoldJointPhysicalReceipt
         return number;
     }
 
+    // System.Text.Json can successfully parse a nonzero JSON decimal such as
+    // 1e-999 as floating-point zero. That changes the measured physical metric
+    // while preserving a syntactically valid receipt, so reject such underflow.
+    private static bool NonzeroMantissa(JsonElement value)
+    {
+        var token = value.GetRawText();
+        var exponent = token.IndexOf('e');
+        if (exponent < 0) exponent = token.IndexOf('E');
+        return token.AsSpan(0, exponent < 0 ? token.Length : exponent)
+            .IndexOfAnyExcept("0.-+".AsSpan()) >= 0;
+    }
+
     private static double UnitMetric(JsonElement obj, string name)
     {
         var value = Required(obj, name);
         if (value.ValueKind != JsonValueKind.Number || !value.TryGetDouble(out var number)
-            || !double.IsFinite(number) || number is < 0d or > 1d)
+            || !double.IsFinite(number) || number is < 0d or > 1d
+            || (number == 0d && NonzeroMantissa(value)))
             throw new InvalidDataException("Joint TRAIN invalid B-cubed metric " + name);
         return number;
     }
