@@ -34,6 +34,17 @@ class PhysicalInputTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.preflight(self.csv, source_count=30000, source_ids_csv=self.sources)
 
+    def test_malformed_candidate_extra_column_rejected(self):
+        self.csv.write_text("LeftStableId,RightStableId,SharedSurname\\na,b,1,unexpected\\n", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            module.preflight(self.csv, source_count=30000, source_ids_csv=self.sources)
+
+    def test_malformed_source_extra_column_rejected(self):
+        with self.sources.open("a", encoding="utf-8") as stream:
+            stream.write("malformed,extra\\n")
+        with self.assertRaises(ValueError):
+            module.preflight(self.csv, source_count=30000, source_ids_csv=self.sources)
+
     def test_non_30k_fails(self):
         with self.assertRaises(ValueError):
             module.preflight(self.csv, source_count=29999, source_ids_csv=self.sources)
