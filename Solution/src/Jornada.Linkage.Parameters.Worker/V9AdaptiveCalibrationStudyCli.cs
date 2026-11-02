@@ -123,6 +123,41 @@ public static class V9AdaptiveCalibrationStudyCli
                 else await V9FittedSnapshotArtifact.WriteNewAsync(path, configuration.Snapshot);
             }
             await WriteNewJsonAsync(Path.Combine(outputPath, "study.json"), result);
+            // Descriptive paired evidence only; never enters Pareto or publication.
+            var paired = new List<object>();
+            foreach (var diagnostic in plan.ModelOptions.Where(x =>
+                !x.EligibleForSelection && x.OptionId.StartsWith("TF_SHARED_PL_ML_", StringComparison.Ordinal)))
+            {
+                var bilateralId = "TF_TWO_PL_ML_" + diagnostic.OptionId["TF_SHARED_PL_ML_".Length..];
+                if (!plan.ModelOptions.Any(x => x.EligibleForSelection && x.OptionId == bilateralId))
+                    throw new InvalidDataException("Diagnóstico TF sem controle bilateral elegível.");
+                var diagnosticRows = result.SourceMeasurements.Where(x =>
+                    x.OptionId.EndsWith(":" + diagnostic.OptionId, StringComparison.Ordinal)).ToArray();
+                var bilateralRows = result.SourceMeasurements.Where(x =>
+                    x.OptionId.EndsWith(":" + bilateralId, StringComparison.Ordinal)).ToArray();
+                if (diagnosticRows.Length == 0)
+                    throw new InvalidDataException("Diagnóstico TF sem medição física.");
+                foreach (var row in diagnosticRows)
+                {
+                    var control = bilateralRows.SingleOrDefault(x =>
+                        x.ConflictMargin == row.ConflictMargin && x.CandidateGrouping == row.CandidateGrouping)
+                        ?? throw new InvalidDataException("Diagnóstico TF sem medição bilateral pareada.");
+                    paired.Add(new
+                    {
+                        DiagnosticOptionId = diagnostic.OptionId, BilateralOptionId = bilateralId,
+                        row.ConflictMargin, row.CandidateGrouping,
+                        Shared = new { Recall = row.GlobalSourceRecall, Fdr = row.FdrAfterResolve,
+                            FalseCreations = row.FalseAcceptedSourceObservations, Pending = row.Unresolved },
+                        Bilateral = new { Recall = control.GlobalSourceRecall, Fdr = control.FdrAfterResolve,
+                            FalseCreations = control.FalseAcceptedSourceObservations, Pending = control.Unresolved },
+                        SharedSurnameCandidatePairs = (long?)null,
+                        SharedSurnameCountMeasured = false, EligibleForSelection = false
+                    });
+                }
+            }
+            if (paired.Count > 0)
+                await WriteNewJsonAsync(Path.Combine(outputPath, "tf-shared-paired-diagnostics.json"), paired);
+
             Console.WriteLine(JsonSerializer.Serialize(new
             {
                 output = outputPath, result.PlanSha256,
