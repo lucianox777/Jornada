@@ -18,17 +18,19 @@ class EightReceiptsBindTests(unittest.TestCase):
                             encoding="utf-8")
         contract = module.preflight.preflight(self.csv, source_count=30000)
         self.evidence = Path(self.tmp.name)
-        (self.evidence / "run.bin").write_bytes(b"physical-run")
         (self.evidence / "model.bin").write_bytes(b"fitted-model")
         self.receipts = {}
         for pair in contract["Pairs"]:
             for option in (pair["DiagnosticOptionId"], pair["BilateralOptionId"]):
+                run_name = f"{option}.bin"
+                run_bytes = ("physical-run-" + option).encode()
+                (self.evidence / run_name).write_bytes(run_bytes)
                 self.receipts[option] = dict(
                     OptionId=option, CandidatePairsSha256=contract["CandidatePairsSha256"],
                     SourceRecords=30000, TestUsed=False, PhysicallyExecuted=True,
-                    PhysicalRunSha256=hashlib.sha256(b"physical-run").hexdigest(),
+                    PhysicalRunSha256=hashlib.sha256(run_bytes).hexdigest(),
                     FittedModelSha256=hashlib.sha256(b"fitted-model").hexdigest(),
-                    PhysicalRunArtifact="run.bin", FittedModelArtifact="model.bin")
+                    PhysicalRunArtifact=run_name, FittedModelArtifact="model.bin")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -39,7 +41,16 @@ class EightReceiptsBindTests(unittest.TestCase):
         self.assertEqual(result["PhysicalReceiptsVerified"], 8)
 
     def test_tampered_artifact_rejected(self):
-        (self.evidence / "run.bin").write_bytes(b"tampered")
+        option = next(iter(self.receipts))
+        (self.evidence / self.receipts[option]["PhysicalRunArtifact"]).write_bytes(b"tampered")
+        with self.assertRaises(ValueError):
+            module.bind_receipts(self.csv, self.receipts,
+                                 evidence_dir=self.evidence)
+
+    def test_reused_run_artifact_rejected(self):
+        ids = list(self.receipts)
+        self.receipts[ids[1]]["PhysicalRunArtifact"] = self.receipts[ids[0]]["PhysicalRunArtifact"]
+        self.receipts[ids[1]]["PhysicalRunSha256"] = self.receipts[ids[0]]["PhysicalRunSha256"]
         with self.assertRaises(ValueError):
             module.bind_receipts(self.csv, self.receipts,
                                  evidence_dir=self.evidence)
@@ -47,7 +58,8 @@ class EightReceiptsBindTests(unittest.TestCase):
     def test_missing_receipt_rejected(self):
         self.receipts.pop(next(iter(self.receipts)))
         with self.assertRaises(ValueError):
-            module.bind_receipts(self.csv, self.receipts)
+            module.bind_receipts(self.csv, self.receipts,
+                                     evidence_dir=self.evidence)
 
     def test_unexecuted_and_unpinned_rejected(self):
         option = next(iter(self.receipts))
