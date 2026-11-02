@@ -735,13 +735,13 @@ public static class V9GoldHarnessCommand
                 || string.IsNullOrWhiteSpace(Get("base_person_id")))
                 throw new InvalidDataException("CSV Gold TRAIN exige observacao_id e base_person_id não vazios.");
             var birth = Get("data_nascimento");
-            var name = Get("nome");
-            var mother = Get("nome_mae");
+            var personName = Get("nome");
+            var motherName = Get("nome_mae");
             // A physical no-CPF TRAIN source must satisfy the same minimum
             // evidence gate as the operational resolver: name + mother OR
             // name + birth. Name alone must not enter the linkage study.
-            if (string.IsNullOrWhiteSpace(name)
-                || (string.IsNullOrWhiteSpace(mother) && string.IsNullOrWhiteSpace(birth)))
+            if (string.IsNullOrWhiteSpace(personName)
+                || (string.IsNullOrWhiteSpace(motherName) && string.IsNullOrWhiteSpace(birth)))
                 throw new InvalidDataException("CSV Gold TRAIN sem CPF exige nome e mãe ou nome e nascimento.");
             var manager = Get("gestor");
             if (manager.Length is < 1 or > 40 || manager.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '_'))
@@ -756,8 +756,8 @@ public static class V9GoldHarnessCommand
                 throw new InvalidDataException("observacao_id TRAIN repetido ou colisão da chave estável.");
             rows.Add(new(stableKey,
                 holdoutNamespace is null ? Get("base_person_id") : holdoutNamespace + "|" + Get("base_person_id"),
-                manager, new(null, "SEM_CPF", name,
-                string.IsNullOrWhiteSpace(birth) ? null : DateOnly.ParseExact(birth, "yyyy-MM-dd", CultureInfo.InvariantCulture), mother)));
+                manager, new(null, "SEM_CPF", personName,
+                string.IsNullOrWhiteSpace(birth) ? null : DateOnly.ParseExact(birth, "yyyy-MM-dd", CultureInfo.InvariantCulture), motherName)));
         }
         if (rows.Count == 0 || (identities is not null &&
             !rows.Select(x => x.Truth).ToHashSet(StringComparer.Ordinal).SetEquals(identities)))
