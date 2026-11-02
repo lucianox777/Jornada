@@ -39,8 +39,8 @@ def preflight(candidate_csv: Path, *, source_count: int, source_ids_csv: Path,
     digest = hashlib.sha256(candidate_csv.read_bytes()).hexdigest()
     with candidate_csv.open(newline="", encoding="utf-8-sig") as stream:
         reader = csv.DictReader(stream)
-        if not reader.fieldnames or set(reader.fieldnames) != {
-                "LeftStableId", "RightStableId", "SharedSurname"}:
+        if reader.fieldnames != [
+                "LeftStableId", "RightStableId", "SharedSurname"]:
             raise ValueError("Physical candidate CSV must have exact stable-ID schema")
         seen = set()
         shared = 0
