@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text.Json;
 using Jornada.Linkage.Runner;
 
 namespace Jornada.Tests.Unit;
@@ -133,4 +135,60 @@ public sealed class V9GoldHarnessSafetyTests
     public void Accepts_only_explicit_disposable_instance_contract_before_resident_marker_and_empty_checks() =>
         Assert.DoesNotThrow((Action)(() => V9GoldHarnessCommand.ValidateDisposableConnection(
             "Server=(localdb)\\JornadaV9Gold20261019_0000abcd;Database=JornadaHarness;Integrated Security=true")));
+
+    [TestCase("selection")]
+    [TestCase("gold")]
+    [TestCase("csv")]
+    public void Joint_train_rejects_unpinned_frozen_input_before_SQL(string changedInput)
+    {
+        // A direct Runner invocation must not bypass the PowerShell orchestrator's
+        // SHA checks. All files are deliberately syntactically incomplete: the
+        // expected failure must be the preregistered digest, BEFORE JSON/SQL.
+        var root = Path.Combine(Path.GetTempPath(),
+            "JornadaV9JointPreflight_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var selectionPath = Path.Combine(root, "selection.json");
+            var validationPath = Path.Combine(root, "validation.json");
+            var goldPath = Path.Combine(root, "gold.fitted.json");
+            var csvPath = Path.Combine(root, "train.csv");
+            File.WriteAllText(selectionPath, "{}");
+            File.WriteAllText(validationPath, "{}");
+            File.WriteAllText(goldPath, "{}");
+            File.WriteAllText(csvPath, "synthetic,not,a,real,corpus");
+            string Digest(string path) => V9GoldJointTrainMatrixCommand.Sha(File.ReadAllBytes(path));
+            string Pin(string name, string path) => changedInput == name
+                ? new string('f', 64) : Digest(path);
+            var uppers = new[] { .8m, .9m };
+            var lowers = new[] { .1m, .2m };
+            var plan = new V9GoldJointTrainMatrixCommand.Plan(
+                V9GoldJointTrainMatrixCommand.Version, new string('a', 64),
+                Pin("gold", goldPath), Pin("csv", csvPath), Pin("selection", selectionPath),
+                uppers, lowers, 2, ManualCalibrationRequested: true, TestUsed: false,
+                Jornada.Linkage.Parameters.Worker.V9LowerNonMatchTrainCalibrator
+                    .JointGridFingerprint(uppers, lowers));
+            var bytes = JsonSerializer.SerializeToUtf8Bytes(plan);
+            var planPath = Path.Combine(root,
+                V9GoldJointTrainMatrixCommand.Sha(bytes) +
+                V9GoldJointTrainMatrixCommand.PlanSuffix);
+            File.WriteAllBytes(planPath, bytes);
+            var output = Path.Combine(root, "must-not-exist");
+            var args = new[] { V9GoldHarnessCommand.JointTrainTrialFlag,
+                selectionPath, validationPath, goldPath, csvPath, output,
+                "BASELINE_G0_G1_G2_G3", "LOWER_NONMATCH=0.1", "UPPER_TRAIN=0.8",
+                planPath };
+            var exception = Assert.ThrowsAsync<InvalidDataException>(async () =>
+                await V9GoldHarnessCommand.RunJointTrainTrialAsync(args,
+                    "Server=(localdb)\\\\JornadaV9Gold20261031_00000001;Database=JornadaHarness;Integrated Security=true"));
+            Assert.That(exception!.Message, Does.Contain("frozen input provenance"));
+            Assert.That(Directory.Exists(output), Is.False,
+                "Rejected TRAIN evidence must not create an output directory.");
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+        }
+    }
+
 }
