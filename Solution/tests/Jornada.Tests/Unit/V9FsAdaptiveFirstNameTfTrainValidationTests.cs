@@ -358,7 +358,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var u = V9TrainSqlNominalUCalibration.Fit(
             unknownFrame.Pairs.Where(x => x.Partition == "TRAIN").ToArray(),
             CompositeNominalTfSideV9.Person, config.SmoothingAlpha, TrainCorpus,
-            referenceFrequencies: Reference().FrequenciesForUnit(
+            publishedFrequencies: Reference().FrequenciesForUnit(
                 CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName));
         var tf = V9TrainSqlNominalUCalibration.Preview(
             u, Reference(), CompositeNominalLevelV9.ExactFirst,

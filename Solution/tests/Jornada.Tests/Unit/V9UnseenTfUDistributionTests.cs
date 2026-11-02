@@ -18,7 +18,7 @@ public sealed class V9UnseenTfUDistributionTests
         var zu = V9UnseenTfUDistribution.Resolve(train, ibge, policy, "ZULEICA");
         var jo = V9UnseenTfUDistribution.Resolve(train, ibge, policy, "JOANA");
         var ma = V9UnseenTfUDistribution.Resolve(train, ibge, policy, "MARIA");
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(policy.PolicyVersion, Is.EqualTo(V9UnseenTfUDistribution.Version));
             Assert.That(policy.ReservedUProbability, Is.EqualTo(.5m / 3m));
@@ -26,13 +26,13 @@ public sealed class V9UnseenTfUDistributionTests
             Assert.That(zu / jo, Is.EqualTo(2m).Within(.000000001m));
             Assert.That(ma + zu + jo, Is.EqualTo(1m).Within(.000000001m));
             Assert.That(ma, Is.EqualTo(2.5m / 3m));
-        });
-        Assert.Throws<InvalidDataException>(() => V9UnseenTfUDistribution.Resolve(
-            train, ibge, policy, "NOT_PUBLISHED"));
-        Assert.Throws<InvalidDataException>(() => V9UnseenTfUDistribution.Validate(
-            policy with { UnseenReferenceMass = .20m }, train, ibge));
-        Assert.Throws<InvalidDataException>(() => V9UnseenTfUDistribution.Validate(
-            policy with { PolicyVersion = "UNKNOWN" }, train, ibge));
+        }));
+        Assert.Throws<InvalidDataException>((Action)(() => V9UnseenTfUDistribution.Resolve(
+            train, ibge, policy, "NOT_PUBLISHED")));
+        Assert.Throws<InvalidDataException>((Action)(() => V9UnseenTfUDistribution.Validate(
+            policy with { UnseenReferenceMass = .20m }, train, ibge)));
+        Assert.Throws<InvalidDataException>((Action)(() => V9UnseenTfUDistribution.Validate(
+            policy with { PolicyVersion = "UNKNOWN" }, train, ibge)));
     }
 
     [Test]

@@ -489,8 +489,8 @@ public sealed class V9FittedSnapshotTests
         Assert.That(first.Score, Is.EqualTo(second.Score));
         var missing = new IdentityObservation(null, "SEM_CPF", "NAOFONTE SILVA", null, null);
         var missingCandidate = candidate with { FullName = "NAOFONTE COSTA" };
-        Assert.Throws<InvalidDataException>(() => snap.RankPreview(missing, [missingCandidate]));
-        Assert.Throws<InvalidDataException>(() => V9FittedSnapshot.Create(p with
+        Assert.Throws<InvalidDataException>((Action)(() => snap.RankPreview(missing, [missingCandidate])));
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(p with
         {
             TfCalibration = calibration with
             {
@@ -498,7 +498,7 @@ public sealed class V9FittedSnapshotTests
                 TrainUnitUByValue = trainU,
                 UnseenAllocation = unseen with { ReservedUProbability = .8m }
             }
-        }));
+        })));
     }
 
     [Test]
