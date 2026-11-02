@@ -26,9 +26,16 @@ def _metrics(raw):
 def report(manifest, receipts):
     if manifest.get("ContractVersion") != "V9_TF_SHARED_SURNAME_PAIRED_DIAGNOSTIC_V1":
         raise ValueError("Unsupported paired contract")
+    if (manifest.get("PhysicallyExecuted") is not False
+            or manifest.get("TestUsed") is not False
+            or manifest.get("EligibleTfModels") != 41
+            or manifest.get("DiagnosticModels") != 4):
+        raise ValueError("Unfrozen or ineligible TF diagnostic manifest")
     pairs = manifest.get("Pairs")
     if not isinstance(pairs, list) or len(pairs) != 4:
         raise ValueError("Exactly four diagnostics required")
+    if len({p["DiagnosticOptionId"] for p in pairs}) != 4 or len({p["BilateralOptionId"] for p in pairs}) != 4:
+        raise ValueError("Duplicate diagnostic or bilateral model")
     if not isinstance(receipts, dict) or set(receipts) != {
             p["DiagnosticOptionId"] for p in pairs}:
         raise ValueError("Missing/extra physical receipts")
@@ -39,6 +46,8 @@ def report(manifest, receipts):
                 or row.get("BilateralOptionId") != pair["BilateralOptionId"]):
             raise ValueError("Mismatched TF pair")
         sha = pair["CandidatePairsSha256"]
+        if sha != manifest.get("CandidatePairsSha256"):
+            raise ValueError("Pair candidate SHA differs from frozen manifest")
         if (row.get("DiagnosticCandidatePairsSha256") != sha
                 or row.get("BilateralCandidatePairsSha256") != sha):
             raise ValueError("Unpaired physical candidate sets")
@@ -53,7 +62,8 @@ def report(manifest, receipts):
                 name: diagnostic[name] - control[name] for name in FIELDS},
         })
     return {"ContractVersion": "V9_TF_SHARED_SURNAME_PAIRED_REPORT_V1",
-            "PhysicallyMeasured": True, "EligibleForAutomaticSelection": False,
+            "ReceiptClaimsValidated": True, "PhysicallyMeasured": False,
+            "EligibleForAutomaticSelection": False,
             "Pairs": rows}
 
 
