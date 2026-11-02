@@ -34,6 +34,16 @@ class PhysicalInputTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             module.preflight(self.csv, source_count=30000, source_ids_csv=self.sources)
 
+    def test_duplicate_candidate_header_rejected(self):
+        self.csv.write_text("LeftStableId,RightStableId,SharedSurname,LeftStableId\na,b,1,a\n", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            module.preflight(self.csv, source_count=30000, source_ids_csv=self.sources)
+
+    def test_reordered_candidate_header_rejected(self):
+        self.csv.write_text("RightStableId,LeftStableId,SharedSurname\nb,a,1\n", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            module.preflight(self.csv, source_count=30000, source_ids_csv=self.sources)
+
     def test_malformed_candidate_extra_column_rejected(self):
         self.csv.write_text("LeftStableId,RightStableId,SharedSurname\\na,b,1,unexpected\\n", encoding="utf-8")
         with self.assertRaises(ValueError):
