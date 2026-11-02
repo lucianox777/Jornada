@@ -101,6 +101,24 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
     }
 
     [Test]
+    public void Pending_reports_include_conflicts_and_unresolved_separately()
+    {
+        var (rows, counts) = Evidence();
+        rows[1] = rows[1] with { Conflicts = 3, Unresolved = rows[1].Unresolved - 3 };
+        var report = V9TfSharedSurnamePairedDiagnostics.Build(
+            Options(), rows, counts, CandidateDigests());
+        var first = report.Single(x => x.DiagnosticOptionId == "TF_SHARED_PL_ML_" + Suffixes[0]);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(first.Shared.Conflicts, Is.EqualTo(3));
+            Assert.That(first.Shared.Unresolved, Is.EqualTo(35));
+            Assert.That(first.Shared.PendingSources, Is.EqualTo(38));
+            Assert.That(first.Bilateral.PendingSources, Is.EqualTo(39));
+            Assert.That(first.DeltaPendingSources, Is.EqualTo(-1));
+        }));
+    }
+
+    [Test]
     public void Count_mismatch_is_never_replaced_with_an_estimate()
     {
         var (rows, counts) = Evidence();

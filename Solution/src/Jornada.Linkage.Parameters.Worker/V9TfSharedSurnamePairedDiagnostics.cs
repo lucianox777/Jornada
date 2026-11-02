@@ -12,7 +12,8 @@ public static class V9TfSharedSurnamePairedDiagnostics
     private const string SharedPrefix = "TF_SHARED_PL_ML_";
     private const string TwoPrefix = "TF_TWO_PL_ML_";
 
-    public sealed record Metrics(double Recall, double? Fdr, long FalseAcceptedSources, long PendingSources);
+    public sealed record Metrics(double Recall, double? Fdr, long FalseAcceptedSources,
+        long PendingSources, long Conflicts, long Unresolved);
 
     public sealed record Row(
         string RulesetSha256, string DiagnosticOptionId, string BilateralOptionId,
@@ -97,10 +98,16 @@ public static class V9TfSharedSurnamePairedDiagnostics
                 || !sharedSurnamePairsByOption.TryGetValue(bilateralQualified, out var bilateralPairs)
                 || sharedPairs < 0 || bilateralPairs < 0 || sharedPairs != bilateralPairs)
                 throw new InvalidDataException("Par TF não foi medido no mesmo universo SQL, com contagem física compatível.");
+            // Pending includes both no-decision and conflict; preserve both
+            // components so that the comparative report never hides conflicts.
             var shared = new Metrics(diagnostic.GlobalSourceRecall, diagnostic.FdrAfterResolve,
-                diagnostic.FalseAcceptedSourceObservations, diagnostic.Unresolved);
+                diagnostic.FalseAcceptedSourceObservations,
+                checked(diagnostic.Conflicts + diagnostic.Unresolved),
+                diagnostic.Conflicts, diagnostic.Unresolved);
             var control = new Metrics(bilateral.GlobalSourceRecall, bilateral.FdrAfterResolve,
-                bilateral.FalseAcceptedSourceObservations, bilateral.Unresolved);
+                bilateral.FalseAcceptedSourceObservations,
+                checked(bilateral.Conflicts + bilateral.Unresolved),
+                bilateral.Conflicts, bilateral.Unresolved);
             result.Add(new Row(ruleset, id, bilateralId, diagnostic.ConflictMargin,
                 diagnostic.CandidateGrouping, candidateSha, sharedPairs, true, shared, control,
                 shared.Recall - control.Recall,
