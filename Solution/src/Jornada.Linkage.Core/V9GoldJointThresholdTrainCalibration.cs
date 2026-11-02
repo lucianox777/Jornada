@@ -215,6 +215,15 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 throw new InvalidDataException("Repeated physical order/pair.");
         }
 
+
+        // All three insertion orders replay the SAME frozen TRAIN source/identity
+        // universe. The count of independent identity groups must therefore be
+        // invariant across orders, even though the number of true-link
+        // opportunities can change with the earlier-wave ordering.
+        if (universeByOrder.Values.Select(x => x.IdentityGroups).Distinct().Count() != 1)
+            throw new InvalidDataException(
+                "TRAIN independent identity-group universe differs across physical Gold orders.");
+
         // The full four-objective frontier is EXPLORATORY ONLY. The normative
         // selection consists of TWO separate problems (v5.00 §7.20):
         // upper = accepted-link recall × accepted-link FDR; then lower =
