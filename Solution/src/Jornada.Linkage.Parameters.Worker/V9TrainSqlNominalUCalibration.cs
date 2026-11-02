@@ -94,8 +94,8 @@ public static class V9TrainSqlNominalUCalibration
                 .Append(term.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .Append('\n');
         if (allocation is not null)
-            canonical.Append("|").Append(allocation.PolicyVersion).Append("|")
-                .Append(allocation.ReservedUProbability).Append("|")
+            canonical.Append('|').Append(allocation.PolicyVersion).Append('|')
+                .Append(allocation.ReservedUProbability).Append('|')
                 .Append(allocation.UnseenReferenceMass);
         var digest = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
