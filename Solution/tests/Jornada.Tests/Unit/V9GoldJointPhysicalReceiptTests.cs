@@ -68,8 +68,11 @@ public sealed class V9GoldJointPhysicalReceiptTests
             ContractVersion = GoldPartitionBcubedAudit.Version,
             Sources = 20, PublishedSources = 16, TrueIdentityGroups = 5,
             GoldIdentityGroups = 4, PendingSources = 4,
-            PendingSourceRate = .2, CoverageAwarePrecision = .8,
-            CoverageAwareRecall = .8, CoverageAwareF1 = .8
+            PendingSourceRate = .2, StandardPrecision = 1.0,
+            StandardRecall = .9, StandardF1 = 0.9473684210526315,
+            CoverageAwarePrecision = .8, CoverageAwareRecall = .8,
+            CoverageAwareF1 = .8, PublishedOnlyPrecision = 1.0,
+            PublishedOnlyRecall = 1.0
         },
         publication = new { trueExistingLinks = 6, falseExistingLinks = 1, newIdentitySources = 9, pendingSources = 4 }
     })!.AsObject();
@@ -318,6 +321,44 @@ public sealed class V9GoldJointPhysicalReceiptTests
         Reject(receipt);
         receipt = Receipt();
         ((JsonObject)receipt["goldBcubed"]!).Remove("CoverageAwareRecall");
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_standard_bcubed_precision_that_ignores_pending_singletons()
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!)["StandardPrecision"] = .8;
+        Reject(receipt);
+        receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!).Remove("StandardPrecision");
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_standard_bcubed_recall_outside_pending_truth_contribution()
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!)["StandardRecall"] = .7;
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_standard_bcubed_f1_that_is_not_harmonic()
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!)["StandardF1"] = .1;
+        Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_published_only_metrics_inconsistent_with_coverage()
+    {
+        var receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!)["PublishedOnlyPrecision"] = .5;
+        Reject(receipt);
+        receipt = Receipt();
+        ((JsonObject)receipt["goldBcubed"]!)["PublishedOnlyRecall"] = null;
         Reject(receipt);
     }
 
