@@ -246,6 +246,42 @@ public sealed class V9GoldJointThresholdTrainTests
     }
 
     [Test]
+    public void Partially_undefined_FDR_disqualifies_upper_from_automatic_selection()
+    {
+        // One of six TRAIN cells has no accepted links. Treating its FDR as
+        // implicitly harmless would favor .9 despite an unmeasured order/cell.
+        var rows = Measurements();
+        rows[6] = rows[6] with { AcceptedLinks = 0, FalseLinks = 0 };
+        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows);
+        var incomplete = study.UpperCandidates.Single(x => x.UpperThreshold == .9m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(incomplete.UndefinedFdrCells, Is.EqualTo(1));
+            Assert.That(incomplete.WorstObservedFdr, Is.EqualTo(0m),
+                "Preserve descriptive observations without pretending all cells were measured.");
+            Assert.That(incomplete.IsParetoFrontier, Is.False);
+            Assert.That(study.SuggestedUpperThreshold, Is.EqualTo(.8m));
+        }));
+    }
+
+    [Test]
+    public void No_upper_is_selected_when_each_has_an_unmeasured_FDR_cell()
+    {
+        var rows = Measurements();
+        rows[0] = rows[0] with { AcceptedLinks = 0, FalseLinks = 0 };
+        rows[6] = rows[6] with { AcceptedLinks = 0, FalseLinks = 0 };
+        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(study.UpperCandidates.All(x => x.UndefinedFdrCells > 0), Is.True);
+            Assert.That(study.SuggestedUpperThreshold, Is.Null);
+            Assert.That(study.SuggestedLowerThreshold, Is.Null);
+            Assert.That(study.Status, Does.Contain("INSUFFICIENT"));
+            Assert.That(study.OperationalActivationAllowed, Is.False);
+        }));
+    }
+
+    [Test]
     public void Rejects_threshold_dependent_truth_denominator_with_valid_recomputed_evidence_sha()
     {
         var rows = Measurements();
