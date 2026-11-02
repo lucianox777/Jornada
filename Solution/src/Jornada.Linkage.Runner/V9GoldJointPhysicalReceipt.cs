@@ -82,7 +82,8 @@ public static class V9GoldJointPhysicalReceipt
     {
         var value = Required(obj, name);
         if (value.ValueKind != JsonValueKind.Number || !value.TryGetDecimal(out var number)
-            || number is < 0m or > 1m)
+            || number is < 0m or > 1m
+            || (number == 0m && NonzeroMantissa(value)))
             throw new InvalidDataException("Joint TRAIN invalid fraction " + name);
         return number;
     }
