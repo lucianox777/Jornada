@@ -2,6 +2,8 @@ name: jornada-windows-production-installer
 
 on:
   push:
+    branches:
+      - master
     paths:
       - 'Solution/install/windows-production/**'
       - 'Solution/src/Jornada.Api/**'
