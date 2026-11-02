@@ -28,6 +28,7 @@ def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000
     if evidence_dir is None or not evidence_dir.is_dir():
         raise ValueError("Physical evidence directory is mandatory")
     digest = contract["CandidatePairsSha256"]
+    used_run_artifacts = set()
     for option_id in expected:
         row = receipts[option_id]
         if (not isinstance(row, dict)
@@ -43,6 +44,10 @@ def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000
             if (not isinstance(value, str) or len(value) != 64
                     or any(ch not in "0123456789abcdef" for ch in value)):
                 raise ValueError("Missing physical evidence hash: " + key)
+        run_artifact = row.get("PhysicalRunArtifact")
+        if run_artifact in used_run_artifacts:
+            raise ValueError("Physical run evidence reused across TF models")
+        used_run_artifacts.add(run_artifact)
         for key, file_key in (("PhysicalRunSha256", "PhysicalRunArtifact"),
                               ("FittedModelSha256", "FittedModelArtifact")):
             filename = row.get(file_key)
@@ -51,6 +56,7 @@ def bind_receipts(candidate_csv: Path, receipts: dict, source_count: int = 30000
                 raise ValueError("Evidence artifact must be a simple filename")
             artifact = evidence_dir / filename
             if (not artifact.is_file() or artifact.is_symlink()
+                    or artifact.stat().st_size == 0
                     or hashlib.sha256(artifact.read_bytes()).hexdigest() != row[key]):
                 raise ValueError("Physical artifact missing or hash mismatch")
     return {"ContractVersion": "V9_TF_30K_EIGHT_RECEIPTS_BOUND_V1",
