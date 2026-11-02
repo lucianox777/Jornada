@@ -143,6 +143,36 @@ jobs:
       - name: Export real SQL-backed pinned IBGE JSON without fitting
         working-directory: Solution
         run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" pinned-ibge.json
+      - name: Print validated pinned IBGE JSON in log and job summary (metadata only)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          pin = json.loads(Path('.local/v9-tf-physical/pinned-ibge.json').read_text(encoding='utf-8'))
+          fields = {'PinnedIbgeReferenceVersionId', 'PinnedIbgePublishedSha256',
+                    'PinnedIbgeMaterializedFrequencySha256', 'PinnedIbgeBootstrap'}
+          bootstrap_fields = {'Provenance', 'People', 'CorpusFingerprint',
+                              'GeneratorVersion', 'GeneratorSeed', 'GenerationHypothesesFingerprint'}
+          if not isinstance(pin, dict) or set(pin) != fields:
+              raise SystemExit('unexpected pinned IBGE fields; do not print')
+          b = pin['PinnedIbgeBootstrap']
+          if not isinstance(b, dict) or set(b) != bootstrap_fields:
+              raise SystemExit('unexpected bootstrap fields; do not print')
+          if (type(pin['PinnedIbgeReferenceVersionId']) is not int or pin['PinnedIbgeReferenceVersionId'] <= 0
+                  or b['Provenance'] != 'SINTETICO_IBGE' or b['People'] != 30000
+                  or b['GeneratorVersion'] != 'JORNADA_SYNTH_CORPUS_CSHARP_V1' or b['GeneratorSeed'] != 42):
+              raise SystemExit('unexpected IBGE/bootstrap metadata; do not print')
+          for h in (pin['PinnedIbgePublishedSha256'], pin['PinnedIbgeMaterializedFrequencySha256'],
+                    b['CorpusFingerprint'], b['GenerationHypothesesFingerprint']):
+              if not isinstance(h, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', h):
+                  raise SystemExit('invalid digest; do not print')
+          content = json.dumps(pin, ensure_ascii=False, indent=2) + '\n'
+          print('PINNED_IBGE_JSON_BEGIN\n' + content + 'PINNED_IBGE_JSON_END')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('### Pinned IBGE — metadata only (no PII)\n\n```json\n' + content + '```\n')
+          PY
       - name: Preserve operator-reviewed pin and exact SHA (no corpus CSV, TEST, or PII)
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
