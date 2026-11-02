@@ -30,6 +30,16 @@ class FrozenJsonTests(unittest.TestCase):
             self.assertFalse(path.exists())
             self.assertFalse(path.with_suffix(".tf-budget.json").exists())
 
+    def test_existing_tf_budget_blocks_plan_before_reading_missing_corpus(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "plan.json"
+            sidecar = path.with_suffix(".tf-budget.json")
+            sidecar.write_text("preserved\\n")
+            with self.assertRaises(FileExistsError):
+                study.prepare(Path(tmp) / "nonexistent.csv", path, tf_search=True)
+            self.assertFalse(path.exists())
+            self.assertEqual(sidecar.read_text(), "preserved\\n")
+
     def test_finite_plan_and_budget_roundtrip(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "plan.json"
