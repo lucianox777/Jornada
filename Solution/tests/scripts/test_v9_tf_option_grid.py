@@ -3,6 +3,8 @@
 import hashlib
 import importlib.util
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -164,6 +166,15 @@ class V9UnitTfDeclaredGridTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "requires TF search"):
                 adaptive.prepare(corpus, destination, pinned_ibge=root / "pinned.json")
             self.assertFalse(destination.exists())
+
+    def test_optimized_python_cannot_skip_adaptive_evidence_verification(self):
+        with tempfile.TemporaryDirectory() as directory:
+            completed = subprocess.run(
+                [sys.executable, "-O", str(SCRIPTS / "v9-adaptive-30k-study.py"),
+                 "verify", directory], capture_output=True, text=True, check=False)
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("V9 evidence verification disabled by optimized Python",
+                          completed.stderr)
 
     def test_bad_pinned_reference_fails_closed(self):
         helper = load("v9-tf-option-grid.py", "tf_grid_guard")
