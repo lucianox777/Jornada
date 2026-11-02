@@ -461,6 +461,47 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void Unseen_tf_is_frozen_and_roundtrips_while_missing_IBGE_remains_rejected()
+    {
+        var p = PositiveTfPayload();
+        var calibration = p.TfCalibration!;
+        var published = new Dictionary<string, decimal>(calibration.Frequencies)
+        {
+            ["JOANA"] = .15m, ["ZULEICA"] = .05m
+        };
+        var trainU = new Dictionary<string, decimal> { ["MARIA"] = 2.5m / 3m };
+        var unseen = V9UnseenTfUDistribution.Fit(trainU, published, 2, .5m);
+        var snap = V9FittedSnapshot.Create(p with
+        {
+            TfCalibration = calibration with
+            {
+                Frequencies = published,
+                TrainUnitUByValue = trainU,
+                UnseenAllocation = unseen
+            }
+        });
+        var loaded = V9FittedSnapshot.Load(snap.SerializeUtf8(), snap.ContentSha256);
+        var observation = new IdentityObservation(null, "SEM_CPF", "JOANA SILVA", null, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "JOANA COSTA", null, null);
+        var first = snap.RankPreview(observation, [candidate]).Single();
+        var second = loaded.RankPreview(observation, [candidate]).Single();
+        Assert.That(first.LogOdds, Is.EqualTo(second.LogOdds));
+        Assert.That(first.Score, Is.EqualTo(second.Score));
+        var missing = new IdentityObservation(null, "SEM_CPF", "NAOFONTE SILVA", null, null);
+        var missingCandidate = candidate with { FullName = "NAOFONTE COSTA" };
+        Assert.Throws<InvalidDataException>(() => snap.RankPreview(missing, [missingCandidate]));
+        Assert.Throws<InvalidDataException>(() => V9FittedSnapshot.Create(p with
+        {
+            TfCalibration = calibration with
+            {
+                Frequencies = published,
+                TrainUnitUByValue = trainU,
+                UnseenAllocation = unseen with { ReservedUProbability = .8m }
+            }
+        }));
+    }
+
+    [Test]
     public void Positive_tf_rejects_other_train_frame_and_person_mother_reference_swap()
     {
         var p = PositiveTfPayload();

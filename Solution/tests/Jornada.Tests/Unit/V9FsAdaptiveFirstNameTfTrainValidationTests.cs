@@ -41,6 +41,8 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var entries = new[]
         {
             new NominalTermFrequencyEntry("NOME_PRENOME", "MARIA", 60, 100, .60m),
+            new NominalTermFrequencyEntry("NOME_PRENOME", "ZULEICA", 12, 100, .12m),
+            new NominalTermFrequencyEntry("NOME_PRENOME", "JOANA", 8, 100, .08m),
             new NominalTermFrequencyEntry("NOME_MAE_PRENOME", "ANA", 30, 100, .30m)
         };
         return FrozenIbgeNominalTfV9.BindPublished(
@@ -312,7 +314,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
-    public void Positive_TF_requires_pinned_snapshot_known_term_and_enough_train_U_support()
+    public void Positive_TF_requires_pinned_snapshot_IBGE_term_and_enough_global_train_U_support()
     {
         var config = new V9FsAdaptiveOptionConfiguration("TF", .5m, .55m, 1m);
         Assert.That((Action)(() =>
@@ -343,8 +345,53 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var unknown = new V9FellegiSunterAdaptiveCalibrationAdapter(
             unknownFrame, [config], Reference());
         var fit = unknown.FitTrain(Model(config), Slice("TRAIN"));
-        Assert.That((Action)(() => unknown.EvaluateValidation(fit, Slice("VALIDATION"))),
-            Throws.TypeOf<InvalidDataException>());
+        var result = unknown.EvaluateValidation(fit, Slice("VALIDATION"));
+        Assert.That(result.UnseenTfUBySideUnit!["Person/FirstName"], Is.EqualTo(1));
+        // The very same unseen U probability is carried into the portable
+        // runtime snapshot; no silent neutral Bayes factor or refit.
+        var snap = unknown.ExportFrozenSnapshot(fit,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m);
+        var replay = V9FittedSnapshot.Load(snap.SerializeUtf8(), snap.ContentSha256);
+        var pair = unknownFrame.Pairs.First(x => x.Partition == "VALIDATION"
+            && x.LeftIdentityGroupId == "VAL-A");
+        var u = V9TrainSqlNominalUCalibration.Fit(
+            unknownFrame.Pairs.Where(x => x.Partition == "TRAIN").ToArray(),
+            CompositeNominalTfSideV9.Person, config.SmoothingAlpha, TrainCorpus,
+            referenceFrequencies: Reference().FrequenciesForUnit(
+                CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName));
+        var tf = V9TrainSqlNominalUCalibration.Preview(
+            u, Reference(), CompositeNominalLevelV9.ExactFirst,
+            CompositeNominalLevelV9.Missing, pair,
+            config.TfWeight, config.TfMinimumFrequency,
+            config.TfMinimumIndependentSupport)!;
+        var expected = FellegiSunterScoring.CalculateFrozenCompositeNominalV9BilateralPreviewScore(
+            replay.Payload.Parameters, pair.LeftPersonName, pair.RightPersonName,
+            pair.LeftMotherName, pair.RightMotherName,
+            FrozenFellegiSunterJointNominalV9.Freeze(
+                replay.Payload.JointCells, replay.Payload.NominalContractVersion),
+            leftBirthDate: Birth, rightBirthDate: Birth, personTf: tf);
+        var observed = replay.RankPreview(
+            new IdentityObservation(null, "SEM_CPF", pair.LeftPersonName,
+                Birth, pair.LeftMotherName),
+            [new V9SnapshotCandidate(Guid.NewGuid(), pair.RightPersonName,
+                Birth, pair.RightMotherName)]).Single();
+        Assert.That(observed.LogOdds, Is.EqualTo(expected.LogOdds));
+        Assert.That(observed.Score, Is.EqualTo(expected.Posterior));
+
+        // Missing published IBGE is a different, still fail-closed error.
+        var missingFrame = unknownFrame with
+        {
+            Pairs = unknownFrame.Pairs.Select(x => x.Partition == "VALIDATION"
+                && x.LeftIdentityGroupId == "VAL-A"
+                ? x with { LeftPersonName = "ZULEIKAA COSTA",
+                           RightPersonName = "ZULEIKAA LIMA" } : x).ToArray()
+        };
+        var missing = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            missingFrame, [config], Reference());
+        var missingFit = missing.FitTrain(Model(config), Slice("TRAIN"));
+        Assert.That((Action)(() => missing.EvaluateValidation(missingFit, Slice("VALIDATION"))),
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("IBGE"));
     }
 
     private static V9FsAdaptiveCandidateFrame FrameWithMotherTf()
