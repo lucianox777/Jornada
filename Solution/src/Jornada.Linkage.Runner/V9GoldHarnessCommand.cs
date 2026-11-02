@@ -728,6 +728,12 @@ public static class V9GoldHarnessCommand
             if (partition != "TRAIN"
                 || (identities is not null && !identities.Contains(Get("base_person_id")))) continue;
             if (!string.IsNullOrWhiteSpace(Get("cpf"))) continue;
+            // Missing source/truth keys collapse distinct physical observations or
+            // identity groups, corrupting fixed Gold denominators and B-cubed.
+            // Reject before hashing the source key or opening disposable SQL.
+            if (string.IsNullOrWhiteSpace(Get("observacao_id"))
+                || string.IsNullOrWhiteSpace(Get("base_person_id")))
+                throw new InvalidDataException("CSV Gold TRAIN exige observacao_id e base_person_id não vazios.");
             var birth = Get("data_nascimento");
             var manager = Get("gestor");
             if (manager.Length is < 1 or > 40 || manager.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '_'))
