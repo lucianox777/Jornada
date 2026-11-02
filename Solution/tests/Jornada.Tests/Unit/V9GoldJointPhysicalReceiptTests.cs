@@ -362,8 +362,7 @@ public sealed class V9GoldJointPhysicalReceiptTests
         Reject(receipt);
     }
 
-    [Test]
-    public void Zero_published_sources_require_null_published_only_metrics()
+    private static JsonObject ZeroPublishedReceipt()
     {
         var receipt = Receipt();
         var gold = (JsonObject)receipt["goldBcubed"]!;
@@ -387,11 +386,52 @@ public sealed class V9GoldJointPhysicalReceiptTests
         publication["pendingSources"] = 20;
         receipt["trueAccepted"] = 0;
         receipt["falseAccepted"] = 0;
+        return receipt;
+    }
+
+    [Test]
+    public void Zero_published_sources_require_null_published_only_metrics()
+    {
+        var receipt = ZeroPublishedReceipt();
         Assert.DoesNotThrow((Action)(() =>
             V9GoldJointPhysicalReceipt.Read(Bytes(receipt), Fit, Gold, Csv, Selection)));
 
-        gold["PublishedOnlyPrecision"] = 1.0;
+        ((JsonObject)receipt["goldBcubed"]!)["PublishedOnlyPrecision"] = 1.0;
         Reject(receipt);
+    }
+
+    [Test]
+    public void Rejects_underflowed_nonzero_bcubed_json_number()
+    {
+        // A nonzero decimal token must not silently become 0 in TryGetDouble.
+        // With no published sources, all coverage-aware metrics are truly zero,
+        // so this tampering otherwise passes every consistency check.
+        var json = System.Text.Encoding.UTF8.GetString(Bytes(ZeroPublishedReceipt()));
+        const string key = "\"CoverageAwarePrecision\":";
+        var start = json.IndexOf(key, StringComparison.Ordinal);
+        Assert.That(start, Is.GreaterThanOrEqualTo(0));
+        var valueStart = start + key.Length;
+        var valueEnd = json.IndexOf(',', valueStart);
+        Assert.That(valueEnd, Is.GreaterThan(valueStart));
+        var altered = json[..valueStart] + "1e-999" + json[valueEnd..];
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointPhysicalReceipt.Read(
+                System.Text.Encoding.UTF8.GetBytes(altered), Fit, Gold, Csv, Selection)));
+    }
+
+    [Test]
+    public void Accepts_true_zero_exponent_in_bcubed_json()
+    {
+        var json = System.Text.Encoding.UTF8.GetString(Bytes(ZeroPublishedReceipt()));
+        const string key = "\"CoverageAwarePrecision\":";
+        var valueStart = json.IndexOf(key, StringComparison.Ordinal) + key.Length;
+        var valueEnd = json.IndexOf(',', valueStart);
+        Assert.That(valueStart, Is.GreaterThanOrEqualTo(key.Length));
+        Assert.That(valueEnd, Is.GreaterThan(valueStart));
+        var altered = json[..valueStart] + "0e-999" + json[valueEnd..];
+        Assert.DoesNotThrow((Action)(() =>
+            V9GoldJointPhysicalReceipt.Read(
+                System.Text.Encoding.UTF8.GetBytes(altered), Fit, Gold, Csv, Selection)));
     }
 
     [Test]
