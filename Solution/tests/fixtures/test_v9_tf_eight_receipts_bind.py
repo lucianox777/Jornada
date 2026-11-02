@@ -13,10 +13,12 @@ spec.loader.exec_module(module)
 class EightReceiptsBindTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
+        self.sources = Path(self.tmp.name) / "sources.csv"
+        self.sources.write_text("StableId\n" + "".join(f"id{i}\n" for i in range(29997)) + "a\nb\nc\n", encoding="utf-8")
         self.csv = Path(self.tmp.name) / "pairs.csv"
         self.csv.write_text("LeftStableId,RightStableId,SharedSurname\na,b,1\n",
                             encoding="utf-8")
-        contract = module.preflight.preflight(self.csv, source_count=30000)
+        contract = module.preflight.preflight(self.csv, source_count=30000, source_ids_csv=self.sources)
         self.evidence = Path(self.tmp.name)
         self.receipts = {}
         for pair in contract["Pairs"]:
@@ -29,7 +31,7 @@ class EightReceiptsBindTests(unittest.TestCase):
                 (self.evidence / model_name).write_bytes(model_bytes)
                 self.receipts[option] = dict(
                     OptionId=option, CandidatePairsSha256=contract["CandidatePairsSha256"],
-                    SourceRecords=30000, TestUsed=False, PhysicallyExecuted=True,
+                    SourceRecords=30000, SourceStableIdsSha256=contract["SourceStableIdsSha256"], TestUsed=False, PhysicallyExecuted=True,
                     PhysicalRunSha256=hashlib.sha256(run_bytes).hexdigest(),
                     FittedModelSha256=hashlib.sha256(model_bytes).hexdigest(),
                     PhysicalRunArtifact=run_name, FittedModelArtifact=model_name)
@@ -39,7 +41,7 @@ class EightReceiptsBindTests(unittest.TestCase):
 
     def test_eight_receipts_bound_to_identical_candidates(self):
         result = module.bind_receipts(self.csv, self.receipts,
-                                     evidence_dir=self.evidence)
+                                     evidence_dir=self.evidence, source_ids_csv=self.sources)
         self.assertEqual(result["PhysicalReceiptsVerified"], 8)
 
     def test_tampered_artifact_rejected(self):
@@ -81,7 +83,7 @@ class EightReceiptsBindTests(unittest.TestCase):
                 original = row[key]
                 row[key] = value
                 with self.assertRaises(ValueError):
-                    module.bind_receipts(self.csv, self.receipts)
+                    module.bind_receipts(self.csv, self.receipts, evidence_dir=self.evidence, source_ids_csv=self.sources)
                 row[key] = original
 
 
