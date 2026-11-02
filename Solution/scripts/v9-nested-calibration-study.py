@@ -35,6 +35,12 @@ def _load_unique_json(path: Path):
         value = float(token)
         if not math.isfinite(value):
             raise ValueError(f"Non-finite JSON number in frozen input: {token}")
+        # A syntactically valid nonzero decimal (e.g. 1e-999) must not
+        # silently become zero in a frozen REF/TRAIN input. Inspect the
+        # mantissa rather than relying on the already-rounded float.
+        mantissa = token.split("e", 1)[0].split("E", 1)[0]
+        if value == 0.0 and any(digit in "123456789" for digit in mantissa):
+            raise ValueError(f"Underflow JSON number in frozen input: {token}")
         return value
 
     return json.loads(path.read_bytes(), object_pairs_hook=unique_object,
