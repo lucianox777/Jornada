@@ -16,9 +16,23 @@ grid = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(grid)
 
 
-def preflight(candidate_csv: Path, *, source_count: int, alpha=.5, threshold=.95):
+def preflight(candidate_csv: Path, *, source_count: int, source_ids_csv: Path,
+              alpha=.5, threshold=.95):
     if type(source_count) is not int or source_count != 30000:
         raise ValueError("Physical TF diagnostics require exactly 30k source records")
+    source_digest = hashlib.sha256(source_ids_csv.read_bytes()).hexdigest()
+    with source_ids_csv.open(newline="", encoding="utf-8-sig") as stream:
+        source_reader = csv.DictReader(stream)
+        if source_reader.fieldnames != ["StableId"]:
+            raise ValueError("Physical source IDs CSV requires exact StableId header")
+        all_source_ids = set()
+        for row in source_reader:
+            stable_id = row["StableId"]
+            if not stable_id or stable_id in all_source_ids:
+                raise ValueError("Blank or duplicate physical source stable ID")
+            all_source_ids.add(stable_id)
+    if len(all_source_ids) != source_count:
+        raise ValueError("Physical source IDs do not establish exactly 30k records")
     digest = hashlib.sha256(candidate_csv.read_bytes()).hexdigest()
     with candidate_csv.open(newline="", encoding="utf-8-sig") as stream:
         reader = csv.DictReader(stream)
@@ -42,8 +56,8 @@ def preflight(candidate_csv: Path, *, source_count: int, alpha=.5, threshold=.95
             shared += row["SharedSurname"] == "1"
     if not seen:
         raise ValueError("No physically produced candidate pairs")
-    if len(source_ids) > source_count:
-        raise ValueError("Candidate pairs reference more stable IDs than declared sources")
+    if not source_ids.issubset(all_source_ids):
+        raise ValueError("Candidate pair references unknown source stable ID")
     options = grid.option_grid(alpha=alpha, threshold=threshold)
     by_id = {x["OptionId"]: x for x in options}
     diagnostics = [x for x in options if x["OptionId"].startswith("TF_SHARED_PL_ML_")]
@@ -66,7 +80,8 @@ def preflight(candidate_csv: Path, *, source_count: int, alpha=.5, threshold=.95
             "SharedSurnameCandidatePairs": shared,
             "EligibleForAutomaticSelection": False})
     return {"ContractVersion": "V9_TF_30K_PHYSICAL_INPUT_PREFLIGHT_V1",
-            "SourceRecords": source_count, "CandidatePairsSha256": digest,
+            "SourceRecords": source_count, "SourceStableIdsSha256": source_digest,
+            "CandidatePairsSha256": digest,
             "PhysicallyExecuted": False, "TestUsed": False,
             "RequiredModelEvaluations": 8, "Pairs": evaluations}
 
@@ -76,9 +91,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--candidate-csv", required=True, type=Path)
     parser.add_argument("--source-count", required=True, type=int)
+    parser.add_argument("--source-ids-csv", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
     args = parser.parse_args()
-    result = preflight(args.candidate_csv, source_count=args.source_count)
+    result = preflight(args.candidate_csv, source_count=args.source_count,
+                       source_ids_csv=args.source_ids_csv)
     with args.output.open("x", encoding="utf-8") as out:
         json.dump(result, out, indent=2, allow_nan=False)
         out.write("\n")
