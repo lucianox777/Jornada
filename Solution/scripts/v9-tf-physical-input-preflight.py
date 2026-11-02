@@ -27,8 +27,11 @@ def preflight(candidate_csv: Path, *, source_count: int, source_ids_csv: Path,
             raise ValueError("Physical source IDs CSV requires exact StableId header")
         all_source_ids = set()
         for row in source_reader:
+            if set(row) != {"StableId"} or row["StableId"] is None:
+                raise ValueError("Malformed physical source census row")
             stable_id = row["StableId"]
-            if not stable_id or stable_id in all_source_ids:
+            if (not stable_id or stable_id != stable_id.strip()
+                    or stable_id in all_source_ids):
                 raise ValueError("Blank or duplicate physical source stable ID")
             all_source_ids.add(stable_id)
     if len(all_source_ids) != source_count:
@@ -43,8 +46,11 @@ def preflight(candidate_csv: Path, *, source_count: int, source_ids_csv: Path,
         shared = 0
         source_ids = set()
         for row in reader:
+            if set(row) != {"LeftStableId", "RightStableId", "SharedSurname"} or any(v is None for v in row.values()):
+                raise ValueError("Malformed physical candidate pair row")
             left, right = row["LeftStableId"], row["RightStableId"]
-            if not left or not right or left == right:
+            if (not left or not right or left != left.strip()
+                    or right != right.strip() or left == right):
                 raise ValueError("Missing, self or invalid candidate pair")
             if row["SharedSurname"] not in ("0", "1"):
                 raise ValueError("SharedSurname must be explicit 0 or 1")
