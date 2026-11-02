@@ -77,8 +77,12 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
     # same fail-closed contract instead of silently dropping REF provenance.
     if pinned_ibge is not None and not tf_search:
         raise ValueError("Pinned IBGE reference requires TF search")
+    # Refuse an existing companion budget before any expensive input parsing.
+    # A TF plan and its budget form one logical frozen publication.
     if destination.exists():
         raise FileExistsError(destination)
+    if tf_search and destination.with_suffix(".tf-budget.json").exists():
+        raise FileExistsError(destination.with_suffix(".tf-budget.json"))
     manifest_path = corpus.parent / "generation-manifest.json"
     manifest = _load_unique_json(manifest_path)
     if not isinstance(manifest, dict):
