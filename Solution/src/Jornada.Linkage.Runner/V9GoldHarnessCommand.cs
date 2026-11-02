@@ -696,18 +696,33 @@ public static class V9GoldHarnessCommand
         using var csv = new TextFieldParser(file);
         csv.SetDelimiters(",");
         var header = csv.ReadFields() ?? throw new InvalidDataException("CSV sem cabeçalho.");
+        // The frozen CSV SHA protects bytes, but does not establish that those
+        // bytes are a well-formed observation table. Never silently truncate a
+        // malformed physical TRAIN universe or accept ambiguous column names.
+        string[] required = ["observacao_id", "base_person_id", "particao", "gestor",
+            "nome", "nome_mae", "data_nascimento", "cpf"];
+        if (header.Any(string.IsNullOrWhiteSpace)
+            || header.Distinct(StringComparer.Ordinal).Count() != header.Length
+            || required.Any(name => !header.Contains(name, StringComparer.Ordinal)))
+            throw new InvalidDataException("Cabeçalho do CSV Gold TRAIN ausente, duplicado ou ambíguo.");
         var columns = header.Select((name, i) => (name, i)).ToDictionary(x => x.name, x => x.i, StringComparer.Ordinal);
         var rows = new List<Source>();
         var stableSourceKeys = new HashSet<long>();
         while (!csv.EndOfData)
         {
             var f = csv.ReadFields() ?? throw new InvalidDataException("CSV malformado.");
+            if (f.Length != header.Length)
+                throw new InvalidDataException("CSV Gold TRAIN possui linha com quantidade de colunas divergente.");
             string Get(string name) => f[columns[name]];
-            // Do not interpret TEST/VALIDATION attribute values or use labels in any decision.
+            // Inspect only the partition label before filtering: TEST/VALIDATION
+            // attribute values and truth labels must never enter TRAIN selection.
+            var partition = Get("particao");
+            if (partition is not ("TRAIN" or "VALIDATION" or "TEST"))
+                throw new InvalidDataException("CSV Gold TRAIN possui partição desconhecida.");
             // Use the newly generated cohort's TRAIN-tagged subpopulation as
             // a blind-to-score, predeclared inclusion rule, NOT historical TEST
             // or VALIDATION. Never mix groups selected from the old envelope.
-            if (Get("particao") != "TRAIN"
+            if (partition != "TRAIN"
                 || (identities is not null && !identities.Contains(Get("base_person_id")))) continue;
             if (!string.IsNullOrWhiteSpace(Get("cpf"))) continue;
             var birth = Get("data_nascimento");
