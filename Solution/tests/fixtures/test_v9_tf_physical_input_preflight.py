@@ -30,7 +30,7 @@ class PhysicalInputTests(unittest.TestCase):
         self.assertEqual(len({p["CandidatePairsSha256"] for p in result["Pairs"]}), 1)
 
     def test_candidate_outside_source_census_fails(self):
-        self.csv.write_text("LeftStableId,RightStableId,SharedSurname\\na,unknown,1\\n".replace("\\\\n", "\\n"), encoding="utf-8")
+        self.csv.write_text("LeftStableId,RightStableId,SharedSurname\\na,unknown,1\\n", encoding="utf-8")
         with self.assertRaises(ValueError):
             module.preflight(self.csv, source_count=30000, source_ids_csv=self.sources)
 
