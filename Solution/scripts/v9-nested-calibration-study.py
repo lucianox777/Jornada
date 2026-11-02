@@ -24,7 +24,12 @@ def _load_unique_json(path: Path):
             result[key] = value
         return result
 
-    return json.loads(path.read_bytes(), object_pairs_hook=unique_object)
+    def reject_nonfinite(token):
+        # NaN and infinities are not JSON and cannot enter frozen REF/TRAIN.
+        raise ValueError(f"Non-finite JSON constant in frozen input: {token}")
+
+    return json.loads(path.read_bytes(), object_pairs_hook=unique_object,
+                      parse_constant=reject_nonfinite)
 
 
 def _tf_helper():
