@@ -145,6 +145,26 @@ class V9UnitTfDeclaredGridTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     helper.pinned_reference(mutated)
 
+    def test_adaptive_train_plan_rejects_bad_manifest_and_ignored_pin(self):
+        adaptive = load("v9-adaptive-30k-study.py", "adaptive_manifest_guard")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            corpus = root / "observations.csv"
+            corpus.write_text("plan-only fixture\\n", encoding="utf-8")
+            manifest_path = root / "generation-manifest.json"
+            valid = {"seed": 42, "population_profile": "DEMOGRAPHIC_PRIMARY_V1",
+                     "error_profile": "clean"}
+            manifest_path.write_text(json.dumps({**valid, "seed": 43}), encoding="utf-8")
+            destination = root / "invalid-plan.json"
+            with self.assertRaisesRegex(ValueError, "manifest"):
+                adaptive.prepare(corpus, destination)
+            self.assertFalse(destination.exists())
+            manifest_path.write_text(json.dumps(valid), encoding="utf-8")
+            destination = root / "ignored-pin.json"
+            with self.assertRaisesRegex(ValueError, "requires TF search"):
+                adaptive.prepare(corpus, destination, pinned_ibge=root / "pinned.json")
+            self.assertFalse(destination.exists())
+
     def test_bad_pinned_reference_fails_closed(self):
         helper = load("v9-tf-option-grid.py", "tf_grid_guard")
         for malformed in (None, [], ["PinnedIbgeReferenceVersionId",
