@@ -229,13 +229,15 @@ internal static class ProbabilisticLinkageDecisions
                             observation.NomeCompleto, candidate.NomeCompleto)
                         : CompositeNominalComparisonV9.Classify(
                             observation.NomeMae, candidate.NomeMae);
-                    if ((level == CompositeNominalLevelV9.ExactFirst && term is null)
+                    if (((level == CompositeNominalLevelV9.ExactFirst
+                            || level == CompositeNominalLevelV9.ExactFull) && term is null)
                         || (term is not null
                             && (term.Side != side
-                                || level != CompositeNominalLevelV9.ExactFirst
+                                || (level != CompositeNominalLevelV9.ExactFirst
+                                    && level != CompositeNominalLevelV9.ExactFull)
                                 || term.Weight <= 0m)))
                         throw new InvalidOperationException(
-                            "TF V9 positiva sem unidade ExactFirst válida ou frequência disponível.");
+                            "TF V9 positiva sem unidade ExactFirst/ExactFull válida ou frequência disponível.");
                 }
                 var score = FellegiSunterScoring.CalculateFrozenCompositeNominalV9PreviewScore(
                     parameters,
@@ -257,6 +259,77 @@ internal static class ProbabilisticLinkageDecisions
             .OrderByDescending(x => x.LogOdds)
             .ThenBy(x => x.PessoaUuid)
             .ToArray();
+    }
+
+    /// <summary>
+    /// Frozen V9 bilateral ranking. Each side supplies its own calibrated
+    /// reference and U; a missing positive TF for an eligible side fails closed.
+    /// </summary>
+    internal static IReadOnlyList<CandidateScore> RankFrozenCompositeNominalV9BilateralPreview(
+        IReadOnlyDictionary<string, decimal> parameters,
+        IReadOnlyDictionary<string, double> numericParameters,
+        IdentityObservation observation, IReadOnlyList<LinkageCandidate> candidates,
+        FrozenFellegiSunterJointNominalV9 frozen,
+        Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? personTf,
+        Func<IdentityObservation, LinkageCandidate, CompositeNominalTfPreviewV9?>? motherTf,
+        NominalFrequencyUnitV9? personUnit = null,
+        NominalFrequencyUnitV9? motherUnit = null,
+        Func<IdentityObservation, LinkageCandidate, NominalFrequencyUnitV9?>? personUnitForPair = null,
+        Func<IdentityObservation, LinkageCandidate, NominalFrequencyUnitV9?>? motherUnitForPair = null,
+        Func<IdentityObservation, LinkageCandidate, bool>? personRequiredForPair = null,
+        Func<IdentityObservation, LinkageCandidate, bool>? motherRequiredForPair = null,
+        V9SharedSurnameModeV9 sharedSurnameMode = V9SharedSurnameModeV9.Bilateral)
+    {
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(numericParameters);
+        ArgumentNullException.ThrowIfNull(observation);
+        ArgumentNullException.ThrowIfNull(candidates);
+        ArgumentNullException.ThrowIfNull(frozen);
+        if (!string.IsNullOrWhiteSpace(observation.Cpf))
+            throw new InvalidOperationException("Ranking probabilístico V9 só é permitido sem CPF.");
+        var unique = DeduplicateCandidates(candidates);
+        return unique.Select(candidate =>
+        {
+            var person = personTf?.Invoke(observation, candidate);
+            var mother = motherTf?.Invoke(observation, candidate);
+            static void Validate(CompositeNominalTfSideV9 side,
+                CompositeNominalLevelV9 level, bool configured, NominalFrequencyUnitV9? unit,
+                CompositeNominalTfPreviewV9? term)
+            {
+                // Eligibility must be derived from the FROZEN reference, not
+                // the optional term: otherwise a missing ExactLast term
+                // cannot be distinguished from an ineligible comparison.
+                var declaredUnit = unit ?? term?.Reference.Unit ?? NominalFrequencyUnitV9.FirstName;
+                var eligible = declaredUnit == NominalFrequencyUnitV9.LastContentSurname
+                    ? level == CompositeNominalLevelV9.ExactLast
+                    : level is CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactFull;
+                // Without a declared unit, null means no active adjustment
+                // (e.g. calibrated zero), not an unknown TRAIN frequency.
+                // Frozen-unit callers still fail closed for missing eligible TF.
+                if ((configured && unit is not null && eligible && term is null)
+                    || (term is not null && (term.Side != side || !eligible
+                        || term.Reference.Unit != declaredUnit || term.Weight <= 0m)))
+                    throw new InvalidOperationException("TF bilateral V9 sem unidade ou frequência TRAIN válida.");
+            }
+            Validate(CompositeNominalTfSideV9.Person,
+                CompositeNominalComparisonV9.Classify(observation.NomeCompleto, candidate.NomeCompleto),
+                personRequiredForPair?.Invoke(observation, candidate) ?? personTf is not null,
+                personUnitForPair?.Invoke(observation, candidate) ?? personUnit, person);
+            Validate(CompositeNominalTfSideV9.Mother,
+                CompositeNominalComparisonV9.Classify(observation.NomeMae, candidate.NomeMae),
+                motherRequiredForPair?.Invoke(observation, candidate) ?? motherTf is not null,
+                motherUnitForPair?.Invoke(observation, candidate) ?? motherUnit, mother);
+            var score = FellegiSunterScoring.CalculateFrozenCompositeNominalV9BilateralPreviewScore(
+                parameters, observation.NomeCompleto, candidate.NomeCompleto,
+                observation.NomeMae, candidate.NomeMae, frozen, unique.Count,
+                observation.DataNascimento, candidate.DataNascimento,
+                person, mother, numericParameters, sharedSurnameMode);
+            var fullExact = CompositeNominalComparisonV9.Classify(
+                observation.NomeCompleto, candidate.NomeCompleto) == CompositeNominalLevelV9.ExactFull;
+            var exactBirth = observation.DataNascimento is { } birth && candidate.DataNascimento == birth;
+            return new CandidateScore(candidate.PessoaUuid, score.Posterior, score.LogOdds,
+                fullExact && exactBirth);
+        }).OrderByDescending(x => x.LogOdds).ThenBy(x => x.PessoaUuid).ToArray();
     }
 
     internal static IReadOnlyList<CandidateScore> Rank(

@@ -58,7 +58,10 @@ public sealed record AdaptiveCalibrationHoldoutMetrics(
     long Abstentions,
     long BlockingFalseCandidatePairs,
     double BlockingFalseDegreeP99,
-    int IndependentlyLabeledIdentityGroups);
+    int IndependentlyLabeledIdentityGroups,
+    [property: System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    long SharedSurnameCandidatePairs = 0);
 
 public sealed record AdaptiveCalibrationPreviewBudget(
     string Version,
@@ -215,10 +218,8 @@ public static class AdaptiveCalibrationModelSearch
                 || !double.IsFinite(validation.BlockingFalseDegreeP99)
                 || validation.BlockingFalseDegreeP99 < 0)
                 throw new InvalidDataException("Métricas de VALIDATION inválidas.");
-            // Adapters are external evidence producers. Both counters can be
-            // individually valid Int64 values yet have an impossible total.
-            // Fail closed under the validation evidence contract, not with an
-            // unrelated arithmetic OverflowException.
+            // Exact master guard: two valid Int64 counts may overflow jointly.
+            // Reject inconsistent validation evidence with a domain error.
             if (validation.TrueAcceptedLinks > long.MaxValue - validation.FalseAcceptedLinks)
                 throw new InvalidDataException("Métricas de VALIDATION excedem o total representável de vínculos aceitos.");
             var accepted = validation.TrueAcceptedLinks + validation.FalseAcceptedLinks;

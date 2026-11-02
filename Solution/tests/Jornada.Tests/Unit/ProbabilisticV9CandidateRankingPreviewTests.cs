@@ -260,23 +260,20 @@ public sealed class ProbabilisticV9CandidateRankingPreviewTests
         Assert.That(CompositeNominalComparisonV9.Classify(
             obs.NomeCompleto, high.NomeCompleto),
             Is.EqualTo(CompositeNominalLevelV9.HighFull));
-        int ineligibleTf = 0;
-        CompositeNominalTfPreviewV9? OnlyFirst(
-            IdentityObservation source, LinkageCandidate candidate)
-        {
-            if (CompositeNominalComparisonV9.Classify(
-                source.NomeCompleto, candidate.NomeCompleto)
-                == CompositeNominalLevelV9.ExactFirst)
-                ineligibleTf++;
-            return null;
-        }
+        // This comparison is explicitly TF0: an ExactFull candidate is now
+        // eligible for a positive first-name proxy, which must fail closed
+        // if its required reference is missing.
         var ranked = ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
             Parameters, obs, [high, exact],
-            Cells(), CompositeNominalComparisonV9.ContractVersion, OnlyFirst,
-            positiveTfSide: CompositeNominalTfSideV9.Person);
+            Cells(), CompositeNominalComparisonV9.ContractVersion);
+        Assert.That((Action)(() =>
+            ProbabilisticLinkageDecisions.RankCompositeNominalV9Preview(
+                Parameters, obs, [high, exact],
+                Cells(), CompositeNominalComparisonV9.ContractVersion,
+                (_, _) => null, positiveTfSide: CompositeNominalTfSideV9.Person)),
+            Throws.InvalidOperationException);
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(ineligibleTf, Is.Zero);
             Assert.That(ranked[0].PessoaUuid, Is.EqualTo(ExactId));
             Assert.That(ranked[1].PessoaUuid, Is.EqualTo(NearId));
             Assert.That(ranked[0].LogOdds, Is.GreaterThan(ranked[1].LogOdds));

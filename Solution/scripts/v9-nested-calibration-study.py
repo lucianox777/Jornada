@@ -10,12 +10,83 @@ import importlib.util
 import json
 from pathlib import Path
 
+def _load_unique_json(path: Path):
+    """Fail closed on ambiguous REF/TRAIN manifests, including nested keys.
 
-def prepare(corpus: Path, destination: Path, fixture: bool = False):
+    Standard json.loads silently retains the last duplicate member, making
+    an apparently frozen input dependent on the consumer's JSON parser.
+    """
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"Duplicate JSON key in frozen input: {key}")
+            result[key] = value
+        return result
+
+    def reject_nonfinite(token):
+        # NaN and infinities are not JSON and cannot enter frozen REF/TRAIN.
+        raise ValueError(f"Non-finite JSON constant in frozen input: {token}")
+
+    return json.loads(path.read_bytes(), object_pairs_hook=unique_object,
+                      parse_constant=reject_nonfinite)
+
+
+def _tf_helper():
+    spec = importlib.util.spec_from_file_location(
+        "v9_tf_option_grid", Path(__file__).with_name("v9-tf-option-grid.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+
+def _write_frozen_outputs(destination: Path, plan: dict, cost: dict | None = None):
+    """Publish a new TRAIN plan and optional TF budget, never overwriting either.
+
+    If the second write fails, remove only files created by this invocation.
+    This is rollback on ordinary I/O errors, not an atomic multi-file filesystem
+    transaction; consumers must still verify both fingerprints before use.
+    """
+    outputs = [(destination, plan)]
+    if cost is not None:
+        expected = plan.get("Calibration", {}).get("StudyFingerprintSha256")
+        if (not isinstance(expected, str) or not expected
+                or cost.get("study_fingerprint_sha256") != expected):
+            raise ValueError("Frozen TF budget fingerprint must match TRAIN plan")
+        outputs.append((destination.with_suffix(".tf-budget.json"), cost))
+    for path, _ in outputs:
+        if path.exists():
+            raise FileExistsError(path)
+    created = []
+    try:
+        for path, payload in outputs:
+            with path.open("x", encoding="utf-8") as stream:
+                created.append(path)
+                json.dump(payload, stream, indent=2)
+                stream.write("\n")
+    except Exception:
+        for path in reversed(created):
+            path.unlink(missing_ok=True)
+        raise
+
+
+def prepare(corpus: Path, destination: Path, fixture: bool = False,
+            tf_search: bool = False, pinned_ibge: Path | None = None):
+    # The CLI rejects this combination; direct Python callers must obey the
+    # same fail-closed contract instead of silently dropping REF provenance.
+    if pinned_ibge is not None and not tf_search:
+        raise ValueError("Pinned IBGE reference requires TF search")
+    # Refuse an existing companion budget before any expensive input parsing.
+    # A TF plan and its budget form one logical frozen publication.
     if destination.exists():
         raise FileExistsError(destination)
+    if tf_search and destination.with_suffix(".tf-budget.json").exists():
+        raise FileExistsError(destination.with_suffix(".tf-budget.json"))
     manifest_path = corpus.parent / "generation-manifest.json"
-    manifest = json.loads(manifest_path.read_bytes())
+    manifest = _load_unique_json(manifest_path)
+    if not isinstance(manifest, dict):
+        raise ValueError("Generation manifest must be a JSON object")
     if manifest["error_profile"] != "clean" or manifest["population_profile"] != "DEMOGRAPHIC_PRIMARY_V1":
         raise ValueError("Accepted provisional clean demographic bootstrap required")
     source_sha = hashlib.sha256(corpus.read_bytes()).hexdigest()
@@ -23,7 +94,11 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False):
     spec = importlib.util.spec_from_file_location("catalogue", Path(__file__).with_name("v9-integral-search-study.py"))
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    study = hashlib.sha256(("V9_INTERNAL_TRAIN_PARETO_V1|" + source_sha + "|" + str(fixture)).encode()).hexdigest()
+    # Distinct calibration families must never share a frozen study identity.
+    # Include the generation manifest as well as the source and search mode.
+    study = hashlib.sha256(("V9_INTERNAL_TRAIN_PARETO_V2|" + source_sha + "|"
+                            + manifest_sha + "|" + str(fixture) + "|"
+                            + str(tf_search)).encode()).hexdigest()
     catalogue = [{"PassId": key, "Fields": fields} for key, fields in sorted(module.CATALOGUE.items())]
     control = [p for p in catalogue if p["PassId"] in ["P_PHON_M_LAST", "P_LAST_M_PHON", "P_FIRST_BIRTH_YEAR"]]
     if fixture:
@@ -31,9 +106,59 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False):
     models = [{"OptionId": f"A{alpha}_T{threshold}_TF0", "SmoothingAlpha": alpha,
         "DecisionThreshold": threshold, "TfWeight": 0}
         for alpha in ([.5] if fixture else [.1, .5, 1]) for threshold in [.90, .95, .99]]
-    maximum = 24 if fixture else 1000000
-    # Production TRAIN discovers the recall/FDR frontier without ex-ante statistical
-    # acceptance ceilings. The fixture's 1% band is plumbing-only, not a policy.
+    if tf_search:
+        if fixture:
+            raise ValueError("TF search requires the real 30k study, not plumbing fixture")
+        if pinned_ibge is None:
+            raise ValueError("TF search requires --pinned-ibge with exact reference/digests")
+        helper = _tf_helper()
+        full_grid = helper.option_grid(alpha=.5, threshold=.95)
+        # PO decision 12: shared surname alternatives are diagnostic only.
+        diagnostic = [x for x in full_grid if x["OptionId"].startswith("TF_SHARED_PL_ML_")]
+        models = [x for x in full_grid if not x["OptionId"].startswith("TF_SHARED_PL_ML_")]
+        if len(models) != 41 or len(diagnostic) != 4:
+            raise ValueError("Unexpected TF diagnostic partition")
+        eligible = {x["OptionId"] for x in models}
+        diagnostic_ids = {x["OptionId"] for x in diagnostic}
+        if (len(eligible) != len(models) or len(diagnostic_ids) != len(diagnostic)
+                or eligible.intersection(diagnostic_ids)):
+            raise ValueError("Duplicate or overlapping TF option identifiers")
+        by_id = {x["OptionId"]: x for x in models}
+        diagnostic_pairs = []
+        for item in diagnostic:
+            baseline_id = item["OptionId"].replace("TF_SHARED_PL_ML_", "TF_TWO_PL_ML_", 1)
+            if baseline_id not in eligible:
+                raise ValueError("Missing bilateral reference")
+            baseline = by_id[baseline_id]
+            if (item["UnitTfOptions"] != baseline["UnitTfOptions"]
+                    or item["SmoothingAlpha"] != baseline["SmoothingAlpha"]
+                    or item["DecisionThreshold"] != baseline["DecisionThreshold"]):
+                raise ValueError("Diagnostic and bilateral TF configurations must match")
+            if item.get("SharedSurnameMode") != 1 or baseline.get("SharedSurnameMode", 0) != 0:
+                raise ValueError("Diagnostic and bilateral TF modes must differ only by shared surname")
+            # Both options must evaluate the identical candidate set; a
+            # separate physical executor must enforce and attest that fact.
+            diagnostic_pairs.append({"DiagnosticOptionId": item["OptionId"],
+                                     "BilateralOptionId": baseline_id,
+                                     "EligibleForAutomaticSelection": False,
+                                     "RequiresSameCandidatePairs": True})
+        if len({pair["BilateralOptionId"] for pair in diagnostic_pairs}) != 4:
+            raise ValueError("Diagnostic TF options do not have unique bilateral controls")
+        pinned = helper.pinned_reference(_load_unique_json(pinned_ibge))
+        # The published IBGE version, both digests and the bootstrap provenance
+        # influence the TRAIN TF fit. Never reuse a frozen study identity when
+        # any of these inputs change, even if the synthetic corpus is identical.
+        # Canonical JSON avoids accidental changes from manifest key order.
+        pinned_identity = json.dumps(pinned, sort_keys=True, separators=(",", ":"))
+        study = hashlib.sha256(("V9_INTERNAL_TRAIN_PARETO_V3|" + study + "|"
+                                + pinned_identity).encode()).hexdigest()
+    else:
+        pinned = None
+    # PO decision 12: 41 eligible models x two margins x two initial rule
+    # sets = 164 initial selection comparisons. Four shared-surname variants
+    # are diagnostics only, excluded from ModelOptions and this budget.
+    # Further adaptive refinement is bounded to 512 including initial set.
+    maximum = 24 if fixture else (512 if tf_search else 1000000)
     calibration = dict(StudyFingerprintSha256=study,
         Discovery=dict(MaximumPrefixLength=4), ModelOptions=models, ConflictMargins=[.5, 2],
         Budget=dict(Version="ADAPTIVE_CALIBRATION_PREVIEW_BUDGET_V1", StudyFingerprintSha256=study,
@@ -59,9 +184,25 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False):
         InitialThresholdStep=.025, InitialMarginStep=.25, AdjustmentFraction=.7,
         MinimumRecallImprovement=.0001, MinimumFdrImprovement=.00001,
         Purpose="PLUMBING_FIXTURE_NOT_CERTIFICATION" if fixture else "BOOTSTRAP_CANDIDATE_SELECTION")
-    with destination.open("x", encoding="utf-8") as stream:
-        json.dump(plan, stream, indent=2)
-        stream.write("\n")
+    if tf_search:
+        plan.update(pinned)
+        # No subset selected from VALIDATION. Candidate neighbours continue
+        # using the same 19-pass TRAIN catalogue and existing C# Pareto.
+        calibration["MaximumComparedConfigurations"] = maximum
+        calibration["MaximumPhysicalRuleSets"] = 2
+        cost = helper.budget_estimate(models, rulesets=2,
+                                     margins=len(calibration["ConflictMargins"]))
+        # Bind the companion budget to the exact frozen TRAIN study. A budget
+        # from another pinned IBGE snapshot must never authorize this plan.
+        cost["study_fingerprint_sha256"] = study
+        cost["diagnostic_comparison_only"] = diagnostic_pairs
+        cost["diagnostic_models_excluded_from_selection"] = len(diagnostic)
+        cost["initial_grid_total"] = len(full_grid)
+        cost["diagnostic_physically_executed"] = False
+        cost["shared_surname_candidate_pairs"] = None
+        if cost["predeclared_comparisons"] > maximum:
+            raise ValueError("TF initial family exceeds the predeclared compute budget")
+    _write_frozen_outputs(destination, plan, cost if tf_search else None)
 
 
 if __name__ == "__main__":
@@ -69,5 +210,12 @@ if __name__ == "__main__":
     parser.add_argument("corpus", type=Path)
     parser.add_argument("new_plan", type=Path)
     parser.add_argument("--plumbing-fixture", action="store_true")
+    parser.add_argument("--tf-search", action="store_true",
+                        help="41 eligible TF configurations; four shared-surname variants are diagnostics only (manual 30k)")
+    parser.add_argument("--pinned-ibge", type=Path,
+                        help="Existing pinned SQL IBGE version, digests and bootstrap JSON")
     args = parser.parse_args()
-    prepare(args.corpus, args.new_plan, args.plumbing_fixture)
+    if args.pinned_ibge is not None and not args.tf_search:
+        parser.error("--pinned-ibge requires --tf-search")
+    prepare(args.corpus, args.new_plan, args.plumbing_fixture,
+            tf_search=args.tf_search, pinned_ibge=args.pinned_ibge)

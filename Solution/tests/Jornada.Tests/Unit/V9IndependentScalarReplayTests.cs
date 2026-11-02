@@ -54,7 +54,7 @@ public sealed class V9IndependentScalarReplayTests
             new string('b', 64), new string('c', 64), new string('d', 64), new string('e', 64),
             new string('f', 64), "independent-scalar-test", "fixture", threshold, margin, tfWeight,
             [new LinkageBlockingPass("fixture", ["NOME"])], cells, parameters,
-            tfWeight == 0m ? null : new V9SnapshotFirstNameTf(CompositeNominalTfSideV9.Person,
+            tfWeight == 0m ? null : new V9SnapshotNominalUnitTfCalibration(CompositeNominalTfSideV9.Person,
                 reference, new Dictionary<string, decimal> { ["MARIA"] = frequency },
                 new Dictionary<string, decimal> { ["MARIA"] = .2m }, new string('a', 64),
                 .000001m, 1, new string('c', 64)), new string('c', 64));

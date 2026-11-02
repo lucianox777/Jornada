@@ -4,14 +4,29 @@ import argparse
 import hashlib
 import json
 import math
+import importlib.util
 from pathlib import Path
 
 
-def prepare(corpus: Path, plan_path: Path, cap_four: bool = False) -> None:
+def _tf_helper():
+    spec = importlib.util.spec_from_file_location(
+        "v9_tf_option_grid", Path(__file__).with_name("v9-tf-option-grid.py"))
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def prepare(corpus: Path, plan_path: Path, cap_four: bool = False,
+            tf_search: bool = False, pinned_ibge: Path | None = None) -> None:
+    if pinned_ibge is not None and not tf_search:
+        raise ValueError("Pinned IBGE reference requires TF search")
     manifest = json.loads((corpus.parent / "generation-manifest.json").read_bytes())
-    assert manifest["seed"] == 42
-    assert manifest["population_profile"] == "DEMOGRAPHIC_PRIMARY_V1"
-    assert manifest["error_profile"] == "clean"
+    # Assertions disappear under python -O: provenance gates must not.
+    if (not isinstance(manifest, dict) or type(manifest.get("seed")) is not int
+            or manifest["seed"] != 42
+            or manifest.get("population_profile") != "DEMOGRAPHIC_PRIMARY_V1"
+            or manifest.get("error_profile") != "clean"):
+        raise ValueError("Invalid V9 TRAIN generation manifest")
     input_sha = hashlib.sha256(corpus.read_bytes()).hexdigest()
     study = hashlib.sha256(("V9_ADAPTIVE_30K_TRAIN_ONLY_PROPOSALS_WITH_BASELINE_GRID_V2|" + input_sha).encode()).hexdigest()
     plan = {
@@ -45,10 +60,13 @@ def prepare(corpus: Path, plan_path: Path, cap_four: bool = False) -> None:
     }
     if cap_four:
         multiplicity = manifest["observation_multiplicity"]
-        assert manifest["generator_version"] == "JORNADA_SYNTH_CORPUS_CSHARP_V1"
-        assert multiplicity["contract_version"] == "SYNTHETIC_BASE_OBSERVATION_MULTIPLICITY_V1"
-        assert multiplicity["maximum_observations_per_base_identity"] == 4
-        assert multiplicity["scope"] == "BASE_CORPUS_ONLY_NOT_INGESTION_WAVES"
+        if (not isinstance(multiplicity, dict)
+                or manifest.get("generator_version") != "JORNADA_SYNTH_CORPUS_CSHARP_V1"
+                or multiplicity.get("contract_version") != "SYNTHETIC_BASE_OBSERVATION_MULTIPLICITY_V1"
+                or type(multiplicity.get("maximum_observations_per_base_identity")) is not int
+                or multiplicity["maximum_observations_per_base_identity"] != 4
+                or multiplicity.get("scope") != "BASE_CORPUS_ONLY_NOT_INGESTION_WAVES"):
+            raise ValueError("Invalid V9 TRAIN cap-four multiplicity manifest")
         manifest_sha = hashlib.sha256((corpus.parent / "generation-manifest.json").read_bytes()).hexdigest()
         study = hashlib.sha256(("V9_ADAPTIVE_30K_BASE_CAP4_V3|" + input_sha + "|" + manifest_sha).encode()).hexdigest()
         plan["StudyFingerprintSha256"] = plan["Budget"]["StudyFingerprintSha256"] = study
@@ -63,12 +81,73 @@ def prepare(corpus: Path, plan_path: Path, cap_four: bool = False) -> None:
             "ManifestSha256": manifest_sha, "ObservationsSha256": input_sha
         }
         # Source population cap differs from the blind candidate size guard (16).
+    if tf_search:
+        if not cap_four or pinned_ibge is None:
+            raise ValueError("TF physical study requires cap4 and --pinned-ibge")
+        helper = _tf_helper()
+        full_grid = helper.option_grid(alpha=.5, threshold=.95)
+        full_grid[0]["OptionId"] = "T0.95_TF0"  # historical TF0 control ID
+        diagnostic = [x for x in full_grid if x["OptionId"].startswith("TF_SHARED_PL_ML_")]
+        grid = [x for x in full_grid if not x["OptionId"].startswith("TF_SHARED_PL_ML_")]
+        if len(grid) != 41 or len(diagnostic) != 4:
+            raise ValueError("Unexpected adaptive TF diagnostic partition")
+        by_id = {x["OptionId"]: x for x in grid}
+        diagnostic_pairs = []
+        for item in diagnostic:
+            baseline_id = item["OptionId"].replace("TF_SHARED_PL_ML_", "TF_TWO_PL_ML_", 1)
+            baseline = by_id.get(baseline_id)
+            if baseline is None or (item["UnitTfOptions"] != baseline["UnitTfOptions"]
+                    or item["SmoothingAlpha"] != baseline["SmoothingAlpha"]
+                    or item["DecisionThreshold"] != baseline["DecisionThreshold"]
+                    or item.get("SharedSurnameMode") != 1
+                    or baseline.get("SharedSurnameMode", 0) != 0):
+                raise ValueError("Shared diagnostic must match bilateral TF parameters")
+            diagnostic_pairs.append({"DiagnosticOptionId": item["OptionId"],
+                                     "BilateralOptionId": baseline_id,
+                                     "EligibleForAutomaticSelection": False,
+                                     "RequiresSameCandidatePairs": True})
+        plan["ModelOptions"] = grid
+        # The exploratory search must not pre-exclude a risk region before
+        # TRAIN evidence: Pareto/frontier is descriptive, gates come later.
+        plan["Budget"]["MinimumGlobalAcceptedRecall"] = 0
+        plan["Budget"]["MaximumObservedAcceptedFdrPoint"] = 1
+        plan["SelectionPolicy"]["MinimumGlobalRecall"] = 0
+        plan["SelectionPolicy"]["MaximumAcceptedFdrUpper"] = 1
+        # Isolate the TF comparison to ONE predeclared, unchanged 3-pass
+        # SQL blocking control; no 137 × 41 grid or TEST-driven pruning.
+        base_passes = plan["BaselineRuleSets"][0]
+        plan["DeclaredSearchSpace"] = {
+            "Catalogue": base_passes, "MinimumPasses": len(base_passes),
+            "MaximumPasses": len(base_passes)
+        }
+        plan["MaximumPhysicalRuleSets"] = 1
+        plan["PreviouslyComparedValidationConfigurations"] = 3726
+        cost = helper.budget_estimate(grid, rulesets=1,
+            margins=len(plan["ConflictMargins"]), previous=3726)
+        plan["MaximumComparedConfigurations"] = cost["predeclared_comparisons"]
+        cost["diagnostic_comparison_only"] = diagnostic_pairs
+        cost["diagnostic_models_excluded_from_selection"] = len(diagnostic)
+        cost["initial_grid_total"] = len(full_grid)
+        cost["diagnostic_physically_executed"] = False
+        cost["shared_surname_candidate_pairs"] = None
+        plan.update(helper.pinned_reference(json.loads(pinned_ibge.read_bytes())))
+        sidecar = plan_path.with_suffix(".tf-budget.json")
+        if sidecar.exists():
+            raise FileExistsError(sidecar)
     with plan_path.open("x", encoding="utf-8") as stream:
         json.dump(plan, stream, indent=2)
         stream.write("\n")
+    if tf_search:
+        with sidecar.open("x", encoding="utf-8") as stream:
+            json.dump(cost, stream, indent=2)
+            stream.write("\n")
 
 
 def verify(root: Path) -> None:
+    # This historical diagnostic verifier uses assertions throughout. Refuse
+    # optimized Python rather than silently skipping every evidence gate.
+    if not __debug__:
+        raise RuntimeError("V9 evidence verification disabled by optimized Python")
     result = json.loads((root / "study.json").read_bytes())
     plan = json.loads((root / "plan.json").read_bytes())
     comparisons = plan["MaximumComparedConfigurations"]
@@ -161,10 +240,17 @@ if __name__ == "__main__":
     prep_cap = commands.add_parser("prepare-cap4")
     prep_cap.add_argument("corpus", type=Path)
     prep_cap.add_argument("plan", type=Path)
+    prep_tf = commands.add_parser("prepare-tf")
+    prep_tf.add_argument("corpus", type=Path)
+    prep_tf.add_argument("plan", type=Path)
+    prep_tf.add_argument("--pinned-ibge", type=Path, required=True)
     check = commands.add_parser("verify")
     check.add_argument("result", type=Path)
     args = parser.parse_args()
-    if args.mode in ("prepare", "prepare-cap4"):
-        prepare(args.corpus, args.plan, cap_four=args.mode == "prepare-cap4")
+    if args.mode in ("prepare", "prepare-cap4", "prepare-tf"):
+        prepare(args.corpus, args.plan,
+                cap_four=args.mode in ("prepare-cap4", "prepare-tf"),
+                tf_search=args.mode == "prepare-tf",
+                pinned_ibge=getattr(args, "pinned_ibge", None))
     else:
         verify(args.result)

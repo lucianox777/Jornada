@@ -376,7 +376,13 @@ public sealed class FellegiSunterV9JointNominalTests
 
         Assert.Multiple((Action)(() =>
         {
-            Reject(tf); // IBGE first-name marginal cannot price ExactFull
+            // ExactFull explicitly supports the declared first-name IBGE proxy.
+            Assert.That((Action)(() =>
+                FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                    PreviewParameters(), "Maria Silva", "MARIA SILVA",
+                    "Ana Costa", "ANA COSTA", cells,
+                    CompositeNominalComparisonV9.ContractVersion, nominalTf: tf)),
+                Throws.Nothing);
             Reject(tf with { Side = (CompositeNominalTfSideV9)99 });
             Reject(tf with { Weight = -1m });
             Reject(tf with { Weight = 1.5m });
@@ -438,6 +444,180 @@ public sealed class FellegiSunterV9JointNominalTests
             Throws.InvalidOperationException);
     }
 
+    [Test]
+    public void V9ExactFullUsesFirstNameIbgeProxyForPersonAndMother()
+    {
+        var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.ExactFull, .20m, .05m);
+        var personTf = FirstNameTf("MARIA", .25m);
+        var motherTf = FirstNameTf("ANA", .25m) with
+        {
+            Side = CompositeNominalTfSideV9.Mother
+        };
+        var plain = FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+            PreviewParameters(), "Maria Silva", "MARIA SILVA", "Ana Costa", "ANA COSTA",
+            cells, CompositeNominalComparisonV9.ContractVersion);
+        FellegiSunterScoreBreakdown Score(CompositeNominalTfPreviewV9 tf) =>
+            FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                PreviewParameters(), "Maria Silva", "MARIA SILVA", "Ana Costa", "ANA COSTA",
+                cells, CompositeNominalComparisonV9.ContractVersion, nominalTf: tf);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(Score(personTf).Score.LogOdds - plain.Score.LogOdds,
+                Is.EqualTo((decimal)Math.Log(.10d / .25d)).Within(.0000001m));
+            Assert.That(Score(motherTf).Score.LogOdds - plain.Score.LogOdds,
+                Is.EqualTo((decimal)Math.Log(.10d / .25d)).Within(.0000001m));
+            Assert.That(Score(personTf).Contributions.Count(c => c.Evidence == "NOMINAL_CONJUNTO_V9"),
+                Is.EqualTo(1));
+            Assert.That((Action)(() => Score(personTf with { MatchedNormalizedValue = "SILVA" })),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() => Score(motherTf with { TermFrequency = 0m })),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() => Score(motherTf with { UnitReferenceU = 0m })),
+                Throws.InvalidOperationException);
+        }));
+    }
+
+    [Test]
+    public void V9ExactFullFirstNameProxyAsymmetricModeNeverRewardsRareName()
+    {
+        var cells = FullFrame(CompositeNominalLevelV9.ExactFull,
+            CompositeNominalLevelV9.Missing, .20m, .05m);
+        FellegiSunterScoreBreakdown Score(CompositeNominalTfPreviewV9? tf) =>
+            FellegiSunterScoring.CalculateCompositeNominalV9PreviewWithBreakdown(
+                PreviewParameters(), "Maria Silva", "MARIA SILVA", null, null,
+                cells, CompositeNominalComparisonV9.ContractVersion, nominalTf: tf);
+        var baseline = Score(null).Score.LogOdds;
+        var rare = FirstNameTf("MARIA", .01m);
+        var common = FirstNameTf("MARIA", .25m);
+        var rareSymmetric = Score(rare).Score.LogOdds;
+        var rareAsymmetric = Score(rare with
+        {
+            Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+        }).Score.LogOdds;
+        var commonAsymmetric = Score(common with
+        {
+            Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+        }).Score.LogOdds;
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(rareSymmetric, Is.GreaterThan(baseline));
+            Assert.That(rareAsymmetric, Is.EqualTo(baseline).Within(.0000001m));
+            Assert.That(commonAsymmetric, Is.LessThan(baseline));
+            Assert.That(Score(rare with { Weight = 0m }).Score.LogOdds,
+                Is.EqualTo(baseline).Within(.0000001m));
+        }));
+    }
+
+    [Test]
+    public void V9BilateralEvaluatorAddsExactlyOneCalibratedAdjustmentPerSide()
+    {
+        var person = FirstNameTf("MARIA", .25m);
+        var mother = FirstNameTf("ANA", .50m) with
+        {
+            Side = CompositeNominalTfSideV9.Mother
+        };
+        double Evaluate(CompositeNominalTfPreviewV9? p, CompositeNominalTfPreviewV9? m) =>
+            CompositeNominalTfPreviewEvaluatorV9.CalculateBilateral(
+                CompositeNominalLevelV9.ExactFull, CompositeNominalLevelV9.ExactFull,
+                "Maria Silva", "MARIA SILVA", "Ana Costa", "ANA COSTA", p, m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(Evaluate(person, mother),
+                Is.EqualTo(Math.Log(.10d / .25d) + Math.Log(.10d / .50d)).Within(1e-12));
+            Assert.That(Evaluate(person, null),
+                Is.EqualTo(Math.Log(.10d / .25d)).Within(1e-12));
+            Assert.That(Evaluate(null, mother),
+                Is.EqualTo(Math.Log(.10d / .50d)).Within(1e-12));
+            Assert.That((Action)(() => Evaluate(person, person)),
+                Throws.InvalidOperationException);
+            Assert.That((Action)(() => Evaluate(mother, mother)),
+                Throws.InvalidOperationException);
+        }));
+    }
+
+    [Test]
+    public void V9BilateralExactLastUsesDeclaredSurnameUnitAndRejectsSwappedSides()
+    {
+        var person = FirstNameTf("SILVA", .25m) with
+        {
+            Reference = FirstNameTf("MARIA", .25m).Reference with
+            {
+                Unit = NominalFrequencyUnitV9.LastContentSurname,
+                Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
+            }
+        };
+        var mother = person with
+        {
+            Side = CompositeNominalTfSideV9.Mother,
+            MatchedNormalizedValue = "COSTA",
+            TermFrequency = .50m
+        };
+        double Evaluate(CompositeNominalTfPreviewV9? p, CompositeNominalTfPreviewV9? m) =>
+            CompositeNominalTfPreviewEvaluatorV9.CalculateBilateral(
+                CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactLast,
+                "Maria Silva", "Joana Silva", "Ana Costa", "Beatriz Costa", p, m);
+        Assert.That(Evaluate(person, mother),
+            Is.EqualTo(Math.Log(.10d / .25d) + Math.Log(.10d / .50d)).Within(1e-12));
+        Assert.That((Action)(() => Evaluate(mother, person)), Throws.InvalidOperationException);
+    }
+
+
+    [Test]
+    public void V9SharedSurnameDeclaresBilateralOrOneConservativeContributionAndNeverInfersFamily()
+    {
+        var person = FirstNameTf("SILVA", .25m) with
+        {
+            Reference = FirstNameTf("MARIA", .25m).Reference with
+            {
+                Unit = NominalFrequencyUnitV9.LastContentSurname,
+                Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
+            }
+        };
+        var mother = person with { Side = CompositeNominalTfSideV9.Mother, TermFrequency = .5m };
+        double Score(V9SharedSurnameModeV9 mode, CompositeNominalTfPreviewV9? m) =>
+            CompositeNominalTfPreviewEvaluatorV9.CalculateBilateral(
+                CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactLast,
+                "Maria Silva", "Joana Silva", "Ana Silva", "Beatriz Silva",
+                person, m, mode);
+        var p = Math.Log(.10d / .25d);
+        var m = Math.Log(.10d / .50d);
+        Assert.That(CompositeNominalTfPreviewEvaluatorV9.IsSharedSurname(person, mother), Is.True);
+        Assert.That(Score(V9SharedSurnameModeV9.Bilateral, mother),
+            Is.EqualTo(p + m).Within(1e-12));
+        Assert.That(Score(V9SharedSurnameModeV9.PersonSideOnlyWhenShared, mother),
+            Is.EqualTo(p).Within(1e-12)); // person side only, even for negative corrections
+
+        double ScoreBoth(CompositeNominalTfPreviewV9 pTf, CompositeNominalTfPreviewV9 mTf,
+            V9SharedSurnameModeV9 mode) =>
+            CompositeNominalTfPreviewEvaluatorV9.CalculateBilateral(
+                CompositeNominalLevelV9.ExactLast, CompositeNominalLevelV9.ExactLast,
+                "Maria Silva", "Joana Silva", "Ana Silva", "Beatriz Silva",
+                pTf, mTf, mode);
+        var positivePerson = person with { TermFrequency = .05m };
+        var positiveMother = mother with { TermFrequency = .025m };
+        var personReward = Math.Log(.10d / .05d);
+        var motherReward = Math.Log(.10d / .025d);
+        Assert.That(ScoreBoth(positivePerson, positiveMother,
+                V9SharedSurnameModeV9.PersonSideOnlyWhenShared),
+            Is.EqualTo(personReward).Within(1e-12));
+        Assert.That(ScoreBoth(positivePerson, positiveMother,
+                V9SharedSurnameModeV9.Bilateral),
+            Is.EqualTo(personReward + motherReward).Within(1e-12));
+        Assert.That(ScoreBoth(positivePerson, mother,
+                V9SharedSurnameModeV9.PersonSideOnlyWhenShared),
+            Is.EqualTo(personReward).Within(1e-12)); // opposite signs: person side only
+        Assert.That(ScoreBoth(person with { TermFrequency = .10m }, positiveMother,
+                V9SharedSurnameModeV9.PersonSideOnlyWhenShared),
+            Is.EqualTo(0d).Within(1e-12)); // neutral person remains neutral
+        Assert.That((Action)(() => Score(V9SharedSurnameModeV9.PersonSideOnlyWhenShared,
+            mother with { MatchedNormalizedValue = "COSTA" })),
+            Throws.TypeOf<InvalidOperationException>()); // inconsistent surname must fail closed
+        Assert.That(Score(V9SharedSurnameModeV9.PersonSideOnlyWhenShared, null),
+            Is.EqualTo(p).Within(1e-12));
+        Assert.That((Action)(() => Score((V9SharedSurnameModeV9)99, mother)),
+            Throws.InvalidOperationException);
+    }
     [Test]
     public void V9DeclaredBirthEvidenceRequiresCompleteParametersEvenWhenBirthInputIsMissing()
     {

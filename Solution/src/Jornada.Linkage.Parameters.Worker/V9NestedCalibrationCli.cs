@@ -61,7 +61,7 @@ public static class V9NestedCalibrationCli
         var train = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(source, 4,
             declaration.MaximumObservationsPerBaseIdentity, onlyPartition: "TRAIN");
         Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? referenceFactory = null;
-        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m))
+        if (plan.Calibration.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf))
             referenceFactory = async (passes, ct) =>
             {
                 // The reference version is explicit; no mutable ATIVA fallback.
@@ -126,21 +126,42 @@ public static class V9NestedCalibrationCli
     {
         ArgumentNullException.ThrowIfNull(plan);
         ArgumentNullException.ThrowIfNull(snapshot);
-        if (snapshot.Payload.TfWeight == 0m) return;
-        var tf = snapshot.Payload.TfCalibration
-            ?? throw new InvalidDataException("Finalista TF positivo sem parâmetros TRAIN congelados.");
-        var frame = tf.Reference.PopulationFrameFingerprint.Split(':');
-        if (plan.PinnedIbgeReferenceVersionId is null or <= 0
+        var activeUnits = snapshot.Payload.UnitTfCalibrations?
+            .Where(x => x.State == V9SnapshotTfFitState.Active).ToArray();
+        if (snapshot.Payload.TfWeight == 0m && activeUnits is not { Length: > 0 })
+            return; // Explicit all-zero fit: no positive TF marginal to certify.
+        // A per-unit model has no legacy TfCalibration by design. Require
+        // each frozen reference, including ZeroChosen references when present,
+        // to attest the same pinned IBGE publication before exposing holdout.
+        var calibrations = snapshot.Payload.UnitTfCalibrations is { } units
+            ? units.Where(x => x.Calibration is not null)
+                .Select(x => x.Calibration!).ToArray()
+            : snapshot.Payload.TfCalibration is { } legacy
+                ? [legacy] : Array.Empty<V9SnapshotNominalUnitTfCalibration>();
+        if (calibrations.Length == 0 || plan.PinnedIbgeReferenceVersionId is null or <= 0
             || plan.PinnedIbgePublishedSha256 is null
             || plan.PinnedIbgePublishedSha256.Length != 64
             || !plan.PinnedIbgePublishedSha256.All(Uri.IsHexDigit)
-            || tf.Reference.Source != NominalFrequencySourceV9.IbgePublishedMarginal
-            || plan.PinnedIbgeBootstrap is null
-            || tf.Reference.SyntheticBootstrap != plan.PinnedIbgeBootstrap
-            || frame.Length != 4
-            || frame[0] != "IBGE_PUBLISHED"
-            || !string.Equals(frame[2], plan.PinnedIbgePublishedSha256, StringComparison.OrdinalIgnoreCase))
-            throw new InvalidDataException("Finalista TF não corresponde ao digest IBGE publicado fixado no plano.");
+            || plan.PinnedIbgeBootstrap is null)
+            throw new InvalidDataException("Finalista TF positivo sem versão, digest e bootstrap IBGE fixados.");
+        foreach (var tf in calibrations)
+        {
+            var frame = tf.Reference.PopulationFrameFingerprint.Split(':');
+            var surname = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname;
+            var expectedSource = surname
+                ? NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
+                : NominalFrequencySourceV9.IbgePublishedMarginal;
+            var expectedScope = tf.Side == CompositeNominalTfSideV9.Person
+                ? "SP_3550308_TODOS" : surname ? "BR_TODOS" : "BR_FEMININO";
+            if (tf.Reference.Source != expectedSource
+                || tf.Reference.SyntheticBootstrap != plan.PinnedIbgeBootstrap
+                || frame.Length != 4 || frame[0] != "IBGE_PUBLISHED"
+                || !string.Equals(frame[2], plan.PinnedIbgePublishedSha256,
+                    StringComparison.OrdinalIgnoreCase)
+                || frame[3] != expectedScope)
+                throw new InvalidDataException(
+                    "Finalista TF por unidade não corresponde à publicação IBGE fixada no plano.");
+        }
     }
 
     private static async Task ValidateAsync(string selectionFile, string source, string output,

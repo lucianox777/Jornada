@@ -62,7 +62,7 @@ public static class V9NestedCalibrationCoordinator
             || plan.Calibration.MaximumAcceptedPerBaseIdentity != SyntheticObservationMultiplicityContract.MaximumObservationsPerBaseIdentity
             || plan.Calibration.ShardCount != 1 || plan.Calibration.Execution.EndToEndRepetitions < 20)
             throw new InvalidDataException("Busca interna exige política, custos, suporte, faixas e orçamento explícitos.");
-        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m)
+        if (plan.Calibration.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf)
             && (plan.PinnedIbgeReferenceVersionId is null or <= 0
                 || !ValidSha(plan.PinnedIbgePublishedSha256)
                 || !ValidSha(plan.PinnedIbgeMaterializedFrequencySha256)
@@ -82,13 +82,26 @@ public static class V9NestedCalibrationCoordinator
     public static void RequirePinnedTfReference(V9NestedCalibrationPlan plan, FrozenIbgeNominalTfV9? reference)
     {
         ArgumentNullException.ThrowIfNull(plan);
-        if (reference is null
-            || reference.ReferenceVersionId != plan.PinnedIbgeReferenceVersionId
-            || !string.Equals(reference.PublishedReferenceSha256, plan.PinnedIbgePublishedSha256, StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(reference.MaterializedFrequencySha256, plan.PinnedIbgeMaterializedFrequencySha256, StringComparison.OrdinalIgnoreCase)
-            || plan.PinnedIbgeBootstrap is null
-            || reference.Bootstrap != plan.PinnedIbgeBootstrap)
-            throw new InvalidDataException("TF positivo sem versão, digests ou bootstrap IBGE idênticos ao plano congelado.");
+        RequirePinnedTfReference(plan.PinnedIbgeReferenceVersionId, plan.PinnedIbgePublishedSha256,
+            plan.PinnedIbgeMaterializedFrequencySha256, plan.PinnedIbgeBootstrap, reference);
+    }
+
+    // One pinned-reference guard for nested and physical adaptive entry points.
+    internal static void RequirePinnedTfReference(long? versionId, string? publishedSha256,
+        string? materializedSha256, NominalSyntheticIbgeBootstrapV9? bootstrap,
+        FrozenIbgeNominalTfV9? reference)
+    {
+        if (versionId is null or <= 0
+            || !ValidSha(publishedSha256) || !ValidSha(materializedSha256)
+            || bootstrap is null || reference is null
+            || reference.ReferenceVersionId != versionId
+            || !string.Equals(reference.PublishedReferenceSha256, publishedSha256,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(reference.MaterializedFrequencySha256, materializedSha256,
+                StringComparison.OrdinalIgnoreCase)
+            || reference.Bootstrap != bootstrap)
+            throw new InvalidDataException(
+                "TF positivo sem versão, digests ou bootstrap IBGE idênticos ao plano congelado.");
     }
 
     private static bool ValidSha(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
@@ -102,7 +115,7 @@ public static class V9NestedCalibrationCoordinator
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
         ValidatePlan(plan);
-        if (plan.Calibration.ModelOptions.Any(x => x.TfWeight > 0m) && frozenTfReferenceForRuleset is null)
+        if (plan.Calibration.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf) && frozenTfReferenceForRuleset is null)
             throw new InvalidDataException("TF positivo na busca aninhada exige referência IBGE publicada e congelada por frame SQL.");
         originalTrain = Array.AsReadOnly(originalTrain.ToArray());
         // Deep freeze before asynchronous execution. Search never receives a VALIDATION/TEST cohort.
@@ -170,7 +183,7 @@ public static class V9NestedCalibrationCoordinator
             var results = await V9ParallelWork.MapAsync(groups, calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
                 FrozenIbgeNominalTfV9? frozenReference = null;
-                if (group.Any(x => x.Option.TfWeight > 0m))
+                if (group.Any(x => V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(x.Option)))
                 {
                     // Resolve the immutable published IBGE version for this exact
                     // blocking frame, never the mutable currently-active reference.

@@ -16,24 +16,55 @@ public sealed record V9FittedSnapshotPayload(
     decimal TfWeight, IReadOnlyList<LinkageBlockingPass> BlockingPasses,
     IReadOnlyList<FellegiSunterJointNominalCellV9> JointCells,
     IReadOnlyDictionary<string, decimal> Parameters,
-    V9SnapshotFirstNameTf? TfCalibration = null,
+    V9SnapshotNominalUnitTfCalibration? TfCalibration = null,
     string? BlockingFrameFingerprintSha256 = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     V9SnapshotCandidateGrouping? CandidateGrouping = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     V9JointSupportProvenance? JointSupport = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    string? GoldParentSnapshotSha256 = null);
+    string? GoldParentSnapshotSha256 = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    V9SnapshotNominalUnitTfCalibration? MotherTfCalibration = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<V9SnapshotUnitTf>? UnitTfCalibrations = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral);
 
 public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
     decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
 
-public sealed record V9SnapshotFirstNameTf(
+public sealed record V9SnapshotNominalUnitTfCalibration(
     CompositeNominalTfSideV9 Side, NominalFrequencyReferenceContractV9 Reference,
     IReadOnlyDictionary<string, decimal> Frequencies,
     IReadOnlyDictionary<string, decimal> TrainUnitUByValue,
     string TrainUnitFingerprintSha256, decimal MinimumFrequency,
-    long MinimumIndependentSupport, string TrainCorpusFingerprintSha256);
+    long MinimumIndependentSupport, string TrainCorpusFingerprintSha256,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    CompositeNominalTfAdjustmentModeV9 Mode = CompositeNominalTfAdjustmentModeV9.Symmetric,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    decimal? Weight = null);
+
+/// <summary>Explicit outcome of fitting a TF unit, including calibrated zero.</summary>
+public enum V9SnapshotTfFitState
+{
+    Active,
+    ZeroChosen,
+    InsufficientSupport,
+    NoSource,
+    BaselineTf0,
+    NotSelected
+}
+
+/// <summary>
+/// One independent TF fit per (side, unit). A zero chosen by the calibrator
+/// retains its frozen reference with Weight=0; missing evidence is never labelled zero.
+/// </summary>
+public sealed record V9SnapshotUnitTf(
+    CompositeNominalTfSideV9 Side,
+    NominalFrequencyUnitV9 Unit,
+    V9SnapshotTfFitState State,
+    V9SnapshotNominalUnitTfCalibration? Calibration);
 
 public sealed record V9SnapshotCandidate(
     Guid PersonUuid, string? FullName, DateOnly? BirthDate, string? MotherName);
@@ -82,6 +113,7 @@ public sealed class V9FittedSnapshot
     public V9FittedSnapshot CreateGoldHarnessVariant()
     {
         if (Payload.JointSupport is null || Payload.TfWeight != 0
+            || Payload.UnitTfCalibrations?.Any(x => x.State == V9SnapshotTfFitState.Active) == true
             || Payload.CandidateGrouping?.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES")
             throw new InvalidDataException("Variante Gold exige fit V3 BLIND TF0 congelado.");
         return Create(Payload with { CandidateGrouping = new("GOLD", 0, 0), GoldParentSnapshotSha256 = ContentSha256 });
@@ -138,31 +170,85 @@ public sealed class V9FittedSnapshot
     }
 
     internal IReadOnlyList<CandidateScore> RankPreview(IdentityObservation observation,
-        IReadOnlyList<V9SnapshotCandidate> candidates) =>
-        ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9Preview(Payload.Parameters, numericParameters, observation,
-            candidates.Select(c => new LinkageCandidate(c.PersonUuid, c.FullName, c.BirthDate, c.MotherName)).ToArray(),
-            frozenNominal,
-            Payload.TfCalibration is null ? null : CreateTf, Payload.TfCalibration?.Side);
+        IReadOnlyList<V9SnapshotCandidate> candidates)
+    {
+        var converted = candidates.Select(c =>
+            new LinkageCandidate(c.PersonUuid, c.FullName, c.BirthDate, c.MotherName)).ToArray();
+        // Select one calibrated TF unit per nominal event and side, without
+        // introducing a second FS engine or modifying the joint 81-cell m/u.
+        if (Payload.UnitTfCalibrations is { } fits)
+        {
+            V9SnapshotUnitTf? Select(IdentityObservation o, LinkageCandidate c,
+                CompositeNominalTfSideV9 side)
+            {
+                var level = side == CompositeNominalTfSideV9.Person
+                    ? CompositeNominalComparisonV9.Classify(o.NomeCompleto, c.NomeCompleto)
+                    : CompositeNominalComparisonV9.Classify(o.NomeMae, c.NomeMae);
+                var unit = V9NominalTfUnitSelection.ForLevel(level);
+                return unit is null ? null
+                    : fits.SingleOrDefault(x => x.Side == side && x.Unit == unit.Value);
+            }
+            CompositeNominalTfPreviewV9? Term(IdentityObservation o, LinkageCandidate c,
+                CompositeNominalTfSideV9 side)
+            {
+                var fit = Select(o, c, side);
+                // A chosen zero keeps its frozen reference but has no score.
+                // Only an active fit requires per-pair frequency and U.
+                return fit?.State == V9SnapshotTfFitState.Active
+                    ? CreateTf(o, c, fit.Calibration!) : null;
+            }
+            return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
+                Payload.Parameters, numericParameters, observation, converted, frozenNominal,
+                (o, c) => Term(o, c, CompositeNominalTfSideV9.Person),
+                (o, c) => Term(o, c, CompositeNominalTfSideV9.Mother),
+                personUnitForPair: (o, c) => Select(o, c, CompositeNominalTfSideV9.Person)?.Unit,
+                motherUnitForPair: (o, c) => Select(o, c, CompositeNominalTfSideV9.Mother)?.Unit,
+                personRequiredForPair: (o, c) =>
+                    Select(o, c, CompositeNominalTfSideV9.Person)?.State == V9SnapshotTfFitState.Active,
+                motherRequiredForPair: (o, c) =>
+                    Select(o, c, CompositeNominalTfSideV9.Mother)?.State == V9SnapshotTfFitState.Active,
+                sharedSurnameMode: Payload.SharedSurnameMode);
+        }
+        // Legacy slots remain temporarily until snapshot producers are migrated.
+        if (Payload.MotherTfCalibration is not null)
+            return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
+                Payload.Parameters, numericParameters, observation, converted, frozenNominal,
+                (o, c) => CreateTf(o, c, Payload.TfCalibration!),
+                (o, c) => CreateTf(o, c, Payload.MotherTfCalibration!),
+                Payload.TfCalibration!.Reference.Unit,
+                Payload.MotherTfCalibration!.Reference.Unit);
+        return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9Preview(
+            Payload.Parameters, numericParameters, observation, converted, frozenNominal,
+            Payload.TfCalibration is null ? null : (o, c) => CreateTf(o, c, Payload.TfCalibration!),
+            Payload.TfCalibration?.Side);
+    }
 
     internal ProbabilisticLinkageDecision ResolveRankedPreview(Guid diagnosticModelId,
         IReadOnlyList<CandidateScore> ranking) =>
         ProbabilisticLinkageDecisions.ResolveRankedCompositeNominalV9Preview(diagnosticModelId,
             Payload.Parameters, ranking, Payload.Threshold, Payload.ConflictMargin);
 
-    private CompositeNominalTfPreviewV9? CreateTf(IdentityObservation observation, LinkageCandidate candidate)
+    private CompositeNominalTfPreviewV9? CreateTf(IdentityObservation observation, LinkageCandidate candidate,
+        V9SnapshotNominalUnitTfCalibration tf)
     {
-        var tf = Payload.TfCalibration!;
         var left = tf.Side == CompositeNominalTfSideV9.Person ? observation.NomeCompleto : observation.NomeMae;
         var right = tf.Side == CompositeNominalTfSideV9.Person ? candidate.NomeCompleto : candidate.NomeMae;
-        if (CompositeNominalComparisonV9.Classify(left, right) != CompositeNominalLevelV9.ExactFirst)
+        var level = CompositeNominalComparisonV9.Classify(left, right);
+        var eligible = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
+            ? level == CompositeNominalLevelV9.ExactLast
+            : level is CompositeNominalLevelV9.ExactFirst or CompositeNominalLevelV9.ExactFull;
+        if (!eligible)
             return null;
-        var term = FirstName(left);
-        if (term is null || term != FirstName(right)
+        var term = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
+            ? BrazilianNameComponents.Project(left)?.LastContentSurname : FirstName(left);
+        var rightTerm = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
+            ? BrazilianNameComponents.Project(right)?.LastContentSurname : FirstName(right);
+        if (term is null || term != rightTerm
             || !tf.Frequencies.TryGetValue(term, out var frequency)
             || !tf.TrainUnitUByValue.TryGetValue(term, out var unitU))
             throw new InvalidDataException("TF positiva desconhecida: referência ou U TRAIN ausente no snapshot.");
         return new CompositeNominalTfPreviewV9(tf.Side, tf.Reference, term, frequency,
-            unitU, Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport);
+            unitU, tf.Weight ?? Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport, tf.Mode);
     }
 
     private static string? FirstName(string? name)
@@ -197,7 +283,10 @@ public sealed class V9FittedSnapshot
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)
             || p.Threshold is <= 0m or > 1m || p.ConflictMargin is < 0m or > 1000m
-            || p.TfWeight is < 0m or > 1m || (p.TfWeight == 0m) != (p.TfCalibration is null)
+            || !Enum.IsDefined(p.SharedSurnameMode)
+            || p.TfWeight is < 0m or > 1m
+            || (p.UnitTfCalibrations is null
+                && (p.TfWeight == 0m) != (p.TfCalibration is null))
             || p.BlockingPasses is null || p.BlockingPasses.Count == 0
             || p.JointCells is null || p.Parameters is null)
             throw new InvalidDataException("Snapshot V9 incompleto, incompatível ou TF sem referência congelada.");
@@ -253,20 +342,89 @@ public sealed class V9FittedSnapshot
                      LinkageParameterCatalog.LegacyBirthComponentScoring })
             if (parameters.GetValueOrDefault(unsupported) != 0m)
                 throw new InvalidDataException("Estratégia de nascimento não suportada pelo schema do snapshot.");
-        V9SnapshotFirstNameTf? frozenTf = null;
-        if (p.TfCalibration is { } tf)
+        if (p.SharedSurnameMode == V9SharedSurnameModeV9.PersonSideOnlyWhenShared
+            && (p.UnitTfCalibrations is null
+                || !new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother }
+                    .All(side => p.UnitTfCalibrations.Any(x => x.Side == side
+                        && x.Unit == NominalFrequencyUnitV9.LastContentSurname
+                        && x.State == V9SnapshotTfFitState.Active))))
+            throw new InvalidDataException("Sobrenome único exige dois slots de sobrenome TF ativos.");
+        // New multi-unit fitting metadata is validated independently of the
+        // legacy two-slot execution path. Never accept duplicate or contradictory
+        // state/reference combinations.
+        if (p.UnitTfCalibrations is { } unitFits)
         {
+            if (p.TfCalibration is not null || p.MotherTfCalibration is not null)
+                throw new InvalidDataException("TF V9 não admite fontes paralelas: use somente UnitTfCalibrations.");
+            if (unitFits.Count != 4 || unitFits.Any(x => x is null
+                    || !Enum.IsDefined(x.Side) || !Enum.IsDefined(x.Unit)
+                    || x.Unit is not (NominalFrequencyUnitV9.FirstName or NominalFrequencyUnitV9.LastContentSurname)
+                    || !Enum.IsDefined(x.State))
+                || unitFits.Select(x => (x.Side, x.Unit)).Distinct().Count() != 4)
+                throw new InvalidDataException("Configurações TF por lado/unidade inválidas ou duplicadas.");
+            var activeCount = 0;
+            foreach (var fit in unitFits)
+            {
+                var config = fit.Calibration;
+                switch (fit.State)
+                {
+                    case V9SnapshotTfFitState.Active:
+                        if (config?.Weight is not { } activeWeight || activeWeight <= 0m || activeWeight > 1m)
+                            throw new InvalidDataException("TF ativo exige peso individual positivo em [0,1].");
+                        activeCount++;
+                        break;
+                    case V9SnapshotTfFitState.ZeroChosen:
+                        if (config?.Weight != 0m)
+                            throw new InvalidDataException("TF ZeroChosen exige referência congelada de peso zero.");
+                        break;
+                    case V9SnapshotTfFitState.BaselineTf0:
+                    case V9SnapshotTfFitState.NotSelected:
+                    case V9SnapshotTfFitState.NoSource:
+                    case V9SnapshotTfFitState.InsufficientSupport:
+                        if (config is not null
+                            || (fit.State == V9SnapshotTfFitState.BaselineTf0 && p.TfWeight != 0m)
+                            || (fit.State == V9SnapshotTfFitState.NotSelected && p.TfWeight == 0m))
+                            throw new InvalidDataException("Estado TF sem calibração incompatível com o fit.");
+                        break;
+                    default:
+                        throw new InvalidDataException("Estado TF V9 desconhecido.");
+                }
+                if (config is not null && (config.Side != fit.Side || config.Reference is null
+                    || config.Reference.Unit != fit.Unit))
+                    throw new InvalidDataException("Configuração TF por unidade não corresponde ao estado.");
+            }
+            if ((activeCount > 0) != (p.TfWeight > 0m || unitFits.Any(x =>
+                    x.Calibration?.Weight is > 0m))
+                || (p.TfWeight > 0m && (activeCount != 1 || !unitFits.Any(x =>
+                    x.Unit == NominalFrequencyUnitV9.FirstName
+                    && x.State == V9SnapshotTfFitState.Active
+                    && x.Calibration?.Weight == p.TfWeight))))
+                throw new InvalidDataException("Peso TF geral e pesos independentes contraditórios.");
+        }
+        // The mother reference is separately fitted and must not reuse a person-side U.
+        if (p.MotherTfCalibration is { } mother &&
+            (p.TfCalibration?.Side != CompositeNominalTfSideV9.Person
+             || mother.Side != CompositeNominalTfSideV9.Mother
+             || mother.Weight is null || mother.Weight <= 0m || mother.Weight > 1m))
+            throw new InvalidDataException("TF bilateral exige lados distintos e peso calibrado da mãe.");
+
+        V9SnapshotNominalUnitTfCalibration? FreezeTf(V9SnapshotNominalUnitTfCalibration? tf)
+        {
+            if (tf is null) return null;
             RequireSha(tf.TrainUnitFingerprintSha256);
             RequireSha(tf.TrainCorpusFingerprintSha256);
             RequireSha(p.BlockingFrameFingerprintSha256!);
             if (!tf.TrainCorpusFingerprintSha256.Equals(p.TrainCorpusSha256, StringComparison.OrdinalIgnoreCase)
-                || !Enum.IsDefined(tf.Side) || tf.Reference is null
+                || !Enum.IsDefined(tf.Side) || !Enum.IsDefined(tf.Mode) || tf.Reference is null
+                || (tf.Weight is { } ownWeight && (ownWeight < 0m || ownWeight > 1m))
                 || !p.BlockingFrameFingerprintSha256!.Equals(tf.Reference.BlockingFrameFingerprint,
                     StringComparison.OrdinalIgnoreCase)
                 || tf.MinimumFrequency is < 0m or > 1m || tf.MinimumIndependentSupport <= 0)
                 throw new InvalidDataException("Snapshot TF incompatível com TRAIN ou configuração.");
             CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
-                CompositeNominalLevelV9.ExactFirst, tf.Reference, tf.MinimumIndependentSupport);
+                tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
+                    ? CompositeNominalLevelV9.ExactLast : CompositeNominalLevelV9.ExactFirst,
+                tf.Reference, tf.MinimumIndependentSupport);
             if (tf.Reference.Source == NominalFrequencySourceV9.IbgePublishedMarginal
                 && (!tf.Reference.PopulationFrameFingerprint.StartsWith("IBGE_PUBLISHED:", StringComparison.Ordinal)
                     || !tf.Reference.PopulationFrameFingerprint.EndsWith(
@@ -285,10 +443,19 @@ public sealed class V9FittedSnapshot
             var trainU = FreezeTerms(tf.TrainUnitUByValue);
             if (trainU.Values.Sum() > 1.000001m)
                 throw new InvalidDataException("Distribuição condicional U TRAIN excede um.");
-            frozenTf = tf with { Frequencies = frequencies, TrainUnitUByValue = trainU };
+            return tf with { Frequencies = frequencies, TrainUnitUByValue = trainU };
         }
+        var frozenTf = FreezeTf(p.TfCalibration);
+        var frozenMotherTf = FreezeTf(p.MotherTfCalibration);
+        // Reuse the proven TF freeze/validation path for every unit.
+        // ZeroChosen keeps its pinned reference and U while runtime gives it BF=1.
+        var frozenUnits = p.UnitTfCalibrations is null ? null
+            : Array.AsReadOnly(p.UnitTfCalibrations.Select(fit =>
+                fit with { Calibration = FreezeTf(fit.Calibration) })
+                .OrderBy(fit => fit.Side).ThenBy(fit => fit.Unit).ToArray());
         return p with { BlockingPasses = Array.AsReadOnly(passes), JointCells = cells,
-            Parameters = parameters, TfCalibration = frozenTf,
+            Parameters = parameters, TfCalibration = frozenTf, MotherTfCalibration = frozenMotherTf,
+            UnitTfCalibrations = frozenUnits,
             JointSupport = p.JointSupport is null ? null : V9JointSupportEstimation.VerifyAndFreeze(p.JointSupport, cells, p.TrainCorpusSha256) };
     }
 

@@ -32,6 +32,47 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void Tf0_snapshot_and_four_explicit_baseline_units_have_bit_exact_fs_scores()
+    {
+        var historical = V9FittedSnapshot.Create(Payload());
+        var zeroUnits = new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother }
+            .SelectMany(side => new[] { NominalFrequencyUnitV9.FirstName,
+                NominalFrequencyUnitV9.LastContentSurname }
+                .Select(unit => new V9SnapshotUnitTf(
+                    side, unit, V9SnapshotTfFitState.BaselineTf0, null)))
+            .ToArray();
+        var explicitZero = V9FittedSnapshot.Create(
+            Payload() with { UnitTfCalibrations = zeroUnits });
+        // Compare all relevant nominal paths including absent mother and DOB,
+        // without changing the fixed joint 81-cell m/u or the actual birth factor.
+        var probes = new[]
+        {
+            ("MARIA SILVA", "MARIA SILVA", "ANA COSTA", "ANA COSTA", (DateOnly?)new DateOnly(1980, 2, 3), (DateOnly?)new DateOnly(1980, 2, 3)),
+            ("MARIA SILVA", "MARIA SOUZA", "ANA COSTA", "ANA LIMA", (DateOnly?)new DateOnly(1980, 2, 3), (DateOnly?)new DateOnly(1980, 2, 4)),
+            ("MARIA SILVA", "JOANA SILVA", "ANA COSTA", "EVA COSTA", (DateOnly?)null, (DateOnly?)null),
+            ("MARIA SILVA", "JOANA PEREIRA", (string?)null, (string?)null, (DateOnly?)null, (DateOnly?)null)
+        };
+        foreach (var (left, right, leftMother, rightMother, birthA, birthB) in probes)
+        {
+            var observation = new IdentityObservation(null, "SEM_CPF", left, birthA, leftMother);
+            var candidate = new V9SnapshotCandidate(Guid.NewGuid(), right, birthB, rightMother);
+            var a = historical.RankPreview(observation, [candidate]).Single();
+            var b = explicitZero.RankPreview(observation, [candidate]).Single();
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(BitConverter.DoubleToInt64Bits((double)a.LogOdds),
+                    Is.EqualTo(BitConverter.DoubleToInt64Bits((double)b.LogOdds)));
+                Assert.That(a.LogOdds, Is.EqualTo(b.LogOdds));
+                Assert.That(a.Score, Is.EqualTo(b.Score));
+            }));
+        }
+        Assert.That(V9FittedSnapshot.Load(historical.SerializeUtf8(), historical.ContentSha256).ContentSha256,
+            Is.EqualTo(historical.ContentSha256));
+        // This is a bit-exact *score* regression. The historical 97.4754%
+        // aggregate requires a separate replay on the original physical corpus.
+    }
+
+    [Test]
     public void Pinned_snapshot_roundtrips_and_runs_same_shared_resolve_without_retraining()
     {
         var snapshot = V9FittedSnapshot.Create(Payload());
@@ -109,11 +150,171 @@ public sealed class V9FittedSnapshotTests
             new NominalSyntheticIbgeBootstrapV9(CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance,
                 30000, new string('a', 64), "GENERATOR_V1", 42, new string('b', 64)));
         return p with { TfWeight = 1m, BlockingFrameFingerprintSha256 = new string('c', 64),
-            TfCalibration = new V9SnapshotFirstNameTf(
+            TfCalibration = new V9SnapshotNominalUnitTfCalibration(
             CompositeNominalTfSideV9.Person, reference,
             new Dictionary<string, decimal> { ["MARIA"] = .00001m },
             new Dictionary<string, decimal> { ["MARIA"] = .8m },
             new string('a', 64), .000001m, 1, p.TrainCorpusSha256) };
+    }
+
+    private static V9FittedSnapshotPayload FourUnitTfPayload()
+    {
+        var p = PositiveTfPayload();
+        var personFirst = p.TfCalibration! with
+        {
+            Weight = 1m,
+            Frequencies = new Dictionary<string, decimal> { ["MARIA"] = .5m },
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["MARIA"] = .1m }
+        };
+        var motherFirst = personFirst with
+        {
+            Side = CompositeNominalTfSideV9.Mother,
+            Reference = personFirst.Reference with
+            {
+                PopulationFrameFingerprint = "IBGE_PUBLISHED:test:" + new string('a', 64) + ":BR_FEMININO"
+            },
+            Frequencies = new Dictionary<string, decimal> { ["ANA"] = .5m },
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["ANA"] = .1m }
+        };
+        var personLast = personFirst with
+        {
+            Reference = personFirst.Reference with
+            {
+                Unit = NominalFrequencyUnitV9.LastContentSurname,
+                Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
+            },
+            Frequencies = new Dictionary<string, decimal> { ["SILVA"] = .5m },
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["SILVA"] = .1m }
+        };
+        var motherLast = motherFirst with
+        {
+            Reference = motherFirst.Reference with
+            {
+                Unit = NominalFrequencyUnitV9.LastContentSurname,
+                Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy,
+                PopulationFrameFingerprint = "IBGE_PUBLISHED:test:" + new string('a', 64) + ":BR_TODOS"
+            },
+            Frequencies = new Dictionary<string, decimal> { ["COSTA"] = .5m },
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["COSTA"] = .1m }
+        };
+        return p with
+        {
+            // Four independently active TF slots carry positive own weights;
+            // legacy single-side TfWeight must remain zero in this model.
+            TfWeight = 0m, TfCalibration = null, MotherTfCalibration = null,
+            UnitTfCalibrations =
+            [
+                new(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,
+                    V9SnapshotTfFitState.Active, personFirst),
+                new(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.LastContentSurname,
+                    V9SnapshotTfFitState.Active, personLast),
+                new(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName,
+                    V9SnapshotTfFitState.Active, motherFirst),
+                new(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.LastContentSurname,
+                    V9SnapshotTfFitState.Active, motherLast)
+            ]
+        };
+    }
+
+    [Test]
+    public void Four_unit_tf_reuses_one_frozen_scorer_for_first_full_last_and_both_sides()
+    {
+        var fitted = V9FittedSnapshot.Create(FourUnitTfPayload());
+        var restored = V9FittedSnapshot.Load(fitted.SerializeUtf8(), fitted.ContentSha256);
+        var neutral = V9FittedSnapshot.Create(Payload());
+        decimal Score(V9FittedSnapshot snapshot, string personLeft, string personRight,
+            string? motherLeft = null, string? motherRight = null)
+        {
+            var observation = new IdentityObservation(null, "SEM_CPF", personLeft, null, motherLeft);
+            var candidate = new V9SnapshotCandidate(Guid.NewGuid(), personRight, null, motherRight);
+            return snapshot.RankPreview(observation, [candidate]).Single().LogOdds;
+        }
+        foreach (var pair in new[]
+        {
+            ("MARIA SILVA", "MARIA SOUZA", (string?)null, (string?)null), // ExactFirst
+            ("MARIA SILVA", "MARIA SILVA", (string?)null, (string?)null), // ExactFull proxy
+            ("JOANA SILVA", "BEATRIZ SILVA", (string?)null, (string?)null), // ExactLast
+            ("JOANA LIMA", "BEATRIZ SOUZA", (string?)"ANA COSTA", (string?)"ANA LIMA"), // Mother ExactFirst
+            ("JOANA LIMA", "BEATRIZ SOUZA", (string?)"ANA COSTA", (string?)"BEATRIZ COSTA") // Mother ExactLast
+        })
+        {
+            Assert.That(Score(fitted, pair.Item1, pair.Item2, pair.Item3, pair.Item4),
+                Is.LessThan(Score(neutral, pair.Item1, pair.Item2, pair.Item3, pair.Item4)));
+            Assert.That(Score(restored, pair.Item1, pair.Item2, pair.Item3, pair.Item4),
+                Is.EqualTo(Score(fitted, pair.Item1, pair.Item2, pair.Item3, pair.Item4)));
+        }
+        Assert.That(restored.ContentSha256, Is.EqualTo(fitted.ContentSha256));
+    }
+
+    [Test]
+    public void Four_unit_tf_preserves_chosen_zero_and_rejects_missing_active_surname()
+    {
+        var p = FourUnitTfPayload();
+        var units = p.UnitTfCalibrations!.ToArray();
+        units[1] = units[1] with
+        {
+            State = V9SnapshotTfFitState.ZeroChosen,
+            Calibration = units[1].Calibration! with { Weight = 0m }
+        };
+        var zero = V9FittedSnapshot.Create(p with { UnitTfCalibrations = units });
+        var neutral = V9FittedSnapshot.Create(Payload());
+        var observation = new IdentityObservation(null, "SEM_CPF", "JOANA SILVA", null, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "BEATRIZ SILVA", null, null);
+        Assert.That(zero.RankPreview(observation, [candidate]).Single().LogOdds,
+            Is.EqualTo(neutral.RankPreview(observation, [candidate]).Single().LogOdds));
+        Assert.That(V9FittedSnapshot.Load(zero.SerializeUtf8(), zero.ContentSha256)
+            .Payload.UnitTfCalibrations![1].State, Is.EqualTo(V9SnapshotTfFitState.ZeroChosen));
+        units[1] = units[1] with
+        {
+            State = V9SnapshotTfFitState.Active,
+            Calibration = units[1].Calibration! with { Weight = 1m }
+        };
+        var active = V9FittedSnapshot.Create(p with { UnitTfCalibrations = units });
+        Assert.Throws<InvalidDataException>((Action)(() => active.RankPreview(
+            new IdentityObservation(null, "SEM_CPF", "JOANA COSTA", null, null),
+            [candidate with { FullName = "BEATRIZ COSTA" }])));
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(p with
+        {
+            UnitTfCalibrations = [units[0], units[0]]
+        })));
+    }
+
+
+    [Test]
+    public void Shared_last_surname_mode_roundtrips_without_doubling_same_surname_tf()
+    {
+        var baseline = FourUnitTfPayload();
+        var units = baseline.UnitTfCalibrations!.ToArray();
+        units[3] = units[3] with
+        {
+            Calibration = units[3].Calibration! with
+            {
+                Frequencies = new Dictionary<string, decimal> { ["SILVA"] = .5m },
+                TrainUnitUByValue = new Dictionary<string, decimal> { ["SILVA"] = .1m }
+            }
+        };
+        var revised = baseline with { UnitTfCalibrations = units };
+        var bilateral = V9FittedSnapshot.Create(revised);
+        var single = V9FittedSnapshot.Create(revised with
+        {
+            SharedSurnameMode = V9SharedSurnameModeV9.PersonSideOnlyWhenShared
+        });
+        var roundtrip = V9FittedSnapshot.Load(single.SerializeUtf8(), single.ContentSha256);
+        var observation = new IdentityObservation(null, "SEM_CPF",
+            "JOANA SILVA", null, "ANA SILVA");
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(),
+            "BEATRIZ SILVA", null, "EVA SILVA");
+        var bilateralScore = bilateral.RankPreview(observation, [candidate]).Single().LogOdds;
+        var singleScore = roundtrip.RankPreview(observation, [candidate]).Single().LogOdds;
+        Assert.That(roundtrip.Payload.SharedSurnameMode,
+            Is.EqualTo(V9SharedSurnameModeV9.PersonSideOnlyWhenShared));
+        Assert.That(singleScore, Is.GreaterThan(bilateralScore));
+        Assert.That(singleScore - bilateralScore,
+            Is.EqualTo((decimal)Math.Abs(Math.Log(.1d / .5d))).Within(.00000002m));
+        Assert.That((Action)(() => V9FittedSnapshot.Create(revised with
+        {
+            SharedSurnameMode = (V9SharedSurnameModeV9)123
+        })), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -142,6 +343,121 @@ public sealed class V9FittedSnapshotTests
             V9NestedCalibrationCli.RequirePinnedFinalistReference(
                 plan with { PinnedIbgePublishedSha256 = null, PinnedIbgeReferenceVersionId = null },
                 V9FittedSnapshot.Create(Payload()))));
+        var four = V9FittedSnapshot.Create(FourUnitTfPayload());
+        Assert.DoesNotThrow((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(plan, four)));
+        Assert.That(four.Payload.TfWeight, Is.Zero);
+        Assert.That(four.Payload.UnitTfCalibrations!.Count(x =>
+            x.State == V9SnapshotTfFitState.Active), Is.EqualTo(4));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(
+                plan with { PinnedIbgePublishedSha256 = null }, four)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(
+                plan with { PinnedIbgeBootstrap = bootstrap with { GeneratorSeed = 44UL } }, four)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NestedCalibrationCli.RequirePinnedFinalistReference(
+                plan with { PinnedIbgeReferenceVersionId = null }, four)));
+    }
+
+    [Test]
+    public void Frozen_tf_asymmetric_penalizes_common_but_never_rewards_rare_first_names()
+    {
+        var payload = PositiveTfPayload();
+        var neutral = V9FittedSnapshot.Create(Payload());
+        var symmetric = V9FittedSnapshot.Create(payload);
+        var asymmetric = V9FittedSnapshot.Create(payload with
+        {
+            TfCalibration = payload.TfCalibration! with
+            {
+                Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+            }
+        });
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "MARIA COSTA", null, null);
+        decimal Score(V9FittedSnapshot snapshot) =>
+            snapshot.RankPreview(observation, [candidate]).Single().LogOdds;
+
+        // Rare MARIA: the symmetric factor is positive, the asymmetric one is
+        // exactly neutral. TF0 and asymmetric must share the scoring kernel.
+        Assert.That(Score(symmetric), Is.GreaterThan(Score(neutral)));
+        Assert.That(Score(asymmetric), Is.EqualTo(Score(neutral)));
+        var restored = V9FittedSnapshot.Load(asymmetric.SerializeUtf8(), asymmetric.ContentSha256);
+        Assert.That(Score(restored), Is.EqualTo(Score(asymmetric)));
+        Assert.That(restored.ContentSha256, Is.EqualTo(asymmetric.ContentSha256));
+
+        // Common MARIA: both modes apply the same negative adjustment.
+        var frequent = payload with
+        {
+            TfCalibration = payload.TfCalibration! with
+            {
+                Frequencies = new Dictionary<string, decimal> { ["MARIA"] = .9m }
+            }
+        };
+        var frequentSymmetric = V9FittedSnapshot.Create(frequent);
+        var frequentAsymmetric = V9FittedSnapshot.Create(frequent with
+        {
+            TfCalibration = frequent.TfCalibration! with
+            {
+                Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+            }
+        });
+        Assert.That(Score(frequentSymmetric), Is.LessThan(Score(neutral)));
+        Assert.That(Score(frequentAsymmetric), Is.EqualTo(Score(frequentSymmetric)));
+
+        // Unknown modes are not silently treated as symmetric.
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(payload with
+        {
+            TfCalibration = payload.TfCalibration! with
+            {
+                Mode = (CompositeNominalTfAdjustmentModeV9)99
+            }
+        })));
+    }
+
+    [Test]
+    public void Frozen_bilateral_tf_uses_independent_person_and_mother_weights_and_roundtrips()
+    {
+        var p = PositiveTfPayload();
+        var motherReference = p.TfCalibration!.Reference with
+        {
+            PopulationFrameFingerprint = "IBGE_PUBLISHED:test:" + new string('a', 64) + ":BR_FEMININO"
+        };
+        var mother = p.TfCalibration with
+        {
+            Side = CompositeNominalTfSideV9.Mother,
+            Reference = motherReference,
+            Frequencies = new Dictionary<string, decimal> { ["ANA"] = .9m },
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["ANA"] = .8m },
+            Weight = .75m,
+            Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+        };
+        var single = V9FittedSnapshot.Create(p);
+        var dual = V9FittedSnapshot.Create(p with { MotherTfCalibration = mother });
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, "ANA COSTA");
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "MARIA SILVA", null, "ANA COSTA");
+        decimal Score(V9FittedSnapshot snapshot) =>
+            snapshot.RankPreview(observation, [candidate]).Single().LogOdds;
+        Assert.That(Score(dual), Is.LessThan(Score(single)));
+        var loaded = V9FittedSnapshot.Load(dual.SerializeUtf8(), dual.ContentSha256);
+        Assert.That(loaded.ContentSha256, Is.EqualTo(dual.ContentSha256));
+        Assert.That(Score(loaded), Is.EqualTo(Score(dual)));
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(p with
+        {
+            MotherTfCalibration = mother with { Side = CompositeNominalTfSideV9.Person }
+        })));
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(p with
+        {
+            MotherTfCalibration = mother with { Weight = null }
+        })));
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(p with
+        {
+            MotherTfCalibration = mother with { Mode = (CompositeNominalTfAdjustmentModeV9)99 }
+        })));
+        var unknown = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, "JOANA COSTA");
+        var unknownCandidate = candidate with { MotherName = "JOANA COSTA" };
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            dual.RankPreview(unknown, [unknownCandidate])));
     }
 
     [Test]
@@ -163,7 +479,7 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
-    public void Positive_tf_unknown_applicable_term_throws_while_nonapplicable_full_exact_keeps_real_score()
+    public void Positive_tf_unknown_applicable_term_fails_closed_for_full_exact_too()
     {
         var snapshot = V9FittedSnapshot.Create(PositiveTfPayload());
         var observation = new IdentityObservation(null, "SEM_CPF", "JOANA SILVA", null, null);
@@ -171,14 +487,9 @@ public sealed class V9FittedSnapshotTests
         Assert.That(CompositeNominalComparisonV9.Classify(observation.NomeCompleto, candidate.FullName),
             Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
         Assert.Throws<InvalidDataException>((Action)(() => snapshot.ResolvePreview(Guid.NewGuid(), observation, [candidate])));
-        var id = Guid.NewGuid();
         candidate = candidate with { FullName = observation.NomeCompleto };
-        var actual = snapshot.ResolvePreview(id, observation, [candidate]);
-        var expected = ProbabilisticLinkageDecisions.ResolveCompositeNominalV9Preview(id,
-            snapshot.Payload.Parameters, observation,
-            [new LinkageCandidate(candidate.PersonUuid, candidate.FullName, null, null)], snapshot.Payload.JointCells,
-            snapshot.Payload.NominalContractVersion, snapshot.Payload.Threshold, snapshot.Payload.ConflictMargin);
-        Assert.That(actual, Is.EqualTo(expected));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            snapshot.ResolvePreview(Guid.NewGuid(), observation, [candidate])));
     }
 
     [Test]

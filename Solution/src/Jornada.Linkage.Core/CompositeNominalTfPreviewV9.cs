@@ -9,6 +9,12 @@ namespace Jornada.Linkage.Runner;
 /// </summary>
 public enum CompositeNominalTfSideV9 { Person, Mother }
 
+/// <summary>How a calibrated TF log-factor affects the single joint FS LLR.</summary>
+public enum CompositeNominalTfAdjustmentModeV9 { Symmetric = 0, AsymmetricPenaltyOnly = 1 }
+
+/// <summary>Experimental shared-surname dependence assumption, not a family relationship.</summary>
+public enum V9SharedSurnameModeV9 { Bilateral = 0, PersonSideOnlyWhenShared = 1 }
+
 public sealed record CompositeNominalTfPreviewV9(
     CompositeNominalTfSideV9 Side,
     NominalFrequencyReferenceContractV9 Reference,
@@ -17,11 +23,13 @@ public sealed record CompositeNominalTfPreviewV9(
     decimal UnitReferenceU,
     decimal Weight,
     decimal MinimumFrequency,
-    long MinimumIndependentSupport);
+    long MinimumIndependentSupport,
+    CompositeNominalTfAdjustmentModeV9 Mode = CompositeNominalTfAdjustmentModeV9.Symmetric);
 
 /// <summary>
 /// Evaluates one, explicitly selected, level-specific TF correction in the
-/// SAME FS scorer. Never applies a first-name marginal to full-name exact.
+/// SAME FS scorer. ExactFull may use the explicitly declared V8-compatible
+/// first-name proxy; it is not a measured full-name frequency.
 /// No second nominal m/u contribution is introduced; the only V9 joint
 /// nominal LLR receives an optional additive correction. Two uncalibrated
 /// person/mother adjustments are intentionally NOT summed.
@@ -41,6 +49,8 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
             return 0d;
         if (!Enum.IsDefined(input.Side))
             throw new InvalidOperationException("TF V9 exige lado nominal pessoa ou mãe.");
+        if (!Enum.IsDefined(input.Mode))
+            throw new InvalidOperationException("Modo de ajuste TF V9 desconhecido.");
         if (input.Weight < 0m || input.Weight > 1m
             || input.TermFrequency <= 0m || input.TermFrequency > 1m
             || input.UnitReferenceU <= 0m || input.UnitReferenceU > 1m
@@ -56,11 +66,19 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
             return 0d;
 
         var level = input.Side == CompositeNominalTfSideV9.Person ? personLevel : motherLevel;
-        CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
-            level, input.Reference, input.MinimumIndependentSupport);
+        var firstNameProxy = level == CompositeNominalLevelV9.ExactFull
+            && input.Reference.Unit == NominalFrequencyUnitV9.FirstName;
+        if (firstNameProxy)
+            CompositeNominalTermFrequencyContractV9.RequireFirstNameProxyForExactFull(
+                level, input.Reference, input.MinimumIndependentSupport);
+        else
+            CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+                level, input.Reference, input.MinimumIndependentSupport);
         var left = input.Side == CompositeNominalTfSideV9.Person ? leftPerson : leftMother;
         var right = input.Side == CompositeNominalTfSideV9.Person ? rightPerson : rightMother;
-        var expectedUnit = CompositeNominalTermFrequencyContractV9.RequiredUnit(level)!.Value;
+        var expectedUnit = firstNameProxy
+            ? NominalFrequencyUnitV9.FirstName
+            : CompositeNominalTermFrequencyContractV9.RequiredUnit(level)!.Value;
         var leftValue = ProjectUnit(left, expectedUnit);
         var rightValue = ProjectUnit(right, expectedUnit);
         if (leftValue is null
@@ -73,10 +91,61 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
         // calibration, never joint-cell U or historical U_NOME_EXACT.
         // Metadata cannot attest that the supplied values were actually
         // estimated: this pathway is strictly diagnostic/preview.
-        return SplinkCompatibleTermFrequency.LogBayesAdjustment(
+        var adjustment = SplinkCompatibleTermFrequency.LogBayesAdjustment(
             input.TermFrequency, input.TermFrequency,
             input.UnitReferenceU, input.Weight, input.MinimumFrequency);
+        // A non-positive-only mode must not reward rare values. The same
+        // calibrated U, frequency and joint 81-cell LLR remain untouched.
+        return input.Mode == CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
+            ? Math.Min(0d, adjustment) : adjustment;
     }
+
+    /// <summary>
+    /// Combines one calibrated TF correction per distinct side without
+    /// duplicating either side or the nominal joint-cell LLR. A caller must
+    /// supply the two independently fitted U references and weights.
+    /// </summary>
+    internal static double CalculateBilateral(
+        CompositeNominalLevelV9 personLevel,
+        CompositeNominalLevelV9 motherLevel,
+        string? leftPerson,
+        string? rightPerson,
+        string? leftMother,
+        string? rightMother,
+        CompositeNominalTfPreviewV9? personTf,
+        CompositeNominalTfPreviewV9? motherTf,
+        V9SharedSurnameModeV9 sharedSurnameMode = V9SharedSurnameModeV9.Bilateral)
+    {
+        if (!Enum.IsDefined(sharedSurnameMode))
+            throw new InvalidOperationException("Modo TF de sobrenome compartilhado inválido.");
+        if (personTf is not null && personTf.Side != CompositeNominalTfSideV9.Person)
+            throw new InvalidOperationException("TF bilateral exige referência de pessoa no lado pessoa.");
+        if (motherTf is not null && motherTf.Side != CompositeNominalTfSideV9.Mother)
+            throw new InvalidOperationException("TF bilateral exige referência de mãe no lado mãe.");
+        var personAdjustment = Calculate(personLevel, motherLevel,
+            leftPerson, rightPerson, leftMother, rightMother, personTf);
+        var motherAdjustment = Calculate(personLevel, motherLevel,
+            leftPerson, rightPerson, leftMother, rightMother, motherTf);
+        if (sharedSurnameMode == V9SharedSurnameModeV9.PersonSideOnlyWhenShared
+            && IsSharedSurname(personTf, motherTf))
+        {
+            // Diagnostic variant only: one shared surname uses the person's
+            // signed correction, independent of the mother's correction.
+            // Bilateral remains the default for scoring and selection.
+            return personAdjustment;
+        }
+        return personAdjustment + motherAdjustment;
+    }
+
+    /// <summary>Count only real bilateral ExactLast TF events with the same normalized surname.</summary>
+    internal static bool IsSharedSurname(
+        CompositeNominalTfPreviewV9? personTf, CompositeNominalTfPreviewV9? motherTf) =>
+        personTf is { Side: CompositeNominalTfSideV9.Person,
+            Reference.Unit: NominalFrequencyUnitV9.LastContentSurname, Weight: > 0m }
+        && motherTf is { Side: CompositeNominalTfSideV9.Mother,
+            Reference.Unit: NominalFrequencyUnitV9.LastContentSurname, Weight: > 0m }
+        && string.Equals(personTf.MatchedNormalizedValue, motherTf.MatchedNormalizedValue,
+            StringComparison.Ordinal);
 
     private static string? ProjectUnit(string? name, NominalFrequencyUnitV9 unit)
     {

@@ -29,6 +29,25 @@ public sealed class FrozenIbgeNominalTfV9
     public string BlockingFrameFingerprint { get; }
     public NominalSyntheticIbgeBootstrapV9 Bootstrap { get; }
 
+    /// <summary>
+    /// Reports whether the pinned IBGE marginal exists for a side and nominal unit.
+    /// Invalid nominal levels fail closed.
+    /// </summary>
+    public bool HasMarginal(CompositeNominalTfSideV9 side, CompositeNominalLevelV9 level)
+    {
+        if (!Enum.IsDefined(side))
+            throw new InvalidDataException("Lado TF do snapshot desconhecido.");
+        return (side, level) switch
+        {
+            (CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactFirst) => personFirst.Count > 0,
+            (CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactFirst) => motherFirst.Count > 0,
+            (CompositeNominalTfSideV9.Person, CompositeNominalLevelV9.ExactLast) => personLast.Count > 0,
+            (CompositeNominalTfSideV9.Mother, CompositeNominalLevelV9.ExactLast) => motherLast.Count > 0,
+            _ => throw new InvalidDataException(
+                "Consulta de marginal IBGE exige ExactFirst ou ExactLast.")
+        };
+    }
+
     // Exports the exact pinned values, not a fresh SQL lookup or an ATIVA
     // reference. The portable artifact digest binds these values with TRAIN U.
     /// <summary>
