@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import tempfile
 import unittest
@@ -16,20 +17,32 @@ class EightReceiptsBindTests(unittest.TestCase):
         self.csv.write_text("LeftStableId,RightStableId,SharedSurname\na,b,1\n",
                             encoding="utf-8")
         contract = module.preflight.preflight(self.csv, source_count=30000)
+        self.evidence = Path(self.tmp.name)
+        (self.evidence / "run.bin").write_bytes(b"physical-run")
+        (self.evidence / "model.bin").write_bytes(b"fitted-model")
         self.receipts = {}
         for pair in contract["Pairs"]:
             for option in (pair["DiagnosticOptionId"], pair["BilateralOptionId"]):
                 self.receipts[option] = dict(
                     OptionId=option, CandidatePairsSha256=contract["CandidatePairsSha256"],
                     SourceRecords=30000, TestUsed=False, PhysicallyExecuted=True,
-                    PhysicalRunSha256="a" * 64, FittedModelSha256="b" * 64)
+                    PhysicalRunSha256=hashlib.sha256(b"physical-run").hexdigest(),
+                    FittedModelSha256=hashlib.sha256(b"fitted-model").hexdigest(),
+                    PhysicalRunArtifact="run.bin", FittedModelArtifact="model.bin")
 
     def tearDown(self):
         self.tmp.cleanup()
 
     def test_eight_receipts_bound_to_identical_candidates(self):
-        result = module.bind_receipts(self.csv, self.receipts)
+        result = module.bind_receipts(self.csv, self.receipts,
+                                     evidence_dir=self.evidence)
         self.assertEqual(result["PhysicalReceiptsVerified"], 8)
+
+    def test_tampered_artifact_rejected(self):
+        (self.evidence / "run.bin").write_bytes(b"tampered")
+        with self.assertRaises(ValueError):
+            module.bind_receipts(self.csv, self.receipts,
+                                 evidence_dir=self.evidence)
 
     def test_missing_receipt_rejected(self):
         self.receipts.pop(next(iter(self.receipts)))
