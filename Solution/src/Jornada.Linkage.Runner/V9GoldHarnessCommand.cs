@@ -693,7 +693,10 @@ public static class V9GoldHarnessCommand
     private static List<Source> ReadSources(
         string file, HashSet<string>? identities, string? holdoutNamespace)
     {
-        using var csv = new TextFieldParser(file);
+        // Frozen TRAIN identity evidence must be decoded strictly as UTF-8. The
+        // default replacement fallback silently changes malformed names/mothers.
+        // Do not auto-detect and accept UTF-16 or a different encoding.
+        using var csv = new TextFieldParser(file, new System.Text.UTF8Encoding(false, true), false);
         csv.SetDelimiters(",");
         var header = csv.ReadFields() ?? throw new InvalidDataException("CSV sem cabeçalho.");
         // The frozen CSV SHA protects bytes, but does not establish that those
