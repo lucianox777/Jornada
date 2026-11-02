@@ -132,6 +132,30 @@ class V9NestedStudyFingerprintTests(unittest.TestCase):
                            pinned_ibge=pin)
         self.assertFalse(destination.exists())
 
+    def test_nonfinite_generation_manifest_constant_fails_closed(self):
+        # Python's json parser accepts NaN/Infinity by default, although
+        # neither token is legal JSON for a frozen REF/TRAIN contract.
+        for token in ("NaN", "Infinity", "-Infinity"):
+            with self.subTest(token=token):
+                self.manifest.write_text(
+                    json.dumps(self.manifest_data)[:-1] +
+                    ', "extra_metric": ' + token + '}',
+                    encoding="utf-8")
+                destination = self.root / ("nonfinite-manifest-" + token + ".json")
+                with self.assertRaisesRegex(ValueError, "Non-finite JSON"):
+                    nested.prepare(self.corpus, destination, fixture=True)
+                self.assertFalse(destination.exists())
+
+    def test_nonfinite_pinned_reference_constant_fails_closed(self):
+        pin = self.pinned("nonfinite", "a")
+        pin.write_text(pin.read_text(encoding="utf-8")[:-1] +
+                       ', "extra_metric": NaN}', encoding="utf-8")
+        destination = self.root / "nonfinite-pinned.json"
+        with self.assertRaisesRegex(ValueError, "Non-finite JSON"):
+            nested.prepare(self.corpus, destination, tf_search=True,
+                           pinned_ibge=pin)
+        self.assertFalse(destination.exists())
+
     def test_missing_published_ibge_reference_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "pinned-ibge"):
             self.prepare("no-pin", tf_search=True)
