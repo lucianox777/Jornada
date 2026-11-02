@@ -80,10 +80,22 @@ public static class V9GoldHarnessCommand
                 StringComparison.Ordinal)), upper);
         var order = options.Single(x => GoldTrainThreeOrderProtocol.OrderIds.Contains(x));
         V9GoldJointTrainMatrixCommand.ValidateCellPlan(bytes, upper, lower, order);
+        var plan = V9GoldJointTrainMatrixCommand.ReadPlan(bytes);
+        // The script checks these digests, but the C# Runner is also callable
+        // directly. Bind the physical inputs to the plan BEFORE JSON parsing,
+        // SQL connections, or output side effects. Do not trust script-only gates.
+        var selectionSha = Sha(await File.ReadAllBytesAsync(args[1]));
+        var goldSha = Sha(await File.ReadAllBytesAsync(args[3]));
+        var csvSha = Sha(await File.ReadAllBytesAsync(args[4]));
+        if (selectionSha != plan.SelectionEnvelopeSha256
+            || goldSha != plan.FrozenGoldSnapshotSha256
+            || csvSha != plan.OriginalTrainCsvSha256)
+            throw new InvalidDataException("Joint TRAIN frozen input provenance mismatch before SQL.");
         var translated = args.Take(9).ToArray();
         translated[0] = Flag;
         return await RunInternalAsync(translated, connectionString,
-            captureTrainEvidence: true, jointTrainTrial: true, preregisteredPlanSha256: planSha);
+            captureTrainEvidence: true, jointTrainTrial: true,
+            preregisteredPlanSha256: planSha, jointPlan: plan);
     }
 
     /// <summary>
@@ -190,15 +202,18 @@ public static class V9GoldHarnessCommand
     private static async Task<IReadOnlyList<V9GoldTrainPhysicalEvidence>> RunInternalAsync(
         string[] args, string connectionString, bool captureTrainEvidence,
         V9GoldIndependentHoldoutContract.Plan? holdout = null,
-        bool jointTrainTrial = false, string? preregisteredPlanSha256 = null)
+        bool jointTrainTrial = false, string? preregisteredPlanSha256 = null,
+        V9GoldJointTrainMatrixCommand.Plan? jointPlan = null)
     {
-        if (jointTrainTrial && (!captureTrainEvidence || holdout is not null))
+        if (jointTrainTrial && (!captureTrainEvidence || holdout is not null || jointPlan is null))
             throw new InvalidOperationException("Joint physical TRAIN cannot run without TRAIN capture or with holdout.");
         if (args.Length is < 6 or > 9 || args[0] != Flag)
             throw new ArgumentException("Uso: --v9-gold-harness <SHA.selection.json> <finalist-validation.json> <SHA.fitted.json Gold> <CSV TRAIN original> <saída nova> [BASELINE_G0_G1_G2_G3|REVERSE_G3_G2_G1_G0|INTERLEAVED_G1_G3_G0_G2] [LOWER_NONMATCH=<decimal>] [UPPER_TRAIN=<decimal>]; usar exclusivamente LocalDB descartável.");
         ValidateDisposableConnection(connectionString);
         var selectionBytes = await File.ReadAllBytesAsync(args[1]);
         var selectionSha = Sha(selectionBytes);
+        if (jointTrainTrial && selectionSha != jointPlan!.SelectionEnvelopeSha256)
+            throw new InvalidDataException("Joint TRAIN frozen input provenance mismatch: selection.");
         if (Path.GetFileName(args[1]) != selectionSha + ".selection.json")
             throw new InvalidDataException("Envelope TRAIN não corresponde ao SHA do nome.");
         using var selection = JsonDocument.Parse(selectionBytes);
@@ -209,6 +224,9 @@ public static class V9GoldHarnessCommand
             throw new InvalidDataException("Gold preview exige vencedor condicional da mesma seleção, sem TEST/refit.");
         var fitBytes = await File.ReadAllBytesAsync(args[3]);
         var snapshot = V9FittedSnapshot.Load(fitBytes, Sha(fitBytes));
+        if (jointTrainTrial && (Sha(fitBytes) != jointPlan!.FrozenGoldSnapshotSha256
+            || snapshot.Payload.FitFingerprintSha256 != jointPlan.FrozenGoldFitSha256))
+            throw new InvalidDataException("Joint TRAIN frozen input provenance mismatch: Gold fit or snapshot.");
         if (snapshot.Payload.GoldParentSnapshotSha256 != winner || snapshot.Payload.CandidateGrouping?.CandidateGrouping != "GOLD")
             throw new InvalidDataException("Variante Gold não pertence ao vencedor condicional.");
         var result = selection.RootElement.GetProperty("result");
@@ -219,6 +237,8 @@ public static class V9GoldHarnessCommand
         if (!parent.CreateGoldHarnessVariant().SerializeUtf8().AsSpan().SequenceEqual(fitBytes))
             throw new InvalidDataException("Variante altera parâmetros além do contrato Gold permitido.");
         var csvSha = Sha(await File.ReadAllBytesAsync(args[4]));
+        if (jointTrainTrial && csvSha != jointPlan!.OriginalTrainCsvSha256)
+            throw new InvalidDataException("Joint TRAIN frozen input provenance mismatch: original CSV.");
         if (!string.Equals(csvSha, holdout?.CsvSha256
                 ?? selection.RootElement.GetProperty("originalObservationsSha256").GetString(),
                 StringComparison.OrdinalIgnoreCase))
@@ -230,6 +250,10 @@ public static class V9GoldHarnessCommand
             : new HashSet<string>(StringComparer.Ordinal);
         var sources = ReadSources(args[4], holdout is null ? identities : null,
             holdout?.IdentityNamespaceSha256);
+        // ReadSources opens the CSV independently; reject any change between
+        // the initial hash and the bytes used for the physical TRAIN universe.
+        if (jointTrainTrial && Sha(await File.ReadAllBytesAsync(args[4])) != jointPlan!.OriginalTrainCsvSha256)
+            throw new InvalidDataException("Joint TRAIN frozen input provenance mismatch: CSV changed during capture.");
         var wavesByManager = sources.GroupBy(x => x.Manager, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.ToArray(), StringComparer.Ordinal);
         // Validate the PRE-REGISTERED order against the complete same CSV
