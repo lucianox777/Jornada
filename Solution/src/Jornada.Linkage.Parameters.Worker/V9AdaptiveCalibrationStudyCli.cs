@@ -54,7 +54,8 @@ public static class V9AdaptiveCalibrationStudyCli
         // Statistical eligibility is enforced downstream, never inferred from this floor.
         var observations = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(inputPath,
             minimumObservationCount: 4,
-            maximumObservationsPerBaseIdentity: plan.ObservationCapDeclaration?.MaximumObservationsPerBaseIdentity);
+            maximumObservationsPerBaseIdentity: plan.ObservationCapDeclaration?.MaximumObservationsPerBaseIdentity,
+            expectedBaseIdentityCount: plan.ModelOptions.Any(x => !x.EligibleForSelection) ? 30000 : null);
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
             ?? throw new InvalidOperationException("Conexão de JornadaHarness descartável ausente.");
         var builder = new SqlConnectionStringBuilder(connectionString);

@@ -3,6 +3,12 @@
 **Estado:** PROCEDIMENTO PREPARATÓRIO, NÃO É AUTORIZAÇÃO. PR principal #1249; nenhum
 merge, disparo 30k, leitura de TEST, publicação ou ativação é permitido por este documento.
 
+**Deliberação de 02/11:** falsas criações de identidade permanecem **não medidas**
+no estudo TF 30k; serão medidas no Gold com finalistas congelados, antes de qualquer
+autorização operacional. A remoção de `TfCalibration`, `MotherTfCalibration` e
+`NotSelected` foi **adiada para depois do 30k**, com migração de snapshots
+históricos por contrato versionado; não altera os números deste estudo.
+
 ## Evidências obrigatórias antes da autorização
 
 1. Congelar e registrar o HEAD exato da PR #1249 e da master. Invalidar a autorização
@@ -36,34 +42,49 @@ merge, disparo 30k, leitura de TEST, publicação ou ativação é permitido por
    não autorizar modelo operacional. TEST independente e DT-15 continuam
    em gates próprios, posteriores ao estudo TRAIN/VALIDATION.
 
-## Comando planejado — EXCLUSIVAMENTE após autorização explícita
+## Workflow manual TF 45 braços — somente após autorização explícita
 
-Estando no diretório `Solution`, com `ConnectionStrings__Jornada` apontando
-para `JornadaHarness` descartável e corpus/manifesto versionados:
- 
+`.github/workflows/v9-physical-seed42-probe.yml` executará o **Calibrador
+C# `--v9-adaptive-study`**, não o histórico `--v9-calibrate`. Nenhum
+resultado do caminho antigo pode substituir a prova da grade atual.
+
+O `workflow_dispatch` expõe `mode=preflight|execute_30k`,
+`expected_sha` e `pinned_ibge_json` (JSON com versão, dois digests
+de referência/materialização e bootstrap sintético). O modo padrão
+`preflight` testa a conferência de SHA com o checkout e a HEAD remota
+da branch, sem carregar nem gerar corpus; não constitui execução nem
+certificação. Somente `execute_30k` passa pelo gate manual e exige
+a referência IBGE fixada; o job físico continua inacessível por evento
+`pull_request` e guarda o plano/relatório pelo SHA exato.
+
+O runner inicializa **JornadaHarness** em SQL Server efêmero, aplica
+o schema e publica a referência IBGE do repositório. O plano continua
+obrigado a comprovar digests e bootstrap fixados **na mesma versão do SQL**:
+discrepância falha fechado, sem fallback para a referência ATIVA.
+O corpus é gerado com `--people 30000` pessoas-base, seed 42 e
+perfil clean; o leitor C# exige exatamente 30.000 **IDs de identidade-base
+distintos** considerando TRAIN/VALIDATION/TEST, com o conteúdo de TEST
+excluído do estudo. O runner revalida o SHA remoto antes da calibração.
+
+O comando físico preparado na Action é:
+
 ```text
-python scripts/v9-adaptive-30k-study.py prepare-tf \
-    <corpus/observacoes.csv> <novo-diretorio/plano-tf.json> \
-    --pinned-ibge <referencia-ibge-fixada.json>
-dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+python3 scripts/v9-adaptive-30k-study.py prepare-tf \
+    <30k/observacoes.csv> <novo-plano-tf.json> --pinned-ibge <referencia-fixada.json>
 dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-    --v9-adaptive-study <novo-diretorio/plano-tf.json> \
-    <corpus/observacoes.csv> <novo-diretorio/estudo-tf>
+    --v9-adaptive-study <novo-plano-tf.json> <30k/observacoes.csv> <novo-estudo-tf>
 ```
 
-Saídas: `plan.json`, `study.json`, `tf-shared-paired-diagnostics.json` e
-fits individuais somente das opções elegíveis; reter manifesto, hashes
-de artefatos e SHA de GitHub do disparo. Verificar a contagem/fingerprint
-de TODOS os quatro pares e falhar fechado em discrepâncias.
+O gate pós-execução exige 45 opções (41 selecionáveis), 135 medições
+físicas, 12 linhas pareadas, digest real dos pares SQL, e ausência de
+falsas criações alegadamente medidas. A Action preserva os artefatos
+de proveniência, geração, plano, relatório pareado e fits elegíveis,
+**sem publicar as observações/PII ou o gabarito TEST**.
 
-**Bloqueio de integração:** o workflow atual
-`.github/workflows/v9-physical-seed42-probe.yml` executa
-`--v9-calibrate` (grade aninhada histórica), **não** o comando
-`--v9-adaptive-study` de 45 braços C#. Não utilizar o sucesso desse
-workflow como evidência física da grade TF até existir acionamento
-manual equivalente, auditado e preso ao SHA exato. A janela do workflow
-atual é `timeout-minutes: 360`, limite de segurança, **não estimativa**
-de duração da grade TF.
+O status legível do gate físico em PR permanece
+`DEFERRED_NOT_CERTIFIED` até a execução física autorizada do SHA exato;
+o verde de compilação/segurança/integração **não** é dispensa desse gate.
+O `timeout-minutes: 360` é teto de proteção, não previsão de duração.
 
 ## Regra de parada
 
