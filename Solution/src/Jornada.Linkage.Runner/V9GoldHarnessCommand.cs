@@ -85,9 +85,11 @@ public static class V9GoldHarnessCommand
         // directly. Bind the physical inputs to the plan BEFORE JSON parsing,
         // SQL connections, or output side effects. Do not trust script-only gates.
         var selectionSha = Sha(await File.ReadAllBytesAsync(args[1]));
+        var validationSha = Sha(await File.ReadAllBytesAsync(args[2]));
         var goldSha = Sha(await File.ReadAllBytesAsync(args[3]));
         var csvSha = Sha(await File.ReadAllBytesAsync(args[4]));
         if (selectionSha != plan.SelectionEnvelopeSha256
+            || validationSha != plan.FinalistValidationSha256
             || goldSha != plan.FrozenGoldSnapshotSha256
             || csvSha != plan.OriginalTrainCsvSha256)
             throw new InvalidDataException("Joint TRAIN frozen input provenance mismatch before SQL.");
@@ -217,7 +219,10 @@ public static class V9GoldHarnessCommand
         if (Path.GetFileName(args[1]) != selectionSha + ".selection.json")
             throw new InvalidDataException("Envelope TRAIN não corresponde ao SHA do nome.");
         using var selection = JsonDocument.Parse(selectionBytes);
-        using var validation = JsonDocument.Parse(await File.ReadAllBytesAsync(args[2]));
+        var validationBytes = await File.ReadAllBytesAsync(args[2]);
+        if (jointTrainTrial && Sha(validationBytes) != jointPlan!.FinalistValidationSha256)
+            throw new InvalidDataException("Joint TRAIN frozen input provenance mismatch: finalist validation.");
+        using var validation = JsonDocument.Parse(validationBytes);
         var winner = validation.RootElement.GetProperty("bestConditionalSnapshotSha256").GetString();
         if (winner is null || validation.RootElement.GetProperty("selectionEnvelopeSha256").GetString() != selectionSha
             || validation.RootElement.GetProperty("testUsed").GetBoolean() || validation.RootElement.GetProperty("refitted").GetBoolean())

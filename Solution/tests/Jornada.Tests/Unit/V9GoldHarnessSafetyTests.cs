@@ -136,6 +136,7 @@ public sealed class V9GoldHarnessSafetyTests
             "Server=(localdb)\\JornadaV9Gold20261019_0000abcd;Database=JornadaHarness;Integrated Security=true")));
 
     [TestCase("selection")]
+    [TestCase("validation")]
     [TestCase("gold")]
     [TestCase("csv")]
     public void Joint_train_rejects_unpinned_frozen_input_before_SQL(string changedInput)
@@ -164,6 +165,7 @@ public sealed class V9GoldHarnessSafetyTests
             var plan = new V9GoldJointTrainMatrixCommand.Plan(
                 V9GoldJointTrainMatrixCommand.Version, new string('a', 64),
                 Pin("gold", goldPath), Pin("csv", csvPath), Pin("selection", selectionPath),
+                Pin("validation", validationPath),
                 uppers, lowers, 2, ManualCalibrationRequested: true, TestUsed: false,
                 Jornada.Linkage.Parameters.Worker.V9LowerNonMatchTrainCalibrator
                     .JointGridFingerprint(uppers, lowers));
