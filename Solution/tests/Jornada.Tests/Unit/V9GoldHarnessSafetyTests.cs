@@ -200,4 +200,44 @@ public sealed class V9GoldHarnessSafetyTests
         }
     }
 
+
+    [TestCase("extra_column")]
+    [TestCase("missing_column")]
+    [TestCase("unknown_partition")]
+    [TestCase("duplicate_header")]
+    public void Frozen_gold_train_csv_rejects_noncanonical_row_shape_or_partition(string mutation)
+    {
+        // Exercise the actual Runner CSV reader without SQL or a model.
+        // The old reader silently ignored surplus fields and unknown partitions.
+        var directory = Path.Combine(Path.GetTempPath(), "v9-gold-csv-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var path = Path.Combine(directory, "observacoes.csv");
+            const string header = "observacao_id,base_person_id,particao,gestor,nome,nome_mae,data_nascimento,cpf";
+            const string good = "O1,B1,TRAIN,G0,Ana,Maria,1990-01-01,";
+            var rows = mutation switch
+            {
+                "extra_column" => new[] { header, good + ",unexpected" },
+                "missing_column" => new[] { header, "O1,B1,TRAIN,G0,Ana,Maria,1990-01-01" },
+                "unknown_partition" => new[] { header, good, "O2,B2,UNKNOWN,G1,Beto,Lucia,1991-01-01," },
+                "duplicate_header" => new[] { header + ",cpf", good + "," },
+                _ => throw new ArgumentOutOfRangeException(nameof(mutation))
+            };
+            File.WriteAllLines(path, rows);
+            var reader = typeof(V9GoldHarnessCommand).GetMethod("ReadSources",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Assert.That(reader, Is.Not.Null);
+            var exception = Assert.Throws<System.Reflection.TargetInvocationException>((Action)(() =>
+            {
+                _ = reader!.Invoke(null, new object?[] { path, null, null });
+            }));
+            Assert.That(exception!.InnerException, Is.TypeOf<InvalidDataException>(),
+                "Malformed frozen CSV must fail as invalid evidence, not be silently truncated or crash.");
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 }
