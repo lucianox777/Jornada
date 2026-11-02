@@ -276,6 +276,38 @@ public static class V9GoldJointPhysicalReceipt
             || coverageRecall > publishedRate + tolerance
             || Math.Abs((double)f1 - harmonic) > tolerance)
             throw new InvalidDataException("Joint TRAIN B-cubed rates contradict physical Gold coverage.");
+
+        // The real B-cubed audit exports three metric families. Pending sources
+        // count as correct singleton precision in STANDARD, but contribute zero
+        // to COVERAGE_AWARE. Published-only metrics use the smaller published
+        // denominator. Validate all three views of the SAME physical partition
+        // so a receipt cannot mix mutually incompatible audit summaries.
+        var standardPrecision = UnitMetric(gold, "StandardPrecision");
+        var standardRecall = UnitMetric(gold, "StandardRecall");
+        var standardF1 = UnitMetric(gold, "StandardF1");
+        var standardHarmonic = standardPrecision + standardRecall == 0d ? 0d
+            : 2d * standardPrecision * standardRecall / (standardPrecision + standardRecall);
+        // Each pending source contributes 1 / true-group-size to standard
+        // recall. Without raw labels the tight exact value is unavailable;
+        // its contribution lies between pending / sources^2 and pending / sources.
+        var minimumPendingRecall = (double)pending / sourceCount / sourceCount;
+        if (Math.Abs(standardPrecision - (coveragePrecision + pendingRate)) > tolerance
+            || standardRecall + tolerance < coverageRecall + minimumPendingRecall
+            || standardRecall > coverageRecall + pendingRate + tolerance
+            || Math.Abs(standardF1 - standardHarmonic) > tolerance)
+            throw new InvalidDataException("Joint TRAIN standard B-cubed contradicts pending singleton semantics.");
+
+        var publishedOnlyPrecision = Required(gold, "PublishedOnlyPrecision");
+        var publishedOnlyRecall = Required(gold, "PublishedOnlyRecall");
+        if (published == 0)
+        {
+            if (publishedOnlyPrecision.ValueKind != JsonValueKind.Null
+                || publishedOnlyRecall.ValueKind != JsonValueKind.Null)
+                throw new InvalidDataException("Joint TRAIN published-only metrics require a published denominator.");
+        }
+        else if (Math.Abs(UnitMetric(gold, "PublishedOnlyPrecision") - coveragePrecision / publishedRate) > tolerance
+            || Math.Abs(UnitMetric(gold, "PublishedOnlyRecall") - coverageRecall / publishedRate) > tolerance)
+            throw new InvalidDataException("Joint TRAIN published-only B-cubed contradicts Gold coverage.");
         return new(order, "TRAIN_SELECTION", frozenFitSha256, canonicalGoldSnapshotSha256,
             Convert.ToHexString(SHA256.HashData(studyBytes)).ToLowerInvariant(),
             upper, lower, checked((int)groups), accepted, acceptedFalse,
