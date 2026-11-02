@@ -10,6 +10,23 @@ import importlib.util
 import json
 from pathlib import Path
 
+def _load_unique_json(path: Path):
+    """Fail closed on ambiguous REF/TRAIN manifests, including nested keys.
+
+    Standard json.loads silently retains the last duplicate member, making
+    an apparently frozen input dependent on the consumer's JSON parser.
+    """
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError(f"Duplicate JSON key in frozen input: {key}")
+            result[key] = value
+        return result
+
+    return json.loads(path.read_bytes(), object_pairs_hook=unique_object)
+
+
 def _tf_helper():
     spec = importlib.util.spec_from_file_location(
         "v9_tf_option_grid", Path(__file__).with_name("v9-tf-option-grid.py"))
@@ -58,7 +75,7 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
     if destination.exists():
         raise FileExistsError(destination)
     manifest_path = corpus.parent / "generation-manifest.json"
-    manifest = json.loads(manifest_path.read_bytes())
+    manifest = _load_unique_json(manifest_path)
     if not isinstance(manifest, dict):
         raise ValueError("Generation manifest must be a JSON object")
     if manifest["error_profile"] != "clean" or manifest["population_profile"] != "DEMOGRAPHIC_PRIMARY_V1":
@@ -118,7 +135,7 @@ def prepare(corpus: Path, destination: Path, fixture: bool = False,
                                      "RequiresSameCandidatePairs": True})
         if len({pair["BilateralOptionId"] for pair in diagnostic_pairs}) != 4:
             raise ValueError("Diagnostic TF options do not have unique bilateral controls")
-        pinned = helper.pinned_reference(json.loads(pinned_ibge.read_bytes()))
+        pinned = helper.pinned_reference(_load_unique_json(pinned_ibge))
         # The published IBGE version, both digests and the bootstrap provenance
         # influence the TRAIN TF fit. Never reuse a frozen study identity when
         # any of these inputs change, even if the synthetic corpus is identical.
