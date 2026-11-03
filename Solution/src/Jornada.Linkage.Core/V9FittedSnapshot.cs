@@ -172,7 +172,11 @@ public sealed class V9FittedSnapshot
         if (candidates.Any(c => c is null || c.PersonUuid == Guid.Empty))
             throw new InvalidDataException("Identidade candidata V9 inválida.");
         if (diagnosticModelId == Guid.Empty) throw new ArgumentException("ID do estudo V9 é obrigatório.", nameof(diagnosticModelId));
-        return ResolveRankedPreview(diagnosticModelId, RankPreview(observation, candidates));
+        var ranked = RankPreview(observation, candidates);
+        var reason = candidates.Count > 0 && ranked.Count == 0
+            && Payload.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.AbstainCandidate
+                ? "TF_SEM_FREQUENCIA_IBGE_PUBLICADA" : "SEM_CANDIDATO_NO_RULESET_BLOCKING";
+        return ResolveRankedPreview(diagnosticModelId, ranked, reason);
     }
 
     internal IReadOnlyList<CandidateScore> RankPreview(IdentityObservation observation,
@@ -250,9 +254,10 @@ public sealed class V9FittedSnapshot
     }
 
     internal ProbabilisticLinkageDecision ResolveRankedPreview(Guid diagnosticModelId,
-        IReadOnlyList<CandidateScore> ranking) =>
+        IReadOnlyList<CandidateScore> ranking,
+        string noCandidateReason = "SEM_CANDIDATO_NO_RULESET_BLOCKING") =>
         ProbabilisticLinkageDecisions.ResolveRankedCompositeNominalV9Preview(diagnosticModelId,
-            Payload.Parameters, ranking, Payload.Threshold, Payload.ConflictMargin);
+            Payload.Parameters, ranking, Payload.Threshold, Payload.ConflictMargin, noCandidateReason);
 
     private CompositeNominalTfPreviewV9? CreateTf(IdentityObservation observation, LinkageCandidate candidate,
         V9SnapshotNominalUnitTfCalibration tf)
