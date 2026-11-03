@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using Jornada.Contracts;
 
 namespace Jornada.Linkage.Runner;
 
