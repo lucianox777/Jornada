@@ -116,12 +116,11 @@ def prepare(corpus: Path, plan_path: Path, cap_four: bool = False,
         # diagnostics remain observable but are ineligible for automatic selection.
         plan["ModelOptions"] = [dict(x, EligibleForSelection=not x["OptionId"].startswith(
             "TF_SHARED_PL_ML_")) for x in full_grid]
-        # The exploratory search must not pre-exclude a risk region before
-        # TRAIN evidence: Pareto/frontier is descriptive, gates come later.
-        plan["Budget"]["MinimumGlobalAcceptedRecall"] = 0
-        plan["Budget"]["MaximumObservedAcceptedFdrPoint"] = 1
-        plan["SelectionPolicy"]["MinimumGlobalRecall"] = 0
-        plan["SelectionPolicy"]["MaximumAcceptedFdrUpper"] = 1
+        # Evaluate ALL 45 TF arms before filtering. The budget governs
+        # descriptive eligibility AFTER measurements, never physical pruning.
+        # Keep the historically declared 95% recall and <=1% FDR for the
+        # post-Resolve selector (its fail-closed limit is 0.01); no new policy.
+        # Four shared-surname arms remain measured but ineligible for selection.
         # Isolate the TF comparison to ONE predeclared, unchanged 3-pass
         # SQL blocking control; no 137 × 41 grid or TEST-driven pruning.
         base_passes = plan["BaselineRuleSets"][0]
