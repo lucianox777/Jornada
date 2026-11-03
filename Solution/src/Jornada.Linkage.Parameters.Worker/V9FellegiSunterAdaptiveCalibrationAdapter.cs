@@ -622,6 +622,18 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 activeUnits.Add((side, unit), fittedUnit);
             }
         }
+        // Guard all active positive-TF slots against the PINNED IBGE marginal
+        // before scoring any validation pair. A global pin digest can be valid
+        // while a corrupted observation has a name not in the published frame.
+        // This remains fail-closed: no synthetic frequency, neutral TF or
+        // covert option pruning, and no personal names in the diagnostic.
+        if (activeReference is not null)
+        {
+            var coverage = V9NominalTfPublishedCoverageAudit.Audit(
+                rows, activeReference, activeUnits.Keys.ToArray());
+            V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage);
+        }
+
         long tp = 0, fp = 0, sharedSurnamePairs = 0;
         var unseenCounts = new Dictionary<string, long>(StringComparer.Ordinal);
         void RecordUnseen(CompositeNominalTfSideV9 side, NominalFrequencyUnitV9 unit)
