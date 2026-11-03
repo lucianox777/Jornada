@@ -87,7 +87,7 @@ public sealed class V9TfDirectionDecision19Tests
             Is.EqualTo(CompositeNominalLevelV9.ExactFirstLast));
         var fitted = V9TrainSqlNominalUCalibration.Fit(rows,
             CompositeNominalTfSideV9.Person, .5m, TrainSha);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(fitted.UnmatchedUnitCandidatePairs, Is.Zero,
                 "No selected-level diagnostic agreements in this TRAIN frame.");
@@ -96,7 +96,7 @@ public sealed class V9TfDirectionDecision19Tests
             Assert.That(fitted.NominalUReference?.UnmatchedCandidatePairs, Is.EqualTo(4));
             Assert.That(fitted.NominalUReference?.MatchingNominalPairs, Is.EqualTo(2));
             Assert.That(fitted.NominalUReference?.Probability, Is.EqualTo(.5m));
-        });
+        }));
     }
 
 }
