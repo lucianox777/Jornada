@@ -58,6 +58,64 @@ def percentage(value):
     return f"{100 * value:.4f}%"
 
 
+
+def statistical_family_audit(study, rows):
+    """Frozen TF-001 physical universe, shortlist and conditional inference family.
+
+    The original row-level 3849 was not retrospective evidence that diagnostic
+    outcomes could not influence analysis or future choices. For unqualified
+    familywise claims retain all 3861 inspected comparisons.
+    """
+    previous, expected = 3726, (0.5, 2.0, 4.0)
+    arms = {}
+    for row in rows:
+        raw_id = row["OptionId"]
+        if not re.fullmatch(r"[0-9a-fA-F]{64}:[A-Za-z0-9_.-]{1,110}", raw_id):
+            raise ValueError("Invalid physical ruleset-prefixed option ID")
+        option = safe_option(raw_id)
+        arms.setdefault(option, set()).add(row["ConflictMargin"])
+    diagnostic = {name for name in arms if name.startswith("TF_SHARED_PL_ML_")}
+    selectable = set(arms) - diagnostic
+    if (len(arms) != 45 or len(selectable) != 41 or len(diagnostic) != 4
+            or len(rows) != 135 or any(margins != set(expected) for margins in arms.values())
+            or "T0.95_TF0" not in selectable):
+        raise ValueError("TF-001 family omission, duplication or unregistered margin")
+    historical_selection_family = previous + len(selectable) * len(expected)
+    explored_family = previous + len(arms) * len(expected)
+    if study.get("PredeclaredComparedConfigurations") != explored_family:
+        raise ValueError("Predeclared physical budget does not include all diagnostic arms")
+    counts = [row.get("BonferroniComparedConfigurations") for row in rows]
+    if any(type(x) is not int or x != historical_selection_family for x in counts):
+        raise ValueError("Historical FDR correction family mismatch or inconsistent rows")
+    # Only the actual predeclared selector excludes diagnostics; non-influence
+    # for any broader inferential claim has NOT been proven by this study.
+    return {
+        "previously_compared": previous,
+        "explored_tf_arms": len(arms),
+        "selectable_tf_arms": len(selectable),
+        "diagnostic_tf_arms": len(diagnostic),
+        "explored_measurements": len(rows),
+        "selectable_measurements": len(selectable) * len(expected),
+        "diagnostic_measurements": len(diagnostic) * len(expected),
+        "physical_exploration_family": explored_family,
+        "historical_source_selector_family": historical_selection_family,
+        "conservative_full_inference_family": explored_family,
+        "diagnostic_non_influence_independently_established": False,
+        "historical_result_recomputed": False,
+    }
+
+
+def descriptive_pareto(group):
+    """Observed recall/FDR frontier only; no uncertainty or operational gates."""
+    options = sorted(group, key=lambda p: p[0])
+    return [name for name, row in options
+            if not any((other["GlobalSourceRecall"] >= row["GlobalSourceRecall"]
+                        and other["FdrAfterResolve"] <= row["FdrAfterResolve"]
+                        and (other["GlobalSourceRecall"] > row["GlobalSourceRecall"]
+                             or other["FdrAfterResolve"] < row["FdrAfterResolve"]))
+                       for other_name, other in options if other_name != name)]
+
+
 def summarize(study, study_sha, code_sha, run_id):
     if not isinstance(study, dict) or study.get("Version") != EXPECTED_STUDY:
         raise ValueError("Unexpected V9 physical study version")
@@ -109,6 +167,8 @@ def summarize(study, study_sha, code_sha, run_id):
             raise ValueError("Incoherent accepted-source metrics")
         by_margin.setdefault(margin, []).append((name, row))
 
+    family = statistical_family_audit(study, rows)
+
     # Semantic digests, independent of row ordering and GitHub ZIP metadata.
     metrics_digest = digest(sorted(rows, key=lambda x: (x["OptionId"], x["ConflictMargin"])))
     snapshots = []
@@ -138,7 +198,9 @@ def summarize(study, study_sha, code_sha, run_id):
             raise ValueError("TF0 control missing")
         leaders = sorted(selectable, key=lambda pair: (
             -pair[1]["GlobalSourceRecall"], pair[1]["FdrAfterResolve"], pair[0]))[:5]
+        frontier = descriptive_pareto(selectable)
         top_rows.append({
+            "pareto_frontier": frontier,
             "margin": margin,
             "options": len(group),
             "selectable": len(selectable),
@@ -165,6 +227,7 @@ def summarize(study, study_sha, code_sha, run_id):
         "train_input_sha256": study.get("TrainInputSha256"),
         "validation_input_sha256": study.get("ValidationInputSha256"),
         "predeclared_comparisons": study.get("PredeclaredComparedConfigurations"),
+        "statistical_family": family,
         "measurement_count": len(rows), "snapshot_count": len(frozen),
         "metrics_semantic_sha256": metrics_digest,
         "snapshots_semantic_sha256": snapshots_digest,
@@ -188,6 +251,9 @@ def summarize(study, study_sha, code_sha, run_id):
         f"- VALIDATION: `{manifest['validation_input_sha256']}`",
         f"- Comparações pré-declaradas: {manifest['predeclared_comparisons']}",
         f"- Medições: {len(rows)}; snapshots: {len(frozen)}; medições fim a fim: {len(e2e)}",
+        f"- Família original do seletor: {family['historical_source_selector_family']} (3726 + 41 × 3)",
+        f"- Família integral para inferência conservadora: {family['conservative_full_inference_family']} (3726 + 45 × 3)",
+        "- Os 12 diagnósticos não são finalistas; sua não influência sobre inferências futuras NÃO foi atestada.",
         f"- Seleção de fonte: `{manifest['source_selection_status']}`",
         f"- Pareto: `{manifest['pareto_status']}`",
         "",
@@ -200,6 +266,11 @@ def summarize(study, study_sha, code_sha, run_id):
         lines.append(f"| {item['margin']:g} | {percentage(item['baseline_recall'])} | "
                      f"`{item['best_option']}` | {percentage(item['best_recall'])} | "
                      f"{item['best_false_accepts']} |")
+    lines += ["", "## Fronteiras Pareto descritivas recall × FDR", "",
+              "Apenas resultados observados, antes de testes independentes e gates de risco.", ""]
+    for item in top_rows:
+        lines.append(f"- Margem {item['margin']:g}: {len(item['pareto_frontier'])} alternativas não dominadas; "
+                     + ", ".join("`" + name + "`" for name in item["pareto_frontier"]))
     lines += ["", "## Limitações e governança", "",
               "- O ranking acima não substitui a fronteira exploratória completa, a análise independente nem a decisão da autoridade.",
               "- O estudo TF fixou limiar, blocking e margens; não cobre descoberta conjunta do bootstrap nem o lower Gold.",
@@ -224,7 +295,9 @@ def main():
         baseline = strict_json(args.baseline_manifest)
         fields = ("code_sha", "plan_sha256", "train_input_sha256",
                   "validation_input_sha256", "measurement_count", "snapshot_count",
-                  "metrics_semantic_sha256", "snapshots_semantic_sha256")
+                  "metrics_semantic_sha256", "snapshots_semantic_sha256",
+                  "predeclared_comparisons", "statistical_family",
+                  "source_selection_status", "pareto_status")
         differences = [key for key in fields if baseline.get(key) != manifest.get(key)]
         if differences:
             raise ValueError("Physical repetition mismatch (fail-closed): " + ", ".join(differences))
