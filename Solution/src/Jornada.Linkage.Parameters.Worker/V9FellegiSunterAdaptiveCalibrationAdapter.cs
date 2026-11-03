@@ -282,7 +282,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 trainU.UnitUByValue, trainU.FingerprintSha256,
                 config.TfMinimumFrequency, config.TfMinimumIndependentSupport,
                 frame.TrainCorpusFingerprintSha256,
-                UnitMode(config, side, unit), weight);
+                UnitMode(config, side, unit), weight, null, trainU.NominalUReference);
             unitFits.Add(new V9SnapshotUnitTf(side, unit,
                 active ? V9SnapshotTfFitState.Active
                     : config.UnitTfOptions is null ? V9SnapshotTfFitState.NotSelected
@@ -435,7 +435,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 if (!trainingUnitUCache.TryGetValue(key, out var fittedUnit))
                 {
                     fittedUnit = V9TrainSqlNominalUCalibration.Fit(
-                        trainingRows, side, alpha, frame.TrainCorpusFingerprintSha256, unit);
+                        trainingRows, side, alpha, frame.TrainCorpusFingerprintSha256, unit,
+                        frozenTfReference.HasMarginal(side, V9NominalTfUnitSelection.MarginalLevel(unit))
+                            ? frozenTfReference.FrequenciesForUnit(side, unit) : null);
                     trainingUnitUCache.Add(key, fittedUnit);
                 }
                 trainUnitUs.Add((side, unit), fittedUnit);
@@ -507,7 +509,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
     private CompositeNominalTfPreviewV9? PreviewFrozenTf(
         FrozenFit fitted, V9FsAdaptiveOptionConfiguration config,
         V9FsAdaptiveCandidatePair pair, CompositeNominalTfSideV9 side,
-        CompositeNominalLevelV9 personLevel, CompositeNominalLevelV9 motherLevel)
+        CompositeNominalLevelV9 personLevel, CompositeNominalLevelV9 motherLevel,
+        Action<CompositeNominalTfSideV9, NominalFrequencyUnitV9>? onUnseen = null)
     {
         var level = side == CompositeNominalTfSideV9.Person ? personLevel : motherLevel;
         var unit = V9NominalTfUnitSelection.ForLevel(level);
@@ -518,10 +521,13 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             || !frozenU.HasSufficientSupport
             || !frozenTfReference.HasMarginal(side, V9NominalTfUnitSelection.MarginalLevel(unit.Value)))
             throw new InvalidDataException($"TF ativa sem referência/suporte TRAIN: {side}/{unit}.");
-        return V9TrainSqlNominalUCalibration.Preview(
+        var preview = V9TrainSqlNominalUCalibration.Preview(
             frozenU, frozenTfReference, personLevel, motherLevel, pair,
             UnitWeight(config, side, unit.Value), config.TfMinimumFrequency,
             config.TfMinimumIndependentSupport, UnitMode(config, side, unit.Value));
+        if (preview is not null && !frozenU.UnitUByValue.ContainsKey(preview.MatchedNormalizedValue))
+            onUnseen?.Invoke(side, unit.Value);
+        return preview;
     }
 
     private IReadOnlyList<CandidateScore> RankFrozenValidationCandidates(
@@ -617,6 +623,12 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             }
         }
         long tp = 0, fp = 0, sharedSurnamePairs = 0;
+        var unseenCounts = new Dictionary<string, long>(StringComparer.Ordinal);
+        void RecordUnseen(CompositeNominalTfSideV9 side, NominalFrequencyUnitV9 unit)
+        {
+            var key = side + "/" + unit;
+            unseenCounts[key] = checked(unseenCounts.GetValueOrDefault(key) + 1L);
+        }
         foreach (var row in rows)
         {
             var personLevel = CompositeNominalComparisonV9.Classify(
@@ -626,7 +638,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             CompositeNominalTfPreviewV9? Term(
                 CompositeNominalTfSideV9 side, CompositeNominalLevelV9 level)
             {
-                return PreviewFrozenTf(frozen, config, row, side, personLevel, motherLevel);
+                return PreviewFrozenTf(frozen, config, row, side, personLevel, motherLevel, RecordUnseen);
             }
             var personTerm = Term(CompositeNominalTfSideV9.Person, personLevel);
             var motherTerm = Term(CompositeNominalTfSideV9.Mother, motherLevel);
@@ -663,7 +675,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             BlockingFalseCandidatePairs: falsePairs,
             BlockingFalseDegreeP99: p99,
             IndependentlyLabeledIdentityGroups: groups,
-            SharedSurnameCandidatePairs: sharedSurnamePairs);
+            SharedSurnameCandidatePairs: sharedSurnamePairs,
+            UnseenTfUBySideUnit: new ReadOnlyDictionary<string, long>(unseenCounts));
     }
 
 

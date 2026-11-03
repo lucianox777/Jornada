@@ -7,14 +7,16 @@ using Jornada.Linkage.Runner;
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
-/// Preview-only U calibration on the same TRAIN SQL candidate-pair frame used
-/// by the FS scorer: p(unit VALUE | U, unit-selected agreement, blocking).
-/// This is not the marginal frequency of people in the population and not a
-/// valid identity-cluster confidence bound. No TEST or automated promotion.
+/// Preview-only TRAIN SQL calibration of one nominal-event U_ref per side/unit:
+/// P(the nominal tokens agree | nonmatching candidate pair, pinned blocking).
+/// Counts cover the entire frozen candidate frame; the legacy per-value
+/// distribution is retained for diagnostics only, never for positive TF scoring.
+/// This is not population marginal frequency, a cluster FDR confidence bound,
+/// a TEST estimate or authorization to promote a model.
 /// </summary>
 public static class V9TrainSqlNominalUCalibration
 {
-    public const string Version = "V9_TRAIN_SQL_CONDITIONAL_FIRST_NAME_U_V1";
+    public const string Version = "V9_TRAIN_SQL_NONMATCH_NOMINAL_U_REF_V2";
 
     public sealed record Frozen(
         CompositeNominalTfSideV9 Side,
@@ -22,9 +24,11 @@ public static class V9TrainSqlNominalUCalibration
         int UnmatchedUnitCandidatePairs,
         IReadOnlyDictionary<string, decimal> UnitUByValue,
         string FingerprintSha256,
-        NominalFrequencyUnitV9 Unit = NominalFrequencyUnitV9.FirstName)
+        NominalFrequencyUnitV9 Unit = NominalFrequencyUnitV9.FirstName,
+        V9UnseenTfUAllocation? UnseenAllocation = null,
+        V9NominalTfUReference? NominalUReference = null)
     {
-        public bool HasSufficientSupport => UnmatchedUnitCandidatePairs >= 2 && UnitUByValue.Count > 0;
+        public bool HasSufficientSupport => NominalUReference is { UnmatchedCandidatePairs: >= 2, MatchingNominalPairs: >= 2 };
     }
 
     public static Frozen Fit(
@@ -32,7 +36,8 @@ public static class V9TrainSqlNominalUCalibration
         CompositeNominalTfSideV9 side,
         decimal smoothingAlpha,
         string trainFingerprintSha256,
-        NominalFrequencyUnitV9 unit = NominalFrequencyUnitV9.FirstName)
+        NominalFrequencyUnitV9 unit = NominalFrequencyUnitV9.FirstName,
+        IReadOnlyDictionary<string, decimal>? publishedFrequencies = null)
     {
         ArgumentNullException.ThrowIfNull(trainSqlCandidates);
         if (!Enum.IsDefined(side) || unit is not (NominalFrequencyUnitV9.FirstName or NominalFrequencyUnitV9.LastContentSurname)
@@ -43,18 +48,28 @@ public static class V9TrainSqlNominalUCalibration
 
         var counts = new Dictionary<string, long>(StringComparer.Ordinal);
         long n = 0;
+        long allNonmatches = 0;
+        long nominalAgreements = 0;
         foreach (var row in trainSqlCandidates)
         {
             if (row is null || row.Partition != "TRAIN")
                 throw new InvalidDataException("Baseline U só pode usar pares SQL TRAIN.");
             if (row.IsTruePair)
                 continue;
+            allNonmatches = checked(allNonmatches + 1);
             var left = side == CompositeNominalTfSideV9.Person
                 ? row.LeftPersonName : row.LeftMotherName;
             var right = side == CompositeNominalTfSideV9.Person
                 ? row.RightPersonName : row.RightMotherName;
-            // TRAIN support must count the exact same nominal events that
-            // VALIDATION/runtime select (ExactFull also selects FirstName).
+            // U_ref counts the exact equality event across ALL nonmatch TRAIN
+            // candidates (including ExactFull); the 81-cell classifier priority
+            // must not omit agreements from the event denominator/numerator.
+            var leftToken = UnitToken(left, unit);
+            var equalTokens = leftToken is not null && leftToken == UnitToken(right, unit);
+            if (equalTokens)
+                nominalAgreements = checked(nominalAgreements + 1);
+            // Keep the old per-value conditional distribution only as a
+            // diagnostic; it is not the term's U reference in scoring.
             if (V9NominalTfUnitSelection.ForLevel(
                     CompositeNominalComparisonV9.Classify(left, right)) != unit)
                 continue;
@@ -64,9 +79,12 @@ public static class V9TrainSqlNominalUCalibration
             counts[name] = checked(counts.GetValueOrDefault(name) + 1L);
             n = checked(n + 1);
         }
-        if (n < 2 || counts.Count == 0)
+        // The reference event is independent of the 81-cell TF selector.
+        // Zero selected-level agreements can coexist with ample agreement
+        // support across other composite levels (e.g. ExactFirstLast).
+        if (allNonmatches < 2 || nominalAgreements < 2)
         {
-            var insufficientCanonical = $"{Version}|INSUFFICIENT_SUPPORT|{side}|{unit}|{trainFingerprintSha256}|{smoothingAlpha.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{n}";
+            var insufficientCanonical = $"{Version}|INSUFFICIENT_SUPPORT|{side}|{unit}|{trainFingerprintSha256}|{smoothingAlpha.ToString(System.Globalization.CultureInfo.InvariantCulture)}|{n}|{allNonmatches}|{nominalAgreements}";
             var insufficientSha = Convert.ToHexString(
                 SHA256.HashData(Encoding.UTF8.GetBytes(insufficientCanonical))).ToLowerInvariant();
             return new Frozen(side, trainFingerprintSha256, checked((int)n),
@@ -74,12 +92,19 @@ public static class V9TrainSqlNominalUCalibration
                     new Dictionary<string, decimal>(StringComparer.Ordinal)),
                 insufficientSha, unit);
         }
-        // The additional unseen bucket is reserved for diagnostic support
-        // accounting, but unseen terms are always rejected by Preview.
+        // This per-value distribution is diagnostic only. It may be empty
+        // when the TRAIN event U_ref is supported entirely by composite
+        // levels that do not select TF. Unseen IBGE-published terms are valid.
         var denominator = n + smoothingAlpha * (counts.Count + 1);
         var units = counts.OrderBy(x => x.Key, StringComparer.Ordinal)
             .ToDictionary(x => x.Key, x => (x.Value + smoothingAlpha) / denominator,
                 StringComparer.Ordinal);
+        var nominalReference = V9NominalTfUReference.Fit(
+            side, unit, allNonmatches, nominalAgreements, smoothingAlpha,
+            trainFingerprintSha256);
+        // No IBGE-proportional residual U allocation participates in the score.
+        // IBGE is checked per term at the Preview/portable-scorer boundary.
+        var allocation = (V9UnseenTfUAllocation?)null;
         var canonical = new StringBuilder()
             .Append(Version).Append('|').Append(side).Append('|').Append(unit).Append('|')
             .Append(trainFingerprintSha256).Append('|')
@@ -89,10 +114,15 @@ public static class V9TrainSqlNominalUCalibration
             canonical.Append(term.Key).Append('=')
                 .Append(term.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .Append('\n');
+        canonical.Append("|U_REF|").Append(nominalReference.PolicyVersion)
+            .Append('|').Append(nominalReference.UnmatchedCandidatePairs)
+            .Append('|').Append(nominalReference.MatchingNominalPairs)
+            .Append('|').Append(nominalReference.SmoothingAlpha.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .Append('|').Append(nominalReference.Probability.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var digest = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
         return new Frozen(side, trainFingerprintSha256, checked((int)n),
-            new ReadOnlyDictionary<string, decimal>(units), digest, unit);
+            new ReadOnlyDictionary<string, decimal>(units), digest, unit, allocation, nominalReference);
     }
 
     /// <summary>
@@ -136,13 +166,17 @@ public static class V9TrainSqlNominalUCalibration
         var right = calibration.Side == CompositeNominalTfSideV9.Person
             ? pair.RightPersonName : pair.RightMotherName;
         var value = UnitToken(left, calibration.Unit);
-        if (value is null || value != UnitToken(right, calibration.Unit)
-            || !calibration.UnitUByValue.TryGetValue(value, out var unitU))
-            throw new InvalidDataException(
-                "TF positiva desconhecida/sem suporte U TRAIN: não converter em peso zero ou BF=1.");
+        if (value is null || value != UnitToken(right, calibration.Unit))
+            throw new InvalidDataException("TF positiva sem unidade nominal coincidente.");
+        var unitU = calibration.NominalUReference
+            ?? throw new InvalidDataException("TF positiva sem U_ref TRAIN compatível.");
+        unitU.Validate(calibration.Side, calibration.Unit,
+            calibration.TrainFingerprintSha256);
+        var unitReferenceProbability = unitU.ResolveTerm(
+            reference.FrequenciesForUnit(calibration.Side, calibration.Unit), value);
         var preview = reference.CreatePreview(
             calibration.Side, marginalLevel, left, right,
-            unitU, weight, minimumFrequency, minimumIndependentSupport)
+            unitReferenceProbability, weight, minimumFrequency, minimumIndependentSupport)
             ?? throw new InvalidDataException("TF positiva não pode gerar preview nulo.");
         return preview with { Mode = mode };
     }

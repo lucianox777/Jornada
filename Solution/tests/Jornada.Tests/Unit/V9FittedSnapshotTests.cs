@@ -154,7 +154,10 @@ public sealed class V9FittedSnapshotTests
             CompositeNominalTfSideV9.Person, reference,
             new Dictionary<string, decimal> { ["MARIA"] = .00001m },
             new Dictionary<string, decimal> { ["MARIA"] = .8m },
-            new string('a', 64), .000001m, 1, p.TrainCorpusSha256) };
+            new string('a', 64), .000001m, 1, p.TrainCorpusSha256,
+            NominalUReference: V9NominalTfUReference.Fit(
+                CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,
+                10, 2, .5m, p.TrainCorpusSha256)) };
     }
 
     private static V9FittedSnapshotPayload FourUnitTfPayload()
@@ -174,7 +177,10 @@ public sealed class V9FittedSnapshotTests
                 PopulationFrameFingerprint = "IBGE_PUBLISHED:test:" + new string('a', 64) + ":BR_FEMININO"
             },
             Frequencies = new Dictionary<string, decimal> { ["ANA"] = .5m },
-            TrainUnitUByValue = new Dictionary<string, decimal> { ["ANA"] = .1m }
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["ANA"] = .1m },
+            NominalUReference = V9NominalTfUReference.Fit(
+                CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName,
+                10, 2, .5m, p.TrainCorpusSha256)
         };
         var personLast = personFirst with
         {
@@ -184,7 +190,10 @@ public sealed class V9FittedSnapshotTests
                 Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
             },
             Frequencies = new Dictionary<string, decimal> { ["SILVA"] = .5m },
-            TrainUnitUByValue = new Dictionary<string, decimal> { ["SILVA"] = .1m }
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["SILVA"] = .1m },
+            NominalUReference = V9NominalTfUReference.Fit(
+                CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.LastContentSurname,
+                10, 2, .5m, p.TrainCorpusSha256)
         };
         var motherLast = motherFirst with
         {
@@ -195,7 +204,10 @@ public sealed class V9FittedSnapshotTests
                 PopulationFrameFingerprint = "IBGE_PUBLISHED:test:" + new string('a', 64) + ":BR_TODOS"
             },
             Frequencies = new Dictionary<string, decimal> { ["COSTA"] = .5m },
-            TrainUnitUByValue = new Dictionary<string, decimal> { ["COSTA"] = .1m }
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["COSTA"] = .1m },
+            NominalUReference = V9NominalTfUReference.Fit(
+                CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.LastContentSurname,
+                10, 2, .5m, p.TrainCorpusSha256)
         };
         return p with
         {
@@ -309,8 +321,16 @@ public sealed class V9FittedSnapshotTests
         Assert.That(roundtrip.Payload.SharedSurnameMode,
             Is.EqualTo(V9SharedSurnameModeV9.PersonSideOnlyWhenShared));
         Assert.That(singleScore, Is.GreaterThan(bilateralScore));
+        // Decision 19: the suppressed duplicate is the mother's frozen
+        // binary nominal-event U_ref, NOT the obsolete name-specific U=.1.
+        // The synthetic fixture has 2 agreeing nonmatches among 10 with
+        // alpha=.5, so the independent expectation is (2+.5)/(10+2*.5).
+        const double fixtureMotherReferenceU = (2d + .5d) / (10d + 2d * .5d);
+        Assert.That(units[3].Calibration!.NominalUReference!.Probability,
+            Is.EqualTo((decimal)fixtureMotherReferenceU).Within(.000000000001m));
         Assert.That(singleScore - bilateralScore,
-            Is.EqualTo((decimal)Math.Abs(Math.Log(.1d / .5d))).Within(.00000002m));
+            Is.EqualTo((decimal)Math.Abs(Math.Log(fixtureMotherReferenceU / .5d)))
+                .Within(.00000002m));
         Assert.That((Action)(() => V9FittedSnapshot.Create(revised with
         {
             SharedSurnameMode = (V9SharedSurnameModeV9)123
@@ -430,6 +450,9 @@ public sealed class V9FittedSnapshotTests
             Frequencies = new Dictionary<string, decimal> { ["ANA"] = .9m },
             TrainUnitUByValue = new Dictionary<string, decimal> { ["ANA"] = .8m },
             Weight = .75m,
+            NominalUReference = V9NominalTfUReference.Fit(
+                CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName,
+                10, 2, .5m, p.TrainCorpusSha256),
             Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
         };
         var single = V9FittedSnapshot.Create(p);
@@ -458,6 +481,122 @@ public sealed class V9FittedSnapshotTests
         var unknownCandidate = candidate with { MotherName = "JOANA COSTA" };
         Assert.Throws<InvalidDataException>((Action)(() =>
             dual.RankPreview(unknown, [unknownCandidate])));
+    }
+
+    [Test]
+    public void Unseen_tf_is_frozen_and_roundtrips_while_missing_IBGE_remains_rejected()
+    {
+        var p = PositiveTfPayload();
+        var calibration = p.TfCalibration!;
+        var published = new Dictionary<string, decimal>(calibration.Frequencies)
+        {
+            ["JOANA"] = .15m, ["ZULEICA"] = .05m
+        };
+        var trainU = new Dictionary<string, decimal> { ["MARIA"] = 2.5m / 3m };
+        var reference = V9NominalTfUReference.Fit(
+            CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,
+            10, 2, .5m, p.TrainCorpusSha256);
+        var snap = V9FittedSnapshot.Create(p with
+        {
+            TfCalibration = calibration with
+            {
+                Frequencies = published,
+                TrainUnitUByValue = trainU,
+                NominalUReference = reference
+            }
+        });
+        var loaded = V9FittedSnapshot.Load(snap.SerializeUtf8(), snap.ContentSha256);
+        var observation = new IdentityObservation(null, "SEM_CPF", "JOANA SILVA", null, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "JOANA COSTA", null, null);
+        var first = snap.RankPreview(observation, [candidate]).Single();
+        var second = loaded.RankPreview(observation, [candidate]).Single();
+        Assert.That(first.LogOdds, Is.EqualTo(second.LogOdds));
+        Assert.That(first.Score, Is.EqualTo(second.Score));
+        var missing = new IdentityObservation(null, "SEM_CPF", "NAOFONTE SILVA", null, null);
+        var missingCandidate = candidate with { FullName = "NAOFONTE COSTA" };
+        Assert.Throws<InvalidDataException>((Action)(() => snap.RankPreview(missing, [missingCandidate])));
+        Assert.Throws<InvalidDataException>((Action)(() => V9FittedSnapshot.Create(p with
+        {
+            TfCalibration = calibration with
+            {
+                Frequencies = published,
+                TrainUnitUByValue = trainU,
+                NominalUReference = reference with { Probability = .8m }
+            }
+        })));
+    }
+
+    [Test]
+    public void Frozen_decision19_rejects_legacy_residual_and_incompatible_train_event_contract()
+    {
+        var payload = PositiveTfPayload();
+        var tf = payload.TfCalibration!;
+        var reference = tf.NominalUReference!;
+        void Reject(V9SnapshotNominalUnitTfCalibration calibration) =>
+            Assert.Throws<InvalidDataException>((Action)(() =>
+                V9FittedSnapshot.Create(payload with { TfCalibration = calibration })));
+
+        // Even if a caller computes a new whole-snapshot hash, a legacy
+        // U(x) or IBGE-proportional residual policy is not a valid U_ref.
+        Reject(tf with { NominalUReference = null });
+        Reject(tf with { UnseenAllocation = new V9UnseenTfUAllocation(
+            V9UnseenTfUAllocation.LegacyPolicyVersion, .1m, .2m) });
+        Reject(tf with { NominalUReference = reference with {
+            Side = CompositeNominalTfSideV9.Mother } });
+        Reject(tf with { NominalUReference = reference with {
+            Unit = NominalFrequencyUnitV9.LastContentSurname } });
+        Reject(tf with { NominalUReference = reference with {
+            TrainCorpusFingerprintSha256 = payload.ValidationCorpusSha256 } });
+        Reject(tf with { NominalUReference = reference with {
+            MatchingNominalPairs = reference.MatchingNominalPairs + 1 } });
+        Reject(tf with { NominalUReference = reference with {
+            PolicyVersion = "UNKNOWN_U_POLICY" } });
+    }
+
+    [TestCase(0d, CompositeNominalTfAdjustmentModeV9.Symmetric)]
+    [TestCase(0d, CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly)]
+    [TestCase(.5d, CompositeNominalTfAdjustmentModeV9.Symmetric)]
+    [TestCase(.5d, CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly)]
+    [TestCase(1d, CompositeNominalTfAdjustmentModeV9.Symmetric)]
+    [TestCase(1d, CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly)]
+    public void TRAIN_event_U_ref_scores_six_weight_mode_combinations_with_independent_scalar_oracle(
+        double weight, CompositeNominalTfAdjustmentModeV9 mode)
+    {
+        var neutral = V9FittedSnapshot.Create(Payload());
+        var baseTf = PositiveTfPayload();
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA COSTA", null, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "MARIA LIMA", null, null);
+        Assert.That(CompositeNominalComparisonV9.Classify(observation.NomeCompleto,
+            candidate.FullName), Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
+        var baseScore = neutral.RankPreview(observation, [candidate]).Single().LogOdds;
+        foreach (var frequency in new[] { .6m, .01m })
+        {
+            var tf = baseTf.TfCalibration! with
+            {
+                Frequencies = new Dictionary<string, decimal> { ["MARIA"] = frequency },
+                Mode = mode
+            };
+            var p = weight == 0d ? Payload() : baseTf with
+            {
+                TfWeight = (decimal)weight,
+                TfCalibration = tf
+            };
+            var fitted = V9FittedSnapshot.Create(p);
+            var roundtrip = V9FittedSnapshot.Load(fitted.SerializeUtf8(), fitted.ContentSha256);
+            var scored = roundtrip.RankPreview(observation, [candidate]).Single().LogOdds;
+            var expectedRef = (2.5d / 11d); // 2 agreements / 10 U pairs, alpha=.5
+            if (weight > 0d)
+                Assert.That(roundtrip.Payload.TfCalibration!.NominalUReference!.Probability,
+                    Is.EqualTo((decimal)expectedRef).Within(.000000000001m));
+            var adjustment = weight * Math.Log(expectedRef / (double)frequency);
+            if (mode == CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly)
+                adjustment = Math.Min(0d, adjustment);
+            var expected = baseScore + (decimal)adjustment;
+            Assert.That(scored, Is.EqualTo(expected).Within(.00000005m),
+                $"TF score mismatch for weight={weight}, mode={mode}, IBGE={frequency}");
+            Assert.That(roundtrip.RankPreview(observation, [candidate]).Single().LogOdds,
+                Is.EqualTo(scored));
+        }
     }
 
     [Test]

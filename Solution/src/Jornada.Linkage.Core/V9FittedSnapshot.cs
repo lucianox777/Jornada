@@ -43,7 +43,11 @@ public sealed record V9SnapshotNominalUnitTfCalibration(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     CompositeNominalTfAdjustmentModeV9 Mode = CompositeNominalTfAdjustmentModeV9.Symmetric,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    decimal? Weight = null);
+    decimal? Weight = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    V9UnseenTfUAllocation? UnseenAllocation = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    V9NominalTfUReference? NominalUReference = null);
 
 /// <summary>Explicit outcome of fitting a TF unit, including calibrated zero.</summary>
 public enum V9SnapshotTfFitState
@@ -244,11 +248,14 @@ public sealed class V9FittedSnapshot
         var rightTerm = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
             ? BrazilianNameComponents.Project(right)?.LastContentSurname : FirstName(right);
         if (term is null || term != rightTerm
-            || !tf.Frequencies.TryGetValue(term, out var frequency)
-            || !tf.TrainUnitUByValue.TryGetValue(term, out var unitU))
-            throw new InvalidDataException("TF positiva desconhecida: referência ou U TRAIN ausente no snapshot.");
+            || !tf.Frequencies.TryGetValue(term, out var frequency))
+            throw new InvalidDataException("TF positiva sem frequência IBGE ou termo coincidente.");
+        var unitU = tf.NominalUReference
+            ?? throw new InvalidDataException("Snapshot TF positivo sem U_ref TRAIN congelado.");
+        unitU.Validate(tf.Side, tf.Reference.Unit, tf.TrainCorpusFingerprintSha256);
+        var unitReferenceProbability = unitU.ResolveTerm(tf.Frequencies, term);
         return new CompositeNominalTfPreviewV9(tf.Side, tf.Reference, term, frequency,
-            unitU, tf.Weight ?? Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport, tf.Mode);
+            unitReferenceProbability, tf.Weight ?? Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport, tf.Mode);
     }
 
     private static string? FirstName(string? name)
@@ -431,16 +438,27 @@ public sealed class V9FittedSnapshot
                         tf.Side == CompositeNominalTfSideV9.Person ? ":SP_3550308_TODOS" : ":BR_FEMININO",
                         StringComparison.Ordinal)))
                 throw new InvalidDataException("Marginal IBGE incompatível com o lado nominal do snapshot TF.");
-            static IReadOnlyDictionary<string, decimal> FreezeTerms(IReadOnlyDictionary<string, decimal> terms)
+            static IReadOnlyDictionary<string, decimal> FreezeTerms(IReadOnlyDictionary<string, decimal> terms, bool allowEmpty = false)
             {
-                if (terms is null || terms.Count == 0 || terms.Any(x => string.IsNullOrWhiteSpace(x.Key)
+                if (terms is null || (!allowEmpty && terms.Count == 0) || terms.Any(x => string.IsNullOrWhiteSpace(x.Key)
                         || FirstName(x.Key) != x.Key || x.Value is <= 0m or > 1m))
                     throw new InvalidDataException("Tabela TF/U TRAIN inválida ou sem termos normalizados.");
                 return new ReadOnlyDictionary<string, decimal>(terms.OrderBy(x => x.Key, StringComparer.Ordinal)
                     .ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal));
             }
             var frequencies = FreezeTerms(tf.Frequencies);
-            var trainU = FreezeTerms(tf.TrainUnitUByValue);
+            // Per-value TRAIN U is diagnostic only under Decision 19. The
+            // selected 81-cell levels may have zero matches even when the
+            // actual nominal agreement event has sufficient TRAIN support.
+            var trainU = FreezeTerms(tf.TrainUnitUByValue,
+                allowEmpty: tf.NominalUReference is not null);
+            // Old positive-TF residual policies are incompatible with Decision 19.
+            if (tf.UnseenAllocation is not null)
+                throw new InvalidDataException("Distribuição U residual V1 incompatível com U_ref nominal.");
+            if (tf.NominalUReference is null && (tf.Weight ?? p.TfWeight) > 0m)
+                throw new InvalidDataException("Snapshot TF positivo sem U_ref TRAIN da decisão 19.");
+            tf.NominalUReference?.Validate(tf.Side, tf.Reference.Unit,
+                tf.TrainCorpusFingerprintSha256);
             if (trainU.Values.Sum() > 1.000001m)
                 throw new InvalidDataException("Distribuição condicional U TRAIN excede um.");
             return tf with { Frequencies = frequencies, TrainUnitUByValue = trainU };

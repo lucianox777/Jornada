@@ -56,7 +56,8 @@ public sealed record V9AdaptiveCalibrationStudyResult(string Version, string Pla
     V9PhysicalCatalogueCensus? CatalogueCensus = null,
     V9IntegralSearchShard? Shard = null,
     IReadOnlyDictionary<string, long>? SharedSurnameCandidatePairsByOption = null,
-    IReadOnlyDictionary<string, string>? CandidatePairsSha256ByRuleset = null);
+    IReadOnlyDictionary<string, string>? CandidatePairsSha256ByRuleset = null,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>? UnseenTfUByOptionAndUnit = null);
 
 public sealed record V9IntegralSearchShard(string FamilyPlanSha256, int Index, int Count,
     int TotalRepresentativeRuleSets, int EvaluatedRepresentativeRuleSets,
@@ -300,6 +301,7 @@ public static class V9AdaptiveCalibrationCoordinator
         var rejected = new List<V9AdaptiveCandidateRejection>();
         var failedOptions = new List<V9BootstrapPareto2D.CandidateOption>();
         var sharedSurnamePairs = new Dictionary<string, long>(StringComparer.Ordinal);
+        var unseenByOption = new Dictionary<string, IReadOnlyDictionary<string, long>>(StringComparer.Ordinal);
         var candidatePairsByRuleset = new Dictionary<string, string>(StringComparer.Ordinal);
         var eligibleSources = validation.GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
             .Where(g => g.Select(x => x.Gestor).Distinct(StringComparer.Ordinal).Skip(1).Any()).Sum(g => (long)g.Count());
@@ -337,6 +339,9 @@ public static class V9AdaptiveCalibrationCoordinator
             foreach (var pair in run.SharedSurnamePairs)
                 if (!sharedSurnamePairs.TryAdd(pair.Key, pair.Value))
                     throw new InvalidDataException("Contagem TF duplicada entre rulesets físicos.");
+            foreach (var pair in run.UnseenByOption)
+                if (!unseenByOption.TryAdd(pair.Key, pair.Value))
+                    throw new InvalidDataException("Contagem U residual duplicada entre rulesets físicos.");
             if (run.CandidatePairsSha256 is { } physicalSha
                 && !candidatePairsByRuleset.TryAdd(run.RulesetSha256, physicalSha))
                 throw new InvalidDataException("Censo físico duplicado para ruleset.");
@@ -389,7 +394,7 @@ public static class V9AdaptiveCalibrationCoordinator
             plan.SampleDesign is null ? null : V9StatisticalSamplePlan.Calculate(plan.SampleDesign, plan.RiskCeilings!),
             coverage, census, new(Sha(JsonSerializer.Serialize(plan with { ShardIndex = 0 })),
                 plan.ShardIndex, plan.ShardCount, totalRepresentatives, candidates.Count, plan.ShardCount == 1),
-            sharedSurnamePairs, candidatePairsByRuleset);
+            sharedSurnamePairs, candidatePairsByRuleset, unseenByOption);
     }
 
     private sealed record RulesetResult(
@@ -397,6 +402,7 @@ public static class V9AdaptiveCalibrationCoordinator
         List<V9PhysicalEndToEndMeasurement> Timings, Dictionary<string, double> Fanout,
         List<V9AdaptiveCandidateRejection> Rejected, List<V9BootstrapPareto2D.CandidateOption> FailedOptions,
         Dictionary<string, long> SharedSurnamePairs,
+        Dictionary<string, IReadOnlyDictionary<string, long>> UnseenByOption,
         string RulesetSha256, string? CandidatePairsSha256);
 
     private static async Task<RulesetResult> EvaluateRulesetAsync(SqlConnection connection,
@@ -411,6 +417,7 @@ public static class V9AdaptiveCalibrationCoordinator
         var rejected = new List<V9AdaptiveCandidateRejection>();
         var failedOptions = new List<V9BootstrapPareto2D.CandidateOption>();
         var sharedSurnamePairs = new Dictionary<string, long>(StringComparer.Ordinal);
+        var unseenByOption = new Dictionary<string, IReadOnlyDictionary<string, long>>(StringComparer.Ordinal);
         string? candidatePairsSha = null;
         cancellationToken.ThrowIfCancellationRequested();
         var rulesetSha = Sha(JsonSerializer.Serialize(passes));
@@ -443,6 +450,10 @@ public static class V9AdaptiveCalibrationCoordinator
                 foreach (var option in run.CalibrationReport.Options)
                 {
                     fanout[option.OptionId] = option.Validation.BlockingFalseDegreeP99;
+                    if (!unseenByOption.TryAdd(option.OptionId,
+                            option.Validation.UnseenTfUBySideUnit
+                            ?? new Dictionary<string, long>(StringComparer.Ordinal)))
+                        throw new InvalidDataException("Opção recebeu contagens U residuais duplicadas.");
                     // Counted by the C# scorer on real SQL VALIDATION candidate pairs.
                     if (!sharedSurnamePairs.TryAdd(option.OptionId,
                             option.Validation.SharedSurnameCandidatePairs))
@@ -463,7 +474,7 @@ public static class V9AdaptiveCalibrationCoordinator
             }
         }
         return new(measurements, frozen, timings, fanout, rejected, failedOptions,
-            sharedSurnamePairs, rulesetSha, candidatePairsSha);
+            sharedSurnamePairs, unseenByOption, rulesetSha, candidatePairsSha);
     }
 
     private static string InputSha(IEnumerable<V9PhysicalCalibrationObservation> observations) =>

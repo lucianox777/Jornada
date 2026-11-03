@@ -41,6 +41,8 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var entries = new[]
         {
             new NominalTermFrequencyEntry("NOME_PRENOME", "MARIA", 60, 100, .60m),
+            new NominalTermFrequencyEntry("NOME_PRENOME", "ZULEICA", 12, 100, .12m),
+            new NominalTermFrequencyEntry("NOME_PRENOME", "JOANA", 8, 100, .08m),
             new NominalTermFrequencyEntry("NOME_MAE_PRENOME", "ANA", 30, 100, .30m)
         };
         return FrozenIbgeNominalTfV9.BindPublished(
@@ -166,6 +168,54 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void TRAIN_U_ref_preserves_real_scorer_rarity_for_observed_and_unseen_IBGE_terms()
+    {
+        // Frozen TRAIN includes MARIA, not JOANA. The actual portable
+        // ranking path must prefer the rarer observed name for the same
+        // joint-cell, mother, birth, model, and frozen nonmatch event U_ref.
+        var option = new V9FsAdaptiveOptionConfiguration("TF_RARITY", .5m, .55m, 1m);
+        var pinnedReference = Reference();
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            Frame(), [option], pinnedReference);
+        var fitted = adapter.FitTrain(Model(option), Slice("TRAIN"));
+        var exported = adapter.ExportFrozenSnapshot(fitted,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m);
+        var portable = V9FittedSnapshot.Load(exported.SerializeUtf8(),
+            exported.ContentSha256);
+        var unit = portable.Payload.UnitTfCalibrations!.Single(x =>
+            x.Side == CompositeNominalTfSideV9.Person
+            && x.Unit == NominalFrequencyUnitV9.FirstName).Calibration!;
+        var train = V9TrainSqlNominalUCalibration.Fit(
+            Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray(),
+            CompositeNominalTfSideV9.Person, option.SmoothingAlpha,
+            TrainCorpus, publishedFrequencies: pinnedReference.FrequenciesForUnit(
+                CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName));
+        Assert.That(unit.NominalUReference, Is.EqualTo(train.NominalUReference));
+        Assert.That(unit.UnseenAllocation, Is.Null);
+
+        decimal Score(string first)
+        {
+            var observation = new IdentityObservation(null, "SEM_CPF",
+                first + " COSTA", Birth, null);
+            var candidate = new V9SnapshotCandidate(Guid.NewGuid(),
+                first + " LIMA", Birth, null);
+            Assert.That(CompositeNominalComparisonV9.Classify(
+                observation.NomeCompleto, candidate.FullName),
+                Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
+            return portable.RankPreview(observation, [candidate]).Single().LogOdds;
+        }
+
+        Assert.That(Score("JOANA"), Is.GreaterThan(Score("MARIA")),
+            "Decision 19 must preserve rarity ordering in the real scorer.");
+        var frequencies = pinnedReference.FrequenciesForUnit(
+            CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName);
+        Assert.That(train.NominalUReference!.ResolveTerm(frequencies, "MARIA"),
+            Is.EqualTo(train.NominalUReference.ResolveTerm(frequencies, "JOANA")));
+        Assert.Throws<InvalidDataException>((Action)(() => Score("NOMENAOIBGE")));
+    }
+
+    [Test]
     public void Insufficient_TRAIN_U_fingerprint_is_sensitive_to_smoothing_alpha()
     {
         var rows = Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray();
@@ -269,7 +319,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             CompositeNominalLevelV9.Missing, pair, 1m, .000001m, 1);
         Assert.That(preview, Is.Not.Null);
         Assert.That(preview!.TermFrequency, Is.EqualTo(.60m));
-        Assert.That(preview.UnitReferenceU, Is.EqualTo(2.5m / 3m));
+        Assert.That(preview.UnitReferenceU, Is.EqualTo(fitted.NominalUReference!.Probability));
     }
 
     [Test]
@@ -312,7 +362,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
-    public void Positive_TF_requires_pinned_snapshot_known_term_and_enough_train_U_support()
+    public void Positive_TF_requires_pinned_snapshot_IBGE_term_and_enough_global_train_U_support()
     {
         var config = new V9FsAdaptiveOptionConfiguration("TF", .5m, .55m, 1m);
         Assert.That((Action)(() =>
@@ -343,8 +393,53 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var unknown = new V9FellegiSunterAdaptiveCalibrationAdapter(
             unknownFrame, [config], Reference());
         var fit = unknown.FitTrain(Model(config), Slice("TRAIN"));
-        Assert.That((Action)(() => unknown.EvaluateValidation(fit, Slice("VALIDATION"))),
-            Throws.TypeOf<InvalidDataException>());
+        var result = unknown.EvaluateValidation(fit, Slice("VALIDATION"));
+        Assert.That(result.UnseenTfUBySideUnit!["Person/FirstName"], Is.EqualTo(1));
+        // The very same unseen U probability is carried into the portable
+        // runtime snapshot; no silent neutral Bayes factor or refit.
+        var snap = unknown.ExportFrozenSnapshot(fit,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m);
+        var replay = V9FittedSnapshot.Load(snap.SerializeUtf8(), snap.ContentSha256);
+        var pair = unknownFrame.Pairs.First(x => x.Partition == "VALIDATION"
+            && x.LeftIdentityGroupId == "VAL-A");
+        var u = V9TrainSqlNominalUCalibration.Fit(
+            unknownFrame.Pairs.Where(x => x.Partition == "TRAIN").ToArray(),
+            CompositeNominalTfSideV9.Person, config.SmoothingAlpha, TrainCorpus,
+            publishedFrequencies: Reference().FrequenciesForUnit(
+                CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName));
+        var tf = V9TrainSqlNominalUCalibration.Preview(
+            u, Reference(), CompositeNominalLevelV9.ExactFirst,
+            CompositeNominalLevelV9.Missing, pair,
+            config.TfWeight, config.TfMinimumFrequency,
+            config.TfMinimumIndependentSupport)!;
+        var expected = FellegiSunterScoring.CalculateFrozenCompositeNominalV9BilateralPreviewScore(
+            replay.Payload.Parameters, pair.LeftPersonName, pair.RightPersonName,
+            pair.LeftMotherName, pair.RightMotherName,
+            FrozenFellegiSunterJointNominalV9.Freeze(
+                replay.Payload.JointCells, replay.Payload.NominalContractVersion),
+            leftBirthDate: Birth, rightBirthDate: Birth, personTf: tf);
+        var observed = replay.RankPreview(
+            new IdentityObservation(null, "SEM_CPF", pair.LeftPersonName,
+                Birth, pair.LeftMotherName),
+            [new V9SnapshotCandidate(Guid.NewGuid(), pair.RightPersonName,
+                Birth, pair.RightMotherName)]).Single();
+        Assert.That(observed.LogOdds, Is.EqualTo(expected.LogOdds));
+        Assert.That(observed.Score, Is.EqualTo(expected.Posterior));
+
+        // Missing published IBGE is a different, still fail-closed error.
+        var missingFrame = unknownFrame with
+        {
+            Pairs = unknownFrame.Pairs.Select(x => x.Partition == "VALIDATION"
+                && x.LeftIdentityGroupId == "VAL-A"
+                ? x with { LeftPersonName = "ZULEIKAA COSTA",
+                           RightPersonName = "ZULEIKAA LIMA" } : x).ToArray()
+        };
+        var missing = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            missingFrame, [config], Reference());
+        var missingFit = missing.FitTrain(Model(config), Slice("TRAIN"));
+        Assert.That((Action)(() => missing.EvaluateValidation(missingFit, Slice("VALIDATION"))),
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("IBGE"));
     }
 
     private static V9FsAdaptiveCandidateFrame FrameWithMotherTf()
