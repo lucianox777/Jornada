@@ -1341,6 +1341,13 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             "TF_SUPPORT=" + config.TfMinimumIndependentSupport);
         if (!Enum.IsDefined(config.UnpublishedTermPolicy))
             throw new InvalidDataException("Política para TF nominal não publicado desconhecida.");
+        // Censored-floor is a diagnostic HYPOTHESIS, never eligible for
+        // the automatic selector or for a TF0 baseline impersonation.
+        // An explicit opt-in is necessary but NOT sufficient to promote it.
+        if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity
+            && (config.EligibleForSelection || !HasPositiveTf(config)))
+            throw new InvalidDataException(
+                "Piso TF censurado exige peso TF positivo e diagnostico inelegivel para selecao.");
         // Default historical serialization/fingerprint is unchanged. A new
         // opt-in policy has a distinct fit/configuration identity.
         if (config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.RejectOperation)
