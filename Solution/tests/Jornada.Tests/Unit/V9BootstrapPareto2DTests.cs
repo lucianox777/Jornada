@@ -45,6 +45,49 @@ public sealed class V9BootstrapPareto2DTests
     }
 
     [Test]
+    public void Exploratory_Pareto_selects_mathematically_without_P95_or_cluster_risk_certificate()
+    {
+        var options = new[] { Option("safe", 80), Option("balance", 90, 1, 'b'),
+            Option("recall", 100, 4, 'c'), Option("dominated", 70, 4, 'd') }
+            .Select(x => x with
+            {
+                PhysicalP95Milliseconds = null, PhysicalEndToEndAttested = false,
+                IdentityClusterUncertaintyAttested = false, IdentityClusterFdrUpper = null
+            }).ToArray();
+        var strictPolicy = Policy with { MinimumGlobalRecall = .99, MaximumAcceptedFdrUpper = .001 };
+        var first = V9BootstrapPareto2D.Evaluate(options, strictPolicy);
+        var reversed = V9BootstrapPareto2D.Evaluate(options.Reverse(), strictPolicy);
+        Multiple(() =>
+        {
+            Assert.That(first.InitialSuggestedOptionId, Is.Null);
+            Assert.That(first.Status, Is.EqualTo("NO_ELIGIBLE_CONFIGURATION"));
+            Assert.That(first.Table.All(x => !x.Eligible && !x.OnFrontier), Is.True);
+            Assert.That(first.ExploratoryFrontierOptionIds,
+                Is.EquivalentTo(new[] { "safe", "balance", "recall" }));
+            Assert.That(first.ExploratorySuggestedOptionId, Is.EqualTo("balance"));
+            Assert.That(first.ExploratoryStatus, Is.EqualTo("EXPLORATORY_ONLY_NOT_CERTIFIED"));
+            Assert.That(reversed.ExploratorySuggestedOptionId,
+                Is.EqualTo(first.ExploratorySuggestedOptionId));
+        });
+    }
+
+    [Test]
+    public void Exploratory_Pareto_does_not_reintroduce_invalid_or_oracle_candidates()
+    {
+        var candidates = new[] { Option("inconsistent", 90) with { GlobalRecall = .4 },
+            Option("oracle", 100) with { EvidenceRejectionReasons = ["ORACLE_NAO_OPERACIONAL"] },
+            Option("physical", 80) with { PhysicalEndToEndAttested = false,
+                IdentityClusterUncertaintyAttested = false } };
+        var result = V9BootstrapPareto2D.Evaluate(candidates, Policy);
+        Multiple(() =>
+        {
+            Assert.That(result.ExploratoryFrontierOptionIds, Is.EqualTo(new[] { "physical" }));
+            Assert.That(result.ExploratorySuggestedOptionId, Is.EqualTo("physical"));
+            Assert.That(result.InitialSuggestedOptionId, Is.Null);
+        });
+    }
+
+    [Test]
     public void Retains_all_rejection_reasons_and_does_not_trust_boolean_uncertainty()
     {
         var option = Option("unsafe", 50) with
