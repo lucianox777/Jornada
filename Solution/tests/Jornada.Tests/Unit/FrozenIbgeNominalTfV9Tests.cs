@@ -144,6 +144,41 @@ public sealed class FrozenIbgeNominalTfV9Tests
     }
 
     [Test]
+    public void Censored_sensitivity_uses_a_separate_published_floor_for_each_of_the_four_slots()
+    {
+        var frozen = Bound();
+        var cases = new[]
+        {
+            (CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName, .05m),
+            (CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName, .10m),
+            (CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.LastContentSurname, .40m),
+            (CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.LastContentSurname, .20m)
+        };
+        foreach (var (side, unit, expected) in cases)
+        {
+            var unpublished = frozen.CreateCensoredFloorSensitivityPreview(
+                side, unit, "NAOPUBLICADO", "NAOPUBLICADO", .12m,
+                1m, .000001m, 1, CompositeNominalTfAdjustmentModeV9.Symmetric);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(unpublished.TermFrequency, Is.EqualTo(expected));
+                Assert.That(unpublished.FrequencyEvidence,
+                    Is.EqualTo(V9TfFrequencyEvidenceV9.CensoredFloorHypothesis));
+                Assert.That(unpublished.UnitReferenceU, Is.EqualTo(.12m));
+                Assert.That(unpublished.Reference.Unit, Is.EqualTo(unit));
+                Assert.That(frozen.FrequenciesForUnit(side, unit).ContainsKey("NAOPUBLICADO"),
+                    Is.False, "Hypotheses cannot modify the published marginal.");
+            }));
+        }
+        Assert.That((Action)(() => frozen.CreateCensoredFloorSensitivityPreview(
+            CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,
+            "MARIA", "MARIA", .12m, 1m, .000001m, 1,
+            CompositeNominalTfAdjustmentModeV9.Symmetric)),
+            Throws.TypeOf<InvalidDataException>(),
+            "A published term cannot be silently relabeled as censored.");
+    }
+
+    [Test]
     public void Zero_weight_is_explicit_neutral_even_when_name_is_unknown_but_unknown_positive_weight_fails()
     {
         var frozen = Bound();
