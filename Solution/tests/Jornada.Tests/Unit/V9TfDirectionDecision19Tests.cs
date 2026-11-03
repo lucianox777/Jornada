@@ -99,4 +99,31 @@ public sealed class V9TfDirectionDecision19Tests
         }));
     }
 
+    [TestCase(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName)]
+    [TestCase(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName)]
+    [TestCase(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.LastContentSurname)]
+    [TestCase(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.LastContentSurname)]
+    public void URef_is_constant_across_observed_and_unseen_values_for_each_side_unit(
+        CompositeNominalTfSideV9 side, NominalFrequencyUnitV9 unit)
+    {
+        var fitted = V9NominalTfUReference.Fit(side, unit, 12, 3, .5m, TrainSha);
+        var ibge = new Dictionary<string, decimal>
+        {
+            ["COMUM"] = .40m, ["RARO"] = .01m, ["NAO_VISTO"] = .001m
+        };
+        var common = fitted.ResolveTerm(ibge, "COMUM");
+        var rare = fitted.ResolveTerm(ibge, "RARO");
+        var unseen = fitted.ResolveTerm(ibge, "NAO_VISTO");
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(rare, Is.EqualTo(common));
+            Assert.That(unseen, Is.EqualTo(common));
+            Assert.That(Math.Log((double)(rare / ibge["RARO"])),
+                Is.GreaterThan(Math.Log((double)(common / ibge["COMUM"])));
+            Assert.That(Math.Log((double)(unseen / ibge["NAO_VISTO"])),
+                Is.GreaterThan(Math.Log((double)(rare / ibge["RARO"])));
+        }));
+        Assert.Throws<InvalidDataException>((Action)(() => fitted.ResolveTerm(ibge, "AUSENTE")));
+    }
+
 }
