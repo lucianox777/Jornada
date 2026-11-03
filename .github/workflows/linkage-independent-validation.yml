@@ -2,6 +2,8 @@ name: jornada-linkage-independent-validation
 
 on:
   push:
+    branches:
+      - master
     paths:
       - 'Solution/database/Jornada_Dev_LinkageValidation.sql'
       - 'Solution/database/Jornada_Dev_SyntheticScale*.sql'
