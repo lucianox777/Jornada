@@ -15,6 +15,14 @@ public enum CompositeNominalTfAdjustmentModeV9 { Symmetric = 0, AsymmetricPenalt
 /// <summary>Experimental shared-surname dependence assumption, not a family relationship.</summary>
 public enum V9SharedSurnameModeV9 { Bilateral = 0, PersonSideOnlyWhenShared = 1 }
 
+/// <summary>The hypothesis marker is carried with every diagnostic preview;
+/// a censored floor is NOT an observed IBGE term frequency.</summary>
+public enum V9TfFrequencyEvidenceV9
+{
+    Published = 0,
+    CensoredFloorHypothesis = 1
+}
+
 public sealed record CompositeNominalTfPreviewV9(
     CompositeNominalTfSideV9 Side,
     NominalFrequencyReferenceContractV9 Reference,
@@ -24,7 +32,8 @@ public sealed record CompositeNominalTfPreviewV9(
     decimal Weight,
     decimal MinimumFrequency,
     long MinimumIndependentSupport,
-    CompositeNominalTfAdjustmentModeV9 Mode = CompositeNominalTfAdjustmentModeV9.Symmetric);
+    CompositeNominalTfAdjustmentModeV9 Mode = CompositeNominalTfAdjustmentModeV9.Symmetric,
+    V9TfFrequencyEvidenceV9 FrequencyEvidence = V9TfFrequencyEvidenceV9.Published);
 
 /// <summary>
 /// Evaluates one, explicitly selected, level-specific TF correction in the
@@ -51,6 +60,8 @@ internal static class CompositeNominalTfPreviewEvaluatorV9
             throw new InvalidOperationException("TF V9 exige lado nominal pessoa ou mãe.");
         if (!Enum.IsDefined(input.Mode))
             throw new InvalidOperationException("Modo de ajuste TF V9 desconhecido.");
+        if (!Enum.IsDefined(input.FrequencyEvidence))
+            throw new InvalidOperationException("Proveniencia TF V9 desconhecida.");
         if (input.Weight < 0m || input.Weight > 1m
             || input.TermFrequency <= 0m || input.TermFrequency > 1m
             || input.UnitReferenceU <= 0m || input.UnitReferenceU > 1m
