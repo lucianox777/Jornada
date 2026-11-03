@@ -94,7 +94,9 @@ class V9TfExplorationDossierTests(unittest.TestCase):
         b = sample_study()
         b["SourceMeasurements"][1]["TrueAcceptedSourceObservations"] = 97
         b["SourceMeasurements"][1]["GlobalSourceRecall"] = 0.97
-        b["SourceMeasurements"][1]["FdrAfterResolve"] = 1 / 98
+        b["SourceMeasurements"][1]["FdrAfterResolve"] = (
+            b["SourceMeasurements"][1]["FalseAcceptedSourceObservations"]
+            / (97 + b["SourceMeasurements"][1]["FalseAcceptedSourceObservations"]))
         _, ma = self.generate(a)
         _, mb = self.generate(b)
         self.assertNotEqual(ma["metrics_semantic_sha256"], mb["metrics_semantic_sha256"])
@@ -126,7 +128,7 @@ class V9TfExplorationDossierTests(unittest.TestCase):
 
     def test_incoherent_fdr_rejected(self):
         a = sample_study()
-        a["SourceMeasurements"][1]["FdrAfterResolve"] = 0.0
+        a["SourceMeasurements"][1]["FdrAfterResolve"] = 0.3
         with self.assertRaisesRegex(ValueError, "Incoherent"):
             self.generate(a)
 
