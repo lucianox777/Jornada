@@ -402,7 +402,12 @@ public static class V9AdaptiveCalibrationCoordinator
             (selection?.Pareto.Table.Select(x => x.Option) ?? []).Concat(
                 failedOptions.Where(x => EligibleConfiguration(x.OptionId))), plan.SelectionPolicy);
         if (plan.ShardCount > 1)
-            pareto = pareto with { InitialSuggestedOptionId = null, Status = "PARTIAL_SEARCH_NO_GLOBAL_SUGGESTION" };
+            pareto = pareto with
+            {
+                InitialSuggestedOptionId = null, Status = "PARTIAL_SEARCH_NO_GLOBAL_SUGGESTION",
+                ExploratorySuggestedOptionId = null,
+                ExploratoryStatus = "PARTIAL_SEARCH_NO_GLOBAL_EXPLORATORY_WINNER"
+            };
         return new(Version, Sha(JsonSerializer.Serialize(plan)), trainSha, validationSha,
             compared, discovery, selection, pareto, measurements.AsReadOnly(), frozen.AsReadOnly(),
             timings.AsReadOnly(), rejected.AsReadOnly(), candidates.Count,
