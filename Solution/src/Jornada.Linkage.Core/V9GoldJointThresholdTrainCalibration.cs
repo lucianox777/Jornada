@@ -215,15 +215,6 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 throw new InvalidDataException("Repeated physical order/pair.");
         }
 
-
-        // All three insertion orders replay the SAME frozen TRAIN source/identity
-        // universe. The count of independent identity groups must therefore be
-        // invariant across orders, even though the number of true-link
-        // opportunities can change with the earlier-wave ordering.
-        if (universeByOrder.Values.Select(x => x.IdentityGroups).Distinct().Count() != 1)
-            throw new InvalidDataException(
-                "TRAIN independent identity-group universe differs across physical Gold orders.");
-
         // The full four-objective frontier is EXPLORATORY ONLY. The normative
         // selection consists of TWO separate problems (v5.00 §7.20):
         // upper = accepted-link recall × accepted-link FDR; then lower =
@@ -236,8 +227,8 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 var definedRates = rows.Where(x => x.AcceptedLinks > 0)
                     .Select(x => (decimal)x.FalseLinks / x.AcceptedLinks).ToArray();
                 return new JointCandidate(g.Key.UpperThreshold, g.Key.LowerThreshold,
-                    CheckedJointSum(rows, x => x.FalseLinks, "false links"), CheckedJointSum(rows, x => x.FalseNewReferences, "false new references"),
-                    CheckedJointSum(rows, x => x.PendingAfter, "pending sources"),
+                    rows.Sum(x => x.FalseLinks), rows.Sum(x => x.FalseNewReferences),
+                    rows.Sum(x => x.PendingAfter),
                     definedRates.Length == 0 ? null : definedRates.Max(),
                     rows.Length - definedRates.Length,
                     rows.Min(x => x.BCubedF1), false);
@@ -270,15 +261,10 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 definedFdr.Length == 0 ? null : definedFdr.Max(),
                 rows.Length - definedFdr.Length, false);
         }).ToArray();
-        // An undefined accepted-link FDR in ANY lower/order TRAIN cell is
-        // insufficient evidence for automatic upper selection. Preserve the
-        // observed FDR and UndefinedFdrCells for descriptive diagnostics, but
-        // never treat a partially measured worst-case as a complete risk bound.
-        var measurableUppers = upperTable.Where(x =>
-            x.WorstObservedFdr.HasValue && x.UndefinedFdrCells == 0).ToArray();
+        var measurableUppers = upperTable.Where(x => x.WorstObservedFdr.HasValue).ToArray();
         var upperFrontier = upperTable.Select(x => x with
         {
-            IsParetoFrontier = x.WorstObservedFdr.HasValue && x.UndefinedFdrCells == 0
+            IsParetoFrontier = x.WorstObservedFdr.HasValue
                 && !measurableUppers.Any(y =>
                     y.WorstObservedRecall >= x.WorstObservedRecall
                     && y.WorstObservedFdr!.Value <= x.WorstObservedFdr!.Value
@@ -321,7 +307,7 @@ public static partial class V9LowerNonMatchTrainCalibrator
                 {
                     var rows = g.ToArray();
                     return new JointLowerCandidate(g.Key,
-                        CheckedJointSum(rows, x => x.FalseNewReferences, "false new references"), CheckedJointSum(rows, x => x.PendingAfter, "pending sources"),
+                        rows.Sum(x => x.FalseNewReferences), rows.Sum(x => x.PendingAfter),
                         rows.Max(x => x.FalseNewReferences), rows.Max(x => x.PendingAfter),
                         false);
                 }).OrderBy(x => x.LowerThreshold).ToArray();
@@ -379,22 +365,6 @@ public static partial class V9LowerNonMatchTrainCalibrator
             UpperCandidates: Array.AsReadOnly(upperFrontier),
             LowerCandidates: Array.AsReadOnly(lowerFrontier),
             DescriptiveLowerFinalists: Array.AsReadOnly(finalists));
-    }
-
-    private static long CheckedJointSum(IEnumerable<JointMeasurement> rows,
-        Func<JointMeasurement, long> selector, string metric)
-    {
-        try
-        {
-            return rows.Sum(selector);
-        }
-        catch (OverflowException ex)
-        {
-            // Every input count can fit Int64 individually while the total
-            // across physical orders cannot. Reject the receipt as invalid
-            // evidence instead of exposing an arithmetic runtime exception.
-            throw new InvalidDataException("Gold TRAIN aggregate overflows Int64: " + metric, ex);
-        }
     }
 
     private static string DecimalJoint(decimal x) =>

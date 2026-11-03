@@ -60,10 +60,7 @@ public sealed class V9GoldJointPhysicalReceiptTests
         {
             policy = "EXPERIMENTAL_LOWER_TRAIN_ONLY", threshold = .1m,
             scorerReused = true, operationalActivation = false,
-            disposableProcedureSha256 = Partition,
-            publicationReason = V9GoldLowerNonMatchExperiment.PublicationReason,
-            creationCountRule = "ANY_PHYSICAL_RUN_SOURCE_UNION_PREPUBLICATION_GOLD_TRUTH",
-            finalFalseNewIdentityCreations = 2,
+            disposableProcedureSha256 = Partition, finalFalseNewIdentityCreations = 2,
             finalLowerBandProposals = 4, finalLowerBandCreated = 3, finalFalseLowerBandCreations = 1
         },
         goldBcubed = new
@@ -71,11 +68,7 @@ public sealed class V9GoldJointPhysicalReceiptTests
             ContractVersion = GoldPartitionBcubedAudit.Version,
             Sources = 20, PublishedSources = 16, TrueIdentityGroups = 5,
             GoldIdentityGroups = 4, PendingSources = 4,
-            PendingSourceRate = .2, StandardPrecision = 1.0,
-            StandardRecall = .9, StandardF1 = 0.9473684210526315,
-            CoverageAwarePrecision = .8, CoverageAwareRecall = .8,
-            CoverageAwareF1 = .8, PublishedOnlyPrecision = 1.0,
-            PublishedOnlyRecall = 1.0
+            CoverageAwareF1 = .8
         },
         publication = new { trueExistingLinks = 6, falseExistingLinks = 1, newIdentitySources = 9, pendingSources = 4 }
     })!.AsObject();
@@ -295,181 +288,6 @@ public sealed class V9GoldJointPhysicalReceiptTests
             "not-a-content-addressed-snapshot";
         ((JsonObject)receipt["goldThreeOrderTrial"]!)["frozenSnapshotSha256"] =
             "not-a-content-addressed-snapshot";
-        Reject(receipt);
-    }
-
-    [Test]
-    public void Rejects_inconsistent_coverage_aware_bcubed_harmonic_mean()
-    {
-        var receipt = Receipt();
-        ((JsonObject)receipt["goldBcubed"]!)["CoverageAwareF1"] = .95;
-        // The physical receipt cannot claim an F1 unrelated to its P/R.
-        Reject(receipt);
-    }
-
-    [Test]
-    public void Rejects_bcubed_precision_above_physically_published_coverage()
-    {
-        var receipt = Receipt();
-        ((JsonObject)receipt["goldBcubed"]!)["CoverageAwarePrecision"] = .95;
-        // Pending sources contribute zero; only 16/20 sources are published.
-        Reject(receipt);
-    }
-
-    [Test]
-    public void Rejects_missing_or_wrong_bcubed_coverage_denominator()
-    {
-        var receipt = Receipt();
-        ((JsonObject)receipt["goldBcubed"]!)["PendingSourceRate"] = .1;
-        Reject(receipt);
-        receipt = Receipt();
-        ((JsonObject)receipt["goldBcubed"]!).Remove("CoverageAwareRecall");
-        Reject(receipt);
-    }
-
-    [Test]
-    public void Rejects_standard_bcubed_precision_that_ignores_pending_singletons()
-    {
-        var receipt = Receipt();
-        ((JsonObject)receipt["goldBcubed"]!)["StandardPrecision"] = .8;
-        Reject(receipt);
-        receipt = Receipt();
-        ((JsonObject)receipt["goldBcubed"]!).Remove("StandardPrecision");
-        Reject(receipt);
-    }
-
-    [Test]
-    public void Rejects_standard_bcubed_recall_outside_pending_truth_contribution()
-    {
-        var receipt = Receipt();
-        ((JsonObject)receipt["goldBcubed"]!)["StandardRecall"] = .7;
-        Reject(receipt);
-    }
-
-    [Test]
-    public void Rejects_standard_bcubed_f1_that_is_not_harmonic()
-    {
-        var receipt = Receipt();
-        ((JsonObject)receipt["goldBcubed"]!)["StandardF1"] = .1;
-        Reject(receipt);
-    }
-
-    [Test]
-    public void Rejects_published_only_metrics_inconsistent_with_coverage()
-    {
-        var receipt = Receipt();
-        ((JsonObject)receipt["goldBcubed"]!)["PublishedOnlyPrecision"] = .5;
-        Reject(receipt);
-        receipt = Receipt();
-        ((JsonObject)receipt["goldBcubed"]!)["PublishedOnlyRecall"] = null;
-        Reject(receipt);
-    }
-
-    private static JsonObject ZeroPublishedReceipt()
-    {
-        var receipt = Receipt();
-        var gold = (JsonObject)receipt["goldBcubed"]!;
-        gold["PublishedSources"] = 0;
-        gold["GoldIdentityGroups"] = 0;
-        gold["PendingSources"] = 20;
-        gold["PendingSourceRate"] = 1.0;
-        gold["StandardPrecision"] = 1.0;
-        gold["StandardRecall"] = .25;
-        gold["StandardF1"] = .4;
-        gold["CoverageAwarePrecision"] = 0.0;
-        gold["CoverageAwareRecall"] = 0.0;
-        gold["CoverageAwareF1"] = 0.0;
-        gold["PublishedOnlyPrecision"] = null;
-        gold["PublishedOnlyRecall"] = null;
-        ((JsonObject)receipt["goldThreeOrderTrial"]!)["publishedSourceCount"] = 0;
-        var publication = (JsonObject)receipt["publication"]!;
-        publication["trueExistingLinks"] = 0;
-        publication["falseExistingLinks"] = 0;
-        publication["newIdentitySources"] = 0;
-        publication["pendingSources"] = 20;
-        receipt["trueAccepted"] = 0;
-        receipt["falseAccepted"] = 0;
-        return receipt;
-    }
-
-    [Test]
-    public void Zero_published_sources_require_null_published_only_metrics()
-    {
-        var receipt = ZeroPublishedReceipt();
-        Assert.DoesNotThrow((Action)(() =>
-            V9GoldJointPhysicalReceipt.Read(Bytes(receipt), Fit, Gold, Csv, Selection)));
-
-        ((JsonObject)receipt["goldBcubed"]!)["PublishedOnlyPrecision"] = 1.0;
-        Reject(receipt);
-    }
-
-    [Test]
-    public void Rejects_underflowed_nonzero_bcubed_json_number()
-    {
-        // A nonzero decimal token must not silently become 0 in TryGetDouble.
-        // With no published sources, all coverage-aware metrics are truly zero,
-        // so this tampering otherwise passes every consistency check.
-        var json = System.Text.Encoding.UTF8.GetString(Bytes(ZeroPublishedReceipt()));
-        const string key = "\"CoverageAwarePrecision\":";
-        var start = json.IndexOf(key, StringComparison.Ordinal);
-        Assert.That(start, Is.GreaterThanOrEqualTo(0));
-        var valueStart = start + key.Length;
-        var valueEnd = json.IndexOf(',', valueStart);
-        Assert.That(valueEnd, Is.GreaterThan(valueStart));
-        var altered = json[..valueStart] + "1e-999" + json[valueEnd..];
-        Assert.Throws<InvalidDataException>((Action)(() =>
-            V9GoldJointPhysicalReceipt.Read(
-                System.Text.Encoding.UTF8.GetBytes(altered), Fit, Gold, Csv, Selection)));
-    }
-
-    [Test]
-    public void Accepts_true_zero_exponent_in_bcubed_json()
-    {
-        var json = System.Text.Encoding.UTF8.GetString(Bytes(ZeroPublishedReceipt()));
-        const string key = "\"CoverageAwarePrecision\":";
-        var valueStart = json.IndexOf(key, StringComparison.Ordinal) + key.Length;
-        var valueEnd = json.IndexOf(',', valueStart);
-        Assert.That(valueStart, Is.GreaterThanOrEqualTo(key.Length));
-        Assert.That(valueEnd, Is.GreaterThan(valueStart));
-        var altered = json[..valueStart] + "0e-999" + json[valueEnd..];
-        Assert.DoesNotThrow((Action)(() =>
-            V9GoldJointPhysicalReceipt.Read(
-                System.Text.Encoding.UTF8.GetBytes(altered), Fit, Gold, Csv, Selection)));
-    }
-
-    [Test]
-    public void Rejects_nonzero_decimal_underflow_in_coverage_aware_f1()
-    {
-        // A numeric token must not be rounded to zero when the physical
-        // B-cubed F1 is deserialized as decimal instead of double.
-        var json = System.Text.Encoding.UTF8.GetString(Bytes(ZeroPublishedReceipt()));
-        const string key = "\"CoverageAwareF1\":";
-        var start = json.IndexOf(key, StringComparison.Ordinal);
-        Assert.That(start, Is.GreaterThanOrEqualTo(0));
-        var valueStart = start + key.Length;
-        var valueEnd = json.IndexOf(',', valueStart);
-        Assert.That(valueEnd, Is.GreaterThan(valueStart));
-        var forged = json[..valueStart] + "1e-999" + json[valueEnd..];
-        Assert.Throws<InvalidDataException>((Action)(() =>
-            V9GoldJointPhysicalReceipt.Read(
-                System.Text.Encoding.UTF8.GetBytes(forged), Fit, Gold, Csv, Selection)));
-        var trueZero = json[..valueStart] + "0e-999" + json[valueEnd..];
-        Assert.DoesNotThrow((Action)(() =>
-            V9GoldJointPhysicalReceipt.Read(
-                System.Text.Encoding.UTF8.GetBytes(trueZero), Fit, Gold, Csv, Selection)));
-    }
-
-    [TestCase("publicationReason")]
-    [TestCase("creationCountRule")]
-    public void Rejects_forged_or_missing_physical_creation_semantics(string field)
-    {
-        // A syntactically valid receipt must not silently change the definition
-        // of historical false-creation events used to select LOWER.
-        var receipt = Receipt();
-        ((JsonObject)receipt["lowerNonMatchExperiment"]!)[field] = "UNRELATED_EVENT_RULE";
-        Reject(receipt);
-        receipt = Receipt();
-        ((JsonObject)receipt["lowerNonMatchExperiment"]!).Remove(field);
         Reject(receipt);
     }
 

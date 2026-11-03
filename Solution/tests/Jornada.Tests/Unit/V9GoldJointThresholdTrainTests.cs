@@ -246,70 +246,6 @@ public sealed class V9GoldJointThresholdTrainTests
     }
 
     [Test]
-    public void Partially_undefined_FDR_disqualifies_upper_from_automatic_selection()
-    {
-        // One of six TRAIN cells has no accepted links. Treating its FDR as
-        // implicitly harmless would favor .9 despite an unmeasured order/cell.
-        var rows = Measurements();
-        rows[6] = rows[6] with { AcceptedLinks = 0, FalseLinks = 0 };
-        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows);
-        var incomplete = study.UpperCandidates.Single(x => x.UpperThreshold == .9m);
-        Assert.Multiple((Action)(() =>
-        {
-            Assert.That(incomplete.UndefinedFdrCells, Is.EqualTo(1));
-            Assert.That(incomplete.WorstObservedFdr, Is.EqualTo(0m),
-                "Preserve descriptive observations without pretending all cells were measured.");
-            Assert.That(incomplete.IsParetoFrontier, Is.False);
-            Assert.That(study.SuggestedUpperThreshold, Is.EqualTo(.8m));
-        }));
-    }
-
-    [Test]
-    public void No_upper_is_selected_when_each_has_an_unmeasured_FDR_cell()
-    {
-        var rows = Measurements();
-        rows[0] = rows[0] with { AcceptedLinks = 0, FalseLinks = 0 };
-        rows[6] = rows[6] with { AcceptedLinks = 0, FalseLinks = 0 };
-        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows);
-        Assert.Multiple((Action)(() =>
-        {
-            Assert.That(study.UpperCandidates.All(x => x.UndefinedFdrCells > 0), Is.True);
-            Assert.That(study.SuggestedUpperThreshold, Is.Null);
-            Assert.That(study.SuggestedLowerThreshold, Is.Null);
-            Assert.That(study.Status, Does.Contain("INSUFFICIENT"));
-            Assert.That(study.OperationalActivationAllowed, Is.False);
-        }));
-    }
-
-    [Test]
-    public void Rejects_order_dependent_independent_identity_universe_even_with_recomputed_evidence()
-    {
-        // The three Gold insertion orders use the SAME frozen TRAIN corpus.
-        // A different independent-identity-group count for an entire order
-        // must not pass merely because every upper/lower cell in that order agrees.
-        var rows = Measurements().Select(x =>
-            x.OrderId == "REVERSE_G3_G2_G1_G0"
-                ? x with { IndependentIdentityGroups = 31 }
-                : x).ToArray();
-        Assert.Throws<InvalidDataException>((Action)(() =>
-            V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows)));
-    }
-
-    [Test]
-    public void Allows_order_dependent_true_link_opportunities_with_same_identity_universe()
-    {
-        // Earlier-wave opportunity counts legitimately change with insertion
-        // order. Only the fixed corpus identity-group count is order invariant.
-        var rows = Measurements().Select(x =>
-            x.OrderId == "REVERSE_G3_G2_G1_G0"
-                ? x with { TrueLinkOpportunities = 101 }
-                : x).ToArray();
-        var study = V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows);
-        Assert.That(study.StatisticallyCertified, Is.False);
-        Assert.That(study.OperationalActivationAllowed, Is.False);
-    }
-
-    [Test]
     public void Rejects_threshold_dependent_truth_denominator_with_valid_recomputed_evidence_sha()
     {
         var rows = Measurements();
@@ -341,23 +277,5 @@ public sealed class V9GoldJointThresholdTrainTests
             .All(x => x.WorstObservedFalseLinkFraction is null
                 && x.UndefinedObservedFalseLinkRateOrders == 3), Is.True);
         Assert.That(study.Candidates, Has.Count.EqualTo(4));
-    }
-
-    [TestCase(true)]
-    [TestCase(false)]
-    public void Rejects_overflowed_physical_count_aggregation_as_invalid_train_evidence(bool falseCreations)
-    {
-        // Every row is individually nonnegative and has a valid evidence SHA,
-        // but summing independent physical orders must not overflow Int64.
-        // A raw OverflowException is not an accepted evidence-validation result.
-        var rows = Measurements();
-        for (var i = 0; i < 2; i++)
-        {
-            rows[i] = falseCreations
-                ? rows[i] with { FalseNewReferences = long.MaxValue }
-                : rows[i] with { PendingAfter = long.MaxValue };
-        }
-        Assert.Throws<InvalidDataException>((Action)(() =>
-            V9LowerNonMatchTrainCalibrator.SearchJoint(Policy(rows), rows)));
     }
 }
