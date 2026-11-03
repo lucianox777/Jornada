@@ -526,7 +526,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         var preview = V9TrainSqlNominalUCalibration.Preview(
             frozenU, frozenTfReference, personLevel, motherLevel, pair,
             UnitWeight(config, side, unit.Value), config.TfMinimumFrequency,
-            config.TfMinimumIndependentSupport, UnitMode(config, side, unit.Value));
+            config.TfMinimumIndependentSupport, UnitMode(config, side, unit.Value),
+            config.UnpublishedTermPolicy);
         if (preview is not null && !frozenU.UnitUByValue.ContainsKey(preview.MatchedNormalizedValue))
             onUnseen?.Invoke(side, unit.Value);
         return preview;
@@ -566,8 +567,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         }
         bool IsScoreable(LinkageCandidate candidate)
         {
-            if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
-                return true; // Historical snapshots still throw on an unknown frequency.
+            if (config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.AbstainCandidate)
+                return true; // RejectOperation throws, while CensoredFloorSensitivity scores explicitly.
             var target = targets[candidate.PessoaUuid];
             foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
             {
