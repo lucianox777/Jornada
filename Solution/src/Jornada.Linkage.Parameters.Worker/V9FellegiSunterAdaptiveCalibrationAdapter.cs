@@ -54,7 +54,8 @@ public sealed record V9FsAdaptiveOptionConfiguration(
     long TfMinimumIndependentSupport = 1, V9JointSupportPolicy? JointSupportPolicy = null,
     IReadOnlyList<V9FsUnitTfOption>? UnitTfOptions = null,
     V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
-    bool EligibleForSelection = true)
+    bool EligibleForSelection = true,
+    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation)
 {
     public string FingerprintSha256 => V9FellegiSunterAdaptiveCalibrationAdapter
         .ConfigurationFingerprintSha256(this);
@@ -282,7 +283,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 trainU.UnitUByValue, trainU.FingerprintSha256,
                 config.TfMinimumFrequency, config.TfMinimumIndependentSupport,
                 frame.TrainCorpusFingerprintSha256,
-                UnitMode(config, side, unit), weight);
+                UnitMode(config, side, unit), weight, null, trainU.NominalUReference);
             unitFits.Add(new V9SnapshotUnitTf(side, unit,
                 active ? V9SnapshotTfFitState.Active
                     : config.UnitTfOptions is null ? V9SnapshotTfFitState.NotSelected
@@ -299,7 +300,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             blockingPasses, frozen.Cells, frozen.Parameters,
             BlockingFrameFingerprintSha256: frame.BlockingFrameFingerprintSha256,
             CandidateGrouping: candidateGrouping, JointSupport: frozen.JointSupport,
-            UnitTfCalibrations: unitFits, SharedSurnameMode: config.SharedSurnameMode));
+            UnitTfCalibrations: unitFits, SharedSurnameMode: config.SharedSurnameMode,
+            UnpublishedTermPolicy: config.UnpublishedTermPolicy));
     }
 
     private static bool BlockingPassesEqual(
@@ -435,7 +437,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 if (!trainingUnitUCache.TryGetValue(key, out var fittedUnit))
                 {
                     fittedUnit = V9TrainSqlNominalUCalibration.Fit(
-                        trainingRows, side, alpha, frame.TrainCorpusFingerprintSha256, unit);
+                        trainingRows, side, alpha, frame.TrainCorpusFingerprintSha256, unit,
+                        frozenTfReference.HasMarginal(side, V9NominalTfUnitSelection.MarginalLevel(unit))
+                            ? frozenTfReference.FrequenciesForUnit(side, unit) : null);
                     trainingUnitUCache.Add(key, fittedUnit);
                 }
                 trainUnitUs.Add((side, unit), fittedUnit);
@@ -507,7 +511,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
     private CompositeNominalTfPreviewV9? PreviewFrozenTf(
         FrozenFit fitted, V9FsAdaptiveOptionConfiguration config,
         V9FsAdaptiveCandidatePair pair, CompositeNominalTfSideV9 side,
-        CompositeNominalLevelV9 personLevel, CompositeNominalLevelV9 motherLevel)
+        CompositeNominalLevelV9 personLevel, CompositeNominalLevelV9 motherLevel,
+        Action<CompositeNominalTfSideV9, NominalFrequencyUnitV9>? onUnseen = null)
     {
         var level = side == CompositeNominalTfSideV9.Person ? personLevel : motherLevel;
         var unit = V9NominalTfUnitSelection.ForLevel(level);
@@ -518,10 +523,13 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             || !frozenU.HasSufficientSupport
             || !frozenTfReference.HasMarginal(side, V9NominalTfUnitSelection.MarginalLevel(unit.Value)))
             throw new InvalidDataException($"TF ativa sem referência/suporte TRAIN: {side}/{unit}.");
-        return V9TrainSqlNominalUCalibration.Preview(
+        var preview = V9TrainSqlNominalUCalibration.Preview(
             frozenU, frozenTfReference, personLevel, motherLevel, pair,
             UnitWeight(config, side, unit.Value), config.TfMinimumFrequency,
             config.TfMinimumIndependentSupport, UnitMode(config, side, unit.Value));
+        if (preview is not null && !frozenU.UnitUByValue.ContainsKey(preview.MatchedNormalizedValue))
+            onUnseen?.Invoke(side, unit.Value);
+        return preview;
     }
 
     private IReadOnlyList<CandidateScore> RankFrozenValidationCandidates(
@@ -556,6 +564,26 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 CompositeNominalComparisonV9.Classify(source.PersonName, target.PersonName),
                 CompositeNominalComparisonV9.Classify(source.MotherName, target.MotherName));
         }
+        bool IsScoreable(LinkageCandidate candidate)
+        {
+            if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
+                return true; // Historical snapshots still throw on an unknown frequency.
+            var target = targets[candidate.PessoaUuid];
+            foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
+            {
+                var unit = SelectedUnit(candidate, side);
+                if (!unit.HasValue || UnitWeight(config, side, unit.Value) <= 0m)
+                    continue;
+                var left = side == CompositeNominalTfSideV9.Person ? source.PersonName : source.MotherName;
+                var right = side == CompositeNominalTfSideV9.Person ? target.PersonName : target.MotherName;
+                if (frozenTfReference is null)
+                    throw new InvalidDataException("TF ativa sem IBGE congelado.");
+                if (V9NominalTfTermCoverage.MissingPublishedFrequency(unit.Value, left, right,
+                    frozenTfReference.FrequenciesForUnit(side, unit.Value)))
+                    return false;
+            }
+            return true;
+        }
         return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
             fitted.Parameters, fitted.NumericParameters, observation, candidates, fitted.FrozenNominal,
             (_, candidate) => Term(candidate, CompositeNominalTfSideV9.Person),
@@ -564,7 +592,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             motherUnitForPair: (_, candidate) => SelectedUnit(candidate, CompositeNominalTfSideV9.Mother),
             personRequiredForPair: (_, candidate) => Required(candidate, CompositeNominalTfSideV9.Person),
             motherRequiredForPair: (_, candidate) => Required(candidate, CompositeNominalTfSideV9.Mother),
-            sharedSurnameMode: config.SharedSurnameMode);
+            sharedSurnameMode: config.SharedSurnameMode,
+            candidateIsScoreable: (_, candidate) => IsScoreable(candidate));
     }
 
     public AdaptiveCalibrationHoldoutMetrics EvaluateValidation(
@@ -616,9 +645,54 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 activeUnits.Add((side, unit), fittedUnit);
             }
         }
+        // Guard all active positive-TF slots against the PINNED IBGE marginal
+        // before scoring any validation pair. A global pin digest can be valid
+        // while a corrupted observation has a name not in the published frame.
+        // This remains fail-closed: no synthetic frequency, neutral TF or
+        // covert option pruning, and no personal names in the diagnostic.
+        IReadOnlyDictionary<string, long>? missingPublishedTf = null;
+        if (activeReference is not null)
+        {
+            var coverage = V9NominalTfPublishedCoverageAudit.Audit(
+                rows, activeReference, activeUnits.Keys.ToArray());
+            if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
+                V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage);
+            else
+                missingPublishedTf = new ReadOnlyDictionary<string, long>(
+                    coverage.Where(x => x.MissingPublishedValidationPairs > 0)
+                        .ToDictionary(x => x.Side + "/" + x.Unit,
+                            x => x.MissingPublishedValidationPairs, StringComparer.Ordinal));
+        }
+
+        bool CannotScore(V9FsAdaptiveCandidatePair row)
+        {
+            if (activeReference is null ||
+                config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.AbstainCandidate)
+                return false;
+            foreach (var (side, unit) in activeUnits.Keys)
+            {
+                var left = side == CompositeNominalTfSideV9.Person ? row.LeftPersonName : row.LeftMotherName;
+                var right = side == CompositeNominalTfSideV9.Person ? row.RightPersonName : row.RightMotherName;
+                if (V9NominalTfTermCoverage.MissingPublishedFrequency(
+                    unit, left, right, activeReference.FrequenciesForUnit(side, unit)))
+                    return true;
+            }
+            return false;
+        }
+
         long tp = 0, fp = 0, sharedSurnamePairs = 0;
+        var unseenCounts = new Dictionary<string, long>(StringComparer.Ordinal);
+        void RecordUnseen(CompositeNominalTfSideV9 side, NominalFrequencyUnitV9 unit)
+        {
+            var key = side + "/" + unit;
+            unseenCounts[key] = checked(unseenCounts.GetValueOrDefault(key) + 1L);
+        }
         foreach (var row in rows)
         {
+            // Explicit fail-closed abstention: leave this pair UNACCEPTED, not
+            // TF-neutral, and keep it in M/U/identity/blocking denominators.
+            if (CannotScore(row))
+                continue;
             var personLevel = CompositeNominalComparisonV9.Classify(
                 row.LeftPersonName, row.RightPersonName);
             var motherLevel = CompositeNominalComparisonV9.Classify(
@@ -626,7 +700,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             CompositeNominalTfPreviewV9? Term(
                 CompositeNominalTfSideV9 side, CompositeNominalLevelV9 level)
             {
-                return PreviewFrozenTf(frozen, config, row, side, personLevel, motherLevel);
+                return PreviewFrozenTf(frozen, config, row, side, personLevel, motherLevel, RecordUnseen);
             }
             var personTerm = Term(CompositeNominalTfSideV9.Person, personLevel);
             var motherTerm = Term(CompositeNominalTfSideV9.Mother, motherLevel);
@@ -663,7 +737,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             BlockingFalseCandidatePairs: falsePairs,
             BlockingFalseDegreeP99: p99,
             IndependentlyLabeledIdentityGroups: groups,
-            SharedSurnameCandidatePairs: sharedSurnamePairs);
+            SharedSurnameCandidatePairs: sharedSurnamePairs,
+            UnseenTfUBySideUnit: new ReadOnlyDictionary<string, long>(unseenCounts),
+            MissingPublishedTfCandidatePairsBySideUnit: missingPublishedTf);
     }
 
 
@@ -737,7 +813,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     fitted, config, source, candidates, candidatesByGuid);
                 var decision = ProbabilisticLinkageDecisions.ResolveRankedCompositeNominalV9Preview(
                     SyntheticCandidateId(source.ObservationId),
-                    fitted.Parameters, ranking, config.DecisionThreshold, conflictMargin);
+                    fitted.Parameters, ranking, config.DecisionThreshold, conflictMargin,
+                    candidates.Length > 0 && ranking.Count == 0
+                        && config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.AbstainCandidate
+                            ? "TF_SEM_FREQUENCIA_IBGE_PUBLICADA" : "SEM_CANDIDATO_NO_RULESET_BLOCKING");
                 if (decision.Status == ResolutionStatus.CONFLITO)
                 {
                     conflicts++;
@@ -1009,7 +1088,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                         .ResolveRankedCompositeNominalV9Preview(
                             ObservationGuid(source.ObservationId),
                             fitted.Parameters, ranking,
-                            config.DecisionThreshold, margin);
+                            config.DecisionThreshold, margin,
+                            candidates.Length > 0 && ranked.Count == 0
+                                && config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.AbstainCandidate
+                                    ? "TF_SEM_FREQUENCIA_IBGE_PUBLICADA" : "SEM_CANDIDATO_NO_RULESET_BLOCKING");
                     string? targetBase = null;
                     if (decision.Status == ResolutionStatus.RESOLVIDO)
                     {
@@ -1086,7 +1168,11 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                             .ResolveRankedCompositeNominalV9Preview(
                                 ObservationGuid(source.ObservationId),
                                 fitted.Parameters, collapsed,
-                                config.DecisionThreshold, margin);
+                                config.DecisionThreshold, margin,
+                                neighbors[source.ObservationId].Count > 0
+                                    && rankedBySource[source.ObservationId].Count == 0
+                                    && config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.AbstainCandidate
+                                        ? "TF_SEM_FREQUENCIA_IBGE_PUBLICADA" : "SEM_CANDIDATO_NO_RULESET_BLOCKING");
                         string? targetBase = null;
                         if (decision.Status == ResolutionStatus.RESOLVIDO)
                         {
@@ -1252,6 +1338,12 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             "TF_SIDE=" + config.TfSide,
             "TF_MIN_FREQ=" + config.TfMinimumFrequency.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "TF_SUPPORT=" + config.TfMinimumIndependentSupport);
+        if (!Enum.IsDefined(config.UnpublishedTermPolicy))
+            throw new InvalidDataException("Política para TF nominal não publicado desconhecida.");
+        // Default historical serialization/fingerprint is unchanged. A new
+        // opt-in policy has a distinct fit/configuration identity.
+        if (config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.RejectOperation)
+            canonical += "|UNPUBLISHED_TF_POLICY=" + config.UnpublishedTermPolicy;
         if (!Enum.IsDefined(config.SharedSurnameMode))
             throw new InvalidDataException("Modo de sobrenome compartilhado desconhecido.");
         if (config.SharedSurnameMode == V9SharedSurnameModeV9.PersonSideOnlyWhenShared)
