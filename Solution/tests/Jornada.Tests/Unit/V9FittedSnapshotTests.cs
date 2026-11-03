@@ -527,6 +527,79 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void Frozen_decision19_rejects_legacy_residual_and_incompatible_train_event_contract()
+    {
+        var payload = PositiveTfPayload();
+        var tf = payload.TfCalibration!;
+        var reference = tf.NominalUReference!;
+        void Reject(V9SnapshotNominalUnitTfCalibration calibration) =>
+            Assert.Throws<InvalidDataException>((Action)(() =>
+                V9FittedSnapshot.Create(payload with { TfCalibration = calibration })));
+
+        // Even if a caller computes a new whole-snapshot hash, a legacy
+        // U(x) or IBGE-proportional residual policy is not a valid U_ref.
+        Reject(tf with { NominalUReference = null });
+        Reject(tf with { UnseenAllocation = new V9UnseenTfUAllocation(
+            V9UnseenTfUDistribution.Version, .1m, .2m) });
+        Reject(tf with { NominalUReference = reference with {
+            Side = CompositeNominalTfSideV9.Mother } });
+        Reject(tf with { NominalUReference = reference with {
+            Unit = NominalFrequencyUnitV9.LastContentSurname } });
+        Reject(tf with { NominalUReference = reference with {
+            TrainCorpusFingerprintSha256 = payload.ValidationCorpusSha256 } });
+        Reject(tf with { NominalUReference = reference with {
+            MatchingNominalPairs = reference.MatchingNominalPairs + 1 } });
+        Reject(tf with { NominalUReference = reference with {
+            PolicyVersion = "UNKNOWN_U_POLICY" } });
+    }
+
+    [TestCase(0d, CompositeNominalTfAdjustmentModeV9.Symmetric)]
+    [TestCase(0d, CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly)]
+    [TestCase(.5d, CompositeNominalTfAdjustmentModeV9.Symmetric)]
+    [TestCase(.5d, CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly)]
+    [TestCase(1d, CompositeNominalTfAdjustmentModeV9.Symmetric)]
+    [TestCase(1d, CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly)]
+    public void TRAIN_event_U_ref_scores_six_weight_mode_combinations_with_independent_scalar_oracle(
+        double weight, CompositeNominalTfAdjustmentModeV9 mode)
+    {
+        var neutral = V9FittedSnapshot.Create(Payload());
+        var baseTf = PositiveTfPayload();
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA COSTA", null, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "MARIA LIMA", null, null);
+        Assert.That(CompositeNominalComparisonV9.Classify(observation.NomeCompleto,
+            candidate.FullName), Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
+        var baseScore = neutral.RankPreview(observation, [candidate]).Single().LogOdds;
+        foreach (var frequency in new[] { .6m, .01m })
+        {
+            var tf = baseTf.TfCalibration! with
+            {
+                Frequencies = new Dictionary<string, decimal> { ["MARIA"] = frequency },
+                Mode = mode
+            };
+            var p = weight == 0d ? Payload() : baseTf with
+            {
+                TfWeight = (decimal)weight,
+                TfCalibration = tf
+            };
+            var fitted = V9FittedSnapshot.Create(p);
+            var roundtrip = V9FittedSnapshot.Load(fitted.SerializeUtf8(), fitted.ContentSha256);
+            var scored = roundtrip.RankPreview(observation, [candidate]).Single().LogOdds;
+            var expectedRef = (2.5d / 11d); // 2 agreements / 10 U pairs, alpha=.5
+            if (weight > 0d)
+                Assert.That(roundtrip.Payload.TfCalibration!.NominalUReference!.Probability,
+                    Is.EqualTo((decimal)expectedRef).Within(.000000000001m));
+            var adjustment = weight * Math.Log(expectedRef / (double)frequency);
+            if (mode == CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly)
+                adjustment = Math.Min(0d, adjustment);
+            var expected = baseScore + (decimal)adjustment;
+            Assert.That(scored, Is.EqualTo(expected).Within(.00000005m),
+                $"TF score mismatch for weight={weight}, mode={mode}, IBGE={frequency}");
+            Assert.That(roundtrip.RankPreview(observation, [candidate]).Single().LogOdds,
+                Is.EqualTo(scored));
+        }
+    }
+
+    [Test]
     public void Positive_tf_rejects_other_train_frame_and_person_mother_reference_swap()
     {
         var p = PositiveTfPayload();

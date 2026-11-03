@@ -7,10 +7,12 @@ using Jornada.Linkage.Runner;
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
-/// Preview-only U calibration on the same TRAIN SQL candidate-pair frame used
-/// by the FS scorer: p(unit VALUE | U, unit-selected agreement, blocking).
-/// This is not the marginal frequency of people in the population and not a
-/// valid identity-cluster confidence bound. No TEST or automated promotion.
+/// Preview-only TRAIN SQL calibration of one nominal-event U_ref per side/unit:
+/// P(the nominal tokens agree | nonmatching candidate pair, pinned blocking).
+/// Counts cover the entire frozen candidate frame; the legacy per-value
+/// distribution is retained for diagnostics only, never for positive TF scoring.
+/// This is not population marginal frequency, a cluster FDR confidence bound,
+/// a TEST estimate or authorization to promote a model.
 /// </summary>
 public static class V9TrainSqlNominalUCalibration
 {
