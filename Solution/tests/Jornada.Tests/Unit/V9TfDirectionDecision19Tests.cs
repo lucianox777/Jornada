@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Jornada.Linkage.Runner;
+using Jornada.Linkage.Parameters.Worker;
 using NUnit.Framework;
 
 namespace Jornada.Tests.Unit;
@@ -62,4 +63,39 @@ public sealed class V9TfDirectionDecision19Tests
             reference.Validate(CompositeNominalTfSideV9.Person,
                 NominalFrequencyUnitV9.LastContentSurname, TrainSha)));
     }
+    [Test]
+    public void URef_uses_all_nonmatch_agreements_even_if_composite_level_selects_no_TF()
+    {
+        // ExactFirstLast has agreeing first tokens, but the shared selector
+        // intentionally applies no first-name TF to that composite level.
+        // Decision 19 defines U_ref from the agreement EVENT, not the
+        // subset of levels selected to receive the TF correction.
+        var rows = new[]
+        {
+            new V9FsAdaptiveCandidatePair("TRAIN", "A", "B", false,
+                "MARIA LUZ SILVA", "MARIA ANA SILVA", null, null, null, null, 1),
+            new V9FsAdaptiveCandidatePair("TRAIN", "C", "D", false,
+                "JOANA LUZ COSTA", "JOANA ANA COSTA", null, null, null, null, 1),
+            new V9FsAdaptiveCandidatePair("TRAIN", "E", "F", false,
+                "ANA SILVA", "BIA COSTA", null, null, null, null, 1),
+            new V9FsAdaptiveCandidatePair("TRAIN", "G", "H", false,
+                "CARLA COSTA", "DORA SILVA", null, null, null, null, 1)
+        };
+        Assert.That(CompositeNominalComparisonV9.Classify(
+            rows[0].LeftPersonName, rows[0].RightPersonName),
+            Is.EqualTo(CompositeNominalLevelV9.ExactFirstLast));
+        var fitted = V9TrainSqlNominalUCalibration.Fit(rows,
+            CompositeNominalTfSideV9.Person, .5m, TrainSha);
+        Assert.Multiple(() =>
+        {
+            Assert.That(fitted.UnmatchedUnitCandidatePairs, Is.Zero,
+                "No selected-level diagnostic agreements in this TRAIN frame.");
+            Assert.That(fitted.HasSufficientSupport, Is.True,
+                "The reference event has two agreements in four nonmatches.");
+            Assert.That(fitted.NominalUReference?.UnmatchedCandidatePairs, Is.EqualTo(4));
+            Assert.That(fitted.NominalUReference?.MatchingNominalPairs, Is.EqualTo(2));
+            Assert.That(fitted.NominalUReference?.Probability, Is.EqualTo(.5m));
+        });
+    }
+
 }
