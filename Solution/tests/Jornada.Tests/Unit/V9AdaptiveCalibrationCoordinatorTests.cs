@@ -7,6 +7,11 @@ namespace Jornada.Tests.Unit;
 [TestFixture, Category("Unit")]
 public sealed class V9AdaptiveCalibrationCoordinatorTests
 {
+    private static readonly System.Text.Json.JsonSerializerOptions GeneratedPlanJsonOptions = new()
+    {
+        UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
+    };
+
     private static V9AdaptiveCalibrationPlan Plan()
     {
         var sha = new string('a', 64);
@@ -83,12 +88,10 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
             Assert.That(process.WaitForExit(60_000), Is.True, "prepare-tf timed out.");
             Assert.That(process.ExitCode, Is.Zero, "prepare-tf rejected its small test fixture: " + stderr + stdout);
             var plan = System.Text.Json.JsonSerializer.Deserialize<V9AdaptiveCalibrationPlan>(
-                File.ReadAllBytes(destination), new System.Text.Json.JsonSerializerOptions
-                {
-                    UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
-                }) ?? throw new InvalidDataException("Generated TF plan missing.");
+                File.ReadAllBytes(destination), GeneratedPlanJsonOptions)
+                ?? throw new InvalidDataException("Generated TF plan missing.");
 
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(plan.Budget.MinimumGlobalAcceptedRecall, Is.EqualTo(.95));
                 Assert.That(plan.Budget.MaximumObservedAcceptedFdrPoint, Is.EqualTo(.01));
@@ -98,7 +101,7 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
                 Assert.That(plan.ModelOptions.Count(x => x.EligibleForSelection), Is.EqualTo(41));
                 Assert.That(plan.ModelOptions.Count(x => !x.EligibleForSelection), Is.EqualTo(4));
                 Assert.That(plan.PreviouslyComparedValidationConfigurations, Is.EqualTo(3726));
-            });
+            }));
             // All arms are counted, including 4 measured-but-ineligible diagnostics;
             // eligibility filters never prune physical model or conflict-margin work.
             V9AdaptiveCalibrationCoordinator.ValidatePlan(plan);
