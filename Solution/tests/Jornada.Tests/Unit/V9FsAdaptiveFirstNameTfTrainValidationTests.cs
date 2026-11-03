@@ -205,6 +205,36 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void Portable_blind_replay_omits_only_unscoreable_TF_edges_and_keeps_sql_blocking()
+    {
+        var config = new V9FsAdaptiveOptionConfiguration(
+            "TF_BLIND_ABSTAIN", .5m, .55m, 1m,
+            UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.AbstainCandidate);
+        var frame = Frame();
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(frame, [config], Reference());
+        var fit = adapter.FitTrain(Model(config), Slice("TRAIN"));
+        var snapshot = adapter.ExportFrozenSnapshot(fit, frame.CandidateBlockingPasses!,
+            frame.ProjectionSchemaVersion!, frame.ProjectionFingerprintSha256!, .2m,
+            new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .60m, 16));
+        var observations = new[]
+        {
+            new V9PhysicalCalibrationObservation(
+                901, "PERSON-1", "VALIDATION", "G1",
+                "ZULEIKAA COSTA", null, Birth),
+            new V9PhysicalCalibrationObservation(
+                902, "PERSON-1", "VALIDATION", "G2",
+                "ZULEIKAA LIMA", null, Birth)
+        };
+        var result = V9FrozenSourceResolveReplay.Replay(snapshot, observations, [(901, 902)]);
+        Assert.That(result.Decisions, Has.Count.EqualTo(2));
+        Assert.That(result.IdentityByObservation[901],
+            Is.Not.EqualTo(result.IdentityByObservation[902]),
+            "A SQL candidate with no valid positive-TF score cannot become a blind identity edge.");
+        Assert.That(result.Decisions.All(x => x.Decision.Status != ResolutionStatus.RESOLVIDO),
+            Is.True, "No acceptance is allowed after abstaining both ranked directions.");
+    }
+
+    [Test]
     public void Positive_weight_changes_real_V9_FS_validation_with_train_SQL_U_and_frozen_IBGE()
     {
         var neutral = new V9FsAdaptiveOptionConfiguration("NO_TF", .5m, .55m);
