@@ -193,7 +193,18 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         };
         var config = new V9FsAdaptiveOptionConfiguration(
             "TF_CENSORED_FLOOR", .5m, .55m, 1m,
+            EligibleForSelection: false,
             UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity);
+        Assert.That((Action)(() =>
+            V9FellegiSunterAdaptiveCalibrationAdapter.ConfigurationFingerprintSha256(
+                config with { EligibleForSelection = true })),
+            Throws.TypeOf<InvalidDataException>(),
+            "A hypothesis cannot become an automatic Pareto selection option.");
+        Assert.That((Action)(() =>
+            V9FellegiSunterAdaptiveCalibrationAdapter.ConfigurationFingerprintSha256(
+                config with { TfWeight = 0m })),
+            Throws.TypeOf<InvalidDataException>(),
+            "Censored floor cannot silently relabel a TF0 control.");
         var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
             altered, [config], Reference());
         var fit = adapter.FitTrain(Model(config), Slice("TRAIN"));
