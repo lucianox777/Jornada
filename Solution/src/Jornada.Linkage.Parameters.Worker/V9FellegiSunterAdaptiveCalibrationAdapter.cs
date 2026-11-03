@@ -1345,6 +1345,11 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         // opt-in policy has a distinct fit/configuration identity.
         if (config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.RejectOperation)
             canonical += "|UNPUBLISHED_TF_POLICY=" + config.UnpublishedTermPolicy;
+        // The sensitivity algorithm is an explicit empirical HYPOTHESIS.
+        // Bind its implementation version in the option/fit fingerprint,
+        // without changing either historical RejectOperation or AbstainCandidate.
+        if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity)
+            canonical += "|CENSORED_FLOOR_VERSION=" + V9TfCensoredFloorSensitivity.Version;
         if (!Enum.IsDefined(config.SharedSurnameMode))
             throw new InvalidDataException("Modo de sobrenome compartilhado desconhecido.");
         if (config.SharedSurnameMode == V9SharedSurnameModeV9.PersonSideOnlyWhenShared)
