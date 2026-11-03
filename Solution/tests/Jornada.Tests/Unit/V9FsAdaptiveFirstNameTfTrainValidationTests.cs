@@ -87,6 +87,40 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             c.OptionId, c.FingerprintSha256);
 
     [Test]
+    public void Published_TF_coverage_audit_reports_missing_observed_terms_without_leaking_names()
+    {
+        var rows = new[]
+        {
+            Pair("VALIDATION", "VAL-A", "VAL-B", false, "ZULEICA"),
+            Pair("VALIDATION", "VAL-C", "VAL-C", true, "ZULEIKAA")
+        };
+        var slot = (CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName);
+        var result = V9NominalTfPublishedCoverageAudit.Audit(rows, Reference(), [slot]);
+        Assert.That(result, Has.Count.EqualTo(1));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result[0].ApplicableValidationPairs, Is.EqualTo(2));
+            Assert.That(result[0].SupportedValidationPairs, Is.EqualTo(1));
+            Assert.That(result[0].MissingPublishedValidationPairs, Is.EqualTo(1));
+            Assert.That(result[0].MissingPublishedTruePairs, Is.EqualTo(1));
+            Assert.That(result[0].MissingPublishedNonmatchPairs, Is.Zero);
+        }));
+        var error = Assert.Throws<InvalidDataException>(() =>
+            V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(result));
+        Assert.That(error!.Message, Does.Contain("Person/FirstName"));
+        Assert.That(error.Message, Does.Contain("ausentes=1"));
+        Assert.That(error.Message, Does.Not.Contain("ZULEIKAA"));
+        Assert.That((Action)(() =>
+            V9NominalTfPublishedCoverageAudit.Audit(
+                [Pair("TEST", "T1", "T2", false)], Reference(), [slot])),
+            Throws.TypeOf<InvalidDataException>());
+        var supported = V9NominalTfPublishedCoverageAudit.Audit(
+            [rows[0]], Reference(), [slot]);
+        Assert.DoesNotThrow((Action)(() =>
+            V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(supported)));
+    }
+
+    [Test]
     public void Positive_weight_changes_real_V9_FS_validation_with_train_SQL_U_and_frozen_IBGE()
     {
         var neutral = new V9FsAdaptiveOptionConfiguration("NO_TF", .5m, .55m);
