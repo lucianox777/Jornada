@@ -29,7 +29,9 @@ public sealed record V9FittedSnapshotPayload(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<V9SnapshotUnitTf>? UnitTfCalibrations = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral);
+    V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation);
 
 public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
     decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
@@ -170,7 +172,11 @@ public sealed class V9FittedSnapshot
         if (candidates.Any(c => c is null || c.PersonUuid == Guid.Empty))
             throw new InvalidDataException("Identidade candidata V9 inválida.");
         if (diagnosticModelId == Guid.Empty) throw new ArgumentException("ID do estudo V9 é obrigatório.", nameof(diagnosticModelId));
-        return ResolveRankedPreview(diagnosticModelId, RankPreview(observation, candidates));
+        var ranked = RankPreview(observation, candidates);
+        var reason = candidates.Count > 0 && ranked.Count == 0
+            && Payload.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.AbstainCandidate
+                ? "TF_SEM_FREQUENCIA_IBGE_PUBLICADA" : "SEM_CANDIDATO_NO_RULESET_BLOCKING";
+        return ResolveRankedPreview(diagnosticModelId, ranked, reason);
     }
 
     internal IReadOnlyList<CandidateScore> RankPreview(IdentityObservation observation,
@@ -201,6 +207,25 @@ public sealed class V9FittedSnapshot
                 return fit?.State == V9SnapshotTfFitState.Active
                     ? CreateTf(o, c, fit.Calibration!) : null;
             }
+            bool IsScoreable(IdentityObservation o, LinkageCandidate c)
+            {
+                if (Payload.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
+                    return true; // Legacy snapshot rejects in CreateTf as before.
+                foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
+                {
+                    var fit = Select(o, c, side);
+                    if (fit?.State != V9SnapshotTfFitState.Active)
+                        continue;
+                    var calibration = fit.Calibration
+                        ?? throw new InvalidDataException("TF ativa sem calibração congelada.");
+                    var left = side == CompositeNominalTfSideV9.Person ? o.NomeCompleto : o.NomeMae;
+                    var right = side == CompositeNominalTfSideV9.Person ? c.NomeCompleto : c.NomeMae;
+                    if (V9NominalTfTermCoverage.MissingPublishedFrequency(
+                        fit.Unit, left, right, calibration.Frequencies))
+                        return false;
+                }
+                return true;
+            }
             return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
                 Payload.Parameters, numericParameters, observation, converted, frozenNominal,
                 (o, c) => Term(o, c, CompositeNominalTfSideV9.Person),
@@ -211,7 +236,8 @@ public sealed class V9FittedSnapshot
                     Select(o, c, CompositeNominalTfSideV9.Person)?.State == V9SnapshotTfFitState.Active,
                 motherRequiredForPair: (o, c) =>
                     Select(o, c, CompositeNominalTfSideV9.Mother)?.State == V9SnapshotTfFitState.Active,
-                sharedSurnameMode: Payload.SharedSurnameMode);
+                sharedSurnameMode: Payload.SharedSurnameMode,
+                candidateIsScoreable: IsScoreable);
         }
         // Legacy slots remain temporarily until snapshot producers are migrated.
         if (Payload.MotherTfCalibration is not null)
@@ -228,9 +254,10 @@ public sealed class V9FittedSnapshot
     }
 
     internal ProbabilisticLinkageDecision ResolveRankedPreview(Guid diagnosticModelId,
-        IReadOnlyList<CandidateScore> ranking) =>
+        IReadOnlyList<CandidateScore> ranking,
+        string noCandidateReason = "SEM_CANDIDATO_NO_RULESET_BLOCKING") =>
         ProbabilisticLinkageDecisions.ResolveRankedCompositeNominalV9Preview(diagnosticModelId,
-            Payload.Parameters, ranking, Payload.Threshold, Payload.ConflictMargin);
+            Payload.Parameters, ranking, Payload.Threshold, Payload.ConflictMargin, noCandidateReason);
 
     private CompositeNominalTfPreviewV9? CreateTf(IdentityObservation observation, LinkageCandidate candidate,
         V9SnapshotNominalUnitTfCalibration tf)
@@ -290,6 +317,7 @@ public sealed class V9FittedSnapshot
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)
             || p.Threshold is <= 0m or > 1m || p.ConflictMargin is < 0m or > 1000m
+            || !Enum.IsDefined(p.UnpublishedTermPolicy)
             || !Enum.IsDefined(p.SharedSurnameMode)
             || p.TfWeight is < 0m or > 1m
             || (p.UnitTfCalibrations is null

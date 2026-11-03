@@ -103,6 +103,10 @@ class V9UnitTfDeclaredGridTests(unittest.TestCase):
                                  and not x["EligibleForSelection"] for x in a["ModelOptions"]), 4)
             self.assertEqual(sum(x["OptionId"] == "T0.95_TF0"
                                  and x["EligibleForSelection"] for x in a["ModelOptions"]), 1)
+            self.assertEqual(sum(x.get("UnpublishedTermPolicy", 0) == 1
+                                 for x in a["ModelOptions"]), 44)
+            self.assertTrue(all(x.get("UnpublishedTermPolicy", 0) == 0
+                                for x in a["ModelOptions"] if x["OptionId"] == "T0.95_TF0"))
             self.assertEqual(a["MaximumPhysicalRuleSets"], 1)
             self.assertEqual(a["PreviouslyComparedValidationConfigurations"], 3726)
             self.assertEqual(a["MaximumComparedConfigurations"], 3861)

@@ -181,24 +181,6 @@ public static class V9TrainSqlNominalUCalibration
         return preview with { Mode = mode };
     }
 
-    private static string? UnitToken(string? input, NominalFrequencyUnitV9 unit)
-    {
-        if (unit == NominalFrequencyUnitV9.LastContentSurname)
-            return BrazilianNameComponents.Project(input)?.LastContentSurname;
-        return FirstToken(input);
-    }
-
-    private static string? FirstToken(string? input)
-    {
-        var projection = BrazilianNameComponents.Project(input);
-        if (projection is null)
-            return null;
-        var tokens = projection.NormalizedFull.Split(' ',
-            StringSplitOptions.RemoveEmptyEntries);
-        var idx = projection.TitlePrefix is null ? 0 : 1;
-        if (idx >= tokens.Length)
-            return null;
-        var first = tokens[idx].Trim('.', ',');
-        return first.Length == 0 ? null : first;
-    }
+    internal static string? UnitToken(string? input, NominalFrequencyUnitV9 unit) =>
+        V9NominalTfTermCoverage.UnitToken(input, unit);
 }

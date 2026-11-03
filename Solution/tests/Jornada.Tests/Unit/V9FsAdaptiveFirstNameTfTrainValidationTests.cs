@@ -87,6 +87,76 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             c.OptionId, c.FingerprintSha256);
 
     [Test]
+    public void Published_TF_coverage_audit_reports_missing_observed_terms_without_leaking_names()
+    {
+        var rows = new[]
+        {
+            Pair("VALIDATION", "VAL-A", "VAL-B", false, "ZULEICA"),
+            Pair("VALIDATION", "VAL-C", "VAL-C", true, "ZULEIKAA")
+        };
+        var slot = (CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName);
+        var result = V9NominalTfPublishedCoverageAudit.Audit(rows, Reference(), [slot]);
+        Assert.That(result, Has.Count.EqualTo(1));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result[0].ApplicableValidationPairs, Is.EqualTo(2));
+            Assert.That(result[0].SupportedValidationPairs, Is.EqualTo(1));
+            Assert.That(result[0].MissingPublishedValidationPairs, Is.EqualTo(1));
+            Assert.That(result[0].MissingPublishedTruePairs, Is.EqualTo(1));
+            Assert.That(result[0].MissingPublishedNonmatchPairs, Is.Zero);
+        }));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(result)));
+        Assert.That(error!.Message, Does.Contain("Person/FirstName"));
+        Assert.That(error.Message, Does.Contain("ausentes=1"));
+        Assert.That(error.Message, Does.Not.Contain("ZULEIKAA"));
+        Assert.That((Action)(() =>
+            V9NominalTfPublishedCoverageAudit.Audit(
+                [Pair("TEST", "T1", "T2", false)], Reference(), [slot])),
+            Throws.TypeOf<InvalidDataException>());
+        var supported = V9NominalTfPublishedCoverageAudit.Audit(
+            [rows[0]], Reference(), [slot]);
+        Assert.DoesNotThrow((Action)(() =>
+            V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(supported)));
+    }
+
+    [Test]
+    public void Opt_in_abstention_drops_only_unpublished_TF_candidate_and_is_portable()
+    {
+        var frame = Frame() with
+        {
+            Pairs = Frame().Pairs.Select(x => x.Partition == "VALIDATION"
+                && x.LeftIdentityGroupId == "VAL-A"
+                ? x with { LeftPersonName = "ZULEIKAA COSTA", RightPersonName = "ZULEIKAA LIMA" }
+                : x).ToArray()
+        };
+        var config = new V9FsAdaptiveOptionConfiguration("TF_ABSTAIN", .5m, .55m, 1m,
+            UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.AbstainCandidate);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(frame, [config], Reference());
+        var fit = adapter.FitTrain(Model(config), Slice("TRAIN"));
+        var metrics = adapter.EvaluateValidation(fit, Slice("VALIDATION"));
+        Assert.That(metrics.MissingPublishedTfCandidatePairsBySideUnit!["Person/FirstName"],
+            Is.EqualTo(1));
+        Assert.That(metrics.TruePairsWithoutCpf, Is.EqualTo(2),
+            "An unscorable positive TF must not remove the true pair from the denominator.");
+        Assert.That(metrics.TrueAcceptedLinks, Is.LessThan(2));
+        var frozen = adapter.ExportFrozenSnapshot(fit,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m);
+        var replay = V9FittedSnapshot.Load(frozen.SerializeUtf8(), frozen.ContentSha256);
+        Assert.That(replay.Payload.UnpublishedTermPolicy,
+            Is.EqualTo(V9TfUnpublishedTermPolicyV9.AbstainCandidate));
+        var unknown = new IdentityObservation(null, "SEM_CPF", "ZULEIKAA COSTA", Birth, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "ZULEIKAA LIMA", Birth, null);
+        Assert.That(replay.RankPreview(unknown, [candidate]), Is.Empty,
+            "No posterior may be assigned to an IBGE-unpublished positive TF.");
+        Assert.That(config.FingerprintSha256,
+            Is.Not.EqualTo((config with {
+                UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation
+            }).FingerprintSha256));
+    }
+
+    [Test]
     public void Positive_weight_changes_real_V9_FS_validation_with_train_SQL_U_and_frozen_IBGE()
     {
         var neutral = new V9FsAdaptiveOptionConfiguration("NO_TF", .5m, .55m);
