@@ -205,6 +205,43 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void Physical_blind_validation_does_not_require_a_score_for_an_abstained_sql_edge()
+    {
+        // The 30k run failed with Single() on a real SQL edge omitted from
+        // both directed Rank lists by explicit missing-IBGE abstention.
+        // Keep this regression on the PHYSICAL adapter, not only portable replay.
+        var option = new V9FsAdaptiveOptionConfiguration(
+            "TF_PHYSICAL_ABSTAIN", .5m, .55m, 1m,
+            UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.AbstainCandidate);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            Frame(), [option], Reference());
+        _ = adapter.FitTrain(Model(option), Slice("TRAIN"));
+        var observations = new[]
+        {
+            new V9PhysicalCalibrationObservation(901, "VAL-A", "VALIDATION", "G1",
+                "ZULEIKAA COSTA", "ANA COSTA", Birth),
+            new V9PhysicalCalibrationObservation(902, "VAL-A", "VALIDATION", "G2",
+                "ZULEIKAA LIMA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(903, "VAL-B", "VALIDATION", "G1",
+                "MARIA LIMA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(904, "VAL-C", "VALIDATION", "G2",
+                "MARIA SILVA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(905, "VAL-D", "VALIDATION", "G1",
+                "MARIA ROCHA", "ANA LIMA", Birth)
+        };
+        var metrics = adapter.EvaluateSourceUnitResolveValidation(
+            observations, [(901, 902)], [.5m], 4,
+            includeFsBlindGrouping: true,
+            minimumFsGroupingPosterior: .60m,
+            fsBlindGroupingOnly: true);
+        Assert.That(metrics, Has.Count.EqualTo(1));
+        Assert.That(metrics[0].CandidateGrouping,
+            Is.EqualTo("BLIND_FS_COMPLETE_LINK_CANDIDATES"));
+        Assert.That(metrics[0].TrueAcceptedSourceObservations, Is.Zero,
+            "The abstained true SQL pair must not be silently scored/linked.");
+    }
+
+    [Test]
     public void Portable_blind_replay_omits_only_unscoreable_TF_edges_and_keeps_sql_blocking()
     {
         var config = new V9FsAdaptiveOptionConfiguration(
