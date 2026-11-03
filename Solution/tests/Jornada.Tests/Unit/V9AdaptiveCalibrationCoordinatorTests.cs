@@ -27,11 +27,12 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
         // boundaries that failed only after costly physical SQL in the 30k run.
         // The small fixture is input to plan GENERATION only, not a physical
         // corpus, IBGE evidence, statistical result, or certified pin.
-        var solution = new DirectoryInfo(AppContext.BaseDirectory);
+        DirectoryInfo? solution = new DirectoryInfo(AppContext.BaseDirectory);
         while (solution is not null
             && !File.Exists(Path.Combine(solution.FullName, "scripts", "v9-adaptive-30k-study.py")))
             solution = solution.Parent;
-        Assert.That(solution, Is.Not.Null, "Could not locate the real prepare-tf producer.");
+        var solutionPath = solution?.FullName
+            ?? throw new DirectoryNotFoundException("Could not locate the real prepare-tf producer.");
         var temp = Path.Combine(Path.GetTempPath(), "v9-tf-plan-contract-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(temp);
         try
@@ -67,11 +68,11 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
             var destination = Path.Combine(temp, "plan.json");
             var psi = new System.Diagnostics.ProcessStartInfo(OperatingSystem.IsWindows() ? "python" : "python3")
             {
-                WorkingDirectory = solution!.FullName,
+                WorkingDirectory = solutionPath,
                 UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true
             };
             foreach (var arg in new[] {
-                Path.Combine(solution.FullName, "scripts", "v9-adaptive-30k-study.py"),
+                Path.Combine(solutionPath, "scripts", "v9-adaptive-30k-study.py"),
                 "prepare-tf", corpus, destination, "--pinned-ibge", pin
             })
                 psi.ArgumentList.Add(arg);
