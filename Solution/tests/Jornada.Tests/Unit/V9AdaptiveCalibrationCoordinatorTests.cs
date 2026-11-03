@@ -19,6 +19,119 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
                 FsBlindGroupingOnly: true, MaximumBlindClusterSize: 16));
     }
 
+
+    [Test]
+    public void Real_prepare_tf_plan_passes_all_pre_sql_selection_validators_without_pruning_45_arms()
+    {
+        // Exercise the REAL Python prepare-tf producer and the C# validation
+        // boundaries that failed only after costly physical SQL in the 30k run.
+        // The small fixture is input to plan GENERATION only, not a physical
+        // corpus, IBGE evidence, statistical result, or certified pin.
+        var solution = new DirectoryInfo(AppContext.BaseDirectory);
+        while (solution is not null
+            && !File.Exists(Path.Combine(solution.FullName, "scripts", "v9-adaptive-30k-study.py")))
+            solution = solution.Parent;
+        Assert.That(solution, Is.Not.Null, "Could not locate the real prepare-tf producer.");
+        var temp = Path.Combine(Path.GetTempPath(), "v9-tf-plan-contract-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(temp);
+        try
+        {
+            var corpus = Path.Combine(temp, "observacoes.csv");
+            File.WriteAllText(corpus, "fixture for deterministic plan generation only\n");
+            var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(corpus)));
+            File.WriteAllText(Path.Combine(temp, "generation-manifest.json"),
+                System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    seed = 42, population_profile = "DEMOGRAPHIC_PRIMARY_V1", error_profile = "clean",
+                    generator_version = "JORNADA_SYNTH_CORPUS_CSHARP_V1",
+                    observation_multiplicity = new
+                    {
+                        contract_version = "SYNTHETIC_BASE_OBSERVATION_MULTIPLICITY_V1",
+                        maximum_observations_per_base_identity = 4,
+                        scope = "BASE_CORPUS_ONLY_NOT_INGESTION_WAVES"
+                    }
+                }));
+            var pin = Path.Combine(temp, "pinned-ibge.json");
+            File.WriteAllText(pin, System.Text.Json.JsonSerializer.Serialize(new
+            {
+                PinnedIbgeReferenceVersionId = 7,
+                PinnedIbgePublishedSha256 = new string('A', 64),
+                PinnedIbgeMaterializedFrequencySha256 = new string('B', 64),
+                PinnedIbgeBootstrap = new
+                {
+                    Provenance = "SINTETICO_IBGE", People = 30000, CorpusFingerprint = digest,
+                    GeneratorVersion = "JORNADA_SYNTH_CORPUS_CSHARP_V1", GeneratorSeed = 42,
+                    GenerationHypothesesFingerprint = new string('C', 64)
+                }
+            }));
+            var destination = Path.Combine(temp, "plan.json");
+            var psi = new System.Diagnostics.ProcessStartInfo(OperatingSystem.IsWindows() ? "python" : "python3")
+            {
+                WorkingDirectory = solution!.FullName,
+                UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true
+            };
+            foreach (var arg in new[] {
+                Path.Combine(solution.FullName, "scripts", "v9-adaptive-30k-study.py"),
+                "prepare-tf", corpus, destination, "--pinned-ibge", pin
+            })
+                psi.ArgumentList.Add(arg);
+            using var process = System.Diagnostics.Process.Start(psi)
+                ?? throw new InvalidOperationException("Python prepare-tf did not start.");
+            var stdout = process.StandardOutput.ReadToEnd();
+            var stderr = process.StandardError.ReadToEnd();
+            Assert.That(process.WaitForExit(60_000), Is.True, "prepare-tf timed out.");
+            Assert.That(process.ExitCode, Is.Zero, "prepare-tf rejected its small test fixture: " + stderr + stdout);
+            var plan = System.Text.Json.JsonSerializer.Deserialize<V9AdaptiveCalibrationPlan>(
+                File.ReadAllBytes(destination), new System.Text.Json.JsonSerializerOptions
+                {
+                    UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
+                }) ?? throw new InvalidDataException("Generated TF plan missing.");
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(plan.Budget.MinimumGlobalAcceptedRecall, Is.EqualTo(.95));
+                Assert.That(plan.Budget.MaximumObservedAcceptedFdrPoint, Is.EqualTo(.01));
+                Assert.That(plan.SelectionPolicy.MinimumGlobalRecall, Is.EqualTo(.95));
+                Assert.That(plan.SelectionPolicy.MaximumAcceptedFdrUpper, Is.EqualTo(.01));
+                Assert.That(plan.ModelOptions, Has.Count.EqualTo(45));
+                Assert.That(plan.ModelOptions.Count(x => x.EligibleForSelection), Is.EqualTo(41));
+                Assert.That(plan.ModelOptions.Count(x => !x.EligibleForSelection), Is.EqualTo(4));
+                Assert.That(plan.PreviouslyComparedValidationConfigurations, Is.EqualTo(3726));
+            });
+            // All arms are counted, including 4 measured-but-ineligible diagnostics;
+            // eligibility filters never prune physical model or conflict-margin work.
+            V9AdaptiveCalibrationCoordinator.ValidatePlan(plan);
+            Assert.That(V9AdaptiveCalibrationCoordinator.CountComparedConfigurations(plan, 1), Is.EqualTo(3861));
+            Assert.That(V9AdaptiveCalibrationCoordinator.CountSelectableConfigurations(plan, 1), Is.EqualTo(3849));
+
+            // Cross the ACTUAL post-Resolve and Pareto contract boundaries with
+            // synthetic source metrics and no SQL/TEST. On the broken branch this
+            // threw "Orçamento de seleção inválido" after the expensive SQL run.
+            var row = new V9PhysicalSourceResolveMetric("T0.95_TF0", .95m, 0m, .5m,
+                "BLIND_FS_COMPLETE_LINK_CANDIDATES", 100, 100, 100, 96, 0, 0, 4,
+                1, .96, 0d, 1d, 50,
+                new Dictionary<string, long> { ["ALL_DECISIONS"] = 100 }, false, false, 0);
+            var fanout = new Dictionary<string, double> { [row.OptionId] = 10d };
+            var source = V9PostResolveAdaptiveSelector.EvaluateValidation(
+                "VALIDATION", false, plan.Budget, [row], fanout);
+            Assert.That(source.TestUsed, Is.False);
+            Assert.That(source.AutomaticActivationAllowed, Is.False);
+            var pareto = V9ParetoSourceSelection.EvaluateValidation("VALIDATION", false,
+                plan.Budget, [row], fanout, [], plan.SelectionPolicy);
+            Assert.That(pareto.Pareto.Table, Has.Count.EqualTo(1));
+            Assert.That(pareto.Pareto.InitialSuggestedOptionId, Is.Null,
+                "Missing physical evidence can never certify a synthetic contract fixture.");
+            Assert.That((Action)(() => V9PostResolveAdaptiveSelector.EvaluateValidation(
+                    "VALIDATION", false,
+                    plan.Budget with { MaximumObservedAcceptedFdrPoint = 1d }, [row], fanout)),
+                Throws.TypeOf<InvalidDataException>().With.Message.Contains("Orçamento de seleção inválido"));
+        }
+        finally
+        {
+            Directory.Delete(temp, recursive: true);
+        }
+    }
+
     [Test]
     public void Known_control_is_retained_beyond_the_discovery_pool_and_counted_without_order_duplicates()
     {
