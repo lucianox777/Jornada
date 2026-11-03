@@ -438,16 +438,20 @@ public sealed class V9FittedSnapshot
                         tf.Side == CompositeNominalTfSideV9.Person ? ":SP_3550308_TODOS" : ":BR_FEMININO",
                         StringComparison.Ordinal)))
                 throw new InvalidDataException("Marginal IBGE incompatível com o lado nominal do snapshot TF.");
-            static IReadOnlyDictionary<string, decimal> FreezeTerms(IReadOnlyDictionary<string, decimal> terms)
+            static IReadOnlyDictionary<string, decimal> FreezeTerms(IReadOnlyDictionary<string, decimal> terms, bool allowEmpty = false)
             {
-                if (terms is null || terms.Count == 0 || terms.Any(x => string.IsNullOrWhiteSpace(x.Key)
+                if (terms is null || (!allowEmpty && terms.Count == 0) || terms.Any(x => string.IsNullOrWhiteSpace(x.Key)
                         || FirstName(x.Key) != x.Key || x.Value is <= 0m or > 1m))
                     throw new InvalidDataException("Tabela TF/U TRAIN inválida ou sem termos normalizados.");
                 return new ReadOnlyDictionary<string, decimal>(terms.OrderBy(x => x.Key, StringComparer.Ordinal)
                     .ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal));
             }
             var frequencies = FreezeTerms(tf.Frequencies);
-            var trainU = FreezeTerms(tf.TrainUnitUByValue);
+            // Per-value TRAIN U is diagnostic only under Decision 19. The
+            // selected 81-cell levels may have zero matches even when the
+            // actual nominal agreement event has sufficient TRAIN support.
+            var trainU = FreezeTerms(tf.TrainUnitUByValue,
+                allowEmpty: tf.NominalUReference is not null);
             // Old positive-TF residual policies are incompatible with Decision 19.
             if (tf.UnseenAllocation is not null)
                 throw new InvalidDataException("Distribuição U residual V1 incompatível com U_ref nominal.");
