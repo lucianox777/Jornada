@@ -321,8 +321,16 @@ public sealed class V9FittedSnapshotTests
         Assert.That(roundtrip.Payload.SharedSurnameMode,
             Is.EqualTo(V9SharedSurnameModeV9.PersonSideOnlyWhenShared));
         Assert.That(singleScore, Is.GreaterThan(bilateralScore));
+        // Decision 19: the suppressed duplicate is the mother's frozen
+        // binary nominal-event U_ref, NOT the obsolete name-specific U=.1.
+        // The synthetic fixture has 2 agreeing nonmatches among 10 with
+        // alpha=.5, so the independent expectation is (2+.5)/(10+2*.5).
+        const double fixtureMotherReferenceU = (2d + .5d) / (10d + 2d * .5d);
+        Assert.That(units[3].Calibration!.NominalUReference!.Probability,
+            Is.EqualTo((decimal)fixtureMotherReferenceU).Within(.000000000001m));
         Assert.That(singleScore - bilateralScore,
-            Is.EqualTo((decimal)Math.Abs(Math.Log(.1d / .5d))).Within(.00000002m));
+            Is.EqualTo((decimal)Math.Abs(Math.Log(fixtureMotherReferenceU / .5d)))
+                .Within(.00000002m));
         Assert.That((Action)(() => V9FittedSnapshot.Create(revised with
         {
             SharedSurnameMode = (V9SharedSurnameModeV9)123
