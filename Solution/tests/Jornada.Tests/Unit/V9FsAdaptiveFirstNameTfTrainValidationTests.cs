@@ -105,7 +105,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             Assert.That(result[0].MissingPublishedTruePairs, Is.EqualTo(1));
             Assert.That(result[0].MissingPublishedNonmatchPairs, Is.Zero);
         }));
-        var error = Assert.Throws<InvalidDataException>((TestDelegate)(() =>
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
             V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(result)));
         Assert.That(error!.Message, Does.Contain("Person/FirstName"));
         Assert.That(error.Message, Does.Contain("ausentes=1"));
