@@ -41,6 +41,8 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var entries = new[]
         {
             new NominalTermFrequencyEntry("NOME_PRENOME", "MARIA", 60, 100, .60m),
+            new NominalTermFrequencyEntry("NOME_PRENOME", "ZULEICA", 12, 100, .12m),
+            new NominalTermFrequencyEntry("NOME_PRENOME", "JOANA", 8, 100, .08m),
             new NominalTermFrequencyEntry("NOME_MAE_PRENOME", "ANA", 30, 100, .30m)
         };
         return FrozenIbgeNominalTfV9.BindPublished(
@@ -83,6 +85,191 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         new(V9FellegiSunterAdaptiveCalibrationAdapter.Family,
             V9FellegiSunterAdaptiveCalibrationAdapter.Version,
             c.OptionId, c.FingerprintSha256);
+
+    [Test]
+    public void Published_TF_coverage_audit_reports_missing_observed_terms_without_leaking_names()
+    {
+        var rows = new[]
+        {
+            Pair("VALIDATION", "VAL-A", "VAL-B", false, "ZULEICA"),
+            Pair("VALIDATION", "VAL-C", "VAL-C", true, "ZULEIKAA")
+        };
+        var slot = (CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName);
+        var result = V9NominalTfPublishedCoverageAudit.Audit(rows, Reference(), [slot]);
+        Assert.That(result, Has.Count.EqualTo(1));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result[0].ApplicableValidationPairs, Is.EqualTo(2));
+            Assert.That(result[0].SupportedValidationPairs, Is.EqualTo(1));
+            Assert.That(result[0].MissingPublishedValidationPairs, Is.EqualTo(1));
+            Assert.That(result[0].MissingPublishedTruePairs, Is.EqualTo(1));
+            Assert.That(result[0].MissingPublishedNonmatchPairs, Is.Zero);
+        }));
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(result)));
+        Assert.That(error!.Message, Does.Contain("Person/FirstName"));
+        Assert.That(error.Message, Does.Contain("ausentes=1"));
+        Assert.That(error.Message, Does.Not.Contain("ZULEIKAA"));
+        Assert.That((Action)(() =>
+            V9NominalTfPublishedCoverageAudit.Audit(
+                [Pair("TEST", "T1", "T2", false)], Reference(), [slot])),
+            Throws.TypeOf<InvalidDataException>());
+        var supported = V9NominalTfPublishedCoverageAudit.Audit(
+            [rows[0]], Reference(), [slot]);
+        Assert.DoesNotThrow((Action)(() =>
+            V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(supported)));
+    }
+
+    [Test]
+    public void TF_unpublished_union_audit_deduplicates_person_and_mother_without_leaking_names()
+    {
+        var rows = new[]
+        {
+            Pair("VALIDATION", "VAL-A", "VAL-A", true, "ZULEIKAA") with
+            {
+                LeftMotherName = "XENIA COSTA",
+                RightMotherName = "XENIA LIMA"
+            },
+            Pair("VALIDATION", "VAL-B", "VAL-B", true, "MARIA") with
+            {
+                LeftMotherName = "ANA COSTA",
+                RightMotherName = "ANA LIMA"
+            },
+            Pair("VALIDATION", "VAL-C", "VAL-D", false, "ZULEIKAA") with
+            {
+                LeftMotherName = "ANA COSTA",
+                RightMotherName = "ANA LIMA"
+            }
+        };
+        var slots = new[]
+        {
+            (CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName),
+            (CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName)
+        };
+        var perSlot = V9NominalTfPublishedCoverageAudit.Audit(rows, Reference(), slots);
+        var union = V9NominalTfPublishedCoverageAudit.AuditUnion(rows, Reference(), slots);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(union.TrueCandidatePairs, Is.EqualTo(2));
+            Assert.That(union.NonmatchCandidatePairs, Is.EqualTo(1));
+            Assert.That(union.TrueCandidatePairsWithMissingFrequency, Is.EqualTo(1));
+            Assert.That(union.NonmatchCandidatePairsWithMissingFrequency, Is.EqualTo(1));
+            Assert.That(perSlot.Sum(x => x.MissingPublishedValidationPairs), Is.EqualTo(3),
+                "Per-slot totals can exceed the union when both sides are missing.");
+        }));
+        var duplicatedSlots = slots.Concat(slots).ToArray();
+        Assert.That(V9NominalTfPublishedCoverageAudit.AuditUnion(
+            rows, Reference(), duplicatedSlots), Is.EqualTo(union));
+        Assert.That((Action)(() => V9NominalTfPublishedCoverageAudit.AuditUnion(
+            [Pair("TEST", "T1", "T1", true)], Reference(), slots)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Opt_in_abstention_drops_only_unpublished_TF_candidate_and_is_portable()
+    {
+        var frame = Frame() with
+        {
+            Pairs = Frame().Pairs.Select(x => x.Partition == "VALIDATION"
+                && x.LeftIdentityGroupId == "VAL-A"
+                ? x with { LeftPersonName = "ZULEIKAA COSTA", RightPersonName = "ZULEIKAA LIMA" }
+                : x).ToArray()
+        };
+        var config = new V9FsAdaptiveOptionConfiguration("TF_ABSTAIN", .5m, .55m, 1m,
+            UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.AbstainCandidate);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(frame, [config], Reference());
+        var fit = adapter.FitTrain(Model(config), Slice("TRAIN"));
+        var metrics = adapter.EvaluateValidation(fit, Slice("VALIDATION"));
+        Assert.That(metrics.MissingPublishedTfCandidatePairsBySideUnit!["Person/FirstName"],
+            Is.EqualTo(1));
+        Assert.That(metrics.UnpublishedTfUnionImpact, Is.Not.Null);
+        Assert.That(metrics.UnpublishedTfUnionImpact!.TrueCandidatePairsWithMissingFrequency,
+            Is.EqualTo(1), "The true-pair union must count missing-IBGE candidates once.");
+        Assert.That(metrics.TruePairsWithoutCpf, Is.EqualTo(2),
+            "An unscorable positive TF must not remove the true pair from the denominator.");
+        Assert.That(metrics.TrueAcceptedLinks, Is.LessThan(2));
+        var frozen = adapter.ExportFrozenSnapshot(fit,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m);
+        var replay = V9FittedSnapshot.Load(frozen.SerializeUtf8(), frozen.ContentSha256);
+        Assert.That(replay.Payload.UnpublishedTermPolicy,
+            Is.EqualTo(V9TfUnpublishedTermPolicyV9.AbstainCandidate));
+        var unknown = new IdentityObservation(null, "SEM_CPF", "ZULEIKAA COSTA", Birth, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "ZULEIKAA LIMA", Birth, null);
+        Assert.That(replay.RankPreview(unknown, [candidate]), Is.Empty,
+            "No posterior may be assigned to an IBGE-unpublished positive TF.");
+        Assert.That(config.FingerprintSha256,
+            Is.Not.EqualTo((config with {
+                UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation
+            }).FingerprintSha256));
+    }
+
+    [Test]
+    public void Physical_blind_validation_does_not_require_a_score_for_an_abstained_sql_edge()
+    {
+        // The 30k run failed with Single() on a real SQL edge omitted from
+        // both directed Rank lists by explicit missing-IBGE abstention.
+        // Keep this regression on the PHYSICAL adapter, not only portable replay.
+        var option = new V9FsAdaptiveOptionConfiguration(
+            "TF_PHYSICAL_ABSTAIN", .5m, .55m, 1m,
+            UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.AbstainCandidate);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            Frame(), [option], Reference());
+        _ = adapter.FitTrain(Model(option), Slice("TRAIN"));
+        var observations = new[]
+        {
+            new V9PhysicalCalibrationObservation(901, "VAL-A", "VALIDATION", "G1",
+                "ZULEIKAA COSTA", "ANA COSTA", Birth),
+            new V9PhysicalCalibrationObservation(902, "VAL-A", "VALIDATION", "G2",
+                "ZULEIKAA LIMA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(903, "VAL-B", "VALIDATION", "G1",
+                "MARIA LIMA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(904, "VAL-C", "VALIDATION", "G2",
+                "MARIA SILVA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(905, "VAL-D", "VALIDATION", "G1",
+                "MARIA ROCHA", "ANA LIMA", Birth)
+        };
+        var metrics = adapter.EvaluateSourceUnitResolveValidation(
+            observations, [(901, 902)], [.5m], 4,
+            includeFsBlindGrouping: true,
+            minimumFsGroupingPosterior: .60m,
+            fsBlindGroupingOnly: true);
+        Assert.That(metrics, Has.Count.EqualTo(1));
+        Assert.That(metrics[0].CandidateGrouping,
+            Is.EqualTo("BLIND_FS_COMPLETE_LINK_CANDIDATES"));
+        Assert.That(metrics[0].TrueAcceptedSourceObservations, Is.Zero,
+            "The abstained true SQL pair must not be silently scored/linked.");
+    }
+
+    [Test]
+    public void Portable_blind_replay_omits_only_unscoreable_TF_edges_and_keeps_sql_blocking()
+    {
+        var config = new V9FsAdaptiveOptionConfiguration(
+            "TF_BLIND_ABSTAIN", .5m, .55m, 1m,
+            UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.AbstainCandidate);
+        var frame = Frame();
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(frame, [config], Reference());
+        var fit = adapter.FitTrain(Model(config), Slice("TRAIN"));
+        var snapshot = adapter.ExportFrozenSnapshot(fit, frame.CandidateBlockingPasses!,
+            frame.ProjectionSchemaVersion!, frame.ProjectionFingerprintSha256!, .2m,
+            new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .60m, 16));
+        var observations = new[]
+        {
+            new V9PhysicalCalibrationObservation(
+                901, "PERSON-1", "VALIDATION", "G1",
+                "ZULEIKAA COSTA", null, Birth),
+            new V9PhysicalCalibrationObservation(
+                902, "PERSON-1", "VALIDATION", "G2",
+                "ZULEIKAA LIMA", null, Birth)
+        };
+        var result = V9FrozenSourceResolveReplay.Replay(snapshot, observations, [(901, 902)]);
+        Assert.That(result.Decisions, Has.Count.EqualTo(2));
+        Assert.That(result.IdentityByObservation[901],
+            Is.Not.EqualTo(result.IdentityByObservation[902]),
+            "A SQL candidate with no valid positive-TF score cannot become a blind identity edge.");
+        Assert.That(result.Decisions.All(x => x.Decision.Status != ResolutionStatus.RESOLVIDO),
+            Is.True, "No acceptance is allowed after abstaining both ranked directions.");
+    }
 
     [Test]
     public void Positive_weight_changes_real_V9_FS_validation_with_train_SQL_U_and_frozen_IBGE()
@@ -163,6 +350,54 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             "PROJECTION_V1", new string('f', 64), .2m)), Throws.TypeOf<InvalidDataException>());
         Assert.That((Action)(() => adapter.ExportFrozenSnapshot(fit, passes,
             "PROJECTION_V1", new string('a', 64), .2m)), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void TRAIN_U_ref_preserves_real_scorer_rarity_for_observed_and_unseen_IBGE_terms()
+    {
+        // Frozen TRAIN includes MARIA, not JOANA. The actual portable
+        // ranking path must prefer the rarer observed name for the same
+        // joint-cell, mother, birth, model, and frozen nonmatch event U_ref.
+        var option = new V9FsAdaptiveOptionConfiguration("TF_RARITY", .5m, .55m, 1m);
+        var pinnedReference = Reference();
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            Frame(), [option], pinnedReference);
+        var fitted = adapter.FitTrain(Model(option), Slice("TRAIN"));
+        var exported = adapter.ExportFrozenSnapshot(fitted,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m);
+        var portable = V9FittedSnapshot.Load(exported.SerializeUtf8(),
+            exported.ContentSha256);
+        var unit = portable.Payload.UnitTfCalibrations!.Single(x =>
+            x.Side == CompositeNominalTfSideV9.Person
+            && x.Unit == NominalFrequencyUnitV9.FirstName).Calibration!;
+        var train = V9TrainSqlNominalUCalibration.Fit(
+            Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray(),
+            CompositeNominalTfSideV9.Person, option.SmoothingAlpha,
+            TrainCorpus, publishedFrequencies: pinnedReference.FrequenciesForUnit(
+                CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName));
+        Assert.That(unit.NominalUReference, Is.EqualTo(train.NominalUReference));
+        Assert.That(unit.UnseenAllocation, Is.Null);
+
+        decimal Score(string first)
+        {
+            var observation = new IdentityObservation(null, "SEM_CPF",
+                first + " COSTA", Birth, null);
+            var candidate = new V9SnapshotCandidate(Guid.NewGuid(),
+                first + " LIMA", Birth, null);
+            Assert.That(CompositeNominalComparisonV9.Classify(
+                observation.NomeCompleto, candidate.FullName),
+                Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
+            return portable.RankPreview(observation, [candidate]).Single().LogOdds;
+        }
+
+        Assert.That(Score("JOANA"), Is.GreaterThan(Score("MARIA")),
+            "Decision 19 must preserve rarity ordering in the real scorer.");
+        var frequencies = pinnedReference.FrequenciesForUnit(
+            CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName);
+        Assert.That(train.NominalUReference!.ResolveTerm(frequencies, "MARIA"),
+            Is.EqualTo(train.NominalUReference.ResolveTerm(frequencies, "JOANA")));
+        Assert.Throws<InvalidDataException>((Action)(() => Score("NOMENAOIBGE")));
     }
 
     [Test]
@@ -269,7 +504,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             CompositeNominalLevelV9.Missing, pair, 1m, .000001m, 1);
         Assert.That(preview, Is.Not.Null);
         Assert.That(preview!.TermFrequency, Is.EqualTo(.60m));
-        Assert.That(preview.UnitReferenceU, Is.EqualTo(2.5m / 3m));
+        Assert.That(preview.UnitReferenceU, Is.EqualTo(fitted.NominalUReference!.Probability));
     }
 
     [Test]
@@ -312,7 +547,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
-    public void Positive_TF_requires_pinned_snapshot_known_term_and_enough_train_U_support()
+    public void Positive_TF_requires_pinned_snapshot_IBGE_term_and_enough_global_train_U_support()
     {
         var config = new V9FsAdaptiveOptionConfiguration("TF", .5m, .55m, 1m);
         Assert.That((Action)(() =>
@@ -343,8 +578,53 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var unknown = new V9FellegiSunterAdaptiveCalibrationAdapter(
             unknownFrame, [config], Reference());
         var fit = unknown.FitTrain(Model(config), Slice("TRAIN"));
-        Assert.That((Action)(() => unknown.EvaluateValidation(fit, Slice("VALIDATION"))),
-            Throws.TypeOf<InvalidDataException>());
+        var result = unknown.EvaluateValidation(fit, Slice("VALIDATION"));
+        Assert.That(result.UnseenTfUBySideUnit!["Person/FirstName"], Is.EqualTo(1));
+        // The very same unseen U probability is carried into the portable
+        // runtime snapshot; no silent neutral Bayes factor or refit.
+        var snap = unknown.ExportFrozenSnapshot(fit,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m);
+        var replay = V9FittedSnapshot.Load(snap.SerializeUtf8(), snap.ContentSha256);
+        var pair = unknownFrame.Pairs.First(x => x.Partition == "VALIDATION"
+            && x.LeftIdentityGroupId == "VAL-A");
+        var u = V9TrainSqlNominalUCalibration.Fit(
+            unknownFrame.Pairs.Where(x => x.Partition == "TRAIN").ToArray(),
+            CompositeNominalTfSideV9.Person, config.SmoothingAlpha, TrainCorpus,
+            publishedFrequencies: Reference().FrequenciesForUnit(
+                CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName));
+        var tf = V9TrainSqlNominalUCalibration.Preview(
+            u, Reference(), CompositeNominalLevelV9.ExactFirst,
+            CompositeNominalLevelV9.Missing, pair,
+            config.TfWeight, config.TfMinimumFrequency,
+            config.TfMinimumIndependentSupport)!;
+        var expected = FellegiSunterScoring.CalculateFrozenCompositeNominalV9BilateralPreviewScore(
+            replay.Payload.Parameters, pair.LeftPersonName, pair.RightPersonName,
+            pair.LeftMotherName, pair.RightMotherName,
+            FrozenFellegiSunterJointNominalV9.Freeze(
+                replay.Payload.JointCells, replay.Payload.NominalContractVersion),
+            leftBirthDate: Birth, rightBirthDate: Birth, personTf: tf);
+        var observed = replay.RankPreview(
+            new IdentityObservation(null, "SEM_CPF", pair.LeftPersonName,
+                Birth, pair.LeftMotherName),
+            [new V9SnapshotCandidate(Guid.NewGuid(), pair.RightPersonName,
+                Birth, pair.RightMotherName)]).Single();
+        Assert.That(observed.LogOdds, Is.EqualTo(expected.LogOdds));
+        Assert.That(observed.Score, Is.EqualTo(expected.Posterior));
+
+        // Missing published IBGE is a different, still fail-closed error.
+        var missingFrame = unknownFrame with
+        {
+            Pairs = unknownFrame.Pairs.Select(x => x.Partition == "VALIDATION"
+                && x.LeftIdentityGroupId == "VAL-A"
+                ? x with { LeftPersonName = "ZULEIKAA COSTA",
+                           RightPersonName = "ZULEIKAA LIMA" } : x).ToArray()
+        };
+        var missing = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            missingFrame, [config], Reference());
+        var missingFit = missing.FitTrain(Model(config), Slice("TRAIN"));
+        Assert.That((Action)(() => missing.EvaluateValidation(missingFit, Slice("VALIDATION"))),
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("IBGE"));
     }
 
     private static V9FsAdaptiveCandidateFrame FrameWithMotherTf()

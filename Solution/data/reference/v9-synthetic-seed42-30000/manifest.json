@@ -1,0 +1,58 @@
+{
+  "schema_version": "JORNADA_V9_SYNTHETIC_30K_REF_EVIDENCE_V1",
+  "kind": "SYNTHETIC_CORPUS_PROVENANCE_NOT_IBGE_OBSERVATIONS",
+  "origin": "SINTETICO_IBGE",
+  "population": 30000,
+  "seed": 42,
+  "generator_version": "JORNADA_SYNTH_CORPUS_CSHARP_V1",
+  "population_profile": "DEMOGRAPHIC_PRIMARY_V1",
+  "error_profile": "clean",
+  "error_profile_independent_attempt_rates": {
+    "person_name": 0.06,
+    "mother_name": 0.1,
+    "birth_date": 0.04,
+    "missing_mother_name": 0.05,
+    "missing_birth_date": 0.01
+  },
+  "generator_multiplicity": {
+    "contract_version": "SYNTHETIC_BASE_OBSERVATION_MULTIPLICITY_V1",
+    "maximum_observations_per_base_identity": 4
+  },
+  "ibge_reference": {
+    "code": "CENSO2022_NOMES_BRASIL_V1",
+    "version_id_in_disposable_harness": 1,
+    "published_sha256": "E3CC61BCC7FCA353BB134EE32DE4AA50A8DA708827EAC3750EFC0E6EBCA5E885",
+    "materialized_tf_sha256": "89211544D4C97236F34B165BF35E5A130063C11679EFFB7985BF003105B19243"
+  },
+  "generation_manifest_sha256": "2F6ED064113D4E58B01D013B5C0A3ED99DE098FBAE4BA7910D0D62B33168E613",
+  "generator_input_sha256": "4CADBCE728A06CC24FDADEBACD9E2CB84248F70E4B5FDB8CBFC2B9BFEA5023D1",
+  "generated_files": [
+    {
+      "file": "pessoas_verdade.csv",
+      "sha256": "75171EEDD0BAB7C4D19C7CB37DC620EE0E249199A406F4C8A9DFAC51839ADD13"
+    },
+    {
+      "file": "observacoes.csv",
+      "sha256": "28BBB9F4C63C97C353E7F29CDBC77091A4773B2F4C596E46103EDADD93635D17"
+    },
+    {
+      "file": "gabarito.json",
+      "sha256": "982658206DF534E8F129E2C3C803E2DA9679EC96D385669CC054D6CA890754D2"
+    }
+  ],
+  "evidence": {
+    "preflight_run": 41577003637,
+    "physical_run": 41577529059,
+    "physical_result": "FAILURE_BEFORE_135_MEASUREMENTS",
+    "original_source_sha": "945f2e7efbfa217fbf333aa1fb705e15973be9f2"
+  },
+  "restrictions": {
+    "not_real_person_data": true,
+    "not_operational": true,
+    "not_publication_or_DT15": true,
+    "test_not_used_for_parameter_selection": true,
+    "raw_files_in_git": false,
+    "physical_success_certified": false
+  },
+  "note": "Reference-layer provenance only; raw CSV/gabarito are NOT included in Git. Store immutable raw bytes only after verifying their SHA against this manifest; never insert generated nominal data into ref.frequencia_nome IBGE."
+}

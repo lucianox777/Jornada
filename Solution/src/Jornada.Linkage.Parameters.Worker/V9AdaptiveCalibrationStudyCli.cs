@@ -54,7 +54,8 @@ public static class V9AdaptiveCalibrationStudyCli
         // Statistical eligibility is enforced downstream, never inferred from this floor.
         var observations = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(inputPath,
             minimumObservationCount: 4,
-            maximumObservationsPerBaseIdentity: plan.ObservationCapDeclaration?.MaximumObservationsPerBaseIdentity);
+            maximumObservationsPerBaseIdentity: plan.ObservationCapDeclaration?.MaximumObservationsPerBaseIdentity,
+            expectedBaseIdentityCount: plan.ModelOptions.Any(x => !x.EligibleForSelection) ? 30000 : null);
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
             ?? throw new InvalidOperationException("Conexão de JornadaHarness descartável ausente.");
         var builder = new SqlConnectionStringBuilder(connectionString);
@@ -114,8 +115,21 @@ public static class V9AdaptiveCalibrationStudyCli
             },
                 observations, plan, CancellationToken.None,
                 frozenTfReferenceForRuleset: referenceFactory);
+            // Reject missing or unpaired physical evidence before exporting fit artifacts.
+            var paired = V9TfSharedSurnamePairedDiagnostics.Build(
+                plan.ModelOptions, result.SourceMeasurements,
+                result.SharedSurnameCandidatePairsByOption ?? new Dictionary<string, long>(),
+                result.CandidatePairsSha256ByRuleset ?? new Dictionary<string, string>());
+            // Diagnostic fit snapshots remain in the descriptive study evidence;
+            // they are NOT emitted as standalone, potentially publishable .fitted.json files.
+            var selectableIds = plan.ModelOptions.Where(x => x.EligibleForSelection)
+                .Select(x => x.OptionId).ToHashSet(StringComparer.Ordinal);
             foreach (var configuration in result.FrozenConfigurations)
             {
+                if (configuration.OptionId.Length <= 65 || configuration.OptionId[64] != ':')
+                    throw new InvalidDataException("Fit TF sem identificador de ruleset físico.");
+                if (!selectableIds.Contains(configuration.OptionId[65..]))
+                    continue;
                 var path = Path.Combine(outputPath, configuration.Snapshot.ContentSha256 + ".fitted.json");
                 // Each configuration has a unique content hash; refuse any divergent duplicate.
                 if (File.Exists(path))
@@ -123,6 +137,10 @@ public static class V9AdaptiveCalibrationStudyCli
                 else await V9FittedSnapshotArtifact.WriteNewAsync(path, configuration.Snapshot);
             }
             await WriteNewJsonAsync(Path.Combine(outputPath, "study.json"), result);
+            // Descriptive paired evidence only; never enters Pareto or publication.
+            if (paired.Count > 0)
+                await WriteNewJsonAsync(Path.Combine(outputPath, "tf-shared-paired-diagnostics.json"), paired);
+
             Console.WriteLine(JsonSerializer.Serialize(new
             {
                 output = outputPath, result.PlanSha256,

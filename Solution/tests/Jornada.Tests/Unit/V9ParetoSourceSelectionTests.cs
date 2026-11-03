@@ -48,6 +48,14 @@ public sealed class V9ParetoSourceSelectionTests
     }
 
     [Test]
+    public void Handcrafted_ineligible_SharedTf_measurements_are_refused_at_Pareto_boundary()
+    {
+        var row = Row(new string('a', 64) + ":TF_SHARED_PL_ML_W0.5_M0");
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            Evaluate([row], [Evidence(row, [row])])));
+    }
+
+    [Test]
     public void Missing_latency_or_boolean_only_cluster_attestation_never_suggests()
     {
         var row = Row() with { ConditionalClusterCpFdrUpper = null };

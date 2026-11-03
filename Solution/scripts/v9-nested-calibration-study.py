@@ -78,7 +78,7 @@ def _write_frozen_outputs(destination: Path, plan: dict, cost: dict | None = Non
         for path, payload in outputs:
             with path.open("x", encoding="utf-8") as stream:
                 created.append(path)
-                # Reject non-RFC-8259 NaN/Infinity; rollback removes both files.
+                # Frozen TRAIN/REF: reject non-RFC-8259 NaN/Infinity; rollback removes both files.
                 json.dump(payload, stream, indent=2, allow_nan=False)
                 stream.write("\n")
     except Exception:

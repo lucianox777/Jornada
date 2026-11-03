@@ -54,7 +54,10 @@ public sealed record V9AdaptiveCalibrationStudyResult(string Version, string Pla
     V9StatisticalSamplePlan.Report? SamplePlan = null,
     V9CandidateFrameEquivalence.Report? CandidateFrameCoverage = null,
     V9PhysicalCatalogueCensus? CatalogueCensus = null,
-    V9IntegralSearchShard? Shard = null);
+    V9IntegralSearchShard? Shard = null,
+    IReadOnlyDictionary<string, long>? SharedSurnameCandidatePairsByOption = null,
+    IReadOnlyDictionary<string, string>? CandidatePairsSha256ByRuleset = null,
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>? UnseenTfUByOptionAndUnit = null);
 
 public sealed record V9IntegralSearchShard(string FamilyPlanSha256, int Index, int Count,
     int TotalRepresentativeRuleSets, int EvaluatedRepresentativeRuleSets,
@@ -95,7 +98,8 @@ public static class V9AdaptiveCalibrationCoordinator
             || plan.PreviouslyComparedValidationConfigurations < 0
             || plan.MaximumAcceptedPerBaseIdentity < 1
             || plan.MinimumGroupingPosterior is <= .5m or >= 1m
-            || plan.ModelOptions.Count == 0 || plan.ConflictMargins.Count == 0
+            || plan.ModelOptions.Count == 0 || !plan.ModelOptions.Any(x => x.EligibleForSelection)
+            || plan.ConflictMargins.Count == 0
             || plan.ModelOptions.Any(x => x is null || string.IsNullOrWhiteSpace(x.OptionId)
                 || x.SmoothingAlpha is <= 0 or > 1000 || x.DecisionThreshold is <= 0 or >= 1
                 || x.TfWeight is < 0 or > 1 || !Enum.IsDefined(x.TfSide)
@@ -107,6 +111,7 @@ public static class V9AdaptiveCalibrationCoordinator
         // Validate the four independent nominal weight/mode choices before SQL.
         foreach (var option in plan.ModelOptions)
             _ = V9FellegiSunterAdaptiveCalibrationAdapter.ConfigurationFingerprintSha256(option);
+        V9TfSharedSurnamePairedDiagnostics.ValidateOptions(plan.ModelOptions);
         var budget = plan.Budget;
         var policy = plan.SelectionPolicy;
         if (budget.Version != AdaptiveCalibrationPreviewBudget.CurrentVersion
@@ -184,6 +189,20 @@ public static class V9AdaptiveCalibrationCoordinator
         return checked((int)count);
     }
 
+    /// <summary>
+    /// Selection-only multiplicity; physical costs still account for all 45 arms.
+    /// Previously compared hypotheses remain included conservatively.
+    /// </summary>
+    public static int CountSelectableConfigurations(V9AdaptiveCalibrationPlan plan, long ruleSets)
+    {
+        _ = CountComparedConfigurations(plan, ruleSets);
+        var eligible = plan.ModelOptions.Count(x => x.EligibleForSelection);
+        if (eligible == 0)
+            throw new InvalidDataException("Nenhuma configuração TF elegível para seleção.");
+        return checked((int)checked(ruleSets * eligible * plan.ConflictMargins.Count
+            + plan.PreviouslyComparedValidationConfigurations));
+    }
+
     public static Task<V9AdaptiveCalibrationStudyResult> RunAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
         V9AdaptiveCalibrationPlan plan, CancellationToken cancellationToken,
@@ -243,6 +262,7 @@ public static class V9AdaptiveCalibrationCoordinator
         V9PhysicalCatalogueCensus? census = null;
         IReadOnlyList<IReadOnlyList<LinkageBlockingPass>> candidates;
         int compared;
+        int selectableCompared;
         if (plan.CollapseEquivalentCandidateFrames)
         {
             // Count the ENTIRE family before quotienting. Baselines are counted
@@ -250,6 +270,7 @@ public static class V9AdaptiveCalibrationCoordinator
             var fullCount = checked((long)plan.DeclaredSearchSpace!.Count()
                 + (plan.BaselineRuleSets?.Count ?? 0));
             compared = CountComparedConfigurations(plan, fullCount);
+            selectableCompared = CountSelectableConfigurations(plan, fullCount);
             var censusConnection = await openIndependentConnection(cancellationToken);
             try
             {
@@ -265,6 +286,7 @@ public static class V9AdaptiveCalibrationCoordinator
             candidates = CombineCandidateRuleSets(plan.DeclaredSearchSpace is null ? discovery.Candidates
                 : plan.DeclaredSearchSpace.Enumerate(), plan.BaselineRuleSets);
             compared = CountComparedConfigurations(plan, candidates.Count);
+            selectableCompared = CountSelectableConfigurations(plan, candidates.Count);
         }
         var totalRepresentatives = candidates.Count;
         if (plan.ShardCount > totalRepresentatives)
@@ -278,6 +300,9 @@ public static class V9AdaptiveCalibrationCoordinator
         var fanout = new Dictionary<string, double>(StringComparer.Ordinal);
         var rejected = new List<V9AdaptiveCandidateRejection>();
         var failedOptions = new List<V9BootstrapPareto2D.CandidateOption>();
+        var sharedSurnamePairs = new Dictionary<string, long>(StringComparer.Ordinal);
+        var unseenByOption = new Dictionary<string, IReadOnlyDictionary<string, long>>(StringComparer.Ordinal);
+        var candidatePairsByRuleset = new Dictionary<string, string>(StringComparer.Ordinal);
         var eligibleSources = validation.GroupBy(x => x.BasePersonId, StringComparer.Ordinal)
             .Where(g => g.Select(x => x.Gestor).Distinct(StringComparer.Ordinal).Skip(1).Any()).Sum(g => (long)g.Count());
         if (eligibleSources == 0) throw new InvalidDataException("VALIDATION sem fontes elegíveis pré-blocking.");
@@ -299,7 +324,7 @@ public static class V9AdaptiveCalibrationCoordinator
             lock (activeConnections)
                 if (!activeConnections.Add(worker))
                     throw new InvalidDataException("Conexão SQL compartilhada entre workers é proibida.");
-            try { return await EvaluateRulesetAsync(worker, observations, plan, passes, compared, eligibleSources, reference, ct); }
+            try { return await EvaluateRulesetAsync(worker, observations, plan, passes, compared, selectableCompared, eligibleSources, reference, ct); }
             finally
             {
                 lock (activeConnections) activeConnections.Remove(worker);
@@ -311,15 +336,38 @@ public static class V9AdaptiveCalibrationCoordinator
             measurements.AddRange(run.Measurements); frozen.AddRange(run.Frozen); timings.AddRange(run.Timings);
             foreach (var pair in run.Fanout) fanout.Add(pair.Key, pair.Value);
             rejected.AddRange(run.Rejected); failedOptions.AddRange(run.FailedOptions);
+            foreach (var pair in run.SharedSurnamePairs)
+                if (!sharedSurnamePairs.TryAdd(pair.Key, pair.Value))
+                    throw new InvalidDataException("Contagem TF duplicada entre rulesets físicos.");
+            foreach (var pair in run.UnseenByOption)
+                if (!unseenByOption.TryAdd(pair.Key, pair.Value))
+                    throw new InvalidDataException("Contagem U residual duplicada entre rulesets físicos.");
+            if (run.CandidatePairsSha256 is { } physicalSha
+                && !candidatePairsByRuleset.TryAdd(run.RulesetSha256, physicalSha))
+                throw new InvalidDataException("Censo físico duplicado para ruleset.");
         }
+        // Preserve diagnostic measurements while excluding them from all selection paths.
+        var eligibleIds = new HashSet<string>(plan.ModelOptions
+            .Where(x => x.EligibleForSelection).Select(x => x.OptionId), StringComparer.Ordinal);
+        bool EligibleOption(string id) => id.Length > 65 && id[64] == ':'
+            && eligibleIds.Contains(id[65..]);
+        bool EligibleConfiguration(string id)
+        {
+            var separator = id.IndexOf(':');
+            if (separator <= 0 || !int.TryParse(id.AsSpan(0, separator), out var length)
+                || length <= 0 || id.Length <= separator + length + 1
+                || id[separator + length + 1] != '|') return false;
+            return EligibleOption(id.Substring(separator + 1, length));
+        }
+        var selectableMeasurements = measurements.Where(x => EligibleOption(x.OptionId)).ToArray();
         V9ParetoSourceSelectionReport? selection = null;
-        if (measurements.Count > 0)
+        if (selectableMeasurements.Length > 0)
         {
             var fittedByKey = frozen.ToDictionary(x => (x.OptionId, x.ConflictMargin));
             var timingByKey = timings.ToDictionary(x => (x.OptionId, x.ConflictMargin));
             var source = V9PostResolveAdaptiveSelector.EvaluateValidation("VALIDATION", false,
-                plan.Budget, measurements, fanout);
-            var evidence = measurements.Select(row =>
+                plan.Budget, selectableMeasurements, fanout);
+            var evidence = selectableMeasurements.Select(row =>
             {
                 var key = (row.OptionId, row.ConflictMargin);
                 var snapshot = fittedByKey[key].Snapshot;
@@ -331,10 +379,11 @@ public static class V9AdaptiveCalibrationCoordinator
                     time?.Quantiles.P95Milliseconds, time is not null);
             }).ToArray();
             selection = V9ParetoSourceSelection.EvaluateValidation("VALIDATION", false, plan.Budget,
-                measurements, fanout, evidence, plan.SelectionPolicy);
+                selectableMeasurements, fanout, evidence, plan.SelectionPolicy);
         }
         var pareto = V9BootstrapPareto2D.Evaluate(
-            (selection?.Pareto.Table.Select(x => x.Option) ?? []).Concat(failedOptions), plan.SelectionPolicy);
+            (selection?.Pareto.Table.Select(x => x.Option) ?? []).Concat(
+                failedOptions.Where(x => EligibleConfiguration(x.OptionId))), plan.SelectionPolicy);
         if (plan.ShardCount > 1)
             pareto = pareto with { InitialSuggestedOptionId = null, Status = "PARTIAL_SEARCH_NO_GLOBAL_SUGGESTION" };
         return new(Version, Sha(JsonSerializer.Serialize(plan)), trainSha, validationSha,
@@ -344,17 +393,21 @@ public static class V9AdaptiveCalibrationCoordinator
                 pareto.Table.Select(x => x.Option), plan.RiskCeilings, plan.SelectionPolicy),
             plan.SampleDesign is null ? null : V9StatisticalSamplePlan.Calculate(plan.SampleDesign, plan.RiskCeilings!),
             coverage, census, new(Sha(JsonSerializer.Serialize(plan with { ShardIndex = 0 })),
-                plan.ShardIndex, plan.ShardCount, totalRepresentatives, candidates.Count, plan.ShardCount == 1));
+                plan.ShardIndex, plan.ShardCount, totalRepresentatives, candidates.Count, plan.ShardCount == 1),
+            sharedSurnamePairs, candidatePairsByRuleset, unseenByOption);
     }
 
     private sealed record RulesetResult(
         List<V9PhysicalSourceResolveMetric> Measurements, List<V9PhysicalFrozenConfiguration> Frozen,
         List<V9PhysicalEndToEndMeasurement> Timings, Dictionary<string, double> Fanout,
-        List<V9AdaptiveCandidateRejection> Rejected, List<V9BootstrapPareto2D.CandidateOption> FailedOptions);
+        List<V9AdaptiveCandidateRejection> Rejected, List<V9BootstrapPareto2D.CandidateOption> FailedOptions,
+        Dictionary<string, long> SharedSurnamePairs,
+        Dictionary<string, IReadOnlyDictionary<string, long>> UnseenByOption,
+        string RulesetSha256, string? CandidatePairsSha256);
 
     private static async Task<RulesetResult> EvaluateRulesetAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations, V9AdaptiveCalibrationPlan plan,
-        IReadOnlyList<LinkageBlockingPass> passes, int compared, long eligibleSources,
+        IReadOnlyList<LinkageBlockingPass> passes, int compared, int selectableCompared, long eligibleSources,
         FrozenIbgeNominalTfV9? pinnedTfReference, CancellationToken cancellationToken)
     {
         var measurements = new List<V9PhysicalSourceResolveMetric>();
@@ -363,6 +416,9 @@ public static class V9AdaptiveCalibrationCoordinator
         var fanout = new Dictionary<string, double>(StringComparer.Ordinal);
         var rejected = new List<V9AdaptiveCandidateRejection>();
         var failedOptions = new List<V9BootstrapPareto2D.CandidateOption>();
+        var sharedSurnamePairs = new Dictionary<string, long>(StringComparer.Ordinal);
+        var unseenByOption = new Dictionary<string, IReadOnlyDictionary<string, long>>(StringComparer.Ordinal);
+        string? candidatePairsSha = null;
         cancellationToken.ThrowIfCancellationRequested();
         var rulesetSha = Sha(JsonSerializer.Serialize(passes));
         var options = plan.ModelOptions.Select(x => x with { OptionId = rulesetSha + ":" + x.OptionId }).ToArray();
@@ -379,12 +435,30 @@ public static class V9AdaptiveCalibrationCoordinator
                     finalConflictMargins: margins, includeFsBlindGrouping: true,
                     minimumFsGroupingPosterior: plan.MinimumGroupingPosterior,
                     predeclaredMaximumAcceptedPerBaseIdentity: plan.MaximumAcceptedPerBaseIdentity,
-                    adaptiveExecution: plan.Execution with { TotalComparedConfigurations = compared });
+                    adaptiveExecution: plan.Execution with { TotalComparedConfigurations = selectableCompared });
+                if (run.PhysicalCandidatePairsSha256 is not { Length: 64 } physicalSha
+                    || !physicalSha.All(Uri.IsHexDigit))
+                    throw new InvalidDataException("Digest das arestas SQL físicas não foi medido.");
+                if (candidatePairsSha is not null
+                    && !string.Equals(candidatePairsSha, physicalSha, StringComparison.Ordinal))
+                    throw new InvalidDataException(
+                        "O universo de candidatos SQL variou entre lotes TF da mesma regra.");
+                candidatePairsSha = physicalSha;
                 measurements.AddRange(run.SourceResolveValidation!);
                 frozen.AddRange(run.FrozenConfigurations!);
                 timings.AddRange(run.EndToEndMeasurements!);
                 foreach (var option in run.CalibrationReport.Options)
+                {
                     fanout[option.OptionId] = option.Validation.BlockingFalseDegreeP99;
+                    if (!unseenByOption.TryAdd(option.OptionId,
+                            option.Validation.UnseenTfUBySideUnit
+                            ?? new Dictionary<string, long>(StringComparer.Ordinal)))
+                        throw new InvalidDataException("Opção recebeu contagens U residuais duplicadas.");
+                    // Counted by the C# scorer on real SQL VALIDATION candidate pairs.
+                    if (!sharedSurnamePairs.TryAdd(option.OptionId,
+                            option.Validation.SharedSurnameCandidatePairs))
+                        throw new InvalidDataException("Opção TF recebeu múltiplos recibos físicos.");
+                }
             }
             catch (InvalidDataException exception) when
                 (exception.Data[V9PhysicalSqlAdaptiveCalibrationProbe.CandidateRejectionKey] is true)
@@ -395,11 +469,12 @@ public static class V9AdaptiveCalibrationCoordinator
                 failedOptions.AddRange(ids.Select(id => new V9BootstrapPareto2D.CandidateOption(
                     id, Sha(id), 0, null, null, 0, 0, eligibleSources,
                     observations.Where(x => x.Partition == "VALIDATION").Select(x => x.BasePersonId).Distinct(StringComparer.Ordinal).Count(),
-                    false, false, MultiplicityComparedConfigurations: compared,
+                    false, false, MultiplicityComparedConfigurations: selectableCompared,
                     EvidenceRejectionReasons: ["CANDIDATO_FISICO_NAO_MENSURAVEL: " + exception.Message])));
             }
         }
-        return new(measurements, frozen, timings, fanout, rejected, failedOptions);
+        return new(measurements, frozen, timings, fanout, rejected, failedOptions,
+            sharedSurnamePairs, unseenByOption, rulesetSha, candidatePairsSha);
     }
 
     private static string InputSha(IEnumerable<V9PhysicalCalibrationObservation> observations) =>

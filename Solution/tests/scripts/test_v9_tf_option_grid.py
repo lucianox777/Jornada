@@ -96,15 +96,31 @@ class V9UnitTfDeclaredGridTests(unittest.TestCase):
             plan_path = root / "adaptive-plan.json"
             adaptive.prepare(corpus, plan_path, cap_four=True, tf_search=True, pinned_ibge=pin_path)
             a = json.loads(plan_path.read_text())
-            self.assertEqual(len(a["ModelOptions"]), 41)
-            self.assertFalse(any("SHARED_PL_ML_" in x["OptionId"] for x in a["ModelOptions"]))
+            # The actual TF 30k plan must satisfy the C# post-Resolve contract.
+            # Do not "open" the risk budget to 100% to explore the 45 arms:
+            # every arm is measured before the governed eligibility filter.
+            self.assertEqual(a["Budget"]["MinimumGlobalAcceptedRecall"], 0.95)
+            self.assertEqual(a["Budget"]["MaximumObservedAcceptedFdrPoint"], 0.01)
+            self.assertEqual(a["SelectionPolicy"]["MinimumGlobalRecall"], 0.95)
+            self.assertEqual(a["SelectionPolicy"]["MaximumAcceptedFdrUpper"], 0.01)
+            self.assertEqual(len(a["ModelOptions"]), 45)
+            self.assertEqual(sum(x["EligibleForSelection"] for x in a["ModelOptions"]), 41)
+            self.assertEqual(sum(not x["EligibleForSelection"] for x in a["ModelOptions"]), 4)
+            self.assertEqual(sum(x["OptionId"].startswith("TF_SHARED_PL_ML_")
+                                 and not x["EligibleForSelection"] for x in a["ModelOptions"]), 4)
+            self.assertEqual(sum(x["OptionId"] == "T0.95_TF0"
+                                 and x["EligibleForSelection"] for x in a["ModelOptions"]), 1)
+            self.assertEqual(sum(x.get("UnpublishedTermPolicy", 0) == 1
+                                 for x in a["ModelOptions"]), 44)
+            self.assertTrue(all(x.get("UnpublishedTermPolicy", 0) == 0
+                                for x in a["ModelOptions"] if x["OptionId"] == "T0.95_TF0"))
             self.assertEqual(a["MaximumPhysicalRuleSets"], 1)
             self.assertEqual(a["PreviouslyComparedValidationConfigurations"], 3726)
-            self.assertEqual(a["MaximumComparedConfigurations"], 3849)
+            self.assertEqual(a["MaximumComparedConfigurations"], 3861)
             self.assertEqual(a["PinnedIbgeReferenceVersionId"], 7)
             self.assertEqual(a["ObservationCapDeclaration"]["ObservationsSha256"], source_sha)
             ab = json.loads(plan_path.with_suffix(".tf-budget.json").read_text())
-            self.assertEqual(ab["predeclared_comparisons"], 3849)
+            self.assertEqual(ab["predeclared_comparisons"], 3861)
             self.assertEqual(ab["diagnostic_models_excluded_from_selection"], 4)
             self.assertEqual(len(ab["diagnostic_comparison_only"]), 4)
             for pair in ab["diagnostic_comparison_only"]:

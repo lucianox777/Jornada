@@ -44,6 +44,21 @@ public sealed class V9CalibrationFreezeServiceTests
     private static string ConfigurationId => V9ParetoSourceSelection.ConfigurationId("option", "BLIND_FS_COMPLETE_LINK_CANDIDATES", .5m);
 
     [Test]
+    public void Shared_surname_diagnostic_is_rejected_at_freeze_even_if_a_manual_selection_claims_eligibility()
+    {
+        var snapshot = V9FittedSnapshot.Create(Snapshot().Payload with
+        {
+            OptionId = new string('a', 64) + ":TF_SHARED_PL_ML_W0.5_M0"
+        });
+        var selection = Selection(snapshot: snapshot);
+        var error = Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9CalibrationFreezeService.FreezeAsync(directory, snapshot,
+                Metadata(selection), selection)));
+        Assert.That(error!.Message, Does.Contain("inelegível"));
+        Assert.That(Directory.Exists(directory), Is.False);
+    }
+
+    [Test]
     public void Effective_grouping_is_hashed_and_legacy_snapshot_cannot_be_frozen()
     {
         var original = Snapshot();

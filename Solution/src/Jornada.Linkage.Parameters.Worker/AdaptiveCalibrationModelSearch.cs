@@ -61,7 +61,16 @@ public sealed record AdaptiveCalibrationHoldoutMetrics(
     int IndependentlyLabeledIdentityGroups,
     [property: System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
-    long SharedSurnameCandidatePairs = 0);
+    long SharedSurnameCandidatePairs = 0,
+    [property: System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyDictionary<string, long>? UnseenTfUBySideUnit = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyDictionary<string, long>? MissingPublishedTfCandidatePairsBySideUnit = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    V9NominalTfPublishedCoverageAudit.UnionAbstentionImpact? UnpublishedTfUnionImpact = null);
 
 public sealed record AdaptiveCalibrationPreviewBudget(
     string Version,

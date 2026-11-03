@@ -144,11 +144,13 @@ public static class V9PhysicalCalibrationEvidenceCli
 
     public static V9PhysicalCalibrationObservation[] ReadNoCpfTrainValidation(string file,
         int minimumObservationCount = 1000, int? maximumObservationsPerBaseIdentity = null,
-        string? onlyPartition = null)
+        string? onlyPartition = null, int? expectedBaseIdentityCount = null)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(minimumObservationCount, 4);
         if (onlyPartition is not (null or "TRAIN" or "VALIDATION"))
             throw new InvalidDataException("Leitor de calibração não abre TEST.");
+        if (expectedBaseIdentityCount is < 1)
+            throw new ArgumentOutOfRangeException(nameof(expectedBaseIdentityCount));
         if (maximumObservationsPerBaseIdentity is < 1)
             throw new ArgumentOutOfRangeException(nameof(maximumObservationsPerBaseIdentity));
         using var csv = new TextFieldParser(file);
@@ -202,6 +204,12 @@ public static class V9PhysicalCalibrationEvidenceCli
                 checked(rows.Count + 1), Get("base_person_id"), partition,
                 Get("gestor"), Get("nome"), Get("nome_mae"), dob));
         }
+        // This census counts unique BASE PEOPLE across TRAIN, VALIDATION and TEST,
+        // before excluding TEST rows/CPF observations from scoring. 30k is not a
+        // claim about the number of observation rows.
+        if (expectedBaseIdentityCount is { } expectedPeople
+            && partitionByBaseIdentity.Count != expectedPeople)
+            throw new InvalidDataException("Estudo TF 30k exige exatamente 30000 pessoas-base distintas, inclusive TEST; não 30000 observações.");
         if (rows.Count < minimumObservationCount
             || (onlyPartition is null or "TRAIN") && !rows.Any(x => x.Partition == "TRAIN")
             || (onlyPartition is null or "VALIDATION") && !rows.Any(x => x.Partition == "VALIDATION"))

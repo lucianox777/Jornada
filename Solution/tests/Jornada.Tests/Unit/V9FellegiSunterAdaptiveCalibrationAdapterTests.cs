@@ -108,8 +108,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             var isolatedFit = isolated.FitTrain(model, train);
             Assert.That(reusedFit.FittedParametersFingerprintSha256,
                 Is.EqualTo(isolatedFit.FittedParametersFingerprintSha256));
-            Assert.That(shared.EvaluateValidation(reusedFit, validation),
-                Is.EqualTo(isolated.EvaluateValidation(isolatedFit, validation)));
+            AssertEquivalentHoldoutMetrics(
+                shared.EvaluateValidation(reusedFit, validation),
+                isolated.EvaluateValidation(isolatedFit, validation));
         }
     }
 
@@ -258,8 +259,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
         var referenceFit = reference.FitTrain(model, train);
         Assert.That(actualFit.FittedParametersFingerprintSha256,
             Is.EqualTo(referenceFit.FittedParametersFingerprintSha256));
-        Assert.That(adapter.EvaluateValidation(actualFit, validation),
-            Is.EqualTo(reference.EvaluateValidation(referenceFit, validation)));
+        AssertEquivalentHoldoutMetrics(
+            adapter.EvaluateValidation(actualFit, validation),
+            reference.EvaluateValidation(referenceFit, validation));
     }
 
     [Test]
@@ -490,6 +492,23 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
         Assert.That((Action)(() => adapter.EvaluateSourceUnitResolveValidation(
             validation.Append(validation[0]).ToArray(), [], [.5m], 16)), Throws.TypeOf<InvalidDataException>()
             .With.Message.Contains("duplicadas"));
+    }
+
+    // NUnit record equality compares the new dictionary field by reference,
+    // although independently fitted TRAIN/VALIDATION runs correctly produce
+    // distinct immutable dictionary instances. Compare diagnostics by content,
+    // without discarding or weakening the new TF U-unseen measurement.
+    private static void AssertEquivalentHoldoutMetrics(
+        AdaptiveCalibrationHoldoutMetrics actual,
+        AdaptiveCalibrationHoldoutMetrics expected)
+    {
+        Assert.That(actual with { UnseenTfUBySideUnit = null },
+            Is.EqualTo(expected with { UnseenTfUBySideUnit = null }));
+        Assert.That(
+            actual.UnseenTfUBySideUnit?.OrderBy(x => x.Key, StringComparer.Ordinal).ToArray(),
+            Is.EqualTo(expected.UnseenTfUBySideUnit?
+                .OrderBy(x => x.Key, StringComparer.Ordinal).ToArray()),
+            "Unseen TF U diagnostics must be identical by side/unit and count.");
     }
 
     private static AdaptiveCalibrationSlice Slice(

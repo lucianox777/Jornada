@@ -57,7 +57,10 @@ public sealed class V9IndependentScalarReplayTests
             tfWeight == 0m ? null : new V9SnapshotNominalUnitTfCalibration(CompositeNominalTfSideV9.Person,
                 reference, new Dictionary<string, decimal> { ["MARIA"] = frequency },
                 new Dictionary<string, decimal> { ["MARIA"] = .2m }, new string('a', 64),
-                .000001m, 1, new string('c', 64)), new string('c', 64));
+                .000001m, 1, new string('c', 64),
+                NominalUReference: V9NominalTfUReference.Fit(
+                    CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,
+                    13, 2, 1m, new string('c', 64))), new string('c', 64));
     }
 
     private static V9FittedSnapshot Reload(V9FittedSnapshotPayload p)
@@ -80,7 +83,7 @@ public sealed class V9IndependentScalarReplayTests
         if (applyTf && p.TfWeight != 0m)
         {
             var tf = p.TfCalibration!;
-            odds *= Math.Pow((double)(tf.TrainUnitUByValue["MARIA"] /
+            odds *= Math.Pow((double)(tf.NominalUReference!.Probability /
                 Math.Max(tf.Frequencies["MARIA"], tf.MinimumFrequency)), (double)p.TfWeight);
         }
         return (Published(odds / (1d + odds)), Published(Math.Log(odds)));

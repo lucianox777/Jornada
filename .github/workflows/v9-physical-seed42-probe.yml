@@ -3,6 +3,21 @@ name: v9-physical-seed42-probe
 on:
   pull_request:
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Preflight sem 30k ou execução física autorizada'
+        type: choice
+        required: true
+        default: preflight
+        options: [preflight, execute_30k]
+      expected_sha:
+        description: 'SHA exato da branch, 40 caracteres'
+        type: string
+        required: true
+      pinned_ibge_json:
+        description: 'IBGE publicado fixado: versão, digests e bootstrap JSON'
+        type: string
+        required: false
 
 # Supersede obsolete automatic PR probes to prevent runner saturation.
 # Explicit manual dispatch and experiment/evidence branches are isolated by run_id
@@ -32,6 +47,17 @@ jobs:
         run: |
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_physical_impact_classifier.py
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_manual_probe_evidence.py
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_tf_30k_dispatch_gate.py
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_tf_pin_source.py
+      - name: Dry-run exact SHA gate when manual preflight is selected (no 30k)
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight'
+        env:
+          TF_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+            --mode preflight --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
+            --output "$RUNNER_TEMP/v9-tf-sha-preflight.json"
       - name: Classify complete PR merge diff (manual dispatch always runs)
         id: classify
         shell: bash
@@ -68,10 +94,102 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
+  pin-preflight:
+    name: V9 30k - authenticate SQL IBGE and corpus (NO calibration)
+    needs: impact
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight' && needs.impact.outputs.run_physical_30k == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
+        env:
+          ACCEPT_EULA: Y
+          MSSQL_PID: Developer
+          MSSQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!V9Probe'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "SQLCMDPASSWORD=$MSSQL_SA_PASSWORD /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -Q 'SELECT 1' || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 25
+    env:
+      JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!V9Probe'
+      ConnectionStrings__Jornada: 'Server=localhost,1433;Database=JornadaHarness;User Id=sa;Password=Jornada_${{ github.run_id }}!V9Probe;TrustServerCertificate=true;Encrypt=false'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind preflight to exact SHA before generating anything
+        env:
+          TF_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p Solution/.local/v9-tf-physical
+          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+            --mode preflight --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
+            --output Solution/.local/v9-tf-physical/git-approved.json
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          # Cache only NuGet packages; never bypass restore, build or SQL gates.
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build the single CSharp calibrator and synthetic producer
+        working-directory: Solution
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Export real SQL-backed pinned IBGE JSON without fitting
+        working-directory: Solution
+        run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" pinned-ibge.json
+      - name: Print validated pinned IBGE JSON in log and job summary (metadata only)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          pin = json.loads(Path('.local/v9-tf-physical/pinned-ibge.json').read_text(encoding='utf-8'))
+          fields = {'PinnedIbgeReferenceVersionId', 'PinnedIbgePublishedSha256',
+                    'PinnedIbgeMaterializedFrequencySha256', 'PinnedIbgeBootstrap'}
+          bootstrap_fields = {'Provenance', 'People', 'CorpusFingerprint',
+                              'GeneratorVersion', 'GeneratorSeed', 'GenerationHypothesesFingerprint'}
+          if not isinstance(pin, dict) or set(pin) != fields:
+              raise SystemExit('unexpected pinned IBGE fields; do not print')
+          b = pin['PinnedIbgeBootstrap']
+          if not isinstance(b, dict) or set(b) != bootstrap_fields:
+              raise SystemExit('unexpected bootstrap fields; do not print')
+          if (type(pin['PinnedIbgeReferenceVersionId']) is not int or pin['PinnedIbgeReferenceVersionId'] <= 0
+                  or b['Provenance'] != 'SINTETICO_IBGE' or b['People'] != 30000
+                  or b['GeneratorVersion'] != 'JORNADA_SYNTH_CORPUS_CSHARP_V1' or b['GeneratorSeed'] != 42):
+              raise SystemExit('unexpected IBGE/bootstrap metadata; do not print')
+          for h in (pin['PinnedIbgePublishedSha256'], pin['PinnedIbgeMaterializedFrequencySha256'],
+                    b['CorpusFingerprint'], b['GenerationHypothesesFingerprint']):
+              if not isinstance(h, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', h):
+                  raise SystemExit('invalid digest; do not print')
+          content = json.dumps(pin, ensure_ascii=False, indent=2) + '\n'
+          print('PINNED_IBGE_JSON_BEGIN\n' + content + 'PINNED_IBGE_JSON_END')
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
+              summary.write('### Pinned IBGE — metadata only (no PII)\n\n```json\n' + content + '```\n')
+          PY
+      - name: Preserve operator-reviewed pin and exact SHA (no corpus CSV, TEST, or PII)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-tf-30k-pin-preflight-${{ github.run_id }}-${{ github.sha }}
+          retention-days: 90
+          if-no-files-found: error
+          path: |
+            Solution/.local/v9-tf-physical/git-approved.json
+            Solution/.local/v9-tf-physical/bootstrap.json
+            Solution/.local/v9-tf-physical/pinned-ibge.json
+            Solution/.local/v9-tf-physical/people-30k/generation-manifest.json
+
   physical-30k:
     name: V9 full physical 30k SQL TRAIN (when impacted)
     needs: impact
-    if: github.event_name == 'workflow_dispatch' && needs.impact.outputs.run_physical_30k == 'true'
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k' && needs.impact.outputs.run_physical_30k == 'true'
     runs-on: ubuntu-latest
     # PO: full 30k only on explicit final dispatch; PR preflight remains fail-closed.
     # Full adaptive batches now survive the old all-cell veto and execute 20
@@ -96,6 +214,19 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Prove exact manual branch SHA and pinned IBGE before 30k
+        env:
+          TF_SHA: ${{ inputs.expected_sha }}
+          TF_IBGE: ${{ inputs.pinned_ibge_json }}
+        run: |
+          set -euo pipefail
+          mkdir -p Solution/.local/v9-tf-physical
+          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+            --mode execute_30k --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
+            --pinned-json "$TF_IBGE" \
+            --output Solution/.local/v9-tf-physical/git-approved.json \
+            --pinned-output Solution/.local/v9-tf-physical/pinned-ibge.json
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.113'
@@ -107,96 +238,81 @@ jobs:
         run: |
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      - name: Initialize disposable JornadaHarness
-        run: |
-          set -euo pipefail
-          CID=$(docker ps -q --filter publish=1433 | head -1)
-          test -n "$CID"
-          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -e SQLCMDPASSWORD "$CID" \
-            /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b \
-            -Q "IF DB_ID(N'JornadaHarness') IS NULL CREATE DATABASE JornadaHarness;"
-      - name: Generate clean fixtures and historical 30k development corpus
+      - name: Rebuild SQL IBGE and 30k corpus using the identical preflight preparation
+        working-directory: Solution
+        run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" reconstructed-ibge.json
+      - name: Compare all four pinned reference fields BEFORE executing any calibration
         working-directory: Solution
         run: |
           set -euo pipefail
-          root="$PWD/.local/v9-nested-ci"
-          mkdir -p "$root"
-          generate() {
-            dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
-              --reference-root "$PWD/data/reference/ibge-nomes-2022" \
-              --population-profile demographic-primary \
-              --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
-              --error-profile clean --people "$1" --seed "$2" --out "$root/$3" > "$root/$3-generation.log"
-          }
-          generate 1000 42 fixture-train &
-          a=$!
-          generate 1000 20261019001 fixture-validation &
-          b=$!
-          wait "$a"
-          wait "$b"
-          generate 30000 42 development-30k
-      - name: Real SQL nested search and one-time frozen finalist validation - fixture only
+          python3 scripts/v9-tf-pin-source.py verify \
+            --expected .local/v9-tf-physical/pinned-ibge.json \
+            --actual .local/v9-tf-physical/reconstructed-ibge.json
+
+      - name: Recheck SHA and run only CSharp adaptive TF 45 options
         working-directory: Solution
         env:
-          JORNADA_V9_HOLDOUT_REGISTRY: '${{ github.workspace }}/Solution/.local/v9-nested-ci/fixture-registry'
-        run: |
-          python3 scripts/v9-nested-calibration-verify.py fixture \
-            src/Jornada.Linkage.Parameters.Worker/bin/Release/net10.0/Jornada.Linkage.Parameters.Worker.dll \
-            .local/v9-nested-ci/fixture-train/observacoes.csv \
-            .local/v9-nested-ci/fixture-validation/observacoes.csv \
-            .local/v9-nested-ci/regression
-      - name: Reject stale PR before 30k calibration
-        if: github.event_name == 'pull_request'
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          EXPECTED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          REPOSITORY: ${{ github.repository }}
+          TF_SHA: ${{ inputs.expected_sha }}
+          TF_IBGE: ${{ inputs.pinned_ibge_json }}
         run: |
           set -euo pipefail
-          latest=$(curl --fail --silent --show-error --retry 3 \
-            -H 'Accept: application/vnd.github+json' \
-            "https://api.github.com/repos/$REPOSITORY/pulls/$PR_NUMBER" | python3 -c 'import json,sys; print(json.load(sys.stdin)["head"]["sha"])')
-          test "$latest" = "$EXPECTED_HEAD_SHA" || { echo "::error::PR HEAD superseded"; exit 1; }
-      - name: Calibrate 30k using ONLY TRAIN-adjust and TRAIN-selection
-        working-directory: Solution
-        run: |
-          set -euo pipefail
-          root="$PWD/.local/v9-nested-ci"
-          python3 scripts/v9-nested-calibration-study.py "$root/development-30k/observacoes.csv" "$root/bootstrap-plan.json"
+          root="$PWD/.local/v9-tf-physical"
+          python3 scripts/v9-tf-30k-dispatch-gate.py \
+            --mode execute_30k --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
+            --pinned-json "$TF_IBGE" \
+            --output "$root/git-rechecked.json" --pinned-output "$root/pinned-rechecked.json"
+          cmp "$root/pinned-ibge.json" "$root/pinned-rechecked.json"
+          python3 scripts/v9-adaptive-30k-study.py prepare-tf \
+            "$root/people-30k/observacoes.csv" "$root/plan-tf.json" \
+            --pinned-ibge "$root/pinned-ibge.json"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-calibrate "$root/bootstrap-plan.json" "$root/development-30k/observacoes.csv" "$root/bootstrap-search"
-          python3 scripts/v9-nested-calibration-verify.py search "$root/bootstrap-search"
-          # No external 30k VALIDATION/TEST scoring in this workflow.
-      - name: Export batch gain and resolution curves
-        working-directory: Solution
-        run: |
-          root="$PWD/.local/v9-nested-ci"
-          python3 -m venv "$root/plot-env"
-          "$root/plot-env/bin/python" -m pip install --disable-pip-version-check --quiet matplotlib==3.10.8
-          "$root/plot-env/bin/python" scripts/v9-nested-gain-plot.py "$root/regression/search/gain-by-batch.json" "$root/regression/gain-by-batch.svg"
-          "$root/plot-env/bin/python" scripts/v9-nested-gain-plot.py "$root/bootstrap-search/gain-by-batch.json" "$root/bootstrap-search/gain-by-batch.svg"
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+            --v9-adaptive-study "$root/plan-tf.json" \
+            "$root/people-30k/observacoes.csv" "$root/study-tf"
+          python3 - "$root/study-tf" <<'PY'
+          import json, sys
+          from pathlib import Path
+          d = Path(sys.argv[1])
+          p = json.loads((d / "plan.json").read_bytes())
+          rows = json.loads((d / "tf-shared-paired-diagnostics.json").read_bytes())
+          measured = json.loads((d / "study.json").read_bytes())
+          assert len(p["ModelOptions"]) == 45
+          assert sum(x["EligibleForSelection"] for x in p["ModelOptions"]) == 41
+          assert p["MaximumComparedConfigurations"] == 3861
+          assert len(measured["SourceMeasurements"]) == 135
+          assert len(rows) == 12
+          assert len({(r["DiagnosticOptionId"], r["ConflictMargin"], r["CandidateGrouping"]) for r in rows}) == 12
+          assert all(r["SharedSurnameCountMeasured"] and not r["EligibleForSelection"]
+                     and not r["FalseCreationsMeasured"] and r["SharedFalseCreations"] is None
+                     and r["BilateralFalseCreations"] is None and len(r["CandidatePairsSha256"]) == 64 for r in rows)
+          print("PASS: CSharp measured 135 TF arms and 12 paired diagnostic cells; false creations not measured.")
+          PY
+
+      - name: Preserve SHA-bound TF evidence (no CSV/PII or TEST)
         if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: v9-nested-train-selection-frozen-finalists-${{ github.run_id }}
-          retention-days: 30
-          if-no-files-found: error
+          name: v9-tf-45-physical-${{ github.run_id }}-${{ github.sha }}
+          retention-days: 90
+          if-no-files-found: warn
           path: |
-            Solution/.local/v9-nested-ci/bootstrap-plan.json
-            Solution/.local/v9-nested-ci/bootstrap-search/*.json
-            Solution/.local/v9-nested-ci/bootstrap-search/*.jsonl
-            Solution/.local/v9-nested-ci/bootstrap-search/*.svg
-            Solution/.local/v9-nested-ci/regression/**/*.json
-            Solution/.local/v9-nested-ci/regression/*.svg
-            Solution/.local/v9-nested-ci/fixture-train/generation-manifest.json
-            Solution/.local/v9-nested-ci/fixture-validation/generation-manifest.json
-            Solution/.local/v9-nested-ci/development-30k/generation-manifest.json
+            Solution/.local/v9-tf-physical/git-approved.json
+            Solution/.local/v9-tf-physical/git-rechecked.json
+            Solution/.local/v9-tf-physical/pinned-ibge.json
+            Solution/.local/v9-tf-physical/reconstructed-ibge.json
+            Solution/.local/v9-tf-physical/bootstrap.json
+            Solution/.local/v9-tf-physical/plan-tf.json
+            Solution/.local/v9-tf-physical/plan-tf.tf-budget.json
+            Solution/.local/v9-tf-physical/study-tf/*.json
+            Solution/.local/v9-tf-physical/study-tf/*.fitted.json
+            Solution/.local/v9-tf-physical/people-30k/generation-manifest.json
 
   # Stable required check preserves the old status context without faking execution.
   physical-seed42:
     name: SQL físico 30k clean — FS blind Rank-Resolve TF0
     needs: [impact, physical-30k]
-    if: always()
+    # Manual preflight is deliberately NOT physical evidence. The physical check
+    # is skipped (not green) in this mode; PR and execute_30k remain fail-closed.
+    if: ${{ always() && !(github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -220,8 +336,8 @@ jobs:
             exit 1
           fi
           if [[ "$REQUIRES_PHYSICAL" == "true" ]]; then
-            if [[ "$PHYSICAL_RESULT" == "success" ]]; then
-              echo "PASS: physical 30k succeeded in this workflow on $HEAD_SHA."
+            if [[ "$PHYSICAL_RESULT" == "success" && "$EVENT_NAME" == "workflow_dispatch" ]]; then
+              echo "PASS: CSharp 45-arm --v9-adaptive-study TF physical 30k on $HEAD_SHA."
             elif [[ "$EVENT_NAME" == "pull_request" && "$PHYSICAL_RESULT" == "skipped" ]]; then
               # A manual dispatch on the exact PR head SHA is independently verifiable.
               # A prior success on another SHA, an in-progress run, or a skipped
