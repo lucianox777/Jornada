@@ -23,8 +23,19 @@ def sample_study():
             "ClusterIidIndependentlyValidated": False,
             "ReasonsByResolveStatus": {"RESOLVIDO": tp + fp}
         }
-    rows = [row("T0.95_TF0", 0.5, 95, 0),
-            row("TF_TWO_PF_MF_W1_M0_A0.5_T0.95", 0.5, 96, 1)]
+    grid_spec = importlib.util.spec_from_file_location(
+        "v9_tf_grid", SCRIPT.with_name("v9-tf-option-grid.py"))
+    grid = importlib.util.module_from_spec(grid_spec)
+    grid_spec.loader.exec_module(grid)
+    arms = [opt["OptionId"] for opt in grid.option_grid()]
+    arms[0] = "T0.95_TF0"
+    rows = []
+    for margin in (0.5, 2, 4):
+        for arm in arms:
+            leader = arm == "TF_TWO_PF_MF_W1_M0_A0.5_T0.95"
+            example = row(arm, margin, 96 if leader else 95, 1 if leader else 0)
+            example["BonferroniComparedConfigurations"] = 3849
+            rows.append(example)
     return {
         "Version": dossier.EXPECTED_STUDY,
         "PlanSha256": "b" * 64,
@@ -43,7 +54,7 @@ def sample_study():
         "SourceMeasurements": rows,
         "FrozenConfigurations": [{
             "OptionId": r["OptionId"], "ConflictMargin": r["ConflictMargin"],
-            "Snapshot": {"ContentSha256": (str(i + 1) * 64)}
+            "Snapshot": {"ContentSha256": f"{i+1:064x}"}
         } for i, r in enumerate(rows)],
         "EndToEndMeasurements": [],
         "CaseLevelSensitiveData": "SENSITIVE TEST PERSON - MUST NOT LEAK"
@@ -63,7 +74,10 @@ class V9TfExplorationDossierTests(unittest.TestCase):
         self.assertNotIn("CaseLevelSensitiveData", json.dumps(manifest))
         self.assertFalse(manifest["test_used"])
         self.assertFalse(manifest["activated"])
-        self.assertEqual(manifest["measurement_count"], 2)
+        self.assertEqual(manifest["measurement_count"], 135)
+        self.assertEqual(manifest["statistical_family"]["historical_source_selector_family"], 3849)
+        self.assertEqual(manifest["statistical_family"]["conservative_full_inference_family"], 3861)
+        self.assertFalse(manifest["statistical_family"]["diagnostic_non_influence_independently_established"])
 
     def test_row_order_does_not_change_semantic_digests(self):
         a = sample_study()
@@ -121,6 +135,51 @@ class V9TfExplorationDossierTests(unittest.TestCase):
         a["SourceMeasurements"][1]["OptionId"] = "PF|injected content"
         with self.assertRaisesRegex(ValueError, "Unsafe"):
             self.generate(a)
+
+    def test_pareto_is_exploratory_and_does_not_certify(self):
+        report, manifest = self.generate(sample_study())
+        self.assertIn("Fronteiras Pareto descritivas", report)
+        self.assertIn("TF_TWO_PF_MF_W1_M0", report)
+        self.assertEqual(len(manifest["margin_results"]), 3)
+        self.assertTrue(all(item["pareto_frontier"] for item in manifest["margin_results"]))
+        self.assertFalse(manifest["operationally_certified"])
+
+    def test_diagnostic_omission_with_balanced_snapshot_is_rejected(self):
+        study = sample_study()
+        index = next(i for i, r in enumerate(study["SourceMeasurements"])
+                     if ":TF_SHARED_PL_ML_" in r["OptionId"])
+        study["SourceMeasurements"].pop(index)
+        study["FrozenConfigurations"].pop(index)
+        with self.assertRaisesRegex(ValueError, "family omission"):
+            self.generate(study)
+
+    def test_margin_omission_fails_closed(self):
+        study = sample_study()
+        study["SourceMeasurements"] = [
+            r for r in study["SourceMeasurements"] if r["ConflictMargin"] != 4]
+        study["FrozenConfigurations"] = [
+            r for r in study["FrozenConfigurations"] if r["ConflictMargin"] != 4]
+        with self.assertRaisesRegex(ValueError, "family omission"):
+            self.generate(study)
+
+    def test_reduced_historical_multiplicity_rejected(self):
+        study = sample_study()
+        study["SourceMeasurements"][0]["BonferroniComparedConfigurations"] = 3848
+        with self.assertRaisesRegex(ValueError, "FDR correction family"):
+            self.generate(study)
+
+    def test_double_counted_historical_multiplicity_rejected(self):
+        study = sample_study()
+        for row in study["SourceMeasurements"]:
+            row["BonferroniComparedConfigurations"] = 3861
+        with self.assertRaisesRegex(ValueError, "FDR correction family"):
+            self.generate(study)
+
+    def test_declared_exploration_family_cannot_shrink(self):
+        study = sample_study()
+        study["PredeclaredComparedConfigurations"] = 3849
+        with self.assertRaisesRegex(ValueError, "physical budget"):
+            self.generate(study)
 
     def test_duplicate_json_keys_rejected(self):
         import tempfile
