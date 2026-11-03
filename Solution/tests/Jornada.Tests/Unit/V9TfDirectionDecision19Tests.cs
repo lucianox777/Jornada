@@ -49,6 +49,12 @@ public sealed class V9TfDirectionDecision19Tests
         var rare = Math.Log((double)(uref.ResolveTerm(ibge, "RARO") / ibge["RARO"]));
         Assert.That(rare, Is.GreaterThan(common));
         Assert.That(observedConditionalU["COMUM"], Is.GreaterThan(observedConditionalU["RARO"]));
+        // Mathematical counterexample for the RETIRED per-name U rule,
+        // not a claim of a historically executed NUnit failure.
+        // ln(.80/.40)=ln(2) > ln(.10/.10)=0 rewards the common name.
+        var legacyCommon = Math.Log((double)(observedConditionalU["COMUM"] / ibge["COMUM"]));
+        var legacyRare = Math.Log((double)(observedConditionalU["RARO"] / ibge["RARO"]));
+        Assert.That(legacyCommon, Is.GreaterThan(legacyRare));
     }
 
     [Test]

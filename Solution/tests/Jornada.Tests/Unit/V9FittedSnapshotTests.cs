@@ -540,7 +540,7 @@ public sealed class V9FittedSnapshotTests
         // U(x) or IBGE-proportional residual policy is not a valid U_ref.
         Reject(tf with { NominalUReference = null });
         Reject(tf with { UnseenAllocation = new V9UnseenTfUAllocation(
-            V9UnseenTfUDistribution.Version, .1m, .2m) });
+            V9UnseenTfUAllocation.LegacyPolicyVersion, .1m, .2m) });
         Reject(tf with { NominalUReference = reference with {
             Side = CompositeNominalTfSideV9.Mother } });
         Reject(tf with { NominalUReference = reference with {
