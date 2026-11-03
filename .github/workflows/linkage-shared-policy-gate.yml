@@ -1,6 +1,7 @@
 name: jornada-linkage-shared-policy-gate
 on:
   push:
+    branches: [master]
     paths:
       - Solution/scripts/technical-closure-gate.py
       - Solution/scripts/technical-closure-gate-v405.py
