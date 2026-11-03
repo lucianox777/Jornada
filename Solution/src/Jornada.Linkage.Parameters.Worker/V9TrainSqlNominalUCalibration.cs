@@ -181,7 +181,7 @@ public static class V9TrainSqlNominalUCalibration
         return preview with { Mode = mode };
     }
 
-    private static string? UnitToken(string? input, NominalFrequencyUnitV9 unit)
+    internal static string? UnitToken(string? input, NominalFrequencyUnitV9 unit)
     {
         if (unit == NominalFrequencyUnitV9.LastContentSurname)
             return BrazilianNameComponents.Project(input)?.LastContentSurname;
