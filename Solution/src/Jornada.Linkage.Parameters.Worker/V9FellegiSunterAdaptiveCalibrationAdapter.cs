@@ -651,10 +651,14 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         // This remains fail-closed: no synthetic frequency, neutral TF or
         // covert option pruning, and no personal names in the diagnostic.
         IReadOnlyDictionary<string, long>? missingPublishedTf = null;
+        V9NominalTfPublishedCoverageAudit.UnionAbstentionImpact? unpublishedTfUnionImpact = null;
         if (activeReference is not null)
         {
+            var activeSlots = activeUnits.Keys.ToArray();
             var coverage = V9NominalTfPublishedCoverageAudit.Audit(
-                rows, activeReference, activeUnits.Keys.ToArray());
+                rows, activeReference, activeSlots);
+            unpublishedTfUnionImpact = V9NominalTfPublishedCoverageAudit.AuditUnion(
+                rows, activeReference, activeSlots);
             if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
                 V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage);
             else
@@ -739,7 +743,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             IndependentlyLabeledIdentityGroups: groups,
             SharedSurnameCandidatePairs: sharedSurnamePairs,
             UnseenTfUBySideUnit: new ReadOnlyDictionary<string, long>(unseenCounts),
-            MissingPublishedTfCandidatePairsBySideUnit: missingPublishedTf);
+            MissingPublishedTfCandidatePairsBySideUnit: missingPublishedTf,
+            UnpublishedTfUnionImpact: unpublishedTfUnionImpact);
     }
 
 
