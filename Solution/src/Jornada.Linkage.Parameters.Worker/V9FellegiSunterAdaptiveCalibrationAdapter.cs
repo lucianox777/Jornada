@@ -813,7 +813,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                     fitted, config, source, candidates, candidatesByGuid);
                 var decision = ProbabilisticLinkageDecisions.ResolveRankedCompositeNominalV9Preview(
                     SyntheticCandidateId(source.ObservationId),
-                    fitted.Parameters, ranking, config.DecisionThreshold, conflictMargin);
+                    fitted.Parameters, ranking, config.DecisionThreshold, conflictMargin,
+                    candidates.Length > 0 && ranking.Count == 0
+                        && config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.AbstainCandidate
+                            ? "TF_SEM_FREQUENCIA_IBGE_PUBLICADA" : "SEM_CANDIDATO_NO_RULESET_BLOCKING");
                 if (decision.Status == ResolutionStatus.CONFLITO)
                 {
                     conflicts++;
@@ -1085,7 +1088,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                         .ResolveRankedCompositeNominalV9Preview(
                             ObservationGuid(source.ObservationId),
                             fitted.Parameters, ranking,
-                            config.DecisionThreshold, margin);
+                            config.DecisionThreshold, margin,
+                            candidates.Length > 0 && ranked.Count == 0
+                                && config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.AbstainCandidate
+                                    ? "TF_SEM_FREQUENCIA_IBGE_PUBLICADA" : "SEM_CANDIDATO_NO_RULESET_BLOCKING");
                     string? targetBase = null;
                     if (decision.Status == ResolutionStatus.RESOLVIDO)
                     {
@@ -1162,7 +1168,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                             .ResolveRankedCompositeNominalV9Preview(
                                 ObservationGuid(source.ObservationId),
                                 fitted.Parameters, collapsed,
-                                config.DecisionThreshold, margin);
+                                config.DecisionThreshold, margin,
+                                candidates.Length > 0 && ranked.Count == 0
+                                    && config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.AbstainCandidate
+                                        ? "TF_SEM_FREQUENCIA_IBGE_PUBLICADA" : "SEM_CANDIDATO_NO_RULESET_BLOCKING");
                         string? targetBase = null;
                         if (decision.Status == ResolutionStatus.RESOLVIDO)
                         {
