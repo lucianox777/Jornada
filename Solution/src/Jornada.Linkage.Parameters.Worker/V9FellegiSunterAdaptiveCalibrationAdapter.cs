@@ -1138,13 +1138,25 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 // reconstructed/invented missing edge enters clustering.
                 var fsEdges = validationSqlPairs.Select(pair =>
                 {
-                    var forward = rankedBySource[pair.A].Single(x =>
+                    // The physical SQL graph is complete, but AbstainCandidate
+                    // intentionally removes *unscoreable* ranked candidates.
+                    // A suppressed edge must NEVER be reconstructed with TF0
+                    // or a guessed score just to fill the SQL graph.
+                    var forward = rankedBySource[pair.A].SingleOrDefault(x =>
                         x.PessoaUuid == ObservationGuid(pair.B));
-                    var backward = rankedBySource[pair.B].Single(x =>
+                    var backward = rankedBySource[pair.B].SingleOrDefault(x =>
                         x.PessoaUuid == ObservationGuid(pair.A));
+                    if (forward is null || backward is null)
+                    {
+                        if (config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.AbstainCandidate
+                            || (forward is null) != (backward is null))
+                            throw new InvalidDataException(
+                                "Rank TF não reconciliou as duas direções da aresta SQL.");
+                        return null; // no FS evidence: cannot group this pair
+                    }
                     return new V9BlindFsSqlEdge(
                         pair.A, pair.B, forward.LogOdds, backward.LogOdds);
-                }).ToArray();
+                }).Where(edge => edge is not null).Cast<V9BlindFsSqlEdge>().ToArray();
                 var inferred = V9BlindIncrementalIdentityGrouping.Build(
                     validation.Values.ToArray(), fsEdges,
                     minimumFsGroupingPosterior,
