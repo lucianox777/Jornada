@@ -15,13 +15,16 @@ public enum NominalFrequencyUnitV9
 /// <summary>
 /// Versioned fail-closed disposition when a positive TF term is not in the
 /// pinned IBGE marginal. RejectOperation preserves old snapshot behavior.
-/// AbstainCandidate NEVER scores or accepts the unsupported candidate and
-/// preserves the full candidate-degree denominator for scored alternatives.
+/// AbstainCandidate NEVER scores or accepts the unsupported candidate.
+/// CensoredFloorSensitivity applies a declared, non-observed reference floor
+/// to *exactly matching* unpublished terms. It is experimental, not approved
+/// IBGE evidence or an operational authorization; never enabled by default.
 /// </summary>
 public enum V9TfUnpublishedTermPolicyV9
 {
     RejectOperation = 0,
-    AbstainCandidate = 1
+    AbstainCandidate = 1,
+    CensoredFloorSensitivity = 2
 }
 
 /// <summary>
