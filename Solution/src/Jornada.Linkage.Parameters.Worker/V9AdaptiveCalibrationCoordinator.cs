@@ -190,8 +190,10 @@ public static class V9AdaptiveCalibrationCoordinator
     }
 
     /// <summary>
-    /// Selection-only multiplicity; physical costs still account for all 45 arms.
-    /// Previously compared hypotheses remain included conservatively.
+    /// Descriptive shortlist size ONLY, not a justified multiplicity family.
+    /// All 45 TF arms were inspected physically; excluding 12 shared-surname
+    /// comparisons from a statistical claim requires an independently audited,
+    /// predeclared non-influence protocol. Do not use this number for FDR bounds.
     /// </summary>
     public static int CountSelectableConfigurations(V9AdaptiveCalibrationPlan plan, long ruleSets)
     {
@@ -201,6 +203,21 @@ public static class V9AdaptiveCalibrationCoordinator
             throw new InvalidDataException("Nenhuma configuração TF elegível para seleção.");
         return checked((int)checked(ruleSets * eligible * plan.ConflictMargins.Count
             + plan.PreviouslyComparedValidationConfigurations));
+    }
+
+    /// <summary>
+    /// Conservative inferential multiplicity: include every inspected arm/margin
+    /// and all previously compared hypotheses. The diagnostic arms cannot be
+    /// proven non-influential for future model development by selection flags alone.
+    /// Never retroactively rewrite a historical study or its original bounds.
+    /// </summary>
+    public static int CountInferenceConfigurations(V9AdaptiveCalibrationPlan plan, long ruleSets)
+    {
+        var explored = CountComparedConfigurations(plan, ruleSets);
+        var shortlist = CountSelectableConfigurations(plan, ruleSets);
+        if (shortlist > explored)
+            throw new InvalidDataException("Família inferencial menor que seleção.");
+        return explored;
     }
 
     public static Task<V9AdaptiveCalibrationStudyResult> RunAsync(SqlConnection connection,
@@ -287,6 +304,7 @@ public static class V9AdaptiveCalibrationCoordinator
                 : plan.DeclaredSearchSpace.Enumerate(), plan.BaselineRuleSets);
             compared = CountComparedConfigurations(plan, candidates.Count);
             selectableCompared = CountSelectableConfigurations(plan, candidates.Count);
+            _ = CountInferenceConfigurations(plan, candidates.Count);
         }
         var totalRepresentatives = candidates.Count;
         if (plan.ShardCount > totalRepresentatives)
@@ -435,7 +453,7 @@ public static class V9AdaptiveCalibrationCoordinator
                     finalConflictMargins: margins, includeFsBlindGrouping: true,
                     minimumFsGroupingPosterior: plan.MinimumGroupingPosterior,
                     predeclaredMaximumAcceptedPerBaseIdentity: plan.MaximumAcceptedPerBaseIdentity,
-                    adaptiveExecution: plan.Execution with { TotalComparedConfigurations = selectableCompared });
+                    adaptiveExecution: plan.Execution with { TotalComparedConfigurations = compared });
                 if (run.PhysicalCandidatePairsSha256 is not { Length: 64 } physicalSha
                     || !physicalSha.All(Uri.IsHexDigit))
                     throw new InvalidDataException("Digest das arestas SQL físicas não foi medido.");
