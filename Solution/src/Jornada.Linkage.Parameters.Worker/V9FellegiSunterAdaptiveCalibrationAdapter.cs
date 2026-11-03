@@ -54,7 +54,8 @@ public sealed record V9FsAdaptiveOptionConfiguration(
     long TfMinimumIndependentSupport = 1, V9JointSupportPolicy? JointSupportPolicy = null,
     IReadOnlyList<V9FsUnitTfOption>? UnitTfOptions = null,
     V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
-    bool EligibleForSelection = true)
+    bool EligibleForSelection = true,
+    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation)
 {
     public string FingerprintSha256 => V9FellegiSunterAdaptiveCalibrationAdapter
         .ConfigurationFingerprintSha256(this);
@@ -299,7 +300,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             blockingPasses, frozen.Cells, frozen.Parameters,
             BlockingFrameFingerprintSha256: frame.BlockingFrameFingerprintSha256,
             CandidateGrouping: candidateGrouping, JointSupport: frozen.JointSupport,
-            UnitTfCalibrations: unitFits, SharedSurnameMode: config.SharedSurnameMode));
+            UnitTfCalibrations: unitFits, SharedSurnameMode: config.SharedSurnameMode,
+            UnpublishedTermPolicy: config.UnpublishedTermPolicy));
     }
 
     private static bool BlockingPassesEqual(
@@ -1277,6 +1279,12 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             "TF_SIDE=" + config.TfSide,
             "TF_MIN_FREQ=" + config.TfMinimumFrequency.ToString(System.Globalization.CultureInfo.InvariantCulture),
             "TF_SUPPORT=" + config.TfMinimumIndependentSupport);
+        if (!Enum.IsDefined(config.UnpublishedTermPolicy))
+            throw new InvalidDataException("Política para TF nominal não publicado desconhecida.");
+        // Default historical serialization/fingerprint is unchanged. A new
+        // opt-in policy has a distinct fit/configuration identity.
+        if (config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.RejectOperation)
+            canonical += "|UNPUBLISHED_TF_POLICY=" + config.UnpublishedTermPolicy;
         if (!Enum.IsDefined(config.SharedSurnameMode))
             throw new InvalidDataException("Modo de sobrenome compartilhado desconhecido.");
         if (config.SharedSurnameMode == V9SharedSurnameModeV9.PersonSideOnlyWhenShared)
