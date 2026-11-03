@@ -564,6 +564,26 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 CompositeNominalComparisonV9.Classify(source.PersonName, target.PersonName),
                 CompositeNominalComparisonV9.Classify(source.MotherName, target.MotherName));
         }
+        bool IsScoreable(LinkageCandidate candidate)
+        {
+            if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
+                return true; // Historical snapshots still throw on an unknown frequency.
+            var target = targets[candidate.PessoaUuid];
+            foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
+            {
+                var unit = SelectedUnit(candidate, side);
+                if (!unit.HasValue || UnitWeight(config, side, unit.Value) <= 0m)
+                    continue;
+                var left = side == CompositeNominalTfSideV9.Person ? source.PersonName : source.MotherName;
+                var right = side == CompositeNominalTfSideV9.Person ? target.PersonName : target.MotherName;
+                if (frozenTfReference is null)
+                    throw new InvalidDataException("TF ativa sem IBGE congelado.");
+                if (V9NominalTfTermCoverage.MissingPublishedFrequency(unit.Value, left, right,
+                    frozenTfReference.FrequenciesForUnit(side, unit.Value)))
+                    return false;
+            }
+            return true;
+        }
         return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
             fitted.Parameters, fitted.NumericParameters, observation, candidates, fitted.FrozenNominal,
             (_, candidate) => Term(candidate, CompositeNominalTfSideV9.Person),
@@ -572,7 +592,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             motherUnitForPair: (_, candidate) => SelectedUnit(candidate, CompositeNominalTfSideV9.Mother),
             personRequiredForPair: (_, candidate) => Required(candidate, CompositeNominalTfSideV9.Person),
             motherRequiredForPair: (_, candidate) => Required(candidate, CompositeNominalTfSideV9.Mother),
-            sharedSurnameMode: config.SharedSurnameMode);
+            sharedSurnameMode: config.SharedSurnameMode,
+            candidateIsScoreable: (_, candidate) => IsScoreable(candidate));
     }
 
     public AdaptiveCalibrationHoldoutMetrics EvaluateValidation(
