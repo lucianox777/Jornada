@@ -1169,7 +1169,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                                 ObservationGuid(source.ObservationId),
                                 fitted.Parameters, collapsed,
                                 config.DecisionThreshold, margin,
-                                candidates.Length > 0 && ranked.Count == 0
+                                neighbors[source.ObservationId].Count > 0
+                                    && rankedBySource[source.ObservationId].Count == 0
                                     && config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.AbstainCandidate
                                         ? "TF_SEM_FREQUENCIA_IBGE_PUBLICADA" : "SEM_CANDIDATO_NO_RULESET_BLOCKING");
                         string? targetBase = null;
