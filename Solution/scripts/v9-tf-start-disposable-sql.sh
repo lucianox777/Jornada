@@ -15,7 +15,7 @@ sql_password="V9aA1!$(openssl rand -hex 24)"
 printf '::add-mask::%s\n' "$sql_password"
 {
   printf 'JORNADA_SQL_SA_PASSWORD=%s\n' "$sql_password"
-  printf 'ConnectionStrings__Jornada=Server=localhost,1433;Database=JornadaHarness;User Id=sa;Password=%s;TrustServerCertificate=true;Encrypt=false\n' "$sql_password"
+  printf 'ConnectionStrings__Jornada=Server=127.0.0.1,1433;Database=JornadaHarness;User Id=sa;Password=%s;TrustServerCertificate=true;Encrypt=false\n' "$sql_password"
 } >> "$GITHUB_ENV"
 
 # No GitHub service-container provisioning: it prints docker-create args
