@@ -203,6 +203,25 @@ public sealed class V9FittedSnapshot
                 return fit?.State == V9SnapshotTfFitState.Active
                     ? CreateTf(o, c, fit.Calibration!) : null;
             }
+            bool IsScoreable(IdentityObservation o, LinkageCandidate c)
+            {
+                if (Payload.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
+                    return true; // Legacy snapshot rejects in CreateTf as before.
+                foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
+                {
+                    var fit = Select(o, c, side);
+                    if (fit?.State != V9SnapshotTfFitState.Active)
+                        continue;
+                    var calibration = fit.Calibration
+                        ?? throw new InvalidDataException("TF ativa sem calibração congelada.");
+                    var left = side == CompositeNominalTfSideV9.Person ? o.NomeCompleto : o.NomeMae;
+                    var right = side == CompositeNominalTfSideV9.Person ? c.NomeCompleto : c.NomeMae;
+                    if (V9NominalTfTermCoverage.MissingPublishedFrequency(
+                        fit.Unit, left, right, calibration.Frequencies))
+                        return false;
+                }
+                return true;
+            }
             return ProbabilisticLinkageDecisions.RankFrozenCompositeNominalV9BilateralPreview(
                 Payload.Parameters, numericParameters, observation, converted, frozenNominal,
                 (o, c) => Term(o, c, CompositeNominalTfSideV9.Person),
@@ -213,7 +232,8 @@ public sealed class V9FittedSnapshot
                     Select(o, c, CompositeNominalTfSideV9.Person)?.State == V9SnapshotTfFitState.Active,
                 motherRequiredForPair: (o, c) =>
                     Select(o, c, CompositeNominalTfSideV9.Mother)?.State == V9SnapshotTfFitState.Active,
-                sharedSurnameMode: Payload.SharedSurnameMode);
+                sharedSurnameMode: Payload.SharedSurnameMode,
+                candidateIsScoreable: IsScoreable);
         }
         // Legacy slots remain temporarily until snapshot producers are migrated.
         if (Payload.MotherTfCalibration is not null)
