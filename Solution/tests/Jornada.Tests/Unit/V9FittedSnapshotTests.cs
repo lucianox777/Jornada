@@ -154,7 +154,10 @@ public sealed class V9FittedSnapshotTests
             CompositeNominalTfSideV9.Person, reference,
             new Dictionary<string, decimal> { ["MARIA"] = .00001m },
             new Dictionary<string, decimal> { ["MARIA"] = .8m },
-            new string('a', 64), .000001m, 1, p.TrainCorpusSha256) };
+            new string('a', 64), .000001m, 1, p.TrainCorpusSha256,
+            NominalUReference: V9NominalTfUReference.Fit(
+                CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,
+                10, 2, .5m, p.TrainCorpusSha256)) };
     }
 
     private static V9FittedSnapshotPayload FourUnitTfPayload()
@@ -174,7 +177,10 @@ public sealed class V9FittedSnapshotTests
                 PopulationFrameFingerprint = "IBGE_PUBLISHED:test:" + new string('a', 64) + ":BR_FEMININO"
             },
             Frequencies = new Dictionary<string, decimal> { ["ANA"] = .5m },
-            TrainUnitUByValue = new Dictionary<string, decimal> { ["ANA"] = .1m }
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["ANA"] = .1m },
+            NominalUReference = V9NominalTfUReference.Fit(
+                CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName,
+                10, 2, .5m, p.TrainCorpusSha256)
         };
         var personLast = personFirst with
         {
@@ -184,7 +190,10 @@ public sealed class V9FittedSnapshotTests
                 Source = NominalFrequencySourceV9.IbgeSurnameAnyPositionProxy
             },
             Frequencies = new Dictionary<string, decimal> { ["SILVA"] = .5m },
-            TrainUnitUByValue = new Dictionary<string, decimal> { ["SILVA"] = .1m }
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["SILVA"] = .1m },
+            NominalUReference = V9NominalTfUReference.Fit(
+                CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.LastContentSurname,
+                10, 2, .5m, p.TrainCorpusSha256)
         };
         var motherLast = motherFirst with
         {
@@ -195,7 +204,10 @@ public sealed class V9FittedSnapshotTests
                 PopulationFrameFingerprint = "IBGE_PUBLISHED:test:" + new string('a', 64) + ":BR_TODOS"
             },
             Frequencies = new Dictionary<string, decimal> { ["COSTA"] = .5m },
-            TrainUnitUByValue = new Dictionary<string, decimal> { ["COSTA"] = .1m }
+            TrainUnitUByValue = new Dictionary<string, decimal> { ["COSTA"] = .1m },
+            NominalUReference = V9NominalTfUReference.Fit(
+                CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.LastContentSurname,
+                10, 2, .5m, p.TrainCorpusSha256)
         };
         return p with
         {
@@ -430,6 +442,9 @@ public sealed class V9FittedSnapshotTests
             Frequencies = new Dictionary<string, decimal> { ["ANA"] = .9m },
             TrainUnitUByValue = new Dictionary<string, decimal> { ["ANA"] = .8m },
             Weight = .75m,
+            NominalUReference = V9NominalTfUReference.Fit(
+                CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName,
+                10, 2, .5m, p.TrainCorpusSha256),
             Mode = CompositeNominalTfAdjustmentModeV9.AsymmetricPenaltyOnly
         };
         var single = V9FittedSnapshot.Create(p);
@@ -470,14 +485,16 @@ public sealed class V9FittedSnapshotTests
             ["JOANA"] = .15m, ["ZULEICA"] = .05m
         };
         var trainU = new Dictionary<string, decimal> { ["MARIA"] = 2.5m / 3m };
-        var unseen = V9UnseenTfUDistribution.Fit(trainU, published, 2, .5m);
+        var reference = V9NominalTfUReference.Fit(
+            CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName,
+            10, 2, .5m, p.TrainCorpusSha256);
         var snap = V9FittedSnapshot.Create(p with
         {
             TfCalibration = calibration with
             {
                 Frequencies = published,
                 TrainUnitUByValue = trainU,
-                UnseenAllocation = unseen
+                NominalUReference = reference
             }
         });
         var loaded = V9FittedSnapshot.Load(snap.SerializeUtf8(), snap.ContentSha256);
@@ -496,7 +513,7 @@ public sealed class V9FittedSnapshotTests
             {
                 Frequencies = published,
                 TrainUnitUByValue = trainU,
-                UnseenAllocation = unseen with { ReservedUProbability = .8m }
+                NominalUReference = reference with { Probability = .8m }
             }
         })));
     }

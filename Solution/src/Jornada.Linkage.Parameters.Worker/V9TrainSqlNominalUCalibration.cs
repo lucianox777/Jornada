@@ -14,7 +14,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static class V9TrainSqlNominalUCalibration
 {
-    public const string Version = "V9_TRAIN_SQL_CONDITIONAL_FIRST_NAME_U_V1";
+    public const string Version = "V9_TRAIN_SQL_NONMATCH_NOMINAL_U_REF_V2";
 
     public sealed record Frozen(
         CompositeNominalTfSideV9 Side,
@@ -23,7 +23,8 @@ public static class V9TrainSqlNominalUCalibration
         IReadOnlyDictionary<string, decimal> UnitUByValue,
         string FingerprintSha256,
         NominalFrequencyUnitV9 Unit = NominalFrequencyUnitV9.FirstName,
-        V9UnseenTfUAllocation? UnseenAllocation = null)
+        V9UnseenTfUAllocation? UnseenAllocation = null,
+        V9NominalTfUReference? NominalUReference = null)
     {
         public bool HasSufficientSupport => UnmatchedUnitCandidatePairs >= 2 && UnitUByValue.Count > 0;
     }
@@ -45,18 +46,28 @@ public static class V9TrainSqlNominalUCalibration
 
         var counts = new Dictionary<string, long>(StringComparer.Ordinal);
         long n = 0;
+        long allNonmatches = 0;
+        long nominalAgreements = 0;
         foreach (var row in trainSqlCandidates)
         {
             if (row is null || row.Partition != "TRAIN")
                 throw new InvalidDataException("Baseline U só pode usar pares SQL TRAIN.");
             if (row.IsTruePair)
                 continue;
+            allNonmatches = checked(allNonmatches + 1);
             var left = side == CompositeNominalTfSideV9.Person
                 ? row.LeftPersonName : row.LeftMotherName;
             var right = side == CompositeNominalTfSideV9.Person
                 ? row.RightPersonName : row.RightMotherName;
-            // TRAIN support must count the exact same nominal events that
-            // VALIDATION/runtime select (ExactFull also selects FirstName).
+            // U_ref counts the exact equality event across ALL nonmatch TRAIN
+            // candidates (including ExactFull); the 81-cell classifier priority
+            // must not omit agreements from the event denominator/numerator.
+            var leftToken = UnitToken(left, unit);
+            var equalTokens = leftToken is not null && leftToken == UnitToken(right, unit);
+            if (equalTokens)
+                nominalAgreements = checked(nominalAgreements + 1);
+            // Keep the old per-value conditional distribution only as a
+            // diagnostic; it is not the term's U reference in scoring.
             if (V9NominalTfUnitSelection.ForLevel(
                     CompositeNominalComparisonV9.Classify(left, right)) != unit)
                 continue;
@@ -82,8 +93,12 @@ public static class V9TrainSqlNominalUCalibration
         var units = counts.OrderBy(x => x.Key, StringComparer.Ordinal)
             .ToDictionary(x => x.Key, x => (x.Value + smoothingAlpha) / denominator,
                 StringComparer.Ordinal);
-        var allocation = publishedFrequencies is null ? null
-            : V9UnseenTfUDistribution.Fit(units, publishedFrequencies, n, smoothingAlpha);
+        var nominalReference = V9NominalTfUReference.Fit(
+            side, unit, allNonmatches, nominalAgreements, smoothingAlpha,
+            trainFingerprintSha256);
+        // No IBGE-proportional residual U allocation participates in the score.
+        // IBGE is checked per term at the Preview/portable-scorer boundary.
+        var allocation = (V9UnseenTfUAllocation?)null;
         var canonical = new StringBuilder()
             .Append(Version).Append('|').Append(side).Append('|').Append(unit).Append('|')
             .Append(trainFingerprintSha256).Append('|')
@@ -93,14 +108,15 @@ public static class V9TrainSqlNominalUCalibration
             canonical.Append(term.Key).Append('=')
                 .Append(term.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))
                 .Append('\n');
-        if (allocation is not null)
-            canonical.Append('|').Append(allocation.PolicyVersion).Append('|')
-                .Append(allocation.ReservedUProbability).Append('|')
-                .Append(allocation.UnseenReferenceMass);
+        canonical.Append("|U_REF|").Append(nominalReference.PolicyVersion)
+            .Append('|').Append(nominalReference.UnmatchedCandidatePairs)
+            .Append('|').Append(nominalReference.MatchingNominalPairs)
+            .Append('|').Append(nominalReference.SmoothingAlpha.ToString(System.Globalization.CultureInfo.InvariantCulture))
+            .Append('|').Append(nominalReference.Probability.ToString(System.Globalization.CultureInfo.InvariantCulture));
         var digest = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(canonical.ToString()))).ToLowerInvariant();
         return new Frozen(side, trainFingerprintSha256, checked((int)n),
-            new ReadOnlyDictionary<string, decimal>(units), digest, unit, allocation);
+            new ReadOnlyDictionary<string, decimal>(units), digest, unit, allocation, nominalReference);
     }
 
     /// <summary>
@@ -146,13 +162,15 @@ public static class V9TrainSqlNominalUCalibration
         var value = UnitToken(left, calibration.Unit);
         if (value is null || value != UnitToken(right, calibration.Unit))
             throw new InvalidDataException("TF positiva sem unidade nominal coincidente.");
-        var unitU = V9UnseenTfUDistribution.Resolve(
-            calibration.UnitUByValue,
-            reference.FrequenciesForUnit(calibration.Side, calibration.Unit),
-            calibration.UnseenAllocation, value);
+        var unitU = calibration.NominalUReference
+            ?? throw new InvalidDataException("TF positiva sem U_ref TRAIN compatível.");
+        unitU.Validate(calibration.Side, calibration.Unit,
+            calibration.TrainFingerprintSha256);
+        var unitReferenceProbability = unitU.ResolveTerm(
+            reference.FrequenciesForUnit(calibration.Side, calibration.Unit), value);
         var preview = reference.CreatePreview(
             calibration.Side, marginalLevel, left, right,
-            unitU, weight, minimumFrequency, minimumIndependentSupport)
+            unitReferenceProbability, weight, minimumFrequency, minimumIndependentSupport)
             ?? throw new InvalidDataException("TF positiva não pode gerar preview nulo.");
         return preview with { Mode = mode };
     }

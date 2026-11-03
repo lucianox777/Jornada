@@ -271,7 +271,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             CompositeNominalLevelV9.Missing, pair, 1m, .000001m, 1);
         Assert.That(preview, Is.Not.Null);
         Assert.That(preview!.TermFrequency, Is.EqualTo(.60m));
-        Assert.That(preview.UnitReferenceU, Is.EqualTo(2.5m / 3m));
+        Assert.That(preview.UnitReferenceU, Is.EqualTo(fitted.NominalUReference!.Probability));
     }
 
     [Test]

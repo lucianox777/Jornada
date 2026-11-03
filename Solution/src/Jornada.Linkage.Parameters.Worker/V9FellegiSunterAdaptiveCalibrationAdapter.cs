@@ -282,7 +282,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 trainU.UnitUByValue, trainU.FingerprintSha256,
                 config.TfMinimumFrequency, config.TfMinimumIndependentSupport,
                 frame.TrainCorpusFingerprintSha256,
-                UnitMode(config, side, unit), weight, trainU.UnseenAllocation);
+                UnitMode(config, side, unit), weight, null, trainU.NominalUReference);
             unitFits.Add(new V9SnapshotUnitTf(side, unit,
                 active ? V9SnapshotTfFitState.Active
                     : config.UnitTfOptions is null ? V9SnapshotTfFitState.NotSelected
