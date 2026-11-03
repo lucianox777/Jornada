@@ -4,7 +4,9 @@ namespace Jornada.Linkage.Parameters.Worker;
 public static class V9BootstrapPareto2D
 {
     public const double InitialMaximumP95Milliseconds = 60000d;
-    // V3 adds a mathematically selected exploratory frontier independently of\n    // operational eligibility. Historical V2 dossiers remain immutable.\n    public const string SelectionVersion = "V9_BOOTSTRAP_PARETO_2D_IDEAL_DISTANCE_V3";
+    // V3 adds a mathematically selected exploratory frontier independently of
+    // operational eligibility. Historical V2 dossiers remain immutable.
+    public const string SelectionVersion = "V9_BOOTSTRAP_PARETO_2D_IDEAL_DISTANCE_V3";
     public sealed record SelectionPolicy(double MinimumGlobalRecall, double MaximumAcceptedFdrUpper,
         int MinimumIndependentIdentityGroups, double MaximumP95Milliseconds = InitialMaximumP95Milliseconds);
     public sealed record CandidateOption(string OptionId, string ConfigurationFingerprintSha256,
