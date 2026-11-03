@@ -1,3 +1,39 @@
+> **RETIFICADO — decisão 19 (02/11/2026).** O desenho de massa residual
+> `V9_TRAIN_U_UNSEEN_IBGE_CONDITIONAL_V1` abaixo documenta a hipótese
+> histórica de #1254, **revogada para pontuação TF**, por cancelar a
+> diferenciação raro/comum entre nomes não vistos e poder invertê-la
+> entre nomes observados no TRAIN. O bloco abaixo serve somente para
+> auditoria do incidente; **não** é a especificação vigente do scorer.
+>
+> **Regra candidata implementada (ainda NÃO certificada):**
+> `V9_TRAIN_NONMATCH_NOMINAL_AGREEMENT_U_REF_V1`.
+> Para cada lado (pessoa/mãe) e unidade (prenome/último sobrenome), o
+> Calibrador conta, exclusivamente nos pares SQL candidatos não pares
+> de TRAIN, o total `N_U` e o total `A_U` de concordâncias do token
+> nominal. O contrato condiciona explicitamente ao blocking do frame;
+> a probabilidade única `U_ref=(A_U+α)/(N_U+2α)` usa o α já calibrado
+> e uma suavização binária simétrica. Contar o evento diretamente
+> impede omitir acordos por prioridade dos níveis conjuntos 9×9.
+> O ajuste é `peso × ln(U_ref/max(freq_esquerda,freq_direita,piso))`;
+> assimétrico usa `min(0,ajuste)`. As 81 células m/u não mudam.
+>
+> Termos publicados no IBGE e ausentes em TRAIN reutilizam o **mesmo
+> U_ref**; ausentes do IBGE, suporte nominal TRAIN insuficiente, política
+> ou origem incompatível seguem **fail-closed**. A distribuição residual
+> por termo fica **diagnóstica/legada** e é rejeitada nos snapshots TF
+> positivos novos. Proveniência, versão e lado/unidade integram o fit e
+> snapshot portável. `TF0` continua separado, sem exigência de U_ref.
+> Regressões rápidas e CI no SHA exato ainda são necessárias; não
+> inferir certificação física, resultados FDR, autorização DT-15,
+> ativação ou permissão para campanha 30k.
+>
+> **Governança de 01/11/2026:** não realizar merge nem executar
+> `execute_30k` sem autorização humana específica, mesmo se os
+> testes rápidos passarem. A orientação antiga de merge/preflight no
+> final deste documento está **subordinada** a esta regra.
+
+---
+
 # V9 TF — massa residual U TRAIN para nomes não vistos (02/11/2026)
 
 **Incidente:** execução manual física `41539120255` no SHA `52120da3951a913159ef04ccd48226ad303d6c9c` falhou antes das 135 medições: `V9TrainSqlNominalUCalibration.Preview` recusou um valor elegível em VALIDATION não visto nos pares U TRAIN. O pin de referência IBGE, os 30 mil registros-base e o gate de SHA passaram. **Não há resultado TF/TF0 novo aprovado**.
