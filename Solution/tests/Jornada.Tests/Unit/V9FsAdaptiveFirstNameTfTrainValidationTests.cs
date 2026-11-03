@@ -168,6 +168,54 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void TRAIN_U_ref_preserves_real_scorer_rarity_for_observed_and_unseen_IBGE_terms()
+    {
+        // Frozen TRAIN includes MARIA, not JOANA. The actual portable
+        // ranking path must prefer the rarer observed name for the same
+        // joint-cell, mother, birth, model, and frozen nonmatch event U_ref.
+        var option = new V9FsAdaptiveOptionConfiguration("TF_RARITY", .5m, .55m, 1m);
+        var pinnedReference = Reference();
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            Frame(), [option], pinnedReference);
+        var fitted = adapter.FitTrain(Model(option), Slice("TRAIN"));
+        var exported = adapter.ExportFrozenSnapshot(fitted,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m);
+        var portable = V9FittedSnapshot.Load(exported.SerializeUtf8(),
+            exported.ContentSha256);
+        var unit = portable.Payload.UnitTfCalibrations!.Single(x =>
+            x.Side == CompositeNominalTfSideV9.Person
+            && x.Unit == NominalFrequencyUnitV9.FirstName).Calibration!;
+        var train = V9TrainSqlNominalUCalibration.Fit(
+            Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray(),
+            CompositeNominalTfSideV9.Person, option.SmoothingAlpha,
+            TrainCorpus, publishedFrequencies: pinnedReference.FrequenciesForUnit(
+                CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName));
+        Assert.That(unit.NominalUReference, Is.EqualTo(train.NominalUReference));
+        Assert.That(unit.UnseenAllocation, Is.Null);
+
+        decimal Score(string first)
+        {
+            var observation = new IdentityObservation(null, "SEM_CPF",
+                first + " COSTA", Birth, null);
+            var candidate = new V9SnapshotCandidate(Guid.NewGuid(),
+                first + " LIMA", Birth, null);
+            Assert.That(CompositeNominalComparisonV9.Classify(
+                observation.NomeCompleto, candidate.FullName),
+                Is.EqualTo(CompositeNominalLevelV9.ExactFirst));
+            return portable.RankPreview(observation, [candidate]).Single().LogOdds;
+        }
+
+        Assert.That(Score("JOANA"), Is.GreaterThan(Score("MARIA")),
+            "Decision 19 must preserve rarity ordering in the real scorer.");
+        var frequencies = pinnedReference.FrequenciesForUnit(
+            CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName);
+        Assert.That(train.NominalUReference!.ResolveTerm(frequencies, "MARIA"),
+            Is.EqualTo(train.NominalUReference.ResolveTerm(frequencies, "JOANA")));
+        Assert.Throws<InvalidDataException>((Action)(() => Score("NOMENAOIBGE")));
+    }
+
+    [Test]
     public void Insufficient_TRAIN_U_fingerprint_is_sensitive_to_smoothing_alpha()
     {
         var rows = Frame().Pairs.Where(x => x.Partition == "TRAIN").ToArray();
