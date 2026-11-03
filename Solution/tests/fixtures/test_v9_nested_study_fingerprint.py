@@ -156,6 +156,95 @@ class V9NestedStudyFingerprintTests(unittest.TestCase):
                            pinned_ibge=pin)
         self.assertFalse(destination.exists())
 
+    def test_overflow_exponent_in_generation_manifest_fails_closed(self):
+        # Valid JSON syntax can still overflow Python float to infinity.
+        # This must never enter a frozen TRAIN study fingerprint.
+        self.manifest.write_text(
+            json.dumps(self.manifest_data)[:-1] +
+            ', "extra_metric": 1e999}', encoding="utf-8")
+        destination = self.root / "overflow-manifest.json"
+        with self.assertRaisesRegex(ValueError, "Non-finite JSON"):
+            nested.prepare(self.corpus, destination, fixture=True)
+        self.assertFalse(destination.exists())
+
+    def test_overflow_exponent_in_pinned_ibge_fails_closed(self):
+        pin = self.pinned("overflow", "a")
+        pin.write_text(pin.read_text(encoding="utf-8")[:-1] +
+                       ', "extra_metric": -1e999}', encoding="utf-8")
+        destination = self.root / "overflow-pinned.json"
+        with self.assertRaisesRegex(ValueError, "Non-finite JSON"):
+            nested.prepare(self.corpus, destination, tf_search=True,
+                           pinned_ibge=pin)
+        self.assertFalse(destination.exists())
+        self.assertFalse(destination.with_suffix(".tf-budget.json").exists())
+
+    def test_underflow_exponent_in_generation_manifest_fails_closed(self):
+        # 1e-999 is legal JSON but float() silently changes a nonzero
+        # frozen TRAIN manifest value into zero, corrupting its semantics.
+        self.manifest.write_text(
+            json.dumps(self.manifest_data)[:-1] +
+            ', "extra_metric": 1e-999}', encoding="utf-8")
+        destination = self.root / "underflow-manifest.json"
+        with self.assertRaisesRegex(ValueError, "Underflow JSON"):
+            nested.prepare(self.corpus, destination, fixture=True)
+        self.assertFalse(destination.exists())
+
+    def test_underflow_exponent_in_pinned_reference_fails_closed(self):
+        pin = self.pinned("underflow", "a")
+        pin.write_text(pin.read_text(encoding="utf-8")[:-1] +
+                       ', "extra_metric": -1e-999}', encoding="utf-8")
+        destination = self.root / "underflow-pinned.json"
+        with self.assertRaisesRegex(ValueError, "Underflow JSON"):
+            nested.prepare(self.corpus, destination, tf_search=True,
+                           pinned_ibge=pin)
+        self.assertFalse(destination.exists())
+        self.assertFalse(destination.with_suffix(".tf-budget.json").exists())
+
+    def test_exact_zero_with_exponent_remains_legal_json(self):
+        self.manifest.write_text(
+            json.dumps(self.manifest_data)[:-1] +
+            ', "extra_metric": 0e-999}', encoding="utf-8")
+        destination = self.root / "zero-exponent.json"
+        nested.prepare(self.corpus, destination, fixture=True)
+        self.assertTrue(destination.exists())
+
+    def test_frozen_plan_rejects_nonfinite_output_and_rolls_back(self):
+        # json.dump defaults to allow_nan=True, which publishes invalid JSON.
+        destination = self.root / "invalid-frozen-plan.json"
+        plan = {"Calibration": {"Score": float("nan")}}
+        with self.assertRaises(ValueError):
+            nested._write_frozen_outputs(destination, plan)
+        self.assertFalse(destination.exists())
+
+    def test_frozen_tf_budget_rejects_nonfinite_output_and_rolls_back_both(self):
+        destination = self.root / "invalid-frozen-budget.json"
+        plan = {"Calibration": {"StudyFingerprintSha256": "fixed"}}
+        budget = {"study_fingerprint_sha256": "fixed", "risk": float("inf")}
+        with self.assertRaises(ValueError):
+            nested._write_frozen_outputs(destination, plan, budget)
+        self.assertFalse(destination.exists())
+        self.assertFalse(destination.with_suffix(".tf-budget.json").exists())
+
+    def test_frozen_plan_and_budget_finite_roundtrip(self):
+        destination = self.root / "valid-frozen-plan.json"
+        plan = {"Calibration": {"StudyFingerprintSha256": "fixed", "score": 0.25}}
+        budget = {"study_fingerprint_sha256": "fixed", "risk": 0.1}
+        nested._write_frozen_outputs(destination, plan, budget)
+        self.assertEqual(json.loads(destination.read_text()), plan)
+        self.assertEqual(json.loads(destination.with_suffix(".tf-budget.json").read_text()), budget)
+
+    def test_preexisting_tf_budget_blocks_plan_before_corpus_read(self):
+        # An existing frozen budget is never overwritten or paired with a new
+        # plan, even if the caller supplies an unreadable/missing corpus.
+        destination = self.root / "already-budgeted.json"
+        budget = destination.with_suffix(".tf-budget.json")
+        budget.write_text("preserved\\n", encoding="utf-8")
+        with self.assertRaises(FileExistsError):
+            nested.prepare(self.root / "missing-corpus.csv", destination,
+                           tf_search=True)
+        self.assertFalse(destination.exists())
+        self.assertEqual(budget.read_text(encoding="utf-8"), "preserved\\n")
+
     def test_missing_published_ibge_reference_fails_closed(self):
         with self.assertRaisesRegex(ValueError, "pinned-ibge"):
             self.prepare("no-pin", tf_search=True)

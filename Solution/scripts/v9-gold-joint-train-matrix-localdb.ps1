@@ -68,11 +68,12 @@ if ([IO.Path]::GetFileName($planPath) -cne ($planSha + '.joint-train-plan.json')
     throw 'The preregistered plan filename must be its exact SHA-256.'
 }
 $plan = Get-Content -LiteralPath $planPath -Raw | ConvertFrom-Json -Depth 100
-if ($plan.Version -cne 'V9_GOLD_JOINT_TRAIN_PREREGISTERED_MATRIX_V1' -or
+if ($plan.Version -cne 'V9_GOLD_JOINT_TRAIN_PREREGISTERED_MATRIX_V2' -or
     $plan.ManualCalibrationRequested -ne $true -or $plan.TestUsed -ne $false) {
     throw 'Only a frozen, manually requested, TRAIN-only joint plan is permitted.'
 }
 AssertSha (FileSha $selection) ([string]$plan.SelectionEnvelopeSha256) 'selection'
+AssertSha (FileSha $validation) ([string]$plan.FinalistValidationSha256) 'finalist validation'
 AssertSha (FileSha $gold) ([string]$plan.FrozenGoldSnapshotSha256) 'Gold variant'
 AssertSha (FileSha $csv) ([string]$plan.OriginalTrainCsvSha256) 'original TRAIN CSV'
 $uppers = @($plan.CandidateUpperThresholds)
