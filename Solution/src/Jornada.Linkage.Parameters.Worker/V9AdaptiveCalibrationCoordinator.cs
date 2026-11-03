@@ -286,7 +286,7 @@ public static class V9AdaptiveCalibrationCoordinator
             // conservatively even when already present in the declared lattice.
             var fullCount = checked((long)plan.DeclaredSearchSpace!.Count()
                 + (plan.BaselineRuleSets?.Count ?? 0));
-            compared = CountComparedConfigurations(plan, fullCount);
+            compared = CountInferenceConfigurations(plan, fullCount);
             selectableCompared = CountSelectableConfigurations(plan, fullCount);
             var censusConnection = await openIndependentConnection(cancellationToken);
             try
@@ -302,9 +302,8 @@ public static class V9AdaptiveCalibrationCoordinator
         {
             candidates = CombineCandidateRuleSets(plan.DeclaredSearchSpace is null ? discovery.Candidates
                 : plan.DeclaredSearchSpace.Enumerate(), plan.BaselineRuleSets);
-            compared = CountComparedConfigurations(plan, candidates.Count);
+            compared = CountInferenceConfigurations(plan, candidates.Count);
             selectableCompared = CountSelectableConfigurations(plan, candidates.Count);
-            _ = CountInferenceConfigurations(plan, candidates.Count);
         }
         var totalRepresentatives = candidates.Count;
         if (plan.ShardCount > totalRepresentatives)
@@ -437,6 +436,8 @@ public static class V9AdaptiveCalibrationCoordinator
         var sharedSurnamePairs = new Dictionary<string, long>(StringComparer.Ordinal);
         var unseenByOption = new Dictionary<string, IReadOnlyDictionary<string, long>>(StringComparer.Ordinal);
         string? candidatePairsSha = null;
+        if (selectableCompared > compared)
+            throw new InvalidDataException("Família de seleção excede família inferencial.");
         cancellationToken.ThrowIfCancellationRequested();
         var rulesetSha = Sha(JsonSerializer.Serialize(passes));
         var options = plan.ModelOptions.Select(x => x with { OptionId = rulesetSha + ":" + x.OptionId }).ToArray();
@@ -487,7 +488,7 @@ public static class V9AdaptiveCalibrationCoordinator
                 failedOptions.AddRange(ids.Select(id => new V9BootstrapPareto2D.CandidateOption(
                     id, Sha(id), 0, null, null, 0, 0, eligibleSources,
                     observations.Where(x => x.Partition == "VALIDATION").Select(x => x.BasePersonId).Distinct(StringComparer.Ordinal).Count(),
-                    false, false, MultiplicityComparedConfigurations: selectableCompared,
+                    false, false, MultiplicityComparedConfigurations: compared,
                     EvidenceRejectionReasons: ["CANDIDATO_FISICO_NAO_MENSURAVEL: " + exception.Message])));
             }
         }
