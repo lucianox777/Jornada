@@ -1,0 +1,57 @@
+name: tmp-v9-study-summary
+# Temporary, read-only: summarize artifact of run 41681714081. No merge. Delete after use.
+on:
+  push:
+    branches: [tmp/v9-study-summary-41681714081]
+permissions:
+  actions: read
+  contents: read
+jobs:
+  summary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Download artifact inside GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p art && cd art
+          gh run download 41681714081 -R "$GITHUB_REPOSITORY" -n v9-tf-45-physical-41681714081-3f21032e1b308df2d60fbf31dc92454efa3ab0a1
+          find . -type f -printf '%s\t%p\n' | sort -rn | head -40
+      - name: Summarize study (metrics only, no names)
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, glob
+          files = [p for p in glob.glob('art/**/*.json', recursive=True) if os.path.basename(p) in ('study.json',)]
+          print("STUDY FILES:", files)
+          for path in files:
+              d = json.load(open(path, encoding='utf-8'))
+              print("TOP KEYS:", {k: (type(v).__name__, len(v) if isinstance(v,(list,dict)) else v if not isinstance(v,str) or len(v)<120 else 'str') for k,v in d.items()})
+              def sc(o, depth=0):
+                  if isinstance(o, dict):
+                      r = {}
+                      for k, v in o.items():
+                          if isinstance(v,(int,float,bool)) or v is None: r[k]=v
+                          elif isinstance(v,str) and len(v)<=160: r[k]=v
+                          elif isinstance(v,dict) and depth<3:
+                              s=sc(v,depth+1)
+                              if s: r[k]=s
+                          elif isinstance(v,list) and len(v)<=12 and all(not isinstance(x,(dict,list)) for x in v): r[k]=v
+                          elif isinstance(v,list) and len(v)<=12 and depth<2 and all(isinstance(x,dict) for x in v): r[k]=[sc(x,depth+1) for x in v]
+                      return r
+                  return None
+              print("BEGIN_SUMMARY")
+              for k, v in d.items():
+                  if isinstance(v, list) and v and isinstance(v[0], dict) and len(v) <= 400:
+                      print("## LIST", k, len(v))
+                      for x in v: print(json.dumps(sc(x), ensure_ascii=False, separators=(',',':')))
+                  elif isinstance(v, dict):
+                      print("## DICT", k); print(json.dumps(sc(v), ensure_ascii=False, separators=(',',':'))[:20000])
+                  elif not isinstance(v, list):
+                      print("## VAL", k, json.dumps(v)[:300])
+                  else:
+                      print("## BIGLIST", k, len(v))
+              print("END_SUMMARY")
+          PY
