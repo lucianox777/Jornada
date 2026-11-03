@@ -50,3 +50,14 @@ Bonferroni sobre 3.861 é conservador sob dependência *entre hipóteses* **se**
 ## Responsabilidade e gates
 
 As alterações nesta PR só afetam futuras instrumentações e avaliações; **não constituem nova campanha 30k**, novo resultado independente nem correção retroativa de TF-001. A PR permanece **DRAFT sem merge automático** até CI no HEAD exato, revisão estatística e autorização explícita do operador. O gate físico da probe não pode ser contornado alterando workflow ou marcando falha como sucesso.
+
+### Separação nativa no Pareto C# (contrato incremental desta PR)
+
+O método `V9BootstrapPareto2D.Evaluate` passa a expor, **além dos campos já existentes**, três campos não operacionais:
+- `ExploratoryFrontierOptionIds`: todas as opções não dominadas com métricas observadas coerentes de recall e FDR; empates equivalentes preservados; evidência oracle ou medidas inválidas não entram;
+- `ExploratorySuggestedOptionId`: ponto da fronteira de distância euclidiana normalizada mínima ao ideal (recall máximo, FDR mínimo), com desempate determinístico por fingerprint e OptionId;
+- `ExploratoryStatus`: `EXPLORATORY_ONLY_NOT_CERTIFIED` ou ausência de medições válidas. Em fragmentos (shards) parciais o vencedor exploratório global é **nulo**.
+
+Esses campos são calculados **antes** dos filtros de P95, independência estatística, limites de risco e elegibilidade. A tabela e os campos históricos `InitialSuggestedOptionId`, `Eligible`, `OnFrontier`, `Status` e razões de exclusão **permanecem** representando somente a verificação operacional anterior. Portanto, `NO_ELIGIBLE_CONFIGURATION` pode coexistir corretamente com um `ExploratorySuggestedOptionId` informativo. O próprio Calibrador continua escolhendo matematicamente o candidato; o operador apenas solicita o ensaio, e governança mantém sua decisão separada.
+
+A fronteira é descritiva: igualdade empírica não implica confiança estatística, generalização ao TEST, P95, certificação ou uso. A nova varredura de Pareto é ordenada, com custo `O(n log n)` para o catálogo de pontos observados; evita segunda comparação quadrática. Testes C# verificam fronteira e escolha invariantes à ordem mesmo quando todos os gates falham, exclusão de métricas inconsistentes/oracle e nulidade do vencedor global em shards parciais.
