@@ -121,6 +121,51 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void TF_unpublished_union_audit_deduplicates_person_and_mother_without_leaking_names()
+    {
+        var rows = new[]
+        {
+            Pair("VALIDATION", "VAL-A", "VAL-A", true, "ZULEIKAA") with
+            {
+                LeftMotherName = "XENIA COSTA",
+                RightMotherName = "XENIA LIMA"
+            },
+            Pair("VALIDATION", "VAL-B", "VAL-B", true, "MARIA") with
+            {
+                LeftMotherName = "ANA COSTA",
+                RightMotherName = "ANA LIMA"
+            },
+            Pair("VALIDATION", "VAL-C", "VAL-D", false, "ZULEIKAA") with
+            {
+                LeftMotherName = "ANA COSTA",
+                RightMotherName = "ANA LIMA"
+            }
+        };
+        var slots = new[]
+        {
+            (CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName),
+            (CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName)
+        };
+        var perSlot = V9NominalTfPublishedCoverageAudit.Audit(rows, Reference(), slots);
+        var union = V9NominalTfPublishedCoverageAudit.AuditUnion(rows, Reference(), slots);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(union.TrueCandidatePairs, Is.EqualTo(2));
+            Assert.That(union.NonmatchCandidatePairs, Is.EqualTo(1));
+            Assert.That(union.TrueCandidatePairsWithMissingFrequency, Is.EqualTo(1));
+            Assert.That(union.NonmatchCandidatePairsWithMissingFrequency, Is.EqualTo(1));
+            Assert.That(perSlot.Sum(x => x.MissingPublishedValidationPairs), Is.EqualTo(3),
+                "Per-slot totals can exceed the union when both sides are missing.");
+        }));
+        var duplicatedSlots = slots.Concat(slots).ToArray();
+        Assert.That(V9NominalTfPublishedCoverageAudit.AuditUnion(
+            rows, Reference(), duplicatedSlots), Is.EqualTo(union));
+        Assert.That((Action)(() => V9NominalTfPublishedCoverageAudit.AuditUnion(
+            [Pair("TEST", "T1", "T1", true)], Reference(), slots)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Opt_in_abstention_drops_only_unpublished_TF_candidate_and_is_portable()
     {
         var frame = Frame() with
@@ -137,6 +182,9 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var metrics = adapter.EvaluateValidation(fit, Slice("VALIDATION"));
         Assert.That(metrics.MissingPublishedTfCandidatePairsBySideUnit!["Person/FirstName"],
             Is.EqualTo(1));
+        Assert.That(metrics.UnpublishedTfUnionImpact, Is.Not.Null);
+        Assert.That(metrics.UnpublishedTfUnionImpact!.TrueCandidatePairsWithMissingFrequency,
+            Is.EqualTo(1), "The true-pair union must count missing-IBGE candidates once.");
         Assert.That(metrics.TruePairsWithoutCpf, Is.EqualTo(2),
             "An unscorable positive TF must not remove the true pair from the denominator.");
         Assert.That(metrics.TrueAcceptedLinks, Is.LessThan(2));
