@@ -278,7 +278,8 @@ internal static class ProbabilisticLinkageDecisions
         Func<IdentityObservation, LinkageCandidate, NominalFrequencyUnitV9?>? motherUnitForPair = null,
         Func<IdentityObservation, LinkageCandidate, bool>? personRequiredForPair = null,
         Func<IdentityObservation, LinkageCandidate, bool>? motherRequiredForPair = null,
-        V9SharedSurnameModeV9 sharedSurnameMode = V9SharedSurnameModeV9.Bilateral)
+        V9SharedSurnameModeV9 sharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
+        Func<IdentityObservation, LinkageCandidate, bool>? candidateIsScoreable = null)
     {
         ArgumentNullException.ThrowIfNull(parameters);
         ArgumentNullException.ThrowIfNull(numericParameters);
@@ -288,7 +289,12 @@ internal static class ProbabilisticLinkageDecisions
         if (!string.IsNullOrWhiteSpace(observation.Cpf))
             throw new InvalidOperationException("Ranking probabilístico V9 só é permitido sem CPF.");
         var unique = DeduplicateCandidates(candidates);
-        return unique.Select(candidate =>
+        // Preserve the ORIGINAL SQL candidate count in score/priors even when
+        // an explicitly versioned missing-TF policy abstains on a candidate.
+        // The ineligible candidate gets NO posterior and cannot be accepted;
+        // silently replacing positive TF with zero would be statistically wrong.
+        return unique.Where(candidate => candidateIsScoreable?.Invoke(observation, candidate) ?? true)
+            .Select(candidate =>
         {
             var person = personTf?.Invoke(observation, candidate);
             var mother = motherTf?.Invoke(observation, candidate);
