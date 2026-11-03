@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Jornada.Contracts;
 using Jornada.Linkage.Runner;
 using Jornada.Linkage.Parameters.Worker;
 using NUnit.Framework;
