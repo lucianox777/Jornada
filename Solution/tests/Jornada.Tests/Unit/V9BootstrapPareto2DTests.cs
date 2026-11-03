@@ -59,6 +59,8 @@ public sealed class V9BootstrapPareto2DTests
         var reversed = V9BootstrapPareto2D.Evaluate(options.Reverse(), strictPolicy);
         Multiple(() =>
         {
+            Assert.That(first.Version, Is.EqualTo("V9_BOOTSTRAP_PARETO_2D_IDEAL_DISTANCE_V3"),
+                "A nova fronteira matemática altera o contrato serializado; versões V2 históricas não são reescritas.");
             Assert.That(first.InitialSuggestedOptionId, Is.Null);
             Assert.That(first.Status, Is.EqualTo("NO_ELIGIBLE_CONFIGURATION"));
             Assert.That(first.Table.All(x => !x.Eligible && !x.OnFrontier), Is.True);
