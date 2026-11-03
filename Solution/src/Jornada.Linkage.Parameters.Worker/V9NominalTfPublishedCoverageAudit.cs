@@ -66,6 +66,66 @@ public static class V9NominalTfPublishedCoverageAudit
         return summaries.AsReadOnly();
     }
 
+    /// <summary>
+    /// Counts the UNION of candidates with any missing applicable positive-TF
+    /// term. Unlike the per-slot sums, each SQL candidate pair appears once,
+    /// even if person and mother BOTH lack a published IBGE frequency.
+    /// These are validation candidate pairs, NOT accepted links, recovered
+    /// identities or a pre-blocking true-pair universe.
+    /// </summary>
+    public sealed record UnionAbstentionImpact(
+        long TrueCandidatePairs,
+        long NonmatchCandidatePairs,
+        long TrueCandidatePairsWithMissingFrequency,
+        long NonmatchCandidatePairsWithMissingFrequency);
+
+    public static UnionAbstentionImpact AuditUnion(
+        IReadOnlyCollection<V9FsAdaptiveCandidatePair> validationPairs,
+        FrozenIbgeNominalTfV9 reference,
+        IReadOnlyCollection<(CompositeNominalTfSideV9 Side, NominalFrequencyUnitV9 Unit)> activeUnits)
+    {
+        ArgumentNullException.ThrowIfNull(validationPairs);
+        ArgumentNullException.ThrowIfNull(reference);
+        ArgumentNullException.ThrowIfNull(activeUnits);
+        if (validationPairs.Any(pair => pair is null || pair.Partition != "VALIDATION"))
+            throw new InvalidDataException("Auditoria conjunta TF aceita apenas VALIDATION, nunca TRAIN/TEST.");
+        var slots = activeUnits.Distinct().ToArray();
+        foreach (var (side, unit) in slots)
+            if (!Enum.IsDefined(side) || unit is not (NominalFrequencyUnitV9.FirstName
+                or NominalFrequencyUnitV9.LastContentSurname))
+                throw new InvalidDataException("Unidade/lado nominal TF desconhecido na auditoria conjunta.");
+
+        long trueTotal = 0, nonmatchTotal = 0, trueMissing = 0, nonmatchMissing = 0;
+        foreach (var pair in validationPairs)
+        {
+            bool missingAny = false;
+            foreach (var (side, unit) in slots)
+            {
+                var left = side == CompositeNominalTfSideV9.Person
+                    ? pair.LeftPersonName : pair.LeftMotherName;
+                var right = side == CompositeNominalTfSideV9.Person
+                    ? pair.RightPersonName : pair.RightMotherName;
+                if (V9NominalTfTermCoverage.MissingPublishedFrequency(
+                    unit, left, right, reference.FrequenciesForUnit(side, unit)))
+                {
+                    missingAny = true;
+                    break; // union: never count this pair twice
+                }
+            }
+            if (pair.IsTruePair)
+            {
+                trueTotal++;
+                if (missingAny) trueMissing++;
+            }
+            else
+            {
+                nonmatchTotal++;
+                if (missingAny) nonmatchMissing++;
+            }
+        }
+        return new(trueTotal, nonmatchTotal, trueMissing, nonmatchMissing);
+    }
+
     public static void RequireCompleteCoverage(IReadOnlyList<SlotCoverage> audit)
     {
         ArgumentNullException.ThrowIfNull(audit);
