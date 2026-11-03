@@ -650,11 +650,34 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         // while a corrupted observation has a name not in the published frame.
         // This remains fail-closed: no synthetic frequency, neutral TF or
         // covert option pruning, and no personal names in the diagnostic.
+        IReadOnlyDictionary<string, long>? missingPublishedTf = null;
         if (activeReference is not null)
         {
             var coverage = V9NominalTfPublishedCoverageAudit.Audit(
                 rows, activeReference, activeUnits.Keys.ToArray());
-            V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage);
+            if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
+                V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage);
+            else
+                missingPublishedTf = new ReadOnlyDictionary<string, long>(
+                    coverage.Where(x => x.MissingPublishedValidationPairs > 0)
+                        .ToDictionary(x => x.Side + "/" + x.Unit,
+                            x => x.MissingPublishedValidationPairs, StringComparer.Ordinal));
+        }
+
+        bool CannotScore(V9FsAdaptiveCandidatePair row)
+        {
+            if (activeReference is null ||
+                config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.AbstainCandidate)
+                return false;
+            foreach (var (side, unit) in activeUnits.Keys)
+            {
+                var left = side == CompositeNominalTfSideV9.Person ? row.LeftPersonName : row.LeftMotherName;
+                var right = side == CompositeNominalTfSideV9.Person ? row.RightPersonName : row.RightMotherName;
+                if (V9NominalTfTermCoverage.MissingPublishedFrequency(
+                    unit, left, right, activeReference.FrequenciesForUnit(side, unit)))
+                    return true;
+            }
+            return false;
         }
 
         long tp = 0, fp = 0, sharedSurnamePairs = 0;
@@ -666,6 +689,10 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         }
         foreach (var row in rows)
         {
+            // Explicit fail-closed abstention: leave this pair UNACCEPTED, not
+            // TF-neutral, and keep it in M/U/identity/blocking denominators.
+            if (CannotScore(row))
+                continue;
             var personLevel = CompositeNominalComparisonV9.Classify(
                 row.LeftPersonName, row.RightPersonName);
             var motherLevel = CompositeNominalComparisonV9.Classify(
@@ -711,7 +738,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             BlockingFalseDegreeP99: p99,
             IndependentlyLabeledIdentityGroups: groups,
             SharedSurnameCandidatePairs: sharedSurnamePairs,
-            UnseenTfUBySideUnit: new ReadOnlyDictionary<string, long>(unseenCounts));
+            UnseenTfUBySideUnit: new ReadOnlyDictionary<string, long>(unseenCounts),
+            MissingPublishedTfCandidatePairsBySideUnit: missingPublishedTf);
     }
 
 
