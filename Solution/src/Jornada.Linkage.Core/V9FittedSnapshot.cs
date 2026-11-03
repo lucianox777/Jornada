@@ -29,7 +29,9 @@ public sealed record V9FittedSnapshotPayload(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<V9SnapshotUnitTf>? UnitTfCalibrations = null,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral);
+    V9SharedSurnameModeV9 SharedSurnameMode = V9SharedSurnameModeV9.Bilateral,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    V9TfUnpublishedTermPolicyV9 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation);
 
 public sealed record V9SnapshotCandidateGrouping(string CandidateGrouping,
     decimal MinimumPairPosterior, int MaximumObservationsPerIdentity);
@@ -290,6 +292,7 @@ public sealed class V9FittedSnapshot
             || string.IsNullOrWhiteSpace(p.ProjectionSchemaVersion)
             || string.IsNullOrWhiteSpace(p.AdapterVersion) || string.IsNullOrWhiteSpace(p.OptionId)
             || p.Threshold is <= 0m or > 1m || p.ConflictMargin is < 0m or > 1000m
+            || !Enum.IsDefined(p.UnpublishedTermPolicy)
             || !Enum.IsDefined(p.SharedSurnameMode)
             || p.TfWeight is < 0m or > 1m
             || (p.UnitTfCalibrations is null
