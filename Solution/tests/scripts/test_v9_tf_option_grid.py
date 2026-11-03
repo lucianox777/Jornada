@@ -96,6 +96,13 @@ class V9UnitTfDeclaredGridTests(unittest.TestCase):
             plan_path = root / "adaptive-plan.json"
             adaptive.prepare(corpus, plan_path, cap_four=True, tf_search=True, pinned_ibge=pin_path)
             a = json.loads(plan_path.read_text())
+            # The actual TF 30k plan must satisfy the C# post-Resolve contract.
+            # Do not "open" the risk budget to 100% to explore the 45 arms:
+            # every arm is measured before the governed eligibility filter.
+            self.assertEqual(a["Budget"]["MinimumGlobalAcceptedRecall"], 0.95)
+            self.assertEqual(a["Budget"]["MaximumObservedAcceptedFdrPoint"], 0.01)
+            self.assertEqual(a["SelectionPolicy"]["MinimumGlobalRecall"], 0.95)
+            self.assertEqual(a["SelectionPolicy"]["MaximumAcceptedFdrUpper"], 0.01)
             self.assertEqual(len(a["ModelOptions"]), 45)
             self.assertEqual(sum(x["EligibleForSelection"] for x in a["ModelOptions"]), 41)
             self.assertEqual(sum(not x["EligibleForSelection"] for x in a["ModelOptions"]), 4)

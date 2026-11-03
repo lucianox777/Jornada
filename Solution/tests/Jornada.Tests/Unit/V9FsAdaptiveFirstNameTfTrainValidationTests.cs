@@ -121,6 +121,51 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void TF_unpublished_union_audit_deduplicates_person_and_mother_without_leaking_names()
+    {
+        var rows = new[]
+        {
+            Pair("VALIDATION", "VAL-A", "VAL-A", true, "ZULEIKAA") with
+            {
+                LeftMotherName = "XENIA COSTA",
+                RightMotherName = "XENIA LIMA"
+            },
+            Pair("VALIDATION", "VAL-B", "VAL-B", true, "MARIA") with
+            {
+                LeftMotherName = "ANA COSTA",
+                RightMotherName = "ANA LIMA"
+            },
+            Pair("VALIDATION", "VAL-C", "VAL-D", false, "ZULEIKAA") with
+            {
+                LeftMotherName = "ANA COSTA",
+                RightMotherName = "ANA LIMA"
+            }
+        };
+        var slots = new[]
+        {
+            (CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName),
+            (CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName)
+        };
+        var perSlot = V9NominalTfPublishedCoverageAudit.Audit(rows, Reference(), slots);
+        var union = V9NominalTfPublishedCoverageAudit.AuditUnion(rows, Reference(), slots);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(union.TrueCandidatePairs, Is.EqualTo(2));
+            Assert.That(union.NonmatchCandidatePairs, Is.EqualTo(1));
+            Assert.That(union.TrueCandidatePairsWithMissingFrequency, Is.EqualTo(1));
+            Assert.That(union.NonmatchCandidatePairsWithMissingFrequency, Is.EqualTo(1));
+            Assert.That(perSlot.Sum(x => x.MissingPublishedValidationPairs), Is.EqualTo(3),
+                "Per-slot totals can exceed the union when both sides are missing.");
+        }));
+        var duplicatedSlots = slots.Concat(slots).ToArray();
+        Assert.That(V9NominalTfPublishedCoverageAudit.AuditUnion(
+            rows, Reference(), duplicatedSlots), Is.EqualTo(union));
+        Assert.That((Action)(() => V9NominalTfPublishedCoverageAudit.AuditUnion(
+            [Pair("TEST", "T1", "T1", true)], Reference(), slots)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Opt_in_abstention_drops_only_unpublished_TF_candidate_and_is_portable()
     {
         var frame = Frame() with
@@ -137,6 +182,9 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var metrics = adapter.EvaluateValidation(fit, Slice("VALIDATION"));
         Assert.That(metrics.MissingPublishedTfCandidatePairsBySideUnit!["Person/FirstName"],
             Is.EqualTo(1));
+        Assert.That(metrics.UnpublishedTfUnionImpact, Is.Not.Null);
+        Assert.That(metrics.UnpublishedTfUnionImpact!.TrueCandidatePairsWithMissingFrequency,
+            Is.EqualTo(1), "The true-pair union must count missing-IBGE candidates once.");
         Assert.That(metrics.TruePairsWithoutCpf, Is.EqualTo(2),
             "An unscorable positive TF must not remove the true pair from the denominator.");
         Assert.That(metrics.TrueAcceptedLinks, Is.LessThan(2));
@@ -154,6 +202,73 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             Is.Not.EqualTo((config with {
                 UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation
             }).FingerprintSha256));
+    }
+
+    [Test]
+    public void Physical_blind_validation_does_not_require_a_score_for_an_abstained_sql_edge()
+    {
+        // The 30k run failed with Single() on a real SQL edge omitted from
+        // both directed Rank lists by explicit missing-IBGE abstention.
+        // Keep this regression on the PHYSICAL adapter, not only portable replay.
+        var option = new V9FsAdaptiveOptionConfiguration(
+            "TF_PHYSICAL_ABSTAIN", .5m, .55m, 1m,
+            UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.AbstainCandidate);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            Frame(), [option], Reference());
+        _ = adapter.FitTrain(Model(option), Slice("TRAIN"));
+        var observations = new[]
+        {
+            new V9PhysicalCalibrationObservation(901, "VAL-A", "VALIDATION", "G1",
+                "ZULEIKAA COSTA", "ANA COSTA", Birth),
+            new V9PhysicalCalibrationObservation(902, "VAL-A", "VALIDATION", "G2",
+                "ZULEIKAA LIMA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(903, "VAL-B", "VALIDATION", "G1",
+                "MARIA LIMA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(904, "VAL-C", "VALIDATION", "G2",
+                "MARIA SILVA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(905, "VAL-D", "VALIDATION", "G1",
+                "MARIA ROCHA", "ANA LIMA", Birth)
+        };
+        var metrics = adapter.EvaluateSourceUnitResolveValidation(
+            observations, [(901, 902)], [.5m], 4,
+            includeFsBlindGrouping: true,
+            minimumFsGroupingPosterior: .60m,
+            fsBlindGroupingOnly: true);
+        Assert.That(metrics, Has.Count.EqualTo(1));
+        Assert.That(metrics[0].CandidateGrouping,
+            Is.EqualTo("BLIND_FS_COMPLETE_LINK_CANDIDATES"));
+        Assert.That(metrics[0].TrueAcceptedSourceObservations, Is.Zero,
+            "The abstained true SQL pair must not be silently scored/linked.");
+    }
+
+    [Test]
+    public void Portable_blind_replay_omits_only_unscoreable_TF_edges_and_keeps_sql_blocking()
+    {
+        var config = new V9FsAdaptiveOptionConfiguration(
+            "TF_BLIND_ABSTAIN", .5m, .55m, 1m,
+            UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.AbstainCandidate);
+        var frame = Frame();
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(frame, [config], Reference());
+        var fit = adapter.FitTrain(Model(config), Slice("TRAIN"));
+        var snapshot = adapter.ExportFrozenSnapshot(fit, frame.CandidateBlockingPasses!,
+            frame.ProjectionSchemaVersion!, frame.ProjectionFingerprintSha256!, .2m,
+            new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .60m, 16));
+        var observations = new[]
+        {
+            new V9PhysicalCalibrationObservation(
+                901, "PERSON-1", "VALIDATION", "G1",
+                "ZULEIKAA COSTA", null, Birth),
+            new V9PhysicalCalibrationObservation(
+                902, "PERSON-1", "VALIDATION", "G2",
+                "ZULEIKAA LIMA", null, Birth)
+        };
+        var result = V9FrozenSourceResolveReplay.Replay(snapshot, observations, [(901, 902)]);
+        Assert.That(result.Decisions, Has.Count.EqualTo(2));
+        Assert.That(result.IdentityByObservation[901],
+            Is.Not.EqualTo(result.IdentityByObservation[902]),
+            "A SQL candidate with no valid positive-TF score cannot become a blind identity edge.");
+        Assert.That(result.Decisions.All(x => x.Decision.Status != ResolutionStatus.RESOLVIDO),
+            Is.True, "No acceptance is allowed after abstaining both ranked directions.");
     }
 
     [Test]

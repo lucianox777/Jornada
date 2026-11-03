@@ -67,7 +67,10 @@ public sealed record AdaptiveCalibrationHoldoutMetrics(
     IReadOnlyDictionary<string, long>? UnseenTfUBySideUnit = null,
     [property: System.Text.Json.Serialization.JsonIgnore(
         Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    IReadOnlyDictionary<string, long>? MissingPublishedTfCandidatePairsBySideUnit = null);
+    IReadOnlyDictionary<string, long>? MissingPublishedTfCandidatePairsBySideUnit = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    V9NominalTfPublishedCoverageAudit.UnionAbstentionImpact? UnpublishedTfUnionImpact = null);
 
 public sealed record AdaptiveCalibrationPreviewBudget(
     string Version,
