@@ -509,7 +509,8 @@ internal static class ProbabilisticLinkageDecisions
         Guid diagnosticModelId,
         IReadOnlyDictionary<string, decimal> parameters,
         IReadOnlyList<CandidateScore> rankedCandidates,
-        decimal threshold, decimal conflictMargin)
+        decimal threshold, decimal conflictMargin,
+        string noCandidateReason = "SEM_CANDIDATO_NO_RULESET_BLOCKING")
     {
         if (diagnosticModelId == Guid.Empty)
             throw new ArgumentException("ID diagnóstico V9 obrigatório.", nameof(diagnosticModelId));
@@ -517,7 +518,7 @@ internal static class ProbabilisticLinkageDecisions
             throw new ArgumentOutOfRangeException(nameof(threshold));
         return ResolveRankedCore(
             parameters, threshold, conflictMargin, diagnosticModelId,
-            rankedCandidates, "SEM_CANDIDATO_NO_RULESET_BLOCKING", decisionEvidence: true);
+            rankedCandidates, noCandidateReason, decisionEvidence: true);
     }
 
     internal static ProbabilisticLinkageDecision ResolveRanked(
