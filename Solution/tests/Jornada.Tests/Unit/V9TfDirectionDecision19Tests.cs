@@ -125,9 +125,9 @@ public sealed class V9TfDirectionDecision19Tests
             Assert.That(rare, Is.EqualTo(common));
             Assert.That(unseen, Is.EqualTo(common));
             Assert.That(Math.Log((double)(rare / ibge["RARO"])),
-                Is.GreaterThan(Math.Log((double)(common / ibge["COMUM"])));
+                Is.GreaterThan(Math.Log((double)(common / ibge["COMUM"]))));
             Assert.That(Math.Log((double)(unseen / ibge["NAO_VISTO"])),
-                Is.GreaterThan(Math.Log((double)(rare / ibge["RARO"])));
+                Is.GreaterThan(Math.Log((double)(rare / ibge["RARO"]))));
         }));
         Assert.Throws<InvalidDataException>((Action)(() => fitted.ResolveTerm(ibge, "AUSENTE")));
     }
