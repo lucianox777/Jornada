@@ -46,8 +46,23 @@ public static class V9FrozenSourceResolveReplay
             neighbors[source.ObservationId].OrderBy(id => id).Select(id => byId[id])
                 .Select(x => new V9SnapshotCandidate(ObservationGuid(x.ObservationId), x.PersonName, x.BirthDate, x.MotherName)).ToArray()));
         var scores = ranked.ToDictionary(x => x.Key, x => x.Value.ToDictionary(y => y.PessoaUuid));
-        var edges = completePhysicalSqlEdges.Select(edge => new V9BlindFsSqlEdge(edge.A, edge.B,
-            scores[edge.A][ObservationGuid(edge.B)].LogOdds, scores[edge.B][ObservationGuid(edge.A)].LogOdds)).ToArray();
+        var edges = completePhysicalSqlEdges.Select(edge =>
+        {
+            // Retain the COMPLETE SQL candidate graph for blocking accounting,
+            // but pass to blind grouping only FS-scored edges. Both directions
+            // must abstain together; never fill a missing rank with TF0.
+            scores[edge.A].TryGetValue(ObservationGuid(edge.B), out var forward);
+            scores[edge.B].TryGetValue(ObservationGuid(edge.A), out var backward);
+            if (forward is null || backward is null)
+            {
+                if (snapshot.Payload.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.AbstainCandidate
+                    || (forward is null) != (backward is null))
+                    throw new InvalidDataException(
+                        "Replay TF não reconciliou as duas direções da aresta SQL.");
+                return null;
+            }
+            return new V9BlindFsSqlEdge(edge.A, edge.B, forward.LogOdds, backward.LogOdds);
+        }).Where(edge => edge is not null).Cast<V9BlindFsSqlEdge>().ToArray();
         var inferred = V9BlindIncrementalIdentityGrouping.Build(rows, edges,
             grouping.MinimumPairPosterior, grouping.MaximumObservationsPerIdentity);
         var decisions = rows.Select(source =>
