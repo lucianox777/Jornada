@@ -102,7 +102,7 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
             Assert.That(V9AdaptiveCalibrationCoordinator.CountComparedConfigurations(plan, 1), Is.EqualTo(3861));
             Assert.That(V9AdaptiveCalibrationCoordinator.CountSelectableConfigurations(plan, 1), Is.EqualTo(3849));
             Assert.That(V9AdaptiveCalibrationCoordinator.CountInferenceConfigurations(plan, 1), Is.EqualTo(3861));
-            Assert.That(() => V9AdaptiveCalibrationCoordinator.CountInferenceConfigurations(plan, 2),
+            Assert.That((TestDelegate)(() => V9AdaptiveCalibrationCoordinator.CountInferenceConfigurations(plan, 2)),
                 Throws.TypeOf<InvalidDataException>(), "No second ruleset is permitted by the frozen plan");
         }));
     }
