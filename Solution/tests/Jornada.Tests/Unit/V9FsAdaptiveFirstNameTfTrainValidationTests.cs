@@ -157,6 +157,72 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void Censored_floor_sensitivity_scores_unknown_matching_term_without_polluting_IBGE()
+    {
+        // The publication floor is a declared HYPOTHESIS, not a guessed
+        // observed count. Identical defaults and fingerprints stay historical.
+        var frequencies = Reference().FrequenciesForUnit(
+            CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName);
+        var floor = V9TfCensoredFloorSensitivity.RequirePublishedFloor(frequencies);
+        Assert.That(floor, Is.EqualTo(.08m));
+        var hypothesis = V9TfCensoredFloorSensitivity.Resolve(
+            frequencies, "ZULEIKAA", floor, .000001m,
+            V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(hypothesis.Frequency, Is.EqualTo(.08m));
+            Assert.That(hypothesis.Evidence,
+                Is.EqualTo(V9TfFrequencyEvidenceV9.CensoredFloorHypothesis));
+            Assert.That(frequencies.ContainsKey("ZULEIKAA"), Is.False);
+        }));
+        Assert.That((Action)(() => V9TfCensoredFloorSensitivity.Resolve(
+            frequencies, "ZULEIKAA", floor, .000001m,
+            V9TfUnpublishedTermPolicyV9.RejectOperation)), Throws.TypeOf<InvalidDataException>());
+        var observed = V9TfCensoredFloorSensitivity.Resolve(
+            frequencies, "MARIA", floor, .000001m,
+            V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity);
+        Assert.That(observed.Frequency, Is.EqualTo(.60m));
+        Assert.That(observed.Evidence, Is.EqualTo(V9TfFrequencyEvidenceV9.Published));
+
+        var altered = Frame() with
+        {
+            Pairs = Frame().Pairs.Select(x => x.Partition == "VALIDATION"
+                && x.LeftIdentityGroupId == "VAL-A"
+                ? x with { LeftPersonName = "ZULEIKAA COSTA", RightPersonName = "ZULEIKAA LIMA" }
+                : x).ToArray()
+        };
+        var config = new V9FsAdaptiveOptionConfiguration(
+            "TF_CENSORED_FLOOR", .5m, .55m, 1m,
+            UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            altered, [config], Reference());
+        var fit = adapter.FitTrain(Model(config), Slice("TRAIN"));
+        var metrics = adapter.EvaluateValidation(fit, Slice("VALIDATION"));
+        Assert.That(metrics.MissingPublishedTfCandidatePairsBySideUnit!["Person/FirstName"],
+            Is.EqualTo(1), "Evidence of censorship is retained even when a hypothetical floor scores.");
+        var frozen = adapter.ExportFrozenSnapshot(fit,
+            [new LinkageBlockingPass("NAME", ["NOME"])],
+            "PROJECTION_V1", new string('f', 64), .2m);
+        var replay = V9FittedSnapshot.Load(frozen.SerializeUtf8(), frozen.ContentSha256);
+        Assert.That(replay.Payload.UnpublishedTermPolicy,
+            Is.EqualTo(V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity));
+        var source = new IdentityObservation(null, "SEM_CPF", "ZULEIKAA COSTA", Birth, null);
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "ZULEIKAA LIMA", Birth, null);
+        Assert.That(replay.RankPreview(source, [candidate]), Has.Count.EqualTo(1),
+            "Sensitivity must score a real SQL candidate instead of forcing AbstainCandidate.");
+        Assert.That(config.FingerprintSha256,
+            Is.Not.EqualTo((config with
+            {
+                UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.AbstainCandidate
+            }).FingerprintSha256));
+        Assert.That(config.FingerprintSha256,
+            Is.Not.EqualTo((config with
+            {
+                UnpublishedTermPolicy = V9TfUnpublishedTermPolicyV9.RejectOperation
+            }).FingerprintSha256));
+    }
+
+    [Test]
     public void Positive_weight_changes_real_V9_FS_validation_with_train_SQL_U_and_frozen_IBGE()
     {
         var neutral = new V9FsAdaptiveOptionConfiguration("NO_TF", .5m, .55m);
