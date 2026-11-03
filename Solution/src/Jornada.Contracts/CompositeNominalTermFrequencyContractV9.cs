@@ -13,6 +13,18 @@ public enum NominalFrequencyUnitV9
 }
 
 /// <summary>
+/// Versioned fail-closed disposition when a positive TF term is not in the
+/// pinned IBGE marginal. RejectOperation preserves old snapshot behavior.
+/// AbstainCandidate NEVER scores or accepts the unsupported candidate and
+/// preserves the full candidate-degree denominator for scored alternatives.
+/// </summary>
+public enum V9TfUnpublishedTermPolicyV9
+{
+    RejectOperation = 0,
+    AbstainCandidate = 1
+}
+
+/// <summary>
 /// Source description is metadata supplied by an independent reference
 /// certification, NOT proof of sampling representativeness by this class.
 /// </summary>
