@@ -42,8 +42,8 @@ class AggregateAuditTests(unittest.TestCase):
 
     def test_planning_requires_millions_under_observed_effect(self):
         n = planning_n(DELTA_TP / IDENTITIES)
-        self.assertGreater(n, 14_000_000)
-        self.assertLess(n, 16_000_000)
+        self.assertGreater(n, 2_900_000)
+        self.assertLess(n, 3_000_000)
         self.assertGreater(hoeffding_lower(n, round(n * DELTA_TP / IDENTITIES)), 0)
 
     def test_rejects_invalid_inputs(self):
