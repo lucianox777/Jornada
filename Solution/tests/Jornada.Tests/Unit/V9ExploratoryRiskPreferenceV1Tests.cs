@@ -1,5 +1,6 @@
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
+using Jornada.Linkage.Runner;
 
 namespace Jornada.Tests.Unit;
 
