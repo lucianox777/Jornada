@@ -145,7 +145,7 @@ public sealed class V9BootstrapPareto2DTests
     {
         // Two Pareto endpoints have identical normalized distance (= 1).
         // The riskier endpoint deliberately has the earlier fingerprint.
-        var safe = Option("safe", 80, hash: 'z');
+        var safe = Option("safe", 80, hash: 'f');
         var risky = Option("riskier", 100, 4, hash: 'a');
         var forward = V9BootstrapPareto2D.Evaluate([risky, safe], Policy);
         var reverse = V9BootstrapPareto2D.Evaluate([safe, risky], Policy);
