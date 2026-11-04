@@ -107,8 +107,9 @@ jobs:
         run: |
           set -euo pipefail
           test "$(git ls-remote --exit-code origin "$GITHUB_REF" | awk '{print $1}')" = "$TF_SHA"
+          # dotnet run executes from the project directory: pass absolute paths only.
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-frozen-transfer data/reference/v9-tf-seed43-frozen-transfer/executor.json \
+            --v9-frozen-transfer "$PWD/data/reference/v9-tf-seed43-frozen-transfer/executor.json" \
             "$SOURCE/plan-tf.json" "$SOURCE/study-tf" \
             "$EVIDENCE/people-30k/observacoes.csv" "$EVIDENCE/transfer"
       - name: Paired identity-clustered analysis (descriptive; NOT certification)
