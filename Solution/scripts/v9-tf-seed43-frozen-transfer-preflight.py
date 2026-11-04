@@ -123,9 +123,11 @@ def check_corpus(root, registry):
     return bootstrap, counts, by_path
 
 
-def verify(plan_path, corpus_root, registry_path, pin_path, snapshots):
+def verify(plan_path, corpus_root, registry_path, pin_path, snapshots, source_study):
     plan = pin_source.parse_json(plan_path)
     check_plan(plan, snapshots)
+    if not source_study.is_file() or sha256(source_study) != plan["source_study_sha256"].lower():
+        raise ValueError("Seed-42 source study missing or SHA-256 mismatch")
     registry = pin_source.parse_json(registry_path)
     bootstrap, counts, output_shas = check_corpus(corpus_root, registry)
     pinned = pin_source.pinned_reference(pin_source.parse_json(pin_path))
@@ -152,10 +154,10 @@ def verify(plan_path, corpus_root, registry_path, pin_path, snapshots):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    for name in ("plan", "corpus-root", "seed42-registry", "seed43-pin", "frozen-snapshots", "output"):
+    for name in ("plan", "corpus-root", "seed42-registry", "seed43-pin", "frozen-snapshots", "source-study", "output"):
         parser.add_argument("--" + name, type=Path, required=True)
     a = parser.parse_args()
-    report = verify(a.plan, a.corpus_root, a.seed42_registry, a.seed43_pin, a.frozen_snapshots)
+    report = verify(a.plan, a.corpus_root, a.seed42_registry, a.seed43_pin, a.frozen_snapshots, a.source_study)
     with a.output.open("x", encoding="utf-8") as stream:
         json.dump(report, stream, indent=2, sort_keys=True, allow_nan=False)
         stream.write("\n")
