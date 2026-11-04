@@ -49,6 +49,7 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_manual_probe_evidence.py
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_tf_30k_dispatch_gate.py
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_tf_pin_source.py
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_masked_sql_probe.py
       - name: Dry-run exact SHA gate when manual preflight is selected (no 30k)
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight'
         env:
