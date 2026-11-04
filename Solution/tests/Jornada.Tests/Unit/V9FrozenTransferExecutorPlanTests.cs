@@ -29,8 +29,8 @@ public sealed class V9FrozenTransferExecutorPlanTests
     public void Committed_plan_freezes_six_seed42_arms_before_seed43()
     {
         var plan = Committed();
-        Assert.DoesNotThrow(() => V9FrozenTransferCli.ValidatePlan(plan));
-        Assert.Multiple(() =>
+        Assert.DoesNotThrow((TestDelegate)(() => V9FrozenTransferCli.ValidatePlan(plan)));
+        Assert.Multiple((TestDelegate)(() =>
         {
             Assert.That(plan.SourceRunId, Is.EqualTo(41900357031L));
             Assert.That(plan.SourceCommitSha, Is.EqualTo("935f704edd2bceb6a125ecfe532ad5b71f9c89b9"));
@@ -38,7 +38,7 @@ public sealed class V9FrozenTransferExecutorPlanTests
             Assert.That(plan.Arms.Where(a => a.ConflictMargin == 0.5m).Select(a => a.OptionId),
                 Is.EquivalentTo(new[] { V9FrozenTransferCli.ControlOption, V9FrozenTransferCli.TreatmentOption }));
             Assert.That(plan.EndToEndRepetitions, Is.GreaterThanOrEqualTo(20));
-        });
+        }));
     }
 
     [Test]
@@ -61,12 +61,12 @@ public sealed class V9FrozenTransferExecutorPlanTests
             p => p with { SourcePlanTfSha256 = p.SourcePlanTfSha256.ToUpperInvariant() },
         };
         foreach (var mutate in mutations)
-            Assert.Throws<InvalidDataException>(() => V9FrozenTransferCli.ValidatePlan(mutate(plan)));
+            Assert.Throws<InvalidDataException>((TestDelegate)(() => V9FrozenTransferCli.ValidatePlan(mutate(plan))));
     }
 
     [Test]
     public void Cli_refuses_wrong_arity_before_any_file_or_sql_access()
     {
-        Assert.ThrowsAsync<ArgumentException>(() => V9FrozenTransferCli.RunAsync(["--v9-frozen-transfer", "a"]));
+        Assert.ThrowsAsync<ArgumentException>((AsyncTestDelegate)(() => V9FrozenTransferCli.RunAsync(["--v9-frozen-transfer", "a"])));
     }
 }
