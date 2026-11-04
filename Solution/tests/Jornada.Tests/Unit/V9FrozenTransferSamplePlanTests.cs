@@ -48,7 +48,7 @@ public sealed class V9FrozenTransferSamplePlanTests
         var threeFinalists = V9StatisticalSamplePlan.CalculateFrozenTransfer(
             Design() with { ValidationFinalists = 3 });
         Assert.That(threeFinalists.FdrRisk.RiskBands.Single().ValidationIndependentUnitsZeroError,
-            Is.GreaterThan(baseline.FdrRisk.RiskBands.Single().ValidationIndependentUnitsZeroError));
+            Is.GreaterThan(baseline.FdrRisk.RiskBands.Single().ValidationIndependentUnitsZeroError!.Value));
         Assert.That(threeFinalists.FdrRisk.RiskBands.Single().TestIndependentUnitsZeroError,
             Is.EqualTo(baseline.FdrRisk.RiskBands.Single().TestIndependentUnitsZeroError));
     }
