@@ -97,7 +97,20 @@ public static class V9BootstrapPareto2D
         // Invalid measurements and oracle-only evidence never become finalists.
         static bool HasObservedMetrics(CandidateOption p)
         {
-            if (!Hash(p.ConfigurationFingerprintSha256)
+            // Only measured, structurally operational evidence can enter the
+            // descriptive frontier. Missing P95 or cluster risk certification
+            // does NOT exclude a valid observed configuration here.
+            var structurallyExcluded = p.EvidenceRejectionReasons?.Any(reason =>
+                reason is "ORACLE_NAO_OPERACIONAL"
+                    or "AGRUPAMENTO_NAO_OPERACIONAL"
+                    or "MARGEM_DE_CONFLITO_NULA"
+                    or "AGRUPAMENTO_CEGO_IMPURO"
+                    or "SUPORTE_INDEPENDENTE_INCONSISTENTE"
+                    or "FINGERPRINT_REUTILIZADO_COM_PARAMETROS_DIVERGENTES"
+                    or "EVIDENCIA_FISICA_NAO_VINCULADA_A_METRICAS"
+                    or "TRAIN_VALIDATION_NAO_INDEPENDENTES"
+                    or "PROVENIENCIA_FISICA_INCOMPLETA") ?? false;
+            if (structurallyExcluded || !Hash(p.ConfigurationFingerprintSha256)
                 || !Probability(p.GlobalRecall)
                 || !p.AcceptedFdr.HasValue || !Probability(p.AcceptedFdr.Value)
                 || p.GlobalEligibleTruth <= 0 || p.TrueAccepted < 0 || p.FalseAccepted < 0
@@ -144,7 +157,11 @@ public static class V9BootstrapPareto2D
                 var recall = rMax == rMin ? 0 : (rMax - p.GlobalRecall) / (rMax - rMin);
                 var risk = fMax == fMin ? 0 : (p.AcceptedFdr!.Value - fMin) / (fMax - fMin);
                 return recall * recall + risk * risk;
-            }).ThenBy(p => p.ConfigurationFingerprintSha256, StringComparer.Ordinal)
+            // Equal distance is not evidence of equivalent risk. Prefer
+            // lower observed FDR, then greater recall, before stable IDs.
+            }).ThenBy(p => p.AcceptedFdr!.Value)
+              .ThenByDescending(p => p.GlobalRecall)
+              .ThenBy(p => p.ConfigurationFingerprintSha256, StringComparer.Ordinal)
               .ThenBy(p => p.OptionId, StringComparer.Ordinal).First().OptionId;
         }
         var reasonsById = sorted.ToDictionary(p => p.OptionId, Reasons, StringComparer.Ordinal);
@@ -168,6 +185,11 @@ public static class V9BootstrapPareto2D
             }
         }
         var selected = front.OrderBy(p => distances[p.OptionId])
+            // For certified candidates, prefer the smaller supported cluster
+            // FDR upper bound on an equal-distance tie, not a hash accident.
+            .ThenBy(p => p.IdentityClusterFdrUpper ?? double.PositiveInfinity)
+            .ThenBy(p => p.AcceptedFdr!.Value)
+            .ThenByDescending(p => p.GlobalRecall)
             .ThenBy(p => p.ConfigurationFingerprintSha256, StringComparer.Ordinal)
             .ThenBy(p => p.OptionId, StringComparer.Ordinal).FirstOrDefault();
         var table = sorted.Select(p => new Evaluation(p, reasonsById[p.OptionId].Count == 0,

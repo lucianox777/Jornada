@@ -59,6 +59,13 @@ Para a diferença de multiplicidade, `(3861 - 3849) / 3849 = 0,312%` de aumento 
 
 As alterações nesta PR só afetam futuras instrumentações e avaliações; **não constituem nova campanha 30k**, novo resultado independente nem correção retroativa de TF-001. A PR permanece **DRAFT sem merge automático** até CI no HEAD exato, revisão estatística e autorização explícita do operador. O gate físico da probe não pode ser contornado alterando workflow ou marcando falha como sucesso.
 
+
+### Desempate e integridade estrutural da fronteira V3 (correção incremental)
+
+A menor distância normalizada ao ideal continua sendo a regra primária, sem veto prévio por FDR, ausência de P95 ou falta de atestado de independência entre clusters. Em **empate exato de distância**, o candidato exploratório com **menor FDR observado** tem precedência; persistindo o empate, vence o de maior recall e somente então fingerprint/OptionId. Para candidatos elegíveis, o primeiro desempate é o **menor limite superior de FDR por cluster sustentado**, seguido de FDR observado, recall e identificadores. Não se inventa uma taxa de risco nem um teto adicional.
+
+Métricas observadas coerentes **não bastam** para incluir uma configuração estruturalmente não operacional: agrupamentos não operacionais, margens nulas, agrupamento cego impuro, incompatibilidades de suporte/identidade, fingerprints reutilizados de modo incompatível e proveniência física adulterada/incompleta ficam fora do Pareto exploratório. Os bloqueios **apenas estatísticos ou de latência** continuam sem excluir candidatos dessa fronteira, que não certifica uso operacional. Tests unitários cobrem o empate entre as duas extremidades do Pareto (distância 1, com hash favorecendo o ponto mais arriscado antes da correção), invariância à ordem e exclusão estrutural. A alteração mantém o identificador pré-merge do contrato V3; não modifica dados históricos V2, o workflow manual, o TEST nem a política de ativação.
+
 ### Separação nativa no Pareto C# (contrato incremental desta PR)
 
 O método `V9BootstrapPareto2D.Evaluate` passa a expor, **além dos campos já existentes**, três campos não operacionais:

@@ -139,6 +139,58 @@ public sealed class V9BootstrapPareto2DTests
             Does.Contain("METRICAS_INCONSISTENTES"));
     }
 
+
+    [Test]
+    public void Equal_distance_prefers_lower_observed_fdr_before_fingerprint()
+    {
+        // Two Pareto endpoints have identical normalized distance (= 1).
+        // The riskier endpoint deliberately has the earlier fingerprint.
+        var safe = Option("safe", 80, hash: 'z');
+        var risky = Option("riskier", 100, 4, hash: 'a');
+        var forward = V9BootstrapPareto2D.Evaluate([risky, safe], Policy);
+        var reverse = V9BootstrapPareto2D.Evaluate([safe, risky], Policy);
+        Multiple(() =>
+        {
+            Assert.That(forward.ExploratoryFrontierOptionIds,
+                Is.EquivalentTo(new[] { "safe", "riskier" }));
+            Assert.That(forward.ExploratorySuggestedOptionId, Is.EqualTo("safe"));
+            Assert.That(forward.InitialSuggestedOptionId, Is.EqualTo("safe"));
+            Assert.That(reverse.ExploratorySuggestedOptionId, Is.EqualTo("safe"));
+            Assert.That(reverse.InitialSuggestedOptionId, Is.EqualTo("safe"));
+        });
+    }
+
+    [Test]
+    public void Exploratory_frontier_excludes_structurally_non_operational_evidence()
+    {
+        var fs = Option("fs-blind", 80, hash: 'c') with
+        {
+            PhysicalP95Milliseconds = null, PhysicalEndToEndAttested = false,
+            IdentityClusterUncertaintyAttested = false, IdentityClusterFdrUpper = null
+        };
+        var raw = Option("raw-sql", 100, hash: 'a') with
+        {
+            EvidenceRejectionReasons = ["AGRUPAMENTO_NAO_OPERACIONAL"]
+        };
+        var impure = Option("impure", 99, hash: 'b') with
+        {
+            EvidenceRejectionReasons = ["AGRUPAMENTO_CEGO_IMPURO"]
+        };
+        var wrongCohort = Option("mixed-cohort", 98, hash: 'd') with
+        {
+            EvidenceRejectionReasons = ["TRAIN_VALIDATION_NAO_INDEPENDENTES"]
+        };
+        var result = V9BootstrapPareto2D.Evaluate(
+            [wrongCohort, raw, fs, impure], Policy);
+        Multiple(() =>
+        {
+            Assert.That(result.ExploratoryFrontierOptionIds, Is.EqualTo(new[] { "fs-blind" }));
+            Assert.That(result.ExploratorySuggestedOptionId, Is.EqualTo("fs-blind"));
+            Assert.That(result.InitialSuggestedOptionId, Is.Null);
+            Assert.That(result.ExploratoryStatus, Is.EqualTo("EXPLORATORY_ONLY_NOT_CERTIFIED"));
+        });
+    }
+
     [Test]
     public void Legacy_overload_requires_an_explicit_risk_policy_to_suggest()
     {
