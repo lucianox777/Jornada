@@ -1,6 +1,6 @@
 # V9-TF-002 — transferência física congelada seed 42 → seed 43
 
-**Estado:** protocolo e preflight implementados; **campanha SQL ainda não executada**.
+**Estado:** protocolo e preflight implementados (#1267); executor físico na #1270. **Resultado físico de 04/11/2026: [V9_TF_002_Transferencia_Seed43_Resultado_Fisico_20261104.md](V9_TF_002_Transferencia_Seed43_Resultado_Fisico_20261104.md)**, que é descritivo e não certificado.
 Escopo exclusivamente científico, sem publicação, DT-15, acesso a TEST para seleção ou alteração do histórico TF-001.
 
 ## Hipótese prévia e desenho
