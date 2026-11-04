@@ -47,6 +47,10 @@ GOLD_ONLY_TESTS = frozenset({
     "V9GoldPhysicalCreationAuditTests.cs",
     "V9LowerNonMatchStudyCliTests.cs",
 })
+AUDIT_ONLY_SCRIPTS = frozenset({
+    "Solution/scripts/v9-tf-seed43-aggregate-stat-audit.py",
+})
+
 GOLD_ONLY_SCRIPTS = frozenset({
     "Solution/scripts/v9-gold-12-trial-localdb.ps1",
 })
@@ -72,6 +76,8 @@ def reason_for_safe(path: str) -> str | None:
         return "gold-exclusive-test"
     if path in GOLD_ONLY_SCRIPTS:
         return "gold-exclusive-orchestration"
+    if path in AUDIT_ONLY_SCRIPTS:
+        return "audit-only-no-calibration-inputs"
     if path in CI_POLICY_ONLY:
         return "ci-policy-only"
     # Tests do not change the production 30k calibrator. Keep helper/source
