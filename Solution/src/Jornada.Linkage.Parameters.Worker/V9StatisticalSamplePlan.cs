@@ -116,4 +116,81 @@ public static class V9StatisticalSamplePlan
 
     private static long Ceiling(double value) => double.IsFinite(value) && value <= long.MaxValue
         ? checked((long)Math.Ceiling(value)) : throw new InvalidDataException("Desenho excede capacidade numérica.");
+
+    /// <summary>
+    /// Conservative pre-registration for ONE frozen paired recall contrast and
+    /// an FDR family of preselected finalists. Zero-error risk is a SCENARIO,
+    /// not an assertion that future validation/holdout will have no false links.
+    /// A target-seed TEST previously inspected by any study is NOT fresh holdout.
+    /// </summary>
+    public sealed record FrozenTransferSampleDesign(
+        int ValidationFinalists, int MaximumSourcesPerBaseIdentity,
+        double AssumedAcceptedPerBaseIdentity, double AssumedEligibleSourcesPerBaseIdentity,
+        double MinimumPairedRecallGain, double PairedPower,
+        double ValidationFraction, double FreshHoldoutFraction,
+        double RetainedBaseIdentityFraction, double FamilyAlpha = .05);
+
+    public sealed record FrozenTransferSampleReport(
+        FrozenTransferSampleDesign Assumptions, FinalistRiskDesign FdrRisk,
+        long PairedValidationIdentitiesForPower,
+        long ValidationIdentitiesNeeded, long FreshHoldoutIdentitiesNeeded,
+        long BaseIdentitiesNeededUnderAssumedRetention,
+        int PairedContrasts = 1,
+        string Status = "DESIGN_ONLY_NO_IID_EVIDENCE_NO_TEST_REUSE_NO_CERTIFICATION");
+
+    public static FrozenTransferSampleReport CalculateFrozenTransfer(
+        FrozenTransferSampleDesign d)
+    {
+        ArgumentNullException.ThrowIfNull(d);
+        if (d.ValidationFinalists is < 1 or > 3 || d.MaximumSourcesPerBaseIdentity < 1
+            || !double.IsFinite(d.AssumedAcceptedPerBaseIdentity)
+            || d.AssumedAcceptedPerBaseIdentity <= 0
+            || d.AssumedAcceptedPerBaseIdentity > d.MaximumSourcesPerBaseIdentity
+            || !double.IsFinite(d.AssumedEligibleSourcesPerBaseIdentity)
+            || d.AssumedEligibleSourcesPerBaseIdentity <= 0
+            || d.AssumedEligibleSourcesPerBaseIdentity > d.MaximumSourcesPerBaseIdentity
+            || !double.IsFinite(d.MinimumPairedRecallGain)
+            || d.MinimumPairedRecallGain is <= 0 or >= 1
+            || !double.IsFinite(d.PairedPower) || d.PairedPower is <= 0 or >= 1
+            || !double.IsFinite(d.FamilyAlpha) || d.FamilyAlpha is <= 0 or >= 1
+            || !double.IsFinite(d.ValidationFraction) || d.ValidationFraction is <= 0 or >= 1
+            || !double.IsFinite(d.FreshHoldoutFraction) || d.FreshHoldoutFraction is <= 0 or >= 1
+            || d.ValidationFraction + d.FreshHoldoutFraction >= 1
+            || !double.IsFinite(d.RetainedBaseIdentityFraction)
+            || d.RetainedBaseIdentityFraction is <= 0 or > 1)
+            throw new InvalidDataException("Transferencia congelada exige familias, ganhos, fracao e poder predeclarados.");
+
+        // Divide familywise alpha between (i) the conditional FDR family,
+        // with multiplicity equal to the actual frozen finalists, and
+        // (ii) ONE predeclared paired recall contrast. Historical adaptive
+        // looks (3,861) are not retroactively recast as a fresh holdout.
+        var risk = CalculateFinalistFdrOnly(d.ValidationFinalists,
+            d.MaximumSourcesPerBaseIdentity, d.AssumedAcceptedPerBaseIdentity,
+            [.01], d.FamilyAlpha / 2);
+        var fdrValidation = risk.RiskBands.Single().ValidationIndependentUnitsZeroError;
+        var fdrHoldout = risk.RiskBands.Single().TestIndependentUnitsZeroError;
+        if (fdrValidation is null || fdrHoldout is null)
+            throw new InvalidDataException("Amostra FDR extrapola suporte Int32.");
+
+        // For each independent base identity, X = TP_ONE_MF - TP_TF0
+        // is bounded in [-cap,+cap]. Hoeffding one-sided threshold and
+        // beta-tail give sufficient power to reject E[X] <= 0 if the
+        // true mean contrast is gain * assumed eligible sources / identity.
+        // This is not a Bernoulli-by-source or independence-by-pair shortcut.
+        var delta = d.MinimumPairedRecallGain * d.AssumedEligibleSourcesPerBaseIdentity;
+        var pairedRaw = 2d * d.MaximumSourcesPerBaseIdentity * d.MaximumSourcesPerBaseIdentity
+            * Math.Pow(Math.Sqrt(Math.Log(2 / d.FamilyAlpha))
+                + Math.Sqrt(Math.Log(1 / (1 - d.PairedPower))), 2) / (delta * delta);
+        var paired = Ceiling(pairedRaw);
+        if (paired > int.MaxValue)
+            throw new InvalidDataException("Prova pareada exigiria mais que Int32 identidades.");
+
+        var validation = Math.Max(paired, fdrValidation.Value);
+        var holdout = fdrHoldout.Value;
+        var baseUnits = Ceiling(Math.Max(
+            validation / d.ValidationFraction,
+            holdout / d.FreshHoldoutFraction) / d.RetainedBaseIdentityFraction);
+
+        return new(d, risk, paired, validation, holdout, baseUnits);
+    }
 }
