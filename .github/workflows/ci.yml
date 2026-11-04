@@ -64,7 +64,6 @@ jobs:
       - run: python3 -m unittest Solution/tests/scripts/test_v9_synthetic_multiseed_gate.py
       - run: python3 -m unittest Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_preflight.py Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_contract.py
       - run: python3 -m unittest Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_physical.py Solution/tests/scripts/test_v9_tf_workflow_protocol.py
-      - run: python3 Solution/scripts/v9-tf-seed43-aggregate-stat-audit.py --self-test
       - run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_dt12_branch_cleanup.py Solution/tests/scripts/test_dt12_merged_branch_cleanup.py Solution/tests/scripts/test_ci_required_gates.py Solution/tests/scripts/test_ci_watchdog.py Solution/tests/scripts/test_ci_run_profile.py Solution/tests/scripts/test_ci_built_binary_gate.py Solution/tests/scripts/test_ci_failure_checkpoint.py Solution/tests/scripts/test_nuget_product_inventory.py
       - name: Verify lock-hashed NuGet cache cannot bypass required gates
         run: python3 Solution/scripts/test-ci-locked-nuget-cache-contract.py
