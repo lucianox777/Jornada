@@ -9,7 +9,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-SCRIPT = pathlib.Path(__file__).resolve().parent / "v9-tf-seed43-frozen-transfer-preflight.py"
+SCRIPT = pathlib.Path(__file__).resolve().parents[2] / "scripts" / "v9-tf-seed43-frozen-transfer-preflight.py"
 spec = importlib.util.spec_from_file_location("seed43_preflight_under_test", SCRIPT)
 preflight = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(preflight)
