@@ -46,6 +46,10 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Reject escaped CSharp comment newlines before expensive CI
+        run: |
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_csharp_comment_escaped_newline_gate.py
+          python3 Solution/scripts/v9-csharp-comment-escaped-newline-gate.py
       - id: classify
         shell: bash
         run: |
