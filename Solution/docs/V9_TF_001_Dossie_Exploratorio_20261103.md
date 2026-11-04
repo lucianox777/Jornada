@@ -78,3 +78,69 @@ Esses campos são calculados **antes** dos filtros de P95, independência estat�
 A fronteira é descritiva: igualdade empírica não implica confiança estatística, generalização ao TEST, P95, certificação ou uso. A nova varredura de Pareto é ordenada, com custo `O(n log n)` para o catálogo de pontos observados; evita segunda comparação quadrática. Testes C# verificam fronteira e escolha invariantes à ordem mesmo quando todos os gates falham, exclusão de métricas inconsistentes/oracle e nulidade do vencedor global em shards parciais.
 
 **Versionamento do contrato Pareto:** como o resultado C# ganhou campos `ExploratoryFrontierOptionIds`, `ExploratorySuggestedOptionId` e `ExploratoryStatus` e passou a computar seleção matemática antes dos gates, a versão nova é `V9_BOOTSTRAP_PARETO_2D_IDEAL_DISTANCE_V3`. Estudos e hashes emitidos sob `V2`, inclusive a campanha TF-001 original, não devem ser reetiquetados nem reinterpretados retroativamente como `V3`. O dossiê exploratório tem versão própria `V9_TF_EXPLORATORY_DOSSIER_V1`.
+
+
+## Política adicional de preferência exploratória por risco — V1 (bootstrap parametrizável)
+
+**Esta seção descreve a proposta posterior à integração da PR #1261.** A fronteira matemática
+`V9_BOOTSTRAP_PARETO_2D_IDEAL_DISTANCE_V3`, sua distância normalizada ao ideal
+e os resultados históricos permanecem **inalterados**. A preferência por risco não substitui
+`ExploratorySuggestedOptionId` nem `InitialSuggestedOptionId`.
+
+Em um **novo plano de calibração** o operador pode incluir:
+
+```json
+"ExploratoryRiskPreference": {
+  "FdrUpperTolerancePp": 0.05
+}
+```
+
+O parâmetro é medido em **pontos percentuais** (bootstrap sugerido: **0,05 p.p.**,
+ou `0.0005` na escala de probabilidade), com intervalo aceito de 0 a 100 p.p.
+A ausência completa de `ExploratoryRiskPreference` mantém a execução legada
+sem esse relatório adicional, inclusive o hash do plano. Se a política for
+incluída sem informar o campo de tolerância, o construtor usa o bootstrap 0,05.
+Para prioridade estrita ao menor limite, declarar `"FdrUpperTolerancePp": 0`.
+
+A política **é predeclarada e congelada no plano/fingerprint antes da execução**.
+Não pode ser ajustada após examinar a VALIDATION nem ser ajustada por TEST.
+Uma mudança exige novo plano, fingerprint e ensaio; jamais reetiquetar o
+`study.json` físico existente. O resultado, quando solicitado, grava a versão
+`V9_EXPLORATORY_CP_RISK_BAND_V1`, o valor usado, o mínimo CP, o teto da faixa,
+os IDs na faixa e a sugestão, sempre com status **não certificado**.
+
+Ordem determinística e versionada para opções **selecionáveis e estruturalmente
+válidas, com CP condicional numérico e coerente**:
+
+1. Calcular o **menor CP condicional exploratório** da comparação integral.
+   Um CP sem atestado de dependência continua sendo **estimativa exploratória**,
+   não limite operacional demonstrado.
+2. Formar a faixa global relativa a esse mínimo: `CP = mínimo` ou
+   `CP < mínimo + tolerância_p.p./100`. A borda superior é **exclusiva**;
+   quando tolerância = 0, somente os valores exatamente mínimos entram.
+   Não se encadeiam empates par a par, nem se arredondam os números.
+3. Entre as opções na faixa, priorizar **maior recall**.
+4. Em igualdade, usar **menor número de unidades TF efetivamente ativas**,
+   calculado pelos pesos da configuração nominal real, nunca pelo nome
+   da opção (`TF0=0`, uma unidade positiva = 1, etc.).
+5. Em igualdade final, usar `ConfigurationId` estável. Uma busca em shard
+   parcial não pode emitir sugestão global.
+
+A ausência de CP, métricas inválidas, agrupamento não operacional, origem sem
+proveniência física ou mistura indevida de TRAIN/VALIDATION exclui o candidato
+dessa sugestão. Um CP acima da meta operacional ou a falta de P95/atestado de
+dependência **não altera a fronteira exploratória**, mas mantém bloqueados
+os respectivos gates de elegibilidade e autorização.
+
+**Hipótese de regressão da campanha TF-001, margem 0,5:** a política proposta
+deve sugerir `TF_ONE_MF_W1_M0_A0.5_T0.95`: 7.533 aceites verdadeiros, 0 falsos
+aceites, recall observado 96,0719%; CP condicional histórico ~0,7014%;
+duas alternativas de duas unidades empatam em recall/CP e perdem por parcimônia.
+O TF0 tem 7.505 aceites verdadeiros e CP histórico ~0,7043%, também dentro da
+faixa de 0,05 p.p.; a opção com dois prenomes e 1 falso aceite tem CP ~0,8587%,
+fora da faixa. Todos os valores são **descritivos e de corpus sintético**; o CP
+recalculado com família inferencial 3.861 deve ser conferido no novo ensaio.
+
+Não há custo P95 operacional por braço medido. Nenhum parâmetro nesta política
+habilita `TEST`, publicação, ativação DT-15, alteração da referência IBGE,
+eliminação de TF0 ou mudança da grade oficial de 45 braços.

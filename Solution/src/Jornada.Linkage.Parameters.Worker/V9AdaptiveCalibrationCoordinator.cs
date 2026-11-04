@@ -36,7 +36,9 @@ public sealed record V9AdaptiveCalibrationPlan(
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     string? PinnedIbgeMaterializedFrequencySha256 = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null);
+    NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    V9ExploratoryRiskPreferenceV1.Policy? ExploratoryRiskPreference = null);
 
 public sealed record V9AdaptiveCandidateRejection(string RulesetSha256,
     IReadOnlyList<string> ConfigurationIds, string Reason);
@@ -57,7 +59,9 @@ public sealed record V9AdaptiveCalibrationStudyResult(string Version, string Pla
     V9IntegralSearchShard? Shard = null,
     IReadOnlyDictionary<string, long>? SharedSurnameCandidatePairsByOption = null,
     IReadOnlyDictionary<string, string>? CandidatePairsSha256ByRuleset = null,
-    IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>? UnseenTfUByOptionAndUnit = null);
+    IReadOnlyDictionary<string, IReadOnlyDictionary<string, long>>? UnseenTfUByOptionAndUnit = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    V9ExploratoryRiskPreferenceV1.Result? ExploratoryRiskPreference = null);
 
 public sealed record V9IntegralSearchShard(string FamilyPlanSha256, int Index, int Count,
     int TotalRepresentativeRuleSets, int EvaluatedRepresentativeRuleSets,
@@ -129,6 +133,8 @@ public static class V9AdaptiveCalibrationCoordinator
             || plan.Execution.MaximumPrefixLength != plan.Discovery.MaximumPrefixLength
             || !plan.Execution.FsBlindGroupingOnly || plan.Execution.MaximumBlindClusterSize is null)
             throw new InvalidDataException("Plano não pode relaxar risco, trocar projeção ou omitir agrupamento.");
+        if (plan.ExploratoryRiskPreference is { } riskPreference)
+            V9ExploratoryRiskPreferenceV1.ValidatePolicy(riskPreference);
         plan.Execution.Validate(evaluateFinalResolve: true, includeFsBlindGrouping: true);
         if (plan.ObservationCapDeclaration is { } capDeclaration)
             V9SyntheticObservationCapEvidence.ValidateDeclaration(capDeclaration, plan.MaximumAcceptedPerBaseIdentity);
@@ -416,7 +422,10 @@ public static class V9AdaptiveCalibrationCoordinator
             plan.SampleDesign is null ? null : V9StatisticalSamplePlan.Calculate(plan.SampleDesign, plan.RiskCeilings!),
             coverage, census, new(Sha(JsonSerializer.Serialize(plan with { ShardIndex = 0 })),
                 plan.ShardIndex, plan.ShardCount, totalRepresentatives, candidates.Count, plan.ShardCount == 1),
-            sharedSurnamePairs, candidatePairsByRuleset, unseenByOption);
+            sharedSurnamePairs, candidatePairsByRuleset, unseenByOption,
+            plan.ExploratoryRiskPreference is null ? null :
+                V9ExploratoryRiskPreferenceV1.Evaluate(plan.ExploratoryRiskPreference,
+                    pareto, plan.ModelOptions, plan.ShardCount == 1));
     }
 
     private sealed record RulesetResult(
