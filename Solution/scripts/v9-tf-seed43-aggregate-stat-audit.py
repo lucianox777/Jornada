@@ -43,8 +43,11 @@ class AggregateAuditTests(unittest.TestCase):
     def test_planning_requires_millions_under_observed_effect(self):
         n = planning_n(DELTA_TP / IDENTITIES)
         self.assertEqual(n, 2_906_494)
-        self.assertLessEqual(hoeffding_lower(n - 1, round((n - 1) * DELTA_TP / IDENTITIES)), 0)
-        self.assertGreater(hoeffding_lower(n, round(n * DELTA_TP / IDENTITIES)), 0)
+        # Keep the prospective mean fixed; rounding future TP to integers can
+        # flip this near-zero boundary and is not the planning calculation.
+        effect = DELTA_TP / IDENTITIES
+        self.assertLessEqual(effect - 2 * CAP * math.sqrt(math.log(1 / ALPHA) / (2 * (n - 1))), 0)
+        self.assertGreater(effect - 2 * CAP * math.sqrt(math.log(1 / ALPHA) / (2 * n)), 0)
 
     def test_rejects_invalid_inputs(self):
         for n, d in ((0, 0), (10, 41), (10, 1.5), (True, 1)):
