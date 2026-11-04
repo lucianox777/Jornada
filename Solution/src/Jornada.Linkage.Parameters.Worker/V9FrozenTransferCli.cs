@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Jornada.Linkage.Runner;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Parameters.Worker;
