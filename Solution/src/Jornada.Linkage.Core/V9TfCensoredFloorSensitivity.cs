@@ -29,6 +29,10 @@ public static class V9TfCensoredFloorSensitivity
         V9TfUnpublishedTermPolicyV9 policy)
     {
         ArgumentNullException.ThrowIfNull(published);
+        // Sensitivity requires an actual published marginal for this slot.
+        // Keep the minimum cached: no per-candidate scan of the full map.
+        if (published.Count == 0)
+            throw new InvalidDataException("Piso sensibilidade sem marginal IBGE publicada.");
         if (string.IsNullOrWhiteSpace(normalizedTerm)
             || minimumPublished <= 0m || minimumPublished > 1m
             || configuredMinimum < 0m || configuredMinimum > 1m

@@ -179,6 +179,18 @@ public sealed class FrozenIbgeNominalTfV9Tests
     }
 
     [Test]
+    public void Censored_floor_fails_closed_without_published_unit()
+    {
+        IReadOnlyDictionary<string, decimal> missing =
+            new Dictionary<string, decimal>();
+        Assert.That((Action)(() => V9TfCensoredFloorSensitivity.Resolve(
+            missing, "NAOPUBLICADO", .01m, .000001m,
+            V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That(missing, Is.Empty);
+    }
+
+    [Test]
     public void Zero_weight_is_explicit_neutral_even_when_name_is_unknown_but_unknown_positive_weight_fails()
     {
         var frozen = Bound();

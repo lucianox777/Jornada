@@ -19,7 +19,7 @@ Os previews com frequência hipotética carregam `FrequencyEvidence=CensoredFloo
 ## O que foi feito
 
 - Contrato explícito opt-in, sem mudar os defaults;
-- helper puro e verificável do piso, rejeitando ausência fora do opt-in;
+- helper puro e verificável do piso, rejeitando ausência fora do opt-in **e marginal publicada vazia para o slot**, sem fabricar frequência hipotética sem base;
 - publicação de hipótese separada da frequência observada;
 - conexão ao avaliador TRAIN/VALIDATION e ao scorer portátil do snapshot;
 - cálculo do menor valor publicado por slot uma só vez, evitando `Min()` sobre milhões de nomes para cada candidato;
