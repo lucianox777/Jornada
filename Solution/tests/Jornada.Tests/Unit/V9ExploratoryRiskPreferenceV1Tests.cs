@@ -54,7 +54,7 @@ public sealed class V9ExploratoryRiskPreferenceV1Tests
 
     private static V9BootstrapPareto2D.Result Pareto(
         IEnumerable<V9BootstrapPareto2D.CandidateOption> options) =>
-        V9BootstrapPareto2D.Evaluate(options, new(0, .001, 20));
+        V9BootstrapPareto2D.Evaluate(options, new V9BootstrapPareto2D.SelectionPolicy(0, .001, 20));
 
     [Test]
     public void Bootstrap_tolerance_selects_one_mother_first_name_and_preserves_v3()
@@ -128,9 +128,9 @@ public sealed class V9ExploratoryRiskPreferenceV1Tests
     public void Invalid_tolerance_fails_closed_before_sql()
     {
         foreach (var invalid in new[] { -.0001m, 100.0001m })
-            Assert.Throws<InvalidDataException>(() =>
-                V9ExploratoryRiskPreferenceV1.ValidatePolicy(new(invalid)));
-        Assert.DoesNotThrow(() => V9ExploratoryRiskPreferenceV1.ValidatePolicy(new(0m)));
+            Assert.Throws<InvalidDataException>((Action)(() =>
+                V9ExploratoryRiskPreferenceV1.ValidatePolicy(new(invalid))));
+        Assert.DoesNotThrow((Action)(() => V9ExploratoryRiskPreferenceV1.ValidatePolicy(new(0m))));
         Assert.That(new V9ExploratoryRiskPreferenceV1.Policy().FdrUpperTolerancePp,
             Is.EqualTo(.05m));
     }
