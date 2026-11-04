@@ -17,7 +17,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p art && cd art
-          gh run download 41846520047 -R "$GITHUB_REPOSITORY" -n v9-tf-45-physical-41846520047-585dd5a35c0f94409d5da3e202cd0fb497651950
+          gh run download 41849079273 -R "$GITHUB_REPOSITORY" -n v9-tf-45-physical-41849079273-861b9c1d0d29c44c183cec2c9a19657837a1a71d
           find . -type f -printf '%s\t%p\n' | sort -rn | head -40
       - name: Summarize study (metrics only, no names)
         run: |
