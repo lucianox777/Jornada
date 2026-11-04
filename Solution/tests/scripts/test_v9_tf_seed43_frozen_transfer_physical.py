@@ -97,6 +97,17 @@ class Seed43TransferAnalysisTests(unittest.TestCase):
         self.assertAlmostEqual(tool._binomial_tail_ge(2, 3), 0.5)
 
 
+class TransferWorkflowTests(unittest.TestCase):
+    def test_dotnet_run_receives_only_absolute_paths(self):
+        workflow = (SOLUTION.parent / ".github" / "workflows" / "v9-tf-seed43-frozen-transfer.yml").read_text(encoding="utf-8")
+        block = workflow[workflow.index("--v9-frozen-transfer"):workflow.index('"$EVIDENCE/transfer"') + 20]
+        for line in block.splitlines()[:4]:
+            for token in line.replace("\\", " ").split():
+                if token.startswith("--"):
+                    continue
+                self.assertTrue(token.startswith('"$PWD/') or token.startswith('"$SOURCE') or token.startswith('"$EVIDENCE'), token)
+
+
 class CommittedPlanTests(unittest.TestCase):
     def test_committed_preflight_plan_matches_executor_primary_arms(self):
         plan = json.loads((DATA / "frozen-transfer-plan.json").read_bytes())
