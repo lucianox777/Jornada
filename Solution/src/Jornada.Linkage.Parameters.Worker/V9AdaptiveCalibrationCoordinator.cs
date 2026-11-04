@@ -190,8 +190,10 @@ public static class V9AdaptiveCalibrationCoordinator
     }
 
     /// <summary>
-    /// Selection-only multiplicity; physical costs still account for all 45 arms.
-    /// Previously compared hypotheses remain included conservatively.
+    /// Descriptive shortlist size ONLY, not a justified multiplicity family.
+    /// All 45 TF arms were inspected physically; excluding 12 shared-surname
+    /// comparisons from a statistical claim requires an independently audited,
+    /// predeclared non-influence protocol. Do not use this number for FDR bounds.
     /// </summary>
     public static int CountSelectableConfigurations(V9AdaptiveCalibrationPlan plan, long ruleSets)
     {
@@ -201,6 +203,21 @@ public static class V9AdaptiveCalibrationCoordinator
             throw new InvalidDataException("Nenhuma configuração TF elegível para seleção.");
         return checked((int)checked(ruleSets * eligible * plan.ConflictMargins.Count
             + plan.PreviouslyComparedValidationConfigurations));
+    }
+
+    /// <summary>
+    /// Conservative inferential multiplicity: include every inspected arm/margin
+    /// and all previously compared hypotheses. The diagnostic arms cannot be
+    /// proven non-influential for future model development by selection flags alone.
+    /// Never retroactively rewrite a historical study or its original bounds.
+    /// </summary>
+    public static int CountInferenceConfigurations(V9AdaptiveCalibrationPlan plan, long ruleSets)
+    {
+        var explored = CountComparedConfigurations(plan, ruleSets);
+        var shortlist = CountSelectableConfigurations(plan, ruleSets);
+        if (shortlist > explored)
+            throw new InvalidDataException("Família inferencial menor que seleção.");
+        return explored;
     }
 
     public static Task<V9AdaptiveCalibrationStudyResult> RunAsync(SqlConnection connection,
@@ -269,7 +286,7 @@ public static class V9AdaptiveCalibrationCoordinator
             // conservatively even when already present in the declared lattice.
             var fullCount = checked((long)plan.DeclaredSearchSpace!.Count()
                 + (plan.BaselineRuleSets?.Count ?? 0));
-            compared = CountComparedConfigurations(plan, fullCount);
+            compared = CountInferenceConfigurations(plan, fullCount);
             selectableCompared = CountSelectableConfigurations(plan, fullCount);
             var censusConnection = await openIndependentConnection(cancellationToken);
             try
@@ -285,7 +302,7 @@ public static class V9AdaptiveCalibrationCoordinator
         {
             candidates = CombineCandidateRuleSets(plan.DeclaredSearchSpace is null ? discovery.Candidates
                 : plan.DeclaredSearchSpace.Enumerate(), plan.BaselineRuleSets);
-            compared = CountComparedConfigurations(plan, candidates.Count);
+            compared = CountInferenceConfigurations(plan, candidates.Count);
             selectableCompared = CountSelectableConfigurations(plan, candidates.Count);
         }
         var totalRepresentatives = candidates.Count;
@@ -385,7 +402,12 @@ public static class V9AdaptiveCalibrationCoordinator
             (selection?.Pareto.Table.Select(x => x.Option) ?? []).Concat(
                 failedOptions.Where(x => EligibleConfiguration(x.OptionId))), plan.SelectionPolicy);
         if (plan.ShardCount > 1)
-            pareto = pareto with { InitialSuggestedOptionId = null, Status = "PARTIAL_SEARCH_NO_GLOBAL_SUGGESTION" };
+            pareto = pareto with
+            {
+                InitialSuggestedOptionId = null, Status = "PARTIAL_SEARCH_NO_GLOBAL_SUGGESTION",
+                ExploratorySuggestedOptionId = null,
+                ExploratoryStatus = "PARTIAL_SEARCH_NO_GLOBAL_EXPLORATORY_WINNER"
+            };
         return new(Version, Sha(JsonSerializer.Serialize(plan)), trainSha, validationSha,
             compared, discovery, selection, pareto, measurements.AsReadOnly(), frozen.AsReadOnly(),
             timings.AsReadOnly(), rejected.AsReadOnly(), candidates.Count,
@@ -419,6 +441,8 @@ public static class V9AdaptiveCalibrationCoordinator
         var sharedSurnamePairs = new Dictionary<string, long>(StringComparer.Ordinal);
         var unseenByOption = new Dictionary<string, IReadOnlyDictionary<string, long>>(StringComparer.Ordinal);
         string? candidatePairsSha = null;
+        if (selectableCompared > compared)
+            throw new InvalidDataException("Família de seleção excede família inferencial.");
         cancellationToken.ThrowIfCancellationRequested();
         var rulesetSha = Sha(JsonSerializer.Serialize(passes));
         var options = plan.ModelOptions.Select(x => x with { OptionId = rulesetSha + ":" + x.OptionId }).ToArray();
@@ -435,7 +459,7 @@ public static class V9AdaptiveCalibrationCoordinator
                     finalConflictMargins: margins, includeFsBlindGrouping: true,
                     minimumFsGroupingPosterior: plan.MinimumGroupingPosterior,
                     predeclaredMaximumAcceptedPerBaseIdentity: plan.MaximumAcceptedPerBaseIdentity,
-                    adaptiveExecution: plan.Execution with { TotalComparedConfigurations = selectableCompared });
+                    adaptiveExecution: plan.Execution with { TotalComparedConfigurations = compared });
                 if (run.PhysicalCandidatePairsSha256 is not { Length: 64 } physicalSha
                     || !physicalSha.All(Uri.IsHexDigit))
                     throw new InvalidDataException("Digest das arestas SQL físicas não foi medido.");
@@ -469,7 +493,7 @@ public static class V9AdaptiveCalibrationCoordinator
                 failedOptions.AddRange(ids.Select(id => new V9BootstrapPareto2D.CandidateOption(
                     id, Sha(id), 0, null, null, 0, 0, eligibleSources,
                     observations.Where(x => x.Partition == "VALIDATION").Select(x => x.BasePersonId).Distinct(StringComparer.Ordinal).Count(),
-                    false, false, MultiplicityComparedConfigurations: selectableCompared,
+                    false, false, MultiplicityComparedConfigurations: compared,
                     EvidenceRejectionReasons: ["CANDIDATO_FISICO_NAO_MENSURAVEL: " + exception.Message])));
             }
         }

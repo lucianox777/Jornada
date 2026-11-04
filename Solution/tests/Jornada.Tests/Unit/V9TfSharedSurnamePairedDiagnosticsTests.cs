@@ -66,7 +66,7 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
         new Dictionary<string, string>(StringComparer.Ordinal) { [Ruleset] = new string('f', 64) };
 
     [Test]
-    public void Physical_budget_counts_all_45_but_selection_multiplicity_counts_only_41()
+    public void Physical_budget_and_inferential_family_count_all_arms_while_shortlist_counts_41()
     {
         var sha = new string('a', 64);
         var plan = new V9AdaptiveCalibrationPlan(
@@ -80,6 +80,30 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
         {
             Assert.That(V9AdaptiveCalibrationCoordinator.CountComparedConfigurations(plan, 2), Is.EqualTo(210));
             Assert.That(V9AdaptiveCalibrationCoordinator.CountSelectableConfigurations(plan, 2), Is.EqualTo(194));
+            Assert.That(V9AdaptiveCalibrationCoordinator.CountInferenceConfigurations(plan, 2), Is.EqualTo(210));
+        }));
+    }
+
+    [Test]
+    public void Tf001_inferential_family_preserves_3726_previous_plus_all_135_including_diagnostics()
+    {
+        var sha = new string('a', 64);
+        var plan = new V9AdaptiveCalibrationPlan(
+            sha, new V9TrainBlockingDiscoveryOptions(), Options(), [.5m, 2m, 4m],
+            new(AdaptiveCalibrationPreviewBudget.CurrentVersion, sha, 0, 1, 100, 2),
+            new(0, 1, 2), 1, 3861,
+            new(MaximumPrefixLength: 4, EndToEndRepetitions: 0,
+                FsBlindGroupingOnly: true, MaximumBlindClusterSize: 16),
+            PreviouslyComparedValidationConfigurations: 3726);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(plan.ModelOptions, Has.Count.EqualTo(45));
+            Assert.That(plan.ModelOptions.Count(o => o.EligibleForSelection), Is.EqualTo(41));
+            Assert.That(V9AdaptiveCalibrationCoordinator.CountComparedConfigurations(plan, 1), Is.EqualTo(3861));
+            Assert.That(V9AdaptiveCalibrationCoordinator.CountSelectableConfigurations(plan, 1), Is.EqualTo(3849));
+            Assert.That(V9AdaptiveCalibrationCoordinator.CountInferenceConfigurations(plan, 1), Is.EqualTo(3861));
+            Assert.That((Action)(() => V9AdaptiveCalibrationCoordinator.CountInferenceConfigurations(plan, 2)),
+                Throws.TypeOf<InvalidDataException>(), "No second ruleset is permitted by the frozen plan");
         }));
     }
 
