@@ -79,6 +79,40 @@ public sealed class V9ExploratoryRiskPreferenceV1Tests
     }
 
     [Test]
+    public void Physical_ruleset_prefixed_option_ids_match_frozen_unprefixed_model_options()
+    {
+        // V9AdaptiveCalibrationCoordinator.EvaluateRulesetAsync prefixes every
+        // physical option ID with the SHA256 of the blocking ruleset. Older
+        // in-memory tests used bare option IDs and missed this boundary.
+        var physicalPrefix = new string('f', 64) + ":";
+        var physical = Historical().Select(x => x with
+        {
+            OptionId = Key(physicalPrefix + V9DeclaredBaseId(x.OptionId))
+        }).ToArray();
+        var result = V9ExploratoryRiskPreferenceV1.Evaluate(new(), Pareto(physical), Models);
+        var reversed = V9ExploratoryRiskPreferenceV1.Evaluate(
+            new(), Pareto(physical.Reverse()), Models.Reverse().ToArray());
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(result.SuggestedOptionId, Is.EqualTo(Key(physicalPrefix + Mother)));
+            Assert.That(result.RiskBandOptionIds, Does.Contain(Key(physicalPrefix + Tf0)));
+            Assert.That(result.RiskBandOptionIds,
+                Does.Not.Contain(Key(physicalPrefix + MoreRecall)));
+            Assert.That(result.Status, Is.EqualTo("EXPLORATORY_RISK_PREFERENCE_NOT_CERTIFIED"));
+            Assert.That(reversed.SuggestedOptionId, Is.EqualTo(result.SuggestedOptionId));
+        }));
+    }
+
+    private static string V9DeclaredBaseId(string configurationId)
+    {
+        var colon = configurationId.IndexOf(':');
+        var count = int.Parse(configurationId[..colon],
+            System.Globalization.CultureInfo.InvariantCulture);
+        return configurationId.Substring(colon + 1, count);
+    }
+
+    [Test]
     public void Zero_tolerance_uses_strict_minimum_cp_while_bootstrap_allows_recall_gain()
     {
         const string lowerRisk = "STRICT_LOW_RISK";

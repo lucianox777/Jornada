@@ -144,3 +144,32 @@ recalculado com família inferencial 3.861 deve ser conferido no novo ensaio.
 Não há custo P95 operacional por braço medido. Nenhum parâmetro nesta política
 habilita `TEST`, publicação, ativação DT-15, alteração da referência IBGE,
 eliminação de TF0 ou mudança da grade oficial de 45 braços.
+
+
+### Correção da ligação física TRAIN/REF da preferência CP (04/11/2026)
+
+No caminho físico, o `V9AdaptiveCalibrationCoordinator` acrescenta um prefixo
+`<sha256_do_ruleset>:` ao `OptionId` declarado e o seletor Pareto envolve
+o ID físico num identificador length-prefixed:
+`<n>:<sha256_do_ruleset>:<opcao>|<n>:<grouping>|<margem>`.
+O seletor adicional deve retirar o prefixo do ruleset **após validar o
+envelope e o SHA**, apenas para procurar a configuração declarada e contar
+as unidades TF positivas; o `SuggestedOptionId` produzido preserva o
+identificador físico completo e auditável. Uma regressão reproduz esse contrato.
+
+O fluxo `prepare-tf` de `v9-adaptive-30k-study.py` **deve inserir**
+`ExploratoryRiskPreference.FdrUpperTolerancePp=0.05` no plano físico TF-001;
+antes, a propriedade opcional não era instanciada no workflow oficial, logo
+a execução 30k não produziria a sugestão adicional. Para outro ensaio
+pré-registrado, a CLI admite `--exploratory-risk-tolerance-pp` e grava
+o valor no plano antes de qualquer SQL; TF0/planos legados não são modificados.
+
+O workflow 30k verifica no próprio `study.json` se a preferência versionada
+foi de fato executada, se existe sugestão não certificada incluída na faixa,
+e se a seleção operacional permanece nula. **Não** fixa artificialmente
+`ONE_MF` como vencedor: o resultado deve decorrer das métricas físicas;
+a expectativa histórica é apenas hipótese de regressão.
+
+Qualquer preflight anterior a esses patches, mesmo PASS, atesta o SHA
+anterior e **não libera o execute_30k no novo HEAD**. Preservar a evidência
+antiga sem reetiquetar; iniciar preflight novo e 30k manual no mesmo SHA atual.

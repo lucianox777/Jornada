@@ -46,7 +46,16 @@ public static class V9ExploratoryRiskPreferenceV1
             || length <= 0 || length > configurationId.Length - separator - 2)
             return null;
         var last = separator + 1 + length;
-        return configurationId[last] == '|' ? configurationId.Substring(separator + 1, length) : null;
+        if (configurationId[last] != '|') return null;
+        var physicalId = configurationId.Substring(separator + 1, length);
+        // The adaptive SQL calibrator prefixes each physical option with the
+        // SHA-256 of its blocking ruleset. The model plan stores only the
+        // declared option ID; parse the physical prefix after the length
+        // envelope, never by splitting on arbitrary user-provided colons.
+        if (physicalId.Length > 65 && physicalId[64] == ':'
+            && V9BootstrapPareto2D.Hash(physicalId[..64]))
+            return physicalId[65..];
+        return physicalId;
     }
 
     private static int ActiveTfUnits(V9FsAdaptiveOptionConfiguration option) =>

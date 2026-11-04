@@ -265,7 +265,19 @@ jobs:
           assert all(r["SharedSurnameCountMeasured"] and not r["EligibleForSelection"]
                      and not r["FalseCreationsMeasured"] and r["SharedFalseCreations"] is None
                      and r["BilateralFalseCreations"] is None and len(r["CandidatePairsSha256"]) == 64 for r in rows)
-          print("PASS: CSharp measured 135 TF arms and 12 paired diagnostic cells; false creations not measured.")
+          # Verify the physical frozen TF plan really opted in and that the
+          # new exploratory result was produced, without forcing the winner.
+          assert p["ExploratoryRiskPreference"] == {"FdrUpperTolerancePp": 0.05}
+          preference = measured.get("ExploratoryRiskPreference")
+          assert preference and preference["Version"] == "V9_EXPLORATORY_CP_RISK_BAND_V1"
+          assert preference["FdrUpperTolerancePp"] == p["ExploratoryRiskPreference"]["FdrUpperTolerancePp"]
+          assert preference["Status"] == "EXPLORATORY_RISK_PREFERENCE_NOT_CERTIFIED"
+          assert preference["SuggestedOptionId"] in preference["RiskBandOptionIds"]
+          assert preference["SuggestedOptionId"] in {
+              item["Option"]["OptionId"] for item in measured["Pareto"]["Table"]
+          }
+          assert measured["Pareto"]["InitialSuggestedOptionId"] is None
+          print("PASS: CSharp measured 135 TF arms, 12 diagnostics and risk-band preference; not certified.")
           PY
 
       - name: Preserve SHA-bound TF evidence (no CSV/PII or TEST)
