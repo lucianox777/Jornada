@@ -7,6 +7,10 @@ if [[ "$#" -lt 1 || "$#" -gt 2 ]]; then
 fi
 root="$1"
 pin_name="${2:-pinned-ibge.json}"
+# Seed 42 is the historical TF-001 corpus. Seed 43 is ONLY the frozen-transfer
+# target (V9-TF-002): new bytes, same producer/IBGE, never registered as seed 42.
+target_seed="${V9_TF_TARGET_SEED:-42}"
+[[ "$target_seed" == "42" || "$target_seed" == "43" ]] || { echo "Unsupported target seed" >&2; exit 1; }
 [[ "$pin_name" == "pinned-ibge.json" || "$pin_name" == "reconstructed-ibge.json" ]] || { echo "Invalid pin output name" >&2; exit 1; }
 test -n "${ConnectionStrings__Jornada:-}" || { echo "Missing disposable SQL connection" >&2; exit 1; }
 [[ "$ConnectionStrings__Jornada" == *"Database=JornadaHarness;"* ]] || {
@@ -43,8 +47,18 @@ dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -
   --reference-root "$PWD/data/reference/ibge-nomes-2022" \
   --population-profile demographic-primary \
   --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
-  --error-profile clean --people 30000 --seed 42 \
+  --error-profile clean --people 30000 --seed "$target_seed" \
   --out "$root/people-30k" > "$root/generation.log"
+if [[ "$target_seed" == "43" ]]; then
+  python3 scripts/v9-tf-seed43-frozen-transfer-physical.py bootstrap \
+    --corpus-root "$root/people-30k" \
+    --seed42-registry data/reference/v9-synthetic-seed42-30000/manifest.json \
+    --output "$root/bootstrap.json"
+  dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+    --v9-tf-export-ibge-pin "$root/bootstrap.json" "$root/$pin_name" --frozen-transfer-target-seed43
+  echo "PASS: disposable SQL IBGE + NEW seed-43 30000-base corpus prepared; pin exported; NO calibration, NO seed-42 registration."
+  exit 0
+fi
 python3 scripts/v9-tf-pin-source.py bootstrap \
   --root "$root/people-30k" --output "$root/bootstrap.json"
 dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \

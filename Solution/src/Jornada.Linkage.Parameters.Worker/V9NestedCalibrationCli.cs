@@ -125,6 +125,18 @@ public static class V9NestedCalibrationCli
     public static void RequirePinnedFinalistReference(V9NestedCalibrationPlan plan, V9FittedSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(plan);
+        RequirePinnedSnapshotReference(plan.PinnedIbgeReferenceVersionId, plan.PinnedIbgePublishedSha256,
+            plan.PinnedIbgeBootstrap, snapshot);
+    }
+
+    /// <summary>
+    /// Same attestation for any frozen snapshot replay (finalist validation or
+    /// frozen cross-seed transfer): each TF-positive unit must be bound to the
+    /// pinned published IBGE digest and the bootstrap of the FITTING corpus.
+    /// </summary>
+    public static void RequirePinnedSnapshotReference(long? pinnedVersionId, string? pinnedPublishedSha256,
+        NominalSyntheticIbgeBootstrapV9? pinnedBootstrap, V9FittedSnapshot snapshot)
+    {
         ArgumentNullException.ThrowIfNull(snapshot);
         var activeUnits = snapshot.Payload.UnitTfCalibrations?
             .Where(x => x.State == V9SnapshotTfFitState.Active).ToArray();
@@ -138,11 +150,11 @@ public static class V9NestedCalibrationCli
                 .Select(x => x.Calibration!).ToArray()
             : snapshot.Payload.TfCalibration is { } legacy
                 ? [legacy] : Array.Empty<V9SnapshotNominalUnitTfCalibration>();
-        if (calibrations.Length == 0 || plan.PinnedIbgeReferenceVersionId is null or <= 0
-            || plan.PinnedIbgePublishedSha256 is null
-            || plan.PinnedIbgePublishedSha256.Length != 64
-            || !plan.PinnedIbgePublishedSha256.All(Uri.IsHexDigit)
-            || plan.PinnedIbgeBootstrap is null)
+        if (calibrations.Length == 0 || pinnedVersionId is null or <= 0
+            || pinnedPublishedSha256 is null
+            || pinnedPublishedSha256.Length != 64
+            || !pinnedPublishedSha256.All(Uri.IsHexDigit)
+            || pinnedBootstrap is null)
             throw new InvalidDataException("Finalista TF positivo sem versão, digest e bootstrap IBGE fixados.");
         foreach (var tf in calibrations)
         {
@@ -154,9 +166,9 @@ public static class V9NestedCalibrationCli
             var expectedScope = tf.Side == CompositeNominalTfSideV9.Person
                 ? "SP_3550308_TODOS" : surname ? "BR_TODOS" : "BR_FEMININO";
             if (tf.Reference.Source != expectedSource
-                || tf.Reference.SyntheticBootstrap != plan.PinnedIbgeBootstrap
+                || tf.Reference.SyntheticBootstrap != pinnedBootstrap
                 || frame.Length != 4 || frame[0] != "IBGE_PUBLISHED"
-                || !string.Equals(frame[2], plan.PinnedIbgePublishedSha256,
+                || !string.Equals(frame[2], pinnedPublishedSha256,
                     StringComparison.OrdinalIgnoreCase)
                 || frame[3] != expectedScope)
                 throw new InvalidDataException(
