@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Regression: V9 physical SQL credentials are masked before any container startup."""
+import json
 import os
 import subprocess
 import tempfile
@@ -12,6 +13,18 @@ STARTER = ROOT / "Solution/scripts/v9-tf-start-disposable-sql.sh"
 
 
 class V9MaskedSqlProbeTests(unittest.TestCase):
+    def test_physical_workflow_has_no_password_literal_allowlist_bypass(self):
+        policy_path = ROOT / "Solution/config/security/source-sanity-policy.json"
+        policy = json.loads(policy_path.read_text(encoding="utf-8"))
+        workflow = ".github/workflows/v9-physical-seed42-probe.yml"
+        starter = "Solution/scripts/v9-tf-start-disposable-sql.sh"
+        # TLS exception remains strictly scoped to disposable CI SQL, but
+        # neither entrypoint may exempt a future hard-coded SA password.
+        self.assertIn(workflow, policy["allowedInsecureSqlGlobs"])
+        self.assertIn(starter, policy["allowedInsecureSqlGlobs"])
+        self.assertNotIn(workflow, policy["allowedPasswordLiteralGlobs"])
+        self.assertNotIn(starter, policy["allowedPasswordLiteralGlobs"])
+
     def test_both_manual_modes_start_container_only_after_sha_gate(self):
         w = WORKFLOW.read_text(encoding="utf-8")
         self.assertEqual(w.count("Start masked disposable SQL Server"), 2)

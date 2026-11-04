@@ -41,8 +41,7 @@
     ".github/workflows/identity-composition-ledger.yml",
     ".github/workflows/identity-composition-preapplication.yml",
     ".github/workflows/identity-composition-application.yml",
-    ".github/workflows/identity-history-runtime.yml",
-    ".github/workflows/v9-physical-seed42-probe.yml"
+    ".github/workflows/identity-history-runtime.yml"
   ],
   "forbiddenTokenPrefixes": [
     "ghp_",
