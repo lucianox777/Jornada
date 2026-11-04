@@ -4,7 +4,9 @@ namespace Jornada.Linkage.Parameters.Worker;
 public static class V9BootstrapPareto2D
 {
     public const double InitialMaximumP95Milliseconds = 60000d;
-    public const string SelectionVersion = "V9_BOOTSTRAP_PARETO_2D_IDEAL_DISTANCE_V2";
+    // V3 adds a mathematically selected exploratory frontier independently of
+    // operational eligibility. Historical V2 dossiers remain immutable.
+    public const string SelectionVersion = "V9_BOOTSTRAP_PARETO_2D_IDEAL_DISTANCE_V3";
     public sealed record SelectionPolicy(double MinimumGlobalRecall, double MaximumAcceptedFdrUpper,
         int MinimumIndependentIdentityGroups, double MaximumP95Milliseconds = InitialMaximumP95Milliseconds);
     public sealed record CandidateOption(string OptionId, string ConfigurationFingerprintSha256,
@@ -20,7 +22,10 @@ public static class V9BootstrapPareto2D
         double? IdealSquaredDistance);
     public sealed record Result(string Version, double MaximumP95Milliseconds,
         IReadOnlyList<Evaluation> Table, string? InitialSuggestedOptionId, string Status,
-        SelectionPolicy Policy);
+        SelectionPolicy Policy,
+        IReadOnlyList<string>? ExploratoryFrontierOptionIds = null,
+        string? ExploratorySuggestedOptionId = null,
+        string? ExploratoryStatus = null);
 
     // Compatibility only: no implicit risk certification. Callers should supply their declared policy.
     public static Result Evaluate(IEnumerable<CandidateOption> options,
@@ -87,6 +92,78 @@ public static class V9BootstrapPareto2D
             reasons.AddRange(p.EvidenceRejectionReasons!.Where(x => !string.IsNullOrWhiteSpace(x)));
             return Array.AsReadOnly(reasons.Distinct(StringComparer.Ordinal).ToArray());
         }
+        // Exploratory mathematical selection is independent of operational
+        // quality/P95, cluster-IID attestation, and policy thresholds.
+        // Invalid measurements and oracle-only evidence never become finalists.
+        static bool HasObservedMetrics(CandidateOption p)
+        {
+            // Only measured, structurally operational evidence can enter the
+            // descriptive frontier. Missing P95 or cluster risk certification
+            // does NOT exclude a valid observed configuration here.
+            var structurallyExcluded = p.EvidenceRejectionReasons?.Any(reason =>
+                reason is "ORACLE_NAO_OPERACIONAL"
+                    or "AGRUPAMENTO_NAO_OPERACIONAL"
+                    or "MARGEM_DE_CONFLITO_NULA"
+                    or "AGRUPAMENTO_CEGO_IMPURO"
+                    or "SUPORTE_INDEPENDENTE_INCONSISTENTE"
+                    or "FINGERPRINT_REUTILIZADO_COM_PARAMETROS_DIVERGENTES"
+                    or "EVIDENCIA_FISICA_NAO_VINCULADA_A_METRICAS"
+                    or "TRAIN_VALIDATION_NAO_INDEPENDENTES"
+                    or "PROVENIENCIA_FISICA_INCOMPLETA") ?? false;
+            if (structurallyExcluded || !Hash(p.ConfigurationFingerprintSha256)
+                || !Probability(p.GlobalRecall)
+                || !p.AcceptedFdr.HasValue || !Probability(p.AcceptedFdr.Value)
+                || p.GlobalEligibleTruth <= 0 || p.TrueAccepted < 0 || p.FalseAccepted < 0
+                || p.TrueAccepted > p.GlobalEligibleTruth
+                || p.TrueAccepted > long.MaxValue - p.FalseAccepted
+                || (p.EvidenceRejectionReasons?.Contains("ORACLE_NAO_OPERACIONAL") ?? false))
+                return false;
+            var accepted = p.TrueAccepted + p.FalseAccepted;
+            return accepted > 0
+                && Math.Abs(p.GlobalRecall - (double)p.TrueAccepted / p.GlobalEligibleTruth) <= 1e-10
+                && Math.Abs(p.AcceptedFdr.Value - (double)p.FalseAccepted / accepted) <= 1e-10;
+        }
+        var observed = sorted.Where(HasObservedMetrics)
+            .OrderByDescending(p => p.GlobalRecall)
+            .ThenBy(p => p.AcceptedFdr!.Value)
+            .ThenBy(p => p.ConfigurationFingerprintSha256, StringComparer.Ordinal)
+            .ThenBy(p => p.OptionId, StringComparer.Ordinal).ToArray();
+        var exploratoryFront = new List<CandidateOption>();
+        var minimumPriorFdr = double.PositiveInfinity;
+        var recallAtMinimumFdr = double.NegativeInfinity;
+        foreach (var candidate in observed)
+        {
+            var fdr = candidate.AcceptedFdr!.Value;
+            // Sorted sweep retains tied equivalents; O(n log n), unlike
+            // pairwise dominance enumeration across large catalogues.
+            if (fdr < minimumPriorFdr)
+            {
+                exploratoryFront.Add(candidate);
+                minimumPriorFdr = fdr;
+                recallAtMinimumFdr = candidate.GlobalRecall;
+            }
+            else if (fdr == minimumPriorFdr && candidate.GlobalRecall == recallAtMinimumFdr)
+                exploratoryFront.Add(candidate);
+        }
+        string? exploratoryWinner = null;
+        if (exploratoryFront.Count > 0)
+        {
+            var rMin = exploratoryFront.Min(p => p.GlobalRecall);
+            var rMax = exploratoryFront.Max(p => p.GlobalRecall);
+            var fMin = exploratoryFront.Min(p => p.AcceptedFdr!.Value);
+            var fMax = exploratoryFront.Max(p => p.AcceptedFdr!.Value);
+            exploratoryWinner = exploratoryFront.OrderBy(p =>
+            {
+                var recall = rMax == rMin ? 0 : (rMax - p.GlobalRecall) / (rMax - rMin);
+                var risk = fMax == fMin ? 0 : (p.AcceptedFdr!.Value - fMin) / (fMax - fMin);
+                return recall * recall + risk * risk;
+            // Equal distance is not evidence of equivalent risk. Prefer
+            // lower observed FDR, then greater recall, before stable IDs.
+            }).ThenBy(p => p.AcceptedFdr!.Value)
+              .ThenByDescending(p => p.GlobalRecall)
+              .ThenBy(p => p.ConfigurationFingerprintSha256, StringComparer.Ordinal)
+              .ThenBy(p => p.OptionId, StringComparer.Ordinal).First().OptionId;
+        }
         var reasonsById = sorted.ToDictionary(p => p.OptionId, Reasons, StringComparer.Ordinal);
         var eligible = sorted.Where(p => reasonsById[p.OptionId].Count == 0).ToArray();
         static bool Dominates(CandidateOption a, CandidateOption b) =>
@@ -108,6 +185,11 @@ public static class V9BootstrapPareto2D
             }
         }
         var selected = front.OrderBy(p => distances[p.OptionId])
+            // For certified candidates, prefer the smaller supported cluster
+            // FDR upper bound on an equal-distance tie, not a hash accident.
+            .ThenBy(p => p.IdentityClusterFdrUpper ?? double.PositiveInfinity)
+            .ThenBy(p => p.AcceptedFdr!.Value)
+            .ThenByDescending(p => p.GlobalRecall)
             .ThenBy(p => p.ConfigurationFingerprintSha256, StringComparer.Ordinal)
             .ThenBy(p => p.OptionId, StringComparer.Ordinal).FirstOrDefault();
         var table = sorted.Select(p => new Evaluation(p, reasonsById[p.OptionId].Count == 0,
@@ -116,7 +198,10 @@ public static class V9BootstrapPareto2D
                 && q.GlobalRecall == p.GlobalRecall && q.AcceptedFdr == p.AcceptedFdr).Select(q => q.OptionId).ToArray()),
             distances.TryGetValue(p.OptionId, out var distance) ? distance : null)).ToArray();
         return new(SelectionVersion, policy.MaximumP95Milliseconds, Array.AsReadOnly(table), selected?.OptionId,
-            selected is null ? "NO_ELIGIBLE_CONFIGURATION" : "SUGGESTION_ONLY_NOT_FROZEN", policy);
+            selected is null ? "NO_ELIGIBLE_CONFIGURATION" : "SUGGESTION_ONLY_NOT_FROZEN", policy,
+            Array.AsReadOnly(exploratoryFront.Select(p => p.OptionId).ToArray()),
+            exploratoryWinner,
+            exploratoryWinner is null ? "NO_VALID_OBSERVED_CONFIGURATION" : "EXPLORATORY_ONLY_NOT_CERTIFIED");
     }
     private static bool Probability(double value) => double.IsFinite(value) && value is >= 0 and <= 1;
     internal static bool Hash(string? value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);

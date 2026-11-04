@@ -45,6 +45,51 @@ public sealed class V9BootstrapPareto2DTests
     }
 
     [Test]
+    public void Exploratory_Pareto_selects_mathematically_without_P95_or_cluster_risk_certificate()
+    {
+        var options = new[] { Option("safe", 80), Option("balance", 90, 1, 'b'),
+            Option("recall", 100, 4, 'c'), Option("dominated", 70, 4, 'd') }
+            .Select(x => x with
+            {
+                PhysicalP95Milliseconds = null, PhysicalEndToEndAttested = false,
+                IdentityClusterUncertaintyAttested = false, IdentityClusterFdrUpper = null
+            }).ToArray();
+        var strictPolicy = Policy with { MinimumGlobalRecall = .99, MaximumAcceptedFdrUpper = .001 };
+        var first = V9BootstrapPareto2D.Evaluate(options, strictPolicy);
+        var reversed = V9BootstrapPareto2D.Evaluate(options.Reverse(), strictPolicy);
+        Multiple(() =>
+        {
+            Assert.That(first.Version, Is.EqualTo("V9_BOOTSTRAP_PARETO_2D_IDEAL_DISTANCE_V3"),
+                "A nova fronteira matemática altera o contrato serializado; versões V2 históricas não são reescritas.");
+            Assert.That(first.InitialSuggestedOptionId, Is.Null);
+            Assert.That(first.Status, Is.EqualTo("NO_ELIGIBLE_CONFIGURATION"));
+            Assert.That(first.Table.All(x => !x.Eligible && !x.OnFrontier), Is.True);
+            Assert.That(first.ExploratoryFrontierOptionIds,
+                Is.EquivalentTo(new[] { "safe", "balance", "recall" }));
+            Assert.That(first.ExploratorySuggestedOptionId, Is.EqualTo("balance"));
+            Assert.That(first.ExploratoryStatus, Is.EqualTo("EXPLORATORY_ONLY_NOT_CERTIFIED"));
+            Assert.That(reversed.ExploratorySuggestedOptionId,
+                Is.EqualTo(first.ExploratorySuggestedOptionId));
+        });
+    }
+
+    [Test]
+    public void Exploratory_Pareto_does_not_reintroduce_invalid_or_oracle_candidates()
+    {
+        var candidates = new[] { Option("inconsistent", 90) with { GlobalRecall = .4 },
+            Option("oracle", 100) with { EvidenceRejectionReasons = ["ORACLE_NAO_OPERACIONAL"] },
+            Option("physical", 80) with { PhysicalEndToEndAttested = false,
+                IdentityClusterUncertaintyAttested = false } };
+        var result = V9BootstrapPareto2D.Evaluate(candidates, Policy);
+        Multiple(() =>
+        {
+            Assert.That(result.ExploratoryFrontierOptionIds, Is.EqualTo(new[] { "physical" }));
+            Assert.That(result.ExploratorySuggestedOptionId, Is.EqualTo("physical"));
+            Assert.That(result.InitialSuggestedOptionId, Is.Null);
+        });
+    }
+
+    [Test]
     public void Retains_all_rejection_reasons_and_does_not_trust_boolean_uncertainty()
     {
         var option = Option("unsafe", 50) with
@@ -92,6 +137,58 @@ public sealed class V9BootstrapPareto2DTests
         Assert.That(result.InitialSuggestedOptionId, Is.Null);
         Assert.That(result.Table.Single(x => x.Option.OptionId == "ratio").ExclusionReasons,
             Does.Contain("METRICAS_INCONSISTENTES"));
+    }
+
+
+    [Test]
+    public void Equal_distance_prefers_lower_observed_fdr_before_fingerprint()
+    {
+        // Two Pareto endpoints have identical normalized distance (= 1).
+        // The riskier endpoint deliberately has the earlier fingerprint.
+        var safe = Option("safe", 80, hash: 'f');
+        var risky = Option("riskier", 100, 4, hash: 'a');
+        var forward = V9BootstrapPareto2D.Evaluate([risky, safe], Policy);
+        var reverse = V9BootstrapPareto2D.Evaluate([safe, risky], Policy);
+        Multiple(() =>
+        {
+            Assert.That(forward.ExploratoryFrontierOptionIds,
+                Is.EquivalentTo(new[] { "safe", "riskier" }));
+            Assert.That(forward.ExploratorySuggestedOptionId, Is.EqualTo("safe"));
+            Assert.That(forward.InitialSuggestedOptionId, Is.EqualTo("safe"));
+            Assert.That(reverse.ExploratorySuggestedOptionId, Is.EqualTo("safe"));
+            Assert.That(reverse.InitialSuggestedOptionId, Is.EqualTo("safe"));
+        });
+    }
+
+    [Test]
+    public void Exploratory_frontier_excludes_structurally_non_operational_evidence()
+    {
+        var fs = Option("fs-blind", 80, hash: 'c') with
+        {
+            PhysicalP95Milliseconds = null, PhysicalEndToEndAttested = false,
+            IdentityClusterUncertaintyAttested = false, IdentityClusterFdrUpper = null
+        };
+        var raw = Option("raw-sql", 100, hash: 'a') with
+        {
+            EvidenceRejectionReasons = ["AGRUPAMENTO_NAO_OPERACIONAL"]
+        };
+        var impure = Option("impure", 99, hash: 'b') with
+        {
+            EvidenceRejectionReasons = ["AGRUPAMENTO_CEGO_IMPURO"]
+        };
+        var wrongCohort = Option("mixed-cohort", 98, hash: 'd') with
+        {
+            EvidenceRejectionReasons = ["TRAIN_VALIDATION_NAO_INDEPENDENTES"]
+        };
+        var result = V9BootstrapPareto2D.Evaluate(
+            [wrongCohort, raw, fs, impure], Policy);
+        Multiple(() =>
+        {
+            Assert.That(result.ExploratoryFrontierOptionIds, Is.EqualTo(new[] { "fs-blind" }));
+            Assert.That(result.ExploratorySuggestedOptionId, Is.EqualTo("fs-blind"));
+            Assert.That(result.InitialSuggestedOptionId, Is.Null);
+            Assert.That(result.ExploratoryStatus, Is.EqualTo("EXPLORATORY_ONLY_NOT_CERTIFIED"));
+        });
     }
 
     [Test]
