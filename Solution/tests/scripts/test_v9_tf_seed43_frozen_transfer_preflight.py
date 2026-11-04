@@ -80,10 +80,12 @@ class Seed43FrozenTransferTests(unittest.TestCase):
             digest = sha(payload)
             (self.snapshots / (digest + ".fitted.json")).write_bytes(payload)
             models.append({"option_id": option, "snapshot_sha256": digest})
+        self.source_study = self.root / "source-study.json"
+        self.source_study.write_bytes(b'{"physical":"frozen-seed42"}\n')
         self.plan = {
             "schema_version": gate.VERSION, "source_seed": 42, "target_seed": 43,
             "transfer_mode": "FROZEN_NO_REFIT", "source_commit_sha": "1" * 40,
-            "source_study_sha256": "2" * 64, "source_run_id": 41681714081,
+            "source_study_sha256": gate.sha256(self.source_study), "source_run_id": 41681714081,
             "frozen_models": models, "target_fdr_max": 0.01,
             "test_sealed": True, "margins": [0.5, 2, 4],
         }
@@ -96,7 +98,7 @@ class Seed43FrozenTransferTests(unittest.TestCase):
 
     def verify(self):
         return gate.verify(self.plan_path, self.corpus, self.registry_path,
-                           self.pin_path, self.snapshots)
+                           self.pin_path, self.snapshots, self.source_study)
 
     def test_success_proves_only_preflight_without_using_test_outcomes(self):
         report = self.verify()
@@ -131,6 +133,11 @@ class Seed43FrozenTransferTests(unittest.TestCase):
         snapshot = self.snapshots / (self.plan["frozen_models"][0]["snapshot_sha256"] + ".fitted.json")
         snapshot.write_bytes(b"TAMPER")
         with self.assertRaisesRegex(ValueError, "snapshot"):
+            self.verify()
+
+    def test_rejects_mutated_seed42_source_study(self):
+        self.source_study.write_bytes(b"TAMPERED")
+        with self.assertRaisesRegex(ValueError, "source study"):
             self.verify()
 
     def test_seed42_pin_cannot_be_used_for_seed43_and_reference_is_separate(self):
