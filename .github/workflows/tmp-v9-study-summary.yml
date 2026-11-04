@@ -1,5 +1,5 @@
 name: tmp-v9-study-summary
-# Temporary, read-only: summarize artifact of run 41681714081. No merge. Delete after use.
+# Temporary, read-only: inspect seed42 frozen source artifact (run 41900357031). No merge. Delete after use.
 on:
   push:
     branches: [tmp/v9-study-summary-41681714081]
@@ -18,40 +18,36 @@ jobs:
           set -euo pipefail
           mkdir -p art && cd art
           gh run download 41900357031 -R "$GITHUB_REPOSITORY" -n v9-tf-45-physical-41900357031-935f704edd2bceb6a125ecfe532ad5b71f9c89b9
-          find . -type f -printf '%s\t%p\n' | sort -rn | head -40
-      - name: Summarize study (metrics only, no names)
+          find . -type f | wc -l
+          find . -type f ! -name '*.fitted.json' -printf '%s\t%p\n' | sort -k2
+          sha256sum $(find . -type f ! -name '*.fitted.json' | sort)
+          find . -name '*.fitted.json' | wc -l
+      - name: Inspect (metadata only)
         run: |
           set -euo pipefail
           python3 - <<'PY'
-          import json, os, glob
-          files = [p for p in glob.glob('art/**/*.json', recursive=True) if os.path.basename(p) in ('study.json',)]
-          print("STUDY FILES:", files)
-          for path in files:
-              d = json.load(open(path, encoding='utf-8'))
-              print("TOP KEYS:", {k: (type(v).__name__, len(v) if isinstance(v,(list,dict)) else v if not isinstance(v,str) or len(v)<120 else 'str') for k,v in d.items()})
-              def sc(o, depth=0):
-                  if isinstance(o, dict):
-                      r = {}
-                      for k, v in o.items():
-                          if isinstance(v,(int,float,bool)) or v is None: r[k]=v
-                          elif isinstance(v,str) and len(v)<=160: r[k]=v
-                          elif isinstance(v,dict) and depth<3:
-                              s=sc(v,depth+1)
-                              if s: r[k]=s
-                          elif isinstance(v,list) and len(v)<=12 and all(not isinstance(x,(dict,list)) for x in v): r[k]=v
-                          elif isinstance(v,list) and len(v)<=12 and depth<2 and all(isinstance(x,dict) for x in v): r[k]=[sc(x,depth+1) for x in v]
-                      return r
-                  return None
-              print("BEGIN_SUMMARY")
-              for k, v in d.items():
-                  if isinstance(v, list) and v and isinstance(v[0], dict) and len(v) <= 400:
-                      print("## LIST", k, len(v))
-                      for x in v: print(json.dumps(sc(x), ensure_ascii=False, separators=(',',':')))
-                  elif isinstance(v, dict):
-                      print("## DICT", k); print(json.dumps(sc(v), ensure_ascii=False, separators=(',',':'))[:20000])
-                  elif not isinstance(v, list):
-                      print("## VAL", k, json.dumps(v)[:300])
-                  else:
-                      print("## BIGLIST", k, len(v))
-              print("END_SUMMARY")
+          import json, glob, hashlib, os
+          study = glob.glob('art/**/study-tf/study.json', recursive=True)[0]; d = os.path.dirname(study)
+          s = json.load(open(study, encoding='utf-8'))
+          print("STUDY", study, hashlib.sha256(open(study,'rb').read()).hexdigest())
+          print("KEYS", list(s.keys()))
+          fc = s.get('FrozenConfigurations') or []
+          print("FROZEN_CONFIGS", len(fc))
+          if fc: print("FC0 KEYS", list(fc[0].keys()), "SNAP KEYS", list(fc[0]['Snapshot'].keys()), "PAYLOAD KEYS", list(fc[0]['Snapshot']['Payload'].keys()))
+          for c in fc:
+              oid = c['OptionId'][65:]
+              if oid in ('T0.95_TF0', 'TF_ONE_MF_W1_M0_A0.5_T0.95'):
+                  p = c['Snapshot']['Payload']; sha = c['Snapshot']['ContentSha256']
+                  f = os.path.join(d, sha + '.fitted.json')
+                  fsha = hashlib.sha256(open(f,'rb').read()).hexdigest() if os.path.exists(f) else None
+                  print("SNAP", json.dumps({k: v for k, v in c.items() if k != 'Snapshot' and not isinstance(v,(dict,list))}), sha, "file_sha", fsha,
+                        json.dumps({k: p.get(k) for k in ('Threshold','TfWeight','ConflictMargin','ProjectionFingerprintSha256')}))
+          pl = json.load(open(os.path.join(d, 'plan.json'), encoding='utf-8'))
+          print("PLAN KEYS", list(pl.keys()))
+          for k in ('Execution','MaximumAcceptedPerBaseIdentity','ObservationCapDeclaration','ConflictMargins','Thresholds','PinnedIbgeReferenceVersionId','PinnedIbgeBootstrap','SelectionPolicy','Budget','Seed'):
+              if k in pl: print("PLAN", k, json.dumps(pl[k])[:3000])
+          pt = glob.glob('art/**/plan-tf.json', recursive=True)[0]
+          print("PLAN_TF_SHA", hashlib.sha256(open(pt,'rb').read()).hexdigest())
+          sm = s.get('SourceMeasurements') or []
+          if sm: print("SM KEYS", list(sm[0].keys()))
           PY
