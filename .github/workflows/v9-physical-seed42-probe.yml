@@ -49,6 +49,7 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_manual_probe_evidence.py
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_tf_30k_dispatch_gate.py
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_tf_pin_source.py
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_masked_sql_probe.py
       - name: Dry-run exact SHA gate when manual preflight is selected (no 30k)
         if: github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight'
         env:
@@ -100,21 +101,6 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight' && needs.impact.outputs.run_physical_30k == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 180
-    services:
-      sqlserver:
-        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
-        env:
-          ACCEPT_EULA: Y
-          MSSQL_PID: Developer
-          MSSQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!V9Probe'
-        ports:
-          - 1433:1433
-        options: >-
-          --health-cmd "SQLCMDPASSWORD=$MSSQL_SA_PASSWORD /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -Q 'SELECT 1' || exit 1"
-          --health-interval 10s --health-timeout 5s --health-retries 25
-    env:
-      JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!V9Probe'
-      ConnectionStrings__Jornada: 'Server=localhost,1433;Database=JornadaHarness;User Id=sa;Password=Jornada_${{ github.run_id }}!V9Probe;TrustServerCertificate=true;Encrypt=false'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -129,6 +115,9 @@ jobs:
           python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
             --mode preflight --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
             --output Solution/.local/v9-tf-physical/git-approved.json
+      - name: Start masked disposable SQL Server
+        shell: bash
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.113'
@@ -185,6 +174,10 @@ jobs:
             Solution/.local/v9-tf-physical/bootstrap.json
             Solution/.local/v9-tf-physical/pinned-ibge.json
             Solution/.local/v9-tf-physical/people-30k/generation-manifest.json
+      - name: Remove disposable SQL Server
+        if: always()
+        shell: bash
+        run: docker rm -f "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
 
   physical-30k:
     name: V9 full physical 30k SQL TRAIN (when impacted)
@@ -195,21 +188,6 @@ jobs:
     # Full adaptive batches now survive the old all-cell veto and execute 20
     # complete latency replays per feasible candidate; preserve every gate.
     timeout-minutes: 360
-    services:
-      sqlserver:
-        image: mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89
-        env:
-          ACCEPT_EULA: Y
-          MSSQL_PID: Developer
-          MSSQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!V9Probe'
-        ports:
-          - 1433:1433
-        options: >-
-          --health-cmd "SQLCMDPASSWORD=$MSSQL_SA_PASSWORD /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -Q 'SELECT 1' || exit 1"
-          --health-interval 10s --health-timeout 5s --health-retries 25
-    env:
-      JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!V9Probe'
-      ConnectionStrings__Jornada: 'Server=localhost,1433;Database=JornadaHarness;User Id=sa;Password=Jornada_${{ github.run_id }}!V9Probe;TrustServerCertificate=true;Encrypt=false'
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -227,6 +205,9 @@ jobs:
             --pinned-json "$TF_IBGE" \
             --output Solution/.local/v9-tf-physical/git-approved.json \
             --pinned-output Solution/.local/v9-tf-physical/pinned-ibge.json
+      - name: Start masked disposable SQL Server
+        shell: bash
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.113'
@@ -305,6 +286,10 @@ jobs:
             Solution/.local/v9-tf-physical/study-tf/*.json
             Solution/.local/v9-tf-physical/study-tf/*.fitted.json
             Solution/.local/v9-tf-physical/people-30k/generation-manifest.json
+      - name: Remove disposable SQL Server
+        if: always()
+        shell: bash
+        run: docker rm -f "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
 
   # Stable required check preserves the old status context without faking execution.
   physical-seed42:
