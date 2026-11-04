@@ -28,6 +28,13 @@ if (args.Length > 0 && args[0] is "--v9-adaptive-study" or "--v9-adaptive-census
     return;
 }
 
+// Frozen seed42 -> seed43 transfer: physical replay of pinned snapshots, never a fit.
+if (args.Length > 0 && args[0] == "--v9-frozen-transfer")
+{
+    await V9FrozenTransferCli.RunAsync(args);
+    return;
+}
+
 // Portable artifact inspection never starts the host or connects to SQL.
 if (args.Length > 0 && args[0] == "--v9-inspect-fitted-snapshot")
 {

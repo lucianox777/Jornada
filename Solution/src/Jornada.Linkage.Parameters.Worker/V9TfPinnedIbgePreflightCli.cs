@@ -13,6 +13,7 @@ namespace Jornada.Linkage.Parameters.Worker;
 public static class V9TfPinnedIbgePreflightCli
 {
     private const string ReferenceCode = "CENSO2022_NOMES_BRASIL_V1";
+    public const string FrozenTransferTargetFlag = "--frozen-transfer-target-seed43";
     private const string MetadataOnlyBlockingFrame = "V9_TF_PIN_PROVENANCE_ONLY_NO_BLOCKING_OR_CALIBRATION";
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -23,8 +24,13 @@ public static class V9TfPinnedIbgePreflightCli
 
     public static async Task RunAsync(string[] args)
     {
-        if (args.Length != 3 || args[0] != "--v9-tf-export-ibge-pin")
-            throw new ArgumentException("Uso: --v9-tf-export-ibge-pin <bootstrap.json> <novo-pin.json>");
+        // The optional flag is the ONLY route to a seed-43 bootstrap: it serves the
+        // frozen seed42 -> seed43 transfer (no fit). The default contract stays seed 42.
+        var frozenTransferTarget = args.Length == 4 && args[3] == FrozenTransferTargetFlag;
+        if ((args.Length != 3 && !frozenTransferTarget) || args[0] != "--v9-tf-export-ibge-pin")
+            throw new ArgumentException("Uso: --v9-tf-export-ibge-pin <bootstrap.json> <novo-pin.json> ["
+                + FrozenTransferTargetFlag + "]");
+        var expectedSeed = frozenTransferTarget ? 43UL : 42UL;
 
         var bootstrapPath = Path.GetFullPath(args[1]);
         var outputPath = Path.GetFullPath(args[2]);
@@ -35,7 +41,7 @@ public static class V9TfPinnedIbgePreflightCli
             ?? throw new InvalidDataException("Bootstrap nulo.");
         if (bootstrap.Provenance != CompositeNominalTermFrequencyContractV9.SyntheticIbgeProvenance
             || bootstrap.People != CompositeNominalTermFrequencyContractV9.CanonicalBootstrapPeople
-            || bootstrap.GeneratorSeed != 42
+            || bootstrap.GeneratorSeed != expectedSeed
             || string.IsNullOrWhiteSpace(bootstrap.GeneratorVersion)
             || string.IsNullOrWhiteSpace(bootstrap.CorpusFingerprint)
             || string.IsNullOrWhiteSpace(bootstrap.GenerationHypothesesFingerprint))
