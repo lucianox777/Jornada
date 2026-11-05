@@ -69,7 +69,8 @@ class HistoricalMuPlanTests(unittest.TestCase):
         self.assertEqual(out["MaximumBatches"], 1)
         self.assertEqual(out["Calibration"]["Budget"]["StudyFingerprintSha256"],
                          out["Calibration"]["StudyFingerprintSha256"])
-        self.assertEqual(out["Calibration"]["SelectionPolicy"], baseline()["Calibration"]["SelectionPolicy"])
+        self.assertEqual(out["Calibration"]["Budget"]["MaximumObservedAcceptedFdrPoint"], .01)
+        self.assertEqual(out["Calibration"]["SelectionPolicy"]["MaximumAcceptedFdrUpper"], .01)
         self.assertEqual(out["Calibration"]["BaselineRuleSets"], baseline()["Calibration"]["BaselineRuleSets"])
         self.assertEqual(out["Calibration"]["DeclaredSearchSpace"],
                          baseline()["Calibration"]["DeclaredSearchSpace"])
