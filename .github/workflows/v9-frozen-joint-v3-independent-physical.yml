@@ -119,7 +119,7 @@ jobs:
             "$PWD/data/reference/v9-tf-seed43-frozen-transfer/executor.json" \
             "$SOURCE_DIR/plan-tf.json" \
             "$SOURCE_DIR/study-tf/8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f.fitted.json" \
-            "$TRIAL_DIR/8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5b0e9c425557cbdefc.fitted.json" \
+            "$TRIAL_DIR/8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc.fitted.json" \
             "$TRIAL_DIR/derivation-receipt.json" > /dev/null
       - name: Generate NEW predeclared 30k seed, only after manual SHA gate
         working-directory: Solution
