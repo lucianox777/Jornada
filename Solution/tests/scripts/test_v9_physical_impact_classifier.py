@@ -91,6 +91,15 @@ class V9PhysicalImpactTests(unittest.TestCase):
             "Solution/src/Jornada.Linkage.Core/V9LowerNonMatchTrainCalibrator.cs"
         ))
 
+    def test_aggregate_audit_is_safe_but_mixed_workflow_is_not(self):
+        audit = "Solution/scripts/v9-tf-seed43-aggregate-stat-audit.py"
+        for status in ("A", "M"):
+            self.assertFalse(m.classify([(status, audit)])["run_physical_30k"])
+        self.assertTrue(m.classify([("D", audit)])["run_physical_30k"])
+        self.assertTrue(m.classify([("M", audit), ("M", ".github/workflows/ci.yml")])["run_physical_30k"])
+        self.assertTrue(m.classify([("M", audit), ("M", "Solution/src/Jornada.Linkage.Core/FellegiSunterScoring.cs")])["run_physical_30k"])
+        self.assertTrue(m.classify([("M", audit)], manual=True)["run_physical_30k"])
+
     def test_only_markdown_skips(self):
         self.assertFalse(self.changes("Solution/docs/X.md", "Documentos/README.md"))
         self.assertTrue(self.changes("Solution/docs/evidence/E2E_B_Baseline_20261001.yml"))

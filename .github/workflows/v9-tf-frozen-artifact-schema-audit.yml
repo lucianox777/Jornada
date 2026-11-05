@@ -1,0 +1,93 @@
+name: v9-tf-frozen-artifact-schema-audit
+
+# Pulls only the EXISTING pinned TF-001 artifact and checks metadata + SHA.
+# No SQL, no 30k run, no model training, no TEST, no DT-15 or production.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-tf-frozen-artifact-schema-audit.yml'
+      - 'Solution/scripts/v9-tf-frozen-source-schema-audit.py'
+      - 'Solution/tests/scripts/test_v9_tf_frozen_source_schema_audit.py'
+      - 'Solution/data/reference/v9-tf-seed43-frozen-transfer/executor.json'
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Exact 40-character branch SHA (manual audit; never use stale evidence)'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  archived-frozen-models:
+    name: Verify archived TF0 and ONE_MF fitted schemas (no refit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify PR merge checkout or exact manual branch HEAD; run audit tests
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
+            [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$GITHUB_REF" == refs/heads/* ]]
+            test "$GITHUB_SHA" = "$EXPECTED_SHA"
+            LIVE_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/${GITHUB_REF#refs/heads/}" --jq '.object.sha')"
+            test "$LIVE_SHA" = "$EXPECTED_SHA"
+          else
+            test "$GITHUB_EVENT_NAME" = 'pull_request'
+          fi
+          python3 -m unittest Solution/tests/scripts/test_v9_tf_frozen_source_schema_audit.py -v
+      - name: Retrieve only the previously recorded Actions artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          read -r RUN_ID NAME SOURCE_SHA < <(python3 -c 'import json; x=json.load(open("Solution/data/reference/v9-tf-seed43-frozen-transfer/executor.json")); print(x["SourceRunId"],x["SourceArtifactName"],x["SourceCommitSha"])')
+          test "$RUN_ID" = "41900357031"
+          test "$SOURCE_SHA" = "935f704edd2bceb6a125ecfe532ad5b71f9c89b9"
+          ACTUAL_SOURCE_SHA="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" --jq .head_sha)"
+          test "$ACTUAL_SOURCE_SHA" = "$SOURCE_SHA"
+          mkdir -p "$RUNNER_TEMP/v9-tf-frozen-source"
+          gh run download "$RUN_ID" -R "$GITHUB_REPOSITORY" -n "$NAME" -D "$RUNNER_TEMP/v9-tf-frozen-source"
+      - name: Audit SHA, V2/V3, TF state, 81 cells and passes; never use SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Solution/scripts/v9-tf-frozen-source-schema-audit.py \
+            --executor Solution/data/reference/v9-tf-seed43-frozen-transfer/executor.json \
+            --source-dir "$RUNNER_TEMP/v9-tf-frozen-source" \
+            --output "$RUNNER_TEMP/v9-tf-frozen-schema.json"
+          python3 - "$RUNNER_TEMP/v9-tf-frozen-schema.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))
+          t=next(r for r in x['models'] if r['role']=='PRIMARY_TREATMENT')
+          print('### V9 frozen ONE_MF — SHA-verified archive (diagnostic only)')
+          print('- Source run: '+str(x['sourceRunId']))
+          print('- Snapshot SHA: '+t['snapshotSha256'])
+          print('- Schema: '+t['schemaVersion'])
+          print('- Has V3 JointSupport: '+str(t['jointSupportPresent']))
+          print('- Active TF units: '+str(t['activeUnitTfCount']))
+          print('- Frozen passes: '+str(t['blockingPassCount']))
+          print('- Gold V3/TF diagnostic structurally eligible: '+str(t['goldTfV3DiagnosticStructurallyEligible']))
+          print('- **Not** an incremental Gold run, REF publication, DT-15 approval or certification.')
+          PY
+      - name: Upload only sanitized, SHA-backed metadata receipt
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-tf-original-frozen-schema-${{ github.sha }}
+          path: ${{ runner.temp }}/v9-tf-frozen-schema.json
+          if-no-files-found: error
+          retention-days: 90

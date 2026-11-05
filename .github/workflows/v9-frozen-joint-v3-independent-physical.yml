@@ -1,0 +1,183 @@
+name: v9-frozen-joint-v3-independent-physical
+
+# DO NOT enable push or pull_request here: 30k must be manually requested.
+# The new V3 was fitted on the original seed-42 TRAIN only. This independent
+# seed is validation of changed M/U, NOT validation of incremental Gold.
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "40-character exact SHA on selected branch; do not reuse result after code change"
+        type: string
+        required: true
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  blind-independent-validation:
+    name: MANUAL 30k — frozen V2 vs NEW V3, same fresh VALIDATION / SQL
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      SOURCE_DIR: ${{ github.workspace }}/Solution/.local/v9-frozen-source
+      TRIAL_DIR: ${{ github.workspace }}/Solution/.local/v9-v3-candidate
+      TARGET_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-cohort
+      EVIDENCE: ${{ github.workspace }}/Solution/.local/v9-v3-independent-result
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Verify a manual request and the exact HEAD before any data or SQL
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_REF" == refs/heads/* ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(git ls-remote --exit-code origin "$GITHUB_REF" | awk '{print $1}')" = "$EXPECTED_SHA"
+          test "$GITHUB_SHA" = "$EXPECTED_SHA"
+          echo "Manual, exact-SHA, no automatic 30k trigger."
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build frozen evaluator and unmodified synthetic generator
+        working-directory: Solution
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+      - name: Download pinned original V2 and QUARANTINED derived V3
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$SOURCE_DIR" "$TRIAL_DIR"
+          read -r SRC_RUN SRC_NAME SRC_SHA < <(python3 -c 'import json; d=json.load(open("Solution/data/reference/v9-tf-seed43-frozen-transfer/executor.json"));print(d["SourceRunId"],d["SourceArtifactName"],d["SourceCommitSha"])')
+          test "$SRC_RUN" = "41900357031"
+          test "$SRC_SHA" = "935f704edd2bceb6a125ecfe532ad5b71f9c89b9"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SRC_RUN" --jq .head_sha)" = "$SRC_SHA"
+          gh run download "$SRC_RUN" -R "$GITHUB_REPOSITORY" -n "$SRC_NAME" -D "$SOURCE_DIR"
+          TRIAL_RUN="41964404787"
+          TRIAL_SHA="65cda6c063924ab75c5256a16142c5697fce3956"
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$TRIAL_RUN" --jq .head_sha)" = "$TRIAL_SHA"
+          gh run download "$TRIAL_RUN" -R "$GITHUB_REPOSITORY" \
+            -n "V9-V3-TRAIN-TRIAL-NOT-AUTHORIZED-$TRIAL_SHA" -D "$TRIAL_DIR"
+          gh run download "$TRIAL_RUN" -R "$GITHUB_REPOSITORY" \
+            -n "v9-frozen-joint-v3-TRIAL-METADATA-$TRIAL_SHA" -D "$TRIAL_DIR"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path(os.environ['SOURCE_DIR'])
+          candidate=Path(os.environ['TRIAL_DIR'])
+          executor=json.load(open('Solution/data/reference/v9-tf-seed43-frozen-transfer/executor.json'))
+          def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+          assert sha(root/'plan-tf.json')==executor['SourcePlanTfSha256']
+          assert sha(root/'study-tf'/'study.json')==executor['SourceStudySha256']
+          for arm in executor['Arms']:
+              h=arm['SnapshotSha256']
+              assert sha(root/'study-tf'/(h+'.fitted.json'))==h
+          derived='8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc'
+          assert sha(candidate/(derived+'.fitted.json'))==derived
+          receipt=json.load(open(candidate/'derivation-receipt.json'))
+          assert receipt['sourceSnapshotSha256']=='8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f'
+          assert receipt['derivedTrialSnapshotSha256']==derived
+          assert receipt['originalTrainStudySha256']==executor['SourceStudySha256']
+          assert receipt['certified'] is False and receipt['selectedForUse'] is False
+          assert receipt['tfRefitted'] is False and receipt['jointProbabilityParametersReestimated'] is True
+          print('PASS: 6 original fits, new V3 and TRAIN derivation metadata authenticated by original SHA.')
+          PY
+      - name: Verify exact V2/V3 frozen pair without SQL or generation
+        shell: bash
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-preflight-frozen-v2-v3-pair \
+            "$PWD/data/reference/v9-tf-seed43-frozen-transfer/executor.json" \
+            "$SOURCE_DIR/plan-tf.json" \
+            "$SOURCE_DIR/study-tf/8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f.fitted.json" \
+            "$TRIAL_DIR/8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5b0e9c425557cbdefc.fitted.json" \
+            "$TRIAL_DIR/derivation-receipt.json" > /dev/null
+      - name: Generate NEW predeclared 30k seed, only after manual SHA gate
+        working-directory: Solution
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e "$TARGET_DIR"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 30000 --seed 20261105001 \
+            --out "$TARGET_DIR" >/dev/null
+          test -s "$TARGET_DIR/generation-manifest.json"
+          test -s "$TARGET_DIR/observacoes.csv"
+      - name: Start disposable, secret-masked SQL container (NO operational connection)
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - name: Create one empty isolated SQL database
+        shell: bash
+        run: |
+          set -euo pipefail
+          CID="$(docker ps -q --filter publish=1433 | head -1)"
+          test -n "$CID"
+          SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -e SQLCMDPASSWORD "$CID" \
+            /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b \
+              -Q "IF DB_ID(N'JornadaHarness') IS NOT NULL THROW 51000, 'Preexisting database', 1; CREATE DATABASE JornadaHarness;"
+      - name: Validate same frozen V2/V3 on new VALIDATION, physically in SQL (20 repeats each)
+        working-directory: Solution
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote --exit-code origin "$GITHUB_REF" | awk '{print $1}')" = "$EXPECTED_SHA"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-compare-frozen-v2-v3-independent \
+            "$PWD/data/reference/v9-tf-seed43-frozen-transfer/executor.json" \
+            "$SOURCE_DIR/plan-tf.json" \
+            "$SOURCE_DIR/study-tf/8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f.fitted.json" \
+            "$TRIAL_DIR/8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc.fitted.json" \
+            "$TRIAL_DIR/derivation-receipt.json" \
+            "$TARGET_DIR/observacoes.csv" "$EVIDENCE"
+          python3 - "$EVIDENCE/v3-independent-comparison.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))
+          assert x['schema']=='V9_FROZEN_V2_V3_INDEPENDENT_BLIND_SQL_DESCRIPTIVE_V1'
+          assert x['validationSeed']==20261105001
+          assert x['certified'] is False and x['testUsed'] is False
+          assert x['tfRefitted'] is False and x['independentGoldFourWavesThreeOrdersExecuted'] is False
+          print('### Frozen V2 vs NEW V3 (independent synthetic VALIDATION / SQL)')
+          for k in ('originalV2Sha256','experimentalV3Sha256','validationSeed',
+                    'validationObservations','validationBaseIdentities',
+                    'deltaAcceptedTrueSources','deltaAcceptedFalseSources','deltaGlobalSourceRecallPp'):
+              print('- '+k+': '+str(x[k]))
+          for label in ('original','v3Trial'):
+              m=x[label]['Metric']
+              print(f"- {label}: TP={m['TrueAcceptedSourceObservations']} FP={m['FalseAcceptedSourceObservations']} recall={m['GlobalSourceRecall']} FDR={m['FdrAfterResolve']}")
+          print('No incremental Gold trial, independent population certification, model selection, or operational authorization.')
+          PY
+      - name: Upload aggregate-only receipt, even if quality is unfavorable
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: V9-V2-V3-INDEPENDENT-BLIND-SQL-NOT-CERTIFIED-${{ github.sha }}
+          path: ${{ github.workspace }}/Solution/.local/v9-v3-independent-result/v3-independent-comparison.json
+          if-no-files-found: warn
+          retention-days: 90
