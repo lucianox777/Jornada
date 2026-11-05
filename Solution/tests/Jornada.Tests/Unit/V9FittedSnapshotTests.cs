@@ -301,6 +301,68 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void V3_gold_tf_runtime_builds_ordered_sql_candidate_union_without_refit()
+    {
+        // Pure synthetic V3 contract fixture: proves the physical runner's
+        // pinned-fitted-snapshot *code path*, not a certified real Gold outcome.
+        // The archived ONE_MF 8bdf08af... is V2 and MUST NOT be substituted.
+        var payload = FourUnitTfPayload() with
+        {
+            ProjectionSchemaVersion = V9CalibrationBlockingProjection.SchemaVersion,
+            ProjectionFingerprintSha256 = V9CalibrationBlockingProjection.ComputeSchemaFingerprint(4),
+            BlockingPasses =
+            [
+                new("first-mother", ["name_prefix_3", "mother_name_prefix_3"]),
+                new("person", ["name_prefix_4"])
+            ],
+            CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16)
+        };
+        var levels = Enum.GetValues<CompositeNominalLevelV9>();
+        var observed = levels.SelectMany(person => levels.Select(mother =>
+            new V9JointObservedCell(person, mother, 1, 1))).ToArray();
+        var support = V9JointSupportEstimation.Estimate(observed,
+            new V9JointSupportPolicy(.99m, 0, 0), 1m, payload.TrainCorpusSha256);
+        var blind = V9FittedSnapshot.Create(payload with
+        {
+            SchemaVersion = V9FittedSnapshot.SupportSchemaVersion,
+            JointCells = support.Probabilities,
+            JointSupport = support.Provenance
+        });
+        var gold = blind.CreateGoldHarnessVariant();
+        var runtime = V9FittedSnapshotExecutionRuntime.Load(gold.SerializeUtf8(),
+            gold.ContentSha256);
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, "ANA COSTA");
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "MARIA SILVA", null, "ANA COSTA");
+        var model = Guid.NewGuid();
+        using var cmd = new Microsoft.Data.SqlClient.SqlCommand();
+        var sql = runtime.BuildCandidateUuidQuery(cmd, observation,
+            runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256);
+        var frame = new V9RetrievedSnapshotCandidateFrame(
+            gold.ContentSha256, runtime.ProjectionSchemaVersion,
+            runtime.ProjectionFingerprintSha256, true, [candidate]);
+        var actual = runtime.ResolveRetrievedCandidatesPreview(model, observation, frame);
+        var expected = gold.ResolvePreview(model, observation, [candidate]);
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(runtime.SnapshotSha256, Is.EqualTo(gold.ContentSha256));
+            Assert.That(gold.Payload.GoldParentSnapshotSha256, Is.EqualTo(blind.ContentSha256));
+            Assert.That(runtime.Plan(observation).Select(x => x.PassId),
+                Is.EqualTo(new[] { "first-mother", "person" }));
+            Assert.That(sql, Does.Contain(" INTERSECT ").And.Contain(" UNION "));
+            Assert.That(sql, Does.Not.Contain("MARIA").And.Not.Contain("ANA"));
+            Assert.That(actual, Is.EqualTo(expected));
+            Assert.That(gold.Payload.UnitTfCalibrations!.Count(x =>
+                x.State == V9SnapshotTfFitState.Active), Is.EqualTo(4));
+            Assert.That(gold.Payload.BlockingPasses.Count, Is.EqualTo(2));
+        }));
+
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            runtime.ResolveRetrievedCandidatesPreview(model, observation,
+                frame with { SnapshotSha256 = new string('0', 64) })));
+    }
+
+    [Test]
     public void Frozen_inspection_does_not_confuse_four_active_tf_units_with_legacy_tf_zero()
     {
         var fit = V9FittedSnapshot.Create(FourUnitTfPayload());
