@@ -12,6 +12,9 @@ on:
       - 'Solution/scripts/v9-calibration-evidence-bundle.py'
       - 'Solution/scripts/v9-v2-frozen-bootstrap.py'
       - 'Solution/data/calibration/v9/v2-one-mf-frozen/plan.json'
+      - 'Solution/data/calibration/v9/v2-one-mf-frozen/plan-effective.json'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9CalibrationPlanParityCli.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/Program.cs'
       - 'Solution/tests/scripts/test_v9_v2_frozen_bootstrap.py'
       - 'Solution/tests/scripts/test_v9_calibration_evidence_bundle.py'
       - 'Solution/docs/V9_Bundle_Evidencias_Calibracao_V2_20261105.md'
@@ -56,6 +59,20 @@ jobs:
             test "$GITHUB_EVENT_NAME" = 'pull_request'
           fi
           python3 -m unittest Solution/tests/scripts/test_v9_tf_frozen_source_schema_audit.py -v
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Verify ORIGINAL and explicit-default V2 calibration files are exactly semantically equal in CSharp
+        working-directory: Solution
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-compare-calibration-plans \
+            data/calibration/v9/v2-one-mf-frozen/plan.json \
+            data/calibration/v9/v2-one-mf-frozen/plan-effective.json \
+            b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8
       - name: Retrieve only the previously recorded Actions artifact
         env:
           GH_TOKEN: ${{ github.token }}
