@@ -363,6 +363,67 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void Frozen_V2_TRAIN_support_can_form_distinct_unapproved_V3_trial_without_TF_reoptimization()
+    {
+        // This unit fixture is not the user's source fit. Physical TRAIN
+        // counts must come from a separately SHA-pinned existing study.
+        var levels = Enum.GetValues<CompositeNominalLevelV9>();
+        var counts = levels.SelectMany(p => levels.Select(m =>
+            new V9JointObservedCell(p, m,
+                p == CompositeNominalLevelV9.ExactFull ? 8L : 6L,
+                m == CompositeNominalLevelV9.Other ? 9L : 6L))).ToArray();
+        const decimal alpha = .5m;
+        var totalM = counts.Sum(c => c.M);
+        var totalU = counts.Sum(c => c.U);
+        var source = FourUnitTfPayload();
+        var probabilities = counts.Select(c => new FellegiSunterJointNominalCellV9(
+            c.Person, c.Mother,
+            (c.M + alpha) / (totalM + 81 * alpha),
+            (c.U + alpha) / (totalU + 81 * alpha))).ToArray();
+        var parameters = new Dictionary<string, decimal>(source.Parameters)
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] =
+                (totalM + alpha) / (totalM + totalU + 2 * alpha)
+        };
+        var blind = V9FittedSnapshot.Create(source with
+        {
+            JointCells = probabilities, Parameters = parameters,
+            CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16)
+        });
+        var receipt = V9FittedJointSupportAudit.Reconstruct(blind, alpha, totalM, totalU);
+        var policy = new V9JointSupportPolicy(.99m, 5, 5,
+            V9JointSupportEstimation.SupportedTailRule);
+        var derived = V9FrozenJointTrainingDerivationCli.DeriveTrialCandidate(
+            blind, receipt, policy);
+        var gold = derived.CreateGoldHarnessVariant();
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(blind.Payload.SchemaVersion, Is.EqualTo(V9FittedSnapshot.SchemaVersion));
+            Assert.That(derived.Payload.SchemaVersion, Is.EqualTo(V9FittedSnapshot.SupportSchemaVersion));
+            Assert.That(blind.ContentSha256, Is.Not.EqualTo(derived.ContentSha256));
+            Assert.That(blind.Payload.FitFingerprintSha256,
+                Is.Not.EqualTo(derived.Payload.FitFingerprintSha256));
+            Assert.That(derived.Payload.Threshold, Is.EqualTo(blind.Payload.Threshold));
+            Assert.That(derived.Payload.ConflictMargin, Is.EqualTo(blind.Payload.ConflictMargin));
+            Assert.That(derived.Payload.BlockingPasses, Is.EqualTo(blind.Payload.BlockingPasses));
+            Assert.That(derived.Payload.UnitTfCalibrations, Is.EqualTo(blind.Payload.UnitTfCalibrations));
+            Assert.That(derived.Payload.JointSupport!.TotalM, Is.EqualTo(totalM));
+            Assert.That(derived.Payload.JointSupport!.TotalU, Is.EqualTo(totalU));
+            Assert.That(gold.Payload.GoldParentSnapshotSha256, Is.EqualTo(derived.ContentSha256));
+            Assert.That(V9FittedSnapshot.Load(derived.SerializeUtf8(), derived.ContentSha256)
+                .ContentSha256, Is.EqualTo(derived.ContentSha256));
+        }));
+
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9FrozenJointTrainingDerivationCli.DeriveTrialCandidate(
+                blind, receipt with { TrainUPairs = totalU + 1 }, policy)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9FrozenJointTrainingDerivationCli.DeriveTrialCandidate(
+                derived, receipt, policy)));
+    }
+
+    [Test]
     public void Frozen_inspection_does_not_confuse_four_active_tf_units_with_legacy_tf_zero()
     {
         var fit = V9FittedSnapshot.Create(FourUnitTfPayload());
