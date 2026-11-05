@@ -59,6 +59,14 @@ if (args.Length > 0 && args[0] == V9FrozenJointTrainingDerivationCli.Flag)
     return;
 }
 
+// Manual independent SQL validation of the NEW V3 against the original V2.
+// Genuine frozen model bytes; no calibrator or operational activation.
+if (args.Length > 0 && args[0] == V9FrozenJointIndependentComparisonCli.Flag)
+{
+    await V9FrozenJointIndependentComparisonCli.RunAsync(args);
+    return;
+}
+
 // Check SHA-verified TF fit suitability for a diagnostic Gold variant only.
 // Does not write another fit, access SQL, alter a threshold or start a host.
 if (args.Length > 0 && args[0] == "--v9-gold-frozen-tf-preflight")

@@ -153,3 +153,12 @@ Os artefatos estão no run acima:
 - `v9-frozen-joint-v3-TRIAL-METADATA-65cda6c063924ab75c5256a16142c5697fce3956` (artifact ID **13386463554**): recibo e resultado do preflight, também com `certified=false`, `operationallyAuthorized=false`, `physicalGoldExecuted=false`.
 
 **Próximo gate científico:** validar o **novo V3** sobre dados independentes e executar incremental Gold nas três ordens com SQL isolado, medindo FP/FDR, falsas criações, fragmentação, B³ e desempenho. O histórico 10/10 de TF é sobre V2 e não homologa V3. O inventário real da instância SQL `ref` ainda não foi executado — não confundir esta derivação experimental com a versão que a autoridade eventualmente autorizará.
+
+
+## Protocolo preparado para validação independente V2 versus novo V3 (30k SOMENTE MANUAL)
+
+A nova CLI `--v9-compare-frozen-v2-v3-independent` conecta-se **somente** a `127.0.0.1:1433/JornadaHarness` descartável. Reutiliza o avaliador SQL físico congelado `EvaluateFrozenHoldoutAsync` (nenhum segundo scorer) para comparar, em VALIDATION, o **ONE_MF V2 original** com o **novo candidato experimental V3**. Os dois fits são conferidos por SHA externo; uma verificação estrutural impede alterações de TF, blocking, prior, upper, margem e referência fora do novo `JointSupport`/probabilidades M/U/fingerprint. O recibo de derivação também precisa coincidir com SHA do `study`, política e família original.
+
+**Seed independente declarada antes do ensaio: `20261105001`**, gerador clean, população 30.000, mesmo contrato sintético e referência IBGE; nada de TEST, nem reaproveitamento de seed 42/43 ou das confirmatórias 48–57. O workflow `v9-frozen-joint-v3-independent-physical.yml` contém **apenas `workflow_dispatch`** com verificação do SHA exato: nenhuma execução física 30k acontece por `push`, PR ou workflow automático. O executor gera o corpus no momento da autorização manual e só depois executa o SQL isolado. O resultado é um recibo agregado V2 × V3 com TP/FP, recall global, FDR descritiva, P95 e SHA do corpus, sem ids/nomes nem promoção de modelo.
+
+**O protocolo é somente validação BLIND do novo V3.** Mesmo que o workflow manual termine favorável, ainda faltam a autorização de uma seleção válida do modelo V3 e o ensaio incremental **quatro ondas × três ordens** no Runner Gold, com B³, fragmentação, fusões, falsas criações, idempotência e custo. Não transformar o relatório de comparação em `finalist-validation.json` artificial. A PR #1277 permanece sem merge e não ativa a DT-15.

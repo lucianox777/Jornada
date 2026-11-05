@@ -426,6 +426,40 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void Frozen_independent_comparison_fails_closed_on_changed_passes_or_tf()
+    {
+        var levels = Enum.GetValues<CompositeNominalLevelV9>();
+        var counts = levels.SelectMany(p => levels.Select(m =>
+            new V9JointObservedCell(p, m,
+                p == CompositeNominalLevelV9.ExactFull ? 8L : 6L,
+                m == CompositeNominalLevelV9.Other ? 9L : 6L))).ToArray();
+        const decimal alpha = .5m;
+        var nM = counts.Sum(c => c.M);
+        var nU = counts.Sum(c => c.U);
+        var basis = FourUnitTfPayload();
+        var joint = counts.Select(c => new FellegiSunterJointNominalCellV9(
+            c.Person, c.Mother, (c.M + alpha) / (nM + 81 * alpha),
+            (c.U + alpha) / (nU + 81 * alpha))).ToArray();
+        var parameters = new Dictionary<string, decimal>(basis.Parameters)
+        {
+            [LinkageParameterCatalog.PriorMatchProbability] =
+                (nM + alpha) / (nM + nU + 2 * alpha)
+        };
+        // Pair validator is intentionally more restrictive than generic
+        // synthetic four-slot tests: the archived ONE_MF has only one active TF.
+        var v2 = V9FittedSnapshot.Create(basis with
+        {
+            JointCells = joint, Parameters = parameters,
+            CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16)
+        });
+        var d = V9FrozenJointTrainingDerivationCli.DeriveTrialCandidate(v2,
+            V9FittedJointSupportAudit.Reconstruct(v2, alpha, nM, nU),
+            new V9JointSupportPolicy(.99m, 5, 5, V9JointSupportEstimation.SupportedTailRule));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9FrozenJointIndependentComparisonCli.ValidateFrozenPair(v2, d)));
+    }
+
+    [Test]
     public void Frozen_inspection_does_not_confuse_four_active_tf_units_with_legacy_tf_zero()
     {
         var fit = V9FittedSnapshot.Create(FourUnitTfPayload());
