@@ -25,10 +25,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
-      SOURCE_DIR: ${{ runner.temp }}/v9-frozen-source
-      TRIAL_DIR: ${{ runner.temp }}/v9-v3-candidate
-      TARGET_DIR: ${{ runner.temp }}/v9-independent-cohort
-      EVIDENCE: ${{ runner.temp }}/v9-v3-independent-result
+      SOURCE_DIR: ${{ github.workspace }}/Solution/.local/v9-frozen-source
+      TRIAL_DIR: ${{ github.workspace }}/Solution/.local/v9-v3-candidate
+      TARGET_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-cohort
+      EVIDENCE: ${{ github.workspace }}/Solution/.local/v9-v3-independent-result
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -166,6 +166,6 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: V9-V2-V3-INDEPENDENT-BLIND-SQL-NOT-CERTIFIED-${{ github.sha }}
-          path: ${{ runner.temp }}/v9-v3-independent-result/v3-independent-comparison.json
+          path: ${{ github.workspace }}/Solution/.local/v9-v3-independent-result/v3-independent-comparison.json
           if-no-files-found: warn
           retention-days: 90
