@@ -1,0 +1,199 @@
+name: v9-parallel-orchestrator
+
+# Plan 1 (this workflow): parallel NON-physical validations — reference audit,
+# artifact ZIP/SHA preflight, real executor invocation contract without SQL or
+# corpus, and a read-only status/evidence report of every V9 front.
+# Plan 2 (physical campaigns) is NEVER started here: the token is actions:read
+# only, so no workflow_dispatch can be issued. Required manual runs are listed.
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Exact 40-character SHA of the selected branch'
+        type: string
+        required: true
+  pull_request:
+    paths:
+      - '.github/workflows/v9-parallel-orchestrator.yml'
+      - '.github/workflows/v9-frozen-joint-v3-independent-physical.yml'
+      - 'Solution/scripts/v9-orchestrator.py'
+      - 'Solution/tests/scripts/test_v9_orchestrator.py'
+      - 'Solution/data/reference/v9-frozen-artifacts/**'
+      - 'Solution/data/reference/v9-tf-seed43-frozen-transfer/executor.json'
+
+permissions:
+  contents: read
+  actions: read
+  checks: read
+  pull-requests: read
+
+# Per-run group: never serializes V9 globally, never cancels other campaigns.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  references:
+    name: A0 — central SHA/path references and orchestrator tests (offline)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Bind to exact SHA on manual dispatch
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == "workflow_dispatch" ]]; then
+            [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+            test "$GITHUB_SHA" = "$EXPECTED_SHA"
+          fi
+      - run: python3 -m unittest Solution/tests/scripts/test_v9_orchestrator.py Solution/tests/scripts/test_v9_tf_frozen_source_schema_audit.py -v
+      - run: python3 Solution/scripts/v9-orchestrator.py audit-references
+
+  artifact-preflight:
+    name: A1 — artifact ${{ matrix.artifact }} (real ZIP paths + SHA-256)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        artifact: [seed42-source, v3-trial-model, v3-trial-metadata]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Download only the declared artifact and verify its real layout
+        env:
+          GH_TOKEN: ${{ github.token }}
+          KEY: ${{ matrix.artifact }}
+        run: |
+          set -euo pipefail
+          read -r RUN NAME HEAD < <(python3 -c 'import json,os;a=json.load(open("Solution/data/reference/v9-frozen-artifacts/references.json"))["artifacts"][os.environ["KEY"]];print(a["run_id"],a["name"],a["head_sha"])')
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN" --jq .head_sha)" = "$HEAD"
+          root="$RUNNER_TEMP/artifact-$KEY"
+          gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n "$NAME" -D "$root"
+          python3 Solution/scripts/v9-orchestrator.py verify-artifact --key "$KEY" --root "$root" | tee "$RUNNER_TEMP/verify-$KEY.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-orch-artifact-preflight-${{ matrix.artifact }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/verify-${{ matrix.artifact }}.json
+          retention-days: 90
+
+  executor-contract:
+    name: A2 — V2×V3 executor contract, real pair preflight (no SQL, no corpus)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Exclusive temporary directories for this job
+        run: |
+          echo "SOURCE_DIR=$RUNNER_TEMP/v9-frozen-source" >> "$GITHUB_ENV"
+          echo "TRIAL_DIR=$RUNNER_TEMP/v9-v3-candidate" >> "$GITHUB_ENV"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Download declared inputs exactly as the physical workflow does
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for key in seed42-source v3-trial-model v3-trial-metadata; do
+            read -r RUN NAME < <(python3 -c 'import json,sys;a=json.load(open("Solution/data/reference/v9-frozen-artifacts/references.json"))["artifacts"][sys.argv[1]];print(a["run_id"],a["name"])' "$key")
+            dir="$TRIAL_DIR"; [[ "$key" == seed42-source ]] && dir="$SOURCE_DIR"
+            gh run download "$RUN" -R "$GITHUB_REPOSITORY" -n "$NAME" -D "$dir"
+          done
+          # Mirror of the physical workflow normalization; the contract below
+          # fails if the physical workflow stops doing exactly this move.
+          mv -- "$TRIAL_DIR/v9-v3-provisional/derivation-receipt.json" "$TRIAL_DIR/derivation-receipt.json"
+      - name: Resolve the physical workflow's exact executor arguments (positive test)
+        run: |
+          set -euo pipefail
+          python3 Solution/scripts/v9-orchestrator.py invocation-contract \
+            --source "$SOURCE_DIR" --trial "$TRIAL_DIR" --argv-out "$RUNNER_TEMP/preflight.argv"
+      - name: Run the real frozen pair preflight with those arguments
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+          mapfile -t ARGV < "$RUNNER_TEMP/preflight.argv"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-preflight-frozen-v2-v3-pair "${ARGV[@]}" | tee "$RUNNER_TEMP/pair-preflight.json"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-orch-executor-contract-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/preflight.argv
+            ${{ runner.temp }}/pair-preflight.json
+          retention-days: 90
+
+  fronts-status:
+    name: A3 — fronts, gates and evidence manifest (read-only, no dispatch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Download latest V2×V3 aggregate result for the master SHA, if any
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          master="$(gh api "repos/$GITHUB_REPOSITORY/branches/master" --jq .commit.sha)"
+          run="$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/v9-frozen-joint-v3-independent-physical.yml/runs?event=workflow_dispatch&per_page=50" \
+            --jq "[.workflow_runs[]|select(.head_sha==\"$master\" and .head_branch==\"master\" and .conclusion==\"success\")][0].id // empty")"
+          mkdir -p "$RUNNER_TEMP/results"
+          if [[ -n "$run" ]]; then
+            gh run download "$run" -R "$GITHUB_REPOSITORY" -n "V9-V2-V3-INDEPENDENT-BLIND-SQL-NOT-CERTIFIED-$master" -D "$RUNNER_TEMP/results"
+          fi
+      - name: Collect and classify (EXECUTED != APPROVED != ELIGIBLE != CERTIFIED != AUTHORIZED)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 Solution/scripts/v9-orchestrator.py collect \
+            --fronts Solution/data/reference/v9-frozen-artifacts/fronts.json \
+            --results-dir "$RUNNER_TEMP/results" --output "$RUNNER_TEMP/collected.json"
+          python3 Solution/scripts/v9-orchestrator.py status --input "$RUNNER_TEMP/collected.json" \
+            --manifest "$RUNNER_TEMP/v9-evidence-manifest.json" --summary "$RUNNER_TEMP/summary.md"
+          cat "$RUNNER_TEMP/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          echo "BEGIN_RESULTS_JSON"
+          python3 -c 'import json,sys;print(json.dumps(json.load(open(sys.argv[1]))["results"],separators=(",",":")))' "$RUNNER_TEMP/v9-evidence-manifest.json"
+          echo "END_RESULTS_JSON"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-orch-evidence-manifest-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/v9-evidence-manifest.json
+            ${{ runner.temp }}/summary.md
+          retention-days: 90
+
+  summary:
+    name: A4 — honest consolidation (failure stays failure)
+    needs: [references, artifact-preflight, executor-contract, fronts-status]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Report every job result; fail if any validation failed
+        env:
+          R1: ${{ needs.references.result }}
+          R2: ${{ needs.artifact-preflight.result }}
+          R3: ${{ needs.executor-contract.result }}
+          R4: ${{ needs.fronts-status.result }}
+        run: |
+          set -euo pipefail
+          {
+            echo "| Job | Result |"; echo "|---|---|"
+            echo "| references | $R1 |"; echo "| artifact-preflight | $R2 |"
+            echo "| executor-contract | $R3 |"; echo "| fronts-status | $R4 |"
+            echo; echo "No physical campaign was dispatched by this workflow."
+          } >> "$GITHUB_STEP_SUMMARY"
+          for r in "$R1" "$R2" "$R3" "$R4"; do test "$r" = success; done

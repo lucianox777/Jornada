@@ -1,0 +1,116 @@
+{
+  "schema_version": "V9_ORCHESTRATOR_FRONTS_V1",
+  "note": "Static declaration of independent fronts. SHAs/branches are resolved read-only at run time; physical requirements are only REPORTED, never dispatched.",
+  "fronts": [
+    {
+      "id": "A-V2xV3-independent",
+      "branch": "master",
+      "pr": null,
+      "physical": [
+        {
+          "id": "v2v3-independent-validation",
+          "workflow": ".github/workflows/v9-frozen-joint-v3-independent-physical.yml",
+          "mode": null,
+          "manual_parameters": {
+            "branch": "master",
+            "expected_sha": "<master HEAD>"
+          }
+        }
+      ],
+      "statistical_state": "DESCRIPTIVE_NOT_SELECTION_NO_ELIGIBLE_CONFIGURATION",
+      "result_artifact": {
+        "name_prefix": "V9-V2-V3-INDEPENDENT-BLIND-SQL-NOT-CERTIFIED-",
+        "file": "v3-independent-comparison.json"
+      },
+      "scientific_blockers": []
+    },
+    {
+      "id": "B-Gold-incremental-4w3o",
+      "branch": "master",
+      "pr": null,
+      "physical": [],
+      "statistical_state": "NO_ELIGIBLE_CONFIGURATION",
+      "scientific_blockers": [
+        "no workflow/contract yet runs the SAME V9 model through 4 waves x 3 orders in fresh LocalDB; v9-gold-independent-holdout-physical.yml measures the historical Gold V6 CURRENT/KNEE contract (8-pass TF0), not the ONE_MF 3-pass fit"
+      ],
+      "not_implemented": true,
+      "historical_evidence": [
+        {
+          "workflow": ".github/workflows/v9-gold-independent-holdout-physical.yml",
+          "run_id": 40250618984,
+          "head_sha": "220f7827",
+          "scope": "Gold V6 fit 6d93690d (8-pass TF0) CURRENT vs KNEE 0.05 x 3 orders, 6/6 success + aggregate matrix; do NOT rerun",
+          "conclusion": "success"
+        }
+      ]
+    },
+    {
+      "id": "C-REF-persistence",
+      "pr": 1256,
+      "physical": [
+        {
+          "id": "seed42-30k-train",
+          "workflow": ".github/workflows/v9-physical-seed42-probe.yml",
+          "mode": "execute_30k"
+        }
+      ],
+      "physical_check_names": [
+        "SQL físico 30k clean — FS blind Rank-Resolve TF0"
+      ],
+      "statistical_state": "NOT_APPLICABLE",
+      "scientific_blockers": [
+        "durable persistence must be proven in an authorized persistent SQL environment (PR gate 3); migration must not reach HML/PROD unproven"
+      ]
+    },
+    {
+      "id": "D-TF-censored-floor",
+      "pr": 1259,
+      "physical": [
+        {
+          "id": "seed42-30k-train",
+          "workflow": ".github/workflows/v9-physical-seed42-probe.yml",
+          "mode": "execute_30k"
+        }
+      ],
+      "physical_check_names": [
+        "SQL físico 30k clean — FS blind Rank-Resolve TF0"
+      ],
+      "statistical_state": "NO_ELIGIBLE_CONFIGURATION",
+      "scientific_blockers": [
+        "pre-registered paired TF0 vs TF-abstain vs TF-floor experiment with multiplicity control not yet declared/run"
+      ]
+    },
+    {
+      "id": "E-Gold-integrity-contracts",
+      "pr": 1242,
+      "physical": [
+        {
+          "id": "seed42-30k-train",
+          "workflow": ".github/workflows/v9-physical-seed42-probe.yml",
+          "mode": "execute_30k"
+        }
+      ],
+      "physical_check_names": [
+        "SQL físico 30k clean — FS blind Rank-Resolve TF0"
+      ],
+      "statistical_state": "NO_ELIGIBLE_CONFIGURATION",
+      "scientific_blockers": [
+        "Gold upper x lower x three fixed orders physical grid in disposable LocalDB not executed (PR's own merge gate)"
+      ]
+    },
+    {
+      "id": "F-deps-actions",
+      "pr": 1279,
+      "physical": [],
+      "statistical_state": "NOT_APPLICABLE",
+      "scientific_blockers": []
+    },
+    {
+      "id": "F-deps-nuget",
+      "pr": 1206,
+      "physical": [],
+      "statistical_state": "NOT_APPLICABLE",
+      "scientific_blockers": []
+    }
+  ]
+}

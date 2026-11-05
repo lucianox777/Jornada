@@ -1,0 +1,90 @@
+{
+  "schema_version": "V9_FROZEN_ARTIFACT_REFERENCES_V1",
+  "purpose": "Single authenticated source of truth for artifact names, ZIP-internal paths and SHA-256 used by V9 physical workflows; checked before any corpus or SQL.",
+  "artifacts": {
+    "seed42-source": {
+      "run_id": 41900357031,
+      "head_sha": "935f704edd2bceb6a125ecfe532ad5b71f9c89b9",
+      "name": "v9-tf-45-physical-41900357031-935f704edd2bceb6a125ecfe532ad5b71f9c89b9",
+      "zip_root": "artifact root (no wrapping directory)",
+      "files": [
+        {
+          "path": "plan-tf.json",
+          "sha256": "b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8"
+        },
+        {
+          "path": "study-tf/study.json",
+          "sha256": "7499ee635ecb4999106dbee22a5993f9f16b88d75c725f99490f2fccd39cba2b"
+        },
+        {
+          "path": "study-tf/f010349623b6bae32b4303f680a715bb1264271fec0e325730cce3f7bc0eb12e.fitted.json",
+          "sha256": "f010349623b6bae32b4303f680a715bb1264271fec0e325730cce3f7bc0eb12e",
+          "role": "T0.95_TF0@0.5"
+        },
+        {
+          "path": "study-tf/8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f.fitted.json",
+          "sha256": "8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f",
+          "role": "TF_ONE_MF_W1_M0_A0.5_T0.95@0.5"
+        },
+        {
+          "path": "study-tf/9094e9ff6b07120a4e264970b7be160976f2b2d3be5f923d5e36ce4737c79db6.fitted.json",
+          "sha256": "9094e9ff6b07120a4e264970b7be160976f2b2d3be5f923d5e36ce4737c79db6",
+          "role": "T0.95_TF0@2"
+        },
+        {
+          "path": "study-tf/b9c6ceb996ba0b8d76a447bb482a88bbd718ba787c76a1b6c2f5199135a2179c.fitted.json",
+          "sha256": "b9c6ceb996ba0b8d76a447bb482a88bbd718ba787c76a1b6c2f5199135a2179c",
+          "role": "TF_ONE_MF_W1_M0_A0.5_T0.95@2"
+        },
+        {
+          "path": "study-tf/beac6cb03b588af2b20514e03bd0d32376fb5d6e0da50943d799cecdd90dd084.fitted.json",
+          "sha256": "beac6cb03b588af2b20514e03bd0d32376fb5d6e0da50943d799cecdd90dd084",
+          "role": "T0.95_TF0@4"
+        },
+        {
+          "path": "study-tf/f23bd6cd8e8c9c4f1557428577e3d107fb00ec66f1d9db97d4d276159ba0d2f6.fitted.json",
+          "sha256": "f23bd6cd8e8c9c4f1557428577e3d107fb00ec66f1d9db97d4d276159ba0d2f6",
+          "role": "TF_ONE_MF_W1_M0_A0.5_T0.95@4"
+        }
+      ]
+    },
+    "v3-trial-model": {
+      "run_id": 41964404787,
+      "head_sha": "65cda6c063924ab75c5256a16142c5697fce3956",
+      "name": "V9-V3-TRAIN-TRIAL-NOT-AUTHORIZED-65cda6c063924ab75c5256a16142c5697fce3956",
+      "zip_root": "artifact root",
+      "files": [
+        {
+          "path": "8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc.fitted.json",
+          "sha256": "8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc",
+          "role": "V3 experimental (TRAIN-derived, not certified)"
+        }
+      ]
+    },
+    "v3-trial-metadata": {
+      "run_id": 41964404787,
+      "head_sha": "65cda6c063924ab75c5256a16142c5697fce3956",
+      "name": "v9-frozen-joint-v3-TRIAL-METADATA-65cda6c063924ab75c5256a16142c5697fce3956",
+      "zip_root": "nested: v9-v3-provisional/ (PR #1280)",
+      "files": [
+        {
+          "path": "v9-v3-provisional/derivation-receipt.json",
+          "sha256": "CONTENT_BOUND",
+          "content": {
+            "sourceSnapshotSha256": "8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f",
+            "derivedTrialSnapshotSha256": "8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc",
+            "originalTrainStudySha256": "7499ee635ecb4999106dbee22a5993f9f16b88d75c725f99490f2fccd39cba2b",
+            "certified": false,
+            "selectedForUse": false,
+            "tfRefitted": false
+          }
+        }
+      ]
+    }
+  },
+  "models": {
+    "V2_ONE_MF_original": "8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f",
+    "V3_trial": "8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc",
+    "TF0_original": "f010349623b6bae32b4303f680a715bb1264271fec0e325730cce3f7bc0eb12e"
+  }
+}
