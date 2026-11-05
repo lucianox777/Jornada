@@ -51,6 +51,14 @@ if (args.Length > 0 && args[0] == "--v9-audit-ref-frozen-snapshot")
     return;
 }
 
+// Check SHA-verified TF fit suitability for a diagnostic Gold variant only.
+// Does not write another fit, access SQL, alter a threshold or start a host.
+if (args.Length > 0 && args[0] == "--v9-gold-frozen-tf-preflight")
+{
+    await V9FittedSnapshotArtifact.GoldTfDiagnosticPreflightAsync(args);
+    return;
+}
+
 // Portable artifact inspection never starts the host or connects to SQL.
 if (args.Length > 0 && args[0] == "--v9-inspect-fitted-snapshot")
 {

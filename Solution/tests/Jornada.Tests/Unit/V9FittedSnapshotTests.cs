@@ -248,6 +248,17 @@ public sealed class V9FittedSnapshotTests
             CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16)
         });
 
+        var readiness = V9FittedSnapshotArtifact.DescribeGoldTfDiagnosticReadiness(blind);
+        Assert.That(readiness.GetProperty("status").GetString(),
+            Is.EqualTo("READY_FOR_ISOLATED_GOLD_TF_DIAGNOSTIC_ONLY"));
+        Assert.That(readiness.GetProperty("goldVariantPreservesFrozenFit").GetBoolean(), Is.True);
+        Assert.That(readiness.GetProperty("activeUnitTfCount").GetInt32(), Is.EqualTo(4));
+        Assert.That(readiness.GetProperty("blockingPassCount").GetInt32(),
+            Is.EqualTo(blind.Payload.BlockingPasses.Count));
+        Assert.That(readiness.GetProperty("certified").GetBoolean(), Is.False);
+        Assert.That(readiness.GetProperty("operationallyAuthorized").GetBoolean(), Is.False);
+        Assert.That(readiness.GetProperty("physicalGoldExecuted").GetBoolean(), Is.False);
+
         var gold = blind.CreateGoldHarnessVariant();
         var reloaded = V9FittedSnapshot.Load(gold.SerializeUtf8(), gold.ContentSha256);
         var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, "ANA COSTA");
@@ -281,6 +292,10 @@ public sealed class V9FittedSnapshotTests
         {
             CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16)
         });
+        Assert.That(V9FittedSnapshotArtifact.DescribeGoldTfDiagnosticReadiness(legacy)
+            .GetProperty("status").GetString(), Is.EqualTo("NO_V3_JOINT_SUPPORT"));
+        Assert.That(V9FittedSnapshotArtifact.DescribeGoldTfDiagnosticReadiness(gold)
+            .GetProperty("status").GetString(), Is.EqualTo("NOT_BLIND_FIT"));
         Assert.Throws<InvalidDataException>((Action)(() => legacy.CreateGoldHarnessVariant()));
         Assert.Throws<InvalidDataException>((Action)(() => gold.CreateGoldHarnessVariant()));
     }

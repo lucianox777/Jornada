@@ -82,3 +82,19 @@ dotnet Jornada.Linkage.Parameters.Worker.dll --v9-audit-ref-inventory
 A saída `V9_REF_CALIBRATION_INVENTORY_READONLY_V1` apresenta código, origem, estado, algoritmo, `modelo_id`, `corpus_sha256`, hash SQL conferido do JSON de resultados, e eventual hash declarado no modelo. **Não retorna `resultados_json` e não escolhe o modelo.** Um registro com metadados correspondentes é classificado como `V9_METADATA_PRESENT_FIT_SHA_NOT_YET_VERIFIED`, jamais certificado. Executar depois a comparação do fit por bytes/SHA fixados com `--v9-audit-ref-frozen-snapshot` e, em seguida, o ensaio físico incremental com os parâmetros inalterados. Caso não haja linhas, o inventário sinaliza ausência (exit code 2).
 
 O código SQL só faz `SELECT`; `ApplicationIntent=ReadOnly` não substitui as **credenciais SQL com permissão somente leitura**, nem autoriza conexão a produção. Este incremento não publica calibração, não materializa modelo híbrido, não ativa DT-15 e não altera a definição de 30k manual.
+
+
+## Preflight do TF congelado para o Gold experimental (sem nova calibração)
+
+Novo comando `--v9-gold-frozen-tf-preflight` recebe **bytes originais do fit** e o **SHA-256 externo**:
+
+```bash
+dotnet Jornada.Linkage.Parameters.Worker.dll \
+  --v9-gold-frozen-tf-preflight /evidencias/<sha>.fitted.json <sha256-original>
+```
+
+Ele exige **V3 + JointSupport + 81 células + origem BLIND + pelo menos uma TF de unidade ativa**; calcula a variante Gold **só em memória**, faz roundtrip SHA-256 e verifica que o payload é idêntico ao fit de origem **exceto agrupamento Gold e SHA do pai**. Não grava novo fit, não altera pesos, passes, upper/lower, não conecta ao SQL e não aceita um artefato TF0 como evidência positiva de TF. Se o fit não satisfaz as precondições, retorna `status` explicativo (exit code 2). A saída `V9_GOLD_FROZEN_TF_DIAGNOSTIC_PREFLIGHT_V1` marca `certified=false`, `operationallyAuthorized=false` e `physicalGoldExecuted=false`.
+
+O **fit ONE_MF de origem**, `8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f`, está documentado em `Solution/data/reference/v9-tf-seed43-frozen-transfer/` como parte do artefato Actions de `41900357031`; o run `41925355648` registrou a conferência física dos seis hashes antes do replay. Reutilize o mecanismo `gh run download` **já existente** no workflow `v9-tf-seed43-frozen-transfer.yml`, sem criar outro fetcher ou recalibrar.
+
+**Este preflight não substitui o recibo de vencedor condicional do TRAIN** exigido por `V9GoldRunnerVariantPreparation` e `V9GoldHarnessCommand`; não cria tal recibo artificialmente. O Gold de 8 passes TF0 histórico não é convertido em ONE_MF por essa operação. Somente após fixar o modelo realmente escolhido e sua proveniência será possível interpretar o ensaio incremental de quatro ondas × três ordens.

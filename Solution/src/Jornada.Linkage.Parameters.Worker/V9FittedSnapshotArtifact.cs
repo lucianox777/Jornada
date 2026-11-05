@@ -90,6 +90,77 @@ public static class V9FittedSnapshotArtifact
         });
     }
 
+
+    /// <summary>
+    /// Check that a SHA-pinned fit is technically eligible for a Gold TF
+    /// *diagnostic* without inventing a finalist or authorizing a model.
+    /// This is NOT a substitute for a pre-registered TRAIN selection receipt
+    /// or an independent physical Gold run.
+    /// </summary>
+    public static JsonElement DescribeGoldTfDiagnosticReadiness(V9FittedSnapshot fit)
+    {
+        ArgumentNullException.ThrowIfNull(fit);
+        var p = fit.Payload;
+        var activeUnits = p.UnitTfCalibrations?.Count(u => u.State == V9SnapshotTfFitState.Active) ?? 0;
+        var status = p.SchemaVersion != V9FittedSnapshot.SupportSchemaVersion || p.JointSupport is null
+            ? "NO_V3_JOINT_SUPPORT"
+            : p.CandidateGrouping?.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES"
+            ? "NOT_BLIND_FIT"
+            : p.JointCells.Count != 81 ? "NOT_81_JOINT_CELLS"
+            : activeUnits == 0 ? "NO_ACTIVE_UNIT_TF"
+            : "READY_FOR_ISOLATED_GOLD_TF_DIAGNOSTIC_ONLY";
+        V9FittedSnapshot? variant = null;
+        var unchanged = false;
+        if (status == "READY_FOR_ISOLATED_GOLD_TF_DIAGNOSTIC_ONLY")
+        {
+            variant = fit.CreateGoldHarnessVariant();
+            var reloaded = V9FittedSnapshot.Load(variant.SerializeUtf8(), variant.ContentSha256);
+            unchanged = reloaded.Payload.GoldParentSnapshotSha256 == fit.ContentSha256
+                && reloaded.ContentSha256 != fit.ContentSha256
+                && JsonSerializer.Serialize(reloaded.Payload with
+                {
+                    CandidateGrouping = p.CandidateGrouping,
+                    GoldParentSnapshotSha256 = p.GoldParentSnapshotSha256
+                }) == JsonSerializer.Serialize(p);
+            if (!unchanged)
+                throw new InvalidDataException("Gold TF diagnostic changed a frozen fit field.");
+        }
+        return JsonSerializer.SerializeToElement(new
+        {
+            schema = "V9_GOLD_FROZEN_TF_DIAGNOSTIC_PREFLIGHT_V1",
+            status,
+            parentSnapshotSha256 = fit.ContentSha256,
+            goldDiagnosticVariantSha256 = variant?.ContentSha256,
+            goldVariantPreservesFrozenFit = unchanged,
+            activeUnitTfCount = activeUnits,
+            blockingPassCount = p.BlockingPasses.Count,
+            jointCellCount = p.JointCells.Count,
+            originalThreshold = p.Threshold,
+            originalConflictMargin = p.ConflictMargin,
+            sourceGrouping = p.CandidateGrouping?.CandidateGrouping,
+            requirePreselectedTrainWinnerAndExternalHoldout = true,
+            certified = false,
+            operationallyAuthorized = false,
+            calibrationExecuted = false,
+            sqlAccessed = false,
+            physicalGoldExecuted = false
+        });
+    }
+
+    /// <summary>No SQL, no Gold side effects; only canonical source bytes and SHA.</summary>
+    public static async Task GoldTfDiagnosticPreflightAsync(string[] args)
+    {
+        if (args is not { Length: 3 } || args[0] != "--v9-gold-frozen-tf-preflight")
+            throw new ArgumentException(
+                "Uso: --v9-gold-frozen-tf-preflight <sha.fitted.json> <sha256-fixado>.");
+        var fit = await ReadPinnedAsync(args[1], args[2]);
+        var result = DescribeGoldTfDiagnosticReadiness(fit);
+        Console.WriteLine(result.GetRawText());
+        if (result.GetProperty("status").GetString()
+            != "READY_FOR_ISOLATED_GOLD_TF_DIAGNOSTIC_ONLY")
+            Environment.ExitCode = 2;
+    }
+
     /// <summary>Opt-in read-only CLI; no host, SQL connection or training is started.</summary>
     public static async Task InspectAsync(string[] args)
     {
