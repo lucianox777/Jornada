@@ -85,7 +85,8 @@ public static class V9NestedCalibrationCoordinator
                 || plan.PinnedIbgeBootstrap is null))
             throw new InvalidDataException("TF positivo exige versão IBGE publicada, digests e bootstrap congelados no plano.");
         if (plan.Purpose is not ("BOOTSTRAP_CANDIDATE_SELECTION" or "PLUMBING_FIXTURE_NOT_CERTIFICATION")
-            || plan.Purpose == "BOOTSTRAP_CANDIDATE_SELECTION" && (plan.MinimumObservedMPerCell < 1 || plan.MinimumObservedUPerCell < 1))
+            || plan.Purpose == "BOOTSTRAP_CANDIDATE_SELECTION" && plan.MuEstimationMethods is null
+                && (plan.MinimumObservedMPerCell < 1 || plan.MinimumObservedUPerCell < 1))
             throw new InvalidDataException("Bootstrap exige suporte observado positivo no núcleo de massa de cada classe; piso zero é exclusivo da fixture sem certificação.");
     }
 
