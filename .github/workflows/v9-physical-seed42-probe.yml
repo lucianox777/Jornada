@@ -2,6 +2,22 @@ name: v9-physical-seed42-probe
 
 on:
   pull_request:
+  # Reusable only for separately authorized one-shot chat approval workflow.
+  workflow_call:
+    inputs:
+      mode:
+        type: string
+        required: true
+      expected_sha:
+        type: string
+        required: true
+      pinned_ibge_json:
+        type: string
+        required: false
+        default: ''
+      replay_frozen_v2:
+        type: boolean
+        required: true
   workflow_dispatch:
     inputs:
       mode:
@@ -76,7 +92,15 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "push" ]]; then
+            # A push is accepted only by the dedicated one-shot reusable
+            # invocation after the authorization receipt was checked.
+            if [[ "$EVENT_NAME" == "push" ]]; then
+              test "$GITHUB_WORKFLOW" = "v9-v2-calibration-chat-approved-once" || {
+                echo "Unapproved push context cannot request physical calibration" >&2
+                exit 1
+              }
+            fi
             python3 Solution/scripts/v9-physical-impact-classifier.py --manual \
               --summary v9-physical-30k-impact.json --github-output "$GITHUB_OUTPUT"
           else
@@ -217,7 +241,7 @@ jobs:
   physical-30k:
     name: V9 full physical 30k SQL TRAIN (when impacted)
     needs: impact
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k' && needs.impact.outputs.run_physical_30k == 'true'
+    if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && inputs.replay_frozen_v2 == true)) && inputs.mode == 'execute_30k' && needs.impact.outputs.run_physical_30k == 'true'
     runs-on: ubuntu-latest
     # PO: full 30k only on explicit final dispatch; PR preflight remains fail-closed.
     # Full adaptive batches now survive the old all-cell veto and execute 20
@@ -252,6 +276,36 @@ jobs:
             --pinned-json "$TF_IBGE" \
             --output Solution/.local/v9-tf-physical/git-approved.json \
             --pinned-output Solution/.local/v9-tf-physical/pinned-ibge.json
+      - name: Recover authenticated historic V2 plan and study from original run (read-only)
+        if: inputs.replay_frozen_v2 == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          ref=json.loads(Path('Solution/data/reference/v9-frozen-artifacts/references.json').read_text())
+          source=ref['artifacts']['seed42-source']
+          assert source['run_id']==41900357031
+          assert source['head_sha']=='935f704edd2bceb6a125ecfe532ad5b71f9c89b9'
+          PY
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/41900357031" --jq '.head_sha')" = "935f704edd2bceb6a125ecfe532ad5b71f9c89b9"
+          mkdir -p "$RUNNER_TEMP/v9-source-study"
+          gh run download 41900357031 -R "$GITHUB_REPOSITORY" \
+            -n v9-tf-45-physical-41900357031-935f704edd2bceb6a125ecfe532ad5b71f9c89b9 \
+            -D "$RUNNER_TEMP/v9-source-study"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'v9-source-study'
+          ref=json.loads(Path('Solution/data/reference/v9-frozen-artifacts/references.json').read_text())
+          pinned={f['path']:f['sha256'] for f in ref['artifacts']['seed42-source']['files']}
+          for path in ('plan-tf.json','study-tf/study.json'):
+              file=root/path
+              assert file.is_file() and hashlib.sha256(file.read_bytes()).hexdigest()==pinned[path], 'Original V2 artifact hash mismatch: '+path
+          print('V2 original plan and study authenticated against frozen SHA. No recalibration.')
+          PY
       - name: Start masked disposable SQL Server
         shell: bash
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
@@ -440,7 +494,7 @@ jobs:
             exit 1
           fi
           if [[ "$REQUIRES_PHYSICAL" == "true" ]]; then
-            if [[ "$PHYSICAL_RESULT" == "success" && "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            if [[ "$PHYSICAL_RESULT" == "success" && ( "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "push" ) ]]; then
               echo "PASS: CSharp 45-arm --v9-adaptive-study TF physical 30k on $HEAD_SHA."
             elif [[ "$EVENT_NAME" == "pull_request" && "$PHYSICAL_RESULT" == "skipped" ]]; then
               # A manual dispatch on the exact PR head SHA is independently verifiable.
