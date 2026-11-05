@@ -12,7 +12,6 @@ on:
       - 'Solution/scripts/v9-calibration-evidence-bundle.py'
       - 'Solution/scripts/v9-v2-frozen-bootstrap.py'
       - 'Solution/data/calibration/v9/v2-one-mf-frozen/plan.json'
-      - 'Solution/data/calibration/v9/v2-one-mf-frozen/plan-effective.json'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9CalibrationPlanParityCli.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/Program.cs'
       - 'Solution/tests/scripts/test_v9_v2_frozen_bootstrap.py'
@@ -64,15 +63,6 @@ jobs:
           dotnet-version: '10.0.113'
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - name: Verify ORIGINAL and explicit-default V2 calibration files are exactly semantically equal in CSharp
-        working-directory: Solution
-        run: |
-          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-compare-calibration-plans \
-            "$PWD/data/calibration/v9/v2-one-mf-frozen/plan.json" \
-            "$PWD/data/calibration/v9/v2-one-mf-frozen/plan-effective.json" \
-            b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8
       - name: Retrieve only the previously recorded Actions artifact
         env:
           GH_TOKEN: ${{ github.token }}
@@ -85,6 +75,15 @@ jobs:
           test "$ACTUAL_SOURCE_SHA" = "$SOURCE_SHA"
           mkdir -p "$RUNNER_TEMP/v9-tf-frozen-source"
           gh run download "$RUN_ID" -R "$GITHUB_REPOSITORY" -n "$NAME" -D "$RUNNER_TEMP/v9-tf-frozen-source"
+      - name: Verify single Git plan matches the original archived V2 calibration plan in CSharp
+        working-directory: Solution
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-compare-calibration-plans \
+            "$RUNNER_TEMP/v9-tf-frozen-source/plan-tf.json" \
+            "$PWD/data/calibration/v9/v2-one-mf-frozen/plan.json" \
+            b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8
       - name: Audit SHA, V2/V3, TF state, 81 cells and passes; never use SQL
         shell: bash
         run: |
