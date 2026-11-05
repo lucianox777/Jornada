@@ -242,8 +242,8 @@ jobs:
         run: |
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-compare-calibration-plans \
-            data/calibration/v9/v2-one-mf-frozen/plan.json \
-            data/calibration/v9/v2-one-mf-frozen/plan-effective.json \
+            "$PWD/data/calibration/v9/v2-one-mf-frozen/plan.json" \
+            "$PWD/data/calibration/v9/v2-one-mf-frozen/plan-effective.json" \
             b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8
       - name: Rebuild SQL IBGE and 30k corpus using the identical preflight preparation
         working-directory: Solution
