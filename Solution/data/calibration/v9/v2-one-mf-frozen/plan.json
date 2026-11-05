@@ -10,8 +10,11 @@
       "PrimitivePoolSize": 16,
       "MinimumTrueMatchRecall": 0.95,
       "RequireObservedNonMatchSupport": true,
-      "CandidateRuleSetCap": 100000
-    }
+      "CandidateRuleSetCap": 100000,
+      "RequireExhaustivePrimitivePool": false
+    },
+    "PositivePairCap": 2000000,
+    "PairSamplingAttemptCap": 10000000
   },
   "ModelOptions": [
     {
@@ -19,7 +22,14 @@
       "SmoothingAlpha": 0.5,
       "DecisionThreshold": 0.95,
       "TfWeight": 0,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "UnitTfOptions": null,
+      "SharedSurnameMode": 0,
+      "UnpublishedTermPolicy": 0
     },
     {
       "OptionId": "TF_ONE_PF_W0.5_M0_A0.5_T0.95",
@@ -53,7 +63,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_PF_W0.5_M1_A0.5_T0.95",
@@ -87,7 +102,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_PF_W1_M0_A0.5_T0.95",
@@ -121,7 +141,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_PF_W1_M1_A0.5_T0.95",
@@ -155,7 +180,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_PL_W0.5_M0_A0.5_T0.95",
@@ -189,7 +219,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_PL_W0.5_M1_A0.5_T0.95",
@@ -223,7 +258,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_PL_W1_M0_A0.5_T0.95",
@@ -257,7 +297,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_PL_W1_M1_A0.5_T0.95",
@@ -291,7 +336,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_MF_W0.5_M0_A0.5_T0.95",
@@ -325,7 +375,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_MF_W0.5_M1_A0.5_T0.95",
@@ -359,7 +414,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_MF_W1_M0_A0.5_T0.95",
@@ -393,7 +453,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_MF_W1_M1_A0.5_T0.95",
@@ -427,7 +492,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_ML_W0.5_M0_A0.5_T0.95",
@@ -461,7 +531,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_ML_W0.5_M1_A0.5_T0.95",
@@ -495,7 +570,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_ML_W1_M0_A0.5_T0.95",
@@ -529,7 +609,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_ONE_ML_W1_M1_A0.5_T0.95",
@@ -563,7 +648,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_PL_W0.5_M0_A0.5_T0.95",
@@ -597,7 +687,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_PL_W0.5_M1_A0.5_T0.95",
@@ -631,7 +726,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_PL_W1_M0_A0.5_T0.95",
@@ -665,7 +765,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_PL_W1_M1_A0.5_T0.95",
@@ -699,7 +804,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_MF_W0.5_M0_A0.5_T0.95",
@@ -733,7 +843,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_MF_W0.5_M1_A0.5_T0.95",
@@ -767,7 +882,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_MF_W1_M0_A0.5_T0.95",
@@ -801,7 +921,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_MF_W1_M1_A0.5_T0.95",
@@ -835,7 +960,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_ML_W0.5_M0_A0.5_T0.95",
@@ -869,7 +999,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_ML_W0.5_M1_A0.5_T0.95",
@@ -903,7 +1038,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_ML_W1_M0_A0.5_T0.95",
@@ -937,7 +1077,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PF_ML_W1_M1_A0.5_T0.95",
@@ -971,7 +1116,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PL_MF_W0.5_M0_A0.5_T0.95",
@@ -1005,7 +1155,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PL_MF_W0.5_M1_A0.5_T0.95",
@@ -1039,7 +1194,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PL_MF_W1_M0_A0.5_T0.95",
@@ -1073,7 +1233,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PL_MF_W1_M1_A0.5_T0.95",
@@ -1107,7 +1272,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PL_ML_W0.5_M0_A0.5_T0.95",
@@ -1141,7 +1311,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PL_ML_W0.5_M1_A0.5_T0.95",
@@ -1175,7 +1350,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PL_ML_W1_M0_A0.5_T0.95",
@@ -1209,7 +1389,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_PL_ML_W1_M1_A0.5_T0.95",
@@ -1243,7 +1428,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_MF_ML_W0.5_M0_A0.5_T0.95",
@@ -1277,7 +1467,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_MF_ML_W0.5_M1_A0.5_T0.95",
@@ -1311,7 +1506,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_MF_ML_W1_M0_A0.5_T0.95",
@@ -1345,7 +1545,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_TWO_MF_ML_W1_M1_A0.5_T0.95",
@@ -1379,7 +1584,12 @@
         }
       ],
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": true
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
     },
     {
       "OptionId": "TF_SHARED_PL_ML_W0.5_M0_A0.5_T0.95",
@@ -1414,7 +1624,11 @@
       ],
       "SharedSurnameMode": 1,
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": false
+      "EligibleForSelection": false,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null
     },
     {
       "OptionId": "TF_SHARED_PL_ML_W0.5_M1_A0.5_T0.95",
@@ -1449,7 +1663,11 @@
       ],
       "SharedSurnameMode": 1,
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": false
+      "EligibleForSelection": false,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null
     },
     {
       "OptionId": "TF_SHARED_PL_ML_W1_M0_A0.5_T0.95",
@@ -1484,7 +1702,11 @@
       ],
       "SharedSurnameMode": 1,
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": false
+      "EligibleForSelection": false,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null
     },
     {
       "OptionId": "TF_SHARED_PL_ML_W1_M1_A0.5_T0.95",
@@ -1519,7 +1741,11 @@
       ],
       "SharedSurnameMode": 1,
       "UnpublishedTermPolicy": 1,
-      "EligibleForSelection": false
+      "EligibleForSelection": false,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null
     }
   ],
   "ConflictMargins": [
@@ -1575,7 +1801,8 @@
     "FsBlindGroupingOnly": true,
     "MaximumBlindClusterSize": 16,
     "MaximumCandidatePairIncidences": 1000000,
-    "MaximumProjectedSignatures": 1000000
+    "MaximumProjectedSignatures": 1000000,
+    "TotalComparedConfigurations": null
   },
   "MinimumGroupingPosterior": 0.99,
   "MaximumAcceptedPerBaseIdentity": 4,
@@ -1626,5 +1853,11 @@
     "GeneratorVersion": "JORNADA_SYNTH_CORPUS_CSHARP_V1",
     "GeneratorSeed": 42,
     "GenerationHypothesesFingerprint": "2f6ed064113d4e58b01d013b5c0a3ed99de098fbae4ba7910d0d62b33168e613"
-  }
+  },
+  "MaximumParallelRuleSets": 1,
+  "RiskCeilings": null,
+  "SampleDesign": null,
+  "CollapseEquivalentCandidateFrames": false,
+  "ShardIndex": 0,
+  "ShardCount": 1
 }
