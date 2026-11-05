@@ -5,6 +5,14 @@ using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Runner;
 using Jornada.Bronze.Storage;
 
+// Read-only proof that the real derived V3 is executable by the actual V9
+// multipass SQL query builder and frozen TF+joint scorer; NO DB or publication.
+if (args.FirstOrDefault() == V9FrozenGoldRuntimeProbeCli.Flag)
+{
+    await V9FrozenGoldRuntimeProbeCli.RunAsync(args);
+    return;
+}
+
 if (args.FirstOrDefault() == V9LowerNonMatchStudyCli.Flag)
 {
     await V9LowerNonMatchStudyCli.RunAsync(args);
