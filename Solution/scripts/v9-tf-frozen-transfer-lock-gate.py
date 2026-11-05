@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail-closed gate binding a seed 44-47 frozen-transfer run to the LOCKED manifest (issue #1275).
+"""Fail-closed gate binding a frozen-transfer run to its LOCKED manifest (seeds 44-47, #1275; 3-sigma seeds 48-57).
 
 Checks, before any corpus is generated: manifest digest, LOCKED status, authorized
 seed, per-seed pre-registered plans, frozen snapshot identities, and that the
@@ -13,6 +13,8 @@ import subprocess
 from pathlib import Path
 
 LOCK = Path("Solution/docs/V9_TF_SEEDS_44_47_LOCK.json")
+LOCK_3SIGMA = Path("Solution/docs/V9_TF_SEEDS_48_57_LOCK.json")
+EXPERIMENTS = {LOCK: "V9-TF-ONE-MF-SEEDS-44-47", LOCK_3SIGMA: "V9-TF-ONE-MF-3SIGMA-SEEDS-48-57"}
 
 
 def sha256(path):
@@ -28,14 +30,23 @@ def tree_digest(repo, relative):
     return hashlib.sha256(lines.encode("utf-8")).hexdigest(), len(files)
 
 
-def check(repo, seed, expected_lock_sha256):
+def check(repo, seed, expected_lock_sha256, lock_relative=LOCK):
     repo = Path(repo)
-    lock_path = repo / LOCK
+    lock_relative = Path(lock_relative)
+    if lock_relative not in EXPERIMENTS:
+        raise ValueError("Unknown LOCK manifest")
+    lock_path = repo / lock_relative
     if sha256(lock_path) != expected_lock_sha256:
         raise ValueError("LOCK manifest digest differs from the workflow reference")
     lock = json.loads(lock_path.read_bytes())
-    if lock.get("status") != "LOCKED" or lock.get("experiment_id") != "V9-TF-ONE-MF-SEEDS-44-47":
-        raise ValueError("Manifest is not the LOCKED seeds 44-47 contract")
+    if lock.get("status") != "LOCKED" or lock.get("experiment_id") != EXPERIMENTS[lock_relative]:
+        raise ValueError("Manifest is not the expected LOCKED contract")
+    if lock_relative == LOCK_3SIGMA:
+        stat = lock.get("statistics") or {}
+        if (stat.get("primary_test") != "EXACT_TWO_SIDED_SIGN_TEST_CAMPAIGN_UNIT"
+                or stat.get("alpha_two_sided") != 0.0026998 or stat.get("planned_campaigns") != 10
+                or sorted(lock["execution"]["seeds"]) != list(range(48, 58))):
+            raise ValueError("3-sigma statistical pre-registration incomplete")
     if seed not in lock["execution"]["seeds"]:
         raise ValueError("Seed not authorized by the LOCKED manifest")
     gen = lock["generation"]
@@ -70,7 +81,7 @@ def check(repo, seed, expected_lock_sha256):
             or executor["EndToEndRepetitions"] != lock["evaluation"]["end_to_end_repetitions"]
             or executor["PrimaryConflictMargin"] != lock["evaluation"]["primary_margin"]):
         raise ValueError("Frozen models or execution parameters differ from the LOCKED manifest")
-    return {"lock_sha256": expected_lock_sha256, "seed": seed, "generator_sha256": digest,
+    return {"lock_sha256": expected_lock_sha256, "experiment_id": lock["experiment_id"], "seed": seed, "generator_sha256": digest,
             "executor_sha256": expected["executor_sha256"], "status": "LOCK_GATE_PASS_NO_CORPUS_YET",
             "exposure": lock["seed_exposure"][str(seed)]}
 
@@ -80,9 +91,10 @@ def main():
     parser.add_argument("--repo", type=Path, default=Path("."))
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--expected-lock-sha256", required=True)
+    parser.add_argument("--lock", type=Path, default=LOCK, choices=list(EXPERIMENTS))
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
-    report = check(args.repo, args.seed, args.expected_lock_sha256)
+    report = check(args.repo, args.seed, args.expected_lock_sha256, args.lock)
     with args.output.open("x", encoding="utf-8") as out:
         json.dump(report, out, indent=2)
         out.write("\n")

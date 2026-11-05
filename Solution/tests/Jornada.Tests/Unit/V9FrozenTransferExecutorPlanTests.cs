@@ -48,7 +48,7 @@ public sealed class V9FrozenTransferExecutorPlanTests
         var mutations = new Func<V9FrozenTransferExecutorPlan, V9FrozenTransferExecutorPlan>[]
         {
             p => p with { TargetSeed = 42 },
-            p => p with { TargetSeed = 48 },
+            p => p with { TargetSeed = 58 },
             p => p with { SourceSeed = 43 },
             p => p with { EndToEndRepetitions = 0 },
             p => p with { PrimaryConflictMargin = 2m },

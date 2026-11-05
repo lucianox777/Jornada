@@ -21,7 +21,7 @@ TREATMENT = "TF_ONE_MF_W1_M0_A0.5_T0.95"
 # split equally between the FDR family and ONE paired recall contrast.
 PAIRED_ALPHA = 0.025
 CAP = 4
-TARGET_SEEDS = (43, 44, 45, 46, 47)
+TARGET_SEEDS = tuple(range(43, 58))
 
 
 def _load(name, file):
@@ -171,6 +171,56 @@ def analyze(results):
     }
 
 
+def _binomial_tail_le(k, n):
+    return 1.0 - _binomial_tail_ge(k + 1, n) if k < n else 1.0
+
+
+def campaign_sign_test(analyses, alpha_two_sided=0.0026998, planned=10):
+    """Pre-registered 3-sigma test: exact two-sided sign test with ONE campaign per unit.
+
+    A campaign is positive iff primary-margin Recall_ONE_MF > Recall_TF0 (ties are
+    non-positive). Base identities inside a campaign are never counted as units.
+    """
+    seeds = [a["TargetSeed"] for a in analyses]
+    if len(analyses) != planned or len(set(seeds)) != planned:
+        raise ValueError("Sign test requires exactly the planned, distinct campaigns")
+    rows = []
+    for a in analyses:
+        if a.get("Refitted") or a.get("TestUsed"):
+            raise ValueError("Invalid campaign: refit or TEST")
+        arms = {(x["OptionId"], x["ConflictMargin"]): x for x in a["Arms"]}
+        control, treatment = arms[(CONTROL, 0.5)], arms[(TREATMENT, 0.5)]
+        gain = treatment["Recall"] - control["Recall"]
+        rows.append({"TargetSeed": a["TargetSeed"], "RecallTF0": control["Recall"],
+                     "RecallONE_MF": treatment["Recall"], "GainPp": 100 * gain, "Positive": gain > 0,
+                     "FpTF0": control["FP"], "FpONE_MF": treatment["FP"]})
+    k = sum(r["Positive"] for r in rows)
+    n = len(rows)
+    p = min(1.0, 2 * min(_binomial_tail_ge(k, n), _binomial_tail_le(k, n)))
+    gains = [r["GainPp"] for r in rows]
+    mean = sum(gains) / n
+    sd = math.sqrt(sum((g - mean) ** 2 for g in gains) / (n - 1))
+    se = sd / math.sqrt(n)
+    t975 = {9: 2.262157}.get(n - 1)
+    # Normal-equivalent two-sided sigma for the exact p-value (inverse via bisection on erfc).
+    lo, hi = 0.0, 40.0
+    for _ in range(200):
+        mid = (lo + hi) / 2
+        if math.erfc(mid / math.sqrt(2)) > p:
+            lo = mid
+        else:
+            hi = mid
+    return {"Test": "EXACT_TWO_SIDED_SIGN_TEST_CAMPAIGN_UNIT", "Campaigns": n, "Positive": k,
+            "NonPositive": n - k, "PTwoSided": p, "AlphaTwoSided": alpha_two_sided,
+            "SigmaEquivalentTwoSided": lo, "Met": n == planned and k == n and p <= alpha_two_sided,
+            "MeanGainPp": mean, "SdGainPp": sd, "SeGainPp": se,
+            "T95CiGainPp": [mean - t975 * se, mean + t975 * se] if t975 else None,
+            "MinGainPp": min(gains), "MaxGainPp": max(gains),
+            "DeltaFpTotal": sum(r["FpONE_MF"] - r["FpTF0"] for r in rows),
+            "Campaigns_": sorted(rows, key=lambda r: r["TargetSeed"]),
+            "NotClaimed": "direction of gain in the synthetic population only; not FDR certification or authorization"}
+
+
 def markdown(report):
     def pct(x):
         return "—" if x is None else f"{100 * x:.4f}%"
@@ -214,7 +264,17 @@ def main():
     a.add_argument("--results", type=Path, required=True)
     a.add_argument("--output", type=Path, required=True)
     a.add_argument("--markdown", type=Path, required=True)
+    c = sub.add_parser("sign-test")
+    c.add_argument("--analyses", type=Path, nargs="+", required=True)
+    c.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
+    if args.command == "sign-test":
+        report = campaign_sign_test([json.loads(p.read_bytes()) for p in args.analyses])
+        with args.output.open("x", encoding="utf-8") as out:
+            json.dump(report, out, indent=2, allow_nan=False)
+            out.write("\n")
+        print(json.dumps({k: report[k] for k in ("Campaigns", "Positive", "PTwoSided", "Met")}))
+        return
     if args.command == "bootstrap":
         value = bootstrap(args.corpus_root, args.seed42_registry, args.target_seed)
         with args.output.open("x", encoding="utf-8") as out:

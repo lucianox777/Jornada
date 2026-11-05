@@ -16,7 +16,7 @@ on:
         type: choice
         required: true
         default: '43'
-        options: ['43', '44', '45', '46', '47']
+        options: ['43', '44', '45', '46', '47', '48', '49', '50', '51', '52', '53', '54', '55', '56', '57']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.run_id }}
@@ -38,6 +38,8 @@ jobs:
       PLAN_DIR: ${{ inputs.target_seed == '43' && 'Solution/data/reference/v9-tf-seed43-frozen-transfer' || format('Solution/data/reference/v9-tf-frozen-transfer-seed{0}', inputs.target_seed) }}
       # Immutable digest of Solution/docs/V9_TF_SEEDS_44_47_LOCK.json (issue #1275).
       SEEDS_44_47_LOCK_SHA256: 822648cc3cca71368b77afad1fe816ae1ee9f87583311e1b25f18e19f01bfba3
+      # Immutable digest of Solution/docs/V9_TF_SEEDS_48_57_LOCK.json (3-sigma confirmation).
+      SEEDS_48_57_LOCK_SHA256: 3c2a11192bf8b2877861a5f70774d77a1c4cbed37e27b56f5eb6ac145d060bad
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -55,12 +57,17 @@ jobs:
             Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_preflight.py \
             Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_contract.py
           mkdir -p "$EVIDENCE"
-          [[ "$TARGET_SEED" =~ ^(43|44|45|46|47)$ ]] || { echo "Unauthorized seed" >&2; exit 1; }
+          [[ "$TARGET_SEED" =~ ^(4[3-9]|5[0-7])$ ]] || { echo "Unauthorized seed" >&2; exit 1; }
+          if (( TARGET_SEED >= 48 )); then
+            lock=Solution/docs/V9_TF_SEEDS_48_57_LOCK.json; lock_sha="$SEEDS_48_57_LOCK_SHA256"
+          else
+            lock=Solution/docs/V9_TF_SEEDS_44_47_LOCK.json; lock_sha="$SEEDS_44_47_LOCK_SHA256"
+          fi
           if [[ "$TARGET_SEED" != "43" ]]; then
-            python3 -m unittest Solution/tests/scripts/test_v9_tf_frozen_transfer_lock_gate.py
+            python3 -m unittest Solution/tests/scripts/test_v9_tf_frozen_transfer_lock_gate.py Solution/tests/scripts/test_v9_tf_campaign_sign_test.py
             python3 Solution/scripts/v9-tf-frozen-transfer-lock-gate.py --seed "$TARGET_SEED" \
-              --expected-lock-sha256 "$SEEDS_44_47_LOCK_SHA256" --output "$EVIDENCE/lock-gate.json"
-            cp Solution/docs/V9_TF_SEEDS_44_47_LOCK.json "$EVIDENCE/"
+              --lock "$lock" --expected-lock-sha256 "$lock_sha" --output "$EVIDENCE/lock-gate.json"
+            cp "$lock" "$EVIDENCE/"
           fi
           sha256sum "$PLAN_DIR"/*.json | tee "$EVIDENCE/pre-registered-plan.sha256"
       - name: Fetch the immutable seed-42 source artifact named in the pre-registered plan
@@ -157,7 +164,7 @@ jobs:
           path: |
             Solution/.local/v9-tf-seed${{ inputs.target_seed }}/pre-registered-plan.sha256
             Solution/.local/v9-tf-seed${{ inputs.target_seed }}/lock-gate.json
-            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/V9_TF_SEEDS_44_47_LOCK.json
+            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/V9_TF_SEEDS_*_LOCK.json
             Solution/.local/v9-tf-seed${{ inputs.target_seed }}/corpus-hashes.sha256
             Solution/.local/v9-tf-seed${{ inputs.target_seed }}/bootstrap.json
             Solution/.local/v9-tf-seed${{ inputs.target_seed }}/pinned-ibge.json

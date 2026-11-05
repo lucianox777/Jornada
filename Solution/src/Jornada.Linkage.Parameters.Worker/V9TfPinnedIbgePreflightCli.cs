@@ -15,7 +15,7 @@ public static class V9TfPinnedIbgePreflightCli
     private const string ReferenceCode = "CENSO2022_NOMES_BRASIL_V1";
     public const string FrozenTransferTargetFlag = "--frozen-transfer-target-seed43";
     public const string FrozenTransferTargetSeedFlag = "--frozen-transfer-target-seed";
-    public static readonly IReadOnlySet<ulong> FrozenTransferTargetSeeds = new HashSet<ulong> { 43, 44, 45, 46, 47 };
+    public static readonly IReadOnlySet<ulong> FrozenTransferTargetSeeds = new HashSet<ulong> { 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57 };
     private const string MetadataOnlyBlockingFrame = "V9_TF_PIN_PROVENANCE_ONLY_NO_BLOCKING_OR_CALIBRATION";
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -33,13 +33,13 @@ public static class V9TfPinnedIbgePreflightCli
         var explicitTarget = args.Length == 5 && args[3] == FrozenTransferTargetSeedFlag;
         if ((args.Length != 3 && !legacySeed43 && !explicitTarget) || args[0] != "--v9-tf-export-ibge-pin")
             throw new ArgumentException("Uso: --v9-tf-export-ibge-pin <bootstrap.json> <novo-pin.json> ["
-                + FrozenTransferTargetFlag + " | " + FrozenTransferTargetSeedFlag + " <43..47>]");
+                + FrozenTransferTargetFlag + " | " + FrozenTransferTargetSeedFlag + " <43..57>]");
         ulong expectedSeed = 42UL;
         if (legacySeed43) expectedSeed = 43UL;
         if (explicitTarget && (!ulong.TryParse(args[4], System.Globalization.NumberStyles.None,
                 System.Globalization.CultureInfo.InvariantCulture, out expectedSeed)
             || !FrozenTransferTargetSeeds.Contains(expectedSeed)))
-            throw new ArgumentException("Seed-alvo da transferência congelada fora de 43..47.");
+            throw new ArgumentException("Seed-alvo da transferência congelada fora de 43..57.");
 
         var bootstrapPath = Path.GetFullPath(args[1]);
         var outputPath = Path.GetFullPath(args[2]);

@@ -10,7 +10,7 @@ pin_name="${2:-pinned-ibge.json}"
 # Seed 42 is the historical TF-001 corpus. Seed 43 is ONLY the frozen-transfer
 # target (V9-TF-002): new bytes, same producer/IBGE, never registered as seed 42.
 target_seed="${V9_TF_TARGET_SEED:-42}"
-[[ "$target_seed" =~ ^(42|43|44|45|46|47)$ ]] || { echo "Unsupported target seed" >&2; exit 1; }
+[[ "$target_seed" =~ ^(42|43|44|45|46|47|48|49|50|51|52|53|54|55|56|57)$ ]] || { echo "Unsupported target seed" >&2; exit 1; }
 [[ "$pin_name" == "pinned-ibge.json" || "$pin_name" == "reconstructed-ibge.json" ]] || { echo "Invalid pin output name" >&2; exit 1; }
 test -n "${ConnectionStrings__Jornada:-}" || { echo "Missing disposable SQL connection" >&2; exit 1; }
 [[ "$ConnectionStrings__Jornada" == *"Database=JornadaHarness;"* ]] || {

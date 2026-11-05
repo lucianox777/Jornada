@@ -18,8 +18,9 @@ pin_source = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pin_source)
 
 VERSION = "V9_TF_SEED43_FROZEN_TRANSFER_PREFLIGHT_V1"
-# Frozen-transfer targets (V9-TF-002 seed 43; issue #1275 seeds 44-47). Seed 42 is the source only.
-TARGET_SEEDS = (43, 44, 45, 46, 47)
+# Frozen-transfer targets: V9-TF-002 seed 43; #1275 seeds 44-47; 3-sigma confirmation seeds 48-57.
+# Seed 42 is the source only.
+TARGET_SEEDS = tuple(range(43, 58))
 EXPECTED_OPTIONS = {"T0.95_TF0", "TF_ONE_MF_W1_M0_A0.5_T0.95"}
 FILES = {"pessoas_verdade.csv", "observacoes.csv", "gabarito.json"}
 
