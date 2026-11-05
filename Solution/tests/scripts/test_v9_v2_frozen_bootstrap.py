@@ -255,6 +255,12 @@ class RealFrozenV2PlanPinTests(unittest.TestCase):
         inspection = tool.inspect_plan(tool.read_json(plan), fit)
         self.assertEqual(45, inspection["modelOptions"])
         self.assertEqual(3, inspection["conflictMargins"])
+        effective = root / "Solution/data/calibration/v9/v2-one-mf-frozen/plan-effective.json"
+        diff = tool.validate_effective_plan(tool.read_json(plan), tool.read_json(effective))
+        self.assertEqual(6, len(diff[""]))
+        self.assertIn("PositivePairCap", diff["Discovery"])
+        self.assertIn("RequireExhaustivePrimitivePool", diff["Discovery.SearchOptions"])
+        self.assertIn("TfMinimumFrequency", diff["ModelOptions.*"])
 
 
 if __name__ == "__main__":
