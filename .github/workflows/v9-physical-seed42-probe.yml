@@ -120,6 +120,36 @@ jobs:
           python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
             --mode preflight --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
             --output Solution/.local/v9-tf-physical/git-approved.json
+      - name: Recover authenticated historic V2 plan and study from original run (read-only)
+        if: inputs.replay_frozen_v2 == true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          ref=json.loads(Path('Solution/data/reference/v9-frozen-artifacts/references.json').read_text())
+          source=ref['artifacts']['seed42-source']
+          assert source['run_id']==41900357031
+          assert source['head_sha']=='935f704edd2bceb6a125ecfe532ad5b71f9c89b9'
+          PY
+          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/41900357031" --jq '.head_sha')" = "935f704edd2bceb6a125ecfe532ad5b71f9c89b9"
+          mkdir -p "$RUNNER_TEMP/v9-source-study"
+          gh run download 41900357031 -R "$GITHUB_REPOSITORY" \
+            -n v9-tf-45-physical-41900357031-935f704edd2bceb6a125ecfe532ad5b71f9c89b9 \
+            -D "$RUNNER_TEMP/v9-source-study"
+          python3 - <<'PY'
+          import hashlib,json,os
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'v9-source-study'
+          ref=json.loads(Path('Solution/data/reference/v9-frozen-artifacts/references.json').read_text())
+          pinned={f['path']:f['sha256'] for f in ref['artifacts']['seed42-source']['files']}
+          for path in ('plan-tf.json','study-tf/study.json'):
+              file=root/path
+              assert file.is_file() and hashlib.sha256(file.read_bytes()).hexdigest()==pinned[path], 'Original V2 artifact hash mismatch: '+path
+          print('V2 original plan and study authenticated against frozen SHA. No recalibration.')
+          PY
       - name: Start masked disposable SQL Server
         shell: bash
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
@@ -236,14 +266,14 @@ jobs:
         run: |
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      - name: Prove original and explicit V2 JSON plans have IDENTICAL CSharp effective semantics (no SQL)
+      - name: Prove single V2 configuration matches archived original in CSharp (no SQL)
         if: inputs.replay_frozen_v2 == true
         working-directory: Solution
         run: |
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-compare-calibration-plans \
+            "$RUNNER_TEMP/v9-source-study/plan-tf.json" \
             "$PWD/data/calibration/v9/v2-one-mf-frozen/plan.json" \
-            "$PWD/data/calibration/v9/v2-one-mf-frozen/plan-effective.json" \
             b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8
       - name: Rebuild SQL IBGE and 30k corpus using the identical preflight preparation
         working-directory: Solution
@@ -272,7 +302,7 @@ jobs:
           if [[ "$REPLAY_FROZEN_V2" == "true" ]]; then
             python3 scripts/v9-v2-frozen-bootstrap.py prepare \
               --plan data/calibration/v9/v2-one-mf-frozen/plan.json \
-              --effective-plan data/calibration/v9/v2-one-mf-frozen/plan-effective.json \
+              --original-plan "$RUNNER_TEMP/v9-source-study/plan-tf.json" \
               --references data/reference/v9-frozen-artifacts/references.json \
               --observations "$root/people-30k/observacoes.csv" \
               --generation-manifest "$root/people-30k/generation-manifest.json" \
@@ -333,10 +363,7 @@ jobs:
           assert source['run_id']==41900357031
           assert source['head_sha']=='935f704edd2bceb6a125ecfe532ad5b71f9c89b9'
           PY
-          mkdir -p "$RUNNER_TEMP/v9-source-study"
-          gh run download 41900357031 -R "$GITHUB_REPOSITORY" \
-            -n v9-tf-45-physical-41900357031-935f704edd2bceb6a125ecfe532ad5b71f9c89b9 \
-            -D "$RUNNER_TEMP/v9-source-study"
+          test -s "$RUNNER_TEMP/v9-source-study/study-tf/study.json"
           python3 scripts/v9-v2-frozen-bootstrap.py compare \
             --references data/reference/v9-frozen-artifacts/references.json \
             --original-study "$RUNNER_TEMP/v9-source-study/study-tf/study.json" \
