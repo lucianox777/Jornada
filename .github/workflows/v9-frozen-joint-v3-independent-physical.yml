@@ -78,6 +78,15 @@ jobs:
             -n "V9-V3-TRAIN-TRIAL-NOT-AUTHORIZED-$TRIAL_SHA" -D "$TRIAL_DIR"
           gh run download "$TRIAL_RUN" -R "$GITHUB_REPOSITORY" \
             -n "v9-frozen-joint-v3-TRIAL-METADATA-$TRIAL_SHA" -D "$TRIAL_DIR"
+          # The two artifact ZIPs have different roots: the model is at the
+          # download root, but the metadata artifact contains the receipt under
+          # v9-v3-provisional/. Confirmed from archived run 41964404787,
+          # artifact 13386463554. Never guess or silently skip the receipt.
+          test -f "$TRIAL_DIR/v9-v3-provisional/derivation-receipt.json"
+          test ! -e "$TRIAL_DIR/derivation-receipt.json"
+          mv -- "$TRIAL_DIR/v9-v3-provisional/derivation-receipt.json" \
+            "$TRIAL_DIR/derivation-receipt.json"
+          test -s "$TRIAL_DIR/derivation-receipt.json"
           python3 - <<'PY'
           import hashlib,json,os
           from pathlib import Path
@@ -110,7 +119,7 @@ jobs:
             "$PWD/data/reference/v9-tf-seed43-frozen-transfer/executor.json" \
             "$SOURCE_DIR/plan-tf.json" \
             "$SOURCE_DIR/study-tf/8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f.fitted.json" \
-            "$TRIAL_DIR/8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5b0e9c425557cbdefc.fitted.json" \
+            "$TRIAL_DIR/8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc.fitted.json" \
             "$TRIAL_DIR/derivation-receipt.json" > /dev/null
       - name: Generate NEW predeclared 30k seed, only after manual SHA gate
         working-directory: Solution

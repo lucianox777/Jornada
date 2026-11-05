@@ -125,5 +125,32 @@ class FrozenTfWorkflowEventContractsTests(unittest.TestCase):
         self.assertIn("actions: read", text)
 
 
+    def test_independent_v2_v3_reads_v3_receipt_from_metadata_zip(self):
+        """Run 41964404787 metadata ZIP has a nested receipt, unlike fitted ZIP."""
+        path = self.ROOT / "v9-frozen-joint-v3-independent-physical.yml"
+        workflow = path.read_text(encoding="utf-8")
+        self.assertIn('name: v9-frozen-joint-v3-independent-physical', workflow)
+        self.assertIn("  workflow_dispatch:\n", workflow)
+        self.assertNotIn("  push:\n", workflow.split("\npermissions:\n", 1)[0])
+        self.assertIn('test "$GITHUB_SHA" = "$EXPECTED_SHA"', workflow)
+        self.assertIn('test -f "$TRIAL_DIR/v9-v3-provisional/derivation-receipt.json"', workflow)
+        self.assertIn('test ! -e "$TRIAL_DIR/derivation-receipt.json"', workflow)
+        self.assertIn('mv -- "$TRIAL_DIR/v9-v3-provisional/derivation-receipt.json"', workflow)
+        self.assertIn('test -s "$TRIAL_DIR/derivation-receipt.json"', workflow)
+        self.assertIn("assert receipt['certified'] is False", workflow)
+        self.assertIn("assert receipt['tfRefitted'] is False", workflow)
+
+    def test_independent_v2_v3_uses_one_exact_v3_sha_everywhere(self):
+        """Run 42035759655 failed: one step referenced a 62-character V3 SHA."""
+        import re
+        workflow = (self.ROOT / "v9-frozen-joint-v3-independent-physical.yml").read_text(encoding="utf-8")
+        derived = "8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc"
+        self.assertEqual(set(re.findall(r"8bf6d92[0-9a-f]*", workflow)), {derived})
+        for name in re.findall(r"([0-9A-Za-z]+)\.fitted\.json", workflow):
+            if name not in ("h",):
+                self.assertRegex(name, r"^[0-9a-f]{64}$")
+        self.assertEqual(workflow.count(derived + ".fitted.json"), 2)  # pair preflight + comparison
+
+
 if __name__ == "__main__":
     unittest.main()
