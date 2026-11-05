@@ -1,0 +1,51 @@
+{
+  "Version": "V9_TF_SEED43_FROZEN_TRANSFER_EXECUTOR_V1",
+  "SourceRunId": 41900357031,
+  "SourceCommitSha": "935f704edd2bceb6a125ecfe532ad5b71f9c89b9",
+  "SourceArtifactName": "v9-tf-45-physical-41900357031-935f704edd2bceb6a125ecfe532ad5b71f9c89b9",
+  "SourcePlanTfSha256": "b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8",
+  "SourceStudySha256": "7499ee635ecb4999106dbee22a5993f9f16b88d75c725f99490f2fccd39cba2b",
+  "SourceSeed": 42,
+  "TargetSeed": 54,
+  "SourceObservationsSha256": "28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17",
+  "EndToEndRepetitions": 20,
+  "PrimaryConflictMargin": 0.5,
+  "Arms": [
+    {
+      "OptionId": "T0.95_TF0",
+      "ConflictMargin": 0.5,
+      "SnapshotSha256": "f010349623b6bae32b4303f680a715bb1264271fec0e325730cce3f7bc0eb12e",
+      "Role": "PRIMARY_CONTROL"
+    },
+    {
+      "OptionId": "TF_ONE_MF_W1_M0_A0.5_T0.95",
+      "ConflictMargin": 0.5,
+      "SnapshotSha256": "8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f",
+      "Role": "PRIMARY_TREATMENT"
+    },
+    {
+      "OptionId": "T0.95_TF0",
+      "ConflictMargin": 2,
+      "SnapshotSha256": "9094e9ff6b07120a4e264970b7be160976f2b2d3be5f923d5e36ce4737c79db6",
+      "Role": "SECONDARY_CONTROL"
+    },
+    {
+      "OptionId": "TF_ONE_MF_W1_M0_A0.5_T0.95",
+      "ConflictMargin": 2,
+      "SnapshotSha256": "b9c6ceb996ba0b8d76a447bb482a88bbd718ba787c76a1b6c2f5199135a2179c",
+      "Role": "SECONDARY_TREATMENT"
+    },
+    {
+      "OptionId": "T0.95_TF0",
+      "ConflictMargin": 4,
+      "SnapshotSha256": "beac6cb03b588af2b20514e03bd0d32376fb5d6e0da50943d799cecdd90dd084",
+      "Role": "SECONDARY_CONTROL"
+    },
+    {
+      "OptionId": "TF_ONE_MF_W1_M0_A0.5_T0.95",
+      "ConflictMargin": 4,
+      "SnapshotSha256": "f23bd6cd8e8c9c4f1557428577e3d107fb00ec66f1d9db97d4d276159ba0d2f6",
+      "Role": "SECONDARY_TREATMENT"
+    }
+  ]
+}
