@@ -122,6 +122,60 @@ class FrozenV2BootstrapTests(unittest.TestCase):
         write(self.pinfile, self.pin)
         self.do_prepare()
 
+    def effective_fixture(self):
+        # Test-only explicit values; production values are in versioned JSON.
+        data = json.loads(json.dumps(self.v2))
+        data.update({"MaximumParallelRuleSets": 1, "RiskCeilings": None,
+                     "SampleDesign": None, "CollapseEquivalentCandidateFrames": False,
+                     "ShardIndex": 0, "ShardCount": 1})
+        data["Discovery"].update({"PositivePairCap": 2000000, "PairSamplingAttemptCap": 10000000})
+        data["Discovery"]["SearchOptions"] = {"RequireExhaustivePrimitivePool": False}
+        data["Execution"]["TotalComparedConfigurations"] = None
+        for item in data["ModelOptions"]:
+            for k, value in (("TfSide", 0), ("TfMinimumFrequency", 1e-6),
+                             ("TfMinimumIndependentSupport", 1),
+                             ("JointSupportPolicy", None), ("SharedSurnameMode", 0),
+                             ("UnpublishedTermPolicy", 0)):
+                item[k] = value
+            item.setdefault("UnitTfOptions", None)
+        path = self.d / "plan-effective.json"
+        write(path, data)
+        return path
+
+    def test_explicit_effective_json_values_replace_implicit_Csharp_defaults(self):
+        effective_path = self.effective_fixture()
+        receipt = tool.prepare(self.planfile, self.ref, self.corpus, self.generator,
+                               self.pinfile, self.d / "selected-plan.json",
+                               self.d / "receipt.json", effective_path)
+        self.assertEqual(effective_path.read_bytes(),
+                         (self.d / "selected-plan.json").read_bytes())
+        self.assertEqual("GIT_VERSIONED_V2_EXPLICIT_HISTORICAL_DEFAULTS",
+                         receipt["ConfigurationSource"])
+        self.assertIn("MaximumParallelRuleSets",
+                      receipt["DefaultFieldsMaterialized"][""])
+        self.assertIn("TfSide",
+                      receipt["DefaultFieldsMaterialized"]["ModelOptions.*"])
+
+    def test_explicit_plan_cannot_change_any_original_threshold(self):
+        path = self.effective_fixture()
+        obj = json.loads(path.read_text())
+        obj["ModelOptions"][0]["DecisionThreshold"] = 0.90
+        write(path, obj)
+        with self.assertRaisesRegex(ValueError, "original V2 calibrated value|Original V2 calibrated value"):
+            tool.prepare(self.planfile, self.ref, self.corpus, self.generator,
+                         self.pinfile, self.d / "selected-plan.json",
+                         self.d / "receipt.json", path)
+
+    def test_explicit_plan_cannot_add_unapproved_attributes(self):
+        path = self.effective_fixture()
+        obj = json.loads(path.read_text())
+        obj["UnexpectedDefault"] = 1
+        write(path, obj)
+        with self.assertRaisesRegex(ValueError, "unapproved explicit default"):
+            tool.prepare(self.planfile, self.ref, self.corpus, self.generator,
+                         self.pinfile, self.d / "selected-plan.json",
+                         self.d / "receipt.json", path)
+
     def test_no_overwrite_of_plan_or_receipt(self):
         self.do_prepare()
         with self.assertRaisesRegex(ValueError, "overwrite"):
