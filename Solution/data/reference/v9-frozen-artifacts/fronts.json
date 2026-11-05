@@ -33,7 +33,16 @@
       "scientific_blockers": [
         "no workflow/contract yet runs the SAME V9 model through 4 waves x 3 orders in fresh LocalDB; v9-gold-independent-holdout-physical.yml measures the historical Gold V6 CURRENT/KNEE contract (8-pass TF0), not the ONE_MF 3-pass fit"
       ],
-      "not_implemented": true
+      "not_implemented": true,
+      "historical_evidence": [
+        {
+          "workflow": ".github/workflows/v9-gold-independent-holdout-physical.yml",
+          "run_id": 40250618984,
+          "head_sha": "220f7827",
+          "scope": "Gold V6 fit 6d93690d (8-pass TF0) CURRENT vs KNEE 0.05 x 3 orders, 6/6 success + aggregate matrix; do NOT rerun",
+          "conclusion": "success"
+        }
+      ]
     },
     {
       "id": "C-REF-persistence",

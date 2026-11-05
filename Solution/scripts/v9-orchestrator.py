@@ -229,6 +229,7 @@ def front_status(front, checks, runs):
         "TECHNICALLY_APPROVED": technical,
         "STATISTICALLY_ELIGIBLE": front.get("statistical_state", "NO_ELIGIBLE_CONFIGURATION"),
         "CERTIFIED": False, "OPERATIONALLY_AUTHORIZED": False,
+        "historical_evidence": front.get("historical_evidence", []),
         "merge_ready": None if not front.get("pr") else technical and not front.get("scientific_blockers"),
         "blockers": blockers,
     }
@@ -246,6 +247,9 @@ def report(status_rows):
                      f"{r['STATISTICALLY_ELIGIBLE']} | não | não | {'n/a (sem PR)' if r['merge_ready'] is None else 'pronto' if r['merge_ready'] else 'bloqueado'} |")
     lines += ["", f"Aprovadas tecnicamente: {sum(r['TECHNICALLY_APPROVED'] for r in status_rows)} de {len(status_rows)}; "
               f"bloqueadas: {sum(bool(r['blockers']) for r in status_rows)}.", ""]
+    for r in status_rows:
+        for h in r.get("historical_evidence", []):
+            lines.append(f"- **{r['front']}** evidência histórica reutilizável: run {h['run_id']} ({h['conclusion']}): {h['scope']}")
     for r in status_rows:
         if r["blockers"]:
             lines.append(f"- **{r['front']}**: " + "; ".join(r["blockers"]))
