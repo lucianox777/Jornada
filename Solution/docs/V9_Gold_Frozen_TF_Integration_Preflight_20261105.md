@@ -167,3 +167,15 @@ A nova CLI `--v9-compare-frozen-v2-v3-independent` conecta-se **somente** a `127
 ## Auditoria prévia V2/V3 real sem SQL (05/11/2026)
 
 Antes da validação cara, foi implementado `--v9-preflight-frozen-v2-v3-pair`: aplica **a mesma função `VerifyPinnedPairAsync` usada pelo comparador físico** para autenticar o executor 41900357031, plano TRAIN, SHA dos dois fits, política, recibo de derivação, referência IBGE, identidade de snapshot, 81 células, um TF ativo, passes, limiar, margem e igualdade exata dos campos inalterados. É executado na Action `v9-frozen-train-joint-v3-trial` quando há alterações do comparador, usando os bytes reais já presentes nos arquivos do GitHub Actions. Em sucesso, retorna `independentSqlExecuted=false` e `goldIncrementalExecuted=false` e não gera novo corpus. A futura Action **manual** de 30k chama o mesmo preflight antes de produzir dados. Nenhum modelo é selecionado, publicado ou ativado por esse comando.
+
+
+## Política de disparo dos workflows congelados (revisão 05/11/2026)
+
+Após o 30k manual aprovado no SHA `4f34e66296821227a441db36bac8b42d5576763e`, foram revisados **somente** os gatilhos de dois workflows e adicionados dois testes de contrato (nenhum modelo, fit, SQL, calibrador, scorer ou TEST foi modificado):
+
+- `.github/workflows/v9-tf-frozen-artifact-schema-audit.yml`: auditoria **sem refit/SQL** em eventos `pull_request` com filtro explícito dos arquivos relevantes; `workflow_dispatch` opcional exige `expected_sha` de 40 hex, o mesmo commit de checkout e a referência Git ao HEAD vivo da branch. Não há mais `push` condicionado ao nome da branch.
+- `.github/workflows/v9-frozen-train-joint-v3-trial.yml`: derivação de candidato **TRAIN-only** apenas por `workflow_dispatch` explícito, igualmente travado no SHA exato e no HEAD vivo; nunca por `push` nem por abertura/atualização de PR. O resultado continua experimental, não é calibração automática operacional nem certificação.
+
+Os dois workflows usam permissões `contents: read` e `actions: read`; nenhuma ação de publicação, DT-15 ou auto-merge foi habilitada. Os testes de contrato ficam em `Solution/tests/scripts/test_v9_tf_frozen_source_schema_audit.py`. A execução `workflow_dispatch` de workflows novos geralmente só fica disponível depois de eles existirem na branch padrão, sem dispensar aprovação do responsável para o merge; a auditoria via `pull_request` pode validar a mudança antes do merge.
+
+**Controle de SHA obrigatório:** os commits desta revisão alteram o HEAD da #1277. O run manual `41994843778` permanece evidência física válida **somente** de `4f34e66296821227a441db36bac8b42d5576763e`, não do novo HEAD. O classificador de impacto deve avaliar a mudança integral: se exigir 30k, disparar novo `preflight` e `execute_30k` manuais no novo SHA, com pin IBGE autenticado, e aguardar probe/CI verdes. Não acrescentar exceções por workflow ou branch para escapar do gate. A validação física Gold 4 ondas × 3 ordens, a leitura do REF real, a certificação e a autorização DT-15 continuam pendentes.
