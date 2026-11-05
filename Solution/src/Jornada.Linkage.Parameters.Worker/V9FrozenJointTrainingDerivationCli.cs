@@ -61,6 +61,10 @@ public static class V9FrozenJointTrainingDerivationCli
                 new V9JointObservedCell(c.Person, c.Mother, c.ObservedMPairs, c.ObservedUPairs)),
             policy, reconstructed.SmoothingAlpha, p.TrainCorpusSha256);
 
+        if (!V9JointSupportEstimation.HasRequiredCoreSupport(fitted.Provenance))
+            throw new InvalidDataException(
+                "Política V3 pré-declarada exige suporte M/U mínimo que o TRAIN congelado não fornece.");
+
         // Derived FIT fingerprint is different from the V2 source; reusing the
         // source fingerprint after changing 81 joint probabilities is invalid.
         var derivationIdentity = Version + "|" + source.ContentSha256 + "|"
