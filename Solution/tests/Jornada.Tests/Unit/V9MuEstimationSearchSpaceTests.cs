@@ -18,7 +18,7 @@ public class V9MuEstimationSearchSpaceTests
         var methods = new[] { Default(), HistoricalV3() };
         var variants = V9MuEstimationSearchSpace.Enumerate(methods);
         Assert.That(variants, Has.Count.EqualTo(2));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(variants[0].Method, Is.EqualTo(V9MuEstimationSearchSpace.Default));
             Assert.That(variants[0].Policy, Is.Null);
@@ -27,10 +27,10 @@ public class V9MuEstimationSearchSpaceTests
             Assert.That(variants[1].Policy!.MinimumM, Is.EqualTo(5));
             Assert.That(variants[1].Policy!.MinimumU, Is.EqualTo(5));
             Assert.That(variants[1].Policy!.SupportedTailRule, Is.EqualTo(V9JointSupportEstimation.SupportedTailRule));
-        });
+        }));
         var original = new[] { new V9FsAdaptiveOptionConfiguration("ONE_MF", .5m, .95m) };
         var expanded = V9MuEstimationSearchSpace.Expand(original, methods, maximumOptionCount: 2);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(expanded, Has.Count.EqualTo(2));
             Assert.That(expanded[0].JointSupportPolicy, Is.Null);
@@ -39,7 +39,7 @@ public class V9MuEstimationSearchSpaceTests
             Assert.That(expanded[0].DecisionThreshold, Is.EqualTo(expanded[1].DecisionThreshold));
             Assert.That(expanded[0].FingerprintSha256, Is.Not.EqualTo(expanded[1].FingerprintSha256));
             Assert.That(original[0].JointSupportPolicy, Is.Null);
-        });
+        }));
     }
 
     [Test]
@@ -60,28 +60,28 @@ public class V9MuEstimationSearchSpaceTests
     [Test]
     public void Unknown_methods_duplicate_values_and_absent_parameters_fail_closed()
     {
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
-            Assert.Throws<InvalidDataException>(() => V9MuEstimationSearchSpace.Enumerate([Default(), Default()]));
-            Assert.Throws<InvalidDataException>(() => V9MuEstimationSearchSpace.Enumerate([new("UNKNOWN")]));
-            Assert.Throws<InvalidDataException>(() => V9MuEstimationSearchSpace.Enumerate([new(V9MuEstimationSearchSpace.Classwise)]));
-            Assert.Throws<InvalidDataException>(() => V9MuEstimationSearchSpace.Enumerate([new(V9MuEstimationSearchSpace.Default,
-                new([.99m], [5], [5], [true]))]));
-            Assert.Throws<InvalidDataException>(() => V9MuEstimationSearchSpace.Enumerate([new(V9MuEstimationSearchSpace.Classwise,
-                new([.99m, .99m], [5], [5], [true]))]));
-            Assert.Throws<InvalidDataException>(() => V9MuEstimationSearchSpace.Enumerate([new(V9MuEstimationSearchSpace.Classwise,
-                new([1m], [5], [5], [true]))]));
-            Assert.Throws<InvalidDataException>(() => V9MuEstimationSearchSpace.Enumerate([new(V9MuEstimationSearchSpace.Classwise,
-                new([.99m], [0], [5], [true]))]));
-        });
+            Assert.Throws<InvalidDataException>((Action)(() => V9MuEstimationSearchSpace.Enumerate([Default(), Default()])));
+            Assert.Throws<InvalidDataException>((Action)(() => V9MuEstimationSearchSpace.Enumerate([new("UNKNOWN")])));
+            Assert.Throws<InvalidDataException>((Action)(() => V9MuEstimationSearchSpace.Enumerate([new(V9MuEstimationSearchSpace.Classwise)])));
+            Assert.Throws<InvalidDataException>((Action)(() => V9MuEstimationSearchSpace.Enumerate([new(V9MuEstimationSearchSpace.Default,
+                new([.99m], [5], [5], [true]))])));
+            Assert.Throws<InvalidDataException>((Action)(() => V9MuEstimationSearchSpace.Enumerate([new(V9MuEstimationSearchSpace.Classwise,
+                new([.99m, .99m], [5], [5], [true]))])));
+            Assert.Throws<InvalidDataException>((Action)(() => V9MuEstimationSearchSpace.Enumerate([new(V9MuEstimationSearchSpace.Classwise,
+                new([1m], [5], [5], [true]))])));
+            Assert.Throws<InvalidDataException>((Action)(() => V9MuEstimationSearchSpace.Enumerate([new(V9MuEstimationSearchSpace.Classwise,
+                new([.99m], [0], [5], [true]))])));
+        }));
     }
 
     [Test]
     public void Cannot_ignore_declared_grid_because_computation_budget_is_too_small()
     {
         var original = new[] { new V9FsAdaptiveOptionConfiguration("A", .5m, .95m) };
-        Assert.Throws<InvalidDataException>(() =>
-            V9MuEstimationSearchSpace.Expand(original, [Default(), HistoricalV3()], maximumOptionCount: 1));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9MuEstimationSearchSpace.Expand(original, [Default(), HistoricalV3()], maximumOptionCount: 1)));
     }
 
     [Test]
@@ -89,7 +89,7 @@ public class V9MuEstimationSearchSpaceTests
     {
         var policy = new V9JointSupportPolicy(.99m, 5, 5, V9JointSupportEstimation.SupportedTailRule);
         var original = new[] { new V9FsAdaptiveOptionConfiguration("A", .5m, .95m, JointSupportPolicy: policy) };
-        Assert.Throws<InvalidDataException>(() =>
-            V9MuEstimationSearchSpace.Expand(original, [Default()], maximumOptionCount: 1));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9MuEstimationSearchSpace.Expand(original, [Default()], maximumOptionCount: 1)));
     }
 }
