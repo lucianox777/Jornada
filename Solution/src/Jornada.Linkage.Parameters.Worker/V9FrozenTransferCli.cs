@@ -51,7 +51,7 @@ public static class V9FrozenTransferCli
             || !Hex(plan.SourcePlanTfSha256, 64) || !Hex(plan.SourceStudySha256, 64)
             || !Hex(plan.SourceObservationsSha256, 64)
             || plan.SourceArtifactName != "v9-tf-45-physical-" + plan.SourceRunId + "-" + plan.SourceCommitSha
-            || plan.SourceSeed != 42 || plan.TargetSeed != 43
+            || plan.SourceSeed != 42 || !V9TfPinnedIbgePreflightCli.FrozenTransferTargetSeeds.Contains(plan.TargetSeed)
             || plan.EndToEndRepetitions is < 20 or > 200
             || plan.PrimaryConflictMargin != 0.5m || plan.Arms is not { Count: 6 })
             throw new InvalidDataException("Plano de transferência congelada fora do contrato pré-registrado.");

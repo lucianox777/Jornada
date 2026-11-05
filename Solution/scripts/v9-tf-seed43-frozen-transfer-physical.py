@@ -21,6 +21,7 @@ TREATMENT = "TF_ONE_MF_W1_M0_A0.5_T0.95"
 # split equally between the FDR family and ONE paired recall contrast.
 PAIRED_ALPHA = 0.025
 CAP = 4
+TARGET_SEEDS = (43, 44, 45, 46, 47)
 
 
 def _load(name, file):
@@ -30,12 +31,12 @@ def _load(name, file):
     return module
 
 
-def bootstrap(corpus_root, registry_path):
+def bootstrap(corpus_root, registry_path, target_seed=43):
     preflight = _load("v9_seed43_preflight_for_bootstrap", "v9-tf-seed43-frozen-transfer-preflight.py")
     registry = preflight.pin_source.parse_json(registry_path)
-    target, counts, _ = preflight.check_corpus(Path(corpus_root), registry)
-    if target["GeneratorSeed"] != 43 or sum(counts.values()) != 30000:
-        raise ValueError("Bootstrap must describe the new 30k seed-43 corpus")
+    target, counts, _ = preflight.check_corpus(Path(corpus_root), registry, target_seed)
+    if target["GeneratorSeed"] != target_seed or sum(counts.values()) != 30000:
+        raise ValueError("Bootstrap must describe the new 30k target-seed corpus")
     return target
 
 
@@ -136,7 +137,7 @@ def paired(control_arm, treatment_arm):
 
 
 def analyze(results):
-    if (results.get("Version") != "V9_TF_SEED43_FROZEN_TRANSFER_RESULT_V1" or results.get("TargetSeed") != 43
+    if (results.get("Version") != "V9_TF_SEED43_FROZEN_TRANSFER_RESULT_V1" or results.get("TargetSeed") not in TARGET_SEEDS
             or results.get("Refitted") is not False or results.get("TestUsed") is not False
             or results.get("Certified") is not False or results.get("Activated") is not False):
         raise ValueError("Unexpected transfer result contract")
@@ -155,6 +156,7 @@ def analyze(results):
     descriptive = primary["DeltaTP"] > 0 and primary["DeltaFP"] <= 0
     return {
         "Version": VERSION, "ResultVersion": results["Version"],
+        "TargetSeed": results["TargetSeed"],
         "ExecutorPlanSha256": results["ExecutorPlanSha256"],
         "TargetObservationsSha256": results["TargetObservationsSha256"],
         "TargetManifestSha256": results["TargetManifestSha256"],
@@ -172,9 +174,9 @@ def analyze(results):
 def markdown(report):
     def pct(x):
         return "—" if x is None else f"{100 * x:.4f}%"
-    lines = ["# V9-TF-002 — transferência congelada seed 42 → seed 43 (resultado físico)", "",
+    lines = [f"# Transferência congelada seed 42 → seed {report['TargetSeed']} (resultado físico)", "",
              f"Status: **{report['Certification']}**. Sem refit, sem TEST, sem ativação.", "",
-             f"VALIDATION seed 43: {report['ValidationObservations']} observações, "
+             f"VALIDATION seed {report['TargetSeed']}: {report['ValidationObservations']} observações, "
              f"{report['ValidationBaseIdentities']} identidades-base. "
              f"Corpus `{report['TargetObservationsSha256']}`.", "",
              "| Opção | Margem | TP | FP | FN | Precisão | Recall | FDR pontual | FDR sup. CP (cond.) | Conflitos | Não resolvidos | Fragmentação | Fusão | P95 ms |",
@@ -207,13 +209,14 @@ def main():
     b.add_argument("--corpus-root", type=Path, required=True)
     b.add_argument("--seed42-registry", type=Path, required=True)
     b.add_argument("--output", type=Path, required=True)
+    b.add_argument("--target-seed", type=int, default=43, choices=TARGET_SEEDS)
     a = sub.add_parser("analyze")
     a.add_argument("--results", type=Path, required=True)
     a.add_argument("--output", type=Path, required=True)
     a.add_argument("--markdown", type=Path, required=True)
     args = parser.parse_args()
     if args.command == "bootstrap":
-        value = bootstrap(args.corpus_root, args.seed42_registry)
+        value = bootstrap(args.corpus_root, args.seed42_registry, args.target_seed)
         with args.output.open("x", encoding="utf-8") as out:
             json.dump(value, out, indent=2, allow_nan=False)
             out.write("\n")

@@ -105,7 +105,7 @@ class TransferWorkflowTests(unittest.TestCase):
             for token in line.replace("\\", " ").split():
                 if token.startswith("--"):
                     continue
-                self.assertTrue(token.startswith('"$PWD/') or token.startswith('"$SOURCE') or token.startswith('"$EVIDENCE'), token)
+                self.assertTrue(token.startswith('"$PWD/') or token.startswith('"$GITHUB_WORKSPACE/') or token.startswith('"$SOURCE') or token.startswith('"$EVIDENCE'), token)
 
 
 class CommittedPlanTests(unittest.TestCase):
