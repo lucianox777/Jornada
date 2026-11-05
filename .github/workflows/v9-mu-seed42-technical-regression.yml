@@ -1,0 +1,176 @@
+name: v9-mu-seed42-technical-regression
+
+# Only the already-known seed42 synthetic TRAIN. Never a new scientific seed,
+# confirmation holdout, Gold, TEST or operational activation.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-mu-seed42-technical-regression.yml'
+      - 'Solution/scripts/v9-mu-historical-plan.py'
+      - 'Solution/tests/scripts/test_v9_mu_historical_plan.py'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9MuEstimationSearchSpace.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
+      - 'Solution/data/reference/v9-mu-estimation-methods-20261105.json'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  mu-technical:
+    name: V9 M/U V2 x V3 physical SQL seed42 (non-confirmatory)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Bind technical 30k experiment to exact same-repository PR head
+        env:
+          MU_SHA: ${{ github.event.pull_request.head.sha }}
+          MU_REF: ${{ format('refs/heads/{0}', github.head_ref) }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$MU_SHA"
+          mkdir -p Solution/.local/v9-mu-tech
+          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+            --mode auto_30k --expected-sha "$MU_SHA" --ref "$MU_REF" \
+            --output Solution/.local/v9-mu-tech/sha-verified.json
+      - name: Verify exact two-method historical arrays and fail-closed plan builder
+        run: |
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_mu_historical_plan.py' -v
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_mu_workflow_protocol.py' -v
+      - name: Start masked disposable SQL (not production)
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build single CSharp Calibrador and seed42 synthetic producer
+        working-directory: Solution
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Rebuild SQL IBGE and known seed42 corpus from immutable reference
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-mu-tech"
+          test -z "${V9_TF_TARGET_SEED:-}"
+          bash scripts/v9-tf-prepare-pin.sh "$root" pinned-ibge.json
+          python3 scripts/v9-tf-ref-provenance-gate.py \
+            --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
+            --reference data/reference/v9-synthetic-seed42-30000/manifest.json
+      - name: Freeze four initial M/U comparisons, no new values or holdout
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-mu-tech"
+          python3 scripts/v9-nested-calibration-study.py \
+            "$root/people-30k/observacoes.csv" "$root/source-nested-plan.json" \
+            --tf-search --pinned-ibge "$root/pinned-ibge.json"
+          python3 scripts/v9-mu-historical-plan.py \
+            "$root/source-nested-plan.json" "$root/mu-v2-v3-plan.json"
+      - name: Run physical M/U TRAIN selection via one CSharp Calibrador
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-mu-tech"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-calibrate "$root/mu-v2-v3-plan.json" \
+            "$root/people-30k/observacoes.csv" "$root/results"
+      - name: Audit all four initial evaluations and 81 cells without inventing results
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json
+          from collections import Counter
+          from pathlib import Path
+          root = Path(".local/v9-mu-tech")
+          report = json.loads((root / "results/mu-statistical-analysis.json").read_bytes())
+          plan = json.loads((root / "mu-v2-v3-plan.json").read_bytes())
+          assert report["schema"] == "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1"
+          assert report["scope"] == "TRAIN_SELECTION_ONLY_NOT_INDEPENDENT_VALIDATION"
+          assert report["testUsed"] is False and report["activated"] is False
+          assert report["originalMethodsAndParameterArrays"] == plan["MuEstimationMethods"]
+          assert report["declaredVariantCount"] == 2
+          assert report["evaluations"] == 4 and len(report["rows"]) == 4
+          assert Counter(x["MuEstimationMethod"] for x in report["rows"]) == {
+              "DEFAULT": 2, "CLASSWISE_SUPPORT_BACKOFF": 2
+          }
+          frames = {}
+          for r in report["rows"]:
+              assert r["OptionId"].endswith("__MU_" + (
+                  "DEFAULT" if r["MuEstimationMethod"] == "DEFAULT" else
+                  "CLASSWISE_SUPPORT_BACKOFF_C0.99_M5_U5_T1"))
+              assert r["ConflictMargin"] == 0.5
+              assert r["fitSnapshotSha256"] and len(r["fitSnapshotSha256"]) == 64
+              assert r["observedSupportAudit"] and len(r["observedSupportAudit"]["Cells"]) == 81
+              assert r["smoothingAlpha"] == 0.5 and r["threshold"] == 0.95
+              assert r["outcome"].startswith("MEASURED_")
+              policy = r["MuPolicy"]
+              provenance = r["estimatorJointSupport"]
+              if r["MuEstimationMethod"] == "DEFAULT":
+                  assert policy is None and provenance is None
+              else:
+                  assert policy == {"ClassMassCoverage": 0.99,
+                      "MinimumM": 5, "MinimumU": 5,
+                      "SupportedTailRule": "RETAIN_CLASS_JOINT_WHEN_COUNT_AT_LEAST_K_V2"}
+                  assert provenance is not None and len(provenance["Cells"]) == 81
+              passes = r["blockingPasses"]
+              assert len(passes) in (3, 19)
+              frames.setdefault(len(passes), set()).add(r["MuEstimationMethod"])
+          assert frames == {
+              3: {"DEFAULT", "CLASSWISE_SUPPORT_BACKOFF"},
+              19: {"DEFAULT", "CLASSWISE_SUPPORT_BACKOFF"}
+          }
+          raw = (root / "results/mu-statistical-analysis.json").read_bytes()
+          summary = {
+              "scope": "KNOWN_SEED42_TECHNICAL_ONLY_NOT_CONFIRMATORY",
+              "gitSha": __import__("os").environ["GITHUB_SHA"],
+              "declaredPlanSourceSha256": hashlib.sha256(
+                  (root / "mu-v2-v3-plan.json").read_bytes()).hexdigest(),
+              "observedReportSha256": hashlib.sha256(raw).hexdigest(),
+              "observationsSha256": hashlib.sha256(
+                  (root / "people-30k/observacoes.csv").read_bytes()).hexdigest(),
+              "comparedMethods": ["DEFAULT", "CLASSWISE_SUPPORT_BACKOFF"],
+              "measuredRows": len(report["rows"]),
+              "testUsed": False, "certified": False, "activated": False
+          }
+          (root / "mu-technical-receipt.json").write_text(
+              json.dumps(summary, sort_keys=True, indent=2) + "\n")
+          print(json.dumps(summary, sort_keys=True))
+          PY
+      - name: Preserve technical report, SHA pins and interruptions (NO CSV, raw truth or TEST)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-mu-seed42-technical-${{ github.run_id }}-${{ github.event.pull_request.head.sha }}
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-mu-tech/sha-verified.json
+            Solution/.local/v9-mu-tech/bootstrap.json
+            Solution/.local/v9-mu-tech/pinned-ibge.json
+            Solution/.local/v9-mu-tech/source-nested-plan.json
+            Solution/.local/v9-mu-tech/mu-v2-v3-plan.json
+            Solution/.local/v9-mu-tech/mu-technical-receipt.json
+            Solution/.local/v9-mu-tech/results/mu-statistical-analysis.json
+            Solution/.local/v9-mu-tech/results/mu-statistical-analysis.md
+            Solution/.local/v9-mu-tech/results/selection-reference.json
+            Solution/.local/v9-mu-tech/results/interrupted.json
+            Solution/.local/v9-mu-tech/people-30k/generation-manifest.json
+      - name: Remove disposable SQL and sensitive temporary resources
+        if: always()
+        shell: bash
+        run: docker rm -f "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true

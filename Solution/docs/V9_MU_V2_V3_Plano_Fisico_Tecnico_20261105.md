@@ -44,3 +44,11 @@ Exigir diretório de resultados **novo**. O Calibrador deve produzir `mu-statist
 ## Etapas ainda pendentes
 
 Este commit **não realizou** execução SQL nem produziu resultados V2×V3 novos; não pode declarar vencedor. Próxima frente: instrumentar e executar o ensaio físico no corpus histórico conhecido, verificar relatório com testes independentes de reconciliação e comparar os dois métodos no mesmo frame SQL por identidade-base.
+
+## Gate técnico automatizado — somente corpus histórico
+
+O workflow `.github/workflows/v9-mu-seed42-technical-regression.yml` roda em PRs do próprio repositório quando o plano/estimadores M/U mudam. **Não é campanha confirmatória**: usa apenas a seed42 conhecida, SQL Server descartável e o mesmo pipeline de referência IBGE autenticada por SHA. Não expõe TEST nem aciona DT-15.
+
+Em vez de tratar o sucesso do 30k TF de 45 opções como prova M/U, o workflow **executa especificamente** as quatro combinações iniciais C# (`DEFAULT` e `CLASSWISE_SUPPORT_BACKOFF` × blocking histórico de 3 passes e controle de 19 passes), conferindo as 81 células observadas e seus resultados por método. O job falha se qualquer um dos métodos não tiver medição física, se as políticas diferirem do registro V3 ou se faltar rastreabilidade. O output publica somente hashes, planos, relatório estatístico agregado e eventual `interrupted.json`, sem CSV nominal ou gabarito.
+
+Por se tratar de regressão técnica, o plano fixa `MaximumBatches=1`, orçamento total `4` e **não** busca outros thresholds/alphas/margens. Um estudo adaptativo completo é outra campanha, solicitada e controlada separadamente. As métricas não são afirmadas antes da execução da Action nem são inferência independente.
