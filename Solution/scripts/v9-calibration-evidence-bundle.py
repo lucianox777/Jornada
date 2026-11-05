@@ -22,8 +22,8 @@ from pathlib import Path
 VERSION = "JORNADA_CALIBRATION_EVIDENCE_BUNDLE_V1"
 REPORT_VERSION = "JORNADA_CALIBRATION_EVIDENCE_REPORT_V1"
 STUDY_VERSION = "V9_ADAPTIVE_PHYSICAL_TRAIN_VALIDATION_PARETO_V1"
-SHA64 = re.compile(r"[a-f0-9]{64}\Z")
-SHA40 = re.compile(r"[a-f0-9]{40}\Z")
+SHA64 = re.compile(r"[a-fA-F0-9]{64}\Z")
+SHA40 = re.compile(r"[a-fA-F0-9]{40}\Z")
 RESULT_FIELDS = ("PlanSha256", "TrainInputSha256", "ValidationInputSha256")
 SNAPSHOT_FIELDS = (
     "SchemaVersion", "NominalContractVersion", "ProjectionSchemaVersion",
