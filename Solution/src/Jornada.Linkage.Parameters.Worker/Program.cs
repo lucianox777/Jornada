@@ -35,6 +35,54 @@ if (args.Length > 0 && args[0] == "--v9-frozen-transfer")
     return;
 }
 
+// Find the exact, possibly unpublished calibration record before choosing
+// a portable fit. SQL SELECT only; never launches a worker or runs training.
+if (args.Length > 0 && args[0] == "--v9-audit-ref-inventory")
+{
+    await V9RefInventoryCli.RunAsync(args);
+    return;
+}
+
+// Opt-in, read-only SQL REF calibration inventory matched against a pinned V9
+// portable fit. No host, fit, publication, or operational model activation.
+if (args.Length > 0 && args[0] == "--v9-audit-ref-frozen-snapshot")
+{
+    await V9RefFittedSnapshotAuditCli.RunAsync(args);
+    return;
+}
+
+// Explicit new TRAIN-only V3 candidate, using physical recorded 81-cell
+// counts from a SHA-pinned study. No TF re-fit, SQL, TEST, publication or DT-15.
+if (args.Length > 0 && args[0] == V9FrozenJointTrainingDerivationCli.Flag)
+{
+    await V9FrozenJointTrainingDerivationCli.RunAsync(args);
+    return;
+}
+
+// Verify archived ORIGINAL V2 and derived V3 together without SQL/30k.
+// The same fail-closed frozen-pair gate is used by the manual physical CLI.
+if (args.Length > 0 && args[0] == V9FrozenJointIndependentComparisonCli.PreflightFlag)
+{
+    await V9FrozenJointIndependentComparisonCli.RunPreflightAsync(args);
+    return;
+}
+
+// Manual independent SQL validation of the NEW V3 against the original V2.
+// Genuine frozen model bytes; no calibrator or operational activation.
+if (args.Length > 0 && args[0] == V9FrozenJointIndependentComparisonCli.Flag)
+{
+    await V9FrozenJointIndependentComparisonCli.RunAsync(args);
+    return;
+}
+
+// Check SHA-verified TF fit suitability for a diagnostic Gold variant only.
+// Does not write another fit, access SQL, alter a threshold or start a host.
+if (args.Length > 0 && args[0] == "--v9-gold-frozen-tf-preflight")
+{
+    await V9FittedSnapshotArtifact.GoldTfDiagnosticPreflightAsync(args);
+    return;
+}
+
 // Portable artifact inspection never starts the host or connects to SQL.
 if (args.Length > 0 && args[0] == "--v9-inspect-fitted-snapshot")
 {
