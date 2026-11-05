@@ -40,6 +40,18 @@ PLAN_FIELDS = (
     "PinnedIbgeReferenceVersionId", "PinnedIbgePublishedSha256",
     "PinnedIbgeMaterializedFrequencySha256", "PinnedIbgeBootstrap",
 )
+# These optional C# properties have runtime defaults; absence in an archived
+# V2 plan is an audit FINDING, never license to rewrite frozen bytes.
+PLAN_RUNTIME_DEFAULTS = (
+    "MinimumGroupingPosterior", "MaximumParallelRuleSets", "RiskCeilings",
+    "SampleDesign", "DeclaredSearchSpace", "CollapseEquivalentCandidateFrames",
+    "ShardIndex", "ShardCount", "ExploratoryRiskPreference",
+)
+SNAPSHOT_RUNTIME_DEFAULTS = (
+    "TfCalibration", "MotherTfCalibration", "UnitTfCalibrations",
+    "SharedSurnameMode", "UnpublishedTermPolicy", "JointSupport",
+    "CandidateGrouping", "BlockingFrameFingerprintSha256",
+)
 FILE_MAP = {
     "plan": "plan.json", "result": "result.json",
     "fitted_model": "model.fitted.json", "report": "report.json",
@@ -224,6 +236,17 @@ def audit_snapshot(snap, model_sha, option, plan):
             "Fitted margin absent from plan")
     require(isinstance(snap["JointCells"], list) and len(snap["JointCells"]) == 81,
             "81 nominal cells missing")
+    cells = snap["JointCells"]
+    require(all(isinstance(cell, dict) and all(k in cell for k in ("Person", "Mother", "M", "U"))
+                for cell in cells), "Nominal M/U cell attributes missing")
+    coords = [(str(c["Person"]), str(c["Mother"])) for c in cells]
+    require(len(set(coords)) == 81, "Nominal joint-cell coordinates duplicated")
+    require(all(number(c["M"], "cell.M", positive=True) <= 1
+                and number(c["U"], "cell.U", positive=True) <= 1 for c in cells),
+            "Nominal M/U probabilities invalid")
+    require(abs(sum(c["M"] for c in cells) - 1) < 1e-6
+            and abs(sum(c["U"] for c in cells) - 1) < 1e-6,
+            "Nominal M/U masses not normalized")
     require(isinstance(snap["Parameters"], dict) and snap["Parameters"],
             "FS parameters absent")
     require(isinstance(snap["BlockingPasses"], list) and snap["BlockingPasses"],
@@ -271,6 +294,14 @@ def summary_report(row, run_id, source_sha, study_sha, model_sha, plan, snapshot
             "HistoricalMaximumP95Milliseconds": plan["SelectionPolicy"]["MaximumP95Milliseconds"],
             "PredeclaredComparedConfigurations": plan["MaximumComparedConfigurations"],
             "EndToEndRepetitionsPlanned": plan["Execution"]["EndToEndRepetitions"],
+        },
+        "AttributeAudit": {
+            "PlanRequiredPresent": sorted(PLAN_FIELDS),
+            "FittedRequiredPresent": sorted(SNAPSHOT_FIELDS),
+            "PlanRuntimeDefaultedOrUndeclared": sorted(set(PLAN_RUNTIME_DEFAULTS) - set(plan)),
+            "SnapshotRuntimeDefaultedOrUndeclared": sorted(set(SNAPSHOT_RUNTIME_DEFAULTS) - set(snapshot)),
+            "FullCSharpRuntimeParameterExhaustivenessVerified": False,
+            "Reason": "Field/schema audit only; compare all C# defaults and any code constants separately.",
         },
         "Status": {
             "IndependentClusterAssumptionsValidated":
@@ -359,6 +390,7 @@ def build(source_dir, references, out_dir, model_key):
                 "FittedValidationCorpusSha256": snap["ValidationCorpusSha256"],
                 "FittedTrainIdentityGroupsSha256": snap["TrainIdentityGroupsSha256"],
                 "FittedValidationIdentityGroupsSha256": snap["ValidationIdentityGroupsSha256"],
+                "FittedBlockingFrameSha256": snap.get("BlockingFrameFingerprintSha256"),
             },
             "TestUsed": False, "OperationallyCertified": False,
             "Dt15Authorized": False,
@@ -429,7 +461,8 @@ def verify(directory):
             and cross.get("FittedTrainCorpusSha256") == snap["TrainCorpusSha256"]
             and cross.get("FittedValidationCorpusSha256") == snap["ValidationCorpusSha256"]
             and cross.get("FittedTrainIdentityGroupsSha256") == snap["TrainIdentityGroupsSha256"]
-            and cross.get("FittedValidationIdentityGroupsSha256") == snap["ValidationIdentityGroupsSha256"],
+            and cross.get("FittedValidationIdentityGroupsSha256") == snap["ValidationIdentityGroupsSha256"]
+            and cross.get("FittedBlockingFrameSha256") == snap.get("BlockingFrameFingerprintSha256"),
             "Broken study/snapshot cross-links")
     return manifest, report
 
@@ -441,10 +474,14 @@ def compare(left, right):
     same = {f: cl[f] == cr[f] for f in (
         "TrainInputSha256", "ValidationInputSha256",
         "FittedTrainIdentityGroupsSha256", "FittedValidationIdentityGroupsSha256")}
-    # Same source input cohorts and independent identity partitions required
-    # before comparing descriptive recall/FDR; even so, no causal inference
-    # without checking SQL candidate frames, selection and code version.
-    controlled = all(same.values())
+    left_fitted = strict(left / FILE_MAP["fitted_model"])
+    right_fitted = strict(right / FILE_MAP["fitted_model"])
+    same_blocking = left_fitted["BlockingPasses"] == right_fitted["BlockingPasses"]
+    same_frame = (bool(cl.get("FittedBlockingFrameSha256"))
+                  and cl["FittedBlockingFrameSha256"] == cr.get("FittedBlockingFrameSha256"))
+    # A comparable source frame needs identical input cohorts, partitions,
+    # blocking rules AND a concrete physical candidate-frame fingerprint.
+    controlled = all(same.values()) and same_blocking and same_frame
     return {
         "SchemaVersion": "JORNADA_CALIBRATION_EVIDENCE_COMPARISON_V1",
         "LeftManifestSha256": sha(left / "manifest.json"),
@@ -454,8 +491,8 @@ def compare(left, right):
         "SameCodeSha": ml["SourceCommitSha"] == mr["SourceCommitSha"],
         "SamePlanSha": (ml["Components"]["plan"]["sha256"]
                         == mr["Components"]["plan"]["sha256"]),
-        "SameFittedBlocking": strict(left / FILE_MAP["fitted_model"])["BlockingPasses"]
-                              == strict(right / FILE_MAP["fitted_model"])["BlockingPasses"],
+        "SameFittedBlocking": same_blocking,
+        "SameSqlCandidateFrame": same_frame,
         "RecallDelta": (rr["SourceMetrics"]["GlobalSourceRecall"]
                         - rl["SourceMetrics"]["GlobalSourceRecall"]) if controlled else None,
         "FdrDelta": (rr["SourceMetrics"]["FdrAfterResolve"]
