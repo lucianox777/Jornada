@@ -112,6 +112,7 @@ jobs:
           }
           frames = {}
           pair_frames = {}
+          prior_rows_by_blocking = {}
           for r in report["rows"]:
               assert r["OptionId"].endswith("__MU_" + (
                   "DEFAULT" if r["MuEstimationMethod"] == "DEFAULT" else
@@ -160,6 +161,16 @@ jobs:
                   assert pair_frames[len(passes)] == pair_frame, "M/U methods changed SQL candidate frame"
               else:
                   pair_frames[len(passes)] = pair_frame
+                  prior_rows_by_blocking[str(len(passes))] = {
+                      "trainMPairs": m, "trainUPairs": u,
+                      "fittedPairPrior": r["fittedPairPrior"],
+                      "rawPairPrior": prior["RawPairCandidateMatchShare"],
+                      "distinctMBasePeople": prior["DistinctMBaseIdentities"],
+                      "distinctUBasePairs": prior["DistinctUnorderedUBasePairs"],
+                      "repeatedMBaseContributions": prior["RepeatedMBaseIdentityContributions"],
+                      "repeatedUBasePairContributions": prior["RepeatedUBasePairContributions"],
+                      "baseCollapsedSensitivityNotCalibratedPrior": prior["BaseCollapsedShareSensitivityOnly"]
+                  }
               frames.setdefault(len(passes), set()).add(r["MuEstimationMethod"])
           assert frames == {
               3: {"DEFAULT", "CLASSWISE_SUPPORT_BACKOFF"},
@@ -176,6 +187,7 @@ jobs:
                   (root / "people-30k/observacoes.csv").read_bytes()).hexdigest(),
               "comparedMethods": ["DEFAULT", "CLASSWISE_SUPPORT_BACKOFF"],
               "measuredRows": len(report["rows"]),
+              "trainPriorDiagnosticsByBlocking": prior_rows_by_blocking,
               "testUsed": False, "certified": False, "activated": False
           }
           (root / "mu-technical-receipt.json").write_text(
