@@ -65,6 +65,13 @@ jobs:
           test "$ACTUAL_SOURCE_SHA" = "$SOURCE_SHA"
           mkdir -p "$RUNNER_TEMP/v9-tf-frozen-source"
           gh run download "$RUN_ID" -R "$GITHUB_REPOSITORY" -n "$NAME" -D "$RUNNER_TEMP/v9-tf-frozen-source"
+      - name: Expose original pinned plan for one-time migration to tracked configuration
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          p=pathlib.Path(__import__('os').environ['RUNNER_TEMP'])/'v9-tf-frozen-source'/'plan-tf.json'
+          print('JORNADA_FROZEN_PLAN_JSON_STRING_V1='+json.dumps(p.read_text(encoding='utf-8'),ensure_ascii=True))
+          PY
       - name: Audit SHA, V2/V3, TF state, 81 cells and passes; never use SQL
         shell: bash
         run: |
