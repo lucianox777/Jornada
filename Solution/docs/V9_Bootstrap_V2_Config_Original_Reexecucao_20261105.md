@@ -1,47 +1,44 @@
-# V9 — bootstrap/reexecução da calibração V2 por plano de usuário congelado — 05/11/2026
+# V9 — configuração única do Calibrador para a V2 congelada (05/11/2026)
 
-## Objetivo e decisão
+## Decisão confirmada
 
-O Calibrador C# deve receber **os parâmetros de exploração e tolerâncias do arquivo versionado** que efetivamente produziu a V2, sem reconstruir essa configuração por constantes de scripts. Não mudar o scorer, nem os parâmetros descobertos na V2. Rodar de novo somente com autorização manual e em banco SQL descartável, sobre o mesmo corpus e referências, para verificar reprodutibilidade e regressão.
+A configuração do Calibrador contém **um único arquivo versionado:**
+`Solution/data/calibration/v9/v2-one-mf-frozen/plan.json`.
 
-## Fonte de verdade
+Este `plan.json` é o antigo plano *efetivo*: conserva os parâmetros da campanha física V2 e **torna explícitos** os valores que o C# havia preenchido por default. O `plan-effective.json` redundante foi eliminado. Não há segundo plano do usuário no repositório.
 
-- Plano V2 de origem: Solution/data/calibration/v9/v2-one-mf-frozen/plan.json — cópia dos **bytes originais** de plan-tf.json da execução física #41900357031.
-- Plano **efetivo explícito** de entrada C#: Solution/data/calibration/v9/v2-one-mf-frozen/plan-effective.json — conserva todos os valores já definidos na origem e declara os defaults historicamente usados no C# que faltavam fisicamente no JSON original.
-- SHA-256 do plano original: b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8.
-- Snapshot da V2 ONE_MF (margem 0,5): 8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f.
-- Commit original: 935f704edd2bceb6a125ecfe532ad5b71f9c89b9.
-- Arquivo de referência de runs e artefatos: Solution/data/reference/v9-frozen-artifacts/references.json.
+A equivalência é **semântica, não de bytes**: o plano original da campanha (arquivo `plan-tf.json`, SHA-256 `b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8`) foi preservado como artefato histórico externo no GitHub Actions run **41900357031**, commit `935f704edd2bceb6a125ecfe532ad5b71f9c89b9`. Aquele SHA histórico **não** é o hash do novo `plan.json`, porque agora ele inclui campos que antes eram implícitos.
 
-O plano físico V2 tem 45 opções TF, três margens 0,5/2/4, 41 opções selecionáveis e quatro diagnósticos de sobrenome, todas registradas **nos arquivos**, sem sintetizar novamente a grade a partir dos defaults Python. Contém ainda SearchOptions, SelectionPolicy, Budget, Execution, ObservationCapDeclaration, fingerprints de fonte, corpus e IBGE, mais TF por unidade/lado/peso/modo. Os valores históricos do limite de recall e FDR permanecem no plano V2; não são reimpostos como novos parâmetros universais.
+O ensaio físico V2 possui 45 opções TF e as margens 0,5, 2 e 4 (41 opções selecionáveis; quatro apenas diagnósticas). Foi adicionada a declaração de **233 ocorrências de valores padrão históricos**: 6 propriedades principais, 2 de descoberta, 1 do blocking, 1 de execução e 223 ocorrências entre opções. Não foram alterados os valores de parâmetros efetivamente utilizados na V2.
 
-## Nova execução de calibração (somente manual)
+## Prova de equivalência sem segundo plano versionado
 
-No GitHub Actions, executar o workflow **v9-physical-seed42-probe** selecionando a branch desta PR e:
+O workflow `v9-tf-frozen-artifact-schema-audit.yml` recupera o plano original por run e SHA. Em diretório temporário, o C# deserializa:
 
-1. mode = execute_30k.
-2. expected_sha = SHA **exato** da branch no momento do disparo.
-3. replay_frozen_v2 = true.
-4. pinned_ibge_json = vazio: o workflow deriva os quatro campos do próprio plano V2 e rejeita override.
+1. O original histórico baixado `$RUNNER_TEMP/v9-tf-frozen-source/plan-tf.json`.
+2. **O único plano versionado** `Solution/data/calibration/v9/v2-one-mf-frozen/plan.json`.
 
-Em modo replay_frozen_v2 o workflow: confere SHA da branch; prepara banco JornadaHarness descartável; recria IBGE e a massa clean seed 42; **aborta antes de calibrar** se qualquer hash de observações, manifesto de geração ou pin IBGE divergir do V2; executa um preflight C# de **igualdade semântica** original × plano explícito; copia os bytes do **plano efetivo versionado** para a entrada do C#, sem regenerar pesos, opções ou limiares; executa o único Calibrador por --v9-adaptive-study; recupera estudo físico original por run+SHA; compara inputs, opções, métricas, snapshots e SHA V2; registra dossiê de regressão e preserva artefatos. O comparativo retorna REPRODUCED_EXACTLY ou REGRESSION_DETECTED_REVIEW_REQUIRED. A divergência resulta em gate vermelho, jamais em sobrescrita/correção silenciosa.
+Ambos passam pela mesma classe `V9AdaptiveCalibrationPlan`, pelo mesmo `ValidatePlan` e pelo mesmo serializador do Calibrador. A comparação exige objetos efetivos semanticamente idênticos e rejeita diferenças. A execução anterior de comparação original × efetivo retornou `V2_EFFECTIVE_PLAN_IDENTICAL`; a nova comparação deve permanecer verde no SHA atual, agora usando o original baixado.
 
-Esse fluxo é **manual mesmo com a PR aberta**: uma alteração ou novo commit não dispara automaticamente os 30 mil. O workflow existente mantém a execução normal do plano gerado para outros ensaios quando replay_frozen_v2=false.
+Para impedir adulteração do original, a ferramenta valida o SHA original contra o registro externo `Solution/data/reference/v9-frozen-artifacts/references.json`.
 
-## Integridade/independência
+## Nova calibração V2 somente por disparo manual
 
-1. O SHA do arquivo plano (bytes) e Study.PlanSha256 (C# normalizado) pertencem a domínios diferentes; armazenar ambos.
-2. O Calibrador já faz deserialize tipado de V9AdaptiveCalibrationPlan diretamente do JSON e rejeita campos desconhecidos. Nenhuma segunda implementação estatística é criada.
-3. O programa v9-v2-frozen-bootstrap.py só autentica, copia e compara. Não abre SQL, não lê TEST, não treina ou publica.
-4. O resultado novo é um **novo diretório**, preservando intactos o run, o estudo e o snapshot originais.
-5. Não converter uma nova concordância física em certificação de FDR, suficiência populacional, DT-15, ativação ou merge automático.
+No workflow `v9-physical-seed42-probe.yml` selecionar:
 
-## Auditoria de parâmetros ainda necessária
+- `mode=execute_30k`;
+- `replay_frozen_v2=true`;
+- `expected_sha` = commit exato da branch aprovada;
+- `pinned_ibge_json` = vazio, porque a referência deriva de `plan.json`.
 
-A reexecução V2 demonstrará se o plano com todos os defaults históricos explicitados continua reproduzível quando lido diretamente do Git. A comparação tipada C# exige que sua serialização semântica seja **idêntica à do plano original**, antes de rodar qualquer calibração. Isso **não prova automaticamente** a externalização de *todas* as constantes e defaults do C# usados na versão original. A matriz de atributos do bundle da PR #1283 identifica campos documentados, presentes e dependentes de valores padrão; para fechamento definitivo ainda é preciso comparar a tipagem C# com a versão efetiva do arquivo e os defaults da versão de código do run original.
+Antes de executar o C# físico, o workflow recupera a campanha histórica para validar o plano original, o estudo e seus hashes; verifica que o único `plan.json` tem a mesma semântica efetiva do original; recria o corpus com seed 42 e valida os hashes de observações, manifesto e IBGE. O bootstrap `v9-v2-frozen-bootstrap.py` então copia **somente o `plan.json` versionado** para o diretório temporário de execução e invoca o Calibrador C# já existente por `--v9-adaptive-study`. Depois compara métricas, fits e opções com a execução histórica.
 
-**Estado desta PR:** plano original versionado e SHA-verificado; código de reprodução e regressão implementado; testes CI leves; execução física 30 mil somente por disparo manual explicitamente autorizado, no SHA exato. Não fazer merge sem autorização.
+O original baixado é **evidência**, não um segundo plano de configuração. Não há sobrescrita dos snapshots históricos, nem TEST, DT-15, publicação operacional ou execução de 30 mil automática por PR/push.
 
-## Lacuna descoberta e resolvida sem adulterar o V2 original
+## Separação do bundle de calibração
 
-O JSON do run original omitira defaults legítimos do construtor C# original (commit pinado). Foram materializados no novo plano: **6 campos** no plano principal, **2** na descoberta de blocking, **1** no contrato de busca de blocking, **1** na execução e **223 ocorrências** de defaults nos braços TF (45 opções). Total: **233 valores/ocorrências de configuração** declarados explicitamente no arquivo, sem mudar os valores que já existiam. Um verificador Python recusa qualquer alteração dos atributos originais; um verificador C# recusa divergência semântica do objeto efetivo. Nenhuma substituição de thresholds nem certificação resulta desta externalização.
+O bundle de evidências continua com três componentes **funcionais** (plano, resultado, relatório) e manifesto SHA, mais o snapshot do fit como anexo ao resultado. O `plan.json` é o único plano configurável. O arquivo histórico `plan-tf.json` do run original continua imutável no acervo, com seu SHA próprio, e não integra a estrutura versionada como segundo plano ativo.
+
+## Limites
+
+A igualdade tipada do C# prova que os defaults declarados reproduzem a configuração **efetiva** do original segundo o contrato atual. Não substitui a nova execução física nem, por si só, atesta integralmente qualquer constante interna de algoritmo não modelada no contrato C#. O dossiê de regressão deverá registrar os resultados físicos antes de declarar encerrada a reprodução. **Sem merge antes da autorização do responsável.**
