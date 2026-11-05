@@ -61,6 +61,6 @@ public sealed class V9RefFittedSnapshotAuditCliTests
         // A distinct, valid REF hash must be accepted if it is independently verified.
         Assert.That(V9RefFittedSnapshotAuditCli.Assess(Row(), Sha).SqlResultsHashVerified, Is.True);
         Assert.That(RefResultsSha, Is.Not.EqualTo(Sha));
-        Assert.Throws<ArgumentException>(() => V9RefFittedSnapshotAuditCli.Assess(Row(), "bad-hash"));
+        Assert.Throws<ArgumentException>((Action)(() => V9RefFittedSnapshotAuditCli.Assess(Row(), "bad-hash")));
     }
 }
