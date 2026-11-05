@@ -23,11 +23,11 @@ Depois de baixar/descompactar o artefato original, contendo plan-tf.json e study
 
     python Solution/scripts/v9-calibration-evidence-bundle.py build --source-dir /artefato-original --references Solution/data/reference/v9-frozen-artifacts/references.json --model-key V2_ONE_MF_original --out-dir /bundle-v2
 
-    python Solution/scripts/v9-calibration-evidence-bundle.py verify --bundle-dir /bundle-v2
+    python Solution/scripts/v9-calibration-evidence-bundle.py verify --bundle-dir /bundle-v2 --references Solution/data/reference/v9-frozen-artifacts/references.json
 
-    python Solution/scripts/v9-calibration-evidence-bundle.py compare --left /bundle-v2 --right /bundle-candidato
+    python Solution/scripts/v9-calibration-evidence-bundle.py compare --left /bundle-v2 --right /bundle-candidato --left-references Solution/data/reference/v9-frozen-artifacts/references.json --right-references /referencia-candidato.json
 
-Saída do build: plan.json (cópia byte a byte), result.json (cópia byte a byte), model.fitted.json (anexo byte a byte), report.json (relatório novo reconstruído do estudo) e manifest.json (vínculos SHA). O próprio manifesto é identificado pelo SHA-256 de seus bytes, evitando autorreferência circular. O bundle nunca sobrescreve outro.
+Saída do build: plan.json (cópia byte a byte), result.json (cópia byte a byte), model.fitted.json (anexo byte a byte), report.json (relatório novo reconstruído do estudo) e manifest.json (vínculos SHA). O próprio manifesto é identificado pelo SHA-256 de seus bytes, evitando autorreferência circular. O bundle nunca sobrescreve outro. A verificação sem referência externa atesta integridade interna, não autenticidade. Passar --references compara run, commit e três SHAs originais com a declaração externa fixada no repositório.
 
 **O relatório não é um dossiê DT-15 original assinado.** O report.json é identificado explicitamente como reconstrução somente-leitura, contém contagens/estatísticas publicadas, lacunas e pressupostos, sem inventar certificação, P95 ou autorização. Um relatório institucional posterior deve ser versionado separadamente.
 
