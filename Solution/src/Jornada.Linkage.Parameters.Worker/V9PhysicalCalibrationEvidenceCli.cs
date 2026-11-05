@@ -204,12 +204,13 @@ public static class V9PhysicalCalibrationEvidenceCli
                 checked(rows.Count + 1), Get("base_person_id"), partition,
                 Get("gestor"), Get("nome"), Get("nome_mae"), dob));
         }
-        // This census counts unique BASE PEOPLE across TRAIN, VALIDATION and TEST,
-        // before excluding TEST rows/CPF observations from scoring. 30k is not a
-        // claim about the number of observation rows.
+        // Count unique BASE PEOPLE across TRAIN, VALIDATION and TEST before
+        // excluding TEST/CPF rows from scoring. The population may be 30k
+        // for a frozen historical study, but is not a universal calibration limit.
         if (expectedBaseIdentityCount is { } expectedPeople
             && partitionByBaseIdentity.Count != expectedPeople)
-            throw new InvalidDataException("Estudo TF 30k exige exatamente 30000 pessoas-base distintas, inclusive TEST; não 30000 observações.");
+            throw new InvalidDataException(
+                $"Corpus de calibração exige {expectedPeople} pessoas-base distintas (incluindo TEST), encontradas {partitionByBaseIdentity.Count}; o limite não é de observações.");
         if (rows.Count < minimumObservationCount
             || (onlyPartition is null or "TRAIN") && !rows.Any(x => x.Partition == "TRAIN")
             || (onlyPartition is null or "VALIDATION") && !rows.Any(x => x.Partition == "VALIDATION"))
