@@ -381,6 +381,7 @@ def build(source_dir, references, out_dir, model_key):
             "CalibrationRunId": str(source["run_id"]),
             "SourceArtifactName": source["name"],
             "SourceCommitSha": source["head_sha"],
+            "PinnedReferenceSha256": sha(references),
             "Components": components,
             "CrossLinks": {
                 "NormalizedCSharpStudyPlanSha256": study["PlanSha256"],
@@ -405,7 +406,7 @@ def build(source_dir, references, out_dir, model_key):
             shutil.rmtree(tmp)
 
 
-def verify(directory):
+def verify(directory, references=None):
     manifest_path = directory / "manifest.json"
     require(manifest_path.is_file(), "Bundle manifest missing")
     manifest = strict(manifest_path)
@@ -464,12 +465,25 @@ def verify(directory):
             and cross.get("FittedValidationIdentityGroupsSha256") == snap["ValidationIdentityGroupsSha256"]
             and cross.get("FittedBlockingFrameSha256") == snap.get("BlockingFrameFingerprintSha256"),
             "Broken study/snapshot cross-links")
+    if references is not None:
+        require(sha(references) == manifest.get("PinnedReferenceSha256"),
+                "External authenticated reference SHA differs")
+        reference = strict(references)
+        source, pins, model_sha = reference_entry(reference, manifest["ModelKey"])
+        require(manifest["CalibrationRunId"] == str(source["run_id"])
+                and manifest["SourceCommitSha"] == source["head_sha"]
+                and manifest.get("SourceArtifactName") == source["name"],
+                "Bundle execution identity differs from authenticated archive")
+        require(components["plan"]["sha256"] == pins["plan-tf.json"]
+                and components["result"]["sha256"] == pins["study-tf/study.json"]
+                and components["fitted_model"]["sha256"] == model_sha,
+                "Bundle bytes differ from authenticated archived V2")
     return manifest, report
 
 
-def compare(left, right):
-    ml, rl = verify(left)
-    mr, rr = verify(right)
+def compare(left, right, left_references=None, right_references=None):
+    ml, rl = verify(left, left_references)
+    mr, rr = verify(right, right_references)
     cl, cr = ml["CrossLinks"], mr["CrossLinks"]
     same = {f: cl[f] == cr[f] for f in (
         "TrainInputSha256", "ValidationInputSha256",
@@ -497,6 +511,7 @@ def compare(left, right):
                         - rl["SourceMetrics"]["GlobalSourceRecall"]) if controlled else None,
         "FdrDelta": (rr["SourceMetrics"]["FdrAfterResolve"]
                      - rl["SourceMetrics"]["FdrAfterResolve"]) if controlled else None,
+        "ReferencesAuthenticated": left_references is not None and right_references is not None,
         "RegressionCertified": False,
         "Caveat": "Aggregate deltas are descriptive; require paired source IDs, same candidate frame, "
                   "predeclared statistical method and independent TEST for causal/certified comparison.",
@@ -513,9 +528,12 @@ def main(argv=None):
     b.add_argument("--model-key", default="V2_ONE_MF_original")
     v = sub.add_parser("verify", help="Fail-closed offline verification")
     v.add_argument("--bundle-dir", type=Path, required=True)
+    v.add_argument("--references", type=Path, help="Trusted externally pinned reference JSON")
     c = sub.add_parser("compare", help="Descriptive regression preflight, never certification")
     c.add_argument("--left", type=Path, required=True)
     c.add_argument("--right", type=Path, required=True)
+    c.add_argument("--left-references", type=Path)
+    c.add_argument("--right-references", type=Path)
     args = parser.parse_args(argv)
     if args.command == "build":
         result = build(args.source_dir, args.references, args.out_dir, args.model_key)
@@ -523,12 +541,14 @@ def main(argv=None):
                           "Run": result["CalibrationRunId"],
                           "ManifestSha256": sha(args.out_dir / "manifest.json")}))
     elif args.command == "verify":
-        result, _ = verify(args.bundle_dir)
-        print(json.dumps({"Status": "BUNDLE_INTEGRITY_OK_NOT_CERTIFIED",
+        result, _ = verify(args.bundle_dir, args.references)
+        print(json.dumps({"Status": ("BUNDLE_AUTHENTICATED_NOT_CERTIFIED"
+                                      if args.references else "BUNDLE_INTEGRITY_ONLY_NOT_CERTIFIED"),
                           "Run": result["CalibrationRunId"],
                           "ManifestSha256": sha(args.bundle_dir / "manifest.json")}))
     else:
-        print(json.dumps(compare(args.left, args.right), indent=2))
+        print(json.dumps(compare(args.left, args.right,
+                                 args.left_references, args.right_references), indent=2))
 
 
 if __name__ == "__main__":
