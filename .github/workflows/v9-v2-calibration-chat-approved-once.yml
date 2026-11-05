@@ -1,0 +1,83 @@
+name: v9-v2-calibration-chat-approved-once
+
+# A one-shot trigger, scoped to one NEW authorization file on the V2 PR
+# branch. Ordinary pushes, PR synchronization and modifications/deletions
+# of the marker cannot run the 30k. This does NOT relax future campaigns.
+on:
+  push:
+    branches:
+      - feature/v9-calibration-v2-evidence-bundle-audit-20261105
+    paths:
+      - 'Solution/data/calibration/v9/v2-one-mf-frozen/chat-approved-30k-once-20261105.json'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v9-v2-chat-approved-once-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  verify-single-chat-authorization:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      authorized_sha: ${{ steps.verify.outputs.authorized_sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check exact newly ADDED approval receipt and unmodified branch HEAD
+        id: verify
+        env:
+          GITHUB_SHA_EXACT: ${{ github.sha }}
+          GITHUB_REF_EXACT: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json,os,subprocess
+          from pathlib import Path
+          marker=Path('Solution/data/calibration/v9/v2-one-mf-frozen/chat-approved-30k-once-20261105.json')
+          assert os.environ['GITHUB_REF_EXACT']=='refs/heads/feature/v9-calibration-v2-evidence-bundle-audit-20261105'
+          assert marker.is_file() and not marker.is_symlink()
+          approval=json.loads(marker.read_text(encoding='utf-8'))
+          assert set(approval)=={
+              'SchemaVersion','Source','AuthorizedBy','Scope','PullRequest',
+              'ParentHeadShaBeforeAuthorization','ApprovalIsOneTime',
+              'PreserveFrozenOriginals','TestUsed','AutomaticOperationalActivation'
+          }, 'Unknown authorization fields'
+          assert approval['SchemaVersion']=='JORNADA_CHAT_APPROVED_30K_ONE_SHOT_V1'
+          assert approval['Source']=='EXPLICIT_USER_AUTHORIZATION_IN_CURRENT_CHAT'
+          assert approval['AuthorizedBy']=='JORNADA_REPOSITORY_OWNER'
+          assert approval['Scope']=='REPLAY_FROZEN_V2_WITH_SINGLE_PLAN_JSON_ONLY'
+          assert approval['PullRequest']==1283
+          assert approval['ApprovalIsOneTime'] is True
+          assert approval['PreserveFrozenOriginals'] is True
+          assert approval['TestUsed'] is False
+          assert approval['AutomaticOperationalActivation'] is False
+          commit=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+          parent=subprocess.check_output(['git','rev-parse','HEAD^'],text=True).strip()
+          assert commit==os.environ['GITHUB_SHA_EXACT'], 'Checkout not at authorized SHA'
+          assert parent==approval['ParentHeadShaBeforeAuthorization'], 'One-shot authorization not tied to exact parent'
+          changed=subprocess.check_output(
+              ['git','diff-tree','--no-commit-id','--name-status','-r','HEAD'],
+              text=True).splitlines()
+          assert changed==['A\t'+str(marker)], 'Not an isolated first ADD of approved marker'
+          branch=subprocess.check_output(
+              ['git','ls-remote','--exit-code','origin',os.environ['GITHUB_REF_EXACT']],
+              text=True).split()
+          assert branch==[commit,os.environ['GITHUB_REF_EXACT']], 'Remote branch has advanced or differs'
+          with open(os.environ['GITHUB_OUTPUT'],'a',encoding='utf-8') as out:
+              out.write('authorized_sha='+commit+'\n')
+          print('Verified one-shot in-chat authorization; SHA='+commit)
+          PY
+  physical-v2-30k-only:
+    needs: verify-single-chat-authorization
+    uses: ./.github/workflows/v9-physical-seed42-probe.yml
+    with:
+      mode: execute_30k
+      expected_sha: ${{ needs.verify-single-chat-authorization.outputs.authorized_sha }}
+      pinned_ibge_json: ''
+      replay_frozen_v2: true
