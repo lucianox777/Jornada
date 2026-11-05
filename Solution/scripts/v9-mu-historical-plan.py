@@ -19,7 +19,7 @@ V3_POLICY = ROOT / "data/reference/v9-tf-frozen-joint-trial-20261105/historical-
 VERSION = "V9_MU_V2_V3_HISTORICAL_TRAIN_PLAN_V1"
 HISTORICAL_OPTION = "TF_ONE_MF_W1_M0_A0.5_T0.95"
 HISTORICAL_PASSES = {"P_PHON_M_LAST", "P_LAST_M_PHON", "P_FIRST_BIRTH_YEAR"}
-BUDGET = 64
+BUDGET = 4
 
 
 def _read_json(path):
@@ -47,6 +47,13 @@ def _helper():
 
 def _sha(value):
     return hashlib.sha256(value).hexdigest()
+
+
+def _historical_catalogue():
+    spec = importlib.util.spec_from_file_location("v9_integral", HERE / "v9-integral-search-study.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.CATALOGUE
 
 
 def freeze(source_plan, destination):
@@ -88,17 +95,25 @@ def freeze(source_plan, destination):
     if not isinstance(calibration.get("BaselineRuleSets"), list) or len(calibration["BaselineRuleSets"]) != 1:
         raise ValueError("Historical 3-pass physical baseline missing")
     baseline = calibration["BaselineRuleSets"][0]
-    if not isinstance(baseline, list) or len(baseline) != 3 or {
-        x.get("PassId") for x in baseline if isinstance(x, dict)
-    } != HISTORICAL_PASSES:
-        raise ValueError("Historical 3-pass blocking baseline changed")
+    expected_catalogue = _historical_catalogue()
+    expected_baseline = {key: expected_catalogue[key] for key in HISTORICAL_PASSES}
+    def passes(items):
+        if not isinstance(items, list) or any(not isinstance(x, dict)
+                or set(x) != {"PassId", "Fields"} or not isinstance(x["PassId"], str)
+                or not isinstance(x["Fields"], list) for x in items):
+            raise ValueError("Missing/invalid historical blocking passes")
+        mapped = {x["PassId"]: x["Fields"] for x in items}
+        if len(mapped) != len(items):
+            raise ValueError("Duplicate historical blocking pass")
+        return mapped
+
+    if passes(baseline) != expected_baseline:
+        raise ValueError("Historical 3-pass blocking fields or IDs changed")
     declared = calibration.get("DeclaredSearchSpace")
     if not isinstance(declared, dict) or declared.get("MinimumPasses") != 19 or declared.get("MaximumPasses") != 19:
         raise ValueError("The full 19-pass TRAIN control was removed")
-    if sorted(x.get("PassId") for x in declared.get("Catalogue", [])) != sorted({
-        x.get("PassId") for x in declared.get("Catalogue", []) if isinstance(x, dict)
-    }) or len(declared.get("Catalogue", [])) != 19:
-        raise ValueError("Declared TRAIN catalogue is malformed or duplicated")
+    if passes(declared.get("Catalogue")) != expected_catalogue:
+        raise ValueError("Declared 19-pass TRAIN catalogue differs from frozen generator")
 
     pin = _helper().pinned_reference({key: plan[key] for key in (
         "PinnedIbgeReferenceVersionId", "PinnedIbgePublishedSha256",
@@ -121,13 +136,15 @@ def freeze(source_plan, destination):
     result["Calibration"]["ModelOptions"] = [original[0]]
     result["Calibration"]["ConflictMargins"] = [0.5]
     result["MuEstimationMethods"] = copy.deepcopy(methods["MuEstimationMethods"])
-    result["MaximumBatches"] = min(3, result["MaximumBatches"])
+    # This *technical* comparison evaluates just the first matched batch; do
+    # not tune threshold, margins or blocking in a regression-only experiment.
+    result["MaximumBatches"] = 1
     result["MaximumSearchConfigurations"] = BUDGET
     result["Calibration"]["MaximumComparedConfigurations"] = BUDGET
     result["Calibration"]["MaximumPhysicalRuleSets"] = 2
     result["Calibration"]["MaximumParallelRuleSets"] = min(2, result["Calibration"]["MaximumParallelRuleSets"])
-    # Four initial comparisons: two policies x one TF x one margin x
-    # {19-pass catalogue, historical three-pass baseline}. No silent prune.
+    # Exactly four paired initial comparisons: two policies x one TF x one
+    # margin x {19-pass catalogue, historical three-pass baseline}. No tuning.
     if not (result["MaximumBatches"] >= 1 and result["Calibration"]["MaximumParallelRuleSets"] >= 1
             and result["Calibration"].get("Execution", {}).get("EndToEndRepetitions", 0) >= 20):
         raise ValueError("Original train plan lacks required physical execution budget")

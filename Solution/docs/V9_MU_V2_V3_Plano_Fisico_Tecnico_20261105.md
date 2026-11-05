@@ -10,7 +10,7 @@ O script `scripts/v9-mu-historical-plan.py` transforma um plano C# aninhado já 
 - **CLASSWISE_SUPPORT_BACKOFF (V3):** **cobertura 0,99; mínimo M=5; mínimo U=5; preservar cauda=true**, correspondente à regra `RETAIN_CLASS_JOINT_WHEN_COUNT_AT_LEAST_K_V2`.
 - **TF e demais dimensões comuns:** `TF_ONE_MF_W1_M0_A0.5_T0.95` (mãe/primeiro nome, peso 1, modo simétrico), limiar 0,95, alfa 0,5, margem 0,5. Os três passes históricos são incluídos sem retuning, além do controle completo de 19 passes.
 - Os valores M/U são lidos de `data/reference/v9-mu-estimation-methods-20261105.json` e comparados com `historical-v3-support-policy.json`; não há busca de intervalo ou novos valores.
-- Duas políticas × uma opção TF × uma margem × dois conjuntos iniciais de blocking = **quatro comparações iniciais**. Orçamento total conservador de **64 configurações**, três batches no máximo, com refinamento de threshold/margem e passes somente dentro da busca TRAIN já existente. Orçamento não é resultado medido.
+- Duas políticas × uma opção TF × uma margem × dois conjuntos iniciais de blocking = **quatro comparações iniciais**. Os **três passes históricos** e o controle de **19 passes** são preservados com suas listas exatas de campos do catálogo congelado. Orçamento do **teste técnico inicial: quatro configurações em um único batch, sem refinamento** de threshold, margem ou blocking. A funcionalidade adaptativa completa permanece disponível para planos científicos separados e devidamente solicitados. Orçamento não é resultado medido.
 
 ## Preparação (sem executar estudo científico independente)
 

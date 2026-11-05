@@ -15,11 +15,9 @@ spec.loader.exec_module(mu)
 def baseline():
     option = [x for x in mu._helper().option_grid(alpha=.5, threshold=.95)
               if x["OptionId"] == mu.HISTORICAL_OPTION][0]
-    controls = [{"PassId": p, "Fields": ["name_first", "birth_year"]}
-                for p in sorted(mu.HISTORICAL_PASSES)]
-    catalogue = controls + [
-        {"PassId": "P_EXTRA_" + str(n), "Fields": ["name_last", "birth_year"]}
-        for n in range(16)]
+    frozen = mu._historical_catalogue()
+    controls = [{"PassId": p, "Fields": frozen[p]} for p in sorted(mu.HISTORICAL_PASSES)]
+    catalogue = [{"PassId": p, "Fields": frozen[p]} for p in sorted(frozen)]
     return dict(Purpose="BOOTSTRAP_CANDIDATE_SELECTION",
         SplitSeed="SPLIT_SEED_PREDECLARED", MaximumBatches=32,
         MaximumSearchConfigurations=512, MinimumObservedMPerCell=5,
@@ -66,8 +64,9 @@ class HistoricalMuPlanTests(unittest.TestCase):
                     "MinimumObservedUPerCell": [5], "RetainSupportedTail": [True]}}])
         self.assertEqual(out["Calibration"]["ModelOptions"], baseline()["Calibration"]["ModelOptions"])
         self.assertEqual(out["Calibration"]["ConflictMargins"], [.5])
-        self.assertEqual(out["MaximumSearchConfigurations"], 64)
-        self.assertEqual(out["Calibration"]["MaximumComparedConfigurations"], 64)
+        self.assertEqual(out["MaximumSearchConfigurations"], 4)
+        self.assertEqual(out["Calibration"]["MaximumComparedConfigurations"], 4)
+        self.assertEqual(out["MaximumBatches"], 1)
         self.assertEqual(out["Calibration"]["Budget"]["StudyFingerprintSha256"],
                          out["Calibration"]["StudyFingerprintSha256"])
         self.assertEqual(out["Calibration"]["SelectionPolicy"], baseline()["Calibration"]["SelectionPolicy"])
@@ -88,6 +87,8 @@ class HistoricalMuPlanTests(unittest.TestCase):
             lambda x: x["Calibration"]["ModelOptions"][0].update(SmoothingAlpha=.99),
             lambda x: x["Calibration"]["ModelOptions"][0].update(UnitTfOptions=[]),
             lambda x: x["Calibration"].update(BaselineRuleSets=[]),
+            lambda x: x["Calibration"]["BaselineRuleSets"][0][0].update(Fields=["tampered"]),
+            lambda x: x["Calibration"]["DeclaredSearchSpace"]["Catalogue"][0].update(Fields=["wrong"]),
             lambda x: x["Calibration"].update(DeclaredSearchSpace=None),
             lambda x: x.update(MuEstimationMethods=[{"Method": "UNKNOWN"}]),
             lambda x: x["Calibration"]["Execution"].update(EndToEndRepetitions=0),
