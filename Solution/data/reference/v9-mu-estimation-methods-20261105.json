@@ -1,0 +1,16 @@
+{
+  "MuEstimationMethods": [
+    {
+      "Method": "DEFAULT"
+    },
+    {
+      "Method": "CLASSWISE_SUPPORT_BACKOFF",
+      "Parameters": {
+        "ClassMassCoverage": [0.99],
+        "MinimumObservedMPerCell": [5],
+        "MinimumObservedUPerCell": [5],
+        "RetainSupportedTail": [true]
+      }
+    }
+  ]
+}

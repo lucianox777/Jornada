@@ -19,10 +19,9 @@ on:
         type: string
         required: false
 
-# Supersede obsolete automatic PR probes to prevent runner saturation.
-# Explicit manual dispatch and experiment/evidence branches are isolated by run_id
-# so governed scientific runs are never canceled by unrelated PR updates.
-# A canceled automatic probe is NOT evidence for certification of any SHA.
+# Automatically run the full 30k on impacted same-repository PRs (PO decision 05/11/2026).
+# Cancel obsolete PR runs only: evidence from a cancelled run is never accepted.
+# Explicit manual dispatch and experiment/evidence branches remain isolated by run_id.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}-${{ (startsWith(github.head_ref, 'experiment/') || startsWith(github.head_ref, 'evidence/') || startsWith(github.head_ref, 'exp/')) && github.run_id || 'latest' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && !(startsWith(github.head_ref, 'experiment/') || startsWith(github.head_ref, 'evidence/') || startsWith(github.head_ref, 'exp/')) }}
@@ -182,9 +181,9 @@ jobs:
   physical-30k:
     name: V9 full physical 30k SQL TRAIN (when impacted)
     needs: impact
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k' && needs.impact.outputs.run_physical_30k == 'true'
+    if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))
     runs-on: ubuntu-latest
-    # PO: full 30k only on explicit final dispatch; PR preflight remains fail-closed.
+    # PO 05/11: automatic only for impacted PRs; untouched manual command retained.
     # Full adaptive batches now survive the old all-cell veto and execute 20
     # complete latency replays per feasible candidate; preserve every gate.
     timeout-minutes: 360
@@ -193,18 +192,34 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Prove exact manual branch SHA and pinned IBGE before 30k
+          # PR merge refs are not the approved HEAD: bind the physical fit to the
+          # exact commit on the same-repository PR branch, not to a moving merge.
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Prove exact PR or manual branch SHA before starting SQL
         env:
-          TF_SHA: ${{ inputs.expected_sha }}
+          TF_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          TF_REF: ${{ github.event_name == 'pull_request' && format('refs/heads/{0}', github.head_ref) || github.ref }}
           TF_IBGE: ${{ inputs.pinned_ibge_json }}
+          EVENT_NAME: ${{ github.event_name }}
+          SOURCE_REPO: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         run: |
           set -euo pipefail
+          test "$SOURCE_REPO" = "$GITHUB_REPOSITORY" || {
+            echo "Auto 30k only runs for branches in this repository" >&2
+            exit 1
+          }
           mkdir -p Solution/.local/v9-tf-physical
-          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
-            --mode execute_30k --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
-            --pinned-json "$TF_IBGE" \
-            --output Solution/.local/v9-tf-physical/git-approved.json \
-            --pinned-output Solution/.local/v9-tf-physical/pinned-ibge.json
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+              --mode auto_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
+              --output Solution/.local/v9-tf-physical/git-approved.json
+          else
+            python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+              --mode execute_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
+              --pinned-json "$TF_IBGE" \
+              --output Solution/.local/v9-tf-physical/git-approved.json \
+              --pinned-output Solution/.local/v9-tf-physical/pinned-ibge.json
+          fi
       - name: Start masked disposable SQL Server
         shell: bash
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
@@ -219,30 +234,50 @@ jobs:
         run: |
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      - name: Rebuild SQL IBGE and 30k corpus using the identical preflight preparation
+      - name: Auto-derive 30k pin from disposable SQL and immutable synthetic reference
+        if: github.event_name == 'pull_request'
+        working-directory: Solution
+        run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" pinned-ibge.json
+      - name: Manual mode rebuilds the pinned IBGE and 30k corpus independently
+        if: github.event_name == 'workflow_dispatch'
         working-directory: Solution
         run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" reconstructed-ibge.json
-      - name: Compare all four pinned reference fields BEFORE executing any calibration
+      - name: Compare all four manually pinned reference fields BEFORE calibration
+        if: github.event_name == 'workflow_dispatch'
         working-directory: Solution
         run: |
           set -euo pipefail
           python3 scripts/v9-tf-pin-source.py verify \
             --expected .local/v9-tf-physical/pinned-ibge.json \
             --actual .local/v9-tf-physical/reconstructed-ibge.json
+      # Automatic path invokes v9-tf-prepare-pin.sh, which MUST check full 30k
+      # corpus file SHA, IBGE published/materialized SHA, and synthetic ledger.
+      # A mismatch prevents calibration; no mutable IBGE reference is trusted.
 
-      - name: Recheck SHA and run only CSharp adaptive TF 45 options
+      - name: Recheck exact SHA and run only CSharp adaptive TF 45 options
         working-directory: Solution
         env:
-          TF_SHA: ${{ inputs.expected_sha }}
+          TF_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          TF_REF: ${{ github.event_name == 'pull_request' && format('refs/heads/{0}', github.head_ref) || github.ref }}
           TF_IBGE: ${{ inputs.pinned_ibge_json }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-tf-physical"
-          python3 scripts/v9-tf-30k-dispatch-gate.py \
-            --mode execute_30k --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
-            --pinned-json "$TF_IBGE" \
-            --output "$root/git-rechecked.json" --pinned-output "$root/pinned-rechecked.json"
-          cmp "$root/pinned-ibge.json" "$root/pinned-rechecked.json"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            python3 scripts/v9-tf-30k-dispatch-gate.py \
+              --mode auto_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
+              --output "$root/git-rechecked.json"
+            python3 scripts/v9-tf-ref-provenance-gate.py \
+              --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
+              --reference data/reference/v9-synthetic-seed42-30000/manifest.json
+          else
+            python3 scripts/v9-tf-30k-dispatch-gate.py \
+              --mode execute_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
+              --pinned-json "$TF_IBGE" \
+              --output "$root/git-rechecked.json" --pinned-output "$root/pinned-rechecked.json"
+            cmp "$root/pinned-ibge.json" "$root/pinned-rechecked.json"
+          fi
           python3 scripts/v9-adaptive-30k-study.py prepare-tf \
             "$root/people-30k/observacoes.csv" "$root/plan-tf.json" \
             --pinned-ibge "$root/pinned-ibge.json"
@@ -307,8 +342,8 @@ jobs:
   physical-seed42:
     name: SQL físico 30k clean — FS blind Rank-Resolve TF0
     needs: [impact, physical-30k]
-    # Manual preflight is deliberately NOT physical evidence. The physical check
-    # is skipped (not green) in this mode; PR and execute_30k remain fail-closed.
+    # Manual preflight is deliberately NOT physical evidence. Only an actually
+    # successful same-run physical job passes this check; PR/dispatch both apply.
     if: ${{ always() && !(github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -333,16 +368,10 @@ jobs:
             exit 1
           fi
           if [[ "$REQUIRES_PHYSICAL" == "true" ]]; then
-            if [[ "$PHYSICAL_RESULT" == "success" && "$EVENT_NAME" == "workflow_dispatch" ]]; then
-              echo "PASS: CSharp 45-arm --v9-adaptive-study TF physical 30k on $HEAD_SHA."
-            elif [[ "$EVENT_NAME" == "pull_request" && "$PHYSICAL_RESULT" == "skipped" ]]; then
-              # A manual dispatch on the exact PR head SHA is independently verifiable.
-              # A prior success on another SHA, an in-progress run, or a skipped
-              # physical job must never count as acceptance.
-              export HEAD_SHA GH_TOKEN REPOSITORY
-              python3 Solution/scripts/v9_manual_probe_evidence.py
+            if [[ "$PHYSICAL_RESULT" == "success" && ( "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "pull_request" ) ]]; then
+              echo "PASS: same-run CSharp 45-arm --v9-adaptive-study TF physical 30k on $HEAD_SHA."
             else
-              echo "::error title=DEFERRED_NOT_CERTIFIED::Required V9 30k has no successful evidence for this run (event=$EVENT_NAME, result=$PHYSICAL_RESULT)." >&2
+              echo "::error title=DEFERRED_NOT_CERTIFIED::Required V9 30k has no successful physical job in this run (event=$EVENT_NAME, result=$PHYSICAL_RESULT)." >&2
               exit 1
             fi
           elif [[ "$REQUIRES_PHYSICAL" == "false" ]]; then

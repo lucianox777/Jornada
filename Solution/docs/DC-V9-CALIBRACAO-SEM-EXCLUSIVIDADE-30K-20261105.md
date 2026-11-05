@@ -12,7 +12,7 @@
 
 ## Separação entre execução genérica e regressão histórica
 
-O fluxo específico `v9-physical-seed42-probe.yml`, seu `execute_30k`, pin IBGE e a prova de 45 opções / 135 medições continuam **restritos à reprodução histórica de 30.000 pessoas-base**; não devem ser renomeados, reduzidos ou invocados como se executassem arbitrariamente outros tamanhos. O replay congelado V2 da PR #1283 também permanece preso ao plano/corpus/seed originais e aos seus hashes. A regra de **disparo explícito e controle de SHA para esse ensaio** não deve ser confundida com proibição de outras calibrações.
+O fluxo específico `v9-physical-seed42-probe.yml`, seu `execute_30k`, pin IBGE e a prova de 45 opções / 135 medições continuam **restritos à reprodução histórica de 30.000 pessoas-base**; não devem ser renomeados, reduzidos ou invocados como se executassem arbitrariamente outros tamanhos. O replay congelado V2 da PR #1283 também permanece preso ao plano/corpus/seed originais e aos seus hashes. O gate técnico desse ensaio pode disparar **automaticamente em PR impactada** (decisão superveniente de 05/11/2026), sempre com controle de SHA exato, referência imutável e classificação não confirmatória. Isso não autoriza novos experimentos científicos automáticos.
 
 Para novo experimento não-30k, usar um plano/corpus próprios, com proveniência, validações e solicitação manual; sem alterar o plano V2 imutável ou fazer a campanha histórica parecer equivalente. Esta decisão **não afirma que já existe workflow genérico de GitHub Actions** com geração e orquestração automática de tamanhos arbitrários: o motor C# aceita o corpus declarado, e qualquer novo fluxo automatizado exige implementação e testes próprios.
 
@@ -21,6 +21,6 @@ Para novo experimento não-30k, usar um plano/corpus próprios, com proveniênci
 - CLI genérica não fixa `expectedBaseIdentityCount=30000` por presença de braços diagnósticos; lê a população do manifesto validado e rejeita manifesto inválido/ausente.
 - Leitor C# faz contagem de identidades-base inclusive em TEST **sem ler atributos TEST**; compara com total declarado.
 - Regressões cobrem contagens declaradas **3, 20.000, 30.000 e 45.000**, além de entradas inválidas; a campanha histórica de 30k conserva seus gates e hashes.
-- A autorização do operador para a execução pontual mais recente da V2 é separada desta alteração normativa e não autoriza execução repetida, merge, DT-15 ou ativação operacional.
+- A autorização do operador para o gate técnico recorrente não substitui a solicitação LOCKED de campanha científica independente nem autoriza DT-15 ou ativação operacional. Ver [decisão de segregação técnica/científica](Decisao_V9_Gate_Tecnico_Auto_Campanhas_Cientificas_Manuais_20261105.md).
 
 **Precedência:** esta decisão complementa `DC-V9-BOOT-CORE-20261030` e `Decisao_Calibrador_Unico_Adaptativo_Bootstrap_20261014`. Substitui somente a suposta obrigatoriedade universal de 30k; não revoga controles estatísticos, manuais ou de segurança.

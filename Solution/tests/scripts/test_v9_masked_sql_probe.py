@@ -25,7 +25,7 @@ class V9MaskedSqlProbeTests(unittest.TestCase):
         self.assertNotIn(workflow, policy["allowedPasswordLiteralGlobs"])
         self.assertNotIn(starter, policy["allowedPasswordLiteralGlobs"])
 
-    def test_both_manual_modes_start_container_only_after_sha_gate(self):
+    def test_preflight_and_auto_or_manual_physical_start_container_only_after_sha_gate(self):
         w = WORKFLOW.read_text(encoding="utf-8")
         self.assertEqual(w.count("Start masked disposable SQL Server"), 2)
         self.assertEqual(w.count("Remove disposable SQL Server"), 2)
@@ -36,9 +36,11 @@ class V9MaskedSqlProbeTests(unittest.TestCase):
         self.assertIn("inputs.mode == 'preflight'", w)
         self.assertIn("--expected-sha", w)
         self.assertIn("--pinned-json", w)
+        self.assertIn("--mode auto_30k", w)
+        self.assertIn("v9-tf-ref-provenance-gate.py", w)
         self.assertIn("pinned_ibge_json:", w)
         preflight = w.index("Bind preflight to exact SHA")
-        execute = w.index("Prove exact manual branch SHA")
+        execute = w.index("Prove exact PR or manual branch SHA")
         assert w.find("Start masked disposable SQL Server", preflight) > preflight
         assert w.find("Start masked disposable SQL Server", execute) > execute
 
