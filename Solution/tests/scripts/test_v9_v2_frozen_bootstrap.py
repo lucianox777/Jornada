@@ -78,15 +78,15 @@ class FrozenV2BootstrapTests(unittest.TestCase):
         write(self.ref, self.references)
 
     def do_prepare(self):
-        return tool.prepare(self.planfile, self.ref, self.corpus, self.generator,
+        return tool.prepare(self.effective_fixture(), self.ref, self.corpus, self.generator,
                             self.pinfile, self.d / "selected-plan.json",
-                            self.d / "receipt.json")
+                            self.d / "receipt.json", original_plan_path=self.planfile)
 
     def test_exact_bytes_and_every_calibration_value_from_source(self):
         doc = self.do_prepare()
-        self.assertEqual(self.planfile.read_bytes(),
+        self.assertEqual(self.effective_fixture().read_bytes(),
                          (self.d / "selected-plan.json").read_bytes())
-        self.assertEqual("GIT_VERSIONED_FROZEN_V2_PLAN_EXACT_BYTES",
+        self.assertEqual("GIT_VERSIONED_V2_SINGLE_EXPLICIT_PLAN",
                          doc["ConfigurationSource"])
         self.assertEqual(self.v2["Budget"],
                          json.loads((self.d / "selected-plan.json").read_text())["Budget"])
@@ -107,7 +107,7 @@ class FrozenV2BootstrapTests(unittest.TestCase):
     def test_original_plan_mutation_requires_new_source_identity(self):
         self.v2["SelectionPolicy"]["MinimumGlobalRecall"] = .92
         write(self.planfile, self.v2)
-        with self.assertRaisesRegex(ValueError, "parameters differ"):
+        with self.assertRaisesRegex(ValueError, "Archived original calibration plan differs"):
             self.do_prepare()
 
     def test_mismatched_ibge_reference_fail_closed(self):
@@ -138,18 +138,18 @@ class FrozenV2BootstrapTests(unittest.TestCase):
                              ("UnpublishedTermPolicy", 0)):
                 item[k] = value
             item.setdefault("UnitTfOptions", None)
-        path = self.d / "plan-effective.json"
+        path = self.d / "candidate-plan.json"
         write(path, data)
         return path
 
     def test_explicit_effective_json_values_replace_implicit_Csharp_defaults(self):
         effective_path = self.effective_fixture()
-        receipt = tool.prepare(self.planfile, self.ref, self.corpus, self.generator,
+        receipt = tool.prepare(effective_path, self.ref, self.corpus, self.generator,
                                self.pinfile, self.d / "selected-plan.json",
-                               self.d / "receipt.json", effective_path)
+                               self.d / "receipt.json", original_plan_path=self.planfile)
         self.assertEqual(effective_path.read_bytes(),
                          (self.d / "selected-plan.json").read_bytes())
-        self.assertEqual("GIT_VERSIONED_V2_EXPLICIT_HISTORICAL_DEFAULTS",
+        self.assertEqual("GIT_VERSIONED_V2_SINGLE_EXPLICIT_PLAN",
                          receipt["ConfigurationSource"])
         self.assertIn("MaximumParallelRuleSets",
                       receipt["DefaultFieldsMaterialized"][""])
@@ -162,9 +162,9 @@ class FrozenV2BootstrapTests(unittest.TestCase):
         obj["ModelOptions"][0]["DecisionThreshold"] = 0.90
         write(path, obj)
         with self.assertRaisesRegex(ValueError, "original V2 calibrated value|Original V2 calibrated value"):
-            tool.prepare(self.planfile, self.ref, self.corpus, self.generator,
+            tool.prepare(path, self.ref, self.corpus, self.generator,
                          self.pinfile, self.d / "selected-plan.json",
-                         self.d / "receipt.json", path)
+                         self.d / "receipt.json", original_plan_path=self.planfile)
 
     def test_explicit_plan_cannot_add_unapproved_attributes(self):
         path = self.effective_fixture()
@@ -172,9 +172,9 @@ class FrozenV2BootstrapTests(unittest.TestCase):
         obj["UnexpectedDefault"] = 1
         write(path, obj)
         with self.assertRaisesRegex(ValueError, "unapproved explicit default"):
-            tool.prepare(self.planfile, self.ref, self.corpus, self.generator,
+            tool.prepare(path, self.ref, self.corpus, self.generator,
                          self.pinfile, self.d / "selected-plan.json",
-                         self.d / "receipt.json", path)
+                         self.d / "receipt.json", original_plan_path=self.planfile)
 
     def test_no_overwrite_of_plan_or_receipt(self):
         self.do_prepare()
@@ -244,23 +244,33 @@ class FrozenV2BootstrapTests(unittest.TestCase):
 
 
 class RealFrozenV2PlanPinTests(unittest.TestCase):
-    def test_git_versioned_v2_plan_bytes_match_original_41900357031(self):
+    def test_one_repo_plan_is_effective_and_original_archive_remains_pinned(self):
         root = Path(__file__).resolve().parents[3]
-        plan = root / "Solution/data/calibration/v9/v2-one-mf-frozen/plan.json"
+        folder = root / "Solution/data/calibration/v9/v2-one-mf-frozen"
+        plan = folder / "plan.json"
         refs = root / "Solution/data/reference/v9-frozen-artifacts/references.json"
-        doc, original, fit, files = tool.source_identity(refs, plan)
-        self.assertEqual(tool.digest(plan), files["plan-tf.json"])
+        self.assertTrue(plan.is_file())
+        self.assertFalse((folder / "plan-effective.json").exists())
+        doc = tool.read_json(refs)
+        original = doc["artifacts"]["seed42-source"]
+        fit = doc["models"][tool.MODEL_KEY]
+        files = {entry["path"]: entry["sha256"] for entry in original["files"]}
+        self.assertEqual("b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8",
+                         files["plan-tf.json"])
+        self.assertNotEqual(tool.digest(plan), files["plan-tf.json"])
         self.assertEqual(41900357031, original["run_id"])
         self.assertEqual("8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f", fit)
-        inspection = tool.inspect_plan(tool.read_json(plan), fit)
-        self.assertEqual(45, inspection["modelOptions"])
-        self.assertEqual(3, inspection["conflictMargins"])
-        effective = root / "Solution/data/calibration/v9/v2-one-mf-frozen/plan-effective.json"
-        diff = tool.validate_effective_plan(tool.read_json(plan), tool.read_json(effective))
-        self.assertEqual(6, len(diff[""]))
-        self.assertIn("PositivePairCap", diff["Discovery"])
-        self.assertIn("RequireExhaustivePrimitivePool", diff["Discovery.SearchOptions"])
-        self.assertIn("TfMinimumFrequency", diff["ModelOptions.*"])
+        actual = tool.read_json(plan)
+        audit = tool.inspect_plan(actual, fit)
+        self.assertEqual(45, audit["modelOptions"])
+        self.assertEqual(3, audit["conflictMargins"])
+        for field in ("MaximumParallelRuleSets", "RiskCeilings", "SampleDesign",
+                      "CollapseEquivalentCandidateFrames", "ShardIndex", "ShardCount"):
+            self.assertIn(field, actual)
+        self.assertIn("PositivePairCap", actual["Discovery"])
+        self.assertIn("RequireExhaustivePrimitivePool", actual["Discovery"]["SearchOptions"])
+        self.assertTrue(all("TfMinimumFrequency" in x and "TfSide" in x
+                            for x in actual["ModelOptions"]))
 
 
 if __name__ == "__main__":
