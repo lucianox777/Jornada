@@ -189,5 +189,19 @@ class FrozenV2BootstrapTests(unittest.TestCase):
                          self.d / "out.json")
 
 
+class RealFrozenV2PlanPinTests(unittest.TestCase):
+    def test_git_versioned_v2_plan_bytes_match_original_41900357031(self):
+        root = Path(__file__).resolve().parents[3]
+        plan = root / "Solution/data/calibration/v9/v2-one-mf-frozen/plan.json"
+        refs = root / "Solution/data/reference/v9-frozen-artifacts/references.json"
+        doc, original, fit, files = tool.source_identity(refs, plan)
+        self.assertEqual(tool.digest(plan), files["plan-tf.json"])
+        self.assertEqual(41900357031, original["run_id"])
+        self.assertEqual("8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f", fit)
+        inspection = tool.inspect_plan(tool.read_json(plan), fit)
+        self.assertEqual(45, inspection["modelOptions"])
+        self.assertEqual(3, inspection["conflictMargins"])
+
+
 if __name__ == "__main__":
     unittest.main()
