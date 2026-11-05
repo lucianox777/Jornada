@@ -132,7 +132,24 @@ dotnet Jornada.Linkage.Parameters.Worker.dll \
 - Verifica bytes originais e seus SHA externos, o protocolo físico do `study.json`, a identidade única do fit, a igualdade de suas **81 contagens observadas reconstruídas** e as do recibo físico, mais as contagens totais e o prior. Descarta evidência que não reconcilia.
 - A política de suporte é entrada explícita com SHA próprio. Como **hipótese de diagnóstico**, o workflow `v9-frozen-train-joint-v3-trial.yml` usa a mesma política do Gold V3 histórico (`ClassMassCoverage=.99`, `MinimumM=5`, `MinimumU=5`, regra de cauda com suporte), mas **não a declara automaticamente ótima** no frame TF-001.
 - A saída é **novo fit V3 experimental** com `JointCells`, `JointSupport` e fingerprint de FIT novos; preserva TF, referência de frequências, **os mesmos 3 passes**, limiar 0,95, margem 0,5 e prior. Rejeita falta de suporte mínimo do núcleo M/U. Não altera nem substitui o fit V2 original e não importa parâmetros do Gold TF0/8-passes.
-- A Action derivadora roda **sem SQL, sem novo corpus e sem TEST**. Guarda o novo fit só em diretório descartável do runner e faz upload **apenas do recibo sem dados pessoais**; não publica modelo, não habilita o loader operacional, não autoriza DT-15 nem faz merge.
+- A Action derivadora roda **sem SQL, sem novo corpus e sem TEST**. Guarda o novo fit **somente em artefato Actions isolado e explicitamente não autorizado**, com recibo sanitizado separado; não o adiciona a `ref`, não habilita o loader operacional, não autoriza DT-15 nem faz merge.
 - Mesmo que a Action conclua, ainda faltam escolha e validação independentes da configuração V3 em VALIDATION/holdout novo, auditabilidade por identidade-base e Gold incremental (4 ondas × 3 ordens em bancos independentes). Os ganhos das dez seeds do fit V2 **não são transferidos automaticamente ao novo V3**.
 
 **Nenhuma execução automática de 30k é autorizada por esta frente.** O gate físico do PR #1277 continua manual e preso ao SHA exato. O incremento não define nem inicia certificação.
+
+
+## Resultado da derivação real (05/11/2026) — êxito técnico, não certificação
+
+A Action [41964404787](https://github.com/lucianox777/Jornada/actions/runs/41964404787) concluiu em `SUCCESS`, inclusive compilação do Worker, teste unitário focal `Frozen_V2_TRAIN_support_can_form_distinct_unapproved_V3_trial_without_TF_reoptimization`, download com SHA autenticado do estudo original, derivação TRAIN-only e **preflight positivo de Gold com TF** sobre o novo V3.
+
+- Fonte imutável V2 (ONE_MF): `8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f`.
+- **Novo candidato experimental V3**, SHA `8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc`, com `FitFingerprintSha256` próprio `809ce7ef03fee2dcfd28369711bf088ad35e1ee55db5bc8eb8e1d89409de5d7c`.
+- Política do ensaio imutável: SHA `3833d26a21691f2804fa9c52201a9c5e6f3603dc151d871453218debfc3dd319`, emprestada **somente como hipótese experimental** do Gold histórico V3 (cobertura 0,99, mínimos M/U 5, cauda com suporte).
+- **19.896 M + 26.378 U TRAIN** recuperados da mesma fonte, 81 estados, `alpha=0,5`; mantém 3 passes e TF prenome da mãe peso 1, limiar 0,95 e margem 0,5. O **joint m/u foi reestimado**, então o resultado estatístico do modelo V2 **não se transfere automaticamente** ao modelo V3.
+- O preflight verificou que a variante GOLD do **novo candidato V3** preserva integralmente os parâmetros do próprio V3 exceto agrupamento e SHA-pai, com 81 células, 3 passes e uma TF ativa. **Nenhuma corrida Gold incremental física ocorreu.**
+
+Os artefatos estão no run acima:
+- `V9-V3-TRAIN-TRIAL-NOT-AUTHORIZED-65cda6c063924ab75c5256a16142c5697fce3956` (artifact ID **13387205838**): apenas o fit derivado SHA-nomeado, **fora do banco operacional**, retenção de 90 dias.
+- `v9-frozen-joint-v3-TRIAL-METADATA-65cda6c063924ab75c5256a16142c5697fce3956` (artifact ID **13386463554**): recibo e resultado do preflight, também com `certified=false`, `operationallyAuthorized=false`, `physicalGoldExecuted=false`.
+
+**Próximo gate científico:** validar o **novo V3** sobre dados independentes e executar incremental Gold nas três ordens com SQL isolado, medindo FP/FDR, falsas criações, fragmentação, B³ e desempenho. O histórico 10/10 de TF é sobre V2 e não homologa V3. O inventário real da instância SQL `ref` ainda não foi executado — não confundir esta derivação experimental com a versão que a autoridade eventualmente autorizará.
