@@ -86,3 +86,7 @@ a penalidade individual mais forte. **Não houve aprovação expressa do PO
 para esta interpretação como a única variante**. O ensaio manterá TF0,
 contribuição bilateral e esta alternativa como candidatas, sem proclamar
 vencedor ou dependência familiar observada.
+
+## Atualização de governança — 05/11/2026
+
+A decisão posterior do PO substitui **exclusivamente** a exigência histórica do portão 21 de executar 30k manualmente no SHA definitivo. O 30k de TRAIN sintético passa a poder iniciar automaticamente por `pull_request`, quando o classificador de impacto exigir, com identidade SHA exata, pin IBGE/corpus contra manifesto imutável, SQL descartável, CI e evidência física obrigatória. O `workflow_dispatch` continua opcional. **Não** muda as 19 decisões técnicas, os critérios de FDR, a seleção de parâmetros declarados, o holdout TEST selado nem as autorizações DT-15 de publicação/uso operacional. Uma execução falha/cancelada não é evidência de êxito.

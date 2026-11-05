@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Fail-closed manual dispatch gate for the physical V9 TF 45-arm C# study.
+"""Fail-closed exact-head gate for PR-auto or manually dispatched V9 30k.
 
-This module validates intent, exact Git SHA, an immutable SQL reference pin
-and the option-grid shape. It NEVER opens or evaluates a 30k corpus.
+Auto mode authenticates same-repo PR HEAD and requires the independent
+immutable ref/corpus ledger gate in v9-tf-prepare-pin.sh before fitting.
+Manual mode still requires an independently supplied pinned IBGE JSON.
+This module NEVER opens or evaluates a 30k corpus.
 """
 import argparse
 import importlib.util
@@ -36,8 +38,8 @@ def _reject_nonfinite(value):
 
 
 def validate(mode, expected_sha, actual_sha, remote_sha, ref, pinned_json=""):
-    if mode not in ("preflight", "execute_30k"):
-        raise ValueError("Unknown manual dispatch mode")
+    if mode not in ("preflight", "execute_30k", "auto_30k"):
+        raise ValueError("Unknown V9 physical execution mode")
     if not ref.startswith("refs/heads/") or len(ref) <= len("refs/heads/"):
         raise ValueError("Physical study requires a branch ref (no tags)")
     if any(not isinstance(s, str) or not SHA.fullmatch(s)
@@ -51,12 +53,14 @@ def validate(mode, expected_sha, actual_sha, remote_sha, ref, pinned_json=""):
             or len([x for x in grid if x["OptionId"].startswith("TF_SHARED_PL_ML_")]) != 4):
         raise ValueError("TF option grid drifted from 45 physical / 4 diagnostic")
     pinned = None
+    if mode == "auto_30k" and pinned_json:
+        raise ValueError("Automatic physical run must derive its IBGE pin from verified immutable ref/corpus")
     if mode == "execute_30k":
         if not pinned_json:
             raise ValueError("Physical execution requires independently pinned IBGE reference JSON")
         pinned = helper.pinned_reference(json.loads(
             pinned_json, object_pairs_hook=_unique_object, parse_constant=_reject_nonfinite))
-    return {"protocol": "V9_TF_MANUAL_45_PHYSICAL_V1",
+    return {"protocol": "V9_TF_AUTO_45_PHYSICAL_V1" if mode == "auto_30k" else "V9_TF_MANUAL_45_PHYSICAL_V1",
             "mode": mode, "authorized_exact_sha": expected_sha,
             "git_ref": ref, "base_people_required": 30000,
             "physical_arms": 45, "selectable_arms": 41,
@@ -68,15 +72,15 @@ def validate(mode, expected_sha, actual_sha, remote_sha, ref, pinned_json=""):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", required=True, choices=("preflight", "execute_30k"))
+    parser.add_argument("--mode", required=True, choices=("preflight", "execute_30k", "auto_30k"))
     parser.add_argument("--expected-sha", required=True)
     parser.add_argument("--ref", required=True)
     parser.add_argument("--pinned-json", default="")
     parser.add_argument("--output", required=True, type=Path)
     parser.add_argument("--pinned-output", type=Path, default=None)
     args = parser.parse_args()
-    if args.mode == "preflight" and args.pinned_output is not None:
-        parser.error("preflight cannot write a pinned execution reference")
+    if args.mode != "execute_30k" and args.pinned_output is not None:
+        parser.error("only manually pinned execution may write a reference")
     actual = subprocess.run(["git", "rev-parse", "HEAD"],
                             check=True, text=True, capture_output=True).stdout.strip()
     remote = subprocess.run(["git", "ls-remote", "--exit-code", "origin", args.ref],
@@ -94,8 +98,8 @@ def main():
         with args.pinned_output.open("x", encoding="utf-8") as out:
             json.dump(pinned, out, indent=2, allow_nan=False)
             out.write("\n")
-    print("PASS: bound manual TF dispatch to exact checkout and live branch HEAD;"
-          " this command has NOT run the physical 30k study.")
+    print("PASS: bound V9 execution to exact checkout and live branch HEAD;"
+          " this guard has NOT run the physical 30k study.")
 
 
 if __name__ == "__main__":
