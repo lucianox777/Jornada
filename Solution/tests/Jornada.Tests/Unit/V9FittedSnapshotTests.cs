@@ -286,6 +286,40 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void Frozen_inspection_does_not_confuse_four_active_tf_units_with_legacy_tf_zero()
+    {
+        var fit = V9FittedSnapshot.Create(FourUnitTfPayload());
+        var info = V9FittedSnapshotArtifact.DescribeFrozenConfiguration(fit);
+        var passes = info.GetProperty("blockingPasses");
+        var units = info.GetProperty("unitTf").EnumerateArray().ToArray();
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(info.GetProperty("ContentSha256").GetString(), Is.EqualTo(fit.ContentSha256));
+            Assert.That(info.GetProperty("TfWeight").GetDecimal(), Is.EqualTo(0m));
+            Assert.That(info.GetProperty("activeUnitTfCount").GetInt32(), Is.EqualTo(4));
+            Assert.That(info.GetProperty("blockingPassCount").GetInt32(), Is.EqualTo(1));
+            Assert.That(passes.GetArrayLength(), Is.EqualTo(1));
+            Assert.That(passes[0].GetProperty("ordinal").GetInt32(), Is.EqualTo(1));
+            Assert.That(passes[0].GetProperty("fields")[0].GetString(), Is.EqualTo("NOME"));
+            Assert.That(info.GetProperty("jointCellCount").GetInt32(), Is.EqualTo(81));
+            Assert.That(units.Select(x => x.GetProperty("side").GetString()), Is.EquivalentTo(
+                new[] { "Person", "Person", "Mother", "Mother" }));
+            Assert.That(units.Select(x => x.GetProperty("state").GetString()),
+                Is.All.EqualTo("Active"));
+            Assert.That(units.Select(x => x.GetProperty("weight").GetDecimal()),
+                Is.All.EqualTo(1m));
+            Assert.That(info.GetProperty("approved").GetBoolean(), Is.False);
+            Assert.That(info.GetProperty("operationalModelCreated").GetBoolean(), Is.False);
+        }));
+        var zero = V9FittedSnapshotArtifact.DescribeFrozenConfiguration(
+            V9FittedSnapshot.Create(Payload()));
+        Assert.That(zero.GetProperty("activeUnitTfCount").GetInt32(), Is.Zero);
+        Assert.That(zero.GetProperty("unitTf").ValueKind,
+            Is.EqualTo(System.Text.Json.JsonValueKind.Null));
+    }
+
+    [Test]
     public void Four_unit_tf_reuses_one_frozen_scorer_for_first_full_last_and_both_sides()
     {
         var fitted = V9FittedSnapshot.Create(FourUnitTfPayload());
