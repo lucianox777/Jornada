@@ -54,14 +54,14 @@ def same_fingerprint(a, b):
     return isinstance(a, str) and isinstance(b, str) and a.lower() == b.lower()
 
 
-def source_identity(references, plan_path):
+def source_identity(references, archived_original_plan_path):
     doc = read_json(references)
     check(doc.get("schema_version") == "V9_FROZEN_ARTIFACT_REFERENCES_V1",
           "Unknown external source reference")
     art = doc["artifacts"]["seed42-source"]
     files = {x["path"]: x["sha256"] for x in art["files"]}
-    check(digest(plan_path) == files["plan-tf.json"],
-          "Versioned user calibration parameters differ from frozen V2")
+    check(digest(archived_original_plan_path) == files["plan-tf.json"],
+          "Archived original calibration plan differs from frozen V2 SHA")
     selected = doc["models"][MODEL_KEY]
     check(files["study-tf/" + selected + ".fitted.json"] == selected,
           "V2 original fitted snapshot missing in reference")
@@ -120,7 +120,7 @@ def compare_pins(plan, actual):
 
 
 # Only field NAMES live in source. The exact values of every formerly implicit
-# runtime option live in the Git-versioned plan-effective.json. This list
+# runtime option live in the only Git-versioned plan.json. This list
 # comes from record defaults at the original run's exact C# commit.
 ALLOWED_EXPLICIT_DEFAULT_FIELDS = {
     (): {"MaximumParallelRuleSets", "RiskCeilings", "SampleDesign",
@@ -170,15 +170,18 @@ def validate_effective_plan(original, effective):
 
 
 def prepare(plan_path, references, observations, generation_manifest,
-            ibge_pin, destination, receipt, effective_plan_path=None):
+            ibge_pin, destination, receipt, original_plan_path=None):
     check(not destination.exists() and not receipt.exists(),
           "Refusing to overwrite existing parameter plan or receipt")
-    doc, art, selected, files = source_identity(references, plan_path)
+    # Original bytes are fetched from the pinned historical workflow artifact.
+    # They are NEVER stored as a second versioned calibration-plan file.
+    archived_source = original_plan_path or plan_path
+    doc, art, selected, files = source_identity(references, archived_source)
     plan = read_json(plan_path)
     attr = inspect_plan(plan, selected)
-    effective = read_json(effective_plan_path) if effective_plan_path else None
-    additions = validate_effective_plan(plan, effective) if effective is not None else {}
-    effective_sha = digest(effective_plan_path) if effective_plan_path else None
+    additions = (validate_effective_plan(read_json(archived_source), plan)
+                 if original_plan_path is not None else {})
+    effective_sha = digest(plan_path)
     observation_sha = digest(observations)
     generation_sha = digest(generation_manifest)
     declared = plan["ObservationCapDeclaration"]
@@ -187,14 +190,14 @@ def prepare(plan_path, references, observations, generation_manifest,
     check(same_fingerprint(generation_sha, declared.get("ManifestSha256")),
           "Regenerated generation-manifest differs from frozen V2: refuse calibration")
     compare_pins(plan, read_json(ibge_pin))
-    # Source of all numerical values is the declared plan file. Exact-original
-    # mode preserves original bytes; explicit mode uses independently versioned
-    # historical defaults without rewriting the original archived plan.
+    # Single repository plan.json contains the explicit effective V2 settings.
+    # The archived original is a temporary external evidence input, not a
+    # second Git-tracked plan. Never regenerate values or silently change them.
     destination.parent.mkdir(parents=True, exist_ok=True)
     receipt.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("xb") as handle:
-        handle.write((effective_plan_path or plan_path).read_bytes())
-    check(digest(destination) == (effective_sha or files["plan-tf.json"]),
+        handle.write(plan_path.read_bytes())
+    check(digest(destination) == effective_sha,
           "Copied user configuration differs from Git-versioned source")
     record = {
         "SchemaVersion": SCHEMA,
@@ -211,9 +214,7 @@ def prepare(plan_path, references, observations, generation_manifest,
         "OriginalGenerationManifestSha256": generation_sha,
         "PinnedIbgeReferenceVersionId": plan["PinnedIbgeReferenceVersionId"],
         "ExplorationDeclaredInPlan": attr,
-        "ConfigurationSource": ("GIT_VERSIONED_V2_EXPLICIT_HISTORICAL_DEFAULTS"
-                                if effective_plan_path else
-                                "GIT_VERSIONED_FROZEN_V2_PLAN_EXACT_BYTES"),
+        "ConfigurationSource": "GIT_VERSIONED_V2_SINGLE_EXPLICIT_PLAN",
         "TestUsed": False,
         "Calibrated": False, "Certified": False, "Activated": False,
     }
@@ -332,8 +333,8 @@ def main():
     for arg in ("plan", "references", "observations", "generation-manifest",
                 "pinned-ibge", "output-plan", "output-receipt"):
         a.add_argument("--" + arg, required=True, type=Path)
-    a.add_argument("--effective-plan", type=Path,
-                   help="Explicit historical defaults; source plan remains SHA-frozen")
+    a.add_argument("--original-plan", type=Path, required=True,
+                   help="External SHA-pinned archived plan-tf.json, never stored as second plan")
     b = sub.add_parser("compare")
     for arg in ("references", "original-study", "replay-study",
                 "receipt", "output"):
@@ -344,7 +345,7 @@ def main():
             print(json.dumps(prepare(args.plan, args.references, args.observations,
                                      args.generation_manifest, args.pinned_ibge,
                                      args.output_plan, args.output_receipt,
-                                     getattr(args, "effective_plan", None))))
+                                     args.original_plan)))
         else:
             print(json.dumps(compare(args.references, args.original_study,
                                      args.replay_study, args.receipt, args.output)))
