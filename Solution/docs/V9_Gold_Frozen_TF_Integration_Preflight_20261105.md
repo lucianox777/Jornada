@@ -98,3 +98,41 @@ Ele exige **V3 + JointSupport + 81 células + origem BLIND + pelo menos uma TF d
 O **fit ONE_MF de origem**, `8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f`, está documentado em `Solution/data/reference/v9-tf-seed43-frozen-transfer/` como parte do artefato Actions de `41900357031`; o run `41925355648` registrou a conferência física dos seis hashes antes do replay. Reutilize o mecanismo `gh run download` **já existente** no workflow `v9-tf-seed43-frozen-transfer.yml`, sem criar outro fetcher ou recalibrar.
 
 **Este preflight não substitui o recibo de vencedor condicional do TRAIN** exigido por `V9GoldRunnerVariantPreparation` e `V9GoldHarnessCommand`; não cria tal recibo artificialmente. O Gold de 8 passes TF0 histórico não é convertido em ONE_MF por essa operação. Somente após fixar o modelo realmente escolhido e sua proveniência será possível interpretar o ensaio incremental de quatro ondas × três ordens.
+
+
+## Resultado físico autenticado — suporte M/U original do ONE_MF (05/11/2026)
+
+O run de Actions [41962785639](https://github.com/lucianox777/Jornada/actions/runs/41962785639) concluiu em `SUCCESS`. Foram conferidos os SHA do executor, `plan-tf.json`, `study-tf/study.json` e os **seis fits originais**, baixados do run de origem `41900357031`. A auditoria ampliada verificou também, **na entrada `FrozenConfigurations` do mesmo study físico**, os suportes observados das 81 células de TRAIN, sem inferir contagens da distribuição suavizada.
+
+Resultado para a configuração ONE_MF (3 passes, margem 0,5):
+
+- snapshot V2: `8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f`;
+- 81 células originais, 1 TF ativa (prenome da mãe, peso 1,0), sem `JointSupport` V3;
+- **19.896 pares M TRAIN** e **26.378 pares U TRAIN** registrados na auditoria física original;
+- suavização original `alpha=0.5`; SHA de contagens M/U normalizadas: `27a5b008ea8ead99447feaf4a5c5c778d9e44a7a06ebc2ea4df78141582054fd`;
+- há **dados de suporte reutilizáveis**. Isso não demonstra independência entre identidades, não é base para certificado de FDR nem confere automaticamente contrato V3.
+
+O SHA do `TrainInputSha256` do estudo e o `TrainCorpusSha256` do snapshot pertencem a **domínios diferentes**: o segundo incorpora o fingerprint do frame de blocking SQL. Analogamente, o `PlanSha256` do relatório C# não é necessariamente o SHA dos bytes de `plan-tf.json`. Cada evidência é autenticada pelo seu SHA original, sem forçar igualdade entre domínios distintos.
+
+## Novo ensaio opcional de derivação V3 em TRAIN — outro modelo, nunca conversão in-place
+
+O código agora oferece um caminho **experimental**, separado e com SHA novo, para reaproveitar as contagens M/U TRAIN que já existem, sem reexecutar 30k nem buscar de novo TF, pesos, passes ou limiares. **Isso é uma nova estimação das probabilidades conjuntas M/U, portanto altera o escore e exige nova validação independente**; não deve ser descrito como modelo original V2 intacto ou simples alteração de metadado.
+
+Comando:
+
+```bash
+dotnet Jornada.Linkage.Parameters.Worker.dll \
+  --v9-derive-joint-v3-from-frozen-train \
+  /source/study-tf/<sha-v2>.fitted.json <sha-v2> \
+  /source/study-tf/study.json <sha-study> \
+  /policy/historical-v3-support-policy.json <sha-policy> \
+  /saida-nova
+```
+
+- Verifica bytes originais e seus SHA externos, o protocolo físico do `study.json`, a identidade única do fit, a igualdade de suas **81 contagens observadas reconstruídas** e as do recibo físico, mais as contagens totais e o prior. Descarta evidência que não reconcilia.
+- A política de suporte é entrada explícita com SHA próprio. Como **hipótese de diagnóstico**, o workflow `v9-frozen-train-joint-v3-trial.yml` usa a mesma política do Gold V3 histórico (`ClassMassCoverage=.99`, `MinimumM=5`, `MinimumU=5`, regra de cauda com suporte), mas **não a declara automaticamente ótima** no frame TF-001.
+- A saída é **novo fit V3 experimental** com `JointCells`, `JointSupport` e fingerprint de FIT novos; preserva TF, referência de frequências, **os mesmos 3 passes**, limiar 0,95, margem 0,5 e prior. Rejeita falta de suporte mínimo do núcleo M/U. Não altera nem substitui o fit V2 original e não importa parâmetros do Gold TF0/8-passes.
+- A Action derivadora roda **sem SQL, sem novo corpus e sem TEST**. Guarda o novo fit só em diretório descartável do runner e faz upload **apenas do recibo sem dados pessoais**; não publica modelo, não habilita o loader operacional, não autoriza DT-15 nem faz merge.
+- Mesmo que a Action conclua, ainda faltam escolha e validação independentes da configuração V3 em VALIDATION/holdout novo, auditabilidade por identidade-base e Gold incremental (4 ondas × 3 ordens em bancos independentes). Os ganhos das dez seeds do fit V2 **não são transferidos automaticamente ao novo V3**.
+
+**Nenhuma execução automática de 30k é autorizada por esta frente.** O gate físico do PR #1277 continua manual e preso ao SHA exato. O incremento não define nem inicia certificação.
