@@ -34,3 +34,7 @@ Os campos legados `ClassMassCoverage`, `MinimumObservedMPerCell`, `MinimumObserv
 - A saída `mu-statistical-analysis.json` e `mu-statistical-analysis.md` relaciona método, subparâmetros, threshold/margem, snapshots, TP, FP, recall, FDR, conflitos, motivos de inelegibilidade e status. Inclui resultados de todos os lotes, não apenas finalistas.
 - A seleção ocorre sobre TRAIN_SELECTION, sem antecipação de VALIDATION/TEST. Confirmação independente, FDR por identidade, integração Gold e autorização DT-15 continuam separadas. A geração do relatório não comprova melhoria de acurácia ou certificação.
 - Um terceiro método poderá acrescentar seu próprio contrato versionado em `Parameters`; por segurança, nomes não implementados falham fechado. Intervalos `RANGE` **não** são reconhecidos nesta versão.
+
+## Execução automática do gate físico 30k (decisão 05/11/2026)
+
+O gate CI `v9-physical-seed42-probe.yml` passou a autorizar, para PRs impactadas e do mesmo repositório, a campanha de 30 mil automática, com SHA exato e referência IBGE/corpus contra evidência imutável. O disparo manual continua possível, mas deixou de ser obrigatório. Esse 30k verifica o contrato TF físico existente (45 braços), **não substitui** a execução específica de comparação M/U (DEFAULT × CLASSWISE) e não produz certificação de MODEL V9 ou autorização DT-15. Não flexibilizar gates.

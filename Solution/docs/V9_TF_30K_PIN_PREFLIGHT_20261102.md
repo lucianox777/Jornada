@@ -1,10 +1,21 @@
 # V9 TF 30k — origem operacional do pinned_ibge_json
 
-O workflow `.github/workflows/v9-physical-seed42-probe.yml` é manual
-(`workflow_dispatch`). A execução física **não ocorre** na PR nem no
-`preflight`. O operador autoriza o `execute_30k` separadamente.
+**Decisão atualizada em 05/11/2026:** quando uma PR altera código que exige a
+prova física, `.github/workflows/v9-physical-seed42-probe.yml` executa
+automaticamente a campanha 30k no **SHA exato da branch da PR** (somente
+branches do próprio repositório). O trabalho usa SQL descartável, corpus
+sintético clean seed 42 e o manifesto IBGE/corpus imutável versionado.
+O script `v9-tf-prepare-pin.sh` valida os digests de referência e do
+bootstrap antes do scorer; o gate reprova caso falhe. Alterações de
+documentação comprovadamente isoladas continuam dispensadas pelo classificador.
 
-## Procedimento após merge autorizado
+O `workflow_dispatch` manual permanece disponível com `preflight` e
+`execute_30k`, incluindo o protocolo de pin independente abaixo. Um
+preflight **não** equivale a execução física e não libera merge. A mudança
+aplica-se somente à execução automática da campanha técnica de TRAIN:
+não publica modelo, não abre TEST nem autoriza ativação DT-15.
+
+## Procedimento manual alternativo
 
 1. Copiar o SHA **completo, de 40 caracteres** da `master` atual.
 2. Abrir **Actions → v9-physical-seed42-probe → Run workflow**;
