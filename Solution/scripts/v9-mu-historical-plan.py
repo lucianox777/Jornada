@@ -143,6 +143,14 @@ def freeze(source_plan, destination):
     result["Calibration"]["MaximumComparedConfigurations"] = BUDGET
     result["Calibration"]["MaximumPhysicalRuleSets"] = 2
     result["Calibration"]["MaximumParallelRuleSets"] = min(2, result["Calibration"]["MaximumParallelRuleSets"])
+    # The existing physical post-Resolve selector (V9PostResolveAdaptiveSelector)
+    # requires a predeclared accepted FDR budget <= 0.01. The exploratory TF
+    # producer uses 1.0: narrow it here, NEVER change the selector or relax
+    # the statistical gate merely to make the technical test pass.
+    result["Calibration"]["Budget"]["MaximumObservedAcceptedFdrPoint"] = min(
+        0.01, result["Calibration"]["Budget"]["MaximumObservedAcceptedFdrPoint"])
+    result["Calibration"]["SelectionPolicy"]["MaximumAcceptedFdrUpper"] = min(
+        0.01, result["Calibration"]["SelectionPolicy"]["MaximumAcceptedFdrUpper"])
     # Exactly four paired initial comparisons: two policies x one TF x one
     # margin x {19-pass catalogue, historical three-pass baseline}. No tuning.
     if not (result["MaximumBatches"] >= 1 and result["Calibration"]["MaximumParallelRuleSets"] >= 1
