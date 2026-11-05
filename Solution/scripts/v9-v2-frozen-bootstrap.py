@@ -119,13 +119,61 @@ def compare_pins(plan, actual):
             check(old == new, "IBGE bootstrap/provenance differs from frozen V2: " + key)
 
 
+# Only field NAMES live in source. The exact values of every formerly implicit
+# runtime option live in the Git-versioned plan-effective.json. This list
+# comes from record defaults at the original run's exact C# commit.
+ALLOWED_EXPLICIT_DEFAULT_FIELDS = {
+    (): {"MaximumParallelRuleSets", "RiskCeilings", "SampleDesign",
+         "CollapseEquivalentCandidateFrames", "ShardIndex", "ShardCount"},
+    ("Discovery",): {"PositivePairCap", "PairSamplingAttemptCap"},
+    ("Discovery", "SearchOptions"): {"RequireExhaustivePrimitivePool"},
+    ("Execution",): {"TotalComparedConfigurations"},
+    ("ModelOptions", "*"): {"TfSide", "TfMinimumFrequency",
+                            "TfMinimumIndependentSupport", "JointSupportPolicy",
+                            "UnitTfOptions", "SharedSurnameMode",
+                            "UnpublishedTermPolicy"},
+}
+
+
+def validate_effective_plan(original, effective):
+    """Only materialize omitted C# defaults. Never modify an original value."""
+    additions = {}
+
+    def walk(old, new, path):
+        if isinstance(old, dict):
+            check(isinstance(new, dict), "Changed original plan object: " + str(path))
+            check(set(old).issubset(new), "Original calibration parameter removed: " + str(path))
+            allowed = ALLOWED_EXPLICIT_DEFAULT_FIELDS.get(path, set())
+            extra = set(new) - set(old)
+            check(extra == allowed - set(old),
+                  "Missing or unapproved explicit default at " + str(path))
+            if extra:
+                additions[".".join(path)] = sorted(extra)
+            for k in old:
+                walk(old[k], new[k], path + (k,))
+        elif isinstance(old, list):
+            check(isinstance(new, list) and len(old) == len(new),
+                  "Original calibration option or order changed: " + str(path))
+            for before, after in zip(old, new):
+                walk(before, after, path + ("*",))
+        else:
+            check(type(old) is type(new) and old == new,
+                  "Original V2 calibrated value was modified at " + str(path))
+
+    walk(original, effective, ())
+    return additions
+
+
 def prepare(plan_path, references, observations, generation_manifest,
-            ibge_pin, destination, receipt):
+            ibge_pin, destination, receipt, effective_plan_path=None):
     check(not destination.exists() and not receipt.exists(),
           "Refusing to overwrite existing parameter plan or receipt")
     doc, art, selected, files = source_identity(references, plan_path)
     plan = read_json(plan_path)
     attr = inspect_plan(plan, selected)
+    effective = read_json(effective_plan_path) if effective_plan_path else None
+    additions = validate_effective_plan(plan, effective) if effective is not None else {}
+    effective_sha = digest(effective_plan_path) if effective_plan_path else None
     observation_sha = digest(observations)
     generation_sha = digest(generation_manifest)
     declared = plan["ObservationCapDeclaration"]
@@ -134,27 +182,33 @@ def prepare(plan_path, references, observations, generation_manifest,
     check(same_fingerprint(generation_sha, declared.get("ManifestSha256")),
           "Regenerated generation-manifest differs from frozen V2: refuse calibration")
     compare_pins(plan, read_json(ibge_pin))
-    # Externalized original user configuration: direct byte copy, without a
-    # JSON rewrite, in-source default or synthesized option grid.
+    # Source of all numerical values is the declared plan file. Exact-original
+    # mode preserves original bytes; explicit mode uses independently versioned
+    # historical defaults without rewriting the original archived plan.
     destination.parent.mkdir(parents=True, exist_ok=True)
     receipt.parent.mkdir(parents=True, exist_ok=True)
     with destination.open("xb") as handle:
-        handle.write(plan_path.read_bytes())
-    check(digest(destination) == files["plan-tf.json"],
-          "Copied configuration differs from frozen source")
+        handle.write((effective_plan_path or plan_path).read_bytes())
+    check(digest(destination) == (effective_sha or files["plan-tf.json"]),
+          "Copied user configuration differs from Git-versioned source")
     record = {
         "SchemaVersion": SCHEMA,
         "OriginalRunId": art["run_id"],
         "OriginalCodeSha": art["head_sha"],
         "SourceArtifactName": art["name"],
         "PlanSha256": digest(destination),
+        "OriginalPlanSha256": files["plan-tf.json"],
+        "EffectivePlanSha256": effective_sha,
+        "DefaultFieldsMaterialized": additions,
         "SourceStudySha256": files["study-tf/study.json"],
         "OriginalFittedSnapshotSha256": selected,
         "OriginalObservationsSha256": observation_sha,
         "OriginalGenerationManifestSha256": generation_sha,
         "PinnedIbgeReferenceVersionId": plan["PinnedIbgeReferenceVersionId"],
         "ExplorationDeclaredInPlan": attr,
-        "ConfigurationSource": "GIT_VERSIONED_FROZEN_V2_PLAN_EXACT_BYTES",
+        "ConfigurationSource": ("GIT_VERSIONED_V2_EXPLICIT_HISTORICAL_DEFAULTS"
+                                if effective_plan_path else
+                                "GIT_VERSIONED_FROZEN_V2_PLAN_EXACT_BYTES"),
         "TestUsed": False,
         "Calibrated": False, "Certified": False, "Activated": False,
     }
@@ -273,6 +327,8 @@ def main():
     for arg in ("plan", "references", "observations", "generation-manifest",
                 "pinned-ibge", "output-plan", "output-receipt"):
         a.add_argument("--" + arg, required=True, type=Path)
+    a.add_argument("--effective-plan", type=Path,
+                   help="Explicit historical defaults; source plan remains SHA-frozen")
     b = sub.add_parser("compare")
     for arg in ("references", "original-study", "replay-study",
                 "receipt", "output"):
@@ -282,7 +338,8 @@ def main():
         if args.command == "prepare":
             print(json.dumps(prepare(args.plan, args.references, args.observations,
                                      args.generation_manifest, args.pinned_ibge,
-                                     args.output_plan, args.output_receipt)))
+                                     args.output_plan, args.output_receipt,
+                                     getattr(args, "effective_plan", None))))
         else:
             print(json.dumps(compare(args.references, args.original_study,
                                      args.replay_study, args.receipt, args.output)))
