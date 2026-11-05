@@ -35,6 +35,14 @@ if (args.Length > 0 && args[0] == "--v9-frozen-transfer")
     return;
 }
 
+// Opt-in, read-only SQL REF calibration inventory matched against a pinned V9
+// portable fit. No host, fit, publication, or operational model activation.
+if (args.Length > 0 && args[0] == "--v9-audit-ref-frozen-snapshot")
+{
+    await V9RefFittedSnapshotAuditCli.RunAsync(args);
+    return;
+}
+
 // Portable artifact inspection never starts the host or connects to SQL.
 if (args.Length > 0 && args[0] == "--v9-inspect-fitted-snapshot")
 {
