@@ -54,3 +54,17 @@ O comando valida o SHA/canonicalização do fit antes de acessar SQL e consulta,
 A saída JSON não inclui nomes, observações, `resultados_json` nem parâmetros sensíveis e sempre marca `OperationallyCertified=false` / `ActivationAllowed=false`. Registros não publicados, sem vínculo, com hashes divergentes ou sem modelo V9 correspondente são **não conformes** (exit code 2, se o registro existe). A confirmação de metadados é apenas pré-requisito: não demonstra que todo o envelope V9 está instalado, nem permite retirar `RequireCertifiedOperationalAlgorithm`.
 
 Nenhuma instância SQL do usuário foi acessada nesta PR: o comando e seus testes unitários estão disponíveis para a execução sob autorização e credenciais somente leitura. O próprio usuário/operador deverá fornecer a string de conexão apropriada, em ambiente seguro.
+
+
+## Inventário físico do fit fixado (sem SQL)
+
+Antes de qualquer corrida, o comando de inspeção existente agora lista os **passes em ordem e seus campos** e as **quatro unidades de TF** (lado, unidade, estado, peso, modo, frame da referência). Ele diferencia `TfWeight=0` legado de uma configuração com unidades TF independentes **ativas**:
+
+```bash
+dotnet Jornada.Linkage.Parameters.Worker.dll \
+  --v9-inspect-fitted-snapshot /evidencias/<sha>.fitted.json <sha256-do-fit>
+```
+
+Conferir `ContentSha256`, `blockingPasses`, `activeUnitTfCount`, `unitTf`, `jointCellCount=81`, `FitFingerprintSha256`, `Threshold`, `ConflictMargin`, `grouping` e `goldParentSnapshotSha256`. O comando SQL `--v9-audit-ref-frozen-snapshot` inclui o mesmo inventário em `frozenConfiguration` e, separadamente, o veredito de correspondência **apenas de metadados**. As flags de certificação e ativação são sempre falsas.
+
+É **erro de interpretação** declarar TF0 somente porque `TfWeight=0` quando `UnitTfCalibrations` possui unidades ativas. Também é erro contar o número de passes de um snapshot diferente do que será usado no Runner incremental.
