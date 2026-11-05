@@ -57,8 +57,9 @@ public static class V9AdaptiveCalibrationStudyCli
             var truthPath = Path.Combine(Path.GetDirectoryName(inputPath)!, "gabarito.json");
             if (new FileInfo(truthPath).Length is <= 0 or > 100_000_000)
                 throw new InvalidDataException("Gabarito agregado ausente ou grande demais.");
+            var truthBytes = await File.ReadAllBytesAsync(truthPath);
             expectedBaseIdentityCount = V9SyntheticObservationCapEvidence.ReadPinnedPopulationCount(
-                manifestBytes, await File.ReadAllBytesAsync(truthPath));
+                manifestBytes, truthBytes);
         }
         // Diagnostic arms must have an authenticated population census;
         // absence of evidence must not silently disable this verification.
