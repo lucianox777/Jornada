@@ -165,6 +165,12 @@ class V9CalibrationEvidenceBundleTests(unittest.TestCase):
         manifest_path = out / "manifest.json"
         obj = json.loads(manifest_path.read_text())
         obj["CalibrationRunId"] = "999999"
+        report_path = out / "report.json"
+        report = json.loads(report_path.read_text())
+        report["CalibrationRunId"] = "999999"
+        report_sha = write_json(report_path, report)
+        obj["Components"]["report"]["sha256"] = report_sha
+        obj["Components"]["report"]["bytes"] = report_path.stat().st_size
         write_json(manifest_path, obj)
         with self.assertRaisesRegex(ValueError, "execution identity differs"):
             bundle.verify(out, self.refs)
