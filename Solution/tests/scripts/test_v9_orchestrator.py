@@ -128,6 +128,20 @@ class EvidenceTests(unittest.TestCase):
         self.assertIn("manual physical evidence missing at exact SHA: v2v3", a["blockers"])
 
 
+class ReportHonestyTests(unittest.TestCase):
+    def test_unimplemented_front_is_never_executed_or_approved(self):
+        row = orch.front_status(front(id="B", pr=None, branch="master", physical=[], not_implemented=True,
+                                      physical_check_names=[]), [], [])
+        self.assertFalse(row["EXECUTED"])
+        self.assertFalse(row["TECHNICALLY_APPROVED"])
+        self.assertTrue(row["blockers"][0].startswith("NOT_IMPLEMENTED"))
+
+    def test_front_without_pr_has_no_merge_state(self):
+        row = orch.front_status(front(pr=None, branch="master", physical=[], physical_check_names=[]), [], [])
+        self.assertIsNone(row["merge_ready"])
+        self.assertIn("n/a (sem PR)", orch.report([row]))
+
+
 class ArtifactAndReferenceTests(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())

@@ -32,7 +32,8 @@
       "statistical_state": "NO_ELIGIBLE_CONFIGURATION",
       "scientific_blockers": [
         "no workflow/contract yet runs the SAME V9 model through 4 waves x 3 orders in fresh LocalDB; v9-gold-independent-holdout-physical.yml measures the historical Gold V6 CURRENT/KNEE contract (8-pass TF0), not the ONE_MF 3-pass fit"
-      ]
+      ],
+      "not_implemented": true
     },
     {
       "id": "C-REF-persistence",

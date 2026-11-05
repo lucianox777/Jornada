@@ -8,6 +8,7 @@ read-only GitHub API data supplied as JSON.
 """
 import argparse
 import hashlib
+import importlib.util
 import json
 import re
 import shlex
@@ -207,9 +208,13 @@ def front_status(front, checks, runs):
     for need in front.get("physical", []):
         evidence[need["id"]] = physical_evidence(runs, need["workflow"], sha, branch, need.get("mode"))
     missing = [k for k, v in evidence.items() if v is None]
-    executed = bool(evidence) and not missing
-    technical = not failed and not pending and not missing
+    not_implemented = bool(front.get("not_implemented"))
+    executed = (bool(evidence) and not missing) or (not front.get("physical") and not not_implemented
+                                                    and not failed and not pending)
+    technical = not failed and not pending and not missing and not not_implemented
     blockers = list(front.get("scientific_blockers", []))
+    if not_implemented:
+        blockers.insert(0, "NOT_IMPLEMENTED: no executable campaign exists yet")
     if failed:
         blockers.append("CI failing: " + ", ".join(failed))
     if pending:
@@ -224,7 +229,7 @@ def front_status(front, checks, runs):
         "TECHNICALLY_APPROVED": technical,
         "STATISTICALLY_ELIGIBLE": front.get("statistical_state", "NO_ELIGIBLE_CONFIGURATION"),
         "CERTIFIED": False, "OPERATIONALLY_AUTHORIZED": False,
-        "merge_ready": technical and not front.get("scientific_blockers"),
+        "merge_ready": None if not front.get("pr") else technical and not front.get("scientific_blockers"),
         "blockers": blockers,
     }
 
@@ -238,8 +243,9 @@ def report(status_rows):
         phys = ", ".join(f"{k}={v or 'FALTA'}" for k, v in r["physical"].items()) or "não exigido"
         lines.append(f"| {r['front']} | {r['pr'] or '—'} | `{r['sha'][:8]}` | {r['ci']} | {phys} | "
                      f"{'sim' if r['EXECUTED'] else 'não'} | {'sim' if r['TECHNICALLY_APPROVED'] else 'não'} | "
-                     f"{r['STATISTICALLY_ELIGIBLE']} | não | não | {'pronto' if r['merge_ready'] else 'bloqueado'} |")
-    lines += ["", f"Concluídas tecnicamente: {sum(r['TECHNICALLY_APPROVED'] for r in status_rows)} de {len(status_rows)}.", ""]
+                     f"{r['STATISTICALLY_ELIGIBLE']} | não | não | {'n/a (sem PR)' if r['merge_ready'] is None else 'pronto' if r['merge_ready'] else 'bloqueado'} |")
+    lines += ["", f"Aprovadas tecnicamente: {sum(r['TECHNICALLY_APPROVED'] for r in status_rows)} de {len(status_rows)}; "
+              f"bloqueadas: {sum(bool(r['blockers']) for r in status_rows)}.", ""]
     for r in status_rows:
         if r["blockers"]:
             lines.append(f"- **{r['front']}**: " + "; ".join(r["blockers"]))
@@ -287,8 +293,24 @@ def collect(fronts_path, results_dir=None):
     results = {}
     if results_dir:
         for path in sorted(Path(results_dir).rglob("*.json")):
-            results[path.name] = aggregate_only(load(path))
+            raw = load(path)
+            results[path.name] = aggregate_only(raw)
+            if isinstance(raw, dict) and "original" in raw and "v3Trial" in raw:
+                results[path.name]["pairedIdentityClustered"] = paired_v2_v3(raw)
     return {"generated_from": {"master": master}, "fronts": fronts, "checks": checks, "runs": runs, "results": results}
+
+
+def paired_v2_v3(raw):
+    """Identity-clustered paired contrast V3 - V2 using the existing analyzer;
+    only aggregate numbers are returned (no base identities)."""
+    spec = importlib.util.spec_from_file_location(
+        "v9_transfer_paired", Path(__file__).resolve().parent / "v9-tf-seed43-frozen-transfer-physical.py")
+    tool = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(tool)
+    arm = lambda key: {"Evaluation": {"Metric": raw[key]["Metric"]}}
+    if not raw["original"]["Metric"].get("IdentityOutcomes"):
+        return {"status": "IDENTITY_OUTCOMES_NOT_IN_ARTIFACT"}
+    return tool.paired(arm("original"), arm("v3Trial"))
 
 
 def aggregate_only(obj, depth=0):
