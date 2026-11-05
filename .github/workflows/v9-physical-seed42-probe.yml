@@ -18,6 +18,11 @@ on:
         description: 'IBGE publicado fixado: versão, digests e bootstrap JSON'
         type: string
         required: false
+      replay_frozen_v2:
+        description: 'Somente execute_30k: usar o plano de configuração V2 exato do Git, não gerar os parâmetros no fonte'
+        type: boolean
+        required: false
+        default: false
 
 # Supersede obsolete automatic PR probes to prevent runner saturation.
 # Explicit manual dispatch and experiment/evidence branches are isolated by run_id
@@ -197,9 +202,21 @@ jobs:
         env:
           TF_SHA: ${{ inputs.expected_sha }}
           TF_IBGE: ${{ inputs.pinned_ibge_json }}
+          REPLAY_FROZEN_V2: ${{ inputs.replay_frozen_v2 }}
         run: |
           set -euo pipefail
           mkdir -p Solution/.local/v9-tf-physical
+          if [[ "$REPLAY_FROZEN_V2" == "true" ]]; then
+            test -z "$TF_IBGE" || { echo "V2 replay derives exact frozen IBGE pin; do not submit an override" >&2; exit 1; }
+            TF_IBGE="$(python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=json.loads(Path('Solution/data/calibration/v9/v2-one-mf-frozen/plan.json').read_text())
+          keys=('PinnedIbgeReferenceVersionId','PinnedIbgePublishedSha256','PinnedIbgeMaterializedFrequencySha256','PinnedIbgeBootstrap')
+          print(json.dumps({k:p[k] for k in keys},separators=(',',':')))
+          PY
+            )"
+          fi
           python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
             --mode execute_30k --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
             --pinned-json "$TF_IBGE" \
@@ -230,22 +247,33 @@ jobs:
             --expected .local/v9-tf-physical/pinned-ibge.json \
             --actual .local/v9-tf-physical/reconstructed-ibge.json
 
-      - name: Recheck SHA and run only CSharp adaptive TF 45 options
+      - name: Recheck SHA and calibrate with JSON-file parameters (CSharp only)
         working-directory: Solution
         env:
           TF_SHA: ${{ inputs.expected_sha }}
-          TF_IBGE: ${{ inputs.pinned_ibge_json }}
+          REPLAY_FROZEN_V2: ${{ inputs.replay_frozen_v2 }}
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-tf-physical"
           python3 scripts/v9-tf-30k-dispatch-gate.py \
             --mode execute_30k --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
-            --pinned-json "$TF_IBGE" \
+            --pinned-json "$(cat "$root/pinned-ibge.json")" \
             --output "$root/git-rechecked.json" --pinned-output "$root/pinned-rechecked.json"
           cmp "$root/pinned-ibge.json" "$root/pinned-rechecked.json"
-          python3 scripts/v9-adaptive-30k-study.py prepare-tf \
-            "$root/people-30k/observacoes.csv" "$root/plan-tf.json" \
-            --pinned-ibge "$root/pinned-ibge.json"
+          if [[ "$REPLAY_FROZEN_V2" == "true" ]]; then
+            python3 scripts/v9-v2-frozen-bootstrap.py prepare \
+              --plan data/calibration/v9/v2-one-mf-frozen/plan.json \
+              --references data/reference/v9-frozen-artifacts/references.json \
+              --observations "$root/people-30k/observacoes.csv" \
+              --generation-manifest "$root/people-30k/generation-manifest.json" \
+              --pinned-ibge "$root/pinned-ibge.json" \
+              --output-plan "$root/plan-tf.json" \
+              --output-receipt "$root/v2-source-receipt.json"
+          else
+            python3 scripts/v9-adaptive-30k-study.py prepare-tf \
+              "$root/people-30k/observacoes.csv" "$root/plan-tf.json" \
+              --pinned-ibge "$root/pinned-ibge.json"
+          fi
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-adaptive-study "$root/plan-tf.json" \
             "$root/people-30k/observacoes.csv" "$root/study-tf"
@@ -279,6 +307,46 @@ jobs:
           assert measured["Pareto"]["InitialSuggestedOptionId"] is None
           print("PASS: CSharp measured 135 TF arms, 12 diagnostics and risk-band preference; not certified.")
           PY
+      - name: Regress new configured V2 calibration against authenticated original physical study
+        if: inputs.replay_frozen_v2 == true
+        working-directory: Solution
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-tf-physical"
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          ref=json.loads(Path('data/reference/v9-frozen-artifacts/references.json').read_text())
+          source=ref['artifacts']['seed42-source']
+          assert source['run_id']==41900357031
+          assert source['head_sha']=='935f704edd2bceb6a125ecfe532ad5b71f9c89b9'
+          PY
+          mkdir -p "$RUNNER_TEMP/v9-source-study"
+          gh run download 41900357031 -R "$GITHUB_REPOSITORY" \
+            -n v9-tf-45-physical-41900357031-935f704edd2bceb6a125ecfe532ad5b71f9c89b9 \
+            -D "$RUNNER_TEMP/v9-source-study"
+          python3 scripts/v9-v2-frozen-bootstrap.py compare \
+            --references data/reference/v9-frozen-artifacts/references.json \
+            --original-study "$RUNNER_TEMP/v9-source-study/study-tf/study.json" \
+            --replay-study "$root/study-tf/study.json" \
+            --receipt "$root/v2-source-receipt.json" \
+            --output "$root/v2-calibration-regression.json"
+          python3 - "$root/v2-calibration-regression.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))
+          print('### Frozen V2 calibrated again from EXACT Git-versioned exploration plan')
+          for k in ('Status','SameCorpusAndPartitions','SameConfigurationGrid','ComparedSourceConfigurations',
+                    'DifferentMetricRows','DifferentFitSnapshots','SelectedSnapshotExactMatch'):
+              print('- '+k+': '+str(x[k]))
+          print('- No TEST, no DT-15, no model activation.')
+          PY
+          python3 - "$root/v2-calibration-regression.json" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))
+          assert x['Status']=='REPRODUCED_EXACTLY', 'Configured V2 calibration diverges: regression dossier preserved'
+          PY
 
       - name: Preserve SHA-bound TF evidence (no CSV/PII or TEST)
         if: always()
@@ -295,6 +363,8 @@ jobs:
             Solution/.local/v9-tf-physical/bootstrap.json
             Solution/.local/v9-tf-physical/plan-tf.json
             Solution/.local/v9-tf-physical/plan-tf.tf-budget.json
+            Solution/.local/v9-tf-physical/v2-source-receipt.json
+            Solution/.local/v9-tf-physical/v2-calibration-regression.json
             Solution/.local/v9-tf-physical/study-tf/*.json
             Solution/.local/v9-tf-physical/study-tf/*.fitted.json
             Solution/.local/v9-tf-physical/people-30k/generation-manifest.json
