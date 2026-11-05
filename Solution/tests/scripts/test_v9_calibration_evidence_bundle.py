@@ -194,6 +194,18 @@ class V9CalibrationEvidenceBundleTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "Missing calibration-plan fields"):
             self.make()
 
+    def test_csharp_canonical_pass_reordering_is_not_parameter_drift(self):
+        self.fitted["BlockingPasses"] += [
+            {"PassId": "P_MOTHER", "Fields": ["mother_last", "first"]}]
+        self.plan["BaselineRuleSets"] = [list(reversed(self.fitted["BlockingPasses"]))]
+        self.refresh_sources()
+        self.make()
+        # A changed attribute is NOT pass canonicalization and must fail closed.
+        self.plan["BaselineRuleSets"][0][0]["Fields"] = ["mother_last", "different"]
+        self.refresh_sources()
+        with self.assertRaisesRegex(ValueError, "Fitted blocking differs"):
+            self.make("bad-blocking")
+
     def test_missing_fitted_attribute_is_fail_closed(self):
         self.fitted.pop("TrainIdentityGroupsSha256")
         self.refresh_sources()
