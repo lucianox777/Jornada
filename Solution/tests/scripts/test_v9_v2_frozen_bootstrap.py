@@ -152,6 +152,8 @@ class FrozenV2BootstrapTests(unittest.TestCase):
         new_sha = write(source, study)
         self.references["artifacts"]["seed42-source"]["files"][1]["sha256"] = new_sha
         write(self.ref, self.references)
+        receipt["SourceStudySha256"] = new_sha
+        write(self.d / "receipt.json", receipt)
         write(target, study)
         output = self.d / "regression.json"
         result = tool.compare(self.ref, source, target, self.d / "receipt.json", output)
@@ -177,6 +179,9 @@ class FrozenV2BootstrapTests(unittest.TestCase):
         ref_sha = write(old, s)
         self.references["artifacts"]["seed42-source"]["files"][1]["sha256"] = ref_sha
         write(self.ref, self.references)
+        receipt = json.loads((self.d / "receipt.json").read_text())
+        receipt["SourceStudySha256"] = ref_sha
+        write(self.d / "receipt.json", receipt)
         s["TrainInputSha256"] = "9" * 64
         write(new, s)
         with self.assertRaisesRegex(ValueError, "Regressed experiment identity"):
