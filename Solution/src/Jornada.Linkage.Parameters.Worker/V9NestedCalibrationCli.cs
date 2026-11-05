@@ -133,6 +133,11 @@ public static class V9NestedCalibrationCli
             e.MuPolicy, e.ConflictMargin,
             fitSnapshotSha256 = e.Candidate?.Snapshot.ContentSha256,
             smoothingAlpha = e.Candidate?.Support.SmoothingAlpha,
+            // Each of the 81 mutually exclusive M/U states is independently
+            // auditable, even for DEFAULT/V2 without a V3 JointSupport payload.
+            observedSupportAudit = e.Candidate?.Support,
+            estimatorJointSupport = e.Candidate?.Snapshot.Payload.JointSupport,
+            blockingPasses = e.Candidate?.Snapshot.Payload.BlockingPasses,
             threshold = e.Candidate?.Snapshot.Payload.Threshold,
             trueAccepted = e.Candidate?.Metric.TrueAcceptedSourceObservations,
             falseAccepted = e.Candidate?.Metric.FalseAcceptedSourceObservations,
