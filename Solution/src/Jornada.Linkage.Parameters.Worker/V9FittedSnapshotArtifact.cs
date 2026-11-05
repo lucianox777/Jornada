@@ -37,28 +37,65 @@ public static class V9FittedSnapshotArtifact
         return V9FittedSnapshot.Load(bytes, contentSha256);
     }
 
+    /// <summary>
+    /// Read-only evidence for *exactly* the loaded portable fit. Do not infer
+    /// that this snapshot is the currently selected SQL model or that its
+    /// provenance grants permission for operation. This inspection never
+    /// chooses passes, fits TF or changes thresholds.
+    /// </summary>
+    public static JsonElement DescribeFrozenConfiguration(V9FittedSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+        var payload = snapshot.Payload;
+        return JsonSerializer.SerializeToElement(new
+        {
+            payload.SchemaVersion,
+            snapshot.ContentSha256,
+            payload.OptionId,
+            payload.FitFingerprintSha256,
+            payload.TrainCorpusSha256,
+            payload.ValidationCorpusSha256,
+            payload.Threshold,
+            payload.ConflictMargin,
+            payload.TfWeight,
+            blockingPassCount = payload.BlockingPasses.Count,
+            blockingPasses = payload.BlockingPasses.Select((pass, order) => new
+            {
+                ordinal = order + 1,
+                pass.PassId,
+                fields = pass.Fields.ToArray()
+            }).ToArray(),
+            jointCellCount = payload.JointCells.Count,
+            hasJointSupport = payload.JointSupport is not null,
+            grouping = payload.CandidateGrouping?.CandidateGrouping,
+            goldParentSnapshotSha256 = payload.GoldParentSnapshotSha256,
+            // Four independently calibrated TF slots are distinct from the
+            // legacy TfWeight. A legacy zero does not imply no active unit TF.
+            activeUnitTfCount = payload.UnitTfCalibrations?.Count(
+                u => u.State == V9SnapshotTfFitState.Active) ?? 0,
+            unitTf = payload.UnitTfCalibrations?.Select(u => new
+            {
+                side = u.Side.ToString(),
+                unit = u.Unit.ToString(),
+                state = u.State.ToString(),
+                weight = u.Calibration?.Weight,
+                mode = u.Calibration?.Mode.ToString(),
+                populationFrame = u.Calibration?.Reference.PopulationFrameFingerprint
+            }).ToArray(),
+            hasLegacyPersonTf = payload.TfCalibration is not null,
+            hasLegacyMotherTf = payload.MotherTfCalibration is not null,
+            approved = false,
+            operationalModelCreated = false,
+            automaticallyActivated = false
+        });
+    }
+
     /// <summary>Opt-in read-only CLI; no host, SQL connection or training is started.</summary>
     public static async Task InspectAsync(string[] args)
     {
         if (args.Length != 3 || args[0] != "--v9-inspect-fitted-snapshot")
             throw new ArgumentException("Uso: --v9-inspect-fitted-snapshot <snapshot.json> <sha256-fixado>");
         var snapshot = await ReadPinnedAsync(args[1], args[2]);
-        Console.WriteLine(JsonSerializer.Serialize(new
-        {
-            snapshot.Payload.SchemaVersion,
-            snapshot.ContentSha256,
-            snapshot.Payload.OptionId,
-            snapshot.Payload.FitFingerprintSha256,
-            snapshot.Payload.TrainCorpusSha256,
-            snapshot.Payload.ValidationCorpusSha256,
-            snapshot.Payload.Threshold,
-            snapshot.Payload.ConflictMargin,
-            snapshot.Payload.TfWeight,
-            blockingPassCount = snapshot.Payload.BlockingPasses.Count,
-            jointCellCount = snapshot.Payload.JointCells.Count,
-            approved = false,
-            operationalModelCreated = false,
-            automaticallyActivated = false
-        }));
+        Console.WriteLine(DescribeFrozenConfiguration(snapshot).GetRawText());
     }
 }
