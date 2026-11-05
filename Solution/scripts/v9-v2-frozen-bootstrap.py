@@ -157,8 +157,13 @@ def validate_effective_plan(original, effective):
             for before, after in zip(old, new):
                 walk(before, after, path + ("*",))
         else:
-            check(type(old) is type(new) and old == new,
-                  "Original V2 calibrated value was modified at " + str(path))
+            # JSON 1.0 and JSON 1 are the same numeric value for the CSharp
+            # decimal calibration contracts. JS reformatting may remove .0,
+            # but must never turn boolean into an integer or alter magnitude.
+            same = (old == new and type(old) is type(new))
+            if type(old) in (int, float) and type(new) in (int, float):
+                same = (math.isfinite(old) and math.isfinite(new) and old == new)
+            check(same, "Original V2 calibrated value was modified at " + str(path))
 
     walk(original, effective, ())
     return additions
