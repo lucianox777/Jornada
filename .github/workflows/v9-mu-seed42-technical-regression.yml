@@ -111,6 +111,7 @@ jobs:
               "DEFAULT": 2, "CLASSWISE_SUPPORT_BACKOFF": 2
           }
           frames = {}
+          pair_frames = {}
           for r in report["rows"]:
               assert r["OptionId"].endswith("__MU_" + (
                   "DEFAULT" if r["MuEstimationMethod"] == "DEFAULT" else
@@ -131,6 +132,34 @@ jobs:
                   assert provenance is not None and len(provenance["Cells"]) == 81
               passes = r["blockingPasses"]
               assert len(passes) in (3, 19)
+              # The SQL physical probe has a SELECT DISTINCT/UNIQUE edge union:
+              # reusing a person-base across many *different* observation edges
+              # is NOT the same as counting one candidate twice across passes.
+              prior = r["candidatePriorTrainingAudit"]
+              assert prior and prior["Version"] == "V9_TRAIN_CANDIDATE_PRIOR_DENOMINATOR_AUDIT_V1"
+              assert prior["SqlPhysicalObservationEdgesDeduplicated"] is True
+              assert prior["BaseCollapsedShareIsCalibratedPrior"] is False
+              assert prior["TransportabilityToCpfAbsentPopulationEstablished"] is False
+              assert prior["IndependentIdentitySupportEstablished"] is False
+              assert prior["ChangesFittedPriorOrDecisions"] is False
+              m, u = prior["TrainTrueObservationPairs"], prior["TrainFalseObservationPairs"]
+              assert m > 0 and u > 0 and m + u == prior["TrainCandidateObservationPairs"]
+              assert prior["PreBlockingBaseIdentityCount"] >= prior["BaseIdentitiesRepresentedInTrainPairs"]
+              assert prior["DistinctMBaseIdentities"] <= m
+              assert prior["DistinctUnorderedUBasePairs"] <= u
+              assert prior["RepeatedMBaseIdentityContributions"] == m - prior["DistinctMBaseIdentities"]
+              assert prior["RepeatedUBasePairContributions"] == u - prior["DistinctUnorderedUBasePairs"]
+              assert abs(prior["RawPairCandidateMatchShare"] - m / (m + u)) < 1e-12
+              assert abs(r["fittedPairPrior"] - (m + .5) / (m + u + 1)) < 1e-12
+              digest = prior["PhysicalCandidatePairsSha256"]
+              assert isinstance(digest, str) and len(digest) == 64
+              pair_frame = (m, u, digest, prior["DistinctMBaseIdentities"],
+                  prior["DistinctUnorderedUBasePairs"], prior["RepeatedMBaseIdentityContributions"],
+                  prior["RepeatedUBasePairContributions"])
+              if len(passes) in pair_frames:
+                  assert pair_frames[len(passes)] == pair_frame, "M/U methods changed SQL candidate frame"
+              else:
+                  pair_frames[len(passes)] = pair_frame
               frames.setdefault(len(passes), set()).add(r["MuEstimationMethod"])
           assert frames == {
               3: {"DEFAULT", "CLASSWISE_SUPPORT_BACKOFF"},
