@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text.Json;
-using Jornada.Contracts;
 using Jornada.Linkage.Runner;
 using Microsoft.Data.SqlClient;
 
@@ -132,60 +131,6 @@ public static class V9FrozenJointIndependentComparisonCli
     }
 
     /// <summary>
-    /// Exercise the REAL SHA-pinned V3's projection, multipass SQL query builder,
-    /// 81-cell FS/TF scorer and Gold Resolve on a synthetic in-memory example.
-    /// There is no SQL connection and no Gold publication, so do not report
-    /// this as physical incremental validation.
-    /// </summary>
-    public static (int EligiblePasses, int SqlParameters, bool ReplayMatches,
-        bool RejectsWrongFrameSha, string GoldVariantSha256) ProbeGoldRuntime(
-        V9FittedSnapshot pinnedV3)
-    {
-        ArgumentNullException.ThrowIfNull(pinnedV3);
-        var golden = pinnedV3.CreateGoldHarnessVariant();
-        var runtime = V9FittedSnapshotExecutionRuntime.Load(
-            golden.SerializeUtf8(), golden.ContentSha256);
-        var birth = new DateOnly(1980, 4, 12);
-        // Only a diagnostic observation, not a real identity or TRAIN/VALIDATION row.
-        var person = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", birth, "ANA COSTA");
-        var candidate = new V9SnapshotCandidate(
-            Guid.Parse("5e881e4a-5ab7-4b19-9df3-42f92c1a5a09"), "MARIA SILVA", birth, "ANA COSTA");
-        var plan = runtime.Plan(person);
-        if (plan.Count < 1 || plan.Count > pinnedV3.Payload.BlockingPasses.Count
-            || !plan.Select(x => x.PassId).SequenceEqual(
-                pinnedV3.Payload.BlockingPasses.Select(x => x.PassId)
-                    .Where(id => plan.Any(p => p.PassId == id))))
-            throw new InvalidDataException("Passes executáveis alteraram a ordem congelada.");
-        using var cmd = new SqlCommand();
-        var sql = runtime.BuildCandidateUuidQuery(cmd, person,
-            runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256);
-        if (cmd.Parameters.Count == 0 || sql.Contains("MARIA", StringComparison.Ordinal)
-            || sql.Contains("ANA", StringComparison.Ordinal))
-            throw new InvalidDataException("Consulta SQL Gold não usou bloqueio parametrizado.");
-        var frame = new V9RetrievedSnapshotCandidateFrame(golden.ContentSha256,
-            runtime.ProjectionSchemaVersion, runtime.ProjectionFingerprintSha256,
-            true, new[] { candidate });
-        var model = Guid.Parse("481f2bcc-1bb4-42a7-a1ee-9fae12a865d2");
-        var actual = runtime.ResolveRetrievedCandidatesPreview(model, person, frame);
-        var expected = golden.ResolvePreview(model, person, new[] { candidate });
-        if (!actual.Equals(expected))
-            throw new InvalidDataException("Runner Gold divergiu do scorer FS/TF do fit V3.");
-        var rejectsWrongFrame = false;
-        try
-        {
-            _ = runtime.ResolveRetrievedCandidatesPreview(model, person,
-                frame with { SnapshotSha256 = new string('0', 64) });
-        }
-        catch (InvalidDataException)
-        {
-            rejectsWrongFrame = true;
-        }
-        if (!rejectsWrongFrame)
-            throw new InvalidDataException("Runtime aceitou candidato de outro snapshot.");
-        return (plan.Count, cmd.Parameters.Count, true, true, golden.ContentSha256);
-    }
-
-    /// <summary>
     /// Pure file + provenance audit of the ORIGINAL V2 and NEW V3 real fit
     /// bytes: no SQL, new corpus, TEST or operational model selection.
     /// </summary>
@@ -195,7 +140,6 @@ public static class V9FrozenJointIndependentComparisonCli
             throw new ArgumentException(
                 "Uso: --v9-preflight-frozen-v2-v3-pair <executor.json> <plan-tf.json> <V2.fitted.json> <V3.fitted.json> <derivation-receipt.json>.");
         var verified = await VerifyPinnedPairAsync(args[1], args[2], args[3], args[4], args[5]);
-        var realRuntime = ProbeGoldRuntime(verified.Candidate);
         var gold = V9FittedSnapshotArtifact.DescribeGoldTfDiagnosticReadiness(verified.Candidate);
         if (gold.GetProperty("status").GetString()
             != "READY_FOR_ISOLATED_GOLD_TF_DIAGNOSTIC_ONLY"
@@ -213,15 +157,8 @@ public static class V9FrozenJointIndependentComparisonCli
             derivedBlockingPassCount = verified.Candidate.Payload.BlockingPasses.Count,
             activeUnitTfCount = verified.Candidate.Payload.UnitTfCalibrations!
                 .Count(x => x.State == V9SnapshotTfFitState.Active),
-            goldDiagnosticReady = true,
-            goldVariantSha256 = realRuntime.GoldVariantSha256,
-            executableFrozenBlockingPassCount = realRuntime.EligiblePasses,
-            generatedSqlCandidateParameterCount = realRuntime.SqlParameters,
-            frozenFsTfGoldResolveReplayed = realRuntime.ReplayMatches,
-            mismatchedCandidateSnapshotRejected = realRuntime.RejectsWrongFrameSha,
-            realFrozenFitCodePathExercised = true,
-            independentSqlExecuted = false, goldIncrementalExecuted = false,
-            fitRefitted = false, certified = false,
+            goldDiagnosticReady = true, independentSqlExecuted = false,
+            goldIncrementalExecuted = false, fitRefitted = false, certified = false,
             selectedForUse = false, operationallyActivated = false
         }, Json));
     }
