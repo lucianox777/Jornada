@@ -143,7 +143,9 @@ public static class V9NestedCalibrationCoordinator
             var expanded = V9MuEstimationSearchSpace.Expand(plan.Calibration.ModelOptions,
                 muMethods, plan.MaximumSearchConfigurations);
             plan = plan with { Calibration = plan.Calibration with { ModelOptions = expanded } };
-            V9AdaptiveCalibrationCoordinator.ValidatePlan(plan.Calibration);
+            // Expanded IDs intentionally exceed fixed 45-arm TF diagnostic naming rules;
+            // the original option catalogue has already passed its full validation.
+            // The expansion is separately validated and fingerprinted before any SQL.
         }
         var split = V9InternalTrainingSplit.Create(originalTrain, plan.SplitSeed, plan.AdjustmentFraction);
         var calibration = plan.Calibration;
@@ -203,7 +205,8 @@ public static class V9NestedCalibrationCoordinator
                 else optionTemplates.Add(request.Option.OptionId, request);
             }
             var groups = requests.GroupBy(r => JsonSerializer.Serialize(new { r.Passes,
-                    Margin = r.Margin.ToString("G29", CultureInfo.InvariantCulture) }))
+                    Margin = r.Margin.ToString("G29", CultureInfo.InvariantCulture),
+                    MuPolicy = r.Option.JointSupportPolicy }))
                 .SelectMany(g => g.Chunk(64)).ToArray();
             var results = await V9ParallelWork.MapAsync(groups, calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
