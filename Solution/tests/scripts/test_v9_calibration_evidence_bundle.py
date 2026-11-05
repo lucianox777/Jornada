@@ -148,7 +148,7 @@ class V9CalibrationEvidenceBundleTests(unittest.TestCase):
 
     def test_bundle_build_verify_and_trace_all_four_bytes(self):
         out = self.make()
-        m, report = bundle.verify(out)
+        m, report = bundle.verify(out, self.refs)
         self.assertEqual(bundle.VERSION, m["SchemaVersion"])
         self.assertEqual({"plan", "result", "fitted_model", "report"},
                          set(m["Components"]))
@@ -159,6 +159,23 @@ class V9CalibrationEvidenceBundleTests(unittest.TestCase):
         self.assertNotEqual(m["Components"]["plan"]["sha256"],
                             m["CrossLinks"]["NormalizedCSharpStudyPlanSha256"])
         self.assertEqual(.95, report["SourceMetrics"]["GlobalSourceRecall"])
+
+    def test_authenticated_source_pin_rejects_rewritten_manifest(self):
+        out = self.make()
+        manifest_path = out / "manifest.json"
+        obj = json.loads(manifest_path.read_text())
+        obj["CalibrationRunId"] = "999999"
+        write_json(manifest_path, obj)
+        with self.assertRaisesRegex(ValueError, "execution identity differs"):
+            bundle.verify(out, self.refs)
+
+    def test_bundle_reference_change_rejected(self):
+        out = self.make()
+        refs = json.loads(self.refs.read_text())
+        refs["artifacts"]["seed42-source"]["head_sha"] = "0" * 40
+        write_json(self.refs, refs)
+        with self.assertRaisesRegex(ValueError, "External authenticated reference SHA"):
+            bundle.verify(out, self.refs)
 
     def test_no_overwrite_of_frozen_bundle(self):
         self.make()
