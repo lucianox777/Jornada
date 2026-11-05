@@ -51,6 +51,14 @@ if (args.Length > 0 && args[0] == "--v9-audit-ref-frozen-snapshot")
     return;
 }
 
+// Explicit new TRAIN-only V3 candidate, using physical recorded 81-cell
+// counts from a SHA-pinned study. No TF re-fit, SQL, TEST, publication or DT-15.
+if (args.Length > 0 && args[0] == V9FrozenJointTrainingDerivationCli.Flag)
+{
+    await V9FrozenJointTrainingDerivationCli.RunAsync(args);
+    return;
+}
+
 // Check SHA-verified TF fit suitability for a diagnostic Gold variant only.
 // Does not write another fit, access SQL, alter a threshold or start a host.
 if (args.Length > 0 && args[0] == "--v9-gold-frozen-tf-preflight")
