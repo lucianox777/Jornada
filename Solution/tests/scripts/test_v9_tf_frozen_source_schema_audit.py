@@ -90,5 +90,40 @@ class FrozenSourceSchemaAuditTests(unittest.TestCase):
             audit.structure(malformed)
 
 
+
+class FrozenTfWorkflowEventContractsTests(unittest.TestCase):
+    """Keep nonphysical workflows reusable without weakening exact-SHA or 30k gates."""
+
+    ROOT = Path(__file__).resolve().parents[3] / ".github" / "workflows"
+
+    def test_archive_schema_audit_is_pr_scoped_and_manual_sha_pinned(self):
+        text = (self.ROOT / "v9-tf-frozen-artifact-schema-audit.yml").read_text(encoding="utf-8")
+        triggers = text.split("\npermissions:\n", 1)[0]
+        self.assertIn("  pull_request:\n", triggers)
+        self.assertIn("  workflow_dispatch:\n", triggers)
+        self.assertNotIn("  push:\n", triggers)
+        self.assertNotIn("feat/v9-gold-frozen-tf-diagnostic-20261105", triggers)
+        self.assertIn("test \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"", text)
+        self.assertIn('test "$GITHUB_SHA" = "$EXPECTED_SHA"', text)
+        self.assertIn('test "$LIVE_SHA" = "$EXPECTED_SHA"', text)
+        self.assertIn("test \"$GITHUB_EVENT_NAME\" = 'pull_request'", text)
+        self.assertIn("contents: read", text)
+        self.assertIn("actions: read", text)
+
+    def test_train_v3_trial_requires_explicit_dispatch_at_live_sha(self):
+        text = (self.ROOT / "v9-frozen-train-joint-v3-trial.yml").read_text(encoding="utf-8")
+        triggers = text.split("\npermissions:\n", 1)[0]
+        self.assertIn("  workflow_dispatch:\n", triggers)
+        self.assertIn("      expected_sha:\n", triggers)
+        self.assertNotIn("  push:\n", triggers)
+        self.assertNotIn("  pull_request:\n", triggers)
+        self.assertNotIn("feat/v9-gold-frozen-tf-diagnostic-20261105", triggers)
+        self.assertIn("test \"$GITHUB_EVENT_NAME\" = 'workflow_dispatch'", text)
+        self.assertIn('test "$GITHUB_SHA" = "$EXPECTED_SHA"', text)
+        self.assertIn('test "$LIVE_SHA" = "$EXPECTED_SHA"', text)
+        self.assertIn("contents: read", text)
+        self.assertIn("actions: read", text)
+
+
 if __name__ == "__main__":
     unittest.main()
