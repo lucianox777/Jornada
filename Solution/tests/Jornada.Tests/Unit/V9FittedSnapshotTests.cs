@@ -228,6 +228,63 @@ public sealed class V9FittedSnapshotTests
         };
     }
 
+
+    [Test]
+    public void Gold_diagnostic_variant_preserves_four_unit_tf_and_original_fit_bytes()
+    {
+        // Only a V3, TRAIN-fitted, BLIND snapshot is eligible for a Gold
+        // diagnostic. No TF, m/u, blocking pass, prior or threshold is refitted.
+        var payload = FourUnitTfPayload();
+        var levels = Enum.GetValues<CompositeNominalLevelV9>();
+        var observed = levels.SelectMany(person => levels.Select(mother =>
+            new V9JointObservedCell(person, mother, 1, 1))).ToArray();
+        var estimated = V9JointSupportEstimation.Estimate(observed,
+            new V9JointSupportPolicy(.99m, 0, 0), 1m, payload.TrainCorpusSha256);
+        var blind = V9FittedSnapshot.Create(payload with
+        {
+            SchemaVersion = V9FittedSnapshot.SupportSchemaVersion,
+            JointCells = estimated.Probabilities,
+            JointSupport = estimated.Provenance,
+            CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16)
+        });
+
+        var gold = blind.CreateGoldHarnessVariant();
+        var reloaded = V9FittedSnapshot.Load(gold.SerializeUtf8(), gold.ContentSha256);
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, "ANA COSTA");
+        var candidate = new V9SnapshotCandidate(Guid.NewGuid(), "MARIA SILVA", null, "ANA COSTA");
+        var before = blind.RankPreview(observation, [candidate]).Single();
+        var after = reloaded.RankPreview(observation, [candidate]).Single();
+
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(gold.ContentSha256, Is.Not.EqualTo(blind.ContentSha256));
+            Assert.That(gold.Payload.GoldParentSnapshotSha256, Is.EqualTo(blind.ContentSha256));
+            Assert.That(gold.Payload.CandidateGrouping!.CandidateGrouping, Is.EqualTo("GOLD"));
+            Assert.That(gold.Payload.UnitTfCalibrations!.Count(x =>
+                x.State == V9SnapshotTfFitState.Active), Is.EqualTo(4));
+            Assert.That(System.Text.Json.JsonSerializer.Serialize(gold.Payload with
+            {
+                CandidateGrouping = blind.Payload.CandidateGrouping,
+                GoldParentSnapshotSha256 = null
+            }), Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(blind.Payload)));
+            Assert.That(after.LogOdds, Is.EqualTo(before.LogOdds));
+            Assert.That(after.Score, Is.EqualTo(before.Score));
+            Assert.That(reloaded.ContentSha256, Is.EqualTo(gold.ContentSha256));
+        }));
+
+        var newUpper = blind.CreateGoldHarnessVariantAtUpper(.85m);
+        Assert.That(newUpper.Payload.Threshold, Is.EqualTo(.85m));
+        Assert.That(newUpper.Payload.UnitTfCalibrations!.Count(x =>
+            x.State == V9SnapshotTfFitState.Active), Is.EqualTo(4));
+        // Neither a V2 snapshot nor an already converted Gold fit is an input.
+        var legacy = V9FittedSnapshot.Create(payload with
+        {
+            CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16)
+        });
+        Assert.Throws<InvalidDataException>((Action)(() => legacy.CreateGoldHarnessVariant()));
+        Assert.Throws<InvalidDataException>((Action)(() => gold.CreateGoldHarnessVariant()));
+    }
+
     [Test]
     public void Four_unit_tf_reuses_one_frozen_scorer_for_first_full_last_and_both_sides()
     {
