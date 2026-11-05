@@ -36,3 +36,21 @@ ORDER BY calibracao_versao_id DESC;
 Esta consulta deve ser executada **somente** na base autorizada após verificar o nome do banco e o ambiente; não atualiza, publica ou ativa qualquer modelo. Para a identidade do snapshot exato, o consumidor ainda deverá validar conteúdo, origem e SHA, não apenas a coluna `estado`.
 
 **Critério de conclusão desta PR:** permitir e testar a transformação experimental de V3 BLIND com TF ativa para GOLD, preservando integralmente o fit. **Não alegar que a V9 operacional está liberada ou que o TF ampliado passou no Gold físico.**
+
+
+## Comando de auditoria REF implementado nesta PR
+
+O worker expõe um comando **opt-in, somente leitura** para confrontar um modelo V9 portátil congelado (bytes e SHA externos) com a referência `ref.calibracao_inicial_versao` **de uma instância SQL autorizada**:
+
+```bash
+ConnectionStrings__Jornada='<conexao-SQL-com-permissoes-somente-leitura>' \
+dotnet Jornada.Linkage.Parameters.Worker.dll \
+  --v9-audit-ref-frozen-snapshot \
+  /evidencias/<sha>.fitted.json <sha256-do-fit> <codigo-exato-em-ref>
+```
+
+O comando valida o SHA/canonicalização do fit antes de acessar SQL e consulta, sem `INSERT`, `UPDATE`, `EXEC` ou carga automática: estado `PUBLICADA`, SHA **SQL UTF-16** de `resultados_json`, identidade/algoritmo de `identidade.modelo_linkage` vinculado e igualdade de `snapshot_referencia` com o SHA do fit solicitado. Os hashes SQL do JSON de resultados e o SHA UTF-8 do fit são objetos **distintos** e não devem ser identificados como iguais por dedução.
+
+A saída JSON não inclui nomes, observações, `resultados_json` nem parâmetros sensíveis e sempre marca `OperationallyCertified=false` / `ActivationAllowed=false`. Registros não publicados, sem vínculo, com hashes divergentes ou sem modelo V9 correspondente são **não conformes** (exit code 2, se o registro existe). A confirmação de metadados é apenas pré-requisito: não demonstra que todo o envelope V9 está instalado, nem permite retirar `RequireCertifiedOperationalAlgorithm`.
+
+Nenhuma instância SQL do usuário foi acessada nesta PR: o comando e seus testes unitários estão disponíveis para a execução sob autorização e credenciais somente leitura. O próprio usuário/operador deverá fornecer a string de conexão apropriada, em ambiente seguro.
