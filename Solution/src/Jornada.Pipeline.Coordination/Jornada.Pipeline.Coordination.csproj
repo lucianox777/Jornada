@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.14" />
     <ProjectReference Include="..\Jornada.Operational.Sql\Jornada.Operational.Sql.csproj" />
     <ProjectReference Include="..\Jornada.Contracts\Jornada.Contracts.csproj" />
     <PackageReference Include="Microsoft.Data.SqlClient" Version="7.1.1" />
