@@ -35,6 +35,14 @@ if (args.Length > 0 && args[0] == "--v9-frozen-transfer")
     return;
 }
 
+// Find the exact, possibly unpublished calibration record before choosing
+// a portable fit. SQL SELECT only; never launches a worker or runs training.
+if (args.Length > 0 && args[0] == "--v9-audit-ref-inventory")
+{
+    await V9RefInventoryCli.RunAsync(args);
+    return;
+}
+
 // Opt-in, read-only SQL REF calibration inventory matched against a pinned V9
 // portable fit. No host, fit, publication, or operational model activation.
 if (args.Length > 0 && args[0] == "--v9-audit-ref-frozen-snapshot")

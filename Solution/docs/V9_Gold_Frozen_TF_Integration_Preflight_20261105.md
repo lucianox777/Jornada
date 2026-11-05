@@ -68,3 +68,17 @@ dotnet Jornada.Linkage.Parameters.Worker.dll \
 Conferir `ContentSha256`, `blockingPasses`, `activeUnitTfCount`, `unitTf`, `jointCellCount=81`, `FitFingerprintSha256`, `Threshold`, `ConflictMargin`, `grouping` e `goldParentSnapshotSha256`. O comando SQL `--v9-audit-ref-frozen-snapshot` inclui o mesmo inventário em `frozenConfiguration` e, separadamente, o veredito de correspondência **apenas de metadados**. As flags de certificação e ativação são sempre falsas.
 
 É **erro de interpretação** declarar TF0 somente porque `TfWeight=0` quando `UnitTfCalibrations` possui unidades ativas. Também é erro contar o número de passes de um snapshot diferente do que será usado no Runner incremental.
+
+
+## Descoberta de referências já presentes no banco (somente leitura)
+
+O novo comando `--v9-audit-ref-inventory` consulta os **50 registros mais recentes** de `ref.calibracao_inicial_versao` e seus modelos associados, sem necessitar do código de calibração ou do caminho do fit de antemão:
+
+```bash
+ConnectionStrings__Jornada='<conexao-SQL-com-login-somente-SELECT>' \
+dotnet Jornada.Linkage.Parameters.Worker.dll --v9-audit-ref-inventory
+```
+
+A saída `V9_REF_CALIBRATION_INVENTORY_READONLY_V1` apresenta código, origem, estado, algoritmo, `modelo_id`, `corpus_sha256`, hash SQL conferido do JSON de resultados, e eventual hash declarado no modelo. **Não retorna `resultados_json` e não escolhe o modelo.** Um registro com metadados correspondentes é classificado como `V9_METADATA_PRESENT_FIT_SHA_NOT_YET_VERIFIED`, jamais certificado. Executar depois a comparação do fit por bytes/SHA fixados com `--v9-audit-ref-frozen-snapshot` e, em seguida, o ensaio físico incremental com os parâmetros inalterados. Caso não haja linhas, o inventário sinaliza ausência (exit code 2).
+
+O código SQL só faz `SELECT`; `ApplicationIntent=ReadOnly` não substitui as **credenciais SQL com permissão somente leitura**, nem autoriza conexão a produção. Este incremento não publica calibração, não materializa modelo híbrido, não ativa DT-15 e não altera a definição de 30k manual.
