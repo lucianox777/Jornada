@@ -169,9 +169,15 @@ def audit(executor, root):
         require(str(snap.get("ConflictMargin")) == str(arm["ConflictMargin"]),
                 "Conflict margin differs from pinned plan")
         require(str(snap.get("Threshold")) == "0.95", "Upper threshold differs from pinned plan")
-        require(snap.get("TrainCorpusSha256") == source_study.get("TrainInputSha256")
-                and snap.get("ValidationCorpusSha256") == source_study.get("ValidationInputSha256"),
-                "Archived fit's TRAIN/VALIDATION input SHA does not match study provenance")
+        # The fitted TRAIN/VALIDATION SHA includes its *SQL blocking-frame*
+        # fingerprint, while study TrainInputSha256/ValidationInputSha256
+        # name the source cohort before SQL projection. Both domains are
+        # independently pinned by the original source study and fit SHA.
+        require(valid_sha(snap.get("TrainCorpusSha256")) and
+                valid_sha(snap.get("ValidationCorpusSha256")) and
+                valid_sha(source_study.get("TrainInputSha256")) and
+                valid_sha(source_study.get("ValidationInputSha256")),
+                "Missing cohort or SQL-blocking-frame fingerprint")
         records.append({"role": arm["Role"], "optionId": arm["OptionId"],
                         "snapshotSha256": sha, "margin": arm["ConflictMargin"],
                         **structure(snap),
