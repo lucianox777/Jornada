@@ -236,6 +236,15 @@ jobs:
         run: |
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Prove original and explicit V2 JSON plans have IDENTICAL CSharp effective semantics (no SQL)
+        if: inputs.replay_frozen_v2 == true
+        working-directory: Solution
+        run: |
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-compare-calibration-plans \
+            data/calibration/v9/v2-one-mf-frozen/plan.json \
+            data/calibration/v9/v2-one-mf-frozen/plan-effective.json \
+            b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8
       - name: Rebuild SQL IBGE and 30k corpus using the identical preflight preparation
         working-directory: Solution
         run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" reconstructed-ibge.json
@@ -263,6 +272,7 @@ jobs:
           if [[ "$REPLAY_FROZEN_V2" == "true" ]]; then
             python3 scripts/v9-v2-frozen-bootstrap.py prepare \
               --plan data/calibration/v9/v2-one-mf-frozen/plan.json \
+              --effective-plan data/calibration/v9/v2-one-mf-frozen/plan-effective.json \
               --references data/reference/v9-frozen-artifacts/references.json \
               --observations "$root/people-30k/observacoes.csv" \
               --generation-manifest "$root/people-30k/generation-manifest.json" \
