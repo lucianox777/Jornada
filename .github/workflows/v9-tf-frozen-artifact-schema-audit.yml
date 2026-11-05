@@ -92,13 +92,13 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest Solution/tests/scripts/test_v9_calibration_evidence_bundle.py -v
-          python3 Solution/scripts/v9-calibration-evidence-bundle.py build \\
-            --source-dir "$RUNNER_TEMP/v9-tf-frozen-source" \\
-            --references Solution/data/reference/v9-frozen-artifacts/references.json \\
-            --model-key V2_ONE_MF_original \\
+          python3 Solution/scripts/v9-calibration-evidence-bundle.py build \
+            --source-dir "$RUNNER_TEMP/v9-tf-frozen-source" \
+            --references Solution/data/reference/v9-frozen-artifacts/references.json \
+            --model-key V2_ONE_MF_original \
             --out-dir "$RUNNER_TEMP/v9-calibration-evidence-v2"
-          python3 Solution/scripts/v9-calibration-evidence-bundle.py verify \\
-            --bundle-dir "$RUNNER_TEMP/v9-calibration-evidence-v2" \\
+          python3 Solution/scripts/v9-calibration-evidence-bundle.py verify \
+            --bundle-dir "$RUNNER_TEMP/v9-calibration-evidence-v2" \
             --references Solution/data/reference/v9-frozen-artifacts/references.json
           python3 - "$RUNNER_TEMP/v9-calibration-evidence-v2" >> "$GITHUB_STEP_SUMMARY" <<'PY'
           import hashlib,json,sys
