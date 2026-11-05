@@ -53,6 +53,23 @@ public static class V9SyntheticObservationCapEvidence
         // independence after candidate competition. No selector gate is opened.
     }
 
+    /// <summary>
+    /// Population from an already SHA-authenticated generation manifest.
+    /// Calibration size is declared per study, never fixed to the historical 30k.
+    /// Call only after ValidateManifest has bound these bytes to the plan.
+    /// </summary>
+    public static int ReadPinnedPopulationCount(ReadOnlySpan<byte> manifestBytes)
+    {
+        using var document = JsonDocument.Parse(manifestBytes.ToArray());
+        var root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("people", out var value)
+            || value.ValueKind != JsonValueKind.Number
+            || !value.TryGetInt32(out var people) || people <= 0)
+            throw new InvalidDataException("Manifesto de calibração sem total válido de pessoas-base.");
+        return people;
+    }
+
     private static bool IsSha(string value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
     private static bool Equal(string? left, string? right) => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 }
