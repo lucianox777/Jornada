@@ -3,14 +3,18 @@ name: v9-tf-frozen-artifact-schema-audit
 # Pulls only the EXISTING pinned TF-001 artifact and checks metadata + SHA.
 # No SQL, no 30k run, no model training, no TEST, no DT-15 or production.
 on:
-  push:
-    branches:
-      - feat/v9-gold-frozen-tf-diagnostic-20261105
+  pull_request:
     paths:
       - '.github/workflows/v9-tf-frozen-artifact-schema-audit.yml'
       - 'Solution/scripts/v9-tf-frozen-source-schema-audit.py'
       - 'Solution/tests/scripts/test_v9_tf_frozen_source_schema_audit.py'
       - 'Solution/data/reference/v9-tf-seed43-frozen-transfer/executor.json'
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Exact 40-character branch SHA (manual audit; never use stale evidence)'
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -29,10 +33,22 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
-      - name: Verify branch/commit and local audit unit tests
+      - name: Verify PR merge checkout or exact manual branch HEAD; run audit tests
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          if [[ "$GITHUB_EVENT_NAME" == 'workflow_dispatch' ]]; then
+            [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+            [[ "$GITHUB_REF" == refs/heads/* ]]
+            test "$GITHUB_SHA" = "$EXPECTED_SHA"
+            LIVE_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/${GITHUB_REF#refs/heads/}" --jq '.object.sha')"
+            test "$LIVE_SHA" = "$EXPECTED_SHA"
+          else
+            test "$GITHUB_EVENT_NAME" = 'pull_request'
+          fi
           python3 -m unittest Solution/tests/scripts/test_v9_tf_frozen_source_schema_audit.py -v
       - name: Retrieve only the previously recorded Actions artifact
         env:
