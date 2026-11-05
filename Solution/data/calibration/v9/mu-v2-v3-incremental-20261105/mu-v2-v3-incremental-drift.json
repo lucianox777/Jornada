@@ -1,0 +1,69 @@
+{
+  "schema": "V9_MU_V2_V3_INCREMENTAL_DRIFT_OBSERVATIONAL_V1",
+  "sources": {
+    "historicalV3Snapshot": "8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc",
+    "historicalComparisonSha256": "362311738ccb47a0018cb03db134e9dca4d48b1474c2a1712143006e4b4875f7",
+    "currentReportSha256": "f418874fd595ba3959080eb651becebe8fe2222ed6d4663cb8343bd0dc5eecb3",
+    "currentPlanSha256": "593ad66a287824aa48c2c3fd1057d11d2a1a8bead27934a049469e06eb191dc6",
+    "currentActionRunId": 42120197234,
+    "currentHeadSha": "4d5718e57f33db6d506cfce929230ca6069a1602"
+  },
+  "samples": {
+    "historicalValidationEligibleSources": 7918,
+    "currentTrainSelectionEligibleSources": 7011,
+    "matchedAcrossExperiments": false,
+    "historicalValidationIdentityBases": 5521,
+    "historicalAffectedBaseIdentities": 30,
+    "historicalImprovedBaseIdentities": 15,
+    "historicalWorsenedBaseIdentities": 15
+  },
+  "pairedComparisons": {
+    "historicalV3minusV2": {
+      "deltaTP": -4,
+      "deltaFP": 0,
+      "gainTP": 22,
+      "lossTP": -26
+    },
+    "currentV3minusV2": {
+      "deltaTP": 69,
+      "deltaFP": 0,
+      "perBaseDeltasAvailable": false
+    }
+  },
+  "same": {
+    "blockingPassCount": 3,
+    "blockingExactPasses": true,
+    "alpha": 0.5,
+    "threshold": 0.95,
+    "conflictMargin": 0.5,
+    "nominalCells": 81,
+    "classMassCoverage": 0.99,
+    "minimumM": 5,
+    "minimumU": 5,
+    "retainSupportedTail": true
+  },
+  "differences": {
+    "historicalTrainM": 19896,
+    "historicalTrainU": 26378,
+    "currentTrainM": 13997,
+    "currentTrainU": 13472,
+    "priorHistoricalFromSnapshot": 0.4299621826039978,
+    "priorCurrentReconstructedFromCodeNotSnapshot": 0.509555879140881,
+    "priorDeltaPercentagePoints": 7.959369653688314,
+    "priorOddsMultiplier": 1.377449525081497,
+    "priorLogOddsDelta": 0.3202336189645065,
+    "historicalPosteriorCutoffEquivalentToCurrent0_95IfEverythingElseFixed": 0.9324032419569451,
+    "historicalTfUnpublishedTermPolicy": 1,
+    "currentTfUnpublishedTermPolicyImplicit": 0,
+    "termPolicyImpactMeasured": false,
+    "trainM81CellTotalVariation": 0.007388459282402933,
+    "trainU81CellTotalVariation": 0.006326193335012992
+  },
+  "notes": [
+    "Causal contribution of each difference has NOT been measured.",
+    "The prior of the current run was RECONSTRUCTED from the C# formula and physical M/U counts, not read from a current fitted snapshot.",
+    "Cross-campaign source observations and splits differ, so raw TP totals are not comparable.",
+    "Automatic technical TRAIN seed42 is permissible; independent scientific confirmation requires explicit manual LOCKED protocol.",
+    "No new SQL execution or activation was performed by this diagnostic."
+  ]
+}
