@@ -187,13 +187,26 @@ def invocation_contract(repo, source, trial):
 # ------------------------------------------------------ evidence and status
 
 def physical_evidence(runs, workflow_path, sha, branch, require_mode=None):
-    """Fail-closed reuse: only a successful workflow_dispatch run of the given
-    workflow on the SAME branch and SAME head SHA counts."""
-    hits = [r for r in runs
-            if r.get("path") == workflow_path and r.get("event") == "workflow_dispatch"
-            and r.get("head_sha") == sha and r.get("head_branch") == branch
-            and r.get("conclusion") == "success"
-            and (require_mode is None or r.get("mode") == require_mode)]
+    """Only finished same-SHA evidence counts. The probe accepts PR auto 30k
+    when BOTH the physical job and its stable success gate passed, never a
+    skipped job or a generic green PR workflow. Other workflows remain manual.
+    """
+    def valid(r):
+        if (r.get("path") != workflow_path or r.get("head_sha") != sha
+                or r.get("head_branch") != branch or r.get("conclusion") != "success"
+                or r.get("status") not in (None, "completed")):
+            return False
+        if r.get("event") == "workflow_dispatch":
+            return require_mode is None or r.get("mode") == require_mode
+        return (r.get("event") == "pull_request"
+                and workflow_path.endswith("/v9-physical-seed42-probe.yml")
+                and require_mode in (None, "execute_30k")
+                and r.get("mode") == "auto_30k"
+                and r.get("physical_job") == "success"
+                and r.get("stable_gate") == "success"
+                and r.get("same_repository_branch") is True)
+
+    hits = [r for r in runs if valid(r)]
     return sorted(hits, key=lambda r: r["id"])[-1] if hits else None
 
 
@@ -220,7 +233,7 @@ def front_status(front, checks, runs):
     if pending:
         blockers.append("CI pending: " + ", ".join(pending))
     for k in missing:
-        blockers.append(f"manual physical evidence missing at exact SHA: {k}")
+        blockers.append(f"verified physical evidence missing at exact SHA: {k}")
     return {
         "front": front["id"], "pr": front.get("pr"), "branch": branch, "sha": sha,
         "ci": "FAILED" if failed else "PENDING" if pending else "GREEN",
@@ -284,16 +297,34 @@ def collect(fronts_path, results_dir=None):
     shas = {f["sha"] for f in fronts}
     runs = []
     for wf in sorted({n["workflow"] for f in fronts for n in f.get("physical", [])}):
-        for r in _gh(f"actions/workflows/{Path(wf).name}/runs?event=workflow_dispatch&per_page=100")["workflow_runs"]:
-            if r["head_sha"] not in shas:
-                continue
-            mode = None
-            if wf.endswith("v9-physical-seed42-probe.yml"):
-                jobs = {j["name"]: j["conclusion"] for j in _gh(f"actions/runs/{r['id']}/jobs")["jobs"]}
-                mode = "execute_30k" if jobs.get("V9 full physical 30k SQL TRAIN (when impacted)") == "success" else "preflight"
-            runs.append({"id": r["id"], "path": wf, "event": r["event"], "head_sha": r["head_sha"],
-                         "head_branch": r["head_branch"], "conclusion": r["conclusion"], "mode": mode,
-                         "started": r.get("run_started_at"), "updated": r.get("updated_at")})
+        probe = wf.endswith("/v9-physical-seed42-probe.yml")
+        events = ("workflow_dispatch", "pull_request") if probe else ("workflow_dispatch",)
+        for event in events:
+            for r in _gh(f"actions/workflows/{Path(wf).name}/runs?event={event}&per_page=100")["workflow_runs"]:
+                if r["head_sha"] not in shas or r.get("event") != event:
+                    continue
+                mode = None
+                physical = None
+                stable = None
+                if probe:
+                    jobs = {j["name"]: (j.get("status"), j.get("conclusion"))
+                            for j in _gh(f"actions/runs/{r['id']}/jobs?per_page=100")["jobs"]}
+                    physical = "success" if jobs.get("V9 full physical 30k SQL TRAIN (when impacted)") == ("completed", "success") else None
+                    stable = "success" if jobs.get("SQL físico 30k clean — FS blind Rank-Resolve TF0") == ("completed", "success") else None
+                    if event == "workflow_dispatch":
+                        mode = "execute_30k" if physical else "preflight"
+                    else:
+                        mode = "auto_30k" if physical and stable else "incomplete_auto_30k"
+                # Automatic PR evidence must originate in this repository,
+                # not an untrusted fork with an identical displayed branch name.
+                from_same_repo = (event == "pull_request"
+                                  and r.get("head_repository", {}).get("full_name") == __import__("os").environ["GITHUB_REPOSITORY"])
+                runs.append({"id": r["id"], "path": wf, "event": event, "head_sha": r["head_sha"],
+                             "head_branch": r["head_branch"], "conclusion": r["conclusion"],
+                             "status": r.get("status"), "mode": mode,
+                             "physical_job": physical, "stable_gate": stable,
+                             "same_repository_branch": from_same_repo,
+                             "started": r.get("run_started_at"), "updated": r.get("updated_at")})
     results = {}
     if results_dir:
         for path in sorted(Path(results_dir).rglob("*.json")):
