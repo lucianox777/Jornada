@@ -17,6 +17,12 @@ public static class V9FrozenJointTrainingDerivationCli
 {
     public const string Flag = "--v9-derive-joint-v3-from-frozen-train";
     public const string Version = "V9_FROZEN_TRAIN_JOINT_V3_TRIAL_DERIVATION_V1";
+    private static readonly JsonSerializerOptions StrictJson = new()
+    {
+        UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
+    };
+    private static readonly JsonSerializerOptions PrettyJson = new() { WriteIndented = true };
+
 
     private static string Sha(ReadOnlySpan<byte> bytes) =>
         Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
@@ -110,9 +116,7 @@ public static class V9FrozenJointTrainingDerivationCli
         var policyBytes = await File.ReadAllBytesAsync(args[5]);
         if (Sha(policyBytes) != args[6])
             throw new InvalidDataException("Política de suporte não confere com SHA explícito.");
-        var policy = JsonSerializer.Deserialize<V9JointSupportPolicy>(policyBytes,
-            new JsonSerializerOptions { UnmappedMemberHandling =
-                System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow })
+        var policy = JsonSerializer.Deserialize<V9JointSupportPolicy>(policyBytes, StrictJson)
             ?? throw new InvalidDataException("Política V3 ausente.");
 
         using var study = JsonDocument.Parse(studyBytes);
@@ -165,7 +169,7 @@ public static class V9FrozenJointTrainingDerivationCli
             status = "NEW_V3_TRAIN_ONLY_CANDIDATE_NOT_ORIGINAL_FIT"
         };
         await File.WriteAllTextAsync(Path.Combine(dest, "derivation-receipt.json"),
-            JsonSerializer.Serialize(receipt, new JsonSerializerOptions { WriteIndented = true }));
+            JsonSerializer.Serialize(receipt, PrettyJson));
         Console.WriteLine(JsonSerializer.Serialize(receipt));
     }
 }
