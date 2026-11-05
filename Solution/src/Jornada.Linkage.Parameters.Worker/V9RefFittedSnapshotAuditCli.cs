@@ -115,6 +115,7 @@ public static class V9RefFittedSnapshotAuditCli
             snapshotSchema = snapshot.Payload.SchemaVersion,
             blockingPassCount = snapshot.Payload.BlockingPasses.Count,
             activeTfUnits = snapshot.Payload.UnitTfCalibrations?.Count(x => x.State == V9SnapshotTfFitState.Active) ?? 0,
+            frozenConfiguration = V9FittedSnapshotArtifact.DescribeFrozenConfiguration(snapshot),
             referenceResultsHashSha256 = row.StoredResultsSha256,
             verdict,
             limitations = "SQL REF result JSON is NOT the portable fit; matching metadata is not full binding, statistical certification or DT-15 activation."
