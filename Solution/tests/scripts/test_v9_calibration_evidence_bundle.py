@@ -197,7 +197,7 @@ class V9CalibrationEvidenceBundleTests(unittest.TestCase):
     def test_csharp_canonical_pass_reordering_is_not_parameter_drift(self):
         self.fitted["BlockingPasses"] += [
             {"PassId": "P_MOTHER", "Fields": ["mother_last", "first"]}]
-        self.plan["BaselineRuleSets"] = [list(reversed(self.fitted["BlockingPasses"]))]
+        self.plan["BaselineRuleSets"] = [json.loads(json.dumps(list(reversed(self.fitted["BlockingPasses"]))))]
         self.refresh_sources()
         self.make()
         # A changed attribute is NOT pass canonicalization and must fail closed.
