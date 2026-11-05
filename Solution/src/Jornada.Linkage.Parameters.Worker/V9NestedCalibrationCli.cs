@@ -136,6 +136,8 @@ public static class V9NestedCalibrationCli
             // Each of the 81 mutually exclusive M/U states is independently
             // auditable, even for DEFAULT/V2 without a V3 JointSupport payload.
             observedSupportAudit = e.Candidate?.Support,
+            candidatePriorTrainingAudit = e.Candidate?.PriorDiagnostic,
+            fittedPairPrior = e.Candidate?.Snapshot.Payload.Parameters[LinkageParameterCatalog.PriorMatchProbability],
             estimatorJointSupport = e.Candidate?.Snapshot.Payload.JointSupport,
             blockingPasses = e.Candidate?.Snapshot.Payload.BlockingPasses,
             threshold = e.Candidate?.Snapshot.Payload.Threshold,

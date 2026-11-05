@@ -371,7 +371,8 @@ public static class V9NestedCalibrationCoordinator
                         || measured.Metric.Conflicts != metric.Conflicts || measured.Metric.Unresolved != metric.Unresolved)
                         throw new InvalidDataException("Fit e replay congelado divergem no TRAIN_SELECTION.");
                 }
-                result.Add(new(request.Sha, batch, new(fit.Snapshot, metric, support, p95, fanout, reasons.AsReadOnly()),
+                result.Add(new(request.Sha, batch, new(fit.Snapshot, metric, support, p95, fanout,
+                    reasons.AsReadOnly(), run.TrainCandidatePriorDiagnostic),
                     reasons.AsReadOnly(),
                     OptionId: plan.MuEstimationMethods is null ? null : request.Option.OptionId,
                     ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
