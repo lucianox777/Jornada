@@ -22,6 +22,14 @@ if (args.Length > 0 && args[0] is "--v9-calibrate" or "--v9-validate-finalists")
     return;
 }
 
+// Read-only parity: the source V2 plan and its explicit-default configuration
+// must deserialize to exactly the same effective CSharp calibration parameters.
+if (args.Length > 0 && args[0] == "--v9-compare-calibration-plans")
+{
+    await V9CalibrationPlanParityCli.RunAsync(args);
+    return;
+}
+
 if (args.Length > 0 && args[0] is "--v9-adaptive-study" or "--v9-adaptive-census")
 {
     await V9AdaptiveCalibrationStudyCli.RunAsync(args);

@@ -1,0 +1,1863 @@
+{
+  "StudyFingerprintSha256": "67bf2bfcd38547b53f49b8c1af0344bf8cef9a881c0b8dee801a50c109e4ce0b",
+  "Discovery": {
+    "MaximumPrefixLength": 4,
+    "NonMatchSampleSize": 100000,
+    "NonMatchSampleSeed": 20261019,
+    "SearchOptions": {
+      "MaxFieldsPerPass": 2,
+      "MaxPasses": 2,
+      "PrimitivePoolSize": 16,
+      "MinimumTrueMatchRecall": 0.95,
+      "RequireObservedNonMatchSupport": true,
+      "CandidateRuleSetCap": 100000,
+      "RequireExhaustivePrimitivePool": false
+    },
+    "PositivePairCap": 2000000,
+    "PairSamplingAttemptCap": 10000000
+  },
+  "ModelOptions": [
+    {
+      "OptionId": "T0.95_TF0",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "UnitTfOptions": null,
+      "SharedSurnameMode": 0,
+      "UnpublishedTermPolicy": 0
+    },
+    {
+      "OptionId": "TF_ONE_PF_W0.5_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_PF_W0.5_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_PF_W1_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_PF_W1_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_PL_W0.5_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_PL_W0.5_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_PL_W1_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_PL_W1_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_MF_W0.5_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_MF_W0.5_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_MF_W1_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_MF_W1_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_ML_W0.5_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_ML_W0.5_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 1
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_ML_W1_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_ONE_ML_W1_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 1
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_PL_W0.5_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_PL_W0.5_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_PL_W1_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_PL_W1_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_MF_W0.5_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_MF_W0.5_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_MF_W1_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_MF_W1_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_ML_W0.5_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_ML_W0.5_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 1
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_ML_W1_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PF_ML_W1_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 1
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PL_MF_W0.5_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PL_MF_W0.5_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PL_MF_W1_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PL_MF_W1_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PL_ML_W0.5_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PL_ML_W0.5_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 1
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PL_ML_W1_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_PL_ML_W1_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 1
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_MF_ML_W0.5_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_MF_ML_W0.5_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 1
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_MF_ML_W1_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 0
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_TWO_MF_ML_W1_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 1
+        }
+      ],
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": true,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null,
+      "SharedSurnameMode": 0
+    },
+    {
+      "OptionId": "TF_SHARED_PL_ML_W0.5_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 0
+        }
+      ],
+      "SharedSurnameMode": 1,
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": false,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null
+    },
+    {
+      "OptionId": "TF_SHARED_PL_ML_W0.5_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 0.5,
+          "Mode": 1
+        }
+      ],
+      "SharedSurnameMode": 1,
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": false,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null
+    },
+    {
+      "OptionId": "TF_SHARED_PL_ML_W1_M0_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 0
+        }
+      ],
+      "SharedSurnameMode": 1,
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": false,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null
+    },
+    {
+      "OptionId": "TF_SHARED_PL_ML_W1_M1_A0.5_T0.95",
+      "SmoothingAlpha": 0.5,
+      "DecisionThreshold": 0.95,
+      "TfWeight": 0,
+      "UnitTfOptions": [
+        {
+          "Side": 0,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 0,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 1
+        },
+        {
+          "Side": 1,
+          "Unit": 2,
+          "Weight": 0,
+          "Mode": 0
+        },
+        {
+          "Side": 1,
+          "Unit": 3,
+          "Weight": 1.0,
+          "Mode": 1
+        }
+      ],
+      "SharedSurnameMode": 1,
+      "UnpublishedTermPolicy": 1,
+      "EligibleForSelection": false,
+      "TfSide": 0,
+      "TfMinimumFrequency": 0.000001,
+      "TfMinimumIndependentSupport": 1,
+      "JointSupportPolicy": null
+    }
+  ],
+  "ConflictMargins": [
+    0.5,
+    2,
+    4
+  ],
+  "Budget": {
+    "Version": "ADAPTIVE_CALIBRATION_PREVIEW_BUDGET_V1",
+    "StudyFingerprintSha256": "67bf2bfcd38547b53f49b8c1af0344bf8cef9a881c0b8dee801a50c109e4ce0b",
+    "MinimumGlobalAcceptedRecall": 0.95,
+    "MaximumObservedAcceptedFdrPoint": 0.01,
+    "MaximumBlockingFalseDegreeP99": 100,
+    "MinimumValidationIdentityGroups": 1000
+  },
+  "SelectionPolicy": {
+    "MinimumGlobalRecall": 0.95,
+    "MaximumAcceptedFdrUpper": 0.01,
+    "MinimumIndependentIdentityGroups": 1000,
+    "MaximumP95Milliseconds": 60000
+  },
+  "MaximumPhysicalRuleSets": 1,
+  "MaximumComparedConfigurations": 3861,
+  "BaselineRuleSets": [
+    [
+      {
+        "PassId": "P_PHON_M_LAST",
+        "Fields": [
+          "name_phonetic_ptbr",
+          "mother_name_last"
+        ]
+      },
+      {
+        "PassId": "P_LAST_M_PHON",
+        "Fields": [
+          "name_last",
+          "mother_name_phonetic_ptbr"
+        ]
+      },
+      {
+        "PassId": "P_FIRST_BIRTH_YEAR",
+        "Fields": [
+          "name_first",
+          "birth_year"
+        ]
+      }
+    ]
+  ],
+  "PreviouslyComparedValidationConfigurations": 3726,
+  "Execution": {
+    "MaximumPrefixLength": 4,
+    "EndToEndRepetitions": 0,
+    "FsBlindGroupingOnly": true,
+    "MaximumBlindClusterSize": 16,
+    "MaximumCandidatePairIncidences": 1000000,
+    "MaximumProjectedSignatures": 1000000,
+    "TotalComparedConfigurations": null
+  },
+  "MinimumGroupingPosterior": 0.99,
+  "MaximumAcceptedPerBaseIdentity": 4,
+  "ObservationCapDeclaration": {
+    "ContractVersion": "SYNTHETIC_BASE_OBSERVATION_MULTIPLICITY_V1",
+    "GeneratorVersion": "JORNADA_SYNTH_CORPUS_CSHARP_V1",
+    "MaximumObservationsPerBaseIdentity": 4,
+    "ManifestSha256": "2f6ed064113d4e58b01d013b5c0a3ed99de098fbae4ba7910d0d62b33168e613",
+    "ObservationsSha256": "28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17"
+  },
+  "ExploratoryRiskPreference": {
+    "FdrUpperTolerancePp": 0.05
+  },
+  "DeclaredSearchSpace": {
+    "Catalogue": [
+      {
+        "PassId": "P_PHON_M_LAST",
+        "Fields": [
+          "name_phonetic_ptbr",
+          "mother_name_last"
+        ]
+      },
+      {
+        "PassId": "P_LAST_M_PHON",
+        "Fields": [
+          "name_last",
+          "mother_name_phonetic_ptbr"
+        ]
+      },
+      {
+        "PassId": "P_FIRST_BIRTH_YEAR",
+        "Fields": [
+          "name_first",
+          "birth_year"
+        ]
+      }
+    ],
+    "MinimumPasses": 3,
+    "MaximumPasses": 3
+  },
+  "PinnedIbgeReferenceVersionId": 1,
+  "PinnedIbgePublishedSha256": "E3CC61BCC7FCA353BB134EE32DE4AA50A8DA708827EAC3750EFC0E6EBCA5E885",
+  "PinnedIbgeMaterializedFrequencySha256": "89211544D4C97236F34B165BF35E5A130063C11679EFFB7985BF003105B19243",
+  "PinnedIbgeBootstrap": {
+    "Provenance": "SINTETICO_IBGE",
+    "People": 30000,
+    "CorpusFingerprint": "75171eedd0bab7c4d19c7cb37dc620ee0e249199a406f4c8a9dfac51839add13",
+    "GeneratorVersion": "JORNADA_SYNTH_CORPUS_CSHARP_V1",
+    "GeneratorSeed": 42,
+    "GenerationHypothesesFingerprint": "2f6ed064113d4e58b01d013b5c0a3ed99de098fbae4ba7910d0d62b33168e613"
+  },
+  "MaximumParallelRuleSets": 1,
+  "RiskCeilings": null,
+  "SampleDesign": null,
+  "CollapseEquivalentCandidateFrames": false,
+  "ShardIndex": 0,
+  "ShardCount": 1
+}
