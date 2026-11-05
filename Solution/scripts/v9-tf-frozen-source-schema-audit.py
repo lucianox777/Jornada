@@ -73,6 +73,67 @@ def structure(snapshot):
     }
 
 
+
+
+def archived_train_joint_support(study, sha):
+    """Audit observed TRAIN pair counts; do NOT infer counts from smoothed m/u.
+
+    The original physical runner stores V9FittedJointSupportAudit.Report alongside
+    every fitted snapshot in study.json. Its distinct M/U *pairs* are not iid
+    people and cannot establish clinical or population FDR certification.
+    """
+    rows = study.get("FrozenConfigurations")
+    require(isinstance(rows, list) and rows, "Missing archived frozen configurations")
+    found = [r for r in rows if isinstance(r, dict) and isinstance(r.get("Snapshot"), dict)
+             and r["Snapshot"].get("ContentSha256") == sha]
+    require(len(found) == 1, "Pinned TF arm has no unique archived support receipt")
+    support = found[0].get("JointSupport")
+    if support is None:
+        return {"status": "NO_TRAIN_SUPPORT_RECEIPT", "rawObserved81Available": False}
+    require(isinstance(support, dict) and support.get("SnapshotSha256") == sha,
+            "TRAIN support snapshot binding mismatch")
+    alpha, tm, tu = (support.get("SmoothingAlpha"),
+                     support.get("TrainMPairs"), support.get("TrainUPairs"))
+    require(type(alpha) in (float, int) and alpha > 0
+            and type(tm) is int and tm >= 2 and type(tu) is int and tu >= 2,
+            "Invalid recorded TRAIN pair counts or smoothing")
+    cells = support.get("Cells")
+    require(isinstance(cells, list) and len(cells) == 81,
+            "Observed TRAIN joint table does not have 81 cells")
+    pairs, m_total, u_total = set(), 0, 0
+    for cell in cells:
+        require(isinstance(cell, dict), "Invalid observed TRAIN cell")
+        person, mother = cell.get("Person"), cell.get("Mother")
+        # Both .NET enum values and their explicit JSON string forms are accepted.
+        require(isinstance(person, (int, str)) and not isinstance(person, bool)
+                and isinstance(mother, (int, str)) and not isinstance(mother, bool),
+                "Invalid class-conditional nominal pair")
+        key = (person, mother)
+        require(key not in pairs, "Duplicated observed cell")
+        pairs.add(key)
+        m, u = cell.get("ObservedMPairs"), cell.get("ObservedUPairs")
+        require(type(m) is int and type(u) is int and m >= 0 and u >= 0,
+                "Negative or missing TRAIN cell support")
+        m_total += m
+        u_total += u
+    require(m_total == tm and u_total == tu, "Archived TRAIN support pair totals disagree")
+    require(support.get("IndependentIdentitySupportEstablished") is not True,
+            "Archived TRAIN support incorrectly asserts independent identities")
+    normalized = sorted([(str(c["Person"]), str(c["Mother"]),
+                          c["ObservedMPairs"], c["ObservedUPairs"]) for c in cells])
+    canonical = json.dumps(normalized, separators=(",", ":"), ensure_ascii=True).encode("ascii")
+    return {
+        "status": "RAW_TRAIN_81_PAIR_COUNTS_AUDITED_NOT_CERTIFIED",
+        "rawObserved81Available": True, "trainMPairs": tm, "trainUPairs": tu,
+        "smoothingAlpha": alpha, "trainJointCountsSha256": hashlib.sha256(canonical).hexdigest(),
+        "independentIdentitySupportEstablished": False,
+        "newJointFitComputed": False,
+        "thresholdOrTfAdjusted": False,
+        "requiresNewV3FitAndIndependentValidation": True,
+    }
+
+
+
 def audit(executor, root):
     require(executor.get("Version") == SOURCE_VERSION, "Unknown source executor version")
     require(executor.get("SourceRunId") == 41900357031, "Source run is not the pre-registered run")
@@ -86,6 +147,9 @@ def audit(executor, root):
             "Source calibration plan SHA differs")
     require(digest(root / "study-tf" / "study.json") == executor.get("SourceStudySha256"),
             "Source study SHA differs")
+    source_study = json.loads((root / "study-tf" / "study.json").read_bytes())
+    require(source_study.get("PlanSha256") == executor.get("SourcePlanTfSha256"),
+            "Source study does not belong to the pinned calibration plan")
     arms = executor.get("Arms")
     require(isinstance(arms, list) and len(arms) == 6, "Exactly six frozen arms required")
     records = []
@@ -102,9 +166,13 @@ def audit(executor, root):
         require(str(snap.get("ConflictMargin")) == str(arm["ConflictMargin"]),
                 "Conflict margin differs from pinned plan")
         require(str(snap.get("Threshold")) == "0.95", "Upper threshold differs from pinned plan")
+        require(snap.get("TrainCorpusSha256") == source_study.get("TrainInputSha256")
+                and snap.get("ValidationCorpusSha256") == source_study.get("ValidationInputSha256"),
+                "Archived fit's TRAIN/VALIDATION input SHA does not match study provenance")
         records.append({"role": arm["Role"], "optionId": arm["OptionId"],
                         "snapshotSha256": sha, "margin": arm["ConflictMargin"],
-                        **structure(snap)})
+                        **structure(snap),
+                        "recordedTrainJointSupport": archived_train_joint_support(source_study, sha)})
     primary = [x for x in records if x["role"] == "PRIMARY_TREATMENT"]
     require(len(primary) == 1 and primary[0]["optionId"] == "TF_ONE_MF_W1_M0_A0.5_T0.95"
             and primary[0]["margin"] == 0.5, "Missing predeclared primary ONE_MF")
@@ -140,6 +208,8 @@ def main():
                                     if x["role"] == "PRIMARY_TREATMENT"), ensure_ascii=False))
     print("GOLD_V3_TF_STRUCTURAL_ELIGIBILITY:",
           result["oneMfGoldTfV3DiagnosticStructurallyEligible"])
+    print("ONE_MF_TRAIN_JOINT_81:", json.dumps(next(x for x in result["models"]
+          if x["role"] == "PRIMARY_TREATMENT")["recordedTrainJointSupport"], ensure_ascii=False))
     print("NO_REFIT_NO_SQL_NO_TEST_NO_CERTIFICATION")
 
 
