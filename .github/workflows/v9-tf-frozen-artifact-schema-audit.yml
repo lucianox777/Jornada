@@ -10,6 +10,9 @@ on:
       - 'Solution/tests/scripts/test_v9_tf_frozen_source_schema_audit.py'
       - 'Solution/data/reference/v9-tf-seed43-frozen-transfer/executor.json'
       - 'Solution/scripts/v9-calibration-evidence-bundle.py'
+      - 'Solution/scripts/v9-v2-frozen-bootstrap.py'
+      - 'Solution/data/calibration/v9/v2-one-mf-frozen/plan.json'
+      - 'Solution/tests/scripts/test_v9_v2_frozen_bootstrap.py'
       - 'Solution/tests/scripts/test_v9_calibration_evidence_bundle.py'
       - 'Solution/docs/V9_Bundle_Evidencias_Calibracao_V2_20261105.md'
   workflow_dispatch:
@@ -65,13 +68,6 @@ jobs:
           test "$ACTUAL_SOURCE_SHA" = "$SOURCE_SHA"
           mkdir -p "$RUNNER_TEMP/v9-tf-frozen-source"
           gh run download "$RUN_ID" -R "$GITHUB_REPOSITORY" -n "$NAME" -D "$RUNNER_TEMP/v9-tf-frozen-source"
-      - name: Expose original pinned plan for one-time migration to tracked configuration
-        run: |
-          python3 - <<'PY'
-          import json, pathlib
-          p=pathlib.Path(__import__('os').environ['RUNNER_TEMP'])/'v9-tf-frozen-source'/'plan-tf.json'
-          print('JORNADA_FROZEN_PLAN_JSON_STRING_V1='+json.dumps(p.read_text(encoding='utf-8'),ensure_ascii=True))
-          PY
       - name: Audit SHA, V2/V3, TF state, 81 cells and passes; never use SQL
         shell: bash
         run: |
@@ -99,6 +95,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest Solution/tests/scripts/test_v9_calibration_evidence_bundle.py -v
+          python3 -m unittest Solution/tests/scripts/test_v9_v2_frozen_bootstrap.py -v
           python3 Solution/scripts/v9-calibration-evidence-bundle.py build \
             --source-dir "$RUNNER_TEMP/v9-tf-frozen-source" \
             --references Solution/data/reference/v9-frozen-artifacts/references.json \
