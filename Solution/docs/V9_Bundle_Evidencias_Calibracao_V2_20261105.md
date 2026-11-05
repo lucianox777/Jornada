@@ -49,3 +49,7 @@ Falha de SHA, arquivo ausente, JSON duplicado, TF incompleta, M/U inconsistente,
 ## Limite desta etapa
 
 Esta PR oferece ferramenta e testes de fixtures locais. A execução E2E contra os bytes originais de ~528 MB do run 41900357031 ainda depende de disponibilizar o artefato original no executor. Até lá, a presença de campos em V2 não está integralmente atestada e nenhum resultado de calibração deve ser alterado ou promovido.
+
+## Política de execução vigente — 05/11/2026
+
+O relatório de reprodução V2 do run 42087910027 permanece evidência imutável não confirmatória. O mecanismo transitório de autorização por arquivo de branch não integra este bundle nem deve ser usado para acionar workflows. PRs impactadas usam o gate técnico seed42 do workflow oficial #1285; novas campanhas científicas com seeds/hipóteses precisam de manifesto LOCKED e pedido manual. A paridade histórica não autoriza DT-15 ou TEST.

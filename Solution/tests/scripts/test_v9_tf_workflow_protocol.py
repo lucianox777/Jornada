@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static no-30k regression for the exact manual TF workflow dispatch protocol."""
+"""Static contract for impact-gated automatic 30k and optional manual dispatch."""
 import unittest
 from pathlib import Path
 
@@ -7,12 +7,17 @@ WORKFLOW = Path(__file__).resolve().parents[3] / ".github" / "workflows" / "v9-p
 
 
 class TfWorkflowProtocolTests(unittest.TestCase):
-    def test_manual_only_physical_job_uses_new_csharp_calibrator(self):
+    def test_automatic_or_manual_physical_job_uses_single_csharp_calibrator(self):
         script = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("--v9-adaptive-study", script)
         self.assertNotIn("--v9-calibrate", script)
         self.assertIn("inputs.mode == 'execute_30k'", script)
+        self.assertIn("github.event_name == 'pull_request'", script)
         self.assertIn("github.event_name == 'workflow_dispatch'", script)
+        self.assertIn("github.event.pull_request.head.sha", script)
+        self.assertIn("ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", script)
+        self.assertIn("SOURCE_REPO", script)
+        self.assertIn('test "$SOURCE_REPO" = "$GITHUB_REPOSITORY"', script)
         self.assertIn("--pinned-ibge", script)
         self.assertIn("pinned_ibge_json:", script)
         self.assertIn("expected_sha:", script)
@@ -31,6 +36,9 @@ class TfWorkflowProtocolTests(unittest.TestCase):
         self.assertIn("inputs.mode == 'preflight'", script)
         self.assertIn("--mode preflight", script)
         self.assertIn("--mode execute_30k", script)
+        self.assertIn("--mode auto_30k", script)
+        self.assertIn("--corpus-root", script)
+        self.assertIn("v9-tf-ref-provenance-gate.py", script)
         self.assertIn("--expected-sha", script)
         self.assertIn("JornadaHarness", script)
         self.assertIn("--people 30000", script)
@@ -42,9 +50,11 @@ class TfWorkflowProtocolTests(unittest.TestCase):
             script,
         )  # Only preflight skips the physical certification check.
         self.assertIn(
-            "if: github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k' && needs.impact.outputs.run_physical_30k == 'true'",
+            "if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))",
             script,
-        )  # Executing 30k still requires manual mode AND impacted physical gate.
+        )  # PRs may run 30k only for affected changes; manual mode retained.
+        self.assertIn('"$PHYSICAL_RESULT" == "success"', script)
+        self.assertNotIn("python3 Solution/scripts/v9_manual_probe_evidence.py", script)
 
 
 if __name__ == "__main__":

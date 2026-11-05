@@ -258,7 +258,7 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
     }
 
     [Test]
-    public void Heavy_v9_30k_is_explicit_dispatch_only_while_pr_impact_preflight_remains()
+    public void Heavy_v9_30k_auto_runs_only_for_impacted_prs_with_exact_sha_and_manual_fallback()
     {
         var workflow = File.ReadAllText(Path.Combine(Root(), ".github", "workflows",
             "v9-physical-seed42-probe.yml"));
@@ -269,8 +269,11 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
             Assert.That(workflow, Does.Contain("workflow_dispatch:"),
                 "The final physical gate must remain executable explicitly.");
             Assert.That(workflow, Does.Contain(
-                "if: github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k' && needs.impact.outputs.run_physical_30k == 'true'"),
-                "A PR update must never launch the expensive 30k physical job.");
+                "if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))"),
+                "30k must run automatically only on impacted PRs, or on explicit manual dispatch.");
+            Assert.That(workflow, Does.Contain("--mode auto_30k"));
+            Assert.That(workflow, Does.Contain("v9-tf-ref-provenance-gate.py"));
+            Assert.That(workflow, Does.Contain("github.event.pull_request.head.sha"));
             Assert.That(workflow, Does.Contain("name: V9 30k - classify impact"));
         }));
     }

@@ -22,18 +22,15 @@ Ambos passam pela mesma classe `V9AdaptiveCalibrationPlan`, pelo mesmo `Validate
 
 Para impedir adulteração do original, a ferramenta valida o SHA original contra o registro externo `Solution/data/reference/v9-frozen-artifacts/references.json`.
 
-## Nova calibração V2 somente por disparo manual
+## Evidência física histórica sem workflow excepcional
 
-No workflow `v9-physical-seed42-probe.yml` selecionar:
+A reprodução física já executada da V2, **run 42087910027 no SHA 51fcc50ef4d8eae92860a2e1574ded515d6cef54**, apresentou paridade do estudo com a referência V2 original (`study.json` SHA `7499ee63…`), nas 135 medições e no snapshot `8bdf08af…`. Seu estado de elegibilidade continua `NO_ELIGIBLE_CONFIGURATION`. Esses resultados são **históricos**, não mudam de commit nem de hash quando este código for integrado.
 
-- `mode=execute_30k`;
-- `replay_frozen_v2=true`;
-- `expected_sha` = commit exato da branch aprovada;
-- `pinned_ibge_json` = vazio, porque a referência deriva de `plan.json`.
+O workflow ad hoc `v9-v2-calibration-chat-approved-once.yml` e seu JSON declaratório de autorização **foram excluídos da integração**. Atestação produzida pelo próprio agente não equivale a autorização independente. Também não foi incorporada a variante `workflow_call` nem o parâmetro `replay_frozen_v2` ao workflow oficial `v9-physical-seed42-probe.yml`.
 
-Antes de executar o C# físico, o workflow recupera a campanha histórica para validar o plano original, o estudo e seus hashes; verifica que o único `plan.json` tem a mesma semântica efetiva do original; recria o corpus com seed 42 e valida os hashes de observações, manifesto e IBGE. O bootstrap `v9-v2-frozen-bootstrap.py` então copia **somente o `plan.json` versionado** para o diretório temporário de execução e invoca o Calibrador C# já existente por `--v9-adaptive-study`. Depois compara métricas, fits e opções com a execução histórica.
+A política vigente autoriza execução automática do **gate técnico de regressão 30k seed42** para PRs impactadas, conforme #1285. O gate oficial testa sua grade fixa; ele **não** reexecuta automaticamente este ensaio histórico V2 parametrizado. Para reproduzi-lo de novo, é necessária integração explícita ao fluxo oficial, com plano externo congelado, hashes e nova evidência no SHA exato, sem reutilizar `chat-approved-once`.
 
-O original baixado é **evidência**, não um segundo plano de configuração. Não há sobrescrita dos snapshots históricos, nem TEST, DT-15, publicação operacional ou execução de 30 mil automática por PR/push.
+O original baixado é evidência, não um segundo plano de configuração. A prova de paridade e o bundle permanecem disponíveis, sem sobrescrever snapshots, TEST, DT-15 ou publicação operacional. O run físico histórico da V2 é **evidência técnica não confirmatória**.
 
 ## Separação do bundle de calibração
 
@@ -41,4 +38,4 @@ O bundle de evidências continua com três componentes **funcionais** (plano, re
 
 ## Limites
 
-A igualdade tipada do C# prova que os defaults declarados reproduzem a configuração **efetiva** do original segundo o contrato atual. Não substitui a nova execução física nem, por si só, atesta integralmente qualquer constante interna de algoritmo não modelada no contrato C#. O dossiê de regressão deverá registrar os resultados físicos antes de declarar encerrada a reprodução. **Sem merge antes da autorização do responsável.**
+A igualdade tipada do C# prova que os defaults declarados reproduzem a configuração **efetiva** do original segundo o contrato atual. Não prova, isoladamente, constantes internas não modeladas. A execução física V2 histórica teve paridade; não estender sua evidência a outro SHA ou campanha científica. Integrar apenas após CI e gate físico da PR no SHA atual; publicação e ativação permanecem vedadas.

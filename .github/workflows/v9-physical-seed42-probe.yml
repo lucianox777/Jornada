@@ -2,22 +2,6 @@ name: v9-physical-seed42-probe
 
 on:
   pull_request:
-  # Reusable only for separately authorized one-shot chat approval workflow.
-  workflow_call:
-    inputs:
-      mode:
-        type: string
-        required: true
-      expected_sha:
-        type: string
-        required: true
-      pinned_ibge_json:
-        type: string
-        required: false
-        default: ''
-      replay_frozen_v2:
-        type: boolean
-        required: true
   workflow_dispatch:
     inputs:
       mode:
@@ -34,16 +18,10 @@ on:
         description: 'IBGE publicado fixado: versão, digests e bootstrap JSON'
         type: string
         required: false
-      replay_frozen_v2:
-        description: 'Somente execute_30k: usar o plano de configuração V2 exato do Git, não gerar os parâmetros no fonte'
-        type: boolean
-        required: false
-        default: false
 
-# Supersede obsolete automatic PR probes to prevent runner saturation.
-# Explicit manual dispatch and experiment/evidence branches are isolated by run_id
-# so governed scientific runs are never canceled by unrelated PR updates.
-# A canceled automatic probe is NOT evidence for certification of any SHA.
+# Automatically run the full 30k on impacted same-repository PRs (PO decision 05/11/2026).
+# Cancel obsolete PR runs only: evidence from a cancelled run is never accepted.
+# Explicit manual dispatch and experiment/evidence branches remain isolated by run_id.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}-${{ (startsWith(github.head_ref, 'experiment/') || startsWith(github.head_ref, 'evidence/') || startsWith(github.head_ref, 'exp/')) && github.run_id || 'latest' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && !(startsWith(github.head_ref, 'experiment/') || startsWith(github.head_ref, 'evidence/') || startsWith(github.head_ref, 'exp/')) }}
@@ -92,15 +70,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "push" ]]; then
-            # A push is accepted only by the dedicated one-shot reusable
-            # invocation after the authorization receipt was checked.
-            if [[ "$EVENT_NAME" == "push" ]]; then
-              test "$GITHUB_WORKFLOW" = "v9-v2-calibration-chat-approved-once" || {
-                echo "Unapproved push context cannot request physical calibration" >&2
-                exit 1
-              }
-            fi
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
             python3 Solution/scripts/v9-physical-impact-classifier.py --manual \
               --summary v9-physical-30k-impact.json --github-output "$GITHUB_OUTPUT"
           else
@@ -144,36 +114,6 @@ jobs:
           python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
             --mode preflight --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
             --output Solution/.local/v9-tf-physical/git-approved.json
-      - name: Recover authenticated historic V2 plan and study from original run (read-only)
-        if: inputs.replay_frozen_v2 == true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          ref=json.loads(Path('Solution/data/reference/v9-frozen-artifacts/references.json').read_text())
-          source=ref['artifacts']['seed42-source']
-          assert source['run_id']==41900357031
-          assert source['head_sha']=='935f704edd2bceb6a125ecfe532ad5b71f9c89b9'
-          PY
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/41900357031" --jq '.head_sha')" = "935f704edd2bceb6a125ecfe532ad5b71f9c89b9"
-          mkdir -p "$RUNNER_TEMP/v9-source-study"
-          gh run download 41900357031 -R "$GITHUB_REPOSITORY" \
-            -n v9-tf-45-physical-41900357031-935f704edd2bceb6a125ecfe532ad5b71f9c89b9 \
-            -D "$RUNNER_TEMP/v9-source-study"
-          python3 - <<'PY'
-          import hashlib,json,os
-          from pathlib import Path
-          root=Path(os.environ['RUNNER_TEMP'])/'v9-source-study'
-          ref=json.loads(Path('Solution/data/reference/v9-frozen-artifacts/references.json').read_text())
-          pinned={f['path']:f['sha256'] for f in ref['artifacts']['seed42-source']['files']}
-          for path in ('plan-tf.json','study-tf/study.json'):
-              file=root/path
-              assert file.is_file() and hashlib.sha256(file.read_bytes()).hexdigest()==pinned[path], 'Original V2 artifact hash mismatch: '+path
-          print('V2 original plan and study authenticated against frozen SHA. No recalibration.')
-          PY
       - name: Start masked disposable SQL Server
         shell: bash
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
@@ -241,9 +181,9 @@ jobs:
   physical-30k:
     name: V9 full physical 30k SQL TRAIN (when impacted)
     needs: impact
-    if: (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && inputs.replay_frozen_v2 == true)) && inputs.mode == 'execute_30k' && needs.impact.outputs.run_physical_30k == 'true'
+    if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))
     runs-on: ubuntu-latest
-    # PO: full 30k only on explicit final dispatch; PR preflight remains fail-closed.
+    # PO 05/11: automatic only for impacted PRs; untouched manual command retained.
     # Full adaptive batches now survive the old all-cell veto and execute 20
     # complete latency replays per feasible candidate; preserve every gate.
     timeout-minutes: 360
@@ -252,60 +192,34 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Prove exact manual branch SHA and pinned IBGE before 30k
+          # PR merge refs are not the approved HEAD: bind the physical fit to the
+          # exact commit on the same-repository PR branch, not to a moving merge.
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+      - name: Prove exact PR or manual branch SHA before starting SQL
         env:
-          TF_SHA: ${{ inputs.expected_sha }}
+          TF_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          TF_REF: ${{ github.event_name == 'pull_request' && format('refs/heads/{0}', github.head_ref) || github.ref }}
           TF_IBGE: ${{ inputs.pinned_ibge_json }}
-          REPLAY_FROZEN_V2: ${{ inputs.replay_frozen_v2 }}
+          EVENT_NAME: ${{ github.event_name }}
+          SOURCE_REPO: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
         run: |
           set -euo pipefail
+          test "$SOURCE_REPO" = "$GITHUB_REPOSITORY" || {
+            echo "Auto 30k only runs for branches in this repository" >&2
+            exit 1
+          }
           mkdir -p Solution/.local/v9-tf-physical
-          if [[ "$REPLAY_FROZEN_V2" == "true" ]]; then
-            test -z "$TF_IBGE" || { echo "V2 replay derives exact frozen IBGE pin; do not submit an override" >&2; exit 1; }
-            TF_IBGE="$(python3 - <<'PY'
-          import json
-          from pathlib import Path
-          p=json.loads(Path('Solution/data/calibration/v9/v2-one-mf-frozen/plan.json').read_text())
-          keys=('PinnedIbgeReferenceVersionId','PinnedIbgePublishedSha256','PinnedIbgeMaterializedFrequencySha256','PinnedIbgeBootstrap')
-          print(json.dumps({k:p[k] for k in keys},separators=(',',':')))
-          PY
-            )"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+              --mode auto_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
+              --output Solution/.local/v9-tf-physical/git-approved.json
+          else
+            python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+              --mode execute_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
+              --pinned-json "$TF_IBGE" \
+              --output Solution/.local/v9-tf-physical/git-approved.json \
+              --pinned-output Solution/.local/v9-tf-physical/pinned-ibge.json
           fi
-          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
-            --mode execute_30k --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
-            --pinned-json "$TF_IBGE" \
-            --output Solution/.local/v9-tf-physical/git-approved.json \
-            --pinned-output Solution/.local/v9-tf-physical/pinned-ibge.json
-      - name: Recover authenticated historic V2 plan and study from original run (read-only)
-        if: inputs.replay_frozen_v2 == true
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          ref=json.loads(Path('Solution/data/reference/v9-frozen-artifacts/references.json').read_text())
-          source=ref['artifacts']['seed42-source']
-          assert source['run_id']==41900357031
-          assert source['head_sha']=='935f704edd2bceb6a125ecfe532ad5b71f9c89b9'
-          PY
-          test "$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/41900357031" --jq '.head_sha')" = "935f704edd2bceb6a125ecfe532ad5b71f9c89b9"
-          mkdir -p "$RUNNER_TEMP/v9-source-study"
-          gh run download 41900357031 -R "$GITHUB_REPOSITORY" \
-            -n v9-tf-45-physical-41900357031-935f704edd2bceb6a125ecfe532ad5b71f9c89b9 \
-            -D "$RUNNER_TEMP/v9-source-study"
-          python3 - <<'PY'
-          import hashlib,json,os
-          from pathlib import Path
-          root=Path(os.environ['RUNNER_TEMP'])/'v9-source-study'
-          ref=json.loads(Path('Solution/data/reference/v9-frozen-artifacts/references.json').read_text())
-          pinned={f['path']:f['sha256'] for f in ref['artifacts']['seed42-source']['files']}
-          for path in ('plan-tf.json','study-tf/study.json'):
-              file=root/path
-              assert file.is_file() and hashlib.sha256(file.read_bytes()).hexdigest()==pinned[path], 'Original V2 artifact hash mismatch: '+path
-          print('V2 original plan and study authenticated against frozen SHA. No recalibration.')
-          PY
       - name: Start masked disposable SQL Server
         shell: bash
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
@@ -320,54 +234,53 @@ jobs:
         run: |
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      - name: Prove single V2 configuration matches archived original in CSharp (no SQL)
-        if: inputs.replay_frozen_v2 == true
+      - name: Auto-derive 30k pin from disposable SQL and immutable synthetic reference
+        if: github.event_name == 'pull_request'
         working-directory: Solution
-        run: |
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-compare-calibration-plans \
-            "$RUNNER_TEMP/v9-source-study/plan-tf.json" \
-            "$PWD/data/calibration/v9/v2-one-mf-frozen/plan.json" \
-            b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8
-      - name: Rebuild SQL IBGE and 30k corpus using the identical preflight preparation
+        run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" pinned-ibge.json
+      - name: Manual mode rebuilds the pinned IBGE and 30k corpus independently
+        if: github.event_name == 'workflow_dispatch'
         working-directory: Solution
         run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" reconstructed-ibge.json
-      - name: Compare all four pinned reference fields BEFORE executing any calibration
+      - name: Compare all four manually pinned reference fields BEFORE calibration
+        if: github.event_name == 'workflow_dispatch'
         working-directory: Solution
         run: |
           set -euo pipefail
           python3 scripts/v9-tf-pin-source.py verify \
             --expected .local/v9-tf-physical/pinned-ibge.json \
             --actual .local/v9-tf-physical/reconstructed-ibge.json
+      # Automatic path invokes v9-tf-prepare-pin.sh, which MUST check full 30k
+      # corpus file SHA, IBGE published/materialized SHA, and synthetic ledger.
+      # A mismatch prevents calibration; no mutable IBGE reference is trusted.
 
-      - name: Recheck SHA and calibrate with JSON-file parameters (CSharp only)
+      - name: Recheck exact SHA and run only CSharp adaptive TF 45 options
         working-directory: Solution
         env:
-          TF_SHA: ${{ inputs.expected_sha }}
-          REPLAY_FROZEN_V2: ${{ inputs.replay_frozen_v2 }}
+          TF_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
+          TF_REF: ${{ github.event_name == 'pull_request' && format('refs/heads/{0}', github.head_ref) || github.ref }}
+          TF_IBGE: ${{ inputs.pinned_ibge_json }}
+          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-tf-physical"
-          python3 scripts/v9-tf-30k-dispatch-gate.py \
-            --mode execute_30k --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
-            --pinned-json "$(cat "$root/pinned-ibge.json")" \
-            --output "$root/git-rechecked.json" --pinned-output "$root/pinned-rechecked.json"
-          cmp "$root/pinned-ibge.json" "$root/pinned-rechecked.json"
-          if [[ "$REPLAY_FROZEN_V2" == "true" ]]; then
-            python3 scripts/v9-v2-frozen-bootstrap.py prepare \
-              --plan data/calibration/v9/v2-one-mf-frozen/plan.json \
-              --original-plan "$RUNNER_TEMP/v9-source-study/plan-tf.json" \
-              --references data/reference/v9-frozen-artifacts/references.json \
-              --observations "$root/people-30k/observacoes.csv" \
-              --generation-manifest "$root/people-30k/generation-manifest.json" \
-              --pinned-ibge "$root/pinned-ibge.json" \
-              --output-plan "$root/plan-tf.json" \
-              --output-receipt "$root/v2-source-receipt.json"
+          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+            python3 scripts/v9-tf-30k-dispatch-gate.py \
+              --mode auto_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
+              --output "$root/git-rechecked.json"
+            python3 scripts/v9-tf-ref-provenance-gate.py \
+              --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
+              --reference data/reference/v9-synthetic-seed42-30000/manifest.json
           else
-            python3 scripts/v9-adaptive-30k-study.py prepare-tf \
-              "$root/people-30k/observacoes.csv" "$root/plan-tf.json" \
-              --pinned-ibge "$root/pinned-ibge.json"
+            python3 scripts/v9-tf-30k-dispatch-gate.py \
+              --mode execute_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
+              --pinned-json "$TF_IBGE" \
+              --output "$root/git-rechecked.json" --pinned-output "$root/pinned-rechecked.json"
+            cmp "$root/pinned-ibge.json" "$root/pinned-rechecked.json"
           fi
+          python3 scripts/v9-adaptive-30k-study.py prepare-tf \
+            "$root/people-30k/observacoes.csv" "$root/plan-tf.json" \
+            --pinned-ibge "$root/pinned-ibge.json"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-adaptive-study "$root/plan-tf.json" \
             "$root/people-30k/observacoes.csv" "$root/study-tf"
@@ -401,43 +314,6 @@ jobs:
           assert measured["Pareto"]["InitialSuggestedOptionId"] is None
           print("PASS: CSharp measured 135 TF arms, 12 diagnostics and risk-band preference; not certified.")
           PY
-      - name: Regress new configured V2 calibration against authenticated original physical study
-        if: inputs.replay_frozen_v2 == true
-        working-directory: Solution
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          root="$PWD/.local/v9-tf-physical"
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          ref=json.loads(Path('data/reference/v9-frozen-artifacts/references.json').read_text())
-          source=ref['artifacts']['seed42-source']
-          assert source['run_id']==41900357031
-          assert source['head_sha']=='935f704edd2bceb6a125ecfe532ad5b71f9c89b9'
-          PY
-          test -s "$RUNNER_TEMP/v9-source-study/study-tf/study.json"
-          python3 scripts/v9-v2-frozen-bootstrap.py compare \
-            --references data/reference/v9-frozen-artifacts/references.json \
-            --original-study "$RUNNER_TEMP/v9-source-study/study-tf/study.json" \
-            --replay-study "$root/study-tf/study.json" \
-            --receipt "$root/v2-source-receipt.json" \
-            --output "$root/v2-calibration-regression.json"
-          python3 - "$root/v2-calibration-regression.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
-          import json,sys
-          x=json.load(open(sys.argv[1]))
-          print('### Frozen V2 calibrated again from EXACT Git-versioned exploration plan')
-          for k in ('Status','SameCorpusAndPartitions','SameConfigurationGrid','ComparedSourceConfigurations',
-                    'DifferentMetricRows','DifferentFitSnapshots','SelectedSnapshotExactMatch'):
-              print('- '+k+': '+str(x[k]))
-          print('- No TEST, no DT-15, no model activation.')
-          PY
-          python3 - "$root/v2-calibration-regression.json" <<'PY'
-          import json,sys
-          x=json.load(open(sys.argv[1]))
-          assert x['Status']=='REPRODUCED_EXACTLY', 'Configured V2 calibration diverges: regression dossier preserved'
-          PY
 
       - name: Preserve SHA-bound TF evidence (no CSV/PII or TEST)
         if: always()
@@ -454,8 +330,6 @@ jobs:
             Solution/.local/v9-tf-physical/bootstrap.json
             Solution/.local/v9-tf-physical/plan-tf.json
             Solution/.local/v9-tf-physical/plan-tf.tf-budget.json
-            Solution/.local/v9-tf-physical/v2-source-receipt.json
-            Solution/.local/v9-tf-physical/v2-calibration-regression.json
             Solution/.local/v9-tf-physical/study-tf/*.json
             Solution/.local/v9-tf-physical/study-tf/*.fitted.json
             Solution/.local/v9-tf-physical/people-30k/generation-manifest.json
@@ -468,8 +342,8 @@ jobs:
   physical-seed42:
     name: SQL físico 30k clean — FS blind Rank-Resolve TF0
     needs: [impact, physical-30k]
-    # Manual preflight is deliberately NOT physical evidence. The physical check
-    # is skipped (not green) in this mode; PR and execute_30k remain fail-closed.
+    # Manual preflight is deliberately NOT physical evidence. Only an actually
+    # successful same-run physical job passes this check; PR/dispatch both apply.
     if: ${{ always() && !(github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight') }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -494,16 +368,10 @@ jobs:
             exit 1
           fi
           if [[ "$REQUIRES_PHYSICAL" == "true" ]]; then
-            if [[ "$PHYSICAL_RESULT" == "success" && ( "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "push" ) ]]; then
-              echo "PASS: CSharp 45-arm --v9-adaptive-study TF physical 30k on $HEAD_SHA."
-            elif [[ "$EVENT_NAME" == "pull_request" && "$PHYSICAL_RESULT" == "skipped" ]]; then
-              # A manual dispatch on the exact PR head SHA is independently verifiable.
-              # A prior success on another SHA, an in-progress run, or a skipped
-              # physical job must never count as acceptance.
-              export HEAD_SHA GH_TOKEN REPOSITORY
-              python3 Solution/scripts/v9_manual_probe_evidence.py
+            if [[ "$PHYSICAL_RESULT" == "success" && ( "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "pull_request" ) ]]; then
+              echo "PASS: same-run CSharp 45-arm --v9-adaptive-study TF physical 30k on $HEAD_SHA."
             else
-              echo "::error title=DEFERRED_NOT_CERTIFIED::Required V9 30k has no successful evidence for this run (event=$EVENT_NAME, result=$PHYSICAL_RESULT)." >&2
+              echo "::error title=DEFERRED_NOT_CERTIFIED::Required V9 30k has no successful physical job in this run (event=$EVENT_NAME, result=$PHYSICAL_RESULT)." >&2
               exit 1
             fi
           elif [[ "$REQUIRES_PHYSICAL" == "false" ]]; then

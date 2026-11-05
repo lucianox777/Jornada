@@ -31,6 +31,20 @@ class TfDispatchGateTests(unittest.TestCase):
         self.assertFalse(report["physical_executed"])
         self.assertIsNone(pinned)
 
+    def test_auto_30k_requires_exact_sha_and_disallows_untrusted_external_pin(self):
+        report, pinned = gate.validate("auto_30k", SHA, SHA, SHA, REF)
+        self.assertEqual(report["protocol"], "V9_TF_AUTO_45_PHYSICAL_V1")
+        self.assertIsNone(pinned)
+        for actual, remote, ref, provided in (
+            ("a" * 40, SHA, REF, ""),
+            (SHA, "a" * 40, REF, ""),
+            (SHA, SHA, "refs/tags/latest", ""),
+            (SHA, SHA, REF, PIN),
+        ):
+            with self.subTest(actual=actual, remote=remote, ref=ref, provided=bool(provided)):
+                with self.assertRaises(ValueError):
+                    gate.validate("auto_30k", SHA, actual, remote, ref, provided)
+
     def test_execution_requires_real_pinned_reference(self):
         with self.assertRaises(ValueError):
             gate.validate("execute_30k", SHA, SHA, SHA, REF)
