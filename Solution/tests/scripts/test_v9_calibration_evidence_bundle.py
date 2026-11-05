@@ -32,6 +32,7 @@ class V9CalibrationEvidenceBundleTests(unittest.TestCase):
             "ProjectionSchemaVersion": "PROJ_V1",
             "ProjectionFingerprintSha256": "1" * 64,
             "FitFingerprintSha256": "2" * 64,
+            "BlockingFrameFingerprintSha256": "2" * 64,
             "TrainCorpusSha256": "3" * 64,
             "ValidationCorpusSha256": "4" * 64,
             "TrainIdentityGroupsSha256": "5" * 64,
@@ -40,7 +41,8 @@ class V9CalibrationEvidenceBundleTests(unittest.TestCase):
             "OptionId": "TF_ONE_MF_W1_M0_A0.5_T0.95",
             "Threshold": 0.95, "ConflictMargin": 0.5,
             "BlockingPasses": [{"PassId": "P_NAME_BIRTH", "Fields": ["first", "birth"]}],
-            "JointCells": [{"Person": i, "Mother": j} for i in range(9) for j in range(9)],
+            "JointCells": [{"Person": i, "Mother": j, "M": 1/81, "U": 1/81}
+                           for i in range(9) for j in range(9)],
             "Parameters": {"m.birth": .8, "u.birth": .01},
             "UnitTfCalibrations": [{"Side": 1, "Unit": 2, "State": 0,
                                     "Calibration": {"Weight": 1, "Mode": 0}}],
@@ -221,10 +223,16 @@ class V9CalibrationEvidenceBundleTests(unittest.TestCase):
         study = json.loads(result_path.read_text())
         study["ValidationInputSha256"] = "b" * 64
         new_hash = write_json(result_path, study)
+        report_path = right / "report.json"
+        report = json.loads(report_path.read_text())
+        report["SourceStudySha256"] = new_hash
+        new_report_hash = write_json(report_path, report)
         manifest_path = right / "manifest.json"
         manifest = json.loads(manifest_path.read_text())
         manifest["Components"]["result"]["sha256"] = new_hash
         manifest["Components"]["result"]["bytes"] = result_path.stat().st_size
+        manifest["Components"]["report"]["sha256"] = new_report_hash
+        manifest["Components"]["report"]["bytes"] = report_path.stat().st_size
         manifest["CrossLinks"]["ValidationInputSha256"] = "b" * 64
         write_json(manifest_path, manifest)
         result = bundle.compare(left, right)
