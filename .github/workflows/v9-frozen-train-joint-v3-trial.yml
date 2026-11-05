@@ -81,7 +81,7 @@ jobs:
             --v9-derive-joint-v3-from-frozen-train \
             "$SOURCE/study-tf/$FIT_SHA.fitted.json" "$FIT_SHA" \
             "$SOURCE/study-tf/study.json" "$STUDY_SHA" \
-            "$POLICY" "$POLICY_SHA" "$RUNNER_TEMP/v9-v3-provisional" \
+            "$PWD/$POLICY" "$POLICY_SHA" "$RUNNER_TEMP/v9-v3-provisional" \
             | tee "$RUNNER_TEMP/v9-v3-derivation-summary.json"
           test "$(find "$RUNNER_TEMP/v9-v3-provisional" -maxdepth 1 -name '*.fitted.json' | wc -l)" -eq 1
           python3 - "$RUNNER_TEMP/v9-v3-provisional/derivation-receipt.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
