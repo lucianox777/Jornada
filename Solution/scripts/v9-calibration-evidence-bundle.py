@@ -256,11 +256,13 @@ def audit_snapshot(snap, model_sha, option, plan):
                 and isinstance(p.get("PassId"), str)
                 and isinstance(p.get("Fields"), list) for p in passes),
                 "Malformed blocking pass catalogue")
-        pairs = [(p["PassId"], tuple(p["Fields"])) for p in passes]
+        pairs = [(p["PassId"], tuple(sorted(p["Fields"]))) for p in passes]
+        require(all(len(x["Fields"]) == len(set(x["Fields"])) and x["Fields"]
+                    for x in passes), "Duplicated/empty blocking fields")
         require(len({x[0] for x in pairs}) == len(pairs), "Duplicated blocking pass")
         return sorted(pairs)
-    # The original CSharp freeze canonicalizes pass order. A set of identical
-    # PassId+Fields is the same blocking ruleset; list order is NOT a drift.
+    # CSharp canonicalizes both pass order and commutative fields within each
+    # pass (AND predicates). Compare PassId plus the identical field set.
     require(any(canonical_passes(snap["BlockingPasses"]) == canonical_passes(ruleset)
                 for ruleset in plan["BaselineRuleSets"]),
             "Fitted blocking differs from predeclared baseline")
