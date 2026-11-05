@@ -1,6 +1,5 @@
 using System.Text.Json;
 using Jornada.Contracts;
-using Jornada.Linkage.Parameters.Worker;
 using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Runner;
@@ -100,7 +99,11 @@ public static class V9FrozenGoldRuntimeProbeCli
         if (args is not { Length: 3 } || args[0] != Flag)
             throw new ArgumentException(
                 "Uso: --v9-frozen-gold-real-fit-runtime-smoke <SHA.fitted.json> <sha256>.");
-        var frozen = await V9FittedSnapshotArtifact.ReadPinnedAsync(args[1], args[2]);
+        // Runner does not reference the Parameters Worker: verify exact
+        // canonical bytes and SHA here, without adding a circular dependency.
+        if (Path.GetFileName(args[1]) != args[2] + ".fitted.json")
+            throw new InvalidDataException("Arquivo do fit deve ser nomeado pelo SHA original.");
+        var frozen = V9FittedSnapshot.Load(await File.ReadAllBytesAsync(args[1]), args[2]);
         Console.WriteLine(JsonSerializer.Serialize(Probe(frozen)));
     }
 }
