@@ -50,6 +50,31 @@ public sealed class V9SyntheticObservationCapEvidenceTests
                 Throws.TypeOf<InvalidDataException>());
     }
 
+    [TestCase(3)]
+    [TestCase(20_000)]
+    [TestCase(30_000)]
+    [TestCase(45_000)]
+    public void Pinned_population_is_declared_by_the_study_not_hardcoded_to_30k(int people)
+    {
+        // Parsing happens after ValidateManifest has authenticated these bytes.
+        var bytes = JsonSerializer.SerializeToUtf8Bytes(new { people });
+        Assert.That(V9SyntheticObservationCapEvidence.ReadPinnedPopulationCount(bytes),
+            Is.EqualTo(people));
+    }
+
+    [Test]
+    public void Pinned_population_rejects_missing_zero_negative_float_and_string_counts()
+    {
+        foreach (var invalid in new[]
+        {
+            "{}", "{\"people\":0}", "{\"people\":-1}",
+            "{\"people\":1.5}", "{\"people\":\"30000\"}", "{\"people\":null}"
+        })
+            Assert.That((Action)(() => V9SyntheticObservationCapEvidence.ReadPinnedPopulationCount(
+                    Encoding.UTF8.GetBytes(invalid))),
+                Throws.TypeOf<InvalidDataException>());
+    }
+
     [Test]
     public void Csv_cap_counts_cpf_observations_before_filtering_and_keeps_test_attributes_unread()
     {
