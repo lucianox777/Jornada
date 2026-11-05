@@ -1,0 +1,185 @@
+{
+  "experiment_id": "V9-TF-ONE-MF-3SIGMA-SEEDS-48-57",
+  "schema_version": "1.0",
+  "status": "LOCKED",
+  "reference": {
+    "seed42_run_id": 41900357031,
+    "seed43_run_id": 41925355648,
+    "seed43_commit": "b98a01180737909edf7cbd0bee4ba2757d52fe0f",
+    "snapshot_origin_commit": "935f704edd2bceb6a125ecfe532ad5b71f9c89b9",
+    "seed43_generation_manifest_sha256": "70f60288721a290a0b3c7394a1c4a08f1a452decece81073b4b2ae38b1b158d7",
+    "seed43_executor_plan_sha256": "4a8c6a2fcbca00b02ea870e3f2d3b03832555d42f75c76d4c9cd9f5989cc401f",
+    "seed43_analysis_sha256": "1ee490a6a4c8611a0ef60c8557ad8b2298f102594353698c26c5988fc8cb3227",
+    "seeds44_47_lock_sha256": "822648cc3cca71368b77afad1fe816ae1ee9f87583311e1b25f18e19f01bfba3",
+    "seeds44_47_runs": {
+      "44": 41942914164,
+      "45": 41942917704,
+      "46": 41942921106,
+      "47": 41942924301
+    },
+    "seeds44_47_sha": "345038121a3612744fec369379e114e97ec5db93",
+    "historical_group": "seeds 42-47 are exploratory/descriptive and are NOT pooled into the confirmatory test"
+  },
+  "generation": {
+    "identity_count": 30000,
+    "profile": "DEMOGRAPHIC_PRIMARY_V1",
+    "max_observations_per_identity": 4,
+    "generator": "JORNADA_SYNTH_CORPUS_CSHARP_V1 (Solution/src/Jornada.Linkage.SyntheticCorpus, command 'generate' via Solution/scripts/v9-tf-prepare-pin.sh)",
+    "generator_commit": "b98a01180737909edf7cbd0bee4ba2757d52fe0f",
+    "generator_sha256": "924ad6455e15b73093f7d4834174966717de13be9b89b14b9640d11ffbea8deb",
+    "generator_sha256_method": "sha256 of sorted lines '<sha256(file)>  <path>' for the 25 tracked files under Solution/src/Jornada.Linkage.SyntheticCorpus",
+    "generator_git_tree": "56cc0c102e1100dc43352211dfd5e0ba1b20ef3f",
+    "generator_arguments": "--population-profile demographic-primary --error-profile clean --people 30000 --seed <seed> --reference-root data/reference/ibge-nomes-2022 --birth-daily-source data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json",
+    "error_profile": "clean",
+    "reference_inputs": {
+      "ibge_nomes_2022_tree_sha256": "9b737cedc7ae44257c15807340045991008f95c5671dea069ba6d2ba4998727b",
+      "ibge_nomes_2022_manifest_sha256": "0b4a0dedd18ca1c01c3e35ed403303ddf05c0a82216012403d287c73d1322006",
+      "birth_daily_sp_sha256": "8b8498ec2abe7dcbfafed1d361d2a3afaff77cad5bce29a5927da517fc236a9b"
+    },
+    "ibge_pin": {
+      "reference_code": "CENSO2022_NOMES_BRASIL_V1",
+      "version_id_in_disposable_harness": 1,
+      "published_sha256": "E3CC61BCC7FCA353BB134EE32DE4AA50A8DA708827EAC3750EFC0E6EBCA5E885",
+      "bootstrap": "per-seed (GeneratorSeed = target seed); never copied from seed 42"
+    },
+    "tf_materialization_hash": "89211544D4C97236F34B165BF35E5A130063C11679EFFB7985BF003105B19243",
+    "partition_contract": {
+      "rule": "per base identity: split<0.6 TRAIN, <0.8 VALIDATION, else TEST (SyntheticCorpusGenerator.cs line 64)",
+      "generator_file_sha256": "83015950790a5be15a5fb843c8330c8cccb10610f1a208ee46eeb7fc348c18e4",
+      "evaluated_partition": "VALIDATION",
+      "test_read": false
+    }
+  },
+  "models": {
+    "control": {
+      "name": "T0.95_TF0",
+      "sha256": "f010349623b6bae32b4303f680a715bb1264271fec0e325730cce3f7bc0eb12e"
+    },
+    "treatment": {
+      "name": "TF_ONE_MF_W1_M0_A0.5_T0.95",
+      "sha256": "8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f"
+    },
+    "secondary_arms_same_as_seed43": "margins 2 and 4 of both options, descriptive only",
+    "source_artifact": "v9-tf-45-physical-41900357031-935f704edd2bceb6a125ecfe532ad5b71f9c89b9",
+    "source_plan_tf_sha256": "b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8",
+    "source_study_sha256": "7499ee635ecb4999106dbee22a5993f9f16b88d75c725f99490f2fccd39cba2b"
+  },
+  "evaluation": {
+    "primary_margin": 0.5,
+    "threshold": 0.95,
+    "partition": "VALIDATION",
+    "test_sealed": true,
+    "refit_allowed": false,
+    "generator_changes_allowed": false,
+    "model_changes_allowed": false,
+    "end_to_end_repetitions": 20,
+    "metrics": "Solution/scripts/v9-tf-seed43-frozen-transfer-physical.py analyze (same definitions as seed 43)",
+    "predeclared_paired_test": "one-sided Hoeffding alpha 0.025, X_i=TP_ONE_MF-TP_TF0 per base identity, cap 4"
+  },
+  "execution": {
+    "trigger": "workflow_dispatch",
+    "workflow": ".github/workflows/v9-tf-seed43-frozen-transfer.yml",
+    "preferred_parallelism": 4,
+    "fallback_parallelism": [
+      2,
+      1
+    ],
+    "isolated_sql_per_seed": true,
+    "isolated_artifacts_per_seed": true,
+    "seeds": [
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57
+    ],
+    "per_seed_plans": {
+      "48": {
+        "executor_sha256": "0c61103e0bc650bfb6e8e3e455c832950f878faa2e74aac5dca617111d7e7c2d",
+        "preflight_plan_sha256": "33d78a15141a19a8ec264912d5cdcfd0ce02f1e16a8e6a76724603294aab8cd8"
+      },
+      "49": {
+        "executor_sha256": "e4d5e51fbe1e0693531d19c52624629576cf4537d14a2fb1ab12559c33f50c5f",
+        "preflight_plan_sha256": "2b4b3c9af5bafea46cbf9864f3cc189d92aa7709fd9dd1f3b56f3e714dd177ea"
+      },
+      "50": {
+        "executor_sha256": "14bf9689cca5ccb3e975d1ff4d4e63637653723451c2b62db9f501c51bf1f628",
+        "preflight_plan_sha256": "b68ceeb49dbd54966c0250fc6c0252a5050ebfa6bc102e64ad06eecb3043e920"
+      },
+      "51": {
+        "executor_sha256": "d5288ea3e903668e47628f5f29d09cd8c70dc83b4590aaf1b29df5ffb8987d87",
+        "preflight_plan_sha256": "3fabd9a300a16dddad7818b4da6d21784b3af387e1a8c70b1a2194862539af4d"
+      },
+      "52": {
+        "executor_sha256": "b7cea393e5db19267750964a45413020c647ee28a3ead61096217b839f5e2984",
+        "preflight_plan_sha256": "13b81fc18a6ac484a2dabb46c60a7384ddd99e9f888968a99da1a75bef377e00"
+      },
+      "53": {
+        "executor_sha256": "4a9e1071287d6c69d52d9f01e5fa41689ce5f6f472488d2ba76615889bcdde9f",
+        "preflight_plan_sha256": "4e29b584210aee5488ff5be2de7e301ebec6539e5c5d6535b6fb27366cd4c94c"
+      },
+      "54": {
+        "executor_sha256": "066ebb9f770b261b67c557bbbe20f3d5fbc4ded273dd6ae71612f660b0c319e8",
+        "preflight_plan_sha256": "1da8ad3cf49dd88c773bc3a775942da29b0d8096cb98a4f90e5e36b340fed722"
+      },
+      "55": {
+        "executor_sha256": "7b785560cf0282d1e14324b660ca07bcb8c03229b46b3e39cd9c7d94354b02fa",
+        "preflight_plan_sha256": "bf7d2155e5d4c6c4f681b5412ba71fc979ed68f40186b9e31b4970889bf95953"
+      },
+      "56": {
+        "executor_sha256": "8076406e8aa876f2cd203d8d366819bab7dda5b16da1fed038942b72790e439a",
+        "preflight_plan_sha256": "6f9dc201548e6e5dc041894b195b4331cea6a1ba43096c09241598286320c75e"
+      },
+      "57": {
+        "executor_sha256": "481d88e4d43b2a87fa89a88d3e520c0ebf3034f0de2baed75ee5a402f3495887",
+        "preflight_plan_sha256": "38e69f6ad0197e5774679e4cbc4b9c70d0931949cffd3b6ca45b21da27ccc5d1"
+      }
+    }
+  },
+  "seed_exposure": {
+    "48": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log at pre-registration); exposure outside the repository unknown",
+    "49": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log at pre-registration); exposure outside the repository unknown",
+    "50": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log at pre-registration); exposure outside the repository unknown",
+    "51": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log at pre-registration); exposure outside the repository unknown",
+    "52": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log at pre-registration); exposure outside the repository unknown",
+    "53": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log at pre-registration); exposure outside the repository unknown",
+    "54": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log at pre-registration); exposure outside the repository unknown",
+    "55": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log at pre-registration); exposure outside the repository unknown",
+    "56": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log at pre-registration); exposure outside the repository unknown",
+    "57": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log at pre-registration); exposure outside the repository unknown",
+    "confirmatory_holdout": "Seeds 48-57 are the pre-registered confirmatory family for the DIRECTION of the recall gain only; VALIDATION partition, TEST sealed"
+  },
+  "statistics": {
+    "primary_test": "EXACT_TWO_SIDED_SIGN_TEST_CAMPAIGN_UNIT",
+    "unit": "one campaign = one independently generated seed corpus (30,000 base identities); base identities are NOT treated as independent",
+    "statistic": "number k of campaigns with Recall_ONE_MF > Recall_TF0 at primary margin 0.5 (VALIDATION, GlobalSourceRecall)",
+    "positive_outcome": "Recall_ONE_MF > Recall_TF0",
+    "non_positive_outcome": "Recall_ONE_MF <= Recall_TF0 (ties are non-positive)",
+    "null_hypothesis": "P(positive campaign) = 0.5",
+    "alternative": "P(positive campaign) != 0.5 (two-sided)",
+    "alpha_two_sided": 0.0026998,
+    "sigma_equivalent": 3,
+    "planned_campaigns": 10,
+    "p_value": "two-sided exact binomial: min(1, 2*min(P[Bin(10,0.5) >= k], P[Bin(10,0.5) <= k]))",
+    "decision": "met iff 10 valid campaigns, protocol frozen, k = 10 positives (p = 2/1024 = 0.001953125 <= 0.0026998); k = 9 gives p = 0.0215 and does NOT meet 3 sigma",
+    "secondary_descriptive": [
+      "mean, SD, SE and t(9) 95% CI of the per-campaign recall gain",
+      "per-campaign identity-clustered paired CI (assumes identity independence, not validated)",
+      "historical Hoeffding alpha 0.025 per campaign, reported unchanged",
+      "delta FP, observed FDR and conditional CP upper, fragmentation, fusion, conflicts, fanout P99, P95"
+    ],
+    "independence_assumption": "campaigns differ only by generator seed and run on separate runners with separate disposable SQL; assumed independent replications of the synthetic generator, not of real data",
+    "not_claimed": "3 sigma concerns the direction of the gain in the synthetic population; not FDR certification, not '99.73% of links correct', not V8 superiority, not operational authorization"
+  },
+  "closure": {
+    "stop_rule": "all 10 campaigns run once; no early stopping, no extra campaigns to reach significance, no seed replacement after any result is known",
+    "failure_rule": "a TECHNICAL failure (no transfer-results.json produced) is retried with the same seed and LOCK, cause documented; any campaign that produced transfer-results.json is final, whatever its result",
+    "code_change_rule": "if the executor must change, record the new SHA and show snapshot SHA-256, plan hashes and generator digest unchanged",
+    "invalid_campaign": "a campaign that cannot pass the LOCK/provenance gates is not a statistical result; if it cannot be made valid the primary criterion is NOT met"
+  }
+}

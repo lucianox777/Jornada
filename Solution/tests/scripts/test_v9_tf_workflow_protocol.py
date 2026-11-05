@@ -18,7 +18,16 @@ class TfWorkflowProtocolTests(unittest.TestCase):
         self.assertIn("expected_sha:", script)
 
     def test_preflight_is_not_any_route_to_30k(self):
-        script = WORKFLOW.read_text(encoding="utf-8")
+        # Disposable SQL and corpus generation moved into shared scripts that
+        # the workflow invokes; audit the workflow together with them.
+        scripts = WORKFLOW.parents[2] / "Solution" / "scripts"
+        script = WORKFLOW.read_text(encoding="utf-8") + "".join(
+            (scripts / name).read_text(encoding="utf-8")
+            for name in ("v9-tf-start-disposable-sql.sh", "v9-tf-prepare-pin.sh"))
+        self.assertIn("bash Solution/scripts/v9-tf-start-disposable-sql.sh", script)
+        self.assertIn('bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" pinned-ibge.json', script)
+        self.assertIn('target_seed="${V9_TF_TARGET_SEED:-42}"', script)
+        self.assertNotIn("V9_TF_TARGET_SEED", WORKFLOW.read_text(encoding="utf-8"))
         self.assertIn("inputs.mode == 'preflight'", script)
         self.assertIn("--mode preflight", script)
         self.assertIn("--mode execute_30k", script)

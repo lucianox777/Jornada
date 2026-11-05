@@ -1,0 +1,112 @@
+{
+  "experiment_id": "V9-TF-ONE-MF-SEEDS-44-47",
+  "schema_version": "1.0",
+  "status": "LOCKED",
+  "reference": {
+    "seed42_run_id": 41900357031,
+    "seed43_run_id": 41925355648,
+    "seed43_commit": "b98a01180737909edf7cbd0bee4ba2757d52fe0f",
+    "snapshot_origin_commit": "935f704edd2bceb6a125ecfe532ad5b71f9c89b9",
+    "seed43_generation_manifest_sha256": "70f60288721a290a0b3c7394a1c4a08f1a452decece81073b4b2ae38b1b158d7",
+    "seed43_executor_plan_sha256": "4a8c6a2fcbca00b02ea870e3f2d3b03832555d42f75c76d4c9cd9f5989cc401f",
+    "seed43_analysis_sha256": "1ee490a6a4c8611a0ef60c8557ad8b2298f102594353698c26c5988fc8cb3227"
+  },
+  "generation": {
+    "identity_count": 30000,
+    "profile": "DEMOGRAPHIC_PRIMARY_V1",
+    "max_observations_per_identity": 4,
+    "generator": "JORNADA_SYNTH_CORPUS_CSHARP_V1 (Solution/src/Jornada.Linkage.SyntheticCorpus, command 'generate' via Solution/scripts/v9-tf-prepare-pin.sh)",
+    "generator_commit": "b98a01180737909edf7cbd0bee4ba2757d52fe0f",
+    "generator_sha256": "924ad6455e15b73093f7d4834174966717de13be9b89b14b9640d11ffbea8deb",
+    "generator_sha256_method": "sha256 of sorted lines '<sha256(file)>  <path>' for the 25 tracked files under Solution/src/Jornada.Linkage.SyntheticCorpus",
+    "generator_git_tree": "56cc0c102e1100dc43352211dfd5e0ba1b20ef3f",
+    "generator_arguments": "--population-profile demographic-primary --error-profile clean --people 30000 --seed <seed> --reference-root data/reference/ibge-nomes-2022 --birth-daily-source data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json",
+    "error_profile": "clean",
+    "reference_inputs": {
+      "ibge_nomes_2022_tree_sha256": "9b737cedc7ae44257c15807340045991008f95c5671dea069ba6d2ba4998727b",
+      "ibge_nomes_2022_manifest_sha256": "0b4a0dedd18ca1c01c3e35ed403303ddf05c0a82216012403d287c73d1322006",
+      "birth_daily_sp_sha256": "8b8498ec2abe7dcbfafed1d361d2a3afaff77cad5bce29a5927da517fc236a9b"
+    },
+    "ibge_pin": {
+      "reference_code": "CENSO2022_NOMES_BRASIL_V1",
+      "version_id_in_disposable_harness": 1,
+      "published_sha256": "E3CC61BCC7FCA353BB134EE32DE4AA50A8DA708827EAC3750EFC0E6EBCA5E885",
+      "bootstrap": "per-seed (GeneratorSeed = target seed); never copied from seed 42"
+    },
+    "tf_materialization_hash": "89211544D4C97236F34B165BF35E5A130063C11679EFFB7985BF003105B19243",
+    "partition_contract": {
+      "rule": "per base identity: split<0.6 TRAIN, <0.8 VALIDATION, else TEST (SyntheticCorpusGenerator.cs line 64)",
+      "generator_file_sha256": "83015950790a5be15a5fb843c8330c8cccb10610f1a208ee46eeb7fc348c18e4",
+      "evaluated_partition": "VALIDATION",
+      "test_read": false
+    }
+  },
+  "models": {
+    "control": {
+      "name": "T0.95_TF0",
+      "sha256": "f010349623b6bae32b4303f680a715bb1264271fec0e325730cce3f7bc0eb12e"
+    },
+    "treatment": {
+      "name": "TF_ONE_MF_W1_M0_A0.5_T0.95",
+      "sha256": "8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f"
+    },
+    "secondary_arms_same_as_seed43": "margins 2 and 4 of both options, descriptive only",
+    "source_artifact": "v9-tf-45-physical-41900357031-935f704edd2bceb6a125ecfe532ad5b71f9c89b9",
+    "source_plan_tf_sha256": "b6f5f5197074f7ecedf004745f763df3b66a0496f9355589242062f9f1d33ee8",
+    "source_study_sha256": "7499ee635ecb4999106dbee22a5993f9f16b88d75c725f99490f2fccd39cba2b"
+  },
+  "evaluation": {
+    "primary_margin": 0.5,
+    "threshold": 0.95,
+    "partition": "VALIDATION",
+    "test_sealed": true,
+    "refit_allowed": false,
+    "generator_changes_allowed": false,
+    "model_changes_allowed": false,
+    "end_to_end_repetitions": 20,
+    "metrics": "Solution/scripts/v9-tf-seed43-frozen-transfer-physical.py analyze (same definitions as seed 43)",
+    "predeclared_paired_test": "one-sided Hoeffding alpha 0.025, X_i=TP_ONE_MF-TP_TF0 per base identity, cap 4"
+  },
+  "execution": {
+    "trigger": "workflow_dispatch",
+    "workflow": ".github/workflows/v9-tf-seed43-frozen-transfer.yml",
+    "preferred_parallelism": 4,
+    "fallback_parallelism": [
+      2,
+      1
+    ],
+    "isolated_sql_per_seed": true,
+    "isolated_artifacts_per_seed": true,
+    "seeds": [
+      44,
+      45,
+      46,
+      47
+    ],
+    "per_seed_plans": {
+      "44": {
+        "executor_sha256": "be8d88762f9de2c2645750256432826d518208779382977028aa3ca22b18e9f3",
+        "preflight_plan_sha256": "8a519087f0d393c679928054a5adffcccd160d2f2bcfaa56121efd1075e8ae1f"
+      },
+      "45": {
+        "executor_sha256": "319a55504fe5a5a09ca93155b0f17847ea8a2b07fb56671c748fa278ee6bccca",
+        "preflight_plan_sha256": "aae4be288fa98900fecd7a23512eb5147b706f816faaee8639c16ec0d96fb529"
+      },
+      "46": {
+        "executor_sha256": "1c5e748825578db33965132b04c8ab06bac8be39a8904865f52f8c1dcf6d9891",
+        "preflight_plan_sha256": "01f4ee91aaebe255dae161d1a69bc9e45bf36b447820189eab55e6d966b82c6e"
+      },
+      "47": {
+        "executor_sha256": "e1ed7bc9d387a27f367ce5e430c25b7e8887346ae40e57c8fa11938ee6f073f7",
+        "preflight_plan_sha256": "2e2d040048edb840521759141db1211d2774da01d8e276bd11588c592b02c6b9"
+      }
+    }
+  },
+  "seed_exposure": {
+    "44": "EXPOSED: generated/evaluated in jornada-ci multiseed gate (seeds 43,44), docs of 14/10/2026, rejected by V9FreshHoldoutProtocol; descriptive only",
+    "45": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log); exposure outside the repository unknown",
+    "46": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log); exposure outside the repository unknown",
+    "47": "NO_EXPOSURE_FOUND_IN_REPOSITORY (code, docs, workflows, git log); exposure outside the repository unknown",
+    "confirmatory_holdout": "NONE: these campaigns are descriptive replications; 45-47 not pre-registered as confirmatory with own alpha budget"
+  }
+}

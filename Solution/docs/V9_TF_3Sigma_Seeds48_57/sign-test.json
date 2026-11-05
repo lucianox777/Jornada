@@ -1,0 +1,113 @@
+{
+  "Test": "EXACT_TWO_SIDED_SIGN_TEST_CAMPAIGN_UNIT",
+  "Campaigns": 10,
+  "Positive": 10,
+  "NonPositive": 0,
+  "PTwoSided": 0.001953125,
+  "AlphaTwoSided": 0.0026998,
+  "SigmaEquivalentTwoSided": 3.0972690781987846,
+  "Met": true,
+  "MeanGainPp": 0.426986922364605,
+  "SdGainPp": 0.11021110751397847,
+  "SeGainPp": 0.03485181231938695,
+  "T95CiGainPp": [
+    0.34814665116361754,
+    0.5058271935655925
+  ],
+  "MinGainPp": 0.2776025236593149,
+  "MaxGainPp": 0.6501950585175553,
+  "DeltaFpTotal": 0,
+  "Campaigns_": [
+    {
+      "TargetSeed": 48,
+      "RecallTF0": 0.959297789336801,
+      "RecallONE_MF": 0.9657997399219765,
+      "GainPp": 0.6501950585175553,
+      "Positive": true,
+      "FpTF0": 0,
+      "FpONE_MF": 0
+    },
+    {
+      "TargetSeed": 49,
+      "RecallTF0": 0.9572034442873667,
+      "RecallONE_MF": 0.9614445444030331,
+      "GainPp": 0.4241100115666363,
+      "Positive": true,
+      "FpTF0": 0,
+      "FpONE_MF": 0
+    },
+    {
+      "TargetSeed": 50,
+      "RecallTF0": 0.960386857445681,
+      "RecallONE_MF": 0.9636989931107578,
+      "GainPp": 0.3312135665076821,
+      "Positive": true,
+      "FpTF0": 0,
+      "FpONE_MF": 0
+    },
+    {
+      "TargetSeed": 51,
+      "RecallTF0": 0.9579864724245577,
+      "RecallONE_MF": 0.961888657648283,
+      "GainPp": 0.39021852237253185,
+      "Positive": true,
+      "FpTF0": 0,
+      "FpONE_MF": 0
+    },
+    {
+      "TargetSeed": 52,
+      "RecallTF0": 0.9553186087839554,
+      "RecallONE_MF": 0.96001523229246,
+      "GainPp": 0.4696623508504638,
+      "Positive": true,
+      "FpTF0": 0,
+      "FpONE_MF": 0
+    },
+    {
+      "TargetSeed": 53,
+      "RecallTF0": 0.9550244153173991,
+      "RecallONE_MF": 0.9592649704446158,
+      "GainPp": 0.4240555127216661,
+      "Positive": true,
+      "FpTF0": 0,
+      "FpONE_MF": 0
+    },
+    {
+      "TargetSeed": 54,
+      "RecallTF0": 0.961294498381877,
+      "RecallONE_MF": 0.9649190938511327,
+      "GainPp": 0.36245954692557536,
+      "Positive": true,
+      "FpTF0": 0,
+      "FpONE_MF": 0
+    },
+    {
+      "TargetSeed": 55,
+      "RecallTF0": 0.9560726892404235,
+      "RecallONE_MF": 0.9616943391292979,
+      "GainPp": 0.5621649888874369,
+      "Positive": true,
+      "FpTF0": 0,
+      "FpONE_MF": 0
+    },
+    {
+      "TargetSeed": 56,
+      "RecallTF0": 0.9630352568012688,
+      "RecallONE_MF": 0.9668171282176407,
+      "GainPp": 0.37818714163718736,
+      "Positive": true,
+      "FpTF0": 0,
+      "FpONE_MF": 0
+    },
+    {
+      "TargetSeed": 57,
+      "RecallTF0": 0.9592429022082019,
+      "RecallONE_MF": 0.962018927444795,
+      "GainPp": 0.2776025236593149,
+      "Positive": true,
+      "FpTF0": 0,
+      "FpONE_MF": 0
+    }
+  ],
+  "NotClaimed": "direction of gain in the synthetic population only; not FDR certification or authorization"
+}

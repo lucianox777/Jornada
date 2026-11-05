@@ -1,0 +1,178 @@
+name: v9-tf-seed43-frozen-transfer
+
+# V9-TF-002 physical frozen transfer seed 42 -> seed 43 (TF0 vs ONE_MF).
+# Manual only. Replays the PRE-REGISTERED seed-42 snapshots unchanged on a NEW
+# seed-43 corpus in a disposable JornadaHarness. No refit, no TEST, no
+# certification, no DT-15, no publication. Not a fresh confirmatory holdout.
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'SHA exato da branch, 40 caracteres'
+        type: string
+        required: true
+      target_seed:
+        description: 'Seed-alvo (43 = V9-TF-002; 44-47 = issue #1275, exige manifesto LOCKED)'
+        type: choice
+        required: true
+        default: '43'
+        options: ['43', '44', '45', '46', '47', '48', '49', '50', '51', '52', '53', '54', '55', '56', '57']
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  frozen-transfer:
+    name: V9 seed${{ inputs.target_seed }} frozen transfer — TF0 vs ONE_MF (SQL físico, sem refit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      TARGET_SEED: ${{ inputs.target_seed }}
+      EVIDENCE: ${{ github.workspace }}/Solution/.local/v9-tf-seed${{ inputs.target_seed }}
+      SOURCE: ${{ github.workspace }}/Solution/.local/v9-tf-seed42-source
+      PLAN_DIR: ${{ inputs.target_seed == '43' && 'Solution/data/reference/v9-tf-seed43-frozen-transfer' || format('Solution/data/reference/v9-tf-frozen-transfer-seed{0}', inputs.target_seed) }}
+      # Immutable digest of Solution/docs/V9_TF_SEEDS_44_47_LOCK.json (issue #1275).
+      SEEDS_44_47_LOCK_SHA256: 822648cc3cca71368b77afad1fe816ae1ee9f87583311e1b25f18e19f01bfba3
+      # Immutable digest of Solution/docs/V9_TF_SEEDS_48_57_LOCK.json (3-sigma confirmation).
+      SEEDS_48_57_LOCK_SHA256: 3c2a11192bf8b2877861a5f70774d77a1c4cbed37e27b56f5eb6ac145d060bad
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Bind to exact live branch SHA before anything else
+        env:
+          TF_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          [[ "$TF_SHA" =~ ^[0-9a-f]{40}$ && "$GITHUB_REF" == refs/heads/* ]] || { echo "Exact SHA and branch ref required" >&2; exit 1; }
+          test "$(git rev-parse HEAD)" = "$TF_SHA"
+          test "$(git ls-remote --exit-code origin "$GITHUB_REF" | awk '{print $1}')" = "$TF_SHA"
+          python3 -m unittest Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_physical.py \
+            Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_preflight.py \
+            Solution/tests/scripts/test_v9_tf_seed43_frozen_transfer_contract.py
+          mkdir -p "$EVIDENCE"
+          [[ "$TARGET_SEED" =~ ^(4[3-9]|5[0-7])$ ]] || { echo "Unauthorized seed" >&2; exit 1; }
+          if (( TARGET_SEED >= 48 )); then
+            lock=Solution/docs/V9_TF_SEEDS_48_57_LOCK.json; lock_sha="$SEEDS_48_57_LOCK_SHA256"
+          else
+            lock=Solution/docs/V9_TF_SEEDS_44_47_LOCK.json; lock_sha="$SEEDS_44_47_LOCK_SHA256"
+          fi
+          if [[ "$TARGET_SEED" != "43" ]]; then
+            python3 -m unittest Solution/tests/scripts/test_v9_tf_frozen_transfer_lock_gate.py Solution/tests/scripts/test_v9_tf_campaign_sign_test.py
+            python3 Solution/scripts/v9-tf-frozen-transfer-lock-gate.py --seed "$TARGET_SEED" \
+              --lock "$lock" --expected-lock-sha256 "$lock_sha" --output "$EVIDENCE/lock-gate.json"
+            cp "$lock" "$EVIDENCE/"
+          fi
+          sha256sum "$PLAN_DIR"/*.json | tee "$EVIDENCE/pre-registered-plan.sha256"
+      - name: Fetch the immutable seed-42 source artifact named in the pre-registered plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          read -r run name < <(python3 -c 'import json,sys;p=json.load(open(sys.argv[1]));print(p["SourceRunId"],p["SourceArtifactName"])' "$PLAN_DIR/executor.json")
+          mkdir -p "$SOURCE"
+          gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$name" -D "$SOURCE"
+          python3 - "$PLAN_DIR/executor.json" "$SOURCE" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          plan, root = json.load(open(sys.argv[1])), Path(sys.argv[2])
+          def sha(p):
+              h = hashlib.sha256()
+              with open(p, 'rb') as f:
+                  for b in iter(lambda: f.read(1 << 20), b''): h.update(b)
+              return h.hexdigest()
+          assert sha(root / 'plan-tf.json') == plan['SourcePlanTfSha256'], 'plan-tf.json'
+          assert sha(root / 'study-tf' / 'study.json') == plan['SourceStudySha256'], 'study.json'
+          for arm in plan['Arms']:
+              assert sha(root / 'study-tf' / (arm['SnapshotSha256'] + '.fitted.json')) == arm['SnapshotSha256'], arm
+          print('PASS: seed-42 source plan, study and six frozen snapshots match the pre-registered SHA-256.')
+          PY
+      - name: Start masked disposable SQL Server
+        shell: bash
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build the single CSharp calibrator and synthetic producer
+        working-directory: Solution
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Generate NEW seed-43 corpus and pin the same published IBGE reference (no calibration)
+        working-directory: Solution
+        env:
+          V9_TF_TARGET_SEED: ${{ inputs.target_seed }}
+        run: bash scripts/v9-tf-prepare-pin.sh "$EVIDENCE" pinned-ibge.json
+      - name: Freeze corpus hashes before any evaluation
+        run: |
+          set -euo pipefail
+          ( cd "$EVIDENCE/people-30k" && sha256sum pessoas_verdade.csv observacoes.csv gabarito.json generation-manifest.json ) \
+            | tee "$EVIDENCE/corpus-hashes.sha256"
+      - name: Fail-closed provenance preflight (seed-43 bytes, IBGE hashes, frozen snapshots)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          python3 scripts/v9-tf-seed43-frozen-transfer-preflight.py \
+            --plan "$GITHUB_WORKSPACE/$PLAN_DIR/frozen-transfer-plan.json" \
+            --corpus-root "$EVIDENCE/people-30k" \
+            --seed42-registry data/reference/v9-synthetic-seed42-30000/manifest.json \
+            --seed43-pin "$EVIDENCE/pinned-ibge.json" \
+            --frozen-snapshots "$SOURCE/study-tf" \
+            --source-study "$SOURCE/study-tf/study.json" \
+            --output "$EVIDENCE/preflight.json"
+      - name: Recheck SHA and replay the six frozen arms on seed-43 VALIDATION
+        working-directory: Solution
+        env:
+          TF_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          test "$(git ls-remote --exit-code origin "$GITHUB_REF" | awk '{print $1}')" = "$TF_SHA"
+          # dotnet run executes from the project directory: pass absolute paths only.
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-frozen-transfer "$GITHUB_WORKSPACE/$PLAN_DIR/executor.json" \
+            "$SOURCE/plan-tf.json" "$SOURCE/study-tf" \
+            "$EVIDENCE/people-30k/observacoes.csv" "$EVIDENCE/transfer"
+      - name: Paired identity-clustered analysis (descriptive; NOT certification)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          ( cd "$EVIDENCE/people-30k" && sha256sum --check --strict "$EVIDENCE/corpus-hashes.sha256" )
+          python3 scripts/v9-tf-seed43-frozen-transfer-physical.py analyze \
+            --results "$EVIDENCE/transfer/transfer-results.json" \
+            --output "$EVIDENCE/transfer/analysis.json" --markdown "$EVIDENCE/transfer/analysis.md"
+          cat "$EVIDENCE/transfer/analysis.md" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "BEGIN_ANALYSIS_JSON"
+          python3 -c 'import json,sys;d=json.load(open(sys.argv[1]));print(json.dumps(d,separators=(",",":")))' "$EVIDENCE/transfer/analysis.json"
+          echo "END_ANALYSIS_JSON"
+          sha256sum "$EVIDENCE/transfer/"*.json "$EVIDENCE/preflight.json" "$EVIDENCE/pinned-ibge.json" \
+            "$EVIDENCE/bootstrap.json" "$EVIDENCE/people-30k/generation-manifest.json"
+      - name: Preserve SHA-bound evidence (no CSV, names, TEST or credentials)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-tf-seed${{ inputs.target_seed }}-frozen-transfer-${{ github.run_id }}-${{ github.sha }}
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/pre-registered-plan.sha256
+            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/lock-gate.json
+            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/V9_TF_SEEDS_*_LOCK.json
+            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/corpus-hashes.sha256
+            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/bootstrap.json
+            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/pinned-ibge.json
+            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/preflight.json
+            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/people-30k/generation-manifest.json
+            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/transfer/*.json
+            Solution/.local/v9-tf-seed${{ inputs.target_seed }}/transfer/analysis.md
+      - name: Remove disposable SQL Server
+        if: always()
+        shell: bash
+        run: docker rm -f "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true

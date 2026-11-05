@@ -114,14 +114,15 @@ public sealed class V9FittedSnapshot
     /// <summary>
     /// Experimental Gold retrieval variant of the SAME fit, never an operational
     /// approval. Real Gold membership must be supplied by the incremental pipeline,
-    /// not synthetic labels or the cohort complete-link builder.
+    /// not synthetic labels or the cohort complete-link builder. An active, frozen
+    /// TF unit remains unchanged: this transformation is grouping-only and neither
+    /// fits TF nor changes m/u, blocking, prior, thresholds or reference provenance.
     /// </summary>
     public V9FittedSnapshot CreateGoldHarnessVariant()
     {
-        if (Payload.JointSupport is null || Payload.TfWeight != 0
-            || Payload.UnitTfCalibrations?.Any(x => x.State == V9SnapshotTfFitState.Active) == true
+        if (Payload.JointSupport is null
             || Payload.CandidateGrouping?.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES")
-            throw new InvalidDataException("Variante Gold exige fit V3 BLIND TF0 congelado.");
+            throw new InvalidDataException("Variante Gold exige fit V3 BLIND congelado.");
         return Create(Payload with { CandidateGrouping = new("GOLD", 0, 0), GoldParentSnapshotSha256 = ContentSha256 });
     }
 
