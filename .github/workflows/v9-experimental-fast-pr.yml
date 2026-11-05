@@ -37,5 +37,7 @@ jobs:
           fi
       - name: All V9 fixture regression
         run: python -m unittest discover -s Solution/tests/fixtures -p 'test_v9*.py' -v
+      - name: File-driven V2 frozen calibration bootstrap regression
+        run: python -m unittest discover -s Solution/tests/scripts -p 'test_v9_v2_frozen_bootstrap.py' -v
       - name: Offline calibration evidence bundle contract regression
         run: python -m unittest discover -s Solution/tests/scripts -p 'test_v9_calibration_evidence_bundle.py' -v
