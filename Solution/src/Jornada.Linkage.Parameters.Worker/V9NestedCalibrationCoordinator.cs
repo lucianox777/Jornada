@@ -18,10 +18,20 @@ public sealed record V9NestedCalibrationPlan(V9AdaptiveCalibrationPlan Calibrati
     long? PinnedIbgeReferenceVersionId = null,
     string? PinnedIbgePublishedSha256 = null,
     string? PinnedIbgeMaterializedFrequencySha256 = null,
-    NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null);
+    NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<V9MuEstimationMethod>? MuEstimationMethods = null);
 
 public sealed record V9NestedCandidateEvaluation(string RequestSha256, int Batch,
-    V9TrainingCandidate? Candidate, IReadOnlyList<string> Rejections);
+    V9TrainingCandidate? Candidate, IReadOnlyList<string> Rejections,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? OptionId = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    decimal? ConflictMargin = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? MuEstimationMethod = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    V9JointSupportPolicy? MuPolicy = null);
 
 public sealed record V9NestedCalibrationSearchResult(string Version, string PlanSha256,
     V9InternalTrainingSplit.Manifest Split, IReadOnlyList<V9NestedCandidateEvaluation> Evaluations,
@@ -51,7 +61,13 @@ public static class V9NestedCalibrationCoordinator
     {
         ArgumentNullException.ThrowIfNull(plan);
         V9AdaptiveCalibrationCoordinator.ValidatePlan(plan.Calibration);
-        V9JointSupportEstimation.ValidatePolicy(new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule));
+        if (plan.MuEstimationMethods is { } muMethods)
+        {
+            _ = V9MuEstimationSearchSpace.Enumerate(muMethods);
+            if (plan.Calibration.ModelOptions.Any(x => x.JointSupportPolicy is not null))
+                throw new InvalidDataException("Plano M/U explícito não aceita JointSupportPolicy simultâneo nas opções-base.");
+        }
+        else V9JointSupportEstimation.ValidatePolicy(new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule));
         if (string.IsNullOrWhiteSpace(plan.SplitSeed) || plan.AdjustmentFraction is <= 0 or >= 1
             || plan.MaximumBatches < 1 || plan.MaximumSearchConfigurations < 1
             || plan.BootstrapRepetitions < 100 || plan.MinimumObservedMPerCell < 0 || plan.MinimumObservedUPerCell < 0
@@ -120,6 +136,15 @@ public static class V9NestedCalibrationCoordinator
         originalTrain = Array.AsReadOnly(originalTrain.ToArray());
         // Deep freeze before asynchronous execution. Search never receives a VALIDATION/TEST cohort.
         plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(JsonSerializer.Serialize(plan))!;
+        // Bind selection/VALIDATION to the declared plan, not the internally expanded options.
+        var declaredPlanSha = V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(plan));
+        if (plan.MuEstimationMethods is { } muMethods)
+        {
+            var expanded = V9MuEstimationSearchSpace.Expand(plan.Calibration.ModelOptions,
+                muMethods, plan.MaximumSearchConfigurations);
+            plan = plan with { Calibration = plan.Calibration with { ModelOptions = expanded } };
+            V9AdaptiveCalibrationCoordinator.ValidatePlan(plan.Calibration);
+        }
         var split = V9InternalTrainingSplit.Create(originalTrain, plan.SplitSeed, plan.AdjustmentFraction);
         var calibration = plan.Calibration;
         if (originalTrain.GroupBy(x => x.BasePersonId, StringComparer.Ordinal).Any(g => g.Count() > calibration.MaximumAcceptedPerBaseIdentity))
@@ -253,7 +278,7 @@ public static class V9NestedCalibrationCoordinator
             if (requests.Length == 0) { stop = "DECLARED_NEIGHBOURHOOD_EXHAUSTED_NOT_GLOBAL_OPTIMALITY"; break; }
         }
         var finalists = V9TrainingParetoSelection.Finalists(frontier, calibration.RiskCeilings!, calibration.SelectionPolicy.MaximumAcceptedFdrUpper);
-        return new(Version, V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(plan)), split.Manifest,
+        return new(Version, declaredPlanSha, split.Manifest,
             evaluations.AsReadOnly(), progress.AsReadOnly(), frontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
             finalists.Select(x => x.Snapshot.ContentSha256).ToArray(), stop);
     }
@@ -313,7 +338,9 @@ public static class V9NestedCalibrationCoordinator
                 includeFsBlindGrouping: true, minimumFsGroupingPosterior: c.MinimumGroupingPosterior,
                 adaptiveExecution: c.Execution with { EndToEndRepetitions = 0, TotalComparedConfigurations = plan.MaximumSearchConfigurations },
                 includeIdentityOutcomes: true,
-                jointSupportPolicy: new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule));
+                jointSupportPolicy: plan.MuEstimationMethods is null
+                    ? new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule)
+                    : null);
             var result = new List<V9NestedCandidateEvaluation>();
             foreach (var request in requests)
             {
@@ -321,7 +348,8 @@ public static class V9NestedCalibrationCoordinator
                 var fit = run.FrozenConfigurations!.Single(x => x.OptionId == request.Option.OptionId);
                 var support = fit.JointSupport!;
                 var reasons = new List<string>();
-                if (!V9JointSupportEstimation.HasRequiredCoreSupport(fit.Snapshot.Payload.JointSupport!))
+                if (fit.Snapshot.Payload.JointSupport is { } provenance
+                    && !V9JointSupportEstimation.HasRequiredCoreSupport(provenance))
                     reasons.Add("SUPORTE_OBSERVADO_NO_NUCLEO_DE_MASSA_INSUFICIENTE");
                 var fanout = run.CalibrationReport.Options.Single(x => x.OptionId == request.Option.OptionId).Validation.BlockingFalseDegreeP99;
                 if (fanout > c.Budget.MaximumBlockingFalseDegreeP99) reasons.Add("FANOUT_P99_ACIMA_DO_ORCAMENTO");
@@ -339,12 +367,25 @@ public static class V9NestedCalibrationCoordinator
                         || measured.Metric.Conflicts != metric.Conflicts || measured.Metric.Unresolved != metric.Unresolved)
                         throw new InvalidDataException("Fit e replay congelado divergem no TRAIN_SELECTION.");
                 }
-                result.Add(new(request.Sha, batch, new(fit.Snapshot, metric, support, p95, fanout, reasons.AsReadOnly()), reasons.AsReadOnly()));
+                result.Add(new(request.Sha, batch, new(fit.Snapshot, metric, support, p95, fanout, reasons.AsReadOnly()),
+                    reasons.AsReadOnly(),
+                    OptionId: plan.MuEstimationMethods is null ? null : request.Option.OptionId,
+                    ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
+                    MuEstimationMethod: plan.MuEstimationMethods is null ? null
+                        : request.Option.JointSupportPolicy is null
+                            ? V9MuEstimationSearchSpace.Default : V9MuEstimationSearchSpace.Classwise,
+                    MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy));
             }
             return result.AsReadOnly();
         }
         catch (InvalidDataException exception) when (exception.Data[V9PhysicalSqlAdaptiveCalibrationProbe.CandidateRejectionKey] is true)
         { return Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(request.Sha, batch, null,
-            ["REJEICAO_FISICA: " + exception.Message])).ToArray()); }
+            ["REJEICAO_FISICA: " + exception.Message],
+            OptionId: plan.MuEstimationMethods is null ? null : request.Option.OptionId,
+            ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
+            MuEstimationMethod: plan.MuEstimationMethods is null ? null
+                : request.Option.JointSupportPolicy is null
+                    ? V9MuEstimationSearchSpace.Default : V9MuEstimationSearchSpace.Classwise,
+            MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy)).ToArray()); }
     }
 }

@@ -112,8 +112,95 @@ public static class V9NestedCalibrationCli
             result.FinalistSnapshotShas, result.StopReason, externalValidationUsed = false, testUsed = false, activated = false });
         await WriteNewAsync(Path.Combine(output, "training-split-manifest.json"), result.Split);
         await WriteNewAsync(Path.Combine(output, "gain-by-batch.json"), result.Progress);
+        if (plan.MuEstimationMethods is not null)
+            await WriteMuStatisticalAnalysisAsync(output, plan, result);
         Console.WriteLine(JsonSerializer.Serialize(new { envelopeSha256 = envelopeSha, evaluations = result.Evaluations.Count,
             finalists = result.FinalistSnapshotShas.Count, result.StopReason, externalValidationUsed = false, testUsed = false, activated = false }));
+    }
+
+
+    /// <summary>
+    /// Full declared-vs-executed M/U audit; TRAIN_SELECTION only, never validation or certification.
+    /// Rows include rejected options and the exact policy, not only winning finalists.
+    /// </summary>
+    private static async Task WriteMuStatisticalAnalysisAsync(string output,
+        V9NestedCalibrationPlan plan, V9NestedCalibrationSearchResult result)
+    {
+        var declared = V9MuEstimationSearchSpace.Enumerate(plan.MuEstimationMethods!);
+        var rows = result.Evaluations.Select(e => new
+        {
+            e.Batch, e.RequestSha256, e.OptionId, e.MuEstimationMethod,
+            e.MuPolicy, e.ConflictMargin,
+            fitSnapshotSha256 = e.Candidate?.Snapshot.ContentSha256,
+            smoothingAlpha = e.Candidate?.Snapshot.Payload is { } p ? (decimal?)p.JointSupport?.SmoothingAlpha
+                ?? (decimal?)null : null,
+            threshold = e.Candidate?.Snapshot.Payload.Threshold,
+            trueAccepted = e.Candidate?.Metric.TrueAcceptedSourceObservations,
+            falseAccepted = e.Candidate?.Metric.FalseAcceptedSourceObservations,
+            eligibleSources = e.Candidate?.Metric.EligibleSourceObservationsBeforeBlocking,
+            recall = e.Candidate?.Metric.GlobalSourceRecall,
+            fdrObserved = e.Candidate?.Metric.FdrAfterResolve,
+            conditionalClusterCpFdrUpper = e.Candidate?.Metric.ConditionalClusterCpFdrUpper,
+            clusterIidIndependentlyValidated = e.Candidate?.Metric.ClusterIidIndependentlyValidated,
+            conflicts = e.Candidate?.Metric.Conflicts,
+            unresolved = e.Candidate?.Metric.Unresolved,
+            p95Milliseconds = e.Candidate?.P95Milliseconds,
+            e.Rejections,
+            outcome = e.Candidate is null ? "REJECTED_NOT_MEASURED"
+                : e.Rejections.Count > 0 ? "MEASURED_NOT_ELIGIBLE" : "MEASURED_ELIGIBLE"
+        }).ToArray();
+        var report = new
+        {
+            schema = "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1",
+            result.PlanSha256,
+            originalMethodsAndParameterArrays = plan.MuEstimationMethods,
+            declaredVariants = declared.Select(x => new { x.Method, x.Key, x.Policy }).ToArray(),
+            declaredVariantCount = declared.Count,
+            evaluations = rows.Length,
+            measured = rows.Count(x => x.fitSnapshotSha256 is not null),
+            rejectedOrIneligible = rows.Count(x => x.outcome != "MEASURED_ELIGIBLE"),
+            completeRequestedSpaceOnlyWhenInitialRequestsExecuted = true,
+            scope = "TRAIN_SELECTION_ONLY_NOT_INDEPENDENT_VALIDATION",
+            conditionalFdrBoundsNotCertified = true,
+            testUsed = false, activated = false,
+            finalistSnapshotShas = result.FinalistSnapshotShas,
+            result.StopReason,
+            rows
+        };
+        await WriteNewAsync(Path.Combine(output, "mu-statistical-analysis.json"), report);
+        var md = new System.Text.StringBuilder();
+        md.AppendLine("# Análise estatística M/U — TRAIN_SELECTION");
+        md.AppendLine();
+        md.AppendLine("Plano SHA-256: `" + result.PlanSha256 + "`. Somente espaço declarado; não houve TEST, certificação nem ativação.");
+        md.AppendLine("O arquivo `mu-statistical-analysis.json` guarda todas as avaliações, inclusive recusas e valores M/U exatos.");
+        md.AppendLine();
+        md.AppendLine("| Método | Cobertura | Min M | Min U | Cauda retida | Threshold | Margem | TP | FP | Recall | FDR observada | Conflitos | Status | Snapshot |");
+        md.AppendLine("|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---|---|");
+        foreach (var e in result.Evaluations)
+        {
+            var policy = e.MuPolicy;
+            var metric = e.Candidate?.Metric;
+            var status = e.Candidate is null ? "REJEITADA"
+                : e.Rejections.Count > 0 ? "INELEGÍVEL" : "ELEGÍVEL";
+            static string Number(object? x) => x?.ToString() ?? "—";
+            md.AppendLine("| " + Number(e.MuEstimationMethod) + " | "
+                + Number(policy?.ClassMassCoverage) + " | " + Number(policy?.MinimumM)
+                + " | " + Number(policy?.MinimumU) + " | "
+                + (policy is null ? "—" : policy.SupportedTailRule is null ? "não" : "sim")
+                + " | " + Number(metric?.Threshold) + " | " + Number(e.ConflictMargin)
+                + " | " + Number(metric?.TrueAcceptedSourceObservations)
+                + " | " + Number(metric?.FalseAcceptedSourceObservations)
+                + " | " + Number(metric?.GlobalSourceRecall)
+                + " | " + Number(metric?.FdrAfterResolve)
+                + " | " + Number(metric?.Conflicts)
+                + " | " + status + " | " + Number(e.Candidate?.Snapshot.ContentSha256) + " |");
+        }
+        md.AppendLine();
+        md.AppendLine("FDR = 0 observada não implica risco estatístico zero. Os limites condicionais, " +
+            "multiplicidade, dependência entre identidades e motivos das recusas estão no JSON; " +
+            "sem VALIDATION independente não há autorização DT-15.");
+        var file = Path.Combine(output, "mu-statistical-analysis.md");
+        await File.WriteAllTextAsync(file, md.ToString());
     }
 
     /// <summary>
