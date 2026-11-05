@@ -105,7 +105,7 @@ class TransferWorkflowTests(unittest.TestCase):
             for token in line.replace("\\", " ").split():
                 if token.startswith("--"):
                     continue
-                self.assertTrue(token.startswith('"$PWD/') or token.startswith('"$SOURCE') or token.startswith('"$EVIDENCE'), token)
+                self.assertTrue(token.startswith('"$PWD/') or token.startswith('"$GITHUB_WORKSPACE/') or token.startswith('"$SOURCE') or token.startswith('"$EVIDENCE'), token)
 
 
 class CommittedPlanTests(unittest.TestCase):
@@ -135,6 +135,19 @@ class CommittedPlanTests(unittest.TestCase):
         # The frozen source observations are exactly the registered seed-42 bytes.
         registered = {f["file"]: f["sha256"].lower() for f in registry["generated_files"]}
         self.assertEqual(executor["SourceObservationsSha256"], registered["observacoes.csv"])
+
+class AggregateStatAuditCITests(unittest.TestCase):
+    """Exercise the standalone aggregate audit in the existing CI test job."""
+
+    def test_aggregate_audit_self_test(self):
+        import subprocess
+        import sys
+        script = SOLUTION / "scripts" / "v9-tf-seed43-aggregate-stat-audit.py"
+        result = subprocess.run(
+            [sys.executable, str(script), "--self-test"],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
 if __name__ == "__main__":
     unittest.main()

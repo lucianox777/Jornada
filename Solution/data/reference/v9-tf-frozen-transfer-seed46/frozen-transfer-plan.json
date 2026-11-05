@@ -1,0 +1,26 @@
+{
+  "schema_version": "V9_TF_SEED43_FROZEN_TRANSFER_PREFLIGHT_V1",
+  "source_seed": 42,
+  "target_seed": 46,
+  "transfer_mode": "FROZEN_NO_REFIT",
+  "source_commit_sha": "935f704edd2bceb6a125ecfe532ad5b71f9c89b9",
+  "source_study_sha256": "7499ee635ecb4999106dbee22a5993f9f16b88d75c725f99490f2fccd39cba2b",
+  "source_run_id": 41900357031,
+  "frozen_models": [
+    {
+      "option_id": "T0.95_TF0",
+      "snapshot_sha256": "f010349623b6bae32b4303f680a715bb1264271fec0e325730cce3f7bc0eb12e"
+    },
+    {
+      "option_id": "TF_ONE_MF_W1_M0_A0.5_T0.95",
+      "snapshot_sha256": "8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f"
+    }
+  ],
+  "target_fdr_max": 0.01,
+  "test_sealed": true,
+  "margins": [
+    0.5,
+    2,
+    4
+  ]
+}

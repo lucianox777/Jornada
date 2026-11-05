@@ -18,6 +18,9 @@ pin_source = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(pin_source)
 
 VERSION = "V9_TF_SEED43_FROZEN_TRANSFER_PREFLIGHT_V1"
+# Frozen-transfer targets: V9-TF-002 seed 43; #1275 seeds 44-47; 3-sigma confirmation seeds 48-57.
+# Seed 42 is the source only.
+TARGET_SEEDS = tuple(range(43, 58))
 EXPECTED_OPTIONS = {"T0.95_TF0", "TF_ONE_MF_W1_M0_A0.5_T0.95"}
 FILES = {"pessoas_verdade.csv", "observacoes.csv", "gabarito.json"}
 
@@ -38,7 +41,7 @@ def check_plan(plan, snapshots):
         raise ValueError("Plan fields must be complete and frozen before target corpus")
     if (plan["schema_version"] != VERSION or type(plan["source_seed"]) is not int
         or plan["source_seed"] != 42 or type(plan["target_seed"]) is not int
-        or plan["target_seed"] != 43 or plan["transfer_mode"] != "FROZEN_NO_REFIT"
+        or plan["target_seed"] not in TARGET_SEEDS or plan["transfer_mode"] != "FROZEN_NO_REFIT"
         or type(plan["source_run_id"]) is not int or plan["source_run_id"] < 1
         or not digest(plan["source_commit_sha"], 40)
         or not digest(plan["source_study_sha256"])
@@ -61,11 +64,13 @@ def check_plan(plan, snapshots):
             raise ValueError("Frozen source snapshot missing or SHA-256 mismatch")
 
 
-def check_corpus(root, registry):
+def check_corpus(root, registry, target_seed=43):
+    if type(target_seed) is not int or target_seed not in TARGET_SEEDS:
+        raise ValueError("Unsupported frozen-transfer target seed")
     manifest_path = root / "generation-manifest.json"
     manifest = pin_source.parse_json(manifest_path)
     expected = {"schema_version": 1, "generator_version": "JORNADA_SYNTH_CORPUS_CSHARP_V1",
-                "seed": 43, "population_profile": "DEMOGRAPHIC_PRIMARY_V1",
+                "seed": target_seed, "population_profile": "DEMOGRAPHIC_PRIMARY_V1",
                 "error_profile": "clean", "reference_code": "CENSO2022_NOMES_BRASIL_V1"}
     if not isinstance(manifest, dict) or any(
         type(manifest.get(k)) is not type(v) or manifest[k] != v for k, v in expected.items()
@@ -118,7 +123,7 @@ def check_corpus(root, registry):
     bootstrap = {"Provenance": "SINTETICO_IBGE", "People": 30000,
                  "CorpusFingerprint": by_path["pessoas_verdade.csv"],
                  "GeneratorVersion": manifest["generator_version"],
-                 "GeneratorSeed": 43,
+                 "GeneratorSeed": target_seed,
                  "GenerationHypothesesFingerprint": sha256(manifest_path)}
     return bootstrap, counts, by_path
 
@@ -129,7 +134,7 @@ def verify(plan_path, corpus_root, registry_path, pin_path, snapshots, source_st
     if not source_study.is_file() or sha256(source_study) != plan["source_study_sha256"].lower():
         raise ValueError("Seed-42 source study missing or SHA-256 mismatch")
     registry = pin_source.parse_json(registry_path)
-    bootstrap, counts, output_shas = check_corpus(corpus_root, registry)
+    bootstrap, counts, output_shas = check_corpus(corpus_root, registry, plan["target_seed"])
     pinned = pin_source.pinned_reference(pin_source.parse_json(pin_path))
     source_ibge = registry.get("ibge_reference")
     if (not isinstance(source_ibge, dict)
@@ -140,7 +145,7 @@ def verify(plan_path, corpus_root, registry_path, pin_path, snapshots, source_st
         raise ValueError("IBGE reference differs or target seed-43 bootstrap was reused/tampered")
     return {
         "version": VERSION, "status": "PREFLIGHT_ONLY_NO_SQL_TF_RESULTS_NO_CERTIFICATION",
-        "transfer_mode": plan["transfer_mode"], "source_seed": 42, "target_seed": 43,
+        "transfer_mode": plan["transfer_mode"], "source_seed": 42, "target_seed": plan["target_seed"],
         "plan_sha256": sha256(plan_path),
         "generator_manifest_sha256": bootstrap["GenerationHypothesesFingerprint"],
         "generated_output_sha256": output_shas, "source_snapshots": plan["frozen_models"],
