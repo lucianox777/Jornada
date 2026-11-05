@@ -4,18 +4,12 @@ name: v9-frozen-train-joint-v3-trial
 # This is a new, explicitly experimental JOINT m/u fit, never the original
 # frozen V2 or an approved V9 model. NO 30k, SQL, VALIDATION/TEST, DT-15.
 on:
-  push:
-    branches:
-      - feat/v9-gold-frozen-tf-diagnostic-20261105
-    paths:
-      - '.github/workflows/v9-frozen-train-joint-v3-trial.yml'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FrozenJointTrainingDerivationCli.cs'
-      - 'Solution/data/reference/v9-tf-frozen-joint-trial-20261105/historical-v3-support-policy.json'
-      - 'Solution/tests/Jornada.Tests/Unit/V9FittedSnapshotTests.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/Program.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FrozenJointIndependentComparisonCli.cs'
-      - 'Solution/src/Jornada.Linkage.Runner/V9FrozenGoldRuntimeProbeCli.cs'
-      - 'Solution/src/Jornada.Linkage.Runner/Program.cs'
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Exact 40-character branch SHA; TRAIN-only frozen derivative requires manual request'
+        type: string
+        required: true
 
 permissions:
   contents: read
@@ -39,11 +33,20 @@ jobs:
           dotnet-version: '10.0.113'
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - name: Build worker and verify exact source artifact identity
+      - name: Verify authorized manual request, live branch HEAD, then build frozen worker
         working-directory: Solution
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = 'workflow_dispatch'
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_REF" == refs/heads/* ]]
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$GITHUB_SHA" = "$EXPECTED_SHA"
+          LIVE_SHA="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/heads/${GITHUB_REF#refs/heads/}" --jq '.object.sha')"
+          test "$LIVE_SHA" = "$EXPECTED_SHA"
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
           dotnet build -c Release src/Jornada.Linkage.Runner/Jornada.Linkage.Runner.csproj
           python3 -m unittest tests/scripts/test_v9_tf_frozen_source_schema_audit.py -v
