@@ -61,6 +61,16 @@ No ensaio técnico do V9 sobre TRAIN_SELECTION, o incremento DEFAULT→CLASSWISE
 
 Para cada transição relatar TP, FP, recall, conflitos, não resolvidos, fusões, fragmentação, latência P95, fanout P99, elegibilidade e delta por **identidade-base**. Exigir diagnóstico de origem dos aceites: mudança no score, cruzamento de `threshold=0,95`, bloqueio, termo TF não publicado, margem ou agrupamento. Relatar separadamente os termos com maior Δlog(M/U) nas 81 células e o efeito de prior na posterior; **não** atribuir causa a uma variável sem replays emparelhados.
 
+## 5. Decisão simplificada — prior calculado, NÃO parâmetro selecionável
+
+**Orientação posterior do responsável:** não introduzir `PriorEstimationMethods`, `PriorOptions` nem outro parâmetro de busca de prior. O prior permanece **calculado** pelo método do Calibrador: `(M + alfa)/(M + U + 2*alfa)`, usando o frame físico de candidatos do TRAIN. O IBGE é referência de frequências nominais/TF, não fonte suficiente para determinar sozinho a prevalência de match condicionada ao blocking.
+
+Para diagnosticar a variável de maior efeito, aplicar a **única intervenção experimental explicitamente fixada**: copiar o snapshot atual V9, buscar `PRIOR_MATCH_PROBABILITY` do snapshot histórico V3 SHA `8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc` e substituir apenas essa chave em `Parameters` na cópia. O valor comprovado é `0.4299621826039978`; o prior V9 `0.509555879140881` foi reconstruído das contagens da Action e deve ser conferido nos bytes do fit atual antes do replay. Snapshot novo e digest novo, originais imutáveis. Não recalcular as 81 células M/U, TF, U nominal, birth, passes, thresholds nem corpus; recalcular **somente scores/posteriores, ranking e decisões** no mesmo frame.
+
+Para isolar a interação, realizar os quatro braços fixos `DEFAULT/prior V9`, `DEFAULT/prior V3`, `CLASSWISE/prior V9`, `CLASSWISE/prior V3`. É um experimento contrafactual de diagnóstico com referência histórica pinada no SHA, **não** opção do usuário nem alteração de valor-padrão operacional. Validar que só a chave prior foi alterada, registrar o delta por identidade-base, limites de fanout/latência e contagem de candidatos TF ausentes. Não inferir que o prior V3 é o valor correto para a base V9; eventual mudança futura de **regra de cálculo** exigiria estudo separado.
+
+**Estado:** a cópia e a execução física desses quatro braços **ainda não foram feitas**; sem novos resultados estatísticos. A origem do prior histórico é a contagem M/U do TRAIN original, não um cálculo direto das tabelas IBGE.
+
 ## 5. Fronteiras e critérios
 
 O gate automático seed42 é apenas teste técnico, não autorização para usar VALIDATION independente, seeds novas, Gold ou TEST. Estes dependem de solicitação manual, plano `LOCKED`, hipótese e alfa fixados antes da execução. Nenhum experimento deve converter `FP=0` observado em FDR certificada, especialmente com `ClusterIidIndependentlyValidated=false`. A autorização DT-15 continua distinta.
