@@ -1,0 +1,149 @@
+{
+  "schema": "V9_MU_SEED42_TECHNICAL_RESULT_SUMMARY_V1",
+  "scope": "KNOWN_SEED42_TRAIN_SELECTION_ONLY_NON_CONFIRMATORY",
+  "evidence": {
+    "repository": "lucianox777/Jornada",
+    "sourcePr": 1287,
+    "sourceHeadSha": "4d5718e57f33db6d506cfce929230ca6069a1602",
+    "mergeCommitSha": "ae78fd31b3e35bbea162f03a56729af26c2dc88e",
+    "actionRunId": 42120197234,
+    "artifactId": 13459820384,
+    "artifactRetentionDays": 90,
+    "planBytesSha256": "593ad66a287824aa48c2c3fd1057d11d2a1a8bead27934a049469e06eb191dc6",
+    "canonicalPlanSha256": "57757fff562d55e0ee943a3b5aa4f1d3f0fb79eb54d5237385cdb707bd3e5c20",
+    "corpusSha256": "28bbb9f4c63c97c353e7f29cdbc77091a4773b2f4c596e46103edadd93635d17",
+    "statisticalReportBytesSha256": "f418874fd595ba3959080eb651becebe8fe2222ed6d4663cb8343bd0dc5eecb3"
+  },
+  "design": {
+    "populationBasePeople": 30000,
+    "seed": 42,
+    "selectionSplit": "TRAIN internal adjustment/selection",
+    "methods": [
+      "DEFAULT",
+      "CLASSWISE_SUPPORT_BACKOFF"
+    ],
+    "classwisePolicy": {
+      "ClassMassCoverage": 0.99,
+      "MinimumM": 5,
+      "MinimumU": 5,
+      "RetainSupportedTail": true
+    },
+    "optionId": "TF_ONE_MF_W1_M0_A0.5_T0.95",
+    "smoothingAlpha": 0.5,
+    "decisionThreshold": 0.95,
+    "conflictMargin": 0.5,
+    "blockingPassCounts": [
+      3,
+      19
+    ],
+    "plannedComparisons": 4,
+    "executedComparisons": 4,
+    "stopReason": "COMPUTE_BUDGET_EXHAUSTED_NOT_OPTIMALITY",
+    "externalValidationUsed": false,
+    "testUsed": false,
+    "activated": false,
+    "certified": false
+  },
+  "results": [
+    {
+      "method": "DEFAULT",
+      "blockingPasses": 3,
+      "eligibleSourceObservationsBeforeBlocking": 7011,
+      "trueAccepted": 6702,
+      "falseAccepted": 0,
+      "recall": 0.9559264013692769,
+      "observedFdr": 0,
+      "conditionalClusterCpFdrUpper": 0.0032457881917601116,
+      "independentClusterIidValidated": false,
+      "conflicts": 207,
+      "unresolved": 2331,
+      "p95Milliseconds": 1176.0021,
+      "trainM": 13997,
+      "trainU": 13472,
+      "cellsObservedM": 30,
+      "cellsObservedU": 20,
+      "cellsBoth": 13,
+      "cellsNeither": 44,
+      "eligibility": "MEASURED_ELIGIBLE",
+      "rejectionReasons": [],
+      "snapshotSha256": "900690f694237104cba97d50cffcf9b897e7964d5a12bb229741f5e42a93c9d2"
+    },
+    {
+      "method": "CLASSWISE_SUPPORT_BACKOFF",
+      "blockingPasses": 3,
+      "eligibleSourceObservationsBeforeBlocking": 7011,
+      "trueAccepted": 6771,
+      "falseAccepted": 0,
+      "recall": 0.965768078733419,
+      "observedFdr": 0,
+      "conditionalClusterCpFdrUpper": 0.0032103532729909462,
+      "independentClusterIidValidated": false,
+      "conflicts": 145,
+      "unresolved": 2324,
+      "p95Milliseconds": 768.8721,
+      "trainM": 13997,
+      "trainU": 13472,
+      "cellsObservedM": 30,
+      "cellsObservedU": 20,
+      "cellsBoth": 13,
+      "cellsNeither": 44,
+      "eligibility": "MEASURED_ELIGIBLE",
+      "rejectionReasons": [],
+      "snapshotSha256": "5ddd4667db422a56371283725aaa874db87a17eded10c51855315438c99b62b1"
+    },
+    {
+      "method": "DEFAULT",
+      "blockingPasses": 19,
+      "eligibleSourceObservationsBeforeBlocking": 7011,
+      "trueAccepted": 6819,
+      "falseAccepted": 0,
+      "recall": 0.9726144629867352,
+      "observedFdr": 0,
+      "conditionalClusterCpFdrUpper": 0.0031861557774935092,
+      "independentClusterIidValidated": false,
+      "conflicts": 164,
+      "unresolved": 2257,
+      "p95Milliseconds": null,
+      "trainM": 14314,
+      "trainU": 505169,
+      "cellsObservedM": 38,
+      "cellsObservedU": 48,
+      "cellsBoth": 30,
+      "cellsNeither": 25,
+      "eligibility": "MEASURED_NOT_ELIGIBLE",
+      "rejectionReasons": [
+        "FANOUT_P99_ACIMA_DO_ORCAMENTO"
+      ],
+      "snapshotSha256": "db155e0f28c900ecfef329ba733bb5e7822040dfd605cdbb6ca81d72398a3a75"
+    },
+    {
+      "method": "CLASSWISE_SUPPORT_BACKOFF",
+      "blockingPasses": 19,
+      "eligibleSourceObservationsBeforeBlocking": 7011,
+      "trueAccepted": 6826,
+      "falseAccepted": 0,
+      "recall": 0.9736128940236771,
+      "observedFdr": 0,
+      "conditionalClusterCpFdrUpper": 0.0031826574191863278,
+      "independentClusterIidValidated": false,
+      "conflicts": 154,
+      "unresolved": 2260,
+      "p95Milliseconds": null,
+      "trainM": 14314,
+      "trainU": 505169,
+      "cellsObservedM": 38,
+      "cellsObservedU": 48,
+      "cellsBoth": 30,
+      "cellsNeither": 25,
+      "eligibility": "MEASURED_NOT_ELIGIBLE",
+      "rejectionReasons": [
+        "FANOUT_P99_ACIMA_DO_ORCAMENTO"
+      ],
+      "snapshotSha256": "fba9be6d374e1a872e2e403f68957c70e38da7af235a07581b71cd1f4764a4c2"
+    }
+  ],
+  "trainSelectionFinalistSnapshotShas": [
+    "5ddd4667db422a56371283725aaa874db87a17eded10c51855315438c99b62b1"
+  ],
+  "note": "Transcrição resumida dos quatro resultados físicos do report do Artifact 13459820384, com SHA conferido contra mu-technical-receipt.json. Não é documento de certificação; dados por célula (81) e recusas completos permanecem no relatório original do Artifact."
+}
