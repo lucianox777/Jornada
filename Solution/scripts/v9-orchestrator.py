@@ -318,7 +318,7 @@ def collect(fronts_path, results_dir=None):
                 # Automatic PR evidence must originate in this repository,
                 # not an untrusted fork with an identical displayed branch name.
                 from_same_repo = (event == "pull_request"
-                                  and r.get("head_repository", {}).get("full_name") == __import__("os").environ["GITHUB_REPOSITORY"])
+                                  and (r.get("head_repository") or {}).get("full_name") == __import__("os").environ["GITHUB_REPOSITORY"])
                 runs.append({"id": r["id"], "path": wf, "event": event, "head_sha": r["head_sha"],
                              "head_branch": r["head_branch"], "conclusion": r["conclusion"],
                              "status": r.get("status"), "mode": mode,
