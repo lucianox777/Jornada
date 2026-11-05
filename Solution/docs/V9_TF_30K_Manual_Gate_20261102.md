@@ -1,4 +1,8 @@
+> **Atualização 05/11/2026:** este é o protocolo manual **alternativo** de execução histórica. O gate técnico seed42 está autorizado a iniciar automaticamente em PR impactada, sob SHA exato, pin de referência imutável e SQL descartável. Não confundir com campanhas científicas com novas seeds/Gold/TEST, que permanecem manuais. Ver [decisão vigente](Decisao_V9_Gate_Tecnico_Auto_Campanhas_Cientificas_Manuais_20261105.md).
+
 # V9 — gate manual do ensaio físico TF 30k (02/11/2026)
+
+> **Escopo restrito do protocolo:** este documento exige 30.000 pessoas-base **neste ensaio histórico TF**, não em toda execução do Calibrador. A decisão de 05/11/2026 [DC-V9-CALIBRAÇÃO-CORPUS](DC-V9-CALIBRACAO-SEM-EXCLUSIVIDADE-30K-20261105.md) permite novos estudos não-30k com plano e população próprios, sem relaxar o contrato desta regressão nem seus gates de disparo manual.
 
 **Estado:** PROCEDIMENTO PREPARATÓRIO, NÃO É AUTORIZAÇÃO. PR principal #1249; nenhum
 merge, disparo 30k, leitura de TEST, publicação ou ativação é permitido por este documento.

@@ -50,6 +50,62 @@ public sealed class V9SyntheticObservationCapEvidenceTests
                 Throws.TypeOf<InvalidDataException>());
     }
 
+    private static (byte[] ManifestBytes, byte[] TruthBytes) PinnedPopulation(string truthJson)
+    {
+        var truth = Encoding.UTF8.GetBytes(truthJson);
+        var sha = Convert.ToHexString(SHA256.HashData(truth));
+        var manifest = JsonSerializer.SerializeToUtf8Bytes(new
+        {
+            generator_version = SyntheticObservationMultiplicityContract.GeneratorVersion,
+            seed = 42UL,
+            outputs = new[]
+            {
+                new { path = "observacoes.csv", sha256 = new string('a', 64) },
+                new { path = "gabarito.json", sha256 = sha }
+            }
+        });
+        return (manifest, truth);
+    }
+
+    [TestCase(3)]
+    [TestCase(20_000)]
+    [TestCase(30_000)]
+    [TestCase(45_000)]
+    public void Pinned_population_comes_from_sha_authenticated_truth_aggregate_not_from_missing_manifest_field(int people)
+    {
+        var fixture = PinnedPopulation(JsonSerializer.Serialize(new
+        {
+            people, generator_version = SyntheticObservationMultiplicityContract.GeneratorVersion, seed = 42
+        }));
+        Assert.That(V9SyntheticObservationCapEvidence.ReadPinnedPopulationCount(
+            fixture.ManifestBytes, fixture.TruthBytes), Is.EqualTo(people));
+    }
+
+    [Test]
+    public void Pinned_population_fails_closed_on_bad_sha_or_malformed_count_and_origin()
+    {
+        foreach (var invalid in new[]
+        {
+            "{}", "{\"people\":0}", "{\"people\":-1}",
+            "{\"people\":1.5}", "{\"people\":\"30000\"}", "{\"people\":null}",
+            "{\"people\":30000,\"generator_version\":\"INVALID\",\"seed\":42}",
+            "{\"people\":30000,\"generator_version\":\"JORNADA_SYNTH_CORPUS_CSHARP_V1\",\"seed\":43}"
+        })
+        {
+            var fixture = PinnedPopulation(invalid);
+            Assert.That((Action)(() => V9SyntheticObservationCapEvidence.ReadPinnedPopulationCount(
+                    fixture.ManifestBytes, fixture.TruthBytes)), Throws.TypeOf<InvalidDataException>());
+        }
+        var valid = PinnedPopulation(JsonSerializer.Serialize(new
+        {
+            people = 30_000, generator_version = SyntheticObservationMultiplicityContract.GeneratorVersion, seed = 42
+        }));
+        Assert.That((Action)(() => V9SyntheticObservationCapEvidence.ReadPinnedPopulationCount(
+            valid.ManifestBytes, Encoding.UTF8.GetBytes("{}"))), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9SyntheticObservationCapEvidence.ReadPinnedPopulationCount(
+            Encoding.UTF8.GetBytes("{}"), valid.TruthBytes)), Throws.TypeOf<InvalidDataException>());
+    }
+
     [Test]
     public void Csv_cap_counts_cpf_observations_before_filtering_and_keeps_test_attributes_unread()
     {

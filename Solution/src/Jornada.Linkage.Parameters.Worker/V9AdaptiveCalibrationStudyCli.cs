@@ -39,23 +39,39 @@ public static class V9AdaptiveCalibrationStudyCli
                 || plan.PinnedIbgeBootstrap is null))
             throw new InvalidDataException(
                 "CLI TF positiva exige versão, digests, bootstrap IBGE fixados e estudo físico (não censo).");
+        int? expectedBaseIdentityCount = null;
         if (plan.ObservationCapDeclaration is { } declaration)
         {
             var manifestPath = Path.Combine(Path.GetDirectoryName(inputPath)!, "generation-manifest.json");
             if (new FileInfo(manifestPath).Length is <= 0 or > 10_000_000)
                 throw new InvalidDataException("Manifesto ausente, vazio ou grande demais.");
+            var manifestBytes = await File.ReadAllBytesAsync(manifestPath);
             await using var input = File.OpenRead(inputPath);
             var inputSha = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(input));
-            V9SyntheticObservationCapEvidence.ValidateManifest(await File.ReadAllBytesAsync(manifestPath),
+            V9SyntheticObservationCapEvidence.ValidateManifest(manifestBytes,
                 declaration, inputSha, plan.MaximumAcceptedPerBaseIdentity);
+            // The plan binds the generator manifest, which authenticates the SHA of
+            // gabarito.json. Only its aggregate "people" scalar is inspected, not
+            // TEST identities or per-pair outcomes. The generated manifest itself
+            // intentionally has no "people" field; do not modify frozen bytes.
+            var truthPath = Path.Combine(Path.GetDirectoryName(inputPath)!, "gabarito.json");
+            if (new FileInfo(truthPath).Length is <= 0 or > 100_000_000)
+                throw new InvalidDataException("Gabarito agregado ausente ou grande demais.");
+            var truthBytes = await File.ReadAllBytesAsync(truthPath);
+            expectedBaseIdentityCount = V9SyntheticObservationCapEvidence.ReadPinnedPopulationCount(
+                manifestBytes, truthBytes);
         }
+        // Diagnostic arms must have an authenticated population census;
+        // absence of evidence must not silently disable this verification.
+        if (plan.ModelOptions.Any(x => !x.EligibleForSelection) && expectedBaseIdentityCount is null)
+            throw new InvalidDataException("Diagnósticos exigem manifesto de população fixado por SHA.");
         // This shared entry point accepts the same >=4-row frame as the physical
         // coordinator. The historical seed42 CLI retains its 1000-row default.
         // Statistical eligibility is enforced downstream, never inferred from this floor.
         var observations = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(inputPath,
             minimumObservationCount: 4,
             maximumObservationsPerBaseIdentity: plan.ObservationCapDeclaration?.MaximumObservationsPerBaseIdentity,
-            expectedBaseIdentityCount: plan.ModelOptions.Any(x => !x.EligibleForSelection) ? 30000 : null);
+            expectedBaseIdentityCount: expectedBaseIdentityCount);
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
             ?? throw new InvalidOperationException("Conexão de JornadaHarness descartável ausente.");
         var builder = new SqlConnectionStringBuilder(connectionString);

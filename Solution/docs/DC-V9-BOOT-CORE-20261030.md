@@ -61,7 +61,9 @@ Depois da investigação inicial do núcleo, o calibrador também pode **investi
 
 ## 7. Estatuto do bootstrap sintético
 
-A calibração inicial com corpus sintético IBGE (referência de ensaio: 30 mil identidades, seed 42) produz **candidatos técnicos e evidência sintética**, não certificação de desempenho em dados reais nem autorização de produção. Os testes físicos, validação independente, holdout e TEST selado exigidos pelo protocolo devem ser realizados e registrados nos SHAs exatos pertinentes. Não declarar verde/certificado quando a prova exigida estiver ausente.
+A calibração inicial com corpus sintético IBGE (referência de ensaio: 30 mil identidades, seed 42) produz **candidatos técnicos e evidência sintética**, não certificação de desempenho em dados reais nem autorização de produção.
+
+**Atualização de 05/11/2026:** as 30 mil identidades e a seed 42 são características dessa campanha de referência, **não** uma restrição universal do Calibrador V9. Calibrações manuais sobre outros tamanhos podem ser solicitadas e executadas com plano/manifesto próprios, população SHA-fixada, censo de identidades, TRAIN/VALIDATION/TEST e controles estatísticos preservados. Detalhe normativo: [DC-V9-CALIBRAÇÃO-CORPUS-20261105](DC-V9-CALIBRACAO-SEM-EXCLUSIVIDADE-30K-20261105.md). Os testes físicos, validação independente, holdout e TEST selado exigidos pelo protocolo devem ser realizados e registrados nos SHAs exatos pertinentes. Não declarar verde/certificado quando a prova exigida estiver ausente.
 
 ## 8. Critérios de aceite verificáveis
 

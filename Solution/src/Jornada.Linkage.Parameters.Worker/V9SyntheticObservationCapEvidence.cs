@@ -53,6 +53,48 @@ public static class V9SyntheticObservationCapEvidence
         // independence after candidate competition. No selector gate is opened.
     }
 
+    /// <summary>
+    /// The generator's immutable generation-manifest.json has no "people" field.
+    /// Its SHA-bound outputs include gabarito.json, which declares aggregate people.
+    /// Only that scalar is read; no per-person TEST truth is used for calibration.
+    /// Call after ValidateManifest verifies the pinned plan and observation CSV.
+    /// </summary>
+    public static int ReadPinnedPopulationCount(ReadOnlySpan<byte> manifestBytes, ReadOnlySpan<byte> truthBytes)
+    {
+        using var manifestDocument = JsonDocument.Parse(manifestBytes.ToArray());
+        var manifest = manifestDocument.RootElement;
+        if (manifest.ValueKind != JsonValueKind.Object
+            || !manifest.TryGetProperty("outputs", out var outputs)
+            || outputs.ValueKind != JsonValueKind.Array)
+            throw new InvalidDataException("Manifesto não declara saída de gabarito autenticável.");
+        var matches = outputs.EnumerateArray()
+            .Where(x => x.ValueKind == JsonValueKind.Object
+                && x.TryGetProperty("path", out var path)
+                && path.ValueKind == JsonValueKind.String
+                && path.GetString() == "gabarito.json").ToArray();
+        if (matches.Length != 1
+            || !matches[0].TryGetProperty("sha256", out var sha)
+            || sha.ValueKind != JsonValueKind.String
+            || !Equal(sha.GetString(), Convert.ToHexString(SHA256.HashData(truthBytes))))
+            throw new InvalidDataException("Gabarito agregado não corresponde ao SHA do manifesto fixado.");
+        using var truthDocument = JsonDocument.Parse(truthBytes.ToArray());
+        var truth = truthDocument.RootElement;
+        if (truth.ValueKind != JsonValueKind.Object
+            || !truth.TryGetProperty("people", out var value)
+            || value.ValueKind != JsonValueKind.Number
+            || !value.TryGetInt32(out var people) || people <= 0
+            || !truth.TryGetProperty("generator_version", out var generator)
+            || generator.ValueKind != JsonValueKind.String
+            || !manifest.TryGetProperty("generator_version", out var expectedGenerator)
+            || expectedGenerator.ValueKind != JsonValueKind.String
+            || generator.GetString() != expectedGenerator.GetString()
+            || !truth.TryGetProperty("seed", out var seed) || !seed.TryGetUInt64(out var truthSeed)
+            || !manifest.TryGetProperty("seed", out var expectedSeed)
+            || !expectedSeed.TryGetUInt64(out var manifestSeed) || truthSeed != manifestSeed)
+            throw new InvalidDataException("Gabarito agregado não comprova a população e origem declaradas.");
+        return people;
+    }
+
     private static bool IsSha(string value) => value is { Length: 64 } && value.All(Uri.IsHexDigit);
     private static bool Equal(string? left, string? right) => string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
 }
