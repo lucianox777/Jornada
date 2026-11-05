@@ -50,9 +50,15 @@ public static class V9AdaptiveCalibrationStudyCli
             var inputSha = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(input));
             V9SyntheticObservationCapEvidence.ValidateManifest(manifestBytes,
                 declaration, inputSha, plan.MaximumAcceptedPerBaseIdentity);
-            // The manifest is SHA-bound to the plan. Its declared population,
-            // not the historical 30k campaign size, governs the base-ID census.
-            expectedBaseIdentityCount = V9SyntheticObservationCapEvidence.ReadPinnedPopulationCount(manifestBytes);
+            // The plan binds the generator manifest, which authenticates the SHA of
+            // gabarito.json. Only its aggregate "people" scalar is inspected, not
+            // TEST identities or per-pair outcomes. The generated manifest itself
+            // intentionally has no "people" field; do not modify frozen bytes.
+            var truthPath = Path.Combine(Path.GetDirectoryName(inputPath)!, "gabarito.json");
+            if (new FileInfo(truthPath).Length is <= 0 or > 100_000_000)
+                throw new InvalidDataException("Gabarito agregado ausente ou grande demais.");
+            expectedBaseIdentityCount = V9SyntheticObservationCapEvidence.ReadPinnedPopulationCount(
+                manifestBytes, await File.ReadAllBytesAsync(truthPath));
         }
         // Diagnostic arms must have an authenticated population census;
         // absence of evidence must not silently disable this verification.

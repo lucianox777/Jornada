@@ -87,7 +87,7 @@ class EvidenceTests(unittest.TestCase):
         row = orch.front_status(front(), GREEN, [run(1, SHA_B, "feat/x")])
         self.assertFalse(row["TECHNICALLY_APPROVED"])
         self.assertIsNone(row["physical"]["seed42-30k-train"])
-        self.assertIn("manual physical evidence missing at exact SHA: seed42-30k-train", row["blockers"])
+        self.assertIn("verified physical evidence missing at exact SHA: seed42-30k-train", row["blockers"])
 
     def test_9_other_branch_evidence_never_reused(self):
         self.assertIsNone(orch.physical_evidence([run(1, SHA_A, "other")], PROBE, SHA_A, "feat/x", "execute_30k"))
@@ -95,6 +95,27 @@ class EvidenceTests(unittest.TestCase):
         self.assertIsNone(orch.physical_evidence([run(1, SHA_A, "feat/x", mode="preflight")], PROBE, SHA_A, "feat/x", "execute_30k"))
         self.assertEqual(orch.physical_evidence([run(1, SHA_A, "feat/x"), run(2, SHA_A, "feat/x")],
                                                 PROBE, SHA_A, "feat/x", "execute_30k")["id"], 2)
+
+    def test_verified_pr_auto_30k_counts_only_with_same_sha_and_two_real_jobs(self):
+        legitimate = {**run(55, SHA_A, "feat/x", event="pull_request", mode="auto_30k"),
+                      "physical_job": "success", "stable_gate": "success",
+                      "status": "completed", "same_repository_branch": True}
+        row = orch.front_status(front(), GREEN, [legitimate])
+        self.assertEqual(row["physical"]["seed42-30k-train"], 55)
+        self.assertTrue(row["TECHNICALLY_APPROVED"])
+        for diff in (
+            {"physical_job": None}, {"stable_gate": None},
+            {"mode": "preflight"}, {"status": "in_progress"},
+            {"head_sha": SHA_B}, {"head_branch": "another"},
+            {"conclusion": "failure"}, {"same_repository_branch": False},
+            {"path": "other.yml"},
+        ):
+            with self.subTest(diff=diff):
+                wrong = {**legitimate, **diff}
+                self.assertIsNone(orch.physical_evidence(
+                    [wrong], PROBE, SHA_A, "feat/x", "execute_30k"))
+        self.assertIsNone(orch.physical_evidence([legitimate], "other.yml",
+                                                 SHA_A, "feat/x"))
 
     def test_10_failures_are_not_success(self):
         failing = GREEN + [{"name": "e2e", "status": "completed", "conclusion": "failure"}]
@@ -125,7 +146,7 @@ class EvidenceTests(unittest.TestCase):
         a = orch.front_status(master_front, [], runs)
         self.assertTrue(x["TECHNICALLY_APPROVED"])  # unaffected by master moving
         self.assertIsNone(a["physical"]["v2v3"])     # master moved: old evidence explicitly missing
-        self.assertIn("manual physical evidence missing at exact SHA: v2v3", a["blockers"])
+        self.assertIn("verified physical evidence missing at exact SHA: v2v3", a["blockers"])
 
 
 class ReportHonestyTests(unittest.TestCase):
