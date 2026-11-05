@@ -129,7 +129,7 @@ class FrozenV2BootstrapTests(unittest.TestCase):
                      "SampleDesign": None, "CollapseEquivalentCandidateFrames": False,
                      "ShardIndex": 0, "ShardCount": 1})
         data["Discovery"].update({"PositivePairCap": 2000000, "PairSamplingAttemptCap": 10000000})
-        data["Discovery"]["SearchOptions"] = {"RequireExhaustivePrimitivePool": False}
+        data["Discovery"]["SearchOptions"].update({"RequireExhaustivePrimitivePool": False})
         data["Execution"]["TotalComparedConfigurations"] = None
         for item in data["ModelOptions"]:
             for k, value in (("TfSide", 0), ("TfMinimumFrequency", 1e-6),
