@@ -52,11 +52,7 @@ public static class V9AdaptiveCalibrationStudyCli
                 declaration, inputSha, plan.MaximumAcceptedPerBaseIdentity);
             // The manifest is SHA-bound to the plan. Its declared population,
             // not the historical 30k campaign size, governs the base-ID census.
-            using var manifest = JsonDocument.Parse(manifestBytes);
-            if (!manifest.RootElement.TryGetProperty("people", out var people)
-                || !people.TryGetInt32(out var basePeople) || basePeople <= 0)
-                throw new InvalidDataException("Manifesto de calibração sem total válido de pessoas-base.");
-            expectedBaseIdentityCount = basePeople;
+            expectedBaseIdentityCount = V9SyntheticObservationCapEvidence.ReadPinnedPopulationCount(manifestBytes);
         }
         // Diagnostic arms must have an authenticated population census;
         // absence of evidence must not silently disable this verification.
