@@ -59,6 +59,14 @@ if (args.Length > 0 && args[0] == V9FrozenJointTrainingDerivationCli.Flag)
     return;
 }
 
+// Verify archived ORIGINAL V2 and derived V3 together without SQL/30k.
+// The same fail-closed frozen-pair gate is used by the manual physical CLI.
+if (args.Length > 0 && args[0] == V9FrozenJointIndependentComparisonCli.PreflightFlag)
+{
+    await V9FrozenJointIndependentComparisonCli.RunPreflightAsync(args);
+    return;
+}
+
 // Manual independent SQL validation of the NEW V3 against the original V2.
 // Genuine frozen model bytes; no calibrator or operational activation.
 if (args.Length > 0 && args[0] == V9FrozenJointIndependentComparisonCli.Flag)

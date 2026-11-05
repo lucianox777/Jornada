@@ -13,6 +13,7 @@ on:
       - 'Solution/data/reference/v9-tf-frozen-joint-trial-20261105/historical-v3-support-policy.json'
       - 'Solution/tests/Jornada.Tests/Unit/V9FittedSnapshotTests.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/Program.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FrozenJointIndependentComparisonCli.cs'
 
 permissions:
   contents: read
@@ -97,6 +98,33 @@ jobs:
                     'jointProbabilityParametersReestimated','tfRefitted','certified','status'):
               print('- '+k+': '+str(x[k]))
           print('**Independent validation and Gold four-wave/three-order physical run are still required.**')
+          PY
+      - name: Verify exact V2/V3 frozen-pair provenance (NO SQL or 30k)
+        working-directory: Solution
+        shell: bash
+        run: |
+          set -euo pipefail
+          V2="8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f"
+          V3="8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5a5b0e9c425557cbdefc"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-preflight-frozen-v2-v3-pair \
+            "$PWD/data/reference/v9-tf-seed43-frozen-transfer/executor.json" \
+            "$RUNNER_TEMP/v9-source/plan-tf.json" \
+            "$RUNNER_TEMP/v9-source/study-tf/$V2.fitted.json" \
+            "$RUNNER_TEMP/v9-v3-provisional/$V3.fitted.json" \
+            "$RUNNER_TEMP/v9-v3-provisional/derivation-receipt.json" \
+            > "$RUNNER_TEMP/v9-v3-pair-preflight.json"
+          python3 - "$RUNNER_TEMP/v9-v3-pair-preflight.json" >> "$GITHUB_STEP_SUMMARY" <<'PY'
+          import json,sys
+          x=json.load(open(sys.argv[1]))
+          assert x["schema"]=="V9_FROZEN_V2_V3_PAIR_PREFLIGHT_NO_SQL_V1"
+          assert x["originalBlockingPassCount"]==x["derivedBlockingPassCount"]==3
+          assert x["activeUnitTfCount"]==1
+          assert x["goldDiagnosticReady"] is True
+          assert x["independentSqlExecuted"] is False
+          assert x["certified"] is False and x["selectedForUse"] is False
+          print("PASS: physical archived V2 and newly derived V3 match exact frozen TF/3-pass provenance.")
+          print("This is a file/metadata preflight only; independent SQL and Gold are NOT validated.")
           PY
       - name: Check derived V3/TF Gold readiness in memory (NOT physical Gold)
         working-directory: Solution

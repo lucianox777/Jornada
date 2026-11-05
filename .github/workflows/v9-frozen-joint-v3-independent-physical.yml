@@ -100,6 +100,18 @@ jobs:
           assert receipt['tfRefitted'] is False and receipt['jointProbabilityParametersReestimated'] is True
           print('PASS: 6 original fits, new V3 and TRAIN derivation metadata authenticated by original SHA.')
           PY
+      - name: Verify exact V2/V3 frozen pair without SQL or generation
+        shell: bash
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-preflight-frozen-v2-v3-pair \
+            "$PWD/data/reference/v9-tf-seed43-frozen-transfer/executor.json" \
+            "$SOURCE_DIR/plan-tf.json" \
+            "$SOURCE_DIR/study-tf/8bdf08affbbcd88550cb055e42a063c1bfff1ffb968b55a3707be6179475d29f.fitted.json" \
+            "$TRIAL_DIR/8bf6d92db9efffa7cfdc26bc8d23ade01a6fc3cb430b5b0e9c425557cbdefc.fitted.json" \
+            "$TRIAL_DIR/derivation-receipt.json" > /dev/null
       - name: Generate NEW predeclared 30k seed, only after manual SHA gate
         working-directory: Solution
         shell: bash

@@ -84,13 +84,22 @@ public static class V9FrozenJointIndependentComparisonCli
             throw new InvalidDataException("Recibo experimental não comprova derivação TRAIN V3 separada e não autorizada.");
     }
 
-    public static async Task RunAsync(string[] args)
+    public const string PreflightFlag = "--v9-preflight-frozen-v2-v3-pair";
+    private sealed record VerifiedPair(
+        V9FrozenTransferExecutorPlan Executor,
+        V9AdaptiveCalibrationPlan SourcePlan,
+        V9SyntheticObservationCapDeclaration SourceCap,
+        V9FittedSnapshot Original,
+        V9FittedSnapshot Candidate);
+
+    // Same exact SHA, IBGE and TRAIN provenance gate for preflight AND physical
+    // evaluation. Do not allow physical-only shortcuts in later refactoring.
+    private static async Task<VerifiedPair> VerifyPinnedPairAsync(
+        string executorPath, string planPath, string originalPath,
+        string trialPath, string receiptPath)
     {
-        if (args.Length != 8 || args[0] != Flag)
-            throw new ArgumentException(
-                "Uso: --v9-compare-frozen-v2-v3-independent <executor.json> <plan-tf.json> <v2.fitted.json> <v3.fitted.json> <derivation-receipt.json> <observacoes.csv> <saída-nova>.");
         var executor = JsonSerializer.Deserialize<V9FrozenTransferExecutorPlan>(
-            await File.ReadAllBytesAsync(args[1]))
+            await File.ReadAllBytesAsync(executorPath))
             ?? throw new InvalidDataException("Executor de origem ausente.");
         V9FrozenTransferCli.ValidatePlan(executor);
         if (executor.SourceRunId != 41900357031 || executor.SourceCommitSha != "935f704edd2bceb6a125ecfe532ad5b71f9c89b9"
@@ -98,7 +107,7 @@ public static class V9FrozenJointIndependentComparisonCli
                 && x.OptionId == V9FrozenTransferCli.TreatmentOption
                 && x.SnapshotSha256 == OriginalV2 && x.ConflictMargin == .5m))
             throw new InvalidDataException("Origem TF-001 não é o ONE_MF primário pinado.");
-        var planBytes = await File.ReadAllBytesAsync(args[2]);
+        var planBytes = await File.ReadAllBytesAsync(planPath);
         if (Sha(planBytes) != executor.SourcePlanTfSha256)
             throw new InvalidDataException("Plano TF-001 original diverge do SHA.");
         var sourcePlan = JsonSerializer.Deserialize<V9AdaptiveCalibrationPlan>(planBytes)
@@ -108,15 +117,63 @@ public static class V9FrozenJointIndependentComparisonCli
             || sourceCap.ObservationsSha256 != executor.SourceObservationsSha256)
             throw new InvalidDataException("Plano original sem referência/cap TRAIN verificável.");
 
-        var original = await V9FittedSnapshotArtifact.ReadPinnedAsync(args[3], OriginalV2);
-        var candidate = await V9FittedSnapshotArtifact.ReadPinnedAsync(args[4], ExperimentalV3);
+        var original = await V9FittedSnapshotArtifact.ReadPinnedAsync(originalPath, OriginalV2);
+        var candidate = await V9FittedSnapshotArtifact.ReadPinnedAsync(trialPath, ExperimentalV3);
         ValidateFrozenPair(original, candidate);
         V9NestedCalibrationCli.RequirePinnedSnapshotReference(
             sourcePlan.PinnedIbgeReferenceVersionId, sourcePlan.PinnedIbgePublishedSha256, bootstrap, original);
         V9NestedCalibrationCli.RequirePinnedSnapshotReference(
             sourcePlan.PinnedIbgeReferenceVersionId, sourcePlan.PinnedIbgePublishedSha256, bootstrap, candidate);
-        using (var receipt = JsonDocument.Parse(await File.ReadAllBytesAsync(args[5])))
+        using (var receipt = JsonDocument.Parse(await File.ReadAllBytesAsync(receiptPath)))
             RequireExperimentalReceipt(receipt.RootElement, executor, original, candidate);
+
+        return new VerifiedPair(executor, sourcePlan, sourceCap, original, candidate);
+    }
+
+    /// <summary>
+    /// Pure file + provenance audit of the ORIGINAL V2 and NEW V3 real fit
+    /// bytes: no SQL, new corpus, TEST or operational model selection.
+    /// </summary>
+    public static async Task RunPreflightAsync(string[] args)
+    {
+        if (args.Length != 6 || args[0] != PreflightFlag)
+            throw new ArgumentException(
+                "Uso: --v9-preflight-frozen-v2-v3-pair <executor.json> <plan-tf.json> <V2.fitted.json> <V3.fitted.json> <derivation-receipt.json>.");
+        var verified = await VerifyPinnedPairAsync(args[1], args[2], args[3], args[4], args[5]);
+        var gold = V9FittedSnapshotArtifact.DescribeGoldTfDiagnosticReadiness(verified.Candidate);
+        if (gold.GetProperty("status").GetString()
+            != "READY_FOR_ISOLATED_GOLD_TF_DIAGNOSTIC_ONLY"
+            || !gold.GetProperty("goldVariantPreservesFrozenFit").GetBoolean())
+            throw new InvalidDataException("V3 congelado não passa na preparação Gold somente diagnóstica.");
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            schema = "V9_FROZEN_V2_V3_PAIR_PREFLIGHT_NO_SQL_V1",
+            sourceRunId = verified.Executor.SourceRunId,
+            originalV2Sha256 = verified.Original.ContentSha256,
+            experimentalV3Sha256 = verified.Candidate.ContentSha256,
+            sourceStudySha256 = verified.Executor.SourceStudySha256,
+            pinnedJointPolicySha256 = PolicySha,
+            originalBlockingPassCount = verified.Original.Payload.BlockingPasses.Count,
+            derivedBlockingPassCount = verified.Candidate.Payload.BlockingPasses.Count,
+            activeUnitTfCount = verified.Candidate.Payload.UnitTfCalibrations!
+                .Count(x => x.State == V9SnapshotTfFitState.Active),
+            goldDiagnosticReady = true, independentSqlExecuted = false,
+            goldIncrementalExecuted = false, fitRefitted = false, certified = false,
+            selectedForUse = false, operationallyActivated = false
+        }, Json));
+    }
+
+    public static async Task RunAsync(string[] args)
+    {
+        if (args.Length != 8 || args[0] != Flag)
+            throw new ArgumentException(
+                "Uso: --v9-compare-frozen-v2-v3-independent <executor.json> <plan-tf.json> <v2.fitted.json> <v3.fitted.json> <derivation-receipt.json> <observacoes.csv> <saída-nova>.");
+        var verified = await VerifyPinnedPairAsync(args[1], args[2], args[3], args[4], args[5]);
+        var executor = verified.Executor;
+        var sourcePlan = verified.SourcePlan;
+        var sourceCap = verified.SourceCap;
+        var original = verified.Original;
+        var candidate = verified.Candidate;
 
         // Fixed, previously unexposed generation seed; no change or adaptive
         // choice based on outcomes. No TEST rows are read.
