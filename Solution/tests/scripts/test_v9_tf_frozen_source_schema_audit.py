@@ -39,6 +39,50 @@ class FrozenSourceSchemaAuditTests(unittest.TestCase):
         result = audit.structure(self.fixture("V9_FITTED_SNAPSHOT_V3", active=False))
         self.assertEqual("NO_ACTIVE_UNIT_TF", result["ineligibleReason"])
 
+    @staticmethod
+    def support_fixture():
+        return {"FrozenConfigurations": [{
+            "Snapshot": {"ContentSha256": "a"*64},
+            "JointSupport": {
+                "SnapshotSha256": "a"*64, "SmoothingAlpha": 0.5,
+                "TrainMPairs": 82, "TrainUPairs": 162,
+                "IndependentIdentitySupportEstablished": False,
+                "Cells": [
+                    {"Person": p, "Mother": m,
+                     "ObservedMPairs": 2 if p == 0 and m == 0 else 1,
+                     "ObservedUPairs": 2}
+                    for p in range(9) for m in range(9)
+                ]
+            }
+        }]}
+
+    def test_archived_train_joint_counts_have_unique_cells_and_physical_totals(self):
+        v = audit.archived_train_joint_support(self.support_fixture(), "a"*64)
+        self.assertTrue(v["rawObserved81Available"])
+        self.assertEqual(82, v["trainMPairs"])
+        self.assertEqual(162, v["trainUPairs"])
+        self.assertEqual("RAW_TRAIN_81_PAIR_COUNTS_AUDITED_NOT_CERTIFIED", v["status"])
+        self.assertFalse(v["newJointFitComputed"])
+        self.assertFalse(v["independentIdentitySupportEstablished"])
+
+    def test_train_support_cannot_be_invented_or_reassigned(self):
+        f = self.support_fixture()
+        f["FrozenConfigurations"][0]["JointSupport"] = None
+        self.assertEqual("NO_TRAIN_SUPPORT_RECEIPT",
+                         audit.archived_train_joint_support(f, "a"*64)["status"])
+        f = self.support_fixture()
+        f["FrozenConfigurations"][0]["JointSupport"]["SnapshotSha256"] = "b"*64
+        with self.assertRaisesRegex(ValueError, "binding"):
+            audit.archived_train_joint_support(f, "a"*64)
+        f = self.support_fixture()
+        f["FrozenConfigurations"][0]["JointSupport"]["Cells"][0]["ObservedMPairs"] = 500
+        with self.assertRaisesRegex(ValueError, "pair totals"):
+            audit.archived_train_joint_support(f, "a"*64)
+        f = self.support_fixture()
+        f["FrozenConfigurations"][0]["JointSupport"]["Cells"][1]["Mother"] = 0
+        with self.assertRaisesRegex(ValueError, "Duplicated"):
+            audit.archived_train_joint_support(f, "a"*64)
+
     def test_v3_without_joint_support_is_rejected(self):
         malformed = self.fixture("V9_FITTED_SNAPSHOT_V3")
         malformed["JointSupport"] = None
