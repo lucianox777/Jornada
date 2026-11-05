@@ -34,8 +34,8 @@ def baseline():
             MaximumAcceptedPerBaseIdentity=4, MaximumPhysicalRuleSets=2,
             MaximumComparedConfigurations=512, MaximumParallelRuleSets=2,
             Budget=dict(StudyFingerprintSha256="e" * 64,
-                MaximumObservedAcceptedFdrPoint=.01),
-            SelectionPolicy=dict(MaximumAcceptedFdrUpper=.01),
+                MaximumObservedAcceptedFdrPoint=1.0),
+            SelectionPolicy=dict(MaximumAcceptedFdrUpper=1.0),
             ObservationCapDeclaration=dict(ManifestSha256="f" * 64,
                 ObservationsSha256="1" * 64),
             Execution=dict(EndToEndRepetitions=20)))
