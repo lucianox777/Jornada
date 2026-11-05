@@ -90,6 +90,8 @@ jobs:
             "$root/people-30k/observacoes.csv" "$root/results"
       - name: Audit all four initial evaluations and 81 cells without inventing results
         working-directory: Solution
+        env:
+          MU_APPROVED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -137,7 +139,7 @@ jobs:
           raw = (root / "results/mu-statistical-analysis.json").read_bytes()
           summary = {
               "scope": "KNOWN_SEED42_TECHNICAL_ONLY_NOT_CONFIRMATORY",
-              "gitSha": __import__("os").environ["GITHUB_SHA"],
+              "gitSha": __import__("os").environ["MU_APPROVED_HEAD_SHA"],
               "declaredPlanSourceSha256": hashlib.sha256(
                   (root / "mu-v2-v3-plan.json").read_bytes()).hexdigest(),
               "observedReportSha256": hashlib.sha256(raw).hexdigest(),
