@@ -39,23 +39,36 @@ public static class V9AdaptiveCalibrationStudyCli
                 || plan.PinnedIbgeBootstrap is null))
             throw new InvalidDataException(
                 "CLI TF positiva exige versão, digests, bootstrap IBGE fixados e estudo físico (não censo).");
+        int? expectedBaseIdentityCount = null;
         if (plan.ObservationCapDeclaration is { } declaration)
         {
             var manifestPath = Path.Combine(Path.GetDirectoryName(inputPath)!, "generation-manifest.json");
             if (new FileInfo(manifestPath).Length is <= 0 or > 10_000_000)
                 throw new InvalidDataException("Manifesto ausente, vazio ou grande demais.");
+            var manifestBytes = await File.ReadAllBytesAsync(manifestPath);
             await using var input = File.OpenRead(inputPath);
             var inputSha = Convert.ToHexString(await System.Security.Cryptography.SHA256.HashDataAsync(input));
-            V9SyntheticObservationCapEvidence.ValidateManifest(await File.ReadAllBytesAsync(manifestPath),
+            V9SyntheticObservationCapEvidence.ValidateManifest(manifestBytes,
                 declaration, inputSha, plan.MaximumAcceptedPerBaseIdentity);
+            // The manifest is SHA-bound to the plan. Its declared population,
+            // not the historical 30k campaign size, governs the base-ID census.
+            using var manifest = JsonDocument.Parse(manifestBytes);
+            if (!manifest.RootElement.TryGetProperty("people", out var people)
+                || !people.TryGetInt32(out var basePeople) || basePeople <= 0)
+                throw new InvalidDataException("Manifesto de calibração sem total válido de pessoas-base.");
+            expectedBaseIdentityCount = basePeople;
         }
+        // Diagnostic arms must have an authenticated population census;
+        // absence of evidence must not silently disable this verification.
+        if (plan.ModelOptions.Any(x => !x.EligibleForSelection) && expectedBaseIdentityCount is null)
+            throw new InvalidDataException("Diagnósticos exigem manifesto de população fixado por SHA.");
         // This shared entry point accepts the same >=4-row frame as the physical
         // coordinator. The historical seed42 CLI retains its 1000-row default.
         // Statistical eligibility is enforced downstream, never inferred from this floor.
         var observations = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(inputPath,
             minimumObservationCount: 4,
             maximumObservationsPerBaseIdentity: plan.ObservationCapDeclaration?.MaximumObservationsPerBaseIdentity,
-            expectedBaseIdentityCount: plan.ModelOptions.Any(x => !x.EligibleForSelection) ? 30000 : null);
+            expectedBaseIdentityCount: expectedBaseIdentityCount);
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
             ?? throw new InvalidOperationException("Conexão de JornadaHarness descartável ausente.");
         var builder = new SqlConnectionStringBuilder(connectionString);
