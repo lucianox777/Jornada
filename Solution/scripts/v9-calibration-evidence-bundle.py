@@ -251,7 +251,18 @@ def audit_snapshot(snap, model_sha, option, plan):
             "FS parameters absent")
     require(isinstance(snap["BlockingPasses"], list) and snap["BlockingPasses"],
             "Fitted blocking absent")
-    require(snap["BlockingPasses"] in plan["BaselineRuleSets"],
+    def canonical_passes(passes):
+        require(isinstance(passes, list) and all(isinstance(p, dict)
+                and isinstance(p.get("PassId"), str)
+                and isinstance(p.get("Fields"), list) for p in passes),
+                "Malformed blocking pass catalogue")
+        pairs = [(p["PassId"], tuple(p["Fields"])) for p in passes]
+        require(len({x[0] for x in pairs}) == len(pairs), "Duplicated blocking pass")
+        return sorted(pairs)
+    # The original CSharp freeze canonicalizes pass order. A set of identical
+    # PassId+Fields is the same blocking ruleset; list order is NOT a drift.
+    require(any(canonical_passes(snap["BlockingPasses"]) == canonical_passes(ruleset)
+                for ruleset in plan["BaselineRuleSets"]),
             "Fitted blocking differs from predeclared baseline")
     for f in ("ProjectionFingerprintSha256", "FitFingerprintSha256",
               "TrainCorpusSha256", "ValidationCorpusSha256",
