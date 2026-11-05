@@ -132,8 +132,7 @@ public static class V9NestedCalibrationCli
             e.Batch, e.RequestSha256, e.OptionId, e.MuEstimationMethod,
             e.MuPolicy, e.ConflictMargin,
             fitSnapshotSha256 = e.Candidate?.Snapshot.ContentSha256,
-            smoothingAlpha = e.Candidate?.Snapshot.Payload is { } p ? (decimal?)p.JointSupport?.SmoothingAlpha
-                ?? (decimal?)null : null,
+            smoothingAlpha = e.Candidate?.Support.SmoothingAlpha,
             threshold = e.Candidate?.Snapshot.Payload.Threshold,
             trueAccepted = e.Candidate?.Metric.TrueAcceptedSourceObservations,
             falseAccepted = e.Candidate?.Metric.FalseAcceptedSourceObservations,
@@ -174,8 +173,8 @@ public static class V9NestedCalibrationCli
         md.AppendLine("Plano SHA-256: `" + result.PlanSha256 + "`. Somente espaço declarado; não houve TEST, certificação nem ativação.");
         md.AppendLine("O arquivo `mu-statistical-analysis.json` guarda todas as avaliações, inclusive recusas e valores M/U exatos.");
         md.AppendLine();
-        md.AppendLine("| Método | Cobertura | Min M | Min U | Cauda retida | Threshold | Margem | TP | FP | Recall | FDR observada | Conflitos | Status | Snapshot |");
-        md.AppendLine("|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---|---|");
+        md.AppendLine("| Método | Cobertura | Min M | Min U | Cauda retida | Alpha | Threshold | Margem | TP | FP | Recall | FDR observada | Conflitos | Status | Snapshot |");
+        md.AppendLine("|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|");
         foreach (var e in result.Evaluations)
         {
             var policy = e.MuPolicy;
@@ -187,6 +186,7 @@ public static class V9NestedCalibrationCli
                 + Number(policy?.ClassMassCoverage) + " | " + Number(policy?.MinimumM)
                 + " | " + Number(policy?.MinimumU) + " | "
                 + (policy is null ? "—" : policy.SupportedTailRule is null ? "não" : "sim")
+                + " | " + Number(e.Candidate?.Support.SmoothingAlpha)
                 + " | " + Number(metric?.Threshold) + " | " + Number(e.ConflictMargin)
                 + " | " + Number(metric?.TrueAcceptedSourceObservations)
                 + " | " + Number(metric?.FalseAcceptedSourceObservations)
