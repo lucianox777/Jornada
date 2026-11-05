@@ -406,8 +406,10 @@ public sealed class V9FittedSnapshotTests
                 Is.Not.EqualTo(derived.Payload.FitFingerprintSha256));
             Assert.That(derived.Payload.Threshold, Is.EqualTo(blind.Payload.Threshold));
             Assert.That(derived.Payload.ConflictMargin, Is.EqualTo(blind.Payload.ConflictMargin));
-            Assert.That(derived.Payload.BlockingPasses, Is.EqualTo(blind.Payload.BlockingPasses));
-            Assert.That(derived.Payload.UnitTfCalibrations, Is.EqualTo(blind.Payload.UnitTfCalibrations));
+            Assert.That(System.Text.Json.JsonSerializer.Serialize(derived.Payload.BlockingPasses),
+                Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(blind.Payload.BlockingPasses)));
+            Assert.That(System.Text.Json.JsonSerializer.Serialize(derived.Payload.UnitTfCalibrations),
+                Is.EqualTo(System.Text.Json.JsonSerializer.Serialize(blind.Payload.UnitTfCalibrations)));
             Assert.That(derived.Payload.JointSupport!.TotalM, Is.EqualTo(totalM));
             Assert.That(derived.Payload.JointSupport!.TotalU, Is.EqualTo(totalU));
             Assert.That(gold.Payload.GoldParentSnapshotSha256, Is.EqualTo(derived.ContentSha256));
