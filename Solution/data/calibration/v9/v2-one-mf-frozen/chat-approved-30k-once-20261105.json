@@ -1,0 +1,12 @@
+{
+  "SchemaVersion": "JORNADA_CHAT_APPROVED_30K_ONE_SHOT_V1",
+  "Source": "EXPLICIT_USER_AUTHORIZATION_IN_CURRENT_CHAT",
+  "AuthorizedBy": "JORNADA_REPOSITORY_OWNER",
+  "Scope": "REPLAY_FROZEN_V2_WITH_SINGLE_PLAN_JSON_ONLY",
+  "PullRequest": 1283,
+  "ParentHeadShaBeforeAuthorization": "6baa985ffac8b257bb4ffb2508c62917a20ed652",
+  "ApprovalIsOneTime": true,
+  "PreserveFrozenOriginals": true,
+  "TestUsed": false,
+  "AutomaticOperationalActivation": false
+}
