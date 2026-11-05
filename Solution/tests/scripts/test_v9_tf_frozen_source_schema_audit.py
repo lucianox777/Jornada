@@ -125,5 +125,21 @@ class FrozenTfWorkflowEventContractsTests(unittest.TestCase):
         self.assertIn("actions: read", text)
 
 
+    def test_independent_v2_v3_reads_v3_receipt_from_metadata_zip(self):
+        """Run 41964404787 metadata ZIP has a nested receipt, unlike fitted ZIP."""
+        path = self.ROOT / "v9-frozen-joint-v3-independent-physical.yml"
+        workflow = path.read_text(encoding="utf-8")
+        self.assertIn('name: v9-frozen-joint-v3-independent-physical', workflow)
+        self.assertIn("  workflow_dispatch:\n", workflow)
+        self.assertNotIn("  push:\n", workflow.split("\npermissions:\n", 1)[0])
+        self.assertIn('test "$GITHUB_SHA" = "$EXPECTED_SHA"', workflow)
+        self.assertIn('test -f "$TRIAL_DIR/v9-v3-provisional/derivation-receipt.json"', workflow)
+        self.assertIn('test ! -e "$TRIAL_DIR/derivation-receipt.json"', workflow)
+        self.assertIn('mv -- "$TRIAL_DIR/v9-v3-provisional/derivation-receipt.json"', workflow)
+        self.assertIn('test -s "$TRIAL_DIR/derivation-receipt.json"', workflow)
+        self.assertIn("assert receipt['certified'] is False", workflow)
+        self.assertIn("assert receipt['tfRefitted'] is False", workflow)
+
+
 if __name__ == "__main__":
     unittest.main()
