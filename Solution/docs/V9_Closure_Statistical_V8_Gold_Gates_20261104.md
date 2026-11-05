@@ -20,26 +20,31 @@
 4. Revisar o estimando FDR: denominador `FP/(TP+FP)`, agregação por cluster, tamanho de cluster e relação entre eventos `any FP` e FDR. Confirmar cobertura do limite para a unidade e família realmente avaliadas; não inferir independência a partir de zero FP.
 5. **Antes de novo corpus:** pré-registrar hipótese primária, tamanho/poder, alfa e multiplicidade, método estatístico com justificativa, unidades independentes, protocolo de geração, hashes, critérios de parada e orçamento. TEST anterior permanece selado.
 
-## 3. Retrocompatibilidade V8 — gate ainda sem evidência conclusiva
+## 3. Duas referências distintas — baseline V9 TF0 e comportamento histórico V8
 
-O dossiê da PR #1272 declara explicitamente que a reprodução dos **97,4754% nas condições originais** não foi verificada. O TF0 da transferência usa blocking fixo de três passes, portanto não equivale à V8 histórica.
+**Não confundir V8 com o indicador 97,4754%.** O valor **97,4754%** corresponde ao finalista **V9 TF0 de 19/10**, em TRAIN_SELECTION BLIND (6.834 TP / 7.011 elegíveis, zero FP), com suporte conjunto de 81 células, oito passes, upper 0,8671875 e TF=0; a VALIDATION independente relatada na mesma documentação foi **97,5417%** (7.539 / 7.729, dois FP). Fontes: `V9_Suporte_Massa_Backoff_20261019.md` e `DC-V9-CALIBRADOR-BASELINE-E-VALIDACAO-20261030.md`. Esses valores são de **duas partições/etapas diferentes** e não demonstram execução da V8.
 
-Para fechar: localizar o run/artefato histórico V8 (commit, corpus, gerador, pin IBGE, blocking, thresholds, métricas e hash), reproduzir com o código V9 sob **as mesmas condições** ou demonstrar equivalência byte-a-byte e numérica, registrar tolerâncias pré-definidas e regressões em nomes/TF/abstenção/ausência de candidato. Não substituir pela comparação TF0 vs ONE_MF seed43. Se a prova existente for válida, **referenciá-la** sem duplicar execução.
+**Gate A — reprodução do baseline V9 TF0:** a PR #1272 registra que os 97,4754% **não foram reproduzidos em condições originais** pela campanha TF0 × ONE_MF de três passes. Localizar o corpus, o gerador, o pin IBGE, os oito passes, os limiares, o snapshot, os hashes e o recibo físico do resultado de 19/10; reproduzir o replay nas mesmas condições, ou demonstrar equivalência do artefato e da medição com tolerância definida antes da comparação. O teste bit-exact de score não substitui o replay agregado. Até isso ocorrer: `V9_TF0_BASELINE_REPLAY_NOT_VERIFIED`.
 
-**Gate:** evidência de reprodução do 97,4754%, ou divergência documentada e aprovada como mudança intencional. Até lá: `V8_COMPATIBILITY_NOT_VERIFIED`.
+**Gate B — compatibilidade semântica com V8:** segundo `V9_TF_002_Transferencia_Seed43_Resultado_Fisico_20261104.md`, a V8 histórica aplicava TF de prenome da pessoa **e** da mãe; o braço `TF_TWO_PF_MF_W1_M0` na TF-001/seed42 teve 96,49% e um FP. Esse braço **não** é o Gold V9 TF0 de oito passes, nem a configuração `ONE_MF` de três passes, nem uma prova completa de compatibilidade. Verificar contra contrato e artefatos V8 originais nomes/TF/pesos, abstenção, ausência de candidato, persistência e identidade, sem alterar snapshots históricos. A norma DEV v1 não exige executar o binário V8 legado, mas não dispensa a preservação das evidências e da semântica aprovada. Até evidência específica: `V8_SEMANTIC_COMPATIBILITY_NOT_VERIFIED`.
 
-## 4. Gold #1242 — campanha física obrigatória antes de certificação
+**Regra de aceite:** não transferir percentual, aprovação estatística, algoritmo ou SHA entre esses ensaios. Se já existir evidência física original suficiente, anexar seu identificador e validar hashes sem repetir a campanha apenas para procurar resultado favorável.
 
-Manter a PR draft enquanto não existir evidência de execução real da grade upper × lower × **três ordens fixadas antes do ensaio** (G0→G3; G3→G0; G1→G3→G0→G2), cada uma em SQL/LocalDB descartável, vazio, mesmo corpus/snapshot e comparação por IDs estáveis do CSV. Medir falsas criações, fusões, fragmentação, P/R, conflitos, pendências, cobertura, P95 com aquecimento e ordem controlada, além de idempotência. Fail-closed em inconsistências de proveniência, contagem, hashes ou partição.
+## 4. Gold — diferenciar evidência histórica TF0 de validação física V3/TF
 
-**Gate:** executor + testes negativos + campanha física com hashes e relatório; CI verde no SHA exato; só então considerar merge técnico da Gold. Não ativar lower/DT-15 nem publicar modelo automaticamente.
+**Há execução física Gold histórica:** `V9_Gold_V6_Resultado_Fisico_Candidato_Validacao_20261025.md` registra o run **40156139352**, com **12/12 corridas físicas** (quatro políticas × três ordens) em LocalDB descartável, no SHA histórico `080cb6437ae8130562ddb0573802f6c58bfdc430`. Isso **não** valida automaticamente o novo fit V3/TF, nem certifica a política operacional.
+
+**Pendente para a frente Gold com TF congelada (#1277):** exigir candidato completo V3/TF da **mesma** configuração (sem misturar os oito passes TF0 históricos com o ONE_MF V2 de três passes), bytes e SHA pinados, vínculo REF de leitura autorizado quando aplicável, e ensaio real incremental com **quatro ondas × três ordens pré-declaradas** (G0→G3; G3→G0; G1→G3→G0→G2). Cada ordem em SQL/LocalDB novo e vazio, mesmo corpus e snapshot, comparação por IDs estáveis do CSV. Medir falsas criações, fusões, fragmentação, B³ padrão/com cobertura, P/R, conflitos, pendências, FDR/FP, P95 com aquecimento e ordem controlada, além de idempotência. Bloquear inconsistências de proveniência, contagens, hashes ou partições.
+
+**Gate:** CI verde e 30k manual no SHA exato **quando o classificador exigir**, execução física Gold V3/TF e testes negativos; só depois avaliar integração técnica. Não confundir a PR **#1242**, que trata de rejeição de overflow JSON em TRAIN/REF, com a frente Gold. Não ativar lower/DT-15 nem publicar modelo automaticamente.
 
 ## 5. Encerramento e governança
 
 - **Engenharia TF transferida:** #1269–#1272 integradas; seed43 física descritiva concluída.
 - **Certificação estatística:** pendente; não trocar critério após observar seed43.
-- **Compatibilidade V8:** pendente de prova histórica nas condições originais.
-- **Gold e P95 operacional:** pendentes de campanha própria.
+- **Baseline V9 TF0 97,4754%:** replay original pendente; é uma medição V9, não V8.
+- **Compatibilidade semântica V8:** verificar separadamente a configuração histórica TF de prenome da pessoa e da mãe.
+- **Gold:** há 12/12 corridas históricas TF0 (V6); campanha incremental V3/TF e P95 operacional permanecem pendentes.
 - **Operação:** DT-15 e autoridade separadas; default OFF.
 
-**Ordem de trabalho:** (a) reconciliação matemática + auditoria do grafo; (b) localizar prova V8; (c) implementar/executar Gold; (d) definir novo holdout e método pré-registrado; (e) emitir dossiê final. Não rodar 14,9 milhões nem novo 30k apenas para tentar obter significância.
+**Ordem de trabalho:** (a) reconciliação matemática + auditoria do grafo; (b) localizar e distinguir provas V9 TF0 e V8; (c) implementar/executar Gold V3/TF; (d) definir novo holdout e método pré-registrado; (e) emitir dossiê final. Não rodar 14,9 milhões nem novo 30k apenas para tentar obter significância.
