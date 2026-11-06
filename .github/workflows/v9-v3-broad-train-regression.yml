@@ -11,6 +11,7 @@ on:
       - 'Solution/scripts/v9-v3-direct-plan.py'
       - 'Solution/scripts/v9-nested-calibration-study.py'
       - 'Solution/tests/scripts/test_v9_v3_direct_plan.py'
+      - 'Solution/tests/scripts/test_v9_v3_broad_train_audit.py'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
   workflow_dispatch:
@@ -61,6 +62,7 @@ jobs:
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_direct_plan.py' -v
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_broad_train_audit.py' -v
           python3 -m py_compile Solution/scripts/v9-v3-broad-train-audit.py
       - name: Start disposable SQL
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
