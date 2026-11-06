@@ -111,7 +111,8 @@ jobs:
               arms=[bilateral, shared]
           else:
               arms=[copy.deepcopy(catalog[n]) for n in
-                    ('T0.95_TF0', 'TF_ONE_MF_W1_M0_A0.5_T0.95')]
+                    ('A0.5_T0.95_TF0', 'TF_ONE_MF_W1_M0_A0.5_T0.95')]
+              for x in arms: x['EligibleForSelection'] = True
               assert all(x['EligibleForSelection'] is True for x in arms)
           source['Calibration']['ModelOptions']=arms
           assert source['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint']==.01
