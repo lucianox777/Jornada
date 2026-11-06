@@ -50,6 +50,67 @@ class DirectV3Tests(unittest.TestCase):
         self.source.write_text(json.dumps(base()))
         self.grid.write_text(json.dumps(grid()))
 
+    @staticmethod
+    def bilateral():
+        return {
+            'OptionId': subject.SURNAME_BILATERAL,
+            'SmoothingAlpha': .5, 'DecisionThreshold': .95, 'TfWeight': 0,
+            'UnitTfOptions': [
+                {'Side': 0, 'Unit': 2, 'Weight': 0, 'Mode': 0},
+                {'Side': 0, 'Unit': 3, 'Weight': 1, 'Mode': 0},
+                {'Side': 1, 'Unit': 2, 'Weight': 0, 'Mode': 0},
+                {'Side': 1, 'Unit': 3, 'Weight': 1, 'Mode': 0},
+            ]
+        }
+
+    def test_surname_dependence_two_options_in_one_plan_identical_except_mode(self):
+        b = base()
+        b['Calibration']['ModelOptions'].append(self.bilateral())
+        self.source.write_text(json.dumps(b))
+        info = subject.prepare(self.source, self.grid, self.output,
+                               compare_surname_dependence=True)
+        output = json.loads(self.output.read_text())
+        opts = output['Calibration']['ModelOptions']
+        self.assertEqual([o['OptionId'] for o in opts],
+                         [subject.SURNAME_BILATERAL, subject.SURNAME_SHARED])
+        self.assertEqual([o['SharedSurnameMode'] for o in opts], [0, 1])
+        self.assertEqual([o['EligibleForSelection'] for o in opts], [True, False])
+        self.assertEqual([o['UnpublishedTermPolicy'] for o in opts], [1, 1])
+        self.assertEqual(opts[0]['UnitTfOptions'], opts[1]['UnitTfOptions'])
+        self.assertEqual(opts[0]['DecisionThreshold'], opts[1]['DecisionThreshold'])
+        self.assertEqual(opts[0]['SmoothingAlpha'], opts[1]['SmoothingAlpha'])
+        self.assertEqual({k:v for k,v in opts[0].items()
+                          if k not in ('OptionId','SharedSurnameMode','EligibleForSelection')},
+                         {k:v for k,v in opts[1].items()
+                          if k not in ('OptionId','SharedSurnameMode','EligibleForSelection')})
+        self.assertEqual(info['initialComparisons'], 32)
+        self.assertEqual(info['baseOptions'], 2)
+        self.assertIs(info['surnameDependenceExperiment']['sharedEligibleForSelection'], False)
+        self.assertEqual(json.loads(self.source.read_text()), b)
+        self.assertNotIn('DEFAULT', json.dumps(output['MuEstimationMethods']))
+
+    def test_surname_shared_never_silently_only_arm_or_assumed_eligibility(self):
+        b = base()
+        b['Calibration']['ModelOptions'].append(self.bilateral())
+        self.source.write_text(json.dumps(b))
+        with self.assertRaisesRegex(ValueError, 'BOTH arms'):
+            subject.prepare(self.source, self.grid, self.output,
+                            compare_surname_dependence=True,
+                            only_option_id=subject.SURNAME_BILATERAL)
+        self.assertFalse(self.output.exists())
+        b['Calibration']['ModelOptions'][-1]['UnitTfOptions'][1]['Weight'] = 0.5
+        self.source.write_text(json.dumps(b))
+        with self.assertRaisesRegex(ValueError, 'W1 symmetric'):
+            subject.prepare(self.source, self.grid, self.output,
+                            compare_surname_dependence=True)
+        self.assertFalse(self.output.exists())
+        b['Calibration']['ModelOptions'].pop()
+        self.source.write_text(json.dumps(b))
+        with self.assertRaisesRegex(ValueError, 'missing from source plan'):
+            subject.prepare(self.source, self.grid, self.output,
+                            compare_surname_dependence=True)
+        self.assertFalse(self.output.exists())
+
     def test_v3_only_parameterized_no_v2_and_explicit_tf_abstention(self):
         info=subject.prepare(self.source,self.grid,self.output)
         out=json.loads(self.output.read_text())
