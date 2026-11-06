@@ -21,7 +21,7 @@ def verify(plan_path, report_path, family, seed):
     calibration = plan['Calibration']
     budget = calibration['Budget']
     policy = calibration['SelectionPolicy']
-    if (budget['MaximumObservedAcceptedFdrPoint'] != 1
+    if (budget['MaximumObservedAcceptedFdrPoint'] != .01
             or policy['MaximumAcceptedFdrUpper'] != .01):
         raise ValueError('FDR=1% must come from plan.json, both point and upper limits')
     if (plan['Purpose'] != 'BOOTSTRAP_CANDIDATE_SELECTION'
