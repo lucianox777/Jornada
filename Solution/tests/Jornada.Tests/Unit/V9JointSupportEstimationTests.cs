@@ -90,6 +90,58 @@ public sealed class V9JointSupportEstimationTests
     }
 
     [Test]
+    public void Opt_in_U_rare_mixture_preserves_legacy_core_mass_and_replay()
+    {
+        var raw = Counts();
+        var legacyPolicy = new V9JointSupportPolicy(.99m, 5, 5, V9JointSupportEstimation.SupportedTailRule);
+        var legacy = V9JointSupportEstimation.Estimate(raw, legacyPolicy, .5m, Train);
+        Assert.That(JsonSerializer.Serialize(legacyPolicy), Does.Not.Contain("UBackoffJointMixtureWeight"));
+        var baseline = V9JointSupportEstimation.Estimate(raw,
+            legacyPolicy with { UBackoffJointMixtureWeight = 0m }, .5m, Train);
+        Assert.That(JsonSerializer.Serialize(baseline.Probabilities), Is.EqualTo(JsonSerializer.Serialize(legacy.Probabilities)));
+        Assert.That(baseline.Provenance.Version, Is.EqualTo(V9JointSupportEstimation.MixedUVersion));
+        var half = V9JointSupportEstimation.Estimate(raw,
+            legacyPolicy with { UBackoffJointMixtureWeight = .5m }, .5m, Train);
+        var joint = V9JointSupportEstimation.Estimate(raw,
+            legacyPolicy with { UBackoffJointMixtureWeight = 1m }, .5m, Train);
+        var denominator = raw.Sum(c => c.U) + 81 * .5m;
+        for (var i = 0; i < raw.Length; i++)
+        {
+            Assert.That(half.Probabilities[i].M, Is.EqualTo(legacy.Probabilities[i].M));
+            if (legacy.Provenance.Cells[i].MethodU == V9JointSupportEstimation.Marginal)
+            {
+                var empirical = (raw[i].U + .5m) / denominator;
+                Assert.That(half.Probabilities[i].U,
+                    Is.EqualTo((legacy.Probabilities[i].U + empirical) / 2m).Within(.0000000000000000000001m));
+                Assert.That(joint.Probabilities[i].U, Is.EqualTo(empirical));
+                Assert.That(half.Provenance.Cells[i].MethodU, Is.EqualTo(V9JointSupportEstimation.MixedU));
+            }
+            else
+                Assert.That(half.Probabilities[i].U, Is.EqualTo(legacy.Probabilities[i].U));
+        }
+        Assert.That(Math.Abs(half.Probabilities.Sum(x => x.U) - 1m),
+            Is.LessThan(.0000000000000000000001m));
+        Assert.That(half.Provenance.FallbackAssumption, Is.EqualTo(V9JointSupportEstimation.MixedUAssumption));
+        Assert.That(JsonSerializer.Serialize(V9JointSupportEstimation.VerifyAndFreeze(
+            half.Provenance, half.Probabilities, Train)), Is.EqualTo(JsonSerializer.Serialize(half.Provenance)));
+        Assert.That((Action)(() => V9JointSupportEstimation.VerifyAndFreeze(
+            half.Provenance with { Policy = legacyPolicy }, half.Probabilities, Train)),
+            Throws.TypeOf<InvalidDataException>());
+        var reversed = V9JointSupportEstimation.Estimate(raw.Reverse(),
+            legacyPolicy with { UBackoffJointMixtureWeight = .5m }, .5m, Train);
+        Assert.That(JsonSerializer.Serialize(reversed), Is.EqualTo(JsonSerializer.Serialize(half)));
+    }
+
+    [Test]
+    public void Invalid_U_rare_mixture_weights_fail_closed()
+    {
+        foreach (var invalid in new[] { -.01m, 1.01m })
+            Assert.That((Action)(() => V9JointSupportEstimation.Estimate(Counts(),
+                new(.99m, 5, 5, V9JointSupportEstimation.SupportedTailRule, invalid), .5m, Train)),
+                Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Supported_rare_class_keeps_its_24_observations_instead_of_being_replaced_by_independence()
     {
         var raw = Counts().Select(c => c with { M = c.M == 1 ? 0 : c.M, U = c.U == 1 ? 0 : c.U }).ToArray();
