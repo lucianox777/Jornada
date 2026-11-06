@@ -248,9 +248,13 @@ def source_pins(references, run_id, commit, artifact_name, paths, links):
             and record.get("artifact_name") == artifact_name,
             "Externally pinned V3 execution identity differs")
     expected = record.get("files")
-    actual = {p.name: sha(p) for p in paths.values()}
-    actual["mu-statistical-analysis.json"] = links["statisticalAnalysis"]
-    actual["selection-reference.json"] = links["selectionReference"]
+    actual = {
+        "plan.json": sha(paths["plan"]),
+        sha(paths["result"]) + ".selection.json": sha(paths["result"]),
+        sha(paths["fitted_model"]) + ".fitted.json": sha(paths["fitted_model"]),
+        "mu-statistical-analysis.json": links["statisticalAnalysis"],
+        "selection-reference.json": links["selectionReference"],
+    }
     require(isinstance(expected, dict) and actual == expected,
             "Source files differ from externally pinned original run hashes")
 
