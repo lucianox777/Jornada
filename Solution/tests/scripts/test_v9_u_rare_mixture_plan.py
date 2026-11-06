@@ -1,4 +1,4 @@
-"""Offline tests for explicit TF0 / ONE_MF V2 + U rare-mixture TRAIN plan."""
+"""Offline tests for V2 + historical V3 + U rare-mixture TRAIN plan."""
 import importlib.util
 import json
 from pathlib import Path
@@ -31,13 +31,13 @@ class RareUPlanTests(unittest.TestCase):
             0, control.mu._helper().option_grid(.5, .95)[0])
         self.source.write_text(json.dumps(self.base), encoding="utf-8")
 
-    def test_frozen_20_arm_pair_stays_on_same_source_train_and_zero_is_only_witness(self):
+    def test_frozen_24_arm_three_method_plan_keeps_historical_v3_and_zero_witness(self):
         receipt = subject.freeze(self.source, self.output)
         plan = json.loads(self.output.read_text(encoding="utf-8"))
-        self.assertEqual(receipt["comparisons"], 20)
+        self.assertEqual(receipt["comparisons"], 24)
         self.assertEqual(receipt["uJointWeights"], [0, .25, .5, 1])
-        self.assertEqual(plan["MaximumSearchConfigurations"], 20)
-        self.assertEqual(plan["Calibration"]["MaximumComparedConfigurations"], 20)
+        self.assertEqual(plan["MaximumSearchConfigurations"], 24)
+        self.assertEqual(plan["Calibration"]["MaximumComparedConfigurations"], 24)
         self.assertEqual(plan["MaximumBatches"], 1)
         self.assertEqual(plan["Calibration"]["ConflictMargins"], [.5])
         self.assertEqual(plan["Calibration"]["Budget"]["MaximumObservedAcceptedFdrPoint"], .01)
@@ -46,9 +46,14 @@ class RareUPlanTests(unittest.TestCase):
         self.assertEqual([x["OptionId"] for x in plan["Calibration"]["ModelOptions"]],
                          [control.TF0, control.ONE_MF])
         self.assertEqual([m["Method"] for m in plan["MuEstimationMethods"]],
-                         ["DEFAULT", subject.FAMILY])
-        self.assertEqual(plan["MuEstimationMethods"][1]["Parameters"]["UBackoffJointMixtureWeights"],
+                         ["DEFAULT", subject.FAMILY, subject.MIXED_FAMILY])
+        self.assertNotIn("UBackoffJointMixtureWeights",
+                         plan["MuEstimationMethods"][1]["Parameters"])
+        self.assertEqual(plan["MuEstimationMethods"][2]["Parameters"]["UBackoffJointMixtureWeights"],
                          [0, .25, .5, 1])
+        self.assertEqual(receipt["estimatorMethods"], 3)
+        self.assertEqual(receipt["estimatedVariants"], 6)
+        self.assertTrue(receipt["historicalV3Preserved"])
         self.assertEqual(json.loads(self.source.read_text()), self.base)
         self.assertFalse(receipt["physicalExecuted"])
         self.assertFalse(receipt["certified"])

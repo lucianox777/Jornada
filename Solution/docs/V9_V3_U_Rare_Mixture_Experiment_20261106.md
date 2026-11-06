@@ -1,6 +1,6 @@
 # Jornada V9 — estudo opt-in de regularização U nas células raras (06/11/2026)
 
-**Estado:** implementação matemática + testes unitários e de montagem do plano; **não** é execução física, escolha de parâmetros, certificação estatística, proposta de ativação nem substituição da V2. Frente independente das PRs #1298 e #1299, sem stacking.
+**Estado:** implementação de três estimadores explícitos (V2, V3 histórico e V3 com mistura U) + testes unitários e de montagem do plano; **não** é execução física, escolha de parâmetros, certificação estatística, proposta de ativação nem substituição da V2. Frente independente das PRs #1298 e #1299, sem stacking.
 
 ## Hipótese pré-declarada
 
@@ -22,26 +22,42 @@ Aqui `R = sum_rare(U_joint(c))`, calculado uma só vez a partir do mesmo TRAIN. 
 
 ## Contracto no `plan.json`
 
-Na especificação `MuEstimationMethods[].Parameters` de `CLASSWISE_SUPPORT_BACKOFF`, o novo eixo é **opcional**:
+Na especificação `MuEstimationMethods` do `plan.json`, declarar **três famílias** no mesmo array: `DEFAULT` (V2), `CLASSWISE_SUPPORT_BACKOFF` (V3 histórico sem peso) e `CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE` (V3 experimental com array explícito). A sintaxe anterior com pesos no método `CLASSWISE_SUPPORT_BACKOFF` isolado ainda é aceita para compatibilidade, mas os dois formatos misturados na mesma grade são recusados:
 
 ```json
 {
-  "Method": "CLASSWISE_SUPPORT_BACKOFF",
-  "Parameters": {
-    "ClassMassCoverage": [0.99],
-    "MinimumObservedMPerCell": [5],
-    "MinimumObservedUPerCell": [5],
-    "RetainSupportedTail": [true],
-    "UBackoffJointMixtureWeights": [0, 0.25, 0.5, 1]
-  }
+  "MuEstimationMethods": [
+    { "Method": "DEFAULT" },
+    {
+      "Method": "CLASSWISE_SUPPORT_BACKOFF",
+      "Parameters": {
+        "ClassMassCoverage": [0.99],
+        "MinimumObservedMPerCell": [5],
+        "MinimumObservedUPerCell": [5],
+        "RetainSupportedTail": [true]
+      }
+    },
+    {
+      "Method": "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE",
+      "Parameters": {
+        "ClassMassCoverage": [0.99],
+        "MinimumObservedMPerCell": [5],
+        "MinimumObservedUPerCell": [5],
+        "RetainSupportedTail": [true],
+        "UBackoffJointMixtureWeights": [0, 0.25, 0.5, 1]
+      }
+    }
+  ]
 }
 ```
 
 - Se **ausente**, cálculo, versão, `OptionId`, serialização e conteúdo histórico de V3 permanecem os originais (compatibilidade exata).
 - Se presente, os valores explícitos são finitos, únicos e entre 0 e 1; eles multiplicam o orçamento declarado, sem truncar grade.
-- `lambda=0` é a **testemunha de paridade numérica** da V3, mas tem `OptionId`/proveniência experimental exclusivos; não duplicar essa opção com uma V3 legado na mesma comparação sem contabilizar multiplicidade.
+- `lambda=0` é a **testemunha de paridade numérica** da V3, mas tem `OptionId`/proveniência experimental exclusivos. Quando V3 padrão e `lambda=0` coexistirem, contar os **dois braços** no orçamento e na multiplicidade, sem interpretá-los como resultados independentes.
 - Se presente, a proveniência do snapshot usa `V9_CLASSWISE_U_RARE_MIXED_JOINT_BACKOFF_V1`, o `FallbackAssumption` e `MethodU` específicos. O replay recalcula exatamente todas as probabilidades e recusa metadata adulterada.
 - Este parâmetro é **U**, não margem de decisão e não TF. M, prior, regras de blocking, referências fixadas, seleção de FDR 1% e isolamento de TEST/Gold permanecem inalterados.
+
+O plano congelado de comparação controlada contém **24 avaliações declaradas**: (1 V2 + 1 V3 padrão + 4 alternativas V3 U misto) × (TF0, ONE_MF) × (3, 19 passes), margem 0,5. As versões e os IDs da V2 e da V3 padrão permanecem originais; o novo método tem identificadores distintos. Os três são candidatos de avaliação TRAIN, **não** três modelos operacionais ativos.
 
 ## Gate físico ainda exigido
 

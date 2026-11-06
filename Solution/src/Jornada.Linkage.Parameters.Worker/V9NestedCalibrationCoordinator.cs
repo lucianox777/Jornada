@@ -386,7 +386,8 @@ public static class V9NestedCalibrationCoordinator
                     ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
                     MuEstimationMethod: plan.MuEstimationMethods is null ? null
                         : request.Option.JointSupportPolicy is null
-                            ? V9MuEstimationSearchSpace.Default : V9MuEstimationSearchSpace.Classwise,
+                            ? V9MuEstimationSearchSpace.Default : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
+                                ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
                     MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
                     EligibleForSelection: request.Option.EligibleForSelection,
                     SharedSurnameCandidatePairs: run.CalibrationReport.Options.Single(x =>
@@ -402,7 +403,8 @@ public static class V9NestedCalibrationCoordinator
             ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
             MuEstimationMethod: plan.MuEstimationMethods is null ? null
                 : request.Option.JointSupportPolicy is null
-                    ? V9MuEstimationSearchSpace.Default : V9MuEstimationSearchSpace.Classwise,
+                    ? V9MuEstimationSearchSpace.Default : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
+                                ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
             MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
             EligibleForSelection: request.Option.EligibleForSelection)).ToArray()); }
     }

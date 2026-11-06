@@ -11,6 +11,8 @@ on:
       - 'Solution/tests/scripts/test_v9_v3_direct_plan.py'
       - 'Solution/src/Jornada.Linkage.Core/V9JointSupportEstimation.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9MuEstimationSearchSpace.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/V9MuEstimationSearchSpaceTests.cs'
   workflow_dispatch:
     inputs:
       expected_sha:
@@ -28,7 +30,7 @@ concurrency:
 jobs:
   plan:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    name: Exact-SHA offline V2/V3 U mixture 20-arm contract
+    name: Exact-SHA offline V2/V3/mixed U 24-arm contract
     runs-on: ubuntu-latest
     timeout-minutes: 12
     env:

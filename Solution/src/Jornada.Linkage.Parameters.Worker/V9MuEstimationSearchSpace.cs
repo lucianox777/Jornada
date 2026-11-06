@@ -27,6 +27,7 @@ public static class V9MuEstimationSearchSpace
 {
     public const string Default = "DEFAULT";
     public const string Classwise = "CLASSWISE_SUPPORT_BACKOFF";
+    public const string ClasswiseMixture = "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE";
 
     public static IReadOnlyList<V9MuEstimationVariant> Enumerate(IReadOnlyList<V9MuEstimationMethod> methods)
     {
@@ -35,6 +36,12 @@ public static class V9MuEstimationSearchSpace
         if (methods.Any(x => x is null || string.IsNullOrWhiteSpace(x.Method))
             || methods.Select(x => x.Method).Distinct(StringComparer.Ordinal).Count() != methods.Count)
             throw new InvalidDataException("Métodos M/U ausentes ou duplicados.");
+        // The legacy Classwise arm and the explicit mixture arm are distinct.
+        // Reject the older embedded-weight syntax when it would duplicate the
+        // explicitly named mixture arm in the same search.
+        if (methods.Any(x => x.Method == ClasswiseMixture)
+            && methods.Any(x => x.Method == Classwise && x.Parameters?.UBackoffJointMixtureWeights is not null))
+            throw new InvalidDataException("Declare U mixtures in one method only.");
         var result = new List<V9MuEstimationVariant>();
         foreach (var method in methods)
         {
@@ -45,7 +52,7 @@ public static class V9MuEstimationSearchSpace
                 result.Add(new(Default, Default, null));
                 continue;
             }
-            if (method.Method != Classwise)
+            if (method.Method is not (Classwise or ClasswiseMixture))
                 throw new InvalidDataException("Método M/U desconhecido: " + method.Method);
             var p = method.Parameters
                 ?? throw new InvalidDataException("CLASSWISE_SUPPORT_BACKOFF exige Parameters explícito.");
@@ -53,6 +60,8 @@ public static class V9MuEstimationSearchSpace
             CheckValues(p.MinimumObservedMPerCell, "MinimumObservedMPerCell");
             CheckValues(p.MinimumObservedUPerCell, "MinimumObservedUPerCell");
             CheckValues(p.RetainSupportedTail, "RetainSupportedTail");
+            if (method.Method == ClasswiseMixture && p.UBackoffJointMixtureWeights is null)
+                throw new InvalidDataException("CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE exige array explícito UBackoffJointMixtureWeights.");
             if (p.UBackoffJointMixtureWeights is { } declaredWeights)
             {
                 CheckValues(declaredWeights, "UBackoffJointMixtureWeights");
@@ -79,12 +88,12 @@ public static class V9MuEstimationSearchSpace
                     retain ? V9JointSupportEstimation.SupportedTailRule : null,
                     uWeight);
                 V9JointSupportEstimation.ValidatePolicy(policy);
-                var key = Classwise + "_C" + coverage.ToString("G29", CultureInfo.InvariantCulture)
+                var key = method.Method + "_C" + coverage.ToString("G29", CultureInfo.InvariantCulture)
                     + "_M" + minM.ToString(CultureInfo.InvariantCulture)
                     + "_U" + minU.ToString(CultureInfo.InvariantCulture)
                     + "_T" + (retain ? "1" : "0")
                     + (uWeight is null ? "" : "_UJW" + uWeight.Value.ToString("G29", CultureInfo.InvariantCulture));
-                result.Add(new(Classwise, key, policy));
+                result.Add(new(method.Method, key, policy));
             }
         }
         return result.AsReadOnly();

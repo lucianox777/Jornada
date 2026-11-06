@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Freeze an opt-in U rare-mixture TRAIN diagnostic from the existing TF0 V2/V3 frame.
 
-Only offline plan creation. There is NO implicit physical dispatch, promotion,
+Only offline plan creation. Preserves V2 and V3 baseline beside the mixed arm.
+There is NO implicit physical dispatch, promotion,
 Gold/TEST/VALIDATION access, optimization, or operational authorization.
 """
 import argparse
@@ -12,9 +13,10 @@ from pathlib import Path
 import tempfile
 
 SCRIPTS = Path(__file__).resolve().parent
-VERSION = "V9_U_RARE_MIXTURE_PAIRED_TRAIN_PLAN_V1"
+VERSION = "V9_U_RARE_MIXTURE_THREE_METHOD_TRAIN_PLAN_V2"
 WEIGHTS = [0, .25, .5, 1]
 FAMILY = "CLASSWISE_SUPPORT_BACKOFF"
+MIXED_FAMILY = "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE"
 
 
 def _load_control():
@@ -53,11 +55,15 @@ def freeze(source_path, target_path):
     if (plan["Calibration"]["Budget"]["MaximumObservedAcceptedFdrPoint"] != .01
             or plan["Calibration"]["SelectionPolicy"]["MaximumAcceptedFdrUpper"] != .01):
         raise ValueError("Risk limit must remain fixed at the source 1% guard")
-    methods[1]["Parameters"]["UBackoffJointMixtureWeights"] = WEIGHTS
-    # (one historical DEFAULT + four explicit V3 U-mixture weights)
+    # Preserve the two historical methods byte-for-byte in their method slots.
+    # The third is a separately identifiable opt-in estimator family.
+    methods.append({"Method": MIXED_FAMILY, "Parameters": {
+        **methods[1]["Parameters"], "UBackoffJointMixtureWeights": WEIGHTS
+    }})
+    # (one historical DEFAULT + one historical V3 + four explicit U-mixture weights)
     # x two frozen TF arms x two frozen blocking rule sets.
-    declared = (1 + len(WEIGHTS)) * len(plan["Calibration"]["ModelOptions"]) * (1 + len(plan["Calibration"]["BaselineRuleSets"]))
-    if declared != 20:
+    declared = (2 + len(WEIGHTS)) * len(plan["Calibration"]["ModelOptions"]) * (1 + len(plan["Calibration"]["BaselineRuleSets"]))
+    if declared != 24:
         raise ValueError("Unanticipated experimental cardinality")
     plan["MaximumSearchConfigurations"] = declared
     plan["Calibration"]["MaximumComparedConfigurations"] = declared
@@ -74,8 +80,9 @@ def freeze(source_path, target_path):
         "planSha256": hashlib.sha256(raw).hexdigest(),
         "studyFingerprintSha256": digest,
         "comparisons": declared,
-        "estimatorMethods": 2,
-        "estimatedVariants": 5,
+        "estimatorMethods": 3,
+        "estimatedVariants": 6,
+        "historicalV3Preserved": True,
         "tfArms": 2,
         "blockingArms": 2,
         "uJointWeights": WEIGHTS,

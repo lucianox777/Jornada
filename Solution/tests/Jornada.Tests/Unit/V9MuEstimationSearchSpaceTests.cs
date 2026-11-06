@@ -85,6 +85,55 @@ public class V9MuEstimationSearchSpaceTests
     }
 
     [Test]
+    public void V2_historical_V3_and_explicit_U_mixture_coexist_with_distinct_provenance()
+    {
+        var methods = new V9MuEstimationMethod[]
+        {
+            Default(),
+            HistoricalV3(),
+            new(V9MuEstimationSearchSpace.ClasswiseMixture,
+                new([.99m], [5], [5], [true], [0m, .25m, .5m, 1m]))
+        };
+        var variants = V9MuEstimationSearchSpace.Enumerate(methods);
+        Assert.That(variants, Has.Count.EqualTo(6));
+        Assert.That(variants.Select(x => x.Method), Is.EqualTo(new[]
+        {
+            V9MuEstimationSearchSpace.Default,
+            V9MuEstimationSearchSpace.Classwise,
+            V9MuEstimationSearchSpace.ClasswiseMixture,
+            V9MuEstimationSearchSpace.ClasswiseMixture,
+            V9MuEstimationSearchSpace.ClasswiseMixture,
+            V9MuEstimationSearchSpace.ClasswiseMixture
+        }));
+        Assert.That(variants[1].Policy!.UBackoffJointMixtureWeight, Is.Null);
+        Assert.That(variants[2].Policy!.UBackoffJointMixtureWeight, Is.Zero);
+        Assert.That(variants[1].Key, Does.Not.Contain("_UJW"));
+        Assert.That(variants[2].Key, Does.Contain("_UJW0"));
+        Assert.That(variants.Select(x => x.Key).Distinct().Count(), Is.EqualTo(6));
+
+        var original = new[] { new V9FsAdaptiveOptionConfiguration("TF0", .5m, .95m) };
+        var expanded = V9MuEstimationSearchSpace.Expand(original, methods, 6);
+        Assert.That(expanded, Has.Count.EqualTo(6));
+        Assert.That(expanded.Select(x => x.FingerprintSha256).Distinct().Count(), Is.EqualTo(6));
+        Assert.That(expanded[1].JointSupportPolicy!.UBackoffJointMixtureWeight, Is.Null);
+        Assert.That(expanded[2].JointSupportPolicy!.UBackoffJointMixtureWeight, Is.Zero);
+        Assert.That((Action)(() => V9MuEstimationSearchSpace.Expand(original, methods, 5)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9MuEstimationSearchSpace.Enumerate([
+            Default(), HistoricalV3(),
+            new(V9MuEstimationSearchSpace.ClasswiseMixture,
+                new([.99m], [5], [5], [true]))
+        ])), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9MuEstimationSearchSpace.Enumerate([
+            Default(),
+            new(V9MuEstimationSearchSpace.Classwise,
+                new([.99m], [5], [5], [true], [0m])),
+            new(V9MuEstimationSearchSpace.ClasswiseMixture,
+                new([.99m], [5], [5], [true], [0m]))
+        ])), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Unknown_methods_duplicate_values_and_absent_parameters_fail_closed()
     {
         Assert.Multiple((Action)(() =>
