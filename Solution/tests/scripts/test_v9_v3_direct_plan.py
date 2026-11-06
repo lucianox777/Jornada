@@ -28,7 +28,10 @@ def base():
             'Budget':{'StudyFingerprintSha256':'b'*64},
             'SelectionPolicy':{'MaximumAcceptedFdrUpper': .01},
             'ObservationCapDeclaration':{'ManifestSha256':'c'*64,'ObservationsSha256':'d'*64},
-            'MaximumComparedConfigurations': 48
+            'MaximumComparedConfigurations': 48,
+            'MaximumPhysicalRuleSets': 2,
+            'Execution': {'EndToEndRepetitions': 20,
+                          'TotalComparedConfigurations': 48}
         }
     }
 
@@ -71,6 +74,31 @@ class DirectV3Tests(unittest.TestCase):
         self.assertFalse(self.output.exists())
         info=subject.prepare(self.source,self.grid,self.output,32)
         self.assertEqual(info['maximumConfigurations'],32)
+
+    def test_restricted_one_batch_v3_only_physical_contract(self):
+        info=subject.prepare(self.source,self.grid,self.output,16,
+                             only_option_id='TF_MOTHER',
+                             only_margin=.5, initial_only=True)
+        out=json.loads(self.output.read_text())
+        self.assertEqual(info['initialComparisons'],16)
+        self.assertTrue(info['initialOnly'])
+        self.assertEqual(out['MaximumBatches'],1)
+        self.assertEqual(out['MaximumSearchConfigurations'],16)
+        self.assertEqual(out['Calibration']['MaximumComparedConfigurations'],16)
+        self.assertEqual([o['OptionId'] for o in out['Calibration']['ModelOptions']],['TF_MOTHER'])
+        self.assertEqual(out['Calibration']['ModelOptions'][0]['UnpublishedTermPolicy'],1)
+        self.assertEqual(out['Calibration']['ConflictMargins'],[.5])
+        self.assertEqual(out['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint'],.01)
+        self.assertEqual(out['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper'],.01)
+        self.assertNotIn('TotalComparedConfigurations',out['Calibration']['Execution'])
+        self.assertEqual(json.loads(self.source.read_text()),base())
+
+    def test_restricted_inputs_rejected_before_publication(self):
+        for kwargs in ({'only_option_id':'NONEXISTENT','initial_only':True},
+                       {'only_margin':3,'initial_only':True}):
+            with self.assertRaises(ValueError):
+                subject.prepare(self.source,self.grid,self.output,32,**kwargs)
+            self.assertFalse(self.output.exists())
 
     def test_invalid_grid_and_prior_unchanged(self):
         b=base(); b['Calibration']['ModelOptions'][0]['SmoothingAlpha']=1
