@@ -146,7 +146,7 @@ def prepare(source, grid_path, output, maximum_configurations=None,
             or type(upper_limit) not in (float, int)
             or not math.isfinite(observed_limit)
             or not math.isfinite(upper_limit)
-            or not (0 < upper_limit <= observed_limit <= 1)):
+            or not (0 < upper_limit <= observed_limit <= .01)):
         raise ValueError('Explicit JSON FDR risk limits must satisfy 0 < upper <= observed <= 1')
     ids = [o.get('OptionId') for o in options if isinstance(o, dict)]
     if len(ids) != len(options) or any(not isinstance(x, str) or not x for x in ids) or len(set(ids)) != len(ids):
