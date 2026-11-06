@@ -133,7 +133,7 @@ jobs:
           # options will be retained by the direct V3 plan builder.
           with (root / 'source-plan.json').open('x', encoding='utf-8') as out:
               json.dump(source, out, indent=2, ensure_ascii=False)
-              out.write('\\n')
+              out.write('\n')
           PY
           # Compact physical wiring proof: 1 M/U variant x 2 TF hypotheses
           # x 1 conflict margin x 2 declared SQL rulesets = 4 executions.
