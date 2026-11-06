@@ -172,7 +172,8 @@ jobs:
         with:
           name: v9-v3-broad-${{ matrix.family }}-seed${{ matrix.seed }}-${{ github.run_id }}-${{ env.EXPECTED_SHA }}
           retention-days: 90
-          if-no-files-found: warn
+          if-no-files-found: error
+          include-hidden-files: true
           path: |
             Solution/.local/v9-v3-broad-*/source-plan.json
             Solution/.local/v9-v3-broad-*/grid.json
