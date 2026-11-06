@@ -1,0 +1,153 @@
+name: v9-mu-tf0-controlled-same-frame
+
+# Technical regression only: already-exposed 30k seed42 TRAIN. Both estimators
+# and both TF treatments use ONE physical SQL candidate corpus and split.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-mu-tf0-controlled-same-frame.yml'
+      - 'Solution/scripts/v9-mu-tf0-controlled-plan.py'
+      - 'Solution/scripts/v9-mu-tf0-controlled-audit.py'
+      - 'Solution/tests/scripts/test_v9_mu_tf0_controlled.py'
+      - 'Solution/scripts/v9-mu-historical-plan.py'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Exact source commit SHA to check'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  controlled:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    name: V2 × V3 / TF0 × ONE_MF / seed42 physical SQL with same frame
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    env:
+      EXPERIMENT_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.EXPERIMENT_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Pin immutable PR SHA and run original plus new offline tests
+        run: |
+          set -euo pipefail
+          [[ "$EXPERIMENT_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPERIMENT_SHA"
+          mkdir -p Solution/.local/v9-mu-tf0
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_mu_historical_plan.py' -v
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_mu_tf0_controlled.py' -v
+          python3 -m py_compile Solution/scripts/v9-mu-tf0-controlled-audit.py
+          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+            --mode auto_30k --expected-sha "$EXPERIMENT_SHA" \
+            --ref "refs/heads/${{ github.head_ref }}" \
+            --output Solution/.local/v9-mu-tf0/sha-verified.json
+      - name: Start disposable SQL
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build existing CSharp generator and single Calibrador
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Reproduce known seed42 30k corpus and physical pinned IBGE reference
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-mu-tf0"
+          test -z "${V9_TF_TARGET_SEED:-}"
+          bash scripts/v9-tf-prepare-pin.sh "$root" pinned-ibge.json
+          python3 scripts/v9-tf-ref-provenance-gate.py \
+            --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
+            --reference data/reference/v9-synthetic-seed42-30000/manifest.json
+      - name: Freeze EXACT same source/split, TF0 and ONE_MF, V2 and V3, risk 1%
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-mu-tf0"
+          python3 scripts/v9-nested-calibration-study.py \
+            "$root/people-30k/observacoes.csv" "$root/source-nested-plan.json" \
+            --tf-search --pinned-ibge "$root/pinned-ibge.json"
+          python3 scripts/v9-mu-tf0-controlled-plan.py \
+            "$root/source-nested-plan.json" "$root/controlled-plan.json" \
+            > "$root/plan-receipt.json"
+      - name: Run one CSharp V9 Calibrador for 8 paired physical SQL evaluations
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-mu-tf0"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-calibrate "$root/controlled-plan.json" \
+            "$root/people-30k/observacoes.csv" "$root/results"
+      - name: Audit identical SQL pair frame and identity-level deltas, no TEST
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-mu-tf0"
+          selection=$(python3 - "$root/results/selection-reference.json" "$root/results" <<'PY'
+          import json,sys
+          from pathlib import Path
+          r=json.loads(Path(sys.argv[1]).read_bytes())
+          selected=Path(sys.argv[2])/(r['envelopeSha256']+'.selection.json')
+          if not selected.exists(): raise SystemExit('Missing immutable selection envelope')
+          print(selected)
+          PY
+          )
+          python3 scripts/v9-mu-tf0-controlled-audit.py \
+            --plan "$root/controlled-plan.json" \
+            --analysis "$root/results/mu-statistical-analysis.json" \
+            --selection "$selection" \
+            --out "$root/same-frame-audit.json"
+          python3 - "$root" "$EXPERIMENT_SHA" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          root,sha=Path(sys.argv[1]),sys.argv[2]
+          files={'plan':'controlled-plan.json','analysis':'results/mu-statistical-analysis.json',
+                 'audit':'same-frame-audit.json','corpus':'people-30k/observacoes.csv'}
+          receipt={'schema':'V9_MU_TF0_V2_V3_PHYSICAL_RECEIPT_V1',
+                   'headSha':sha,
+                   'fileSha256':{name:hashlib.sha256((root/path).read_bytes()).hexdigest()
+                                 for name,path in files.items()},
+                   'scope':'KNOWN_SEED42_TRAIN_ONLY',
+                   'identityLevelComparison':True,'certified':False,'testUsed':False,'activated':False}
+          (root/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          PY
+      - name: Preserve exact plans, aggregate differences and immutable receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-mu-tf0-v2-v3-controlled-${{ github.run_id }}-${{ env.EXPERIMENT_SHA }}
+          retention-days: 90
+          if-no-files-found: error
+          include-hidden-files: true
+          path: |
+            Solution/.local/v9-mu-tf0/sha-verified.json
+            Solution/.local/v9-mu-tf0/pinned-ibge.json
+            Solution/.local/v9-mu-tf0/plan-receipt.json
+            Solution/.local/v9-mu-tf0/controlled-plan.json
+            Solution/.local/v9-mu-tf0/same-frame-audit.json
+            Solution/.local/v9-mu-tf0/receipt.json
+            Solution/.local/v9-mu-tf0/results/mu-statistical-analysis.json
+            Solution/.local/v9-mu-tf0/results/selection-reference.json
+            Solution/.local/v9-mu-tf0/results/interrupted.json
+            Solution/.local/v9-mu-tf0/people-30k/generation-manifest.json
+      - name: Destroy disposable SQL
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
