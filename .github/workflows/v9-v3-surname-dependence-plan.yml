@@ -13,6 +13,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
@@ -60,3 +61,157 @@ jobs:
           dotnet test -c Release tests/Jornada.Tests/Jornada.Tests.csproj \
             --filter 'FullyQualifiedName~V9TfSharedSurnamePairedDiagnosticsTests' \
             --verbosity minimal
+
+
+  v3-train-paired:
+    name: V3 plan.json to CSharp SQL paired TRAIN (diagnostic only)
+    needs: csharp
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind plan and runner to exact pull request SHA
+        env:
+          V3_SHA: ${{ github.event.pull_request.head.sha }}
+          V3_REF: ${{ format('refs/heads/{0}', github.head_ref) }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$V3_SHA"
+          mkdir -p Solution/.local/v9-v3-surname-paired
+          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+            --mode auto_30k --expected-sha "$V3_SHA" --ref "$V3_REF" \
+            --output Solution/.local/v9-v3-surname-paired/sha-verified.json
+      - name: Start disposable SQL and compile the only CSharp calibrator
+        run: |
+          set -euo pipefail
+          bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build existing CSharp calibrator and corpus generator
+        working-directory: Solution
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Pin clean 30k TRAIN and reference; declare both surname assumptions in one plan.json
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-surname-paired"
+          bash scripts/v9-tf-prepare-pin.sh "$root" pinned-ibge.json
+          python3 scripts/v9-tf-ref-provenance-gate.py \
+            --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
+            --reference data/reference/v9-synthetic-seed42-30000/manifest.json
+          python3 scripts/v9-nested-calibration-study.py \
+            "$root/people-30k/observacoes.csv" "$root/source-plan.json" \
+            --tf-search --pinned-ibge "$root/pinned-ibge.json"
+          # Compact physical wiring proof: 1 M/U variant x 2 TF hypotheses
+          # x 1 conflict margin x 2 declared SQL rulesets = 4 executions.
+          # Full 8-variant/64-cell research remains separately predeclared.
+          cat > "$root/v3-grid.json" <<'JSON'
+          {
+            "ClassMassCoverage": [0.99],
+            "MinimumObservedMPerCell": [5],
+            "MinimumObservedUPerCell": [5],
+            "RetainSupportedTail": [true]
+          }
+          JSON
+          python3 scripts/v9-v3-direct-plan.py \
+            "$root/source-plan.json" "$root/v3-grid.json" "$root/plan.json" \
+            --compare-surname-dependence --only-margin 0.5 \
+            --initial-only --maximum-configurations 4 \
+            > "$root/plan-receipt.json"
+      - name: Consume the exact plan.json in the real CSharp V3 calibrator
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-surname-paired"
+          dotnet run --no-build -c Release \
+            --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-calibrate "$root/plan.json" \
+            "$root/people-30k/observacoes.csv" "$root/results"
+      - name: Prove paired measurements and non-promotion from CSharp output
+        working-directory: Solution
+        env:
+          V3_APPROVED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+          root = Path('.local/v9-v3-surname-paired')
+          source = root / 'plan.json'
+          report_path = root / 'results/mu-statistical-analysis.json'
+          plan = json.loads(source.read_bytes())
+          report = json.loads(report_path.read_bytes())
+          assert len(plan['Calibration']['ModelOptions']) == 2
+          assert [(o['SharedSurnameMode'], o['EligibleForSelection'])
+                  for o in plan['Calibration']['ModelOptions']] == [(0, True), (1, False)]
+          assert all(o['UnpublishedTermPolicy'] == 1
+                     for o in plan['Calibration']['ModelOptions'])
+          assert len(plan['MuEstimationMethods']) == 1
+          assert plan['MuEstimationMethods'][0]['Method'] == 'CLASSWISE_SUPPORT_BACKOFF'
+          assert plan['MaximumBatches'] == 1
+          assert plan['MaximumSearchConfigurations'] == 4
+          assert report['schema'] == 'V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1'
+          assert report['scope'] == 'TRAIN_SELECTION_ONLY_NOT_INDEPENDENT_VALIDATION'
+          assert report['testUsed'] is False and report['activated'] is False
+          assert report['evaluations'] == 4 and len(report['rows']) == 4
+          assert all(len(row['observedSupportAudit']['Cells']) == 81
+                     and len(row['estimatorJointSupport']['Cells']) == 81
+                     and row['fitSnapshotSha256'] is not None
+                     for row in report['rows'])
+          pairs = report['surnameDependenceComparisons']
+          assert len(pairs) == 2
+          assert all(p['samePhysicalCandidateUniverse'] is True
+                     and p['bilateralEligibleForSelection'] is True
+                     and p['sharedEligibleForSelection'] is False
+                     and len(p['candidatePairsSha256']) == 64
+                     for p in pairs)
+          assert report['sharedSurnameAssumptionChosenForOperation'] is False
+          receipt = {
+              'status': 'PAIRED_V3_TRAIN_PHYSICAL_DIAGNOSTIC_NOT_CERTIFIED',
+              'gitSha': os.environ['V3_APPROVED_HEAD_SHA'],
+              'planBytesSha256': hashlib.sha256(source.read_bytes()).hexdigest(),
+              'reportBytesSha256': hashlib.sha256(report_path.read_bytes()).hexdigest(),
+              'corpusSha256': hashlib.sha256(
+                  (root / 'people-30k/observacoes.csv').read_bytes()).hexdigest(),
+              'measuredConfigurations': 4, 'pairedRulesets': len(pairs),
+              'v2Used': False, 'testUsed': False,
+              'goldExecuted': False, 'certified': False, 'activated': False
+          }
+          (root / 'physical-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          print(json.dumps(receipt, sort_keys=True))
+          PY
+      - name: Preserve plan, aggregated analysis, pins and failure receipt only
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-v3-surname-paired-${{ github.run_id }}-${{ github.event.pull_request.head.sha }}
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-v3-surname-paired/sha-verified.json
+            Solution/.local/v9-v3-surname-paired/pinned-ibge.json
+            Solution/.local/v9-v3-surname-paired/source-plan.json
+            Solution/.local/v9-v3-surname-paired/v3-grid.json
+            Solution/.local/v9-v3-surname-paired/plan.json
+            Solution/.local/v9-v3-surname-paired/plan-receipt.json
+            Solution/.local/v9-v3-surname-paired/physical-receipt.json
+            Solution/.local/v9-v3-surname-paired/results/mu-statistical-analysis.json
+            Solution/.local/v9-v3-surname-paired/results/mu-statistical-analysis.md
+            Solution/.local/v9-v3-surname-paired/results/selection-reference.json
+            Solution/.local/v9-v3-surname-paired/results/interrupted.json
+            Solution/.local/v9-v3-surname-paired/people-30k/generation-manifest.json
+      - name: Remove disposable SQL
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
