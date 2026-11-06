@@ -28,6 +28,21 @@ public sealed record V9SourceGapAttributionReport(
     bool Certified = false);
 
 /// <summary>
+/// Private, in-memory-only source rank evidence for an already-pinned synthetic
+/// TRAIN_SELECTION cohort. This record MUST NEVER be serialized to an artifact.
+/// Stable source/observation IDs allow exact paired transitions across fits.
+/// GroupSignature additionally verifies the inferred blind group membership.
+/// </summary>
+public sealed record V9SourceTopTwoDiagnostic(
+    int SourceObservationId,
+    int? FirstObservationId, int? SecondObservationId,
+    string? FirstGroupSignature, string? SecondGroupSignature,
+    string? FirstCell, string? SecondCell,
+    decimal? FirstLogOdds, decimal? SecondLogOdds,
+    bool? FirstCorrect, bool? SecondCorrect,
+    string ResolveStatus, string ResolveReason);
+
+/// <summary>
 /// Aggregate only. A cell with fewer than five source observations is never
 /// emitted as its own bucket. Suppressed totals are kept for reconciliation.
 /// </summary>
