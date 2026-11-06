@@ -31,3 +31,26 @@ Executar ablação pareada TF0 e ONE_MF, 3 e 19 passes, mesma seed/corpus/pairs.
 
 ## Gate desta frente
 Somente desenho/contrato: nenhuma alegação de atribuição causal ou de V3 corrigida. A primeira implementação seguinte deve prover instrumentação agregada e testes negativos de reconciliação, sem dados por fonte em artefatos.
+
+## Implementação incremental da instrumentação (não é atribuição pareada completa)
+
+O worker C# passa a produzir o objeto `sourceGapAttribution` por configuração física,
+com histogramas pré-declarados do gap top1−top2, contagens de fontes sem candidato,
+estados nominais (pessoa/mãe) dos dois representantes, e acerto do melhor/segundo
+**somente em agregados**. O agrupamento continua BLIND_FS e os labels são consultados
+apenas na avaliação pós-ranking; nenhuma alteração de Rank/Resolve. Os bins de 81
+células com menos de cinco ocorrências são suprimidos, mantendo contagens globais
+censuradas para fechar os totais; não há IDs de fonte/candidato, nomes, scores
+individuais ou CPF no novo objeto.
+
+O auditor independente `v9-v3-source-gap-audit.py` exige fechamento contábil,
+suporte físico do mesmo frame e política de privacidade, e produz deltas V3−V2
+apenas **de histogramas agregados**. O workflow `v9-mu-tf0-controlled-same-frame.yml`
+agora executa esse auditor na campanha TRAIN seed42/30k e publica o recibo SHA-256
+correspondente se o run completar.
+
+**Limite essencial:** histogramas separados V2 e V3 não demonstram que a mesma fonte
+ou o mesmo segundo candidato cruzou o limiar; tampouco atribuem o deslocamento
+de score ao fallback U por candidato. Isso exige o passo ainda pendente de análise
+pareada por fonte, implementada com agregação em memória e sem exportar linhas.
+Nenhuma alternativa de fallback U foi calibrada, selecionada ou ativada nesta PR.
