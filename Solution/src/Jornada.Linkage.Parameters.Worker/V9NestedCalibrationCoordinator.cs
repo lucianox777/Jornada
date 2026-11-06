@@ -49,6 +49,15 @@ public sealed record V9NestedCalibrationSearchResult(string Version, string Plan
 public static class V9NestedCalibrationCoordinator
 {
     public const string Version = "V9_INTERNAL_TRAIN_BATCH_PARETO_FINALISTS_V1";
+    // All estimator variants of the same fixed physical SQL frame reuse one
+    // materialization and one frozen TRAIN classification. Distinct option
+    // fingerprints / snapshot hashes remain separate; this is NOT a result cache.
+    private static string PhysicalFrameKey(Request request) =>
+        JsonSerializer.Serialize(new
+        {
+            request.Passes,
+            Margin = request.Margin.ToString("G29", CultureInfo.InvariantCulture)
+        });
     private sealed record Request(IReadOnlyList<LinkageBlockingPass> Passes, V9FsAdaptiveOptionConfiguration Option, decimal Margin, string RootOptionId)
     {
         internal string Sha => V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(new
@@ -208,9 +217,12 @@ public static class V9NestedCalibrationCoordinator
                 }
                 else optionTemplates.Add(request.Option.OptionId, request);
             }
-            var groups = requests.GroupBy(r => JsonSerializer.Serialize(new { r.Passes,
-                    Margin = r.Margin.ToString("G29", CultureInfo.InvariantCulture),
-                    MuPolicy = r.Option.JointSupportPolicy }))
+            // Candidate pairs depend on the blocking passes, margin and pinned
+            // TRAIN frame, not on M/U estimation. One RunAsync evaluates every
+            // explicit estimator option on the SAME physical SQL candidate set.
+            // Never merge distinct passes/margins, or deduplicate model options.
+            // Chunk size preserves the model-search 64-option contract.
+            var groups = requests.GroupBy(PhysicalFrameKey)
                 .SelectMany(g => g.Chunk(64)).ToArray();
             var results = await V9ParallelWork.MapAsync(groups, calibration.MaximumParallelRuleSets, async (group, ct) =>
             {

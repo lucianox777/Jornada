@@ -59,6 +59,32 @@ Na especificação `MuEstimationMethods` do `plan.json`, declarar **três famíl
 
 O plano congelado de comparação controlada contém **24 avaliações declaradas**: (1 V2 + 1 V3 padrão + 4 alternativas V3 U misto) × (TF0, ONE_MF) × (3, 19 passes), margem 0,5. As versões e os IDs da V2 e da V3 padrão permanecem originais; o novo método tem identificadores distintos. Os três são candidatos de avaliação TRAIN, **não** três modelos operacionais ativos.
 
+
+## Otimização de custo físico para as três famílias
+
+Na busca aninhada, os braços `DEFAULT`, `CLASSWISE_SUPPORT_BACKOFF` e
+`CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE` compartilham **a mesma materialização
+de candidatos SQL**, dentro do mesmo corpus TRAIN, conjunto de passes de
+blocking e margem declarada. O coordenador forma grupos pela identidade do
+frame (passes + margem), e não pelo estimador M/U. Cada opção continua sendo
+ajustada, pontuada, auditada e identificada **independentemente**, usando seu
+próprio `OptionId`, fingerprint e snapshot; nenhum score ou desfecho é
+copiado da V2 ou da V3 para outro método. Se há mais de 64 opções, o lote
+é dividido para respeitar o limite de modelos do executor.
+
+Para a grade congelada de 24 avaliações (2 rule sets, 1 margem,
+2 braços TF, 6 variantes de M/U), a organização dos lotes prevê
+**uma materialização inicial por conjunto de passes**, em vez de seis
+materializações iniciais por conjunto de passes, sem contar replays e
+medidas posteriores executadas por opção. Este é um ganho potencial
+em leituras/joins SQL, **não** uma afirmação de redução de tempo medida.
+É obrigatório conferir SHA dos candidatos e métricas individuais no
+experimento físico; sem evidência pareada, não reportar velocidade obtida
+nem equivalência inferencial de `lambda=0`.
+
+A grade, orçamento de FDR e multiplicidade estatística permanecem com as
+24 avaliações; compartilhar o SQL não reduz o número de hipóteses.
+
 ## Gate físico ainda exigido
 
 **Não executar automaticamente a campanha científica confirmatória.** Para testar esta hipótese, congelar antes um `plan.json` pequeno, no mesmo TRAIN, corpus, seed42/43/57 e snapshots de referência, comparar os quatro pesos em TF0 e ONE_MF com 3 passes e 19 passes; margem operacionalmente elegível `0.5` fixa. Usar o próprio Calibrador SQL descartável e guardar hashes do plano, pares, fit, 81 células e resultados. Comparar o efeito no melhor e no segundo candidato, alterações de ranking/agrupamento e conflitos; não selecionar `lambda` pelos dados de TEST/Gold nem mascarar a regressão com margem zero.

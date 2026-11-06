@@ -188,6 +188,53 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public void Three_estimators_share_exact_SQL_frame_but_keep_independent_model_evaluations()
+    {
+        // Same TRAIN, blocking passes and margin must materialize SQL only once
+        // for V2, V3 historical and experimental U, while each option keeps
+        // an independent request SHA and model snapshot.
+        var type = typeof(V9NestedCalibrationCoordinator).GetNestedType(
+            "Request", System.Reflection.BindingFlags.NonPublic)!;
+        var grouping = typeof(V9NestedCalibrationCoordinator).GetMethod(
+            "PhysicalFrameKey",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var sha = type.GetProperty("Sha",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+            | System.Reflection.BindingFlags.Public)!;
+        var v2 = new V9FsAdaptiveOptionConfiguration("TF0__MU_DEFAULT", .5m, .95m);
+        var standard = new V9JointSupportPolicy(.99m, 5, 5,
+            V9JointSupportEstimation.SupportedTailRule);
+        var v3 = v2 with { OptionId = "TF0__MU_V3", JointSupportPolicy = standard };
+        var mixZero = v2 with
+        {
+            OptionId = "TF0__MU_MIX0",
+            JointSupportPolicy = standard with { UBackoffJointMixtureWeight = 0m }
+        };
+        var mixHalf = v2 with
+        {
+            OptionId = "TF0__MU_MIX05",
+            JointSupportPolicy = standard with { UBackoffJointMixtureWeight = .5m }
+        };
+
+        object Request(V9FsAdaptiveOptionConfiguration option, decimal margin) =>
+            Activator.CreateInstance(type,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
+                | System.Reflection.BindingFlags.NonPublic, null,
+                [Array.Empty<LinkageBlockingPass>(), option, margin, option.OptionId], null)!;
+        var requests = new[] { v2, v3, mixZero, mixHalf }
+            .Select(o => Request(o, .5m)).ToArray();
+        Assert.That(requests.Select(r => (string)grouping.Invoke(null, [r])!).Distinct().Count(),
+            Is.EqualTo(1), "one SQL candidate materialization per passes + margin");
+        Assert.That(requests.Select(r => (string)sha.GetValue(r)!).Distinct().Count(),
+            Is.EqualTo(4), "all declared estimators must remain separately scored");
+        Assert.That((string)grouping.Invoke(null, [Request(v2, .25m)])!,
+            Is.Not.EqualTo((string)grouping.Invoke(null, [requests[0]])!),
+            "different margins require different frame groups");
+        Assert.That(standard.UBackoffJointMixtureWeight, Is.Null);
+        Assert.That(mixZero.JointSupportPolicy!.UBackoffJointMixtureWeight, Is.Zero);
+    }
+
+    [Test]
     public void Nested_refinement_preserves_tf_side_floor_and_support_without_hardcoded_TF0()
     {
         var method = typeof(V9NestedCalibrationCoordinator).GetMethod(
