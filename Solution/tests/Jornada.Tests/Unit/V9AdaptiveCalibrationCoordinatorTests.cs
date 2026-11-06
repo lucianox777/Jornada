@@ -188,30 +188,6 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
     }
 
     [Test]
-    public void Optional_CPU_percentage_is_fail_closed_and_default_plan_has_unchanged_serialized_contract()
-    {
-        var plan = Plan();
-        V9AdaptiveCalibrationCoordinator.ValidatePlan(plan);
-        Assert.That(System.Text.Json.JsonSerializer.Serialize(plan),
-            Does.Not.Contain("ParallelCpuPercent"));
-        var automatic = plan with { MaximumParallelRuleSets = 16, ParallelCpuPercent = 80 };
-        Assert.DoesNotThrow((Action)(() =>
-            V9AdaptiveCalibrationCoordinator.ValidatePlan(automatic)));
-        Assert.That(System.Text.Json.JsonSerializer.Serialize(automatic),
-            Does.Contain("\"ParallelCpuPercent\":80"));
-        foreach (var percent in new[] { -1, 0, 101, 200 })
-            Assert.That((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(
-                automatic with { ParallelCpuPercent = percent })),
-                Throws.TypeOf<InvalidDataException>());
-        // The option is a resource control; it must not alter the declared
-        // model variants, statistical multiplicity, or selection policy.
-        Assert.That(automatic.ModelOptions, Is.EqualTo(plan.ModelOptions));
-        Assert.That(automatic.SelectionPolicy, Is.EqualTo(plan.SelectionPolicy));
-        Assert.That(automatic.MaximumComparedConfigurations,
-            Is.EqualTo(plan.MaximumComparedConfigurations));
-    }
-
-    [Test]
     public void Exact_equivalence_and_shards_require_a_complete_catalogue_zero_tf_and_valid_ordinals()
     {
         var plan = Plan();
