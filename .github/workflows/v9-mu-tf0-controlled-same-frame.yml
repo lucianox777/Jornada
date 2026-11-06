@@ -10,6 +10,10 @@ on:
       - 'Solution/scripts/v9-mu-tf0-controlled-audit.py'
       - 'Solution/scripts/v9-mu-tf0-cell-ablation.py'
       - 'Solution/scripts/v9-v3-source-gap-audit.py'
+      - 'Solution/scripts/v9-v3-source-paired-audit.py'
+      - 'Solution/tests/scripts/test_v9_v3_source_paired_audit.py'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9PairedSourceRankAttribution.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/V9PairedSourceRankAttributionTests.cs'
       - 'Solution/tests/scripts/test_v9_v3_source_gap_audit.py'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9SourceGapAttribution.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9FellegiSunterAdaptiveCalibrationAdapter.cs'
@@ -61,7 +65,8 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_mu_tf0_resolve_reasons.py' -v
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_mu_tf0_cell_ablation.py' -v
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_source_gap_audit.py' -v
-          python3 -m py_compile Solution/scripts/v9-mu-tf0-controlled-audit.py Solution/scripts/v9-mu-tf0-cell-ablation.py Solution/scripts/v9-v3-source-gap-audit.py
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_source_paired_audit.py' -v
+          python3 -m py_compile Solution/scripts/v9-mu-tf0-controlled-audit.py Solution/scripts/v9-mu-tf0-cell-ablation.py Solution/scripts/v9-v3-source-gap-audit.py Solution/scripts/v9-v3-source-paired-audit.py
           python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
             --mode auto_30k --expected-sha "$EXPERIMENT_SHA" \
             --ref "refs/heads/${{ github.head_ref }}" \
@@ -133,6 +138,9 @@ jobs:
           python3 scripts/v9-v3-source-gap-audit.py \
             --analysis "$root/results/mu-statistical-analysis.json" \
             --out "$root/source-gap-audit.json"
+          python3 scripts/v9-v3-source-paired-audit.py \
+            --analysis "$root/results/mu-statistical-analysis.json" \
+            --out "$root/paired-source-audit.json"
           python3 - "$root" "$EXPERIMENT_SHA" <<'PY'
           import hashlib,json,sys
           from pathlib import Path
@@ -140,6 +148,7 @@ jobs:
           files={'plan':'controlled-plan.json','analysis':'results/mu-statistical-analysis.json',
                  'audit':'same-frame-audit.json','cellAblation':'tf0-cell-ablation.json',
                  'sourceGapAudit':'source-gap-audit.json',
+                 'pairedSourceAudit':'paired-source-audit.json',
                  'corpus':'people-30k/observacoes.csv'}
           receipt={'schema':'V9_MU_TF0_V2_V3_PHYSICAL_RECEIPT_V1',
                    'headSha':sha,
@@ -165,6 +174,7 @@ jobs:
             Solution/.local/v9-mu-tf0/same-frame-audit.json
             Solution/.local/v9-mu-tf0/tf0-cell-ablation.json
             Solution/.local/v9-mu-tf0/source-gap-audit.json
+            Solution/.local/v9-mu-tf0/paired-source-audit.json
             Solution/.local/v9-mu-tf0/receipt.json
             Solution/.local/v9-mu-tf0/results/mu-statistical-analysis.json
             Solution/.local/v9-mu-tf0/results/selection-reference.json
