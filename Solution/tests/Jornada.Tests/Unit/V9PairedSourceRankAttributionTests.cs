@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Globalization;
 using Jornada.Linkage.Parameters.Worker;
 
 namespace Jornada.Tests.Unit;
@@ -11,8 +12,8 @@ public sealed class V9PairedSourceRankAttributionTests
         string? firstCell = "1/1", string? secondCell = "1/2") =>
         new(source, first is null ? null : source + 100,
             second is null ? null : source + 200,
-            first is null ? null : (source + 100).ToString(),
-            second is null ? null : (source + 200).ToString(),
+            first is null ? null : (source + 100).ToString(CultureInfo.InvariantCulture),
+            second is null ? null : (source + 200).ToString(CultureInfo.InvariantCulture),
             first is null ? null : firstCell, second is null ? null : secondCell,
             first, second, first is null ? null : correct,
             second is null ? null : false, status, reason);
