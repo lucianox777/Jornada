@@ -182,7 +182,7 @@ class DirectV3Tests(unittest.TestCase):
             self.assertFalse(self.output.exists())
 
     def test_fdr_from_json_is_used_without_hidden_cli_clamping(self):
-        for upper, observed in ((.01, .01), (.005, .01), (.02, .03)):
+        for upper, observed in ((.01, .01), (.005, .01), (.0025, .005)):
             b = base()
             b['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint'] = observed
             b['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper'] = upper
@@ -195,7 +195,7 @@ class DirectV3Tests(unittest.TestCase):
             self.output.unlink()
 
     def test_fdr_invalid_limits_fail_before_output(self):
-        for upper, observed in ((.02, .01), (0, .01), (-.1, .01),
+        for upper, observed in ((.02, .01), (.02, .03), (0, .01), (-.1, .01),
                                 (.01, 1.01), (.01, float('nan'))):
             b = base()
             b['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint'] = observed
