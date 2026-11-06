@@ -58,6 +58,33 @@ public class V9MuEstimationSearchSpaceTests
     }
 
     [Test]
+    public void Explicit_U_shrinkage_grid_is_finite_and_has_unique_fingerprints()
+    {
+        var variants = V9MuEstimationSearchSpace.Enumerate([
+            new(V9MuEstimationSearchSpace.Classwise,
+                new([.99m], [5], [5], [true], [0m, .25m, .5m, 1m]))
+        ]);
+        Assert.That(variants, Has.Count.EqualTo(4));
+        Assert.That(variants.Select(x => x.Key).Distinct().Count(), Is.EqualTo(4));
+        Assert.That(variants.Select(x => x.Policy!.UBackoffJointMixtureWeight),
+            Is.EqualTo(new decimal?[] {0m, .25m, .5m, 1m}));
+        Assert.That(variants.All(x => x.Key.Contains("_UJW", StringComparison.Ordinal)), Is.True);
+        var original = new[] {new V9FsAdaptiveOptionConfiguration("TF0", .5m, .95m)};
+        var expanded = V9MuEstimationSearchSpace.Expand(original,
+            [new(V9MuEstimationSearchSpace.Classwise,
+                new([.99m], [5], [5], [true], [0m, .25m, .5m, 1m]))], 4);
+        Assert.That(expanded.Select(x => x.FingerprintSha256).Distinct().Count(), Is.EqualTo(4));
+        Assert.That((Action)(() => V9MuEstimationSearchSpace.Expand(original,
+            [new(V9MuEstimationSearchSpace.Classwise,
+                new([.99m], [5], [5], [true], [0m, .25m, .5m, 1m]))], 3)),
+            Throws.TypeOf<InvalidDataException>());
+        foreach (var weights in new[] {new decimal[] {}, new[] {.25m, .25m}, new[] {-1m}, new[] {1.1m}})
+            Assert.That((Action)(() => V9MuEstimationSearchSpace.Enumerate([
+                new(V9MuEstimationSearchSpace.Classwise, new([.99m], [5], [5], [true], weights))
+            ])), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Unknown_methods_duplicate_values_and_absent_parameters_fail_closed()
     {
         Assert.Multiple((Action)(() =>
