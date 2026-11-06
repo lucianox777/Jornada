@@ -54,3 +54,34 @@ ou o mesmo segundo candidato cruzou o limiar; tampouco atribuem o deslocamento
 de score ao fallback U por candidato. Isso exige o passo ainda pendente de análise
 pareada por fonte, implementada com agregação em memória e sem exportar linhas.
 Nenhuma alternativa de fallback U foi calibrada, selecionada ou ativada nesta PR.
+
+## Comparação pareada por fonte adicionada (instrumentação; não correção do U)
+
+O worker agora retém internamente, **somente em memória**, os IDs sintéticos
+das fontes/candidatos, a assinatura canônica do agrupamento blind, os dois
+primeiros log-odds, os estados M/U da pessoa e da mãe, a exatidão e o motivo
+do Resolve em cada um dos dois métodos. O campo `SourceRankInternal` tem
+`[JsonIgnore]`; nenhuma linha por fonte entra em relatórios, recibos nem
+artefatos.
+
+Antes de escrever o `mu-statistical-analysis.json`, o Calibrador pareia
+V2 e V3 **pelo mesmo ID de fonte** e exige os mesmos SHA de pares SQL,
+blocking, prior, threshold, margem e braço TF. Os resultados publicados
+são exclusivamente contagens agregadas: TP/FP por método, fontes corretas
+perdidas para conflito/pendência/erro, ganhos, mudanças de primeiro e segundo
+candidato, mudanças na composição do grupo blind, cruzamentos da margem 0,5,
+histograma da variação pareada do gap de log-odds e número de perdas em
+células do candidato V3 cujo U usa fallback.
+
+O auditor separado `v9-v3-source-paired-audit.py` exige os quatro estratos
+físicos (3/19 passes × TF0/ONE_MF), soma perdas e ganhos aos TP/FP do Resolve,
+confere suporte, SHA, ausência de detalhes por fonte e indicação explícita de
+**não certificação**. O workflow conserva o novo recibo SHA256. Esta é
+instrumentação **pareada**, mas a associação entre perda e presença de fallback
+U ainda não é prova de que todo o deslocamento de score veio de U; para tanto,
+o experimento posterior precisa decompor o score nominal por candidato,
+incluir os controles M, TF e prior e testar intervenções parametrizadas.
+
+A mudança não redefine o estimador, não seleciona parâmetros com TEST/Gold
+e não autoriza uso operacional. O merge segue bloqueado até os checks físicos
+no SHA exato.
