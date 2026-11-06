@@ -30,6 +30,15 @@ public static class V9TfSharedSurnamePairedDiagnostics
     {
         ArgumentNullException.ThrowIfNull(options);
         var diagnostics = options.Where(x => !x.EligibleForSelection).ToArray();
+        // Two explicit surname modes in plan.json must stay a real pair.
+        // A mistaken EligibleForSelection=true on SHARED may not bypass this
+        // check merely because there are no longer any diagnostic arms.
+        if (options.Count == 2 && options.Any(x =>
+            x.OptionId.StartsWith(SharedPrefix, StringComparison.Ordinal)
+            || x.OptionId.StartsWith(TwoPrefix, StringComparison.Ordinal))
+            && (options.Count(x => x.EligibleForSelection) != 1
+                || diagnostics.Length != 1))
+            throw new InvalidDataException("Compact V3 surname study requires one selectable bilateral and one ineligible shared arm.");
         if (diagnostics.Length == 0) return; // Generic non-TF studies keep their existing contract.
         // Compact, strictly paired V3 TRAIN experiment. The historical 45-arm
         // path below remains unchanged. Shared mode is measured but never selected.
