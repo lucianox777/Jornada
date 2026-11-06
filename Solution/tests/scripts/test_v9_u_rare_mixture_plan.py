@@ -63,7 +63,7 @@ class RareUPlanTests(unittest.TestCase):
             lambda p: p["Calibration"]["ModelOptions"][1].update(DecisionThreshold=.9),
             lambda p: p["PinnedIbgeBootstrap"].update(GeneratorSeed=43),
             lambda p: p["Calibration"].update(BaselineRuleSets=[]),
-            lambda p: p["Calibration"].update(ConflictMargins=[0]),
+            lambda p: p["Calibration"]["ModelOptions"][0].update(SmoothingAlpha=1),
         ]
         for mutation in mutations:
             with self.subTest(mutation=mutation):
