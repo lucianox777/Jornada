@@ -63,12 +63,20 @@ class DirectV3Tests(unittest.TestCase):
             ]
         }
 
-    def test_surname_dependence_two_options_in_one_plan_identical_except_mode(self):
+    @classmethod
+    def surname_pair(cls):
+        bilateral = cls.bilateral()
+        bilateral.update(SharedSurnameMode=0, EligibleForSelection=True)
+        shared = json.loads(json.dumps(bilateral))
+        shared.update(OptionId=subject.SURNAME_SHARED, SharedSurnameMode=1,
+                      EligibleForSelection=False)
+        return [bilateral, shared]
+
+    def test_surname_dependence_two_options_are_read_from_json_without_cli_switch(self):
         b = base()
-        b['Calibration']['ModelOptions'].append(self.bilateral())
+        b['Calibration']['ModelOptions'] = self.surname_pair()
         self.source.write_text(json.dumps(b))
-        info = subject.prepare(self.source, self.grid, self.output,
-                               compare_surname_dependence=True)
+        info = subject.prepare(self.source, self.grid, self.output)
         output = json.loads(self.output.read_text())
         opts = output['Calibration']['ModelOptions']
         self.assertEqual([o['OptionId'] for o in opts],
@@ -89,27 +97,39 @@ class DirectV3Tests(unittest.TestCase):
         self.assertEqual(json.loads(self.source.read_text()), b)
         self.assertNotIn('DEFAULT', json.dumps(output['MuEstimationMethods']))
 
-    def test_surname_shared_never_silently_only_arm_or_assumed_eligibility(self):
+    def test_surname_pair_must_be_explicit_and_never_filtered_silently(self):
         b = base()
-        b['Calibration']['ModelOptions'].append(self.bilateral())
+        b['Calibration']['ModelOptions'] = self.surname_pair()
         self.source.write_text(json.dumps(b))
-        with self.assertRaisesRegex(ValueError, 'BOTH arms'):
+        with self.assertRaisesRegex(ValueError, 'BOTH surname'):
             subject.prepare(self.source, self.grid, self.output,
-                            compare_surname_dependence=True,
                             only_option_id=subject.SURNAME_BILATERAL)
         self.assertFalse(self.output.exists())
-        b['Calibration']['ModelOptions'][-1]['UnitTfOptions'][1]['Weight'] = 0.5
+        b['Calibration']['ModelOptions'][1]['UnitTfOptions'][1]['Weight'] = 0.5
         self.source.write_text(json.dumps(b))
-        with self.assertRaisesRegex(ValueError, 'W1 symmetric'):
-            subject.prepare(self.source, self.grid, self.output,
-                            compare_surname_dependence=True)
+        with self.assertRaisesRegex(ValueError, 'differ ONLY'):
+            subject.prepare(self.source, self.grid, self.output)
         self.assertFalse(self.output.exists())
         b['Calibration']['ModelOptions'].pop()
         self.source.write_text(json.dumps(b))
-        with self.assertRaisesRegex(ValueError, 'missing from source plan'):
-            subject.prepare(self.source, self.grid, self.output,
-                            compare_surname_dependence=True)
+        with self.assertRaisesRegex(ValueError, 'BOTH surname'):
+            subject.prepare(self.source, self.grid, self.output)
         self.assertFalse(self.output.exists())
+
+    def test_wrong_modes_selection_and_extra_arm_fail_closed(self):
+        for mutate in (
+            lambda opts: opts[1].update(SharedSurnameMode=0),
+            lambda opts: opts[1].update(EligibleForSelection=True),
+            lambda opts: opts[0].update(EligibleForSelection=False),
+            lambda opts: opts.append({'OptionId':'EXTRA','TfWeight':0}),
+        ):
+            b = base()
+            b['Calibration']['ModelOptions'] = self.surname_pair()
+            mutate(b['Calibration']['ModelOptions'])
+            self.source.write_text(json.dumps(b))
+            with self.assertRaises(ValueError):
+                subject.prepare(self.source, self.grid, self.output)
+            self.assertFalse(self.output.exists())
 
     def test_v3_only_parameterized_no_v2_and_explicit_tf_abstention(self):
         info=subject.prepare(self.source,self.grid,self.output)
