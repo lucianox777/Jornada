@@ -25,7 +25,7 @@ def base():
             'ConflictMargins':[.5],
             'DeclaredSearchSpace':{'Catalogue':[{'PassId':'ONE','Fields':['x']}]},
             'BaselineRuleSets':[[{'PassId':'TWO','Fields':['y']}]],
-            'Budget':{'StudyFingerprintSha256':'b'*64},
+            'Budget':{'StudyFingerprintSha256':'b'*64, 'MaximumObservedAcceptedFdrPoint':1.0},
             'SelectionPolicy':{'MaximumAcceptedFdrUpper': .01},
             'ObservationCapDeclaration':{'ManifestSha256':'c'*64,'ObservationsSha256':'d'*64},
             'MaximumComparedConfigurations': 48,
