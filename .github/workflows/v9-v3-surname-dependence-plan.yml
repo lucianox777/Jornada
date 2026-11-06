@@ -1,0 +1,62 @@
+name: v9-v3-surname-dependence-plan
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-v3-surname-dependence-plan.yml'
+      - 'Solution/scripts/v9-v3-direct-plan.py'
+      - 'Solution/tests/scripts/test_v9_v3_direct_plan.py'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9TfSharedSurnamePairedDiagnostics.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/V9TfSharedSurnamePairedDiagnosticsTests.cs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  plan-pair:
+    name: Both surname assumptions in one V3 plan
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Validate source SHA
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+      - run: |
+          python3 -m py_compile Solution/scripts/v9-v3-direct-plan.py
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_direct_plan.py' -v
+
+  csharp:
+    name: CSharp calibrator and paired diagnostic compile
+    needs: plan-pair
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+      - name: Compile the actual CSharp Worker
+        working-directory: Solution
+        run: dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Test paired surname guard and historical 45-arm compatibility
+        working-directory: Solution
+        run: |
+          dotnet test -c Release tests/Jornada.Tests/Jornada.Tests.csproj \
+            --filter 'FullyQualifiedName~V9TfSharedSurnamePairedDiagnosticsTests' \
+            --no-restore
