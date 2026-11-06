@@ -25,11 +25,11 @@ Isso amplia **cobertura de condições e heterogeneidade do corpus sintético**.
 O produtor padrão escreve, também nos planos não-fixture:
 ```json
 "Calibration": {
-  "Budget": { "MaximumObservedAcceptedFdrPoint": 0.01 },
+  "Budget": { "MaximumObservedAcceptedFdrPoint": 1.0 },
   "SelectionPolicy": { "MaximumAcceptedFdrUpper": 0.01 }
 }
 ```
-Este é um **fragmento** do plano completo. O builder V3 lê os dois valores do próprio JSON, não os substitui silenciosamente quando recebe `--initial-only`. Validação fail-closed exige `0 < upper <= observed <= 1`; as regras de governança na validação C# continuam exigindo limites consistentes. **Um limite escolhido de 1% não torna um intervalo condicional certificado**: `ClusterIidIndependentlyValidated=false` continua, e o seletor não poderá promover configuração sem evidência adequada.
+Este é um **fragmento** do plano completo. **O teto operacional de FDR é 1% no SelectionPolicy, enquanto o Budget mantém 100% apenas como limite exploratório para não ocultar alternativas ruins da análise**. Um braço com FDR observado maior que 1% continua sendo medido e relatado, mas não se torna automaticamente selecionável. O builder V3 lê os dois valores do próprio JSON, não os substitui silenciosamente quando recebe `--initial-only`. Validação fail-closed exige `0 < upper <= observed <= 1`; as regras de governança na validação C# continuam exigindo limites consistentes. **Um limite escolhido de 1% não torna um intervalo condicional certificado**: `ClusterIidIndependentlyValidated=false` continua, e o seletor não poderá promover configuração sem evidência adequada.
 
 ## Inspeções e critérios de aceitação
 
@@ -45,4 +45,4 @@ Os dados por pessoa não são anexados ao artefato: relatórios agregados e seus
 
 O limiar de 1% é uma política selecionável no plano, não um estimador novo. O FDR observado em zero é `FP/(TP+FP)=0` no conjunto examinado; o intervalo condicional que aparece no relatório NÃO supera a ausência de certificação de independência entre unidades. O protocolo de comparação ampla é exploratório e reusa informações sobre seed conhecida; declara explicitamente toda a família testada. Se os dados de seed43/57 mudarem as conclusões, a investigação deve ser feita por hashes e divergências de TF/MU/frames, não por escolher apenas os casos mais favoráveis.
 
-**Critérios para merge:** testes offline de pré-flight e de corrupção, C# compilando, **todos os braços físicos executados**, amostras reconciliadas, quatro FDR gates honestos, `jornada-ci` verde no HEAD exato. Não se aceita green check sintético substituindo o SQL físico. Sem resultado físico completo, manter PR aberta.
+**Critérios para merge:** testes offline de pré-flight e de corrupção, C# compilando, **todos os braços físicos executados**, amostras reconciliadas, gates de FDR observada e superior, sem certificação IID espúria, `jornada-ci` verde no HEAD exato. Não se aceita green check sintético substituindo o SQL físico. Sem resultado físico completo, manter PR aberta.
