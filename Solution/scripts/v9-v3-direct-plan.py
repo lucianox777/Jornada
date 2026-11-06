@@ -16,6 +16,7 @@ VERSION = 'V9_V3_DIRECT_PARAMETERIZED_TRAIN_PLAN_V1'
 METHOD = 'CLASSWISE_SUPPORT_BACKOFF'
 FIELDS = ('ClassMassCoverage', 'MinimumObservedMPerCell',
           'MinimumObservedUPerCell', 'RetainSupportedTail')
+OPTIONAL_U_WEIGHTS = 'UBackoffJointMixtureWeights'
 # Existing V9 TF grid ID: one matched mother/person surname pair, all else equal.
 SURNAME_BILATERAL = 'TF_TWO_PL_ML_W1_M0_A0.5_T0.95'
 SURNAME_SHARED = 'TF_SHARED_PL_ML_W1_M0_A0.5_T0.95'
@@ -45,9 +46,9 @@ def _load(path):
 
 
 def _grid(raw):
-    if not isinstance(raw, dict) or set(raw) != set(FIELDS):
-        raise ValueError('V3 grid requires exactly four explicit parameter arrays')
-    for field in FIELDS:
+    if not isinstance(raw, dict) or set(raw) not in (set(FIELDS), set(FIELDS) | {OPTIONAL_U_WEIGHTS}):
+        raise ValueError('V3 grid requires four explicit arrays plus optional U shrinkage weights')
+    for field in (*FIELDS, *((OPTIONAL_U_WEIGHTS,) if OPTIONAL_U_WEIGHTS in raw else ())):
         values = raw[field]
         if not isinstance(values, list) or not values:
             raise ValueError('Array required: ' + field)
@@ -63,6 +64,10 @@ def _grid(raw):
     for field in ('MinimumObservedMPerCell', 'MinimumObservedUPerCell'):
         if any(type(v) is not int or v < 1 for v in raw[field]):
             raise ValueError('Observed support minimum must be a positive integer: ' + field)
+    if OPTIONAL_U_WEIGHTS in raw:
+        if any(not math.isfinite(w) or not 0 <= w <= 1
+               for w in raw[OPTIONAL_U_WEIGHTS]):
+            raise ValueError('U shrinkage weights must lie in [0,1]')
     return raw
 
 
@@ -177,6 +182,8 @@ def prepare(source, grid_path, output, maximum_configurations=None,
         if active:
             option['UnpublishedTermPolicy'] = 1
     variants = math.prod(len(grid[k]) for k in FIELDS)
+    if OPTIONAL_U_WEIGHTS in grid:
+        variants *= len(grid[OPTIONAL_U_WEIGHTS])
     # Existing nested calibrator starts with complete declared catalogue plus
     # baseline rulesets, for every model/margin/method; it may then refine.
     minimum = variants * len(options) * len(margins) * (1 + len(baselines))
