@@ -25,6 +25,51 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public async Task Streaming_selection_envelope_is_byte_and_SHA_equivalent_to_original_serializer()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "jornada-v9-selection-stream-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            // Simulate a sizeable ordered identity-outcome stream with stable
+            // JSON options. The streamed file must be the exact same bytes.
+            var envelope = new
+            {
+                result = Enumerable.Range(0, 2500).Select(i => new
+                {
+                    BaseIdentity = "synthetic-" + i,
+                    EligibleSources = 3,
+                    TrueAccepted = i % 3,
+                    FalseAccepted = i % 17 == 0 ? 1 : 0
+                }).ToArray(),
+                statisticalCertification = false,
+                operationalActivation = false
+            };
+            var options = new JsonSerializerOptions
+            {
+                WriteIndented = true, RespectRequiredConstructorParameters = true,
+                UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
+            };
+            var historicalBytes = JsonSerializer.SerializeToUtf8Bytes(envelope, options);
+            var expected = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(historicalBytes)).ToLowerInvariant();
+            var actual = await V9NestedCalibrationCli.WriteContentAddressedSelectionAsync(directory, envelope);
+            Assert.That(actual, Is.EqualTo(expected));
+            Assert.That(File.ReadAllBytes(Path.Combine(directory, expected + ".selection.json")),
+                Is.EqualTo(historicalBytes));
+            Assert.That(Directory.GetFiles(directory, "*.pending.json"), Is.Empty);
+            Assert.That((Func<Task>)(async () =>
+                await V9NestedCalibrationCli.WriteContentAddressedSelectionAsync(directory, envelope)),
+                Throws.TypeOf<IOException>()); // never overwrite a signed envelope
+        }
+        finally
+        {
+            // Test-owned GUID directory only.
+            Directory.Delete(directory, true);
+        }
+    }
+
+    [Test]
     public void Search_reader_skips_external_holdout_attribute_values_and_never_opens_TEST()
     {
         var file = Path.Combine(Path.GetTempPath(), "jornada-train-only-" + Guid.NewGuid().ToString("N") + ".csv");

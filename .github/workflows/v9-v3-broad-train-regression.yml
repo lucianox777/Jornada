@@ -115,6 +115,11 @@ jobs:
               for x in arms: x['EligibleForSelection'] = True
               assert all(x['EligibleForSelection'] is True for x in arms)
           source['Calibration']['ModelOptions']=arms
+          # surname/seed42 exceeded runner RAM after all 160 TRAIN configurations.
+          # Bound concurrent SQL/Resolve groups to 1 without removing any
+          # declared option or changing the inferential multiplicity.
+          if os.environ['V3_FAMILY']=='surname' and os.environ['V3_SEED']=='42':
+              source['Calibration']['MaximumParallelRuleSets']=1
           # Five predeclared log-odds margins; independent of V3 M/U estimator.
           source['Calibration']['ConflictMargins']=[0, 0.25, 0.5, 2, 4]
           assert source['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint']==.01
