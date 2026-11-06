@@ -85,6 +85,42 @@ nem equivalência inferencial de `lambda=0`.
 A grade, orçamento de FDR e multiplicidade estatística permanecem com as
 24 avaliações; compartilhar o SQL não reduz o número de hipóteses.
 
+
+### Paralelismo por percentual de vCPU (opt-in)
+
+O contrato de `V9AdaptiveCalibrationPlan` agora aceita
+`ParallelCpuPercent` **opcional** dentro de `Calibration`.
+O `MaximumParallelRuleSets` existente permanece **teto rígido**,
+inclusive quando o percentual permite mais workers. Exemplo
+(somente fragmento do `plan.json`):
+
+```json
+{
+  "Calibration": {
+    "MaximumParallelRuleSets": 8,
+    "ParallelCpuPercent": 80
+  }
+}
+```
+
+O cálculo usa `Environment.ProcessorCount` da instância **na execução**
+(vCPUs lógicas visíveis ao processo, não os núcleos físicos do servidor).
+O limite efetivo é `min(MaximumParallelRuleSets, max(1, floor(CPUs * percentual / 100)))`.
+Assim, numa instância com 1/2/4/8/16 vCPUs visíveis e teto 8,
+o limite será 1/1/3/6/8, respectivamente. O número de grupos
+independentes também limita a concorrência. Percentual ausente mantém
+**exatamente** o comportamento fixo anterior e não altera hashes/JSON
+dos planos históricos; 0 e valores >100 falham antes de abrir SQL.
+
+O limite é de *concorrência*, **não de uso efetivo da CPU**: o SQL, a RAM,
+as operações de rede e o custo de cada algoritmo podem dominar.
+O percentual não garante segurança contra OOM; executar com teto
+conservador e só elevar após verificar uso de memória e tempos reais.
+Cada worker usa conexão SQL independente; a composição de evidências,
+a quantidade de modelos testados e o limite FDR são invariáveis.
+A busca aninhada, a busca adaptativa e a validação de finalistas
+compartilham este mesmo resolvedor, sem exigir GPU ou shards.
+
 ## Gate físico ainda exigido
 
 **Não executar automaticamente a campanha científica confirmatória.** Para testar esta hipótese, congelar antes um `plan.json` pequeno, no mesmo TRAIN, corpus, seed42/43/57 e snapshots de referência, comparar os quatro pesos em TF0 e ONE_MF com 3 passes e 19 passes; margem operacionalmente elegível `0.5` fixa. Usar o próprio Calibrador SQL descartável e guardar hashes do plano, pares, fit, 81 células e resultados. Comparar o efeito no melhor e no segundo candidato, alterações de ranking/agrupamento e conflitos; não selecionar `lambda` pelos dados de TEST/Gold nem mascarar a regressão com margem zero.

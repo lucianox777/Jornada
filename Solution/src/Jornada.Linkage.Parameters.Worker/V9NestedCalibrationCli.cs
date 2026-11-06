@@ -389,7 +389,9 @@ public static class V9NestedCalibrationCli
         var validation = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(source, 4,
             plan.Calibration.MaximumAcceptedPerBaseIdentity, onlyPartition: "VALIDATION")
             .Select(x => x with { BasePersonId = fresh.Namespace + x.BasePersonId }).ToArray();
-        var measured = await V9ParallelWork.MapAsync(snapshots, plan.Calibration.MaximumParallelRuleSets, async (snapshot, ct) =>
+        var effectiveWorkers = V9ParallelWork.ResolveMaximumParallelism(
+            plan.Calibration.MaximumParallelRuleSets, plan.Calibration.ParallelCpuPercent);
+        var measured = await V9ParallelWork.MapAsync(snapshots, effectiveWorkers, async (snapshot, ct) =>
         {
             await using var connection = new SqlConnection(connectionString);
             await connection.OpenAsync(ct);

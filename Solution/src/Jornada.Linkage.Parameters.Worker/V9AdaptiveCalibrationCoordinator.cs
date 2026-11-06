@@ -38,7 +38,9 @@ public sealed record V9AdaptiveCalibrationPlan(
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    V9ExploratoryRiskPreferenceV1.Policy? ExploratoryRiskPreference = null);
+    V9ExploratoryRiskPreferenceV1.Policy? ExploratoryRiskPreference = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    int? ParallelCpuPercent = null);
 
 public sealed record V9AdaptiveCandidateRejection(string RulesetSha256,
     IReadOnlyList<string> ConfigurationIds, string Reason);
@@ -98,6 +100,7 @@ public static class V9AdaptiveCalibrationCoordinator
             || plan.ConflictMargins is null || plan.Budget is null || plan.SelectionPolicy is null
             || plan.MaximumPhysicalRuleSets < 1 || plan.MaximumComparedConfigurations < 1
             || plan.MaximumParallelRuleSets < 1
+            || plan.ParallelCpuPercent is < 1 or > 100
             || plan.ShardCount < 1 || plan.ShardIndex < 0 || plan.ShardIndex >= plan.ShardCount
             || plan.PreviouslyComparedValidationConfigurations < 0
             || plan.MaximumAcceptedPerBaseIdentity < 1
@@ -333,7 +336,9 @@ public static class V9AdaptiveCalibrationCoordinator
         // immutable frame/family count is shared; results fold in catalogue order.
         var activeConnections = new HashSet<SqlConnection>(ReferenceEqualityComparer.Instance);
         using var referenceLease = new SemaphoreSlim(1);
-        var runs = await V9ParallelWork.MapAsync(candidates, plan.MaximumParallelRuleSets, async (passes, ct) =>
+        var effectiveWorkers = V9ParallelWork.ResolveMaximumParallelism(
+            plan.MaximumParallelRuleSets, plan.ParallelCpuPercent);
+        var runs = await V9ParallelWork.MapAsync(candidates, effectiveWorkers, async (passes, ct) =>
         {
             FrozenIbgeNominalTfV9? reference = null;
             if (frozenTfReferenceForRuleset is not null)

@@ -75,6 +75,32 @@ public sealed class V9IntegralSearchTests
     }
 
     [Test]
+    public void Optional_CPU_percentage_uses_visible_vCPUs_and_never_raises_explicit_worker_cap()
+    {
+        // Deterministic injected CPU counts, independent of the CI runner.
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(2, null, 16), Is.EqualTo(2));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(16, 80, 1), Is.EqualTo(1));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(16, 80, 2), Is.EqualTo(1));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(16, 80, 4), Is.EqualTo(3));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(16, 80, 8), Is.EqualTo(6));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(16, 80, 16), Is.EqualTo(12));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(4, 80, 16), Is.EqualTo(4));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(1, 80, 32), Is.EqualTo(1));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(16, 100, 8), Is.EqualTo(8));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(16, 1, 32), Is.EqualTo(1));
+        }));
+        foreach (var pct in new[] { -1, 0, 101, 200 })
+            Assert.That((Action)(() => V9ParallelWork.ResolveMaximumParallelism(16, pct, 8)),
+                Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9ParallelWork.ResolveMaximumParallelism(0, 80, 8)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9ParallelWork.ResolveMaximumParallelism(16, 80, 0)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public async Task Parallel_map_really_overlaps_work_but_preserves_order_and_worker_bound()
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
