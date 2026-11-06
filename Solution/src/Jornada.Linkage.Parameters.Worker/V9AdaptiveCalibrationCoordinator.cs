@@ -109,7 +109,7 @@ public static class V9AdaptiveCalibrationCoordinator
                 || x.TfWeight is < 0 or > 1 || !Enum.IsDefined(x.TfSide)
                 || x.TfMinimumFrequency is < 0 or > 1 || x.TfMinimumIndependentSupport < 1)
             || plan.ModelOptions.Select(x => x.OptionId).Distinct(StringComparer.Ordinal).Count() != plan.ModelOptions.Count
-            || plan.ConflictMargins.Any(x => x is <= 0 or > 1000)
+            || plan.ConflictMargins.Any(x => x is < 0 or > 1000)
             || plan.ConflictMargins.Distinct().Count() != plan.ConflictMargins.Count)
             throw new InvalidDataException("Plano V9 incompleto, duplicado ou fora do contrato.");
         // Validate the four independent nominal weight/mode choices before SQL.
