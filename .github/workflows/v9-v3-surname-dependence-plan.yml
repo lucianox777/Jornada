@@ -59,4 +59,4 @@ jobs:
         run: |
           dotnet test -c Release tests/Jornada.Tests/Jornada.Tests.csproj \
             --filter 'FullyQualifiedName~V9TfSharedSurnamePairedDiagnosticsTests' \
-            --no-restore
+            --verbosity minimal
