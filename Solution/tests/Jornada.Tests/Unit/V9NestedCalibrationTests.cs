@@ -8,6 +8,13 @@ namespace Jornada.Tests.Unit;
 [TestFixture, Category("Unit")]
 public sealed class V9NestedCalibrationTests
 {
+    // Reuse serializer options across the regression test to satisfy CA1869.
+    private static readonly JsonSerializerOptions SelectionJson = new()
+    {
+        WriteIndented = true, RespectRequiredConstructorParameters = true,
+        UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
+    };
+
     [Test]
     public void Conditional_finalist_choice_preserves_group_risk_cost_and_family_constraints()
     {
@@ -45,12 +52,7 @@ public sealed class V9NestedCalibrationTests
                 statisticalCertification = false,
                 operationalActivation = false
             };
-            var options = new JsonSerializerOptions
-            {
-                WriteIndented = true, RespectRequiredConstructorParameters = true,
-                UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
-            };
-            var historicalBytes = JsonSerializer.SerializeToUtf8Bytes(envelope, options);
+            var historicalBytes = JsonSerializer.SerializeToUtf8Bytes(envelope, SelectionJson);
             var expected = Convert.ToHexString(
                 System.Security.Cryptography.SHA256.HashData(historicalBytes)).ToLowerInvariant();
             var actual = await V9NestedCalibrationCli.WriteContentAddressedSelectionAsync(directory, envelope);
