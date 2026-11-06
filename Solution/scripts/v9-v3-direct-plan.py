@@ -78,7 +78,7 @@ def _validate_explicit_surname_modes(options):
     # The ordinary producer may include a bilateral option in a broader
     # 41/45-arm catalogue. It is not a paired experiment by itself.
     if SURNAME_SHARED not in ids:
-        if len(options) == 2 and SURNAME_BILATERAL in ids:
+        if len(options) <= 2 and SURNAME_BILATERAL in ids:
             raise ValueError('The JSON must declare BOTH surname TF ModelOptions explicitly')
         return False
     if len(options) != 2 or ids != [SURNAME_BILATERAL, SURNAME_SHARED]:
