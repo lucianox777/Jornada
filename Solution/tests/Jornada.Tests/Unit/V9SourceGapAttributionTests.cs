@@ -15,7 +15,7 @@ public sealed class V9SourceGapAttributionTests
         foreach (var gap in new[] {0m, .25m, .5m, 1m, 2m, 4m})
             audit.Add(10m, 10m-gap, "1/1", "1/2", true, false);
         var result = audit.Export();
-        Assert.Multiple((TestDelegate)(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(result.TotalSources, Is.EqualTo(8));
             Assert.That(result.WithoutFirstCandidate, Is.EqualTo(1));
@@ -53,9 +53,9 @@ public sealed class V9SourceGapAttributionTests
     public void Invalid_or_inconsistent_rank_evidence_fails_closed()
     {
         var empty = new V9SourceGapAttributionAccumulator();
-        Assert.That((TestDelegate)(() => empty.Add(null, 1m, null, "1/1", null, true)), Throws.TypeOf<InvalidDataException>());
-        Assert.That((TestDelegate)(() => empty.Add(1m, null, "1/1", "1/2", true, false)), Throws.TypeOf<InvalidDataException>());
-        Assert.That((TestDelegate)(() => empty.Add(1m, 0m, "9/0", "1/1", true, false)), Throws.TypeOf<InvalidDataException>());
-        Assert.That((TestDelegate)(() => empty.Add(1m, 0m, "1/1", "1/1", null, false)), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => empty.Add(null, 1m, null, "1/1", null, true)), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => empty.Add(1m, null, "1/1", "1/2", true, false)), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => empty.Add(1m, 0m, "9/0", "1/1", true, false)), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => empty.Add(1m, 0m, "1/1", "1/1", null, false)), Throws.TypeOf<InvalidDataException>());
     }
 }
