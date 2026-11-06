@@ -58,7 +58,11 @@ class V3EvidenceBundleTests(unittest.TestCase):
             "SchemaVersion": "V9_FITTED_SNAPSHOT_V3",
             "OptionId": "TF_ONE_MF_W1_M0_A0.5_T0.95__MU_CLASSWISE_SUPPORT_BACKOFF_C0.95_M5_U5_T1",
             "Threshold": .95, "ConflictMargin": .5,
-            "Parameters": {"prior": .51, "m.birth": .8, "u.birth": .03},
+            "Parameters": {"PRIOR_MATCH_PROBABILITY": .51, "m.birth": .8, "u.birth": .03},
+            "TfWeight": 0,
+            "UnitTfCalibrations": [{"Side": 1, "Unit": 2, "State": 0,
+                                    "Calibration": {"Weight": 1, "Mode": 0}}],
+            "UnpublishedTermPolicy": 1,
             "BlockingPasses": [{"PassId": "P_LAST_M_PHON", "Fields": ["name", "mother"]}],
             "JointCells": [{"Person": i, "Mother": j, "M": 1/81, "U": 1/81}
                            for i in range(9) for j in range(9)],
@@ -159,6 +163,9 @@ class V3EvidenceBundleTests(unittest.TestCase):
         self.assertEqual(len(report["StatisticalAnalysis"]["rows"][0]
                              ["estimatorJointSupport"]["Cells"]), 81)
         self.assertEqual(report["PolicyAndMethod"]["muPolicy"], self.mu_policy)
+        self.assertEqual(report["PolicyAndMethod"]["priorMatchProbabilityFrozen"], .51)
+        self.assertEqual(report["PolicyAndMethod"]["fittedUnitTfStates"][0]["Weight"], 1)
+        self.assertEqual(report["PolicyAndMethod"]["fittedUnpublishedTermPolicy"], 1)
         self.assertFalse(report["Status"]["Dt15Authorized"])
         self.assertEqual(manifest["SourceCommitSha"], self.commit)
         self.assertEqual(manifest["CalibrationRunId"], str(self.run))
