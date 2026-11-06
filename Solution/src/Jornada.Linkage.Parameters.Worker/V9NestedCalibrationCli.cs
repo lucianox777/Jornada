@@ -153,6 +153,7 @@ public static class V9NestedCalibrationCli
             p95Milliseconds = e.Candidate?.P95Milliseconds,
             e.Rejections,
             outcome = e.Candidate is null ? "REJECTED_NOT_MEASURED"
+                : e.EligibleForSelection == false ? "MEASURED_DIAGNOSTIC_NOT_ELIGIBLE"
                 : e.Rejections.Count > 0 ? "MEASURED_NOT_ELIGIBLE" : "MEASURED_ELIGIBLE"
         }).ToArray();
         // Match two surname assumptions only when the SAME SQL candidate-pair
