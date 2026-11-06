@@ -165,7 +165,7 @@ public static class V9NestedCalibrationCli
             .Select(shared =>
             {
                 var expectedBilateralId = bilateralPrefix + shared.OptionId![sharedPrefix.Length..];
-                var paired = shared.Candidate is null || shared.CandidatePairsSha256 is null
+                V9NestedCandidateEvaluation[] paired = shared.Candidate is null || shared.CandidatePairsSha256 is null
                     ? [] : result.Evaluations.Where(other =>
                         other.OptionId == expectedBilateralId
                         && other.Batch == shared.Batch
@@ -196,7 +196,10 @@ public static class V9NestedCalibrationCli
                     sharedSurnameCandidatePairs = shared.SharedSurnameCandidatePairs,
                     samePhysicalCandidateUniverse = bilateral is not null,
                     status = bilateral is null ? "NOT_PAIRED_NO_COMPARABLE_PHYSICAL_EVIDENCE"
-                        : "MEASURED_PAIRED_TRAIN_DIAGNOSTIC_ONLY",
+                        : shared.SharedSurnameCandidatePairs == 0
+                            ? "PAIRED_BUT_ZERO_SHARED_SURNAME_CANDIDATES_NONINFORMATIVE"
+                            : "MEASURED_PAIRED_TRAIN_DIAGNOSTIC_ONLY",
+                    experimentInformative = bilateral is not null && shared.SharedSurnameCandidatePairs > 0,
                     bilateralEligibleForSelection = bilateral?.EligibleForSelection,
                     sharedEligibleForSelection = shared.EligibleForSelection,
                     bilateralRecall = bilateral?.Candidate?.Metric.GlobalSourceRecall,
