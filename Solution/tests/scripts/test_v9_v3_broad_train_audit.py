@@ -16,8 +16,9 @@ def fixture():
     options = ['A0.5_T0.95_TF0', 'TF_ONE_MF_W1_M0_A0.5_T0.95']
     plan = {
         'Purpose':'BOOTSTRAP_CANDIDATE_SELECTION',
-        'MaximumBatches':1, 'MaximumSearchConfigurations':8,
+        'MaximumBatches':1, 'MaximumSearchConfigurations':20,
         'Calibration':{
+            'ConflictMargins':[0, .25, .5, 2, 4],
             'Budget':{'MaximumObservedAcceptedFdrPoint':.01},
             'SelectionPolicy':{'MaximumAcceptedFdrUpper':.01},
             'ModelOptions':[{'OptionId':x, 'EligibleForSelection':True} for x in options]
@@ -30,7 +31,7 @@ def fixture():
               'SupportedTailRule':'RETAIN_CLASS_JOINT_WHEN_COUNT_AT_LEAST_K_V2'}
     rows = []
     for passes in (3,19):
-        for margin in (.5,2):
+        for margin in (0, .25, .5, 2, 4):
             for name in options:
                 rows.append({
                     'OptionId':name+'__MU_CLASSWISE_SUPPORT_BACKOFF_C0.99_M5_U5_T1',
@@ -49,7 +50,7 @@ def fixture():
                 })
     report = {'schema':'V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1',
               'scope':'TRAIN_SELECTION_ONLY_NOT_INDEPENDENT_VALIDATION',
-              'testUsed':False,'activated':False,'evaluations':8,'measured':8,
+              'testUsed':False,'activated':False,'evaluations':20,'measured':20,
               'rows':rows}
     return plan, report
 
@@ -71,10 +72,10 @@ class BroadV3AuditTests(unittest.TestCase):
     def check(self):
         return subject.verify(self.plan, self.report, 'first_name', 43)
 
-    def test_eight_valid_physical_rows_per_seed_and_two_tf_arms(self):
+    def test_twenty_valid_physical_rows_per_seed_and_two_tf_arms(self):
         audit = self.check()
-        self.assertEqual(audit['physicalConfigurations'], 8)
-        self.assertEqual(len(audit['pairs']), 4)
+        self.assertEqual(audit['physicalConfigurations'], 20)
+        self.assertEqual(len(audit['pairs']), 10)
         self.assertEqual(audit['declaredFdrUpperAndPointLimit'], .01)
         self.assertFalse(audit['activated'])
         self.assertFalse(audit['testUsed'])
@@ -97,6 +98,7 @@ class BroadV3AuditTests(unittest.TestCase):
             lambda p,r: r['rows'][0].update(CandidatePairsSha256='c'*64),
             lambda p,r: r['rows'][0].update(clusterIidIndependentlyValidated=True),
             lambda p,r: p['Calibration']['SelectionPolicy'].update(MaximumAcceptedFdrUpper=.2),
+            lambda p,r: p['Calibration'].update(ConflictMargins=[.5,2]),
         )
         for bad in changes:
             self.payload = fixture()
