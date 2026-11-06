@@ -326,7 +326,7 @@ public static class V9NestedCalibrationCoordinator
             }
             foreach (var passes in ruleSets)
             foreach (var threshold in new[] { p.Threshold - dt, p.Threshold, p.Threshold + dt }.Where(x => x is > 0 and < 1))
-            foreach (var margin in new[] { p.ConflictMargin - dm, p.ConflictMargin, p.ConflictMargin + dm }.Where(x => x is > 0 and <= 1000))
+            foreach (var margin in new[] { p.ConflictMargin - dm, p.ConflictMargin, p.ConflictMargin + dm }.Where(x => x is >= 0 and <= 1000))
                 yield return new(passes,
                     RefinedOption(template.Option, template.RootOptionId, threshold),
                     margin, template.RootOptionId);
