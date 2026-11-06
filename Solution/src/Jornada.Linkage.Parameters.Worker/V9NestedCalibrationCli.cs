@@ -244,7 +244,8 @@ public static class V9NestedCalibrationCli
                 && v2.OptionId?.Contains("__MU_", StringComparison.Ordinal) == true)
             .SelectMany(v2 =>
             {
-                var root = v2.OptionId![..v2.OptionId.IndexOf("__MU_", StringComparison.Ordinal)];
+                var optionId = v2.OptionId ?? throw new InvalidDataException("Missing base option for paired Rank.");
+                var root = optionId[..optionId.IndexOf("__MU_", StringComparison.Ordinal)];
                 return result.Evaluations.Where(v3 =>
                     v3.Candidate?.Metric.SourceRankInternal is not null
                     && v3.MuEstimationMethod == V9MuEstimationSearchSpace.Classwise
