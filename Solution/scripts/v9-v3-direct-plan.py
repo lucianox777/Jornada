@@ -74,13 +74,14 @@ def _validate_explicit_surname_modes(options):
     real C# calibrator consumes those two options directly. The historical
     45-arm catalog is left untouched.
     """
-    signature = lambda o: o['OptionId'].startswith((SURNAME_BILATERAL, SURNAME_SHARED))
-    if len(options) == 45:
-        return False  # Established TF catalogue, validated by C#.
-    if not any(signature(o) for o in options):
+    ids = [o['OptionId'] for o in options]
+    # The ordinary producer may include a bilateral option in a broader
+    # 41/45-arm catalogue. It is not a paired experiment by itself.
+    if SURNAME_SHARED not in ids:
+        if len(options) == 2 and SURNAME_BILATERAL in ids:
+            raise ValueError('The JSON must declare BOTH surname TF ModelOptions explicitly')
         return False
-    if len(options) != 2 or [o['OptionId'] for o in options] != [
-            SURNAME_BILATERAL, SURNAME_SHARED]:
+    if len(options) != 2 or ids != [SURNAME_BILATERAL, SURNAME_SHARED]:
         raise ValueError('The JSON must declare BOTH surname TF ModelOptions explicitly')
     bilateral, shared = options
     if (bilateral.get('SharedSurnameMode') != 0
