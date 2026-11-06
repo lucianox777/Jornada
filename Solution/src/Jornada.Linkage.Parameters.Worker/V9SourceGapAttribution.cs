@@ -53,13 +53,13 @@ public sealed class V9SourceGapAttributionAccumulator
     private long secondIncorrect;
 
     public void Add(decimal? bestLogOdds, decimal? secondLogOdds,
-        string? bestCell, string? secondCell, bool? bestCorrect, bool? secondCorrect)
+        string? bestCell, string? secondCell, bool? bestCorrect, bool? isSecondCorrect)
     {
         total = checked(total + 1);
         if (bestLogOdds is null)
         {
             if (secondLogOdds is not null || bestCell is not null || secondCell is not null
-                || bestCorrect is not null || secondCorrect is not null)
+                || bestCorrect is not null || isSecondCorrect is not null)
                 throw new InvalidDataException("Gap without best candidate is inconsistent.");
             noFirst = checked(noFirst + 1);
             noSecond = checked(noSecond + 1);
@@ -71,15 +71,15 @@ public sealed class V9SourceGapAttributionAccumulator
         if (bestCorrect.Value) firstCorrect++; else firstIncorrect++;
         if (secondLogOdds is null)
         {
-            if (secondCell is not null || secondCorrect is not null)
+            if (secondCell is not null || isSecondCorrect is not null)
                 throw new InvalidDataException("Second candidate missing but evidence exists.");
             noSecond = checked(noSecond + 1);
             return;
         }
-        if (string.IsNullOrWhiteSpace(secondCell) || secondCorrect is null)
+        if (string.IsNullOrWhiteSpace(secondCell) || isSecondCorrect is null)
             throw new InvalidDataException("Missing source-level second evidence.");
         AddCell(secondCells, secondCell);
-        if (secondCorrect.Value) secondCorrect++; else secondIncorrect++;
+        if (isSecondCorrect.Value) secondCorrect++; else secondIncorrect++;
         var gap = bestLogOdds.Value - secondLogOdds.Value;
         string bin = gap < 0m ? Bins[0] : gap < .25m ? Bins[1]
             : gap < .5m ? Bins[2] : gap < 1m ? Bins[3]
