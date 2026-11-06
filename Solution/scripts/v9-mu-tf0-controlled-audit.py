@@ -81,7 +81,10 @@ def audit(plan_path, report_path, selection_path):
             raise ValueError("V2 and V3 or TF0 and ONE_MF have DIFFERENT physical SQL frame or prior")
         frames[passes] = value
         rows[key] = row
-        by_key[row["OptionId"]] = key
+        request = row["RequestSha256"]
+        if not isinstance(request, str) or len(request) != 64 or request in by_key:
+            raise ValueError("Missing or duplicate physical RequestSha256")
+        by_key[request] = key
     if len(rows) != 8 or {k[0] for k in rows} != {3, 19}:
         raise ValueError("Not all four arms measured on both SQL rulesets")
     # The original already-measured ONE_MF rows are fixed regression sentinels,
@@ -98,8 +101,11 @@ def audit(plan_path, report_path, selection_path):
         raise ValueError("Selection envelope is incomplete")
     grouped = {}
     for evaluation in selections:
-        k = by_key.get(evaluation["OptionId"])
-        if k is None or k in grouped:
+        # OptionId repeats across rule sets. Only the unique physical request
+        # digest identifies an evaluation; matching by OptionId silently swaps
+        # blocking frames and makes the per-identity audit meaningless.
+        k = by_key.get(evaluation["RequestSha256"])
+        if k is None or k in grouped or evaluation["OptionId"] != rows[k]["OptionId"]:
             raise ValueError("Selection envelope contains unknown/duplicate option")
         identities = evaluation["Candidate"]["Metric"]["IdentityOutcomes"]
         if not isinstance(identities, list) or len(identities) < 2:
