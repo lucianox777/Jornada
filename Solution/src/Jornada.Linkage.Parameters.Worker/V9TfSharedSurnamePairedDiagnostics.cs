@@ -31,6 +31,24 @@ public static class V9TfSharedSurnamePairedDiagnostics
         ArgumentNullException.ThrowIfNull(options);
         var diagnostics = options.Where(x => !x.EligibleForSelection).ToArray();
         if (diagnostics.Length == 0) return; // Generic non-TF studies keep their existing contract.
+        // Compact, strictly paired V3 TRAIN experiment. The historical 45-arm
+        // path below remains unchanged. Shared mode is measured but never selected.
+        if (options.Count == 2 && diagnostics.Length == 1
+            && options.Count(x => x.EligibleForSelection) == 1)
+        {
+            var shared = diagnostics[0];
+            var bilateral = options.Single(x => x.EligibleForSelection);
+            if (!shared.OptionId.StartsWith(SharedPrefix, StringComparison.Ordinal)
+                || bilateral.OptionId != TwoPrefix + shared.OptionId[SharedPrefix.Length..]
+                || shared.SharedSurnameMode != V9SharedSurnameModeV9.PersonSideOnlyWhenShared
+                || bilateral.SharedSurnameMode != V9SharedSurnameModeV9.Bilateral
+                || V9FellegiSunterAdaptiveCalibrationAdapter.ConfigurationFingerprintSha256(
+                    shared with { OptionId = bilateral.OptionId,
+                        SharedSurnameMode = V9SharedSurnameModeV9.Bilateral, EligibleForSelection = true })
+                    != bilateral.FingerprintSha256)
+                throw new InvalidDataException("Compact V3 surname diagnostic must differ ONLY by the sharing mode.");
+            return;
+        }
         if (options.Count != 45 || diagnostics.Length != 4
             || options.Count(x => x.EligibleForSelection) != 41
             || options.Count(x => x.EligibleForSelection && x.OptionId == "T0.95_TF0") != 1
