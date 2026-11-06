@@ -187,7 +187,10 @@ public static class V9NestedCalibrationCli
                     throw new InvalidDataException("Ambiguous V3 surname paired frame; refuse to report spurious deltas.");
                 var bilateral = paired.SingleOrDefault();
                 if (bilateral is not null
-                    && (shared.EligibleForSelection != false || bilateral.EligibleForSelection != true
+                    && (shared.EligibleForSelection != false
+                        // At zero BOTH arms remain measured-only, never selectable;
+                        // at positive margins the bilateral control is selectable.
+                        || bilateral.EligibleForSelection != (shared.ConflictMargin > 0m)
                         || shared.SharedSurnameCandidatePairs is null
                         || shared.SharedSurnameCandidatePairs != bilateral.SharedSurnameCandidatePairs
                         || shared.Candidate!.Snapshot.Payload.SharedSurnameMode
