@@ -88,7 +88,8 @@ public sealed record V9PhysicalCalibrationRunResult(
     V9PostResolveSelectionReport? PostResolveSelection = null,
     IReadOnlyList<V9PhysicalFrozenConfiguration>? FrozenConfigurations = null,
     IReadOnlyList<V9PhysicalEndToEndMeasurement>? EndToEndMeasurements = null,
-    string? PhysicalCandidatePairsSha256 = null);
+    string? PhysicalCandidatePairsSha256 = null,
+    V9TrainCandidatePriorDiagnostic.Report? TrainCandidatePriorDiagnostic = null);
 
 /// <summary>
 /// Cohort is defined BEFORE SQL blocking and includes every base identity,
@@ -363,6 +364,10 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             || !V9FellegiSunterAdaptiveCalibrationAdapter.HasClassSupport(trainRows.Where(x => !x.IsTruePair).ToArray()))
             throw CandidateRejected("TRAIN M/U exige ao menos dois pares e duas identidades em cada classe.");
 
+        // Exact SQL union was SELECT DISTINCT + UNIQUE(part,a,b); report repeated
+        // *base identities* separately from duplicate observation edges.
+        var trainPriorDiagnostic = V9TrainCandidatePriorDiagnostic.Analyze(
+            trainRows, trainBases.Count, candidatePairsSha);
         var trainRecoveredM = trainRows.LongCount(x => x.IsTruePair);
         var validationRecoveredM = validationRows.LongCount(x => x.IsTruePair);
         if (trainRecoveredM > trainEligibleM || validationRecoveredM > validationEligibleM)
@@ -473,6 +478,8 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
                         includeFsBlindGrouping ? new V9SnapshotCandidateGrouping(
                             "BLIND_FS_COMPLETE_LINK_CANDIDATES", minimumFsGroupingPosterior,
                             adaptiveExecution.MaximumBlindClusterSize ?? predeclaredMaximumAcceptedPerBaseIdentity) : null);
+                V9TrainCandidatePriorDiagnostic.RequireOriginalPriorReconciled(
+                    trainPriorDiagnostic, snapshot, config.SmoothingAlpha);
                 frozen.Add(new V9PhysicalFrozenConfiguration(result.OptionId, margin, snapshot,
                     V9FittedJointSupportAudit.Reconstruct(snapshot, config.SmoothingAlpha,
                         trainRecoveredM, trainRows.LongLength - trainRecoveredM)));
@@ -547,7 +554,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
                         option.EligibleForSelection && option.OptionId == x.OptionId))
                     .ToDictionary(x => x.OptionId,
                         x => x.Validation.BlockingFalseDegreeP99, StringComparer.Ordinal)),
-            frozen.AsReadOnly(), endToEnd.AsReadOnly(), candidatePairsSha);
+            frozen.AsReadOnly(), endToEnd.AsReadOnly(), candidatePairsSha, trainPriorDiagnostic);
     }
 
     /// <summary>

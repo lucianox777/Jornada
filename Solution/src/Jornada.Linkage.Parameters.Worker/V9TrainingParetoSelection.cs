@@ -4,7 +4,8 @@ namespace Jornada.Linkage.Parameters.Worker;
 
 public sealed record V9TrainingCandidate(V9FittedSnapshot Snapshot, V9PhysicalSourceResolveMetric Metric,
     V9FittedJointSupportAudit.Report Support, double? P95Milliseconds, double FalseDegreeP99,
-    IReadOnlyList<string> Rejections);
+    IReadOnlyList<string> Rejections,
+    V9TrainCandidatePriorDiagnostic.Report? PriorDiagnostic = null);
 
 public sealed record V9TrainingRiskPoint(double MaximumFdr, string? SnapshotSha256, double? Recall, double? Fdr);
 public sealed record V9TrainingBatchProgress(int Batch, int NewConfigurations, int TotalConfigurations,
