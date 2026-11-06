@@ -66,6 +66,39 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
         new Dictionary<string, string>(StringComparer.Ordinal) { [Ruleset] = new string('f', 64) };
 
     [Test]
+    public void Compact_V3_plan_explicitly_tests_independent_and_shared_assumptions_without_selecting_shared()
+    {
+        V9FsUnitTfOption[] units =
+        [
+            new(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName, 0m,
+                CompositeNominalTfAdjustmentModeV9.Symmetric),
+            new(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.LastContentSurname, 1m,
+                CompositeNominalTfAdjustmentModeV9.Symmetric),
+            new(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName, 0m,
+                CompositeNominalTfAdjustmentModeV9.Symmetric),
+            new(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.LastContentSurname, 1m,
+                CompositeNominalTfAdjustmentModeV9.Symmetric)
+        ];
+        var bilateral = new V9FsAdaptiveOptionConfiguration(
+            "TF_TWO_PL_ML_W1_M0_A0.5_T0.95", .5m, .95m, UnitTfOptions: units);
+        var shared = bilateral with
+        {
+            OptionId = "TF_SHARED_PL_ML_W1_M0_A0.5_T0.95",
+            SharedSurnameMode = V9SharedSurnameModeV9.PersonSideOnlyWhenShared,
+            EligibleForSelection = false
+        };
+        Assert.DoesNotThrow((Action)(() => V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { EligibleForSelection = true }])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { DecisionThreshold = .99m }])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { SharedSurnameMode = V9SharedSurnameModeV9.Bilateral }])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { OptionId = "TF_SHARED_OTHER" }])));
+    }
+
+    [Test]
     public void Physical_budget_and_inferential_family_count_all_arms_while_shortlist_counts_41()
     {
         var sha = new string('a', 64);

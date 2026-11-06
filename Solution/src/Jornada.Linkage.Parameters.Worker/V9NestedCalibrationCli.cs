@@ -130,7 +130,9 @@ public static class V9NestedCalibrationCli
         var rows = result.Evaluations.Select(e => new
         {
             e.Batch, e.RequestSha256, e.OptionId, e.MuEstimationMethod,
-            e.MuPolicy, e.ConflictMargin,
+            e.MuPolicy, e.ConflictMargin, e.EligibleForSelection,
+            e.SharedSurnameCandidatePairs, e.CandidatePairsSha256,
+            sharedSurnameMode = e.Candidate?.Snapshot.Payload.SharedSurnameMode,
             fitSnapshotSha256 = e.Candidate?.Snapshot.ContentSha256,
             smoothingAlpha = e.Candidate?.Support.SmoothingAlpha,
             // Each of the 81 mutually exclusive M/U states is independently
@@ -151,8 +153,80 @@ public static class V9NestedCalibrationCli
             p95Milliseconds = e.Candidate?.P95Milliseconds,
             e.Rejections,
             outcome = e.Candidate is null ? "REJECTED_NOT_MEASURED"
+                : e.EligibleForSelection == false ? "MEASURED_DIAGNOSTIC_NOT_ELIGIBLE"
                 : e.Rejections.Count > 0 ? "MEASURED_NOT_ELIGIBLE" : "MEASURED_ELIGIBLE"
         }).ToArray();
+        // Match two surname assumptions only when the SAME SQL candidate-pair
+        // SHA, M/U policy, margin, blocking and cohort have been measured.
+        // This diagnostic is NEVER added to selection/finalists.
+        const string sharedPrefix = "TF_SHARED_PL_ML_";
+        const string bilateralPrefix = "TF_TWO_PL_ML_";
+        var surnameComparisons = result.Evaluations.Where(e =>
+                e.OptionId?.StartsWith(sharedPrefix, StringComparison.Ordinal) == true)
+            .Select(shared =>
+            {
+                var expectedBilateralId = bilateralPrefix + shared.OptionId![sharedPrefix.Length..];
+                V9NestedCandidateEvaluation[] paired = shared.Candidate is null || shared.CandidatePairsSha256 is null
+                    ? [] : result.Evaluations.Where(other =>
+                        other.OptionId == expectedBilateralId
+                        && other.Batch == shared.Batch
+                        && other.ConflictMargin == shared.ConflictMargin
+                        && other.Candidate is not null
+                        && other.CandidatePairsSha256 == shared.CandidatePairsSha256
+                        && JsonSerializer.Serialize(other.MuPolicy) == JsonSerializer.Serialize(shared.MuPolicy)
+                        && JsonSerializer.Serialize(other.Candidate!.Snapshot.Payload.BlockingPasses)
+                            == JsonSerializer.Serialize(shared.Candidate.Snapshot.Payload.BlockingPasses))
+                        .ToArray();
+                if (paired.Length > 1)
+                    throw new InvalidDataException("Ambiguous V3 surname paired frame; refuse to report spurious deltas.");
+                var bilateral = paired.SingleOrDefault();
+                if (bilateral is not null
+                    && (shared.EligibleForSelection != false || bilateral.EligibleForSelection != true
+                        || shared.SharedSurnameCandidatePairs is null
+                        || shared.SharedSurnameCandidatePairs != bilateral.SharedSurnameCandidatePairs
+                        || shared.Candidate!.Snapshot.Payload.SharedSurnameMode
+                            != V9SharedSurnameModeV9.PersonSideOnlyWhenShared
+                        || bilateral.Candidate!.Snapshot.Payload.SharedSurnameMode != V9SharedSurnameModeV9.Bilateral))
+                    throw new InvalidDataException("V3 surname options disagree in affected-pair count or candidate eligibility.");
+                return new
+                {
+                    sharedOptionId = shared.OptionId,
+                    bilateralOptionId = expectedBilateralId,
+                    shared.Batch, shared.ConflictMargin,
+                    candidatePairsSha256 = shared.CandidatePairsSha256,
+                    sharedSurnameCandidatePairs = shared.SharedSurnameCandidatePairs,
+                    samePhysicalCandidateUniverse = bilateral is not null,
+                    status = bilateral is null ? "NOT_PAIRED_NO_COMPARABLE_PHYSICAL_EVIDENCE"
+                        : shared.SharedSurnameCandidatePairs == 0
+                            ? "PAIRED_BUT_ZERO_SHARED_SURNAME_CANDIDATES_NONINFORMATIVE"
+                            : "MEASURED_PAIRED_TRAIN_DIAGNOSTIC_ONLY",
+                    experimentInformative = bilateral is not null && shared.SharedSurnameCandidatePairs > 0,
+                    bilateralEligibleForSelection = bilateral?.EligibleForSelection,
+                    sharedEligibleForSelection = shared.EligibleForSelection,
+                    bilateralRecall = bilateral?.Candidate?.Metric.GlobalSourceRecall,
+                    sharedRecall = shared.Candidate?.Metric.GlobalSourceRecall,
+                    deltaRecall = bilateral is null ? (double?)null
+                        : shared.Candidate!.Metric.GlobalSourceRecall -
+                            bilateral.Candidate!.Metric.GlobalSourceRecall,
+                    bilateralFdr = bilateral?.Candidate?.Metric.FdrAfterResolve,
+                    sharedFdr = shared.Candidate?.Metric.FdrAfterResolve,
+                    deltaFdr = bilateral?.Candidate?.Metric.FdrAfterResolve is { } bFdr
+                        && shared.Candidate?.Metric.FdrAfterResolve is { } sFdr
+                        ? sFdr - bFdr : (double?)null,
+                    bilateralFalseAccepted = bilateral?.Candidate?.Metric.FalseAcceptedSourceObservations,
+                    sharedFalseAccepted = shared.Candidate?.Metric.FalseAcceptedSourceObservations,
+                    deltaFalseAccepted = bilateral is null ? (long?)null
+                        : shared.Candidate!.Metric.FalseAcceptedSourceObservations -
+                            bilateral.Candidate!.Metric.FalseAcceptedSourceObservations,
+                    bilateralPending = bilateral is null ? (long?)null
+                        : bilateral.Candidate!.Metric.Conflicts + bilateral.Candidate.Metric.Unresolved,
+                    sharedPending = shared.Candidate is null ? (long?)null
+                        : shared.Candidate.Metric.Conflicts + shared.Candidate.Metric.Unresolved,
+                    deltaPending = bilateral is null ? (long?)null
+                        : (shared.Candidate!.Metric.Conflicts + shared.Candidate.Metric.Unresolved)
+                            - (bilateral.Candidate!.Metric.Conflicts + bilateral.Candidate.Metric.Unresolved),
+                };
+            }).ToArray();
         var report = new
         {
             schema = "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1",
@@ -169,6 +243,8 @@ public static class V9NestedCalibrationCli
             testUsed = false, activated = false,
             finalistSnapshotShas = result.FinalistSnapshotShas,
             result.StopReason,
+            surnameDependenceComparisons = surnameComparisons,
+            sharedSurnameAssumptionChosenForOperation = false,
             rows
         };
         await WriteNewAsync(Path.Combine(output, "mu-statistical-analysis.json"), report);

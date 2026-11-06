@@ -31,7 +31,10 @@ public sealed record V9NestedCandidateEvaluation(string RequestSha256, int Batch
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     string? MuEstimationMethod = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    V9JointSupportPolicy? MuPolicy = null);
+    V9JointSupportPolicy? MuPolicy = null,
+    bool? EligibleForSelection = null,
+    long? SharedSurnameCandidatePairs = null,
+    string? CandidatePairsSha256 = null);
 
 public sealed record V9NestedCalibrationSearchResult(string Version, string PlanSha256,
     V9InternalTrainingSplit.Manifest Split, IReadOnlyList<V9NestedCandidateEvaluation> Evaluations,
@@ -227,7 +230,12 @@ public static class V9NestedCalibrationCoordinator
                 finally { lock (active) active.Remove(connection); await connection.DisposeAsync(); }
             }, cancellationToken);
             evaluations.AddRange(results.SelectMany(x => x).OrderBy(x => x.RequestSha256, StringComparer.Ordinal));
-            frontier = V9TrainingParetoSelection.Frontier(evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!));
+            // Keep diagnostic SHARED surname results in the audit but never
+            // admit them to the Pareto frontier/refinements/finalists.
+            frontier = V9TrainingParetoSelection.Frontier(evaluations.Where(x =>
+                x.Candidate is not null
+                && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
+                && template.Option.EligibleForSelection).Select(x => x.Candidate!));
             var currentBands = V9TrainingParetoSelection.Bands(frontier, calibration.RiskCeilings!);
             var previousBands = V9TrainingParetoSelection.Bands(previous, calibration.RiskCeilings!);
             double recallGain = 0, fdrGain = 0, deltaR = plan.MinimumRecallImprovement, deltaF = plan.MinimumFdrImprovement;
@@ -378,7 +386,11 @@ public static class V9NestedCalibrationCoordinator
                     MuEstimationMethod: plan.MuEstimationMethods is null ? null
                         : request.Option.JointSupportPolicy is null
                             ? V9MuEstimationSearchSpace.Default : V9MuEstimationSearchSpace.Classwise,
-                    MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy));
+                    MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
+                    EligibleForSelection: request.Option.EligibleForSelection,
+                    SharedSurnameCandidatePairs: run.CalibrationReport.Options.Single(x =>
+                        x.OptionId == request.Option.OptionId).Validation.SharedSurnameCandidatePairs,
+                    CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
             }
             return result.AsReadOnly();
         }
@@ -390,6 +402,7 @@ public static class V9NestedCalibrationCoordinator
             MuEstimationMethod: plan.MuEstimationMethods is null ? null
                 : request.Option.JointSupportPolicy is null
                     ? V9MuEstimationSearchSpace.Default : V9MuEstimationSearchSpace.Classwise,
-            MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy)).ToArray()); }
+            MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
+            EligibleForSelection: request.Option.EligibleForSelection)).ToArray()); }
     }
 }

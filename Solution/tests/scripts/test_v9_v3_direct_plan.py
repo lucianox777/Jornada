@@ -50,6 +50,87 @@ class DirectV3Tests(unittest.TestCase):
         self.source.write_text(json.dumps(base()))
         self.grid.write_text(json.dumps(grid()))
 
+    @staticmethod
+    def bilateral():
+        return {
+            'OptionId': subject.SURNAME_BILATERAL,
+            'SmoothingAlpha': .5, 'DecisionThreshold': .95, 'TfWeight': 0,
+            'UnitTfOptions': [
+                {'Side': 0, 'Unit': 2, 'Weight': 0, 'Mode': 0},
+                {'Side': 0, 'Unit': 3, 'Weight': 1, 'Mode': 0},
+                {'Side': 1, 'Unit': 2, 'Weight': 0, 'Mode': 0},
+                {'Side': 1, 'Unit': 3, 'Weight': 1, 'Mode': 0},
+            ]
+        }
+
+    @classmethod
+    def surname_pair(cls):
+        bilateral = cls.bilateral()
+        bilateral.update(SharedSurnameMode=0, EligibleForSelection=True)
+        shared = json.loads(json.dumps(bilateral))
+        shared.update(OptionId=subject.SURNAME_SHARED, SharedSurnameMode=1,
+                      EligibleForSelection=False)
+        return [bilateral, shared]
+
+    def test_surname_dependence_two_options_are_read_from_json_without_cli_switch(self):
+        b = base()
+        b['Calibration']['ModelOptions'] = self.surname_pair()
+        self.source.write_text(json.dumps(b))
+        info = subject.prepare(self.source, self.grid, self.output)
+        output = json.loads(self.output.read_text())
+        opts = output['Calibration']['ModelOptions']
+        self.assertEqual([o['OptionId'] for o in opts],
+                         [subject.SURNAME_BILATERAL, subject.SURNAME_SHARED])
+        self.assertEqual([o['SharedSurnameMode'] for o in opts], [0, 1])
+        self.assertEqual([o['EligibleForSelection'] for o in opts], [True, False])
+        self.assertEqual([o['UnpublishedTermPolicy'] for o in opts], [1, 1])
+        self.assertEqual(opts[0]['UnitTfOptions'], opts[1]['UnitTfOptions'])
+        self.assertEqual(opts[0]['DecisionThreshold'], opts[1]['DecisionThreshold'])
+        self.assertEqual(opts[0]['SmoothingAlpha'], opts[1]['SmoothingAlpha'])
+        self.assertEqual({k:v for k,v in opts[0].items()
+                          if k not in ('OptionId','SharedSurnameMode','EligibleForSelection')},
+                         {k:v for k,v in opts[1].items()
+                          if k not in ('OptionId','SharedSurnameMode','EligibleForSelection')})
+        self.assertEqual(info['initialComparisons'], 32)
+        self.assertEqual(info['baseOptions'], 2)
+        self.assertIs(info['surnameDependenceExperiment']['sharedEligibleForSelection'], False)
+        self.assertEqual(json.loads(self.source.read_text()), b)
+        self.assertNotIn('DEFAULT', json.dumps(output['MuEstimationMethods']))
+
+    def test_surname_pair_must_be_explicit_and_never_filtered_silently(self):
+        b = base()
+        b['Calibration']['ModelOptions'] = self.surname_pair()
+        self.source.write_text(json.dumps(b))
+        with self.assertRaisesRegex(ValueError, 'BOTH surname'):
+            subject.prepare(self.source, self.grid, self.output,
+                            only_option_id=subject.SURNAME_BILATERAL)
+        self.assertFalse(self.output.exists())
+        b['Calibration']['ModelOptions'][1]['UnitTfOptions'][1]['Weight'] = 0.5
+        self.source.write_text(json.dumps(b))
+        with self.assertRaisesRegex(ValueError, 'differ ONLY'):
+            subject.prepare(self.source, self.grid, self.output)
+        self.assertFalse(self.output.exists())
+        b['Calibration']['ModelOptions'].pop()
+        self.source.write_text(json.dumps(b))
+        with self.assertRaisesRegex(ValueError, 'BOTH surname'):
+            subject.prepare(self.source, self.grid, self.output)
+        self.assertFalse(self.output.exists())
+
+    def test_wrong_modes_selection_and_extra_arm_fail_closed(self):
+        for mutate in (
+            lambda opts: opts[1].update(SharedSurnameMode=0),
+            lambda opts: opts[1].update(EligibleForSelection=True),
+            lambda opts: opts[0].update(EligibleForSelection=False),
+            lambda opts: opts.append({'OptionId':'EXTRA','TfWeight':0}),
+        ):
+            b = base()
+            b['Calibration']['ModelOptions'] = self.surname_pair()
+            mutate(b['Calibration']['ModelOptions'])
+            self.source.write_text(json.dumps(b))
+            with self.assertRaises(ValueError):
+                subject.prepare(self.source, self.grid, self.output)
+            self.assertFalse(self.output.exists())
+
     def test_v3_only_parameterized_no_v2_and_explicit_tf_abstention(self):
         info=subject.prepare(self.source,self.grid,self.output)
         out=json.loads(self.output.read_text())

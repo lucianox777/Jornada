@@ -16,6 +16,10 @@ VERSION = 'V9_V3_DIRECT_PARAMETERIZED_TRAIN_PLAN_V1'
 METHOD = 'CLASSWISE_SUPPORT_BACKOFF'
 FIELDS = ('ClassMassCoverage', 'MinimumObservedMPerCell',
           'MinimumObservedUPerCell', 'RetainSupportedTail')
+# Existing V9 TF grid ID: one matched mother/person surname pair, all else equal.
+SURNAME_BILATERAL = 'TF_TWO_PL_ML_W1_M0_A0.5_T0.95'
+SURNAME_SHARED = 'TF_SHARED_PL_ML_W1_M0_A0.5_T0.95'
+
 
 
 def _load(path):
@@ -62,6 +66,49 @@ def _grid(raw):
     return raw
 
 
+def _validate_explicit_surname_modes(options):
+    """Do not invent a comparison from a CLI flag.
+
+    For a compact TF comparison, the *input plan.json* must declare BOTH
+    complete ModelOptions, including SharedSurnameMode and eligibility. The
+    real C# calibrator consumes those two options directly. The historical
+    45-arm catalog is left untouched.
+    """
+    ids = [o['OptionId'] for o in options]
+    # The ordinary producer may include a bilateral option in a broader
+    # 41/45-arm catalogue. It is not a paired experiment by itself.
+    if SURNAME_SHARED not in ids:
+        if len(options) <= 2 and SURNAME_BILATERAL in ids:
+            raise ValueError('The JSON must declare BOTH surname TF ModelOptions explicitly')
+        return False
+    if len(options) != 2 or ids != [SURNAME_BILATERAL, SURNAME_SHARED]:
+        raise ValueError('The JSON must declare BOTH surname TF ModelOptions explicitly')
+    bilateral, shared = options
+    if (bilateral.get('SharedSurnameMode') != 0
+            or shared.get('SharedSurnameMode') != 1
+            or bilateral.get('EligibleForSelection') is not True
+            or shared.get('EligibleForSelection') is not False):
+        raise ValueError('JSON modes require bilateral 0/selectable and shared 1/diagnostic')
+    exceptions = ('OptionId', 'SharedSurnameMode', 'EligibleForSelection')
+    if ({k: v for k, v in bilateral.items() if k not in exceptions}
+            != {k: v for k, v in shared.items() if k not in exceptions}):
+        raise ValueError('Surname JSON options must differ ONLY in mode, ID and eligibility')
+    slots = bilateral.get('UnitTfOptions')
+    if (not isinstance(slots, list) or len(slots) != 4
+            or any(not isinstance(x, dict) for x in slots)
+            or {(x.get('Side'), x.get('Unit')) for x in slots}
+            != {(0, 2), (0, 3), (1, 2), (1, 3)}
+            or any(type(x.get('Weight')) not in (int, float)
+                   or type(x.get('Mode')) is not int for x in slots)):
+        raise ValueError('Four explicit TF slots are required for the surname JSON comparison')
+    weights = {(x['Side'], x['Unit']): x['Weight'] for x in slots}
+    if (bilateral.get('TfWeight', 0) != 0
+            or weights != {(0, 2): 0, (0, 3): 1, (1, 2): 0, (1, 3): 1}
+            or any(x['Mode'] != 0 for x in slots if x['Weight'] > 0)):
+        raise ValueError('Expected last-surname TF W1 symmetric, prenames zero in both JSON arms')
+    return True
+
+
 def prepare(source, grid_path, output, maximum_configurations=None,
             only_option_id=None, only_margin=None, initial_only=False):
     source, grid_path, output = map(Path, (source, grid_path, output))
@@ -96,6 +143,9 @@ def prepare(source, grid_path, output, maximum_configurations=None,
         raise ValueError('Source option identifiers invalid or duplicated')
     if any(o.get('JointSupportPolicy') is not None for o in options):
         raise ValueError('Source option has a competing M/U policy')
+    paired_surnames = _validate_explicit_surname_modes(options)
+    if paired_surnames and only_option_id is not None:
+        raise ValueError('The JSON requests BOTH surname hypotheses; --only-option-id cannot remove one')
     if only_option_id is not None:
         if only_option_id not in ids:
             raise ValueError('Requested option is absent from the source plan')
@@ -163,6 +213,11 @@ def prepare(source, grid_path, output, maximum_configurations=None,
             'baseOptions': len(options), 'initialComparisons': minimum,
             'initialOnly': initial_only, 'selectedOptionId': only_option_id,
             'selectedMargin': only_margin,
+            'surnameDependenceExperiment': {
+                'status': 'TWO_ARM_PHYSICAL_TRAIN_ONLY_NOT_CERTIFIED',
+                'optionIds': [SURNAME_BILATERAL, SURNAME_SHARED],
+                'sharedEligibleForSelection': False
+            } if paired_surnames else None,
             'maximumConfigurations': maximum, 'studyFingerprintSha256': fingerprint,
             'inputPlanSha256': hashlib.sha256(original_bytes).hexdigest(),
             'inputGridSha256': hashlib.sha256(grid_bytes).hexdigest(),
