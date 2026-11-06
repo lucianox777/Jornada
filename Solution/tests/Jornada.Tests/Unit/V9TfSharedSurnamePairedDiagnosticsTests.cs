@@ -87,15 +87,15 @@ public sealed class V9TfSharedSurnamePairedDiagnosticsTests
             SharedSurnameMode = V9SharedSurnameModeV9.PersonSideOnlyWhenShared,
             EligibleForSelection = false
         };
-        Assert.DoesNotThrow(() => V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared]));
-        Assert.Throws<InvalidDataException>(() =>
-            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { EligibleForSelection = true }]));
-        Assert.Throws<InvalidDataException>(() =>
-            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { DecisionThreshold = .99m }]));
-        Assert.Throws<InvalidDataException>(() =>
-            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { SharedSurnameMode = V9SharedSurnameModeV9.Bilateral }]));
-        Assert.Throws<InvalidDataException>(() =>
-            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { OptionId = "TF_SHARED_OTHER" }]));
+        Assert.DoesNotThrow((Action)(() => V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { EligibleForSelection = true }])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { DecisionThreshold = .99m }])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { SharedSurnameMode = V9SharedSurnameModeV9.Bilateral }])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9TfSharedSurnamePairedDiagnostics.ValidateOptions([bilateral, shared with { OptionId = "TF_SHARED_OTHER" }])));
     }
 
     [Test]
