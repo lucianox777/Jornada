@@ -16,6 +16,10 @@ VERSION = 'V9_V3_DIRECT_PARAMETERIZED_TRAIN_PLAN_V1'
 METHOD = 'CLASSWISE_SUPPORT_BACKOFF'
 FIELDS = ('ClassMassCoverage', 'MinimumObservedMPerCell',
           'MinimumObservedUPerCell', 'RetainSupportedTail')
+# Existing V9 TF grid ID: one matched mother/person surname pair, all else equal.
+SURNAME_BILATERAL = 'TF_TWO_PL_ML_W1_M0_A0.5_T0.95'
+SURNAME_SHARED = 'TF_SHARED_PL_ML_W1_M0_A0.5_T0.95'
+
 
 
 def _load(path):
@@ -62,8 +66,44 @@ def _grid(raw):
     return raw
 
 
+def _surname_dependence_pair(options):
+    """Two predeclared arms; only SharedSurnameMode differs in their TF math.
+
+    The shared-surname alternative remains diagnostic/ineligible for automatic
+    selection as required by V9. Do not silently bypass its C# freeze guard.
+    """
+    original = [o for o in options if o['OptionId'] == SURNAME_BILATERAL]
+    if len(original) != 1:
+        raise ValueError('Bilateral person/mother last-surname TF arm missing from source plan')
+    a = copy.deepcopy(original[0])
+    if (a.get('SharedSurnameMode', 0) != 0
+            or a.get('EligibleForSelection', True) is not True
+            or a.get('TfWeight', 0) != 0):
+        raise ValueError('Bilateral source does not declare the canonical selectable mode')
+    slots = a.get('UnitTfOptions')
+    if (not isinstance(slots, list) or len(slots) != 4
+            or {(x.get('Side'), x.get('Unit')) for x in slots
+                if isinstance(x, dict)} != {(0, 2), (0, 3), (1, 2), (1, 3)}
+            or any(type(x.get('Weight')) not in (int, float)
+                   or type(x.get('Mode')) is not int for x in slots)):
+        raise ValueError('Four explicit, valid TF units are required for paired surname study')
+    weights = {(x['Side'], x['Unit']): x['Weight'] for x in slots}
+    if (weights[(0, 3)] != 1 or weights[(1, 3)] != 1
+            or weights[(0, 2)] != 0 or weights[(1, 2)] != 0
+            or {x['Mode'] for x in slots if x['Weight'] > 0} != {0}):
+        raise ValueError('Expected only bilateral last-surname TF W1 symmetric: same weights on both sides')
+    a['SharedSurnameMode'] = 0  # Bilateral: add independent TF terms
+    a['EligibleForSelection'] = True
+    b = copy.deepcopy(a)
+    b['OptionId'] = SURNAME_SHARED
+    b['SharedSurnameMode'] = 1  # PersonSideOnlyWhenShared
+    b['EligibleForSelection'] = False  # diagnostic: not in Pareto/activation
+    return [a, b]
+
+
 def prepare(source, grid_path, output, maximum_configurations=None,
-            only_option_id=None, only_margin=None, initial_only=False):
+            only_option_id=None, only_margin=None, initial_only=False,
+            compare_surname_dependence=False):
     source, grid_path, output = map(Path, (source, grid_path, output))
     if output.exists():
         raise FileExistsError(output)
@@ -96,6 +136,10 @@ def prepare(source, grid_path, output, maximum_configurations=None,
         raise ValueError('Source option identifiers invalid or duplicated')
     if any(o.get('JointSupportPolicy') is not None for o in options):
         raise ValueError('Source option has a competing M/U policy')
+    if compare_surname_dependence:
+        if only_option_id is not None:
+            raise ValueError('Surname dependency experiment requires BOTH arms; do not filter one option')
+        options = _surname_dependence_pair(options)
     if only_option_id is not None:
         if only_option_id not in ids:
             raise ValueError('Requested option is absent from the source plan')
@@ -151,7 +195,8 @@ def prepare(source, grid_path, output, maximum_configurations=None,
     basis = (VERSION + '|' + hashlib.sha256(original_bytes).hexdigest()
              + '|' + hashlib.sha256(grid_bytes).hexdigest() + '|' + str(maximum)
              + '|' + str(only_option_id) + '|' + str(only_margin)
-             + '|' + str(initial_only))
+             + '|' + str(initial_only)
+             + '|' + str(compare_surname_dependence))
     fingerprint = hashlib.sha256(basis.encode()).hexdigest()
     result['Calibration']['StudyFingerprintSha256'] = fingerprint
     result['Calibration']['Budget']['StudyFingerprintSha256'] = fingerprint
@@ -163,6 +208,11 @@ def prepare(source, grid_path, output, maximum_configurations=None,
             'baseOptions': len(options), 'initialComparisons': minimum,
             'initialOnly': initial_only, 'selectedOptionId': only_option_id,
             'selectedMargin': only_margin,
+            'surnameDependenceExperiment': {
+                'status': 'TWO_ARM_PHYSICAL_TRAIN_ONLY_NOT_CERTIFIED',
+                'optionIds': [SURNAME_BILATERAL, SURNAME_SHARED],
+                'sharedEligibleForSelection': False
+            } if compare_surname_dependence else None,
             'maximumConfigurations': maximum, 'studyFingerprintSha256': fingerprint,
             'inputPlanSha256': hashlib.sha256(original_bytes).hexdigest(),
             'inputGridSha256': hashlib.sha256(grid_bytes).hexdigest(),
@@ -183,8 +233,11 @@ if __name__ == '__main__':
                      help='Restrict a physical technical run to a declared margin')
     cli.add_argument('--initial-only', action='store_true',
                      help='One initial TRAIN batch only, never claim adaptive optimality')
+    cli.add_argument('--compare-surname-dependence', action='store_true',
+                     help='Write BOTH surname-TF arms into plan.json: bilateral mode 0 and'
+                          ' shared/dependent mode 1, identical weights, shared diagnostic only')
     opts = cli.parse_args()
     print(json.dumps(prepare(opts.prepared_train_plan, opts.v3_parameter_grid,
                              opts.output_plan, opts.maximum_configurations,
                              opts.only_option_id, opts.only_margin,
-                             opts.initial_only), sort_keys=True))
+                             opts.initial_only, opts.compare_surname_dependence), sort_keys=True))
