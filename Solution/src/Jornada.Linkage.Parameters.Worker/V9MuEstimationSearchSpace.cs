@@ -17,7 +17,9 @@ public sealed record V9MuEstimationParameterGrid(
     IReadOnlyList<decimal> ClassMassCoverage,
     IReadOnlyList<long> MinimumObservedMPerCell,
     IReadOnlyList<long> MinimumObservedUPerCell,
-    IReadOnlyList<bool> RetainSupportedTail);
+    IReadOnlyList<bool> RetainSupportedTail,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<decimal>? UBackoffJointMixtureWeights = null);
 
 public sealed record V9MuEstimationVariant(string Method, string Key, V9JointSupportPolicy? Policy);
 
@@ -51,27 +53,37 @@ public static class V9MuEstimationSearchSpace
             CheckValues(p.MinimumObservedMPerCell, "MinimumObservedMPerCell");
             CheckValues(p.MinimumObservedUPerCell, "MinimumObservedUPerCell");
             CheckValues(p.RetainSupportedTail, "RetainSupportedTail");
+            if (p.UBackoffJointMixtureWeights is { } declaredWeights)
+            {
+                CheckValues(declaredWeights, "UBackoffJointMixtureWeights");
+                if (declaredWeights.Any(w => w is < 0m or > 1m))
+                    throw new InvalidDataException("U rare mixture weights must be between 0 and 1.");
+            }
+            decimal?[] uWeights = p.UBackoffJointMixtureWeights?.Select(w => (decimal?)w).ToArray() ?? [null];
             if (p.ClassMassCoverage.Any(x => x is <= 0 or >= 1)
                 || p.MinimumObservedMPerCell.Any(x => x < 1)
                 || p.MinimumObservedUPerCell.Any(x => x < 1))
                 throw new InvalidDataException("CLASSWISE exige cobertura (0,1) e suporte M/U positivo.");
             // All values are explicit finite alternatives. No hidden search or truncation.
             var count = checked((long)p.ClassMassCoverage.Count * p.MinimumObservedMPerCell.Count
-                * p.MinimumObservedUPerCell.Count * p.RetainSupportedTail.Count);
+                * p.MinimumObservedUPerCell.Count * p.RetainSupportedTail.Count * uWeights.Length);
             if (count > int.MaxValue)
                 throw new InvalidDataException("Grade M/U supera capacidade de enumeração.");
             foreach (var coverage in p.ClassMassCoverage)
             foreach (var minM in p.MinimumObservedMPerCell)
             foreach (var minU in p.MinimumObservedUPerCell)
             foreach (var retain in p.RetainSupportedTail)
+            foreach (var uWeight in uWeights)
             {
                 var policy = new V9JointSupportPolicy(coverage, minM, minU,
-                    retain ? V9JointSupportEstimation.SupportedTailRule : null);
+                    retain ? V9JointSupportEstimation.SupportedTailRule : null,
+                    uWeight);
                 V9JointSupportEstimation.ValidatePolicy(policy);
                 var key = Classwise + "_C" + coverage.ToString("G29", CultureInfo.InvariantCulture)
                     + "_M" + minM.ToString(CultureInfo.InvariantCulture)
                     + "_U" + minU.ToString(CultureInfo.InvariantCulture)
-                    + "_T" + (retain ? "1" : "0");
+                    + "_T" + (retain ? "1" : "0")
+                    + (uWeight is null ? "" : "_UJW" + uWeight.Value.ToString("G29", CultureInfo.InvariantCulture));
                 result.Add(new(Classwise, key, policy));
             }
         }
