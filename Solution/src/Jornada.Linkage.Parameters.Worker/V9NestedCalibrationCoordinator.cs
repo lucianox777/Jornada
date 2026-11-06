@@ -390,7 +390,7 @@ public static class V9NestedCalibrationCoordinator
                     EligibleForSelection: request.Option.EligibleForSelection,
                     SharedSurnameCandidatePairs: run.CalibrationReport.Options.Single(x =>
                         x.OptionId == request.Option.OptionId).Validation.SharedSurnameCandidatePairs,
-                    CandidatePairsSha256: run.CandidatePairsSha256));
+                    CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
             }
             return result.AsReadOnly();
         }
