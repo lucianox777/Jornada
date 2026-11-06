@@ -78,7 +78,7 @@ public class V9MuEstimationSearchSpaceTests
             [new(V9MuEstimationSearchSpace.Classwise,
                 new([.99m], [5], [5], [true], [0m, .25m, .5m, 1m]))], 3)),
             Throws.TypeOf<InvalidDataException>());
-        foreach (var weights in new[] {new decimal[] {}, new[] {.25m, .25m}, new[] {-1m}, new[] {1.1m}})
+        foreach (var weights in new[] {Array.Empty<decimal>(), new[] {.25m, .25m}, new[] {-1m}, new[] {1.1m}})
             Assert.That((Action)(() => V9MuEstimationSearchSpace.Enumerate([
                 new(V9MuEstimationSearchSpace.Classwise, new([.99m], [5], [5], [true], weights))
             ])), Throws.TypeOf<InvalidDataException>());
