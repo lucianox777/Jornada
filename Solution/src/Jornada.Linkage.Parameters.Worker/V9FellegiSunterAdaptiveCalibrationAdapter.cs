@@ -1173,6 +1173,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 foreach (var margin in conflictMargins.OrderBy(x => x))
                 {
                     var counter = new V9SourceResolveAccumulator(orderedBases);
+                    var gapEvidence = new V9SourceGapAttributionAccumulator();
                     foreach (var source in validation.Values.OrderBy(x => x.ObservationId))
                     {
                         var collapsed = rankedBySource[source.ObservationId]
@@ -1181,6 +1182,31 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                             .Select(g => g.First() with { PessoaUuid = g.Key })
                             .OrderByDescending(x => x.LogOdds)
                             .ThenBy(x => x.PessoaUuid).ToArray();
+                        // Reconstruct the top-two original observations solely in memory.
+                        // The published report contains only k-suppressed cells and bins.
+                        string CellFor(Guid groupUuid)
+                        {
+                            var representative = rankedBySource[source.ObservationId].FirstOrDefault(x =>
+                                inferred.IdentityByObservation[observationByGuid[x.PessoaUuid].ObservationId]
+                                    == groupUuid)
+                                ?? throw new InvalidDataException("Rank and blind group disagree.");
+                            var target = observationByGuid[representative.PessoaUuid];
+                            return $"{(int)CompositeNominalComparisonV9.Classify(source.PersonName, target.PersonName)}/" +
+                                   $"{(int)CompositeNominalComparisonV9.Classify(source.MotherName, target.MotherName)}";
+                        }
+                        bool Correct(Guid groupUuid) =>
+                            truthByInferredGuid.TryGetValue(groupUuid, out var bases)
+                            && bases.Length == 1 && bases[0] == source.BasePersonId;
+                        if (collapsed.Length == 0)
+                            gapEvidence.Add(null, null, null, null, null, null);
+                        else if (collapsed.Length == 1)
+                            gapEvidence.Add(collapsed[0].LogOdds, null,
+                                CellFor(collapsed[0].PessoaUuid), null,
+                                Correct(collapsed[0].PessoaUuid), null);
+                        else
+                            gapEvidence.Add(collapsed[0].LogOdds, collapsed[1].LogOdds,
+                                CellFor(collapsed[0].PessoaUuid), CellFor(collapsed[1].PessoaUuid),
+                                Correct(collapsed[0].PessoaUuid), Correct(collapsed[1].PessoaUuid));
                         var decision = ProbabilisticLinkageDecisions
                             .ResolveRankedCompositeNominalV9Preview(
                                 ObservationGuid(source.ObservationId),
@@ -1242,7 +1268,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                         IdentityOutcomes: includeIdentityOutcomes ? Array.AsReadOnly(sourcesByIdentity.Select(g =>
                             new V9SourceIdentityOutcome(g.BaseIdentityFingerprint,
                                 eligibleSourcesByBase!.GetValueOrDefault(g.BaseIdentityFingerprint),
-                                g.TrueAccepted, g.FalseAccepted)).ToArray()) : null));
+                                g.TrueAccepted, g.FalseAccepted)).ToArray()) : null,
+                        SourceGapAttribution: gapEvidence.Export()));
                 }
             }
 
