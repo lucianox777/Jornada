@@ -156,6 +156,8 @@ public static class V9NestedCalibrationCli
             // kernel. No names, UUIDs, rankings or oracle labels are exported.
             allSelectionObservations = e.Candidate?.Metric.AllValidationObservations,
             resolveReasonCounts = e.Candidate?.Metric.ReasonsByResolveStatus,
+            // Only aggregated k-suppressed top-two Rank gaps / 81-cell ordinals.
+            sourceGapAttribution = e.Candidate?.Metric.SourceGapAttribution,
             p95Milliseconds = e.Candidate?.P95Milliseconds,
             e.Rejections,
             outcome = e.Candidate is null ? "REJECTED_NOT_MEASURED"
