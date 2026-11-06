@@ -62,7 +62,8 @@ def _grid(raw):
     return raw
 
 
-def prepare(source, grid_path, output, maximum_configurations=None):
+def prepare(source, grid_path, output, maximum_configurations=None,
+            only_option_id=None, only_margin=None, initial_only=False):
     source, grid_path, output = map(Path, (source, grid_path, output))
     if output.exists():
         raise FileExistsError(output)
@@ -95,6 +96,14 @@ def prepare(source, grid_path, output, maximum_configurations=None):
         raise ValueError('Source option identifiers invalid or duplicated')
     if any(o.get('JointSupportPolicy') is not None for o in options):
         raise ValueError('Source option has a competing M/U policy')
+    if only_option_id is not None:
+        if only_option_id not in ids:
+            raise ValueError('Requested option is absent from the source plan')
+        options = [o for o in options if o['OptionId'] == only_option_id]
+    if only_margin is not None:
+        if only_margin not in margins:
+            raise ValueError('Requested margin is absent from the source plan')
+        margins = [only_margin]
     # An active TF option must explicitly abstain rather than silently adopt
     # the C# RejectOperation=0 default. The original source plan is untouched.
     for option in options:
@@ -118,17 +127,31 @@ def prepare(source, grid_path, output, maximum_configurations=None):
     maximum = current if maximum_configurations is None else maximum_configurations
     if type(maximum) is not int or maximum < minimum:
         raise ValueError(f'Declared budget {maximum} cannot evaluate initial V3 grid of {minimum}; set explicit --maximum-configurations')
-    if maximum < current:
-        raise ValueError('Refuse to silently narrow source search budget')
+    if maximum < current and not initial_only:
+        raise ValueError('Refuse to silently narrow source search budget outside explicit --initial-only study')
     if maximum > 1_000_000:
         raise ValueError('Manual compute budget must be <= 1000000')
 
     result = copy.deepcopy(plan)
+    result['Calibration']['ModelOptions'] = options
+    result['Calibration']['ConflictMargins'] = margins
+    if initial_only:
+        # Regression-only bounded run of initial controls. Not full adaptive selection.
+        result['MaximumBatches'] = 1
+        result['Calibration']['MaximumPhysicalRuleSets'] = min(
+            2, result['Calibration'].get('MaximumPhysicalRuleSets', 2))
+        result['Calibration']['Execution'].pop('TotalComparedConfigurations', None)
+        result['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint'] = min(
+            .01, result['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint'])
+        result['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper'] = min(
+            .01, result['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper'])
     result['MuEstimationMethods'] = [{'Method': METHOD, 'Parameters': grid}]
     result['MaximumSearchConfigurations'] = maximum
     result['Calibration']['MaximumComparedConfigurations'] = maximum
     basis = (VERSION + '|' + hashlib.sha256(original_bytes).hexdigest()
-             + '|' + hashlib.sha256(grid_bytes).hexdigest() + '|' + str(maximum))
+             + '|' + hashlib.sha256(grid_bytes).hexdigest() + '|' + str(maximum)
+             + '|' + str(only_option_id) + '|' + str(only_margin)
+             + '|' + str(initial_only))
     fingerprint = hashlib.sha256(basis.encode()).hexdigest()
     result['Calibration']['StudyFingerprintSha256'] = fingerprint
     result['Calibration']['Budget']['StudyFingerprintSha256'] = fingerprint
@@ -138,6 +161,8 @@ def prepare(source, grid_path, output, maximum_configurations=None):
         handle.write(data)
     return {'version': VERSION, 'method': METHOD, 'variants': variants,
             'baseOptions': len(options), 'initialComparisons': minimum,
+            'initialOnly': initial_only, 'selectedOptionId': only_option_id,
+            'selectedMargin': only_margin,
             'maximumConfigurations': maximum, 'studyFingerprintSha256': fingerprint,
             'inputPlanSha256': hashlib.sha256(original_bytes).hexdigest(),
             'inputGridSha256': hashlib.sha256(grid_bytes).hexdigest(),
@@ -151,7 +176,15 @@ if __name__ == '__main__':
     cli.add_argument('v3_parameter_grid', type=Path)
     cli.add_argument('output_plan', type=Path)
     cli.add_argument('--maximum-configurations', type=int, default=None,
-                     help='Explicit budget increase for initial grid plus adaptive search')
+                     help='Explicit configuration budget for the V3 grid')
+    cli.add_argument('--only-option-id', default=None,
+                     help='Restrict a physical technical run to a declared TF option')
+    cli.add_argument('--only-margin', type=float, default=None,
+                     help='Restrict a physical technical run to a declared margin')
+    cli.add_argument('--initial-only', action='store_true',
+                     help='One initial TRAIN batch only, never claim adaptive optimality')
     opts = cli.parse_args()
     print(json.dumps(prepare(opts.prepared_train_plan, opts.v3_parameter_grid,
-                             opts.output_plan, opts.maximum_configurations), sort_keys=True))
+                             opts.output_plan, opts.maximum_configurations,
+                             opts.only_option_id, opts.only_margin,
+                             opts.initial_only), sort_keys=True))
