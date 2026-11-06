@@ -60,7 +60,9 @@ public sealed record V9PhysicalSourceResolveMetric(
     int BonferroniComparedConfigurations = 0,
     bool ClusterIidIndependentlyValidated = false,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    IReadOnlyList<V9SourceIdentityOutcome>? IdentityOutcomes = null);
+    IReadOnlyList<V9SourceIdentityOutcome>? IdentityOutcomes = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    V9SourceGapAttributionReport? SourceGapAttribution = null);
 
 public sealed record V9SourceIdentityOutcome(string BaseIdentity, long EligibleSources, long TrueAccepted, long FalseAccepted);
 
