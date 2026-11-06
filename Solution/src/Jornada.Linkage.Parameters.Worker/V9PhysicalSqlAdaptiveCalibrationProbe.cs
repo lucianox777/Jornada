@@ -62,7 +62,9 @@ public sealed record V9PhysicalSourceResolveMetric(
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<V9SourceIdentityOutcome>? IdentityOutcomes = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    V9SourceGapAttributionReport? SourceGapAttribution = null);
+    V9SourceGapAttributionReport? SourceGapAttribution = null,
+    [property: System.Text.Json.Serialization.JsonIgnore]
+    IReadOnlyList<V9SourceTopTwoDiagnostic>? SourceRankInternal = null);
 
 public sealed record V9SourceIdentityOutcome(string BaseIdentity, long EligibleSources, long TrueAccepted, long FalseAccepted);
 
