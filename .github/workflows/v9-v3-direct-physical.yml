@@ -1,0 +1,200 @@
+name: v9-v3-direct-physical
+
+# V3-only M/U TRAIN integration; no historical V2 fit, TEST, Gold or REF.
+# This known synthetic seed is a technical gate, NOT a scientific confirmation.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-v3-direct-physical.yml'
+      - 'Solution/scripts/v9-v3-direct-plan.py'
+      - 'Solution/tests/scripts/test_v9_v3_direct_plan.py'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9MuEstimationSearchSpace.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  preflight:
+    name: V3-only plan regression (no SQL)
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind to exact PR SHA; test V3-only contract
+        env:
+          V3_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$V3_SHA"
+          python3 -m py_compile Solution/scripts/v9-v3-direct-plan.py
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_direct_plan.py' -v
+
+  v3-train-physical:
+    name: V3-only CSharp SQL 30k TRAIN (non-confirmatory)
+    needs: preflight
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind SHA and repo-local PR to physical gate
+        env:
+          V3_SHA: ${{ github.event.pull_request.head.sha }}
+          V3_REF: ${{ format('refs/heads/{0}', github.head_ref) }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$V3_SHA"
+          mkdir -p Solution/.local/v9-v3-direct
+          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+            --mode auto_30k --expected-sha "$V3_SHA" --ref "$V3_REF" \
+            --output Solution/.local/v9-v3-direct/sha-verified.json
+      - name: Verify no V2 method and regression guards
+        run: python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_direct_plan.py' -v
+      - name: Start disposable SQL
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build existing CSharp Calibrador and synthetic corpus generator
+        working-directory: Solution
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Reconstruct pinned IBGE reference and known seed42 synthetic TRAIN
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-direct"
+          test -z "${{ env.V9_TF_TARGET_SEED || '' }}"
+          bash scripts/v9-tf-prepare-pin.sh "$root" pinned-ibge.json
+          python3 scripts/v9-tf-ref-provenance-gate.py \
+            --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
+            --reference data/reference/v9-synthetic-seed42-30000/manifest.json
+      - name: Produce V3-only plan without old V2 fit
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-direct"
+          python3 scripts/v9-nested-calibration-study.py \
+            "$root/people-30k/observacoes.csv" "$root/source-plan.json" \
+            --tf-search --pinned-ibge "$root/pinned-ibge.json"
+          # Exactly two V3 policies, no V2. Technical run, not full optimization.
+          cat > "$root/v3-grid.json" <<'JSON'
+          {
+            "ClassMassCoverage": [0.95, 0.99],
+            "MinimumObservedMPerCell": [5],
+            "MinimumObservedUPerCell": [5],
+            "RetainSupportedTail": [true]
+          }
+          JSON
+          python3 scripts/v9-v3-direct-plan.py \
+            "$root/source-plan.json" "$root/v3-grid.json" "$root/v3-plan.json" \
+            --only-option-id TF_ONE_MF_W1_M0_A0.5_T0.95 \
+            --only-margin 0.5 --initial-only --maximum-configurations 4 \
+            > "$root/plan-receipt.json"
+      - name: Execute V3-only physical TRAIN via single CSharp Calibrador
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-direct"
+          dotnet run --no-build -c Release \
+            --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-calibrate "$root/v3-plan.json" \
+            "$root/people-30k/observacoes.csv" "$root/results"
+      - name: Independently audit all physical V3 rows and 81-cell support
+        working-directory: Solution
+        env:
+          V3_APPROVED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib, json, os
+          from collections import Counter
+          from pathlib import Path
+          root = Path('.local/v9-v3-direct')
+          plan = json.loads((root / 'v3-plan.json').read_bytes())
+          report_path = root / 'results/mu-statistical-analysis.json'
+          report = json.loads(report_path.read_bytes())
+          assert len(plan['MuEstimationMethods']) == 1
+          assert plan['MuEstimationMethods'][0]['Method'] == 'CLASSWISE_SUPPORT_BACKOFF'
+          assert plan['MaximumBatches'] == 1
+          assert plan['MaximumSearchConfigurations'] == 4
+          assert len(plan['Calibration']['ModelOptions']) == 1
+          assert plan['Calibration']['ModelOptions'][0]['UnpublishedTermPolicy'] == 1
+          assert report['schema'] == 'V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1'
+          assert report['scope'] == 'TRAIN_SELECTION_ONLY_NOT_INDEPENDENT_VALIDATION'
+          assert report['testUsed'] is False and report['activated'] is False
+          assert report['originalMethodsAndParameterArrays'] == plan['MuEstimationMethods']
+          assert report['declaredVariantCount'] == 2
+          assert report['evaluations'] == 4 and len(report['rows']) == 4
+          assert Counter(x['MuEstimationMethod'] for x in report['rows']) == {
+              'CLASSWISE_SUPPORT_BACKOFF': 4
+          }
+          seen = set()
+          for row in report['rows']:
+              assert len(row['blockingPasses']) in (3, 19)
+              policy = row['MuPolicy']
+              assert policy['ClassMassCoverage'] in (.95, .99)
+              assert policy['MinimumM'] == 5 and policy['MinimumU'] == 5
+              assert policy['SupportedTailRule'] == 'RETAIN_CLASS_JOINT_WHEN_COUNT_AT_LEAST_K_V2'
+              assert row['ConflictMargin'] == .5
+              assert len(row['fitSnapshotSha256']) == 64
+              assert len(row['observedSupportAudit']['Cells']) == 81
+              assert len(row['estimatorJointSupport']['Cells']) == 81
+              assert row['outcome'].startswith('MEASURED_')
+              seen.add((len(row['blockingPasses']), policy['ClassMassCoverage']))
+          assert seen == {(3, .95), (3, .99), (19, .95), (19, .99)}
+          receipt = {
+              'status': 'V3_ONLY_TRAIN_PHYSICAL_DESCRIPTIVE_NOT_CERTIFIED',
+              'gitSha': os.environ['V3_APPROVED_HEAD_SHA'],
+              'planBytesSha256': hashlib.sha256((root / 'v3-plan.json').read_bytes()).hexdigest(),
+              'reportBytesSha256': hashlib.sha256(report_path.read_bytes()).hexdigest(),
+              'corpusSha256': hashlib.sha256((root / 'people-30k/observacoes.csv').read_bytes()).hexdigest(),
+              'measuredV3Configurations': len(seen), 'v2Used': False,
+              'holdoutUsed': False, 'testUsed': False, 'goldExecuted': False,
+              'certified': False, 'activated': False
+          }
+          (root / 'physical-receipt.json').write_text(json.dumps(receipt, indent=2) + '\n')
+          print(json.dumps(receipt, sort_keys=True))
+          PY
+      - name: Preserve only aggregate evidence, pins and interruption report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-v3-direct-train-${{ github.run_id }}-${{ github.event.pull_request.head.sha }}
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-v3-direct/sha-verified.json
+            Solution/.local/v9-v3-direct/pinned-ibge.json
+            Solution/.local/v9-v3-direct/source-plan.json
+            Solution/.local/v9-v3-direct/v3-grid.json
+            Solution/.local/v9-v3-direct/v3-plan.json
+            Solution/.local/v9-v3-direct/plan-receipt.json
+            Solution/.local/v9-v3-direct/physical-receipt.json
+            Solution/.local/v9-v3-direct/results/mu-statistical-analysis.json
+            Solution/.local/v9-v3-direct/results/mu-statistical-analysis.md
+            Solution/.local/v9-v3-direct/results/selection-reference.json
+            Solution/.local/v9-v3-direct/results/interrupted.json
+            Solution/.local/v9-v3-direct/people-30k/generation-manifest.json
+      - name: Remove disposable SQL
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
