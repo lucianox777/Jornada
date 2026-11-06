@@ -25,7 +25,7 @@ def base():
             'ConflictMargins':[.5],
             'DeclaredSearchSpace':{'Catalogue':[{'PassId':'ONE','Fields':['x']}]},
             'BaselineRuleSets':[[{'PassId':'TWO','Fields':['y']}]],
-            'Budget':{'StudyFingerprintSha256':'b'*64, 'MaximumObservedAcceptedFdrPoint':1.0},
+            'Budget':{'StudyFingerprintSha256':'b'*64, 'MaximumObservedAcceptedFdrPoint':.01},
             'SelectionPolicy':{'MaximumAcceptedFdrUpper': .01},
             'ObservationCapDeclaration':{'ManifestSha256':'c'*64,'ObservationsSha256':'d'*64},
             'MaximumComparedConfigurations': 48,
@@ -179,6 +179,30 @@ class DirectV3Tests(unittest.TestCase):
                        {'only_margin':3,'initial_only':True}):
             with self.assertRaises(ValueError):
                 subject.prepare(self.source,self.grid,self.output,32,**kwargs)
+            self.assertFalse(self.output.exists())
+
+    def test_fdr_from_json_is_used_without_hidden_cli_clamping(self):
+        for upper, observed in ((.01, .01), (.005, .01), (.0025, .005)):
+            b = base()
+            b['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint'] = observed
+            b['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper'] = upper
+            self.source.write_text(json.dumps(b))
+            subject.prepare(self.source, self.grid, self.output,
+                            initial_only=True)
+            published = json.loads(self.output.read_text())['Calibration']
+            self.assertEqual(published['Budget']['MaximumObservedAcceptedFdrPoint'], observed)
+            self.assertEqual(published['SelectionPolicy']['MaximumAcceptedFdrUpper'], upper)
+            self.output.unlink()
+
+    def test_fdr_invalid_limits_fail_before_output(self):
+        for upper, observed in ((.02, .01), (.02, .03), (0, .01), (-.1, .01),
+                                (.01, 1.01), (.01, float('nan'))):
+            b = base()
+            b['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint'] = observed
+            b['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper'] = upper
+            self.source.write_text(json.dumps(b))
+            with self.assertRaises(ValueError):
+                subject.prepare(self.source, self.grid, self.output)
             self.assertFalse(self.output.exists())
 
     def test_invalid_grid_and_prior_unchanged(self):

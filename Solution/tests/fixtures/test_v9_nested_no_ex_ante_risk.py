@@ -1,4 +1,4 @@
-"""Regression: the production 30k TRAIN plan cannot impose an ex-ante FDR/recall ceiling.
+"""Regression: the production 30k TRAIN plan has an explicit 1% FDR ceiling from JSON production policy.
 
 The fixture-only plan remains a plumbing test, not an operational recommendation.
 """
@@ -13,7 +13,7 @@ SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "v9-nested-calibratio
 
 
 class V9NestedNoExAnteRiskTests(unittest.TestCase):
-    def test_production_bootstrap_search_exposes_risk_without_preselection_ceiling(self):
+    def test_production_bootstrap_plan_declares_one_percent_fdr(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             corpus = root / "observacoes.csv"
@@ -32,9 +32,9 @@ class V9NestedNoExAnteRiskTests(unittest.TestCase):
             plan = json.loads(destination.read_text(encoding="utf-8"))
             self.assertEqual(plan["Purpose"], "BOOTSTRAP_CANDIDATE_SELECTION")
             self.assertEqual(plan["Calibration"]["Budget"]["MinimumGlobalAcceptedRecall"], 0)
-            self.assertEqual(plan["Calibration"]["Budget"]["MaximumObservedAcceptedFdrPoint"], 1)
+            self.assertEqual(plan["Calibration"]["Budget"]["MaximumObservedAcceptedFdrPoint"], .01)
             self.assertEqual(plan["Calibration"]["SelectionPolicy"]["MinimumGlobalRecall"], 0)
-            self.assertEqual(plan["Calibration"]["SelectionPolicy"]["MaximumAcceptedFdrUpper"], 1)
+            self.assertEqual(plan["Calibration"]["SelectionPolicy"]["MaximumAcceptedFdrUpper"], .01)
             self.assertFalse(plan.get("TestUsed", False))
             self.assertNotIn("externalValidation", plan)
 

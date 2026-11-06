@@ -138,6 +138,16 @@ def prepare(source, grid_path, output, maximum_configurations=None,
             or not isinstance(calibration.get('SelectionPolicy'), dict)
             or not isinstance(calibration.get('ObservationCapDeclaration'), dict)):
         raise ValueError('Source plan lacks complete TRAIN comparison and provenance contract')
+    # FDR is selected by the source JSON, never silently overridden by a CLI mode.
+    # The observed TRAIN guard is not a statistical certificate.
+    observed_limit = calibration['Budget'].get('MaximumObservedAcceptedFdrPoint')
+    upper_limit = calibration['SelectionPolicy'].get('MaximumAcceptedFdrUpper')
+    if (type(observed_limit) not in (float, int)
+            or type(upper_limit) not in (float, int)
+            or not math.isfinite(observed_limit)
+            or not math.isfinite(upper_limit)
+            or not (0 < upper_limit <= observed_limit <= .01)):
+        raise ValueError('Explicit JSON FDR risk limits must satisfy 0 < upper <= observed <= 1')
     ids = [o.get('OptionId') for o in options if isinstance(o, dict)]
     if len(ids) != len(options) or any(not isinstance(x, str) or not x for x in ids) or len(set(ids)) != len(ids):
         raise ValueError('Source option identifiers invalid or duplicated')
@@ -191,10 +201,6 @@ def prepare(source, grid_path, output, maximum_configurations=None,
         result['Calibration']['MaximumPhysicalRuleSets'] = min(
             2, result['Calibration'].get('MaximumPhysicalRuleSets', 2))
         result['Calibration']['Execution'].pop('TotalComparedConfigurations', None)
-        result['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint'] = min(
-            .01, result['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint'])
-        result['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper'] = min(
-            .01, result['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper'])
     result['MuEstimationMethods'] = [{'Method': METHOD, 'Parameters': grid}]
     result['MaximumSearchConfigurations'] = maximum
     result['Calibration']['MaximumComparedConfigurations'] = maximum

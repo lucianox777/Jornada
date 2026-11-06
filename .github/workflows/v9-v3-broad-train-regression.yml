@@ -1,0 +1,190 @@
+name: v9-v3-broad-train-regression
+
+# Technical breadth: 8 V3 policies × 2 TF arms × 2 margins × 2 SQL rule sets
+# for known seed42; one locked-policy replication for known seeds 43 and 57.
+# Never interprets these exploratory TRAIN splits as fresh confirmatory holdouts.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-v3-broad-train-regression.yml'
+      - 'Solution/scripts/v9-v3-broad-train-audit.py'
+      - 'Solution/scripts/v9-v3-direct-plan.py'
+      - 'Solution/scripts/v9-nested-calibration-study.py'
+      - 'Solution/tests/scripts/test_v9_v3_direct_plan.py'
+      - 'Solution/tests/scripts/test_v9_v3_broad_train_audit.py'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Exact 40-character commit SHA to audit'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  broad-physical:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    name: V3 1% FDR — ${{ matrix.family }} seed${{ matrix.seed }} (TRAIN only)
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {family: surname, seed: 42}
+          - {family: first_name, seed: 42}
+          - {family: surname, seed: 43}
+          - {family: first_name, seed: 43}
+          - {family: surname, seed: 57}
+          - {family: first_name, seed: 57}
+    env:
+      V3_FAMILY: ${{ matrix.family }}
+      V3_SEED: ${{ matrix.seed }}
+      V9_TF_TARGET_SEED: ${{ matrix.seed }}
+      EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind source, plans and evidence to exact SHA and run offline tests
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_direct_plan.py' -v
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_broad_train_audit.py' -v
+          python3 -m py_compile Solution/scripts/v9-v3-broad-train-audit.py
+      - name: Start disposable SQL
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Compile existing CSharp Calibrador and synthetic generator
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Generate pinned 30k TRAIN for fixed synthetic seed
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-broad-$V3_FAMILY-$V3_SEED"
+          bash scripts/v9-tf-prepare-pin.sh "$root" pinned-ibge.json
+          if [[ "$V3_SEED" == 42 ]]; then
+            python3 scripts/v9-tf-ref-provenance-gate.py \
+              --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
+              --reference data/reference/v9-synthetic-seed42-30000/manifest.json
+          fi
+      - name: Freeze two JSON TF hypotheses, V3 support grid and 1-percent risk
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-broad-$V3_FAMILY-$V3_SEED"
+          python3 scripts/v9-nested-calibration-study.py \
+            "$root/people-30k/observacoes.csv" "$root/source-tf-plan.json" \
+            --tf-search --pinned-ibge "$root/pinned-ibge.json"
+          python3 - <<'PY'
+          import copy, json, os
+          from pathlib import Path
+          root=Path('.local')/('v9-v3-broad-'+os.environ['V3_FAMILY']+'-'+os.environ['V3_SEED'])
+          source=json.loads((root/'source-tf-plan.json').read_bytes())
+          catalog={x['OptionId']:x for x in source['Calibration']['ModelOptions']}
+          if os.environ['V3_FAMILY']=='surname':
+              bilateral=copy.deepcopy(catalog['TF_TWO_PL_ML_W1_M0_A0.5_T0.95'])
+              bilateral.update(SharedSurnameMode=0, EligibleForSelection=True)
+              shared=copy.deepcopy(bilateral)
+              shared.update(OptionId='TF_SHARED_PL_ML_W1_M0_A0.5_T0.95',
+                            SharedSurnameMode=1, EligibleForSelection=False)
+              arms=[bilateral, shared]
+          else:
+              arms=[copy.deepcopy(catalog[n]) for n in
+                    ('A0.5_T0.95_TF0', 'TF_ONE_MF_W1_M0_A0.5_T0.95')]
+              for x in arms: x['EligibleForSelection'] = True
+              assert all(x['EligibleForSelection'] is True for x in arms)
+          source['Calibration']['ModelOptions']=arms
+          assert source['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint']==.01
+          assert source['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper']==.01
+          with (root/'source-plan.json').open('x') as f:
+              json.dump(source,f,indent=2);f.write('\n')
+          broad=os.environ['V3_SEED']=='42'
+          grid={'ClassMassCoverage':[.95,.99] if broad else [.99],
+                'MinimumObservedMPerCell':[1,5] if broad else [5],
+                'MinimumObservedUPerCell':[1,5] if broad else [5],
+                'RetainSupportedTail':[True]}
+          with (root/'grid.json').open('x') as f:
+              json.dump(grid,f,indent=2);f.write('\n')
+          PY
+          maximum=8
+          if [[ "$V3_SEED" == 42 ]]; then maximum=64; fi
+          python3 scripts/v9-v3-direct-plan.py \
+            "$root/source-plan.json" "$root/grid.json" "$root/plan.json" \
+            --initial-only --maximum-configurations "$maximum" > "$root/plan-receipt.json"
+      - name: Physically execute V3 CSharp on all declared TF/MU/margin/ruleset combinations
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-broad-$V3_FAMILY-$V3_SEED"
+          dotnet run --no-build -c Release \
+            --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-calibrate "$root/plan.json" \
+            "$root/people-30k/observacoes.csv" "$root/results"
+      - name: Audit exact SQL frames, FDR point and conditional upper, 81 cells, and previous V3 regression
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-broad-$V3_FAMILY-$V3_SEED"
+          python3 scripts/v9-v3-broad-train-audit.py \
+            --plan "$root/plan.json" \
+            --report "$root/results/mu-statistical-analysis.json" \
+            --family "$V3_FAMILY" --seed "$V3_SEED" --output "$root/audit.json"
+          python3 - "$root" "$EXPECTED_SHA" <<'PY'
+          import hashlib, json, sys
+          from pathlib import Path
+          root=Path(sys.argv[1]);expected=sys.argv[2]
+          payload={
+            'schema':'V9_V3_BROAD_TRAIN_RECEIPT_V1',
+            'sha':expected,
+            'planSha256':hashlib.sha256((root/'plan.json').read_bytes()).hexdigest(),
+            'analysisSha256':hashlib.sha256((root/'results/mu-statistical-analysis.json').read_bytes()).hexdigest(),
+            'auditSha256':hashlib.sha256((root/'audit.json').read_bytes()).hexdigest(),
+            'corpusSha256':hashlib.sha256((root/'people-30k/observacoes.csv').read_bytes()).hexdigest(),
+            'scope':'SYNTHETIC_TRAIN_NOT_CERTIFICATION',
+            'testUsed':False,'activated':False
+          }
+          (root/'receipt.json').write_text(json.dumps(payload,indent=2)+'\n')
+          PY
+      - name: Preserve traceable aggregates and fail-closed receipts, no raw personal-level samples
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-v3-broad-${{ matrix.family }}-seed${{ matrix.seed }}-${{ github.run_id }}-${{ env.EXPECTED_SHA }}
+          retention-days: 90
+          if-no-files-found: error
+          include-hidden-files: true
+          path: |
+            Solution/.local/v9-v3-broad-*/source-plan.json
+            Solution/.local/v9-v3-broad-*/grid.json
+            Solution/.local/v9-v3-broad-*/plan.json
+            Solution/.local/v9-v3-broad-*/plan-receipt.json
+            Solution/.local/v9-v3-broad-*/audit.json
+            Solution/.local/v9-v3-broad-*/receipt.json
+            Solution/.local/v9-v3-broad-*/results/mu-statistical-analysis.json
+            Solution/.local/v9-v3-broad-*/results/interrupted.json
+            Solution/.local/v9-v3-broad-*/people-30k/generation-manifest.json
+            Solution/.local/v9-v3-broad-*/pinned-ibge.json
+      - name: Destroy disposable SQL
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
