@@ -204,24 +204,24 @@ public static class V9NestedCalibrationCli
                     sharedEligibleForSelection = shared.EligibleForSelection,
                     bilateralRecall = bilateral?.Candidate?.Metric.GlobalSourceRecall,
                     sharedRecall = shared.Candidate?.Metric.GlobalSourceRecall,
-                    deltaRecall = bilateral is null ? null
+                    deltaRecall = bilateral is null ? (double?)null
                         : shared.Candidate!.Metric.GlobalSourceRecall -
                             bilateral.Candidate!.Metric.GlobalSourceRecall,
                     bilateralFdr = bilateral?.Candidate?.Metric.FdrAfterResolve,
                     sharedFdr = shared.Candidate?.Metric.FdrAfterResolve,
                     deltaFdr = bilateral?.Candidate?.Metric.FdrAfterResolve is { } bFdr
                         && shared.Candidate?.Metric.FdrAfterResolve is { } sFdr
-                        ? sFdr - bFdr : null,
+                        ? sFdr - bFdr : (double?)null,
                     bilateralFalseAccepted = bilateral?.Candidate?.Metric.FalseAcceptedSourceObservations,
                     sharedFalseAccepted = shared.Candidate?.Metric.FalseAcceptedSourceObservations,
-                    deltaFalseAccepted = bilateral is null ? null
+                    deltaFalseAccepted = bilateral is null ? (long?)null
                         : shared.Candidate!.Metric.FalseAcceptedSourceObservations -
                             bilateral.Candidate!.Metric.FalseAcceptedSourceObservations,
-                    bilateralPending = bilateral is null ? null
+                    bilateralPending = bilateral is null ? (long?)null
                         : bilateral.Candidate!.Metric.Conflicts + bilateral.Candidate.Metric.Unresolved,
-                    sharedPending = shared.Candidate is null ? null
+                    sharedPending = shared.Candidate is null ? (long?)null
                         : shared.Candidate.Metric.Conflicts + shared.Candidate.Metric.Unresolved,
-                    deltaPending = bilateral is null ? null
+                    deltaPending = bilateral is null ? (long?)null
                         : (shared.Candidate!.Metric.Conflicts + shared.Candidate.Metric.Unresolved)
                             - (bilateral.Candidate!.Metric.Conflicts + bilateral.Candidate.Metric.Unresolved),
                 };
