@@ -25,11 +25,11 @@ Isso amplia **cobertura de condições e heterogeneidade do corpus sintético**.
 O produtor padrão escreve, também nos planos não-fixture:
 ```json
 "Calibration": {
-  "Budget": { "MaximumObservedAcceptedFdrPoint": 1.0 },
+  "Budget": { "MaximumObservedAcceptedFdrPoint": 0.01 },
   "SelectionPolicy": { "MaximumAcceptedFdrUpper": 0.01 }
 }
 ```
-Este é um **fragmento** do plano completo. **O teto operacional de FDR é 1% no SelectionPolicy, enquanto o Budget mantém 100% apenas como limite exploratório para não ocultar alternativas ruins da análise**. Um braço com FDR observado maior que 1% continua sendo medido e relatado, mas não se torna automaticamente selecionável. O builder V3 lê os dois valores do próprio JSON, não os substitui silenciosamente quando recebe `--initial-only`. Validação fail-closed exige `0 < upper <= observed <= 1`; as regras de governança na validação C# continuam exigindo limites consistentes. **Um limite escolhido de 1% não torna um intervalo condicional certificado**: `ClusterIidIndependentlyValidated=false` continua, e o seletor não poderá promover configuração sem evidência adequada.
+Este é um **fragmento** do plano completo. **O teto de 1% está nos dois campos exigidos pelo contrato C# existente**. O valor é configurável no JSON para limites menores, mas o seletor físico rejeita orçamento maior que 1%. Um braço com FDR observado maior que 1% continua com sua métrica por fonte registrada no relatório de avaliação, mas não entra no conjunto descritivo elegível do seletor. A matriz não pode ser truncada silenciosamente. O builder V3 lê os dois valores do próprio JSON, não os substitui silenciosamente quando recebe `--initial-only`. Validação fail-closed exige `0 < upper <= observed <= 0,01`; as regras de governança na validação C# continuam exigindo limites consistentes. **Um limite escolhido de 1% não torna um intervalo condicional certificado**: `ClusterIidIndependentlyValidated=false` continua, e o seletor não poderá promover configuração sem evidência adequada.
 
 ## Inspeções e critérios de aceitação
 
