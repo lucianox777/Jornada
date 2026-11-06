@@ -235,7 +235,10 @@ public static class V9NestedCalibrationCoordinator
             frontier = V9TrainingParetoSelection.Frontier(evaluations.Where(x =>
                 x.Candidate is not null
                 && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
-                && template.Option.EligibleForSelection).Select(x => x.Candidate!));
+                && template.Option.EligibleForSelection
+                // Margin zero is observed and reported but cannot join the TRAIN
+                // Pareto frontier, adaptive refinements or selected finalists.
+                && x.Candidate.Metric.ConflictMargin > 0m).Select(x => x.Candidate!));
             var currentBands = V9TrainingParetoSelection.Bands(frontier, calibration.RiskCeilings!);
             var previousBands = V9TrainingParetoSelection.Bands(previous, calibration.RiskCeilings!);
             double recallGain = 0, fdrGain = 0, deltaR = plan.MinimumRecallImprovement, deltaF = plan.MinimumFdrImprovement;
@@ -388,7 +391,7 @@ public static class V9NestedCalibrationCoordinator
                         : request.Option.JointSupportPolicy is null
                             ? V9MuEstimationSearchSpace.Default : V9MuEstimationSearchSpace.Classwise,
                     MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
-                    EligibleForSelection: request.Option.EligibleForSelection,
+                    EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m,
                     SharedSurnameCandidatePairs: run.CalibrationReport.Options.Single(x =>
                         x.OptionId == request.Option.OptionId).Validation.SharedSurnameCandidatePairs,
                     CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
@@ -404,6 +407,6 @@ public static class V9NestedCalibrationCoordinator
                 : request.Option.JointSupportPolicy is null
                     ? V9MuEstimationSearchSpace.Default : V9MuEstimationSearchSpace.Classwise,
             MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
-            EligibleForSelection: request.Option.EligibleForSelection)).ToArray()); }
+            EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m)).ToArray()); }
     }
 }
