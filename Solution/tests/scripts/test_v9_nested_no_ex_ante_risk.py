@@ -34,7 +34,7 @@ class V9NestedNoExAnteRiskTests(unittest.TestCase):
             self.assertEqual(plan["Calibration"]["Budget"]["MinimumGlobalAcceptedRecall"], 0)
             self.assertEqual(plan["Calibration"]["Budget"]["MaximumObservedAcceptedFdrPoint"], 1)
             self.assertEqual(plan["Calibration"]["SelectionPolicy"]["MinimumGlobalRecall"], 0)
-            self.assertEqual(plan["Calibration"]["SelectionPolicy"]["MaximumAcceptedFdrUpper"], 1)
+            self.assertEqual(plan["Calibration"]["SelectionPolicy"]["MaximumAcceptedFdrUpper"], .01)
             self.assertFalse(plan.get("TestUsed", False))
             self.assertNotIn("externalValidation", plan)
 
