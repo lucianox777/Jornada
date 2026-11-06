@@ -15,6 +15,35 @@ OPTIONS = ("A0.5_T0.95_TF0", "TF_ONE_MF_W1_M0_A0.5_T0.95")
 POLICY = {"ClassMassCoverage": .99, "MinimumM": 5, "MinimumU": 5,
           "SupportedTailRule": "RETAIN_CLASS_JOINT_WHEN_COUNT_AT_LEAST_K_V2"}
 VERSION = "V9_MU_TF0_V2_V3_SAME_SQL_FRAME_AUDIT_V1"
+# These are the only conflict reasons in the shared ResolveRankedCore kernel.
+# The scorer's decisions remain unchanged; classify their existing reasons.
+CONFLICT_REASONS = frozenset((
+    "CONFLITO",
+    "NUCLEO_DEMOGRAFICO_EXATO_NAO_UNICO",
+    "SEGUNDO_CANDIDATO_ACIMA_PISO_CONFLITO",
+    "DOIS_CANDIDATOS_ACIMA_T_LINKAGE",
+    "MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE",
+))
+
+
+def check_reasons(row):
+    counts = row.get("resolveReasonCounts")
+    total = row.get("allSelectionObservations")
+    if (not isinstance(counts, dict) or not counts
+            or not isinstance(total, int) or total <= 0
+            or any(not isinstance(k, str) or not k
+                   or type(v) is not int or v < 0 for k, v in counts.items())):
+        raise ValueError("Missing/invalid aggregate Resolve reasons")
+    resolved = row["trueAccepted"] + row["falseAccepted"]
+    conflict = sum(counts.get(k, 0) for k in CONFLICT_REASONS)
+    if (sum(counts.values()) != total
+            or total != resolved + row["conflicts"] + row["unresolved"]
+            or counts.get("RESOLVIDO", 0) != resolved
+            or conflict != row["conflicts"]
+            or sum(v for k, v in counts.items()
+                   if k != "RESOLVIDO" and k not in CONFLICT_REASONS) != row["unresolved"]):
+        raise ValueError("Resolve reason counts do not reconcile with TP/FP/conflicts/unresolved")
+    return counts
 
 
 def sha(path):
@@ -80,6 +109,7 @@ def audit(plan_path, report_path, selection_path):
         if passes in frames and frames[passes] != value:
             raise ValueError("V2 and V3 or TF0 and ONE_MF have DIFFERENT physical SQL frame or prior")
         frames[passes] = value
+        check_reasons(row)
         rows[key] = row
         request = row["RequestSha256"]
         if not isinstance(request, str) or len(request) != 64 or request in by_key:
@@ -143,6 +173,11 @@ def audit(plan_path, report_path, selection_path):
                 "identitiesUnchanged":len(a)-positives-negatives,
                 "identitiesWithChangedFalseAcceptances":sum(1 for _,f in differences if f),
                 "v2Rejections":left["Rejections"],"v3Rejections":right["Rejections"],
+                "resolveReasonV2":left["resolveReasonCounts"],
+                "resolveReasonV3":right["resolveReasonCounts"],
+                "resolveReasonDeltaV3MinusV2":{
+                    k:right["resolveReasonCounts"].get(k, 0)-left["resolveReasonCounts"].get(k, 0)
+                    for k in sorted(set(left["resolveReasonCounts"]) | set(right["resolveReasonCounts"]))},
                 "sourceFdrConditionalNotCertified":right["conditionalClusterCpFdrUpper"]
             })
     return {
