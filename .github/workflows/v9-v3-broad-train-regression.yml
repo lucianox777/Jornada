@@ -115,7 +115,7 @@ jobs:
               for x in arms: x['EligibleForSelection'] = True
               assert all(x['EligibleForSelection'] is True for x in arms)
           source['Calibration']['ModelOptions']=arms
-          assert source['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint']==1
+          assert source['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint']==.01
           assert source['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper']==.01
           with (root/'source-plan.json').open('x') as f:
               json.dump(source,f,indent=2);f.write('\n')
