@@ -110,8 +110,31 @@ jobs:
             --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
             --reference data/reference/v9-synthetic-seed42-30000/manifest.json
           python3 scripts/v9-nested-calibration-study.py \
-            "$root/people-30k/observacoes.csv" "$root/source-plan.json" \
+            "$root/people-30k/observacoes.csv" "$root/source-tf-plan.json" \
             --tf-search --pinned-ibge "$root/pinned-ibge.json"
+          # Write the two modes as real ModelOptions IN the source JSON.
+          # No --compare-surname-dependence command-line switch is used.
+          python3 - <<'PY'
+          import copy
+          import json
+          from pathlib import Path
+          root = Path('.local/v9-v3-surname-paired')
+          source = json.loads((root / 'source-tf-plan.json').read_bytes())
+          matches = [x for x in source['Calibration']['ModelOptions']
+                     if x['OptionId'] == 'TF_TWO_PL_ML_W1_M0_A0.5_T0.95']
+          assert len(matches) == 1, 'Missing canonical bilateral TF surname option'
+          bilateral = copy.deepcopy(matches[0])
+          bilateral.update(SharedSurnameMode=0, EligibleForSelection=True)
+          shared = copy.deepcopy(bilateral)
+          shared.update(OptionId='TF_SHARED_PL_ML_W1_M0_A0.5_T0.95',
+                        SharedSurnameMode=1, EligibleForSelection=False)
+          source['Calibration']['ModelOptions'] = [bilateral, shared]
+          # This is the declared, user-editable JSON selection; only its two
+          # options will be retained by the direct V3 plan builder.
+          with (root / 'source-plan.json').open('x', encoding='utf-8') as out:
+              json.dump(source, out, indent=2, ensure_ascii=False)
+              out.write('\\n')
+          PY
           # Compact physical wiring proof: 1 M/U variant x 2 TF hypotheses
           # x 1 conflict margin x 2 declared SQL rulesets = 4 executions.
           # Full 8-variant/64-cell research remains separately predeclared.
@@ -125,7 +148,7 @@ jobs:
           JSON
           python3 scripts/v9-v3-direct-plan.py \
             "$root/source-plan.json" "$root/v3-grid.json" "$root/plan.json" \
-            --compare-surname-dependence --only-margin 0.5 \
+            --only-margin 0.5 \
             --initial-only --maximum-configurations 4 \
             > "$root/plan-receipt.json"
       - name: Consume the exact plan.json in the real CSharp V3 calibrator
@@ -166,6 +189,9 @@ jobs:
           assert report['scope'] == 'TRAIN_SELECTION_ONLY_NOT_INDEPENDENT_VALIDATION'
           assert report['testUsed'] is False and report['activated'] is False
           assert report['evaluations'] == 4 and len(report['rows']) == 4
+          assert sum(row['EligibleForSelection'] is False for row in report['rows']) == 2
+          assert all(row['outcome'] == 'MEASURED_DIAGNOSTIC_NOT_ELIGIBLE'
+                     for row in report['rows'] if row['EligibleForSelection'] is False)
           assert all(len(row['observedSupportAudit']['Cells']) == 81
                      and len(row['estimatorJointSupport']['Cells']) == 81
                      and row['fitSnapshotSha256'] is not None
@@ -202,6 +228,7 @@ jobs:
           path: |
             Solution/.local/v9-v3-surname-paired/sha-verified.json
             Solution/.local/v9-v3-surname-paired/pinned-ibge.json
+            Solution/.local/v9-v3-surname-paired/source-tf-plan.json
             Solution/.local/v9-v3-surname-paired/source-plan.json
             Solution/.local/v9-v3-surname-paired/v3-grid.json
             Solution/.local/v9-v3-surname-paired/plan.json
