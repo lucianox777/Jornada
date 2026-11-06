@@ -13,7 +13,7 @@ spec.loader.exec_module(subject)
 
 
 def fixture():
-    options = ['T0.95_TF0', 'TF_ONE_MF_W1_M0_A0.5_T0.95']
+    options = ['A0.5_T0.95_TF0', 'TF_ONE_MF_W1_M0_A0.5_T0.95']
     plan = {
         'Purpose':'BOOTSTRAP_CANDIDATE_SELECTION',
         'MaximumBatches':1, 'MaximumSearchConfigurations':8,
