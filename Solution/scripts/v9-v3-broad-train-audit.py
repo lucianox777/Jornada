@@ -52,7 +52,7 @@ def verify(plan_path, report_path, family, seed):
         if [(o['SharedSurnameMode'], o['EligibleForSelection']) for o in options] != [(0, True), (1, False)]:
             raise ValueError('Incorrect surname eligibility')
     elif family == 'first_name':
-        if set(names) != {'T0.95_TF0', 'TF_ONE_MF_W1_M0_A0.5_T0.95'}:
+        if set(names) != {'A0.5_T0.95_TF0', 'TF_ONE_MF_W1_M0_A0.5_T0.95'}:
             raise ValueError('Missing first-name control/treatment')
     else:
         raise ValueError('Unknown family')
