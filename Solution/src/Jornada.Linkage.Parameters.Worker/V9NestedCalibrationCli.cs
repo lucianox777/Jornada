@@ -152,6 +152,10 @@ public static class V9NestedCalibrationCli
             clusterIidIndependentlyValidated = e.Candidate?.Metric.ClusterIidIndependentlyValidated,
             conflicts = e.Candidate?.Metric.Conflicts,
             unresolved = e.Candidate?.Metric.Unresolved,
+            // Diagnostic-only, aggregate reasons from the unchanged Resolve
+            // kernel. No names, UUIDs, rankings or oracle labels are exported.
+            allSelectionObservations = e.Candidate?.Metric.AllValidationObservations,
+            resolveReasonCounts = e.Candidate?.Metric.ReasonsByResolveStatus,
             p95Milliseconds = e.Candidate?.P95Milliseconds,
             e.Rejections,
             outcome = e.Candidate is null ? "REJECTED_NOT_MEASURED"
