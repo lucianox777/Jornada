@@ -1,0 +1,39 @@
+name: v9-v3-calibration-bundle-offline
+
+on:
+  pull_request:
+    paths:
+      - 'Solution/scripts/v9-calibration-v3-evidence-bundle.py'
+      - 'Solution/scripts/v9-calibration-evidence-bundle.py'
+      - 'Solution/tests/scripts/test_v9_calibration_v3_evidence_bundle.py'
+      - 'Solution/tests/scripts/test_v9_calibration_evidence_bundle.py'
+      - 'Solution/docs/V9_V3_Bundle_Evidencias_Mesmo_Layout_V2_20261105.md'
+      - '.github/workflows/v9-v3-calibration-bundle-offline.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  v2-v3-evidence-layout:
+    name: V2/V3 flat bundle layout and SHA offline
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Compile and run V2 and V3 evidence bundle contracts
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          python3 -m py_compile Solution/scripts/v9-calibration-evidence-bundle.py Solution/scripts/v9-calibration-v3-evidence-bundle.py
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_calibration_evidence_bundle.py' -v
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_calibration_v3_evidence_bundle.py' -v
