@@ -18,7 +18,7 @@ def fixture():
         'Purpose':'BOOTSTRAP_CANDIDATE_SELECTION',
         'MaximumBatches':1, 'MaximumSearchConfigurations':8,
         'Calibration':{
-            'Budget':{'MaximumObservedAcceptedFdrPoint':1},
+            'Budget':{'MaximumObservedAcceptedFdrPoint':.01},
             'SelectionPolicy':{'MaximumAcceptedFdrUpper':.01},
             'ModelOptions':[{'OptionId':x, 'EligibleForSelection':True} for x in options]
         },
