@@ -136,6 +136,10 @@ def read_source(root, selected_sha):
             and isinstance(snapshot.get("BlockingPasses"), list)
             and snapshot.get("BlockingPasses"),
             "Selected snapshot is not complete V3 fitted evidence")
+    prior = snapshot["Parameters"].get("PRIOR_MATCH_PROBABILITY")
+    require(type(prior) in (int, float) and math.isfinite(prior)
+            and 0 < prior < 1,
+            "Frozen model lacks an estimated, valid FS prior")
     cells = snapshot.get("JointCells")
     require(isinstance(cells, list) and len(cells) == 81,
             "Fitted V3 must contain all 81 joint M/U cells")
@@ -207,6 +211,16 @@ def make_report(row, run_id, commit, paths, plan, envelope, snapshot,
             "declaredGrid": plan["MuEstimationMethods"][0]["Parameters"],
             "tfPublishedReferenceVersionId": plan.get("PinnedIbgeReferenceVersionId"),
             "tfPublishedReferenceSha256": plan.get("PinnedIbgePublishedSha256"),
+            "priorMatchProbabilityFrozen": snapshot["Parameters"]["PRIOR_MATCH_PROBABILITY"],
+            "fittedFsParameters": snapshot["Parameters"],
+            "fittedTfWeight": snapshot.get("TfWeight"),
+            "fittedUnitTfStates": [{
+                "Side": x.get("Side"), "Unit": x.get("Unit"),
+                "State": x.get("State"),
+                "Weight": (x.get("Calibration") or {}).get("Weight"),
+                "Mode": (x.get("Calibration") or {}).get("Mode"),
+            } for x in (snapshot.get("UnitTfCalibrations") or [])],
+            "fittedUnpublishedTermPolicy": snapshot.get("UnpublishedTermPolicy"),
         },
         "StatisticalAnalysis": analysis,  # verbatim values; includes all 81-cell audits
         "SelectionReference": reference,
@@ -417,7 +431,16 @@ def verify(bundle_dir, references=None):
     require(report["SourceMetrics"]["trueAccepted"] == rows[0].get("trueAccepted")
             and report["SourceMetrics"]["falseAccepted"] == rows[0].get("falseAccepted")
             and report["SourceMetrics"]["fdrObserved"] == rows[0].get("fdrObserved")
-            and report["PolicyAndMethod"]["muPolicy"] == rows[0].get("MuPolicy"),
+            and report["PolicyAndMethod"]["muPolicy"] == rows[0].get("MuPolicy")
+            and report["PolicyAndMethod"]["fittedFsParameters"] == snapshot.get("Parameters")
+            and report["PolicyAndMethod"]["priorMatchProbabilityFrozen"]
+                == snapshot.get("Parameters", {}).get("PRIOR_MATCH_PROBABILITY")
+            and report["PolicyAndMethod"]["fittedUnitTfStates"] == [{
+                "Side": x.get("Side"), "Unit": x.get("Unit"),
+                "State": x.get("State"),
+                "Weight": (x.get("Calibration") or {}).get("Weight"),
+                "Mode": (x.get("Calibration") or {}).get("Mode"),
+            } for x in (snapshot.get("UnitTfCalibrations") or [])],
             "Reconstructed statistical report changed after sourcing")
     if references is not None:
         require(manifest.get("PinnedReferenceSha256") == sha(references),
