@@ -305,3 +305,38 @@ mesmo uma área pré-gravada pode não garantir I/O posterior; a saída
 `stderr` do processo/CI é a evidência adicional. A reserva existe
 exclusivamente para relatório de erro: **não** é spill, checkpoint,
 redução de RAM, fallback ou mudança estatística.
+
+### Regressão OOM com cobertura física original restaurada (07/11/2026 UTC)
+
+**Correção da interpretação anterior:** o sucesso do job
+`surname/seed42` no SHA `68bff2bef7f0fc0966c260cc9e7d4c15b83c89c5`,
+run `42322540698`, mediu somente **64 configurações**,
+porque o workflow deixou de fixar as cinco margens de conflito,
+passando de `[0, 0.25, 0.5, 2, 4]` a apenas duas margens do
+plano de origem. Essa redução foi introduzida no desenho experimental,
+**não demonstrou a correção do OOM das 160 configurações**.
+O job passou com `Batch=1`, `TotalConfigurations=64`, memória
+residente amostrada de 2.114.019.328 bytes, pico RSS de 3.673.632.768
+bytes, commit GC de 1.982.185.472 bytes e 561.797 ms de cálculo.
+O pico do processo não é sinônimo de memória do host.
+
+O incidente original é o run `42283035832`, commit
+`e05043bab749ea222e598e811e4b8bbe814defe1`,
+onde `surname/seed42` reportou `Batch=1` e
+`TotalConfigurations=160` antes de `Out of memory.` (exit 134).
+Para comparação física válida, o workflow `v9-v3-broad-train-regression`
+volta a fixar **explicitamente as cinco margens**, mantém
+8 políticas V3 × 2 opções de TF × 2 regras SQL em seed42
+= **160 configurações**, e 1 política × 2 TF × 5 margens ×
+2 regras em seeds 43 e 57 = **20 configurações**.
+O auditor `v9-v3-broad-train-audit.py` falha fechado se faltarem
+margens ou linhas, inclusive os 81 estados/células M/U exigidos.
+Regressão offline adicional rejeita expressamente apresentar 64 como
+se fossem 160. Não muda opções, margens, fórmulas ou dados de TEST.
+
+**Gate ainda obrigatório:** executar o novo commit completo e
+comparar corpus, seed, opções, CPUs/workers e memória medida.
+Sucesso em 64 não é certificado de 160; sucesso técnico no TRAIN
+não é evidência de validação independente ou autorização DT-15.
+As alterações de CPU, RAM e pré-reserva de 10 KiB do
+`calibrador.log` continuam ativas, sem fallback ou spill.

@@ -115,6 +115,10 @@ jobs:
               for x in arms: x['EligibleForSelection'] = True
               assert all(x['EligibleForSelection'] is True for x in arms)
           source['Calibration']['ModelOptions']=arms
+          # Restore the five PREDECLARED log-odds margins from the failed
+          # 160-configuration seed42 experiment. Margins are independent
+          # of the chosen V3 M/U estimator.
+          source['Calibration']['ConflictMargins']=[0, 0.25, 0.5, 2, 4]
           assert source['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint']==.01
           assert source['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper']==.01
           with (root/'source-plan.json').open('x') as f:
@@ -127,8 +131,11 @@ jobs:
           with (root/'grid.json').open('x') as f:
               json.dump(grid,f,indent=2);f.write('\n')
           PY
-          maximum=8
-          if [[ "$V3_SEED" == 42 ]]; then maximum=64; fi
+          # Fail closed on full protocol breadth: 8 V3 policies x 2 TF
+          # hypotheses x 5 conflict margins x 2 frozen SQL rulesets = 160.
+          # Replication seeds have one locked V3 policy => 20.
+          maximum=20
+          if [[ "$V3_SEED" == 42 ]]; then maximum=160; fi
           python3 scripts/v9-v3-direct-plan.py \
             "$root/source-plan.json" "$root/grid.json" "$root/plan.json" \
             --initial-only --maximum-configurations "$maximum" > "$root/plan-receipt.json"

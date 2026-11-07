@@ -40,7 +40,10 @@ def verify(plan_path, report_path, family, seed):
                 'MinimumObservedUPerCell', 'RetainSupportedTail'):
         nvariants *= len(grid[key])
     expected_variants = 8 if seed == 42 else 1
-    expected = expected_variants * 2 * 2 * 2
+    margins = [0, .25, .5, 2, 4]
+    if calibration['ConflictMargins'] != margins:
+        raise ValueError('Five predeclared conflict margins missing or reordered')
+    expected = expected_variants * 2 * len(margins) * 2
     options = calibration['ModelOptions']
     names = [o['OptionId'] for o in options]
     if nvariants != expected_variants or len(names) != 2 or len(set(names)) != 2:
@@ -100,6 +103,8 @@ def verify(plan_path, report_path, family, seed):
                          'candidatePairsSha256':row['CandidatePairsSha256'],
                          'prior':row['fittedPairPrior'],
                          'reportedAffectedSharedSurnamePairs':row.get('SharedSurnameCandidatePairs')})
+    if {x['ConflictMargin'] for x in rows} != set(margins):
+        raise ValueError('Not all five conflict margins were physically measured')
     if len(groups) != expected // 2:
         raise ValueError('Missing M/U/margin/ruleset strata')
     comparisons = []
