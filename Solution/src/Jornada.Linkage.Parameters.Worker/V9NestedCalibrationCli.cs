@@ -66,18 +66,17 @@ public static class V9NestedCalibrationCli
     public static void TryWriteLastError(V9CalibradorLastErrorLog? reservedLog, Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
-        try
+        // stderr and the preallocated log are independent channels: a full
+        // stderr sink must NOT prevent writing into already reserved blocks.
+        try { Console.Error.WriteLine(exception.ToString()); }
+        catch (Exception) { /* stderr may itself be on the full volume. */ }
+        if (reservedLog is null)
         {
-            // stderr remains the primary evidence if the log file cannot be
-            // written (ENOSPC, OOM, early failure or process termination).
-            Console.Error.WriteLine(exception.ToString());
-            if (reservedLog is null)
-            {
-                Console.Error.WriteLine("calibrador.log indisponível: reserva de 10 KiB não foi criada.");
-                return;
-            }
-            reservedLog.WriteLast(exception);
+            try { Console.Error.WriteLine("calibrador.log indisponível: reserva de 10 KiB não foi criada."); }
+            catch (Exception) { /* preserve the original error */ }
+            return;
         }
+        try { reservedLog.WriteLast(exception); }
         catch (Exception loggingError)
         {
             // Never replace the original error/exit status with a log I/O failure.
