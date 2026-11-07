@@ -15,13 +15,14 @@ public sealed class V9GoldJointTrainMatrixTests
     private static readonly string Gold = new('b', 64);
     private static readonly string Csv = new('c', 64);
     private static readonly string Selection = new('d', 64);
+    private static readonly string Validation = new('e', 64);
     private static readonly decimal[] Uppers = [.8m, .9m];
     private static readonly decimal[] Lowers = [.1m, .2m];
 
     private static byte[] PlanBytes()
     {
         var plan = new V9GoldJointTrainMatrixCommand.Plan(
-            V9GoldJointTrainMatrixCommand.Version, Fit, Gold, Csv, Selection,
+            V9GoldJointTrainMatrixCommand.Version, Fit, Gold, Csv, Selection, Validation,
             Uppers, Lowers, 2, ManualCalibrationRequested: true, TestUsed: false,
             V9LowerNonMatchTrainCalibrator.JointGridFingerprint(Uppers, Lowers));
         return JsonSerializer.SerializeToUtf8Bytes(plan);
@@ -226,9 +227,14 @@ public sealed class V9GoldJointTrainMatrixTests
     public void Rejects_incomplete_or_unknown_preregistered_plan_fields()
     {
         var missing = JsonNode.Parse(PlanBytes())!.AsObject();
-        missing.Remove("SelectionEnvelopeSha256");
+        missing.Remove("FinalistValidationSha256");
         Assert.Throws<InvalidDataException>((Action)(() =>
             V9GoldJointTrainMatrixCommand.ReadPlan(JsonSerializer.SerializeToUtf8Bytes(missing))));
+
+        var malformed = JsonNode.Parse(PlanBytes())!.AsObject();
+        malformed["FinalistValidationSha256"] = "not-a-sha";
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9GoldJointTrainMatrixCommand.ReadPlan(JsonSerializer.SerializeToUtf8Bytes(malformed))));
 
         var unknown = JsonNode.Parse(PlanBytes())!.AsObject();
         unknown["TestApproved"] = true;

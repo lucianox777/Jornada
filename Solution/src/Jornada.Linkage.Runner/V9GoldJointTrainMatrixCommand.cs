@@ -14,7 +14,7 @@ public static class V9GoldJointTrainMatrixCommand
 {
     public const string Flag = "--v9-gold-joint-train-matrix-aggregate";
     public const string PreflightFlag = "--v9-gold-joint-train-plan-preflight";
-    public const string Version = "V9_GOLD_JOINT_TRAIN_PREREGISTERED_MATRIX_V1";
+    public const string Version = "V9_GOLD_JOINT_TRAIN_PREREGISTERED_MATRIX_V2";
     public const string PlanSuffix = ".joint-train-plan.json";
     private static readonly JsonSerializerOptions Json = new()
     {
@@ -32,6 +32,7 @@ public static class V9GoldJointTrainMatrixCommand
         string FrozenGoldSnapshotSha256,
         string OriginalTrainCsvSha256,
         string SelectionEnvelopeSha256,
+        string FinalistValidationSha256,
         IReadOnlyList<decimal> CandidateUpperThresholds,
         IReadOnlyList<decimal> CandidateLowerThresholds,
         int MinimumIndependentIdentityGroups,
@@ -76,6 +77,7 @@ public static class V9GoldJointTrainMatrixCommand
             || !IsSha(plan.FrozenGoldSnapshotSha256)
             || !IsSha(plan.OriginalTrainCsvSha256)
             || !IsSha(plan.SelectionEnvelopeSha256)
+            || !IsSha(plan.FinalistValidationSha256)
             || !IsSha(plan.DeclaredGridSha256)
             || !plan.ManualCalibrationRequested || plan.TestUsed
             || plan.MinimumIndependentIdentityGroups < 2
