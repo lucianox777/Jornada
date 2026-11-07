@@ -18,17 +18,17 @@ permissions:
   actions: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.run_id }}
   cancel-in-progress: true
 
 jobs:
   controlled:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
     name: V2 × V3 / TF0 × ONE_MF / seed42 physical SQL with same frame
     runs-on: ubuntu-latest
     timeout-minutes: 360
     env:
-      EXPERIMENT_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.event.pull_request.head.sha }}
+      EXPERIMENT_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.sha }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
