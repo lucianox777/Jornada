@@ -26,6 +26,17 @@ public static class V9MuEstimationSearchSpace
     public const string Default = "DEFAULT";
     public const string Classwise = "CLASSWISE_SUPPORT_BACKOFF";
 
+    /// <summary>
+    /// Raw private source Rank evidence is useful only for a physically
+    /// paired V2/V3 study. V3-only large TRAIN searches keep identity-level
+    /// FDR outcomes but must NOT retain an extra source-by-configuration
+    /// top-two array until JSON publication. No effect on Rank or Resolve.
+    /// </summary>
+    public static bool RequiresPairedSourceRankDiagnostics(IReadOnlyList<V9MuEstimationMethod>? methods)
+        => methods is { Count: > 0 }
+            && methods.Any(x => x.Method == Default)
+            && methods.Any(x => x.Method == Classwise);
+
     public static IReadOnlyList<V9MuEstimationVariant> Enumerate(IReadOnlyList<V9MuEstimationMethod> methods)
     {
         if (methods is null || methods.Count == 0)

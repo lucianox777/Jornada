@@ -353,6 +353,8 @@ public static class V9NestedCalibrationCoordinator
                 includeFsBlindGrouping: true, minimumFsGroupingPosterior: c.MinimumGroupingPosterior,
                 adaptiveExecution: c.Execution with { EndToEndRepetitions = 0, TotalComparedConfigurations = plan.MaximumSearchConfigurations },
                 includeIdentityOutcomes: true,
+                includeSourceRankDiagnostics: V9MuEstimationSearchSpace.RequiresPairedSourceRankDiagnostics(
+                    plan.MuEstimationMethods),
                 jointSupportPolicy: plan.MuEstimationMethods is null
                     ? new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule)
                     : null);
