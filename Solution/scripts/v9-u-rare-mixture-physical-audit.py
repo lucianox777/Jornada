@@ -18,7 +18,7 @@ OPTIONS = ("A0.5_T0.95_TF0", "TF_ONE_MF_W1_M0_A0.5_T0.95")
 V2 = "DEFAULT"
 V3 = "CLASSWISE_SUPPORT_BACKOFF"
 MIX = "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE"
-WEIGHTS = (0, .25, .5, 1)
+WEIGHTS = (0, .25, .5, 1)  # historical test fixture only
 POLICY = {"ClassMassCoverage": .99, "MinimumM": 5, "MinimumU": 5,
           "SupportedTailRule": "RETAIN_CLASS_JOINT_WHEN_COUNT_AT_LEAST_K_V2"}
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -37,7 +37,7 @@ def _safe_number(value):
     return type(value) in (float, int) and math.isfinite(value)
 
 
-def _method_key(row):
+def _method_key(row, weights):
     method = row["MuEstimationMethod"]
     policy = row["MuPolicy"]
     if method == V2:
@@ -52,7 +52,7 @@ def _method_key(row):
         return (V3, None)
     require(method == MIX, "Unknown M/U method")
     weight = policy.get("UBackoffJointMixtureWeight")
-    require(type(weight) in (float, int) and weight in WEIGHTS,
+    require(type(weight) in (float, int) and weight in weights,
             "Undeclared U weight")
     return (MIX, weight)
 
@@ -63,17 +63,23 @@ def audit(plan_file, report_file, selection_file):
     envelope = json.loads(Path(selection_file).read_bytes())
     calibration = plan["Calibration"]
     margins = calibration["ConflictMargins"]
-    require(margins in ([.5], [.25]), "Unexpected margin or merged hypotheses")
+    require(len(margins) == 1 and _safe_number(margins[0]) and 0 < margins[0] <= 1,
+            "Unexpected margin or merged hypotheses")
     margin = margins[0]
+    methods = plan["MuEstimationMethods"]
+    weights = methods[2]["Parameters"]["UBackoffJointMixtureWeights"]
+    require(isinstance(weights, list) and len(weights) > 0 and
+            all(_safe_number(w) and 0 <= w <= 1 for w in weights) and
+            len(set(weights)) == len(weights), "Invalid declared mixture grid")
+    expected_count = (2 + len(weights)) * len(OPTIONS) * 2
     require(plan["MaximumBatches"] == 1
-            and plan["MaximumSearchConfigurations"] == 24
-            and calibration["MaximumComparedConfigurations"] == 24
+            and plan["MaximumSearchConfigurations"] == expected_count
+            and calibration["MaximumComparedConfigurations"] == expected_count
             and calibration["Budget"]["MaximumObservedAcceptedFdrPoint"] == .01
             and calibration["SelectionPolicy"]["MaximumAcceptedFdrUpper"] == .01
             and [x["OptionId"] for x in calibration["ModelOptions"]] == list(OPTIONS)
             and len(calibration["BaselineRuleSets"]) == 1,
             "Missing or modified frozen 24-arm plan")
-    methods = plan["MuEstimationMethods"]
     require([m["Method"] for m in methods] == [V2, V3, MIX]
             and methods[0].get("Parameters") is None
             and methods[1]["Parameters"] == {
@@ -84,16 +90,16 @@ def audit(plan_file, report_file, selection_file):
             }
             and methods[2]["Parameters"] == {
                 **methods[1]["Parameters"],
-                "UBackoffJointMixtureWeights": list(WEIGHTS)
+                "UBackoffJointMixtureWeights": weights
             }, "Precommitted mixture grid changed")
     require(report["schema"] == "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1"
             and report["scope"] == "TRAIN_SELECTION_ONLY_NOT_INDEPENDENT_VALIDATION"
             and report["testUsed"] is False
             and report["activated"] is False
             and report["originalMethodsAndParameterArrays"] == methods
-            and report["declaredVariantCount"] == 6
-            and report["evaluations"] == report["measured"] == 24
-            and len(report["rows"]) == 24,
+            and report["declaredVariantCount"] == 2 + len(weights)
+            and report["evaluations"] == report["measured"] == expected_count
+            and len(report["rows"]) == expected_count,
             "Missing physical evaluations or changed scientific scope")
     require(envelope["result"]["PlanSha256"] == report["PlanSha256"]
             and envelope["statisticalCertification"] is False
@@ -101,7 +107,7 @@ def audit(plan_file, report_file, selection_file):
             and envelope["result"]["TestUsed"] is False
             and envelope["result"]["Activated"] is False,
             "Selection evidence is not the same frozen TRAIN plan")
-    require(len(envelope["result"]["Evaluations"]) == 24,
+    require(len(envelope["result"]["Evaluations"]) == expected_count,
             "Selection did not retain all 24 physical evaluations")
     rows = {}
     frames = {}
@@ -120,7 +126,7 @@ def audit(plan_file, report_file, selection_file):
         physical_reqs.add(row["RequestSha256"])
         option = next((x for x in OPTIONS if row["OptionId"].startswith(x + "__MU_")), None)
         require(option is not None, "Unknown TF arm")
-        method, weight = _method_key(row)
+        method, weight = _method_key(row, weights)
         suffix = ("DEFAULT" if method == V2 else
                   method + "_C0.99_M5_U5_T1" +
                   ("" if weight is None else "_UJW" + format(weight, "g")))
@@ -161,12 +167,12 @@ def audit(plan_file, report_file, selection_file):
                 row["allSelectionObservations"], "Source decisions do not reconcile")
         rows[key] = row
 
-    require(len(rows) == 24 and set(frames) == {3, 19},
+    require(len(rows) == expected_count and set(frames) == {3, 19},
             "Not exactly 24 measured strata on two SQL frames")
     expected = {(passes, option, method, weight)
                 for passes in (3, 19) for option in OPTIONS
                 for method, weight in [(V2, None), (V3, None)] +
-                [(MIX, x) for x in WEIGHTS]}
+                [(MIX, x) for x in weights]}
     require(set(rows) == expected, "Missing TF x SQL x mixture cells")
     # The canonical historical 0.5-margin figures are regression sentinels.
     if margin == .5:
@@ -182,16 +188,16 @@ def audit(plan_file, report_file, selection_file):
     for passes in (3, 19):
         for option in OPTIONS:
             historical = rows[passes, option, V3, None]
-            zero = rows[passes, option, MIX, 0]
+            zero = rows.get((passes, option, MIX, 0))
             unchanged = ("trueAccepted", "falseAccepted", "eligibleSources",
                          "recall", "fdrObserved", "conflicts", "unresolved",
                          "conditionalClusterCpFdrUpper", "resolveReasonCounts",
                          "CandidatePairsSha256", "fittedPairPrior")
-            require(all(historical[k] == zero[k] for k in unchanged),
+            require(zero is None or all(historical[k] == zero[k] for k in unchanged),
                     "lambda=0 failed historical V3 numerical parity")
             reference = rows[passes, option, V2, None]
             series = []
-            for method, weight in [(V3, None)] + [(MIX, w) for w in WEIGHTS]:
+            for method, weight in [(V3, None)] + [(MIX, w) for w in weights]:
                 row = rows[passes, option, method, weight]
                 series.append({
                     "method": method, "lambda": weight,
@@ -227,9 +233,9 @@ def audit(plan_file, report_file, selection_file):
         "schema": SCHEMA, "sha256": {
             "plan": digest(plan_file), "analysis": digest(report_file),
             "selectionEnvelope": digest(selection_file)},
-        "margin": margin, "evaluations": len(rows), "physicalComparisons": 24,
-        "multiplicityIncludesLambdaZeroTwice": True,
-        "historicalLambdaZeroParity": True,
+        "margin": margin, "evaluations": len(rows), "physicalComparisons": expected_count,
+        "multiplicityIncludesLambdaZeroTwice": 0 in weights,
+        "historicalLambdaZeroParity": 0 in weights,
         "scope": "KNOWN_30K_SYNTHETIC_TRAIN_SELECTION_NOT_INDEPENDENT",
         "testUsed": False, "goldUsed": False, "certified": False, "activated": False,
         "uFallbackCausalityEstablished": False,
@@ -247,6 +253,6 @@ if __name__ == "__main__":
     with args.out.open("x", encoding="utf-8") as f:
         json.dump(result, f, indent=2, ensure_ascii=False, allow_nan=False)
         f.write("\n")
-    print(json.dumps({"status": "TRAIN_ONLY_VERIFIED", "evaluations": 24,
+    print(json.dumps({"status": "TRAIN_ONLY_VERIFIED", "evaluations": result["evaluations"],
                       "margin": result["margin"], "certified": False},
                      sort_keys=True))

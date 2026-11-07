@@ -33,7 +33,7 @@ concurrency:
 jobs:
   physical:
     if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    name: V2 + V3 + U-rare 24-arm TRAIN margin ${{ matrix.margin }}
+    name: V2 + V3 + U-rare TRAIN margin ${{ matrix.margin }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
@@ -89,7 +89,7 @@ jobs:
           python3 scripts/v9-tf-ref-provenance-gate.py \
             --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
             --reference data/reference/v9-synthetic-seed42-30000/manifest.json
-      - name: Freeze exactly 24 precommitted options, TF0/ONE, 3/19 passes, stated margin
+      - name: Freeze explicitly declared options, TF0/ONE, 3/19 passes, stated margin
         working-directory: Solution
         run: |
           set -euo pipefail
@@ -116,7 +116,7 @@ jobs:
           assert r['scope']=='KNOWN_SYNTHETIC_TRAIN_SELECTION_ONLY_NOT_INDEPENDENT'
           assert r['physicalExecuted'] is False and r['activated'] is False
           PY
-      - name: Execute 24 physical CSharp TRAIN configurations, without refitting TEST
+      - name: Execute physical CSharp TRAIN configurations, without refitting TEST
         working-directory: Solution
         run: |
           set -euo pipefail
@@ -156,19 +156,22 @@ jobs:
                  'selectionReference':'results/selection-reference.json',
                  'memory':'results/memory-progress.jsonl'}
           result=json.loads((root/'physical-audit.json').read_bytes())
-          assert result['evaluations']==24 and result['historicalLambdaZeroParity']
+          plan=json.loads((root/'mixture-plan.json').read_bytes())
+          expected=plan['MaximumSearchConfigurations']
+          assert result['evaluations']==expected
+          assert result['historicalLambdaZeroParity'] == (0 in plan['MuEstimationMethods'][2]['Parameters']['UBackoffJointMixtureWeights'])
           assert not result['certified'] and not result['activated']
           receipt={
-              'schema':'V9_U_RARE_24_PHYSICAL_RECEIPT_V1',
+              'schema':'V9_U_RARE_PHYSICAL_RECEIPT_V2',
               'headSha':sha,'role':role,'margin':result['margin'],
-              'physicalEvaluations':24,
+              'physicalEvaluations':expected,
               'fileSha256':{name:hashlib.sha256((root/path).read_bytes()).hexdigest()
                             for name,path in files.items()},
               'scope':'SYNTHETIC_KNOWN_TRAIN_NO_INDEPENDENT_HOLDOUT',
               'testUsed':False,'goldUsed':False,'certified':False,'activated':False}
           (root/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
           print(json.dumps({'status':'PHYSICAL_TRAIN_VERIFIED',
-                            'sha':sha,'margin':receipt['margin'],'evaluations':24}))
+                            'sha':sha,'margin':receipt['margin'],'evaluations':expected}))
           PY
       - name: Publish only plan, aggregate research and tamper-evident receipts
         if: always()
