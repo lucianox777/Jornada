@@ -70,11 +70,6 @@ def audit(plan_file, report_file, selection_file):
     require(isinstance(policies, list) and policies and len(set(policies)) == len(policies)
             and all(x in ("COUNT_ALL", "COUNT_UNIQUE") for x in policies),
             "Invalid DuplicateCandidatePolicies")
-    calibration_policies = plan.get("CalibrationDuplicatePolicies", ["DEDUPLICATE"])
-    require(isinstance(calibration_policies, list) and calibration_policies and
-            len(set(calibration_policies)) == len(calibration_policies) and
-            all(x in ("INCLUDE", "DEDUPLICATE") for x in calibration_policies),
-            "Invalid CalibrationDuplicatePolicies")
     methods = plan["MuEstimationMethods"]
     weights = methods[2]["Parameters"]["UBackoffJointMixtureWeights"]
     require(isinstance(weights, list) and len(weights) > 0 and
