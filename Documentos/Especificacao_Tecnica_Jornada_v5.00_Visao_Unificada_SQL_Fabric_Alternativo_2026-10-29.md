@@ -5,6 +5,8 @@
 > **Origem Word:** `Especificacao_Tecnica_Jornada_v5.00_Visao_Unificada_SQL_Fabric_Alternativo_2026-10-29.docx`  
 > **Biblioteca:** `/Jornada/Especificacao_Tecnica_Jornada_v5.00_Visao_Unificada_SQL_Fabric_Alternativo_2026-10-29.docx`  
 > **SHA-256 da origem Word:** `0f8be8a82b15e0279ea0bd9aa7d9b75767afd27dff75df4bda981e1d5af7fe07`  
+> **Documento Word v5.00 revisado no acervo `/Jornada` em 07/11/2026:** `Especificacao_Tecnica_Jornada_v5.00_Visao_Unificada_SQL_Fabric_Alternativo_2026-10-29.docx`, SHA-256 da versão revisada `c0739ad94e597f449600ed5be4ac2cb65278702240d4f1d366e83ceacd53614e`. O hash da origem histórica de 29/10 abaixo permanece como registro do documento anterior.
+>
 > **Consolidação original:** 29/10/2026. **Revisão técnica integrada no texto:** 07/11/2026. A opção SQL Database in Microsoft Fabric como alternativa de hospedagem em HML/PROD depende de homologação do ambiente real. Esta revisão atualiza requisitos e registra pendências com base nas decisões recentes, sem aprovação institucional tácita; a fotografia técnica de execução encontra-se no capítulo 26. A origem Word de 29/10 e o SHA-256 acima continuam identificando **apenas a versão histórica original**: a versão Word revisada tem identidade própria, sem alterar retroativamente a origem.
 
 ---
