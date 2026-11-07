@@ -90,3 +90,34 @@ A grade, orçamento de FDR e multiplicidade estatística permanecem com as
 **Não executar automaticamente a campanha científica confirmatória.** Para testar esta hipótese, congelar antes um `plan.json` pequeno, no mesmo TRAIN, corpus, seed42/43/57 e snapshots de referência, comparar os quatro pesos em TF0 e ONE_MF com 3 passes e 19 passes; margem operacionalmente elegível `0.5` fixa. Usar o próprio Calibrador SQL descartável e guardar hashes do plano, pares, fit, 81 células e resultados. Comparar o efeito no melhor e no segundo candidato, alterações de ranking/agrupamento e conflitos; não selecionar `lambda` pelos dados de TEST/Gold nem mascarar a regressão com margem zero.
 
 Condições de aceitação: testes C# e Python completos em HEAD exato, reexecução física fechando TP/FP/identidades base, métricas independentes de fusão/fragmentação, fanout/custo e controle de FDR dependente por identidade-base. Sem melhora inequívoca e validação independente, manter V2 como referência e V3 desativada. A autorização do usuário para *merge de código validado* não autoriza DT-15 nem ativação operacional.
+
+### Diagnóstico e otimização de RAM sem spill (06/11/2026)
+
+O run #42283035832 de `surname/seed42` completou o batch de 160
+configurações TRAIN e terminou em **Out of memory** (exit 134), antes do
+recibo final. Não há prova de que apenas reduzir workers solucione a
+retenção acumulativa; nenhuma execução foi certificada por esse run.
+
+O construtor de `V9FittedSnapshot` armazenava duas representações
+inteiras por fit: o `Payload` com até quatro distribuições TF congeladas,
+**mais** o `byte[] utf8` canônico retido pelo tempo de vida do snapshot.
+Como `V9NestedCalibrationCoordinator` guarda todos os snapshots de todos
+os lotes até publicar o envelope, esse segundo buffer acumulava RAM
+proporcional ao número de configurações. O snapshot agora mantém o
+`Payload` imutável e o SHA canônico, mas cria bytes JSON **sob demanda**
+ao publicar ou carregar, verificando SHA/limite; não mantém o buffer.
+O custo potencial é CPU extra ao serializar, medido no benchmark físico.
+Não mudou fit, scoring, M/U, FDR, famílias, hashes ou output JSON.
+
+O `--v9-calibrate` registra `memory-progress.jsonl` ao fim de cada
+batch (tempo acumulado, nº de configurações, heap/commit GC, memória RAM
+residente e pico RSS). Esse arquivo é diagnóstico e não pertence ao
+fingerprint/fit/seleção. O workflow V3 anexa o traço mesmo em falhas,
+sem nomes nem identificadores pessoais. `GC.Collect()` não é chamado;
+não foi adicionado limitador de CPU/RAM ou modo disco. A paridade
+byte/SHA dos snapshots foi coberta por teste determinístico, inclusive
+múltiplas leituras independentes e defesa contra mutação do buffer.
+
+**Resultado ainda aberto:** só um novo teste físico com as mesmas 160
+configurações e o mesmo corpus poderá medir economia real de RAM,
+possíveis diferenças de tempo e se o OOM deixou de ocorrer.

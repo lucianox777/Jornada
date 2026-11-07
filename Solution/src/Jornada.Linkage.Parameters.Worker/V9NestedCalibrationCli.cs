@@ -72,6 +72,8 @@ public static class V9NestedCalibrationCli
                     V9PhysicalSqlAdaptiveCalibrationProbe.ComputeBlockingFingerprint(passes),
                     plan.PinnedIbgeBootstrap!, ct);
             };
+        using var process = System.Diagnostics.Process.GetCurrentProcess();
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
         var result = await V9NestedCalibrationCoordinator.SearchAsync(async ct =>
         {
             var connection = new SqlConnection(connectionString);
@@ -82,6 +84,25 @@ public static class V9NestedCalibrationCli
             var line = JsonSerializer.Serialize(progress);
             File.AppendAllText(Path.Combine(output, "batch-progress.jsonl"), line + Environment.NewLine);
             Console.Error.WriteLine(line);
+            // Memory is measured AFTER each completed batch; no manual GC and
+            // no influence on search decisions, snapshots, or inferential counts.
+            process.Refresh();
+            var gc = GC.GetGCMemoryInfo();
+            var memory = JsonSerializer.Serialize(new
+            {
+                schema = "V9_CALIBRATION_MEMORY_PER_BATCH_V1",
+                progress.Batch, progress.TotalConfigurations,
+                elapsedMilliseconds = elapsed.ElapsedMilliseconds,
+                managedLiveBytesEstimate = GC.GetTotalMemory(forceFullCollection: false),
+                gcHeapSizeBytes = gc.HeapSizeBytes,
+                gcCommittedBytes = gc.TotalCommittedBytes,
+                gcAvailableMemoryBytes = gc.TotalAvailableMemoryBytes,
+                residentWorkingSetBytes = process.WorkingSet64,
+                peakResidentWorkingSetBytes = process.PeakWorkingSet64,
+                artifactScope = "TRAIN_SELECTION_ONLY_NO_TEST_NO_ACTIVATION"
+            });
+            File.AppendAllText(Path.Combine(output, "memory-progress.jsonl"), memory + Environment.NewLine);
+            Console.Error.WriteLine(memory);
         }, frozenTfReferenceForRuleset: referenceFactory);
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
             .DistinctBy(x => x.ContentSha256))
