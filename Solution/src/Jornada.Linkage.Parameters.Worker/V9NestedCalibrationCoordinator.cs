@@ -161,6 +161,11 @@ public static class V9NestedCalibrationCoordinator
         ValidatePlan(plan);
         if (plan.Calibration.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf) && frozenTfReferenceForRuleset is null)
             throw new InvalidDataException("TF positivo na busca aninhada exige referência IBGE publicada e congelada por frame SQL.");
+        // Fail closed: SQL currently materializes SELECT DISTINCT candidate pairs.
+        // INCLUDE incidence weighting is not implemented; do not silently report
+        // it as a separate physical calibration or a four-cell experiment.
+        if (plan.CalibrationDuplicatePolicies?.Contains("INCLUDE", StringComparer.Ordinal) == true)
+            throw new NotSupportedException("CalibrationDuplicatePolicies=INCLUDE requires incidence-preserving physical calibration; distinct SQL union cannot represent it.");
         originalTrain = Array.AsReadOnly(originalTrain.ToArray());
         // Deep freeze before asynchronous execution. Search never receives a VALIDATION/TEST cohort.
         plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(JsonSerializer.Serialize(plan))!;
