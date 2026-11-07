@@ -2,6 +2,14 @@ using Jornada.Operational.Sql;
 using Jornada.Pipeline.Coordination;
 using Jornada.Linkage.Parameters.Worker;
 
+// Explicit, non-operational persistence/recovery of synthetic bytes in ref.
+// This opt-in action is independent of the frozen 30k GitHub Actions campaign.
+if (args.Length > 0 && args[0] == "--v9-ref-corpus-store")
+{
+    await V9RefSyntheticCorpusStoreCli.RunAsync(args);
+    return;
+}
+
 // Explicitly read the freshly published SQL IBGE reference for the 30k preflight.
 // This entry point never fits, certifies, or activates a model.
 if (args.Length > 0 && args[0] == "--v9-tf-export-ibge-pin")
