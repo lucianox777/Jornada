@@ -21,8 +21,8 @@ on:
         type: string
         required: false
 
-# Automatically run the full 30k on impacted same-repository PRs (PO decision 05/11/2026).
-# Cancel obsolete PR runs only: evidence from a cancelled run is never accepted.
+# Later CI topology decision 06/11/2026: impacted 30k after integration on master push; historical PR gate documented separately.
+# Never cancel physical evidence; exact master SHA and live ref remain mandatory.
 # Explicit manual dispatch and experiment/evidence branches remain isolated by run_id.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}-${{ (startsWith(github.head_ref, 'experiment/') || startsWith(github.head_ref, 'evidence/') || startsWith(github.head_ref, 'exp/')) && github.run_id || 'latest' }}
@@ -64,10 +64,10 @@ jobs:
         id: classify
         shell: bash
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event_name == 'push' && github.event.before || github.event.pull_request.base.sha }}
           CHECKOUT_SHA: ${{ github.sha }}
           EVENT_NAME: ${{ github.event_name }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         run: |
@@ -183,9 +183,9 @@ jobs:
   physical-30k:
     name: V9 full physical 30k SQL TRAIN (when impacted)
     needs: impact
-    if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))
+    if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))
     runs-on: ubuntu-latest
-    # PO 05/11: automatic only for impacted PRs; untouched manual command retained.
+    # 06/11 topology: impacted master pushes; manual dispatch retained.
     # Full adaptive batches now survive the old all-cell veto and execute 20
     # complete latency replays per feasible candidate; preserve every gate.
     timeout-minutes: 360
@@ -194,16 +194,16 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          # PR merge refs are not the approved HEAD: bind the physical fit to the
-          # exact commit on the same-repository PR branch, not to a moving merge.
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
-      - name: Prove exact PR or manual branch SHA before starting SQL
+          # Exact commit: bind the physical fit to the
+          # exact master push commit, not to a moving branch ref.
+          ref: ${{ github.sha }}
+      - name: Prove exact master push or manual SHA before starting SQL
         env:
-          TF_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
-          TF_REF: ${{ github.event_name == 'pull_request' && format('refs/heads/{0}', github.head_ref) || github.ref }}
+          TF_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.sha }}
+          TF_REF: ${{ github.ref }}
           TF_IBGE: ${{ inputs.pinned_ibge_json }}
           EVENT_NAME: ${{ github.event_name }}
-          SOURCE_REPO: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          SOURCE_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
           test "$SOURCE_REPO" = "$GITHUB_REPOSITORY" || {
@@ -211,7 +211,7 @@ jobs:
             exit 1
           }
           mkdir -p Solution/.local/v9-tf-physical
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+          if [[ "$EVENT_NAME" == "push" ]]; then
             python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
               --mode auto_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
               --output Solution/.local/v9-tf-physical/git-approved.json
@@ -237,7 +237,7 @@ jobs:
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
       - name: Auto-derive 30k pin from disposable SQL and immutable synthetic reference
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'push'
         working-directory: Solution
         run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" pinned-ibge.json
       - name: Manual mode rebuilds the pinned IBGE and 30k corpus independently
@@ -259,14 +259,14 @@ jobs:
       - name: Recheck exact SHA and run only CSharp adaptive TF 45 options
         working-directory: Solution
         env:
-          TF_SHA: ${{ github.event.pull_request.head.sha || inputs.expected_sha }}
-          TF_REF: ${{ github.event_name == 'pull_request' && format('refs/heads/{0}', github.head_ref) || github.ref }}
+          TF_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.sha }}
+          TF_REF: ${{ github.ref }}
           TF_IBGE: ${{ inputs.pinned_ibge_json }}
           EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-tf-physical"
-          if [[ "$EVENT_NAME" == "pull_request" ]]; then
+          if [[ "$EVENT_NAME" == "push" ]]; then
             python3 scripts/v9-tf-30k-dispatch-gate.py \
               --mode auto_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
               --output "$root/git-rechecked.json"
@@ -360,7 +360,7 @@ jobs:
           REQUIRES_PHYSICAL: ${{ needs.impact.outputs.run_physical_30k }}
           PHYSICAL_RESULT: ${{ needs.physical-30k.result }}
           EVENT_NAME: ${{ github.event_name }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         run: |
@@ -370,7 +370,7 @@ jobs:
             exit 1
           fi
           if [[ "$REQUIRES_PHYSICAL" == "true" ]]; then
-            if [[ "$PHYSICAL_RESULT" == "success" && ( "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "pull_request" ) ]]; then
+            if [[ "$PHYSICAL_RESULT" == "success" && ( "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "push" ) ]]; then
               echo "PASS: same-run CSharp 45-arm --v9-adaptive-study TF physical 30k on $HEAD_SHA."
             else
               echo "::error title=DEFERRED_NOT_CERTIFIED::Required V9 30k has no successful physical job in this run (event=$EVENT_NAME, result=$PHYSICAL_RESULT)." >&2

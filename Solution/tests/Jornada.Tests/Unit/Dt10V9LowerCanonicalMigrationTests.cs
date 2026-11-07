@@ -258,22 +258,24 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
     }
 
     [Test]
-    public void Heavy_v9_30k_auto_runs_only_for_impacted_prs_with_exact_sha_and_manual_fallback()
+    public void Heavy_v9_30k_auto_runs_on_impacted_master_push_with_exact_sha_and_manual_fallback()
     {
         var workflow = File.ReadAllText(Path.Combine(Root(), ".github", "workflows",
             "v9-physical-seed42-probe.yml"));
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(workflow, Does.Contain("pull_request:"),
-                "PRs must still classify impact and archive the decision.");
+            Assert.That(workflow, Does.Contain("  push:"),
+                "Integrated master commits must classify impact and archive the decision.");
+            Assert.That(workflow, Does.Contain("github.event.before"),
+                "Post-merge impact classification requires the push parent SHA.");
             Assert.That(workflow, Does.Contain("workflow_dispatch:"),
                 "The final physical gate must remain executable explicitly.");
             Assert.That(workflow, Does.Contain(
-                "if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))"),
-                "30k must run automatically only on impacted PRs, or on explicit manual dispatch.");
+                "if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))"),
+                "30k must run automatically on impacted master push, or on explicit manual dispatch.");
             Assert.That(workflow, Does.Contain("--mode auto_30k"));
             Assert.That(workflow, Does.Contain("v9-tf-ref-provenance-gate.py"));
-            Assert.That(workflow, Does.Contain("github.event.pull_request.head.sha"));
+            Assert.That(workflow, Does.Contain("github.sha"));
             Assert.That(workflow, Does.Contain("name: V9 30k - classify impact"));
         }));
     }

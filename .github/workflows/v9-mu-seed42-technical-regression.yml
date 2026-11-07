@@ -8,7 +8,7 @@ on:
       - master
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -18,7 +18,7 @@ permissions:
 jobs:
   mu-technical:
     name: V9 M/U V2 x V3 physical SQL seed42 (non-confirmatory)
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
@@ -26,11 +26,11 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
       - name: Bind technical 30k experiment to exact same-repository PR head
         env:
-          MU_SHA: ${{ github.event.pull_request.head.sha }}
-          MU_REF: ${{ format('refs/heads/{0}', github.head_ref) }}
+          MU_SHA: ${{ github.sha }}
+          MU_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$MU_SHA"
@@ -85,7 +85,7 @@ jobs:
       - name: Audit all four initial evaluations and 81 cells without inventing results
         working-directory: Solution
         env:
-          MU_APPROVED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          MU_APPROVED_HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -192,7 +192,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: v9-mu-seed42-technical-${{ github.run_id }}-${{ github.event.pull_request.head.sha }}
+          name: v9-mu-seed42-technical-${{ github.run_id }}-${{ github.sha }}
           retention-days: 90
           if-no-files-found: warn
           path: |

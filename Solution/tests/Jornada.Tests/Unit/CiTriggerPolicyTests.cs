@@ -22,12 +22,18 @@ public sealed class CiTriggerPolicyTests
             "      - master",
             "    tags:",
             "      - '**'",
-            "  pull_request:",
             "  workflow_dispatch:");
 
         Assert.Multiple((Action)(() =>
         {
             Assert.That(ci, Does.Contain(expected));
+            var fast = File.ReadAllText(Path.Combine(current!.FullName, ".github", "workflows",
+                "jornada-pr-required-fast.yml"));
+            Assert.That(fast, Does.Contain("  pull_request:"),
+                "PR checks remain required, only the full suite moves to master push.");
+            Assert.That(fast, Does.Contain("  unit-runtime:"));
+            Assert.That(fast, Does.Contain("  deterministic-build:"));
+            Assert.That(fast, Does.Contain("  security-guards:"));
             Assert.That(ci, Does.Contain("  dependency-lock:"));
             Assert.That(ci, Does.Contain("  unit:"));
             Assert.That(ci, Does.Contain("  deterministic-build:"));
