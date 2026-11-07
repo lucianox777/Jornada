@@ -148,10 +148,16 @@ def main() -> None:
     group = ap.add_mutually_exclusive_group(required=True)
     group.add_argument("--name-status-z", type=Path)
     group.add_argument("--manual", action="store_true")
+    group.add_argument("--no-validated-baseline", action="store_true",
+                       help="No previous authenticated 30k on an ancestor: force physical run.")
     ap.add_argument("--summary", type=Path, required=True)
     ap.add_argument("--github-output", type=Path, required=True)
     args = ap.parse_args()
-    result = classify(parse_name_status_z(args.name_status_z.read_bytes()) if args.name_status_z else [], manual=args.manual)
+    if args.no_validated_baseline:
+        result = {"run_physical_30k": True, "decision": "RUN",
+                  "reason": "no-verified-physical-30k-ancestor", "changes": []}
+    else:
+        result = classify(parse_name_status_z(args.name_status_z.read_bytes()) if args.name_status_z else [], manual=args.manual)
     args.summary.write_text(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     with args.github_output.open("a", encoding="utf-8") as fh:
         fh.write(f"run_physical_30k={str(result['run_physical_30k']).lower()}\n")
