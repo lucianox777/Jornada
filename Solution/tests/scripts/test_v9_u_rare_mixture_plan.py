@@ -84,12 +84,25 @@ class RareUPlanTests(unittest.TestCase):
         self.assertEqual(second["MaximumSearchConfigurations"], 24)
         self.assertEqual(first["Calibration"]["MaximumComparedConfigurations"], 24)
         self.assertEqual(second["Calibration"]["MaximumComparedConfigurations"], 24)
-        for bad in (-.5, 0, .3, 2, None, True):
+        for bad in (-.5, 0, 2, None, True):
             with self.subTest(margin=bad):
                 rejected = Path(self.output).with_name("invalid.json")
                 with self.assertRaises(ValueError):
                     subject.freeze(self.source, rejected, margin=bad)
                 self.assertFalse(rejected.exists())
+
+    def test_explicit_weights_and_margin_change_plan_and_receipt(self):
+        receipt = subject.freeze(self.source, self.output, margin=.3, weights=[.1, .4, .8])
+        plan = json.loads(self.output.read_bytes())
+        self.assertEqual(receipt['uJointWeights'], [.1, .4, .8])
+        self.assertEqual(receipt['comparisons'], 20)
+        self.assertEqual(plan['Calibration']['ConflictMargins'], [.3])
+        self.assertEqual(plan['MuEstimationMethods'][2]['Parameters']['UBackoffJointMixtureWeights'], [.1, .4, .8])
+        self.assertEqual(plan['MaximumSearchConfigurations'], 20)
+        for bad in ([], [-.1], [1.1], [.2, .2], [float('nan')], [True]):
+            with self.subTest(weights=bad):
+                with self.assertRaises(ValueError):
+                    subject.freeze(self.source, self.output.with_name('bad.json'), weights=bad)
 
     def test_mutated_source_or_tf_baseline_refuses_without_output(self):
         mutations = [
