@@ -66,22 +66,45 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
-    public void Calibrador_log_contains_only_last_exception_and_never_appends()
+    public void Calibrador_reserves_real_10KiB_and_rewrites_only_the_last_error_in_place()
     {
         var output = Path.Combine(Path.GetTempPath(), "v9-calibrador-log-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
         try
         {
-            V9NestedCalibrationCli.TryWriteLastError(output, new InvalidDataException("FIRST_ERROR_SENTINEL"));
-            var file = Path.Combine(output, "calibrador.log");
-            Assert.That(File.Exists(file), Is.True);
+            using var reservation = V9CalibradorLastErrorLog.Reserve(output);
+            var file = Path.Combine(output, V9CalibradorLastErrorLog.FileName);
+            Assert.That(new FileInfo(file).Length, Is.EqualTo(10 * 1024));
+            V9NestedCalibrationCli.TryWriteLastError(reservation,
+                new InvalidDataException("FIRST_ERROR_SENTINEL"));
             Assert.That(File.ReadAllText(file), Does.Contain("FIRST_ERROR_SENTINEL"));
             var latest = new IOException("No space left on device");
-            Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.TryWriteLastError(output, latest)));
+            Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.TryWriteLastError(reservation, latest)));
             var content = File.ReadAllText(file);
             Assert.That(content, Does.Contain(latest.ToString()));
             Assert.That(content, Does.Not.Contain("FIRST_ERROR_SENTINEL"));
+            Assert.That(new FileInfo(file).Length, Is.EqualTo(V9CalibradorLastErrorLog.ReservedBytes));
             Assert.That(Directory.GetFiles(output, "*.log"), Has.Length.EqualTo(1));
+        }
+        finally { Directory.Delete(output, true); }
+    }
+
+    [Test]
+    public void Calibrador_error_larger_than_reserve_truncates_at_valid_UTF8_boundary()
+    {
+        var output = Path.Combine(Path.GetTempPath(), "v9-calibrador-truncate-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(output);
+        try
+        {
+            using var reservation = V9CalibradorLastErrorLog.Reserve(output);
+            V9NestedCalibrationCli.TryWriteLastError(reservation,
+                new IOException("No space left on device " + new string('é', 9000)));
+            var file = Path.Combine(output, V9CalibradorLastErrorLog.FileName);
+            var bytes = File.ReadAllBytes(file);
+            Assert.That(bytes, Has.Length.EqualTo(V9CalibradorLastErrorLog.ReservedBytes));
+            var text = new System.Text.UTF8Encoding(false, true).GetString(bytes);
+            Assert.That(text, Does.Contain("EXCECAO TRUNCADA"));
+            Assert.That(text, Does.Contain("IOException"));
         }
         finally { Directory.Delete(output, true); }
     }
@@ -93,14 +116,18 @@ public sealed class V9NestedCalibrationTests
         Directory.CreateDirectory(output);
         try
         {
-            // A directory at the intended .log path deterministically simulates
-            // unwritable log output without filling disk on the CI runner.
-            Directory.CreateDirectory(Path.Combine(output, "calibrador.log"));
+            // Fail closed if the initial 10 KiB reservation cannot be created;
+            // never try to start physical calibration without its error space.
+            Directory.CreateDirectory(Path.Combine(output, V9CalibradorLastErrorLog.FileName));
+            Assert.That((Action)(() => V9CalibradorLastErrorLog.Reserve(output)),
+                Throws.TypeOf<IOException>());
+            Directory.Delete(Path.Combine(output, V9CalibradorLastErrorLog.FileName));
+            var reservation = V9CalibradorLastErrorLog.Reserve(output);
+            reservation.Dispose(); // deterministic failure to write, no disk fill
             Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.TryWriteLastError(
-                output, new IOException("There is not enough space on the disk."))));
+                reservation, new IOException("There is not enough space on the disk."))));
             Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.TryWriteLastError(
-                Path.Combine(output, "not-created"), new InvalidDataException("bad input"))));
-            Assert.That(Directory.Exists(Path.Combine(output, "calibrador.log")), Is.True);
+                null, new InvalidDataException("bad input"))));
         }
         finally { Directory.Delete(output, true); }
     }

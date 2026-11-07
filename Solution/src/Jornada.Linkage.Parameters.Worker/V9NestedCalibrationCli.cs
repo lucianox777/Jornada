@@ -63,28 +63,27 @@ public static class V9NestedCalibrationCli
     /// One error per failed run: the last C# exception, including the stack trace.
     /// Diagnostic I/O must never replace the original failure (notably disk-full).
     /// </summary>
-    public static void TryWriteLastError(string? output, Exception exception)
+    public static void TryWriteLastError(V9CalibradorLastErrorLog? reservedLog, Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
         try
         {
-            var detail = exception.ToString();
-            Console.Error.WriteLine(detail);
-            if (output is null || !Directory.Exists(output))
+            // stderr remains the primary evidence if the log file cannot be
+            // written (ENOSPC, OOM, early failure or process termination).
+            Console.Error.WriteLine(exception.ToString());
+            if (reservedLog is null)
             {
-                Console.Error.WriteLine("calibrador.log indisponível: diretório de resultados não foi criado.");
+                Console.Error.WriteLine("calibrador.log indisponível: reserva de 10 KiB não foi criada.");
                 return;
             }
-            // Overwrite, never append: only the most recent error of this run.
-            File.WriteAllText(Path.Combine(output, "calibrador.log"), detail + Environment.NewLine);
+            reservedLog.WriteLast(exception);
         }
         catch (Exception loggingError)
         {
-            // ENOSPC/OOM can prevent both formatting and writing a diagnostic.
-            // Never replace the original exception or turn failure into success.
+            // Never replace the original error/exit status with a log I/O failure.
             try
             {
-                Console.Error.WriteLine("Não foi possível gravar calibrador.log: "
+                Console.Error.WriteLine("Não foi possível atualizar calibrador.log: "
                     + loggingError.GetType().Name + ": " + loggingError.Message);
             }
             catch (Exception) { /* Even stderr may be unavailable on a failed process. */ }
@@ -94,7 +93,8 @@ public static class V9NestedCalibrationCli
     public static async Task RunAsync(string[] args)
     {
         string? output = null;
-        bool outputCreatedForThisRun = false;
+        V9CalibradorLastErrorLog? reservedLog = null;
+        bool completed = false;
         try
         {
             if (args.Length < 1 || (args[0] == "--v9-calibrate" ? args.Length != 4
@@ -110,36 +110,62 @@ public static class V9NestedCalibrationCli
             if (new SqlConnectionStringBuilder(connectionString).InitialCatalog != "JornadaHarness")
                 throw new InvalidOperationException("Calibração física aceita somente JornadaHarness descartável.");
             Directory.CreateDirectory(output);
-            outputCreatedForThisRun = true;
-            await using var ownership = new FileStream(Path.Combine(output, "execution.lock"), FileMode.CreateNew, FileAccess.Write, FileShare.None);
-            await WriteNewAsync(Path.Combine(output, "plan.json"), plan);
-            try
+            // Reserve real disk blocks before opening SQL or any expensive work.
+            // If ENOSPC prevents the reservation, fail closed before calibration.
+            reservedLog = V9CalibradorLastErrorLog.Reserve(output);
+            await using (var ownership = new FileStream(Path.Combine(output, "execution.lock"),
+                FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
-                if (args[0] == "--v9-calibrate")
-                    await SearchAsync(args[2], output, plan, connectionString);
-                else await ValidateAsync(args[2], args[3], output, plan, connectionString);
-            }
-            catch (Exception exception)
-            {
+                await WriteNewAsync(Path.Combine(output, "plan.json"), plan);
                 try
                 {
-                    await WriteNewAsync(Path.Combine(output, "interrupted.json"),
-                        new { exceptionType = exception.GetType().Name,
-                            completed = false, testUsed = false, activated = false });
+                    if (args[0] == "--v9-calibrate")
+                        await SearchAsync(args[2], output, plan, connectionString);
+                    else await ValidateAsync(args[2], args[3], output, plan, connectionString);
                 }
-                catch (Exception receiptError)
+                catch (Exception exception)
                 {
-                    Console.Error.WriteLine("Não foi possível gravar interrupted.json: "
-                        + receiptError.GetType().Name + ": " + receiptError.Message);
+                    try
+                    {
+                        await WriteNewAsync(Path.Combine(output, "interrupted.json"),
+                            new { exceptionType = exception.GetType().Name,
+                                completed = false, testUsed = false, activated = false });
+                    }
+                    catch (Exception receiptError)
+                    {
+                        Console.Error.WriteLine("Não foi possível gravar interrupted.json: "
+                            + receiptError.GetType().Name + ": " + receiptError.Message);
+                    }
+                    throw;
                 }
-                throw;
             }
+            // Only remove the 10 KiB blank reservation after *all* success I/O
+            // and the ownership handle have closed without throwing.
+            completed = true;
         }
         catch (Exception exception)
         {
             // Never mutate a pre-existing result directory rejected above.
-            TryWriteLastError(outputCreatedForThisRun ? output : null, exception);
+            TryWriteLastError(reservedLog, exception);
             throw;
+        }
+        finally
+        {
+            if (reservedLog is not null)
+            {
+                try
+                {
+                    reservedLog.Dispose();
+                    if (completed)
+                        File.Delete(Path.Combine(output!, V9CalibradorLastErrorLog.FileName));
+                }
+                catch (Exception cleanupError)
+                {
+                    // Do not mask an original calibration error during teardown.
+                    Console.Error.WriteLine("Falha ao fechar/remover reserva de log: "
+                        + cleanupError.GetType().Name + ": " + cleanupError.Message);
+                }
+            }
         }
     }
 

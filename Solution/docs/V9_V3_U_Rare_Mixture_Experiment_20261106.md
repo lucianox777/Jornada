@@ -276,3 +276,32 @@ Uma tentativa rejeitada por **diretório de saída já existente** não altera
 os arquivos dessa execução anterior: o log só pode ser gravado em um
 diretório criado pela própria tentativa atual. Em falhas antes disso,
 o canal confiável de diagnóstico é o stderr do processo/CI.
+
+### Reserva antecipada de 10 KiB para último erro (disc-full / ENOSPC)
+
+**Decisão vigente:** antes de iniciar a execução física do Calibrador, e
+depois de criar o **diretório novo** desta execução, abrir o próprio
+`calibrador.log` com `CreateNew`, gravar integralmente **10.240 bytes**
+(de fato, não apenas `SetLength`, que pode resultar em arquivo esparso),
+e forçar `Flush(flushToDisk: true)`. O handle fica aberto durante o cálculo.
+
+Se ocorrer uma exceção gerenciada, inclusive por falta de espaço, o Calibrador
+imprime `Exception.ToString()` no stderr, reescreve **os mesmos 10 KiB**
+do arquivo já aberto **em posição zero**, preenche o restante com espaços,
+e força `Flush` sem aumentar o tamanho do arquivo. Erros maiores que
+10 KiB são cortados em fronteira UTF-8 válida com marcador explícito de
+truncamento. **Somente o último erro é mantido, sem append.**
+
+Se o processo terminar com sucesso, fecha o handle e remove o arquivo
+de reserva vazio. Caso contrário, preserva o arquivo do erro. Se a
+reserva inicial não puder ser gravada por falta de espaço, **não inicia
+a calibração** (fail-closed). Diretórios de resultados anteriores não são
+alterados. Uma falha ao escrever `interrupted.json` ou a própria reserva
+não encobre a exceção original.
+
+**Não é garantia absoluta:** em sistemas copy-on-write, compressão,
+quotas, encerramento abrupto do processo, falhas do runtime ou SO,
+mesmo uma área pré-gravada pode não garantir I/O posterior; a saída
+`stderr` do processo/CI é a evidência adicional. A reserva existe
+exclusivamente para relatório de erro: **não** é spill, checkpoint,
+redução de RAM, fallback ou mudança estatística.
