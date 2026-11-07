@@ -358,7 +358,7 @@ Para maximizar deduplicação de bases integrais inalteradas, o gerador homologa
 
 ## Territorialização obrigatória da origem - v3.38
 
-Para `ENDERECO_RESIDENCIAL` e `REFERENCIA_TERRITORIAL`, `situacaoGeografia` é obrigatória. `RESOLVIDA` exige geografia completa (Distrito/Subprefeitura) e `referenciaMalha`; os motivos `FORA_MUNICIPIO`, `SEM_ENDERECO_APTO` e `NAO_RESOLVIDA_ORIGEM` exigem `geografia:null`. A Jornada não consulta PRODAM Pessoa-a-Pessoa na Fase 1.
+Para `ENDERECO_RESIDENCIAL` e `REFERENCIA_TERRITORIAL`, `situacaoGeografia` é obrigatória. `RESOLVIDA` exige geografia completa (Distrito/Subprefeitura) e `referenciaMalha`; os motivos `FORA_MUNICIPIO`, `SEM_ENDERECO_APTO` e `NAO_RESOLVIDA_ORIGEM` exigem `geografia:null`. A Jornada não realiza consulta Pessoa-a-Pessoa a serviço externo de territorialização na Fase 1.
 
 ## Staging temporário da recepção
 
