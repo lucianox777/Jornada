@@ -51,7 +51,7 @@ jobs:
       - name: Bind SHA and repo-local PR to physical gate
         env:
           V3_SHA: ${{ github.sha }}
-          V3_REF: ${{ format('refs/heads/{0}', github.head_ref) }}
+          V3_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$V3_SHA"
