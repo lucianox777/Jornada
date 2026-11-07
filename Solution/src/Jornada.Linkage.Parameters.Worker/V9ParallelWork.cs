@@ -12,10 +12,17 @@ public static class V9ParallelWork
     /// </summary>
     public static int ResolveMaximumParallelism(int configuredWorkers, int? visibleLogicalProcessors = null)
     {
-        if (configuredWorkers < 0 || visibleLogicalProcessors is < 1)
+        if (configuredWorkers < 0)
             throw new InvalidDataException("Paralelismo exige 0 para automático ou limite explícito positivo.");
+        // Explicit legacy values 1, 2, ... never need CPU autodetection.
+        if (configuredWorkers > 0)
+            return configuredWorkers;
         var available = visibleLogicalProcessors ?? Environment.ProcessorCount;
-        return configuredWorkers == 0 ? Math.Max(1, available) : configuredWorkers;
+        if (available <= 0)
+            throw new InvalidDataException(
+                "Detecção automática de CPUs indisponível: Environment.ProcessorCount não retornou um número positivo. "
+                + "Verifique a máquina/contêiner e configure MaximumParallelRuleSets explicitamente.");
+        return available;
     }
 
     public static async Task<IReadOnlyList<TResult>> MapAsync<TInput, TResult>(

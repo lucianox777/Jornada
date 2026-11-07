@@ -176,3 +176,20 @@ booleanos e tipos incorretos. Há regressões offline tanto no plano
 histórico quanto na comparação TF0 × ONE_MF. Não são resultados físicos
 nem alteração de FDR, seed, M/U, TF, TEST ou DT-15. Os dois gates precisam
 ser reexecutados no SHA atualizado antes de merge.
+
+### Detecção automática fail-closed (decisão definitiva)
+
+Para `MaximumParallelRuleSets=0`, o Calibrador usa **exatamente** o valor de
+`Environment.ProcessorCount`, sem `Math.Max(1,...)`, sem reduzir para 1,
+sem tentativa de detectar CPU por fonte alternativa e sem alteração
+silenciosa do plano. Um retorno inválido (`<=0`) ou erro de detecção
+**interrompe o processo**, com erro explícito indicando que é necessário
+examinar a quantidade de vCPUs visível ao processo (Windows/Linux,
+afinidade e cotas do contêiner) e, se for o caso, configurar manualmente
+`MaximumParallelRuleSets=1` ou `2` e executar novamente.
+
+Valores históricos positivos são preservados literalmente, inclusive quando
+a autodetecção falhar, pois um override explícito não a consulta. Essa
+política não contém fallback automático. O tempo, o número de workers
+efetivo e a RAM devem ser observados no mesmo ambiente físico, sem
+atribuir a detecção de CPUs a responsabilidade por todo possível OOM.

@@ -78,7 +78,7 @@ public sealed class V9IntegralSearchTests
     public void Native_CPU_auto_worker_count_uses_visible_logical_processors_without_percentage()
     {
         Assert.That(V9ParallelWork.ResolveMaximumParallelism(0),
-            Is.EqualTo(Math.Max(1, Environment.ProcessorCount)));
+            Is.EqualTo(Environment.ProcessorCount));
         foreach (var cpus in new[] { 1, 2, 4, 8, 16 })
         {
             Assert.That(V9ParallelWork.ResolveMaximumParallelism(0, cpus), Is.EqualTo(cpus));
@@ -87,8 +87,15 @@ public sealed class V9IntegralSearchTests
         }
         Assert.That((Action)(() => V9ParallelWork.ResolveMaximumParallelism(-1, 8)),
             Throws.TypeOf<InvalidDataException>());
-        Assert.That((Action)(() => V9ParallelWork.ResolveMaximumParallelism(0, 0)),
-            Throws.TypeOf<InvalidDataException>());
+        foreach (var invalidCpuCount in new[] { 0, -1 })
+        {
+            var error = Assert.Throws<InvalidDataException>(
+                () => V9ParallelWork.ResolveMaximumParallelism(0, invalidCpuCount));
+            Assert.That(error!.Message, Does.Contain("MaximumParallelRuleSets"));
+        }
+        // Manual legacy override must still work even if autodetection is broken.
+        Assert.That(V9ParallelWork.ResolveMaximumParallelism(1, 0), Is.EqualTo(1));
+        Assert.That(V9ParallelWork.ResolveMaximumParallelism(2, -1), Is.EqualTo(2));
     }
 
     [Test]
