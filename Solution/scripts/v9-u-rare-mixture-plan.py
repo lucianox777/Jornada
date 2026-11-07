@@ -14,7 +14,7 @@ import tempfile
 
 SCRIPTS = Path(__file__).resolve().parent
 VERSION = "V9_U_RARE_MIXTURE_THREE_METHOD_TRAIN_PLAN_V2"
-WEIGHTS = [0, .25, .5, 1]
+LEGACY_WEIGHTS = [0, .25, .5, 1]  # frozen historical experiment only
 FAMILY = "CLASSWISE_SUPPORT_BACKOFF"
 MIXED_FAMILY = "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE"
 
@@ -26,11 +26,17 @@ def _load_control():
     return module
 
 
-def freeze(source_path, target_path, margin=.5):
+def freeze(source_path, target_path, margin=.5, weights=None):
     # The .25 sensitivity is a distinct, predeclared TRAIN experiment.
     # The historical .5 plan remains byte-identical unless opted in.
-    if type(margin) not in (int, float) or margin not in (.25, .5):
-        raise ValueError('Only frozen margins .5 and .25 are permitted')
+    if type(margin) not in (int, float) or not 0 <= margin <= 1:
+        raise ValueError('Margin must be finite in [0,1]')
+    # Zero is diagnostic only; do not turn this study into a selectable arm.
+    if margin == 0:
+        raise ValueError('Zero margin is diagnostic-only; use the dedicated diagnostic plan')
+    weights = list(LEGACY_WEIGHTS if weights is None else weights)
+    if not weights or any(type(w) not in (int, float) or not 0 <= w <= 1 for w in weights) or len(set(weights)) != len(weights):
+        raise ValueError('Weights must be a nonempty, unique, finite list in [0,1]')
     source_path, target_path = Path(source_path), Path(target_path)
     if target_path.exists():
         raise FileExistsError(target_path)
@@ -64,18 +70,18 @@ def freeze(source_path, target_path, margin=.5):
     if margin != .5:
         plan["Calibration"]["ConflictMargins"] = [.25]
     methods.append({"Method": MIXED_FAMILY, "Parameters": {
-        **methods[1]["Parameters"], "UBackoffJointMixtureWeights": WEIGHTS
+        **methods[1]["Parameters"], "UBackoffJointMixtureWeights": weights
     }})
     # (one historical DEFAULT + one historical V3 + four explicit U-mixture weights)
     # x two frozen TF arms x two frozen blocking rule sets.
-    declared = (2 + len(WEIGHTS)) * len(plan["Calibration"]["ModelOptions"]) * (1 + len(plan["Calibration"]["BaselineRuleSets"]))
-    if declared != 24:
-        raise ValueError("Unanticipated experimental cardinality")
+    declared = (2 + len(weights)) * len(plan["Calibration"]["ModelOptions"]) * (1 + len(plan["Calibration"]["BaselineRuleSets"]))
+    if declared > 256:
+        raise ValueError("Experimental cardinality exceeds explicit safety cap")
     plan["MaximumSearchConfigurations"] = declared
     plan["Calibration"]["MaximumComparedConfigurations"] = declared
     basis = VERSION + "|" + hashlib.sha256(original).hexdigest() + "|" + json.dumps(methods, sort_keys=True, separators=(",", ":"))
     if margin != .5:
-        basis += "|PREDECLARED_SENSITIVITY_MARGIN_0.25"
+        basis += "|EXPLICIT_MARGIN_" + str(margin)
     digest = hashlib.sha256(basis.encode()).hexdigest()
     plan["Calibration"]["StudyFingerprintSha256"] = digest
     plan["Calibration"]["Budget"]["StudyFingerprintSha256"] = digest
@@ -93,7 +99,7 @@ def freeze(source_path, target_path, margin=.5):
         "historicalV3Preserved": True,
         "tfArms": 2,
         "blockingArms": 2,
-        "uJointWeights": WEIGHTS,
+        "uJointWeights": weights,
         "margin": margin,
         "scope": "KNOWN_SYNTHETIC_TRAIN_SELECTION_ONLY_NOT_INDEPENDENT",
         "physicalExecuted": False,
@@ -108,8 +114,11 @@ if __name__ == "__main__":
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument("source_nested_tf_plan", type=Path)
     cli.add_argument("output_plan", type=Path)
-    cli.add_argument("--margin", type=float, default=.5, choices=(.25, .5),
-                     help="Frozen primary .5 or separately labelled .25 sensitivity")
+    cli.add_argument("--margin", type=float, default=.5,
+                     help="Explicit TRAIN conflict margin in (0,1]; zero is diagnostic-only")
+    cli.add_argument("--weights", type=str, default=None,
+                     help="Explicit comma-separated U mixture weights; default preserves frozen historical experiment")
     args = cli.parse_args()
+    weights = None if args.weights is None else [float(x) for x in args.weights.split(",")]
     print(json.dumps(freeze(args.source_nested_tf_plan, args.output_plan,
-                            margin=args.margin), sort_keys=True))
+                            margin=args.margin, weights=weights), sort_keys=True))
