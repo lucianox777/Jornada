@@ -106,7 +106,7 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
-    public async Task Failed_calibration_does_not_mutate_a_preexisting_result_directory()
+    public void Failed_calibration_does_not_mutate_a_preexisting_result_directory()
     {
         var root = Path.Combine(Path.GetTempPath(), "v9-calibrador-existing-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
