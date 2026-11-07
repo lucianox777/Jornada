@@ -9,6 +9,50 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// <summary>Manual default V9 flow. Search and one-time finalist validation are separate commands.</summary>
 public static class V9NestedCalibrationCli
 {
+    /// <summary>
+    /// Runtime diagnostics only: no memory limit, GC forcing or model-selection input.
+    /// The GC availability figure is the managed-GC budget, not free physical RAM.
+    /// RSS is the whole process, including native allocations.
+    /// </summary>
+    public sealed record V9RamCapacityDiagnostic(
+        long ResidentWorkingSetBytes,
+        long PeakResidentWorkingSetBytes,
+        long ManagedLiveBytesEstimate,
+        long GcHeapSizeBytes,
+        long GcCommittedBytes,
+        long GcTotalAvailableMemoryBytes,
+        long? GcMemoryLoadBytes,
+        long? GcHighMemoryLoadThresholdBytes,
+        bool? GcReportsHighMemoryLoad,
+        string? Notice,
+        string BatchTrace);
+
+    /// <summary>
+    /// Pure, deterministic classification of measurements already exposed by .NET.
+    /// Does not invent a percentage threshold, bound workers, or alter execution.
+    /// </summary>
+    public static V9RamCapacityDiagnostic InspectRamCapacity(
+        long residentBytes, long peakResidentBytes, long managedBytes,
+        long gcHeapBytes, long gcCommittedBytes, long gcAvailableBytes,
+        long gcMemoryLoadBytes, long gcHighMemoryLoadThresholdBytes)
+    {
+        if (new[] { residentBytes, peakResidentBytes, managedBytes, gcHeapBytes,
+            gcCommittedBytes, gcAvailableBytes, gcMemoryLoadBytes,
+            gcHighMemoryLoadThresholdBytes }.Any(x => x < 0))
+            throw new InvalidDataException("Medição de memória negativa ou inválida no relatório V9.");
+
+        bool? highLoad = gcMemoryLoadBytes > 0 && gcHighMemoryLoadThresholdBytes > 0
+            ? gcMemoryLoadBytes >= gcHighMemoryLoadThresholdBytes : null;
+        var notice = highLoad is true ? "RAM_CARGA_ALTA_INFORMADA_PELO_GC"
+            : highLoad is null ? "RAM_PRESSAO_NAO_DISPONIVEL_PELA_API_GC" : null;
+        return new(
+            residentBytes, peakResidentBytes, managedBytes, gcHeapBytes,
+            gcCommittedBytes, gcAvailableBytes,
+            gcMemoryLoadBytes > 0 ? gcMemoryLoadBytes : null,
+            gcHighMemoryLoadThresholdBytes > 0 ? gcHighMemoryLoadThresholdBytes : null,
+            highLoad, notice, "memory-progress.jsonl");
+    }
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true, RespectRequiredConstructorParameters = true,
@@ -254,11 +298,23 @@ public static class V9NestedCalibrationCli
                 };
             }).ToArray();
         var cpuCapacity = V9ParallelWork.InspectCpuCapacity(plan.Calibration.MaximumParallelRuleSets);
+        // This is a report-time sample plus the process RSS high-water mark.
+        // The existing memory-progress.jsonl contains independent per-batch samples.
+        // No re-reading of raw training data or forcing a GC collection.
+        using var ramProcess = System.Diagnostics.Process.GetCurrentProcess();
+        ramProcess.Refresh();
+        var gcInfo = GC.GetGCMemoryInfo();
+        var ramCapacity = InspectRamCapacity(
+            ramProcess.WorkingSet64, ramProcess.PeakWorkingSet64,
+            GC.GetTotalMemory(forceFullCollection: false), gcInfo.HeapSizeBytes,
+            gcInfo.TotalCommittedBytes, gcInfo.TotalAvailableMemoryBytes,
+            gcInfo.MemoryLoadBytes, gcInfo.HighMemoryLoadThresholdBytes);
         var report = new
         {
             schema = "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1",
             // Diagnostic only, never an input to fit, SHA, FDR or selection.
             cpuCapacity,
+            ramCapacity,
             result.PlanSha256,
             originalMethodsAndParameterArrays = plan.MuEstimationMethods,
             declaredVariants = declared.Select(x => new { x.Method, x.Key, x.Policy }).ToArray(),
@@ -295,6 +351,33 @@ public static class V9NestedCalibrationCli
         else if (cpuCapacity.DotNetVisibleLogicalProcessors is null)
             md.AppendLine("> **AVISO:** a configuração manual foi respeitada, mas a contagem de CPUs visíveis ao .NET não pôde ser informada.");
         md.AppendLine("O número de workers é um teto de tarefas simultâneas, não uma medição de utilização da CPU.");
+        md.AppendLine();
+        md.AppendLine("## Diagnóstico de RAM — execução");
+        md.AppendLine();
+        md.AppendLine("Memória residente atual do processo: `"
+            + (ramCapacity.ResidentWorkingSetBytes / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB`; pico RSS observado desde o início do processo: `"
+            + (ramCapacity.PeakResidentWorkingSetBytes / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB`.");
+        md.AppendLine("Estimativa de objetos gerenciados vivos: `"
+            + (ramCapacity.ManagedLiveBytesEstimate / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB`; heap do último GC: `"
+            + (ramCapacity.GcHeapSizeBytes / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB`; memória comprometida pelo GC: `"
+            + (ramCapacity.GcCommittedBytes / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB`.");
+        md.AppendLine("Orçamento total informado ao GC: `"
+            + (ramCapacity.GcTotalAvailableMemoryBytes / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB` (não representa RAM física livre do host)."
+            + " Amostras por lote no arquivo já existente: `memory-progress.jsonl`.");
+        if (ramCapacity.GcReportsHighMemoryLoad is true)
+            md.AppendLine("> **AVISO RAM:** a API do .NET informou carga de memória no limiar alto do GC."
+                + " Verifique RAM e outros processos/SQL no ambiente físico; a execução não foi limitada nem alterada.");
+        else if (ramCapacity.GcReportsHighMemoryLoad is null)
+            md.AppendLine("> **AVISO RAM:** a API do .NET não disponibilizou um par comparável de carga/limiar de memória."
+                + " O pico RSS foi registrado, mas não é possível certificar ausência de pressão de RAM.");
+        md.AppendLine("Essa amostra não certifica ausência de OOM durante a execução;"
+            + " não é limite de RAM, previsão de falha nem resultado estatístico.");
         md.AppendLine();
         md.AppendLine("| Método | Cobertura | Min M | Min U | Cauda retida | Alpha | Threshold | Margem | TP | FP | Recall | FDR observada | Conflitos | Status | Snapshot |");
         md.AppendLine("|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|");

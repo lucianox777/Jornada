@@ -66,6 +66,39 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public void Ram_reporting_uses_runtime_GC_pressure_without_inventing_a_memory_limit()
+    {
+        const long mib = 1024L * 1024;
+        var calm = V9NestedCalibrationCli.InspectRamCapacity(
+            320 * mib, 700 * mib, 150 * mib, 170 * mib, 240 * mib,
+            4096 * mib, 2500 * mib, 3500 * mib);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(calm.GcReportsHighMemoryLoad, Is.False);
+            Assert.That(calm.Notice, Is.Null);
+            Assert.That(calm.PeakResidentWorkingSetBytes, Is.EqualTo(700 * mib));
+            Assert.That(calm.GcTotalAvailableMemoryBytes, Is.EqualTo(4096 * mib));
+            Assert.That(calm.BatchTrace, Is.EqualTo("memory-progress.jsonl"));
+        }));
+
+        var high = V9NestedCalibrationCli.InspectRamCapacity(
+            320 * mib, 700 * mib, 150 * mib, 170 * mib, 240 * mib,
+            4096 * mib, 3500 * mib, 3500 * mib);
+        Assert.That(high.GcReportsHighMemoryLoad, Is.True);
+        Assert.That(high.Notice, Is.EqualTo("RAM_CARGA_ALTA_INFORMADA_PELO_GC"));
+
+        var unknown = V9NestedCalibrationCli.InspectRamCapacity(
+            320 * mib, 700 * mib, 150 * mib, 170 * mib, 240 * mib,
+            4096 * mib, 0, 0);
+        Assert.That(unknown.GcReportsHighMemoryLoad, Is.Null);
+        Assert.That(unknown.GcMemoryLoadBytes, Is.Null);
+        Assert.That(unknown.Notice, Is.EqualTo("RAM_PRESSAO_NAO_DISPONIVEL_PELA_API_GC"));
+
+        Assert.That((Action)(() => V9NestedCalibrationCli.InspectRamCapacity(
+            -1, 0, 0, 0, 0, 0, 0, 0)), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Search_reader_skips_external_holdout_attribute_values_and_never_opens_TEST()
     {
         var file = Path.Combine(Path.GetTempPath(), "jornada-train-only-" + Guid.NewGuid().ToString("N") + ".csv");

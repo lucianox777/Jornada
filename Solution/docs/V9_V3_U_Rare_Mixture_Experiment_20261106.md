@@ -214,3 +214,37 @@ não inventa um número e registra essa indisponibilidade.
 A comparação não muda plano, decisão científica, hashes de snapshots,
 M/U, TF, FDR, TEST ou publicação; apenas acrescenta campos ao relatório
 estatístico já gerado, sem criar arquivo de trabalho adicional.
+
+### Diagnóstico de capacidade de CPU **e** RAM no relatório estatístico (07/11/2026)
+
+As decisões mais recentes do responsável substituem instruções anteriores:
+`MaximumParallelRuleSets=0` continua padrão; utiliza **exatamente**
+`Environment.ProcessorCount`, sem fallback, sem `CPU-1`, sem percentuais.
+Planos legados com `1`, `2` etc. preservam o valor explícito.
+A autodetecção inválida interrompe a calibração, com erro claro e sem
+ajustar automaticamente trabalhadores. O relatório já avisa quando os
+workers *configurados explicitamente* são inferiores às CPUs lógicas
+visíveis para o processo C#; não altera o plano.
+
+Acrescentado `ramCapacity` em **ambos** os arquivos existentes
+`mu-statistical-analysis.json` e `mu-statistical-analysis.md`:
+`ResidentWorkingSetBytes` (RSS do processo naquele instante),
+`PeakResidentWorkingSetBytes` (pico do processo desde o início),
+`ManagedLiveBytesEstimate` (sem forçar coleta), `GcHeapSizeBytes`,
+`GcCommittedBytes`, `GcTotalAvailableMemoryBytes`,
+`GcMemoryLoadBytes`, `GcHighMemoryLoadThresholdBytes`,
+`GcReportsHighMemoryLoad` e `Notice`. São medições feitas no momento
+da publicação, complementar ao **arquivo já existente**
+`memory-progress.jsonl` com amostras ao final de cada lote. O orçamento
+do GC **não é a RAM física livre do host**; heap GC e RSS também não são
+intercambiáveis. Não afirmar consumo da máquina toda a partir do RSS.
+
+O **AVISO RAM** é emitido quando o próprio .NET informa carga no seu
+limiar alto de memória, ou quando a API não fornece dados comparáveis
+para essa avaliação. Não existe limite ou percentual de RAM inventado
+pela Jornada, nem degradação silenciosa para SSD. Sem novas gravações
+de resultados intermediários, sem `GC.Collect()` forçado e sem alterar
+FDR, TF/M/U, snapshots, seleção ou etapas TRAIN/VALIDATION/TEST.
+O aviso é **observacional**: ausência de aviso em uma amostra não prova
+ausência de OOM ou de pressão anterior, e não evita falha de memória.
+A prova física seed42 permanece obrigatória.
