@@ -60,15 +60,16 @@ public static class V9NestedCalibrationCli
     };
 
     /// <summary>
-    /// One error per failed run: the last C# exception, including the stack trace.
-    /// Diagnostic I/O must never replace the original failure (notably disk-full).
+    /// One safe error code per failed run; exception content is private and
+    /// must not reach stderr or artifacts, even under disk-full conditions.
+    /// Diagnostic I/O must never replace the original failure.
     /// </summary>
     public static void TryWriteLastError(V9CalibradorLastErrorLog? reservedLog, Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
         // stderr and the preallocated log are independent channels: a full
         // stderr sink must NOT prevent writing into already reserved blocks.
-        try { Console.Error.WriteLine(exception.ToString()); }
+        try { Console.Error.WriteLine(V9CalibradorLastErrorLog.SafeErrorCode(exception)); }
         catch (Exception) { /* stderr may itself be on the full volume. */ }
         if (reservedLog is null)
         {
@@ -83,7 +84,7 @@ public static class V9NestedCalibrationCli
             try
             {
                 Console.Error.WriteLine("Não foi possível atualizar calibrador.log: "
-                    + loggingError.GetType().Name + ": " + loggingError.Message);
+                    + V9CalibradorLastErrorLog.SafeErrorCode(loggingError));
             }
             catch (Exception) { /* Even stderr may be unavailable on a failed process. */ }
         }
@@ -138,7 +139,7 @@ public static class V9NestedCalibrationCli
                         try
                         {
                             Console.Error.WriteLine("Não foi possível gravar interrupted.json: "
-                                + receiptError.GetType().Name + ": " + receiptError.Message);
+                                + V9CalibradorLastErrorLog.SafeErrorCode(receiptError));
                         }
                         catch (Exception) { /* preserve original exception */ }
                     }
@@ -172,7 +173,7 @@ public static class V9NestedCalibrationCli
                     try
                     {
                         Console.Error.WriteLine("Falha ao fechar/remover reserva de log: "
-                            + cleanupError.GetType().Name + ": " + cleanupError.Message);
+                            + V9CalibradorLastErrorLog.SafeErrorCode(cleanupError));
                     }
                     catch (Exception) { /* preserve original exception */ }
                 }
