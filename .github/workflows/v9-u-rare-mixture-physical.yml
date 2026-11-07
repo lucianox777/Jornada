@@ -8,6 +8,7 @@ on:
     paths:
       - '.github/workflows/v9-u-rare-mixture-physical.yml'
       - 'Solution/scripts/v9-u-rare-mixture-plan.py'
+      - 'Solution/data/calibration/v9/u-rare-mixture-train/experiment.json'
       - 'Solution/scripts/v9-u-rare-mixture-physical-audit.py'
       - 'Solution/tests/scripts/test_v9_u_rare_mixture_plan.py'
       - 'Solution/tests/scripts/test_v9_u_rare_mixture_physical_audit.py'
@@ -98,6 +99,7 @@ jobs:
             --tf-search --pinned-ibge "$root/pinned-ibge.json"
           python3 scripts/v9-u-rare-mixture-plan.py \
             "$root/source-nested-plan.json" "$root/mixture-plan.json" \
+            --config data/calibration/v9/u-rare-mixture-train/experiment.json \
             --margin "$RESEARCH_MARGIN" > "$root/plan-receipt.json"
           python3 - "$root" "$RESEARCH_MARGIN" <<'PY'
           import json,sys
@@ -106,8 +108,11 @@ jobs:
           p=json.loads((root/'mixture-plan.json').read_bytes())
           r=json.loads((root/'plan-receipt.json').read_bytes())
           assert p['Calibration']['ConflictMargins']==[margin]
-          assert p['MaximumSearchConfigurations']==p['Calibration']['MaximumComparedConfigurations']==24
-          assert r['comparisons']==24 and r['uJointWeights']==[0,.25,.5,1]
+          config=json.loads(Path('data/calibration/v9/u-rare-mixture-train/experiment.json').read_bytes())
+          weights=config['UBackoffJointMixtureWeights']
+          expected=(2+len(weights))*len(p['Calibration']['ModelOptions'])*(1+len(p['Calibration']['BaselineRuleSets']))
+          assert p['MaximumSearchConfigurations']==p['Calibration']['MaximumComparedConfigurations']==expected
+          assert r['comparisons']==expected and r['uJointWeights']==weights
           assert r['scope']=='KNOWN_SYNTHETIC_TRAIN_SELECTION_ONLY_NOT_INDEPENDENT'
           assert r['physicalExecuted'] is False and r['activated'] is False
           PY
