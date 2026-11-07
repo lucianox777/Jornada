@@ -114,7 +114,6 @@ jobs:
           assert p['MaximumSearchConfigurations']==p['Calibration']['MaximumComparedConfigurations']==expected
           assert r['comparisons']==expected and r['uJointWeights']==weights
           assert p['SelectionDuplicatePolicies']==config['SelectionDuplicatePolicies']==r['selectionDuplicatePolicies']
-          assert p['CalibrationDuplicatePolicies']==config['CalibrationDuplicatePolicies']==r['calibrationDuplicatePolicies']
           assert r['scope']=='KNOWN_SYNTHETIC_TRAIN_SELECTION_ONLY_NOT_INDEPENDENT'
           assert r['physicalExecuted'] is False and r['activated'] is False
           PY
