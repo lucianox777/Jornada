@@ -18,7 +18,7 @@ def fixture():
         'Purpose':'BOOTSTRAP_CANDIDATE_SELECTION',
         'MaximumBatches':1, 'MaximumSearchConfigurations':20,
         'Calibration':{
-            'ConflictMargins':[0, .25, .5, 2, 4],
+            'ConflictMargins':[.0001, .25, .5, 2, 4],
             'Budget':{'MaximumObservedAcceptedFdrPoint':.01},
             'SelectionPolicy':{'MaximumAcceptedFdrUpper':.01},
             'ModelOptions':[{'OptionId':x, 'EligibleForSelection':True} for x in options]
@@ -31,7 +31,7 @@ def fixture():
               'SupportedTailRule':'RETAIN_CLASS_JOINT_WHEN_COUNT_AT_LEAST_K_V2'}
     rows = []
     for passes in (3,19):
-        for margin in (0, .25, .5, 2, 4):
+        for margin in (.0001, .25, .5, 2, 4):
             for name in options:
                 rows.append({
                     'OptionId':name+'__MU_CLASSWISE_SUPPORT_BACKOFF_C0.99_M5_U5_T1',
@@ -123,7 +123,7 @@ class BroadV3AuditTests(unittest.TestCase):
         self.assertEqual(exact['variants'], 8)
         self.assertEqual(len(exact['pairs']), 80)
         self.assertEqual({x['margin'] for x in exact['rows']},
-                         {0, .25, .5, 2, 4})
+                         {.0001, .25, .5, 2, 4})
 
         # Explicitly reject the 64-measurement protocol that passed in
         # SHA 68bff2b: even if all 64 have 81-cell M/U support.
@@ -150,6 +150,7 @@ class BroadV3AuditTests(unittest.TestCase):
             lambda p,r: r['rows'][0].update(clusterIidIndependentlyValidated=True),
             lambda p,r: p['Calibration']['SelectionPolicy'].update(MaximumAcceptedFdrUpper=.2),
             lambda p,r: p['Calibration'].update(ConflictMargins=[.5,2]),
+            lambda p,r: p['Calibration'].update(ConflictMargins=[0,.25,.5,2,4]),
         )
         for bad in changes:
             self.payload = fixture()

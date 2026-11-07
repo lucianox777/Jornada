@@ -115,10 +115,11 @@ jobs:
               for x in arms: x['EligibleForSelection'] = True
               assert all(x['EligibleForSelection'] is True for x in arms)
           source['Calibration']['ModelOptions']=arms
-          # Restore the five PREDECLARED log-odds margins from the failed
-          # 160-configuration seed42 experiment. Margins are independent
-          # of the chosen V3 M/U estimator.
-          source['Calibration']['ConflictMargins']=[0, 0.25, 0.5, 2, 4]
+          # Current V9 plan contract rejects a zero conflict margin.
+          # Keep all FIVE physical margins and all 160 configurations; the
+          # smallest allowed positive .0001 approximates the original zero,
+          # but this is a memory-load regression, NOT an exact score replay.
+          source['Calibration']['ConflictMargins']=[0.0001, 0.25, 0.5, 2, 4]
           assert source['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint']==.01
           assert source['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper']==.01
           with (root/'source-plan.json').open('x') as f:

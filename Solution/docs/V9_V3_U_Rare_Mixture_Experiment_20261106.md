@@ -340,3 +340,32 @@ Sucesso em 64 não é certificado de 160; sucesso técnico no TRAIN
 não é evidência de validação independente ou autorização DT-15.
 As alterações de CPU, RAM e pré-reserva de 10 KiB do
 `calibrador.log` continuam ativas, sem fallback ou spill.
+
+### Diagnóstico do gate físico 160 — margem zero recusada pelo contrato atual (07/11/2026)
+
+O commit `2b13cfe4` restaurou as **160 configurações**, mas os seis
+jobs do workflow `42325219539` falharam **antes de calibrar** com
+`InvalidDataException: Plano V9 incompleto, duplicado ou fora do contrato`,
+em `V9AdaptiveCalibrationCoordinator.ValidatePlan` (linha 115).
+O motivo foi a margem `0`: a versão **atual** da master proíbe
+`ConflictMargins <= 0`; já o commit histórico `e05043b` permitia
+margem zero. Não houve OOM nesse run, tampouco reserva/log porque o
+plano foi recusado **antes** da criação do diretório de resultados.
+
+**Reteste de carga conforme contrato atual:** manter 160 combinações
+e cinco margens, mas usar `[0.0001, 0.25, 0.5, 2, 4]` no lugar de
+`[0, 0.25, 0.5, 2, 4]`. **Não** relaxar a validação atual nem aceitar
+margem zero por exceção de workflow; isso contrariaria o contrato da
+master e o teste unitário `More_compute_cannot_relax_risk_or_substitute_projection_or_zero_margin`.
+A menor margem positiva funciona como *aproximação*, **não como reprodução
+exata das métricas de zero**. O objetivo deste reteste é demonstrar
+que o Calibrador com otimização RAM-first suporta **160 avaliações
+físicas** no mesmo corpus/família/seed, e medir RSS/pico. A comparação
+numérica histórica exata exigiria outra campanha sob o contrato antigo,
+devidamente segregada; não afirmar equivalência estatística entre os
+dois protocolos. Auditor independente e regressão offline rejeitam
+ausência de margem e aceitação indevida de zero.
+
+O erro foi inspecionado diretamente nos logs dos jobs; as mudanças deste
+registro não alteram o algoritmo FS, M/U, TF, FDR, snapshot, execução
+em RAM, uso automático de CPUs ou política de reserva do log.

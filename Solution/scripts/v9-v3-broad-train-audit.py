@@ -40,7 +40,10 @@ def verify(plan_path, report_path, family, seed):
                 'MinimumObservedUPerCell', 'RetainSupportedTail'):
         nvariants *= len(grid[key])
     expected_variants = 8 if seed == 42 else 1
-    margins = [0, .25, .5, 2, 4]
+    # Five strictly-positive margins under the current CSharp plan contract.
+    # The 2026-11-06 historical 160-case OOM used a zero lower margin;
+    # this restores its workload breadth without weakening plan validation.
+    margins = [.0001, .25, .5, 2, 4]
     if calibration['ConflictMargins'] != margins:
         raise ValueError('Five predeclared conflict margins missing or reordered')
     expected = expected_variants * 2 * len(margins) * 2
