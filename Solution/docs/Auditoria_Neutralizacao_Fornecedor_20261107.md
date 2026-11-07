@@ -98,3 +98,53 @@
 3. Verificar que a soma residual textual é **50**, toda justificada nos **25 arquivos de exceção**, e que cada arquivo alterado contém **zero** menções.
 4. Identificar a exceção dos binários e de qualquer ocorrência que apareça em nova varredura; não relaxar a regra de rastreabilidade.
 5. Não remover documento contratual, não tocar código/testes/workflows e não fazer merge sem confirmação do PO sobre a dependência.
+
+## Apêndice — lista exata dos 45 documentos binários não inspecionados
+
+Os arquivos abaixo **não foram alterados nem tiveram o conteúdo interno examinado** nesta PR. Não são contabilizados como menções comprovadas; são **limitação explícita** do levantamento textual, inclusive espelhos normativos DOCX/PDF.
+
+- `Documentos/Anexo_Arquitetura_Fase1_Jornada_v1.39.docx`
+- `Documentos/Anexo_Arquitetura_Fase1_Jornada_v1.39.pdf`
+- `Documentos/Anexo_Estrutura_Artefatos_Jornada_v1.43.docx`
+- `Documentos/Anexo_Estrutura_Artefatos_Jornada_v1.43.pdf`
+- `Documentos/Anexo_Fluxos_Sequencia_Fato_Identidade_Jornada_v1.12.docx`
+- `Documentos/Anexo_Fluxos_Sequencia_Fato_Identidade_Jornada_v1.12.pdf`
+- `Documentos/Anexo_Modelo_Fisico_DER_Jornada_v1.39.docx`
+- `Documentos/Anexo_Modelo_Fisico_DER_Jornada_v1.39.pdf`
+- `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.docx`
+- `Documentos/Anexo_Modelo_Fisico_Jornada_v1.40.pdf`
+- `Documentos/Anexo_Pendencias_Desenvolvimento_Jornada_v1.47.docx`
+- `Documentos/Anexo_Pendencias_Desenvolvimento_Jornada_v1.47.pdf`
+- `Documentos/Anexo_SLA_Atraso_Recebimento_Jornada_v1.22.docx`
+- `Documentos/Anexo_SLA_Atraso_Recebimento_Jornada_v1.22.pdf`
+- `Documentos/Anexo_Seguranca_Auditoria_Acesso_Jornada_v1.34.docx`
+- `Documentos/Anexo_Seguranca_Auditoria_Acesso_Jornada_v1.34.pdf`
+- `Documentos/Anexo_Telas_BI_Jornada_v1.48.docx`
+- `Documentos/Anexo_Telas_BI_Jornada_v1.48.pdf`
+- `Documentos/Especificacao_Tecnica_Jornada_v3.62.docx`
+- `Documentos/Especificacao_Tecnica_Jornada_v3.62.pdf`
+- `Documentos/Projeto_Integracao_Beneficios_Servicos_Sociais/Apresentacao_Integracao_Beneficios-core.pdf`
+- `Documentos/Projeto_Integracao_Beneficios_Servicos_Sociais/Ficha_Projeto_Integracao_Beneficios_Servicos_Sociais.docx`
+- `Documentos/Projeto_Integracao_Beneficios_Servicos_Sociais/Ficha_Projeto_Integracao_Beneficios_Servicos_Sociais.pdf`
+- `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.0.docx`
+- `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.0.pdf`
+- `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.docx`
+- `Documentos/Requisitos/00_Indice_Mestre_Requisitos_Jornada_v1.1.pdf`
+- `Documentos/Requisitos/01_Requisitos_de_Negocio_Jornada_v1.1.docx`
+- `Documentos/Requisitos/01_Requisitos_de_Negocio_Jornada_v1.1.pdf`
+- `Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.0.docx`
+- `Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.0.pdf`
+- `Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.docx`
+- `Documentos/Requisitos/02_Requisitos_Funcionais_Jornada_v1.1.pdf`
+- `Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.0.docx`
+- `Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.0.pdf`
+- `Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.docx`
+- `Documentos/Requisitos/03_Requisitos_Nao_Funcionais_Jornada_v1.1.pdf`
+- `Documentos/Requisitos/04_Requisitos_Tecnicos_Jornada_v1.1.docx`
+- `Documentos/Requisitos/04_Requisitos_Tecnicos_Jornada_v1.1.pdf`
+- `Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.0.docx`
+- `Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.0.pdf`
+- `Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.docx`
+- `Documentos/Requisitos/05_Matriz_Rastreabilidade_Requisitos_Jornada_v1.1.pdf`
+- `Documentos/Resumo_Executivo_Especificacao_Tecnica_Jornada_v1.1.docx`
+- `Documentos/Resumo_Executivo_v3.82.pdf`
