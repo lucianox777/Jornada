@@ -23,8 +23,9 @@ public sealed record V9AdaptiveCalibrationPlan(
     IReadOnlyList<IReadOnlyList<LinkageBlockingPass>>? BaselineRuleSets = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     V9SyntheticObservationCapDeclaration? ObservationCapDeclaration = null,
-    // Zero uses Environment.ProcessorCount at execution time; positives override.
-    int MaximumParallelRuleSets = 0,
+    // Historical plans omitting this field retain serial execution (1).
+    // Explicit zero opts into Environment.ProcessorCount at execution time.
+    int MaximumParallelRuleSets = 1,
     IReadOnlyList<double>? RiskCeilings = null,
     V9StatisticalSamplePlan.Design? SampleDesign = null,
     V9DeclaredBlockingSearchSpace? DeclaredSearchSpace = null,
