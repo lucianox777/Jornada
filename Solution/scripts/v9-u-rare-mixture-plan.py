@@ -114,7 +114,7 @@ if __name__ == "__main__":
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument("source_nested_tf_plan", type=Path)
     cli.add_argument("output_plan", type=Path)
-    cli.add_argument("--margin", type=float, default=.5,
+    cli.add_argument("--margin", type=float, default=None,
                      help="Explicit TRAIN conflict margin in (0,1]; zero is diagnostic-only")
     cli.add_argument("--config", type=Path, default=None,
                      help="Versioned JSON experiment declaration with UBackoffJointMixtureWeights and ConflictMargin")
@@ -128,9 +128,9 @@ if __name__ == "__main__":
         if set(config) != {"UBackoffJointMixtureWeights", "ConflictMargin"}:
             cli.error("Config must declare exactly UBackoffJointMixtureWeights and ConflictMargin")
         weights = config["UBackoffJointMixtureWeights"]
-        margin = config["ConflictMargin"]
+        margin = config["ConflictMargin"] if args.margin is None else args.margin
     else:
         weights = None if args.weights is None else [float(x) for x in args.weights.split(",")]
-        margin = args.margin
+        margin = .5 if args.margin is None else args.margin
     print(json.dumps(freeze(args.source_nested_tf_plan, args.output_plan,
                             margin=margin, weights=weights), sort_keys=True))
