@@ -80,7 +80,7 @@ A revisão confirmou a linha:
 Continuam abertas sem aprovação implícita:
 - #31 — validação estatística com dado real;
 - #93 — volumetria HML/decisão institucional;
-- #378 — autenticação PRODAM e separação ambiental;
+- #378 — autenticação DESENVOLVEDOR e separação ambiental;
 - #379 — decisões de política;
 - #401 — não renascimento da divergência sem mudança causal;
 - #408 — zona cinzenta/`POSSIVEL`.

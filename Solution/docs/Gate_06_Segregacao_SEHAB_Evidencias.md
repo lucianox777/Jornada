@@ -43,7 +43,7 @@ O preparador da Secretaria agora rejeita **antes da criação do ZIP** manifesto
 
 ## Limites e próximos gates distintos
 
-O preparador demonstrado emprega CSV e mapeamento **sintéticos**; não há homologação de layout real SEHAB nem mapeador aprovado de seus registros finalísticos. O contrato v5 permanece RASCUNHO e as autorizações institucionais não são implicitamente concedidas pelo teste DEV. A publicação em HML depende ainda dos demais contratos, funcionalidades e controles integrais previstos para HML, inclusive autenticação institucional PRODAM, ambientes separados, classificação/autorização dos dados e massa fiel à origem. A conclusão do gate técnico de segregação **não substitui esses requisitos e não autoriza, isoladamente, iniciar o Ensaio**. O [Plano de Desenvolvimento](Plano_Desenvolvimento.md) registra a prioridade e o aceite separado.
+O preparador demonstrado emprega CSV e mapeamento **sintéticos**; não há homologação de layout real SEHAB nem mapeador aprovado de seus registros finalísticos. O contrato v5 permanece RASCUNHO e as autorizações institucionais não são implicitamente concedidas pelo teste DEV. A publicação em HML depende ainda dos demais contratos, funcionalidades e controles integrais previstos para HML, inclusive autenticação institucional DESENVOLVEDOR, ambientes separados, classificação/autorização dos dados e massa fiel à origem. A conclusão do gate técnico de segregação **não substitui esses requisitos e não autoriza, isoladamente, iniciar o Ensaio**. O [Plano de Desenvolvimento](Plano_Desenvolvimento.md) registra a prioridade e o aceite separado.
 
 ## Complemento de regressão negativa da ingestão sintética
 

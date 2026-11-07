@@ -26,7 +26,7 @@
 
 ## Pendências externas e técnicas
 
-- #378: autenticação PRODAM e separação ambiental; decisão externa.
+- #378: autenticação DESENVOLVEDOR e separação ambiental; decisão externa.
 - #379: políticas institucionais pendentes.
 - #31: evidência com dados reais e validação independente do Linkage.
 - #404: rastreabilidade documental e revisão dos diagramas seguem como trabalho contínuo.
