@@ -113,7 +113,8 @@ jobs:
           expected=(2+len(weights))*len(p['Calibration']['ModelOptions'])*(1+len(p['Calibration']['BaselineRuleSets']))
           assert p['MaximumSearchConfigurations']==p['Calibration']['MaximumComparedConfigurations']==expected
           assert r['comparisons']==expected and r['uJointWeights']==weights
-          assert p['DuplicateCandidatePolicies']==config['DuplicateCandidatePolicies']==r['duplicateCandidatePolicies']
+          assert p['SelectionDuplicatePolicies']==config['SelectionDuplicatePolicies']==r['selectionDuplicatePolicies']
+          assert p['CalibrationDuplicatePolicies']==config['CalibrationDuplicatePolicies']==r['calibrationDuplicatePolicies']
           assert r['scope']=='KNOWN_SYNTHETIC_TRAIN_SELECTION_ONLY_NOT_INDEPENDENT'
           assert r['physicalExecuted'] is False and r['activated'] is False
           PY
@@ -160,7 +161,7 @@ jobs:
           plan=json.loads((root/'mixture-plan.json').read_bytes())
           expected=plan['MaximumSearchConfigurations']
           assert result['evaluations']==expected
-          assert [x['policy'] for x in result['duplicateCandidatePolicyComparisons']]==plan['DuplicateCandidatePolicies']
+          assert [x['policy'] for x in result['duplicateCandidatePolicyComparisons']]==plan['SelectionDuplicatePolicies']
           assert result['historicalLambdaZeroParity'] == (0 in plan['MuEstimationMethods'][2]['Parameters']['UBackoffJointMixtureWeights'])
           assert not result['certified'] and not result['activated']
           receipt={
