@@ -27,7 +27,7 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
           ref: ${{ github.sha }}
-      - name: Bind technical 30k experiment to exact same-repository PR head
+      - name: Bind technical 30k regression to exact master push SHA
         env:
           MU_SHA: ${{ github.sha }}
           MU_REF: ${{ github.ref }}
