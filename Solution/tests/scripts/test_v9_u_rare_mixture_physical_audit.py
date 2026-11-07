@@ -24,7 +24,8 @@ def payload(margin=.5, weights=None):
                    **policy, "UBackoffJointMixtureWeights": weights}}]
     plan = {
         "MaximumBatches": 1, "MaximumSearchConfigurations": count,
-        "DuplicateCandidatePolicies": ["COUNT_ALL", "COUNT_UNIQUE"],
+        "SelectionDuplicatePolicies": ["COUNT_ALL", "COUNT_UNIQUE"],
+        "CalibrationDuplicatePolicies": ["INCLUDE", "DEDUPLICATE"],
         "Calibration": {
             "MaximumComparedConfigurations": count, "ConflictMargins": [margin],
             "Budget": {"MaximumObservedAcceptedFdrPoint": .01},
