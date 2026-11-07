@@ -122,4 +122,4 @@ erDiagram
 
 ## O que ainda não é invariante de Produção
 
-Não congelar aqui: limiares estatísticos, largura de zona cinzenta, scopes definitivos do balcão, RPO/RTO, política de retenção, ferramenta de monitoramento, autenticação PRODAM ou base legal/finalidade. Esses pontos permanecem em #31/#93/#378/#379/#408.
+Não congelar aqui: limiares estatísticos, largura de zona cinzenta, scopes definitivos do balcão, RPO/RTO, política de retenção, ferramenta de monitoramento, autenticação corporativa ou base legal/finalidade. Esses pontos permanecem em #31/#93/#378/#379/#408.
