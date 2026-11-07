@@ -8,7 +8,7 @@ on:
       - master
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.run_id }}
   cancel-in-progress: true
 
 permissions:
@@ -18,18 +18,18 @@ permissions:
 jobs:
   preflight:
     name: V3-only plan regression (no SQL)
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Bind to exact PR SHA; test V3-only contract
         env:
-          V3_SHA: ${{ github.event.pull_request.head.sha }}
+          V3_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$V3_SHA"
@@ -39,18 +39,18 @@ jobs:
   v3-train-physical:
     name: V3-only CSharp SQL 30k TRAIN (non-confirmatory)
     needs: preflight
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Bind SHA and repo-local PR to physical gate
         env:
-          V3_SHA: ${{ github.event.pull_request.head.sha }}
+          V3_SHA: ${{ github.sha }}
           V3_REF: ${{ format('refs/heads/{0}', github.head_ref) }}
         run: |
           set -euo pipefail
@@ -124,7 +124,7 @@ jobs:
       - name: Independently audit all physical V3 rows and 81-cell support
         working-directory: Solution
         env:
-          V3_APPROVED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          V3_APPROVED_HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -183,7 +183,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: v9-v3-direct-train-${{ github.run_id }}-${{ github.event.pull_request.head.sha }}
+          name: v9-v3-direct-train-${{ github.run_id }}-${{ github.sha }}
           retention-days: 90
           if-no-files-found: warn
           path: |
