@@ -320,9 +320,18 @@ public static class V9NestedCalibrationCoordinator
             if (requests.Length == 0) { stop = "DECLARED_NEIGHBOURHOOD_EXHAUSTED_NOT_GLOBAL_OPTIMALITY"; break; }
         }
         var finalists = V9TrainingParetoSelection.Finalists(frontier, calibration.RiskCeilings!, calibration.SelectionPolicy.MaximumAcceptedFdrUpper);
-        var duplicateSelections = (plan.DuplicateCandidatePolicies ?? new[] { "COUNT_ALL" })
+        // Reuse the already computed COUNT_ALL frontier; only COUNT_UNIQUE needs
+        // an additional Pareto pass. Never repeat physical SQL for selection policy.
+        var allEligibleCount = evaluations.Count(x => x.Candidate is not null
+            && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
+            && template.Option.EligibleForSelection && x.Candidate.Metric.ConflictMargin > 0m);
+        var duplicateSelections = (plan.SelectionDuplicatePolicies ?? new[] { "COUNT_ALL" })
             .Select(policy =>
             {
+                if (policy == "COUNT_ALL")
+                    return new V9DuplicatePolicySelection(policy, allEligibleCount,
+                        frontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
+                        finalists.Select(x => x.Snapshot.ContentSha256).ToArray());
                 var eligible = evaluations.Where(x => x.Candidate is not null
                     && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
                     && template.Option.EligibleForSelection && x.Candidate.Metric.ConflictMargin > 0m)
