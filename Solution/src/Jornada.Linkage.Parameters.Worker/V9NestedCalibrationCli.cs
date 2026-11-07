@@ -253,9 +253,12 @@ public static class V9NestedCalibrationCli
                             - (bilateral.Candidate!.Metric.Conflicts + bilateral.Candidate.Metric.Unresolved),
                 };
             }).ToArray();
+        var cpuCapacity = V9ParallelWork.InspectCpuCapacity(plan.Calibration.MaximumParallelRuleSets);
         var report = new
         {
             schema = "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1",
+            // Diagnostic only, never an input to fit, SHA, FDR or selection.
+            cpuCapacity,
             result.PlanSha256,
             originalMethodsAndParameterArrays = plan.MuEstimationMethods,
             declaredVariants = declared.Select(x => new { x.Method, x.Key, x.Policy }).ToArray(),
@@ -279,6 +282,19 @@ public static class V9NestedCalibrationCli
         md.AppendLine();
         md.AppendLine("Plano SHA-256: `" + result.PlanSha256 + "`. Somente espaço declarado; não houve TEST, certificação nem ativação.");
         md.AppendLine("O arquivo `mu-statistical-analysis.json` guarda todas as avaliações, inclusive recusas e valores M/U exatos.");
+        md.AppendLine();
+        md.AppendLine("## Diagnóstico de CPUs — execução");
+        md.AppendLine();
+        md.AppendLine("MaximumParallelRuleSets no plano: `" + cpuCapacity.ConfiguredMaximumParallelRuleSets
+            + "`; CPUs lógicas visíveis ao .NET: `"
+            + (cpuCapacity.DotNetVisibleLogicalProcessors?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "indisponível")
+            + "`; limite efetivo de workers: `" + cpuCapacity.EffectiveMaximumParallelRuleSets + "`.");
+        if (cpuCapacity.ExplicitWorkerCountBelowDetectedProcessors)
+            md.AppendLine("> **AVISO:** o paralelismo configurado é inferior à quantidade de CPUs lógicas detectadas pelo C#."
+                + " A execução foi respeitada sem ajuste automático; verifique a configuração se desejar utilizar mais workers.");
+        else if (cpuCapacity.DotNetVisibleLogicalProcessors is null)
+            md.AppendLine("> **AVISO:** a configuração manual foi respeitada, mas a contagem de CPUs visíveis ao .NET não pôde ser informada.");
+        md.AppendLine("O número de workers é um teto de tarefas simultâneas, não uma medição de utilização da CPU.");
         md.AppendLine();
         md.AppendLine("| Método | Cobertura | Min M | Min U | Cauda retida | Alpha | Threshold | Margem | TP | FP | Recall | FDR observada | Conflitos | Status | Snapshot |");
         md.AppendLine("|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|");

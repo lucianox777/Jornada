@@ -4,6 +4,34 @@ namespace Jornada.Linkage.Parameters.Worker;
 public static class V9ParallelWork
 {
     /// <summary>
+    /// Informational capacity comparison for physical statistical reports.
+    /// No CPU limits, defaults or statistical choices are changed by this object.
+    /// </summary>
+    public sealed record CpuCapacityDiagnostic(
+        int ConfiguredMaximumParallelRuleSets,
+        int? DotNetVisibleLogicalProcessors,
+        int EffectiveMaximumParallelRuleSets,
+        bool ExplicitWorkerCountBelowDetectedProcessors,
+        string? Notice);
+
+    public static CpuCapacityDiagnostic InspectCpuCapacity(
+        int configuredWorkers, int? visibleLogicalProcessors = null)
+    {
+        var effective = ResolveMaximumParallelism(configuredWorkers, visibleLogicalProcessors);
+        var visible = visibleLogicalProcessors ?? Environment.ProcessorCount;
+        if (visible <= 0)
+        {
+            // Explicit overrides do not require successful auto-detection.
+            // Do not invent a detected CPU count for the report.
+            return new(configuredWorkers, null, effective, false,
+                "CPUS_NAO_DETECTADAS_CONFIGURACAO_MANUAL");
+        }
+        var explicitlyBelow = configuredWorkers > 0 && effective < visible;
+        return new(configuredWorkers, visible, effective, explicitlyBelow,
+            explicitlyBelow ? "PARALELISMO_CONFIGURADO_INFERIOR_AS_CPUS_VISIVEIS_DOTNET" : null);
+    }
+
+    /// <summary>
     /// The existing worker count accepts 0 to use all logical processors
     /// available to this .NET process (including host/container CPU quotas).
     /// Explicit positive values remain possible for reproducible experiments.

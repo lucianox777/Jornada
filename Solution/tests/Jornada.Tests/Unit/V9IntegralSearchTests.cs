@@ -99,6 +99,37 @@ public sealed class V9IntegralSearchTests
     }
 
     [Test]
+    public void Cpu_capacity_report_warns_only_when_manual_workers_are_below_detected_vcpus()
+    {
+        foreach (var cpus in new[] { 1, 2, 4, 8, 16 })
+        {
+            var automatic = V9ParallelWork.InspectCpuCapacity(0, cpus);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(automatic.ConfiguredMaximumParallelRuleSets, Is.Zero);
+                Assert.That(automatic.DotNetVisibleLogicalProcessors, Is.EqualTo(cpus));
+                Assert.That(automatic.EffectiveMaximumParallelRuleSets, Is.EqualTo(cpus));
+                Assert.That(automatic.ExplicitWorkerCountBelowDetectedProcessors, Is.False);
+                Assert.That(automatic.Notice, Is.Null);
+            }));
+
+            var manual = V9ParallelWork.InspectCpuCapacity(1, cpus);
+            Assert.That(manual.ExplicitWorkerCountBelowDetectedProcessors, Is.EqualTo(cpus > 1));
+            Assert.That(manual.Notice is not null, Is.EqualTo(cpus > 1));
+            Assert.That(manual.EffectiveMaximumParallelRuleSets, Is.EqualTo(1));
+        }
+        Assert.That(V9ParallelWork.InspectCpuCapacity(2, 8).ExplicitWorkerCountBelowDetectedProcessors, Is.True);
+        Assert.That(V9ParallelWork.InspectCpuCapacity(8, 8).ExplicitWorkerCountBelowDetectedProcessors, Is.False);
+        Assert.That(V9ParallelWork.InspectCpuCapacity(12, 8).ExplicitWorkerCountBelowDetectedProcessors, Is.False);
+        var unknown = V9ParallelWork.InspectCpuCapacity(2, 0);
+        Assert.That(unknown.DotNetVisibleLogicalProcessors, Is.Null);
+        Assert.That(unknown.EffectiveMaximumParallelRuleSets, Is.EqualTo(2));
+        Assert.That(unknown.Notice, Is.Not.Null);
+        Assert.That((Action)(() => V9ParallelWork.InspectCpuCapacity(0, 0)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public async Task Parallel_map_really_overlaps_work_but_preserves_order_and_worker_bound()
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

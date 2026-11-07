@@ -193,3 +193,24 @@ a autodetecção falhar, pois um override explícito não a consulta. Essa
 política não contém fallback automático. O tempo, o número de workers
 efetivo e a RAM devem ser observados no mesmo ambiente físico, sem
 atribuir a detecção de CPUs a responsabilidade por todo possível OOM.
+
+### Aviso no relatório estatístico quando workers manuais < CPUs detectadas
+
+O relatório existente `mu-statistical-analysis.json` e sua apresentação
+`mu-statistical-analysis.md` incluem agora o diagnóstico **não inferencial**
+`cpuCapacity`: `ConfiguredMaximumParallelRuleSets`,
+`DotNetVisibleLogicalProcessors` (vCPUs lógicas vistas pelo processo C#),
+`EffectiveMaximumParallelRuleSets` e o código de `Notice`.
+**Somente se** o valor manual for positivo e menor que a contagem detectada,
+o relatório exibe **AVISO** de diferença de capacidade. No automático
+(`0`) o limite é exatamente o número detectado, sem aviso.
+
+É uma observação de configuração, **não** uma alteração automática do
+paralelismo, nem prova de uso real de 100% da CPU: o trabalho disponível,
+o SQL e a RAM ainda condicionam o uso. A detecção inválida em modo
+`0` continua **fail-closed**, e o override manual positivo continua
+válido. Se o contador .NET estiver indisponível no modo manual, o relatório
+não inventa um número e registra essa indisponibilidade.
+A comparação não muda plano, decisão científica, hashes de snapshots,
+M/U, TF, FDR, TEST ou publicação; apenas acrescenta campos ao relatório
+estatístico já gerado, sem criar arquivo de trabalho adicional.
