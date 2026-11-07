@@ -28,7 +28,11 @@ public sealed record V9PairedSourceRankReport(
     bool UFallbackCausalityEstablished = false,
     bool IndependentValidation = false,
     bool TestUsed = false,
-    bool Certified = false);
+    bool Certified = false,
+    long V2CorrectLostWithV3UMarginal = 0,
+    long V2CorrectLostWithV3UMixed = 0,
+    long V2CorrectRetainedWithV3UMarginal = 0,
+    long V2CorrectRetainedWithV3UMixed = 0);
 
 public static class V9PairedSourceRankAttribution
 {
@@ -42,11 +46,16 @@ public static class V9PairedSourceRankAttribution
 
     public static V9PairedSourceRankReport Compare(
         V9PhysicalSourceResolveMetric v2, V9PhysicalSourceResolveMetric v3,
-        IReadOnlySet<string> v3FallbackUCells)
+        IReadOnlySet<string> v3FallbackUCells,
+        IReadOnlySet<string>? v3MixedUCells = null)
     {
         ArgumentNullException.ThrowIfNull(v2);
         ArgumentNullException.ThrowIfNull(v3);
         ArgumentNullException.ThrowIfNull(v3FallbackUCells);
+        v3MixedUCells ??= new HashSet<string>(StringComparer.Ordinal);
+        if (v3FallbackUCells.Any(v3MixedUCells.Contains)
+            || v3MixedUCells.Any(c => !System.Text.RegularExpressions.Regex.IsMatch(c, @"^[0-8]/[0-8]$")))
+            throw new InvalidDataException("Marginal and mixed U cells must be disjoint and valid.");
         if (v2.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES"
             || v2.CandidateGrouping != v3.CandidateGrouping
             || v2.ConflictMargin != v3.ConflictMargin
@@ -67,6 +76,7 @@ public static class V9PairedSourceRankAttribution
         long ltp = 0, rtp = 0, lfp = 0, rfp = 0;
         long toConflict = 0, toUnresolved = 0, toWrong = 0, gains = 0;
         long fallbackLoss = 0, noFallbackLoss = 0, fallbackRetained = 0;
+        long marginalLoss = 0, mixedLoss = 0, marginalRetained = 0, mixedRetained = 0;
         long stableLost = 0, firstChangedLost = 0, gapCrossed = 0;
         long changedFirst = 0, changedSecond = 0, changedGroup = 0, compared = 0;
         var reasons = new Dictionary<string, long>(StringComparer.Ordinal);
@@ -93,14 +103,19 @@ public static class V9PairedSourceRankAttribution
             if (!groupSame) changedGroup++;
             var v3Fallback = (b.FirstCell is not null && v3FallbackUCells.Contains(b.FirstCell))
                 || (b.SecondCell is not null && v3FallbackUCells.Contains(b.SecondCell));
-            if (aCorrect && bCorrect && v3Fallback) fallbackRetained++;
+            var v3Mixed = (b.FirstCell is not null && v3MixedUCells.Contains(b.FirstCell))
+                || (b.SecondCell is not null && v3MixedUCells.Contains(b.SecondCell));
+            if (aCorrect && bCorrect && v3Fallback) { fallbackRetained++; marginalRetained++; }
+            if (aCorrect && bCorrect && v3Mixed) mixedRetained++;
             if (!aCorrect || bCorrect) continue;
             reasons[b.ResolveReason] = checked(reasons.GetValueOrDefault(b.ResolveReason) + 1);
             if (b.ResolveStatus == "CONFLITO") toConflict++;
             else if (b.ResolveStatus == "NAO_RESOLVIDO") toUnresolved++;
             else if (bWrong) toWrong++;
             else throw new InvalidDataException("Lost correct resolution has unknown successor.");
-            if (v3Fallback) fallbackLoss++; else noFallbackLoss++;
+            if (v3Fallback) { fallbackLoss++; marginalLoss++; }
+            else noFallbackLoss++;
+            if (v3Mixed) mixedLoss++;
             if (!firstSame) firstChangedLost++;
             if (firstSame && secondSame && groupSame) stableLost++;
             if (a.FirstLogOdds is { } a1 && a.SecondLogOdds is { } a2
@@ -135,7 +150,11 @@ public static class V9PairedSourceRankAttribution
             changedFirst, changedSecond, changedGroup, compared,
             new ReadOnlyDictionary<string, long>(reasons.OrderBy(x => x.Key, StringComparer.Ordinal)
                 .ToDictionary(x => x.Key, x => x.Value, StringComparer.Ordinal)),
-            new ReadOnlyDictionary<string, long>(bins));
+            new ReadOnlyDictionary<string, long>(bins),
+            V2CorrectLostWithV3UMarginal: marginalLoss,
+            V2CorrectLostWithV3UMixed: mixedLoss,
+            V2CorrectRetainedWithV3UMarginal: marginalRetained,
+            V2CorrectRetainedWithV3UMixed: mixedRetained);
     }
 
     private static void Validate(V9SourceTopTwoDiagnostic x)

@@ -439,6 +439,10 @@ public static class V9NestedCalibrationCli
                             .Where(c => c.MethodU == V9JointSupportEstimation.Marginal)
                             .Select(c => $"{(int)c.Person}/{(int)c.Mother}")
                             .ToHashSet(StringComparer.Ordinal);
+                        var mixedUCells = support.Cells
+                            .Where(c => c.MethodU == V9JointSupportEstimation.MixedU)
+                            .Select(c => $"{(int)c.Person}/{(int)c.Mother}")
+                            .ToHashSet(StringComparer.Ordinal);
                         return new
                         {
                             v2RequestSha256 = v2.RequestSha256,
@@ -448,7 +452,7 @@ public static class V9NestedCalibrationCli
                             blockingPassCount = left.Snapshot.Payload.BlockingPasses.Count,
                             candidatePairsSha256 = v2.CandidatePairsSha256,
                             pair = V9PairedSourceRankAttribution.Compare(
-                                left.Metric, right.Metric, fallbackUCells)
+                                left.Metric, right.Metric, fallbackUCells, mixedUCells)
                         };
                     });
             }).ToArray();

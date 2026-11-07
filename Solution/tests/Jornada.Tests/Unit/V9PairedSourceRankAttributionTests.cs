@@ -65,6 +65,23 @@ public sealed class V9PairedSourceRankAttributionTests
     }
 
     [Test]
+    public void Mixed_U_is_separate_from_marginal_and_private_ids_remain_unpublished()
+    {
+        var left = new[] { Row(1,"RESOLVIDO","RESOLVIDO",2m,1m,true) };
+        var right = new[] { Row(1,"CONFLITO","MARGEM_ENTRE_CANDIDATOS_INSUFICIENTE",2m,1.9m,true) };
+        var report = V9PairedSourceRankAttribution.Compare(
+            Metric("v2",left,1,0,0), Metric("v3",right,0,1,0),
+            new HashSet<string>(), new HashSet<string> {"1/2"});
+        Assert.That(report.V2CorrectLostWithV3UMixed, Is.EqualTo(1));
+        Assert.That(report.V2CorrectLostWithV3UMarginal, Is.Zero);
+        Assert.That(JsonSerializer.Serialize(report), Does.Not.Contain("SourceObservationId"));
+        Assert.That((Action)(() => V9PairedSourceRankAttribution.Compare(
+            Metric("v2",left,1,0,0), Metric("v3",right,0,1,0),
+            new HashSet<string> {"1/2"}, new HashSet<string> {"1/2"})),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Any_incomplete_source_or_changed_frame_fails_closed()
     {
         var baseRows = new[]
