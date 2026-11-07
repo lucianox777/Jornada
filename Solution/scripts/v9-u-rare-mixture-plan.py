@@ -68,7 +68,7 @@ def freeze(source_path, target_path, margin=.5, weights=None):
     # Preserve the two historical methods byte-for-byte in their method slots.
     # The third is a separately identifiable opt-in estimator family.
     if margin != .5:
-        plan["Calibration"]["ConflictMargins"] = [.25]
+        plan["Calibration"]["ConflictMargins"] = [margin]
     methods.append({"Method": MIXED_FAMILY, "Parameters": {
         **methods[1]["Parameters"], "UBackoffJointMixtureWeights": weights
     }})
