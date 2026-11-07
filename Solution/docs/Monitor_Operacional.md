@@ -7,7 +7,7 @@
 > [Console DEV](Console_DEV_Supervisao_Atual.md). O painel de
 > workers consulta estado efetivo Docker/SQL, mas a observação
 > no CI não equivale a monitoramento corporativo homologado,
-> identidade PRODAM, SLA de Produção ou histórico de eventos
+> identidade corporativa, SLA de Produção ou histórico de eventos
 > durável. Para mapa de módulos e fontes consulte
 > [Manual integrado](Manual_Sistema_Consolidado_20261009.md).
 >
@@ -15,7 +15,7 @@
 
 ## Objetivo
 
-O Monitor Operacional responde **o que a Jornada está fazendo agora** e se os nós pertencem à mesma implantação técnica. Ele é uma superfície somente-leitura da aplicação e não substitui o monitoramento de infraestrutura da PRODAM.
+O Monitor Operacional responde **o que a Jornada está fazendo agora** e se os nós pertencem à mesma implantação técnica. Ele é uma superfície somente-leitura da aplicação e não substitui o monitoramento de infraestrutura da equipe de operação designada.
 
 **Fronteira com a [DT-15](DT15_Governanca_Decisao_Modelo.md):** o monitor continua read-only e exibe somente o modelo ATIVO, sinais agregados de um RASCUNHO/comparativo e alertas. A decisão **ATIVO × RASCUNHO** será apresentada em **página independente e restrita ao operador master** (`/governanca/modelos`, **prévia read-only em Development**; a página de decisão master em HML/Produção permanece proposta e **ainda não implementada**), com histórico compacto secundário, justificativa, evidência vinculada e ações autorizadas. Não ampliar o alcance de `jornada.monitor.read` para ler parâmetros sensíveis ou executar `VALIDATE`/`ACTIVATE`. Link de navegação, quando implementado, aparece somente ao perfil autorizado.
 
@@ -174,7 +174,7 @@ O bloco `Linkage · governança do modelo` é separado da lista de execuções. 
 - estado explícito da validação estatística representativa: `PENDENTE_ISSUE_31`;
 - últimas transições persistidas em `auditoria.modelo_linkage_estado_evento`.
 
-A trilha de transição é append-only e registra executor **técnico** (aplicação/login/host), estado anterior/novo e operação inferida. Ela não fabrica autoria humana/corporativa: essa identidade depende da integração PRODAM da issue #378.
+A trilha de transição é append-only e registra executor **técnico** (aplicação/login/host), estado anterior/novo e operação inferida. Ela não fabrica autoria humana/corporativa: essa identidade depende da integração corporativa de identidade da issue #378.
 
 Esta fatia deliberadamente **não expõe T_LINKAGE, margem ou outros parâmetros sensíveis no monitor**. A política de quem pode enxergar esses valores em HML/PRD depende das issues #378/#379. A promoção continua sem rota de mutação no `/monitor`.
 
