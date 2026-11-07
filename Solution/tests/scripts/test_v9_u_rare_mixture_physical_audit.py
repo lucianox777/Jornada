@@ -118,6 +118,18 @@ class PhysicalAuditTests(unittest.TestCase):
                          [None, 0, .25, .5, 1])
         self.assertEqual(result["sha256"]["plan"], audit.digest(self.plan))
 
+    def test_receipt_source_plan_is_in_public_aggregate_artifact(self):
+        # The physical receipt hashes 'sourcePlan'. A checksum without the
+        # corresponding non-private source-plan artifact cannot be verified
+        # independently by the user after the GitHub job finishes.
+        root = Path(__file__).resolve().parents[3]
+        workflow = (root / ".github/workflows/v9-u-rare-mixture-physical.yml").read_text(
+            encoding="utf-8")
+        publish = workflow.split("      - name: Publish only plan, aggregate research", 1)[1]
+        self.assertIn("/source-nested-plan.json", publish)
+        self.assertNotIn("/results/*.selection.json", publish)
+        self.assertNotIn("/people-30k/observacoes.csv", publish)
+
     def test_quarter_margin_is_a_separate_valid_sensitivity(self):
         self.objects = payload(.25)
         outcome = self.verify()

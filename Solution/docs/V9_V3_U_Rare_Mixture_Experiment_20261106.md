@@ -462,3 +462,60 @@ certificação automática de 30k ou ativação DT-15.
 concluir no SHA exato, com `lambda=0` numericamente idêntico à
 V3 histórica. Se o teste falhar, registrar a causa antes de mudar
 o método ou a auditoria; nunca diminuir hipóteses para passar CI.
+
+### Evidência física da mistura rara — seed42, 07/11/2026 (HEAD 0f180021)
+
+A campanha física pré-declarada executou **48 avaliações**, em dois jobs
+independentes de 24 configurações cada: margem primária `0.5` e
+sensibilidade `0.25`, ambas com TF0 e ONE_MF, 3/19 passes,
+V2, V3 e `lambda=0,.25,.5,1`. Workflow
+`v9-u-rare-mixture-physical-train`, run `42343493885`, SHA
+`0f180021263c48d46c00c445bc400ba14882b89c`.
+Artefatos `13562219158` (0.5) e `13563570659` (0.25).
+`24/24` avaliações e `0` falsos aceitos observados por margem;
+`lambda=0` foi numericamente idêntico à V3 histórica.
+As 81 células M/U, hashes SQL, identidade das hipóteses e limites
+condicionais foram auditados, sem TEST, Gold ou ativação.
+
+**Três passes, 7.011 fontes elegíveis — TP por modelo:**
+
+| Margem / TF | V2 | V3 | λ=0 | λ=0,25 | λ=0,5 | λ=1 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 0,5 / TF0 | 6758 | 6306 | 6306 | **6771** | 6758 | 6758 |
+| 0,5 / ONE_MF | 6702 | **6771** | **6771** | 6715 | 6707 | 6702 |
+| 0,25 / TF0 | 6759 | 6704 | 6704 | **6774** | 6767 | 6759 |
+| 0,25 / ONE_MF | 6761 | 6772 | 6772 | 6718 | **6775** | 6761 |
+
+**Critério primário pré-declarado:** não basta recuperar TF0;
+a alternativa não deve piorar ONE_MF. `lambda=0.25` restaura
+`+465 TP` de TF0 na margem 0.5 (6306→6771), mas **perde
+56 TP de ONE_MF** ante V3 original (6771→6715). `lambda=0.5`
+restaura TF0 até a V2 (6758), mas perde 64 TP na ONE_MF
+ante V3 (6771→6707). `lambda=1` replica o TP da V2 nos
+dois braços e não oferece vantagem na ONE_MF. **Nenhum peso
+comum satisfaz simultaneamente os dois critérios na margem
+primária**, de modo que nenhuma mistura fica eleita.
+A sensibilidade 0.25 tem `lambda=0.5` melhorando ambos os
+braços contra V3 (TF0 +63 TP, ONE_MF +3 TP), mas não pode
+substituir a hipótese primária após observar o resultado.
+
+Todas as **19-pass** foram rejeitadas pelo limite de fanout,
+apesar do recall alto e FP=0. O zero de FP em corpus sintético
+conhecido **não prova** FDR verdadeiro abaixo de 1%; os limites
+condicionais não são independentes e não certificam nenhuma opção.
+A resposta de TF0 a λ acrescenta evidência do papel da
+**intervenção em U**, mas ainda não demonstra a causa isolada do
+fallback porque os scores, rankings e agrupamentos também mudam.
+É indispensável separar esses efeitos em protocolo independente
+antes de escolher parâmetro ou autorizar DT-15.
+
+**Correção de proveniência posterior à campanha:** cada recibo
+`receipt.json` já continha o digest `fileSha256.sourcePlan`,
+mas o ZIP publicado não incluía `source-nested-plan.json`.
+O novo upload inclui **somente esse plano sintético sem PII**,
+permitindo conferir os bytes deste elo no SHA de novos jobs; foi
+adicionado teste de não regressão. A evidência anterior continua
+válida quanto aos arquivos efetivamente publicados, mas não
+ganha retroativamente a verificação independente desse elo.
+Nenhuma modificação de score, calibração, regra de decisão ou
+certificação estatística decorre dessa correção documental.

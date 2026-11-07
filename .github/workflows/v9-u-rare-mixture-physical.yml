@@ -172,10 +172,13 @@ jobs:
           name: v9-u-rare-mixture-${{ matrix.label }}-${{ github.run_id }}-${{ env.EXPERIMENT_SHA }}
           retention-days: 90
           if-no-files-found: warn
+          # receipt.json hashes sourcePlan: include its actual metadata bytes
+          # for independent SHA verification without exporting raw identities.
           path: |
             Solution/.local/v9-u-rare-physical-${{ matrix.label }}/sha-verified.json
             Solution/.local/v9-u-rare-physical-${{ matrix.label }}/pinned-ibge.json
             Solution/.local/v9-u-rare-physical-${{ matrix.label }}/mixture-plan.json
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/source-nested-plan.json
             Solution/.local/v9-u-rare-physical-${{ matrix.label }}/plan-receipt.json
             Solution/.local/v9-u-rare-physical-${{ matrix.label }}/physical-audit.json
             Solution/.local/v9-u-rare-physical-${{ matrix.label }}/receipt.json
