@@ -55,7 +55,7 @@ nodes[].dataRoot        -> raiz operacional local do host
 
 É válido que NODE1 e NODE2 tenham o mesmo texto para `D:\Jornada\staging`: como são VMs diferentes, os discos continuam locais e independentes.
 
-Em produção, `storage.bronzeRoot` deve apontar para o compartilhamento NAS homologado. O dimensionamento físico de vCPU/RAM/SAN/NAS é requisito de infraestrutura a ser homologado com a PRODAM; não é embutido no software nem inferido pelo diagrama.
+Em produção, `storage.bronzeRoot` deve apontar para o compartilhamento NAS homologado. O dimensionamento físico de vCPU/RAM/SAN/NAS é requisito de infraestrutura a ser homologado com a equipe de infraestrutura designada; não é embutido no software nem inferido pelo diagrama.
 
 ## Produção
 
