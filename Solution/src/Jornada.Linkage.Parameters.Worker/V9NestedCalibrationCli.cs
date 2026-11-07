@@ -474,6 +474,7 @@ public static class V9NestedCalibrationCli
             conditionalFdrBoundsNotCertified = true,
             testUsed = false, activated = false,
             finalistSnapshotShas = result.FinalistSnapshotShas,
+            duplicateCandidatePolicySelections = result.DuplicatePolicySelections,
             result.StopReason,
             surnameDependenceComparisons = surnameComparisons,
             pairedSourceRankAttribution = pairedSourceRank,
