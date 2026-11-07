@@ -14,7 +14,7 @@ spec.loader.exec_module(audit)
 
 
 def payload(margin=.5):
-    policy = {"ClassMassCoverage": .99, "MinimumObservedMPerCell": [5],
+    policy = {"ClassMassCoverage": [.99], "MinimumObservedMPerCell": [5],
               "MinimumObservedUPerCell": [5], "RetainSupportedTail": [True]}
     methods = [{"Method": audit.V2},
                {"Method": audit.V3, "Parameters": dict(policy)},
