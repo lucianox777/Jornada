@@ -10,23 +10,23 @@ permissions:
   actions: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  group: ${{ github.workflow }}-${{ github.run_id }}
   cancel-in-progress: true
 
 jobs:
   plan-pair:
     name: Both surname assumptions in one V3 plan
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Validate source SHA
         env:
-          EXPECTED_SHA: ${{ github.event.pull_request.head.sha }}
+          EXPECTED_SHA: ${{ github.sha }}
         run: test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - run: |
           python3 -m py_compile Solution/scripts/v9-v3-direct-plan.py
@@ -35,13 +35,13 @@ jobs:
   csharp:
     name: CSharp calibrator and paired diagnostic compile
     needs: plan-pair
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
           persist-credentials: false
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
@@ -60,19 +60,19 @@ jobs:
   v3-train-paired:
     name: V3 plan.json to CSharp SQL paired TRAIN (diagnostic only)
     needs: csharp
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/master')
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Bind plan and runner to exact pull request SHA
         env:
-          V3_SHA: ${{ github.event.pull_request.head.sha }}
-          V3_REF: ${{ format('refs/heads/{0}', github.head_ref) }}
+          V3_SHA: ${{ github.sha }}
+          V3_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$V3_SHA"
@@ -157,7 +157,7 @@ jobs:
       - name: Prove paired measurements and non-promotion from CSharp output
         working-directory: Solution
         env:
-          V3_APPROVED_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          V3_APPROVED_HEAD_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -216,7 +216,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: v9-v3-surname-paired-${{ github.run_id }}-${{ github.event.pull_request.head.sha }}
+          name: v9-v3-surname-paired-${{ github.run_id }}-${{ github.sha }}
           retention-days: 90
           if-no-files-found: warn
           path: |

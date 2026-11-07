@@ -172,7 +172,7 @@ def test_dt10_reusable_job_has_same_gate_and_real_sql_acceptance():
     assert block, "DT10 caller status check missing"
     body = block.group(1)
     assert "needs: [impact, dependency-lock]" in body, "DT10 lost verified NuGet dependency"
-    assert "github.event_name == 'pull_request'" in body
+    assert "github.event_name == 'push'" in body
     assert "needs.impact.outputs.run_dt10 == 'true'" in body
     assert "needs.dependency-lock.result == 'success'" in body
     assert "uses: ./.github/workflows/dt10-evidence.yml" in body
@@ -267,3 +267,54 @@ class CiGateContractTests(unittest.TestCase):
 
     def test_dt10_reusable(self):
         test_dt10_reusable_job_has_same_gate_and_real_sql_acceptance()
+
+
+
+class TestMasterPushPhysicalWorkflowPolicy(__import__("unittest").TestCase):
+    """Run by fast PR gate as fail-closed physical-workflow preflight."""
+
+    def test_full_master_ci_and_required_fast_pr_checks(self):
+        full = WORKFLOW.read_text(encoding="utf-8")
+        fast = (ROOT / ".github/workflows/jornada-pr-required-fast.yml").read_text(encoding="utf-8")
+        self.assertIn("  push:", full)
+        self.assertIn("  workflow_dispatch:", full)
+        self.assertNotIn("  pull_request:", full)
+        self.assertIn("  pull_request:", fast)
+        for name in ("unit-runtime", "deterministic-build", "security-guards"):
+            self.assertIn("  " + name + ":", fast)
+
+    def test_physical_workflows_have_sha_and_branch_on_push(self):
+        files = (
+            "v9-v3-direct-physical.yml", "v9-v3-broad-train-regression.yml",
+            "v9-mu-seed42-technical-regression.yml", "v9-mu-tf0-controlled-same-frame.yml",
+            "v9-v3-surname-dependence-plan.yml",
+        )
+        for filename in files:
+            with self.subTest(filename=filename):
+                data = (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8")
+                self.assertIn("  push:", data)
+                self.assertIn("github.sha", data)
+                self.assertNotIn("github.event.pull_request.head.sha", data)
+                self.assertNotIn("github.event.pull_request.head.repo", data)
+                self.assertNotIn("github.head_ref", data)
+                self.assertIn("github.ref", data)
+
+    def test_30k_push_diff_and_job_cannot_be_skipped_silently(self):
+        data = (ROOT / ".github/workflows/v9-physical-seed42-probe.yml").read_text(encoding="utf-8")
+        # Never trust only the immediately previous push: earlier failed
+        # physical changes remain uncovered until a real SQL 30k succeeds.
+        self.assertNotIn("github.event.before", data)
+        self.assertIn("v9-physical-coverage-baseline.py", data)
+        self.assertIn("--no-validated-baseline", data)
+        self.assertIn("git merge-base --is-ancestor", data)
+        self.assertIn("BASE_SHA=", data)
+        self.assertIn("CHECKOUT_SHA: ${{ github.sha }}", data)
+        self.assertIn("github.event_name == 'push' ||", data)
+        self.assertIn("--mode auto_30k", data)
+        self.assertIn('"$PHYSICAL_RESULT" == "success"', data)
+        self.assertIn("v9-tf-ref-provenance-gate.py", data)
+        self.assertIn("NOT_REQUIRED_FOR_THIS_DIFF", data)
+        self.assertNotIn("TF_SHA: ${{ github.event.pull_request.head.sha", data)
+        fast = (ROOT / ".github/workflows/jornada-pr-required-fast.yml").read_text(encoding="utf-8")
+        for tag in ("actions/checkout@v4", "actions/setup-python@v5", "actions/setup-dotnet@v4"):
+            self.assertNotIn(tag, fast)

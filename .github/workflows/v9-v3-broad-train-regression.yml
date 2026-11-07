@@ -19,12 +19,12 @@ permissions:
   actions: read
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  group: ${{ github.workflow }}-${{ github.run_id }}
   cancel-in-progress: true
 
 jobs:
   broad-physical:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')
     name: V3 1% FDR — ${{ matrix.family }} seed${{ matrix.seed }} (TRAIN only)
     runs-on: ubuntu-latest
     timeout-minutes: 360
@@ -42,7 +42,7 @@ jobs:
       V3_FAMILY: ${{ matrix.family }}
       V3_SEED: ${{ matrix.seed }}
       V9_TF_TARGET_SEED: ${{ matrix.seed }}
-      EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.event.pull_request.head.sha }}
+      EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.sha }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:

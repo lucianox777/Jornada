@@ -9,21 +9,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
           python-version: '3.12'
       - name: Essential V9 contract tests
         run: |
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_plan.py'
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_physical_coverage_baseline.py'
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_physical_impact_classifier.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_physical_audit.py'
           python3 -m unittest discover -s Solution/tests/fixtures -p 'test_v9*.py'
   deterministic-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.113'
       - name: Compile production solution
@@ -33,7 +35,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Repository safety and CI contract gates
         run: |
           python3 Solution/scripts/v9-csharp-comment-escaped-newline-gate.py
