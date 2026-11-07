@@ -67,7 +67,7 @@ jobs:
           BASE_SHA: ${{ github.event_name == 'push' && github.event.before || github.event.pull_request.base.sha }}
           CHECKOUT_SHA: ${{ github.sha }}
           EVENT_NAME: ${{ github.event_name }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         run: |
@@ -196,7 +196,7 @@ jobs:
           fetch-depth: 0
           # Exact commit: bind the physical fit to the
           # exact master push commit, not to a moving branch ref.
-          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.sha }}
       - name: Prove exact master push or manual SHA before starting SQL
         env:
           TF_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.sha }}
@@ -360,7 +360,7 @@ jobs:
           REQUIRES_PHYSICAL: ${{ needs.impact.outputs.run_physical_30k }}
           PHYSICAL_RESULT: ${{ needs.physical-30k.result }}
           EVENT_NAME: ${{ github.event_name }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          HEAD_SHA: ${{ github.sha }}
           GH_TOKEN: ${{ github.token }}
           REPOSITORY: ${{ github.repository }}
         run: |
