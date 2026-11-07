@@ -84,8 +84,13 @@ def payload(margin=.5, weights=None):
         "originalMethodsAndParameterArrays": methods,
         "declaredVariantCount": 2 + len(weights), "evaluations": count, "measured": count,
         "duplicateCandidatePolicySelections": [
-            {"Policy": name, "EligibleHypotheses": count if name == "COUNT_ALL" else count - (4 if 0 in weights else 0),
-             "FrontierSnapshotShas": [], "FinalistSnapshotShas": [], "IndependentlyCertified": False}
+            {"Policy": name,
+             "EligibleHypotheses": count - (4 if 0 in weights else 0),
+             "PhysicalHypotheses": count,
+             "DescriptiveMultiplicityHypotheses": (
+                 count if name == "COUNT_ALL" else count - (4 if 0 in weights else 0)),
+             "FrontierSnapshotShas": [], "FinalistSnapshotShas": [],
+             "IndependentlyCertified": False}
             for name in ("COUNT_ALL", "COUNT_UNIQUE")],
         "rows": rows
     }
@@ -116,7 +121,9 @@ class PhysicalAuditTests(unittest.TestCase):
         result = self.verify()
         self.assertEqual(result["physicalComparisons"], 24)
         policies = result["duplicateCandidatePolicyComparisons"]
-        self.assertEqual([p["eligibleHypotheses"] for p in policies], [24, 20])
+        self.assertEqual([p["eligibleHypotheses"] for p in policies], [20, 20])
+        self.assertEqual([p["physicalHypotheses"] for p in policies], [24, 24])
+        self.assertEqual([p["descriptiveMultiplicityHypotheses"] for p in policies], [24, 20])
         self.assertEqual(len(policies[1]["equivalentGroups"]), 4)
         self.assertFalse(policies[1]["statisticalSelectionCertified"])
         self.assertEqual(len(result["comparisons"]), 4)

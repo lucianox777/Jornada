@@ -66,6 +66,19 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public void Lambda_zero_U_mix_is_numeric_witness_and_not_an_independent_candidate()
+    {
+        Assert.That(V9NestedCalibrationCoordinator.IsUZeroWitness(
+            "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE", 0m), Is.True);
+        Assert.That(V9NestedCalibrationCoordinator.IsUZeroWitness(
+            "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE", .25m), Is.False);
+        Assert.That(V9NestedCalibrationCoordinator.IsUZeroWitness(
+            "CLASSWISE_SUPPORT_BACKOFF", null), Is.False);
+        Assert.That(V9NestedCalibrationCoordinator.IsUZeroWitness(
+            "DEFAULT", 0m), Is.False);
+    }
+
+    [Test]
     public void Calibrador_reserves_real_10KiB_and_rewrites_only_the_last_error_in_place()
     {
         var output = Path.Combine(Path.GetTempPath(), "v9-calibrador-log-" + Guid.NewGuid().ToString("N"));
