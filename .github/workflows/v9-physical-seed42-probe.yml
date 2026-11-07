@@ -1,7 +1,9 @@
 name: v9-physical-seed42-probe
 
 on:
-  pull_request:
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       mode:
