@@ -86,7 +86,7 @@ class BroadV3AuditTests(unittest.TestCase):
         # The first physical surname/seed42 trial hit OOM AFTER reporting
         # all 160 configurations. A successful 64-case subset is not a
         # comparable RAM regression and must fail closed at the audit gate.
-        plan, report = fixture()
+        plan, report = self.payload
         policies = []
         for coverage in (.95, .99):
             for minimum_m in (1, 5):
