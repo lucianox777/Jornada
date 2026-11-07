@@ -30,7 +30,7 @@ jobs:
       - name: Bind technical 30k experiment to exact same-repository PR head
         env:
           MU_SHA: ${{ github.sha }}
-          MU_REF: ${{ format('refs/heads/{0}', github.head_ref) }}
+          MU_REF: ${{ github.ref }}
         run: |
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "$MU_SHA"
