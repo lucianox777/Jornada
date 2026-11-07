@@ -142,7 +142,13 @@ def freeze(source_plan, destination):
     result["MaximumSearchConfigurations"] = BUDGET
     result["Calibration"]["MaximumComparedConfigurations"] = BUDGET
     result["Calibration"]["MaximumPhysicalRuleSets"] = 2
-    result["Calibration"]["MaximumParallelRuleSets"] = min(2, result["Calibration"]["MaximumParallelRuleSets"])
+    # 0 means native .NET auto-detection of visible logical CPUs. Do not
+    # clamp it into a positive worker count or turn it into a failed gate;
+    # manual overrides >2 remain capped in this historical diagnostic.
+    workers = result["Calibration"]["MaximumParallelRuleSets"]
+    if type(workers) is not int or workers < 0:
+        raise ValueError("MaximumParallelRuleSets must be 0 (auto) or a positive integer")
+    result["Calibration"]["MaximumParallelRuleSets"] = min(2, workers)
     # The existing physical post-Resolve selector (V9PostResolveAdaptiveSelector)
     # requires a predeclared accepted FDR budget <= 0.01. The exploratory TF
     # producer uses 1.0: narrow it here, NEVER change the selector or relax
@@ -153,7 +159,7 @@ def freeze(source_plan, destination):
         0.01, result["Calibration"]["SelectionPolicy"]["MaximumAcceptedFdrUpper"])
     # Exactly four paired initial comparisons: two policies x one TF x one
     # margin x {19-pass catalogue, historical three-pass baseline}. No tuning.
-    if not (result["MaximumBatches"] >= 1 and result["Calibration"]["MaximumParallelRuleSets"] >= 1
+    if not (result["MaximumBatches"] >= 1 and result["Calibration"]["MaximumParallelRuleSets"] >= 0
             and result["Calibration"].get("Execution", {}).get("EndToEndRepetitions", 0) >= 20):
         raise ValueError("Original train plan lacks required physical execution budget")
     identity = _sha((VERSION + "|" + _sha(raw) + "|" + json.dumps(

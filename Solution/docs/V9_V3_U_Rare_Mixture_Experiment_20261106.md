@@ -159,3 +159,20 @@ Na comparação física do OOM, documentar o valor efetivo de CPUs e a
 concorrência, pois estudos executados com 1, 2 ou todas as vCPUs não são
 benchmarks de performance diretamente comparáveis. Reproduzir a falha com
 o mesmo corpus/seed e registrar resultados físicos no SHA exato.
+
+### Compatibilidade dos planos físicos V2 × V3 com CPU automática (07/11/2026 UTC)
+
+O commit que introduziu `MaximumParallelRuleSets=0` para CPUs visíveis
+falhou nos gates `v9-mu-seed42-technical-regression` (run
+`42317187489`) e `v9-mu-tf0-controlled-same-frame` (run
+`42317187465`): o builder Python `v9-mu-historical-plan.py` ainda
+exigia `MaximumParallelRuleSets >= 1` e abortou antes da execução
+física com `Original train plan lacks required physical execution budget`.
+
+O contrato corrigido reconhece **0 como autodetecção nativa do .NET**
+nesses planos, preserva os valores positivos explícitos (e o cap de
+diagnóstico histórico de 2 quando houver override) e recusa negativos,
+booleanos e tipos incorretos. Há regressões offline tanto no plano
+histórico quanto na comparação TF0 × ONE_MF. Não são resultados físicos
+nem alteração de FDR, seed, M/U, TF, TEST ou DT-15. Os dois gates precisam
+ser reexecutados no SHA atualizado antes de merge.
