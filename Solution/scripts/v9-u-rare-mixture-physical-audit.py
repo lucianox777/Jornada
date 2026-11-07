@@ -227,6 +227,13 @@ def audit(plan_file, report_file, selection_file):
                                  "recall": historical["recall"]},
                 "alternatives": series
             })
+    actual_selections = report.get("duplicateCandidatePolicySelections")
+    require(isinstance(actual_selections, list) and
+            [x.get("Policy") for x in actual_selections] == policies and
+            all(isinstance(x.get("FrontierSnapshotShas"), list) and
+                isinstance(x.get("FinalistSnapshotShas"), list) and
+                x.get("IndependentlyCertified") is False for x in actual_selections),
+            "Calibrator did not execute both declared selection policies")
     # Compare predeclared candidate accounting policies on the same physical evidence.
     # Only lambda=0 / historical V3 parity is proven; no outcome-based clustering.
     policy_comparisons = []
@@ -275,6 +282,7 @@ def audit(plan_file, report_file, selection_file):
         "uFallbackCausalityEstablished": False,
         "comparisons": comparisons,
         "duplicateCandidatePolicyComparisons": policy_comparisons,
+        "calibratorPolicySelections": actual_selections,
         "conclusion": "DESCRIPTIVE_ONLY_NO_PARAM_SELECTION_OR_OPERATIONAL_AUTHORIZATION"
     }
 
