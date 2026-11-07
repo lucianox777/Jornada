@@ -90,7 +90,7 @@ public sealed class V9IntegralSearchTests
         foreach (var invalidCpuCount in new[] { 0, -1 })
         {
             var error = Assert.Throws<InvalidDataException>(
-                () => V9ParallelWork.ResolveMaximumParallelism(0, invalidCpuCount));
+                (Action)(() => V9ParallelWork.ResolveMaximumParallelism(0, invalidCpuCount)));
             Assert.That(error!.Message, Does.Contain("MaximumParallelRuleSets"));
         }
         // Manual legacy override must still work even if autodetection is broken.
