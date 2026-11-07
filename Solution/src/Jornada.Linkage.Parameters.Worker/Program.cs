@@ -18,7 +18,17 @@ if (args.Length > 0 && args[0] == "--v9-prepare-gold-runner")
 
 if (args.Length > 0 && args[0] is "--v9-calibrate" or "--v9-validate-finalists")
 {
-    await V9NestedCalibrationCli.RunAsync(args);
+    try
+    {
+        await V9NestedCalibrationCli.RunAsync(args);
+    }
+    catch (Exception)
+    {
+        // RunAsync has already written a safe failure code and reserved-log
+        // record; never allow .NET's unhandled-exception handler to print
+        // full exception.Message/stack/connection strings to public stderr.
+        Environment.ExitCode = 1;
+    }
     return;
 }
 
