@@ -50,6 +50,18 @@ class Tf0ControlledPlanTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             self.run_freeze()
 
+
+    def test_auto_cpu_default_is_preserved_for_exact_same_tf0_and_one_mf(self):
+        self.base["Calibration"]["MaximumParallelRuleSets"] = 0
+        self.run_freeze()
+        result = json.loads(self.output.read_text())
+        self.assertEqual(result["Calibration"]["MaximumParallelRuleSets"], 0)
+        self.assertEqual(result["MaximumSearchConfigurations"], 8)
+        self.assertEqual(result["Calibration"]["Budget"]["MaximumObservedAcceptedFdrPoint"], .01)
+        self.assertEqual(result["Calibration"]["SelectionPolicy"]["MaximumAcceptedFdrUpper"], .01)
+        self.assertEqual([o["OptionId"] for o in result["Calibration"]["ModelOptions"]],
+                         [control.TF0,control.ONE_MF])
+
     def test_canonical_tf0_matches_legacy_numeric_baseline_and_no_hidden_tf(self):
         control_tf0=self.base["Calibration"]["ModelOptions"][0]
         self.assertEqual(set(control_tf0),{"OptionId","SmoothingAlpha","DecisionThreshold","TfWeight"})

@@ -73,6 +73,34 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void Multiple_frozen_snapshots_do_not_retain_an_extra_serialized_JSON_buffer()
+    {
+        var fields = typeof(V9FittedSnapshot).GetFields(
+            System.Reflection.BindingFlags.Instance |
+            System.Reflection.BindingFlags.NonPublic |
+            System.Reflection.BindingFlags.Public);
+        Assert.That(fields.Any(f => f.FieldType == typeof(byte[])), Is.False,
+            "Serialização canônica deve ser temporária; os fits TF da busca já mantêm estruturas congeladas na RAM.");
+
+        var payload = Payload();
+        var snapshots = Enumerable.Range(0, 12)
+            .Select(index => V9FittedSnapshot.Create(
+                payload with { Threshold = .80m + index * .01m })).ToArray();
+        foreach (var snapshot in snapshots)
+        {
+            var first = snapshot.SerializeUtf8();
+            var second = snapshot.SerializeUtf8();
+            Assert.That(second, Is.EqualTo(first));
+            Assert.That(Convert.ToHexString(SHA256.HashData(first)).ToLowerInvariant(),
+                Is.EqualTo(snapshot.ContentSha256));
+            second[0] = 0; // defensive-copy contract
+            Assert.That(snapshot.SerializeUtf8(), Is.EqualTo(first));
+            Assert.That(V9FittedSnapshot.Load(first, snapshot.ContentSha256).SerializeUtf8(),
+                Is.EqualTo(first));
+        }
+    }
+
+    [Test]
     public void Pinned_snapshot_roundtrips_and_runs_same_shared_resolve_without_retraining()
     {
         var snapshot = V9FittedSnapshot.Create(Payload());

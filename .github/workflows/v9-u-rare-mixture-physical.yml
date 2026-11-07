@@ -1,0 +1,193 @@
+name: v9-u-rare-mixture-physical-train
+
+# Synthetic TRAIN only. This is an explicitly precommitted technical study,
+# NOT the manual 30k certification, independent Gold, or DT-15 activation.
+# Both margins run in distinct disposable SQL instances on isolated runners.
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Exact immutable 40-character SHA for TRAIN-only diagnostics'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  physical:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    name: V2 + V3 + U-rare TRAIN margin ${{ matrix.margin }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {margin: '0.5', label: m050, role: PRIMARY}
+          - {margin: '0.25', label: m025, role: PREDECLARED_SENSITIVITY}
+    env:
+      EXPERIMENT_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.event.pull_request.head.sha }}
+      RESEARCH_MARGIN: ${{ matrix.margin }}
+      RESEARCH_LABEL: ${{ matrix.label }}
+      RESEARCH_ROLE: ${{ matrix.role }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.EXPERIMENT_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind exact SHA and run both offline fail-closed study suites
+        run: |
+          set -euo pipefail
+          [[ "$EXPERIMENT_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPERIMENT_SHA"
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_plan.py' -v
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_physical_audit.py' -v
+          python3 -m py_compile Solution/scripts/v9-u-rare-mixture-physical-audit.py Solution/scripts/v9-u-rare-mixture-plan.py
+          mkdir -p "Solution/.local/v9-u-rare-physical-$RESEARCH_LABEL"
+          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+            --mode auto_30k --expected-sha "$EXPERIMENT_SHA" \
+            --ref "refs/heads/${{ github.head_ref || github.ref_name }}" \
+            --output "Solution/.local/v9-u-rare-physical-$RESEARCH_LABEL/sha-verified.json"
+      - name: Start one disposable SQL Server
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Compile frozen generator and one CSharp Calibrador
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Reproduce known clean 30k seed42 with pinned reference, no TEST
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-u-rare-physical-$RESEARCH_LABEL"
+          test -z "${V9_TF_TARGET_SEED:-}"
+          bash scripts/v9-tf-prepare-pin.sh "$root" pinned-ibge.json
+          python3 scripts/v9-tf-ref-provenance-gate.py \
+            --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
+            --reference data/reference/v9-synthetic-seed42-30000/manifest.json
+      - name: Freeze explicitly declared options, TF0/ONE, 3/19 passes, stated margin
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-u-rare-physical-$RESEARCH_LABEL"
+          python3 scripts/v9-nested-calibration-study.py \
+            "$root/people-30k/observacoes.csv" "$root/source-nested-plan.json" \
+            --tf-search --pinned-ibge "$root/pinned-ibge.json"
+          python3 scripts/v9-u-rare-mixture-plan.py \
+            "$root/source-nested-plan.json" "$root/mixture-plan.json" \
+            --config data/calibration/v9/u-rare-mixture-train/experiment.json \
+            --margin "$RESEARCH_MARGIN" > "$root/plan-receipt.json"
+          python3 - "$root" "$RESEARCH_MARGIN" <<'PY'
+          import json,sys
+          from pathlib import Path
+          root=Path(sys.argv[1]); margin=float(sys.argv[2])
+          p=json.loads((root/'mixture-plan.json').read_bytes())
+          r=json.loads((root/'plan-receipt.json').read_bytes())
+          assert p['Calibration']['ConflictMargins']==[margin]
+          config=json.loads(Path('data/calibration/v9/u-rare-mixture-train/experiment.json').read_bytes())
+          weights=config['UBackoffJointMixtureWeights']
+          expected=(2+len(weights))*len(p['Calibration']['ModelOptions'])*(1+len(p['Calibration']['BaselineRuleSets']))
+          assert p['MaximumSearchConfigurations']==p['Calibration']['MaximumComparedConfigurations']==expected
+          assert r['comparisons']==expected and r['uJointWeights']==weights
+          assert p['SelectionDuplicatePolicies']==config['SelectionDuplicatePolicies']==r['selectionDuplicatePolicies']
+          assert r['scope']=='KNOWN_SYNTHETIC_TRAIN_SELECTION_ONLY_NOT_INDEPENDENT'
+          assert r['physicalExecuted'] is False and r['activated'] is False
+          PY
+      - name: Execute physical CSharp TRAIN configurations, without refitting TEST
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-u-rare-physical-$RESEARCH_LABEL"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-calibrate "$root/mixture-plan.json" \
+            "$root/people-30k/observacoes.csv" "$root/results"
+      - name: Audit all TF x ruleset x U variants, lambda=0 parity and immutable SHA
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-u-rare-physical-$RESEARCH_LABEL"
+          selection=$(python3 - "$root/results/selection-reference.json" "$root/results" <<'PY'
+          import json,sys
+          from pathlib import Path
+          ref=json.loads(Path(sys.argv[1]).read_bytes())
+          path=Path(sys.argv[2])/(ref['envelopeSha256']+'.selection.json')
+          if not path.is_file():
+              raise SystemExit('Missing immutable selection envelope')
+          print(path)
+          PY
+          )
+          python3 scripts/v9-u-rare-mixture-physical-audit.py \
+            --plan "$root/mixture-plan.json" \
+            --analysis "$root/results/mu-statistical-analysis.json" \
+            --selection "$selection" \
+            --out "$root/physical-audit.json"
+          python3 - "$root" "$EXPERIMENT_SHA" "$RESEARCH_ROLE" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          root,sha,role=Path(sys.argv[1]),sys.argv[2],sys.argv[3]
+          files={'plan':'mixture-plan.json','sourcePlan':'source-nested-plan.json',
+                 'analysis':'results/mu-statistical-analysis.json',
+                 'audit':'physical-audit.json',
+                 'planReceipt':'plan-receipt.json','pin':'pinned-ibge.json',
+                 'corpusManifest':'people-30k/generation-manifest.json',
+                 'selectionReference':'results/selection-reference.json',
+                 'memory':'results/memory-progress.jsonl'}
+          result=json.loads((root/'physical-audit.json').read_bytes())
+          plan=json.loads((root/'mixture-plan.json').read_bytes())
+          expected=plan['MaximumSearchConfigurations']
+          assert result['evaluations']==expected
+          assert [x['policy'] for x in result['duplicateCandidatePolicyComparisons']]==plan['SelectionDuplicatePolicies']
+          assert result['historicalLambdaZeroParity'] == (0 in plan['MuEstimationMethods'][2]['Parameters']['UBackoffJointMixtureWeights'])
+          assert not result['certified'] and not result['activated']
+          receipt={
+              'schema':'V9_U_RARE_PHYSICAL_RECEIPT_V2',
+              'headSha':sha,'role':role,'margin':result['margin'],
+              'physicalEvaluations':expected,
+              'fileSha256':{name:hashlib.sha256((root/path).read_bytes()).hexdigest()
+                            for name,path in files.items()},
+              'scope':'SYNTHETIC_KNOWN_TRAIN_NO_INDEPENDENT_HOLDOUT',
+              'testUsed':False,'goldUsed':False,'certified':False,'activated':False}
+          (root/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          print(json.dumps({'status':'PHYSICAL_TRAIN_VERIFIED',
+                            'sha':sha,'margin':receipt['margin'],'evaluations':expected}))
+          PY
+      - name: Publish only plan, aggregate research and tamper-evident receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-u-rare-mixture-${{ matrix.label }}-${{ github.run_id }}-${{ env.EXPERIMENT_SHA }}
+          retention-days: 90
+          if-no-files-found: warn
+          # receipt.json hashes sourcePlan: include its actual metadata bytes
+          # for independent SHA verification without exporting raw identities.
+          path: |
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/sha-verified.json
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/pinned-ibge.json
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/mixture-plan.json
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/source-nested-plan.json
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/plan-receipt.json
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/physical-audit.json
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/receipt.json
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/results/mu-statistical-analysis.json
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/results/selection-reference.json
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/results/memory-progress.jsonl
+            Solution/.local/v9-u-rare-physical-${{ matrix.label }}/people-30k/generation-manifest.json
+      - name: Destroy disposable SQL
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true

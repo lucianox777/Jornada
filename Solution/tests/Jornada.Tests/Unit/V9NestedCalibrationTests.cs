@@ -8,7 +8,7 @@ namespace Jornada.Tests.Unit;
 [TestFixture, Category("Unit")]
 public sealed class V9NestedCalibrationTests
 {
-    // Reuse serializer options across the regression test to satisfy CA1869.
+    // Reuse frozen options; creation per operation is rejected by CA1869.
     private static readonly JsonSerializerOptions SelectionJson = new()
     {
         WriteIndented = true, RespectRequiredConstructorParameters = true,
@@ -38,8 +38,6 @@ public sealed class V9NestedCalibrationTests
         Directory.CreateDirectory(directory);
         try
         {
-            // Simulate a sizeable ordered identity-outcome stream with stable
-            // JSON options. The streamed file must be the exact same bytes.
             var envelope = new
             {
                 result = Enumerable.Range(0, 2500).Select(i => new
@@ -52,23 +50,138 @@ public sealed class V9NestedCalibrationTests
                 statisticalCertification = false,
                 operationalActivation = false
             };
-            var historicalBytes = JsonSerializer.SerializeToUtf8Bytes(envelope, SelectionJson);
+            var original = JsonSerializer.SerializeToUtf8Bytes(envelope, SelectionJson);
             var expected = Convert.ToHexString(
-                System.Security.Cryptography.SHA256.HashData(historicalBytes)).ToLowerInvariant();
+                System.Security.Cryptography.SHA256.HashData(original)).ToLowerInvariant();
             var actual = await V9NestedCalibrationCli.WriteContentAddressedSelectionAsync(directory, envelope);
             Assert.That(actual, Is.EqualTo(expected));
             Assert.That(File.ReadAllBytes(Path.Combine(directory, expected + ".selection.json")),
-                Is.EqualTo(historicalBytes));
+                Is.EqualTo(original));
             Assert.That(Directory.GetFiles(directory, "*.pending.json"), Is.Empty);
             Assert.That((Func<Task>)(async () =>
                 await V9NestedCalibrationCli.WriteContentAddressedSelectionAsync(directory, envelope)),
-                Throws.TypeOf<IOException>()); // never overwrite a signed envelope
+                Throws.TypeOf<IOException>());
         }
-        finally
+        finally { Directory.Delete(directory, true); }
+    }
+
+    [Test]
+    public void Calibrador_reserves_real_10KiB_and_rewrites_only_the_last_error_in_place()
+    {
+        var output = Path.Combine(Path.GetTempPath(), "v9-calibrador-log-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(output);
+        try
         {
-            // Test-owned GUID directory only.
-            Directory.Delete(directory, true);
+            using var reservation = V9CalibradorLastErrorLog.Reserve(output);
+            var file = Path.Combine(output, V9CalibradorLastErrorLog.FileName);
+            Assert.That(new FileInfo(file).Length, Is.EqualTo(10 * 1024));
+            V9NestedCalibrationCli.TryWriteLastError(reservation,
+                new InvalidDataException("FIRST_ERROR_SENTINEL"));
+            Assert.That(File.ReadAllText(file), Does.Contain("FIRST_ERROR_SENTINEL"));
+            var latest = new IOException("No space left on device");
+            Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.TryWriteLastError(reservation, latest)));
+            var content = File.ReadAllText(file);
+            Assert.That(content, Does.Contain(latest.ToString()));
+            Assert.That(content, Does.Not.Contain("FIRST_ERROR_SENTINEL"));
+            Assert.That(new FileInfo(file).Length, Is.EqualTo(V9CalibradorLastErrorLog.ReservedBytes));
+            Assert.That(Directory.GetFiles(output, "*.log"), Has.Length.EqualTo(1));
         }
+        finally { Directory.Delete(output, true); }
+    }
+
+    [Test]
+    public void Calibrador_error_larger_than_reserve_truncates_at_valid_UTF8_boundary()
+    {
+        var output = Path.Combine(Path.GetTempPath(), "v9-calibrador-truncate-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(output);
+        try
+        {
+            using var reservation = V9CalibradorLastErrorLog.Reserve(output);
+            V9NestedCalibrationCli.TryWriteLastError(reservation,
+                new IOException("No space left on device " + new string('é', 9000)));
+            var file = Path.Combine(output, V9CalibradorLastErrorLog.FileName);
+            var bytes = File.ReadAllBytes(file);
+            Assert.That(bytes, Has.Length.EqualTo(V9CalibradorLastErrorLog.ReservedBytes));
+            var text = new System.Text.UTF8Encoding(false, true).GetString(bytes);
+            Assert.That(text, Does.Contain("EXCECAO TRUNCADA"));
+            Assert.That(text, Does.Contain("IOException"));
+        }
+        finally { Directory.Delete(output, true); }
+    }
+
+    [Test]
+    public void Calibrador_log_failure_does_not_mask_original_failure()
+    {
+        var output = Path.Combine(Path.GetTempPath(), "v9-calibrador-log-failure-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(output);
+        try
+        {
+            // Fail closed if the initial 10 KiB reservation cannot be created;
+            // never try to start physical calibration without its error space.
+            Directory.CreateDirectory(Path.Combine(output, V9CalibradorLastErrorLog.FileName));
+            Assert.That((Action)(() => V9CalibradorLastErrorLog.Reserve(output)),
+                Throws.TypeOf<IOException>());
+            Directory.Delete(Path.Combine(output, V9CalibradorLastErrorLog.FileName));
+            var reservation = V9CalibradorLastErrorLog.Reserve(output);
+            reservation.Dispose(); // deterministic failure to write, no disk fill
+            Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.TryWriteLastError(
+                reservation, new IOException("There is not enough space on the disk."))));
+            Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.TryWriteLastError(
+                null, new InvalidDataException("bad input"))));
+        }
+        finally { Directory.Delete(output, true); }
+    }
+
+    [Test]
+    public void Failed_calibration_does_not_mutate_a_preexisting_result_directory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "v9-calibrador-existing-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var marker = Path.Combine(root, "historical.txt");
+            File.WriteAllText(marker, "IMMUTABLE_PREVIOUS_RUN");
+            var missingPlan = Path.Combine(root, "nonexistent-plan.json");
+            Assert.That((Func<Task>)(async () => await V9NestedCalibrationCli.RunAsync(
+                ["--v9-calibrate", missingPlan, "missing.csv", root])),
+                Throws.TypeOf<FileNotFoundException>());
+            Assert.That(File.ReadAllText(marker), Is.EqualTo("IMMUTABLE_PREVIOUS_RUN"));
+            Assert.That(File.Exists(Path.Combine(root, "calibrador.log")), Is.False);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Test]
+    public void Ram_reporting_uses_runtime_GC_pressure_without_inventing_a_memory_limit()
+    {
+        const long mib = 1024L * 1024;
+        var calm = V9NestedCalibrationCli.InspectRamCapacity(
+            320 * mib, 700 * mib, 150 * mib, 170 * mib, 240 * mib,
+            4096 * mib, 2500 * mib, 3500 * mib);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(calm.GcReportsHighMemoryLoad, Is.False);
+            Assert.That(calm.Notice, Is.Null);
+            Assert.That(calm.PeakResidentWorkingSetBytes, Is.EqualTo(700 * mib));
+            Assert.That(calm.GcTotalAvailableMemoryBytes, Is.EqualTo(4096 * mib));
+            Assert.That(calm.BatchTrace, Is.EqualTo("memory-progress.jsonl"));
+        }));
+
+        var high = V9NestedCalibrationCli.InspectRamCapacity(
+            320 * mib, 700 * mib, 150 * mib, 170 * mib, 240 * mib,
+            4096 * mib, 3500 * mib, 3500 * mib);
+        Assert.That(high.GcReportsHighMemoryLoad, Is.True);
+        Assert.That(high.Notice, Is.EqualTo("RAM_CARGA_ALTA_INFORMADA_PELO_GC"));
+
+        var unknown = V9NestedCalibrationCli.InspectRamCapacity(
+            320 * mib, 700 * mib, 150 * mib, 170 * mib, 240 * mib,
+            4096 * mib, 0, 0);
+        Assert.That(unknown.GcReportsHighMemoryLoad, Is.Null);
+        Assert.That(unknown.GcMemoryLoadBytes, Is.Null);
+        Assert.That(unknown.Notice, Is.EqualTo("RAM_PRESSAO_NAO_DISPONIVEL_PELA_API_GC"));
+
+        Assert.That((Action)(() => V9NestedCalibrationCli.InspectRamCapacity(
+            -1, 0, 0, 0, 0, 0, 0, 0)), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -248,6 +361,53 @@ public sealed class V9NestedCalibrationTests
         var sameConfigurationNewId = (V9FsAdaptiveOptionConfiguration)refine.Invoke(
             null, [original, "ROOT", original.DecisionThreshold])!;
         Assert.That(sha.GetValue(Create(original)), Is.EqualTo(sha.GetValue(Create(sameConfigurationNewId))));
+    }
+
+    [Test]
+    public void Three_estimators_share_exact_SQL_frame_but_keep_independent_model_evaluations()
+    {
+        // Same TRAIN, blocking passes and margin must materialize SQL only once
+        // for V2, V3 historical and experimental U, while each option keeps
+        // an independent request SHA and model snapshot.
+        var type = typeof(V9NestedCalibrationCoordinator).GetNestedType(
+            "Request", System.Reflection.BindingFlags.NonPublic)!;
+        var grouping = typeof(V9NestedCalibrationCoordinator).GetMethod(
+            "PhysicalFrameKey",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var sha = type.GetProperty("Sha",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic
+            | System.Reflection.BindingFlags.Public)!;
+        var v2 = new V9FsAdaptiveOptionConfiguration("TF0__MU_DEFAULT", .5m, .95m);
+        var standard = new V9JointSupportPolicy(.99m, 5, 5,
+            V9JointSupportEstimation.SupportedTailRule);
+        var v3 = v2 with { OptionId = "TF0__MU_V3", JointSupportPolicy = standard };
+        var mixZero = v2 with
+        {
+            OptionId = "TF0__MU_MIX0",
+            JointSupportPolicy = standard with { UBackoffJointMixtureWeight = 0m }
+        };
+        var mixHalf = v2 with
+        {
+            OptionId = "TF0__MU_MIX05",
+            JointSupportPolicy = standard with { UBackoffJointMixtureWeight = .5m }
+        };
+
+        object Request(V9FsAdaptiveOptionConfiguration option, decimal margin) =>
+            Activator.CreateInstance(type,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
+                | System.Reflection.BindingFlags.NonPublic, null,
+                [Array.Empty<LinkageBlockingPass>(), option, margin, option.OptionId], null)!;
+        var requests = new[] { v2, v3, mixZero, mixHalf }
+            .Select(o => Request(o, .5m)).ToArray();
+        Assert.That(requests.Select(r => (string)grouping.Invoke(null, [r])!).Distinct().Count(),
+            Is.EqualTo(1), "one SQL candidate materialization per passes + margin");
+        Assert.That(requests.Select(r => (string)sha.GetValue(r)!).Distinct().Count(),
+            Is.EqualTo(4), "all declared estimators must remain separately scored");
+        Assert.That((string)grouping.Invoke(null, [Request(v2, .25m)])!,
+            Is.Not.EqualTo((string)grouping.Invoke(null, [requests[0]])!),
+            "different margins require different frame groups");
+        Assert.That(standard.UBackoffJointMixtureWeight, Is.Null);
+        Assert.That(mixZero.JointSupportPolicy!.UBackoffJointMixtureWeight, Is.Zero);
     }
 
     [Test]

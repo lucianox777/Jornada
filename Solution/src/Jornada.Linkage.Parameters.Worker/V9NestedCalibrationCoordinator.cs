@@ -20,7 +20,8 @@ public sealed record V9NestedCalibrationPlan(V9AdaptiveCalibrationPlan Calibrati
     string? PinnedIbgeMaterializedFrequencySha256 = null,
     NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    IReadOnlyList<V9MuEstimationMethod>? MuEstimationMethods = null);
+    IReadOnlyList<V9MuEstimationMethod>? MuEstimationMethods = null,
+    IReadOnlyList<string>? SelectionDuplicatePolicies = null);
 
 public sealed record V9NestedCandidateEvaluation(string RequestSha256, int Batch,
     V9TrainingCandidate? Candidate, IReadOnlyList<string> Rejections,
@@ -43,12 +44,26 @@ public sealed record V9NestedCalibrationSearchResult(string Version, string Plan
     string FinalistRule = "BEST_RECALL_WITHIN_EPSILON_THEN_SAFER_BAND_THEN_NORMALIZED_IDEAL_DISTANCE_V1",
     string Scope = "TRAIN_SELECTION_ONLY_HEURISTIC_FRONTIER_NOT_GLOBAL_OPTIMUM",
     bool ExternalValidationUsed = false, bool TestUsed = false, bool Activated = false,
-    string SnapshotEvaluationSlotPurpose = "TRAIN_SELECTION_NOT_EXTERNAL_VALIDATION");
+    string SnapshotEvaluationSlotPurpose = "TRAIN_SELECTION_NOT_EXTERNAL_VALIDATION",
+    IReadOnlyList<V9DuplicatePolicySelection>? DuplicatePolicySelections = null);
+
+public sealed record V9DuplicatePolicySelection(string Policy, int EligibleHypotheses,
+    IReadOnlyList<string> FrontierSnapshotShas, IReadOnlyList<string> FinalistSnapshotShas,
+    bool IndependentlyCertified = false);
 
 /// <summary>Selection stage of the single C# calibrator; external holdouts are absent from this API.</summary>
 public static class V9NestedCalibrationCoordinator
 {
     public const string Version = "V9_INTERNAL_TRAIN_BATCH_PARETO_FINALISTS_V1";
+    // All estimator variants of the same fixed physical SQL frame reuse one
+    // materialization and one frozen TRAIN classification. Distinct option
+    // fingerprints / snapshot hashes remain separate; this is NOT a result cache.
+    private static string PhysicalFrameKey(Request request) =>
+        JsonSerializer.Serialize(new
+        {
+            request.Passes,
+            Margin = request.Margin.ToString("G29", CultureInfo.InvariantCulture)
+        });
     private sealed record Request(IReadOnlyList<LinkageBlockingPass> Passes, V9FsAdaptiveOptionConfiguration Option, decimal Margin, string RootOptionId)
     {
         internal string Sha => V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(new
@@ -64,6 +79,10 @@ public static class V9NestedCalibrationCoordinator
     {
         ArgumentNullException.ThrowIfNull(plan);
         V9AdaptiveCalibrationCoordinator.ValidatePlan(plan.Calibration);
+        if (plan.SelectionDuplicatePolicies is { } policies &&
+            (policies.Count == 0 || policies.Distinct(StringComparer.Ordinal).Count() != policies.Count ||
+             policies.Any(x => x is not ("COUNT_ALL" or "COUNT_UNIQUE"))))
+            throw new InvalidDataException("SelectionDuplicatePolicies exige array único de COUNT_ALL/COUNT_UNIQUE.");
         if (plan.MuEstimationMethods is { } muMethods)
         {
             _ = V9MuEstimationSearchSpace.Enumerate(muMethods);
@@ -208,9 +227,12 @@ public static class V9NestedCalibrationCoordinator
                 }
                 else optionTemplates.Add(request.Option.OptionId, request);
             }
-            var groups = requests.GroupBy(r => JsonSerializer.Serialize(new { r.Passes,
-                    Margin = r.Margin.ToString("G29", CultureInfo.InvariantCulture),
-                    MuPolicy = r.Option.JointSupportPolicy }))
+            // Candidate pairs depend on the blocking passes, margin and pinned
+            // TRAIN frame, not on M/U estimation. One RunAsync evaluates every
+            // explicit estimator option on the SAME physical SQL candidate set.
+            // Never merge distinct passes/margins, or deduplicate model options.
+            // Chunk size preserves the model-search 64-option contract.
+            var groups = requests.GroupBy(PhysicalFrameKey)
                 .SelectMany(g => g.Chunk(64)).ToArray();
             var results = await V9ParallelWork.MapAsync(groups, calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
@@ -236,8 +258,8 @@ public static class V9NestedCalibrationCoordinator
                 x.Candidate is not null
                 && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
                 && template.Option.EligibleForSelection
-                // Margin zero is observed and reported but cannot join the TRAIN
-                // Pareto frontier, adaptive refinements or selected finalists.
+                // Master #1298: keep zero diagnostic margins out of the
+                // TRAIN Pareto frontier, refinements, and finalists.
                 && x.Candidate.Metric.ConflictMargin > 0m).Select(x => x.Candidate!));
             var currentBands = V9TrainingParetoSelection.Bands(frontier, calibration.RiskCeilings!);
             var previousBands = V9TrainingParetoSelection.Bands(previous, calibration.RiskCeilings!);
@@ -293,9 +315,36 @@ public static class V9NestedCalibrationCoordinator
             if (requests.Length == 0) { stop = "DECLARED_NEIGHBOURHOOD_EXHAUSTED_NOT_GLOBAL_OPTIMALITY"; break; }
         }
         var finalists = V9TrainingParetoSelection.Finalists(frontier, calibration.RiskCeilings!, calibration.SelectionPolicy.MaximumAcceptedFdrUpper);
+        // Reuse the already computed COUNT_ALL frontier; only COUNT_UNIQUE needs
+        // an additional Pareto pass. Never repeat physical SQL for selection policy.
+        var allEligibleCount = evaluations.Count(x => x.Candidate is not null
+            && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
+            && template.Option.EligibleForSelection && x.Candidate.Metric.ConflictMargin > 0m);
+        var duplicateSelections = (plan.SelectionDuplicatePolicies ?? new[] { "COUNT_ALL" })
+            .Select(policy =>
+            {
+                if (policy == "COUNT_ALL")
+                    return new V9DuplicatePolicySelection(policy, allEligibleCount,
+                        frontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
+                        finalists.Select(x => x.Snapshot.ContentSha256).ToArray());
+                var eligible = evaluations.Where(x => x.Candidate is not null
+                    && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
+                    && template.Option.EligibleForSelection && x.Candidate.Metric.ConflictMargin > 0m)
+                    .Where(x => policy != "COUNT_UNIQUE" || !(x.MuEstimationMethod ==
+                        "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE" &&
+                        x.MuPolicy?.UBackoffJointMixtureWeight == 0m))
+                    .ToArray();
+                var policyFrontier = V9TrainingParetoSelection.Frontier(eligible.Select(x => x.Candidate!));
+                var policyFinalists = V9TrainingParetoSelection.Finalists(policyFrontier,
+                    calibration.RiskCeilings!, calibration.SelectionPolicy.MaximumAcceptedFdrUpper);
+                return new V9DuplicatePolicySelection(policy, eligible.Length,
+                    policyFrontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
+                    policyFinalists.Select(x => x.Snapshot.ContentSha256).ToArray());
+            }).ToArray();
         return new(Version, declaredPlanSha, split.Manifest,
             evaluations.AsReadOnly(), progress.AsReadOnly(), frontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
-            finalists.Select(x => x.Snapshot.ContentSha256).ToArray(), stop);
+            finalists.Select(x => x.Snapshot.ContentSha256).ToArray(), stop,
+            DuplicatePolicySelections: duplicateSelections);
     }
 
     private static V9FsAdaptiveOptionConfiguration RefinedOption(
@@ -353,6 +402,8 @@ public static class V9NestedCalibrationCoordinator
                 includeFsBlindGrouping: true, minimumFsGroupingPosterior: c.MinimumGroupingPosterior,
                 adaptiveExecution: c.Execution with { EndToEndRepetitions = 0, TotalComparedConfigurations = plan.MaximumSearchConfigurations },
                 includeIdentityOutcomes: true,
+                includeSourceRankDiagnostics: V9MuEstimationSearchSpace.RequiresPairedSourceRankDiagnostics(
+                    plan.MuEstimationMethods),
                 jointSupportPolicy: plan.MuEstimationMethods is null
                     ? new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule)
                     : null);
@@ -389,7 +440,8 @@ public static class V9NestedCalibrationCoordinator
                     ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
                     MuEstimationMethod: plan.MuEstimationMethods is null ? null
                         : request.Option.JointSupportPolicy is null
-                            ? V9MuEstimationSearchSpace.Default : V9MuEstimationSearchSpace.Classwise,
+                            ? V9MuEstimationSearchSpace.Default : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
+                                ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
                     MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
                     EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m,
                     SharedSurnameCandidatePairs: run.CalibrationReport.Options.Single(x =>
@@ -405,7 +457,8 @@ public static class V9NestedCalibrationCoordinator
             ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
             MuEstimationMethod: plan.MuEstimationMethods is null ? null
                 : request.Option.JointSupportPolicy is null
-                    ? V9MuEstimationSearchSpace.Default : V9MuEstimationSearchSpace.Classwise,
+                    ? V9MuEstimationSearchSpace.Default : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
+                                ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
             MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
             EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m)).ToArray()); }
     }

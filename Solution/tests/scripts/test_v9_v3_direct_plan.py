@@ -224,6 +224,33 @@ class DirectV3Tests(unittest.TestCase):
                 subject.prepare(self.source,self.grid,self.output)
             self.assertFalse(self.output.exists())
 
+    def test_opt_in_u_rare_mixture_increases_declared_budget_without_legacy_changes(self):
+        declared = grid()
+        declared['UBackoffJointMixtureWeights'] = [0, .25, .5, 1]
+        self.grid.write_text(json.dumps(declared))
+        with self.assertRaisesRegex(ValueError, 'budget'):
+            subject.prepare(self.source, self.grid, self.output)
+        self.assertFalse(self.output.exists())
+        result = subject.prepare(self.source, self.grid, self.output, 128)
+        out = json.loads(self.output.read_text())
+        self.assertEqual(result['variants'], 32)
+        self.assertEqual(result['initialComparisons'], 128)
+        self.assertEqual(out['MuEstimationMethods'][0]['Parameters']['UBackoffJointMixtureWeights'],
+                         [0, .25, .5, 1])
+        self.assertEqual(out['MaximumSearchConfigurations'], 128)
+        self.assertEqual(out['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint'], .01)
+        self.assertEqual(out['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper'], .01)
+        self.assertFalse(out.get('activated', False))
+
+    def test_opt_in_u_mixture_rejects_out_of_range_duplicate_and_nonfinite(self):
+        for values in ([], [-.01], [1.01], [.5, .5], [True], ['.5'], [float('nan')]):
+            declared = grid()
+            declared['UBackoffJointMixtureWeights'] = values
+            self.grid.write_text(json.dumps(declared))
+            with self.assertRaises(ValueError):
+                subject.prepare(self.source, self.grid, self.output, 128)
+            self.assertFalse(self.output.exists())
+
     def test_reject_tf_rejection_and_competing_mu(self):
         b=base()
         b['Calibration']['ModelOptions'][1]['UnpublishedTermPolicy']=0

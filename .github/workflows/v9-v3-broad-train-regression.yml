@@ -4,16 +4,9 @@ name: v9-v3-broad-train-regression
 # for known seed42; one locked-policy replication for known seeds 43 and 57.
 # Never interprets these exploratory TRAIN splits as fresh confirmatory holdouts.
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/v9-v3-broad-train-regression.yml'
-      - 'Solution/scripts/v9-v3-broad-train-audit.py'
-      - 'Solution/scripts/v9-v3-direct-plan.py'
-      - 'Solution/scripts/v9-nested-calibration-study.py'
-      - 'Solution/tests/scripts/test_v9_v3_direct_plan.py'
-      - 'Solution/tests/scripts/test_v9_v3_broad_train_audit.py'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       expected_sha:
@@ -115,13 +108,12 @@ jobs:
               for x in arms: x['EligibleForSelection'] = True
               assert all(x['EligibleForSelection'] is True for x in arms)
           source['Calibration']['ModelOptions']=arms
-          # surname/seed42 exceeded runner RAM after all 160 TRAIN configurations.
-          # Bound concurrent SQL/Resolve groups to 1 without removing any
-          # declared option or changing the inferential multiplicity.
-          if os.environ['V3_FAMILY']=='surname' and os.environ['V3_SEED']=='42':
-              source['Calibration']['MaximumParallelRuleSets']=1
-          # Five predeclared log-odds margins; independent of V3 M/U estimator.
-          source['Calibration']['ConflictMargins']=[0, 0.25, 0.5, 2, 4]
+          # The master also supports zero as a measured-only, nonselectable
+          # diagnostic. This RAM-first workload instead keeps the physically
+          # proven positive .0001 arm and all five declared margins (160
+          # comparisons) without introducing a new experimental protocol.
+          # It is not an exact numeric replay of the historical zero arm.
+          source['Calibration']['ConflictMargins']=[0.0001, 0.25, 0.5, 2, 4]
           assert source['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint']==.01
           assert source['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper']==.01
           with (root/'source-plan.json').open('x') as f:
@@ -134,6 +126,9 @@ jobs:
           with (root/'grid.json').open('x') as f:
               json.dump(grid,f,indent=2);f.write('\n')
           PY
+          # Fail closed on full protocol breadth: 8 V3 policies x 2 TF
+          # hypotheses x 5 conflict margins x 2 frozen SQL rulesets = 160.
+          # Replication seeds have one locked V3 policy => 20.
           maximum=20
           if [[ "$V3_SEED" == 42 ]]; then maximum=160; fi
           python3 scripts/v9-v3-direct-plan.py \
@@ -189,7 +184,9 @@ jobs:
             Solution/.local/v9-v3-broad-*/audit.json
             Solution/.local/v9-v3-broad-*/receipt.json
             Solution/.local/v9-v3-broad-*/results/mu-statistical-analysis.json
+            Solution/.local/v9-v3-broad-*/results/memory-progress.jsonl
             Solution/.local/v9-v3-broad-*/results/interrupted.json
+            Solution/.local/v9-v3-broad-*/results/calibrador.log
             Solution/.local/v9-v3-broad-*/people-30k/generation-manifest.json
             Solution/.local/v9-v3-broad-*/pinned-ibge.json
       - name: Destroy disposable SQL

@@ -3,18 +3,9 @@ name: v9-mu-tf0-controlled-same-frame
 # Technical regression only: already-exposed 30k seed42 TRAIN. Both estimators
 # and both TF treatments use ONE physical SQL candidate corpus and split.
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/v9-mu-tf0-controlled-same-frame.yml'
-      - 'Solution/scripts/v9-mu-tf0-controlled-plan.py'
-      - 'Solution/scripts/v9-mu-tf0-controlled-audit.py'
-      - 'Solution/scripts/v9-mu-tf0-cell-ablation.py'
-      - 'Solution/tests/scripts/test_v9_mu_tf0_resolve_reasons.py'
-      - 'Solution/tests/scripts/test_v9_mu_tf0_cell_ablation.py'
-      - 'Solution/tests/scripts/test_v9_mu_tf0_controlled.py'
-      - 'Solution/scripts/v9-mu-historical-plan.py'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       expected_sha:
@@ -54,7 +45,9 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_mu_tf0_controlled.py' -v
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_mu_tf0_resolve_reasons.py' -v
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_mu_tf0_cell_ablation.py' -v
-          python3 -m py_compile Solution/scripts/v9-mu-tf0-controlled-audit.py Solution/scripts/v9-mu-tf0-cell-ablation.py
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_source_gap_audit.py' -v
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_source_paired_audit.py' -v
+          python3 -m py_compile Solution/scripts/v9-mu-tf0-controlled-audit.py Solution/scripts/v9-mu-tf0-cell-ablation.py Solution/scripts/v9-v3-source-gap-audit.py Solution/scripts/v9-v3-source-paired-audit.py
           python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
             --mode auto_30k --expected-sha "$EXPERIMENT_SHA" \
             --ref "refs/heads/${{ github.head_ref }}" \
@@ -123,12 +116,20 @@ jobs:
           python3 scripts/v9-mu-tf0-cell-ablation.py \
             --analysis "$root/results/mu-statistical-analysis.json" \
             --out "$root/tf0-cell-ablation.json"
+          python3 scripts/v9-v3-source-gap-audit.py \
+            --analysis "$root/results/mu-statistical-analysis.json" \
+            --out "$root/source-gap-audit.json"
+          python3 scripts/v9-v3-source-paired-audit.py \
+            --analysis "$root/results/mu-statistical-analysis.json" \
+            --out "$root/paired-source-audit.json"
           python3 - "$root" "$EXPERIMENT_SHA" <<'PY'
           import hashlib,json,sys
           from pathlib import Path
           root,sha=Path(sys.argv[1]),sys.argv[2]
           files={'plan':'controlled-plan.json','analysis':'results/mu-statistical-analysis.json',
                  'audit':'same-frame-audit.json','cellAblation':'tf0-cell-ablation.json',
+                 'sourceGapAudit':'source-gap-audit.json',
+                 'pairedSourceAudit':'paired-source-audit.json',
                  'corpus':'people-30k/observacoes.csv'}
           receipt={'schema':'V9_MU_TF0_V2_V3_PHYSICAL_RECEIPT_V1',
                    'headSha':sha,
@@ -153,6 +154,8 @@ jobs:
             Solution/.local/v9-mu-tf0/controlled-plan.json
             Solution/.local/v9-mu-tf0/same-frame-audit.json
             Solution/.local/v9-mu-tf0/tf0-cell-ablation.json
+            Solution/.local/v9-mu-tf0/source-gap-audit.json
+            Solution/.local/v9-mu-tf0/paired-source-audit.json
             Solution/.local/v9-mu-tf0/receipt.json
             Solution/.local/v9-mu-tf0/results/mu-statistical-analysis.json
             Solution/.local/v9-mu-tf0/results/selection-reference.json

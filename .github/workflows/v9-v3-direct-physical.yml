@@ -3,14 +3,9 @@ name: v9-v3-direct-physical
 # V3-only M/U TRAIN integration; no historical V2 fit, TEST, Gold or REF.
 # This known synthetic seed is a technical gate, NOT a scientific confirmation.
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/v9-v3-direct-physical.yml'
-      - 'Solution/scripts/v9-v3-direct-plan.py'
-      - 'Solution/tests/scripts/test_v9_v3_direct_plan.py'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9MuEstimationSearchSpace.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
+  push:
+    branches:
+      - master
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
