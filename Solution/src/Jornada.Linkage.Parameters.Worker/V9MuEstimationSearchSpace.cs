@@ -27,6 +27,18 @@ public static class V9MuEstimationSearchSpace
 {
     public const string Default = "DEFAULT";
     public const string Classwise = "CLASSWISE_SUPPORT_BACKOFF";
+
+    /// <summary>
+    /// The identity-level FDR stream always remains available. Private
+    /// per-source top-two arrays are necessary only if the frozen study
+    /// explicitly compares DEFAULT V2 with CLASSWISE V3. V3-only 160-case
+    /// batches must not keep such arrays across configurations.
+    /// </summary>
+    public static bool RequiresPairedSourceRankDiagnostics(IReadOnlyList<V9MuEstimationMethod>? methods)
+        => methods is { Count: > 0 }
+            && methods.Any(x => x.Method == Default)
+            && methods.Any(x => x.Method == Classwise);
+
     public const string ClasswiseMixture = "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE";
 
     public static IReadOnlyList<V9MuEstimationVariant> Enumerate(IReadOnlyList<V9MuEstimationMethod> methods)

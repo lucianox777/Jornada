@@ -310,6 +310,9 @@ public static class V9NestedCalibrationCli
             // kernel. No names, UUIDs, rankings or oracle labels are exported.
             allSelectionObservations = e.Candidate?.Metric.AllValidationObservations,
             resolveReasonCounts = e.Candidate?.Metric.ReasonsByResolveStatus,
+            // Only aggregate bins and k-suppressed nominal cells are published;
+            // the raw top-two source rows remain JsonIgnore in memory.
+            sourceGapAttribution = e.Candidate?.Metric.SourceGapAttribution,
             p95Milliseconds = e.Candidate?.P95Milliseconds,
             e.Rejections,
             outcome = e.Candidate is null ? "REJECTED_NOT_MEASURED"
@@ -401,6 +404,54 @@ public static class V9NestedCalibrationCli
             GC.GetTotalMemory(forceFullCollection: false), gcInfo.HeapSizeBytes,
             gcInfo.TotalCommittedBytes, gcInfo.TotalAvailableMemoryBytes,
             gcInfo.MemoryLoadBytes, gcInfo.HighMemoryLoadThresholdBytes);
+        // Paired source-level V2/V3 evidence is reduced entirely in memory.
+        // Only the aggregate transition counts enter the JSON report.
+        // The per-source lists attached to the physical metric are JsonIgnore.
+        var pairedSourceRank = result.Evaluations.Where(v2 =>
+                v2.Candidate?.Metric.SourceRankInternal is not null
+                && v2.MuEstimationMethod == V9MuEstimationSearchSpace.Default
+                && v2.OptionId?.Contains("__MU_", StringComparison.Ordinal) == true)
+            .SelectMany(v2 =>
+            {
+                var optionId = v2.OptionId ?? throw new InvalidDataException("Missing base option for paired Rank.");
+                var root = optionId[..optionId.IndexOf("__MU_", StringComparison.Ordinal)];
+                return result.Evaluations.Where(v3 =>
+                    v3.Candidate?.Metric.SourceRankInternal is not null
+                    && v3.MuEstimationMethod == V9MuEstimationSearchSpace.Classwise
+                    && v3.OptionId?.StartsWith(root + "__MU_", StringComparison.Ordinal) == true
+                    && v3.Batch == v2.Batch
+                    && v3.ConflictMargin == v2.ConflictMargin
+                    && JsonSerializer.Serialize(v3.Candidate!.Snapshot.Payload.BlockingPasses)
+                        == JsonSerializer.Serialize(v2.Candidate!.Snapshot.Payload.BlockingPasses))
+                    .Select(v3 =>
+                    {
+                        var left = v2.Candidate!;
+                        var right = v3.Candidate!;
+                        if (v2.CandidatePairsSha256 is null
+                            || v2.CandidatePairsSha256 != v3.CandidatePairsSha256
+                            || left.Snapshot.Payload.Parameters[LinkageParameterCatalog.PriorMatchProbability]
+                                != right.Snapshot.Payload.Parameters[LinkageParameterCatalog.PriorMatchProbability]
+                            || left.Snapshot.Payload.Threshold != right.Snapshot.Payload.Threshold
+                            || left.Snapshot.Payload.TfWeight != right.Snapshot.Payload.TfWeight
+                            || right.Snapshot.Payload.JointSupport is not { } support)
+                            throw new InvalidDataException("V2/V3 source pairing must share SQL frame, prior, TF and threshold.");
+                        var fallbackUCells = support.Cells
+                            .Where(c => c.MethodU == V9JointSupportEstimation.Marginal)
+                            .Select(c => $"{(int)c.Person}/{(int)c.Mother}")
+                            .ToHashSet(StringComparer.Ordinal);
+                        return new
+                        {
+                            v2RequestSha256 = v2.RequestSha256,
+                            v3RequestSha256 = v3.RequestSha256,
+                            rootOptionId = root,
+                            v2.Batch, v2.ConflictMargin,
+                            blockingPassCount = left.Snapshot.Payload.BlockingPasses.Count,
+                            candidatePairsSha256 = v2.CandidatePairsSha256,
+                            pair = V9PairedSourceRankAttribution.Compare(
+                                left.Metric, right.Metric, fallbackUCells)
+                        };
+                    });
+            }).ToArray();
         var report = new
         {
             schema = "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1",
@@ -421,6 +472,7 @@ public static class V9NestedCalibrationCli
             finalistSnapshotShas = result.FinalistSnapshotShas,
             result.StopReason,
             surnameDependenceComparisons = surnameComparisons,
+            pairedSourceRankAttribution = pairedSourceRank,
             sharedSurnameAssumptionChosenForOperation = false,
             rows
         };

@@ -389,3 +389,20 @@ Não agrega os dois, não os considera estatisticamente equivalentes e
 não diminui a cobertura por conveniência. O paralelismo automático da
 #1300 permanece `0 = Environment.ProcessorCount`, sem o override
 temporário de 1 worker no workflow experimental #1298.
+
+### Consolidação pré-merge com #1299 — diagnóstico pareado em RAM (07/11/2026)
+
+A instrumentação V2/V3 da PR #1299 foi reunida à branch desta PR,
+sem merge na master. A captura privada de `SourceRankInternal` é
+habilitada somente para plano que declare V2 `DEFAULT` **e** V3
+`CLASSWISE_SUPPORT_BACKOFF`, preservando invariavelmente os
+`IdentityOutcomes` necessários para limites de FDR.
+
+A regressão somente V3 de 160 configurações mantém RAM-first sem
+retenção adicional de ranking top-two por configuração. O estudo pareado
+continua reduzindo em memória os rankings individuais para contagens
+agregadas, preservando `JsonIgnore` em fontes/IDs. Os novos auditores
+`v9-v3-source-gap-audit.py` e `v9-v3-source-paired-audit.py`
+exigem SHA/frames idênticos e vedam causalidade ou certificação
+indevida. Conciliação estatística no mesmo SHA não substitui a
+execução física de 160 casos no SHA combinado. Nenhuma ativação DT-15.

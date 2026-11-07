@@ -894,8 +894,11 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         IReadOnlySet<string>? evaluatedOptionIds = null,
         bool fsBlindGroupingOnly = false,
         int? totalComparedConfigurations = null,
-        bool includeIdentityOutcomes = false)
+        bool includeIdentityOutcomes = false,
+        bool includeSourceRankDiagnostics = false)
     {
+        if (includeSourceRankDiagnostics && !includeIdentityOutcomes)
+            throw new InvalidDataException("Source Rank pareado exige resultado por identidade.");
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(validationSqlPairs);
         ArgumentNullException.ThrowIfNull(conflictMargins);
@@ -1170,9 +1173,22 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                             .Distinct(StringComparer.Ordinal).ToArray());
                 var impureFsGroups = truthByInferredGuid.Values
                     .Count(x => x.Length > 1);
+                // Canonical membership, not generated group GUID: different M/U fits
+                // may change inferred grouping even with identical top observation.
+                var groupSignatures = inferred.IdentityByObservation
+                    .GroupBy(x => x.Value).ToDictionary(g => g.Key,
+                        g => string.Join(",", g.Select(x => x.Key).OrderBy(x => x)));
                 foreach (var margin in conflictMargins.OrderBy(x => x))
                 {
                     var counter = new V9SourceResolveAccumulator(orderedBases);
+                    var gapEvidence = new V9SourceGapAttributionAccumulator();
+                    // Identity-level bootstrap outcomes are required in every
+                    // physical calibration, but the much larger top-two
+                    // per-source detail is needed ONLY for the paired V2/V3
+                    // experiment. Pure V3 grids (e.g. 160 configs) stay RAM-first
+                    // without retaining one extra list per configuration.
+                    var sourceRanks = includeSourceRankDiagnostics
+                        ? new List<V9SourceTopTwoDiagnostic>(validation.Count) : null;
                     foreach (var source in validation.Values.OrderBy(x => x.ObservationId))
                     {
                         var collapsed = rankedBySource[source.ObservationId]
@@ -1181,6 +1197,35 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                             .Select(g => g.First() with { PessoaUuid = g.Key })
                             .OrderByDescending(x => x.LogOdds)
                             .ThenBy(x => x.PessoaUuid).ToArray();
+                        // Reconstruct the top-two original observations solely in memory.
+                        // The published report contains only k-suppressed cells and bins.
+                        int RepresentativeId(Guid groupUuid)
+                        {
+                            var representative = rankedBySource[source.ObservationId].FirstOrDefault(x =>
+                                inferred.IdentityByObservation[observationByGuid[x.PessoaUuid].ObservationId]
+                                    == groupUuid)
+                                ?? throw new InvalidDataException("Rank and blind group disagree.");
+                            return observationByGuid[representative.PessoaUuid].ObservationId;
+                        }
+                        string CellFor(Guid groupUuid)
+                        {
+                            var target = validation[RepresentativeId(groupUuid)];
+                            return $"{(int)CompositeNominalComparisonV9.Classify(source.PersonName, target.PersonName)}/" +
+                                   $"{(int)CompositeNominalComparisonV9.Classify(source.MotherName, target.MotherName)}";
+                        }
+                        bool Correct(Guid groupUuid) =>
+                            truthByInferredGuid.TryGetValue(groupUuid, out var bases)
+                            && bases.Length == 1 && bases[0] == source.BasePersonId;
+                        if (collapsed.Length == 0)
+                            gapEvidence.Add(null, null, null, null, null, null);
+                        else if (collapsed.Length == 1)
+                            gapEvidence.Add(collapsed[0].LogOdds, null,
+                                CellFor(collapsed[0].PessoaUuid), null,
+                                Correct(collapsed[0].PessoaUuid), null);
+                        else
+                            gapEvidence.Add(collapsed[0].LogOdds, collapsed[1].LogOdds,
+                                CellFor(collapsed[0].PessoaUuid), CellFor(collapsed[1].PessoaUuid),
+                                Correct(collapsed[0].PessoaUuid), Correct(collapsed[1].PessoaUuid));
                         var decision = ProbabilisticLinkageDecisions
                             .ResolveRankedCompositeNominalV9Preview(
                                 ObservationGuid(source.ObservationId),
@@ -1200,6 +1245,25 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                                     "Resolve FS blind retornou identidade desconhecida.");
                             targetBase = bases.Length == 1 ? bases[0]
                                 : "IMPURE_FS_BLIND_GROUP:" + selected;
+                        }
+                        // The individual source observations remain transient in memory,
+                        // and SourceRankInternal is JsonIgnore (never in the envelope).
+                        if (sourceRanks is not null)
+                        {
+                            var first = collapsed.Length > 0 ? collapsed[0] : null;
+                            var second = collapsed.Length > 1 ? collapsed[1] : null;
+                            sourceRanks.Add(new V9SourceTopTwoDiagnostic(
+                                source.ObservationId,
+                                first is null ? null : RepresentativeId(first.PessoaUuid),
+                                second is null ? null : RepresentativeId(second.PessoaUuid),
+                                first is null ? null : groupSignatures[first.PessoaUuid],
+                                second is null ? null : groupSignatures[second.PessoaUuid],
+                                first is null ? null : CellFor(first.PessoaUuid),
+                                second is null ? null : CellFor(second.PessoaUuid),
+                                first?.LogOdds, second?.LogOdds,
+                                first is null ? null : Correct(first.PessoaUuid),
+                                second is null ? null : Correct(second.PessoaUuid),
+                                decision.Status.ToString(), decision.Motivo ?? decision.Status.ToString()));
                         }
                         counter.Add(source.BasePersonId, targetBase, decision);
                     }
@@ -1242,7 +1306,9 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                         IdentityOutcomes: includeIdentityOutcomes ? Array.AsReadOnly(sourcesByIdentity.Select(g =>
                             new V9SourceIdentityOutcome(g.BaseIdentityFingerprint,
                                 eligibleSourcesByBase!.GetValueOrDefault(g.BaseIdentityFingerprint),
-                                g.TrueAccepted, g.FalseAccepted)).ToArray()) : null));
+                                g.TrueAccepted, g.FalseAccepted)).ToArray()) : null,
+                        SourceGapAttribution: gapEvidence.Export(),
+                        SourceRankInternal: sourceRanks?.AsReadOnly()));
                 }
             }
 
