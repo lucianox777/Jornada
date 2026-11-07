@@ -3,15 +3,9 @@ name: v9-mu-seed42-technical-regression
 # Only the already-known seed42 synthetic TRAIN. Never a new scientific seed,
 # confirmation holdout, Gold, TEST or operational activation.
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/v9-mu-seed42-technical-regression.yml'
-      - 'Solution/scripts/v9-mu-historical-plan.py'
-      - 'Solution/tests/scripts/test_v9_mu_historical_plan.py'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9MuEstimationSearchSpace.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
-      - 'Solution/data/reference/v9-mu-estimation-methods-20261105.json'
+  push:
+    branches:
+      - master
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
