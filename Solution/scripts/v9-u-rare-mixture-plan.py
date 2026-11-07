@@ -17,7 +17,8 @@ VERSION = "V9_U_RARE_MIXTURE_THREE_METHOD_TRAIN_PLAN_V2"
 LEGACY_WEIGHTS = [0, .25, .5, 1]  # frozen historical experiment only
 FAMILY = "CLASSWISE_SUPPORT_BACKOFF"
 MIXED_FAMILY = "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE"
-DUPLICATE_POLICIES = ("COUNT_ALL", "COUNT_UNIQUE")
+CALIBRATION_POLICIES = ("INCLUDE", "DEDUPLICATE")
+SELECTION_POLICIES = ("COUNT_ALL", "COUNT_UNIQUE")
 
 
 def _load_control():
@@ -27,7 +28,7 @@ def _load_control():
     return module
 
 
-def freeze(source_path, target_path, margin=.5, weights=None, duplicate_policies=None):
+def freeze(source_path, target_path, margin=.5, weights=None, duplicate_policies=None, calibration_policies=None):
     # The .25 sensitivity is a distinct, predeclared TRAIN experiment.
     # The historical .5 plan remains byte-identical unless opted in.
     if type(margin) not in (int, float) or not 0 <= margin <= 1:
@@ -36,9 +37,13 @@ def freeze(source_path, target_path, margin=.5, weights=None, duplicate_policies
     if margin == 0:
         raise ValueError('Zero margin is diagnostic-only; use the dedicated diagnostic plan')
     weights = list(LEGACY_WEIGHTS if weights is None else weights)
-    duplicate_policies = list(DUPLICATE_POLICIES if duplicate_policies is None else duplicate_policies)
+    duplicate_policies = list(SELECTION_POLICIES if duplicate_policies is None else duplicate_policies)
+    calibration_policies = list(CALIBRATION_POLICIES if calibration_policies is None else calibration_policies)
+    if (not calibration_policies or len(set(calibration_policies)) != len(calibration_policies)
+            or any(x not in CALIBRATION_POLICIES for x in calibration_policies)):
+        raise ValueError("Invalid CalibrationDuplicatePolicies")
     if (not duplicate_policies or len(set(duplicate_policies)) != len(duplicate_policies)
-            or any(x not in DUPLICATE_POLICIES for x in duplicate_policies)):
+            or any(x not in SELECTION_POLICIES for x in duplicate_policies)):
         raise ValueError("DuplicateCandidatePolicies must be a nonempty unique subset of COUNT_ALL, COUNT_UNIQUE")
     if not weights or any(type(w) not in (int, float) or not 0 <= w <= 1 for w in weights) or len(set(weights)) != len(weights):
         raise ValueError('Weights must be a nonempty, unique, finite list in [0,1]')
@@ -74,7 +79,8 @@ def freeze(source_path, target_path, margin=.5, weights=None, duplicate_policies
     # The third is a separately identifiable opt-in estimator family.
     if margin != .5:
         plan["Calibration"]["ConflictMargins"] = [margin]
-    plan["DuplicateCandidatePolicies"] = duplicate_policies
+    plan["SelectionDuplicatePolicies"] = duplicate_policies
+    plan["CalibrationDuplicatePolicies"] = calibration_policies
     methods.append({"Method": MIXED_FAMILY, "Parameters": {
         **methods[1]["Parameters"], "UBackoffJointMixtureWeights": weights
     }})
@@ -88,7 +94,8 @@ def freeze(source_path, target_path, margin=.5, weights=None, duplicate_policies
     basis = VERSION + "|" + hashlib.sha256(original).hexdigest() + "|" + json.dumps(methods, sort_keys=True, separators=(",", ":"))
     if margin != .5:
         basis += "|EXPLICIT_MARGIN_" + str(margin)
-    basis += "|DUPLICATE_POLICIES_" + ",".join(duplicate_policies)
+    basis += "|SELECTION_DUPLICATE_POLICIES_" + ",".join(duplicate_policies)
+    basis += "|CALIBRATION_DUPLICATE_POLICIES_" + ",".join(calibration_policies)
     digest = hashlib.sha256(basis.encode()).hexdigest()
     plan["Calibration"]["StudyFingerprintSha256"] = digest
     plan["Calibration"]["Budget"]["StudyFingerprintSha256"] = digest
@@ -107,7 +114,8 @@ def freeze(source_path, target_path, margin=.5, weights=None, duplicate_policies
         "tfArms": 2,
         "blockingArms": 2,
         "uJointWeights": weights,
-        "duplicateCandidatePolicies": duplicate_policies,
+        "selectionDuplicatePolicies": duplicate_policies,
+        "calibrationDuplicatePolicies": calibration_policies,
         "margin": margin,
         "scope": "KNOWN_SYNTHETIC_TRAIN_SELECTION_ONLY_NOT_INDEPENDENT",
         "physicalExecuted": False,
@@ -133,14 +141,17 @@ if __name__ == "__main__":
         cli.error("--config and --weights are mutually exclusive")
     if args.config is not None:
         config = json.loads(args.config.read_bytes())
-        if set(config) != {"UBackoffJointMixtureWeights", "ConflictMargin", "DuplicateCandidatePolicies"}:
-            cli.error("Config must declare exactly UBackoffJointMixtureWeights, ConflictMargin and DuplicateCandidatePolicies")
+        if set(config) != {"UBackoffJointMixtureWeights", "ConflictMargin", "CalibrationDuplicatePolicies", "SelectionDuplicatePolicies"}:
+            cli.error("Config must declare exactly UBackoffJointMixtureWeights, ConflictMargin and CalibrationDuplicatePolicies and SelectionDuplicatePolicies")
         weights = config["UBackoffJointMixtureWeights"]
         margin = config["ConflictMargin"] if args.margin is None else args.margin
-        duplicate_policies = config["DuplicateCandidatePolicies"]
+        duplicate_policies = config["SelectionDuplicatePolicies"]
+        calibration_policies = config["CalibrationDuplicatePolicies"]
     else:
         weights = None if args.weights is None else [float(x) for x in args.weights.split(",")]
         margin = .5 if args.margin is None else args.margin
         duplicate_policies = None
+        calibration_policies = None
     print(json.dumps(freeze(args.source_nested_tf_plan, args.output_plan,
-                            margin=margin, weights=weights, duplicate_policies=duplicate_policies), sort_keys=True))
+                            margin=margin, weights=weights, duplicate_policies=duplicate_policies,
+                            calibration_policies=calibration_policies), sort_keys=True))
