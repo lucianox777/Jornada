@@ -13,17 +13,19 @@ audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
 
 
-def payload(margin=.5):
+def payload(margin=.5, weights=None):
+    weights = list(audit.WEIGHTS if weights is None else weights)
+    count = (2 + len(weights)) * 4
     policy = {"ClassMassCoverage": [.99], "MinimumObservedMPerCell": [5],
               "MinimumObservedUPerCell": [5], "RetainSupportedTail": [True]}
     methods = [{"Method": audit.V2},
                {"Method": audit.V3, "Parameters": dict(policy)},
                {"Method": audit.MIX, "Parameters": {
-                   **policy, "UBackoffJointMixtureWeights": list(audit.WEIGHTS)}}]
+                   **policy, "UBackoffJointMixtureWeights": weights}}]
     plan = {
-        "MaximumBatches": 1, "MaximumSearchConfigurations": 24,
+        "MaximumBatches": 1, "MaximumSearchConfigurations": count,
         "Calibration": {
-            "MaximumComparedConfigurations": 24, "ConflictMargins": [margin],
+            "MaximumComparedConfigurations": count, "ConflictMargins": [margin],
             "Budget": {"MaximumObservedAcceptedFdrPoint": .01},
             "SelectionPolicy": {"MaximumAcceptedFdrUpper": .01},
             "BaselineRuleSets": [[{"PassId": "frozen"}]],
@@ -34,7 +36,7 @@ def payload(margin=.5):
     for passes in (3, 19):
         for option in audit.OPTIONS:
             for method, weight in [(audit.V2, None), (audit.V3, None)] + [
-                    (audit.MIX, w) for w in audit.WEIGHTS]:
+                    (audit.MIX, w) for w in weights]:
                 tp = 6800 if passes == 19 else (
                     (6758 if method == audit.V2 else 6306)
                     if option == audit.OPTIONS[0] else
@@ -79,12 +81,12 @@ def payload(margin=.5):
         "scope": "TRAIN_SELECTION_ONLY_NOT_INDEPENDENT_VALIDATION",
         "PlanSha256": "f" * 64, "testUsed": False, "activated": False,
         "originalMethodsAndParameterArrays": methods,
-        "declaredVariantCount": 6, "evaluations": 24, "measured": 24,
+        "declaredVariantCount": 2 + len(weights), "evaluations": count, "measured": count,
         "rows": rows
     }
     envelope = {
         "result": {"PlanSha256": "f"*64, "TestUsed": False,
-                   "Activated": False, "Evaluations": [{} for _ in range(24)]},
+                   "Activated": False, "Evaluations": [{} for _ in range(count)]},
         "statisticalCertification": False, "operationalActivation": False
     }
     return plan, report, envelope
@@ -117,6 +119,16 @@ class PhysicalAuditTests(unittest.TestCase):
         self.assertEqual([x["lambda"] for x in result["comparisons"][0]["alternatives"]],
                          [None, 0, .25, .5, 1])
         self.assertEqual(result["sha256"]["plan"], audit.digest(self.plan))
+
+    def test_explicit_grid_without_zero_is_audited_without_fake_parity(self):
+        self.objects = payload(.3, [.1, .4, .8])
+        result = self.verify()
+        self.assertEqual(result["physicalComparisons"], 20)
+        self.assertEqual(result["margin"], .3)
+        self.assertFalse(result["historicalLambdaZeroParity"])
+        self.assertFalse(result["multiplicityIncludesLambdaZeroTwice"])
+        self.assertEqual([x["lambda"] for x in result["comparisons"][0]["alternatives"]],
+                         [None, .1, .4, .8])
 
     def test_receipt_source_plan_is_in_public_aggregate_artifact(self):
         # The physical receipt hashes 'sourcePlan'. A checksum without the
