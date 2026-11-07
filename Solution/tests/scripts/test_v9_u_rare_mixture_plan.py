@@ -62,6 +62,35 @@ class RareUPlanTests(unittest.TestCase):
         with self.assertRaises(FileExistsError):
             subject.freeze(self.source, self.output)
 
+    def test_predeclared_quarter_margin_is_isolated_and_no_hidden_relaxation(self):
+        alternate = Path(self.output).with_name("sensitivity.json")
+        primary = subject.freeze(self.source, self.output)
+        sensitivity = subject.freeze(self.source, alternate, margin=.25)
+        first = json.loads(self.output.read_bytes())
+        second = json.loads(alternate.read_bytes())
+        self.assertEqual(first["Calibration"]["ConflictMargins"], [.5])
+        self.assertEqual(second["Calibration"]["ConflictMargins"], [.25])
+        self.assertEqual(primary["comparisons"], sensitivity["comparisons"])
+        self.assertEqual(primary["uJointWeights"], sensitivity["uJointWeights"])
+        self.assertEqual(primary["margin"], .5)
+        self.assertEqual(sensitivity["margin"], .25)
+        self.assertNotEqual(primary["studyFingerprintSha256"],
+                            sensitivity["studyFingerprintSha256"])
+        self.assertNotEqual(primary["planSha256"], sensitivity["planSha256"])
+        self.assertEqual(first["MuEstimationMethods"], second["MuEstimationMethods"])
+        self.assertEqual(first["Calibration"]["ModelOptions"],
+                         second["Calibration"]["ModelOptions"])
+        self.assertEqual(first["MaximumSearchConfigurations"], 24)
+        self.assertEqual(second["MaximumSearchConfigurations"], 24)
+        self.assertEqual(first["Calibration"]["MaximumComparedConfigurations"], 24)
+        self.assertEqual(second["Calibration"]["MaximumComparedConfigurations"], 24)
+        for bad in (-.5, 0, .3, 2, None, True):
+            with self.subTest(margin=bad):
+                rejected = Path(self.output).with_name("invalid.json")
+                with self.assertRaises(ValueError):
+                    subject.freeze(self.source, rejected, margin=bad)
+                self.assertFalse(rejected.exists())
+
     def test_mutated_source_or_tf_baseline_refuses_without_output(self):
         mutations = [
             lambda p: p["Calibration"]["ModelOptions"][0].update(TfWeight=1),

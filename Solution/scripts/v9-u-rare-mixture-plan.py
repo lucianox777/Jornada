@@ -26,7 +26,11 @@ def _load_control():
     return module
 
 
-def freeze(source_path, target_path):
+def freeze(source_path, target_path, margin=.5):
+    # The .25 sensitivity is a distinct, predeclared TRAIN experiment.
+    # The historical .5 plan remains byte-identical unless opted in.
+    if type(margin) not in (int, float) or margin not in (.25, .5):
+        raise ValueError('Only frozen margins .5 and .25 are permitted')
     source_path, target_path = Path(source_path), Path(target_path)
     if target_path.exists():
         raise FileExistsError(target_path)
@@ -57,6 +61,8 @@ def freeze(source_path, target_path):
         raise ValueError("Risk limit must remain fixed at the source 1% guard")
     # Preserve the two historical methods byte-for-byte in their method slots.
     # The third is a separately identifiable opt-in estimator family.
+    if margin != .5:
+        plan["Calibration"]["ConflictMargins"] = [.25]
     methods.append({"Method": MIXED_FAMILY, "Parameters": {
         **methods[1]["Parameters"], "UBackoffJointMixtureWeights": WEIGHTS
     }})
@@ -68,6 +74,8 @@ def freeze(source_path, target_path):
     plan["MaximumSearchConfigurations"] = declared
     plan["Calibration"]["MaximumComparedConfigurations"] = declared
     basis = VERSION + "|" + hashlib.sha256(original).hexdigest() + "|" + json.dumps(methods, sort_keys=True, separators=(",", ":"))
+    if margin != .5:
+        basis += "|PREDECLARED_SENSITIVITY_MARGIN_0.25"
     digest = hashlib.sha256(basis.encode()).hexdigest()
     plan["Calibration"]["StudyFingerprintSha256"] = digest
     plan["Calibration"]["Budget"]["StudyFingerprintSha256"] = digest
@@ -86,7 +94,7 @@ def freeze(source_path, target_path):
         "tfArms": 2,
         "blockingArms": 2,
         "uJointWeights": WEIGHTS,
-        "margin": .5,
+        "margin": margin,
         "scope": "KNOWN_SYNTHETIC_TRAIN_SELECTION_ONLY_NOT_INDEPENDENT",
         "physicalExecuted": False,
         "testUsed": False,
@@ -100,5 +108,8 @@ if __name__ == "__main__":
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument("source_nested_tf_plan", type=Path)
     cli.add_argument("output_plan", type=Path)
+    cli.add_argument("--margin", type=float, default=.5, choices=(.25, .5),
+                     help="Frozen primary .5 or separately labelled .25 sensitivity")
     args = cli.parse_args()
-    print(json.dumps(freeze(args.source_nested_tf_plan, args.output_plan), sort_keys=True))
+    print(json.dumps(freeze(args.source_nested_tf_plan, args.output_plan,
+                            margin=args.margin), sort_keys=True))

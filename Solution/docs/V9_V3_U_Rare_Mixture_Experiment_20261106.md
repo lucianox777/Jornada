@@ -406,3 +406,59 @@ agregadas, preservando `JsonIgnore` em fontes/IDs. Os novos auditores
 exigem SHA/frames idênticos e vedam causalidade ou certificação
 indevida. Conciliação estatística no mesmo SHA não substitui a
 execução física de 160 casos no SHA combinado. Nenhuma ativação DT-15.
+
+### Protocolo físico reprodutível de 24 braços e sensibilidade pré-declarada (07/11/2026)
+
+**Objetivo:** tentar explicar a regressão da V3 em TF0/3 passes sem
+confundir uma redução da margem com uma correção do estimador U.
+A primeira campanha utiliza **exatamente 24 avaliações físicas**:
+`DEFAULT` (V2), `CLASSWISE_SUPPORT_BACKOFF` (V3 histórica) e as
+quatro versões explícitas de `CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE`
+com `lambda=0,0.25,0.5,1`; cruzar com TF0/ONE_MF e 3/19 passes
+de blocking, sob a mesma seed 42, mesmos 30 mil registros sintéticos
+e SQL descartável. Margem primária fixa `0.5`, limite FDR ponto e
+superior de 1%, mesmas observações, corpus e pin IBGE.
+
+**Sensibilidade**, antecipadamente declarada **antes de ver resultados**:
+a grade completa de 24 braços é repetida separadamente na margem
+`0.25`, com manifesto e fingerprint de estudo diferentes e
+multiplicidade contabilizada para os dois estudos. Não considerar
+margem 0 selecionável; margem 0.25 não substitui 0.5 como referência.
+
+**Critérios de auditoria antes da execução:** exatamente 24 linhas,
+24 digests de requisição únicos, 81 células por método e dois quadros
+SQL estáveis por braço; variantes com `lambda=0` devem reproduzir
+literalmente TP, FP, recall, conflitos, pendências, motivo Resolve,
+prior e limite FDR da V3 histórica dentro da mesma margem.
+Comparações por estimador exigem o mesmo SHA de pares SQL, o mesmo
+prior, o mesmo conjunto de fontes elegíveis, os mesmos TF e blocking.
+TP/FP, recall e limites de confiança condicionais são relatados
+para *todas* as alternativas, inclusive piores. O limite superior
+condicional é **não certificado**; não usar TRAIN para ativar
+operacionalmente U ou selecionar a melhor mistura como se estivesse
+validada em holdout independente.
+
+**Interpretação estatística:** se `lambda=1` recuperar recall, isso
+será evidência do papel da intervenção em U, mas **não** prova causal
+isolada do fallback; ainda é necessário separar o efeito sobre
+pontuação do melhor/segundo candidato e agrupamentos blind.
+As 19 regras continuam diagnóstico porque o fanout do controle
+histórico ultrapassa o orçamento; não podem tornar-se finalistas
+automaticamente. A coorte sintética `clean` conhecida é apenas
+TRAIN_SELECTION, e FP=0 observado não implica FDR verdadeiro zero.
+
+**Execução e privacidade:** o workflow
+`.github/workflows/v9-u-rare-mixture-physical.yml` usa dois jobs
+independentes (margens 0.5/0.25), cada qual com SQL descartável,
+pin IBGE, SHA exato, plano congelado e auditor separado
+`v9-u-rare-mixture-physical-audit.py`. Publica apenas métricas
+agregadas, planos, hashes, `memory-progress.jsonl` e recibos
+imutáveis. Nunca publica envelope com resultados por identidade,
+ranking top-two privado, nomes de pessoas, CPF ou conteúdo de
+`calibrador.log`. Nenhuma escrita em master, uso de TEST/Gold,
+certificação automática de 30k ou ativação DT-15.
+
+**Gate para considerar a evidência física:** os dois jobs precisam
+concluir no SHA exato, com `lambda=0` numericamente idêntico à
+V3 histórica. Se o teste falhar, registrar a causa antes de mudar
+o método ou a auditoria; nunca diminuir hipóteses para passar CI.
