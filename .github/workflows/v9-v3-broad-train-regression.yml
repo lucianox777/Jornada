@@ -1,6 +1,6 @@
 name: v9-v3-broad-train-regression
 
-# Technical breadth: 8 V3 policies × 2 TF arms × 2 margins × 2 SQL rule sets
+# Technical breadth: 8 V3 policies × 2 TF arms × 5 margins × 2 SQL rule sets
 # for known seed42; one locked-policy replication for known seeds 43 and 57.
 # Never interprets these exploratory TRAIN splits as fresh confirmatory holdouts.
 on:
@@ -115,10 +115,11 @@ jobs:
               for x in arms: x['EligibleForSelection'] = True
               assert all(x['EligibleForSelection'] is True for x in arms)
           source['Calibration']['ModelOptions']=arms
-          # Current V9 plan contract rejects a zero conflict margin.
-          # Keep all FIVE physical margins and all 160 configurations; the
-          # smallest allowed positive .0001 approximates the original zero,
-          # but this is a memory-load regression, NOT an exact score replay.
+          # The master also supports zero as a measured-only, nonselectable
+          # diagnostic. This RAM-first workload instead keeps the physically
+          # proven positive .0001 arm and all five declared margins (160
+          # comparisons) without introducing a new experimental protocol.
+          # It is not an exact numeric replay of the historical zero arm.
           source['Calibration']['ConflictMargins']=[0.0001, 0.25, 0.5, 2, 4]
           assert source['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint']==.01
           assert source['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper']==.01

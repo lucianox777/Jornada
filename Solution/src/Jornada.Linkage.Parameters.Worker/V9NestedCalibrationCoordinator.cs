@@ -247,7 +247,10 @@ public static class V9NestedCalibrationCoordinator
             frontier = V9TrainingParetoSelection.Frontier(evaluations.Where(x =>
                 x.Candidate is not null
                 && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
-                && template.Option.EligibleForSelection).Select(x => x.Candidate!));
+                && template.Option.EligibleForSelection
+                // Master #1298: keep zero diagnostic margins out of the
+                // TRAIN Pareto frontier, refinements, and finalists.
+                && x.Candidate.Metric.ConflictMargin > 0m).Select(x => x.Candidate!));
             var currentBands = V9TrainingParetoSelection.Bands(frontier, calibration.RiskCeilings!);
             var previousBands = V9TrainingParetoSelection.Bands(previous, calibration.RiskCeilings!);
             double recallGain = 0, fdrGain = 0, deltaR = plan.MinimumRecallImprovement, deltaF = plan.MinimumFdrImprovement;
@@ -338,7 +341,7 @@ public static class V9NestedCalibrationCoordinator
             }
             foreach (var passes in ruleSets)
             foreach (var threshold in new[] { p.Threshold - dt, p.Threshold, p.Threshold + dt }.Where(x => x is > 0 and < 1))
-            foreach (var margin in new[] { p.ConflictMargin - dm, p.ConflictMargin, p.ConflictMargin + dm }.Where(x => x is > 0 and <= 1000))
+            foreach (var margin in new[] { p.ConflictMargin - dm, p.ConflictMargin, p.ConflictMargin + dm }.Where(x => x is >= 0 and <= 1000))
                 yield return new(passes,
                     RefinedOption(template.Option, template.RootOptionId, threshold),
                     margin, template.RootOptionId);
@@ -401,7 +404,7 @@ public static class V9NestedCalibrationCoordinator
                             ? V9MuEstimationSearchSpace.Default : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
                                 ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
                     MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
-                    EligibleForSelection: request.Option.EligibleForSelection,
+                    EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m,
                     SharedSurnameCandidatePairs: run.CalibrationReport.Options.Single(x =>
                         x.OptionId == request.Option.OptionId).Validation.SharedSurnameCandidatePairs,
                     CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
@@ -418,6 +421,6 @@ public static class V9NestedCalibrationCoordinator
                     ? V9MuEstimationSearchSpace.Default : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
                                 ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
             MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
-            EligibleForSelection: request.Option.EligibleForSelection)).ToArray()); }
+            EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m)).ToArray()); }
     }
 }

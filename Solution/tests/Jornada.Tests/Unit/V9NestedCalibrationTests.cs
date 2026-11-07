@@ -266,6 +266,22 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public void Zero_margin_is_measured_but_never_enters_frontier_or_finalists()
+    {
+        var safe = Candidate(160, 0, .90m);
+        var zero = Candidate(200, 0, .95m) with
+        {
+            Metric = Candidate(200, 0, .95m).Metric with { ConflictMargin = 0m }
+        };
+        var frontier = V9TrainingParetoSelection.Frontier([safe, zero]);
+        Assert.That(frontier, Has.Count.EqualTo(1));
+        Assert.That(frontier[0].Metric.ConflictMargin, Is.EqualTo(.5m));
+        Assert.That(V9TrainingParetoSelection.Finalists(frontier, [.01], .01), Has.Count.EqualTo(1));
+        Assert.That((Action)(() => V9TrainingParetoSelection.Finalists([zero], [.01], .01)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Paired_ratio_bootstrap_is_reproducible_uses_all_identity_denominators_and_has_nonzero_resolution_at_zero_errors()
     {
         var a = Candidate(180, 0, .95m);

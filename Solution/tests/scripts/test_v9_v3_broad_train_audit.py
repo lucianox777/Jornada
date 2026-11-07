@@ -133,6 +133,22 @@ class BroadV3AuditTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             subject.verify(self.plan, self.report, 'first_name', 42)
 
+    def test_master_zero_margin_is_valid_only_when_all_five_declared(self):
+        plan, report = self.payload
+        plan['Calibration']['ConflictMargins'][0] = 0
+        for row in report['rows']:
+            if row['ConflictMargin'] == .0001:
+                row['ConflictMargin'] = 0
+        self.save()
+        historical = subject.verify(self.plan, self.report, 'first_name', 43)
+        self.assertEqual(historical['physicalConfigurations'], 20)
+        self.assertEqual({r['margin'] for r in historical['rows']},
+                         {0, .25, .5, 2, 4})
+        plan['Calibration']['ConflictMargins'] = [0, .25, .5, 2]
+        self.save()
+        with self.assertRaises(ValueError):
+            subject.verify(self.plan, self.report, 'first_name', 43)
+
     def test_observed_zero_fdr_never_implies_certification(self):
         for row in self.payload[1]['rows']:
             self.assertEqual(row['falseAccepted'], 0)
@@ -150,7 +166,6 @@ class BroadV3AuditTests(unittest.TestCase):
             lambda p,r: r['rows'][0].update(clusterIidIndependentlyValidated=True),
             lambda p,r: p['Calibration']['SelectionPolicy'].update(MaximumAcceptedFdrUpper=.2),
             lambda p,r: p['Calibration'].update(ConflictMargins=[.5,2]),
-            lambda p,r: p['Calibration'].update(ConflictMargins=[0,.25,.5,2,4]),
         )
         for bad in changes:
             self.payload = fixture()

@@ -369,3 +369,23 @@ ausência de margem e aceitação indevida de zero.
 O erro foi inspecionado diretamente nos logs dos jobs; as mudanças deste
 registro não alteram o algoritmo FS, M/U, TF, FDR, snapshot, execução
 em RAM, uso automático de CPUs ou política de reserva do log.
+
+### Reconciliação com master após merge #1298 (07/11/2026)
+
+O PR #1298 foi integrado à master no commit `f1bd50f`, e a regra
+mais recente da master **aceita margem zero exclusivamente como
+diagnóstico medido**. Ela não pode ser candidata de Pareto nem
+finalista operacional. A PR #1300 deve preservar os guardas
+`V9AdaptiveCalibrationCoordinator`, `V9NestedCalibrationCoordinator`,
+`V9TrainingParetoSelection` e a regra de elegibilidade do relatório,
+bem como o streaming e o catálogo completo de regras do #1298.
+
+A campanha RAM-first de `ee70f19` mantém o braço `0.0001` como
+**regressão de carga de 160 configurações** já comprovada. O auditor
+agora verifica expressamente um dos dois protocolos declarados:
+`[0, 0.25, 0.5, 2, 4]` (margem zero diagnóstica da master)
+ou `[0.0001, 0.25, 0.5, 2, 4]` (prova RAM-first).
+Não agrega os dois, não os considera estatisticamente equivalentes e
+não diminui a cobertura por conveniência. O paralelismo automático da
+#1300 permanece `0 = Environment.ProcessorCount`, sem o override
+temporário de 1 worker no workflow experimental #1298.

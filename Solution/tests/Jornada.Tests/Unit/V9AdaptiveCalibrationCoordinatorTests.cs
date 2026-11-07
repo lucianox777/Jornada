@@ -169,7 +169,7 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
     }
 
     [Test]
-    public void More_compute_cannot_relax_risk_or_substitute_projection_or_zero_margin()
+    public void More_compute_cannot_relax_risk_or_substitute_projection_but_zero_margin_is_diagnostic()
     {
         var plan = Plan();
         var invalid = new[]
@@ -180,11 +180,13 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
             plan with { Execution = plan.Execution with { FsBlindGroupingOnly = false } },
             plan with { Execution = plan.Execution with { EndToEndRepetitions = 19 } },
             plan with { Execution = plan.Execution with { MaximumBlindClusterSize = 1 } },
-            plan with { ConflictMargins = [0m] }
+            plan with { ConflictMargins = [-.25m] }
         };
         foreach (var candidate in invalid)
             Assert.That((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(candidate)),
                 Throws.TypeOf<InvalidDataException>());
+        Assert.DoesNotThrow((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(
+            plan with { ConflictMargins = [0m, .25m, .5m, 2m, 4m] })));
     }
 
     [Test]
