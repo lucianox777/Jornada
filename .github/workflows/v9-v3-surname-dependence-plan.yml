@@ -1,15 +1,9 @@
 name: v9-v3-surname-dependence-plan
 
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/v9-v3-surname-dependence-plan.yml'
-      - 'Solution/scripts/v9-v3-direct-plan.py'
-      - 'Solution/tests/scripts/test_v9_v3_direct_plan.py'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9TfSharedSurnamePairedDiagnostics.cs'
-      - 'Solution/tests/Jornada.Tests/Unit/V9TfSharedSurnamePairedDiagnosticsTests.cs'
+  push:
+    branches:
+      - master
 
 permissions:
   contents: read
