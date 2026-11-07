@@ -66,6 +66,10 @@ def audit(plan_file, report_file, selection_file):
     require(len(margins) == 1 and _safe_number(margins[0]) and 0 < margins[0] <= 1,
             "Unexpected margin or merged hypotheses")
     margin = margins[0]
+    policies = plan.get("DuplicateCandidatePolicies", ["COUNT_ALL"])
+    require(isinstance(policies, list) and policies and len(set(policies)) == len(policies)
+            and all(x in ("COUNT_ALL", "COUNT_UNIQUE") for x in policies),
+            "Invalid DuplicateCandidatePolicies")
     methods = plan["MuEstimationMethods"]
     weights = methods[2]["Parameters"]["UBackoffJointMixtureWeights"]
     require(isinstance(weights, list) and len(weights) > 0 and
@@ -223,6 +227,36 @@ def audit(plan_file, report_file, selection_file):
                                  "recall": historical["recall"]},
                 "alternatives": series
             })
+    # Compare predeclared candidate accounting policies on the same physical evidence.
+    # Only lambda=0 / historical V3 parity is proven; no outcome-based clustering.
+    policy_comparisons = []
+    for policy_name in policies:
+        eligible = []
+        groups = []
+        for passes in (3, 19):
+            for option in OPTIONS:
+                same = [rows[passes, option, V3, None]]
+                if (passes, option, MIX, 0) in rows:
+                    same.append(rows[passes, option, MIX, 0])
+                if len(same) == 2:
+                    groups.append({"passes": passes, "tfArm": option,
+                                   "requestSha256": [x["RequestSha256"] for x in same],
+                                   "equivalence": "HISTORICAL_V3_LAMBDA_ZERO_PARITY"})
+        for row in report["rows"]:
+            if (policy_name == "COUNT_UNIQUE" and row["MuEstimationMethod"] == MIX
+                    and row["MuPolicy"]["UBackoffJointMixtureWeight"] == 0):
+                continue
+            eligible.append(row)
+        # Descriptive ranking, NOT an independent certified FDR/multiplicity correction.
+        ranked = sorted(eligible, key=lambda x: (-x["recall"], x["fdrObserved"], x["RequestSha256"]))
+        policy_comparisons.append({
+            "policy": policy_name, "physicalEvaluations": len(rows),
+            "eligibleHypotheses": len(eligible), "equivalentGroups": groups,
+            "descriptiveTopRequestSha256": ranked[0]["RequestSha256"] if ranked else None,
+            "descriptiveTopRecall": ranked[0]["recall"] if ranked else None,
+            "descriptiveTopFdrObserved": ranked[0]["fdrObserved"] if ranked else None,
+            "statisticalSelectionCertified": False,
+            "multiplicityCorrectionApplied": False})
     # Do not ship any private per-source records in the aggregate report.
     text = json.dumps(report)
     require(not any(token in text for token in
@@ -240,6 +274,7 @@ def audit(plan_file, report_file, selection_file):
         "testUsed": False, "goldUsed": False, "certified": False, "activated": False,
         "uFallbackCausalityEstablished": False,
         "comparisons": comparisons,
+        "duplicateCandidatePolicyComparisons": policy_comparisons,
         "conclusion": "DESCRIPTIVE_ONLY_NO_PARAM_SELECTION_OR_OPERATIONAL_AUTHORIZATION"
     }
 
