@@ -95,7 +95,7 @@ def freeze(source_path, target_path, margin=.5, weights=None):
         "studyFingerprintSha256": digest,
         "comparisons": declared,
         "estimatorMethods": 3,
-        "estimatedVariants": 6,
+        "estimatedVariants": 2 + len(weights),
         "historicalV3Preserved": True,
         "tfArms": 2,
         "blockingArms": 2,
