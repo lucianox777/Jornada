@@ -50,7 +50,7 @@ jobs:
           python3 -m py_compile Solution/scripts/v9-mu-tf0-controlled-audit.py Solution/scripts/v9-mu-tf0-cell-ablation.py Solution/scripts/v9-v3-source-gap-audit.py Solution/scripts/v9-v3-source-paired-audit.py
           python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
             --mode auto_30k --expected-sha "$EXPERIMENT_SHA" \
-            --ref "refs/heads/${{ github.head_ref }}" \
+            --ref "${{ github.ref }}" \
             --output Solution/.local/v9-mu-tf0/sha-verified.json
       - name: Start disposable SQL
         run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
