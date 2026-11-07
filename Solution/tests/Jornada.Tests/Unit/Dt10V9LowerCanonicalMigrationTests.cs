@@ -266,8 +266,11 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
         {
             Assert.That(workflow, Does.Contain("  push:"),
                 "Integrated master commits must classify impact and archive the decision.");
-            Assert.That(workflow, Does.Contain("github.event.before"),
-                "Post-merge impact classification requires the push parent SHA.");
+            Assert.That(workflow, Does.Not.Contain("github.event.before"),
+                "An unvalidated earlier commit must never escape the cumulative 30k.");
+            Assert.That(workflow, Does.Contain("v9-physical-coverage-baseline.py"));
+            Assert.That(workflow, Does.Contain("--no-validated-baseline"));
+            Assert.That(workflow, Does.Contain("git merge-base --is-ancestor"));
             Assert.That(workflow, Does.Contain("workflow_dispatch:"),
                 "The final physical gate must remain executable explicitly.");
             Assert.That(workflow, Does.Contain(
