@@ -142,34 +142,6 @@ public static class V9NestedCalibrationCli
             throw;
         }
     }
-        if (args.Length < 1 || (args[0] == "--v9-calibrate" ? args.Length != 4
-            : args[0] == "--v9-validate-finalists" ? args.Length != 5 : true))
-            throw new ArgumentException("Uso: --v9-calibrate <plano> <CSV> <diretório novo>; --v9-validate-finalists <plano> <SHA.selection.json> <CSV novo> <diretório novo>");
-        var plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(await File.ReadAllBytesAsync(args[1]), Json)
-            ?? throw new InvalidDataException("Plano V9 interno ausente.");
-        V9NestedCalibrationCoordinator.ValidatePlan(plan);
-        var output = Path.GetFullPath(args[^1]);
-        if (Directory.Exists(output) || File.Exists(output)) throw new InvalidOperationException("Resultados exigem diretório novo e imutável.");
-        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
-            ?? throw new InvalidOperationException("Conexão do JornadaHarness descartável ausente.");
-        if (new SqlConnectionStringBuilder(connectionString).InitialCatalog != "JornadaHarness")
-            throw new InvalidOperationException("Calibração física aceita somente JornadaHarness descartável.");
-        Directory.CreateDirectory(output);
-        await using var ownership = new FileStream(Path.Combine(output, "execution.lock"), FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        await WriteNewAsync(Path.Combine(output, "plan.json"), plan);
-        try
-        {
-            if (args[0] == "--v9-calibrate")
-                await SearchAsync(args[2], output, plan, connectionString);
-            else await ValidateAsync(args[2], args[3], output, plan, connectionString);
-        }
-        catch (Exception exception)
-        {
-            await WriteNewAsync(Path.Combine(output, "interrupted.json"), new { exceptionType = exception.GetType().Name,
-                completed = false, testUsed = false, activated = false });
-            throw;
-        }
-    }
 
     private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan, string connectionString)
     {
