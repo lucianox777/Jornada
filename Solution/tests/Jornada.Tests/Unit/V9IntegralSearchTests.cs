@@ -75,6 +75,23 @@ public sealed class V9IntegralSearchTests
     }
 
     [Test]
+    public void Native_CPU_auto_worker_count_uses_visible_logical_processors_without_percentage()
+    {
+        Assert.That(V9ParallelWork.ResolveMaximumParallelism(0),
+            Is.EqualTo(Math.Max(1, Environment.ProcessorCount)));
+        foreach (var cpus in new[] { 1, 2, 4, 8, 16 })
+        {
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(0, cpus), Is.EqualTo(cpus));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(1, cpus), Is.EqualTo(1));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(3, cpus), Is.EqualTo(3));
+        }
+        Assert.That((Action)(() => V9ParallelWork.ResolveMaximumParallelism(-1, 8)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9ParallelWork.ResolveMaximumParallelism(0, 0)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public async Task Parallel_map_really_overlaps_work_but_preserves_order_and_worker_bound()
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

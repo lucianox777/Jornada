@@ -23,7 +23,8 @@ public sealed record V9AdaptiveCalibrationPlan(
     IReadOnlyList<IReadOnlyList<LinkageBlockingPass>>? BaselineRuleSets = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     V9SyntheticObservationCapDeclaration? ObservationCapDeclaration = null,
-    int MaximumParallelRuleSets = 1,
+    // Zero uses Environment.ProcessorCount at execution time; positives override.
+    int MaximumParallelRuleSets = 0,
     IReadOnlyList<double>? RiskCeilings = null,
     V9StatisticalSamplePlan.Design? SampleDesign = null,
     V9DeclaredBlockingSearchSpace? DeclaredSearchSpace = null,
@@ -97,7 +98,7 @@ public static class V9AdaptiveCalibrationCoordinator
             || plan.Discovery is null || plan.ModelOptions is null || plan.Execution is null
             || plan.ConflictMargins is null || plan.Budget is null || plan.SelectionPolicy is null
             || plan.MaximumPhysicalRuleSets < 1 || plan.MaximumComparedConfigurations < 1
-            || plan.MaximumParallelRuleSets < 1
+            || plan.MaximumParallelRuleSets < 0
             || plan.ShardCount < 1 || plan.ShardIndex < 0 || plan.ShardIndex >= plan.ShardCount
             || plan.PreviouslyComparedValidationConfigurations < 0
             || plan.MaximumAcceptedPerBaseIdentity < 1
@@ -233,7 +234,7 @@ public static class V9AdaptiveCalibrationCoordinator
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(plan);
-        if (plan.MaximumParallelRuleSets != 1)
+        if (V9ParallelWork.ResolveMaximumParallelism(plan.MaximumParallelRuleSets) != 1)
             throw new InvalidDataException("Paralelismo SQL exige fábrica de conexões independentes.");
         return RunCoreAsync(_ => Task.FromResult(connection), false, observations, plan,
             frozenTfReferenceForRuleset, cancellationToken);

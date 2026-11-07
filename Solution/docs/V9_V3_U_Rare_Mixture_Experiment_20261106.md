@@ -133,3 +133,29 @@ SHA contra o formato antigo. **Não** se trata de um modo disk-backed de
 calibração: todos os cálculos e avaliações permanecem em RAM; o SSD recebe
 somente o relatório final. Essa alteração é idêntica à correção na #1298,
 para que os resultados do mesmo caso de OOM sejam comparáveis.
+
+### Paralelismo nativo do .NET: CPUs disponíveis, sem percentual
+
+A propriedade **já existente** `Calibration.MaximumParallelRuleSets` aceita
+**0 = automático (novo padrão)**: no momento de iniciar cada grupo de
+trabalho, o calibrador usa `Environment.ProcessorCount` — as vCPUs lógicas
+visíveis ao processo pelo runtime .NET, inclusive restrições de contêiner.
+Nenhum percentual nem regra de “CPUs menos um” foi introduzido.
+Valores positivos continuam sendo um override explícito (por exemplo,
+`1` quando a API recebe somente uma conexão SQL), não o padrão. Cada
+worker paralelo tem sua própria conexão SQL; `Parallel.ForEachAsync` e o
+SO administram o escalonamento. Número de grupos disponíveis, SQL e RAM
+podem limitar a aceleração. Esse cálculo não é controle de uso real da CPU.
+
+O gerador de novos planos da busca aninhada declara explicitamente `0`.
+Planos históricos que contêm `MaximumParallelRuleSets: 1` ou `2`
+continuam respeitando o valor declarado. O campo 0 é apenas
+**configuração de execução**; não altera cardinalidade de modelos,
+seleção, FDR, TF ou política operacional. Não há alteração no tratamento
+RAM-first: a otimização remove cópias redundantes; nenhum spill, limite de
+RAM, `GC.Collect` forçado ou reinício em disco.
+
+Na comparação física do OOM, documentar o valor efetivo de CPUs e a
+concorrência, pois estudos executados com 1, 2 ou todas as vCPUs não são
+benchmarks de performance diretamente comparáveis. Reproduzir a falha com
+o mesmo corpus/seed e registrar resultados físicos no SHA exato.
