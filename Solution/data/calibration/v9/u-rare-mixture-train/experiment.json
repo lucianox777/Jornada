@@ -6,10 +6,6 @@
     1
   ],
   "ConflictMargin": 0.5,
-  "CalibrationDuplicatePolicies": [
-    "INCLUDE",
-    "DEDUPLICATE"
-  ],
   "SelectionDuplicatePolicies": [
     "COUNT_ALL",
     "COUNT_UNIQUE"
