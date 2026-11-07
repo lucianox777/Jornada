@@ -25,7 +25,6 @@ def payload(margin=.5, weights=None):
     plan = {
         "MaximumBatches": 1, "MaximumSearchConfigurations": count,
         "SelectionDuplicatePolicies": ["COUNT_ALL", "COUNT_UNIQUE"],
-        "CalibrationDuplicatePolicies": ["INCLUDE", "DEDUPLICATE"],
         "Calibration": {
             "MaximumComparedConfigurations": count, "ConflictMargins": [margin],
             "Budget": {"MaximumObservedAcceptedFdrPoint": .01},
