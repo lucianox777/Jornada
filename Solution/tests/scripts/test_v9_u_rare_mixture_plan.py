@@ -35,6 +35,7 @@ class RareUPlanTests(unittest.TestCase):
         receipt = subject.freeze(self.source, self.output)
         plan = json.loads(self.output.read_text(encoding="utf-8"))
         self.assertEqual(receipt["comparisons"], 24)
+        self.assertEqual(plan["DuplicateCandidatePolicies"], ["COUNT_ALL", "COUNT_UNIQUE"])
         self.assertEqual(receipt["uJointWeights"], [0, .25, .5, 1])
         self.assertEqual(plan["MaximumSearchConfigurations"], 24)
         self.assertEqual(plan["Calibration"]["MaximumComparedConfigurations"], 24)
