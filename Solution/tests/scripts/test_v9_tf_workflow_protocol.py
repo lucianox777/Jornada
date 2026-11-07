@@ -12,10 +12,13 @@ class TfWorkflowProtocolTests(unittest.TestCase):
         self.assertIn("--v9-adaptive-study", script)
         self.assertNotIn("--v9-calibrate", script)
         self.assertIn("inputs.mode == 'execute_30k'", script)
-        self.assertIn("github.event_name == 'pull_request'", script)
+        # PO 06/11: quick checks on PR; physical 30k only on master push or manual dispatch.
+        self.assertIn("  push:\n    branches:\n      - master", script)
+        self.assertNotIn("  pull_request:\n", script)
+        self.assertIn("github.event_name == 'push'", script)
         self.assertIn("github.event_name == 'workflow_dispatch'", script)
-        self.assertIn("github.event.pull_request.head.sha", script)
-        self.assertIn("ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}", script)
+        self.assertIn("ref: ${{ github.sha }}", script)
+        self.assertIn("--mode auto_30k", script)
         self.assertIn("SOURCE_REPO", script)
         self.assertIn('test "$SOURCE_REPO" = "$GITHUB_REPOSITORY"', script)
         self.assertIn("--pinned-ibge", script)
@@ -50,9 +53,9 @@ class TfWorkflowProtocolTests(unittest.TestCase):
             script,
         )  # Only preflight skips the physical certification check.
         self.assertIn(
-            "if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))",
+            "if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))",
             script,
-        )  # PRs may run 30k only for affected changes; manual mode retained.
+        )  # Impacted master push runs physical 30k; manual mode retained.
         self.assertIn('"$PHYSICAL_RESULT" == "success"', script)
         self.assertNotIn("python3 Solution/scripts/v9_manual_probe_evidence.py", script)
 
