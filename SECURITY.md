@@ -4,7 +4,7 @@
 
 A Jornada está em **candidata técnica v5.00**, ainda sem publicação normativa v5.00 e sem implantação HML/Produção autorizada.
 
-Fora de `Development`, a aplicação permanece **deny-by-default** enquanto a identidade corporativa/autenticação PRODAM e a separação ambiental da issue #378 não forem integradas e homologadas. CI verde, fixtures sintéticas e readiness local não equivalem a autorização de Produção.
+Fora de `Development`, a aplicação permanece **deny-by-default** enquanto a identidade e autenticação corporativas e a separação ambiental da issue #378 não forem integradas e homologadas. CI verde, fixtures sintéticas e readiness local não equivalem a autorização de Produção.
 
 ## Versões suportadas para correção
 
