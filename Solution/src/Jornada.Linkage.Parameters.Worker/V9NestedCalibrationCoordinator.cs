@@ -21,8 +21,7 @@ public sealed record V9NestedCalibrationPlan(V9AdaptiveCalibrationPlan Calibrati
     NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<V9MuEstimationMethod>? MuEstimationMethods = null,
-    IReadOnlyList<string>? SelectionDuplicatePolicies = null,
-    IReadOnlyList<string>? CalibrationDuplicatePolicies = null);
+    IReadOnlyList<string>? SelectionDuplicatePolicies = null);
 
 public sealed record V9NestedCandidateEvaluation(string RequestSha256, int Batch,
     V9TrainingCandidate? Candidate, IReadOnlyList<string> Rejections,
@@ -80,10 +79,6 @@ public static class V9NestedCalibrationCoordinator
     {
         ArgumentNullException.ThrowIfNull(plan);
         V9AdaptiveCalibrationCoordinator.ValidatePlan(plan.Calibration);
-        if (plan.CalibrationDuplicatePolicies is { } calibrationPolicies &&
-            (calibrationPolicies.Count == 0 || calibrationPolicies.Distinct(StringComparer.Ordinal).Count() != calibrationPolicies.Count ||
-             calibrationPolicies.Any(x => x is not ("INCLUDE" or "DEDUPLICATE"))))
-            throw new InvalidDataException("CalibrationDuplicatePolicies inválido.");
         if (plan.SelectionDuplicatePolicies is { } policies &&
             (policies.Count == 0 || policies.Distinct(StringComparer.Ordinal).Count() != policies.Count ||
              policies.Any(x => x is not ("COUNT_ALL" or "COUNT_UNIQUE"))))
@@ -161,11 +156,6 @@ public static class V9NestedCalibrationCoordinator
         ValidatePlan(plan);
         if (plan.Calibration.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf) && frozenTfReferenceForRuleset is null)
             throw new InvalidDataException("TF positivo na busca aninhada exige referência IBGE publicada e congelada por frame SQL.");
-        // Fail closed: SQL currently materializes SELECT DISTINCT candidate pairs.
-        // INCLUDE incidence weighting is not implemented; do not silently report
-        // it as a separate physical calibration or a four-cell experiment.
-        if (plan.CalibrationDuplicatePolicies?.Contains("INCLUDE", StringComparer.Ordinal) == true)
-            throw new NotSupportedException("CalibrationDuplicatePolicies=INCLUDE requires incidence-preserving physical calibration; distinct SQL union cannot represent it.");
         originalTrain = Array.AsReadOnly(originalTrain.ToArray());
         // Deep freeze before asynchronous execution. Search never receives a VALIDATION/TEST cohort.
         plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(JsonSerializer.Serialize(plan))!;
