@@ -135,7 +135,7 @@ Staging -> nodes[].stagingRoot -> disco local de cada VM
 Logs    -> nodes[].logsRoot    -> disco local de cada VM
 ```
 
-O dimensionamento de vCPU, RAM, SAN e NAS deve ser homologado pela infraestrutura/PRODAM. O software não fixa esses números.
+O dimensionamento de vCPU, RAM, SAN e NAS deve ser homologado pela equipe de infraestrutura designada. O software não fixa esses números.
 
 ## Monitor operacional
 
