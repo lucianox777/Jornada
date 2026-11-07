@@ -229,13 +229,16 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         decimal minimumFsGroupingPosterior = .99m,
         V9PhysicalAdaptiveExecution? adaptiveExecution = null,
         bool includeIdentityOutcomes = false,
-        V9JointSupportPolicy? jointSupportPolicy = null)
+        V9JointSupportPolicy? jointSupportPolicy = null,
+        bool includeSourceRankDiagnostics = false)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(passes);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(budget);
+        if (includeSourceRankDiagnostics && !includeIdentityOutcomes)
+            throw new InvalidDataException("Source Rank pareado exige coorte e resultados por identidade.");
         RequireSha(studyFingerprintSha256, nameof(studyFingerprintSha256));
         adaptiveExecution ??= new V9PhysicalAdaptiveExecution();
         adaptiveExecution.Validate(evaluateFinalResolve, includeFsBlindGrouping);
@@ -466,7 +469,8 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
                 adaptiveExecution.MaximumBlindClusterSize,
                 fsBlindGroupingOnly: adaptiveExecution.FsBlindGroupingOnly,
                 totalComparedConfigurations: adaptiveExecution.TotalComparedConfigurations,
-                includeIdentityOutcomes: includeIdentityOutcomes);
+                includeIdentityOutcomes: includeIdentityOutcomes,
+                includeSourceRankDiagnostics: includeSourceRankDiagnostics);
         }
 
         var frozen = new List<V9PhysicalFrozenConfiguration>();

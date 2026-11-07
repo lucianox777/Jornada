@@ -894,8 +894,11 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         IReadOnlySet<string>? evaluatedOptionIds = null,
         bool fsBlindGroupingOnly = false,
         int? totalComparedConfigurations = null,
-        bool includeIdentityOutcomes = false)
+        bool includeIdentityOutcomes = false,
+        bool includeSourceRankDiagnostics = false)
     {
+        if (includeSourceRankDiagnostics && !includeIdentityOutcomes)
+            throw new InvalidDataException("Source Rank pareado exige resultado por identidade.");
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(validationSqlPairs);
         ArgumentNullException.ThrowIfNull(conflictMargins);
@@ -1179,7 +1182,12 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
                 {
                     var counter = new V9SourceResolveAccumulator(orderedBases);
                     var gapEvidence = new V9SourceGapAttributionAccumulator();
-                    var sourceRanks = includeIdentityOutcomes
+                    // Identity-level bootstrap outcomes are required in every
+                    // physical calibration, but the much larger top-two
+                    // per-source detail is needed ONLY for the paired V2/V3
+                    // experiment. Pure V3 grids (e.g. 160 configs) stay RAM-first
+                    // without retaining one extra list per configuration.
+                    var sourceRanks = includeSourceRankDiagnostics
                         ? new List<V9SourceTopTwoDiagnostic>(validation.Count) : null;
                     foreach (var source in validation.Values.OrderBy(x => x.ObservationId))
                     {

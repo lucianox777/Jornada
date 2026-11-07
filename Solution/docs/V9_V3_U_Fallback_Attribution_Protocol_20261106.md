@@ -85,3 +85,29 @@ incluir os controles M, TF e prior e testar intervenções parametrizadas.
 A mudança não redefine o estimador, não seleciona parâmetros com TEST/Gold
 e não autoriza uso operacional. O merge segue bloqueado até os checks físicos
 no SHA exato.
+
+
+## Resguardo de memória na instrumentação pareada (07/11/2026)
+
+A atribuição pareada por fonte exige temporariamente os rankings privados
+V2/V3, mas **não** é justificativa para manter listas de top-two de todas as
+configurações em um experimento exclusivamente V3, principalmente quando
+há 160 combinações. A separação agora é explícita:
+
+- `includeIdentityOutcomes` preserva os resultados por identidade necessários
+  para os limites estatísticos/FDR em **todas** as calibrações.
+- `includeSourceRankDiagnostics` pede as listas privadas por fonte somente
+  se o plano declara **simultaneamente** `DEFAULT` (V2) e
+  `CLASSWISE_SUPPORT_BACKOFF` (V3), caso em que o relatório precisa fazer
+  atribuição pareada. Pedir rankings sem resultados por identidade falha fechado.
+- Campanhas exclusivamente V3, incluindo a regressão de 160 configurações,
+  não retêm essas listas extras. Não se alteram o score, a decisão Resolve,
+  as métricas, os 81 estados, os hashes, nem se usa disco como memória.
+- A campanha pareada ainda mantém as listas privadas até a redução final
+  em agregados; esse volume **residual** deverá ser medido no SHA combinado
+  com a PR #1300. Não apresentar este resguardo como uma prova geral de
+  ausência de OOM, nem como causa estatística identificada para o fallback U.
+
+Esta frente não faz merge automático, não acessa TEST ou Gold e não autoriza
+modelo operacional. O gate físico de V2/V3 deve ser reexecutado para o SHA
+que incorpore esta alteração, antes de qualquer integração.

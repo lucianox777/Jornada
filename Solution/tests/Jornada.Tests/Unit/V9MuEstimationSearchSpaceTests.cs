@@ -77,6 +77,21 @@ public class V9MuEstimationSearchSpaceTests
     }
 
     [Test]
+    public void Private_source_rank_lists_are_requested_only_for_explicit_paired_V2_V3()
+    {
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(V9MuEstimationSearchSpace.RequiresPairedSourceRankDiagnostics(null), Is.False);
+            Assert.That(V9MuEstimationSearchSpace.RequiresPairedSourceRankDiagnostics([Default()]), Is.False);
+            Assert.That(V9MuEstimationSearchSpace.RequiresPairedSourceRankDiagnostics([HistoricalV3()]), Is.False);
+            Assert.That(V9MuEstimationSearchSpace.RequiresPairedSourceRankDiagnostics([Default(), HistoricalV3()]), Is.True);
+            Assert.That(V9MuEstimationSearchSpace.RequiresPairedSourceRankDiagnostics([HistoricalV3(), Default()]), Is.True);
+        }));
+        // Only the private source-by-configuration Rank detail is disabled
+        // for V3-only. Existing per-identity outcomes for FDR are untouched.
+    }
+
+    [Test]
     public void Cannot_ignore_declared_grid_because_computation_budget_is_too_small()
     {
         var original = new[] { new V9FsAdaptiveOptionConfiguration("A", .5m, .95m) };
