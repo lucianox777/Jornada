@@ -845,7 +845,7 @@ jobs:
 
   dt10-evidence:
     needs: [impact, dependency-lock]
-    if: github.event_name == 'pull_request' && needs.impact.outputs.run_dt10 == 'true' && needs.dependency-lock.result == 'success'
+    if: github.event_name == 'push' && needs.impact.outputs.run_dt10 == 'true' && needs.dependency-lock.result == 'success'
     # Reusable job keeps the SAME status check and lock-artifact provenance.
     # Only DT10-triggering PRs pay for the SQL service and .NET build.
     uses: ./.github/workflows/dt10-evidence.yml
