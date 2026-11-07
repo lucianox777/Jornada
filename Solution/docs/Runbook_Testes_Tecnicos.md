@@ -107,7 +107,7 @@ JORNADA_SCALE_SEED            opcional
 
 Depois execute `local-scale ... custom`.
 
-Os resultados locais não substituem a homologação com infraestrutura representativa da PRODAM. Servem para detectar regressões, validar índices/algoritmos e tornar o ensaio repetível.
+Os resultados locais não substituem a homologação com infraestrutura representativa do ambiente de produção designado. Servem para detectar regressões, validar índices/algoritmos e tornar o ensaio repetível.
 
 Para HML, **não use `local-scale`**, pois ele reseta e semeia o banco. A coleta representativa segura usa o modo `HML_SCALE_EVIDENCE` de `Jornada.Ensaio`, documentado em `docs/Runbook_HML_Volumetria.md`. Esse modo usa a massa já carregada, cria somente modelo `VALIDADO` + run `MODEL_VALIDATION/publish=false`, preserva o modelo `ATIVO` e grava artefato + SHA-256.
 
@@ -159,7 +159,7 @@ O filtro existe para o drill controlado. Sem filtro, o executável continua veri
 
 A evidência fica em `.local/backup-drill/<utc>/report.json`, acompanhada do backup SQL, arquivo Bronze e saídas de verificação. Na v3.70 o drill injeta, após o restore positivo, dois faults obrigatórios: objeto físico ausente (`MISSING`) e objeto adulterado (`DIVERGENT`). Ambos precisam falhar fechado; em seguida o objeto íntegro é restaurado e uma verificação final deve voltar a passar. `bronze-restore-evidence-gate.py` valida esse ciclo completo.
 
-O drill local prova o procedimento de aplicação; não homologa storage corporativo, retenção de backups, RPO/RTO ou plano de desastre da PRODAM.
+O drill local prova o procedimento de aplicação; não homologa storage corporativo, retenção de backups, RPO/RTO ou plano de desastre da equipe de operação designada.
 
 
 ## 4. Gate OpenAPI × código
