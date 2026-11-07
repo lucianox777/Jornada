@@ -132,8 +132,15 @@ public static class V9NestedCalibrationCli
                     }
                     catch (Exception receiptError)
                     {
-                        Console.Error.WriteLine("Não foi possível gravar interrupted.json: "
-                            + receiptError.GetType().Name + ": " + receiptError.Message);
+                        // A redirected stderr can also be on the full disk.
+                        // Never allow that secondary I/O failure to replace
+                        // the original error caught by this block.
+                        try
+                        {
+                            Console.Error.WriteLine("Não foi possível gravar interrupted.json: "
+                                + receiptError.GetType().Name + ": " + receiptError.Message);
+                        }
+                        catch (Exception) { /* preserve original exception */ }
                     }
                     throw;
                 }
@@ -160,9 +167,14 @@ public static class V9NestedCalibrationCli
                 }
                 catch (Exception cleanupError)
                 {
-                    // Do not mask an original calibration error during teardown.
-                    Console.Error.WriteLine("Falha ao fechar/remover reserva de log: "
-                        + cleanupError.GetType().Name + ": " + cleanupError.Message);
+                    // The cleanup warning itself must not mask the original
+                    // exception if stderr is redirected onto a full volume.
+                    try
+                    {
+                        Console.Error.WriteLine("Falha ao fechar/remover reserva de log: "
+                            + cleanupError.GetType().Name + ": " + cleanupError.Message);
+                    }
+                    catch (Exception) { /* preserve original exception */ }
                 }
             }
         }
