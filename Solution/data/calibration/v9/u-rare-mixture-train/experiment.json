@@ -1,4 +1,13 @@
 {
-  "UBackoffJointMixtureWeights": [0, 0.25, 0.5, 1],
-  "ConflictMargin": 0.5
+  "UBackoffJointMixtureWeights": [
+    0,
+    0.25,
+    0.5,
+    1
+  ],
+  "ConflictMargin": 0.5,
+  "DuplicateCandidatePolicies": [
+    "COUNT_ALL",
+    "COUNT_UNIQUE"
+  ]
 }
