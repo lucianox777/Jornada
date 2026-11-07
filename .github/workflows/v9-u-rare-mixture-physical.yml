@@ -4,17 +4,9 @@ name: v9-u-rare-mixture-physical-train
 # NOT the manual 30k certification, independent Gold, or DT-15 activation.
 # Both margins run in distinct disposable SQL instances on isolated runners.
 on:
-  pull_request:
-    paths:
-      - '.github/workflows/v9-u-rare-mixture-physical.yml'
-      - 'Solution/scripts/v9-u-rare-mixture-plan.py'
-      - 'Solution/data/calibration/v9/u-rare-mixture-train/experiment.json'
-      - 'Solution/scripts/v9-u-rare-mixture-physical-audit.py'
-      - 'Solution/tests/scripts/test_v9_u_rare_mixture_plan.py'
-      - 'Solution/tests/scripts/test_v9_u_rare_mixture_physical_audit.py'
-      - 'Solution/src/Jornada.Linkage.Core/V9JointSupportEstimation.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9MuEstimationSearchSpace.cs'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
+  push:
+    branches:
+      - master
   workflow_dispatch:
     inputs:
       expected_sha:
