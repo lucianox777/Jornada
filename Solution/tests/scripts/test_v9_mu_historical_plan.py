@@ -104,6 +104,27 @@ class HistoricalMuPlanTests(unittest.TestCase):
                     mu.freeze(self.source, self.output)
                 self.assertFalse(self.output.exists())
 
+
+    def test_native_cpu_auto_is_preserved_without_relaxing_historical_fdr_or_options(self):
+        data = baseline()
+        data["Calibration"]["MaximumParallelRuleSets"] = 0
+        self.write(data)
+        mu.freeze(self.source, self.output)
+        out = json.loads(self.output.read_text())
+        self.assertEqual(out["Calibration"]["MaximumParallelRuleSets"], 0)
+        self.assertEqual(out["MaximumSearchConfigurations"], 4)
+        self.assertEqual(out["Calibration"]["Budget"]["MaximumObservedAcceptedFdrPoint"], .01)
+        self.assertEqual(out["Calibration"]["SelectionPolicy"]["MaximumAcceptedFdrUpper"], .01)
+
+    def test_invalid_cpu_worker_config_rejected_before_publishing(self):
+        for workers in (-1, "0", True, 1.5):
+            with self.subTest(workers=workers):
+                self.write(dict(baseline(),
+                    Calibration=dict(baseline()["Calibration"], MaximumParallelRuleSets=workers)))
+                with self.assertRaises((ValueError, TypeError)):
+                    mu.freeze(self.source, self.output)
+                self.assertFalse(self.output.exists())
+
     def test_duplicate_or_nonfinite_json_rejected(self):
         self.source.write_text('{"Purpose":"BOOTSTRAP_CANDIDATE_SELECTION","Purpose":"MALICIOUS"}')
         with self.assertRaises(ValueError):

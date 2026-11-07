@@ -1,0 +1,50 @@
+name: v9-u-rare-mixture-plan-preflight
+
+# Offline-only plan contract gate. Never launches SQL / 30k / holdout / Gold / TEST.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-u-rare-mixture-plan-preflight.yml'
+      - 'Solution/scripts/v9-u-rare-mixture-plan.py'
+      - 'Solution/scripts/v9-v3-direct-plan.py'
+      - 'Solution/tests/scripts/test_v9_u_rare_mixture_plan.py'
+      - 'Solution/tests/scripts/test_v9_v3_direct_plan.py'
+      - 'Solution/src/Jornada.Linkage.Core/V9JointSupportEstimation.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9MuEstimationSearchSpace.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/V9MuEstimationSearchSpaceTests.cs'
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: 'Exact commit SHA to audit offline'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    name: Exact-SHA offline V2/V3/mixed U 24-arm contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      EXPECTED_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          persist-credentials: false
+      - name: Verify SHA and Python plan invariants without SQL
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          python3 -m py_compile Solution/scripts/v9-u-rare-mixture-plan.py Solution/scripts/v9-v3-direct-plan.py
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_plan.py' -v
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_direct_plan.py' -v

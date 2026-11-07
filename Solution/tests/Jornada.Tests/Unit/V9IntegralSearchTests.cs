@@ -75,6 +75,61 @@ public sealed class V9IntegralSearchTests
     }
 
     [Test]
+    public void Native_CPU_auto_worker_count_uses_visible_logical_processors_without_percentage()
+    {
+        Assert.That(V9ParallelWork.ResolveMaximumParallelism(0),
+            Is.EqualTo(Environment.ProcessorCount));
+        foreach (var cpus in new[] { 1, 2, 4, 8, 16 })
+        {
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(0, cpus), Is.EqualTo(cpus));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(1, cpus), Is.EqualTo(1));
+            Assert.That(V9ParallelWork.ResolveMaximumParallelism(3, cpus), Is.EqualTo(3));
+        }
+        Assert.That((Action)(() => V9ParallelWork.ResolveMaximumParallelism(-1, 8)),
+            Throws.TypeOf<InvalidDataException>());
+        foreach (var invalidCpuCount in new[] { 0, -1 })
+        {
+            var error = Assert.Throws<InvalidDataException>(
+                (Action)(() => V9ParallelWork.ResolveMaximumParallelism(0, invalidCpuCount)));
+            Assert.That(error!.Message, Does.Contain("MaximumParallelRuleSets"));
+        }
+        // Manual legacy override must still work even if autodetection is broken.
+        Assert.That(V9ParallelWork.ResolveMaximumParallelism(1, 0), Is.EqualTo(1));
+        Assert.That(V9ParallelWork.ResolveMaximumParallelism(2, -1), Is.EqualTo(2));
+    }
+
+    [Test]
+    public void Cpu_capacity_report_warns_only_when_manual_workers_are_below_detected_vcpus()
+    {
+        foreach (var cpus in new[] { 1, 2, 4, 8, 16 })
+        {
+            var automatic = V9ParallelWork.InspectCpuCapacity(0, cpus);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(automatic.ConfiguredMaximumParallelRuleSets, Is.Zero);
+                Assert.That(automatic.DotNetVisibleLogicalProcessors, Is.EqualTo(cpus));
+                Assert.That(automatic.EffectiveMaximumParallelRuleSets, Is.EqualTo(cpus));
+                Assert.That(automatic.ExplicitWorkerCountBelowDetectedProcessors, Is.False);
+                Assert.That(automatic.Notice, Is.Null);
+            }));
+
+            var manual = V9ParallelWork.InspectCpuCapacity(1, cpus);
+            Assert.That(manual.ExplicitWorkerCountBelowDetectedProcessors, Is.EqualTo(cpus > 1));
+            Assert.That(manual.Notice is not null, Is.EqualTo(cpus > 1));
+            Assert.That(manual.EffectiveMaximumParallelRuleSets, Is.EqualTo(1));
+        }
+        Assert.That(V9ParallelWork.InspectCpuCapacity(2, 8).ExplicitWorkerCountBelowDetectedProcessors, Is.True);
+        Assert.That(V9ParallelWork.InspectCpuCapacity(8, 8).ExplicitWorkerCountBelowDetectedProcessors, Is.False);
+        Assert.That(V9ParallelWork.InspectCpuCapacity(12, 8).ExplicitWorkerCountBelowDetectedProcessors, Is.False);
+        var unknown = V9ParallelWork.InspectCpuCapacity(2, 0);
+        Assert.That(unknown.DotNetVisibleLogicalProcessors, Is.Null);
+        Assert.That(unknown.EffectiveMaximumParallelRuleSets, Is.EqualTo(2));
+        Assert.That(unknown.Notice, Is.Not.Null);
+        Assert.That((Action)(() => V9ParallelWork.InspectCpuCapacity(0, 0)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public async Task Parallel_map_really_overlaps_work_but_preserves_order_and_worker_bound()
     {
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);

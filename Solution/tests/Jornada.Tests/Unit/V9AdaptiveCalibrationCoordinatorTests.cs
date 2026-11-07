@@ -187,8 +187,20 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
                 Throws.TypeOf<InvalidDataException>());
         Assert.DoesNotThrow((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(
             plan with { ConflictMargins = [0m, .25m, .5m, 2m, 4m] })));
-        // Zero is a measured diagnostic margin, not an operationally eligible selection.
-        // V9ParetoSourceSelection rejects rows with MARGEM_DE_CONFLITO_NULA.
+    }
+
+    [Test]
+    public void CPU_auto_is_default_and_manual_one_remains_valid_for_single_SQL_connection()
+    {
+        var plan = Plan();
+        Assert.That(plan.MaximumParallelRuleSets, Is.Zero);
+        Assert.DoesNotThrow((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(plan)));
+        Assert.DoesNotThrow((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(
+            plan with { MaximumParallelRuleSets = 1 })));
+        Assert.DoesNotThrow((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(
+            plan with { MaximumParallelRuleSets = 8 })));
+        Assert.That((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(
+            plan with { MaximumParallelRuleSets = -1 })), Throws.TypeOf<InvalidDataException>());
     }
 
     [Test]
@@ -222,11 +234,12 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
         var exception = Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             await V9AdaptiveCalibrationCoordinator.RunAsync(sql,
                 rows.Append(rows[3] with { ObservationId = 5, Partition = "TEST" }).ToArray(),
-                Plan(), CancellationToken.None)));
+                Plan() with { MaximumParallelRuleSets = 1 }, CancellationToken.None)));
         Assert.That(exception!.Message, Does.Contain("sem TEST"));
         exception = Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             await V9AdaptiveCalibrationCoordinator.RunAsync(sql,
-                rows.Select(x => x with { BasePersonId = "SHARED" }).ToArray(), Plan(), CancellationToken.None)));
+                rows.Select(x => x with { BasePersonId = "SHARED" }).ToArray(),
+                Plan() with { MaximumParallelRuleSets = 1 }, CancellationToken.None)));
         Assert.That(exception!.Message, Does.Contain("vazamento de identidade"));
     }
 

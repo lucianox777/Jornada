@@ -17,7 +17,9 @@ public sealed record V9MuEstimationParameterGrid(
     IReadOnlyList<decimal> ClassMassCoverage,
     IReadOnlyList<long> MinimumObservedMPerCell,
     IReadOnlyList<long> MinimumObservedUPerCell,
-    IReadOnlyList<bool> RetainSupportedTail);
+    IReadOnlyList<bool> RetainSupportedTail,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<decimal>? UBackoffJointMixtureWeights = null);
 
 public sealed record V9MuEstimationVariant(string Method, string Key, V9JointSupportPolicy? Policy);
 
@@ -26,6 +28,19 @@ public static class V9MuEstimationSearchSpace
     public const string Default = "DEFAULT";
     public const string Classwise = "CLASSWISE_SUPPORT_BACKOFF";
 
+    /// <summary>
+    /// The identity-level FDR stream always remains available. Private
+    /// per-source top-two arrays are necessary only if the frozen study
+    /// explicitly compares DEFAULT V2 with CLASSWISE V3. V3-only 160-case
+    /// batches must not keep such arrays across configurations.
+    /// </summary>
+    public static bool RequiresPairedSourceRankDiagnostics(IReadOnlyList<V9MuEstimationMethod>? methods)
+        => methods is { Count: > 0 }
+            && methods.Any(x => x.Method == Default)
+            && methods.Any(x => x.Method == Classwise);
+
+    public const string ClasswiseMixture = "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE";
+
     public static IReadOnlyList<V9MuEstimationVariant> Enumerate(IReadOnlyList<V9MuEstimationMethod> methods)
     {
         if (methods is null || methods.Count == 0)
@@ -33,6 +48,12 @@ public static class V9MuEstimationSearchSpace
         if (methods.Any(x => x is null || string.IsNullOrWhiteSpace(x.Method))
             || methods.Select(x => x.Method).Distinct(StringComparer.Ordinal).Count() != methods.Count)
             throw new InvalidDataException("Métodos M/U ausentes ou duplicados.");
+        // The legacy Classwise arm and the explicit mixture arm are distinct.
+        // Reject the older embedded-weight syntax when it would duplicate the
+        // explicitly named mixture arm in the same search.
+        if (methods.Any(x => x.Method == ClasswiseMixture)
+            && methods.Any(x => x.Method == Classwise && x.Parameters?.UBackoffJointMixtureWeights is not null))
+            throw new InvalidDataException("Declare U mixtures in one method only.");
         var result = new List<V9MuEstimationVariant>();
         foreach (var method in methods)
         {
@@ -43,7 +64,7 @@ public static class V9MuEstimationSearchSpace
                 result.Add(new(Default, Default, null));
                 continue;
             }
-            if (method.Method != Classwise)
+            if (method.Method is not (Classwise or ClasswiseMixture))
                 throw new InvalidDataException("Método M/U desconhecido: " + method.Method);
             var p = method.Parameters
                 ?? throw new InvalidDataException("CLASSWISE_SUPPORT_BACKOFF exige Parameters explícito.");
@@ -51,28 +72,40 @@ public static class V9MuEstimationSearchSpace
             CheckValues(p.MinimumObservedMPerCell, "MinimumObservedMPerCell");
             CheckValues(p.MinimumObservedUPerCell, "MinimumObservedUPerCell");
             CheckValues(p.RetainSupportedTail, "RetainSupportedTail");
+            if (method.Method == ClasswiseMixture && p.UBackoffJointMixtureWeights is null)
+                throw new InvalidDataException("CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE exige array explícito UBackoffJointMixtureWeights.");
+            if (p.UBackoffJointMixtureWeights is { } declaredWeights)
+            {
+                CheckValues(declaredWeights, "UBackoffJointMixtureWeights");
+                if (declaredWeights.Any(w => w is < 0m or > 1m))
+                    throw new InvalidDataException("U rare mixture weights must be between 0 and 1.");
+            }
+            decimal?[] uWeights = p.UBackoffJointMixtureWeights?.Select(w => (decimal?)w).ToArray() ?? [null];
             if (p.ClassMassCoverage.Any(x => x is <= 0 or >= 1)
                 || p.MinimumObservedMPerCell.Any(x => x < 1)
                 || p.MinimumObservedUPerCell.Any(x => x < 1))
                 throw new InvalidDataException("CLASSWISE exige cobertura (0,1) e suporte M/U positivo.");
             // All values are explicit finite alternatives. No hidden search or truncation.
             var count = checked((long)p.ClassMassCoverage.Count * p.MinimumObservedMPerCell.Count
-                * p.MinimumObservedUPerCell.Count * p.RetainSupportedTail.Count);
+                * p.MinimumObservedUPerCell.Count * p.RetainSupportedTail.Count * uWeights.Length);
             if (count > int.MaxValue)
                 throw new InvalidDataException("Grade M/U supera capacidade de enumeração.");
             foreach (var coverage in p.ClassMassCoverage)
             foreach (var minM in p.MinimumObservedMPerCell)
             foreach (var minU in p.MinimumObservedUPerCell)
             foreach (var retain in p.RetainSupportedTail)
+            foreach (var uWeight in uWeights)
             {
                 var policy = new V9JointSupportPolicy(coverage, minM, minU,
-                    retain ? V9JointSupportEstimation.SupportedTailRule : null);
+                    retain ? V9JointSupportEstimation.SupportedTailRule : null,
+                    uWeight);
                 V9JointSupportEstimation.ValidatePolicy(policy);
-                var key = Classwise + "_C" + coverage.ToString("G29", CultureInfo.InvariantCulture)
+                var key = method.Method + "_C" + coverage.ToString("G29", CultureInfo.InvariantCulture)
                     + "_M" + minM.ToString(CultureInfo.InvariantCulture)
                     + "_U" + minU.ToString(CultureInfo.InvariantCulture)
-                    + "_T" + (retain ? "1" : "0");
-                result.Add(new(Classwise, key, policy));
+                    + "_T" + (retain ? "1" : "0")
+                    + (uWeight is null ? "" : "_UJW" + uWeight.Value.ToString("G29", CultureInfo.InvariantCulture));
+                result.Add(new(method.Method, key, policy));
             }
         }
         return result.AsReadOnly();

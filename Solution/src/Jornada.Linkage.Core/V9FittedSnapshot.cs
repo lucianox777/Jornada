@@ -91,7 +91,9 @@ public sealed class V9FittedSnapshot
         UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
         RespectRequiredConstructorParameters = true
     };
-    private readonly byte[] utf8;
+    // Large TF snapshots carry their own frozen reference tables. Never retain
+    // a second, full-size serialized byte[] for every candidate in a V9 search.
+    // Serialize canonically on demand and guard it with the pinned content SHA.
     private readonly FrozenFellegiSunterJointNominalV9 frozenNominal;
     private readonly IReadOnlyDictionary<string, double> numericParameters;
     public V9FittedSnapshotPayload Payload { get; }
@@ -102,14 +104,27 @@ public sealed class V9FittedSnapshot
         Payload = FreezeAndValidate(payload);
         frozenNominal = FrozenFellegiSunterJointNominalV9.Freeze(Payload.JointCells, Payload.NominalContractVersion);
         numericParameters = FellegiSunterScoring.ToDoubleParameters(Payload.Parameters);
-        utf8 = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
-        if (utf8.Length > MaximumContentBytes)
+        // Temporary encoding exists only while calculating the content address.
+        // The frozen payload remains in RAM, not an additional JSON byte[] copy.
+        var canonicalBytes = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
+        if (canonicalBytes.Length > MaximumContentBytes)
             throw new InvalidDataException("Snapshot V9 excede o limite permitido para carga e persistência.");
-        ContentSha256 = Convert.ToHexString(SHA256.HashData(utf8)).ToLowerInvariant();
+        ContentSha256 = Convert.ToHexString(SHA256.HashData(canonicalBytes)).ToLowerInvariant();
     }
 
     public static V9FittedSnapshot Create(V9FittedSnapshotPayload payload) => new(payload);
-    public byte[] SerializeUtf8() => (byte[])utf8.Clone();
+
+    public byte[] SerializeUtf8()
+    {
+        // Returning a fresh buffer also preserves the historical defensive-copy
+        // contract. Reject mutated payloads rather than emitting an unpinned fit.
+        var encoded = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
+        if (encoded.Length <= 0 || encoded.Length > MaximumContentBytes
+            || !Convert.ToHexString(SHA256.HashData(encoded)).Equals(
+                ContentSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Snapshot V9 divergiu da serialização canônica SHA-256 fixada.");
+        return encoded;
+    }
 
     /// <summary>
     /// Experimental Gold retrieval variant of the SAME fit, never an operational
@@ -161,7 +176,7 @@ public sealed class V9FittedSnapshot
         var snapshot = new V9FittedSnapshot(payload);
         // Require the canonical encoding, preventing multiple byte identities
         // for one fitted artifact and silent normalization at application startup.
-        if (!content.SequenceEqual(snapshot.utf8))
+        if (!content.SequenceEqual(snapshot.SerializeUtf8()))
             throw new InvalidDataException("Snapshot V9 não utiliza serialização canônica.");
         return snapshot;
     }

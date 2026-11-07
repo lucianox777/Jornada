@@ -9,40 +9,174 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// <summary>Manual default V9 flow. Search and one-time finalist validation are separate commands.</summary>
 public static class V9NestedCalibrationCli
 {
+    /// <summary>
+    /// Runtime diagnostics only: no memory limit, GC forcing or model-selection input.
+    /// The GC availability figure is the managed-GC budget, not free physical RAM.
+    /// RSS is the whole process, including native allocations.
+    /// </summary>
+    public sealed record V9RamCapacityDiagnostic(
+        long ResidentWorkingSetBytes,
+        long PeakResidentWorkingSetBytes,
+        long ManagedLiveBytesEstimate,
+        long GcHeapSizeBytes,
+        long GcCommittedBytes,
+        long GcTotalAvailableMemoryBytes,
+        long? GcMemoryLoadBytes,
+        long? GcHighMemoryLoadThresholdBytes,
+        bool? GcReportsHighMemoryLoad,
+        string? Notice,
+        string BatchTrace);
+
+    /// <summary>
+    /// Pure, deterministic classification of measurements already exposed by .NET.
+    /// Does not invent a percentage threshold, bound workers, or alter execution.
+    /// </summary>
+    public static V9RamCapacityDiagnostic InspectRamCapacity(
+        long residentBytes, long peakResidentBytes, long managedBytes,
+        long gcHeapBytes, long gcCommittedBytes, long gcAvailableBytes,
+        long gcMemoryLoadBytes, long gcHighMemoryLoadThresholdBytes)
+    {
+        if (new[] { residentBytes, peakResidentBytes, managedBytes, gcHeapBytes,
+            gcCommittedBytes, gcAvailableBytes, gcMemoryLoadBytes,
+            gcHighMemoryLoadThresholdBytes }.Any(x => x < 0))
+            throw new InvalidDataException("Medição de memória negativa ou inválida no relatório V9.");
+
+        bool? highLoad = gcMemoryLoadBytes > 0 && gcHighMemoryLoadThresholdBytes > 0
+            ? gcMemoryLoadBytes >= gcHighMemoryLoadThresholdBytes : null;
+        var notice = highLoad is true ? "RAM_CARGA_ALTA_INFORMADA_PELO_GC"
+            : highLoad is null ? "RAM_PRESSAO_NAO_DISPONIVEL_PELA_API_GC" : null;
+        return new(
+            residentBytes, peakResidentBytes, managedBytes, gcHeapBytes,
+            gcCommittedBytes, gcAvailableBytes,
+            gcMemoryLoadBytes > 0 ? gcMemoryLoadBytes : null,
+            gcHighMemoryLoadThresholdBytes > 0 ? gcHighMemoryLoadThresholdBytes : null,
+            highLoad, notice, "memory-progress.jsonl");
+    }
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true, RespectRequiredConstructorParameters = true,
         UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
     };
 
+    /// <summary>
+    /// One error per failed run: the last C# exception, including the stack trace.
+    /// Diagnostic I/O must never replace the original failure (notably disk-full).
+    /// </summary>
+    public static void TryWriteLastError(V9CalibradorLastErrorLog? reservedLog, Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        // stderr and the preallocated log are independent channels: a full
+        // stderr sink must NOT prevent writing into already reserved blocks.
+        try { Console.Error.WriteLine(exception.ToString()); }
+        catch (Exception) { /* stderr may itself be on the full volume. */ }
+        if (reservedLog is null)
+        {
+            try { Console.Error.WriteLine("calibrador.log indisponível: reserva de 10 KiB não foi criada."); }
+            catch (Exception) { /* preserve the original error */ }
+            return;
+        }
+        try { reservedLog.WriteLast(exception); }
+        catch (Exception loggingError)
+        {
+            // Never replace the original error/exit status with a log I/O failure.
+            try
+            {
+                Console.Error.WriteLine("Não foi possível atualizar calibrador.log: "
+                    + loggingError.GetType().Name + ": " + loggingError.Message);
+            }
+            catch (Exception) { /* Even stderr may be unavailable on a failed process. */ }
+        }
+    }
+
     public static async Task RunAsync(string[] args)
     {
-        if (args.Length < 1 || (args[0] == "--v9-calibrate" ? args.Length != 4
-            : args[0] == "--v9-validate-finalists" ? args.Length != 5 : true))
-            throw new ArgumentException("Uso: --v9-calibrate <plano> <CSV> <diretório novo>; --v9-validate-finalists <plano> <SHA.selection.json> <CSV novo> <diretório novo>");
-        var plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(await File.ReadAllBytesAsync(args[1]), Json)
-            ?? throw new InvalidDataException("Plano V9 interno ausente.");
-        V9NestedCalibrationCoordinator.ValidatePlan(plan);
-        var output = Path.GetFullPath(args[^1]);
-        if (Directory.Exists(output) || File.Exists(output)) throw new InvalidOperationException("Resultados exigem diretório novo e imutável.");
-        var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
-            ?? throw new InvalidOperationException("Conexão do JornadaHarness descartável ausente.");
-        if (new SqlConnectionStringBuilder(connectionString).InitialCatalog != "JornadaHarness")
-            throw new InvalidOperationException("Calibração física aceita somente JornadaHarness descartável.");
-        Directory.CreateDirectory(output);
-        await using var ownership = new FileStream(Path.Combine(output, "execution.lock"), FileMode.CreateNew, FileAccess.Write, FileShare.None);
-        await WriteNewAsync(Path.Combine(output, "plan.json"), plan);
+        string? output = null;
+        V9CalibradorLastErrorLog? reservedLog = null;
+        bool completed = false;
         try
         {
-            if (args[0] == "--v9-calibrate")
-                await SearchAsync(args[2], output, plan, connectionString);
-            else await ValidateAsync(args[2], args[3], output, plan, connectionString);
+            if (args.Length < 1 || (args[0] == "--v9-calibrate" ? args.Length != 4
+                : args[0] == "--v9-validate-finalists" ? args.Length != 5 : true))
+                throw new ArgumentException("Uso: --v9-calibrate <plano> <CSV> <diretório novo>; --v9-validate-finalists <plano> <SHA.selection.json> <CSV novo> <diretório novo>");
+            output = Path.GetFullPath(args[^1]);
+            var plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(await File.ReadAllBytesAsync(args[1]), Json)
+                ?? throw new InvalidDataException("Plano V9 interno ausente.");
+            V9NestedCalibrationCoordinator.ValidatePlan(plan);
+            if (Directory.Exists(output) || File.Exists(output)) throw new InvalidOperationException("Resultados exigem diretório novo e imutável.");
+            var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+                ?? throw new InvalidOperationException("Conexão do JornadaHarness descartável ausente.");
+            if (new SqlConnectionStringBuilder(connectionString).InitialCatalog != "JornadaHarness")
+                throw new InvalidOperationException("Calibração física aceita somente JornadaHarness descartável.");
+            Directory.CreateDirectory(output);
+            // Reserve real disk blocks before opening SQL or any expensive work.
+            // If ENOSPC prevents the reservation, fail closed before calibration.
+            reservedLog = V9CalibradorLastErrorLog.Reserve(output);
+            await using (var ownership = new FileStream(Path.Combine(output, "execution.lock"),
+                FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            {
+                await WriteNewAsync(Path.Combine(output, "plan.json"), plan);
+                try
+                {
+                    if (args[0] == "--v9-calibrate")
+                        await SearchAsync(args[2], output, plan, connectionString);
+                    else await ValidateAsync(args[2], args[3], output, plan, connectionString);
+                }
+                catch (Exception exception)
+                {
+                    try
+                    {
+                        await WriteNewAsync(Path.Combine(output, "interrupted.json"),
+                            new { exceptionType = exception.GetType().Name,
+                                completed = false, testUsed = false, activated = false });
+                    }
+                    catch (Exception receiptError)
+                    {
+                        // A redirected stderr can also be on the full disk.
+                        // Never allow that secondary I/O failure to replace
+                        // the original error caught by this block.
+                        try
+                        {
+                            Console.Error.WriteLine("Não foi possível gravar interrupted.json: "
+                                + receiptError.GetType().Name + ": " + receiptError.Message);
+                        }
+                        catch (Exception) { /* preserve original exception */ }
+                    }
+                    throw;
+                }
+            }
+            // Only remove the 10 KiB blank reservation after *all* success I/O
+            // and the ownership handle have closed without throwing.
+            completed = true;
         }
         catch (Exception exception)
         {
-            await WriteNewAsync(Path.Combine(output, "interrupted.json"), new { exceptionType = exception.GetType().Name,
-                completed = false, testUsed = false, activated = false });
+            // Never mutate a pre-existing result directory rejected above.
+            TryWriteLastError(reservedLog, exception);
             throw;
+        }
+        finally
+        {
+            if (reservedLog is not null)
+            {
+                try
+                {
+                    reservedLog.Dispose();
+                    if (completed)
+                        File.Delete(Path.Combine(output!, V9CalibradorLastErrorLog.FileName));
+                }
+                catch (Exception cleanupError)
+                {
+                    // The cleanup warning itself must not mask the original
+                    // exception if stderr is redirected onto a full volume.
+                    try
+                    {
+                        Console.Error.WriteLine("Falha ao fechar/remover reserva de log: "
+                            + cleanupError.GetType().Name + ": " + cleanupError.Message);
+                    }
+                    catch (Exception) { /* preserve original exception */ }
+                }
+            }
         }
     }
 
@@ -72,6 +206,8 @@ public static class V9NestedCalibrationCli
                     V9PhysicalSqlAdaptiveCalibrationProbe.ComputeBlockingFingerprint(passes),
                     plan.PinnedIbgeBootstrap!, ct);
             };
+        using var process = System.Diagnostics.Process.GetCurrentProcess();
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
         var result = await V9NestedCalibrationCoordinator.SearchAsync(async ct =>
         {
             var connection = new SqlConnection(connectionString);
@@ -82,6 +218,25 @@ public static class V9NestedCalibrationCli
             var line = JsonSerializer.Serialize(progress);
             File.AppendAllText(Path.Combine(output, "batch-progress.jsonl"), line + Environment.NewLine);
             Console.Error.WriteLine(line);
+            // Memory is measured AFTER each completed batch; no manual GC and
+            // no influence on search decisions, snapshots, or inferential counts.
+            process.Refresh();
+            var gc = GC.GetGCMemoryInfo();
+            var memory = JsonSerializer.Serialize(new
+            {
+                schema = "V9_CALIBRATION_MEMORY_PER_BATCH_V1",
+                progress.Batch, progress.TotalConfigurations,
+                elapsedMilliseconds = elapsed.ElapsedMilliseconds,
+                managedLiveBytesEstimate = GC.GetTotalMemory(forceFullCollection: false),
+                gcHeapSizeBytes = gc.HeapSizeBytes,
+                gcCommittedBytes = gc.TotalCommittedBytes,
+                gcAvailableMemoryBytes = gc.TotalAvailableMemoryBytes,
+                residentWorkingSetBytes = process.WorkingSet64,
+                peakResidentWorkingSetBytes = process.PeakWorkingSet64,
+                artifactScope = "TRAIN_SELECTION_ONLY_NO_TEST_NO_ACTIVATION"
+            });
+            File.AppendAllText(Path.Combine(output, "memory-progress.jsonl"), memory + Environment.NewLine);
+            Console.Error.WriteLine(memory);
         }, frozenTfReferenceForRuleset: referenceFactory);
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
             .DistinctBy(x => x.ContentSha256))
@@ -96,9 +251,8 @@ public static class V9NestedCalibrationCli
             historicalKnownComparedConfigurations = 14159502, historicalScope = "CONSUMED_HISTORICAL_VALIDATION_ONLY_NOT_FRESH_FINALIST_MULTIPLICITY",
             searchConfigurations = result.Evaluations.Count, externalValidationMultiplicity = result.FinalistSnapshotShas.Count,
             frozenTestMultiplicity = 1, certified = false });
-        // Stream large identity-cluster evidence directly to a new file, instead of
-        // allocating an entire JSON UTF8 byte[] on top of all retained TRAIN metrics.
-        // Exact JSON options, SHA binding and one-time file publication are unchanged.
+        // Publish large identity-level evidence as a streamed canonical JSON
+        // file; no full-sized UTF8 envelope is retained in RAM during hashing.
         var envelopeSha = await WriteContentAddressedSelectionAsync(output, new
         {
             result, externalDesign, externalValidationMultiplicity = result.FinalistSnapshotShas.Count,
@@ -156,6 +310,9 @@ public static class V9NestedCalibrationCli
             // kernel. No names, UUIDs, rankings or oracle labels are exported.
             allSelectionObservations = e.Candidate?.Metric.AllValidationObservations,
             resolveReasonCounts = e.Candidate?.Metric.ReasonsByResolveStatus,
+            // Only aggregate bins and k-suppressed nominal cells are published;
+            // the raw top-two source rows remain JsonIgnore in memory.
+            sourceGapAttribution = e.Candidate?.Metric.SourceGapAttribution,
             p95Milliseconds = e.Candidate?.P95Milliseconds,
             e.Rejections,
             outcome = e.Candidate is null ? "REJECTED_NOT_MEASURED"
@@ -188,8 +345,7 @@ public static class V9NestedCalibrationCli
                 var bilateral = paired.SingleOrDefault();
                 if (bilateral is not null
                     && (shared.EligibleForSelection != false
-                        // At zero BOTH arms remain measured-only, never selectable;
-                        // at positive margins the bilateral control is selectable.
+                        // Master #1298: zero is recorded but never selectable.
                         || bilateral.EligibleForSelection != (shared.ConflictMargin > 0m)
                         || shared.SharedSurnameCandidatePairs is null
                         || shared.SharedSurnameCandidatePairs != bilateral.SharedSurnameCandidatePairs
@@ -236,9 +392,76 @@ public static class V9NestedCalibrationCli
                             - (bilateral.Candidate!.Metric.Conflicts + bilateral.Candidate.Metric.Unresolved),
                 };
             }).ToArray();
+        var cpuCapacity = V9ParallelWork.InspectCpuCapacity(plan.Calibration.MaximumParallelRuleSets);
+        // This is a report-time sample plus the process RSS high-water mark.
+        // The existing memory-progress.jsonl contains independent per-batch samples.
+        // No re-reading of raw training data or forcing a GC collection.
+        using var ramProcess = System.Diagnostics.Process.GetCurrentProcess();
+        ramProcess.Refresh();
+        var gcInfo = GC.GetGCMemoryInfo();
+        var ramCapacity = InspectRamCapacity(
+            ramProcess.WorkingSet64, ramProcess.PeakWorkingSet64,
+            GC.GetTotalMemory(forceFullCollection: false), gcInfo.HeapSizeBytes,
+            gcInfo.TotalCommittedBytes, gcInfo.TotalAvailableMemoryBytes,
+            gcInfo.MemoryLoadBytes, gcInfo.HighMemoryLoadThresholdBytes);
+        // Paired source-level V2/V3 evidence is reduced entirely in memory.
+        // Only the aggregate transition counts enter the JSON report.
+        // The per-source lists attached to the physical metric are JsonIgnore.
+        var pairedSourceRank = result.Evaluations.Where(v2 =>
+                v2.Candidate?.Metric.SourceRankInternal is not null
+                && v2.MuEstimationMethod == V9MuEstimationSearchSpace.Default
+                && v2.OptionId?.Contains("__MU_", StringComparison.Ordinal) == true)
+            .SelectMany(v2 =>
+            {
+                var optionId = v2.OptionId ?? throw new InvalidDataException("Missing base option for paired Rank.");
+                var root = optionId[..optionId.IndexOf("__MU_", StringComparison.Ordinal)];
+                return result.Evaluations.Where(v3 =>
+                    v3.Candidate?.Metric.SourceRankInternal is not null
+                    && v3.MuEstimationMethod == V9MuEstimationSearchSpace.Classwise
+                    && v3.OptionId?.StartsWith(root + "__MU_", StringComparison.Ordinal) == true
+                    && v3.Batch == v2.Batch
+                    && v3.ConflictMargin == v2.ConflictMargin
+                    && JsonSerializer.Serialize(v3.Candidate!.Snapshot.Payload.BlockingPasses)
+                        == JsonSerializer.Serialize(v2.Candidate!.Snapshot.Payload.BlockingPasses))
+                    .Select(v3 =>
+                    {
+                        var left = v2.Candidate!;
+                        var right = v3.Candidate!;
+                        if (v2.CandidatePairsSha256 is null
+                            || v2.CandidatePairsSha256 != v3.CandidatePairsSha256
+                            || left.Snapshot.Payload.Parameters[LinkageParameterCatalog.PriorMatchProbability]
+                                != right.Snapshot.Payload.Parameters[LinkageParameterCatalog.PriorMatchProbability]
+                            || left.Snapshot.Payload.Threshold != right.Snapshot.Payload.Threshold
+                            || left.Snapshot.Payload.TfWeight != right.Snapshot.Payload.TfWeight
+                            || right.Snapshot.Payload.JointSupport is not { } support)
+                            throw new InvalidDataException("V2/V3 source pairing must share SQL frame, prior, TF and threshold.");
+                        var fallbackUCells = support.Cells
+                            .Where(c => c.MethodU == V9JointSupportEstimation.Marginal)
+                            .Select(c => $"{(int)c.Person}/{(int)c.Mother}")
+                            .ToHashSet(StringComparer.Ordinal);
+                        var mixedUCells = support.Cells
+                            .Where(c => c.MethodU == V9JointSupportEstimation.MixedU)
+                            .Select(c => $"{(int)c.Person}/{(int)c.Mother}")
+                            .ToHashSet(StringComparer.Ordinal);
+                        return new
+                        {
+                            v2RequestSha256 = v2.RequestSha256,
+                            v3RequestSha256 = v3.RequestSha256,
+                            rootOptionId = root,
+                            v2.Batch, v2.ConflictMargin,
+                            blockingPassCount = left.Snapshot.Payload.BlockingPasses.Count,
+                            candidatePairsSha256 = v2.CandidatePairsSha256,
+                            pair = V9PairedSourceRankAttribution.Compare(
+                                left.Metric, right.Metric, fallbackUCells, mixedUCells)
+                        };
+                    });
+            }).ToArray();
         var report = new
         {
             schema = "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1",
+            // Diagnostic only, never an input to fit, SHA, FDR or selection.
+            cpuCapacity,
+            ramCapacity,
             result.PlanSha256,
             originalMethodsAndParameterArrays = plan.MuEstimationMethods,
             declaredVariants = declared.Select(x => new { x.Method, x.Key, x.Policy }).ToArray(),
@@ -253,6 +476,7 @@ public static class V9NestedCalibrationCli
             finalistSnapshotShas = result.FinalistSnapshotShas,
             result.StopReason,
             surnameDependenceComparisons = surnameComparisons,
+            pairedSourceRankAttribution = pairedSourceRank,
             sharedSurnameAssumptionChosenForOperation = false,
             rows
         };
@@ -262,6 +486,46 @@ public static class V9NestedCalibrationCli
         md.AppendLine();
         md.AppendLine("Plano SHA-256: `" + result.PlanSha256 + "`. Somente espaço declarado; não houve TEST, certificação nem ativação.");
         md.AppendLine("O arquivo `mu-statistical-analysis.json` guarda todas as avaliações, inclusive recusas e valores M/U exatos.");
+        md.AppendLine();
+        md.AppendLine("## Diagnóstico de CPUs — execução");
+        md.AppendLine();
+        md.AppendLine("MaximumParallelRuleSets no plano: `" + cpuCapacity.ConfiguredMaximumParallelRuleSets
+            + "`; CPUs lógicas visíveis ao .NET: `"
+            + (cpuCapacity.DotNetVisibleLogicalProcessors?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "indisponível")
+            + "`; limite efetivo de workers: `" + cpuCapacity.EffectiveMaximumParallelRuleSets + "`.");
+        if (cpuCapacity.ExplicitWorkerCountBelowDetectedProcessors)
+            md.AppendLine("> **AVISO:** o paralelismo configurado é inferior à quantidade de CPUs lógicas detectadas pelo C#."
+                + " A execução foi respeitada sem ajuste automático; verifique a configuração se desejar utilizar mais workers.");
+        else if (cpuCapacity.DotNetVisibleLogicalProcessors is null)
+            md.AppendLine("> **AVISO:** a configuração manual foi respeitada, mas a contagem de CPUs visíveis ao .NET não pôde ser informada.");
+        md.AppendLine("O número de workers é um teto de tarefas simultâneas, não uma medição de utilização da CPU.");
+        md.AppendLine();
+        md.AppendLine("## Diagnóstico de RAM — execução");
+        md.AppendLine();
+        md.AppendLine("Memória residente atual do processo: `"
+            + (ramCapacity.ResidentWorkingSetBytes / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB`; pico RSS observado desde o início do processo: `"
+            + (ramCapacity.PeakResidentWorkingSetBytes / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB`.");
+        md.AppendLine("Estimativa de objetos gerenciados vivos: `"
+            + (ramCapacity.ManagedLiveBytesEstimate / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB`; heap do último GC: `"
+            + (ramCapacity.GcHeapSizeBytes / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB`; memória comprometida pelo GC: `"
+            + (ramCapacity.GcCommittedBytes / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB`.");
+        md.AppendLine("Orçamento total informado ao GC: `"
+            + (ramCapacity.GcTotalAvailableMemoryBytes / 1048576d).ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+            + " MiB` (não representa RAM física livre do host)."
+            + " Amostras por lote no arquivo já existente: `memory-progress.jsonl`.");
+        if (ramCapacity.GcReportsHighMemoryLoad is true)
+            md.AppendLine("> **AVISO RAM:** a API do .NET informou carga de memória no limiar alto do GC."
+                + " Verifique RAM e outros processos/SQL no ambiente físico; a execução não foi limitada nem alterada.");
+        else if (ramCapacity.GcReportsHighMemoryLoad is null)
+            md.AppendLine("> **AVISO RAM:** a API do .NET não disponibilizou um par comparável de carga/limiar de memória."
+                + " O pico RSS foi registrado, mas não é possível certificar ausência de pressão de RAM.");
+        md.AppendLine("Essa amostra não certifica ausência de OOM durante a execução;"
+            + " não é limite de RAM, previsão de falha nem resultado estatístico.");
         md.AppendLine();
         md.AppendLine("| Método | Cobertura | Min M | Min U | Cauda retida | Alpha | Threshold | Margem | TP | FP | Recall | FDR observada | Conflitos | Status | Snapshot |");
         md.AppendLine("|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|");
@@ -430,9 +694,9 @@ public static class V9NestedCalibrationCli
     }
 
     /// <summary>
-    /// Write the selection payload without a second full in-memory UTF8 copy.
-    /// The SHA names the exact fully flushed bytes, not a reserialized object.
-    /// File.Move is same-directory and fail-closed (never overwrites an artifact).
+    /// Exact canonical JSON bytes are written once before hashing and published
+    /// through same-directory atomic rename. The temp file is never a source of
+    /// model parameters or a checkpoint; it does not persist mutable TRAIN state.
     /// </summary>
     public static async Task<string> WriteContentAddressedSelectionAsync<T>(string output, T envelope)
     {

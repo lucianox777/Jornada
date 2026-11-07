@@ -18,7 +18,7 @@ def fixture():
         'Purpose':'BOOTSTRAP_CANDIDATE_SELECTION',
         'MaximumBatches':1, 'MaximumSearchConfigurations':20,
         'Calibration':{
-            'ConflictMargins':[0, .25, .5, 2, 4],
+            'ConflictMargins':[.0001, .25, .5, 2, 4],
             'Budget':{'MaximumObservedAcceptedFdrPoint':.01},
             'SelectionPolicy':{'MaximumAcceptedFdrUpper':.01},
             'ModelOptions':[{'OptionId':x, 'EligibleForSelection':True} for x in options]
@@ -31,7 +31,7 @@ def fixture():
               'SupportedTailRule':'RETAIN_CLASS_JOINT_WHEN_COUNT_AT_LEAST_K_V2'}
     rows = []
     for passes in (3,19):
-        for margin in (0, .25, .5, 2, 4):
+        for margin in (.0001, .25, .5, 2, 4):
             for name in options:
                 rows.append({
                     'OptionId':name+'__MU_CLASSWISE_SUPPORT_BACKOFF_C0.99_M5_U5_T1',
@@ -81,6 +81,73 @@ class BroadV3AuditTests(unittest.TestCase):
         self.assertFalse(audit['testUsed'])
         self.assertEqual(audit['confidenceForTrueFdr'],
                          'NOT_CERTIFIED_INDEPENDENCE_AND_MULTIPLICITY_OPEN')
+
+    def test_seed42_requires_all_160_configurations_across_five_margins(self):
+        # The first physical surname/seed42 trial hit OOM AFTER reporting
+        # all 160 configurations. A successful 64-case subset is not a
+        # comparable RAM regression and must fail closed at the audit gate.
+        plan, report = self.payload
+        policies = []
+        for coverage in (.95, .99):
+            for minimum_m in (1, 5):
+                for minimum_u in (1, 5):
+                    policies.append((coverage, minimum_m, minimum_u))
+        plan['MaximumSearchConfigurations'] = 160
+        plan['MuEstimationMethods'][0]['Parameters'].update(
+            ClassMassCoverage=[.95, .99],
+            MinimumObservedMPerCell=[1, 5],
+            MinimumObservedUPerCell=[1, 5],
+        )
+        originals = report['rows']
+        report['rows'] = []
+        for coverage, minimum_m, minimum_u in policies:
+            for original in originals:
+                row = copy.deepcopy(original)
+                row['MuPolicy'].update(
+                    ClassMassCoverage=coverage,
+                    MinimumM=minimum_m,
+                    MinimumU=minimum_u,
+                )
+                root = row['OptionId'].split('__MU_')[0]
+                suffix = (f'__MU_CLASSWISE_SUPPORT_BACKOFF_C{coverage}'
+                          f'_M{minimum_m}_U{minimum_u}_T1')
+                row['OptionId'] = root + suffix
+                # Published seed42 sentinel in the independent V3 audit.
+                row.update(trueAccepted=6771, falseAccepted=0,
+                           eligibleSources=7011, recall=6771/7011)
+                report['rows'].append(row)
+        report['evaluations'] = report['measured'] = 160
+        self.save()
+        exact = subject.verify(self.plan, self.report, 'first_name', 42)
+        self.assertEqual(exact['physicalConfigurations'], 160)
+        self.assertEqual(exact['variants'], 8)
+        self.assertEqual(len(exact['pairs']), 80)
+        self.assertEqual({x['margin'] for x in exact['rows']},
+                         {.0001, .25, .5, 2, 4})
+
+        # Explicitly reject the 64-measurement protocol that passed in
+        # SHA 68bff2b: even if all 64 have 81-cell M/U support.
+        report['rows'] = report['rows'][:64]
+        report['evaluations'] = report['measured'] = 64
+        self.save()
+        with self.assertRaises(ValueError):
+            subject.verify(self.plan, self.report, 'first_name', 42)
+
+    def test_master_zero_margin_is_valid_only_when_all_five_declared(self):
+        plan, report = self.payload
+        plan['Calibration']['ConflictMargins'][0] = 0
+        for row in report['rows']:
+            if row['ConflictMargin'] == .0001:
+                row['ConflictMargin'] = 0
+        self.save()
+        historical = subject.verify(self.plan, self.report, 'first_name', 43)
+        self.assertEqual(historical['physicalConfigurations'], 20)
+        self.assertEqual({r['margin'] for r in historical['rows']},
+                         {0, .25, .5, 2, 4})
+        plan['Calibration']['ConflictMargins'] = [0, .25, .5, 2]
+        self.save()
+        with self.assertRaises(ValueError):
+            subject.verify(self.plan, self.report, 'first_name', 43)
 
     def test_observed_zero_fdr_never_implies_certification(self):
         for row in self.payload[1]['rows']:

@@ -60,7 +60,11 @@ public sealed record V9PhysicalSourceResolveMetric(
     int BonferroniComparedConfigurations = 0,
     bool ClusterIidIndependentlyValidated = false,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    IReadOnlyList<V9SourceIdentityOutcome>? IdentityOutcomes = null);
+    IReadOnlyList<V9SourceIdentityOutcome>? IdentityOutcomes = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    V9SourceGapAttributionReport? SourceGapAttribution = null,
+    [property: System.Text.Json.Serialization.JsonIgnore]
+    IReadOnlyList<V9SourceTopTwoDiagnostic>? SourceRankInternal = null);
 
 public sealed record V9SourceIdentityOutcome(string BaseIdentity, long EligibleSources, long TrueAccepted, long FalseAccepted);
 
@@ -225,13 +229,16 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         decimal minimumFsGroupingPosterior = .99m,
         V9PhysicalAdaptiveExecution? adaptiveExecution = null,
         bool includeIdentityOutcomes = false,
-        V9JointSupportPolicy? jointSupportPolicy = null)
+        V9JointSupportPolicy? jointSupportPolicy = null,
+        bool includeSourceRankDiagnostics = false)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(passes);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(budget);
+        if (includeSourceRankDiagnostics && !includeIdentityOutcomes)
+            throw new InvalidDataException("Source Rank pareado exige coorte e resultados por identidade.");
         RequireSha(studyFingerprintSha256, nameof(studyFingerprintSha256));
         adaptiveExecution ??= new V9PhysicalAdaptiveExecution();
         adaptiveExecution.Validate(evaluateFinalResolve, includeFsBlindGrouping);
@@ -462,7 +469,8 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
                 adaptiveExecution.MaximumBlindClusterSize,
                 fsBlindGroupingOnly: adaptiveExecution.FsBlindGroupingOnly,
                 totalComparedConfigurations: adaptiveExecution.TotalComparedConfigurations,
-                includeIdentityOutcomes: includeIdentityOutcomes);
+                includeIdentityOutcomes: includeIdentityOutcomes,
+                includeSourceRankDiagnostics: includeSourceRankDiagnostics);
         }
 
         var frozen = new List<V9PhysicalFrozenConfiguration>();
