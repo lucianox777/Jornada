@@ -30,7 +30,7 @@
 4. `Sequencias_Identidade_Linkage.md`
 5. decisões contingentes e ADRs vigentes.
 
-### DBA / PRODAM
+### DBA / DESENVOLVEDOR
 
 1. Modelo físico/anexo vigente.
 2. `database/Jornada_Fase1_v3.70.sql` + manifest de migrations.

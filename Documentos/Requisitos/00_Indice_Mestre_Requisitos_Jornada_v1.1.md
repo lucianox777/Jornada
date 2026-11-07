@@ -9,7 +9,7 @@
 
 ## 1. Regra de leitura institucional
 
-Para tramitação, revisão pela PRODAM e juntada ao SEI, a leitura corrente é feita por **um único documento por número**, sempre na versão 1.1:
+Para tramitação, revisão pelo DESENVOLVEDOR e juntada ao SEI, a leitura corrente é feita por **um único documento por número**, sempre na versão 1.1:
 
 1. `01_Requisitos_de_Negocio_Jornada_v1.1`
 2. `02_Requisitos_Funcionais_Jornada_v1.1`

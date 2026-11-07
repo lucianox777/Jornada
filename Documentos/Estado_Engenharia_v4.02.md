@@ -8,7 +8,7 @@
 
 ## Resultado consolidado
 
-A v4.02 incorpora a Especificacao Tecnica v3.63, atualizada para maior aderencia a arquitetura proposta pela PRODAM para utilizacao do Microsoft Fabric.
+A v4.02 incorpora a Especificacao Tecnica v3.63, atualizada para maior aderencia a arquitetura proposta pelo DESENVOLVEDOR para utilizacao do Microsoft Fabric.
 
 A arquitetura passa a registrar SQL Database in Microsoft Fabric como ambiente relacional operacional preferencial de HML/Producao, mantendo SQL Analytics Endpoint/OneLake no caminho analitico e SQL Server 2022 Developer como referencia de desenvolvimento, CI e testes independentes do Fabric.
 

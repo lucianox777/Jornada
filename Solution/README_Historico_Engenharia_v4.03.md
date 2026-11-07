@@ -102,7 +102,7 @@ Não existe Módulo de Regularização Cadastral na Jornada. O Gestor altera seu
 
 ### Territorialização de origem — Fase 1
 
-A Jornada não oferece endpoint geográfico aos sistemas finalísticos e não executa chamada PRODAM Pessoa-a-Pessoa no Processor. Distrito é unidade territorial e Subprefeitura é o órgão que administra vários Distritos. `REFERENCIA_TERRITORIAL` permanece atributo próprio e fonte territorial da visualização, distinta de `ENDERECO_RESIDENCIAL`. Para `ENDERECO_RESIDENCIAL` e `REFERENCIA_TERRITORIAL`, o Gestor deve informar `situacaoGeografia`: quando `RESOLVIDA`, são obrigatórios Distrito/Subprefeitura e `referenciaMalha`; nas demais situações, a ausência é qualificada explicitamente. Se não houver `REFERENCIA_TERRITORIAL` explícita, um `ENDERECO_RESIDENCIAL` pode funcionar como fallback `DOMICILIAR`, preservando a geografia declarada pela origem. A plataforma nunca promove automaticamente unidade de serviço, local de atendimento, CRAS, UBS, Centro POP ou acolhimento a referência territorial. O snapshot e sua natureza são preservados historicamente e cada fato materializado guarda a FK da referência efetivamente usada. A antiga `silver.endereco_residencial_geografia_observacao` é migrada e removida; não há dual-write. Mapas/segmentações usam somente Distrito/Subprefeitura, situação geográfica, referência da malha e natureza da referência selecionada.
+A Jornada não oferece endpoint geográfico aos sistemas finalísticos e não executa chamada DESENVOLVEDOR Pessoa-a-Pessoa no Processor. Distrito é unidade territorial e Subprefeitura é o órgão que administra vários Distritos. `REFERENCIA_TERRITORIAL` permanece atributo próprio e fonte territorial da visualização, distinta de `ENDERECO_RESIDENCIAL`. Para `ENDERECO_RESIDENCIAL` e `REFERENCIA_TERRITORIAL`, o Gestor deve informar `situacaoGeografia`: quando `RESOLVIDA`, são obrigatórios Distrito/Subprefeitura e `referenciaMalha`; nas demais situações, a ausência é qualificada explicitamente. Se não houver `REFERENCIA_TERRITORIAL` explícita, um `ENDERECO_RESIDENCIAL` pode funcionar como fallback `DOMICILIAR`, preservando a geografia declarada pela origem. A plataforma nunca promove automaticamente unidade de serviço, local de atendimento, CRAS, UBS, Centro POP ou acolhimento a referência territorial. O snapshot e sua natureza são preservados historicamente e cada fato materializado guarda a FK da referência efetivamente usada. A antiga `silver.endereco_residencial_geografia_observacao` é migrada e removida; não há dual-write. Mapas/segmentações usam somente Distrito/Subprefeitura, situação geográfica, referência da malha e natureza da referência selecionada.
 
 ## Executáveis da Fase 1
 
@@ -276,7 +276,7 @@ Contratos JSON Schema podem ganhar novas versões `vN` sem restart: catálogo di
 
 ## Operação e scheduler corporativo - v3.55
 
-`Jornada.Pipeline.Coordination` permanece biblioteca compartilhada pelos workers; não há coordenador executável. Agendamento, recorrência e encadeamento pertencem ao scheduler corporativo homologado pela PRODAM. O procedimento está em `docs/Runbook_Operacao.md`.
+`Jornada.Pipeline.Coordination` permanece biblioteca compartilhada pelos workers; não há coordenador executável. Agendamento, recorrência e encadeamento pertencem ao scheduler corporativo homologado pelo DESENVOLVEDOR. O procedimento está em `docs/Runbook_Operacao.md`.
 
 `Jornada.Operations.Maintenance.Worker` inclui `PipelineWatchdogWorker`, desabilitado por default e somente observacional. Ele alerta sobre runs/modelos potencialmente estagnados, leases vencidos, backlog antigo e carga inicial prolongada; não agenda, não cancela, não altera estado e não libera application locks.
 
@@ -285,7 +285,7 @@ Os fontes do BI (`bi/Jornada.pbip`, PBIR e TMDL) exigem validação e salvamento
 
 ## Harness técnico v3.55
 
-A v3.55 acrescenta instrumentos reproduzíveis de engenharia sem dados reais: `database/Jornada_Dev_SyntheticScale.sql`, `scripts/local-scale.*`, `scripts/local-fault-injection.*` e `scripts/local-backup-restore-drill.*`. O harness de escala mede `GENERATE_DRAFT` e Runner `MODEL_VALIDATION` sobre massa sintética determinística; fault injection encerra deliberadamente a sessão SQL do gate e exige cancelamento fail-closed; o drill de restore combina backup SQL com uma referência Bronze controlada. Evidências locais ficam sob `.local/` e não entram no Git. Esses ensaios não substituem capacidade/RPO/RTO homologados em infraestrutura PRODAM.
+A v3.55 acrescenta instrumentos reproduzíveis de engenharia sem dados reais: `database/Jornada_Dev_SyntheticScale.sql`, `scripts/local-scale.*`, `scripts/local-fault-injection.*` e `scripts/local-backup-restore-drill.*`. O harness de escala mede `GENERATE_DRAFT` e Runner `MODEL_VALIDATION` sobre massa sintética determinística; fault injection encerra deliberadamente a sessão SQL do gate e exige cancelamento fail-closed; o drill de restore combina backup SQL com uma referência Bronze controlada. Evidências locais ficam sob `.local/` e não entram no Git. Esses ensaios não substituem capacidade/RPO/RTO homologados em infraestrutura DESENVOLVEDOR.
 
 
 ## Harnesses técnicos reproduzíveis - v3.55

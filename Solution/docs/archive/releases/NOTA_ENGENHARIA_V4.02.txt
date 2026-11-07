@@ -1,7 +1,7 @@
 NOTA DE ENGENHARIA - v4.02
 
 Objetivo
-- incorporar a Especificacao Tecnica v3.63 e alinhar a documentacao de engenharia a arquitetura Microsoft Fabric proposta pela PRODAM.
+- incorporar a Especificacao Tecnica v3.63 e alinhar a documentacao de engenharia a arquitetura Microsoft Fabric proposta pelo DESENVOLVEDOR.
 
 Decisao arquitetural
 - SQL Database in Microsoft Fabric e o ambiente relacional operacional preferencial de HML/Producao;

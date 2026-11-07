@@ -27,7 +27,7 @@ Registrar, em linguagem de negócio e com rastreabilidade, os resultados que a J
 | Parte | Responsabilidade de negócio |
 |---|---|
 | SGM/SEPE | Área requisitante; governança institucional e contratual da Jornada. |
-| PRODAM-SP | Operadora de tecnologia; implementação e operação da plataforma. |
+| DESENVOLVEDOR | Operadora de tecnologia; implementação e operação da plataforma. |
 | Gestores finalísticos | Controladores dos respectivos dados; responsáveis por regras declaradas, qualidade, territorialização, contratos setoriais e decisões administrativas. |
 | Áreas de governança, proteção de dados e auditoria | Supervisão de compartilhamento, LGPD, retenção, auditoria, controles e entrada em produção. |
 | Sistemas finalísticos autorizados | Consumidores das APIs da Jornada para consulta e interoperabilidade; mantêm a experiência e a decisão no domínio setorial. |
@@ -296,7 +296,7 @@ A Fase 1 cobre integração padronizada de Pessoas e fatos, identidade municipal
 
 ### RN-033 - Formalizar responsabilidades institucionais
 
-**Requisito.** SGM/SEPE, PRODAM e Gestores finalísticos devem operar com responsabilidades distintas e explícitas, sem deslocar para a Jornada decisões administrativas dos órgãos responsáveis.
+**Requisito.** SGM/SEPE, DESENVOLVEDOR e Gestores finalísticos devem operar com responsabilidades distintas e explícitas, sem deslocar para a Jornada decisões administrativas dos órgãos responsáveis.
 
 **Critério de aceitação de negócio.** Papéis de requisitante/governança, operador técnico e controlador/dono do dado estão formalizados e refletidos nos processos operacionais.
 
