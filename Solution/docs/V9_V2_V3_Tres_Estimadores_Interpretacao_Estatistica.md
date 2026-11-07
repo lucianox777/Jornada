@@ -77,3 +77,42 @@ Todos os braços de 19 passes foram rejeitados por fanout. Zero falsos vínculos
 5. Validar finalistas em holdout independente e cumprir os gates estatísticos/DT-15 antes de qualquer ativação.
 
 Referências: `Solution/docs/V9_V3_U_Rare_Mixture_Experiment_20261106.md`, `Solution/src/Jornada.Linkage.Parameters.Worker/V9MuEstimationSearchSpace.cs`, `V9JointSupportEstimation.cs`, PR #1300 e workflow `v9-u-rare-mixture-physical-train`.
+
+## Evidências auditáveis da exploração — SHA e artefatos
+
+As tabelas anteriores são um **resumo interpretativo**; para reproduzir e auditar a conclusão, utilizar os relatórios e recibos gerados nas execuções físicas. As execuções abaixo são do commit imutável `e1b6a071d68eb0eaf16fc00325b68cafa46ec3b4`, anterior ao commit exclusivamente documental. Todos os runs indicados concluíram com `success`. A atualização posterior da documentação não altera retroativamente seus resultados.
+
+### Regressão ampla 160 configurações
+
+- Workflow: https://github.com/lucianox777/Jornada/actions/runs/42380442728
+- Artefatos publicados:
+  - `v9-v3-broad-surname-seed57-42380442728-e1b6a071d68eb0eaf16fc00325b68cafa46ec3b4` — [artefato #13578310181](https://github.com/lucianox777/Jornada/actions/runs/42380442728/artifacts/13578310181); estado consultado: disponível.
+  - `v9-v3-broad-first_name-seed42-42380442728-e1b6a071d68eb0eaf16fc00325b68cafa46ec3b4` — [artefato #13578235614](https://github.com/lucianox777/Jornada/actions/runs/42380442728/artifacts/13578235614); estado consultado: disponível.
+  - `v9-v3-broad-surname-seed42-42380442728-e1b6a071d68eb0eaf16fc00325b68cafa46ec3b4` — [artefato #13578102048](https://github.com/lucianox777/Jornada/actions/runs/42380442728/artifacts/13578102048); estado consultado: disponível.
+  - `v9-v3-broad-first_name-seed43-42380442728-e1b6a071d68eb0eaf16fc00325b68cafa46ec3b4` — [artefato #13578025579](https://github.com/lucianox777/Jornada/actions/runs/42380442728/artifacts/13578025579); estado consultado: disponível.
+  - `v9-v3-broad-surname-seed43-42380442728-e1b6a071d68eb0eaf16fc00325b68cafa46ec3b4` — [artefato #13577784064](https://github.com/lucianox777/Jornada/actions/runs/42380442728/artifacts/13577784064); estado consultado: disponível.
+  - `v9-v3-broad-first_name-seed57-42380442728-e1b6a071d68eb0eaf16fc00325b68cafa46ec3b4` — [artefato #13577278774](https://github.com/lucianox777/Jornada/actions/runs/42380442728/artifacts/13577278774); estado consultado: disponível.
+
+### Mistura U — experimentos físicos pareados
+
+- Workflow: https://github.com/lucianox777/Jornada/actions/runs/42380442603
+- Artefatos publicados:
+  - `v9-u-rare-mixture-m025-42380442603-e1b6a071d68eb0eaf16fc00325b68cafa46ec3b4` — [artefato #13577737647](https://github.com/lucianox777/Jornada/actions/runs/42380442603/artifacts/13577737647); estado consultado: disponível.
+  - `v9-u-rare-mixture-m050-42380442603-e1b6a071d68eb0eaf16fc00325b68cafa46ec3b4` — [artefato #13577304978](https://github.com/lucianox777/Jornada/actions/runs/42380442603/artifacts/13577304978); estado consultado: disponível.
+
+### V3 direta — comparação física
+
+- Workflow: https://github.com/lucianox777/Jornada/actions/runs/42380442606
+- Artefatos publicados:
+  - `v9-v3-direct-train-42380442606-e1b6a071d68eb0eaf16fc00325b68cafa46ec3b4` — [artefato #13577383434](https://github.com/lucianox777/Jornada/actions/runs/42380442606/artifacts/13577383434); estado consultado: disponível.
+
+### Como verificar a evidência
+
+1. Abrir o workflow do SHA indicado e baixar o bundle original, sem reconstruir os números a partir desta página.
+2. Conferir manifesto, recibos, plano congelado, configuração de TF/margem/seed, relatórios estatísticos e arquivos de hashes incluídos no próprio bundle. Verificar SHA-256 dos arquivos contra os digests registrados **no bundle**; IDs de artifact do GitHub não substituem hash de conteúdo.
+3. Conferir a contagem de fontes elegíveis, as diferenças pareadas por fonte, TP/FP, rejeições por fanout e distinção entre margem primária e sensibilidade.
+4. Distinguir o artefato experimental do modelo escolhido: a exploração é TRAIN sintético, não TEST/Gold, certificação de FDR nem autorização de produção.
+
+**Retenção:** links de artifacts do GitHub Actions dependem da política de expiração do repositório. Os identificadores e o SHA permanecem registrados aqui, mas um link pode deixar de permitir download. Para preservação permanente, arquivar os bundles e respectivos hashes no repositório de evidências adotado pelo projeto, seguindo o padrão V2; não alegar preservação permanente somente por existir um link do Actions.
+
+**Outros documentos de suporte:** `Solution/docs/V9_V3_U_Rare_Mixture_Experiment_20261106.md` descreve hipóteses, desenho, critérios de auditoria e limitações; `Solution/scripts/v9-u-rare-mixture-physical-audit.py` contém a auditoria reexecutável da campanha; `Solution/scripts/v9-v3-source-paired-audit.py` e `Solution/scripts/v9-v3-source-gap-audit.py` apoiam a atribuição pareada.
