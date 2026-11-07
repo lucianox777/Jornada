@@ -116,9 +116,21 @@ if __name__ == "__main__":
     cli.add_argument("output_plan", type=Path)
     cli.add_argument("--margin", type=float, default=.5,
                      help="Explicit TRAIN conflict margin in (0,1]; zero is diagnostic-only")
+    cli.add_argument("--config", type=Path, default=None,
+                     help="Versioned JSON experiment declaration with UBackoffJointMixtureWeights and ConflictMargin")
     cli.add_argument("--weights", type=str, default=None,
                      help="Explicit comma-separated U mixture weights; default preserves frozen historical experiment")
     args = cli.parse_args()
-    weights = None if args.weights is None else [float(x) for x in args.weights.split(",")]
+    if args.config is not None and args.weights is not None:
+        cli.error("--config and --weights are mutually exclusive")
+    if args.config is not None:
+        config = json.loads(args.config.read_bytes())
+        if set(config) != {"UBackoffJointMixtureWeights", "ConflictMargin"}:
+            cli.error("Config must declare exactly UBackoffJointMixtureWeights and ConflictMargin")
+        weights = config["UBackoffJointMixtureWeights"]
+        margin = config["ConflictMargin"]
+    else:
+        weights = None if args.weights is None else [float(x) for x in args.weights.split(",")]
+        margin = args.margin
     print(json.dumps(freeze(args.source_nested_tf_plan, args.output_plan,
-                            margin=args.margin, weights=weights), sort_keys=True))
+                            margin=margin, weights=weights), sort_keys=True))
