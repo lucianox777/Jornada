@@ -1,0 +1,55 @@
+name: v9-serial-parallel-physical-artifact-audit
+
+# Read-only scientific evidence comparison. Never merges, refits or touches SQL.
+# Runs only on a same-repository PR; no TEST, Gold, DT-15 or raw corpus.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-serial-parallel-physical-artifact-audit.yml'
+      - 'Solution/scripts/v9-compare-physical-parallel-serial.py'
+      - 'Solution/scripts/v9-download-physical-zip.py'
+      - 'Solution/tests/scripts/test_v9_serial_parallel_physical_audit.py'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v9-serial-parallel-proof-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  compare-artifacts:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Test synthetic fail-closed comparison logic
+        run: |
+          python3 -m py_compile Solution/scripts/v9-download-physical-zip.py Solution/scripts/v9-compare-physical-parallel-serial.py
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_serial_parallel_physical_audit.py -v
+      - name: Download exactly two existing SHA-bound synthetic 30k artifacts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 Solution/scripts/v9-download-physical-zip.py --directory "$RUNNER_TEMP/v9-parallel-serial-evidence"
+      - name: Compare TP FP FN conflict and pending reasons and each fitted snapshot SHA
+        run: |
+          python3 Solution/scripts/v9-compare-physical-parallel-serial.py \
+            --parallel "$RUNNER_TEMP/v9-parallel-serial-evidence/parallel.zip" \
+            --serial "$RUNNER_TEMP/v9-parallel-serial-evidence/serial.zip" \
+            --output "$RUNNER_TEMP/v9-serial-parallel-comparison.json"
+      - name: Archive aggregate-only comparison report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-serial-parallel-aggregate-audit-${{ github.run_id }}
+          path: ${{ runner.temp }}/v9-serial-parallel-comparison.json
+          if-no-files-found: warn
+          retention-days: 90
+      - name: Remove downloaded evidence ZIPs
+        if: always()
+        run: rm -rf "$RUNNER_TEMP/v9-parallel-serial-evidence"
