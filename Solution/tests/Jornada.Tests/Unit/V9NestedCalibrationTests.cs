@@ -8,6 +8,13 @@ namespace Jornada.Tests.Unit;
 [TestFixture, Category("Unit")]
 public sealed class V9NestedCalibrationTests
 {
+    // Reuse frozen options; creation per operation is rejected by CA1869.
+    private static readonly JsonSerializerOptions SelectionJson = new()
+    {
+        WriteIndented = true, RespectRequiredConstructorParameters = true,
+        UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
+    };
+
     [Test]
     public void Conditional_finalist_choice_preserves_group_risk_cost_and_family_constraints()
     {
@@ -22,6 +29,40 @@ public sealed class V9NestedCalibrationTests
         Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([measured], policy, 1), Is.Null);
         Assert.That((Action)(() => V9NestedCalibrationCli.SelectConditionalWinner([measured with { Refitted = true }], policy, 2)), Throws.TypeOf<InvalidDataException>());
         Assert.That((Action)(() => V9NestedCalibrationCli.SelectConditionalWinner([measured with { Metric = m with { BonferroniComparedConfigurations = 3 } }], policy, 2)), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public async Task Streaming_selection_envelope_is_byte_and_SHA_equivalent_to_original_serializer()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "jornada-v9-selection-stream-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        try
+        {
+            var envelope = new
+            {
+                result = Enumerable.Range(0, 2500).Select(i => new
+                {
+                    BaseIdentity = "synthetic-" + i,
+                    EligibleSources = 3,
+                    TrueAccepted = i % 3,
+                    FalseAccepted = i % 17 == 0 ? 1 : 0
+                }).ToArray(),
+                statisticalCertification = false,
+                operationalActivation = false
+            };
+            var original = JsonSerializer.SerializeToUtf8Bytes(envelope, SelectionJson);
+            var expected = Convert.ToHexString(
+                System.Security.Cryptography.SHA256.HashData(original)).ToLowerInvariant();
+            var actual = await V9NestedCalibrationCli.WriteContentAddressedSelectionAsync(directory, envelope);
+            Assert.That(actual, Is.EqualTo(expected));
+            Assert.That(File.ReadAllBytes(Path.Combine(directory, expected + ".selection.json")),
+                Is.EqualTo(original));
+            Assert.That(Directory.GetFiles(directory, "*.pending.json"), Is.Empty);
+            Assert.That((Func<Task>)(async () =>
+                await V9NestedCalibrationCli.WriteContentAddressedSelectionAsync(directory, envelope)),
+                Throws.TypeOf<IOException>());
+        }
+        finally { Directory.Delete(directory, true); }
     }
 
     [Test]

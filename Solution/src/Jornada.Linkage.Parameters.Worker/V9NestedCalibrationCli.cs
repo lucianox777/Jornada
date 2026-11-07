@@ -117,7 +117,9 @@ public static class V9NestedCalibrationCli
             historicalKnownComparedConfigurations = 14159502, historicalScope = "CONSUMED_HISTORICAL_VALIDATION_ONLY_NOT_FRESH_FINALIST_MULTIPLICITY",
             searchConfigurations = result.Evaluations.Count, externalValidationMultiplicity = result.FinalistSnapshotShas.Count,
             frozenTestMultiplicity = 1, certified = false });
-        var envelope = JsonSerializer.SerializeToUtf8Bytes(new
+        // Publish large identity-level evidence as a streamed canonical JSON
+        // file; no full-sized UTF8 envelope is retained in RAM during hashing.
+        var envelopeSha = await WriteContentAddressedSelectionAsync(output, new
         {
             result, externalDesign, externalValidationMultiplicity = result.FinalistSnapshotShas.Count,
             originalObservationsSha256 = sourceSha, producerManifestSha256 = Sha(manifestBytes),
@@ -125,10 +127,7 @@ public static class V9NestedCalibrationCli
             snapshotValidationSlotPurpose = "TRAIN_SELECTION_NOT_EXTERNAL_VALIDATION",
             validationRule = "UP_TO_3_PRECOMMITTED_FITS_MAX_RECALL_WITH_CP_RATIO_UCB_WITHIN_EPSILON_NO_REFIT",
             statisticalCertification = false, operationalActivation = false
-        }, Json);
-        var envelopeSha = Sha(envelope);
-        await using (var file = new FileStream(Path.Combine(output, envelopeSha + ".selection.json"), FileMode.CreateNew))
-            await file.WriteAsync(envelope);
+        });
         await WriteNewAsync(Path.Combine(output, "selection-reference.json"), new { envelopeSha256 = envelopeSha,
             result.FinalistSnapshotShas, result.StopReason, externalValidationUsed = false, testUsed = false, activated = false });
         await WriteNewAsync(Path.Combine(output, "training-split-manifest.json"), result.Split);
@@ -445,6 +444,22 @@ public static class V9NestedCalibrationCli
             && x.FalseDegreeP99 <= maximumFalseDegreeP99)
             .OrderByDescending(x => x.Metric.GlobalSourceRecall).ThenBy(x => x.Metric.ConditionalClusterCpFdrUpper)
             .ThenBy(x => x.SnapshotSha256, StringComparer.Ordinal).FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Exact canonical JSON bytes are written once before hashing and published
+    /// through same-directory atomic rename. The temp file is never a source of
+    /// model parameters or a checkpoint; it does not persist mutable TRAIN state.
+    /// </summary>
+    public static async Task<string> WriteContentAddressedSelectionAsync<T>(string output, T envelope)
+    {
+        var pending = Path.Combine(output, ".selection.pending.json");
+        await WriteNewAsync(pending, envelope);
+        string digest;
+        await using (var input = new FileStream(pending, FileMode.Open, FileAccess.Read, FileShare.Read))
+            digest = Convert.ToHexString(await SHA256.HashDataAsync(input)).ToLowerInvariant();
+        File.Move(pending, Path.Combine(output, digest + ".selection.json"));
+        return digest;
     }
 
     private static string Sha(ReadOnlySpan<byte> bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();

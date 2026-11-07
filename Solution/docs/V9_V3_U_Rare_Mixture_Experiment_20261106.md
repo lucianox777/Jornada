@@ -121,3 +121,15 @@ múltiplas leituras independentes e defesa contra mutação do buffer.
 **Resultado ainda aberto:** só um novo teste físico com as mesmas 160
 configurações e o mesmo corpus poderá medir economia real de RAM,
 possíveis diferenças de tempo e se o OOM deixou de ocorrer.
+
+### Serialização do envelope final sem duplicação (compatibilidade #1298)
+
+A persistência de `<sha>.selection.json` usa a mesma saída UTF8 de
+`JsonSerializer.SerializeAsync`, sem alocar todo o documento como
+`SerializeToUtf8Bytes`. O arquivo temporário é criado dentro do diretório
+novo da execução, seu SHA é calculado dos bytes escritos e é publicado por
+rename que nunca sobrescreve artefatos anteriores. Testes comparam bytes e
+SHA contra o formato antigo. **Não** se trata de um modo disk-backed de
+calibração: todos os cálculos e avaliações permanecem em RAM; o SSD recebe
+somente o relatório final. Essa alteração é idêntica à correção na #1298,
+para que os resultados do mesmo caso de OOM sejam comparáveis.
