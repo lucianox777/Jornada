@@ -24,6 +24,7 @@ def payload(margin=.5, weights=None):
                    **policy, "UBackoffJointMixtureWeights": weights}}]
     plan = {
         "MaximumBatches": 1, "MaximumSearchConfigurations": count,
+        "DuplicateCandidatePolicies": ["COUNT_ALL", "COUNT_UNIQUE"],
         "Calibration": {
             "MaximumComparedConfigurations": count, "ConflictMargins": [margin],
             "Budget": {"MaximumObservedAcceptedFdrPoint": .01},
@@ -110,6 +111,10 @@ class PhysicalAuditTests(unittest.TestCase):
     def test_all_twenty_four_are_covered_without_certification(self):
         result = self.verify()
         self.assertEqual(result["physicalComparisons"], 24)
+        policies = result["duplicateCandidatePolicyComparisons"]
+        self.assertEqual([p["eligibleHypotheses"] for p in policies], [24, 20])
+        self.assertEqual(len(policies[1]["equivalentGroups"]), 4)
+        self.assertFalse(policies[1]["statisticalSelectionCertified"])
         self.assertEqual(len(result["comparisons"]), 4)
         self.assertTrue(result["historicalLambdaZeroParity"])
         self.assertFalse(result["certified"])
