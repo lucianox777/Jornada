@@ -1,11 +1,16 @@
 # Jornada — Especificação Técnica v5.00 (visão unificada)
 
+> `// Copyright (c) 2026 Luciano Vianna (ORCID: 0009-0000-5591-3577)`  
+> `// All rights reserved.`  
+> Declaração de copyright fornecida expressamente pelo titular para o conteúdo original desta edição. Não remove nem substitui avisos e licenças aplicáveis a materiais de terceiros.
+
+
 > **Versão textual da Especificação Técnica existente.** O Word (`.docx`) na Biblioteca de arquivos do ChatGPT preserva a apresentação, os gráficos, o conjunto de **13 tabelas** e a estrutura do documento. Em **07/11/2026**, o Word existente foi revisado nas seções técnicas e no **item 28 da matriz de blocking multi-passe**, mantendo o histórico de 29/10 identificável por SHA próprio. O Markdown é a versão textual auditável no Git; o Word inclui a revisão técnica no mesmo documento, sem gerar versão institucional aprovada. Estado: **candidata à aprovação formal**, sem homologação automática.
 >
 > **Origem Word:** `Especificacao_Tecnica_Jornada_v5.00_Visao_Unificada_SQL_Fabric_Alternativo_2026-10-29.docx`  
 > **Biblioteca:** `/Jornada/Especificacao_Tecnica_Jornada_v5.00_Visao_Unificada_SQL_Fabric_Alternativo_2026-10-29.docx`  
 > **SHA-256 da origem Word:** `0f8be8a82b15e0279ea0bd9aa7d9b75767afd27dff75df4bda981e1d5af7fe07`  
-> **Documento Word v5.00 revisado no acervo `/Jornada` em 07/11/2026:** `Especificacao_Tecnica_Jornada_v5.00_Visao_Unificada_SQL_Fabric_Alternativo_2026-10-29.docx`, SHA-256 da versão revisada `1e2e4634dca7921d2fd480a9304ddab2cf5ac7ab1653998644f501240d1bd3a6`. O hash da origem histórica de 29/10 abaixo permanece como registro do documento anterior.
+> **Word desta revisão entregue na conversa em 07/11/2026:** `Jornada_v5_Luciano_Vianna.docx`, SHA-256 `1d97033e952255338a4ec9e5186ef86ca65db17f1fcba930b419f15407f35de4`. É uma cópia revisada para entrega; não afirmar que a versão anterior na Biblioteca `/Jornada` foi automaticamente substituída. O hash da origem histórica de 29/10 permanece registrado e inalterado.
 >
 > **Consolidação original:** 29/10/2026. **Revisão técnica integrada no texto:** 07/11/2026. A opção SQL Database in Microsoft Fabric como alternativa de hospedagem em HML/PROD depende de homologação do ambiente real. Esta revisão atualiza requisitos e registra pendências com base nas decisões recentes, sem aprovação institucional tácita; a fotografia técnica de execução encontra-se no capítulo 26. O **SHA-256 da origem Word de 29/10** permanece como registro histórico; a **revisão Word de 07/11** tem SHA-256 próprio (acima), incluindo a retificação efetiva da matriz técnica. Nenhum dos hashes substitui aprovação institucional.
 
@@ -3103,7 +3108,7 @@ As PRs #1199 (política inferior governada), #1215 (integração V9/TF e paralel
 
 **Não integradas neste corte:** PR **#1304** retira `experiment.json` científico e congela margens por papel no plano; PR **#1308** propõe sanitização de mensagens/stack em stderr e `calibrador.log`; PR **#1310** propõe impedir seleção de λ=0 na U-mix em ambas as políticas e separar contagens físicas/selecionáveis/multiplicidade. Todas permaneciam abertas na verificação. Não declarar a alteração de código dessas PRs implementada na master até merge+gates do SHA correspondente. A PR **#1311** também permanecia aberta para tratar compatibilidade do default histórico V2 de paralelismo. Exigências de integridade de planos/bundles, FDR por grupos dependentes e seleção humana posterior são mantidas.
 
-**Estado da revisão:** os itens 7.16–7.21, 13.5, 18.5, 23.1–23.2 e este capítulo incorporam os resultados e decisões documentáveis de #1283–#1300. Copyright, titularidade, licença do repositório, avisos de terceiros e eventual deliberação institucional sobre direitos autorais **não são objeto da revisão**, permanecendo sem mudança.
+**Estado da revisão:** os itens 7.16–7.21, 13.5, 18.5, 23.1–23.2 e este capítulo incorporam resultados e decisões documentáveis de #1283–#1300. A declaração de copyright desta edição foi **atualizada expressamente por instrução do titular em 07/11/2026** para `// Copyright (c) 2026 Luciano Vianna (ORCID: 0009-0000-5591-3577)` e `// All rights reserved.`. Isso não define por si só a licença de distribuição do repositório, não altera avisos MIT de terceiros, nem substitui atos institucionais eventualmente exigidos.
 
 #### 26.7. Fechamento editorial das decisões sem homologar código — corte em 07/11/2026
 
@@ -3113,7 +3118,7 @@ No SHA **d7bb275c983a13cc9fb907ed53ba5d77af4b8132**, o run `jornada-ci` **424080
 
 Não declarar como integradas sem merge/gates no SHA corrente as mudanças das PRs **#1304** (`plan.json` autocontido), **#1308** (sanitização), **#1310** (λ=0 fora de seleção) e **#1311** (default CPU V2). Tais pendências de código **não alteram o que está decidido e documentado**. Gate técnico 30k seletivo em push master prevalece sobre regra pré-merge anterior por decisão expressa do PO de 06/11 confirmada em 07/11. Nenhum RUN histórico de TRAIN autoriza TEST novo, FDR independente, implantação, Gold de produção ou DT-15.
 
-**Controle editorial:** nenhum trecho de copyright, titularidade ou licenciamento foi modificado pela reconciliação; o documento continua **candidato a aprovação formal**, não release institucional. O Word entregue desta edição possui SHA-256 **`1e2e4634dca7921d2fd480a9304ddab2cf5ac7ab1653998644f501240d1bd3a6`** e preserva 13 tabelas; o Markdown contém o mesmo **conteúdo decisório**, sem exigir identidade de formatação.
+**Controle editorial:** o aviso de copyright foi atualizado **conforme a declaração expressa do titular**, sem modificação do código, das licenças e dos avisos de terceiros. O documento continua **candidato a aprovação formal**, não release institucional. O Word entregue nesta edição possui SHA-256 **`1d97033e952255338a4ec9e5186ef86ca65db17f1fcba930b419f15407f35de4`**, preserva 13 tabelas e contém a declaração na página inicial; o Markdown conserva o mesmo **conteúdo decisório** sem exigir identidade de diagramação.
 
 ### 27. Triagem integrada de decisões funcionais e responsabilidades do PO
 
