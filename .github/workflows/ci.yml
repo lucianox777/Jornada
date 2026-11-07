@@ -6,7 +6,7 @@ on:
       - master
     tags:
       - '**'
-  pull_request:
+  # Full suite runs only on integrated master or explicit dispatch.
   workflow_dispatch:
     inputs:
       scale_profile:
