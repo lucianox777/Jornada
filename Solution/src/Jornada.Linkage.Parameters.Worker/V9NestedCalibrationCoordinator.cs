@@ -21,7 +21,8 @@ public sealed record V9NestedCalibrationPlan(V9AdaptiveCalibrationPlan Calibrati
     NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<V9MuEstimationMethod>? MuEstimationMethods = null,
-    IReadOnlyList<string>? DuplicateCandidatePolicies = null);
+    IReadOnlyList<string>? SelectionDuplicatePolicies = null,
+    IReadOnlyList<string>? CalibrationDuplicatePolicies = null);
 
 public sealed record V9NestedCandidateEvaluation(string RequestSha256, int Batch,
     V9TrainingCandidate? Candidate, IReadOnlyList<string> Rejections,
@@ -79,10 +80,14 @@ public static class V9NestedCalibrationCoordinator
     {
         ArgumentNullException.ThrowIfNull(plan);
         V9AdaptiveCalibrationCoordinator.ValidatePlan(plan.Calibration);
-        if (plan.DuplicateCandidatePolicies is { } policies &&
+        if (plan.CalibrationDuplicatePolicies is { } calibrationPolicies &&
+            (calibrationPolicies.Count == 0 || calibrationPolicies.Distinct(StringComparer.Ordinal).Count() != calibrationPolicies.Count ||
+             calibrationPolicies.Any(x => x is not ("INCLUDE" or "DEDUPLICATE"))))
+            throw new InvalidDataException("CalibrationDuplicatePolicies inválido.");
+        if (plan.SelectionDuplicatePolicies is { } policies &&
             (policies.Count == 0 || policies.Distinct(StringComparer.Ordinal).Count() != policies.Count ||
              policies.Any(x => x is not ("COUNT_ALL" or "COUNT_UNIQUE"))))
-            throw new InvalidDataException("DuplicateCandidatePolicies exige array único de COUNT_ALL/COUNT_UNIQUE.");
+            throw new InvalidDataException("SelectionDuplicatePolicies exige array único de COUNT_ALL/COUNT_UNIQUE.");
         if (plan.MuEstimationMethods is { } muMethods)
         {
             _ = V9MuEstimationSearchSpace.Enumerate(muMethods);
