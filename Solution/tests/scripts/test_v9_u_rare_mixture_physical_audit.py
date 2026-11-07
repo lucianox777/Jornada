@@ -83,6 +83,10 @@ def payload(margin=.5, weights=None):
         "PlanSha256": "f" * 64, "testUsed": False, "activated": False,
         "originalMethodsAndParameterArrays": methods,
         "declaredVariantCount": 2 + len(weights), "evaluations": count, "measured": count,
+        "duplicateCandidatePolicySelections": [
+            {"Policy": name, "EligibleHypotheses": count if name == "COUNT_ALL" else count - (4 if 0 in weights else 0),
+             "FrontierSnapshotShas": [], "FinalistSnapshotShas": [], "IndependentlyCertified": False}
+            for name in ("COUNT_ALL", "COUNT_UNIQUE")],
         "rows": rows
     }
     envelope = {
