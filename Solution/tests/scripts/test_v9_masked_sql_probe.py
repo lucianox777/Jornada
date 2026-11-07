@@ -40,9 +40,12 @@ class V9MaskedSqlProbeTests(unittest.TestCase):
         self.assertIn("v9-tf-ref-provenance-gate.py", w)
         self.assertIn("pinned_ibge_json:", w)
         preflight = w.index("Bind preflight to exact SHA")
-        execute = w.index("Prove exact PR or manual branch SHA")
+        execute = w.index("Prove exact master push or manual SHA before starting SQL")
         assert w.find("Start masked disposable SQL Server", preflight) > preflight
         assert w.find("Start masked disposable SQL Server", execute) > execute
+        self.assertIn("ref: ${{ github.sha }}", w, "Physical checkout must pin the integrated commit.")
+        self.assertIn("--mode auto_30k", w, "Master push must prove SHA before Docker.")
+        self.assertNotIn("  pull_request:\n", w, "PR is fast-only under PO 06/11 decision.")
 
     def test_mask_registered_before_docker_and_only_loopback_sql(self):
         code = STARTER.read_text(encoding="utf-8")
