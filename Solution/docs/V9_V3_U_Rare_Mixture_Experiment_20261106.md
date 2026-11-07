@@ -248,3 +248,31 @@ FDR, TF/M/U, snapshots, seleção ou etapas TRAIN/VALIDATION/TEST.
 O aviso é **observacional**: ausência de aviso em uma amostra não prova
 ausência de OOM ou de pressão anterior, e não evita falha de memória.
 A prova física seed42 permanece obrigatória.
+
+### Última exceção de erro do Calibrador — `calibrador.log`
+
+Para cada execução de `--v9-calibrate` ou `--v9-validate-finalists`,
+uma falha de C# **não é recuperada silenciosamente**: a exceção original
+continua sendo propagada e o processo retorna erro. Quando o diretório
+de resultados já existe, `calibrador.log` recebe **somente a exceção mais
+recente** (`Exception.ToString()`, com tipo, mensagem, stack trace e
+exceções internas), escrita com substituição do conteúdo e **sem append**.
+O recibo existente `interrupted.json` permanece separado e mínimo.
+O workflow físico V3 inclui `results/calibrador.log` entre os
+artefatos de falha; nenhuma linha individual de TRAIN, nomes ou pares
+é adicionada propositalmente ao diagnóstico.
+
+**Limite físico inevitável:** se a falha for disco cheio (`ENOSPC`) ou
+ocorrer antes da criação do diretório, o próprio log pode não ser
+persistido. Nesse caso a exceção é impressa no `stderr` para os logs
+do processo e do CI; a falha ao escrever `interrupted.json` ou o
+`calibrador.log` não encobre a exceção original. Não há retry,
+limpeza automática, troca de volume nem fallback operacional. Em OOM
+fatal do runtime ou encerramento pelo sistema operacional, o `catch`
+pode nem executar: não declarar garantia absoluta de arquivo em tais
+condições. Nenhuma alteração em RAM/CPU, FDR, M/U/TF ou seleção de modelo.
+
+Uma tentativa rejeitada por **diretório de saída já existente** não altera
+os arquivos dessa execução anterior: o log só pode ser gravado em um
+diretório criado pela própria tentativa atual. Em falhas antes disso,
+o canal confiável de diagnóstico é o stderr do processo/CI.

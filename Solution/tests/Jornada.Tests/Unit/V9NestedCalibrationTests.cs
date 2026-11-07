@@ -66,6 +66,65 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public void Calibrador_log_contains_only_last_exception_and_never_appends()
+    {
+        var output = Path.Combine(Path.GetTempPath(), "v9-calibrador-log-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(output);
+        try
+        {
+            V9NestedCalibrationCli.TryWriteLastError(output, new InvalidDataException("FIRST_ERROR_SENTINEL"));
+            var file = Path.Combine(output, "calibrador.log");
+            Assert.That(File.Exists(file), Is.True);
+            Assert.That(File.ReadAllText(file), Does.Contain("FIRST_ERROR_SENTINEL"));
+            var latest = new IOException("No space left on device");
+            Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.TryWriteLastError(output, latest)));
+            var content = File.ReadAllText(file);
+            Assert.That(content, Does.Contain(latest.ToString()));
+            Assert.That(content, Does.Not.Contain("FIRST_ERROR_SENTINEL"));
+            Assert.That(Directory.GetFiles(output, "*.log"), Has.Length.EqualTo(1));
+        }
+        finally { Directory.Delete(output, true); }
+    }
+
+    [Test]
+    public void Calibrador_log_failure_does_not_mask_original_failure()
+    {
+        var output = Path.Combine(Path.GetTempPath(), "v9-calibrador-log-failure-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(output);
+        try
+        {
+            // A directory at the intended .log path deterministically simulates
+            // unwritable log output without filling disk on the CI runner.
+            Directory.CreateDirectory(Path.Combine(output, "calibrador.log"));
+            Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.TryWriteLastError(
+                output, new IOException("There is not enough space on the disk."))));
+            Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.TryWriteLastError(
+                Path.Combine(output, "not-created"), new InvalidDataException("bad input"))));
+            Assert.That(Directory.Exists(Path.Combine(output, "calibrador.log")), Is.True);
+        }
+        finally { Directory.Delete(output, true); }
+    }
+
+    [Test]
+    public async Task Failed_calibration_does_not_mutate_a_preexisting_result_directory()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "v9-calibrador-existing-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var marker = Path.Combine(root, "historical.txt");
+            File.WriteAllText(marker, "IMMUTABLE_PREVIOUS_RUN");
+            var missingPlan = Path.Combine(root, "nonexistent-plan.json");
+            Assert.That((Func<Task>)(async () => await V9NestedCalibrationCli.RunAsync(
+                ["--v9-calibrate", missingPlan, "missing.csv", root])),
+                Throws.TypeOf<FileNotFoundException>());
+            Assert.That(File.ReadAllText(marker), Is.EqualTo("IMMUTABLE_PREVIOUS_RUN"));
+            Assert.That(File.Exists(Path.Combine(root, "calibrador.log")), Is.False);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Test]
     public void Ram_reporting_uses_runtime_GC_pressure_without_inventing_a_memory_limit()
     {
         const long mib = 1024L * 1024;

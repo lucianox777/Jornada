@@ -59,8 +59,89 @@ public static class V9NestedCalibrationCli
         UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow
     };
 
+    /// <summary>
+    /// One error per failed run: the last C# exception, including the stack trace.
+    /// Diagnostic I/O must never replace the original failure (notably disk-full).
+    /// </summary>
+    public static void TryWriteLastError(string? output, Exception exception)
+    {
+        ArgumentNullException.ThrowIfNull(exception);
+        try
+        {
+            var detail = exception.ToString();
+            Console.Error.WriteLine(detail);
+            if (output is null || !Directory.Exists(output))
+            {
+                Console.Error.WriteLine("calibrador.log indisponível: diretório de resultados não foi criado.");
+                return;
+            }
+            // Overwrite, never append: only the most recent error of this run.
+            File.WriteAllText(Path.Combine(output, "calibrador.log"), detail + Environment.NewLine);
+        }
+        catch (Exception loggingError)
+        {
+            // ENOSPC/OOM can prevent both formatting and writing a diagnostic.
+            // Never replace the original exception or turn failure into success.
+            try
+            {
+                Console.Error.WriteLine("Não foi possível gravar calibrador.log: "
+                    + loggingError.GetType().Name + ": " + loggingError.Message);
+            }
+            catch (Exception) { /* Even stderr may be unavailable on a failed process. */ }
+        }
+    }
+
     public static async Task RunAsync(string[] args)
     {
+        string? output = null;
+        bool outputCreatedForThisRun = false;
+        try
+        {
+            if (args.Length < 1 || (args[0] == "--v9-calibrate" ? args.Length != 4
+                : args[0] == "--v9-validate-finalists" ? args.Length != 5 : true))
+                throw new ArgumentException("Uso: --v9-calibrate <plano> <CSV> <diretório novo>; --v9-validate-finalists <plano> <SHA.selection.json> <CSV novo> <diretório novo>");
+            output = Path.GetFullPath(args[^1]);
+            var plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(await File.ReadAllBytesAsync(args[1]), Json)
+                ?? throw new InvalidDataException("Plano V9 interno ausente.");
+            V9NestedCalibrationCoordinator.ValidatePlan(plan);
+            if (Directory.Exists(output) || File.Exists(output)) throw new InvalidOperationException("Resultados exigem diretório novo e imutável.");
+            var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
+                ?? throw new InvalidOperationException("Conexão do JornadaHarness descartável ausente.");
+            if (new SqlConnectionStringBuilder(connectionString).InitialCatalog != "JornadaHarness")
+                throw new InvalidOperationException("Calibração física aceita somente JornadaHarness descartável.");
+            Directory.CreateDirectory(output);
+            outputCreatedForThisRun = true;
+            await using var ownership = new FileStream(Path.Combine(output, "execution.lock"), FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            await WriteNewAsync(Path.Combine(output, "plan.json"), plan);
+            try
+            {
+                if (args[0] == "--v9-calibrate")
+                    await SearchAsync(args[2], output, plan, connectionString);
+                else await ValidateAsync(args[2], args[3], output, plan, connectionString);
+            }
+            catch (Exception exception)
+            {
+                try
+                {
+                    await WriteNewAsync(Path.Combine(output, "interrupted.json"),
+                        new { exceptionType = exception.GetType().Name,
+                            completed = false, testUsed = false, activated = false });
+                }
+                catch (Exception receiptError)
+                {
+                    Console.Error.WriteLine("Não foi possível gravar interrupted.json: "
+                        + receiptError.GetType().Name + ": " + receiptError.Message);
+                }
+                throw;
+            }
+        }
+        catch (Exception exception)
+        {
+            // Never mutate a pre-existing result directory rejected above.
+            TryWriteLastError(outputCreatedForThisRun ? output : null, exception);
+            throw;
+        }
+    }
         if (args.Length < 1 || (args[0] == "--v9-calibrate" ? args.Length != 4
             : args[0] == "--v9-validate-finalists" ? args.Length != 5 : true))
             throw new ArgumentException("Uso: --v9-calibrate <plano> <CSV> <diretório novo>; --v9-validate-finalists <plano> <SHA.selection.json> <CSV novo> <diretório novo>");
