@@ -526,7 +526,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         var preview = V9TrainSqlNominalUCalibration.Preview(
             frozenU, frozenTfReference, personLevel, motherLevel, pair,
             UnitWeight(config, side, unit.Value), config.TfMinimumFrequency,
-            config.TfMinimumIndependentSupport, UnitMode(config, side, unit.Value));
+            config.TfMinimumIndependentSupport, UnitMode(config, side, unit.Value),
+            config.UnpublishedTermPolicy);
         if (preview is not null && !frozenU.UnitUByValue.ContainsKey(preview.MatchedNormalizedValue))
             onUnseen?.Invoke(side, unit.Value);
         return preview;
@@ -566,8 +567,8 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         }
         bool IsScoreable(LinkageCandidate candidate)
         {
-            if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
-                return true; // Historical snapshots still throw on an unknown frequency.
+            if (config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.AbstainCandidate)
+                return true; // RejectOperation throws, while CensoredFloorSensitivity scores explicitly.
             var target = targets[candidate.PessoaUuid];
             foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
             {
@@ -1357,10 +1358,22 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             "TF_SUPPORT=" + config.TfMinimumIndependentSupport);
         if (!Enum.IsDefined(config.UnpublishedTermPolicy))
             throw new InvalidDataException("Política para TF nominal não publicado desconhecida.");
+        // Censored-floor is a diagnostic HYPOTHESIS, never eligible for
+        // the automatic selector or for a TF0 baseline impersonation.
+        // An explicit opt-in is necessary but NOT sufficient to promote it.
+        if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity
+            && (config.EligibleForSelection || !HasPositiveTf(config)))
+            throw new InvalidDataException(
+                "Piso TF censurado exige peso TF positivo e diagnostico inelegivel para selecao.");
         // Default historical serialization/fingerprint is unchanged. A new
         // opt-in policy has a distinct fit/configuration identity.
         if (config.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.RejectOperation)
             canonical += "|UNPUBLISHED_TF_POLICY=" + config.UnpublishedTermPolicy;
+        // The sensitivity algorithm is an explicit empirical HYPOTHESIS.
+        // Bind its implementation version in the option/fit fingerprint,
+        // without changing either historical RejectOperation or AbstainCandidate.
+        if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity)
+            canonical += "|CENSORED_FLOOR_VERSION=" + V9TfCensoredFloorSensitivity.Version;
         if (!Enum.IsDefined(config.SharedSurnameMode))
             throw new InvalidDataException("Modo de sobrenome compartilhado desconhecido.");
         if (config.SharedSurnameMode == V9SharedSurnameModeV9.PersonSideOnlyWhenShared)

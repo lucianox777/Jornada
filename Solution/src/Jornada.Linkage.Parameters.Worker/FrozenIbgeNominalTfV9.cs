@@ -22,6 +22,9 @@ public sealed class FrozenIbgeNominalTfV9
     private readonly IReadOnlyDictionary<string, decimal> motherFirst;
     private readonly IReadOnlyDictionary<string, decimal> personLast;
     private readonly IReadOnlyDictionary<string, decimal> motherLast;
+    // Precompute once: per-candidate Min() over the full published census
+    // would turn a small sensitivity run into quadratic work.
+    private readonly IReadOnlyDictionary<(CompositeNominalTfSideV9, NominalFrequencyUnitV9), decimal> publishedFloor;
     public long ReferenceVersionId { get; }
     public string ReferenceCode { get; }
     public string PublishedReferenceSha256 { get; }
@@ -108,6 +111,17 @@ public sealed class FrozenIbgeNominalTfV9
             x => x.ValueNormalized, x => x.Frequency, StringComparer.Ordinal);
         personLast = prepared.Snapshot.PersonLastSurnames.ToDictionary(x => x.ValueNormalized, x => x.Frequency, StringComparer.Ordinal);
         motherLast = prepared.Snapshot.MotherLastSurnames.ToDictionary(x => x.ValueNormalized, x => x.Frequency, StringComparer.Ordinal);
+        publishedFloor = new Dictionary<(CompositeNominalTfSideV9, NominalFrequencyUnitV9), decimal>
+        {
+            [(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.FirstName)] =
+                personFirst.Count == 0 ? 0m : V9TfCensoredFloorSensitivity.RequirePublishedFloor(personFirst),
+            [(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.FirstName)] =
+                motherFirst.Count == 0 ? 0m : V9TfCensoredFloorSensitivity.RequirePublishedFloor(motherFirst),
+            [(CompositeNominalTfSideV9.Person, NominalFrequencyUnitV9.LastContentSurname)] =
+                personLast.Count == 0 ? 0m : V9TfCensoredFloorSensitivity.RequirePublishedFloor(personLast),
+            [(CompositeNominalTfSideV9.Mother, NominalFrequencyUnitV9.LastContentSurname)] =
+                motherLast.Count == 0 ? 0m : V9TfCensoredFloorSensitivity.RequirePublishedFloor(motherLast)
+        };
         MaterializedFrequencySha256 = ComputeMaterializedDigest(prepared.Entries);
     }
 
@@ -252,6 +266,38 @@ public sealed class FrozenIbgeNominalTfV9
         return new CompositeNominalTfPreviewV9(
             side, reference, value, frequency, unitReferenceU,
             weight, minimumFrequency, minimumIndependentSupport);
+    }
+
+    /// <summary>
+    /// ONLY for an explicitly opted-in sensitivity experiment. The returned
+    /// matched-term frequency is an HYPOTHESIS bounded by the published floor,
+    /// not a newly observed IBGE frequency and not inserted into the marginal.
+    /// </summary>
+    public CompositeNominalTfPreviewV9 CreateCensoredFloorSensitivityPreview(
+        CompositeNominalTfSideV9 side, NominalFrequencyUnitV9 unit,
+        string leftTerm, string rightTerm, decimal calibratedTrainU,
+        decimal weight, decimal configuredMinimum, long minimumIndependentSupport,
+        CompositeNominalTfAdjustmentModeV9 mode)
+    {
+        if (leftTerm != rightTerm || string.IsNullOrWhiteSpace(leftTerm)
+            || weight <= 0m || weight > 1m
+            || minimumIndependentSupport <= 0 || !Enum.IsDefined(mode))
+            throw new InvalidDataException("Sensibilidade TF exige termo nominal coincidente e peso valido.");
+        var frequencies = FrequenciesForUnit(side, unit);
+        var minimum = publishedFloor[(side, unit)];
+        var estimate = V9TfCensoredFloorSensitivity.Resolve(
+            frequencies, leftTerm, minimum, configuredMinimum,
+            V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity);
+        if (estimate.Evidence != V9TfFrequencyEvidenceV9.CensoredFloorHypothesis)
+            throw new InvalidDataException("Sensibilidade censurada nao e aplicavel a termo publicado.");
+        var level = V9NominalTfUnitSelection.MarginalLevel(unit);
+        var reference = MakeReference(side, ReferenceCode, PublishedReferenceSha256,
+            BlockingFrameFingerprint, Bootstrap, level);
+        CompositeNominalTermFrequencyContractV9.RequireMatchingReference(
+            level, reference, minimumIndependentSupport);
+        return new CompositeNominalTfPreviewV9(side, reference, leftTerm,
+            estimate.Frequency, calibratedTrainU, weight, configuredMinimum,
+            minimumIndependentSupport, mode, estimate.Evidence);
     }
 
     private static NominalFrequencyReferenceContractV9 MakeReference(

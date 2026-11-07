@@ -94,6 +94,7 @@ public sealed class V9FittedSnapshot
     private readonly byte[] utf8;
     private readonly FrozenFellegiSunterJointNominalV9 frozenNominal;
     private readonly IReadOnlyDictionary<string, double> numericParameters;
+    private readonly IReadOnlyDictionary<(CompositeNominalTfSideV9, NominalFrequencyUnitV9), decimal> censoredFloors;
     public V9FittedSnapshotPayload Payload { get; }
     public string ContentSha256 { get; }
 
@@ -102,6 +103,14 @@ public sealed class V9FittedSnapshot
         Payload = FreezeAndValidate(payload);
         frozenNominal = FrozenFellegiSunterJointNominalV9.Freeze(Payload.JointCells, Payload.NominalContractVersion);
         numericParameters = FellegiSunterScoring.ToDoubleParameters(Payload.Parameters);
+        // Compute publication floors ONCE for opt-in censored sensitivity.
+        // No frequency is inserted into the pinned published dictionary.
+        censoredFloors = Payload.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity
+            ? (Payload.UnitTfCalibrations ?? [])
+                .Where(x => x.State == V9SnapshotTfFitState.Active && x.Calibration is not null)
+                .ToDictionary(x => (x.Side, x.Unit),
+                    x => V9TfCensoredFloorSensitivity.RequirePublishedFloor(x.Calibration!.Frequencies))
+            : new Dictionary<(CompositeNominalTfSideV9, NominalFrequencyUnitV9), decimal>();
         utf8 = JsonSerializer.SerializeToUtf8Bytes(Payload, JsonOptions);
         if (utf8.Length > MaximumContentBytes)
             throw new InvalidDataException("Snapshot V9 excede o limite permitido para carga e persistência.");
@@ -210,8 +219,8 @@ public sealed class V9FittedSnapshot
             }
             bool IsScoreable(IdentityObservation o, LinkageCandidate c)
             {
-                if (Payload.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
-                    return true; // Legacy snapshot rejects in CreateTf as before.
+                if (Payload.UnpublishedTermPolicy != V9TfUnpublishedTermPolicyV9.AbstainCandidate)
+                    return true; // RejectOperation throws; floor sensitivity explicitly scores.
                 foreach (var side in new[] { CompositeNominalTfSideV9.Person, CompositeNominalTfSideV9.Mother })
                 {
                     var fit = Select(o, c, side);
@@ -275,15 +284,27 @@ public sealed class V9FittedSnapshot
             ? BrazilianNameComponents.Project(left)?.LastContentSurname : FirstName(left);
         var rightTerm = tf.Reference.Unit == NominalFrequencyUnitV9.LastContentSurname
             ? BrazilianNameComponents.Project(right)?.LastContentSurname : FirstName(right);
-        if (term is null || term != rightTerm
-            || !tf.Frequencies.TryGetValue(term, out var frequency))
-            throw new InvalidDataException("TF positiva sem frequência IBGE ou termo coincidente.");
+        if (term is null || term != rightTerm)
+            throw new InvalidDataException("TF positiva sem unidade nominal coincidente.");
         var unitU = tf.NominalUReference
             ?? throw new InvalidDataException("Snapshot TF positivo sem U_ref TRAIN congelado.");
         unitU.Validate(tf.Side, tf.Reference.Unit, tf.TrainCorpusFingerprintSha256);
+        if (!tf.Frequencies.ContainsKey(term)
+            && Payload.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity)
+        {
+            if (!censoredFloors.TryGetValue((tf.Side, tf.Reference.Unit), out var floor))
+                throw new InvalidDataException("Piso experimental TF sem marginal congelada.");
+            var hypothesis = V9TfCensoredFloorSensitivity.Resolve(tf.Frequencies,
+                term, floor, tf.MinimumFrequency, Payload.UnpublishedTermPolicy);
+            return new CompositeNominalTfPreviewV9(tf.Side, tf.Reference, term,
+                hypothesis.Frequency, unitU.Probability, tf.Weight ?? Payload.TfWeight,
+                tf.MinimumFrequency, tf.MinimumIndependentSupport, tf.Mode, hypothesis.Evidence);
+        }
         var unitReferenceProbability = unitU.ResolveTerm(tf.Frequencies, term);
+        var frequency = tf.Frequencies[term];
         return new CompositeNominalTfPreviewV9(tf.Side, tf.Reference, term, frequency,
-            unitReferenceProbability, tf.Weight ?? Payload.TfWeight, tf.MinimumFrequency, tf.MinimumIndependentSupport, tf.Mode);
+            unitReferenceProbability, tf.Weight ?? Payload.TfWeight, tf.MinimumFrequency,
+            tf.MinimumIndependentSupport, tf.Mode);
     }
 
     private static string? FirstName(string? name)
@@ -312,6 +333,10 @@ public sealed class V9FittedSnapshot
                 || grouping.MinimumPairPosterior is <= .5m or >= 1m || grouping.MaximumObservationsPerIdentity < 2)
                 throw new InvalidDataException("Contrato de agrupamento do snapshot V9 inválido.");
         }
+        if (p.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity
+            && p.UnitTfCalibrations is null)
+            throw new InvalidDataException(
+                "Piso censurado experimental exige os quatro slots TF congelados, nunca o legado.");
         if (p.GoldParentSnapshotSha256 is not null && p.CandidateGrouping?.CandidateGrouping != "GOLD")
             throw new InvalidDataException("Proveniência Gold exige variante Gold explícita.");
         if (p.SchemaVersion != (p.JointSupport is null ? SchemaVersion : SupportSchemaVersion) || p.NominalContractVersion != CompositeNominalComparisonV9.ContractVersion

@@ -139,7 +139,8 @@ public static class V9TrainSqlNominalUCalibration
         decimal weight,
         decimal minimumFrequency,
         long minimumIndependentSupport,
-        CompositeNominalTfAdjustmentModeV9 mode = CompositeNominalTfAdjustmentModeV9.Symmetric)
+        CompositeNominalTfAdjustmentModeV9 mode = CompositeNominalTfAdjustmentModeV9.Symmetric,
+        V9TfUnpublishedTermPolicyV9 policy = V9TfUnpublishedTermPolicyV9.RejectOperation)
     {
         ArgumentNullException.ThrowIfNull(calibration);
         ArgumentNullException.ThrowIfNull(reference);
@@ -147,7 +148,7 @@ public static class V9TrainSqlNominalUCalibration
         if (weight <= 0m || weight > 1m
             || minimumFrequency < 0m || minimumFrequency > 1m
             || minimumIndependentSupport <= 0 || !Enum.IsDefined(calibration.Side)
-            || !Enum.IsDefined(mode))
+            || !Enum.IsDefined(mode) || !Enum.IsDefined(policy))
             throw new InvalidDataException("Preview U positivo exige configuração TF válida.");
         // Applicability is evidence, not caller policy. A stale/mismatched
         // level must not turn an applicable positive TF into a neutral null.
@@ -172,8 +173,13 @@ public static class V9TrainSqlNominalUCalibration
             ?? throw new InvalidDataException("TF positiva sem U_ref TRAIN compatível.");
         unitU.Validate(calibration.Side, calibration.Unit,
             calibration.TrainFingerprintSha256);
-        var unitReferenceProbability = unitU.ResolveTerm(
-            reference.FrequenciesForUnit(calibration.Side, calibration.Unit), value);
+        var published = reference.FrequenciesForUnit(calibration.Side, calibration.Unit);
+        if (!published.ContainsKey(value)
+            && policy == V9TfUnpublishedTermPolicyV9.CensoredFloorSensitivity)
+            return reference.CreateCensoredFloorSensitivityPreview(
+                calibration.Side, calibration.Unit, value, UnitToken(right, calibration.Unit)!,
+                unitU.Probability, weight, minimumFrequency, minimumIndependentSupport, mode);
+        var unitReferenceProbability = unitU.ResolveTerm(published, value);
         var preview = reference.CreatePreview(
             calibration.Side, marginalLevel, left, right,
             unitReferenceProbability, weight, minimumFrequency, minimumIndependentSupport)
