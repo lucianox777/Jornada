@@ -54,9 +54,8 @@ jobs:
           from pathlib import Path
           p=Path('Solution/data/calibration/v9/u-rare-mixture-train/experiment.json')
           c=json.loads(p.read_bytes())
-          assert set(c)=={'UBackoffJointMixtureWeights','ConflictMargin','CalibrationDuplicatePolicies','SelectionDuplicatePolicies'}
+          assert set(c)=={'UBackoffJointMixtureWeights','ConflictMargin','SelectionDuplicatePolicies'}
           assert c['UBackoffJointMixtureWeights']==[0,.25,.5,1]
           assert c['ConflictMargin']==.5
           assert c['SelectionDuplicatePolicies']==['COUNT_ALL','COUNT_UNIQUE']
-          assert c['CalibrationDuplicatePolicies']==['INCLUDE','DEDUPLICATE']
           PY
