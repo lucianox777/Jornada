@@ -96,7 +96,7 @@ jobs:
           python3 scripts/v9-nested-calibration-study.py \
             "$root/people-30k/observacoes.csv" "$root/source-plan.json" \
             --tf-search --pinned-ibge "$root/pinned-ibge.json"
-          # Exactly two V3 policies, no V2. Technical run, not full optimization.
+          # Exactly two V3 policies, no V2. Five margins, technical TRAIN only.
           cat > "$root/v3-grid.json" <<'JSON'
           {
             "ClassMassCoverage": [0.95, 0.99],
@@ -105,10 +105,17 @@ jobs:
             "RetainSupportedTail": [true]
           }
           JSON
+          python3 - "$root/source-plan.json" <<'PY'
+          import json, sys
+          from pathlib import Path
+          path=Path(sys.argv[1]); data=json.loads(path.read_bytes())
+          data['Calibration']['ConflictMargins']=[0, 0.25, 0.5, 2, 4]
+          path.write_text(json.dumps(data, indent=2)+'\n')
+          PY
           python3 scripts/v9-v3-direct-plan.py \
             "$root/source-plan.json" "$root/v3-grid.json" "$root/v3-plan.json" \
             --only-option-id TF_ONE_MF_W1_M0_A0.5_T0.95 \
-            --only-margin 0.5 --initial-only --maximum-configurations 4 \
+            --initial-only --maximum-configurations 20 \
             > "$root/plan-receipt.json"
       - name: Execute V3-only physical TRAIN via single CSharp Calibrador
         working-directory: Solution
@@ -136,7 +143,8 @@ jobs:
           assert len(plan['MuEstimationMethods']) == 1
           assert plan['MuEstimationMethods'][0]['Method'] == 'CLASSWISE_SUPPORT_BACKOFF'
           assert plan['MaximumBatches'] == 1
-          assert plan['MaximumSearchConfigurations'] == 4
+          assert plan['MaximumSearchConfigurations'] == 20
+          assert plan['Calibration']['ConflictMargins'] == [0, .25, .5, 2, 4]
           assert len(plan['Calibration']['ModelOptions']) == 1
           assert plan['Calibration']['ModelOptions'][0]['UnpublishedTermPolicy'] == 1
           assert report['schema'] == 'V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1'
@@ -144,9 +152,9 @@ jobs:
           assert report['testUsed'] is False and report['activated'] is False
           assert report['originalMethodsAndParameterArrays'] == plan['MuEstimationMethods']
           assert report['declaredVariantCount'] == 2
-          assert report['evaluations'] == 4 and len(report['rows']) == 4
+          assert report['evaluations'] == 20 and len(report['rows']) == 20
           assert Counter(x['MuEstimationMethod'] for x in report['rows']) == {
-              'CLASSWISE_SUPPORT_BACKOFF': 4
+              'CLASSWISE_SUPPORT_BACKOFF': 20
           }
           seen = set()
           for row in report['rows']:
@@ -155,13 +163,14 @@ jobs:
               assert policy['ClassMassCoverage'] in (.95, .99)
               assert policy['MinimumM'] == 5 and policy['MinimumU'] == 5
               assert policy['SupportedTailRule'] == 'RETAIN_CLASS_JOINT_WHEN_COUNT_AT_LEAST_K_V2'
-              assert row['ConflictMargin'] == .5
+              assert row['ConflictMargin'] in (0, .25, .5, 2, 4)
               assert len(row['fitSnapshotSha256']) == 64
               assert len(row['observedSupportAudit']['Cells']) == 81
               assert len(row['estimatorJointSupport']['Cells']) == 81
               assert row['outcome'].startswith('MEASURED_')
-              seen.add((len(row['blockingPasses']), policy['ClassMassCoverage']))
-          assert seen == {(3, .95), (3, .99), (19, .95), (19, .99)}
+              seen.add((len(row['blockingPasses']), policy['ClassMassCoverage'], row['ConflictMargin']))
+          assert seen == {(n, coverage, margin) for n in (3, 19)
+                          for coverage in (.95, .99) for margin in (0, .25, .5, 2, 4)}
           receipt = {
               'status': 'V3_ONLY_TRAIN_PHYSICAL_DESCRIPTIVE_NOT_CERTIFIED',
               'gitSha': os.environ['V3_APPROVED_HEAD_SHA'],

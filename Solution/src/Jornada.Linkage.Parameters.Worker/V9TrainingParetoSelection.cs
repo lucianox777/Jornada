@@ -20,7 +20,8 @@ public static class V9TrainingParetoSelection
     public static IReadOnlyList<V9TrainingCandidate> Frontier(IEnumerable<V9TrainingCandidate> candidates)
     {
         ArgumentNullException.ThrowIfNull(candidates);
-        var feasible = candidates.Where(c => c.Rejections.Count == 0 && c.Metric.FdrAfterResolve.HasValue)
+        var feasible = candidates.Where(c => c.Rejections.Count == 0
+            && c.Metric.FdrAfterResolve.HasValue && c.Metric.ConflictMargin > 0m)
             .OrderBy(c => c.Snapshot.ContentSha256, StringComparer.Ordinal).ToArray();
         foreach (var c in feasible)
         {
@@ -51,6 +52,8 @@ public static class V9TrainingParetoSelection
     {
         ArgumentNullException.ThrowIfNull(frontier);
         ArgumentNullException.ThrowIfNull(riskCeilings);
+        if (frontier.Any(c => c.Metric.ConflictMargin <= 0m))
+            throw new InvalidDataException("Margem zero ou negativa não pode ser finalista operacional.");
         if (frontier.Count == 0) return [];
         // First preserve the highest observed recall within operational epsilon;
         // then represent a safer band and the normalized ideal-distance choice.

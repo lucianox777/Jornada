@@ -96,7 +96,10 @@ public static class V9NestedCalibrationCli
             historicalKnownComparedConfigurations = 14159502, historicalScope = "CONSUMED_HISTORICAL_VALIDATION_ONLY_NOT_FRESH_FINALIST_MULTIPLICITY",
             searchConfigurations = result.Evaluations.Count, externalValidationMultiplicity = result.FinalistSnapshotShas.Count,
             frozenTestMultiplicity = 1, certified = false });
-        var envelope = JsonSerializer.SerializeToUtf8Bytes(new
+        // Stream large identity-cluster evidence directly to a new file, instead of
+        // allocating an entire JSON UTF8 byte[] on top of all retained TRAIN metrics.
+        // Exact JSON options, SHA binding and one-time file publication are unchanged.
+        var envelopeSha = await WriteContentAddressedSelectionAsync(output, new
         {
             result, externalDesign, externalValidationMultiplicity = result.FinalistSnapshotShas.Count,
             originalObservationsSha256 = sourceSha, producerManifestSha256 = Sha(manifestBytes),
@@ -104,10 +107,7 @@ public static class V9NestedCalibrationCli
             snapshotValidationSlotPurpose = "TRAIN_SELECTION_NOT_EXTERNAL_VALIDATION",
             validationRule = "UP_TO_3_PRECOMMITTED_FITS_MAX_RECALL_WITH_CP_RATIO_UCB_WITHIN_EPSILON_NO_REFIT",
             statisticalCertification = false, operationalActivation = false
-        }, Json);
-        var envelopeSha = Sha(envelope);
-        await using (var file = new FileStream(Path.Combine(output, envelopeSha + ".selection.json"), FileMode.CreateNew))
-            await file.WriteAsync(envelope);
+        });
         await WriteNewAsync(Path.Combine(output, "selection-reference.json"), new { envelopeSha256 = envelopeSha,
             result.FinalistSnapshotShas, result.StopReason, externalValidationUsed = false, testUsed = false, activated = false });
         await WriteNewAsync(Path.Combine(output, "training-split-manifest.json"), result.Split);
@@ -187,7 +187,10 @@ public static class V9NestedCalibrationCli
                     throw new InvalidDataException("Ambiguous V3 surname paired frame; refuse to report spurious deltas.");
                 var bilateral = paired.SingleOrDefault();
                 if (bilateral is not null
-                    && (shared.EligibleForSelection != false || bilateral.EligibleForSelection != true
+                    && (shared.EligibleForSelection != false
+                        // At zero BOTH arms remain measured-only, never selectable;
+                        // at positive margins the bilateral control is selectable.
+                        || bilateral.EligibleForSelection != (shared.ConflictMargin > 0m)
                         || shared.SharedSurnameCandidatePairs is null
                         || shared.SharedSurnameCandidatePairs != bilateral.SharedSurnameCandidatePairs
                         || shared.Candidate!.Snapshot.Payload.SharedSurnameMode
@@ -424,6 +427,22 @@ public static class V9NestedCalibrationCli
             && x.FalseDegreeP99 <= maximumFalseDegreeP99)
             .OrderByDescending(x => x.Metric.GlobalSourceRecall).ThenBy(x => x.Metric.ConditionalClusterCpFdrUpper)
             .ThenBy(x => x.SnapshotSha256, StringComparer.Ordinal).FirstOrDefault();
+    }
+
+    /// <summary>
+    /// Write the selection payload without a second full in-memory UTF8 copy.
+    /// The SHA names the exact fully flushed bytes, not a reserialized object.
+    /// File.Move is same-directory and fail-closed (never overwrites an artifact).
+    /// </summary>
+    public static async Task<string> WriteContentAddressedSelectionAsync<T>(string output, T envelope)
+    {
+        var pending = Path.Combine(output, ".selection.pending.json");
+        await WriteNewAsync(pending, envelope);
+        string digest;
+        await using (var input = new FileStream(pending, FileMode.Open, FileAccess.Read, FileShare.Read))
+            digest = Convert.ToHexString(await SHA256.HashDataAsync(input)).ToLowerInvariant();
+        File.Move(pending, Path.Combine(output, digest + ".selection.json"));
+        return digest;
     }
 
     private static string Sha(ReadOnlySpan<byte> bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
