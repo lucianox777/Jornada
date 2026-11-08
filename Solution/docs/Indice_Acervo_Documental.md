@@ -1,3 +1,5 @@
+> **ERRATA-V9-RELATORIO-2105 (07/11):** a [decisão GOV-OPS-V9-02](Decisao_V9_Mandato_Operacional_Frentes_07_11_2026.md) agora registra A2/#1338 e a V2 **WITNESS+ANCHOR** integral, sem permitir fechamento prematuro de frente. Evidências de CI pós-C e estado de implementação são distintos de autorização de merge, ciência independente ou ativação.
+
 > **GOV-OPS-V9-02 — matriz de frentes V9 e rastreabilidade:** [mandato operacional A–L de 07/11/2026](Decisao_V9_Mandato_Operacional_Frentes_07_11_2026.md), com critérios de merge, ordem de dependências, AGUARDA PO e razões de fechamento de #1279/#1206/#1256/#1259 preservadas. Este registro não é prova de implementação nem CI verde.
 
 > **GOV-OPS-V9-01 — vigília horária V9 (07/11/2026):** [decisão e limites de execução](Decisao_Vigilia_Horaria_V9_20261107.md). Uma automação coordenadora para este projeto; PRs distintas, merges seriados e gates `jornada-ci`/30k no SHA integrado; progresso precisa ser comprovado por GitHub.

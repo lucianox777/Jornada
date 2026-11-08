@@ -14,7 +14,7 @@
 
 | Frente | PR | Objetivo e condição |
 |---|---|---|
-| A | [#1308](https://github.com/lucianox777/Jornada/pull/1308) | Segurança de exceções Program.cs/CLI — imediata |
+| A1 + A2 | [#1308](https://github.com/lucianox777/Jornada/pull/1308) + [#1338](https://github.com/lucianox777/Jornada/pull/1338) | A1 mesclada só para dois CLIs; **A NÃO concluída**. A2 cobre TODAS as bordas Program.cs/host, deve entrar após gates master pós-C e antes de D. |
 | B | [#1310](https://github.com/lucianox777/Jornada/pull/1310) | Testemunha λ=0 ineligível à seleção — imediata |
 | C | [#1304](https://github.com/lucianox777/Jornada/pull/1304) | Plano científico autocontido de U-mistura — imediata |
 | D | [#1326](https://github.com/lucianox777/Jornada/pull/1326) | Paralelismo local determinístico, telemetria, separação P95 operacional — imediata |
@@ -32,7 +32,7 @@
 ## Parâmetros e ciência: decisões preservadas
 
 1. O calibrador executa **sempre** o `plan.json` científico oficial versionado; V2, V3 e misturas são opções da mesma arquitetura, não SQL/planos paralelos inventados para obter aprovação. Comparações de campanhas anteriores permanecem analíticas, não alimentam seleção da campanha atual.
-2. **V2 testemunha permanente:** a opção histórica V2 deve existir no plano oficial e ser auditada com seus parâmetros históricos íntegros; não inferir valores de campos cuja instrução original tenha ficado truncada no registro de chat. Não classificar a testemunha como nova candidata independente para multiplicidade/CP.
+2. **V2 WITNESS + ANCHOR permanente — texto integral expressamente retificado pelo PO:** "o plan.json oficial contém sempre a opção V2 com TODOS os parâmetros históricos exatos, explícitos; ela é WITNESS e ANCHOR (não concorre na seleção, não entra na multiplicidade do CP) e roda no mesmo recorte das demais opções." Não reduzir o requisito a DEFAULT sem todos os parâmetros históricos, não rodar V2 em SQL/recorte paralelo. O erro de truncamento da conversa anterior está **RESOLVIDO**; J precisa demonstrar cada parâmetro, o mesmo frame físico e CP somente candidatas.
 3. O limite de FDR é versionado e configurável no `plan.json`; CP é limite condicional sobre candidatas elegíveis, **não** certificação geral IID/FDR. Nunca adulterar TEST, Gold, hashes, 30k seed42 ou snapshots de prova.
 4. Paralelismo local 1/0/N e tempos são propriedades operacionais: as métricas, os fits e a escolha científica devem independer de tempo/host; P95 pode vedar elegibilidade **operacional**, sem contaminar a proposta científica. Dados reais não são inseridos em Git; campanhas novas, holdout externo, TEST, Gold, HML, DT-15 e ativação permanecem sob seus controles separados.
 
@@ -49,7 +49,7 @@ Consulta dos eventos/comentários GitHub de 07/11/2026, antes de qualquer nova f
 
 ## Pendências sem paralisar o desenvolvimento (AGUARDA PO)
 
-- Conferir o detalhamento integral dos campos históricos de **V2 testemunha permanente** na decisão original antes de declarar J concluída; o trecho fornecido neste mandato termina em “com TODOS o...”. Enquanto isso, manter o V2 histórico e seu fingerprint, sem inventar parâmetros ou eliminar opção.
+- A frase integral do PO sobre **V2 WITNESS + ANCHOR** foi fornecida; não se aguarda novo esclarecimento textual. Resta **executar** a comparação exaustiva dos parâmetros V2 históricos exatos com o plan.json oficial e comprovar a exclusão da multiplicidade CP, sem deixar faltar campo ou inventar valores.
 - Autorização para campanhas novas com seed inédita e LOCK, TEST/Gold/DT-15, publicação/HML e migração institucional v3.71 continuam condicionadas às políticas anteriores; desenvolver código/testes sem ativar produção.
 - QA de binários DOCX/PDF: não reescrever PDFs sem fonte, não alterar blobs históricos só para esconder menção.
 
@@ -61,3 +61,11 @@ A execução pode avançar após esta versão do documento; a palavra *concluíd
 
 - Frente **J**: PR original nova [#1337](https://github.com/lucianox777/Jornada/pull/1337), rascunho HEAD `bab38e4d6bcefdd86cbd4e87690e66f50706f4d6`, institui `CANDIDATE/WITNESS` como campo opcional, não muda planos legados e impede seleção V2 quando expressamente WITNESS. **Não é motor finalizado**: falta contrato CP só candidatas, plano oficial íntegro com V2 e ensaio físico; só merge depois de B/C/D integradas. Registro de decisão próprio na #1337, a reconciliar nesta frente K no fim.
 - Frente **G**: [#1334](https://github.com/lucianox777/Jornada/pull/1334), HEAD `720dafec65007bb43c288446c2fdb9f94e325583`, workflow SQL real descartável `42427310276` concluiu **SUCCESS** (baseline 3.70, seed sintética, migração 3.71, replay e CHECKs confiáveis). O run anterior `42427131049` falhou **antes do SQL** por permissão de criação de pasta dentro do container; corrigido na mesma PR. Um sucesso em SQL efêmero não é autorização de migração institucional, e a PR permanece em rascunho. 
+
+## Errata obrigatória — relatório de 21h05 (07/11/2026)
+
+**Critério de relatório:** nunca declarar uma frente CONCLUÍDA quando qualquer requisito aprovado não estiver implementado e testado; listar expressamente os itens faltantes e separar decisão, implementação, teste rápido, prova física, merge e validação pós-merge. A #1308 foi **MERGED**, porém a frente A estava **INCOMPLETA** e por isso a correção A2 tem PR **#1338** única, proposta depois de master pós-C e antes de D. Protege os comandos individuais `Program.cs` e o fallback do host, além de controlar logs internos de host; o conjunto de canários unitários da A2 e a verificação de logs públicos não substituem prova E2E de todas as falhas internas. Documento temático [SEG-V9-A2](Decisao_V9_Seguranca_A2_Bordas_Program_20261107.md) na PR #1338; **não considerar validado antes dos gates**, ainda que a PR esteja aberta.
+
+**V2 histórica:** o texto integral determina simultaneamente `WITNESS` e `ANCHOR`, todos os parâmetros exatos explícitos, execução física no mesmo recorte e exclusão da seleção e da multiplicidade CP. Em J/#1337 a implementação de marcador `Anchor` e validação do método `DEFAULT` é apenas um começo; parâmetros históricos completos, cálculo CP seletivo e prova física ainda faltam. A referência anterior a prompt truncado foi substituída por esta decisão integral.
+
+**Gates pós-C efetivamente conferidos no SHA `d6e576c13d10804848ccfc127cd658d1acf56828`:** `jornada-ci` run **42427871183 SUCCESS**; `v9-physical-seed42-probe` run **42427871123 SUCCESS** (não é FDR certificada nem TEST/Gold). Isso libera a **análise de prontidão da A2**, não seu merge sem checks próprios. Após A2, exigir novamente CI completa e físico 30k no novo SHA antes de D. **Fila segue única.**
