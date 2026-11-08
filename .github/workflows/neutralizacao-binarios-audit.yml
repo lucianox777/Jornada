@@ -22,6 +22,10 @@ jobs:
         run: python3 -m pip install --disable-pip-version-check pypdf==5.9.0
       - name: Self-test XML run-splitting, grammar and ZIP integrity
         run: python3 Solution/scripts/neutralize-developer-binaries.py --self-test
+      - name: Validate safe offline application tool
+        run: |
+          python3 -m py_compile Solution/scripts/apply-neutralized-binary-patch.py
+          python3 Solution/scripts/apply-neutralized-binary-patch.py --help >/dev/null
       - name: Audit 45 committed office files WITHOUT editing PDF or DOCX
         run: python3 Solution/scripts/neutralize-developer-binaries.py --root . --report audit-binaries.json
       - name: Aggregate only; no document content
