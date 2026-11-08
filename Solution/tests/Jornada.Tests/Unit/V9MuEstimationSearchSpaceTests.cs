@@ -124,6 +124,70 @@ public class V9MuEstimationSearchSpaceTests
     }
 
     [Test]
+    public void Explicit_all_historical_V2_CSharp_defaults_preserve_exact_fit_fingerprint()
+    {
+        // These are the two original, unexpanded canonical V2 TF controls
+        // used by v9-mu-tf0-controlled-plan.py and the one official plan.json.
+        // The new JSON must spell out every default without changing any
+        // scorer-effective configuration value or its frozen identity.
+        var frozenOptionJson = new[]
+        {
+            """
+            {"OptionId":"A0.5_T0.95_TF0","SmoothingAlpha":0.5,"DecisionThreshold":0.95,"TfWeight":0}
+            """,
+            """
+            {"OptionId":"TF_ONE_MF_W1_M0_A0.5_T0.95","SmoothingAlpha":0.5,
+             "DecisionThreshold":0.95,"TfWeight":0,
+             "UnitTfOptions":[
+              {"Side":0,"Unit":2,"Weight":1,"Mode":0},
+              {"Side":0,"Unit":3,"Weight":0,"Mode":0},
+              {"Side":1,"Unit":2,"Weight":0,"Mode":0},
+              {"Side":1,"Unit":3,"Weight":0,"Mode":0}
+             ]}
+            """
+        };
+        foreach (var historical in frozenOptionJson)
+        {
+            var original = System.Text.Json.JsonSerializer.Deserialize<V9FsAdaptiveOptionConfiguration>(historical)!;
+            var node = System.Text.Json.Nodes.JsonNode.Parse(historical)!.AsObject();
+            node["TfSide"] = 0;
+            node["TfMinimumFrequency"] = 0.000001m;
+            node["TfMinimumIndependentSupport"] = 1;
+            node["JointSupportPolicy"] = null;
+            if (!node.ContainsKey("UnitTfOptions")) node["UnitTfOptions"] = null;
+            node["SharedSurnameMode"] = 0;
+            node["EligibleForSelection"] = true;
+            node["UnpublishedTermPolicy"] = 0;
+            var explicitV2 = System.Text.Json.JsonSerializer
+                .Deserialize<V9FsAdaptiveOptionConfiguration>(node.ToJsonString())!;
+            Assert.That(explicitV2.FingerprintSha256, Is.EqualTo(original.FingerprintSha256),
+                "Explicit V2 defaults must not modify the canonical frozen fit identity");
+            Assert.Multiple(() =>
+            {
+                Assert.That(explicitV2.OptionId, Is.EqualTo(original.OptionId));
+                Assert.That(explicitV2.SmoothingAlpha, Is.EqualTo(original.SmoothingAlpha));
+                Assert.That(explicitV2.DecisionThreshold, Is.EqualTo(original.DecisionThreshold));
+                Assert.That(explicitV2.TfWeight, Is.EqualTo(original.TfWeight));
+                Assert.That(explicitV2.TfSide, Is.EqualTo(original.TfSide));
+                Assert.That(explicitV2.TfMinimumFrequency, Is.EqualTo(original.TfMinimumFrequency));
+                Assert.That(explicitV2.TfMinimumIndependentSupport,
+                    Is.EqualTo(original.TfMinimumIndependentSupport));
+                Assert.That(explicitV2.JointSupportPolicy, Is.EqualTo(original.JointSupportPolicy));
+                Assert.That(explicitV2.SharedSurnameMode, Is.EqualTo(original.SharedSurnameMode));
+                Assert.That(explicitV2.EligibleForSelection, Is.EqualTo(original.EligibleForSelection));
+                Assert.That(explicitV2.UnpublishedTermPolicy, Is.EqualTo(original.UnpublishedTermPolicy));
+                Assert.That(explicitV2.UnitTfOptions?.Select(x => (x.Side, x.Unit, x.Weight, x.Mode)),
+                    Is.EqualTo(original.UnitTfOptions?.Select(x => (x.Side, x.Unit, x.Weight, x.Mode))));
+            });
+            node["UnpublishedTermPolicy"] = 1;
+            var retuned = System.Text.Json.JsonSerializer
+                .Deserialize<V9FsAdaptiveOptionConfiguration>(node.ToJsonString())!;
+            Assert.That(retuned.FingerprintSha256, Is.Not.EqualTo(original.FingerprintSha256),
+                "A declared effective model change must not masquerade as historical V2");
+        }
+    }
+
+    [Test]
     public void Historical_methods_without_explicit_role_stay_eligible_and_serialization_omits_new_field()
     {
         var legacy = Default();
