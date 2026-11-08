@@ -45,7 +45,9 @@ public sealed record V9NestedCalibrationSearchResult(string Version, string Plan
     string Scope = "TRAIN_SELECTION_ONLY_HEURISTIC_FRONTIER_NOT_GLOBAL_OPTIMUM",
     bool ExternalValidationUsed = false, bool TestUsed = false, bool Activated = false,
     string SnapshotEvaluationSlotPurpose = "TRAIN_SELECTION_NOT_EXTERNAL_VALIDATION",
-    IReadOnlyList<V9DuplicatePolicySelection>? DuplicatePolicySelections = null);
+    IReadOnlyList<V9DuplicatePolicySelection>? DuplicatePolicySelections = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    int? PredeclaredCandidateCpMultiplicity = null);
 
 public sealed record V9DuplicatePolicySelection(string Policy, int EligibleHypotheses,
     IReadOnlyList<string> FrontierSnapshotShas, IReadOnlyList<string> FinalistSnapshotShas,
@@ -60,6 +62,22 @@ public static class V9NestedCalibrationCoordinator
         method == "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE" && weight == 0m;
 
     public const string Version = "V9_INTERNAL_TRAIN_BATCH_PARETO_FINALISTS_V1";
+
+    /// <summary>
+    /// A conservative, predeclared upper bound on the number of SELECTABLE
+    /// hypotheses across every adaptive batch. Physical witnesses are run but
+    /// cannot enter the CP family; later refinements originate exclusively
+    /// from selected candidates. Subtract only actually predeclared INITIAL
+    /// witness requests. Unused candidate budget remains conservatively counted.
+    /// No statistical independence/FDR certification is inferred.
+    /// </summary>
+    public static int CandidateCpMultiplicityUpperBudget(int physicalBudget, int initialWitnessRequests)
+    {
+        if (physicalBudget < 1 || initialWitnessRequests < 0 ||
+            initialWitnessRequests >= physicalBudget)
+            throw new InvalidDataException("CP candidate budget inválido; testemunhas não podem ocupar tudo.");
+        return checked(physicalBudget - initialWitnessRequests);
+    }
     // All estimator variants of the same fixed physical SQL frame reuse one
     // materialization and one frozen TRAIN classification. Distinct option
     // fingerprints / snapshot hashes remain separate; this is NOT a result cache.
@@ -204,6 +222,21 @@ public static class V9NestedCalibrationCoordinator
             .DistinctBy(x => x.Sha).OrderBy(x => x.Sha, StringComparer.Ordinal).ToArray();
         if (requests.Length > plan.MaximumSearchConfigurations)
             throw new InvalidDataException("Lote inicial excede orçamento declarado; nenhuma configuração foi eliminada por resultado.");
+        // Physical budget counts EVERY run including WITNESS+ANCHOR V2 and
+        // numeric lambda=0. The CP multiplicity counts only selectable
+        // candidate hypotheses, conservatively including future refinements.
+        // In legacy plans with no explicit methods, preserve the old bound.
+        int candidateCpMultiplicity = plan.MaximumSearchConfigurations;
+        if (plan.MuEstimationMethods is not null)
+        {
+            var initialWitnesses = requests.Count(x => !x.Option.EligibleForSelection
+                || x.Margin == 0m
+                || x.Option.JointSupportPolicy?.UBackoffJointMixtureWeight == 0m);
+            candidateCpMultiplicity = CandidateCpMultiplicityUpperBudget(
+                plan.MaximumSearchConfigurations, initialWitnesses);
+            if (requests.Length - initialWitnesses > candidateCpMultiplicity)
+                throw new InvalidDataException("CP excluiu candidata inicialmente declarada.");
+        }
         // The candidate snapshot only stores OptionId. Keep the complete frozen
         // configuration and its root identity so refinements cannot silently
         // reset TF, support policy or other model dimensions.
@@ -253,7 +286,8 @@ public static class V9NestedCalibrationCoordinator
                 }
                 var connection = await openIndependentConnection(ct);
                 lock (active) if (!active.Add(connection)) throw new InvalidDataException("Workers exigem conexões SQL independentes.");
-                try { return await EvaluateAsync(connection, frame, plan, group, batchIndex, frozenReference, ct); }
+                try { return await EvaluateAsync(connection, frame, plan, group, batchIndex,
+                    candidateCpMultiplicity, frozenReference, ct); }
                 finally { lock (active) active.Remove(connection); await connection.DisposeAsync(); }
             }, cancellationToken);
             evaluations.AddRange(results.SelectMany(x => x).OrderBy(x => x.RequestSha256, StringComparer.Ordinal));
@@ -325,11 +359,19 @@ public static class V9NestedCalibrationCoordinator
         // numerical witness, never a separate finalist or refinement source.
         // COUNT_ALL versus COUNT_UNIQUE only changes the *descriptive*
         // hypothesis count; it is not an independent FDR correction.
+        // Physical/descriptive count includes physically measured V2 ANCHOR
+        // and lambda=0 witnesses in explicit M/U studies; CP and the selectable
+        // count never do. Keep historical no-method report semantics unchanged.
         var measuredForAccounting = evaluations.Where(x => x.Candidate is not null
             && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
-            && template.Option.EligibleForSelection && x.Candidate.Metric.ConflictMargin > 0m).ToArray();
+            && (plan.MuEstimationMethods is not null || template.Option.EligibleForSelection)
+            && x.Candidate.Metric.ConflictMargin > 0m).ToArray();
         var selectable = measuredForAccounting.Where(x =>
-            !IsUZeroWitness(x.MuEstimationMethod, x.MuPolicy?.UBackoffJointMixtureWeight)).ToArray();
+            optionTemplates.TryGetValue(x.Candidate!.Snapshot.Payload.OptionId, out var template)
+            && template.Option.EligibleForSelection
+            && !IsUZeroWitness(x.MuEstimationMethod, x.MuPolicy?.UBackoffJointMixtureWeight)).ToArray();
+        if (selectable.Length > candidateCpMultiplicity)
+            throw new InvalidDataException("CP sobre candidatas excedeu limite pré-declarado.");
         var duplicateSelections = (plan.SelectionDuplicatePolicies ?? new[] { "COUNT_ALL" })
             .Select(policy => new V9DuplicatePolicySelection(policy, selectable.Length,
                 frontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
@@ -341,7 +383,8 @@ public static class V9NestedCalibrationCoordinator
         return new(Version, declaredPlanSha, split.Manifest,
             evaluations.AsReadOnly(), progress.AsReadOnly(), frontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
             finalists.Select(x => x.Snapshot.ContentSha256).ToArray(), stop,
-            DuplicatePolicySelections: duplicateSelections);
+            DuplicatePolicySelections: duplicateSelections,
+            PredeclaredCandidateCpMultiplicity: plan.MuEstimationMethods is null ? null : candidateCpMultiplicity);
     }
 
     private static V9FsAdaptiveOptionConfiguration RefinedOption(
@@ -384,7 +427,8 @@ public static class V9NestedCalibrationCoordinator
 
     private static async Task<IReadOnlyList<V9NestedCandidateEvaluation>> EvaluateAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> frame, V9NestedCalibrationPlan plan,
-        IReadOnlyList<Request> requests, int batch, FrozenIbgeNominalTfV9? frozenTfReference,
+        IReadOnlyList<Request> requests, int batch, int candidateCpMultiplicity,
+        FrozenIbgeNominalTfV9? frozenTfReference,
         CancellationToken cancellationToken)
     {
         var c = plan.Calibration;
@@ -397,7 +441,7 @@ public static class V9NestedCalibrationCoordinator
                 evaluateFinalResolve: true, finalConflictMargin: first.Margin,
                 predeclaredMaximumAcceptedPerBaseIdentity: c.MaximumAcceptedPerBaseIdentity,
                 includeFsBlindGrouping: true, minimumFsGroupingPosterior: c.MinimumGroupingPosterior,
-                adaptiveExecution: c.Execution with { EndToEndRepetitions = 0, TotalComparedConfigurations = plan.MaximumSearchConfigurations },
+                adaptiveExecution: c.Execution with { EndToEndRepetitions = 0, TotalComparedConfigurations = candidateCpMultiplicity },
                 includeIdentityOutcomes: true,
                 includeSourceRankDiagnostics: V9MuEstimationSearchSpace.RequiresPairedSourceRankDiagnostics(
                     plan.MuEstimationMethods),

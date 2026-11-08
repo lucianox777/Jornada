@@ -43,6 +43,99 @@ public class V9MuEstimationSearchSpaceTests
     }
 
     [Test]
+    public void V2_permanent_witness_is_physically_present_but_ineligible_while_candidates_remain()
+    {
+        var option = new V9FsAdaptiveOptionConfiguration("HISTORICAL_TF0", .5m, .95m);
+        var original = new[] { option };
+        var methods = new[] {
+            Default() with { Role = V9MuEstimationSearchSpace.Witness, Anchor = true },
+            HistoricalV3() with { Role = V9MuEstimationSearchSpace.Candidate }
+        };
+        var variants = V9MuEstimationSearchSpace.Enumerate(methods);
+        var expanded = V9MuEstimationSearchSpace.Expand(original, methods, 2);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(variants.Select(x => x.Role), Is.EqualTo(new[] { "WITNESS", "CANDIDATE" }));
+            Assert.That(variants[0].Anchor, Is.True);
+            Assert.That(variants[1].Anchor, Is.False);
+            Assert.That(expanded, Has.Count.EqualTo(2));
+            Assert.That(expanded[0].JointSupportPolicy, Is.Null, "V2 witness must preserve original V2 estimator.");
+            Assert.That(expanded[0].SmoothingAlpha, Is.EqualTo(option.SmoothingAlpha));
+            Assert.That(expanded[0].DecisionThreshold, Is.EqualTo(option.DecisionThreshold));
+            Assert.That(expanded[0].EligibleForSelection, Is.False);
+            Assert.That(expanded[1].EligibleForSelection, Is.True);
+            Assert.That(expanded[0].FingerprintSha256, Is.Not.EqualTo(expanded[1].FingerprintSha256));
+            Assert.That(original[0].EligibleForSelection, Is.True, "Original plan cannot be mutated.");
+        }));
+        Assert.That((Action)(() => V9MuEstimationSearchSpace.Expand(original,
+            [Default() with { Role = V9MuEstimationSearchSpace.Witness, Anchor = true }], 1)),
+            Throws.TypeOf<InvalidDataException>(), "A witness-only plan has no candidate to select.");
+        Assert.That((Action)(() => V9MuEstimationSearchSpace.Enumerate([
+            Default() with { Role = "UNKNOWN" }, HistoricalV3()
+        ])), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9MuEstimationSearchSpace.Enumerate([
+            Default() with { Role = V9MuEstimationSearchSpace.Witness },
+            HistoricalV3() with { Role = V9MuEstimationSearchSpace.Candidate }
+        ])), Throws.TypeOf<InvalidDataException>(), "Multiparameter V2 cannot lose ANCHOR.");
+        Assert.That((Action)(() => V9MuEstimationSearchSpace.Enumerate([
+            Default() with { Role = V9MuEstimationSearchSpace.Candidate, Anchor = true },
+            HistoricalV3() with { Role = V9MuEstimationSearchSpace.Candidate }
+        ])), Throws.TypeOf<InvalidDataException>(), "ANCHOR must be non-selectable historical V2.");
+
+    }
+
+    [Test]
+    public void Predeclared_candidate_CP_upper_bound_subtracts_initial_witness_only()
+    {
+        Assert.That(V9NestedCalibrationCoordinator.CandidateCpMultiplicityUpperBudget(40, 10),
+            Is.EqualTo(30), "V2 and lambda=0 witness runs do NOT increase CP multiplicity");
+        Assert.That(V9NestedCalibrationCoordinator.CandidateCpMultiplicityUpperBudget(30, 0),
+            Is.EqualTo(30), "Adding 10 physical witnesses to unchanged candidates cannot increase CP");
+        Assert.That(V9NestedCalibrationCoordinator.CandidateCpMultiplicityUpperBudget(40, 20),
+            Is.EqualTo(20));
+        Assert.That((Action)(() => V9NestedCalibrationCoordinator.CandidateCpMultiplicityUpperBudget(10, 10)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9NestedCalibrationCoordinator.CandidateCpMultiplicityUpperBudget(10, -1)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Lambda_zero_is_physical_U_witness_but_not_a_CP_candidate()
+    {
+        var option = new V9FsAdaptiveOptionConfiguration("T0", .5m, .95m);
+        var methods = new V9MuEstimationMethod[] {
+            Default() with { Role = V9MuEstimationSearchSpace.Witness, Anchor = true },
+            new(V9MuEstimationSearchSpace.ClasswiseMixture,
+                new V9MuEstimationParameterGrid([.99m], [5], [5], [true],
+                    [0m, .25m, .5m, 1m]), V9MuEstimationSearchSpace.Candidate)
+        };
+        var expanded = V9MuEstimationSearchSpace.Expand([option], methods, 5);
+        Assert.That(expanded, Has.Count.EqualTo(5), "All five modes are physically enumerated");
+        Assert.That(expanded[0].EligibleForSelection, Is.False, "V2 WITNESS+ANCHOR");
+        Assert.That(expanded[1].JointSupportPolicy!.UBackoffJointMixtureWeight, Is.Zero);
+        Assert.That(expanded[1].EligibleForSelection, Is.False, "lambda0 witness must be excluded in CP adapter");
+        Assert.That(expanded.Skip(2).All(x => x.EligibleForSelection), Is.True);
+        Assert.That(V9NestedCalibrationCoordinator.CandidateCpMultiplicityUpperBudget(5, 2),
+            Is.EqualTo(3));
+        Assert.That((Action)(() => V9MuEstimationSearchSpace.Enumerate([
+            Default() with { Role = V9MuEstimationSearchSpace.Witness, Anchor = true },
+            HistoricalV3() // every option in tagged plan must declare a role
+        ])), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Historical_methods_without_explicit_role_stay_eligible_and_serialization_omits_new_field()
+    {
+        var legacy = Default();
+        var option = new V9FsAdaptiveOptionConfiguration("ORIGINAL", .5m, .95m);
+        var expanded = V9MuEstimationSearchSpace.Expand([option], [legacy, HistoricalV3()], 2);
+        Assert.That(expanded.All(x => x.EligibleForSelection), Is.True);
+        var bytes = System.Text.Json.JsonSerializer.Serialize(legacy);
+        Assert.That(bytes, Does.Not.Contain("Role"));
+        Assert.That(bytes, Does.Not.Contain("WITNESS"));
+    }
+
+    [Test]
     public void Lists_generate_only_explicit_cartesian_values_without_implicit_ranges()
     {
         var variants = V9MuEstimationSearchSpace.Enumerate([
