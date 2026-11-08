@@ -1,3 +1,5 @@
+> **RETIFICAÇÃO DE GOVERNANÇA AD02 (08/11/2026):** este arquivo foi preparado antecipadamente e preservado como **INVENTÁRIO HISTÓRICO DE EVIDÊNCIAS, NÃO COMO EXECUÇÃO OU INÍCIO DO PASSO 9**. O PO corrigiu expressamente a sequência: concluir TODOS os passos 0–7, com os merges na master, antes de saltar o passo 8 dispensado e iniciar o teste geral a–m. O conteúdo abaixo permanece datado no SHA antigo para ajudar na análise posterior, **não representa gates executados do teste final**. [Decisão AD02](Decisao_V9_Mandato_Integracao_Final_Teste_Geral_20261108.md#gov-v9-final-20261108-b-ad02--correção-expressa-da-sequência-de-execução-pelo-po).
+
 # GOV-V9-FINAL-20261108-B-AD01 — pré-auditoria do passo 9 (teste geral a–m)
 
 **Registro:** 08/11/2026, 18h09 BRT. **Autoridade de escopo:** PO, decisão GOV-V9-FINAL-20261108-B-AD01. **Política:** GOV-DOC-01. **Estado:** PREFLIGHT PARCIAL / NÃO É TESTE GERAL FINAL. Não autoriza merge, release, ativação ou inferência científica.
