@@ -23,3 +23,25 @@ O resultado final **no GitHub** requer aplicar e revisar os arquivos realmente m
 **Preservação:** não alterar migrações/baselines SQL anteriores, hashes selados, documentos sem ocorrência ou PDFs sem fonte validada. A política de substituição literal e exceções foi aprovada pelo Product Owner em 07–08/11/2026. A neutralização textual da PR #1333 é independente. Decisões P95, LOCK e D2 não são alteradas.
 
 **Estado:** F em execução; **merge não autorizado até evidência positiva dos binários e CI da `master` no SHA exato**, observando fila G→F→campanha U-raro→J→K→L.
+
+## Incremento de processamento em CI read-only — 08/11/2026
+
+**Evidência nova:** [run 42508046393](https://github.com/lucianox777/Jornada/actions/runs/42508046393), artifact `neutralizacao-binarios-patch-readonly` (ID **13627958839**, ZIP com 15 entradas incluindo o recibo). Não há `git push` de binários na Action; nenhuma transformação foi integrada à master. A auditoria em workspace descartável verificou:
+
+- **120 → 49 ocorrências nominais**; redução de **71** ocorrências naquele patch, sem inspeções faltantes.
+- **10 DOCX** alterados, **4 PDFs** regenerados de fonte DOCX pareada com paginação conservada, **6 PDFs** mantidos como exceções. Portanto **14 arquivos binários efetivamente modificados** no patch; o ZIP contém também o recibo JSON. A lista de 15 caminhos em `changedFiles` do ZIP inclui **14 documentos** e o recibo (não confundir com 15 arquivos modificados do repositório).
+- As **49 ocorrências residuais estão apenas nos seis PDFs excepcionados**. Os dez DOCX processados e quatro PDFs regenerados não apresentaram ocorrência remanescente pela extração verificada.
+
+| Exceção PDF | Motivo objetivo |
+|---|---|
+| `Anexo_Arquitetura_Fase1_Jornada_v1.39.pdf` | Fonte existente; páginas **10 → 9** no renderizador, necessita verificação visual antes de substituir |
+| `Anexo_Modelo_Fisico_DER_Jornada_v1.39.pdf` | Fonte existente; páginas **15 → 14** |
+| `Anexo_Pendencias_Desenvolvimento_Jornada_v1.47.pdf` | Fonte existente; páginas **17 → 16** |
+| `Especificacao_Tecnica_Jornada_v3.62.pdf` | Fonte existente; páginas **72 → 71**; não reescrever a especificação publicada sem controle editorial |
+| `Requisitos/01_Requisitos_de_Negocio_Jornada_v1.1.pdf` | Fonte existente; páginas **10 → 12** |
+| `Resumo_Executivo_v3.82.pdf` | `SOURCE_DOCX_NOT_PRESENT`; **sem fonte com mesmo basename** localizada |
+
+Todos os caminhos acima são relativos à pasta `Documentos/`, exceto os subdiretórios explicitamente indicados. **A variação de páginas pode representar apenas renderizador/fonte, mas não pode ser aprovada silenciosamente sem inspeção visual.**
+
+**Estado de GitHub após o run:** a PR #1332 contém tooling, documentação e **artifact disponível**, mas **ainda não contém os 14 arquivos binários modificados**. A contagem real no Git permanece **120 → 120** até que os bytes revisados do patch sejam incorporados à mesma PR, e até nova execução dos checks no SHA final. **AGUARDA revisão/aplicação do patch binário**; esta pendência impede declarar F concluída e avançar para merge em fila única.
+
