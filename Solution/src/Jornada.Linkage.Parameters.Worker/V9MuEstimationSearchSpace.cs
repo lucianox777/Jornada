@@ -65,9 +65,12 @@ public static class V9MuEstimationSearchSpace
         // Legacy plans without Role/Anchor retain their exact old semantics.
         if (methods.Any(x => x.Role is not null || x.Anchor) &&
             (methods.Count(x => x.Method == Default && x.Role == Witness && x.Anchor) != 1
-             || methods.Any(x => x.Role is null)
              || methods.Any(x => x.Anchor && (x.Method != Default || x.Role != Witness))))
-            throw new InvalidDataException("Plano multiparametro exige V2 DEFAULT WITNESS ANCHOR e papel explicito para toda opcao.");
+            throw new InvalidDataException("Plano multiparametro exige V2 DEFAULT WITNESS ANCHOR, sem ancoras concorrentes.");
+        // In an explicit J study, optional Role omitted on a non-V2 estimator
+        // uses its historical C# default: selectable CANDIDATE. Do not reject
+        // a plan merely for omitting an optional new parameter. The V2 anchor
+        // remains an explicit semantic invariant of the J official protocol.
         var result = new List<V9MuEstimationVariant>();
         foreach (var method in methods)
         {
