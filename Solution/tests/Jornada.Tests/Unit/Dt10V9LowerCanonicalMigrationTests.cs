@@ -258,7 +258,7 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
     }
 
     [Test]
-    public void Heavy_v9_30k_auto_runs_on_impacted_master_push_with_exact_sha_and_manual_fallback()
+    public void Heavy_v9_30k_auto_runs_on_impacted_master_push_with_exact_sha_only()
     {
         var workflow = File.ReadAllText(Path.Combine(Root(), ".github", "workflows",
             "v9-physical-seed42-probe.yml"));
@@ -271,11 +271,11 @@ public sealed class Dt10V9LowerCanonicalMigrationTests
             Assert.That(workflow, Does.Contain("v9-physical-coverage-baseline.py"));
             Assert.That(workflow, Does.Contain("--no-validated-baseline"));
             Assert.That(workflow, Does.Contain("git merge-base --is-ancestor"));
-            Assert.That(workflow, Does.Contain("workflow_dispatch:"),
-                "The final physical gate must remain executable explicitly.");
+            Assert.That(workflow, Does.Not.Contain("workflow_dispatch:"),
+                "The technical 30k gate must not be manually dispatchable.");
             Assert.That(workflow, Does.Contain(
-                "if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))"),
-                "30k must run automatically on impacted master push, or on explicit manual dispatch.");
+                "if: needs.impact.outputs.run_physical_30k == 'true' && github.event_name == 'push'"),
+                "30k must run automatically on impacted master push only.");
             Assert.That(workflow, Does.Contain("--mode auto_30k"));
             Assert.That(workflow, Does.Contain("v9-tf-ref-provenance-gate.py"));
             Assert.That(workflow, Does.Contain("github.sha"));
