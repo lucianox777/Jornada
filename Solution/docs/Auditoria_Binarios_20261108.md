@@ -45,3 +45,9 @@ Todos os caminhos acima são relativos à pasta `Documentos/`, exceto os subdire
 
 **Estado de GitHub após o run:** a PR #1332 contém tooling, documentação e **artifact disponível**, mas **ainda não contém os 14 arquivos binários modificados**. A contagem real no Git permanece **120 → 120** até que os bytes revisados do patch sejam incorporados à mesma PR, e até nova execução dos checks no SHA final. **AGUARDA revisão/aplicação do patch binário**; esta pendência impede declarar F concluída e avançar para merge em fila única.
 
+
+## Cinco PDFs de layout divergente — previews disponíveis, NÃO publicados
+
+O [run 42510185175](https://github.com/lucianox777/Jornada/actions/runs/42510185175) (**SUCCESS**) publicou um artifact de QA id **13628548526**, que inclui **cinco PDFs candidatos renderizados em `pdf-previews/`** para os cinco casos de discrepância de páginas e o mesmo pacote de **14 binários** com 10 DOCX + 4 PDF comprovadamente sem alteração de quantidade de páginas. **Os cinco previews não substituem nenhum PDF do repositório**, não entram no ZIP de aplicação de 14 arquivos, não reduzem as 49 ocorrências remanescentes no patch e exigem comparação visual antes de decidir sua publicação. O sexto PDF, `Resumo_Executivo_v3.82.pdf`, não possui fonte editável correspondente.
+
+**Nota de autenticidade:** o pacote de aplicação de 14 arquivos que foi exportado separadamente a partir do run **42508046393** continua com SHA-256 `376bae3e06b34802e736f1b3c7d47e2e7e3b6ecc1b98a1822564b301c8d3f988`; o artifact com previews de run posterior possui bytes de ZIP diferentes e não deve ser tratado como idêntico. O script `apply-neutralized-binary-patch.py` exige o primeiro SHA explicitamente para impedir troca silenciosa de evidência. Nenhum dos dois foi integrado automaticamente à PR.
