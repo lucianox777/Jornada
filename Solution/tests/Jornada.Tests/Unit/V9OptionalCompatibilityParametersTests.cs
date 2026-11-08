@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using NUnit.Framework;
 using Jornada.Linkage.Parameters.Worker;
@@ -57,6 +58,22 @@ public sealed class V9OptionalCompatibilityParametersTests
         V9OptionalCompatibilityParameters.Validate(explicitNeutral);
         Assert.That(explicitNeutral.Calibration.ModelOptions[0].FingerprintSha256, Is.EqualTo(before));
         Assert.That(explicitNeutral.Calibration, Is.SameAs(legacy.Calibration));
+    }
+
+    [Test]
+    public void Missing_historical_parallelism_preserves_CSharp_default_one_explicit_zero_opt_in()
+    {
+        var json = JsonNode.Parse(HistoricalPlanBytes())!.AsObject();
+        var calibration = json["Calibration"]!.AsObject();
+        calibration.Remove("MaximumParallelRuleSets");
+        var absent = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(json.ToJsonString())!;
+        Assert.That(absent.Calibration.MaximumParallelRuleSets, Is.EqualTo(1));
+        calibration["MaximumParallelRuleSets"] = 0;
+        var auto = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(json.ToJsonString())!;
+        Assert.That(auto.Calibration.MaximumParallelRuleSets, Is.Zero);
+        calibration["MaximumParallelRuleSets"] = 2;
+        var explicitTwo = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(json.ToJsonString())!;
+        Assert.That(explicitTwo.Calibration.MaximumParallelRuleSets, Is.EqualTo(2));
     }
 
     [Test]
