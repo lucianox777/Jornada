@@ -52,3 +52,72 @@ jobs:
           path: audit-binaries.json
           if-no-files-found: error
           retention-days: 7
+
+  binary-patch-artifact:
+    name: Build DOCX/PDF replacement artifact (read-only, NO PUSH)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install pinned PDF library and document renderer
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check pypdf==5.9.0
+          if ! command -v libreoffice >/dev/null 2>&1; then
+            sudo apt-get update -qq
+            sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq libreoffice-writer
+          fi
+      - name: Deterministic DOCX edit and source-only PDF generation
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 Solution/scripts/neutralize-developer-binaries.py --self-test
+          python3 Solution/scripts/neutralize-developer-binaries.py --root . --report /tmp/f-before.json
+          python3 Solution/scripts/neutralize-developer-binaries.py --root . --apply-docx --report /tmp/f-docx.json
+          python3 Solution/scripts/regen-neutralized-pdfs.py --root . --before /tmp/f-before.json --report /tmp/f-pdf.json
+          python3 Solution/scripts/neutralize-developer-binaries.py --root . --report /tmp/f-after.json
+          python3 - <<'PY'
+          import json,pathlib,subprocess,zipfile
+          before=json.loads(pathlib.Path('/tmp/f-before.json').read_text())
+          after=json.loads(pathlib.Path('/tmp/f-after.json').read_text())
+          pdf=json.loads(pathlib.Path('/tmp/f-pdf.json').read_text())
+          if before['total_files'] != 45 or after['total_files'] != 45 or after['not_audited']:
+              raise SystemExit('Binary audit incomplete or unexpected inventory')
+          files=subprocess.check_output(['git','diff','--name-only','--','Documentos'],text=True).splitlines()
+          files=sorted(set(x for x in files if x.lower().endswith(('.pdf','.docx'))))
+          report={
+              'schema':'NEUT_DEV_BINARY_SOURCE_REGEN_V1',
+              'filesAudited':45,'before':before['verified_mentions_before'],
+              'after':after['verified_mentions_after'],
+              'changedFiles':files,
+              'changedDocx':sum(x.endswith('.docx') for x in files),
+              'regeneratedPdf':len(pdf['regenerated']),
+              'pdfExceptions':pdf['exceptions'],
+              'pdfEvidence':pdf['regenerated'],
+              'notAudited':after['not_audited'],
+              'status':'BINARY_PATCH_ARTIFACT_ONLY_NOT_COMMITTED_NOT_VISUALLY_APPROVED'
+          }
+          pathlib.Path('binary-patch-report.json').write_text(
+              json.dumps(report,ensure_ascii=False,indent=2)+'\n',encoding='utf8')
+          with zipfile.ZipFile('binary-edits.zip','w',zipfile.ZIP_DEFLATED) as z:
+              for name in files:
+                  z.write(name)
+              z.write('binary-patch-report.json')
+          print('AUDIT before=',report['before'],'after=',report['after'])
+          print('CHANGED DOCX=',report['changedDocx'],'REGENERATED PDF=',report['regeneratedPdf'])
+          print('PDF EXCEPTIONS=',len(report['pdfExceptions']))
+          for err in report['pdfExceptions']:
+              print('PDF_EXCEPTION:',err['path'],err['reason'])
+          PY
+      - name: Upload patched public documents for manual review / PR application
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: neutralizacao-binarios-patch-readonly
+          path: |
+            binary-edits.zip
+            binary-patch-report.json
+          if-no-files-found: error
+          retention-days: 7
