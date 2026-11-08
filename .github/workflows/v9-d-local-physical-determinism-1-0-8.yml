@@ -59,7 +59,7 @@ jobs:
           docker exec -u 0 "$CID" mkdir -p /var/opt/mssql/data/jornada/database
           docker cp database/. "$CID":/var/opt/mssql/data/jornada/database/
           sqlcmd_docker() {
-            docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" "$CID" \
+            SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" \
               /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b "$@"
           }
           sqlcmd_docker -Q "IF DB_ID(N'JornadaHarness') IS NOT NULL THROW 51000, 'Preexisting database', 1; CREATE DATABASE JornadaHarness;"
