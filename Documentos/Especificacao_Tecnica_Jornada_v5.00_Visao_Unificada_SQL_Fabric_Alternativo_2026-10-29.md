@@ -1218,6 +1218,14 @@ O `V9NestedCalibrationCoordinator` compartilha o **mesmo frame SQL TRAIN + mesmo
 
 **Extensibilidade real sem segundo motor operacional.** O contrato `IAdaptiveCalibrationFamilyAdapter` permite famílias/versões identificadas, porém isso não significa que um novo modelo tenha adaptador real, treino, validação ou gate concluídos. Novas famílias ou experimentos exigem adapter, grid/plan explícitos, estimador/validador, testes, orçamento, prova de isolamento e replay, sem reaproveitar TEST para seleção e sem selecionar automaticamente modelo produtivo. Não inventar requisito de padronização de outputs históricos para habilitar extensibilidade.
 
+###### 7.16.1-D. P95 de tempo como critério de elegibilidade — decisão vigente do PO em 08/11/2026
+
+**DECISÃO VIGENTE (08/11/2026):** conservar o comportamento atual da seleção. O P95 físico permanece **critério de elegibilidade** de uma configuração; o limite do estudo histórico continua declarado em `plan.json` como `SelectionPolicy.MaximumP95Milliseconds = 60000` (60 s). Não retirar P95 da seleção nem introduzir `LatencyAffectsSelection`. O teto operacional é deliberadamente folgado: o PO informa P95 observados entre **1,2 e 1,6 s**, de modo que esse filtro não altera a escolha na medição descrita. Configuração excessivamente lenta continua inelegível, ainda que tenha boa qualidade estatística.
+
+O P95 é calculado **após** a execução e não constitui timeout; `CommandTimeout` dos comandos SQL, timeout de jobs e limite de fanout (`FANOUT_P99_ACIMA_DO_ORCAMENTO`) são proteções distintas. O tempo pode variar por ambiente/execução, ao passo que TP/FP/FN, conflitos e fits são invariantes segundo o contrato e a prova realizada da frente D. A telemetria existente (total, fases, processadores, memória, SO/.NET) basta: variação material futura de custo entre alternativas é assunto para governança, não para novo gate de comparação automática ou novas ressalvas nos relatórios.
+
+**CANCELAMENTO D2:** o PO cancelou o **passo 3 (D2)** em 08/11/2026. Não implementar gate de comparação automática de resultados, não criar campo de dependência do tempo e não dividir a seleção por nova regra de P95; prosseguir do passo 2 ao passo 4. Qualquer PR/branch **especificamente** destinada a D2 deve ser encerrada sem merge. A decisão não muda nem desfaz telemetria e provas já válidas da frente D. Referência: [GOV-V9-PO-P95-LOCK-D2-20261108](../Solution/docs/Decisao_V9_Decisoes_Vigentes_P95_LOCK_Cancelamento_D2_20261108.md).
+
 ##### 7.16.2. Referência diária de nascimento do corpus sintético — DC-SYN-01-E1
 
 **DECIDIDO para o perfil `demographic-primary`:** a origem observacional da distribuição de `data_nascimento` é **Censo 2022 / SIDRA 9514**, município de São Paulo **3550308**, sexo Total e forma de declaração da idade Total. **SINASC não integra a E1.** A ferramenta offline transforma export local congelado em referência diária JSON com SHA-256/manifesto, sem consultas online no runtime. Para cada idade `k`, converter o peso observado na janela `01/08/(2021−k)…31/07/(2022−k)`, com rateio diário inteiro determinístico e conservação de totais. Exigir idades 0–99, linha Total e categoria 100+, rejeitando lacunas, sobreposições e somas inconsistentes. A categoria aberta **100+** é distribuída por **CONVENÇÃO UNIFORME entre 100–105 anos**, e não por observação dos centenários.
@@ -1307,6 +1315,12 @@ A interpretação de `COUNT_ALL`/`COUNT_UNIQUE` e da testemunha numérica `λ=0`
 Para atestado externo são obrigatórios: identidade da revisão independente, protocolo/hipótese/sampling anteriores à inspeção, população-alvo, corpus TRAIN/VALIDATION e hashes, unidade final de erro e interações dos candidatos, verdade independente completa, scorer/Resolve/grouping, `cap` pré-fixado, alfa/M globais, contribuições por unidade suficientes para recomputar bound, reconciliação de contagens e verificador de artefato autorizado — não apenas flag DTO ou hash autoemitido.
 
 **Limite histórico condicional, não aceite:** com 5.556 bases em VALIDATION, 7.505 aceites, zero FP, cap16, α=0,05 e `M=36`, o UCB modelado foi **2,22302%**; atingir 1% **sob hipótese de zero FP futuro** exigiria aproximadamente **10.978** bases independentes equivalentes. O valor não prova suficiência, IID ou FDR real. Fonte: `V9_Revisao_Independencia_Multiplicidade_Amostra_20261019.md`, issue #999.
+
+##### 7.21.4. LOCK científico obrigatório — decisão vigente do PO em 08/11/2026
+
+**DECISÃO VIGENTE:** campanhas científicas com **seeds novas, validação independente, Gold ou TEST** somente podem começar com **manifesto LOCK pré-registrado**, **SHA-256 integral fixado no workflow** e verificado pelo **lock gate antes da execução**. O manifesto congela modelos, seeds, partições, hipóteses, estatística, critérios de aceitação e regra de parada **antes de observar o resultado**; é proibido substituir seed/critério ou repetir a campanha até obter resultado favorável. O custo de pré-registro é baixo e a distinção entre evidência confirmatória e exploração é necessária. Como exemplo citado pelo PO, há o protocolo **3σ da ONE_MF**, seeds **48–57**, LOCK **`3c2a1119…`** (prefixo informativo; o workflow exige SHA completo). Preservar as exigências científicas e autorizações já vigentes, sem criar novo critério de aprovação por esta emenda.
+
+**P95 e LOCK não são dívida técnica**: ambos tiveram manutenção **expressamente decidida** em 08/11/2026. O cancelamento D2 e a permanência dos controles estão documentados em [GOV-V9-PO-P95-LOCK-D2-20261108](../Solution/docs/Decisao_V9_Decisoes_Vigentes_P95_LOCK_Cancelamento_D2_20261108.md). Regressão técnica seed42/30k, inclusive com gates verdes, não substitui LOCK confirmatório nem autoriza abertura automática de TEST/Gold, certificação FDR ou ativação DT-15.
 
 #### 7.22. Trava de consistência CPF
 
@@ -2687,6 +2701,8 @@ Indicadores: percentual de Registros no prazo/em atraso por Natureza, Gestor e T
 A conferência presencial de evidência cadastral permanece no escopo conforme itens 7–9, sem transformar a plataforma em emissora de documentos.
 
 ### 21. Inventário integral de dívidas técnicas (DT), obrigações e critérios de aceite
+
+**Deliberação do PO de 08/11/2026:** **P95 da seleção e LOCK científico NÃO integram a dívida técnica.** São contratos **vigentes e mantidos**, detalhados nas seções 7.16.1-D e 7.21.4 e no [registro canônico GOV-V9-PO-P95-LOCK-D2-20261108](../Solution/docs/Decisao_V9_Decisoes_Vigentes_P95_LOCK_Cancelamento_D2_20261108.md). O passo 3/D2 foi **cancelado**, não deve reaparecer como débito pendente. Preservar os demais itens DT, SLAs e exigências institucionais sem confundir essa decisão com quitação geral do inventário.
 
 | # | Área de verificação transversal | Responsável pela evidência |
 | --- | --- | --- |
