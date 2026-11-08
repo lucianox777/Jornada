@@ -1,11 +1,10 @@
 name: v9-medium-scale-e2e-technical
 
-# Large, explicitly synthetic LOCAL/DEV rehearsal on a staging branch.
+# Experiment was run physically on staging SHA 8d90306c... (run 42534643000).
+# Keep only an operator-invoked, master-bound technical rerun after integration.
+# Never auto-trigger 100k for documentation commits or master pushes.
 # Do not change mandatory master CI, 30k impact classification or scientific locks.
 on:
-  push:
-    branches:
-      - test/v9-medium-e2e-20261108
   workflow_dispatch:
 
 permissions:
@@ -34,6 +33,8 @@ jobs:
           set -euo pipefail
           test "$(git -C .. rev-parse HEAD)" = "$GITHUB_SHA"
           test "$GITHUB_REF_TYPE" = branch
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
         with:
           dotnet-version: '10.0.113'

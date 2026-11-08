@@ -22,3 +22,8 @@ A conexão GitHub deste ambiente expõe leitura de workflows, mas não a operaç
 
 ## Precedência
 Complementa [teste geral E2E pós-merge](Decisao_V9_Teste_Geral_E2E_Pos_Merge_20261108.md) e [CI PR-fast + master-push](Decisao_V9_CI_Lote_Merge_Unico_20261108.md), sem revogar políticas anteriores de 30k/LOCK/P95, a separação entre teste técnico e homologação científica, ou o diferimento dos PDFs. A documentação temática da etapa, alterações e resultado serão rastreados por PR, commit e Actions no GitHub.
+
+
+## Resultado confirmado na branch de stage (08/11/2026)
+
+O ensaio foi **executado, concluído e auditado nos JSONs oficiais**: [Action #42534643000](https://github.com/lucianox777/Jornada/actions/runs/42534643000), SHA físico `8d90306cda1d930291318ca5a4f3e7bf5fc93e4a`, artifact `13639566469` com `scale-medium-validation.json: PASS` e `baselineStatus=PENDENTE`. Foram avaliadas **25.000 de 25.000 pendências** em **100.000 pessoas sintéticas**: **21.927 corretas**, **0 incorretas observadas**, **31 conflitos**, **3.042 não resolvidas**. A prova específica usa algoritmo operacional **V8** em `modelVersion=2`; **não** valida a seleção científica de V9 nem 100k HTTP ponta a ponta. Veja [relatório completo por SHA, campos e limites de interpretação](Resultado_V9_Scale_Medium_100k_20261108.md) e issues [#1345](https://github.com/lucianox777/Jornada/issues/1345), [#1348](https://github.com/lucianox777/Jornada/issues/1348). **Para novas execuções**, o workflow após esta revisão deixa de disparar por push de branch e fica **somente manual na master**, evitando campanha pesada duplicada por commits documentais. Sem mudança no motor, corpus ou 30k técnico obrigatório.
