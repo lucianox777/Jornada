@@ -23,7 +23,7 @@
 | G | [#1334](https://github.com/lucianox777/Jornada/pull/1334) | Migração nova e forward-only `ENRIQUECIMENTO_DESENVOLVEDOR` sem quebrar selo SQL antigo — imediata |
 | H | [#1328](https://github.com/lucianox777/Jornada/pull/1328) | Comentários em código/CI PRODAM → DESENVOLVEDOR — imediata |
 | I | execução, sem PR artificial | Campanha U no **SHA da master**, após B e C mescladas e com autorização científica cabível |
-| J | PR nova, somente quando pronta | Motor multiparâmetro, V2 como testemunha permanente, CANDIDATE/WITNESS e CP sobre candidatas — após B/C/D mescladas; rascunho anterior é permitido, sem PR substituta |
+| J | [#1337](https://github.com/lucianox777/Jornada/pull/1337) (**draft**) | Motor multiparâmetro, V2 como testemunha permanente, CANDIDATE/WITNESS e CP sobre candidatas — após B/C/D mescladas; rascunho anterior é permitido, sem PR substituta |
 | K | [#1318](https://github.com/lucianox777/Jornada/pull/1318) | Especificação e índice únicos com **SHAs e runs reais**, merge após A–J; absorver #1335 |
 | L | [#1333](https://github.com/lucianox777/Jornada/pull/1333) | Neutralização documental no mesmo arquivo de especificação, rebase após K mesclada |
 
@@ -56,3 +56,8 @@ Consulta dos eventos/comentários GitHub de 07/11/2026, antes de qualquer nova f
 ## Evidência temporal separada da decisão
 
 A execução pode avançar após esta versão do documento; a palavra *concluída* só vale com HEAD da PR, merge SHA, runs obrigatórios e SHA da master **registrados depois do fato**. A #1318 será reconciliada com a master e atualizada com os recibos de A–J antes do merge. Este arquivo não presume resultados futuros.
+
+## Checkpoint adicional — J aberta; G recebeu prova SQL real (07/11)
+
+- Frente **J**: PR original nova [#1337](https://github.com/lucianox777/Jornada/pull/1337), rascunho HEAD `bab38e4d6bcefdd86cbd4e87690e66f50706f4d6`, institui `CANDIDATE/WITNESS` como campo opcional, não muda planos legados e impede seleção V2 quando expressamente WITNESS. **Não é motor finalizado**: falta contrato CP só candidatas, plano oficial íntegro com V2 e ensaio físico; só merge depois de B/C/D integradas. Registro de decisão próprio na #1337, a reconciliar nesta frente K no fim.
+- Frente **G**: [#1334](https://github.com/lucianox777/Jornada/pull/1334), HEAD `720dafec65007bb43c288446c2fdb9f94e325583`, workflow SQL real descartável `42427310276` concluiu **SUCCESS** (baseline 3.70, seed sintética, migração 3.71, replay e CHECKs confiáveis). O run anterior `42427131049` falhou **antes do SQL** por permissão de criação de pasta dentro do container; corrigido na mesma PR. Um sucesso em SQL efêmero não é autorização de migração institucional, e a PR permanece em rascunho. 
