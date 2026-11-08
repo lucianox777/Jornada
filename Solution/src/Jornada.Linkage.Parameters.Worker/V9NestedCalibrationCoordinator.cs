@@ -23,7 +23,20 @@ public sealed record V9NestedCalibrationPlan(V9AdaptiveCalibrationPlan Calibrati
     IReadOnlyList<V9MuEstimationMethod>? MuEstimationMethods = null,
     IReadOnlyList<string>? SelectionDuplicatePolicies = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    int? PredeclaredCandidateCpMultiplicity = null);
+    int? PredeclaredCandidateCpMultiplicity = null,
+    // New optional knobs: omitted => historical C# behavior and old JSON SHA.
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    decimal? RecallEquivalenceMargin = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    IReadOnlyList<string>? TieBreakOrder = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? ClusterUnit = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    string? Estimator = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    int? ManualReviewSampleSize = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    bool? RecalibrationTriggers = null);
 
 public sealed record V9NestedCandidateEvaluation(string RequestSha256, int Batch,
     V9TrainingCandidate? Candidate, IReadOnlyList<string> Rejections,
@@ -111,9 +124,8 @@ public static class V9NestedCalibrationCoordinator
         if (plan.MuEstimationMethods is { } muMethods)
         {
             var variants = V9MuEstimationSearchSpace.Enumerate(muMethods);
-            if (variants.Any(x => x.Role is not null)
-                && plan.PredeclaredCandidateCpMultiplicity is null)
-                throw new InvalidDataException("Plano multiparametro exige limite CP candidato explícito e versionado.");
+            // Optional new CP declaration is checked when present; when
+            // omitted, the existing conservative candidate budget applies.
             if (plan.Calibration.ModelOptions.Any(x => x.JointSupportPolicy is not null))
                 throw new InvalidDataException("Plano M/U explícito não aceita JointSupportPolicy simultâneo nas opções-base.");
         }
@@ -121,6 +133,7 @@ public static class V9NestedCalibrationCoordinator
         if (plan.PredeclaredCandidateCpMultiplicity is { } declaredCp
             && (declaredCp < 1 || declaredCp > plan.MaximumSearchConfigurations))
             throw new InvalidDataException("Limite CP do plano fora do orçamento físico.");
+        V9OptionalCompatibilityParameters.Validate(plan);
         if (string.IsNullOrWhiteSpace(plan.SplitSeed) || plan.AdjustmentFraction is <= 0 or >= 1
             || plan.MaximumBatches < 1 || plan.MaximumSearchConfigurations < 1
             || plan.BootstrapRepetitions < 100 || plan.MinimumObservedMPerCell < 0 || plan.MinimumObservedUPerCell < 0
