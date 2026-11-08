@@ -1,3 +1,5 @@
+> **V9 E2E medium SQL/Runner (08/11/2026):** [protocolo de execução e métricas esperadas](Decisao_V9_E2E_Medium_20261108.md), issue [#1345](https://github.com/lucianox777/Jornada/issues/1345). Planejado em branch de teste com Action separada, sem modificar CI da master; `PASS` depende de evidência física real e SHA exato. GOV-DOC-01.
+
 > **Relatório E2E pós-merge V9 — 08/11/2026:** [matriz e diagnóstico com runs/SHAs](Decisao_V9_Teste_Geral_E2E_Pos_Merge_20261108.md), issue [#1345](https://github.com/lucianox777/Jornada/issues/1345). Registra execução física automática e duas falhas específicas de CI, com correção sem bypass e resultados finais ainda pendentes. GOV-DOC-01.
 
 > **Fluxo CI em lote — decisão 08/11/2026:** a [DC-V9-CI-LOTE-20261108](Decisao_V9_CI_Lote_Merge_Unico_20261108.md) orienta consolidar PRs de trabalho em branch de integração, realizar um merge final com a master, acompanhar CI/30k no SHA integrado e somente depois conferir a lista de issues do item 8; checks rápidos e bloqueios críticos pré-merge permanecem. Estado: decisão registrada, não execução atestada.
