@@ -162,7 +162,7 @@ public class V9MuEstimationSearchSpaceTests
                 .Deserialize<V9FsAdaptiveOptionConfiguration>(node.ToJsonString())!;
             Assert.That(explicitV2.FingerprintSha256, Is.EqualTo(original.FingerprintSha256),
                 "Explicit V2 defaults must not modify the canonical frozen fit identity");
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(explicitV2.OptionId, Is.EqualTo(original.OptionId));
                 Assert.That(explicitV2.SmoothingAlpha, Is.EqualTo(original.SmoothingAlpha));
@@ -178,7 +178,7 @@ public class V9MuEstimationSearchSpaceTests
                 Assert.That(explicitV2.UnpublishedTermPolicy, Is.EqualTo(original.UnpublishedTermPolicy));
                 Assert.That(explicitV2.UnitTfOptions?.Select(x => (x.Side, x.Unit, x.Weight, x.Mode)),
                     Is.EqualTo(original.UnitTfOptions?.Select(x => (x.Side, x.Unit, x.Weight, x.Mode))));
-            });
+            }));
             node["UnpublishedTermPolicy"] = 1;
             var retuned = System.Text.Json.JsonSerializer
                 .Deserialize<V9FsAdaptiveOptionConfiguration>(node.ToJsonString())!;
