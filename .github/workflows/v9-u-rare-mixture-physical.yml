@@ -4,9 +4,6 @@ name: v9-u-rare-mixture-physical-train
 # NOT the manual 30k certification, independent Gold, or DT-15 activation.
 # Both margins run in distinct disposable SQL instances on isolated runners.
 on:
-  push:
-    branches:
-      - master
   workflow_dispatch:
     inputs:
       expected_sha:
@@ -24,19 +21,18 @@ concurrency:
 
 jobs:
   physical:
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
-    name: V2 + V3 + U-rare TRAIN margin ${{ matrix.margin }}
+    if: github.event_name == 'workflow_dispatch'
+    name: V2 + V3 + U-rare TRAIN ${{ matrix.role }}
     runs-on: ubuntu-latest
     timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
         include:
-          - {margin: '0.5', label: m050, role: PRIMARY}
-          - {margin: '0.25', label: m025, role: PREDECLARED_SENSITIVITY}
+          - {label: m050, role: PRIMARY}
+          - {label: m025, role: PREDECLARED_SENSITIVITY}
     env:
-      EXPERIMENT_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.event.pull_request.head.sha }}
-      RESEARCH_MARGIN: ${{ matrix.margin }}
+      EXPERIMENT_SHA: ${{ inputs.expected_sha }}
       RESEARCH_LABEL: ${{ matrix.label }}
       RESEARCH_ROLE: ${{ matrix.role }}
     steps:
@@ -91,21 +87,24 @@ jobs:
             --tf-search --pinned-ibge "$root/pinned-ibge.json"
           python3 scripts/v9-u-rare-mixture-plan.py \
             "$root/source-nested-plan.json" "$root/mixture-plan.json" \
-            --config data/calibration/v9/u-rare-mixture-train/experiment.json \
-            --margin "$RESEARCH_MARGIN" > "$root/plan-receipt.json"
-          python3 - "$root" "$RESEARCH_MARGIN" <<'PY'
+            --role "$RESEARCH_ROLE" > "$root/plan-receipt.json"
+          python3 - "$root" "$RESEARCH_ROLE" <<'PY'
           import json,sys
           from pathlib import Path
-          root=Path(sys.argv[1]); margin=float(sys.argv[2])
+          root=Path(sys.argv[1]); role=sys.argv[2]
           p=json.loads((root/'mixture-plan.json').read_bytes())
           r=json.loads((root/'plan-receipt.json').read_bytes())
+          assert r['marginRole']==role
+          assert role in r['declaredMarginsByRole']
+          margin=r['declaredMarginsByRole'][role]
+          assert r['margin']==margin
           assert p['Calibration']['ConflictMargins']==[margin]
-          config=json.loads(Path('data/calibration/v9/u-rare-mixture-train/experiment.json').read_bytes())
-          weights=config['UBackoffJointMixtureWeights']
+          assert r['declaredMarginsByRole']=={'PRIMARY': .5, 'PREDECLARED_SENSITIVITY': .25}
+          weights=p['MuEstimationMethods'][2]['Parameters']['UBackoffJointMixtureWeights']
           expected=(2+len(weights))*len(p['Calibration']['ModelOptions'])*(1+len(p['Calibration']['BaselineRuleSets']))
           assert p['MaximumSearchConfigurations']==p['Calibration']['MaximumComparedConfigurations']==expected
           assert r['comparisons']==expected and r['uJointWeights']==weights
-          assert p['SelectionDuplicatePolicies']==config['SelectionDuplicatePolicies']==r['selectionDuplicatePolicies']
+          assert p['SelectionDuplicatePolicies']==r['selectionDuplicatePolicies']==['COUNT_ALL','COUNT_UNIQUE']
           assert r['scope']=='KNOWN_SYNTHETIC_TRAIN_SELECTION_ONLY_NOT_INDEPENDENT'
           assert r['physicalExecuted'] is False and r['activated'] is False
           PY

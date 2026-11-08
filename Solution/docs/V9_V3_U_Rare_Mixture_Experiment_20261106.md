@@ -22,6 +22,21 @@ Aqui `R = sum_rare(U_joint(c))`, calculado uma só vez a partir do mesmo TRAIN. 
 
 ## Contracto no `plan.json`
 
+**Margem de conflito (decisão de 07/11/2026):** não há arquivo
+de ambiente nem `experiment.json` para determinar margem, pesos ou política
+de seleção do estudo U raro. O gerador científico versionado
+(`v9-u-rare-mixture-plan.py`) congela diretamente no **`plan.json`
+executável** `Calibration.ConflictMargins`, `MuEstimationMethods` com
+os pesos U `[0, 0.25, 0.5, 1]` e `SelectionDuplicatePolicies`
+`[COUNT_ALL, COUNT_UNIQUE]`. São dois planos imutáveis, com SHA próprio:
+`PRIMARY=0.5` e `PREDECLARED_SENSITIVITY=0.25`, cada um em SQL descartável.
+O workflow informa somente `--role`; `--margin` e `--weights` são
+proibidos com `--role` (fail-closed), e o recibo documenta papel, margens
+pré-declaradas e hashes. A documentação e os testes integram a
+pré-declaração versionada, sem reinterpretar campanhas passadas.
+`.env` de infraestrutura, quando necessário para conexão SQL/API, **não**
+deve ser apagado: não fornece parâmetros científicos ao plano.
+
 Na especificação `MuEstimationMethods` do `plan.json`, declarar **três famílias** no mesmo array: `DEFAULT` (V2), `CLASSWISE_SUPPORT_BACKOFF` (V3 histórico sem peso) e `CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE` (V3 experimental com array explícito). A sintaxe anterior com pesos no método `CLASSWISE_SUPPORT_BACKOFF` isolado ainda é aceita para compatibilidade, mas os dois formatos misturados na mesma grade são recusados:
 
 ```json

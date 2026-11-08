@@ -6,7 +6,6 @@ on:
     paths:
       - '.github/workflows/v9-u-rare-mixture-plan-preflight.yml'
       - 'Solution/scripts/v9-u-rare-mixture-plan.py'
-      - 'Solution/data/calibration/v9/u-rare-mixture-train/experiment.json'
       - 'Solution/scripts/v9-v3-direct-plan.py'
       - 'Solution/tests/scripts/test_v9_u_rare_mixture_plan.py'
       - 'Solution/tests/scripts/test_v9_v3_direct_plan.py'
@@ -49,13 +48,5 @@ jobs:
           python3 -m py_compile Solution/scripts/v9-u-rare-mixture-plan.py Solution/scripts/v9-v3-direct-plan.py
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_plan.py' -v
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_direct_plan.py' -v
-          python3 - <<'PY'
-          import json
-          from pathlib import Path
-          p=Path('Solution/data/calibration/v9/u-rare-mixture-train/experiment.json')
-          c=json.loads(p.read_bytes())
-          assert set(c)=={'UBackoffJointMixtureWeights','ConflictMargin','SelectionDuplicatePolicies'}
-          assert c['UBackoffJointMixtureWeights']==[0,.25,.5,1]
-          assert c['ConflictMargin']==.5
-          assert c['SelectionDuplicatePolicies']==['COUNT_ALL','COUNT_UNIQUE']
-          PY
+          # The declared values are checked in test_v9_u_rare_mixture_plan.py;
+          # no separate environment/experiment JSON can override the executable plan.

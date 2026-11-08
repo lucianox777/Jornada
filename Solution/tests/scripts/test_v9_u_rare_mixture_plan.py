@@ -1,6 +1,8 @@
 """Offline tests for V2 + historical V3 + U rare-mixture TRAIN plan."""
 import importlib.util
 import json
+import subprocess
+import sys
 from pathlib import Path
 import tempfile
 import unittest
@@ -104,6 +106,55 @@ class RareUPlanTests(unittest.TestCase):
             with self.subTest(weights=bad):
                 with self.assertRaises(ValueError):
                     subject.freeze(self.source, self.output.with_name('bad.json'), weights=bad)
+
+    def test_roles_generate_frozen_executable_plans_without_separate_config(self):
+        self.assertEqual(subject.MARGINS_BY_ROLE,
+                         {"PRIMARY": .5, "PREDECLARED_SENSITIVITY": .25})
+        for role, expected in subject.MARGINS_BY_ROLE.items():
+            with self.subTest(role=role):
+                target = self.output.with_name(role + ".json")
+                command = [sys.executable, str(SCRIPTS / "v9-u-rare-mixture-plan.py"),
+                           str(self.source), str(target), "--role", role]
+                completed = subprocess.run(command, text=True, capture_output=True)
+                self.assertEqual(completed.returncode, 0, completed.stderr)
+                receipt = json.loads(completed.stdout)
+                plan = json.loads(target.read_text(encoding="utf-8"))
+                self.assertEqual(plan["Calibration"]["ConflictMargins"], [expected])
+                self.assertEqual(receipt["marginRole"], role)
+                self.assertEqual(receipt["margin"], expected)
+                self.assertEqual(receipt["declaredMarginsByRole"], subject.MARGINS_BY_ROLE)
+                self.assertEqual(plan["MuEstimationMethods"][2]["Parameters"]
+                                 ["UBackoffJointMixtureWeights"], [0, .25, .5, 1])
+                self.assertEqual(plan["SelectionDuplicatePolicies"], ["COUNT_ALL", "COUNT_UNIQUE"])
+                self.assertEqual(receipt["planSha256"],
+                                 __import__("hashlib").sha256(target.read_bytes()).hexdigest())
+
+    def test_role_rejects_hidden_cli_override_and_unknown_role(self):
+        command = [sys.executable, str(SCRIPTS / "v9-u-rare-mixture-plan.py"),
+                   str(self.source), str(self.output), "--role", "PRIMARY"]
+        for extra in (["--margin", ".8"], ["--weights", ".2"],
+                      ["--margin", "0"], ["--role", "unknown"]):
+            with self.subTest(extra=extra):
+                result = subprocess.run(command + extra, text=True, capture_output=True)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertFalse(self.output.exists())
+        with self.assertRaises(ValueError):
+            subject.margin_for_role("UNDECLARED")
+
+    def test_no_environment_parameter_or_experiment_file_in_physical_protocol(self):
+        root = Path(__file__).resolve().parents[3]
+        physical = (root / ".github/workflows/v9-u-rare-mixture-physical.yml").read_text(encoding="utf-8")
+        preflight = (root / ".github/workflows/v9-u-rare-mixture-plan-preflight.yml").read_text(encoding="utf-8")
+        self.assertNotIn("RESEARCH_MARGIN", physical)
+        self.assertNotIn("matrix.margin", physical)
+        self.assertNotIn("experiment.json", physical)
+        self.assertNotIn("experiment.json", preflight)
+        self.assertNotIn("--config", physical)
+        self.assertIn('--role "$RESEARCH_ROLE"', physical)
+        self.assertNotIn("github.event_name == 'push'", physical)
+        self.assertNotIn("  push:", physical)
+        self.assertIn("github.event_name == 'workflow_dispatch'", physical)
+        self.assertIn("EXPERIMENT_SHA: ${{ inputs.expected_sha }}", physical)
 
     def test_mutated_source_or_tf_baseline_refuses_without_output(self):
         mutations = [
