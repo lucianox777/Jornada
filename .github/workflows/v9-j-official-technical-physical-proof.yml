@@ -54,6 +54,7 @@ jobs:
           test "$GITHUB_REF" = "refs/heads/feat/v9-multiparameter-v2-permanent-witness-20261107"
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_official_multiparameter_plan.py -v
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_j_historical_analytic_comparison.py -v
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_j_download_pinned_artifact.py -v
           python3 -m py_compile Solution/scripts/v9-j-official-physical-audit.py Solution/scripts/v9-multiparameter-official-plan.py
           mkdir -p "Solution/.local/j-official-physical-$RESEARCH_LABEL"
           python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
@@ -121,18 +122,10 @@ jobs:
           root="$PWD/.local/j-official-physical-$RESEARCH_LABEL"
           # Authentication stays only in the Python process environment
           # and HTTP header, never in command-line arguments or logs.
-          python3 - "$root" "$BASELINE_ARTIFACT_ID" <<'PY'
-          import os,sys,urllib.request
-          from pathlib import Path
-          root,ident=Path(sys.argv[1]),sys.argv[2]
-          req=urllib.request.Request(
-              'https://api.github.com/repos/lucianox777/Jornada/actions/artifacts/'+ident+'/zip',
-              headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],
-                       'Accept':'application/vnd.github+json',
-                       'X-GitHub-Api-Version':'2022-11-28'})
-          with urllib.request.urlopen(req,timeout=180) as response:
-              (root/'baseline.zip').write_bytes(response.read())
-          PY
+          python3 scripts/v9-j-download-pinned-artifact.py \
+            --artifact-id "$BASELINE_ARTIFACT_ID" \
+            --expected-sha256 "$BASELINE_ZIP_SHA" \
+            --output "$root/baseline.zip"
           test "$(sha256sum "$root/baseline.zip" | cut -d' ' -f1)" = "$BASELINE_ZIP_SHA"
           python3 - "$root" <<'PY'
           import sys,zipfile
