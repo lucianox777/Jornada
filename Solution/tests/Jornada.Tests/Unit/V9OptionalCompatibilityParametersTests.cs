@@ -114,23 +114,23 @@ public sealed class V9OptionalCompatibilityParametersTests
         {
             UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
         };
-        Assert.Throws<JsonException>(() =>
-            JsonSerializer.Deserialize<V9NestedCalibrationPlan>(JsonSerializer.Serialize(root), strict));
+        Assert.Throws<JsonException>((TestDelegate)(() =>
+            JsonSerializer.Deserialize<V9NestedCalibrationPlan>(JsonSerializer.Serialize(root), strict)));
         root.Remove("UnexpectedJParameter");
         root["ClusterUnit"] = JsonSerializer.SerializeToElement<string?>(null);
-        Assert.Throws<InvalidDataException>(() =>
-            V9OptionalCompatibilityParameters.ValidateRawInput(JsonSerializer.SerializeToUtf8Bytes(root)));
+        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
+            V9OptionalCompatibilityParameters.ValidateRawInput(JsonSerializer.SerializeToUtf8Bytes(root))));
     }
 
     [Test]
     public void Nonneutral_new_values_are_not_ignored_or_silently_selected()
     {
         var legacy = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(HistoricalPlanBytes())!;
-        Assert.Throws<InvalidDataException>(() =>
-            V9OptionalCompatibilityParameters.Validate(legacy with { RecallEquivalenceMargin = .01m }));
-        Assert.Throws<InvalidDataException>(() =>
-            V9OptionalCompatibilityParameters.Validate(legacy with { ClusterUnit = "PAIR" }));
-        Assert.Throws<InvalidDataException>(() =>
-            V9OptionalCompatibilityParameters.Validate(legacy with { RecalibrationTriggers = true }));
+        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
+            V9OptionalCompatibilityParameters.Validate(legacy with { RecallEquivalenceMargin = .01m })));
+        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
+            V9OptionalCompatibilityParameters.Validate(legacy with { ClusterUnit = "PAIR" })));
+        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
+            V9OptionalCompatibilityParameters.Validate(legacy with { RecalibrationTriggers = true })));
     }
 }
