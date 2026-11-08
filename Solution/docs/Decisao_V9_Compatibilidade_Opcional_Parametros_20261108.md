@@ -24,6 +24,8 @@
 
 **Outros parâmetros já existentes:** preservar rigorosamente seus defaults históricos, incluindo `MaximumParallelRuleSets=1` quando ausente e `0` somente por opt-in explícito (C# / #1311). `MuEstimationMethods` ausente não obriga declarar `Role`, `Anchor` ou `PredeclaredCandidateCpMultiplicity`; planos históricos continuam com a semântica anterior.
 
+**Estado de implementação na PR J (rascunho):** o C# reconhece os seis campos opcionais, preserva a serialização dos planos históricos quando ausentes e relata `FROM_PLAN` versus `CODE_DEFAULT` por alternativa; valores neutros explícitos são aceitos. **Valores não neutros de parâmetros sem algoritmo executável são recusados com erro explícito, jamais ignorados silenciosamente** — a futura implementação de tais novas alternativas permanece pendente de teste e não é homologada pelo mero reconhecimento do campo. A validação de `MuEstimationMethods` mantém a obrigatoriedade semântica da testemunha V2/ANCHOR nos planos que adotam o protocolo J; isso não força campos novos sobre estudos históricos da #1300. A PR ainda exige rebase, testes C#, plano oficial e ensaio físico, **sem merge antes da fila**.
+
 ## Impactos e limites
 
 A J amplia o motor C# sem motor paralelo/segundo manifesto, preserva V2 executada como testemunha física num plano J quando declarada, e contabiliza múltiplas hipóteses candidatas sem inventar independência entre pares por identidade-base. O formato de análise registra valor e origem, sem alterar o modelo apenas para acrescentar telemetria. Nenhuma campanha científica com seed nova, TEST/Gold, ativação, mudança de P95 ou flexibilização de LOCK é autorizada. **Passo 3/D2 continua cancelado** pela decisão de 08/11.
