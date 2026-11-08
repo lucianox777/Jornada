@@ -303,7 +303,7 @@ public static class V9NestedCalibrationCli
     public static string HumanReadableEvaluationStatus(bool measured, bool? eligible,
         int rejectionCount)
     {
-        if (rejectionCount < 0) throw new ArgumentOutOfRangeException(nameof(rejectionCount));
+        ArgumentOutOfRangeException.ThrowIfNegative(rejectionCount);
         return !measured ? "REJEITADA" : eligible == false
             ? "DIAGNÓSTICO_NÃO_SELECIONÁVEL"
             : rejectionCount > 0 ? "INELEGÍVEL" : "ELEGÍVEL";
