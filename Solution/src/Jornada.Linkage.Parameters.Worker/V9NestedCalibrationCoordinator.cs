@@ -21,7 +21,9 @@ public sealed record V9NestedCalibrationPlan(V9AdaptiveCalibrationPlan Calibrati
     NominalSyntheticIbgeBootstrapV9? PinnedIbgeBootstrap = null,
     [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<V9MuEstimationMethod>? MuEstimationMethods = null,
-    IReadOnlyList<string>? SelectionDuplicatePolicies = null);
+    IReadOnlyList<string>? SelectionDuplicatePolicies = null,
+    [property: System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    int? PredeclaredCandidateCpMultiplicity = null);
 
 public sealed record V9NestedCandidateEvaluation(string RequestSha256, int Batch,
     V9TrainingCandidate? Candidate, IReadOnlyList<string> Rejections,
@@ -108,11 +110,17 @@ public static class V9NestedCalibrationCoordinator
             throw new InvalidDataException("SelectionDuplicatePolicies exige array único de COUNT_ALL/COUNT_UNIQUE.");
         if (plan.MuEstimationMethods is { } muMethods)
         {
-            _ = V9MuEstimationSearchSpace.Enumerate(muMethods);
+            var variants = V9MuEstimationSearchSpace.Enumerate(muMethods);
+            if (variants.Any(x => x.Role is not null)
+                && plan.PredeclaredCandidateCpMultiplicity is null)
+                throw new InvalidDataException("Plano multiparametro exige limite CP candidato explícito e versionado.");
             if (plan.Calibration.ModelOptions.Any(x => x.JointSupportPolicy is not null))
                 throw new InvalidDataException("Plano M/U explícito não aceita JointSupportPolicy simultâneo nas opções-base.");
         }
         else V9JointSupportEstimation.ValidatePolicy(new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule));
+        if (plan.PredeclaredCandidateCpMultiplicity is { } declaredCp
+            && (declaredCp < 1 || declaredCp > plan.MaximumSearchConfigurations))
+            throw new InvalidDataException("Limite CP do plano fora do orçamento físico.");
         if (string.IsNullOrWhiteSpace(plan.SplitSeed) || plan.AdjustmentFraction is <= 0 or >= 1
             || plan.MaximumBatches < 1 || plan.MaximumSearchConfigurations < 1
             || plan.BootstrapRepetitions < 100 || plan.MinimumObservedMPerCell < 0 || plan.MinimumObservedUPerCell < 0
@@ -236,6 +244,9 @@ public static class V9NestedCalibrationCoordinator
                 plan.MaximumSearchConfigurations, initialWitnesses);
             if (requests.Length - initialWitnesses > candidateCpMultiplicity)
                 throw new InvalidDataException("CP excluiu candidata inicialmente declarada.");
+            if (plan.PredeclaredCandidateCpMultiplicity is { } predeclared
+                && predeclared != candidateCpMultiplicity)
+                throw new InvalidDataException("Multiplicidade CP candidata difere do único plan.json oficial.");
         }
         // The candidate snapshot only stores OptionId. Keep the complete frozen
         // configuration and its root identity so refinements cannot silently
