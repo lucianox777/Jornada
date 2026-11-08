@@ -119,6 +119,23 @@ public sealed class V9WorkerEntryBoundaryTests
         Assert.That(failures, Is.EqualTo(1), "Harmless host warning must not force failure");
     }
 
+    [Test, NonParallelizable]
+    public void Nested_calibrator_no_reserved_log_has_exactly_one_safe_stderr_code()
+    {
+        var old = Console.Error;
+        using var stderr = new StringWriter();
+        try
+        {
+            Console.SetError(stderr);
+            V9NestedCalibrationCli.TryWriteLastError(
+                null, new IOException(SecretCanary));
+        }
+        finally { Console.SetError(old); }
+        Assert.That(stderr.ToString().Trim(), Is.EqualTo("V9_CALIBRATOR_FAILED:IO_ERROR"));
+        Assert.That(stderr.ToString(), Does.Not.Contain(SecretCanary));
+        Assert.That(stderr.ToString(), Does.Not.Contain("indisponível"));
+    }
+
     [Test]
     public void Program_source_encloses_all_dispatch_and_host_startup_inside_one_boundary()
     {

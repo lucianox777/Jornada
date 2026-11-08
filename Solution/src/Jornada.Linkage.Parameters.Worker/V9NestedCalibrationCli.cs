@@ -73,8 +73,7 @@ public static class V9NestedCalibrationCli
         catch (Exception) { /* stderr may itself be on the full volume. */ }
         if (reservedLog is null)
         {
-            try { Console.Error.WriteLine("calibrador.log indisponível: reserva de 10 KiB não foi criada."); }
-            catch (Exception) { /* preserve the original error */ }
+            // The primary safe code is already public. No free-text log notice.
             return;
         }
         try { reservedLog.WriteLast(exception); }
@@ -83,8 +82,7 @@ public static class V9NestedCalibrationCli
             // Never replace the original error/exit status with a log I/O failure.
             try
             {
-                Console.Error.WriteLine("Não foi possível atualizar calibrador.log: "
-                    + V9CalibradorLastErrorLog.SafeErrorCode(loggingError));
+                Console.Error.WriteLine("V9_CALIBRATOR_LOG:WRITE_FAILED");
             }
             catch (Exception) { /* Even stderr may be unavailable on a failed process. */ }
         }
@@ -138,8 +136,7 @@ public static class V9NestedCalibrationCli
                         // the original error caught by this block.
                         try
                         {
-                            Console.Error.WriteLine("Não foi possível gravar interrupted.json: "
-                                + V9CalibradorLastErrorLog.SafeErrorCode(receiptError));
+                            Console.Error.WriteLine("V9_CALIBRATOR_RECEIPT:WRITE_FAILED");
                         }
                         catch (Exception) { /* preserve original exception */ }
                     }
@@ -172,8 +169,7 @@ public static class V9NestedCalibrationCli
                     // exception if stderr is redirected onto a full volume.
                     try
                     {
-                        Console.Error.WriteLine("Falha ao fechar/remover reserva de log: "
-                            + V9CalibradorLastErrorLog.SafeErrorCode(cleanupError));
+                        Console.Error.WriteLine("V9_CALIBRATOR_LOG:CLEANUP_FAILED");
                     }
                     catch (Exception) { /* preserve original exception */ }
                 }
