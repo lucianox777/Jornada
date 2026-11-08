@@ -23,3 +23,11 @@
 ## Rastreabilidade e precedência
 
 O registro complementa a [decisão de lote do PO em 08/11](Decisao_V9_CI_Lote_Merge_Unico_20261108.md) e preserva a topologia PR fast + master CI/30k de 06–07/11. **Novo teste físico de J é uma regressão técnica específica pendente, não duplicação da CI completa `jornada-ci` antes do merge.** Histórico de inventário 45 nunca se transforma em autorização para excluir um terceiro arquivo. A revisão de oito PDFs permanece problema documental distinto da autorização dos dois arquivos administrativos.
+
+## Checkpoint superveniente — stage consolidado e autorização editorial (08/11/2026)
+
+- **Consolidação Git já efetuada em STAGE, não master:** J/#1337 `8832850aa`, K/#1318 `4d000668`, L/#1333 `547868db` e GOV/#1342 `2a32ea49` são todos ancestrais do HEAD de lote `59856e71a920a534253a2184f3d99d5538b8180f` (compare Git `behind=0` em cada caso). As PRs #1318/#1333/#1342 foram encerradas como **substituídas**, não `MERGED` na master; J/#1337 ainda pode ser encerrada após registrar a prova e confirmar ancestralidade.
+- **Prova física J fechada:** workflow [42529456510](https://github.com/lucianox777/Jornada/actions/runs/42529456510), HEAD `8832850aa`, **PRIMARY+SENSITIVITY SUCCESS**. Ambos os ZIPs de artifacts foram conferidos por SHA-256; `physical-audit.json` registra 24/16/8 por role, testemunha V2 no mesmo frame, λ0/V3 e CP exclusivamente para 8 candidatas. Comparação histórica é analítica, sem escolha/ativação científica.
+- **Docs não impedem o merge:** o PO determinou a [issue #1344](https://github.com/lucianox777/Jornada/issues/1344) para **8 PDFs / 51 ocorrências** e aprovou o [diferimento documental](Decisao_V9_Diferimento_PDF_20261108.md). A correção documental é pós-merge; `43/43` auditados com exatamente duas exclusões administrativas nominadas e nenhuma exclusão adicional. Não alegar zero literal global.
+- **Próxima condição de merge único:** revalidar todos os checks no **SHA FINAL do lote após este registro GOV-DOC-01**; assegurar `master` ainda é o base SHA verificado; retirar DRAFT e integrar **uma vez** sob o ruleset. Somente então ocorrerá `jornada-ci` completa e gate técnico 30k automático no SHA integrado. O teste geral a–m e a revisão de issues permanecem atividades separadas não executadas neste checkpoint.
+

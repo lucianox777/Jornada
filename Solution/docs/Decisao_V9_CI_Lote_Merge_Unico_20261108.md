@@ -34,3 +34,7 @@ A expressão do PO “fechar as PRs” significa encerrar as frentes somente ap�
 ## Critério de conclusão e rastreabilidade futura
 
 Registrar a lista das PRs originais, commits efetivamente consolidados, SHA final da `master`, run `jornada-ci`, run 30k/classificação e resultado do item 8/issue por issue. Até essa evidência existir, conservar estado **DECIDIDO / NÃO EXECUTADO**. O registro documental deve chegar à `master` pelo fluxo de PR, nunca por escrita direta sem checks.
+
+## Aditivo posterior — documentação pendente em issue sem bloqueio editorial (08/11/2026)
+
+O PO confirmou que **a correção de PDFs e reparos editoriais remanescentes não será condição do merge técnico único**; manter os oito documentos problemáticos rastreados em [issue #1344](https://github.com/lucianox777/Jornada/issues/1344) e no registro [DC-V9-DOC-PDF-ADIAMENTO](Decisao_V9_Diferimento_PDF_20261108.md). O aceite do merge depende **dos gates obrigatórios de produto, regressão física específica J, checks rápidos e regra de branch**, não de neutralização editorial completa. Nenhum script de teste/auditoria foi desabilitado. A decisão é **posterior e prevalece** exclusivamente quanto ao bloqueio editorial de L; demais requisitos de 06–08/11 permanecem.
