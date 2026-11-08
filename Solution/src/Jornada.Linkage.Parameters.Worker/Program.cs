@@ -4,23 +4,29 @@ using Jornada.Linkage.Parameters.Worker;
 
 // Explicitly read the freshly published SQL IBGE reference for the 30k preflight.
 // This entry point never fits, certifies, or activates a model.
-if (args.Length > 0 && args[0] == "--v9-tf-export-ibge-pin")
+// A2: One fail-closed exception boundary for *every* CLI and fallback host
+// operation. No unhandled .NET exception/message/stack is allowed on public
+// stderr when an entry-point call fails. The nested calibrator retains its
+// own 10 KiB reserved last-error protocol and is not double-logged.
+var entryStatus = await V9WorkerEntryBoundary.ExecuteAsync(args, async guardedArgs =>
 {
-    await V9TfPinnedIbgePreflightCli.RunAsync(args);
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-tf-export-ibge-pin")
+{
+    await V9TfPinnedIbgePreflightCli.RunAsync(guardedArgs);
     return;
 }
 
-if (args.Length > 0 && args[0] == "--v9-prepare-gold-runner")
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-prepare-gold-runner")
 {
-    await V9GoldRunnerVariantPreparation.RunAsync(args);
+    await V9GoldRunnerVariantPreparation.RunAsync(guardedArgs);
     return;
 }
 
-if (args.Length > 0 && args[0] is "--v9-calibrate" or "--v9-validate-finalists")
+if (guardedArgs.Length > 0 && guardedArgs[0] is "--v9-calibrate" or "--v9-validate-finalists")
 {
     try
     {
-        await V9NestedCalibrationCli.RunAsync(args);
+        await V9NestedCalibrationCli.RunAsync(guardedArgs);
     }
     catch (Exception)
     {
@@ -34,91 +40,97 @@ if (args.Length > 0 && args[0] is "--v9-calibrate" or "--v9-validate-finalists")
 
 // Read-only parity: the source V2 plan and its explicit-default configuration
 // must deserialize to exactly the same effective CSharp calibration parameters.
-if (args.Length > 0 && args[0] == "--v9-compare-calibration-plans")
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-compare-calibration-plans")
 {
-    await V9CalibrationPlanParityCli.RunAsync(args);
+    await V9CalibrationPlanParityCli.RunAsync(guardedArgs);
     return;
 }
 
-if (args.Length > 0 && args[0] is "--v9-adaptive-study" or "--v9-adaptive-census")
+if (guardedArgs.Length > 0 && guardedArgs[0] is "--v9-adaptive-study" or "--v9-adaptive-census")
 {
-    await V9AdaptiveCalibrationStudyCli.RunAsync(args);
+    await V9AdaptiveCalibrationStudyCli.RunAsync(guardedArgs);
     return;
 }
 
 // Frozen seed42 -> seed43 transfer: physical replay of pinned snapshots, never a fit.
-if (args.Length > 0 && args[0] == "--v9-frozen-transfer")
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-frozen-transfer")
 {
-    await V9FrozenTransferCli.RunAsync(args);
+    await V9FrozenTransferCli.RunAsync(guardedArgs);
     return;
 }
 
 // Find the exact, possibly unpublished calibration record before choosing
 // a portable fit. SQL SELECT only; never launches a worker or runs training.
-if (args.Length > 0 && args[0] == "--v9-audit-ref-inventory")
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-audit-ref-inventory")
 {
-    await V9RefInventoryCli.RunAsync(args);
+    await V9RefInventoryCli.RunAsync(guardedArgs);
     return;
 }
 
 // Opt-in, read-only SQL REF calibration inventory matched against a pinned V9
 // portable fit. No host, fit, publication, or operational model activation.
-if (args.Length > 0 && args[0] == "--v9-audit-ref-frozen-snapshot")
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-audit-ref-frozen-snapshot")
 {
-    await V9RefFittedSnapshotAuditCli.RunAsync(args);
+    await V9RefFittedSnapshotAuditCli.RunAsync(guardedArgs);
     return;
 }
 
 // Explicit new TRAIN-only V3 candidate, using physical recorded 81-cell
 // counts from a SHA-pinned study. No TF re-fit, SQL, TEST, publication or DT-15.
-if (args.Length > 0 && args[0] == V9FrozenJointTrainingDerivationCli.Flag)
+if (guardedArgs.Length > 0 && guardedArgs[0] == V9FrozenJointTrainingDerivationCli.Flag)
 {
-    await V9FrozenJointTrainingDerivationCli.RunAsync(args);
+    await V9FrozenJointTrainingDerivationCli.RunAsync(guardedArgs);
     return;
 }
 
 // Verify archived ORIGINAL V2 and derived V3 together without SQL/30k.
 // The same fail-closed frozen-pair gate is used by the manual physical CLI.
-if (args.Length > 0 && args[0] == V9FrozenJointIndependentComparisonCli.PreflightFlag)
+if (guardedArgs.Length > 0 && guardedArgs[0] == V9FrozenJointIndependentComparisonCli.PreflightFlag)
 {
-    await V9FrozenJointIndependentComparisonCli.RunPreflightAsync(args);
+    await V9FrozenJointIndependentComparisonCli.RunPreflightAsync(guardedArgs);
     return;
 }
 
 // Manual independent SQL validation of the NEW V3 against the original V2.
 // Genuine frozen model bytes; no calibrator or operational activation.
-if (args.Length > 0 && args[0] == V9FrozenJointIndependentComparisonCli.Flag)
+if (guardedArgs.Length > 0 && guardedArgs[0] == V9FrozenJointIndependentComparisonCli.Flag)
 {
-    await V9FrozenJointIndependentComparisonCli.RunAsync(args);
+    await V9FrozenJointIndependentComparisonCli.RunAsync(guardedArgs);
     return;
 }
 
 // Check SHA-verified TF fit suitability for a diagnostic Gold variant only.
 // Does not write another fit, access SQL, alter a threshold or start a host.
-if (args.Length > 0 && args[0] == "--v9-gold-frozen-tf-preflight")
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-gold-frozen-tf-preflight")
 {
-    await V9FittedSnapshotArtifact.GoldTfDiagnosticPreflightAsync(args);
+    await V9FittedSnapshotArtifact.GoldTfDiagnosticPreflightAsync(guardedArgs);
     return;
 }
 
 // Portable artifact inspection never starts the host or connects to SQL.
-if (args.Length > 0 && args[0] == "--v9-inspect-fitted-snapshot")
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-inspect-fitted-snapshot")
 {
-    await V9FittedSnapshotArtifact.InspectAsync(args);
+    await V9FittedSnapshotArtifact.InspectAsync(guardedArgs);
     return;
 }
 
 // Read-only opt-in physical diagnostic; never starts the operational worker.
-if (args.Length > 0 && args[0] == "--v9-physical-probe-seed42")
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-physical-probe-seed42")
 {
-    await V9PhysicalCalibrationEvidenceCli.RunAsync(args);
+    await V9PhysicalCalibrationEvidenceCli.RunAsync(guardedArgs);
     return;
 }
 
 const string EnsureNameFrequencySnapshotOperation = "ENSURE_NAME_FREQUENCY_SNAPSHOT";
 const string CanonicalNameFrequencyReferenceCode = "CENSO2022_NOMES_BRASIL_V1";
 
-var builder = Host.CreateApplicationBuilder(args);
+var builder = Host.CreateApplicationBuilder(guardedArgs);
+ // Host may swallow a BackgroundService exception after logging it. Redirect
+ // all warning/error logs away from stock Console/EventSource providers to a
+ // fixed-code logger, and preserve a nonzero exit code for fatal host errors.
+builder.Logging.AddProvider(new V9WorkerSafeHostLoggerProvider());
+builder.Logging.AddFilter((provider, _, level) =>
+    V9WorkerSafeHostLoggerProvider.AllowProviderLog(provider, level));
 var jornadaConnectionString = builder.Configuration.GetConnectionString("Jornada")
     ?? throw new InvalidOperationException("ConnectionStrings:Jornada não configurada.");
 var provider = builder.Configuration.GetValue("Database:Provider", OperationalDatabaseProviders.SqlServer);
@@ -156,7 +168,7 @@ else
 
         Console.WriteLine($"Referencia IBGE canonica {CanonicalNameFrequencyReferenceCode} ausente ou ainda CARREGANDO; materializando snapshot local antes de liberar o ambiente.");
         Console.WriteLine("A carga canonica contem milhoes de linhas e pode levar alguns minutos. O processo imprimira um heartbeat a cada 15 segundos.");
-        var ensureBuilder = Host.CreateApplicationBuilder(args);
+        var ensureBuilder = Host.CreateApplicationBuilder(guardedArgs);
         ensureBuilder.Services.AddSingleton<IOperationalSqlAdapter>(operationalSql);
         ensureBuilder.Services.AddHostedService<NameFrequencySnapshotLoader>();
         await RunHostWithHeartbeatAsync(
@@ -301,6 +313,10 @@ else
 {
     await host.RunAsync();
 }
+
+});
+if (entryStatus != 0)
+    Environment.ExitCode = entryStatus;
 
 static async Task RunHostWithHeartbeatAsync(IHost host, string activity, TimeSpan interval)
 {
