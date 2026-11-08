@@ -78,7 +78,7 @@ public static class V9OptionalCompatibilityParameters
             ["ManualReviewSampleSize"] = Tag(plan.ManualReviewSampleSize ?? 0, Has("ManualReviewSampleSize")),
             ["RecalibrationTriggers"] = Tag(plan.RecalibrationTriggers ?? false, Has("RecalibrationTriggers")),
             ["PredeclaredCandidateCpMultiplicity"] = Tag(
-                plan.PredeclaredCandidateCpMultiplicity?.ToString() ?? "CONSERVATIVE_CODE_BUDGET",
+                plan.PredeclaredCandidateCpMultiplicity?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "CONSERVATIVE_CODE_BUDGET",
                 Has("PredeclaredCandidateCpMultiplicity"))
         };
     }
