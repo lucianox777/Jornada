@@ -1,3 +1,5 @@
+> **ATUALIZAÇÃO DE ESCOPO — mandato final 08/11/2026:** as contagens e os caminhos abaixo são o levantamento da base histórica desta PR e devem ser recontados por `git grep -I -i` + extrator de binários após todos os merges. Esta PR textual **não comprova neutralização integral**; o pacote de 14 binários da #1332 segue **AGUARDA EXECUÇÃO MANUAL DO PO**. Sem alterar exceções SQL hash-fixadas nem PDFs sem fonte. Ver [mandato oficial](Decisao_V9_Mandato_Integracao_Final_Teste_Geral_20261108.md) (pendente de integração pela #1318).
+
 # NEUT-DEV-20261107 — neutralização literal do fornecedor em toda a árvore
 
 **Decisão expressa do Product Owner em 07/11/2026, confirmada na discussão posterior da mesma data.** Exigência GOV-DOC-01. Objetivo: nenhuma menção nominal ao fornecedor anterior na árvore **corrente** do repositório, exceto baselines/migrações SQL cujo hash histórico precise ser preservado e seja expressamente autorizado. Não há autorização para reescrever o histórico Git.

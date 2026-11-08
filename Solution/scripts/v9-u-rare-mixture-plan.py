@@ -20,6 +20,18 @@ MIXED_FAMILY = "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE"
 SELECTION_POLICIES = ("COUNT_ALL", "COUNT_UNIQUE")
 
 
+# Declared by this versioned scientific protocol, never injected from environment.
+# The generated executable plan.json contains the selected margin, all M/U
+# methods, mixture weights, selection policies, provenance and own SHA.
+MARGINS_BY_ROLE = {"PRIMARY": .5, "PREDECLARED_SENSITIVITY": .25}
+
+
+def margin_for_role(role):
+    if role not in MARGINS_BY_ROLE:
+        raise ValueError("Undeclared scientific margin role")
+    return MARGINS_BY_ROLE[role]
+
+
 def _load_control():
     spec = importlib.util.spec_from_file_location("v9_mu_tf0_controlled_rare", SCRIPTS / "v9-mu-tf0-controlled-plan.py")
     module = importlib.util.module_from_spec(spec)
@@ -123,24 +135,22 @@ if __name__ == "__main__":
     cli.add_argument("source_nested_tf_plan", type=Path)
     cli.add_argument("output_plan", type=Path)
     cli.add_argument("--margin", type=float, default=None,
-                     help="Explicit TRAIN conflict margin in (0,1]; zero is diagnostic-only")
-    cli.add_argument("--config", type=Path, default=None,
-                     help="Versioned JSON experiment declaration with UBackoffJointMixtureWeights and ConflictMargin")
+                     help="Legacy offline-only study margin; disallowed with --role")
+    cli.add_argument("--role", choices=tuple(MARGINS_BY_ROLE),
+                     help="Select one fixed, predeclared role; frozen into resulting plan")
     cli.add_argument("--weights", type=str, default=None,
-                     help="Explicit comma-separated U mixture weights; default preserves frozen historical experiment")
+                     help="Legacy offline-only mixture weights; disallowed with --role")
     args = cli.parse_args()
-    if args.config is not None and args.weights is not None:
-        cli.error("--config and --weights are mutually exclusive")
-    if args.config is not None:
-        config = json.loads(args.config.read_bytes())
-        if set(config) != {"UBackoffJointMixtureWeights", "ConflictMargin", "SelectionDuplicatePolicies"}:
-            cli.error("Config must declare exactly UBackoffJointMixtureWeights, ConflictMargin and SelectionDuplicatePolicies")
-        weights = config["UBackoffJointMixtureWeights"]
-        margin = config["ConflictMargin"] if args.margin is None else args.margin
-        duplicate_policies = config["SelectionDuplicatePolicies"]
+    if args.role is not None:
+        if args.margin is not None or args.weights is not None:
+            cli.error("--role forbids --margin and --weights overrides")
+        margin, weights = margin_for_role(args.role), None
     else:
-        weights = None if args.weights is None else [float(x) for x in args.weights.split(",")]
         margin = .5 if args.margin is None else args.margin
-        duplicate_policies = None
-    print(json.dumps(freeze(args.source_nested_tf_plan, args.output_plan,
-                            margin=margin, weights=weights, duplicate_policies=duplicate_policies), sort_keys=True))
+        weights = None if args.weights is None else [float(x) for x in args.weights.split(",")]
+    receipt = freeze(args.source_nested_tf_plan, args.output_plan,
+                     margin=margin, weights=weights)
+    if args.role is not None:
+        receipt["marginRole"] = args.role
+        receipt["declaredMarginsByRole"] = dict(MARGINS_BY_ROLE)
+    print(json.dumps(receipt, sort_keys=True))

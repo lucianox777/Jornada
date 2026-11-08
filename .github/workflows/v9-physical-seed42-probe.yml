@@ -4,26 +4,11 @@ on:
   push:
     branches:
       - master
-  workflow_dispatch:
-    inputs:
-      mode:
-        description: 'Preflight sem 30k ou execução física autorizada'
-        type: choice
-        required: true
-        default: preflight
-        options: [preflight, execute_30k]
-      expected_sha:
-        description: 'SHA exato da branch, 40 caracteres'
-        type: string
-        required: true
-      pinned_ibge_json:
-        description: 'IBGE publicado fixado: versão, digests e bootstrap JSON'
-        type: string
-        required: false
+
 
 # Later CI topology decision 06/11/2026: impacted 30k after integration on master push; historical PR gate documented separately.
 # Never cancel physical evidence; exact master SHA and live ref remain mandatory.
-# Explicit manual dispatch and experiment/evidence branches remain isolated by run_id.
+# Auto 30k is push-only; scientific/independent campaigns have separate explicit protocols.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}-${{ (startsWith(github.head_ref, 'experiment/') || startsWith(github.head_ref, 'evidence/') || startsWith(github.head_ref, 'exp/')) && github.run_id || 'latest' }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' && !(startsWith(github.head_ref, 'experiment/') || startsWith(github.head_ref, 'evidence/') || startsWith(github.head_ref, 'exp/')) }}
@@ -52,15 +37,6 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_tf_30k_dispatch_gate.py
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_tf_pin_source.py
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_masked_sql_probe.py
-      - name: Dry-run exact SHA gate when manual preflight is selected (no 30k)
-        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight'
-        env:
-          TF_SHA: ${{ inputs.expected_sha }}
-        run: |
-          set -euo pipefail
-          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
-            --mode preflight --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
-            --output "$RUNNER_TEMP/v9-tf-sha-preflight.json"
       - name: Classify cumulative changes since last authenticated physical 30k
         id: classify
         shell: bash
@@ -72,36 +48,29 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            python3 Solution/scripts/v9-physical-impact-classifier.py --manual \
+          test "$EVENT_NAME" = "push"
+          [[ "$CHECKOUT_SHA" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "Cannot verify exact push SHA; fail closed" >&2
+            exit 1
+          }
+          test "$(git rev-parse HEAD)" = "$CHECKOUT_SHA"
+          python3 Solution/scripts/v9-physical-coverage-baseline.py \
+            --repository "$REPOSITORY" --head-sha "$CHECKOUT_SHA" \
+            --output v9-physical-baseline.json
+          BASE_SHA="$(python3 -c 'import json,sys; x=json.load(open(sys.argv[1])); print(x.get("BaselineSha256") or "")' v9-physical-baseline.json)"
+          if [[ -z "$BASE_SHA" ]]; then
+            # An absent validated baseline mandates a REAL full 30k.
+            python3 Solution/scripts/v9-physical-impact-classifier.py \
+              --no-validated-baseline \
               --summary v9-physical-30k-impact.json --github-output "$GITHUB_OUTPUT"
           else
-            # Compare ALL commits since the last truly successful physical 30k.
-            # A previously failed or skipped physical probe is never coverage.
-            test "$EVENT_NAME" = "push"
-            [[ "$CHECKOUT_SHA" =~ ^[0-9a-f]{40}$ ]] || {
-              echo "Cannot verify exact push SHA; fail closed" >&2
-              exit 1
-            }
-            test "$(git rev-parse HEAD)" = "$CHECKOUT_SHA"
-            python3 Solution/scripts/v9-physical-coverage-baseline.py \
-              --repository "$REPOSITORY" --head-sha "$CHECKOUT_SHA" \
-              --output v9-physical-baseline.json
-            BASE_SHA="$(python3 -c 'import json,sys; x=json.load(open(sys.argv[1])); print(x.get("BaselineSha256") or "")' v9-physical-baseline.json)"
-            if [[ -z "$BASE_SHA" ]]; then
-              # Fail closed to a REAL physical run, not to an empty diff.
-              python3 Solution/scripts/v9-physical-impact-classifier.py \
-                --no-validated-baseline \
-                --summary v9-physical-30k-impact.json --github-output "$GITHUB_OUTPUT"
-            else
-              [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
-              git cat-file -e "${BASE_SHA}^{commit}"
-              git merge-base --is-ancestor "$BASE_SHA" "$CHECKOUT_SHA"
-              git diff --name-status -z --find-renames "$BASE_SHA" "$CHECKOUT_SHA" > changed-name-status.z
-              python3 Solution/scripts/v9-physical-impact-classifier.py \
-                --name-status-z changed-name-status.z \
-                --summary v9-physical-30k-impact.json --github-output "$GITHUB_OUTPUT"
-            fi
+            [[ "$BASE_SHA" =~ ^[0-9a-f]{40}$ ]]
+            git cat-file -e "${BASE_SHA}^{commit}"
+            git merge-base --is-ancestor "$BASE_SHA" "$CHECKOUT_SHA"
+            git diff --name-status -z --find-renames "$BASE_SHA" "$CHECKOUT_SHA" > changed-name-status.z
+            python3 Solution/scripts/v9-physical-impact-classifier.py \
+              --name-status-z changed-name-status.z \
+              --summary v9-physical-30k-impact.json --github-output "$GITHUB_OUTPUT"
           fi
       - name: Archive impact decision for audit
         if: always()
@@ -114,25 +83,35 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
 
-  pin-preflight:
-    name: V9 30k - authenticate SQL IBGE and corpus (NO calibration)
+  physical-30k:
+    name: V9 full physical 30k SQL TRAIN (when impacted)
     needs: impact
-    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight' && needs.impact.outputs.run_physical_30k == 'true'
+    if: needs.impact.outputs.run_physical_30k == 'true' && github.event_name == 'push'
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    # 07/11 PO decision: mandatory physical 30k only on the integrated master push.
+    # Full adaptive batches now survive the old all-cell veto and execute 20
+    # complete latency replays per feasible candidate; preserve every gate.
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           persist-credentials: false
           fetch-depth: 0
-      - name: Bind preflight to exact SHA before generating anything
+          # Exact commit: bind the physical fit to the
+          # exact master push commit, not to a moving branch ref.
+          ref: ${{ github.sha }}
+      - name: Prove exact master push SHA before starting SQL
         env:
-          TF_SHA: ${{ inputs.expected_sha }}
+          TF_SHA: ${{ github.sha }}
+          TF_REF: ${{ github.ref }}
+          SOURCE_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
+          test "$SOURCE_REPO" = "$GITHUB_REPOSITORY"
+          test "$TF_REF" = 'refs/heads/master'
           mkdir -p Solution/.local/v9-tf-physical
           python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
-            --mode preflight --expected-sha "$TF_SHA" --ref "$GITHUB_REF" \
+            --mode auto_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
             --output Solution/.local/v9-tf-physical/git-approved.json
       - name: Start masked disposable SQL Server
         shell: bash
@@ -148,128 +127,9 @@ jobs:
         run: |
           dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
           dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      - name: Export real SQL-backed pinned IBGE JSON without fitting
-        working-directory: Solution
-        run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" pinned-ibge.json
-      - name: Print validated pinned IBGE JSON in log and job summary (metadata only)
-        working-directory: Solution
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          import json, os, re
-          from pathlib import Path
-          pin = json.loads(Path('.local/v9-tf-physical/pinned-ibge.json').read_text(encoding='utf-8'))
-          fields = {'PinnedIbgeReferenceVersionId', 'PinnedIbgePublishedSha256',
-                    'PinnedIbgeMaterializedFrequencySha256', 'PinnedIbgeBootstrap'}
-          bootstrap_fields = {'Provenance', 'People', 'CorpusFingerprint',
-                              'GeneratorVersion', 'GeneratorSeed', 'GenerationHypothesesFingerprint'}
-          if not isinstance(pin, dict) or set(pin) != fields:
-              raise SystemExit('unexpected pinned IBGE fields; do not print')
-          b = pin['PinnedIbgeBootstrap']
-          if not isinstance(b, dict) or set(b) != bootstrap_fields:
-              raise SystemExit('unexpected bootstrap fields; do not print')
-          if (type(pin['PinnedIbgeReferenceVersionId']) is not int or pin['PinnedIbgeReferenceVersionId'] <= 0
-                  or b['Provenance'] != 'SINTETICO_IBGE' or b['People'] != 30000
-                  or b['GeneratorVersion'] != 'JORNADA_SYNTH_CORPUS_CSHARP_V1' or b['GeneratorSeed'] != 42):
-              raise SystemExit('unexpected IBGE/bootstrap metadata; do not print')
-          for h in (pin['PinnedIbgePublishedSha256'], pin['PinnedIbgeMaterializedFrequencySha256'],
-                    b['CorpusFingerprint'], b['GenerationHypothesesFingerprint']):
-              if not isinstance(h, str) or not re.fullmatch(r'[0-9a-fA-F]{64}', h):
-                  raise SystemExit('invalid digest; do not print')
-          content = json.dumps(pin, ensure_ascii=False, indent=2) + '\n'
-          print('PINNED_IBGE_JSON_BEGIN\n' + content + 'PINNED_IBGE_JSON_END')
-          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a', encoding='utf-8') as summary:
-              summary.write('### Pinned IBGE — metadata only (no PII)\n\n```json\n' + content + '```\n')
-          PY
-      - name: Preserve operator-reviewed pin and exact SHA (no corpus CSV, TEST, or PII)
-        if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
-        with:
-          name: v9-tf-30k-pin-preflight-${{ github.run_id }}-${{ github.sha }}
-          retention-days: 90
-          if-no-files-found: error
-          path: |
-            Solution/.local/v9-tf-physical/git-approved.json
-            Solution/.local/v9-tf-physical/bootstrap.json
-            Solution/.local/v9-tf-physical/pinned-ibge.json
-            Solution/.local/v9-tf-physical/people-30k/generation-manifest.json
-      - name: Remove disposable SQL Server
-        if: always()
-        shell: bash
-        run: docker rm -f "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
-
-  physical-30k:
-    name: V9 full physical 30k SQL TRAIN (when impacted)
-    needs: impact
-    if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))
-    runs-on: ubuntu-latest
-    # 06/11 topology: impacted master pushes; manual dispatch retained.
-    # Full adaptive batches now survive the old all-cell veto and execute 20
-    # complete latency replays per feasible candidate; preserve every gate.
-    timeout-minutes: 360
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-          # Exact commit: bind the physical fit to the
-          # exact master push commit, not to a moving branch ref.
-          ref: ${{ github.sha }}
-      - name: Prove exact master push or manual SHA before starting SQL
-        env:
-          TF_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.sha }}
-          TF_REF: ${{ github.ref }}
-          TF_IBGE: ${{ inputs.pinned_ibge_json }}
-          EVENT_NAME: ${{ github.event_name }}
-          SOURCE_REPO: ${{ github.repository }}
-        run: |
-          set -euo pipefail
-          test "$SOURCE_REPO" = "$GITHUB_REPOSITORY" || {
-            echo "Auto 30k only runs for branches in this repository" >&2
-            exit 1
-          }
-          mkdir -p Solution/.local/v9-tf-physical
-          if [[ "$EVENT_NAME" == "push" ]]; then
-            python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
-              --mode auto_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
-              --output Solution/.local/v9-tf-physical/git-approved.json
-          else
-            python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
-              --mode execute_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
-              --pinned-json "$TF_IBGE" \
-              --output Solution/.local/v9-tf-physical/git-approved.json \
-              --pinned-output Solution/.local/v9-tf-physical/pinned-ibge.json
-          fi
-      - name: Start masked disposable SQL Server
-        shell: bash
-        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
-        with:
-          dotnet-version: '10.0.113'
-          # Cache only NuGet packages; never bypass restore, build or SQL gates.
-          cache: true
-          cache-dependency-path: 'Solution/**/packages.lock.json'
-      - name: Build the single CSharp calibrator and synthetic producer
-        working-directory: Solution
-        run: |
-          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
-          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
       - name: Auto-derive 30k pin from disposable SQL and immutable synthetic reference
-        if: github.event_name == 'push'
         working-directory: Solution
         run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" pinned-ibge.json
-      - name: Manual mode rebuilds the pinned IBGE and 30k corpus independently
-        if: github.event_name == 'workflow_dispatch'
-        working-directory: Solution
-        run: bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" reconstructed-ibge.json
-      - name: Compare all four manually pinned reference fields BEFORE calibration
-        if: github.event_name == 'workflow_dispatch'
-        working-directory: Solution
-        run: |
-          set -euo pipefail
-          python3 scripts/v9-tf-pin-source.py verify \
-            --expected .local/v9-tf-physical/pinned-ibge.json \
-            --actual .local/v9-tf-physical/reconstructed-ibge.json
       # Automatic path invokes v9-tf-prepare-pin.sh, which MUST check full 30k
       # corpus file SHA, IBGE published/materialized SHA, and synthetic ledger.
       # A mismatch prevents calibration; no mutable IBGE reference is trusted.
@@ -277,27 +137,17 @@ jobs:
       - name: Recheck exact SHA and run only CSharp adaptive TF 45 options
         working-directory: Solution
         env:
-          TF_SHA: ${{ github.event_name == 'workflow_dispatch' && inputs.expected_sha || github.sha }}
+          TF_SHA: ${{ github.sha }}
           TF_REF: ${{ github.ref }}
-          TF_IBGE: ${{ inputs.pinned_ibge_json }}
-          EVENT_NAME: ${{ github.event_name }}
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-tf-physical"
-          if [[ "$EVENT_NAME" == "push" ]]; then
-            python3 scripts/v9-tf-30k-dispatch-gate.py \
-              --mode auto_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
-              --output "$root/git-rechecked.json"
-            python3 scripts/v9-tf-ref-provenance-gate.py \
-              --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
-              --reference data/reference/v9-synthetic-seed42-30000/manifest.json
-          else
-            python3 scripts/v9-tf-30k-dispatch-gate.py \
-              --mode execute_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
-              --pinned-json "$TF_IBGE" \
-              --output "$root/git-rechecked.json" --pinned-output "$root/pinned-rechecked.json"
-            cmp "$root/pinned-ibge.json" "$root/pinned-rechecked.json"
-          fi
+          python3 scripts/v9-tf-30k-dispatch-gate.py \
+            --mode auto_30k --expected-sha "$TF_SHA" --ref "$TF_REF" \
+            --output "$root/git-rechecked.json"
+          python3 scripts/v9-tf-ref-provenance-gate.py \
+            --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
+            --reference data/reference/v9-synthetic-seed42-30000/manifest.json
           python3 scripts/v9-adaptive-30k-study.py prepare-tf \
             "$root/people-30k/observacoes.csv" "$root/plan-tf.json" \
             --pinned-ibge "$root/pinned-ibge.json"
@@ -362,9 +212,9 @@ jobs:
   physical-seed42:
     name: SQL físico 30k clean — FS blind Rank-Resolve TF0
     needs: [impact, physical-30k]
-    # Manual preflight is deliberately NOT physical evidence. Only an actually
-    # successful same-run physical job passes this check; PR/dispatch both apply.
-    if: ${{ always() && !(github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight') }}
+    # Only an actually
+    # successful same-run physical job passes this check; only master push applies.
+    if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -388,7 +238,7 @@ jobs:
             exit 1
           fi
           if [[ "$REQUIRES_PHYSICAL" == "true" ]]; then
-            if [[ "$PHYSICAL_RESULT" == "success" && ( "$EVENT_NAME" == "workflow_dispatch" || "$EVENT_NAME" == "push" ) ]]; then
+            if [[ "$PHYSICAL_RESULT" == "success" && "$EVENT_NAME" == "push" ]]; then
               echo "PASS: same-run CSharp 45-arm --v9-adaptive-study TF physical 30k on $HEAD_SHA."
             else
               echo "::error title=DEFERRED_NOT_CERTIFIED::Required V9 30k has no successful physical job in this run (event=$EVENT_NAME, result=$PHYSICAL_RESULT)." >&2

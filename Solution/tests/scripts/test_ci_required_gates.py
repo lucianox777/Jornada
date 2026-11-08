@@ -309,7 +309,7 @@ class TestMasterPushPhysicalWorkflowPolicy(__import__("unittest").TestCase):
         self.assertIn("git merge-base --is-ancestor", data)
         self.assertIn("BASE_SHA=", data)
         self.assertIn("CHECKOUT_SHA: ${{ github.sha }}", data)
-        self.assertIn("github.event_name == 'push' ||", data)
+        self.assertIn("&& github.event_name == 'push'", data)
         self.assertIn("--mode auto_30k", data)
         self.assertIn('"$PHYSICAL_RESULT" == "success"', data)
         self.assertIn("v9-tf-ref-provenance-gate.py", data)

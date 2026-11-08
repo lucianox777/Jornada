@@ -232,8 +232,27 @@ def audit(plan_file, report_file, selection_file):
             [x.get("Policy") for x in actual_selections] == policies and
             all(isinstance(x.get("FrontierSnapshotShas"), list) and
                 isinstance(x.get("FinalistSnapshotShas"), list) and
-                x.get("IndependentlyCertified") is False for x in actual_selections),
+                x.get("IndependentlyCertified") is False and
+                isinstance(x.get("EligibleHypotheses"), int) and
+                isinstance(x.get("PhysicalHypotheses"), int) and
+                isinstance(x.get("DescriptiveMultiplicityHypotheses"), int)
+                for x in actual_selections),
             "Calibrator did not execute both declared selection policies")
+    # Fail closed when the numeric lambda=0 witness appears in any selected set.
+    zero_shas = {x["fitSnapshotSha256"] for x in report["rows"]
+                 if x["MuEstimationMethod"] == MIX and
+                 x["MuPolicy"]["UBackoffJointMixtureWeight"] == 0}
+    selection_count = len(rows) - (4 if 0 in weights else 0)
+    for selected in actual_selections:
+        require(not zero_shas.intersection(selected["FrontierSnapshotShas"])
+                and not zero_shas.intersection(selected["FinalistSnapshotShas"]),
+                "lambda=0 witness cannot be selected")
+        require(selected["EligibleHypotheses"] == selection_count and
+                selected["PhysicalHypotheses"] == len(rows) and
+                selected["DescriptiveMultiplicityHypotheses"] ==
+                (len(rows) if selected["Policy"] == "COUNT_ALL" else selection_count),
+                "Calibrator selection/physical/multiplicity counts disagree")
+
     # Compare predeclared candidate accounting policies on the same physical evidence.
     # Only lambda=0 / historical V3 parity is proven; no outcome-based clustering.
     policy_comparisons = []
@@ -250,7 +269,7 @@ def audit(plan_file, report_file, selection_file):
                                    "requestSha256": [x["RequestSha256"] for x in same],
                                    "equivalence": "HISTORICAL_V3_LAMBDA_ZERO_PARITY"})
         for row in report["rows"]:
-            if (policy_name == "COUNT_UNIQUE" and row["MuEstimationMethod"] == MIX
+            if (row["MuEstimationMethod"] == MIX
                     and row["MuPolicy"]["UBackoffJointMixtureWeight"] == 0):
                 continue
             eligible.append(row)
@@ -258,7 +277,11 @@ def audit(plan_file, report_file, selection_file):
         ranked = sorted(eligible, key=lambda x: (-x["recall"], x["fdrObserved"], x["RequestSha256"]))
         policy_comparisons.append({
             "policy": policy_name, "physicalEvaluations": len(rows),
-            "eligibleHypotheses": len(eligible), "equivalentGroups": groups,
+            "eligibleHypotheses": len(eligible),
+            "physicalHypotheses": len(rows),
+            "descriptiveMultiplicityHypotheses": (
+                len(rows) if policy_name == "COUNT_ALL" else len(eligible)),
+            "equivalentGroups": groups,
             "descriptiveTopRequestSha256": ranked[0]["RequestSha256"] if ranked else None,
             "descriptiveTopRecall": ranked[0]["recall"] if ranked else None,
             "descriptiveTopFdrObserved": ranked[0]["fdrObserved"] if ranked else None,

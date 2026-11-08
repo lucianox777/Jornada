@@ -11,7 +11,8 @@ public sealed class V9CalibradorLastErrorLog : IDisposable
 {
     public const int ReservedBytes = 10 * 1024;
     public const string FileName = "calibrador.log";
-    private const string TruncatedMarker = "\n[EXCECAO TRUNCADA AO LIMITE DE 10 KiB]\n";
+    // Never include exception messages, inner exceptions or stack traces here.
+    // This file can accidentally be collected by generic artifact uploaders.
 
     private readonly FileStream stream;
     private readonly byte[] reservedBytes;
@@ -48,27 +49,25 @@ public sealed class V9CalibradorLastErrorLog : IDisposable
         }
     }
 
-    /// <summary>Only the latest exception; never append, truncate or grow the file.</summary>
+    /// <summary>Safe, stable code only. No message, stack, path or PII.</summary>
+    public static string SafeErrorCode(Exception error) => error switch
+    {
+        FileNotFoundException => "V9_CALIBRATOR_FAILED:INPUT_NOT_FOUND",
+        InvalidDataException => "V9_CALIBRATOR_FAILED:INVALID_DATA",
+        IOException => "V9_CALIBRATOR_FAILED:IO_ERROR",
+        ArgumentException => "V9_CALIBRATOR_FAILED:INVALID_ARGUMENTS",
+        _ => "V9_CALIBRATOR_FAILED:UNEXPECTED"
+    };
+
+    /// <summary>Only the latest safe error code; in-place 10 KiB rewrite.</summary>
     public void WriteLast(Exception error)
     {
         ArgumentNullException.ThrowIfNull(error);
         ObjectDisposedException.ThrowIf(disposed, this);
-        var bytes = Encoding.UTF8.GetBytes(error.ToString());
+        var bytes = Encoding.UTF8.GetBytes(SafeErrorCode(error));
         reservedBytes.AsSpan().Fill((byte)' ');
-
-        if (bytes.Length <= ReservedBytes)
-        {
-            bytes.CopyTo(reservedBytes, 0);
-        }
-        else
-        {
-            var marker = Encoding.UTF8.GetBytes(TruncatedMarker);
-            var max = ReservedBytes - marker.Length;
-            // Never split a UTF-8 multibyte sequence.
-            while (max > 0 && (bytes[max] & 0xc0) == 0x80) max--;
-            Array.Copy(bytes, 0, reservedBytes, 0, max);
-            Array.Copy(marker, 0, reservedBytes, max, marker.Length);
-        }
+        // A bounded constant diagnostic code always fits the 10 KiB reserve.
+        bytes.CopyTo(reservedBytes, 0);
 
         stream.Position = 0;
         stream.Write(reservedBytes);
