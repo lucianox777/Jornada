@@ -70,3 +70,24 @@ As PRs preparatórias podem existir em draft, mas **nenhum merge, nem de documen
 | `Documentos/Resumo_Executivo_v3.82.pdf` | 1 |
 
 A correspondência entre cada PDF e sua fonte editável deve ser autenticada antes da regeneração. Arquivos sem fonte correlata exata não podem ser substituídos por conversão de documento arbitrário. O XML do Word requer QA visual pós-substituição. [Workflow e ferramenta de auditoria em PR #1332](https://github.com/lucianox777/Jornada/pull/1332). O novo registro preserva a evidência de que **a neutralização binária ainda NÃO foi concluída**.
+
+## Inventário SQL da branch reconciliada — 08/11/2026 (continuidade do mandato final)
+
+**Base inspecionada:** HEAD da PR #1333 `001a426cce5a1c1a1553e66a258ff647f3d935aa`, baseado em master `db75f3a3f1a3ad38ec6d4f8f1ae3b2e254694b54`. Leitura pontual de todos os **nove caminhos SQL retornados pela busca textual indexada** por referência nominal; contagem literal por correspondência sem distinguir maiúsculas/minúsculas, usando o conteúdo integral de cada arquivo. **Não equivale ao `git grep -I -i` integral**, que só poderá certificar a árvore após os merges; tampouco inspeciona binários.
+
+| Caminho SQL | Ocorrências | Git blob SHA-1 (não é SHA-256 de manifesto) | Situação e regra de precedência |
+| --- | ---: | --- | --- |
+| `Solution/database/Jornada_Fase1.sql` | **4** | `46d59c5d4a26d963952c1c06188a6abb21cfdc69` | **BLOQUEIA NEUTRALIZAÇÃO GLOBAL:** schema corrente, não é exceção histórica autorizada; precisa de nova migração idempotente, preservação de legado e testes de upgrade |
+| `Solution/database/baselines/Jornada_Fase1_v3.55.sql` | 4 | `444637e0628cb7f8bc029e5cc9c7890ce9fc356a` | Baseline histórica; comprovar SHA de manifesto selado antes de declarar exceção |
+| `Solution/database/baselines/Jornada_Fase1_v3.57.sql` | 4 | `8dd193bc8a2fcfc023dab4738e88390076d0a53c` | Idem |
+| `Solution/database/baselines/Jornada_Fase1_v3.58.sql` | 4 | `49095a36dbffd969bb91f0ff02e880e2666efbb2` | Idem |
+| `Solution/database/baselines/Jornada_Fase1_v3.59.sql` | 4 | `9ae941bd2c0ec6ac41822e231ec69d0efc097400` | Idem |
+| `Solution/database/baselines/Jornada_Fase1_v3.60.sql` | 4 | `30c9ac61c599167b8d5a0456471d0207807bb76b` | Idem |
+| `Solution/database/baselines/Jornada_Fase1_v3.65.sql` | 4 | `5b4d0e4e4a979906f7fc2d7caf080ddf687f8389` | Idem |
+| `Solution/database/migrations/20260920_Linkage_Model_Promotion_Ledger.sql` | 1 | `1903740c3612b334d5c1c75b62c403bfbdaa7ba2` | Comentário histórico; exigir verificação SHA-256 selado antes de conservar exceção |
+| `Solution/database/migrations/20260921_Pessoa_V5_Contrato_371.sql` | 1 | `6ccda8bf6ac0f52846f85b4bfec9379926609a29` | Dominio histórico em CHECK; exigir migração de dados antes de alterar literal |
+| **Subtotal SQL identificado** | **30** | — | **4 no schema corrente + 26 em versões anteriores** |
+
+**Distinções obrigatórias:** o antigo subtotal de 34 menções remanescentes no levantamento original incluía 4 ocorrências adicionais em C#/script/workflow de uma master anterior; não foi reproduzido nesta leitura restrita a SQL e **não** se afirma que restem 34 na árvore atual. A neutralização textual proposta nos 37 arquivos da PR permanece separada da neutralização SQL. O nome institucional anterior aparece nos históricos apenas para inventariar vestígios — não autoriza novas referências. Os binários permanecem inalterados na master: 14 edições propostas no artifact 13627958839 não aplicadas, além de PDFs com exceções de renderização/fonte. **Nenhuma exceção por SHA-256 foi ratificada somente pelo Git blob**.
+
+**Bloqueio funcional:** uma substituição textual direta do valor `ENRIQUECIMENTO_...` no CHECK do schema corrente rejeitaria linhas históricas e pode mudar semântica. Manter `Jornada_Fase1.sql` inalterado por esta PR de documentação até haver upgrade SQL auditado: (a) domínio novo `ENRIQUECIMENTO_DESENVOLVEDOR`, (b) remapeamento de dados legado em migração idempotente, (c) constraints e compatibilidade dos replays, (d) testes físicos SQL e autorização de execução. Não adulterar migrations/baselines hash-fixadas e não alegar neutralização total. Esta **constatação de bloqueio não aprova nem executa a migração**. GOV-DOC-01: prevalecem a regra do PO e o [mandato final](Decisao_V9_Mandato_Integracao_Final_Teste_Geral_20261108.md), que está em branch documental #1318 até validação.
