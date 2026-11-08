@@ -1,3 +1,5 @@
+> **SUPERADO COMO INSTRUÇÃO OPERACIONAL em 08/11/2026:** o [mandato final único de integração e teste geral](Decisao_V9_Mandato_Integracao_Final_Teste_Geral_20261108.md) e o PAINEL V9 na #1318 substituem este roteiro; conservar apenas como registro histórico. P95 e LOCK continuam vigentes; D2 permanece cancelado. Nenhuma implementação pode assumir que o estado da master descrito abaixo ainda seja atual.
+
 # GOV-OPS-V9-01 — vigília e validação horária da implementação V9
 
 **Decisão do Product Owner:** 07/11/2026  

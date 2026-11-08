@@ -1,3 +1,5 @@
+> **SUPERADO COMO INSTRUÇÃO OPERACIONAL em 08/11/2026:** o [mandato final único de integração e teste geral](Decisao_V9_Mandato_Integracao_Final_Teste_Geral_20261108.md) e o PAINEL V9 na #1318 substituem este roteiro; conservar apenas como registro histórico. P95 e LOCK continuam vigentes; D2 permanece cancelado. Nenhuma implementação pode assumir que o estado da master descrito abaixo ainda seja atual.
+
 > **PRECEDÊNCIA 08/11/2026 (PO) — D2 cancelado, P95 e LOCK mantidos:** este documento registra o mandato operacional **histórico** de 07/11. Não interpretar “separação P95 operacional” como autorização para tirar P95 da elegibilidade da seleção. O PO **cancelou o passo 3/D2** (sem gate de comparação automática, sem `LatencyAffectsSelection`, sem ressalva de tempo) e determinou **preservar o P95 na seleção e o LOCK científico pré-registrado**, retirando-os da fila de dívida técnica. Fonte superveniente e vinculante: [decisão vigente de 08/11](Decisao_V9_Decisoes_Vigentes_P95_LOCK_Cancelamento_D2_20261108.md). Preservar registros e provas históricos sem editar ou reinterpretar medições.
 
 # GOV-OPS-V9-02 — mandato operacional A–L e fila de integração (07/11/2026)
