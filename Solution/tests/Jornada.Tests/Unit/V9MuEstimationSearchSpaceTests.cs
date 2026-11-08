@@ -117,10 +117,19 @@ public class V9MuEstimationSearchSpaceTests
         Assert.That(expanded.Skip(2).All(x => x.EligibleForSelection), Is.True);
         Assert.That(V9NestedCalibrationCoordinator.CandidateCpMultiplicityUpperBudget(5, 2),
             Is.EqualTo(3));
-        Assert.That((Action)(() => V9MuEstimationSearchSpace.Enumerate([
+        // New PO decision (08/11): omitted optional Role uses historical
+        // candidate default. V2 WITNESS+ANCHOR remains explicit.
+        var withOmittedRole = V9MuEstimationSearchSpace.Enumerate([
             Default() with { Role = V9MuEstimationSearchSpace.Witness, Anchor = true },
-            HistoricalV3() // every option in tagged plan must declare a role
-        ])), Throws.TypeOf<InvalidDataException>());
+            HistoricalV3()
+        ]);
+        Assert.That(withOmittedRole, Has.Count.EqualTo(2));
+        Assert.That(withOmittedRole[0].Role, Is.EqualTo(V9MuEstimationSearchSpace.Witness));
+        Assert.That(withOmittedRole[1].Role, Is.Null);
+        Assert.That(V9MuEstimationSearchSpace.Expand([option], [
+            Default() with { Role = V9MuEstimationSearchSpace.Witness, Anchor = true },
+            HistoricalV3()
+        ], 2)[1].EligibleForSelection, Is.True);
     }
 
     [Test]
