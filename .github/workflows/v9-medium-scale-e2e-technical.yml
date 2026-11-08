@@ -1,0 +1,84 @@
+name: v9-medium-scale-e2e-technical
+
+# Experiment was run physically on staging SHA 8d90306c... (run 42534643000).
+# Keep only an operator-invoked, master-bound technical rerun after integration.
+# Never auto-trigger 100k for documentation commits or master pushes.
+# Do not change mandatory master CI, 30k impact classification or scientific locks.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v9-medium-scale-e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  medium-scale:
+    name: V9 SCALE medium 100k synthetic SQL + calibrator + runner (NO PROD)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - name: Assert exact SHA and never execute on release tag
+        run: |
+          set -euo pipefail
+          test "$(git -C .. rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$GITHUB_REF_TYPE" = branch
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Validate locked dependency graph before physical SQL
+        run: ./scripts/nuget-lock-bootstrap.sh
+      - name: Execute 100k SCALE SQL calibration and runner in disposable DEV
+        timeout-minutes: 165
+        env:
+          JORNADA_LOCKED_RESTORE: 'true'
+          JORNADA_SCALE_SEED: '355'
+          JORNADA_SCALE_PARALLELISM: '4'
+          JORNADA_SCALE_BATCH_SIZE: '10000'
+          JORNADA_SCALE_BLOCKING_AUDIT_LABEL_COUNT: '1000'
+        run: bash scripts/local-scale.sh medium
+      - name: Require SHA-bound 100k evidence and real decision quality
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          base=Path(".local/performance")
+          evidence=json.loads((base/"scale-medium-latest.json").read_text(encoding="utf-8"))
+          assert evidence["gitCommitSha"]==os.environ["GITHUB_SHA"]
+          assert evidence["profile"]=="medium" and evidence["seed"]==355
+          assert evidence["goldPeople"]==100000 and evidence["pendingWithoutCpf"]==25000
+          assert evidence["runner"]["evaluated"] > 0, "Runner produced no physical evaluations"
+          assert evidence["runner"]["eligible"] > 0
+          assert "decisionQuality" in evidence and evidence["decisionQuality"]
+          assert "blockingPassPressure" in evidence and evidence["blockingPassPressure"]
+          assert (base/"scale-medium-validation.json").is_file()
+          print("PASS: 100k SCALE SQL synthetic with real Calibrator/Runner and validated metrics.")
+          PY
+      - name: Upload synthetic summary only, never corpus or database credentials
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: v9-medium-scale-summary-${{ github.sha }}
+          path: |
+            Solution/.local/performance/scale-medium-latest.json
+            Solution/.local/performance/scale-medium-validation.json
+            Solution/.local/performance/scale-medium-blocking-pass-audit.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Remove disposable SQL, even after test failure
+        if: always()
+        run: docker compose --env-file .env down -v || true
