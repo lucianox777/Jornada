@@ -32,6 +32,34 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public void Scientific_finalist_proposal_ignores_runtime_P95_but_conditional_operability_does_not()
+    {
+        var candidate = Candidate(180, 0, .95m);
+        var metric = candidate.Metric with { ConditionalClusterCpFdrUpper = .005,
+            BonferroniComparedConfigurations = 1 };
+        var fast = new V9FrozenHoldoutEvaluation(candidate.Snapshot.ContentSha256,
+            metric, 10, 2, "fixture", []);
+        var slow = fast with { P95Milliseconds = 30000 };
+        var unmeasured = fast with { P95Milliseconds = null };
+        var policy = new V9BootstrapPareto2D.SelectionPolicy(.8, .01, 100, 20);
+        var scientific = V9NestedCalibrationCli.SelectScientificWinner([fast], policy, 2);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(scientific, Is.SameAs(fast));
+            Assert.That(V9NestedCalibrationCli.SelectScientificWinner([slow], policy, 2)?.SnapshotSha256,
+                Is.EqualTo(scientific?.SnapshotSha256));
+            Assert.That(V9NestedCalibrationCli.SelectScientificWinner([unmeasured], policy, 2)?.SnapshotSha256,
+                Is.EqualTo(scientific?.SnapshotSha256));
+            Assert.That(V9NestedCalibrationCli.SelectScientificWinner([fast], policy with
+                { MaximumP95Milliseconds = 1 }, 2)?.SnapshotSha256,
+                Is.EqualTo(scientific?.SnapshotSha256));
+            Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([fast], policy, 2), Is.SameAs(fast));
+            Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([slow], policy, 2), Is.Null);
+            Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([unmeasured], policy, 2), Is.Null);
+        }));
+    }
+
+    [Test]
     public async Task Streaming_selection_envelope_is_byte_and_SHA_equivalent_to_original_serializer()
     {
         var directory = Path.Combine(Path.GetTempPath(), "jornada-v9-selection-stream-" + Guid.NewGuid().ToString("N"));
@@ -66,6 +94,19 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public void Lambda_zero_U_mix_is_numeric_witness_and_not_an_independent_candidate()
+    {
+        Assert.That(V9NestedCalibrationCoordinator.IsUZeroWitness(
+            "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE", 0m), Is.True);
+        Assert.That(V9NestedCalibrationCoordinator.IsUZeroWitness(
+            "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE", .25m), Is.False);
+        Assert.That(V9NestedCalibrationCoordinator.IsUZeroWitness(
+            "CLASSWISE_SUPPORT_BACKOFF", null), Is.False);
+        Assert.That(V9NestedCalibrationCoordinator.IsUZeroWitness(
+            "DEFAULT", 0m), Is.False);
+    }
+
+    [Test]
     public void Calibrador_reserves_real_10KiB_and_rewrites_only_the_last_error_in_place()
     {
         var output = Path.Combine(Path.GetTempPath(), "v9-calibrador-log-" + Guid.NewGuid().ToString("N"));
@@ -77,11 +118,13 @@ public sealed class V9NestedCalibrationTests
             Assert.That(new FileInfo(file).Length, Is.EqualTo(10 * 1024));
             V9NestedCalibrationCli.TryWriteLastError(reservation,
                 new InvalidDataException("FIRST_ERROR_SENTINEL"));
-            Assert.That(File.ReadAllText(file), Does.Contain("FIRST_ERROR_SENTINEL"));
+            Assert.That(File.ReadAllText(file), Does.Contain("V9_CALIBRATOR_FAILED:INVALID_DATA"));
+            Assert.That(File.ReadAllText(file), Does.Not.Contain("FIRST_ERROR_SENTINEL"));
             var latest = new IOException("No space left on device");
             Assert.DoesNotThrow((Action)(() => V9NestedCalibrationCli.TryWriteLastError(reservation, latest)));
             var content = File.ReadAllText(file);
-            Assert.That(content, Does.Contain(latest.ToString()));
+            Assert.That(content, Does.Contain("V9_CALIBRATOR_FAILED:IO_ERROR"));
+            Assert.That(content, Does.Not.Contain(latest.Message));
             Assert.That(content, Does.Not.Contain("FIRST_ERROR_SENTINEL"));
             Assert.That(new FileInfo(file).Length, Is.EqualTo(V9CalibradorLastErrorLog.ReservedBytes));
             Assert.That(Directory.GetFiles(output, "*.log"), Has.Length.EqualTo(1));
@@ -90,7 +133,7 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
-    public void Calibrador_error_larger_than_reserve_truncates_at_valid_UTF8_boundary()
+    public void Calibrador_error_larger_than_reserve_never_writes_sensitive_content()
     {
         var output = Path.Combine(Path.GetTempPath(), "v9-calibrador-truncate-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(output);
@@ -103,10 +146,38 @@ public sealed class V9NestedCalibrationTests
             var bytes = File.ReadAllBytes(file);
             Assert.That(bytes, Has.Length.EqualTo(V9CalibradorLastErrorLog.ReservedBytes));
             var text = new System.Text.UTF8Encoding(false, true).GetString(bytes);
-            Assert.That(text, Does.Contain("EXCECAO TRUNCADA"));
-            Assert.That(text, Does.Contain("IOException"));
+            Assert.That(text, Does.Contain("V9_CALIBRATOR_FAILED:IO_ERROR"));
+            Assert.That(text, Does.Not.Contain("No space left on device"));
+            Assert.That(text, Does.Not.Contain("é"));
         }
         finally { Directory.Delete(output, true); }
+    }
+
+    [Test]
+    [NonParallelizable]
+    public void Calibrador_never_emits_secret_or_personal_id_in_public_stderr_or_reserved_file()
+    {
+        const string canary = "SENHA_CANARY_2026_CPF_11122233344";
+        var root = Path.Combine(Path.GetTempPath(), "v9-calibrador-safe-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var originalStderr = Console.Error;
+        using var stderr = new StringWriter();
+        try
+        {
+            using var log = V9CalibradorLastErrorLog.Reserve(root);
+            Console.SetError(stderr);
+            V9NestedCalibrationCli.TryWriteLastError(log, new IOException(canary));
+            Assert.That(stderr.ToString(), Does.Contain("V9_CALIBRATOR_FAILED:IO_ERROR"));
+            Assert.That(stderr.ToString(), Does.Not.Contain(canary));
+            var content = File.ReadAllText(Path.Combine(root, V9CalibradorLastErrorLog.FileName));
+            Assert.That(content, Does.Not.Contain(canary));
+            Assert.That(content, Does.Contain("V9_CALIBRATOR_FAILED:IO_ERROR"));
+        }
+        finally
+        {
+            Console.SetError(originalStderr);
+            Directory.Delete(root, true);
+        }
     }
 
     [Test]

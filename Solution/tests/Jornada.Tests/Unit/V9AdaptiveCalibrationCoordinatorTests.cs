@@ -190,17 +190,40 @@ public sealed class V9AdaptiveCalibrationCoordinatorTests
     }
 
     [Test]
-    public void CPU_auto_is_default_and_manual_one_remains_valid_for_single_SQL_connection()
+    public void Legacy_default_is_serial_and_CPU_auto_requires_explicit_zero()
     {
         var plan = Plan();
-        Assert.That(plan.MaximumParallelRuleSets, Is.Zero);
+        Assert.That(plan.MaximumParallelRuleSets, Is.EqualTo(1));
         Assert.DoesNotThrow((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(plan)));
         Assert.DoesNotThrow((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(
-            plan with { MaximumParallelRuleSets = 1 })));
+            plan with { MaximumParallelRuleSets = 0 })));
         Assert.DoesNotThrow((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(
             plan with { MaximumParallelRuleSets = 8 })));
         Assert.That((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(
             plan with { MaximumParallelRuleSets = -1 })), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Historical_JSON_omitting_parallelism_remains_serial_and_explicit_zero_opted_in()
+    {
+        var json = System.Text.Json.Nodes.JsonNode.Parse(
+            System.Text.Json.JsonSerializer.Serialize(Plan()))!.AsObject();
+        Assert.That(json.Remove(nameof(V9AdaptiveCalibrationPlan.MaximumParallelRuleSets)), Is.True);
+        var historical = System.Text.Json.JsonSerializer.Deserialize<V9AdaptiveCalibrationPlan>(
+            json.ToJsonString(), GeneratedPlanJsonOptions)!;
+        Assert.That(historical.MaximumParallelRuleSets, Is.EqualTo(1),
+            "Original V2 JSON omits the field; the original runtime default was 1.");
+
+        json[nameof(V9AdaptiveCalibrationPlan.MaximumParallelRuleSets)] = 0;
+        var automatic = System.Text.Json.JsonSerializer.Deserialize<V9AdaptiveCalibrationPlan>(
+            json.ToJsonString(), GeneratedPlanJsonOptions)!;
+        Assert.That(automatic.MaximumParallelRuleSets, Is.Zero);
+        Assert.DoesNotThrow((Action)(() => V9AdaptiveCalibrationCoordinator.ValidatePlan(automatic)));
+
+        json[nameof(V9AdaptiveCalibrationPlan.MaximumParallelRuleSets)] = 1;
+        var explicitSerial = System.Text.Json.JsonSerializer.Deserialize<V9AdaptiveCalibrationPlan>(
+            json.ToJsonString(), GeneratedPlanJsonOptions)!;
+        Assert.That(explicitSerial.MaximumParallelRuleSets, Is.EqualTo(historical.MaximumParallelRuleSets));
     }
 
     [Test]

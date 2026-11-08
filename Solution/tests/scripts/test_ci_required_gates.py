@@ -301,10 +301,15 @@ class TestMasterPushPhysicalWorkflowPolicy(__import__("unittest").TestCase):
 
     def test_30k_push_diff_and_job_cannot_be_skipped_silently(self):
         data = (ROOT / ".github/workflows/v9-physical-seed42-probe.yml").read_text(encoding="utf-8")
-        self.assertIn("github.event.before", data)
-        self.assertIn("BASE_SHA:", data)
+        # Never trust only the immediately previous push: earlier failed
+        # physical changes remain uncovered until a real SQL 30k succeeds.
+        self.assertNotIn("github.event.before", data)
+        self.assertIn("v9-physical-coverage-baseline.py", data)
+        self.assertIn("--no-validated-baseline", data)
+        self.assertIn("git merge-base --is-ancestor", data)
+        self.assertIn("BASE_SHA=", data)
         self.assertIn("CHECKOUT_SHA: ${{ github.sha }}", data)
-        self.assertIn("github.event_name == 'push' ||", data)
+        self.assertIn("&& github.event_name == 'push'", data)
         self.assertIn("--mode auto_30k", data)
         self.assertIn('"$PHYSICAL_RESULT" == "success"', data)
         self.assertIn("v9-tf-ref-provenance-gate.py", data)

@@ -65,6 +65,25 @@ public sealed class V9ParetoSourceSelectionTests
         Assert.That(result.Pareto.Table[0].ExclusionReasons, Does.Contain("P95_FISICO_NAO_ATESTADO"));
     }
 
+    [Test]
+    public void P95_changes_operational_gate_but_never_exploratory_scientific_frontier_or_winner()
+    {
+        var row = Row();
+        var observed = Evidence(row, [row]);
+        var quick = Evaluate([row], [observed]).Pareto;
+        var slow = Evaluate([row], [observed with
+            { PhysicalEndToEndP95Milliseconds = Policy.MaximumP95Milliseconds + 1 }]).Pareto;
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(quick.ExploratorySuggestedOptionId, Is.Not.Null);
+            Assert.That(slow.ExploratorySuggestedOptionId, Is.EqualTo(quick.ExploratorySuggestedOptionId));
+            Assert.That(slow.ExploratoryFrontierOptionIds, Is.EquivalentTo(quick.ExploratoryFrontierOptionIds ?? Array.Empty<string>()));
+            Assert.That(quick.InitialSuggestedOptionId, Is.Not.Null);
+            Assert.That(slow.InitialSuggestedOptionId, Is.Null);
+            Assert.That(slow.Table[0].ExclusionReasons, Does.Contain("P95_ACIMA_DO_LIMITE"));
+        }));
+    }
+
     [TestCase("RAW_SQL_OBSERVATION_CANDIDATES", 1)]
     [TestCase("BLIND_EXACT_PERSON_MOTHER_DOB_GROUPING", 1)]
     [TestCase("BLIND_FS_COMPLETE_LINK_CANDIDATES", 0)]

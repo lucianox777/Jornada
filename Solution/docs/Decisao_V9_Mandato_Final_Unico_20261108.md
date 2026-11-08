@@ -1,4 +1,4 @@
-# GOV-OPS-V9-FINAL-20261108 — Mandato final único e reação à master vermelha
+> **GOV-V9-FINAL-20261108-B — PRECEDÊNCIA SUPERVENIENTE:** o [mandato de integração final e teste geral de 08/11/2026](Decisao_V9_Mandato_Integracao_Final_Teste_Geral_20261108.md) substitui TODOS os mandatos operacionais anteriores (inclusive GOV-OPS-V9-01/02 e o mandato preliminar de 04h05). Este documento preserva registros de estado do momento da sua redação; os SHAs/erros históricos não descrevem a master atual. Consulte o PAINEL V9 da PR #1318 (comentário 6725665397) antes de agir. A neutralização de binários ainda AGUARDA PO; não declarar V9 concluída.\n\n# GOV-OPS-V9-FINAL-20261108 — Mandato final único e reação à master vermelha
 
 **Decisão do PO:** 08/11/2026, 04h05 (America/Sao_Paulo). **Precedência:** substitui mandatos, checkpoints e propostas operacionais anteriores, preservando acervo histórico e a política GOV-DOC-01. **Status:** execução parcial; não é conclusão das frentes nem certificação estatística.
 

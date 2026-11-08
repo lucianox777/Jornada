@@ -60,30 +60,29 @@ public static class V9NestedCalibrationCli
     };
 
     /// <summary>
-    /// One error per failed run: the last C# exception, including the stack trace.
-    /// Diagnostic I/O must never replace the original failure (notably disk-full).
+    /// One safe error code per failed run; exception content is private and
+    /// must not reach stderr or artifacts, even under disk-full conditions.
+    /// Diagnostic I/O must never replace the original failure.
     /// </summary>
     public static void TryWriteLastError(V9CalibradorLastErrorLog? reservedLog, Exception exception)
     {
         ArgumentNullException.ThrowIfNull(exception);
         // stderr and the preallocated log are independent channels: a full
         // stderr sink must NOT prevent writing into already reserved blocks.
-        try { Console.Error.WriteLine(exception.ToString()); }
+        try { Console.Error.WriteLine(V9CalibradorLastErrorLog.SafeErrorCode(exception)); }
         catch (Exception) { /* stderr may itself be on the full volume. */ }
         if (reservedLog is null)
         {
-            try { Console.Error.WriteLine("calibrador.log indisponível: reserva de 10 KiB não foi criada."); }
-            catch (Exception) { /* preserve the original error */ }
+            // The primary safe code is already public. No free-text log notice.
             return;
         }
         try { reservedLog.WriteLast(exception); }
-        catch (Exception loggingError)
+        catch (Exception)
         {
             // Never replace the original error/exit status with a log I/O failure.
             try
             {
-                Console.Error.WriteLine("Não foi possível atualizar calibrador.log: "
-                    + loggingError.GetType().Name + ": " + loggingError.Message);
+                Console.Error.WriteLine("V9_CALIBRATOR_LOG:WRITE_FAILED");
             }
             catch (Exception) { /* Even stderr may be unavailable on a failed process. */ }
         }
@@ -130,15 +129,14 @@ public static class V9NestedCalibrationCli
                             new { exceptionType = exception.GetType().Name,
                                 completed = false, testUsed = false, activated = false });
                     }
-                    catch (Exception receiptError)
+                    catch (Exception)
                     {
                         // A redirected stderr can also be on the full disk.
                         // Never allow that secondary I/O failure to replace
                         // the original error caught by this block.
                         try
                         {
-                            Console.Error.WriteLine("Não foi possível gravar interrupted.json: "
-                                + receiptError.GetType().Name + ": " + receiptError.Message);
+                            Console.Error.WriteLine("V9_CALIBRATOR_RECEIPT:WRITE_FAILED");
                         }
                         catch (Exception) { /* preserve original exception */ }
                     }
@@ -165,14 +163,13 @@ public static class V9NestedCalibrationCli
                     if (completed)
                         File.Delete(Path.Combine(output!, V9CalibradorLastErrorLog.FileName));
                 }
-                catch (Exception cleanupError)
+                catch (Exception)
                 {
                     // The cleanup warning itself must not mask the original
                     // exception if stderr is redirected onto a full volume.
                     try
                     {
-                        Console.Error.WriteLine("Falha ao fechar/remover reserva de log: "
-                            + cleanupError.GetType().Name + ": " + cleanupError.Message);
+                        Console.Error.WriteLine("V9_CALIBRATOR_LOG:CLEANUP_FAILED");
                     }
                     catch (Exception) { /* preserve original exception */ }
                 }
@@ -238,6 +235,7 @@ public static class V9NestedCalibrationCli
             File.AppendAllText(Path.Combine(output, "memory-progress.jsonl"), memory + Environment.NewLine);
             Console.Error.WriteLine(memory);
         }, frozenTfReferenceForRuleset: referenceFactory);
+        var calibrationFinishedMs = elapsed.ElapsedMilliseconds;
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
             .DistinctBy(x => x.ContentSha256))
             await V9FittedSnapshotArtifact.WriteNewAsync(Path.Combine(output, fit.ContentSha256 + ".fitted.json"), fit);
@@ -268,6 +266,30 @@ public static class V9NestedCalibrationCli
         await WriteNewAsync(Path.Combine(output, "gain-by-batch.json"), result.Progress);
         if (plan.MuEstimationMethods is not null)
             await WriteMuStatisticalAnalysisAsync(output, plan, result);
+        process.Refresh();
+        var searchExportFinishedMs = elapsed.ElapsedMilliseconds;
+        await WriteNewAsync(Path.Combine(output, "runtime-diagnostics.json"), new
+        {
+            schema = "V9_LOCAL_RUNTIME_DIAGNOSTICS_V1",
+            operation = "TRAIN_SELECTION",
+            totalMilliseconds = searchExportFinishedMs,
+            phasesMilliseconds = new
+            {
+                physicalCalibration = calibrationFinishedMs,
+                evidenceExport = searchExportFinishedMs - calibrationFinishedMs
+            },
+            visibleLogicalProcessors = Environment.ProcessorCount,
+            configuredParallelism = plan.Calibration.MaximumParallelRuleSets,
+            effectiveParallelism = V9ParallelWork.ResolveMaximumParallelism(plan.Calibration.MaximumParallelRuleSets),
+            peakWorkingSetBytes = process.PeakWorkingSet64,
+            operatingSystem = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+            dotNetVersion = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+            machineOrRunner = Environment.MachineName,
+            temporalComparability = "TEMPO INFORMATIVO: sem comparabilidade entre máquinas, SOs ou runners e sujeito à carga concorrente no mesmo host.",
+            distribution = "LOCAL: uma máquina; tarefas C#/.NET escalonadas pelo SO.",
+            scientificSelectionUsesElapsedTime = false,
+            testUsed = false, activated = false
+        });
         Console.WriteLine(JsonSerializer.Serialize(new { envelopeSha256 = envelopeSha, evaluations = result.Evaluations.Count,
             finalists = result.FinalistSnapshotShas.Count, result.StopReason, externalValidationUsed = false, testUsed = false, activated = false }));
     }
@@ -621,6 +643,8 @@ public static class V9NestedCalibrationCli
     private static async Task ValidateAsync(string selectionFile, string source, string output,
         V9NestedCalibrationPlan plan, string connectionString)
     {
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        using var process = System.Diagnostics.Process.GetCurrentProcess();
         var bytes = await File.ReadAllBytesAsync(selectionFile);
         var selectionSha = Sha(bytes);
         if (Path.GetFileName(selectionFile) != selectionSha + ".selection.json")
@@ -664,19 +688,70 @@ public static class V9NestedCalibrationCli
             return await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync(connection, validation,
                 snapshot, plan.Calibration.Execution, plan.Calibration.MaximumAcceptedPerBaseIdentity, ids.Length, ct);
         }, CancellationToken.None);
+        var physicalEvaluationFinishedMs = elapsed.ElapsedMilliseconds;
+        // Model choice is scientific and independent of variable runtime P95.
+        // Keep the stricter P95 check separately for operational eligibility.
+        var scientific = SelectScientificWinner(measured, plan.Calibration.SelectionPolicy,
+            plan.Calibration.Budget.MaximumBlockingFalseDegreeP99);
         var best = SelectConditionalWinner(measured, plan.Calibration.SelectionPolicy,
             plan.Calibration.Budget.MaximumBlockingFalseDegreeP99);
         await WriteNewAsync(Path.Combine(output, "finalist-validation.json"), new { selectionEnvelopeSha256 = selectionSha,
             fresh, comparedConfigurations = ids.Length, measured,
+            scientificProposedSnapshotSha256 = scientific?.SnapshotSha256,
             bestConditionalSnapshotSha256 = best?.SnapshotSha256, selectedApprovedSnapshotSha256 = (string?)null,
             status = best is null ? "NO_FINALIST_PASSES_DECLARED_CONDITIONAL_GATES" : "CONDITIONAL_ONLY_IID_NOT_INDEPENDENTLY_VALIDATED",
             identityClusterIidIndependentlyValidated = false, testUsed = false, refitted = false, certified = false, activated = false });
-        Console.WriteLine(JsonSerializer.Serialize(new { finalists = ids.Length, conditionalWinner = best?.SnapshotSha256,
+        process.Refresh();
+        var validationExportFinishedMs = elapsed.ElapsedMilliseconds;
+        await WriteNewAsync(Path.Combine(output, "runtime-diagnostics.json"), new
+        {
+            schema = "V9_LOCAL_RUNTIME_DIAGNOSTICS_V1",
+            operation = "EXTERNAL_VALIDATION",
+            totalMilliseconds = validationExportFinishedMs,
+            phasesMilliseconds = new
+            {
+                physicalEvaluation = physicalEvaluationFinishedMs,
+                evidenceExport = validationExportFinishedMs - physicalEvaluationFinishedMs
+            },
+            visibleLogicalProcessors = Environment.ProcessorCount,
+            configuredParallelism = plan.Calibration.MaximumParallelRuleSets,
+            effectiveParallelism = V9ParallelWork.ResolveMaximumParallelism(plan.Calibration.MaximumParallelRuleSets),
+            peakWorkingSetBytes = process.PeakWorkingSet64,
+            operatingSystem = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+            dotNetVersion = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
+            machineOrRunner = Environment.MachineName,
+            temporalComparability = "TEMPO INFORMATIVO: sem comparabilidade entre máquinas, SOs ou runners e sujeito à carga concorrente no mesmo host.",
+            distribution = "LOCAL: uma máquina; tarefas C#/.NET escalonadas pelo SO.",
+            scientificSelectionUsesElapsedTime = false,
+            testUsed = false, activated = false
+        });
+        Console.WriteLine(JsonSerializer.Serialize(new { finalists = ids.Length, scientificProposal = scientific?.SnapshotSha256,
+            conditionalWinner = best?.SnapshotSha256,
             refitted = false, certified = false, testUsed = false, activated = false }));
     }
 
-    public static V9FrozenHoldoutEvaluation? SelectConditionalWinner(IReadOnlyList<V9FrozenHoldoutEvaluation> measured,
-        V9BootstrapPareto2D.SelectionPolicy policy, double maximumFalseDegreeP99)
+    /// <summary>
+    /// Deterministic SCIENTIFIC proposal independent of execution time and
+    /// operational P95. The return value is not an activation authorization.
+    /// </summary>
+    public static V9FrozenHoldoutEvaluation? SelectScientificWinner(
+        IReadOnlyList<V9FrozenHoldoutEvaluation> measured,
+        V9BootstrapPareto2D.SelectionPolicy policy, double maximumFalseDegreeP99) =>
+        SelectWinner(measured, policy, maximumFalseDegreeP99, requireOperationalLatency: false);
+
+    /// <summary>
+    /// A separate conditional OPERABILITY gate; P95 can prohibit deployment,
+    /// but must never influence SelectScientificWinner.
+    /// </summary>
+    public static V9FrozenHoldoutEvaluation? SelectConditionalWinner(
+        IReadOnlyList<V9FrozenHoldoutEvaluation> measured,
+        V9BootstrapPareto2D.SelectionPolicy policy, double maximumFalseDegreeP99) =>
+        SelectWinner(measured, policy, maximumFalseDegreeP99, requireOperationalLatency: true);
+
+    private static V9FrozenHoldoutEvaluation? SelectWinner(
+        IReadOnlyList<V9FrozenHoldoutEvaluation> measured,
+        V9BootstrapPareto2D.SelectionPolicy policy, double maximumFalseDegreeP99,
+        bool requireOperationalLatency)
     {
         ArgumentNullException.ThrowIfNull(measured);
         ArgumentNullException.ThrowIfNull(policy);
@@ -688,7 +763,7 @@ public static class V9NestedCalibrationCli
             && x.Metric.ConditionalClusterCpFdrUpper <= policy.MaximumAcceptedFdrUpper
             && x.Metric.GlobalSourceRecall >= policy.MinimumGlobalRecall
             && x.Metric.PreBlockingBaseIdentities >= policy.MinimumIndependentIdentityGroups
-            && x.P95Milliseconds.HasValue && x.P95Milliseconds <= policy.MaximumP95Milliseconds
+            && (!requireOperationalLatency || (x.P95Milliseconds.HasValue && x.P95Milliseconds <= policy.MaximumP95Milliseconds))
             && x.FalseDegreeP99 <= maximumFalseDegreeP99)
             .OrderByDescending(x => x.Metric.GlobalSourceRecall).ThenBy(x => x.Metric.ConditionalClusterCpFdrUpper)
             .ThenBy(x => x.SnapshotSha256, StringComparer.Ordinal).FirstOrDefault();

@@ -3232,3 +3232,24 @@ A linha 28 da matriz técnica da seção 21 passa a exigir **validação do bloc
 **Terceiro limiar: hipótese futura, não decisão.** É possível investigar a separação entre rejeição clássica de pares e autorização de criação Gold, mas **não** adicionar um terceiro limiar por analogia ao número de objetivos. Exigir benefício incremental robusto e verificável frente ao contrato de dois limiares, teste físico comparável e decisão explícita do PO; não bloquear o fechamento V9. Primeiro reaproveitar snapshots e evidências existentes.
 
 **Governança e integração.** Operador solicita calibração; calibrador descobre e recomenda; governança autoriza ativação (DT-15) e eventual incorporação de **novos atributos**. Bootstrap operacional apenas carrega snapshot aprovado; lower permanece OFF sem autorização. A automação pode implementar, testar, resolver conflitos e integrar código e documentação que concretizem **decisões anteriores**, mas não inventar decisões. **Auditar o código antes de reimplementar**: preservar o que já está conforme e corrigir somente lacunas comprovadas. Referências de acompanhamento: issues #1089 e #1228.
+
+
+## 27. Decisões supervenientes e matriz de entrega — mandato final do PO de 08/11/2026
+
+Este capítulo tem precedência operacional sobre comandos e gates antigos descritos nesta especificação, sem reescrever fatos históricos. O [registro GOV-V9-FINAL-20261108-B](../Solution/docs/Decisao_V9_Mandato_Integracao_Final_Teste_Geral_20261108.md) consolida as decisões aprovadas e os passos 1–10. A referência atual é o PAINEL V9 na PR #1318, comentário 6725665397. **Situação atual não é homologação:** master `db75f3a3f1a3ad38ec6d4f8f1ae3b2e254694b54`, CI 42512945589 SUCCESS e 30k 42512945477 SUCCESS, mas há binários não aplicados e motor J pendente.
+
+### 27.1 Contrato do calibrador
+
+`plan.json` oficial único e versionado; valores reconhecidos explícitos prevalecem, omissões usam o default imutável do código e chaves desconhecidas são recusadas. V2 com parâmetros históricos exatos e explícitos permanece `WITNESS`/`ANCHOR` no mesmo recorte, executada e excluída da seleção/CP; V3/misturas candidatas paramétricas. Parâmetros neutros `RecallEquivalenceMargin=0`, `TieBreakOrder=[recall,FDR upper,SHA]`, `ClusterUnit=IDENTITY`, `Estimator=LABELED`, `ManualReviewSampleSize=0`, `RecalibrationTriggers=false`; regras de êxito/risco/FDR são REGRAS FIXAS, busca só sobre valores pré-declarados. CP95 condicional não certifica FDR, cujo teto é parâmetro do plano. Garantir paridade de execução física para plano legado e hash canônico de opção sem parâmetros de execução.
+
+### 27.2 Comparabilidade, seleção e LOCK
+
+Relatório por opção com origem, hash, V2 no mesmo recorte, TP/FP/FN, conflitos, recall, FDR observado/CP95, P95, telemetria e `ClusterIidIndependentlyValidated`, seed, corpus, regras/prior e SHA. Se incompatível, **NÃO COMPARÁVEL**; senão mostrar **IDÊNTICO** pelo hash ou **DIFERENTE** com deltas e opção escolhida a partir de bundle da última master verde, sem gate de CI. P95 `MaximumP95Milliseconds=60000` é elegibilidade, não timeout; não usar `LatencyAffectsSelection`. LOCK pré-registrado com SHA em toda campanha científica (fora deste mandato); vedados margem 0 e 19 passes **na seleção**. Paralelismo local `MaximumParallelRuleSets=1/0/N` muda tempo, não resultado.
+
+### 27.3 Operação, segurança, governança
+
+PR apenas checks rápidos; após merge, no `push` da master, CI completa e 30k quando impactado. Sem execução manual do probe, sem segredo no argv, sem exceção integral nem dado real em log/artifact. Repositório público e copyright Luciano Vianna ORCID 0009-0000-5591-3577 conforme LICENSE. Neutralização institucional por DESENVOLVEDOR, exceto baseline SQL de hash fixo e PDF sem fonte editável, nominados; pendência manual dos 14 binários da #1332 é real, não aprovada como concluída. Em dados reais, FDR estimado pelo posterior mais amostra de revisão manual, com isolamento total dos dados do repositório.
+
+### 27.4 Teste geral obrigatório
+
+O teste geral a–m da seção 5 do mandato é posterior a TODOS os merges, com zero PRs abertas; inclui CI, instalador/cluster, e2e console/private SQL, migrações v3.71 e inventário, linkage independente, 30k, campanhas técnicas, comparação `f1bd50fd`×master final, compatibilidade histórica, auditoria de segurança/probe/licença/documentos. Um item sem cobertura deve constar como NÃO COBERTO; falha exige correção por PR mínima e repetição integral. Campanhas científicas/TEST/Gold/DT-15/HML/ativação ficam fora.

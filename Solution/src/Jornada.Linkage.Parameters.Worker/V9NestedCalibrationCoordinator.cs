@@ -49,11 +49,16 @@ public sealed record V9NestedCalibrationSearchResult(string Version, string Plan
 
 public sealed record V9DuplicatePolicySelection(string Policy, int EligibleHypotheses,
     IReadOnlyList<string> FrontierSnapshotShas, IReadOnlyList<string> FinalistSnapshotShas,
-    bool IndependentlyCertified = false);
+    bool IndependentlyCertified = false,
+    int PhysicalHypotheses = 0, int DescriptiveMultiplicityHypotheses = 0);
 
 /// <summary>Selection stage of the single C# calibrator; external holdouts are absent from this API.</summary>
 public static class V9NestedCalibrationCoordinator
 {
+    /// <summary>Diagnostic lambda=0 U-mix is not an independent selection option.</summary>
+    public static bool IsUZeroWitness(string? method, decimal? weight) =>
+        method == "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE" && weight == 0m;
+
     public const string Version = "V9_INTERNAL_TRAIN_BATCH_PARETO_FINALISTS_V1";
     // All estimator variants of the same fixed physical SQL frame reuse one
     // materialization and one frozen TRAIN classification. Distinct option
@@ -258,6 +263,7 @@ public static class V9NestedCalibrationCoordinator
                 x.Candidate is not null
                 && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
                 && template.Option.EligibleForSelection
+                && !IsUZeroWitness(x.MuEstimationMethod, x.MuPolicy?.UBackoffJointMixtureWeight)
                 // Master #1298: keep zero diagnostic margins out of the
                 // TRAIN Pareto frontier, refinements, and finalists.
                 && x.Candidate.Metric.ConflictMargin > 0m).Select(x => x.Candidate!));
@@ -315,32 +321,23 @@ public static class V9NestedCalibrationCoordinator
             if (requests.Length == 0) { stop = "DECLARED_NEIGHBOURHOOD_EXHAUSTED_NOT_GLOBAL_OPTIMALITY"; break; }
         }
         var finalists = V9TrainingParetoSelection.Finalists(frontier, calibration.RiskCeilings!, calibration.SelectionPolicy.MaximumAcceptedFdrUpper);
-        // Reuse the already computed COUNT_ALL frontier; only COUNT_UNIQUE needs
-        // an additional Pareto pass. Never repeat physical SQL for selection policy.
-        var allEligibleCount = evaluations.Count(x => x.Candidate is not null
+        // Both policies share the same selection frontier: lambda=0 is a
+        // numerical witness, never a separate finalist or refinement source.
+        // COUNT_ALL versus COUNT_UNIQUE only changes the *descriptive*
+        // hypothesis count; it is not an independent FDR correction.
+        var measuredForAccounting = evaluations.Where(x => x.Candidate is not null
             && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
-            && template.Option.EligibleForSelection && x.Candidate.Metric.ConflictMargin > 0m);
+            && template.Option.EligibleForSelection && x.Candidate.Metric.ConflictMargin > 0m).ToArray();
+        var selectable = measuredForAccounting.Where(x =>
+            !IsUZeroWitness(x.MuEstimationMethod, x.MuPolicy?.UBackoffJointMixtureWeight)).ToArray();
         var duplicateSelections = (plan.SelectionDuplicatePolicies ?? new[] { "COUNT_ALL" })
-            .Select(policy =>
-            {
-                if (policy == "COUNT_ALL")
-                    return new V9DuplicatePolicySelection(policy, allEligibleCount,
-                        frontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
-                        finalists.Select(x => x.Snapshot.ContentSha256).ToArray());
-                var eligible = evaluations.Where(x => x.Candidate is not null
-                    && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
-                    && template.Option.EligibleForSelection && x.Candidate.Metric.ConflictMargin > 0m)
-                    .Where(x => policy != "COUNT_UNIQUE" || !(x.MuEstimationMethod ==
-                        "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE" &&
-                        x.MuPolicy?.UBackoffJointMixtureWeight == 0m))
-                    .ToArray();
-                var policyFrontier = V9TrainingParetoSelection.Frontier(eligible.Select(x => x.Candidate!));
-                var policyFinalists = V9TrainingParetoSelection.Finalists(policyFrontier,
-                    calibration.RiskCeilings!, calibration.SelectionPolicy.MaximumAcceptedFdrUpper);
-                return new V9DuplicatePolicySelection(policy, eligible.Length,
-                    policyFrontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
-                    policyFinalists.Select(x => x.Snapshot.ContentSha256).ToArray());
-            }).ToArray();
+            .Select(policy => new V9DuplicatePolicySelection(policy, selectable.Length,
+                frontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
+                finalists.Select(x => x.Snapshot.ContentSha256).ToArray(),
+                PhysicalHypotheses: measuredForAccounting.Length,
+                DescriptiveMultiplicityHypotheses:
+                    policy == "COUNT_ALL" ? measuredForAccounting.Length : selectable.Length))
+            .ToArray();
         return new(Version, declaredPlanSha, split.Manifest,
             evaluations.AsReadOnly(), progress.AsReadOnly(), frontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
             finalists.Select(x => x.Snapshot.ContentSha256).ToArray(), stop,

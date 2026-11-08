@@ -3,7 +3,7 @@
 
 The top-level v1.1 RF/RNF/traceability Markdown files become self-contained
 institutional delivery sources. Their original additive v1.1 sources are kept
-under Documentos/Requisitos/Historico for auditability, so PRODAM/SEI readers
+under Documentos/Requisitos/Historico for auditability, so DESENVOLVEDOR/SEI readers
 do not need to combine two documents per subject.
 """
 from __future__ import annotations
@@ -188,7 +188,7 @@ def build_index(req: Path) -> None:
 
 ## 1. Regra de leitura institucional
 
-Para tramitação, revisão pela PRODAM e juntada ao SEI, a leitura corrente é feita por **um único documento por número**, sempre na versão 1.1:
+Para tramitação, revisão pelo DESENVOLVEDOR e juntada ao SEI, a leitura corrente é feita por **um único documento por número**, sempre na versão 1.1:
 
 1. `01_Requisitos_de_Negocio_Jornada_v1.1`
 2. `02_Requisitos_Funcionais_Jornada_v1.1`
