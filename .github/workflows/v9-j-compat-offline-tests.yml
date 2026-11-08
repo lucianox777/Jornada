@@ -5,6 +5,10 @@ on:
       - feat/v9-multiparameter-v2-permanent-witness-20261107
     paths:
       - '.github/workflows/v9-j-compat-offline-tests.yml'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9OptionalCompatibilityParameters.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/V9OptionalCompatibilityParametersTests.cs'
 permissions:
   contents: read
 jobs:
