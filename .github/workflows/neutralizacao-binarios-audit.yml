@@ -1,0 +1,54 @@
+name: jornada-neutralizacao-binarios-audit
+on:
+  pull_request:
+    paths:
+      - 'Solution/scripts/neutralize-developer-binaries.py'
+      - '.github/workflows/neutralizacao-binarios-audit.yml'
+      - 'Documentos/**/*.docx'
+      - 'Documentos/**/*.pdf'
+      - 'Documentos/**/*.pptx'
+      - 'Documentos/**/*.xlsx'
+permissions:
+  contents: read
+jobs:
+  binary-audit-readonly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install pinned PDF extraction library
+        run: python3 -m pip install --disable-pip-version-check pypdf==5.9.0
+      - name: Self-test XML run-splitting, grammar and ZIP integrity
+        run: python3 Solution/scripts/neutralize-developer-binaries.py --self-test
+      - name: Audit 45 committed office files WITHOUT editing PDF or DOCX
+        run: python3 Solution/scripts/neutralize-developer-binaries.py --root . --report audit-binaries.json
+      - name: Aggregate only; no document content
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          path = pathlib.Path('audit-binaries.json')
+          if not path.is_file():
+              print('AUDITORIA FALHOU: nenhum relatório produzido')
+              raise SystemExit(1)
+          r = json.loads(path.read_text(encoding='utf-8'))
+          print('Arquivos binários auditados:', r['total_files'])
+          print('Menções extraídas:', r['verified_mentions_before'])
+          print('Não inspecionados:', len(r['not_audited']))
+          print('DOCX com menção:', sum(x.get('before',0)>0 for x in r['files'] if x['type']=='.docx'))
+          print('PDF com menção:', len(r['pdfs_to_regenerate']))
+          for name in r['pdfs_to_regenerate']:
+              print('PDF_A_REGENERAR:',name)
+          for name in r['not_audited']:
+              print('PENDENTE_EXTRACAO:',name)
+          PY
+      - name: Upload aggregate audit JSON (no raw document contents)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: neutralizacao-binarios-inventario
+          path: audit-binaries.json
+          if-no-files-found: error
+          retention-days: 7
