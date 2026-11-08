@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Static contract for impact-gated automatic 30k and optional manual dispatch."""
+"""Static contract for push-only technical 30k, without manual execution."""
 import unittest
 from pathlib import Path
 
@@ -7,25 +7,25 @@ WORKFLOW = Path(__file__).resolve().parents[3] / ".github" / "workflows" / "v9-p
 
 
 class TfWorkflowProtocolTests(unittest.TestCase):
-    def test_automatic_or_manual_physical_job_uses_single_csharp_calibrator(self):
+    def test_automatic_master_push_only_physical_job_uses_single_csharp_calibrator(self):
         script = WORKFLOW.read_text(encoding="utf-8")
         self.assertIn("--v9-adaptive-study", script)
         self.assertNotIn("--v9-calibrate", script)
-        self.assertIn("inputs.mode == 'execute_30k'", script)
-        # PO 06/11: quick checks on PR; physical 30k only on master push or manual dispatch.
+        self.assertNotIn("workflow_dispatch", script)
+        # PO 07/11: quick checks on PR; physical 30k only on master push.
         self.assertIn("  push:\n    branches:\n      - master", script)
         self.assertNotIn("  pull_request:\n", script)
         self.assertIn("github.event_name == 'push'", script)
-        self.assertIn("github.event_name == 'workflow_dispatch'", script)
+        self.assertNotIn("  workflow_dispatch:", script)
         self.assertIn("ref: ${{ github.sha }}", script)
         self.assertIn("--mode auto_30k", script)
         self.assertIn("SOURCE_REPO", script)
         self.assertIn('test "$SOURCE_REPO" = "$GITHUB_REPOSITORY"', script)
         self.assertIn("--pinned-ibge", script)
-        self.assertIn("pinned_ibge_json:", script)
-        self.assertIn("expected_sha:", script)
+        self.assertNotIn("pinned_ibge_json:", script)
+        self.assertNotIn("inputs.expected_sha", script)
 
-    def test_preflight_is_not_any_route_to_30k(self):
+    def test_master_push_probes_30k_without_manual_preflight(self):
         # Disposable SQL and corpus generation moved into shared scripts that
         # the workflow invokes; audit the workflow together with them.
         scripts = WORKFLOW.parents[2] / "Solution" / "scripts"
@@ -36,9 +36,9 @@ class TfWorkflowProtocolTests(unittest.TestCase):
         self.assertIn('bash scripts/v9-tf-prepare-pin.sh "$PWD/.local/v9-tf-physical" pinned-ibge.json', script)
         self.assertIn('target_seed="${V9_TF_TARGET_SEED:-42}"', script)
         self.assertNotIn("V9_TF_TARGET_SEED", WORKFLOW.read_text(encoding="utf-8"))
-        self.assertIn("inputs.mode == 'preflight'", script)
-        self.assertIn("--mode preflight", script)
-        self.assertIn("--mode execute_30k", script)
+        self.assertNotIn("inputs.mode", script)
+        self.assertNotIn("--mode preflight", script)
+        self.assertNotIn("--mode execute_30k", script)
         self.assertIn("--mode auto_30k", script)
         self.assertIn("--corpus-root", script)
         self.assertIn("v9-tf-ref-provenance-gate.py", script)
@@ -49,13 +49,13 @@ class TfWorkflowProtocolTests(unittest.TestCase):
         self.assertIn("tf-shared-paired-diagnostics.json", script)
         self.assertIn("DEFERRED_NOT_CERTIFIED", script)
         self.assertIn(
-            "if: ${{ always() && !(github.event_name == 'workflow_dispatch' && inputs.mode == 'preflight') }}",
+            "if: ${{ always() }}",
             script,
-        )  # Only preflight skips the physical certification check.
+        )  # Classifier decides mandatory physical execution on every push.
         self.assertIn(
-            "if: needs.impact.outputs.run_physical_30k == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.mode == 'execute_30k'))",
+            "if: needs.impact.outputs.run_physical_30k == 'true' && github.event_name == 'push'",
             script,
-        )  # Impacted master push runs physical 30k; manual mode retained.
+        )  # Impacted master push runs real physical 30k, no manual fallback.
         self.assertIn('"$PHYSICAL_RESULT" == "success"', script)
         self.assertNotIn("python3 Solution/scripts/v9_manual_probe_evidence.py", script)
 
