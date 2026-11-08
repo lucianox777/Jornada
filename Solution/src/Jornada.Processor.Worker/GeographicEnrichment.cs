@@ -40,7 +40,7 @@ internal sealed record ReferenceGeography(
 
 /// <summary>
 /// Fase 1: a territorialização é responsabilidade do Gestor. Não existe chamada online Pessoa-a-Pessoa
-/// para PRODAM no caminho normal da ingestão. ENDERECO_RESIDENCIAL e REFERENCIA_TERRITORIAL devem
+/// para DESENVOLVEDOR no caminho normal da ingestão. ENDERECO_RESIDENCIAL e REFERENCIA_TERRITORIAL devem
 /// trazer situacaoGeografia explícita quando há referência informada; quando RESOLVIDA,
 /// Distrito/Subprefeitura/referência da malha são obrigatórios. O contrato Pessoa corrente também admite
 /// SEM_ENDERECO_FIXO_DECLARADO como estado declarativo próprio, sem inventar endereço/geografia.

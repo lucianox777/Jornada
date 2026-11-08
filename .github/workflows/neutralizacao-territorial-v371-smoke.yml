@@ -1,0 +1,107 @@
+name: territorial-v371-real-sql-smoke
+
+# Only validates the new post-candidate v3.71 schema overlay on a fully
+# disposable SQL Server. Never mutates the sealed 3.70 candidate/manifest.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/neutralizacao-territorial-v371-smoke.yml'
+      - 'Solution/database/Jornada_Fase1_v3.71_fresh.sql'
+      - 'Solution/database/Jornada_Fase1_v3.71_upgrade.sql'
+      - 'Solution/database/postrelease/v3.71/**'
+      - 'Solution/tests/Jornada.Tests/Unit/TerritorialDeveloperOriginExtensionTests.cs'
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/neutralizacao-territorial-v371-smoke.yml'
+      - 'Solution/database/Jornada_Fase1_v3.71_fresh.sql'
+      - 'Solution/database/Jornada_Fase1_v3.71_upgrade.sql'
+      - 'Solution/database/postrelease/v3.71/**'
+      - 'Solution/tests/Jornada.Tests/Unit/TerritorialDeveloperOriginExtensionTests.cs'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: territorial-v371-smoke-${{ github.ref }}-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  sql-upgrade-idempotent:
+    name: Disposable v3.70 + legacy row + v3.71 + replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Record immutable test source and deny sealed manifest edits
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Commit under test: $(git rev-parse HEAD)"
+          test -f Solution/database/migrations/manifest.txt
+          test -f CANDIDATE_INFO.json
+          test -f Solution/database/Jornada_Fase1_v3.70.sql
+          python3 Solution/scripts/schema-manifest.py --help >/dev/null
+      - name: Start masked disposable SQL Server (no external data)
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - name: Apply sealed schema, synthetic DEV seed, v3.71 upgrade and idempotent replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          # SQL Server's service account is unprivileged; create the ephemeral
+          # SQLCMD work directory as container root, then keep execution itself
+          # under the original unprivileged account.
+          docker exec -u 0 "$sql_name" sh -c 'mkdir -p /work/Solution && chmod 755 /work /work/Solution'
+          docker cp Solution/database "$sql_name":/work/Solution/
+          # SQLCMDPASSWORD is read only inside the container, not shown in
+          # command arguments or logs. No real/production SQL is contacted.
+          docker exec "$sql_name" sh -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d master -Q "CREATE DATABASE JornadaHarness"'
+          docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/Jornada_Fase1_v3.70.sql'
+          docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/Jornada_Seed_Dev.sql'
+          # Real referenced row with all FKs, seeded by the official DEV fixture.
+          # Construct the historical name to keep old nominal vendor words
+          # out of new source files.
+          docker exec -i "$sql_name" sh -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness' <<'SQL'
+          SET NOCOUNT ON;
+          DECLARE @old nvarchar(30)=N'ENRIQUECIMENTO_' + N'PRO' + N'DAM';
+          IF NOT EXISTS (SELECT 1 FROM silver.referencia_territorial_observacao WHERE situacao_geografia=N'RESOLVIDA')
+              THROW 54121, 'DEV fixture did not populate a resolved reference row.', 1;
+          UPDATE TOP(1) silver.referencia_territorial_observacao
+             SET origem_geografia=@old WHERE situacao_geografia=N'RESOLVIDA';
+          IF @@ROWCOUNT<>1 THROW 54122, 'Unable to stage existing historical geography value.', 1;
+          GO
+          SQL
+          docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/Jornada_Fase1_v3.71_upgrade.sql'
+          docker exec "$sql_name" sh -c 'cd /work/Solution && SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i database/Jornada_Fase1_v3.71_upgrade.sql'
+          docker exec -i "$sql_name" sh -c 'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness' <<'SQL'
+          SET NOCOUNT ON;
+          DECLARE @old nvarchar(30)=N'ENRIQUECIMENTO_' + N'PRO' + N'DAM';
+          DECLARE @new nvarchar(30)=N'ENRIQUECIMENTO_DESENVOLVEDOR';
+          IF EXISTS(SELECT 1 FROM silver.referencia_territorial_observacao WHERE origem_geografia=@old)
+              THROW 54123, 'Legacy value remained after repeat migration.', 1;
+          IF NOT EXISTS(SELECT 1 FROM silver.referencia_territorial_observacao WHERE origem_geografia=@new)
+              THROW 54124, 'Staged historical row not converted.', 1;
+          IF EXISTS(
+            SELECT 1 FROM sys.check_constraints c
+            WHERE c.parent_object_id=OBJECT_ID(N'silver.referencia_territorial_observacao')
+              AND CHARINDEX(@old,c.definition)>0
+          ) THROW 54125, 'Legacy CHECK remained after migration.', 1;
+          IF (
+            SELECT COUNT(*) FROM sys.check_constraints c
+            WHERE c.parent_object_id=OBJECT_ID(N'silver.referencia_territorial_observacao')
+              AND c.name IN (N'ck_referencia_territorial_geo_coerencia',N'ck_referencia_territorial_geo_origem')
+              AND CHARINDEX(@new,c.definition)>0 AND c.is_not_trusted=0 AND c.is_disabled=0
+          ) <> 2 THROW 54126, 'Two recognized trusted constraints not restored.', 1;
+          PRINT 'PASS: real v3.70 historical row updated in v3.71 with repeatable trusted CHECKs';
+          GO
+          SQL
+      - name: Remove disposable SQL Server
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          docker rm -f "$sql_name" >/dev/null 2>&1 || true

@@ -32,6 +32,34 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public void Scientific_finalist_proposal_ignores_runtime_P95_but_conditional_operability_does_not()
+    {
+        var candidate = Candidate(180, 0, .95m);
+        var metric = candidate.Metric with { ConditionalClusterCpFdrUpper = .005,
+            BonferroniComparedConfigurations = 1 };
+        var fast = new V9FrozenHoldoutEvaluation(candidate.Snapshot.ContentSha256,
+            metric, 10, 2, "fixture", []);
+        var slow = fast with { P95Milliseconds = 30000 };
+        var unmeasured = fast with { P95Milliseconds = null };
+        var policy = new V9BootstrapPareto2D.SelectionPolicy(.8, .01, 100, 20);
+        var scientific = V9NestedCalibrationCli.SelectScientificWinner([fast], policy, 2);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(scientific, Is.SameAs(fast));
+            Assert.That(V9NestedCalibrationCli.SelectScientificWinner([slow], policy, 2)?.SnapshotSha256,
+                Is.EqualTo(scientific?.SnapshotSha256));
+            Assert.That(V9NestedCalibrationCli.SelectScientificWinner([unmeasured], policy, 2)?.SnapshotSha256,
+                Is.EqualTo(scientific?.SnapshotSha256));
+            Assert.That(V9NestedCalibrationCli.SelectScientificWinner([fast], policy with
+                { MaximumP95Milliseconds = 1 }, 2)?.SnapshotSha256,
+                Is.EqualTo(scientific?.SnapshotSha256));
+            Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([fast], policy, 2), Is.SameAs(fast));
+            Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([slow], policy, 2), Is.Null);
+            Assert.That(V9NestedCalibrationCli.SelectConditionalWinner([unmeasured], policy, 2), Is.Null);
+        }));
+    }
+
+    [Test]
     public async Task Streaming_selection_envelope_is_byte_and_SHA_equivalent_to_original_serializer()
     {
         var directory = Path.Combine(Path.GetTempPath(), "jornada-v9-selection-stream-" + Guid.NewGuid().ToString("N"));

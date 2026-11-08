@@ -25,23 +25,19 @@ class V9MaskedSqlProbeTests(unittest.TestCase):
         self.assertNotIn(workflow, policy["allowedPasswordLiteralGlobs"])
         self.assertNotIn(starter, policy["allowedPasswordLiteralGlobs"])
 
-    def test_preflight_and_auto_or_manual_physical_start_container_only_after_sha_gate(self):
+    def test_auto_physical_starts_container_only_after_sha_gate(self):
         w = WORKFLOW.read_text(encoding="utf-8")
-        self.assertEqual(w.count("Start masked disposable SQL Server"), 2)
-        self.assertEqual(w.count("Remove disposable SQL Server"), 2)
-        self.assertEqual(w.count("run: bash Solution/scripts/v9-tf-start-disposable-sql.sh"), 2)
+        self.assertEqual(w.count("Start masked disposable SQL Server"), 1)
+        self.assertEqual(w.count("Remove disposable SQL Server"), 1)
+        self.assertEqual(w.count("run: bash Solution/scripts/v9-tf-start-disposable-sql.sh"), 1)
         self.assertNotIn("MSSQL_SA_PASSWORD: 'Jornada_", w)
         self.assertNotIn("services:", w, "Service provisioning leaks env before add-mask.")
-        self.assertIn("inputs.mode == 'execute_30k'", w)
-        self.assertIn("inputs.mode == 'preflight'", w)
+        self.assertNotIn("workflow_dispatch:", w)
+        self.assertNotIn("inputs.mode", w)
         self.assertIn("--expected-sha", w)
-        self.assertIn("--pinned-json", w)
         self.assertIn("--mode auto_30k", w)
         self.assertIn("v9-tf-ref-provenance-gate.py", w)
-        self.assertIn("pinned_ibge_json:", w)
-        preflight = w.index("Bind preflight to exact SHA")
-        execute = w.index("Prove exact master push or manual SHA before starting SQL")
-        assert w.find("Start masked disposable SQL Server", preflight) > preflight
+        execute = w.index("Prove exact master push SHA before starting SQL")
         assert w.find("Start masked disposable SQL Server", execute) > execute
         self.assertIn("ref: ${{ github.sha }}", w, "Physical checkout must pin the integrated commit.")
         self.assertIn("--mode auto_30k", w, "Master push must prove SHA before Docker.")
