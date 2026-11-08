@@ -77,7 +77,7 @@ public static class V9NestedCalibrationCli
             return;
         }
         try { reservedLog.WriteLast(exception); }
-        catch (Exception loggingError)
+        catch (Exception)
         {
             // Never replace the original error/exit status with a log I/O failure.
             try
@@ -129,7 +129,7 @@ public static class V9NestedCalibrationCli
                             new { exceptionType = exception.GetType().Name,
                                 completed = false, testUsed = false, activated = false });
                     }
-                    catch (Exception receiptError)
+                    catch (Exception)
                     {
                         // A redirected stderr can also be on the full disk.
                         // Never allow that secondary I/O failure to replace
@@ -163,7 +163,7 @@ public static class V9NestedCalibrationCli
                     if (completed)
                         File.Delete(Path.Combine(output!, V9CalibradorLastErrorLog.FileName));
                 }
-                catch (Exception cleanupError)
+                catch (Exception)
                 {
                     // The cleanup warning itself must not mask the original
                     // exception if stderr is redirected onto a full volume.
