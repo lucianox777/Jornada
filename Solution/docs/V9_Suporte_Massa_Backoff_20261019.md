@@ -157,7 +157,7 @@ certifica a segurança da política de criação por limiar inferior e não
 substitui os novos ensaios. Se uma política inferior for autorizada
 para uso operacional, a procedure experimental LocalDB exige
 migration **canônica DT-10**, testes de publicação e aprovação explícita.
-HML, IdP, integração institucional com PRODAM, dados municipais reais e
+HML, IdP, integração institucional com DESENVOLVEDOR, dados municipais reais e
 release são frentes externas a essa evidência; nenhuma foi destravada
 por esses merges.
 

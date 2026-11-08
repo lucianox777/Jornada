@@ -61,7 +61,7 @@ A camada de infraestrutura prova:
 
 Esses testes não substituem os testes de domínio. Eles comprovam que o laboratório é um SQL Server real com comportamento compatível com as premissas da Solution.
 
-## 7. Papel de HML/PRODAM
+## 7. Papel de HML/DESENVOLVEDOR
 
 Testcontainers reduz a dependência de HML para demonstrar que o código de banco funciona. HML continua necessária para:
 

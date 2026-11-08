@@ -35,7 +35,7 @@ Stack principal: **C# 12 / .NET 10**, **Microsoft SQL Server como tecnologia rel
 
 ## Segurança
 
-O estado de segurança da candidata e o processo de reporte estão em [../SECURITY.md](../SECURITY.md). Fora de `Development`, a API permanece `DENY_BY_DEFAULT_PENDING_CORPORATE_IDENTITY` enquanto a integração de identidade corporativa/autenticação PRODAM e a separação ambiental da #378 não forem concluídas. CI verde, fixtures sintéticas e health checks locais não equivalem a autorização de HML/Produção.
+O estado de segurança da candidata e o processo de reporte estão em [../SECURITY.md](../SECURITY.md). Fora de `Development`, a API permanece `DENY_BY_DEFAULT_PENDING_CORPORATE_IDENTITY` enquanto a integração de identidade corporativa/autenticação DESENVOLVEDOR e a separação ambiental da #378 não forem concluídas. CI verde, fixtures sintéticas e health checks locais não equivalem a autorização de HML/Produção.
 
 ## Instalação e desenvolvimento local
 
@@ -63,7 +63,7 @@ A separação entre fato e identidade é invariável: fatos finalísticos válid
 
 A documentação destinada à leitura/entrega deve ser publicada em **DOCX e PDF**. Diagramas de arquitetura devem usar notação **UML**, mas o leitor final não deve depender de PlantUML, Mermaid ou outro software específico.
 
-Os diagramas de classes e de atividade da consolidação são incorporados visualmente aos DOCX/PDF. Fontes técnicas auxiliares eventualmente usadas para gerar figuras não são o formato documental exigido da PRODAM e não substituem os documentos legíveis.
+Os diagramas de classes e de atividade da consolidação são incorporados visualmente aos DOCX/PDF. Fontes técnicas auxiliares eventualmente usadas para gerar figuras não são o formato documental exigido do DESENVOLVEDOR e não substituem os documentos legíveis.
 
 O DER/modelo físico pode ser mantido como visão auxiliar de banco de dados, mas não é classificado como UML e não substitui diagramas UML de classes, atividade, componentes, implantação, estados ou sequência quando esses forem exigidos.
 

@@ -9,7 +9,7 @@ digraph G {
   person [label="Pessoa\nsem fronteira populacional por Gestor/Tipo"];
   control [label="Governança / Controle SQL\ncredenciais + scopes/recursos\nrestrições negativas versionadas de projeção\nauditoria HTTP de fatos observáveis\ncatálogo de contratos com SHA-256 aprovado\nmetadados versionados de vigência/janela de concessão"];
   ops [label="Operations Maintenance\nwatchdog observacional\nsem ação corretiva"];
-  sched [label="Scheduler corporativo PRODAM\nagendamento / recorrência / retry\nfora da Solution"];
+  sched [label="Scheduler corporativo DESENVOLVEDOR\nagendamento / recorrência / retry\nfora da Solution"];
   bi [label="Power BI Desktop homologado\nPBIP/PBIR/TMDL → serving.v_bi_*\nGateway/publicação corporativos"];
   gestores -> api -> bronze -> proc -> person -> bi;
   sched -> proc [style=dashed,label="serviço contínuo / supervisão"];

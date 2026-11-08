@@ -45,7 +45,7 @@ A seta representa rastreabilidade, não dependência de versão. Um RN pode prod
 
 ## 4. Requisitos das partes interessadas
 
-A Fase 1 não cria um quinto baseline separado de *stakeholder requirements*. Necessidades específicas de SGM/SEPE, PRODAM, Gestores, governança e consumidores autorizados permanecem registradas nos RN e especializadas nos RF. Se a complexidade institucional exigir, essa camada pode ser criada futuramente sem renumerar os baselines atuais.
+A Fase 1 não cria um quinto baseline separado de *stakeholder requirements*. Necessidades específicas de SGM/SEPE, DESENVOLVEDOR, Gestores, governança e consumidores autorizados permanecem registradas nos RN e especializadas nos RF. Se a complexidade institucional exigir, essa camada pode ser criada futuramente sem renumerar os baselines atuais.
 
 ## 5. Ordem recomendada de leitura
 
