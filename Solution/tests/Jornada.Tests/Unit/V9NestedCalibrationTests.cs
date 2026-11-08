@@ -401,7 +401,7 @@ public sealed class V9NestedCalibrationTests
             Activator.CreateInstance(type,
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
                 | System.Reflection.BindingFlags.NonPublic, null,
-                [Array.Empty<LinkageBlockingPass>(), option, .5m, "ROOT"], null)!;
+                [Array.Empty<LinkageBlockingPass>(), option, .5m, "ROOT", false], null)!;
 
         Assert.That(sha.GetValue(Create(original)), Is.Not.EqualTo(sha.GetValue(Create(withTf))));
         Assert.That(sha.GetValue(Create(original)), Is.EqualTo(sha.GetValue(Create(original))));
@@ -467,7 +467,7 @@ public sealed class V9NestedCalibrationTests
             Activator.CreateInstance(type,
                 System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
                 | System.Reflection.BindingFlags.NonPublic, null,
-                [Array.Empty<LinkageBlockingPass>(), option, margin, option.OptionId], null)!;
+                [Array.Empty<LinkageBlockingPass>(), option, margin, option.OptionId, false], null)!;
         var requests = new[] { v2, v3, mixZero, mixHalf }
             .Select(o => Request(o, .5m)).ToArray();
         Assert.That(requests.Select(r => (string)grouping.Invoke(null, [r])!).Distinct().Count(),
