@@ -99,7 +99,9 @@ public static class V9NestedCalibrationCli
                 : args[0] == "--v9-validate-finalists" ? args.Length != 5 : true))
                 throw new ArgumentException("Uso: --v9-calibrate <plano> <CSV> <diretório novo>; --v9-validate-finalists <plano> <SHA.selection.json> <CSV novo> <diretório novo>");
             output = Path.GetFullPath(args[^1]);
-            var plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(await File.ReadAllBytesAsync(args[1]), Json)
+            var originalPlanBytes = await File.ReadAllBytesAsync(args[1]);
+            V9OptionalCompatibilityParameters.ValidateRawInput(originalPlanBytes);
+            var plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(originalPlanBytes, Json)
                 ?? throw new InvalidDataException("Plano V9 interno ausente.");
             V9NestedCalibrationCoordinator.ValidatePlan(plan);
             if (Directory.Exists(output) || File.Exists(output)) throw new InvalidOperationException("Resultados exigem diretório novo e imutável.");
@@ -118,7 +120,7 @@ public static class V9NestedCalibrationCli
                 try
                 {
                     if (args[0] == "--v9-calibrate")
-                        await SearchAsync(args[2], output, plan, connectionString);
+                        await SearchAsync(args[2], output, plan, connectionString, originalPlanBytes);
                     else await ValidateAsync(args[2], args[3], output, plan, connectionString);
                 }
                 catch (Exception exception)
@@ -177,7 +179,8 @@ public static class V9NestedCalibrationCli
         }
     }
 
-    private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan, string connectionString)
+    private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan,
+        string connectionString, byte[] originalPlanBytes)
     {
         await using var sourceStream = File.OpenRead(source);
         var sourceSha = Convert.ToHexString(await SHA256.HashDataAsync(sourceStream)).ToLowerInvariant();
@@ -264,7 +267,7 @@ public static class V9NestedCalibrationCli
         await WriteNewAsync(Path.Combine(output, "training-split-manifest.json"), result.Split);
         await WriteNewAsync(Path.Combine(output, "gain-by-batch.json"), result.Progress);
         if (plan.MuEstimationMethods is not null)
-            await WriteMuStatisticalAnalysisAsync(output, plan, result);
+            await WriteMuStatisticalAnalysisAsync(output, plan, result, originalPlanBytes);
         Console.WriteLine(JsonSerializer.Serialize(new { envelopeSha256 = envelopeSha, evaluations = result.Evaluations.Count,
             finalists = result.FinalistSnapshotShas.Count, result.StopReason, externalValidationUsed = false, testUsed = false, activated = false }));
     }
@@ -275,9 +278,11 @@ public static class V9NestedCalibrationCli
     /// Rows include rejected options and the exact policy, not only winning finalists.
     /// </summary>
     private static async Task WriteMuStatisticalAnalysisAsync(string output,
-        V9NestedCalibrationPlan plan, V9NestedCalibrationSearchResult result)
+        V9NestedCalibrationPlan plan, V9NestedCalibrationSearchResult result, byte[] originalPlanBytes)
     {
         var declared = V9MuEstimationSearchSpace.Enumerate(plan.MuEstimationMethods!);
+        var perOptionParameterOrigins = V9OptionalCompatibilityParameters.Describe(
+            originalPlanBytes, plan, result.Evaluations);
         var rows = result.Evaluations.Select(e => new
         {
             e.Batch, e.RequestSha256, e.OptionId, e.MuEstimationMethod,
@@ -461,6 +466,7 @@ public static class V9NestedCalibrationCli
             ramCapacity,
             result.PlanSha256,
             originalMethodsAndParameterArrays = plan.MuEstimationMethods,
+            perOptionParameterOrigins,
             declaredVariants = declared.Select(x => new { x.Method, x.Key, x.Policy }).ToArray(),
             declaredVariantCount = declared.Count,
             evaluations = rows.Length,
@@ -484,6 +490,7 @@ public static class V9NestedCalibrationCli
         md.AppendLine();
         md.AppendLine("Plano SHA-256: `" + result.PlanSha256 + "`. Somente espaço declarado; não houve TEST, certificação nem ativação.");
         md.AppendLine("O arquivo `mu-statistical-analysis.json` guarda todas as avaliações, inclusive recusas e valores M/U exatos.");
+        md.AppendLine("Cada opção inclui `perOptionParameterOrigins` com `FROM_PLAN` e `CODE_DEFAULT` e os valores efetivos reconhecidos; nenhum default histórico foi alterado.");
         md.AppendLine();
         md.AppendLine("## Diagnóstico de CPUs — execução");
         md.AppendLine();
