@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 
 from pypdf import PdfReader
+from neutralizacao_binarios_inventario_gate import validate_inventory
 
 LEGACY = "PRO" + "DAM"
 
@@ -35,8 +36,8 @@ def mentions(path: Path) -> int:
 
 
 def regenerate(root: Path, before: dict, out: Path, preview_dir: Path | None = None) -> dict:
-    if before.get("total_files") != 45:
-        raise ValueError("Expected exactly 45 tracked office files; re-audit the changed inventory")
+    # Exact 45-source/2-PO-approved-removal path set, not just a count.
+    validate_inventory(root, before)
     targets = [row for row in before["files"] if row["type"] == ".pdf" and row.get("before", 0) > 0]
     exceptions = []
     regenerated = []

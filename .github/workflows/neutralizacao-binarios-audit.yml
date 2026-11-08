@@ -3,6 +3,10 @@ on:
   pull_request:
     paths:
       - 'Solution/scripts/neutralize-developer-binaries.py'
+      - 'Solution/scripts/neutralizacao_binarios_inventario_gate.py'
+      - 'Solution/scripts/regen-neutralized-pdfs.py'
+      - 'Solution/tests/scripts/test_neutralizacao_binarios_inventario_gate.py'
+      - 'Solution/docs/Inventario_Binarios_Congelado_20261108.json'
       - '.github/workflows/neutralizacao-binarios-audit.yml'
       - 'Documentos/**/*.docx'
       - 'Documentos/**/*.pdf'
@@ -26,8 +30,11 @@ jobs:
         run: |
           python3 -m py_compile Solution/scripts/apply-neutralized-binary-patch.py
           python3 Solution/scripts/apply-neutralized-binary-patch.py --help >/dev/null
-      - name: Audit 45 committed office files WITHOUT editing PDF or DOCX
-        run: python3 Solution/scripts/neutralize-developer-binaries.py --root . --report audit-binaries.json
+      - name: Audit the frozen PO-authorized office file set WITHOUT editing PDF or DOCX
+        run: |
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_neutralizacao_binarios_inventario_gate.py' -v
+          python3 Solution/scripts/neutralize-developer-binaries.py --root . --report audit-binaries.json
+          python3 Solution/scripts/neutralizacao_binarios_inventario_gate.py --root . --report audit-binaries.json
       - name: Aggregate only; no document content
         if: always()
         run: |
@@ -80,21 +87,23 @@ jobs:
           set -euo pipefail
           python3 Solution/scripts/neutralize-developer-binaries.py --self-test
           python3 Solution/scripts/neutralize-developer-binaries.py --root . --report /tmp/f-before.json
+          python3 Solution/scripts/neutralizacao_binarios_inventario_gate.py --root . --report /tmp/f-before.json
           python3 Solution/scripts/neutralize-developer-binaries.py --root . --apply-docx --report /tmp/f-docx.json
           python3 Solution/scripts/regen-neutralized-pdfs.py --root . --before /tmp/f-before.json --report /tmp/f-pdf.json --preview-dir pdf-previews
           python3 Solution/scripts/neutralize-developer-binaries.py --root . --report /tmp/f-after.json
+          python3 Solution/scripts/neutralizacao_binarios_inventario_gate.py --root . --report /tmp/f-after.json
           python3 - <<'PY'
           import json,pathlib,subprocess,zipfile
           before=json.loads(pathlib.Path('/tmp/f-before.json').read_text())
           after=json.loads(pathlib.Path('/tmp/f-after.json').read_text())
           pdf=json.loads(pathlib.Path('/tmp/f-pdf.json').read_text())
-          if before['total_files'] != 45 or after['total_files'] != 45 or after['not_audited']:
+          if before['total_files'] != after['total_files'] or after['not_audited']:
               raise SystemExit('Binary audit incomplete or unexpected inventory')
           files=subprocess.check_output(['git','diff','--name-only','--','Documentos'],text=True).splitlines()
           files=sorted(set(x for x in files if x.lower().endswith(('.pdf','.docx'))))
           report={
               'schema':'NEUT_DEV_BINARY_SOURCE_REGEN_V1',
-              'filesAudited':45,'before':before['verified_mentions_before'],
+              'filesAudited':before['total_files'],'before':before['verified_mentions_before'],
               'after':after['verified_mentions_after'],
               'changedFiles':files,
               'changedDocx':sum(x.endswith('.docx') for x in files),
