@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import io
 import json
 import os
 import pathlib
@@ -78,8 +79,10 @@ def main() -> None:
             binary = z.read(path)
             if len(binary) < 1000:
                 raise SystemExit("Unexpected truncated document: " + path)
-            if path.endswith(".docx") and not zipfile.is_zipfile(pathlib.Path(args.zip)):
-                raise SystemExit("Input ZIP corrupt")
+            if path.endswith(".docx") and not zipfile.is_zipfile(io.BytesIO(binary)):
+                raise SystemExit("Invalid embedded DOCX ZIP: " + path)
+            if path.endswith(".pdf") and not binary.startswith(b"%PDF-"):
+                raise SystemExit("Invalid PDF header: " + path)
             validated.append((target, binary))
         print("Validated exact artifact:", digest)
         print("Expected edits:", len(validated), "10 DOCX + 4 PDF; remaining PDF exceptions:", 6)
