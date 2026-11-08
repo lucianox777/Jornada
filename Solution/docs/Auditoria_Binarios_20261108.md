@@ -29,7 +29,7 @@ O resultado final **no GitHub** requer aplicar e revisar os arquivos realmente m
 **Evidência nova:** [run 42508046393](https://github.com/lucianox777/Jornada/actions/runs/42508046393), artifact `neutralizacao-binarios-patch-readonly` (ID **13627958839**, ZIP com 15 entradas incluindo o recibo). Não há `git push` de binários na Action; nenhuma transformação foi integrada à master. A auditoria em workspace descartável verificou:
 
 - **120 → 49 ocorrências nominais**; redução de **71** ocorrências naquele patch, sem inspeções faltantes.
-- **10 DOCX** alterados, **4 PDFs** regenerados de fonte DOCX pareada com paginação conservada, **6 PDFs** mantidos como exceções. Portanto **14 arquivos binários efetivamente modificados** no patch; o ZIP contém também o recibo JSON. A lista de 15 caminhos em `changedFiles` do ZIP inclui **14 documentos** e o recibo (não confundir com 15 arquivos modificados do repositório).
+- **10 DOCX** alterados, **4 PDFs** regenerados de fonte DOCX pareada com paginação conservada, **6 PDFs** mantidos como exceções. Portanto **14 arquivos binários efetivamente modificados** no patch; o ZIP contém também o recibo JSON. O ZIP contém **14 arquivos DOCX/PDF alterados** e **um recibo JSON** (15 entradas); o vetor `changedFiles` do recibo tem somente os 14 caminhos documentais, sem o recibo.
 - As **49 ocorrências residuais estão apenas nos seis PDFs excepcionados**. Os dez DOCX processados e quatro PDFs regenerados não apresentaram ocorrência remanescente pela extração verificada.
 
 | Exceção PDF | Motivo objetivo |
