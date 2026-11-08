@@ -99,7 +99,9 @@ public static class V9NestedCalibrationCli
                 : args[0] == "--v9-validate-finalists" ? args.Length != 5 : true))
                 throw new ArgumentException("Uso: --v9-calibrate <plano> <CSV> <diretório novo>; --v9-validate-finalists <plano> <SHA.selection.json> <CSV novo> <diretório novo>");
             output = Path.GetFullPath(args[^1]);
-            var plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(await File.ReadAllBytesAsync(args[1]), Json)
+            var originalPlanBytes = await File.ReadAllBytesAsync(args[1]);
+            V9OptionalCompatibilityParameters.ValidateRawInput(originalPlanBytes);
+            var plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(originalPlanBytes, Json)
                 ?? throw new InvalidDataException("Plano V9 interno ausente.");
             V9NestedCalibrationCoordinator.ValidatePlan(plan);
             if (Directory.Exists(output) || File.Exists(output)) throw new InvalidOperationException("Resultados exigem diretório novo e imutável.");
@@ -118,7 +120,7 @@ public static class V9NestedCalibrationCli
                 try
                 {
                     if (args[0] == "--v9-calibrate")
-                        await SearchAsync(args[2], output, plan, connectionString);
+                        await SearchAsync(args[2], output, plan, connectionString, originalPlanBytes);
                     else await ValidateAsync(args[2], args[3], output, plan, connectionString);
                 }
                 catch (Exception exception)
@@ -177,7 +179,8 @@ public static class V9NestedCalibrationCli
         }
     }
 
-    private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan, string connectionString)
+    private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan,
+        string connectionString, byte[] originalPlanBytes)
     {
         await using var sourceStream = File.OpenRead(source);
         var sourceSha = Convert.ToHexString(await SHA256.HashDataAsync(sourceStream)).ToLowerInvariant();
@@ -265,7 +268,8 @@ public static class V9NestedCalibrationCli
         await WriteNewAsync(Path.Combine(output, "training-split-manifest.json"), result.Split);
         await WriteNewAsync(Path.Combine(output, "gain-by-batch.json"), result.Progress);
         if (plan.MuEstimationMethods is not null)
-            await WriteMuStatisticalAnalysisAsync(output, plan, result);
+            await WriteMuStatisticalAnalysisAsync(output, plan, result, originalPlanBytes,
+                sourceSha, Sha(manifestBytes), producer.RootElement.GetProperty("seed").GetUInt64());
         process.Refresh();
         var searchExportFinishedMs = elapsed.ElapsedMilliseconds;
         await WriteNewAsync(Path.Combine(output, "runtime-diagnostics.json"), new
@@ -295,14 +299,28 @@ public static class V9NestedCalibrationCli
     }
 
 
+    /// <summary>Identical in JSON and human report: measured witnesses are never selectable.</summary>
+    public static string HumanReadableEvaluationStatus(bool measured, bool? eligible,
+        int rejectionCount)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(rejectionCount);
+        return !measured ? "REJEITADA" : eligible == false
+            ? "DIAGNÓSTICO_NÃO_SELECIONÁVEL"
+            : rejectionCount > 0 ? "INELEGÍVEL" : "ELEGÍVEL";
+    }
+
     /// <summary>
     /// Full declared-vs-executed M/U audit; TRAIN_SELECTION only, never validation or certification.
     /// Rows include rejected options and the exact policy, not only winning finalists.
     /// </summary>
     private static async Task WriteMuStatisticalAnalysisAsync(string output,
-        V9NestedCalibrationPlan plan, V9NestedCalibrationSearchResult result)
+        V9NestedCalibrationPlan plan, V9NestedCalibrationSearchResult result,
+        byte[] originalPlanBytes, string sourceObservationsSha256,
+        string producerManifestSha256, ulong producerSeed)
     {
         var declared = V9MuEstimationSearchSpace.Enumerate(plan.MuEstimationMethods!);
+        var perOptionParameterOrigins = V9OptionalCompatibilityParameters.Describe(
+            originalPlanBytes, plan, result.Evaluations);
         var rows = result.Evaluations.Select(e => new
         {
             e.Batch, e.RequestSha256, e.OptionId, e.MuEstimationMethod,
@@ -485,7 +503,14 @@ public static class V9NestedCalibrationCli
             cpuCapacity,
             ramCapacity,
             result.PlanSha256,
+            // Hash-only lineage for the mandatory analytic-only V2 comparison.
+            // No identities, source rows, alternative plan or model selection.
+            sourceObservationsSha256, producerManifestSha256, producerSeed,
+            trainOriginalSha256 = result.Split.OriginalTrainSha256,
+            trainSplitSeed = result.Split.Seed,
+            trainSplitAssignmentsSha256 = result.Split.AssignmentSha256,
             originalMethodsAndParameterArrays = plan.MuEstimationMethods,
+            perOptionParameterOrigins,
             declaredVariants = declared.Select(x => new { x.Method, x.Key, x.Policy }).ToArray(),
             declaredVariantCount = declared.Count,
             evaluations = rows.Length,
@@ -496,6 +521,7 @@ public static class V9NestedCalibrationCli
             conditionalFdrBoundsNotCertified = true,
             testUsed = false, activated = false,
             finalistSnapshotShas = result.FinalistSnapshotShas,
+            predeclaredCandidateCpMultiplicity = result.PredeclaredCandidateCpMultiplicity,
             duplicateCandidatePolicySelections = result.DuplicatePolicySelections,
             result.StopReason,
             surnameDependenceComparisons = surnameComparisons,
@@ -509,6 +535,9 @@ public static class V9NestedCalibrationCli
         md.AppendLine();
         md.AppendLine("Plano SHA-256: `" + result.PlanSha256 + "`. Somente espaço declarado; não houve TEST, certificação nem ativação.");
         md.AppendLine("O arquivo `mu-statistical-analysis.json` guarda todas as avaliações, inclusive recusas e valores M/U exatos.");
+        md.AppendLine("A rastreabilidade de corpus, seed e partição interna está em digests; a comparação histórica é somente analítica e não reabre seleção.");
+        md.AppendLine("WITNESS/ANCHOR, lambda=0 e controle de 19 passes são DIAGNÓSTICO_NÃO_SELECIONÁVEL mesmo quando fisicamente medidos.");
+        md.AppendLine("Cada opção inclui `perOptionParameterOrigins` com `FROM_PLAN` e `CODE_DEFAULT` e os valores efetivos reconhecidos; nenhum default histórico foi alterado.");
         md.AppendLine();
         md.AppendLine("## Diagnóstico de CPUs — execução");
         md.AppendLine();
@@ -556,8 +585,8 @@ public static class V9NestedCalibrationCli
         {
             var policy = e.MuPolicy;
             var metric = e.Candidate?.Metric;
-            var status = e.Candidate is null ? "REJEITADA"
-                : e.Rejections.Count > 0 ? "INELEGÍVEL" : "ELEGÍVEL";
+            var status = HumanReadableEvaluationStatus(e.Candidate is not null,
+                e.EligibleForSelection, e.Rejections.Count);
             static string Number(object? x) => x?.ToString() ?? "—";
             md.AppendLine("| " + Number(e.MuEstimationMethod) + " | "
                 + Number(policy?.ClassMassCoverage) + " | " + Number(policy?.MinimumM)

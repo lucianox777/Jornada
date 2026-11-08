@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/v9-u-rare-mixture-plan-preflight.yml'
       - 'Solution/scripts/v9-u-rare-mixture-plan.py'
+      - 'Solution/scripts/v9-multiparameter-official-plan.py'
+      - 'Solution/tests/scripts/test_v9_official_multiparameter_plan.py'
       - 'Solution/scripts/v9-v3-direct-plan.py'
       - 'Solution/tests/scripts/test_v9_u_rare_mixture_plan.py'
       - 'Solution/tests/scripts/test_v9_v3_direct_plan.py'
@@ -45,8 +47,9 @@ jobs:
           set -euo pipefail
           [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
-          python3 -m py_compile Solution/scripts/v9-u-rare-mixture-plan.py Solution/scripts/v9-v3-direct-plan.py
+          python3 -m py_compile Solution/scripts/v9-u-rare-mixture-plan.py Solution/scripts/v9-v3-direct-plan.py Solution/scripts/v9-multiparameter-official-plan.py
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_plan.py' -v
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_official_multiparameter_plan.py' -v
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_direct_plan.py' -v
           # The declared values are checked in test_v9_u_rare_mixture_plan.py;
           # no separate environment/experiment JSON can override the executable plan.

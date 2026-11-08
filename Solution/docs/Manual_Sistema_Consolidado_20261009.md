@@ -114,7 +114,7 @@ A supervisão/RunOnce/Parar processo da Console atual depende de
 identidade de `GITHUB_RUN_ID`/`GITHUB_RUN_ATTEMPT`, projeto Compose
 efêmero, labels de serviço, `JornadaE2E`, DEV e requisições
 loopback. Fora desse perfil, operações são **negadas**. Na borda
-de APIs, controles corporativos de IdP/RBAC/PRODAM e validação
+de APIs, controles corporativos de IdP/RBAC/DESENVOLVEDOR e validação
 de HML/Produção ainda exigem aceites próprios; ambiente não
 `Development` deve falhar fechado quando a identidade corporativa
 não estiver integrada.

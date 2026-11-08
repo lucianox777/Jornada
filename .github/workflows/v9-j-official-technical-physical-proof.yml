@@ -1,0 +1,208 @@
+name: v9-j-official-technical-physical-proof
+
+# Mandatory pre-merge ENGINEERING regression of the frozen seed42 30k TRAIN.
+# NOT a new scientific campaign, independent validation, TEST/Gold or release.
+# This is a branch-push proof, not a change to the master push-only 30k gate.
+on:
+  push:
+    branches: [feat/v9-multiparameter-v2-permanent-witness-20261107]
+    paths:
+      - '.github/workflows/v9-j-official-technical-physical-proof.yml'
+      - 'Solution/scripts/v9-j-official-physical-audit.py'
+      - 'Solution/scripts/v9-multiparameter-official-plan.py'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v9-j-official-technical-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  physical:
+    name: Official J V2 WITNESS CP8 frozen TRAIN ${{ matrix.role }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { label: m050, role: PRIMARY, baseline: 13632797837, zipsha: "205cb14ed7d9e0ed46952576615dda58e4298c6d1a82bd93414c067b11ba394b" }
+          - { label: m025, role: PREDECLARED_SENSITIVITY, baseline: 13633252395, zipsha: "bca3acb77a04289986a3c5169a30b7b6e294d1fdbfeca876fc78cade2a4dc8f3" }
+    env:
+      EXACT_SHA: ${{ github.sha }}
+      RESEARCH_ROLE: ${{ matrix.role }}
+      RESEARCH_LABEL: ${{ matrix.label }}
+      BASELINE_ARTIFACT_ID: ${{ matrix.baseline }}
+      BASELINE_ZIP_SHA: ${{ matrix.zipsha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Pin exact PR-branch SHA and run frozen plan tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_REF" = "refs/heads/feat/v9-multiparameter-v2-permanent-witness-20261107"
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_official_multiparameter_plan.py -v
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_j_historical_analytic_comparison.py -v
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_j_download_pinned_artifact.py -v
+          python3 -m py_compile Solution/scripts/v9-j-official-physical-audit.py Solution/scripts/v9-multiparameter-official-plan.py
+          mkdir -p "Solution/.local/j-official-physical-$RESEARCH_LABEL"
+          python3 Solution/scripts/v9-tf-30k-dispatch-gate.py \
+            --mode auto_30k --expected-sha "$EXACT_SHA" --ref "$GITHUB_REF" \
+            --output "Solution/.local/j-official-physical-$RESEARCH_LABEL/git-approved.json"
+      - name: Start disposable SQL Server, no outside dataset
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build synthetic generator and single J CSharp worker
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Reproduce pinned 30k clean seed42, no TEST or Gold
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/j-official-physical-$RESEARCH_LABEL"
+          test -z "${V9_TF_TARGET_SEED:-}"
+          bash scripts/v9-tf-prepare-pin.sh "$root" pinned-ibge.json
+          python3 scripts/v9-tf-ref-provenance-gate.py \
+            --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
+            --reference data/reference/v9-synthetic-seed42-30000/manifest.json
+      - name: Freeze the SINGLE official role-tagged plan.json (24/16/8)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/j-official-physical-$RESEARCH_LABEL"
+          python3 scripts/v9-nested-calibration-study.py \
+            "$root/people-30k/observacoes.csv" "$root/source-nested-plan.json" \
+            --tf-search --pinned-ibge "$root/pinned-ibge.json"
+          python3 scripts/v9-multiparameter-official-plan.py \
+            "$root/source-nested-plan.json" "$root/plan.json" \
+            --role "$RESEARCH_ROLE" > "$root/plan-receipt.json"
+          python3 - "$root" "$RESEARCH_ROLE" <<'PY'
+          import json,sys
+          from pathlib import Path
+          root,role=Path(sys.argv[1]),sys.argv[2]
+          receipt=json.loads((root/'plan-receipt.json').read_bytes())
+          plan=json.loads((root/'plan.json').read_bytes())
+          assert receipt['schema']=='V9_OFFICIAL_MULTIPARAM_V2_WITNESS_ANCHOR_V1'
+          assert receipt['marginRole']==role and receipt['physicallyDeclared']==24
+          assert receipt['initialWitnessHypotheses']==16 and receipt['predeclaredCandidateCpMultiplicity']==8
+          assert plan['PredeclaredCandidateCpMultiplicity']==8
+          assert [m['Role'] for m in plan['MuEstimationMethods']]==['WITNESS','CANDIDATE','CANDIDATE']
+          assert receipt['testUsed'] is False and receipt['activated'] is False
+          PY
+      - name: Execute all J 24 physical TRAIN CSharp SQL frames (no scientific inference)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/j-official-physical-$RESEARCH_LABEL"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-calibrate "$root/plan.json" \
+            "$root/people-30k/observacoes.csv" "$root/results"
+      - name: Fetch pinned previous master U TRAIN aggregate baseline
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/j-official-physical-$RESEARCH_LABEL"
+          # Authentication stays only in the Python process environment
+          # and HTTP header, never in command-line arguments or logs.
+          python3 scripts/v9-j-download-pinned-artifact.py \
+            --artifact-id "$BASELINE_ARTIFACT_ID" \
+            --expected-sha256 "$BASELINE_ZIP_SHA" \
+            --output "$root/baseline.zip"
+          test "$(sha256sum "$root/baseline.zip" | cut -d' ' -f1)" = "$BASELINE_ZIP_SHA"
+          python3 - "$root" <<'PY'
+          import sys,zipfile
+          from pathlib import Path
+          root=Path(sys.argv[1])
+          with zipfile.ZipFile(root/'baseline.zip') as z:
+              def exact(name):
+                  items=[p for p in z.namelist() if p.endswith(name) and not p.startswith('__MACOSX/')]
+                  if len(items)!=1: raise ValueError('Ambiguous/missing pinned baseline: '+name)
+                  return z.read(items[0])
+              (root/'baseline-analysis.json').write_bytes(exact('mu-statistical-analysis.json'))
+              (root/'baseline-plan.json').write_bytes(exact('mixture-plan.json'))
+          PY
+      - name: Independent V2 numerical/SQL parity and CP8 physical proof
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/j-official-physical-$RESEARCH_LABEL"
+          python3 scripts/v9-j-official-physical-audit.py \
+            --plan "$root/plan.json" --analysis "$root/results/mu-statistical-analysis.json" \
+            --receipt "$root/plan-receipt.json" \
+            --baseline-analysis "$root/baseline-analysis.json" \
+            --role "$RESEARCH_ROLE" --out "$root/physical-audit.json"
+          python3 scripts/v9-j-historical-analytic-comparison.py \
+            --baseline-plan "$root/baseline-plan.json" \
+            --baseline-analysis "$root/baseline-analysis.json" \
+            --current-plan "$root/plan.json" \
+            --current-analysis "$root/results/mu-statistical-analysis.json" \
+            --baseline-label "previous-master-db75f3a3-$RESEARCH_LABEL" \
+            --current-label "j-official-$EXACT_SHA-$RESEARCH_LABEL" \
+            --baseline-split-code-blob 29037ab5ae0c3e53924a83c2d84a367ec60fca99 \
+            --current-split-code-blob 29037ab5ae0c3e53924a83c2d84a367ec60fca99 \
+            --out "$root/historical-analytic.json"
+          python3 - "$root" "$EXACT_SHA" "$RESEARCH_ROLE" <<'PY'
+          import hashlib,json,sys
+          from pathlib import Path
+          root,sha,role=Path(sys.argv[1]),sys.argv[2],sys.argv[3]
+          files={'plan':'plan.json','sourcePlan':'source-nested-plan.json',
+                 'planReceipt':'plan-receipt.json',
+                 'analysis':'results/mu-statistical-analysis.json',
+                 'baselineAnalysis':'baseline-analysis.json',
+                 'physicalAudit':'physical-audit.json',
+                 'historicalAnalytic':'historical-analytic.json',
+                 'pin':'pinned-ibge.json',
+                 'corpusManifest':'people-30k/generation-manifest.json',
+                 'selectionReference':'results/selection-reference.json'}
+          x=json.loads((root/'physical-audit.json').read_bytes())
+          assert x['evaluations']==24 and x['predeclaredCpCandidates']==8
+          assert len(x['historicalV2PhysicalParity'])==4 and x['certified'] is False
+          receipt={'schema':'V9_J_OFFICIAL_TECHNICAL_SHA_RECEIPT_V1',
+                   'sourceSha':sha,'role':role,'physicalEvaluations':24,
+                   'cpCandidates':8,'witnessAndDiagnostics':16,
+                   'fileSha256':{k:hashlib.sha256((root/f).read_bytes()).hexdigest()
+                                 for k,f in files.items()},
+                   'testUsed':False,'certified':False,'activated':False}
+          (root/'receipt.json').write_text(json.dumps(receipt,indent=2)+'\n')
+          PY
+      - name: Publish aggregate technical receipts (no rows, names or identity IDs)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-j-official-${{ matrix.label }}-${{ github.run_id }}-${{ github.sha }}
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            Solution/.local/j-official-physical-${{ matrix.label }}/git-approved.json
+            Solution/.local/j-official-physical-${{ matrix.label }}/pinned-ibge.json
+            Solution/.local/j-official-physical-${{ matrix.label }}/source-nested-plan.json
+            Solution/.local/j-official-physical-${{ matrix.label }}/plan.json
+            Solution/.local/j-official-physical-${{ matrix.label }}/plan-receipt.json
+            Solution/.local/j-official-physical-${{ matrix.label }}/results/mu-statistical-analysis.json
+            Solution/.local/j-official-physical-${{ matrix.label }}/results/selection-reference.json
+            Solution/.local/j-official-physical-${{ matrix.label }}/people-30k/generation-manifest.json
+            Solution/.local/j-official-physical-${{ matrix.label }}/baseline-analysis.json
+            Solution/.local/j-official-physical-${{ matrix.label }}/physical-audit.json
+            Solution/.local/j-official-physical-${{ matrix.label }}/historical-analytic.json
+            Solution/.local/j-official-physical-${{ matrix.label }}/receipt.json
+      - name: Remove disposable SQL container
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true

@@ -48,4 +48,4 @@ A candidata não fabrica aprovação para:
 Um CI verde prova coerência de engenharia para o commit exercitado; não equivale a homologação populacional, autorização de Produção ou publicação normativa.
 
 SEGURANÇA
-O estado técnico e o canal de reporte estão em SECURITY.md. Fora de Development, a candidata permanece deny-by-default enquanto a autenticação corporativa PRODAM/separação ambiental (#378) não forem integradas; nenhuma chave sintética de teste autoriza HML/Produção.
+O estado técnico e o canal de reporte estão em SECURITY.md. Fora de Development, a candidata permanece deny-by-default enquanto a autenticação corporativa DESENVOLVEDOR/separação ambiental (#378) não forem integradas; nenhuma chave sintética de teste autoriza HML/Produção.

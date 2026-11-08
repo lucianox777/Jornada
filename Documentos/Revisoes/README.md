@@ -34,7 +34,7 @@ Se não houve mudança material no período, registrar apenas `SEM_MUDANCA_MATER
 
 - não homologa estatística de #31;
 - não aprova HML/PRD;
-- não substitui decisão PRODAM/#378;
+- não substitui decisão DESENVOLVEDOR/#378;
 - não concede base legal/finalidade;
 - não cria gate novo por mera preferência;
 - não reescreve histórico.

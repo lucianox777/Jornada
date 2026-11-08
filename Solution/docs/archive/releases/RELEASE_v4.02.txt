@@ -5,7 +5,7 @@ Natureza: alinhamento normativo/arquitetural com Microsoft Fabric, sem mudanca f
 
 Principais alteracoes:
 - incorpora Especificacao Tecnica Jornada v3.63 como fonte normativa vigente;
-- atualiza a arquitetura para maior aderencia a proposta PRODAM de utilizacao do Microsoft Fabric;
+- atualiza a arquitetura para maior aderencia a proposta DESENVOLVEDOR de utilizacao do Microsoft Fabric;
 - define SQL Database in Microsoft Fabric como ambiente relacional operacional preferencial de HML/Producao;
 - reserva SQL Analytics Endpoint/OneLake ao caminho analitico/BI, fora da escrita e do caminho transacional sincrono das APIs;
 - mantem SQL Server 2022 Developer local/Docker como referencia de desenvolvimento, CI e testes independentes do Fabric;

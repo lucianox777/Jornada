@@ -84,7 +84,7 @@ Perfil de exemplo: `exemplos/perfil.sintetico.json`. Campos externos devem ser d
 
 Para registros finalísticos, defina outra regra em `arquivos` com `"papel": "registros"`, informe schema factual autorizado em `contratos.registros` e o trio `natureza`, `codigoTipo`, `tipoVersao` no perfil. O ZIP sempre contém `registros.jsonl`, mesmo quando vazio. Cada registro deve referenciar uma `idPessoaEntrega` presente no pacote.
 
-Ativação HML/produção, compatibilidade da versão Pessoa da API receptora, autorização PRODAM, validação do conteúdo real da Secretaria, instalação Windows e contêiner buildados com hash verificável **são gates distintos**. Não tratar EXE de CI como assinatura institucional ou instalador de produção homologado.
+Ativação HML/produção, compatibilidade da versão Pessoa da API receptora, autorização DESENVOLVEDOR, validação do conteúdo real da Secretaria, instalação Windows e contêiner buildados com hash verificável **são gates distintos**. Não tratar EXE de CI como assinatura institucional ou instalador de produção homologado.
 
 ## Situação de entrega
 

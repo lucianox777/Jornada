@@ -20,7 +20,7 @@
 
 ## 1. Princípio de operação
 
-A Solution **não contém scheduler próprio**. O agendamento, a recorrência e o encadeamento de jobs devem ser configurados no mecanismo corporativo homologado pela PRODAM (SQL Server Agent, Control-M, Kubernetes CronJob/Job ou equivalente aprovado no ambiente).
+A Solution **não contém scheduler próprio**. O agendamento, a recorrência e o encadeamento de jobs devem ser configurados no mecanismo corporativo homologado pelo DESENVOLVEDOR (SQL Server Agent, Control-M, Kubernetes CronJob/Job ou equivalente aprovado no ambiente).
 
 `Jornada.Pipeline.Coordination` permanece **biblioteca**, não executável. Processor, Parameters Worker e Linkage Runner adquirem seus próprios application locks SQL. Isso preserva a execução manual/run-once em HML e recuperação de incidente sem depender de um coordenador central.
 
@@ -105,7 +105,7 @@ O Parameters Worker usa configuração (`LinkageParameters:Operation`) e, para `
 
 ## 5. Contrato mínimo do scheduler corporativo
 
-O job configurado pela PRODAM deve registrar, no mínimo:
+O job configurado pelo DESENVOLVEDOR deve registrar, no mínimo:
 
 - componente/comando e argumentos;
 - instante de início e término;
@@ -182,7 +182,7 @@ Antes de Produção, registrar:
 
 ## 11. Separação entre desenvolvimento local e scheduler corporativo
 
-O `docker-compose.yml` existe somente para desenvolvimento/teste local e sobe SQL Server Developer. Ele **não** implementa scheduler e não representa topologia de HML/Produção. A política desta página continua válida: jobs run-once são acionados pelo scheduler corporativo homologado na PRODAM. Para o ambiente local, consulte `Runbook_Desenvolvimento_Local.md`.
+O `docker-compose.yml` existe somente para desenvolvimento/teste local e sobe SQL Server Developer. Ele **não** implementa scheduler e não representa topologia de HML/Produção. A política desta página continua válida: jobs run-once são acionados pelo scheduler corporativo homologado no DESENVOLVEDOR. Para o ambiente local, consulte `Runbook_Desenvolvimento_Local.md`.
 
 
 ## Ensaios antes de HML

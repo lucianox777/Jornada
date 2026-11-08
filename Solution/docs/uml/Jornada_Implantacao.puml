@@ -20,7 +20,7 @@ cloud "GitHub" as GH {
 cloud "Balanceador / VIP\n(opcional, infraestrutura externa)" as LB
 
 frame "Produção — Windows Server" as Prod {
-  node "NODE1 — VM Jornada\n{vCPU/RAM = homologar com PRODAM}" as Node1 {
+  node "NODE1 — VM Jornada\n{vCPU/RAM = homologar com DESENVOLVEDOR}" as Node1 {
     frame "Processos residentes — background / AtStartup" as Node1Resident {
       artifact "Jornada.Api" as Api1
       artifact "Jornada.Resultado.Api" as Resultado1
@@ -38,7 +38,7 @@ frame "Produção — Windows Server" as Prod {
     note "Bibliotecas embutidas:\nPipeline.Coordination\nBronze.Storage\nOperational.Sql" as Libraries1
   }
 
-  node "NODE2 — VM Jornada\n{vCPU/RAM = homologar com PRODAM}" as Node2 {
+  node "NODE2 — VM Jornada\n{vCPU/RAM = homologar com DESENVOLVEDOR}" as Node2 {
     frame "Processos residentes — background / AtStartup" as Node2Resident {
       artifact "Jornada.Api" as Api2
       artifact "Jornada.Resultado.Api" as Resultado2

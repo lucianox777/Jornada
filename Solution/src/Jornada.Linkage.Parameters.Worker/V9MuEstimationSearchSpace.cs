@@ -11,7 +11,11 @@ namespace Jornada.Linkage.Parameters.Worker;
 public sealed record V9MuEstimationMethod(
     string Method,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    V9MuEstimationParameterGrid? Parameters = null);
+    V9MuEstimationParameterGrid? Parameters = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? Role = null,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    bool Anchor = false);
 
 public sealed record V9MuEstimationParameterGrid(
     IReadOnlyList<decimal> ClassMassCoverage,
@@ -21,12 +25,15 @@ public sealed record V9MuEstimationParameterGrid(
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     IReadOnlyList<decimal>? UBackoffJointMixtureWeights = null);
 
-public sealed record V9MuEstimationVariant(string Method, string Key, V9JointSupportPolicy? Policy);
+public sealed record V9MuEstimationVariant(string Method, string Key, V9JointSupportPolicy? Policy,
+    string? Role = null, bool Anchor = false);
 
 public static class V9MuEstimationSearchSpace
 {
     public const string Default = "DEFAULT";
     public const string Classwise = "CLASSWISE_SUPPORT_BACKOFF";
+    public const string Candidate = "CANDIDATE";
+    public const string Witness = "WITNESS";
 
     /// <summary>
     /// The identity-level FDR stream always remains available. Private
@@ -54,14 +61,26 @@ public static class V9MuEstimationSearchSpace
         if (methods.Any(x => x.Method == ClasswiseMixture)
             && methods.Any(x => x.Method == Classwise && x.Parameters?.UBackoffJointMixtureWeights is not null))
             throw new InvalidDataException("Declare U mixtures in one method only.");
+        // Explicit multiparameter studies require the historical V2 anchor.
+        // Legacy plans without Role/Anchor retain their exact old semantics.
+        if (methods.Any(x => x.Role is not null || x.Anchor) &&
+            (methods.Count(x => x.Method == Default && x.Role == Witness && x.Anchor) != 1
+             || methods.Any(x => x.Anchor && (x.Method != Default || x.Role != Witness))))
+            throw new InvalidDataException("Plano multiparametro exige V2 DEFAULT WITNESS ANCHOR, sem ancoras concorrentes.");
+        // In an explicit J study, optional Role omitted on a non-V2 estimator
+        // uses its historical C# default: selectable CANDIDATE. Do not reject
+        // a plan merely for omitting an optional new parameter. The V2 anchor
+        // remains an explicit semantic invariant of the J official protocol.
         var result = new List<V9MuEstimationVariant>();
         foreach (var method in methods)
         {
+            if (method.Role is not null && method.Role is not (Candidate or Witness))
+                throw new InvalidDataException("Role declarada exige CANDIDATE/WITNESS; sem fallback oculto.");
             if (method.Method == Default)
             {
                 if (method.Parameters is not null)
                     throw new InvalidDataException("DEFAULT reproduz V2: não admite parâmetros de fallback.");
-                result.Add(new(Default, Default, null));
+                result.Add(new(Default, Default, null, method.Role, method.Anchor));
                 continue;
             }
             if (method.Method is not (Classwise or ClasswiseMixture))
@@ -105,7 +124,7 @@ public static class V9MuEstimationSearchSpace
                     + "_U" + minU.ToString(CultureInfo.InvariantCulture)
                     + "_T" + (retain ? "1" : "0")
                     + (uWeight is null ? "" : "_UJW" + uWeight.Value.ToString("G29", CultureInfo.InvariantCulture));
-                result.Add(new(method.Method, key, policy));
+                result.Add(new(method.Method, key, policy, method.Role, method.Anchor));
             }
         }
         return result.AsReadOnly();
@@ -131,10 +150,16 @@ public static class V9MuEstimationSearchSpace
         var expanded = originalOptions.SelectMany(option => variants.Select(variant => option with
         {
             OptionId = option.OptionId + "__MU_" + variant.Key,
-            JointSupportPolicy = variant.Policy
+            JointSupportPolicy = variant.Policy,
+            // WITNESS still receives the same SQL candidate frame and full
+            // physical fit; it can never enter Pareto/refinement/finalists.
+            EligibleForSelection = option.EligibleForSelection && variant.Role != Witness
+                && !(variant.Policy?.UBackoffJointMixtureWeight == 0m)
         })).ToArray();
         if (expanded.Select(x => x.OptionId).Distinct(StringComparer.Ordinal).Count() != expanded.Length)
             throw new InvalidDataException("Grade M/U produziu identificadores duplicados.");
+        if (!expanded.Any(x => x.EligibleForSelection))
+            throw new InvalidDataException("Plano não tem candidatos elegíveis; testemunhas não substituem candidatas.");
         return Array.AsReadOnly(expanded);
     }
 }

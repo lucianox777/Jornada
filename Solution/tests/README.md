@@ -2,7 +2,7 @@
 
 ## Ambiente local Docker e harnesses v3.55
 
-A forma recomendada de executar a categoria `Integration` localmente é `scripts/local-test.ps1` (Windows/PowerShell) ou `scripts/local-test.sh` (shell POSIX). Os scripts sobem SQL Server 2022 **Developer** em Docker, criam `JornadaLocal`, aplicam DDL/seed e definem `JORNADA_TEST_SQL_CONNECTION`. A edição Developer é somente desenvolvimento/teste; Produção usa a edição/licenciamento homologados pela PRODAM.
+A forma recomendada de executar a categoria `Integration` localmente é `scripts/local-test.ps1` (Windows/PowerShell) ou `scripts/local-test.sh` (shell POSIX). Os scripts sobem SQL Server 2022 **Developer** em Docker, criam `JornadaLocal`, aplicam DDL/seed e definem `JORNADA_TEST_SQL_CONNECTION`. A edição Developer é somente desenvolvimento/teste; Produção usa a edição/licenciamento homologados pelo DESENVOLVEDOR.
 
 
 ## Unitários - não dependem de SQL Server
@@ -108,7 +108,7 @@ Hardening v3.39: testes verificam rejeição de objeto canônico corrompido mesm
 
 ## Cobertura v3.39
 
-A v3.39 acrescenta testes do staging configurável e substitui os testes do enriquecimento PRODAM por testes da territorialização de origem. Os contratos JSON Schema exigem situação geográfica explícita. A validação de integração deve cobrir ainda o cursor do Maintenance Worker, as views de BI e a retenção de `item_processado`.
+A v3.39 acrescenta testes do staging configurável e substitui os testes do enriquecimento DESENVOLVEDOR por testes da territorialização de origem. Os contratos JSON Schema exigem situação geográfica explícita. A validação de integração deve cobrir ainda o cursor do Maintenance Worker, as views de BI e a retenção de `item_processado`.
 
 
 ### v3.39

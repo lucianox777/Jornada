@@ -133,7 +133,7 @@
 <g id="node8" class="node">
 <title>sched</title>
 <path fill="none" stroke="black" d="M205,-106C205,-106 12,-106 12,-106 6,-106 0,-100 0,-94 0,-94 0,-65 0,-65 0,-59 6,-53 12,-53 12,-53 205,-53 205,-53 211,-53 217,-59 217,-65 217,-65 217,-94 217,-94 217,-100 211,-106 205,-106"/>
-<text text-anchor="middle" x="108.5" y="-90.8" font-family="Arial" font-size="14.00">Scheduler corporativo PRODAM</text>
+<text text-anchor="middle" x="108.5" y="-90.8" font-family="Arial" font-size="14.00">Scheduler corporativo DESENVOLVEDOR</text>
 <text text-anchor="middle" x="108.5" y="-75.8" font-family="Arial" font-size="14.00">agendamento / recorrência / retry</text>
 <text text-anchor="middle" x="108.5" y="-60.8" font-family="Arial" font-size="14.00">fora da Solution</text>
 </g>
