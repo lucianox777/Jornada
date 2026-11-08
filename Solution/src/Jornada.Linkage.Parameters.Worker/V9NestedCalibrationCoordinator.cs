@@ -89,6 +89,21 @@ public static class V9NestedCalibrationCoordinator
         && methods.Any(m => m.Method == V9MuEstimationSearchSpace.Default
             && m.Role == V9MuEstimationSearchSpace.Witness && m.Anchor);
 
+    /// <summary>
+    /// J official study: 19-pass SQL and margin zero remain diagnostic only.
+    /// Never create a selectable *refinement* from these controls. Old plans
+    /// lacking an explicit V2 WITNESS+ANCHOR retain their previous neighborhood.
+    /// Initial 19-pass witness measurements remain in the declared physical set.
+    /// </summary>
+    public static bool AllowsRefinement(IReadOnlyList<V9MuEstimationMethod>? methods,
+        int blockingPassCount, decimal conflictMargin)
+    {
+        var anchored = methods?.Any(m => m.Method == V9MuEstimationSearchSpace.Default
+            && m.Role == V9MuEstimationSearchSpace.Witness && m.Anchor) == true;
+        return !anchored || (conflictMargin > 0m
+            && !IsNineteenPassDiagnostic(methods, blockingPassCount));
+    }
+
     public const string Version = "V9_INTERNAL_TRAIN_BATCH_PARETO_FINALISTS_V1";
 
     /// <summary>
@@ -457,10 +472,13 @@ public static class V9NestedCalibrationCoordinator
             }
             foreach (var passes in ruleSets)
             foreach (var threshold in new[] { p.Threshold - dt, p.Threshold, p.Threshold + dt }.Where(x => x is > 0 and < 1))
-            foreach (var margin in new[] { p.ConflictMargin - dm, p.ConflictMargin, p.ConflictMargin + dm }.Where(x => x is >= 0 and <= 1000))
+            foreach (var margin in new[] { p.ConflictMargin - dm, p.ConflictMargin, p.ConflictMargin + dm }
+                .Where(x => x is >= 0 and <= 1000
+                    && AllowsRefinement(plan.MuEstimationMethods, passes.Count, x)))
                 yield return new(passes,
                     RefinedOption(template.Option, template.RootOptionId, threshold),
-                    margin, template.RootOptionId);
+                    margin, template.RootOptionId,
+                    IsNineteenPassDiagnostic(plan.MuEstimationMethods, passes.Count));
         }
     }
 

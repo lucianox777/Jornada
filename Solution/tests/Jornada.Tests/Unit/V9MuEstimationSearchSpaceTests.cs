@@ -337,6 +337,50 @@ public class V9MuEstimationSearchSpaceTests
     }
 
     [Test]
+    public void J_refinement_never_reopens_nineteen_pass_or_zero_margin_after_a_selectable_frontier()
+    {
+        V9MuEstimationMethod[] anchored =
+        [
+            Default() with { Role = V9MuEstimationSearchSpace.Witness, Anchor = true },
+            HistoricalV3() with { Role = V9MuEstimationSearchSpace.Candidate }
+        ];
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(V9NestedCalibrationCoordinator.AllowsRefinement(anchored, 3, .5m), Is.True);
+            Assert.That(V9NestedCalibrationCoordinator.AllowsRefinement(anchored, 19, .5m), Is.False);
+            Assert.That(V9NestedCalibrationCoordinator.AllowsRefinement(anchored, 3, 0m), Is.False);
+            Assert.That(V9NestedCalibrationCoordinator.AllowsRefinement(anchored, 19, 0m), Is.False);
+            // #1300 historical plans without a WITNESS+ANCHOR must retain
+            // the exact former neighborhood, not retrofit scientific rules.
+            Assert.That(V9NestedCalibrationCoordinator.AllowsRefinement(
+                [Default(), HistoricalV3()], 19, 0m), Is.True);
+            Assert.That(V9NestedCalibrationCoordinator.AllowsRefinement(null, 19, 0m), Is.True);
+        }));
+    }
+
+    [Test]
+    public void Human_report_never_labels_measured_V2_or_nineteen_pass_witness_as_eligible()
+    {
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(V9NestedCalibrationCli.HumanReadableEvaluationStatus(false, null, 0),
+                Is.EqualTo("REJEITADA"));
+            Assert.That(V9NestedCalibrationCli.HumanReadableEvaluationStatus(true, false, 0),
+                Is.EqualTo("DIAGNÓSTICO_NÃO_SELECIONÁVEL"));
+            Assert.That(V9NestedCalibrationCli.HumanReadableEvaluationStatus(true, false, 2),
+                Is.EqualTo("DIAGNÓSTICO_NÃO_SELECIONÁVEL"));
+            Assert.That(V9NestedCalibrationCli.HumanReadableEvaluationStatus(true, true, 1),
+                Is.EqualTo("INELEGÍVEL"));
+            Assert.That(V9NestedCalibrationCli.HumanReadableEvaluationStatus(true, true, 0),
+                Is.EqualTo("ELEGÍVEL"));
+            Assert.That(V9NestedCalibrationCli.HumanReadableEvaluationStatus(true, null, 0),
+                Is.EqualTo("ELEGÍVEL"), "historical plans retain eligibility");
+            Assert.That((Action)(() => V9NestedCalibrationCli.HumanReadableEvaluationStatus(
+                true, false, -1)), Throws.TypeOf<ArgumentOutOfRangeException>());
+        }));
+    }
+
+    [Test]
     public void Private_source_rank_lists_are_requested_only_for_explicit_paired_V2_V3()
     {
         Assert.Multiple((Action)(() =>

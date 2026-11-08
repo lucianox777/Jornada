@@ -9,6 +9,9 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
       - 'Solution/tests/Jornada.Tests/Unit/V9OptionalCompatibilityParametersTests.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/V9MuEstimationSearchSpaceTests.cs'
+      - 'Solution/scripts/v9-j-historical-analytic-comparison.py'
+      - 'Solution/tests/scripts/test_v9_j_historical_analytic_comparison.py'
 permissions:
   contents: read
 jobs:
@@ -31,3 +34,4 @@ jobs:
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --configuration Release --no-restore \
             --filter 'FullyQualifiedName~V9OptionalCompatibilityParametersTests|FullyQualifiedName~V9MuEstimationSearchSpaceTests' \
             --logger 'console;verbosity=normal'
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_j_historical_analytic_comparison.py' -v
