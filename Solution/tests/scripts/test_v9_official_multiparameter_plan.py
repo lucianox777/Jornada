@@ -37,14 +37,14 @@ class OfficialMultiparameterPlanTests(unittest.TestCase):
     def write_source(self):
         self.source.write_text(json.dumps(self.source_data), encoding="utf8")
 
-    def test_single_official_plan_retains_all_exact_v2_history_explicit_and_cp16(self):
+    def test_single_official_plan_retains_all_exact_v2_history_explicit_and_cp8(self):
         self.write_source()
         raw_before = self.source.read_bytes()
         receipt = official.freeze(self.source, self.output)
         plan = official.read(self.output)
         self.assertEqual(self.source.read_bytes(), raw_before)
-        self.assertEqual(receipt["predeclaredCandidateCpMultiplicity"], 16)
-        self.assertEqual(plan["PredeclaredCandidateCpMultiplicity"], 16)
+        self.assertEqual(receipt["predeclaredCandidateCpMultiplicity"], 8)
+        self.assertEqual(plan["PredeclaredCandidateCpMultiplicity"], 8)
         self.assertEqual(plan["MaximumSearchConfigurations"], 24)
         self.assertEqual(plan["Calibration"]["MaximumComparedConfigurations"], 24)
         self.assertEqual(plan["MaximumBatches"], 1)
@@ -89,7 +89,7 @@ class OfficialMultiparameterPlanTests(unittest.TestCase):
         plan = official.read(self.output)
         self.assertEqual(plan["Calibration"]["ConflictMargins"], [.25])
         self.assertEqual(receipt["marginRole"], "PREDECLARED_SENSITIVITY")
-        self.assertEqual(receipt["predeclaredCandidateCpMultiplicity"], 16)
+        self.assertEqual(receipt["predeclaredCandidateCpMultiplicity"], 8)
         self.assertEqual(plan["MuEstimationMethods"][0]["Role"], "WITNESS")
         self.assertTrue(plan["MuEstimationMethods"][0]["Anchor"])
 
@@ -118,7 +118,7 @@ class OfficialMultiparameterPlanTests(unittest.TestCase):
         self.write_source()
         official.freeze(self.source, self.output)
         result = official.read(self.output)
-        self.assertEqual(result["PredeclaredCandidateCpMultiplicity"], 16)
+        self.assertEqual(result["PredeclaredCandidateCpMultiplicity"], 8)
         result["MuEstimationMethods"][0].pop("Anchor")
         self.assertNotEqual(result["MuEstimationMethods"][0],
                             {"Method": "DEFAULT", "Role": "WITNESS", "Anchor": True})

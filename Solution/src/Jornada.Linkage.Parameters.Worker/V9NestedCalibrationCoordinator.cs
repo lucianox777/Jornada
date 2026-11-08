@@ -76,6 +76,19 @@ public static class V9NestedCalibrationCoordinator
     public static bool IsUZeroWitness(string? method, decimal? weight) =>
         method == "CLASSWISE_SUPPORT_BACKOFF_U_MIXTURE" && weight == 0m;
 
+    /// <summary>
+    /// J-only operational exclusion: the historically declared 19-pass SQL
+    /// rule set is physically measured as diagnostic/witness, NEVER eligible
+    /// for Pareto, refinements, finalists or the candidate CP family. The
+    /// 3-pass arm remains selectable. Historical #1300 plans that omit
+    /// WITNESS+ANCHOR retain their previous behavior and SHA.
+    /// </summary>
+    public static bool IsNineteenPassDiagnostic(
+        IReadOnlyList<V9MuEstimationMethod>? methods, int blockingPassCount) =>
+        blockingPassCount == 19 && methods is not null
+        && methods.Any(m => m.Method == V9MuEstimationSearchSpace.Default
+            && m.Role == V9MuEstimationSearchSpace.Witness && m.Anchor);
+
     public const string Version = "V9_INTERNAL_TRAIN_BATCH_PARETO_FINALISTS_V1";
 
     /// <summary>
@@ -102,7 +115,7 @@ public static class V9NestedCalibrationCoordinator
             request.Passes,
             Margin = request.Margin.ToString("G29", CultureInfo.InvariantCulture)
         });
-    private sealed record Request(IReadOnlyList<LinkageBlockingPass> Passes, V9FsAdaptiveOptionConfiguration Option, decimal Margin, string RootOptionId)
+    private sealed record Request(IReadOnlyList<LinkageBlockingPass> Passes, V9FsAdaptiveOptionConfiguration Option, decimal Margin, string RootOptionId, bool DiagnosticOnly = false)
     {
         internal string Sha => V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(new
         {
@@ -239,7 +252,8 @@ public static class V9NestedCalibrationCoordinator
             .Any(g => g.Select(p => string.Join('|', p.Fields)).Distinct(StringComparer.Ordinal).Count() > 1))
             throw new InvalidDataException("PassId não pode representar predicados diferentes entre lotes.");
         var requests = ruleSets.SelectMany(passes => calibration.ModelOptions.SelectMany(option => calibration.ConflictMargins
-            .Select(margin => new Request(passes, option, margin, option.OptionId))))
+            .Select(margin => new Request(passes, option, margin, option.OptionId,
+                 IsNineteenPassDiagnostic(plan.MuEstimationMethods, passes.Count)))))
             .DistinctBy(x => x.Sha).OrderBy(x => x.Sha, StringComparer.Ordinal).ToArray();
         if (requests.Length > plan.MaximumSearchConfigurations)
             throw new InvalidDataException("Lote inicial excede orçamento declarado; nenhuma configuração foi eliminada por resultado.");
@@ -252,7 +266,8 @@ public static class V9NestedCalibrationCoordinator
         {
             var initialWitnesses = requests.Count(x => !x.Option.EligibleForSelection
                 || x.Margin == 0m
-                || x.Option.JointSupportPolicy?.UBackoffJointMixtureWeight == 0m);
+                || x.Option.JointSupportPolicy?.UBackoffJointMixtureWeight == 0m
+                || x.DiagnosticOnly);
             candidateCpMultiplicity = CandidateCpMultiplicityUpperBudget(
                 plan.MaximumSearchConfigurations, initialWitnesses);
             if (requests.Length - initialWitnesses > candidateCpMultiplicity)
@@ -320,7 +335,7 @@ public static class V9NestedCalibrationCoordinator
             frontier = V9TrainingParetoSelection.Frontier(evaluations.Where(x =>
                 x.Candidate is not null
                 && optionTemplates.TryGetValue(x.Candidate.Snapshot.Payload.OptionId, out var template)
-                && template.Option.EligibleForSelection
+                && (x.EligibleForSelection ?? template.Option.EligibleForSelection)
                 && !IsUZeroWitness(x.MuEstimationMethod, x.MuPolicy?.UBackoffJointMixtureWeight)
                 // Master #1298: keep zero diagnostic margins out of the
                 // TRAIN Pareto frontier, refinements, and finalists.
@@ -392,7 +407,7 @@ public static class V9NestedCalibrationCoordinator
             && x.Candidate.Metric.ConflictMargin > 0m).ToArray();
         var selectable = measuredForAccounting.Where(x =>
             optionTemplates.TryGetValue(x.Candidate!.Snapshot.Payload.OptionId, out var template)
-            && template.Option.EligibleForSelection
+            && (x.EligibleForSelection ?? template.Option.EligibleForSelection)
             && !IsUZeroWitness(x.MuEstimationMethod, x.MuPolicy?.UBackoffJointMixtureWeight)).ToArray();
         if (selectable.Length > candidateCpMultiplicity)
             throw new InvalidDataException("CP sobre candidatas excedeu limite pré-declarado.");
@@ -508,7 +523,8 @@ public static class V9NestedCalibrationCoordinator
                             ? V9MuEstimationSearchSpace.Default : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
                                 ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
                     MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
-                    EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m,
+                    EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m
+                        && !request.DiagnosticOnly,
                     SharedSurnameCandidatePairs: run.CalibrationReport.Options.Single(x =>
                         x.OptionId == request.Option.OptionId).Validation.SharedSurnameCandidatePairs,
                     CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
@@ -517,7 +533,7 @@ public static class V9NestedCalibrationCoordinator
         }
         catch (InvalidDataException exception) when (exception.Data[V9PhysicalSqlAdaptiveCalibrationProbe.CandidateRejectionKey] is true)
         { return Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(request.Sha, batch, null,
-            ["REJEICAO_FISICA: " + exception.Message],
+            ["REJEICAO_FISICA: " + V9CalibradorLastErrorLog.SafeErrorCode(exception)],
             OptionId: plan.MuEstimationMethods is null ? null : request.Option.OptionId,
             ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
             MuEstimationMethod: plan.MuEstimationMethods is null ? null
@@ -525,6 +541,6 @@ public static class V9NestedCalibrationCoordinator
                     ? V9MuEstimationSearchSpace.Default : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
                                 ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
             MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
-            EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m)).ToArray()); }
+            EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m && !request.DiagnosticOnly)).ToArray()); }
     }
 }

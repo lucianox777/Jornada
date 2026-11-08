@@ -319,6 +319,24 @@ public class V9MuEstimationSearchSpaceTests
     }
 
     [Test]
+    public void J_official_selection_excludes_19_pass_diagnostics_without_changing_historical_plans()
+    {
+        V9MuEstimationMethod[] official =
+        [
+            Default() with { Role = V9MuEstimationSearchSpace.Witness, Anchor = true },
+            HistoricalV3() with { Role = V9MuEstimationSearchSpace.Candidate }
+        ];
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(V9NestedCalibrationCoordinator.IsNineteenPassDiagnostic(official, 19), Is.True);
+            Assert.That(V9NestedCalibrationCoordinator.IsNineteenPassDiagnostic(official, 3), Is.False);
+            Assert.That(V9NestedCalibrationCoordinator.IsNineteenPassDiagnostic([Default(), HistoricalV3()], 19), Is.False);
+            Assert.That(V9NestedCalibrationCoordinator.IsNineteenPassDiagnostic(null, 19), Is.False);
+            Assert.That(V9NestedCalibrationCoordinator.CandidateCpMultiplicityUpperBudget(24, 16), Is.EqualTo(8));
+        }));
+    }
+
+    [Test]
     public void Private_source_rank_lists_are_requested_only_for_explicit_paired_V2_V3()
     {
         Assert.Multiple((Action)(() =>

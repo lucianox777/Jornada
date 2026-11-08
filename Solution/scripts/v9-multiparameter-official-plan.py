@@ -20,8 +20,8 @@ HERE = Path(__file__).resolve().parent
 SCHEMA = "V9_OFFICIAL_MULTIPARAM_V2_WITNESS_ANCHOR_V1"
 ROLES = ("PRIMARY", "PREDECLARED_SENSITIVITY")
 PHYSICAL_COUNT = 24
-WITNESS_COUNT = 8   # V2 4 + lambda=0 mixture 4 (two TF options x two SQL rulesets)
-CANDIDATE_CP_COUNT = PHYSICAL_COUNT - WITNESS_COUNT
+WITNESS_COUNT = 16  # V2 4 + lambda=0 4 + eight diagnostic 19-pass candidate-role arms
+CANDIDATE_CP_COUNT = PHYSICAL_COUNT - WITNESS_COUNT  # eight selectable three-pass arms
 
 
 def load_module(path: Path, name: str):
