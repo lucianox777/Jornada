@@ -1,0 +1,141 @@
+name: v9-d-local-physical-determinism-1-0-8
+
+# D: small known-seed technical proof, NEVER the 30k gate or a scientific
+# confirmation. PR validation must not mutate any frozen corpus/release.
+on:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9AdaptiveCalibrationStudyCli.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9CalibrationScientificResultDigest.cs'
+      - 'Solution/tests/Jornada.Tests/Unit/V9CalibrationScientificResultDigestTests.cs'
+      - 'Solution/scripts/v9-local-determinism-physical-smoke.py'
+      - 'Solution/tests/scripts/test_v9_local_determinism_physical_smoke.py'
+      - '.github/workflows/v9-d-local-physical-determinism-1-0-8.yml'
+permissions:
+  contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+jobs:
+  physical-small:
+    name: Physical SQL TRAIN/VALIDATION 1/0/8 exact SHA (1k)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify real PR head SHA and script
+        env:
+          D_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$D_HEAD_SHA"
+          python3 -m py_compile Solution/scripts/v9-local-determinism-physical-smoke.py
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_local_determinism_physical_smoke.py' -v
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build real .NET CSharp calibrator and 1k synthetic generator
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Start disposable SQL Server with masked ephemeral credential
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - name: Initialize disposable SQL schema (no IBGE reload, TF0 only)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          CID="v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}"
+          docker exec -u 0 "$CID" mkdir -p /var/opt/mssql/data/jornada/database
+          docker cp database/. "$CID":/var/opt/mssql/data/jornada/database/
+          sqlcmd_docker() {
+            docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" "$CID" \
+              /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b "$@"
+          }
+          sqlcmd_docker -Q "IF DB_ID(N'JornadaHarness') IS NOT NULL THROW 51000, 'Preexisting database', 1; CREATE DATABASE JornadaHarness;"
+          sqlcmd_docker -d JornadaHarness -i database/Jornada_Fase1_v3.70.sql
+          sqlcmd_docker -d JornadaHarness -i database/Jornada_Seed_Dev.sql
+          sqlcmd_docker -d JornadaHarness -i database/migrations/20260907_Cpf_Ancora.sql
+          sqlcmd_docker -d JornadaHarness -i database/migrations/20260910_Schema_Consolidation_370.sql
+          sqlcmd_docker -d JornadaHarness -i database/migrations/20260930_Linkage_Z_Model_Config_Bundle_Fingerprint.sql
+      - name: Generate a SINGLE known-seed technical frame of 1000 synthetic identities
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/v9-d-local-small"
+          mkdir -p "$root"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 1000 --seed 42 \
+            --out "$root/people-1k" > "$root/generation.log"
+          python3 scripts/v9-nested-calibration-study.py \
+            "$root/people-1k/observacoes.csv" "$root/source-plan.json" --plumbing-fixture
+          python3 scripts/v9-local-determinism-physical-smoke.py prepare \
+            --source "$root/source-plan.json" --output "$root/proof"
+      - name: Execute REAL physical CSharp SQL on identical recorte 1 then 0 then 8
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/v9-d-local-small/proof"
+          corpus="$RUNNER_TEMP/v9-d-local-small/people-1k/observacoes.csv"
+          for n in 1 0 8; do
+            dotnet run --no-build -c Release \
+              --project src/Jornada.Linkage.Parameters.Worker -- \
+              --v9-adaptive-study "$root/plan-$n.json" "$corpus" "$root/results-$n"
+          done
+      - name: Fail closed if any TP FP FN conflict pending fit SQL pair or scientific choice differs
+        working-directory: Solution
+        env:
+          D_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 scripts/v9-local-determinism-physical-smoke.py compare \
+            --output "$RUNNER_TEMP/v9-d-local-small/proof" --head "$D_HEAD_SHA"
+      - name: Preserve small aggregated SHA-bound evidence only (no corpus/TEST)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-d-physical-small-1-0-8-${{ github.run_id }}
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/v9-d-local-small/proof/determinism-physical-receipt.json
+            ${{ runner.temp }}/v9-d-local-small/proof/plan-1.json
+            ${{ runner.temp }}/v9-d-local-small/proof/plan-0.json
+            ${{ runner.temp }}/v9-d-local-small/proof/plan-8.json
+            ${{ runner.temp }}/v9-d-local-small/proof/results-1/scientific-result-digest.json
+            ${{ runner.temp }}/v9-d-local-small/proof/results-0/scientific-result-digest.json
+            ${{ runner.temp }}/v9-d-local-small/proof/results-8/scientific-result-digest.json
+            ${{ runner.temp }}/v9-d-local-small/proof/results-1/runtime-diagnostics.json
+            ${{ runner.temp }}/v9-d-local-small/proof/results-0/runtime-diagnostics.json
+            ${{ runner.temp }}/v9-d-local-small/proof/results-8/runtime-diagnostics.json
+      - name: Destroy disposable SQL regardless of evidence status
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
+
+  crossos-unit:
+    name: Scientific digest and concurrency on Windows .NET
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+      - name: Run unit-level canonical scientific 1/0/8 parity on Windows
+        working-directory: Solution
+        shell: pwsh
+        run: |
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj -c Release --filter "FullyQualifiedName~V9CalibrationScientificResultDigestTests" --logger "console;verbosity=normal"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
