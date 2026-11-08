@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Jornada.Contracts;
 using Microsoft.Data.SqlClient;
 
@@ -21,6 +23,7 @@ public static class V9AdaptiveCalibrationStudyCli
         var planPath = Path.GetFullPath(args[1]);
         var inputPath = Path.GetFullPath(args[2]);
         var outputPath = Path.GetFullPath(args[3]);
+        var runtimeWatch = Stopwatch.StartNew();
         if (Directory.Exists(outputPath) || File.Exists(outputPath))
             throw new InvalidOperationException("Estudo exige um diretório novo; resultados anteriores são imutáveis.");
         if (new FileInfo(planPath).Length is <= 0 or > 10_000_000)
@@ -123,6 +126,7 @@ public static class V9AdaptiveCalibrationStudyCli
                     multiplicity = compared, outcomesUsed = false, testUsed = false, activated = false }));
                 return;
             }
+            var preparationFinishedMs = runtimeWatch.ElapsedMilliseconds;
             var result = await V9AdaptiveCalibrationCoordinator.RunParallelAsync(async ct =>
             {
                 var connection = new SqlConnection(connectionString);
@@ -131,6 +135,7 @@ public static class V9AdaptiveCalibrationStudyCli
             },
                 observations, plan, CancellationToken.None,
                 frozenTfReferenceForRuleset: referenceFactory);
+            var calibrationFinishedMs = runtimeWatch.ElapsedMilliseconds;
             // Reject missing or unpaired physical evidence before exporting fit artifacts.
             var paired = V9TfSharedSurnamePairedDiagnostics.Build(
                 plan.ModelOptions, result.SourceMeasurements,
@@ -157,9 +162,42 @@ public static class V9AdaptiveCalibrationStudyCli
             if (paired.Count > 0)
                 await WriteNewJsonAsync(Path.Combine(outputPath, "tf-shared-paired-diagnostics.json"), paired);
 
+            var scientificDigest = V9CalibrationScientificResultDigest.FromStudy(result);
+            await WriteNewJsonAsync(Path.Combine(outputPath, "scientific-result-digest.json"), new
+            {
+                schema = V9CalibrationScientificResultDigest.Schema,
+                sha256 = scientificDigest,
+                result.TrainInputSha256,
+                result.ValidationInputSha256
+            });
+            var exportFinishedMs = runtimeWatch.ElapsedMilliseconds;
+            using (var process = Process.GetCurrentProcess())
+            {
+                await WriteNewJsonAsync(Path.Combine(outputPath, "runtime-diagnostics.json"), new
+                {
+                    schema = "V9_LOCAL_RUNTIME_DIAGNOSTICS_V1",
+                    totalMilliseconds = runtimeWatch.ElapsedMilliseconds,
+                    phasesMilliseconds = new
+                    {
+                        preparation = preparationFinishedMs,
+                        calibration = calibrationFinishedMs - preparationFinishedMs,
+                        export = exportFinishedMs - calibrationFinishedMs
+                    },
+                    visibleLogicalProcessors = Environment.ProcessorCount,
+                    configuredParallelism = plan.MaximumParallelRuleSets,
+                    effectiveParallelism = V9ParallelWork.ResolveMaximumParallelism(plan.MaximumParallelRuleSets),
+                    peakWorkingSetBytes = process.PeakWorkingSet64,
+                    operatingSystem = RuntimeInformation.OSDescription,
+                    dotNetVersion = RuntimeInformation.FrameworkDescription,
+                    machineOrRunner = Environment.MachineName,
+                    temporalComparability =
+                        "TEMPO INFORMATIVO: não comparar máquinas, sistemas operacionais nem runners; na mesma máquina, apenas com ressalva da carga concorrente.",
+                    distribution = "LOCAL: uma máquina; tarefas C#/.NET escalonadas pelo sistema operacional."
+                });
+            }
             Console.WriteLine(JsonSerializer.Serialize(new
             {
-                output = outputPath, result.PlanSha256,
+                output = outputPath, result.PlanSha256, scientificDigest,
                 configurations = result.Pareto.Table.Count,
                 result.Pareto.Status, result.Pareto.InitialSuggestedOptionId,
                 testUsed = false, published = false, activated = false
