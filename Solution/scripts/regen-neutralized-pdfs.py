@@ -34,7 +34,7 @@ def mentions(path: Path) -> int:
     return text.count(LEGACY.lower())
 
 
-def regenerate(root: Path, before: dict, out: Path) -> dict:
+def regenerate(root: Path, before: dict, out: Path, preview_dir: Path | None = None) -> dict:
     if before.get("total_files") != 45:
         raise ValueError("Expected exactly 45 tracked office files; re-audit the changed inventory")
     targets = [row for row in before["files"] if row["type"] == ".pdf" and row.get("before", 0) > 0]
@@ -65,9 +65,16 @@ def regenerate(root: Path, before: dict, out: Path) -> dict:
                     raise ValueError("renderer produced no nonempty PDF")
                 new_pages = pages(rendered)
                 if new_pages != original_pages:
-                    exceptions.append({"path": rel,
-                                       "reason": "PAGE_COUNT_CHANGED_NEEDS_VISUAL_REVIEW",
-                                       "oldPages": original_pages, "newPages": new_pages})
+                    exceptional = {"path": rel,
+                                   "reason": "PAGE_COUNT_CHANGED_NEEDS_VISUAL_REVIEW",
+                                   "oldPages": original_pages, "newPages": new_pages}
+                    if preview_dir is not None:
+                        preview = preview_dir / rel
+                        preview.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copyfile(rendered, preview)
+                        exceptional["previewSha256"] = hashlib.sha256(preview.read_bytes()).hexdigest()
+                        exceptional["previewPath"] = str(preview.relative_to(preview_dir))
+                    exceptions.append(exceptional)
                     continue
                 remaining = mentions(rendered)
                 if remaining:
@@ -98,9 +105,11 @@ def main() -> None:
     parser.add_argument("--root", type=Path, required=True)
     parser.add_argument("--before", type=Path, required=True)
     parser.add_argument("--report", type=Path, required=True)
+    parser.add_argument("--preview-dir", type=Path,
+                        help="Optional separate QA previews of PDFs with page-count drift; NEVER overwrite originals")
     args = parser.parse_args()
     regenerate(args.root.resolve(), json.loads(args.before.read_text(encoding="utf8")),
-               args.report)
+               args.report, args.preview_dir)
 
 
 if __name__ == "__main__":
