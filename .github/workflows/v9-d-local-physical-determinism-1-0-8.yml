@@ -18,8 +18,12 @@ concurrency:
   cancel-in-progress: false
 jobs:
   physical-small:
-    name: Physical SQL TRAIN/VALIDATION 1/0/8 exact SHA (1k)
-    runs-on: ubuntu-latest
+    name: Physical SQL TRAIN/VALIDATION 1/0/8 exact SHA (1k) — ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -103,7 +107,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
-          name: v9-d-physical-small-1-0-8-${{ github.run_id }}
+          name: v9-d-physical-small-1-0-8-${{ github.run_id }}-${{ matrix.os }}
           retention-days: 90
           if-no-files-found: warn
           path: |
@@ -120,6 +124,52 @@ jobs:
       - name: Destroy disposable SQL regardless of evidence status
         if: always()
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
+
+  crossos-physical-evidence:
+    name: Verify science on independent Ubuntu 22.04 and 24.04 SQL runners
+    needs: physical-small
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download only the two SHA-bound aggregate physical receipts
+        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e
+        with:
+          pattern: v9-d-physical-small-1-0-8-${{ github.run_id }}-*
+          path: ${{ runner.temp }}/d-crossos
+          merge-multiple: false
+      - name: Match every physical scientific metric, fitted SHA, candidate SQL frame
+        env:
+          D_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, glob, os
+          from pathlib import Path
+          roots = sorted(Path(os.environ["RUNNER_TEMP"]).joinpath("d-crossos").glob(
+              "*/determinism-physical-receipt.json"))
+          if len(roots) != 2 or {p.parent.name.split("-")[-1] for p in roots} != {"22.04", "24.04"}:
+              raise SystemExit("Missing independently executed SQL physical receipts from TWO OS runners")
+          results = [json.loads(p.read_bytes()) for p in roots]
+          modes = [1, 0, 8]
+          for result in results:
+              if (result["headSha"] != os.environ["D_HEAD_SHA"] or
+                  result["status"] != "SAME_HOST_KNOWN_SEED42_1000_PHYSICAL_PARITY_NOT_CONFIRMATORY" or
+                  [r["mode"] for r in result["physicalModes"]] != modes or
+                  result["testUsed"] or result["goldUsed"] or result["operationallyActivated"] or
+                  result["statisticallyCertified"]):
+                  raise SystemExit("Invalid per-OS physical determinism receipt")
+          keys = ("digest", "scientificRowsSha256", "fittedSnapshotIndexSha256",
+                  "train", "validation", "scientificOption", "candidatePairs",
+                  "measured", "fitted")
+          for mode, left, right in zip(modes, results[0]["physicalModes"], results[1]["physicalModes"]):
+              for key in keys:
+                  if left[key] != right[key]:
+                      raise SystemExit(f"Cross-OS scientific drift: mode {mode}, {key}")
+          if results[0]["scientificDigestSha256"] != results[1]["scientificDigestSha256"]:
+              raise SystemExit("Cross-OS scientific digest SHA mismatch")
+          print("PASS: Linux Ubuntu 22.04 x 24.04, independent SQL runners, 1/0/8 scientific parity")
+          print("SHA:", results[0]["scientificDigestSha256"])
+          PY
 
   crossos-unit:
     name: Scientific digest and concurrency on Windows .NET
