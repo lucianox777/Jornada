@@ -114,11 +114,11 @@ public sealed class V9OptionalCompatibilityParametersTests
         {
             UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow
         };
-        Assert.Throws<JsonException>((TestDelegate)(() =>
+        Assert.Throws<JsonException>((Action)(() =>
             JsonSerializer.Deserialize<V9NestedCalibrationPlan>(JsonSerializer.Serialize(root), strict)));
         root.Remove("UnexpectedJParameter");
         root["ClusterUnit"] = JsonSerializer.SerializeToElement<string?>(null);
-        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9OptionalCompatibilityParameters.ValidateRawInput(JsonSerializer.SerializeToUtf8Bytes(root))));
     }
 
@@ -126,11 +126,11 @@ public sealed class V9OptionalCompatibilityParametersTests
     public void Nonneutral_new_values_are_not_ignored_or_silently_selected()
     {
         var legacy = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(HistoricalPlanBytes())!;
-        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9OptionalCompatibilityParameters.Validate(legacy with { RecallEquivalenceMargin = .01m })));
-        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9OptionalCompatibilityParameters.Validate(legacy with { ClusterUnit = "PAIR" })));
-        Assert.Throws<InvalidDataException>((TestDelegate)(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9OptionalCompatibilityParameters.Validate(legacy with { RecalibrationTriggers = true })));
     }
 }
