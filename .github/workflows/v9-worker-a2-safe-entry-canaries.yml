@@ -6,6 +6,7 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9WorkerEntryBoundary.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9WorkerSafeHostLoggerProvider.cs'
       - 'Solution/tests/Jornada.Tests/Unit/V9WorkerEntryBoundaryTests.cs'
+      - 'Solution/tests/scripts/test_v9_worker_public_cli_process_canaries.py'
       - '.github/workflows/v9-worker-a2-safe-entry-canaries.yml'
   push:
     branches: [master]
@@ -14,6 +15,7 @@ on:
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9WorkerEntryBoundary.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9WorkerSafeHostLoggerProvider.cs'
       - 'Solution/tests/Jornada.Tests/Unit/V9WorkerEntryBoundaryTests.cs'
+      - 'Solution/tests/scripts/test_v9_worker_public_cli_process_canaries.py'
       - '.github/workflows/v9-worker-a2-safe-entry-canaries.yml'
 permissions:
   contents: read
@@ -36,3 +38,7 @@ jobs:
             -c Release \
             --filter "FullyQualifiedName~V9WorkerEntryBoundaryTests" \
             --logger "console;verbosity=normal"
+      - name: Real subprocess canary for all 16 CLI routes and host bootstrap
+        run: |
+          python3 Solution/tests/scripts/test_v9_worker_public_cli_process_canaries.py \
+            Solution/src/Jornada.Linkage.Parameters.Worker/bin/Release/net10.0/Jornada.Linkage.Parameters.Worker.dll
