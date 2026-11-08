@@ -33,7 +33,8 @@ public sealed class V9OptionalCompatibilityParametersTests
             Assert.That(legacy.ManualReviewSampleSize, Is.Null);
             Assert.That(legacy.RecalibrationTriggers, Is.Null);
             Assert.That(legacy.PredeclaredCandidateCpMultiplicity, Is.Null);
-            Assert.That(legacy.Calibration.MaximumParallelRuleSets, Is.EqualTo(1));
+            // Historical fixture explicitly requests 2 workers; do not rewrite it.
+            Assert.That(legacy.Calibration.MaximumParallelRuleSets, Is.EqualTo(2));
             Assert.That(effective, Does.Not.Contain("RecallEquivalenceMargin"));
             Assert.That(effective, Does.Not.Contain("TieBreakOrder"));
             Assert.That(effective, Does.Not.Contain("ClusterUnit"));
