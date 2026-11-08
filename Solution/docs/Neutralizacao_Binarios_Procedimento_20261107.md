@@ -12,7 +12,7 @@ O script utiliza somente bibliotecas padrão para DOCX; requer `pypdf` ou `pdfto
 
 Somar o resultado binário à busca de todo texto indexado no checkout: `git grep -I -i -o 'p[r]odam' | wc -l`. Só reportar zero quando **não houver falhas de extração** e as contagens de texto e binários forem zero, salvo baselines SQL cujo hash histórico tenha sido documentado e aprovado pelo PO. Proibido alterar arquivo selado, descartar PDF com conteúdo histórico ou reescrever o Git.
 
-Esta PR fornece a ferramenta e o teste sintético, **não** comprova que os 45 binários já foram inspecionados ou editados. A edição efetiva dos DOCX e a lista dos PDFs dependerão da execução e revisão visual em checkout real, com commit em PR própria. Não executar sobre dados reais.
+Esta PR fornece a ferramenta e o teste sintético, **não** comprova que os 45 binários já foram inspecionados ou editados. A edição efetiva dos DOCX e a lista dos PDFs dependerão da execução e revisão visual em checkout real, com commit na própria PR #1332, caso esta ainda esteja aberta, sem abrir PR substituta. Não executar sobre dados reais.
 
 ## Verificação CI em PR
 
@@ -41,3 +41,11 @@ O aplicador local usa **dry-run por padrão** e exige branch F correta, checkout
 ### PDFs de fonte existente com alteração de paginação
 
 O workflow tem modo de **preview seguro**: `--preview-dir pdf-previews` gera **candidatos renderizados separados** dos PDFs com divergência de número de páginas e os inclui no artifact para conferência visual. Os previews não substituem PDFs publicados nem contam como neutralizados. Confirmar fontes/layout e autorizar adoção da versão regenerada ou deixar exceção documentada com justificativa. O PDF `Resumo_Executivo_v3.82.pdf` sem DOCX com mesmo basename continua `AGUARDA PO`/fonte editável.
+
+## Decisão do PO — mandato final 08/11/2026 (fallback operacional F)
+
+**Situação: AGUARDA EXECUÇÃO MANUAL DO PO para os 14 binários.** A ferramenta conectada ao GitHub nesta execução permite gravar texto e objetos Git, mas não transferir de modo seguro e revisável o pacote binário de **7.891.937 bytes** para commit. Aplicada a regra 2.1 do mandato, **sem repetição de pushes ou conversão silenciosa**: a #1332 pode ser mesclada **somente com scripts, workflow e documentação**, mantendo a pendência de aplicar o pacote e revisá-lo visualmente. Isso **não conclui** a neutralização de documentos nem comprova zero menções no repositório. O pacote foi efetivamente obtido do artifact **13627958839** (run **42508046393**) e seu ZIP interno tem SHA-256 `376bae3e06b34802e736f1b3c7d47e2e7e3b6ecc1b98a1822564b301c8d3f988`. Em patch isolado, relatório aponta 120 ocorrências antes e 49 depois; **na master essa queda ainda não ocorreu**.
+
+**Aplicação manual:** baixar o artifact `neutralizacao-binarios-patch-readonly` do run 42508046393, extrair `binary-edits.zip`, conferir SHA-256 acima, abrir checkout isolado da mesma PR **somente se ainda estiver aberta**, executar o aplicador com `--zip` primeiro sem `--apply`, depois com `--apply`; revisar visualmente 10 DOCX e 4 PDFs regenerados, auditar novamente os 45 binários e confirmar `git diff` antes de commit/push. Caso a PR já tenha sido integrada e a branch apagada, **não aplicar diretamente à master** e não abrir PR por conta própria; obter do PO autorização expressa de mecanismo de integração da pendência. Seis PDFs permanecem excepcionalizados nominalmente em `Auditoria_Binarios_20261108.md` (cinco com alteração de paginação e um sem fonte editável); arquivos editáveis PPTX/XLSX só podem ser declarados cobertos com inspeção efetiva.
+
+**Precedência e escopo:** esta decisão operacional supera a instrução antiga de aguardar commit binário para a integração da **ferramenta**; não revoga o objetivo substantivo da neutralização textual/binária. Referências: mandato final do PO de 08/11/2026, PR #1332, GOV-DOC-01, artifact 13627958839; a auditoria integral será refeita após aplicação manual.
