@@ -120,6 +120,7 @@ jobs:
             Solution/.local/v9-100k-technical/bound/capacity-before-calibration.json
             Solution/.local/v9-100k-technical/bound/plan.json
             Solution/.local/v9-100k-technical/bound/binding-receipt.json
+            Solution/.local/v9-100k-technical/results/interrupted.json
             Solution/.local/v9-100k-technical/bound/technical-audit.json
             Solution/.local/v9-100k-technical/bound/technical-audit.md
             Solution/.local/v9-100k-technical/results/mu-statistical-analysis.json

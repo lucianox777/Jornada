@@ -223,7 +223,8 @@ public static class V9NestedCalibrationCoordinator
         V9NestedCalibrationPlan plan, CancellationToken cancellationToken,
         Action<V9TrainingBatchProgress>? reportProgress = null,
         Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset = null,
-        int? executionMaximumParallelRuleSets = null)
+        int? executionMaximumParallelRuleSets = null,
+        Action<string>? reportSafeStage = null)
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
         ValidatePlan(plan);
@@ -232,6 +233,8 @@ public static class V9NestedCalibrationCoordinator
         originalTrain = Array.AsReadOnly(originalTrain.ToArray());
         // Deep freeze before asynchronous execution. Search never receives a VALIDATION/TEST cohort.
         plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(JsonSerializer.Serialize(plan))!;
+        // Stage callbacks expose fixed names, never exception text, SQL or IDs.
+        reportSafeStage?.Invoke("MU_VARIANT_EXPANSION");
         // Bind selection/VALIDATION to the declared plan, not the internally expanded options.
         var declaredPlanSha = V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(plan));
         if (plan.MuEstimationMethods is { } muMethods)
@@ -243,6 +246,7 @@ public static class V9NestedCalibrationCoordinator
             // the original option catalogue has already passed its full validation.
             // The expansion is separately validated and fingerprinted before any SQL.
         }
+        reportSafeStage?.Invoke("TRAIN_SPLIT");
         var split = V9InternalTrainingSplit.Create(originalTrain, plan.SplitSeed, plan.AdjustmentFraction);
         var calibration = plan.Calibration;
         if (originalTrain.GroupBy(x => x.BasePersonId, StringComparer.Ordinal).Any(g => g.Count() > calibration.MaximumAcceptedPerBaseIdentity))
@@ -267,6 +271,7 @@ public static class V9NestedCalibrationCoordinator
         if (ruleSets.SelectMany(x => x).Concat(catalogue).GroupBy(x => x.PassId, StringComparer.Ordinal)
             .Any(g => g.Select(p => string.Join('|', p.Fields)).Distinct(StringComparer.Ordinal).Count() > 1))
             throw new InvalidDataException("PassId não pode representar predicados diferentes entre lotes.");
+        reportSafeStage?.Invoke("DECLARED_REQUESTS_AND_CP");
         var requests = ruleSets.SelectMany(passes => calibration.ModelOptions.SelectMany(option => calibration.ConflictMargins
             .Select(margin => new Request(passes, option, margin, option.OptionId,
                  IsNineteenPassDiagnostic(plan.MuEstimationMethods, passes.Count)))))
@@ -304,6 +309,7 @@ public static class V9NestedCalibrationCoordinator
         var stop = "BATCH_BUDGET_EXHAUSTED_NOT_OPTIMALITY";
         var active = new HashSet<SqlConnection>(ReferenceEqualityComparer.Instance);
         using var referenceLease = new SemaphoreSlim(1);
+        reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");
         for (var batch = 1; batch <= plan.MaximumBatches; batch++)
         {
             cancellationToken.ThrowIfCancellationRequested();
