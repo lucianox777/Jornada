@@ -223,6 +223,26 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public void Stage_duration_report_is_monotonic_explicit_and_never_scientific()
+    {
+        var complete = V9NestedCalibrationCli.DescribeStageDurations(10, 50, 12, 7);
+        Assert.That(complete.Schema, Is.EqualTo("V9_STAGE_DURATION_DIAGNOSTIC_V1"));
+        Assert.That(complete.TotalMeasuredMilliseconds, Is.EqualTo(79));
+        Assert.That(complete.SequentialStages, Is.True);
+        Assert.That(complete.Stages.Select(s => s.ElapsedMilliseconds), Is.EqualTo(new long?[] {10, 50, 12, 7}));
+        Assert.That(complete.Stages.All(s => s.Status.StartsWith("MEASURED", StringComparison.Ordinal)), Is.True);
+        Assert.That(complete.UnmeasuredScope, Does.Contain("runtime-diagnostics"));
+        var pending = V9NestedCalibrationCli.DescribeStageDurations(2, 0, 0, null);
+        Assert.That(pending.TotalMeasuredMilliseconds, Is.EqualTo(2));
+        Assert.That(pending.Stages[^1].Status, Is.EqualTo("NOT_MEASURED"));
+        Assert.That(pending.Stages[^1].ElapsedMilliseconds, Is.Null);
+        Assert.That((Action)(() => V9NestedCalibrationCli.DescribeStageDurations(-1, 0, 0, null)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9NestedCalibrationCli.DescribeStageDurations(1, 0, 0, -1)),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Ram_reporting_uses_runtime_GC_pressure_without_inventing_a_memory_limit()
     {
         const long mib = 1024L * 1024;
