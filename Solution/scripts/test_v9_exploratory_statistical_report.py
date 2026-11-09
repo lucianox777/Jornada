@@ -68,6 +68,28 @@ class StatisticalReportTests(unittest.TestCase):
         self.params.write_text(json.dumps({"ExploratoryParameters":[{"Name":"OptionId","Values":["EXP_1"]}]}))
         module.extend(self.source,self.target,enabled=True,parameters_path=self.params)
         self.assertEqual(json.loads(self.target.read_text())["exploratoryAnalysis"]["AdditionalMeasurements"],[])
+    def test_physical_pair_sha_and_mu_policy_guard(self):
+        report = json.loads(self.raw)
+        common = {"Batch": 1, "ConflictMargin": 0.5, "blockingPasses": [1, 2, 3],
+                  "candidatePriorTrainingAudit": {"PhysicalCandidatePairsSha256": "f" * 64}}
+        report["rows"] = [
+            dict(common, OptionId="A", fitSnapshotSha256="a", MuPolicy=None,
+                 recall=0.91, fdrObserved=0.04),
+            dict(common, OptionId="B", fitSnapshotSha256="b", MuPolicy=None,
+                 recall=0.92, fdrObserved=0.03),
+            dict(common, OptionId="C", fitSnapshotSha256="c", MuPolicy={"MinimumM": 5},
+                 recall=0.99, fdrObserved=0.01)]
+        self.source.write_text(json.dumps(report))
+        self.params.write_text(json.dumps({"ExploratoryParameters":[{"Name":"OptionId","Values":["A"]}]}))
+        module.extend(self.source, self.target, enabled=True, parameters_path=self.params)
+        output = json.loads(self.target.read_text())
+        comparisons = output.pop("exploratoryAnalysis")["AdditionalMeasurements"]
+        self.assertEqual(output, report)
+        self.assertEqual([r["BaselineOptionId"] for r in comparisons], ["B"])
+        self.assertEqual(comparisons[0]["CandidatePairsSha256"], "f" * 64)
+        self.assertTrue(comparisons[0]["ComparisonIsDescriptiveOnly"])
+        self.assertFalse(comparisons[0]["MultiplicityAdjusted"])
+        self.assertFalse(comparisons[0]["IndependentIdentityUncertaintyEstimated"])
     def test_enabled_requires_declaration(self):
         with self.assertRaisesRegex(ValueError,"requires parameter"):
             module.extend(self.source,self.target,enabled=True)
