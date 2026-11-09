@@ -63,7 +63,9 @@ def extend(report_path, output_path, *, enabled=False, parameters_path=None):
     # Analyze ONLY already-measured rows from the normal calibration.
     # A same-frame comparison requires identical SQL candidate-pair fingerprints.
     # Never infer an unmeasured option's performance from a different option.
-    measured = [row for row in report.get("rows", []) if isinstance(row, dict)
+    if not isinstance(report.get("rows"), list):
+        raise ValueError("Expected normal report rows array")
+    measured = [row for row in report["rows"] if isinstance(row, dict)
                 and row.get("fitSnapshotSha256") is not None]
     comparisons = []
     for declaration in values:
@@ -74,14 +76,15 @@ def extend(report_path, output_path, *, enabled=False, parameters_path=None):
                 raise ValueError("OptionId values must be strings")
             matches = [row for row in measured if row.get("OptionId") == option_id]
             for row in matches:
-                frame = row.get("CandidatePairsSha256")
+                frame = row.get("CandidatePairsSha256") or (row.get("candidatePriorTrainingAudit") or {}).get("PhysicalCandidatePairsSha256")
                 if not isinstance(frame, str) or not frame:
                     continue
                 peers = [other for other in measured if other is not row
-                         and other.get("CandidatePairsSha256") == frame
+                         and (other.get("CandidatePairsSha256") or (other.get("candidatePriorTrainingAudit") or {}).get("PhysicalCandidatePairsSha256")) == frame
                          and other.get("Batch") == row.get("Batch")
                          and other.get("ConflictMargin") == row.get("ConflictMargin")
-                         and other.get("blockingPasses") == row.get("blockingPasses")]
+                         and other.get("blockingPasses") == row.get("blockingPasses")
+                         and other.get("MuPolicy") == row.get("MuPolicy")]
                 for peer in peers:
                     comparisons.append({
                         "OptionId": option_id,
@@ -90,6 +93,9 @@ def extend(report_path, output_path, *, enabled=False, parameters_path=None):
                         "Batch": row.get("Batch"),
                         "ConflictMargin": row.get("ConflictMargin"),
                         "MeasuredInNormalCalibration": True,
+                        "IndependentIdentityUncertaintyEstimated": False,
+                        "MultiplicityAdjusted": False,
+                        "ComparisonIsDescriptiveOnly": True,
                         "ExploratoryOnly": True,
                         "Recall": row.get("recall"),
                         "BaselineRecall": peer.get("recall"),
