@@ -20,3 +20,7 @@ A decisão anterior autorizou ampliar parâmetros exploratórios, mas o PO escla
 - Decisões complementadas: `GOV-V9-J-COMPAT-20261108` e complemento exploratório de `GOV-V9-FECHAMENTO-20261109`.
 - Escopo inicial: isolamento arquitetural e documental. **Ainda não foi implementado nem executado um novo espaço paramétrico.**
 - Próximos gates: inventário de parâmetros, testes de regressão dos defaults, rejeição fail-closed, proveniência por opção, execução exploratória isolada e relatório auditável.
+
+## Implementação inicial incorporada no ramo (09/11/2026)
+
+Foram copiados da branch técnica da PR #1352 para **este ramo de pesquisa** o materializador `Solution/scripts/v9-exploratory-append.py`, seus testes unitários, a documentação e o workflow de testes. Esta operação não mescla a PR #1352 na master. O materializador acrescenta opções `EXP_` inelegíveis a um **novo catálogo derivado**, preserva bytes do plano-fonte, exige evidência TRAIN declarada e grava hashes de proveniência. **Limitação expressa:** a evidência fornecida não é autenticada independentemente; o catálogo `ExploratoryCatalogOnly` não é um plano executável certificado. Não há ainda exploração adicional de M/U, blocking, novos domínios paramétricos, ajuste de multiplicidade ou execução física. Os testes do workflow ainda precisam de resultado observado no SHA deste ramo. A incorporação não representa aprovação científica ou ativação.
