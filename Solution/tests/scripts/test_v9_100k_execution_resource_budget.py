@@ -1,0 +1,118 @@
+"""Offline regression for resource-only V9 100k dynamic SQL admission (no physics)."""
+import importlib.util
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+ROOT = Path(__file__).resolve().parents[2]
+script = ROOT / "scripts/v9-100k-execution-resource-budget.py"
+spec = importlib.util.spec_from_file_location("v9_100k_runtime_budget", script)
+mod = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(mod)
+G = mod.GIB
+SHA = "a" * 40
+
+
+def sample(available=14 * G, disk=10 * G, total=15 * G):
+    return {"hostRamBytes": total, "hostRamAvailableBytes": available,
+            "effectiveRamAvailableBytes": available, "diskFreeBytes": disk,
+            "cgroupLimitBytes": None, "cgroupUsedBytes": None}
+
+
+class Adaptive100kResourceBudgetTests(unittest.TestCase):
+    def test_standard_runner_frees_sql_memory_for_csharp(self):
+        result = mod.budget("plan-sql", sample(), SHA)
+        self.assertEqual(result["status"], "PASS_ADMISSION_ONLY_NOT_FIT_PROOF")
+        self.assertEqual(result["sqlMemoryLimitMb"], 2048)
+        self.assertEqual(result["sqlContainerMemoryMb"], 3072)
+        self.assertFalse(result["fitted100k"])
+        self.assertFalse(result["historical100kGeneratorResourceProfileReused"])
+        self.assertFalse(result["testUsed"])
+        self.assertFalse(result["goldUsed"])
+        self.assertFalse(result["activated"])
+
+    def test_larger_runner_budget_increases_only_with_measured_headroom(self):
+        for available, selected in ((18 * G, 3072), (25 * G, 3072),
+                                    (26 * G, 4096)):
+            with self.subTest(available=available):
+                result = mod.budget("plan-sql", sample(available=available, total=30 * G), SHA)
+                self.assertEqual(result["sqlMemoryLimitMb"], selected)
+                self.assertEqual(result["sqlContainerMemoryMb"], selected + 1024)
+        # Nominal RAM does not license a 4GiB SQL budget when available RAM is low.
+        self.assertEqual(mod.budget("plan-sql", sample(total=30 * G), SHA)
+                         ["sqlMemoryLimitMb"], 2048)
+
+    def test_fail_closed_without_ram_disk_or_worker_reserve(self):
+        for s in (sample(total=11 * G), sample(disk=5 * G),
+                  sample(available=9 * G), sample(available=1 * G)):
+            self.assertEqual(mod.budget("plan-sql", s, SHA)["status"],
+                             "FAIL_CLOSED_INSUFFICIENT_RESOURCES")
+
+    def test_fit_reuses_only_same_sha_runtime_receipt_not_old_generator(self):
+        before = mod.budget("plan-sql", sample(), SHA)
+        after = mod.budget("before-fit", sample(available=8 * G), SHA, before)
+        self.assertEqual(after["status"], "PASS_ADMISSION_ONLY_NOT_FIT_PROOF")
+        self.assertEqual(after["sqlMemoryLimitMb"], 2048)
+        self.assertEqual(mod.budget("before-fit", sample(available=5 * G), SHA, before)
+                         ["status"], "FAIL_CLOSED_INSUFFICIENT_RESOURCES")
+        self.assertEqual(mod.budget("before-fit", sample(disk=2 * G), SHA, before)
+                         ["status"], "FAIL_CLOSED_INSUFFICIENT_RESOURCES")
+        with self.assertRaisesRegex(ValueError, "same-SHA"):
+            mod.budget("before-fit", sample(), "b" * 40, before)
+        with self.assertRaisesRegex(ValueError, "same-SHA"):
+            mod.budget("before-fit", sample(), SHA, {"schema": "generator-100k"})
+        with self.assertRaisesRegex(ValueError, "SQL memory receipt"):
+            tampered = dict(before, sqlContainerMemoryMb=2048)
+            mod.budget("before-fit", sample(), SHA, tampered)
+
+    def test_rejects_corrupt_samples_and_unverified_sha(self):
+        with self.assertRaises(ValueError):
+            mod.budget("bad", sample(), SHA)
+        with self.assertRaises(ValueError):
+            mod.budget("plan-sql", sample(), "short")
+        with self.assertRaises(ValueError):
+            mod.budget("plan-sql", dict(sample(), diskFreeBytes=-1), SHA)
+
+    def test_cgroup_remaining_is_used_if_finite(self):
+        with tempfile.TemporaryDirectory() as d:
+            cgroup = Path(d)
+            (cgroup / "memory.max").write_text(str(16 * G))
+            (cgroup / "memory.current").write_text(str(10 * G))
+            self.assertEqual(mod.read_bytes(cgroup / "memory.max"), 16 * G)
+            self.assertEqual(mod.read_bytes(cgroup / "memory.current"), 10 * G)
+            (cgroup / "memory.max").write_text("max")
+            self.assertIsNone(mod.read_bytes(cgroup / "memory.max"))
+            (cgroup / "memory.current").write_text("not_a_number")
+            with self.assertRaisesRegex(ValueError, "unreadable"):
+                mod.read_bytes(cgroup / "memory.current")
+
+    def test_exact_workflow_separation_and_no_safety_bypass(self):
+        workflow = (ROOT.parent / ".github/workflows/v9-multiparameter-100k-technical.yml").read_text()
+        self.assertIn("runs-on: ubuntu-24.04", workflow)
+        self.assertIn("github.actor == github.repository_owner", workflow)
+        self.assertIn("security_preflight_approved == true", workflow)
+        self.assertIn('test "$EXACT_SHA" = "$GITHUB_SHA"', workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertNotIn("  push:", workflow)
+        self.assertNotIn("  pull_request:", workflow)
+        self.assertNotIn("V9_SQL_MEMORY_LIMIT_MB: \"4096\"", workflow)
+        self.assertNotIn("v9-standard-100k-capacity.py", workflow)
+        gen = workflow.index("Generate known-seed 100k clean TRAIN")
+        plan = workflow.index("Recalculate LIVE resource budget")
+        sql = workflow.index("Start masked disposable SQL Server")
+        pin = workflow.index("Reconstruct historical 30k TF reference")
+        guard = workflow.index("Recheck physical RAM/disk")
+        fit = workflow.index("Run physical V9 CSharp on all 24")
+        self.assertLess(gen, plan)
+        self.assertLess(plan, sql)
+        self.assertLess(sql, pin)
+        self.assertLess(pin, guard)
+        self.assertLess(guard, fit)
+        self.assertIn("--github-env \"$GITHUB_ENV\"", workflow)
+        self.assertIn("--previous \"$root/capacity-before-sql.json\"", workflow)
+        self.assertIn("--v9-calibrate", workflow)
+
+
+if __name__ == "__main__":
+    unittest.main()

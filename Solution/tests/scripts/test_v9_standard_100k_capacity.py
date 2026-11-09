@@ -42,7 +42,7 @@ class Standard100kResourceTests(unittest.TestCase):
         self.assertIn('test "$EXACT_SHA" = "$GITHUB_SHA"', workflow)
         self.assertIn("--v9-calibrate", workflow)
         self.assertIn("v9-scale-100k-technical-audit.py", workflow)
-        self.assertIn("V9_SQL_MEMORY_LIMIT_MB:", workflow)
+        self.assertIn("v9-100k-execution-resource-budget.py --stage plan-sql", workflow)
 
 
 if __name__ == "__main__":

@@ -86,6 +86,9 @@ class V9MaskedSqlProbeTests(unittest.TestCase):
                 "GITHUB_RUN_ID": "9876543",
                 "GITHUB_RUN_ATTEMPT": "1",
                 "DOCKER_INVOCATIONS": str(docker_log),
+                # New 100k fit-only budget: dynamic SQL cap + 1GiB headroom.
+                "V9_SQL_MEMORY_LIMIT_MB": "2048",
+                "V9_SQL_CONTAINER_MEMORY_MB": "3072",
                 "PATH": str(tools) + os.pathsep + env.get("PATH", ""),
             })
             result = subprocess.run(
@@ -99,6 +102,7 @@ class V9MaskedSqlProbeTests(unittest.TestCase):
             invocations = docker_log.read_text(encoding="utf-8")
             self.assertNotIn(secret, invocations, "SQL password leaked into argv.")
             self.assertIn("--env-file ", invocations)
+            self.assertIn("--memory 3072m", invocations)
             self.assertNotIn("--env MSSQL_SA_PASSWORD=", invocations)
             self.assertIn('chmod 600 "$sql_env_file"', STARTER.read_text())
             self.assertIn("trap 'rm -f -- \"$sql_env_file\"' EXIT", STARTER.read_text())
@@ -107,6 +111,13 @@ class V9MaskedSqlProbeTests(unittest.TestCase):
             self.assertNotIn(secret, result.stderr)
             self.assertIn("PASS: disposable SQL Server healthy", result.stdout)
 
+
+    def test_invalid_sql_container_budget_rejected_before_secret_generation(self):
+        code = STARTER.read_text(encoding="utf-8")
+        self.assertIn("sql_container_mb", code)
+        self.assertIn("sql_container_mb >= V9_SQL_MEMORY_LIMIT_MB + 1024", code)
+        self.assertIn('sql_memory_args=(--memory "${sql_container_mb}m")', code)
+        self.assertNotIn("sql_memory_args=(--memory 5g)", code)
 
 if __name__ == "__main__":
     unittest.main()
