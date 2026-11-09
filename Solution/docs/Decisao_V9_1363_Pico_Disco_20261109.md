@@ -1,6 +1,6 @@
 # V9 #1363 — pico de disco no relatório analítico estatístico (execução)
 
-**Decisão PO 09/11/2026; estado: IMPLEMENTAÇÃO EM PR ISOLADA, PENDENTE CI/PROVA FÍSICA.** GOV-DOC-01.
+**Decisão PO 09/11/2026; estado: INTEGRADA em master via PR #1377 (merge `f5fe37e21eceafb59c78d6822adedf6413793b13`), PASS nos checks rápidos de PR no HEAD exato `cc4f5b7a657452f7d42bb72116eeb354635efa23`, PENDENTE prova física do novo relatório.** GOV-DOC-01.
 
 ## Contexto e classificação
 O PO solicitou duração por etapa (#1362) e **pico de disco junto à RAM** (#1363) no relatório de calibração V9. A leitura do código mostrou que não havia medição de disco. O uso de disco **não pode** ser deduzido de RAM, bytes de I/O ou disponibilidade do volume compartilhado.
@@ -16,3 +16,7 @@ Cobertura unitária: crescimento e remoção temporária, diretórios aninhados,
 
 ## Precedência
 Observabilidade da V9 e #1302; não substitui decisão de **sem teto de registros** da calibração, campanha 100k #1349, isolamento TEST/Gold ou impedimento de segurança #1253. PR #1362 tem escopo e processo de integração separados; não empilhar sobre esse HEAD nem alterar ciência.
+
+## Recibo técnico de integração e escopo validado
+
+[PR #1377](https://github.com/lucianox777/Jornada/pull/1377) reconciliada com a master que contém #1376 (tempo por etapa), #1379 (runner GitHub padrão) e #1380 (relatório real de geração 100k), **MERGED** no commit master `f5fe37e21eceafb59c78d6822adedf6413793b13`. [Fast CI 42668860625](https://github.com/lucianox777/Jornada/actions/runs/42668860625) **SUCCESS** no HEAD `cc4f5b7a657452f7d42bb72116eeb354635efa23` antes de merge: `deterministic-build`, `unit-runtime`, `security-guards` PASS. Windows e validação independente estavam ainda em execução no momento do merge (não afirmar PASS desses checks naquele instante). A master iniciou [jornada-ci 42669297610](https://github.com/lucianox777/Jornada/actions/runs/42669297610), além das regressões físicas. **Não há evidência física pós-merge suficiente para afirmar que o relatório #1363 mediu o pico de disco em 100k V9**; permanece diagnóstico de **bytes lógicos observados no diretório de saída**, não uso físico de toda a máquina ou SQL Server. Não encerrar issue #1363 até confirmação dos artefatos/aceite do escopo. GOV-DOC-01.
