@@ -217,7 +217,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
     public sealed record OfflinePairCapacity(
         int BlockingPasses, int SignatureRows, long PreflightPairIncidencesUpperBound,
         int DeclaredMaximumCandidatePairIncidences, int DeclaredMaximumProjectedSignatures,
-        bool WithinDeclaredPairIncidenceCap,
+        bool WithinDeclaredProjectedSignatureCap, bool WithinDeclaredPairIncidenceCap,
         string EvidenceScope = "TRAIN_INTERNAL_FRAME_NO_SQL_NO_TEST_NO_MODEL_FIT");
 
     public static OfflinePairCapacity InspectOfflinePairCapacity(
@@ -237,13 +237,25 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             .ToHashSet(StringComparer.Ordinal);
         if (canonical.SelectMany(x => x.Fields).Any(x => !allowed.Contains(x)))
             throw new InvalidDataException("OFFLINE_V9_UNSUPPORTED_BLOCKING_FEATURE");
-        var signatures = BuildSignatures(observations, canonical,
-            execution.MaximumPrefixLength, execution.MaximumProjectedSignatures);
+        List<SignatureRow> signatures;
+        try
+        {
+            signatures = BuildSignatures(observations, canonical,
+                execution.MaximumPrefixLength, execution.MaximumProjectedSignatures);
+        }
+        catch (InvalidDataException error) when (error.Data.Contains(CandidateRejectionKey))
+        {
+            // BuildSignatures rejects deterministically at cap + 1 before SQL.
+            // No exception messages, signature hashes or personal rows in receipts.
+            return new(canonical.Length, execution.MaximumProjectedSignatures + 1, 0,
+                execution.MaximumCandidatePairIncidences, execution.MaximumProjectedSignatures,
+                false, false);
+        }
         var incidences = CountPairIncidences(signatures, observations,
             execution.MaximumCandidatePairIncidences);
         return new(canonical.Length, signatures.Count, incidences,
             execution.MaximumCandidatePairIncidences, execution.MaximumProjectedSignatures,
-            incidences <= execution.MaximumCandidatePairIncidences);
+            true, incidences <= execution.MaximumCandidatePairIncidences);
     }
 
 
