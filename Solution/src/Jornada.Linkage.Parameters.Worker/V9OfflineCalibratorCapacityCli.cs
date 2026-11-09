@@ -71,12 +71,14 @@ public static class V9OfflineCalibratorCapacityCli
         var counts = ruleSets.Select(passes =>
             V9PhysicalSqlAdaptiveCalibrationProbe.InspectOfflinePairCapacity(
                 frame, passes, plan.Calibration.Execution)).ToArray();
-        var within = counts.All(x => x.WithinDeclaredPairIncidenceCap);
+        var signaturesWithin = counts.All(x => x.WithinDeclaredProjectedSignatureCap);
+        var pairsWithin = counts.All(x => x.WithinDeclaredPairIncidenceCap);
         var result = new
         {
             schema = "V9_OFFLINE_100K_PRESQL_CAPACITY_V1",
-            status = within ? "PRE_SQL_CAPACITY_ADMITTED_NOT_FITTED"
-                : "DECLARED_PAIR_INCIDENCE_CAP_EXCEEDED_NO_FIT",
+            status = !signaturesWithin ? "DECLARED_SIGNATURE_CAP_EXCEEDED_NO_FIT"
+                : !pairsWithin ? "DECLARED_PAIR_INCIDENCE_CAP_EXCEEDED_NO_FIT"
+                : "PRE_SQL_CAPACITY_ADMITTED_NOT_FITTED",
             originalPlanSha256 = Convert.ToHexString(SHA256.HashData(planBytes)).ToLowerInvariant(),
             observationsSha256 = inputSha,
             manifestSha256 = Convert.ToHexString(SHA256.HashData(sourceManifest)).ToLowerInvariant(),
