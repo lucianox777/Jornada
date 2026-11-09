@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   http-to-serving-1k:
-    name: HTTP 1k synthetic: API, Bronze, Processor, Silver, Gold, Serving (DEV only)
+    name: "HTTP 1k synthetic: API, Bronze, Processor, Silver, Gold, Serving (DEV only)"
     runs-on: ubuntu-latest
     timeout-minutes: 100
     defaults:
