@@ -36,7 +36,7 @@ public sealed class V9OfflineCalibratorCapacityTests
         {
             Assert.That(report.WithinDeclaredProjectedSignatureCap, Is.True);
             Assert.That(report.WithinDeclaredPairIncidenceCap, Is.False);
-            Assert.That(report.PreflightPairIncidencesUpperBound, Is.EqualTo(2L));
+            Assert.That(report.PreflightPairIncidencesCapped, Is.EqualTo(2L));
             Assert.That(report.BlockingPasses, Is.EqualTo(1));
             Assert.That(report.EvidenceScope, Does.Contain("NO_SQL_NO_TEST"));
         }));
@@ -49,7 +49,7 @@ public sealed class V9OfflineCalibratorCapacityTests
             SharedSignatureFrame(), Passes(), Execution(1000));
         Assert.That(report.WithinDeclaredProjectedSignatureCap, Is.True);
         Assert.That(report.WithinDeclaredPairIncidenceCap, Is.True);
-        Assert.That(report.PreflightPairIncidencesUpperBound, Is.GreaterThan(1));
+        Assert.That(report.PreflightPairIncidencesCapped, Is.GreaterThan(1));
     }
 
     [Test]
