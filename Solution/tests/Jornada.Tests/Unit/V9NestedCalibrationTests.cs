@@ -243,7 +243,7 @@ public sealed class V9NestedCalibrationTests
             File.Delete(transient);
             File.WriteAllBytes(Path.Combine(outside, "not-calibration.dat"), new byte[65536]);
             var after = sampler.Snapshot();
-            Assert.That(after.CurrentLogicalBytes, Is.LessThan(after.PeakLogicalBytes));
+            Assert.That(after.CurrentLogicalBytes, Is.LessThan(after.PeakLogicalBytes!.Value));
             Assert.That(after.PeakLogicalBytes, Is.EqualTo(atPeak.PeakLogicalBytes));
             Assert.That(after.Exclusions, Does.Contain("SQL_CONTAINER"));
             Assert.That(after.Exclusions, Does.Contain("PHYSICAL_ALLOCATED_BLOCKS"));
