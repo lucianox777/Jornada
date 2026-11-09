@@ -18,13 +18,18 @@ printf '::add-mask::%s\n' "$sql_password"
   printf 'ConnectionStrings__Jornada=Server=127.0.0.1,1433;Database=JornadaHarness;User Id=sa;Password=%s;TrustServerCertificate=true;Encrypt=false\n' "$sql_password"
 } >> "$GITHUB_ENV"
 
-# No GitHub service-container provisioning: it prints docker-create args
-# before the first workflow step, where add-mask cannot run.
+# No credential in process arguments: pass a private 0600 file path to
+# Docker rather than --env NAME=<password>, which leaks through process argv.
+# No service-container provisioning (the log precedes GitHub add-mask).
+sql_env_file="$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/jornada-v9-sql-env.XXXXXXXX")"
+chmod 600 "$sql_env_file"
+trap 'rm -f -- "$sql_env_file"' EXIT
+printf 'MSSQL_SA_PASSWORD=%s\n' "$sql_password" > "$sql_env_file"
 docker run --detach --rm \
   --name "$sql_name" \
   --publish 127.0.0.1:1433:1433 \
   --env ACCEPT_EULA=Y --env MSSQL_PID=Developer \
-  --env "MSSQL_SA_PASSWORD=$sql_password" \
+  --env-file "$sql_env_file" \
   mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89 \
   >/dev/null
 
