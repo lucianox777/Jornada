@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic synthetic AA01 bulk fixture for disposable HTTP E2E (max 1k).
+"""Deterministic synthetic AA01 bulk fixture for disposable HTTP E2E (max 1k per ZIP).
 
 Never outputs real people or writes under committed fixtures. All source rows
 are synthesized locally, and the caller must keep ZIP/JSONL outside artifacts.
@@ -26,9 +26,10 @@ def make_cpf(index: int, seed: int) -> str:
     return base + digit(base) + digit(base + digit(base))
 
 
-def generate(fixture: Path, out: Path, count: int, seed: int) -> dict:
-    if not (1 <= count <= 1000 and seed == 355):
-        raise ValueError("HTTP E2E phase 1 permits 1..1000 rows and frozen seed355 only")
+def generate(fixture: Path, out: Path, count: int, seed: int, start_index: int = 1) -> dict:
+    if not (1 <= count <= 1000 and seed == 355 and
+            1 <= start_index <= 10000 and start_index + count - 1 <= 10000):
+        raise ValueError("HTTP E2E permits at most 1000 rows/ZIP, range 1..10000, frozen seed355")
     if out.exists() and any(out.iterdir()):
         raise FileExistsError("Refuse to overwrite an existing bulk fixture directory")
     manifest = (fixture / "manifest.json").read_bytes()
@@ -41,7 +42,7 @@ def generate(fixture: Path, out: Path, count: int, seed: int) -> dict:
     last_names = ("Silva", "Santos", "Costa", "Oliveira", "Pereira", "Lima", "Ferreira")
     with (out / "pessoas.jsonl").open("w", encoding="utf-8", newline="\n") as persons, \
          (out / "registros.jsonl").open("w", encoding="utf-8", newline="\n") as records:
-        for i in range(1, count + 1):
+        for i in range(start_index, start_index + count):
             p = copy.deepcopy(people)
             r = copy.deepcopy(record)
             key = f"PESSOA-E2E-VOL-{i:06d}"
@@ -58,7 +59,8 @@ def generate(fixture: Path, out: Path, count: int, seed: int) -> dict:
             r["codigoRegistroOrigem"] = f"E2E-AA01-VOL-2026-{i:06d}"
             persons.write(json.dumps(p, ensure_ascii=False, separators=(",", ":")) + "\n")
             records.write(json.dumps(r, ensure_ascii=False, separators=(",", ":")) + "\n")
-    return {"synthetic": True, "fixture": "AA01_v2", "count": count, "seed": seed}
+    return {"synthetic": True, "fixture": "AA01_v2", "count": count, "seed": seed,
+            "startIndex": start_index}
 
 
 def main() -> None:
@@ -67,8 +69,9 @@ def main() -> None:
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--count", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=355)
+    parser.add_argument("--start-index", type=int, default=1)
     args = parser.parse_args()
-    result = generate(args.fixture, args.output_dir, args.count, args.seed)
+    result = generate(args.fixture, args.output_dir, args.count, args.seed, args.start_index)
     # Output only cardinality/seed — never a CPF, name or payload.
     print(json.dumps(result, sort_keys=True))
 
