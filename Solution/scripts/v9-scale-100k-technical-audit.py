@@ -23,7 +23,11 @@ def require(ok, msg):
         raise ValueError("V9_100K_AUDIT_FAIL_CLOSED: " + msg)
 
 
-def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path):
+def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path, code_sha, run_id):
+    import re
+    require(isinstance(code_sha, str) and re.fullmatch(r"[0-9a-f]{40}", code_sha),
+            "code SHA must be exact immutable master commit")
+    require(type(run_id) is int and run_id > 0, "run id must be real GitHub Actions run")
     plan = binder.json_unique(Path(plan_path).read_bytes())
     receipt = binder.json_unique(Path(receipt_path).read_bytes())
     report = binder.json_unique(Path(analysis_path).read_bytes())
@@ -118,6 +122,7 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path):
             "tp": tp, "fp": fp, "fn": count-tp, "eligibleSources": count,
             "recall": recall, "fdrObserved": fdr,
             "p95SourceResolutionMilliseconds": p95,
+            "conditionalClusterCpFdrUpperNotCertified": row.get("conditionalClusterCpFdrUpper"),
             "candidatePairsSha256": row["CandidatePairsSha256"],
             "fitSnapshotSha256": row["fitSnapshotSha256"]})
     require(diagnostic_count == 16 and eligible_count == 8,
@@ -153,6 +158,7 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path):
         "schema": "V9_100K_MULTIPARAM_TECHNICAL_AUDIT_V1",
         "scope": "100K_SYNTHETIC_TRAIN_ONLY_NO_TEST_NO_ACTIVATION",
         "algorithm": "V9_CSHARP_MULTIPARAMETER_24_HYPOTHESES",
+        "codeSha": code_sha, "workflowRunId": run_id,
         "actualCorpusPeople": 100000, "corpusSeed": 42,
         "historicalOfficialPlanSha256": receipt["historicalOfficialPlanSha256"],
         "technicalPlanSha256": receipt["technicalPlanSha256"],
@@ -193,8 +199,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     for name in ("plan", "receipt", "analysis", "runtime", "out"):
         parser.add_argument("--" + name, type=Path, required=True)
+    parser.add_argument("--code-sha", required=True)
+    parser.add_argument("--run-id", type=int, required=True)
     a = parser.parse_args()
-    e = audit(a.plan, a.receipt, a.analysis, a.runtime, a.out)
+    e = audit(a.plan, a.receipt, a.analysis, a.runtime, a.out, a.code_sha, a.run_id)
     print(json.dumps({"result": "V9_100K_TRAIN_TECHNICAL_PASS",
                       "physical": e["physicalHypothesesMeasured"],
                       "planSha256": e["technicalPlanSha256"],

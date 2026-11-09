@@ -20,3 +20,6 @@ O SQL SCALE 100k existente é V8 e não valida V9. O J oficial tem prova física
 O workflow é **somente workflow_dispatch**, não executa automaticamente no merge; o conector GitHub não expõe dispatch. A PR não executa físico, não consome TEST cego, não ativa modelo, não altera Gold/HML/Produção nem #1352/#1356. #1349 será encerrada somente com execução física 100k V9, artifact íntegro, CI posterior da master e relatório formal integrado. Caso não exista runner com recursos ou acionamento manual autorizado, estado **AGUARDA EXECUÇÃO MANUAL DO PO**.
 
 **Estado documental:** código proposto/implementado em PR, sem validar até SHA+CI; requisitos do PO preservados. GOV-DOC-01.
+## Enriquecimento de rastreabilidade técnica da PR (sem alterar ciência)
+
+A evidência agregada é vinculada ainda a `codeSha` completo e `workflowRunId` efetivo do workflow (argumentos **não sensíveis**, SHA/run apenas), além de SHA dos planos/corpora. O auditor expõe `conditionalClusterCpFdrUpperNotCertified` somente como diagnóstico **condicional**, não como certificação geral de FDR. Ausência de valores não é inferida como zero. Esses campos não interferem em seleção científica ou motor operacional.

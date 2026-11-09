@@ -96,7 +96,8 @@ jobs:
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
-          python3 scripts/v9-scale-100k-technical-audit.py             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"             --analysis "$root/results/mu-statistical-analysis.json"             --runtime "$root/results/runtime-diagnostics.json"             --out "$root/bound/technical-audit.json"
+          python3 scripts/v9-scale-100k-technical-audit.py             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"             --analysis "$root/results/mu-statistical-analysis.json"             --runtime "$root/results/runtime-diagnostics.json"             --out "$root/bound/technical-audit.json" \
+            --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
       - name: Upload aggregated evidence only, never corpus, raw TEST or credentials
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin SHA
