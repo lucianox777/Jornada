@@ -19,3 +19,9 @@ Sem alterar parâmetros científicos, TEST, Gold, ativação ou HML/Produção. 
 ## Adenda de 09/11 — transporte de credencial e log histórico
 
 Foi identificado uso de `docker run --env MSSQL_SA_PASSWORD=<valor>` que expunha o segredo em argumento de processo, em desacordo com mandato do PO. A [correção técnica](Decisao_V9_Seguranca_Credencial_Sem_Argv_20261109.md) troca para `--env-file` `0600` com `trap EXIT`, preserva SQL efêmero e inclui regressão. A leitura controlada do log histórico do job `125584814018` (run `41535062165`) confirmou 8 ocorrências com senha temporária ainda acessível, sem copiar valores. **Estado: bloqueio de preflight para campanha nova até decisão de retenção/reutilização e validação pós-merge.**
+
+## Correção operacional posterior ao preflight — 09/11/2026
+
+A [PR #1368](https://github.com/lucianox777/Jornada/pull/1368) foi integrada individualmente na master `04ca455c647fa4416df4c058529d01668a96882e`, após [fast CI 42612033252](https://github.com/lucianox777/Jornada/actions/runs/42612033252) **SUCCESS no HEAD `d6feb430...`**. O bootstrap `v9-tf-start-disposable-sql.sh` deixou de passar senha via argumentos Docker e usa `--env-file` temporário `0600` com remoção por trap, preservando senha aleatória, máscara antes da criação, porta loopback e SQL descartável. O pipeline de PR passou, mas a prova física pós-merge deve ser referida no SHA específico (não atribuir à PR runs anteriores).
+
+Os logs públicos históricos ainda estão acessíveis no run `41535062165` (oito ocorrências), com serviço de SQL como container de um job `ubuntu-latest` concluído em 02/11, derivado de `github.run_id`; **nenhum segredo foi reproduzido**. Não há neste corte prova de reutilização em serviços persistentes. Essa ausência de achado não equivale a confirmação universal de descarte/expurgo. #1253 permanece **ABERTA** e frente C exige preflight atual e recursos aprovados.
