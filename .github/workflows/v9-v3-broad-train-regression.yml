@@ -185,6 +185,7 @@ jobs:
             Solution/.local/v9-v3-broad-*/receipt.json
             Solution/.local/v9-v3-broad-*/results/mu-statistical-analysis.json
             Solution/.local/v9-v3-broad-*/results/memory-progress.jsonl
+            Solution/.local/v9-v3-broad-*/results/calibration-runtime-scheduling.json
             Solution/.local/v9-v3-broad-*/results/interrupted.json
             Solution/.local/v9-v3-broad-*/results/calibrador.log
             Solution/.local/v9-v3-broad-*/people-30k/generation-manifest.json
