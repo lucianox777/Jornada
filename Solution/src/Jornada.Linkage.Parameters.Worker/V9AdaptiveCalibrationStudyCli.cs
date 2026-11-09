@@ -130,6 +130,8 @@ public static class V9AdaptiveCalibrationStudyCli
             // governor rather than relying on an external CI-only budget.
             var resources = V9CalibrationResourceGovernor.Capture(plan.MaximumParallelRuleSets, outputPath);
             await WriteNewJsonAsync(Path.Combine(outputPath, "calibration-resource-budget.json"), resources);
+            var resourceScheduler = new V9CalibrationRuntimeScheduler(resources, outputPath,
+                builder.MaxPoolSize);
             var preparationFinishedMs = runtimeWatch.ElapsedMilliseconds;
             var result = await V9AdaptiveCalibrationCoordinator.RunParallelAsync(async ct =>
             {
@@ -139,7 +141,10 @@ public static class V9AdaptiveCalibrationStudyCli
             },
                 observations, plan, CancellationToken.None,
                 frozenTfReferenceForRuleset: referenceFactory,
-                executionMaximumParallelRuleSets: resources.EffectiveParallelism);
+                executionMaximumParallelRuleSets: resources.EffectiveParallelism,
+                resourceScheduler: resourceScheduler);
+            await WriteNewJsonAsync(Path.Combine(outputPath, "calibration-runtime-scheduling.json"),
+                resourceScheduler.Receipts);
             var calibrationFinishedMs = runtimeWatch.ElapsedMilliseconds;
             // Reject missing or unpaired physical evidence before exporting fit artifacts.
             var paired = V9TfSharedSurnamePairedDiagnostics.Build(
@@ -190,8 +195,10 @@ public static class V9AdaptiveCalibrationStudyCli
                     },
                     visibleLogicalProcessors = Environment.ProcessorCount,
                     configuredParallelism = plan.MaximumParallelRuleSets,
-                    effectiveParallelism = resources.EffectiveParallelism,
+                    effectiveParallelism = resourceScheduler.Receipts.Count == 0 ? 1
+                        : Math.Max(1, resourceScheduler.Receipts.Max(x => x.MaximumSimultaneousWorkersObserved)),
                     calibrationExecutionResourceBudget = resources,
+                    calibrationRuntimeScheduling = resourceScheduler.Receipts,
                     peakWorkingSetBytes = process.PeakWorkingSet64,
                     operatingSystem = RuntimeInformation.OSDescription,
                     dotNetVersion = RuntimeInformation.FrameworkDescription,
