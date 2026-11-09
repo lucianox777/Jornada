@@ -60,8 +60,8 @@ public static class V9ParallelWork
     public static async Task<IReadOnlyList<TResult>> MapCalibrationAsync<TInput, TResult>(
         IReadOnlyList<TInput> inputs, int configuredParallelism,
         Func<TInput, CancellationToken, Task<TResult>> operation,
-        CancellationToken cancellationToken,
-        V9CalibrationRuntimeScheduler? resourceScheduler)
+        V9CalibrationRuntimeScheduler? resourceScheduler,
+        CancellationToken cancellationToken)
     {
         if (resourceScheduler is null)
             return await MapAsync(inputs, configuredParallelism, operation, cancellationToken);
