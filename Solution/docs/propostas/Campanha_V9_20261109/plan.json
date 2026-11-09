@@ -1,0 +1,79 @@
+{
+  "schema": "V9_SCIENTIFIC_CAMPAIGN_PROPOSAL_NOT_EXECUTABLE_V1",
+  "state": "DRAFT_AGUARDA_APROVACAO_PO",
+  "executionAuthorized": false,
+  "lockApproved": false,
+  "officialPlan": false,
+  "seed": "NOT_SET_RESERVED_DO_NOT_CONSUME",
+  "blindedTestAllowed": false,
+  "corpus": {
+    "type": "INDEPENDENT_SYNTHETIC_PROPOSED",
+    "fingerprintSha256": null,
+    "clusterUnit": "IDENTITY",
+    "sameRecortePrior": true
+  },
+  "candidateHypotheses": [
+    {
+      "id": "CANDIDATE_TF0_LAMBDA_025",
+      "model": "V3",
+      "tfArm": "TF0",
+      "lambdaRareU": 0.25,
+      "conflictMargin": 0.5,
+      "blockingPasses": 3,
+      "eligibleForSelectionAfterApproval": true
+    },
+    {
+      "id": "CANDIDATE_ONE_MF_LAMBDA_050",
+      "model": "V3",
+      "tfArm": "ONE_MF",
+      "lambdaRareU": 0.5,
+      "conflictMargin": 0.5,
+      "blockingPasses": 3,
+      "eligibleForSelectionAfterApproval": true
+    }
+  ],
+  "controls": [
+    {
+      "id": "V2_WITNESS",
+      "model": "V2",
+      "eligibleForSelection": false
+    },
+    {
+      "id": "V2_ANCHOR",
+      "model": "V2",
+      "eligibleForSelection": false
+    },
+    {
+      "id": "V3_ONE_MF_LAMBDA_0",
+      "model": "V3",
+      "tfArm": "ONE_MF",
+      "lambdaRareU": 0,
+      "eligibleForSelection": false
+    }
+  ],
+  "proposedGates": {
+    "maxObservedFdrPoint": 0.01,
+    "maxUpperBoundFdr": 0.01,
+    "confidenceLevel": 0.95,
+    "multiplicityEligibleHypotheses": 2,
+    "recallEquivalenceMargin": null,
+    "upperBoundMethod": "NOT_APPROVED_DEPENDENCE_VALIDATION_REQUIRED",
+    "p95Criterion": "PRESERVE_OFFICIAL_PLAN"
+  },
+  "optionalParametersNotApproved": {
+    "RecallEquivalenceMargin": null,
+    "TieBreakOrder": null,
+    "ClusterUnit": "IDENTITY",
+    "Estimator": null,
+    "ManualReviewSampleSize": null,
+    "RecalibrationTriggers": false
+  },
+  "safety": {
+    "trainOnly": true,
+    "noGold": true,
+    "noActivation": true,
+    "noModelSelection": true,
+    "noRefit": true
+  },
+  "note": "Proposta incompatível intencionalmente com schema do Calibrador. NÃO converter em plan oficial sem PO e revisão de contrato."
+}
