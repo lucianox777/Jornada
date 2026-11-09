@@ -23,12 +23,17 @@ concurrency:
 
 jobs:
   physical-100k:
-    if: ${{ inputs.security_preflight_approved == true }}
+    if: ${{ inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: V9 multiparameter 100k on frozen V2 witness and V3/TF/MU
-    # 100k cannot fit standard ubuntu-24.04 (16GB RAM/14GB SSD).
-    # This larger runner MUST be provisioned/enabled by the account owner;
-    # no job starts, nor is any fee incurred, until an authorized manual dispatch.
-    runs-on: ubuntu-24.04-16core
+    # Personal public repository: GitHub larger runners are NOT available
+    # (GitHub Team/Enterprise organization plans only). Never use standard
+    # ubuntu-24.04: it fails the 24GiB/40GiB fail-closed preflight.
+    # Only the PO may provision/authorize an isolated EPHEMERAL Linux x64
+    # self-hosted VM with custom label, >=24GiB RAM, >=40GiB free disk and
+    # Docker. NEVER register an unisolated persistent developer machine.
+    # This job is manual-only, branch master SHA pinned, owner-only,
+    # and cannot schedule without that exact custom label.
+    runs-on: [self-hosted, linux, x64, jornada-v9-100k-ephemeral]
     timeout-minutes: 360
     env:
       EXACT_SHA: ${{ inputs.expected_sha }}
