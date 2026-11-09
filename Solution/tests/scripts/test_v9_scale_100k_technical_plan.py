@@ -20,8 +20,10 @@ class V9Scale100kPlanTests(unittest.TestCase):
     def test_100k_workflow_has_feasible_runner_before_any_sql_or_data(self):
         # Historical 30k / generic calibration remain unchanged.
         workflow = (ROOT.parent / ".github/workflows/v9-multiparameter-100k-technical.yml").read_text()
-        self.assertIn("runs-on: ubuntu-24.04-16core", workflow)
+        self.assertIn("runs-on: [self-hosted, linux, x64, jornada-v9-100k-ephemeral]", workflow)
         self.assertNotIn("runs-on: ubuntu-24.04\n", workflow)
+        self.assertNotIn("runs-on: ubuntu-24.04-16core", workflow)
+        self.assertIn("github.actor == github.repository_owner", workflow)
         self.assertIn('mem.get("MemTotal",0) >= 24*1024**3', workflow)
         self.assertIn('free_disk >= 40*1024**3', workflow)
         self.assertIn("workflow_dispatch:", workflow)
