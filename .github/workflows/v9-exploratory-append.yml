@@ -2,6 +2,15 @@ name: V9 exploratory append contract
 
 on:
   pull_request:
+    branches:
+      - 'research/v9-exploratoria-parametros-ampliados'
+    paths:
+      - 'Solution/scripts/v9-exploratory-append.py'
+      - 'Solution/scripts/test_v9_exploratory_append.py'
+      - '.github/workflows/v9-exploratory-append.yml'
+  push:
+    branches:
+      - 'research/v9-exploratoria-parametros-ampliados'
     paths:
       - 'Solution/scripts/v9-exploratory-append.py'
       - 'Solution/scripts/test_v9_exploratory_append.py'
