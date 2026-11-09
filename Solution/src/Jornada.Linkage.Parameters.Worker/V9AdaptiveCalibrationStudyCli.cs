@@ -131,7 +131,7 @@ public static class V9AdaptiveCalibrationStudyCli
             var resources = V9CalibrationResourceGovernor.Capture(plan.MaximumParallelRuleSets, outputPath);
             await WriteNewJsonAsync(Path.Combine(outputPath, "calibration-resource-budget.json"), resources);
             var resourceScheduler = new V9CalibrationRuntimeScheduler(resources, outputPath,
-                builder.MaxPoolSize);
+                builder.MaxPoolSize, sourcePath: inputPath);
             var preparationFinishedMs = runtimeWatch.ElapsedMilliseconds;
             var result = await V9AdaptiveCalibrationCoordinator.RunParallelAsync(async ct =>
             {
