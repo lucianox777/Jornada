@@ -33,9 +33,13 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.113'
-      - name: Compile production solution
+      - name: Compile production solution and verify internal calibration budget
         working-directory: Solution
-        run: dotnet build Jornada.sln -c Release
+        run: |
+          dotnet build Jornada.sln -c Release
+          # CPU/RAM/disk unit fixtures only; this does not start SQL or a 100k fit.
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+            --filter 'FullyQualifiedName~V9CalibrationExecutionResourceBudgetTests'
   security-guards:
     runs-on: ubuntu-latest
     timeout-minutes: 8
