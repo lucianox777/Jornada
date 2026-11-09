@@ -32,7 +32,7 @@ Estado documental: candidata à aprovação formal; arquitetura e requisitos uni
 
 Este documento especifica a arquitetura, os componentes, as interfaces e as regras de operação da plataforma de integração de dados de Benefícios Concedidos e Serviços Prestados da PMSP na Fase 1, preservando BENEFICIO e SERVICO como Naturezas do catálogo para evolução futura da Jornada.
 
-Destina-se a equipes técnicas da PRODAM-SP, equipes técnicas e fornecedores de software dos Gestores finalísticos e às áreas de governança, proteção de dados e auditoria da PMSP.
+Destina-se a equipes técnicas da entidade operadora formalmente designada, equipes técnicas e fornecedores de software dos Gestores finalísticos e às áreas de governança, proteção de dados e auditoria da PMSP.
 
 Este é o documento único de especificação técnica e visão funcional corrente da Jornada, com regras, componentes, modelos, contratos, riscos, dívidas técnicas, frentes de desenvolvimento e critérios de aceite. As regras descritas como obrigatórias são o alvo de conformidade; cada entrega em aberto mantém sua condição expressa. A aprovação e a vigência institucional dependem do procedimento formal competente, não da emissão deste arquivo.
 
@@ -105,7 +105,7 @@ A plataforma constitui camada de consolidação, referência de identidade e int
 | --- | --- |
 | SGM/SEPE | Área requisitante; gestão contratual e governança institucional da plataforma. |
 | Programa Reencontro | Coordenação do projeto e articulação institucional; sem papel operacional na Jornada, não administra credenciais e não responde pelos dados finalísticos. |
-| PRODAM-SP | Operador de dados na acepção da LGPD. Implementa e opera a plataforma. |
+| Entidade operadora formalmente designada | Exerce as atribuições de operação e eventual tratamento de dados nos limites do instrumento jurídico e da LGPD; a identidade do fornecedor não é requisito do software. |
 | Gestores finalísticos | Controladoras dos dados que cedem. Decidem sobre concessão e sobre providências decorrentes de divergências. Agentes habilitados podem produzir atos de verificação presencial documental com validade municipal para os atributos abrangidos pela evidência, conforme política única da plataforma. |
 | Encarregado municipal (DPO) | Supervisão de conformidade com a LGPD. |
 | Procuradoria Geral do Município | Análise jurídica dos instrumentos de compartilhamento. |
@@ -365,11 +365,11 @@ Jornada.sln
 
 A pasta docs/legacy-examples pode preservar exemplos históricos apenas para consulta técnica. Seu conteúdo é não normativo, não integra a Jornada.sln e não define canal suportado, requisito de implantação ou contrato vigente.
 
-A arquitetura não exige microserviços estritos. Jornada.Api, Jornada.Processor.Worker, Jornada.Operations.Maintenance.Worker, Jornada.Linkage.Parameters.Worker e Jornada.Linkage.Runner são unidades executáveis independentes, com responsabilidades delimitadas e implantação separável. Jornada.Pipeline.Coordination é biblioteca interna compartilhada pelos processos que coordenam o corpus; não possui executável e não agenda jobs. Jornada.Bronze.Storage abstrai o ZIP imutável para API/Processor/manutenção. O Runner opera run-once quando acionado; scheduler corporativo homologado pela PRODAM define recorrência. Todos compartilham a mesma autoridade SQL Server relacional por contas segregadas e mínimo privilégio. A configuração de conexão/autenticação não bifurca o domínio. API e Processor compartilham o mesmo armazenamento Bronze durável.
+A arquitetura não exige microserviços estritos. Jornada.Api, Jornada.Processor.Worker, Jornada.Operations.Maintenance.Worker, Jornada.Linkage.Parameters.Worker e Jornada.Linkage.Runner são unidades executáveis independentes, com responsabilidades delimitadas e implantação separável. Jornada.Pipeline.Coordination é biblioteca interna compartilhada pelos processos que coordenam o corpus; não possui executável e não agenda jobs. Jornada.Bronze.Storage abstrai o ZIP imutável para API/Processor/manutenção. O Runner opera run-once quando acionado; scheduler corporativo homologado pela governança responsável pelo ambiente define recorrência. Todos compartilham a mesma autoridade SQL Server relacional por contas segregadas e mínimo privilégio. A configuração de conexão/autenticação não bifurca o domínio. API e Processor compartilham o mesmo armazenamento Bronze durável.
 
 ##### 4.4.1. Princípio de serviços independentes
 
-A arquitetura não exige microserviços estritos. Jornada.Api, Jornada.Processor.Worker, Jornada.Operations.Maintenance.Worker, Jornada.Linkage.Parameters.Worker e Jornada.Linkage.Runner são unidades executáveis independentes, com responsabilidades delimitadas e implantação separável. Jornada.Pipeline.Coordination é biblioteca interna compartilhada pelos três processos de retaguarda que coordenam o corpus; não possui OutputType executável e não agenda jobs. Jornada.Bronze.Storage abstrai o armazenamento imutável do ZIP e é compartilhada por API/Processor/manutenção. O Runner é run-once e schedulável; o agendamento, recorrência e encadeamento pertencem ao scheduler corporativo homologado pela PRODAM. Todos compartilham a mesma persistência relacional operacional Microsoft SQL por contas técnicas segregadas e menor privilégio; em HML/Produção o alvo preferencial é ambiente analítico Fabric quando homologado e, em Development/CI, SQL Server 2022 Developer. A diferença de ambiente é resolvida por configuração de conexão/autenticação, sem bifurcação das regras de negócio. API e Processor também compartilham a mesma raiz Bronze durável em HML/Produção.
+A arquitetura não exige microserviços estritos. Jornada.Api, Jornada.Processor.Worker, Jornada.Operations.Maintenance.Worker, Jornada.Linkage.Parameters.Worker e Jornada.Linkage.Runner são unidades executáveis independentes, com responsabilidades delimitadas e implantação separável. Jornada.Pipeline.Coordination é biblioteca interna compartilhada pelos três processos de retaguarda que coordenam o corpus; não possui OutputType executável e não agenda jobs. Jornada.Bronze.Storage abstrai o armazenamento imutável do ZIP e é compartilhada por API/Processor/manutenção. O Runner é run-once e schedulável; o agendamento, recorrência e encadeamento pertencem ao scheduler corporativo homologado pela governança responsável pelo ambiente. Todos compartilham a mesma persistência relacional operacional Microsoft SQL por contas técnicas segregadas e menor privilégio; em HML/Produção o alvo preferencial é ambiente analítico Fabric quando homologado e, em Development/CI, SQL Server 2022 Developer. A diferença de ambiente é resolvida por configuração de conexão/autenticação, sem bifurcação das regras de negócio. API e Processor também compartilham a mesma raiz Bronze durável em HML/Produção.
 
 Bronze, Prata e Ouro são estados/camadas dos dados, não aplicações. Na Bronze, o SQL preserva a referência, hash, tamanho, content-type e lineage; os bytes do ZIP residem em armazenamento externo imutável. O Processor executa o pipeline normal e a resolução determinística por CPF; não executa score probabilístico massivo. Na Fase 1, a materialização Silver/Gold é globalmente serial: cada lote do Processor possui o gate do corpus e GENERATE_DRAFT/Runner podem tomar janela exclusiva. A API e a recepção/persistência Bronze ficam fora desse gate. Geração de parâmetros pertence ao Parameters Worker e execução de scores/replays pertence exclusivamente ao Jornada.Linkage.Runner.
 
@@ -561,7 +561,7 @@ Atomicidade é de publicação: linkage_resultado é append-only, porém identid
 
 Run FALHOU ou CANCELADO nunca altera o vínculo corrente, ainda que alguns lotes físicos tenham sido persistidos. MODEL_VALIDATION termina CONCLUIDO_SEM_PUBLICACAO. Resultados não publicados permanecem disponíveis para auditoria técnica/reexecução conforme retenção.
 
-O executável aceita parâmetros de linha de comando e deve ser acionado pelo scheduler corporativo homologado pela PRODAM ou, em HML/incidente, manualmente conforme runbook. A Solution não contém scheduler nem processo coordenador executável; a ordem, precondições, retry e evidência operacional estão declarados em Solution/docs/Runbook_Operacao.md. O gate SQL permanece autoridade fail-closed mesmo diante de disparo indevido concorrente.
+O executável aceita parâmetros de linha de comando e deve ser acionado pelo scheduler corporativo homologado pela governança responsável pelo ambiente ou, em HML/incidente, manualmente conforme runbook. A Solution não contém scheduler nem processo coordenador executável; a ordem, precondições, retry e evidência operacional estão declarados em Solution/docs/Runbook_Operacao.md. O gate SQL permanece autoridade fail-closed mesmo diante de disparo indevido concorrente.
 
 ##### 4.7.6. Jornada.Contracts
 
@@ -1702,7 +1702,7 @@ Permanecem fora da implementação unilateral da Solution apenas dependências d
 
 A nomenclatura pública deixa de sugerir a existência de um componente organizacional específico para a Pessoa. A regra técnica permanece: a Pessoa compartilhada em âmbito municipal é comum às credenciais autorizadas, sem fronteira populacional por Gestor ou Tipo. A view pública correspondente passa a ser serving.v_pessoa; instalações existentes removem a view de nomenclatura anterior por migração guardada.
 
-A SGM/SEPE é a área requisitante. O Programa Reencontro coordena o projeto e a articulação institucional, sem papel operacional na plataforma, sem administração de credenciais e sem responsabilidade pelos dados finalísticos. PRODAM e Gestores mantêm as responsabilidades operacionais já especificadas.
+A SGM/SEPE é a área requisitante. O Programa Reencontro coordena o projeto e a articulação institucional, sem papel operacional na plataforma, sem administração de credenciais e sem responsabilidade pelos dados finalísticos. A entidade operadora formalmente designada e os Gestores mantêm suas responsabilidades conforme instrumentos de governança e contratos aplicáveis, sem vincular o software a fornecedor único.
 
 O modelo físico relacional deve representar ref.gestor, identidade.vinculo_fonte, catálogos e resultados de linkage, qualidade, auditoria e divergências. As superfícies de API/Console/BI são especificadas no corpo deste documento; fontes PBIR, SQL e DER são artefatos de execução e de teste.
 
@@ -2197,7 +2197,7 @@ A identidade do Gestor deve ser derivada do cliente autenticado. Nenhuma rota de
 | Scope/recurso autorizado da credencial | Controle técnico das operações da Jornada | Scopes e, para credenciais de Tipo, código do próprio recurso/schema; não existe X-Jornada-Finalidade ou allowlist de motivos declarados. |
 | Credencial do armazenamento Bronze da API/Processor | Leitura/gravação dos objetos ZIP imutáveis | Segredo/identidade fora do Git; mínimo privilégio na raiz/prefixo Bronze; sem URL pública; API grava e lê quando necessário, Processor lê; objeto_chave não é token de autorização. |
 
-A implementação concreta da chave pode usar API key corporativa, HMAC, certificado ou outro mecanismo aprovado pela infraestrutura da PRODAM, desde que preserve a semântica normativa Código + chave, rotação, revogação e validação forte máquina-a-máquina. O material secreto permanece fora do repositório e do banco funcional.
+A implementação concreta da chave pode usar API key corporativa, HMAC, certificado ou outro mecanismo aprovado pela infraestrutura responsável pelo ambiente aprovado, desde que preserve a semântica normativa Código + chave, rotação, revogação e validação forte máquina-a-máquina. O material secreto permanece fora do repositório e do banco funcional.
 
 #### 13.3. Scopes e segregação
 
@@ -2272,7 +2272,7 @@ Além de autenticação/autorização:
 
 Jornada.Access.Security centraliza autenticação e autorização no escopo da API e ResultadoApi; credenciais sintéticas com X-Jornada-Gestor e X-Jornada-Access-Key pertencem a DEV e não substituem o IdP individual institucional em HML/Produção. Scopes/policies devem distinguir ingestão, consulta de Pessoa, Monitor, governança de modelos, leitura de identidade e tarefas operacionais; Gestores não recebem implicitamente privilégio master ou dados sigilosos de outra Secretaria. A ausência de finalidade declarada por cabeçalho livre foi decisão arquitetural de 2026, mas base legal, finalidade institucional, responsabilidades, segredo e contratos de projeção precisam de deliberação formal competente, incluindo Núcleo Gestor do Programa Reencontro e gestores responsáveis; portaria anunciada não é norma publicada por antecipação.
 
-Segredos e tokens nunca são gravados em arquivos de remessa, logs, HTML de relatório, pacotes, CI pública nem repositório. Telemetria deve registrar correlation_id, identidade da credencial/escopo, operação, resultado, duração, hash de conteúdo e classes de falha, omitindo nome, CPF, payload integral, conteúdo documental, cabeçalhos de autenticação e outros valores pessoais. Logs de login, acesso, visualização de casos, impressão/exportação e alterações de autorização demandam regras de retenção, consulta e auditoria de acesso documentadas. Criptografia em trânsito e no repouso, separação de secret store, segregação por Gestor, mínimo privilégio, controle de payload sigiloso e rotinas de descarte/retensão são requisitos HML/PROD ainda sujeitos a aceite e inventário técnico da PRODAM.
+Segredos e tokens nunca são gravados em arquivos de remessa, logs, HTML de relatório, pacotes, CI pública nem repositório. Telemetria deve registrar correlation_id, identidade da credencial/escopo, operação, resultado, duração, hash de conteúdo e classes de falha, omitindo nome, CPF, payload integral, conteúdo documental, cabeçalhos de autenticação e outros valores pessoais. Logs de login, acesso, visualização de casos, impressão/exportação e alterações de autorização demandam regras de retenção, consulta e auditoria de acesso documentadas. Criptografia em trânsito e no repouso, separação de secret store, segregação por Gestor, mínimo privilégio, controle de payload sigiloso e rotinas de descarte/retensão são requisitos HML/PROD ainda sujeitos a aceite institucional e inventário técnico da operação designada.
 
 Consulta do cidadão por API deve seguir minimização, escopos e máscara por atributo; uma referência municipal compartilhada não significa disponibilizar nome civil, localização de abrigo, documento ou condição social sigilosa a todo consumidor. Qualquer espelhamento em BI/OneLake ou download de dados exige política própria; endpoint analítico read-only não herda automaticamente todas as proteções do SQL operacional. O audit trail governado de identidade identifica credencial/autoridade institucional efetiva e operacao_id transacional, não aceita CPF declarado livremente pela fonte como prova de autoria humana. Se a gravação do evento auditável falhar, a alteração de identidade também falha atomicamente.
 
@@ -2280,7 +2280,7 @@ Consulta do cidadão por API deve seguir minimização, escopos e máscara por a
 
 #### 14.1. Papéis
 
-Gestores finalísticos como controladoras dos respectivos dados; PRODAM-SP como operadora; encarregado municipal na supervisão.
+Gestores finalísticos como controladoras dos respectivos dados; entidade contratada/designada como operadora, se formalmente atribuída essa função; encarregado municipal na supervisão.
 
 #### 14.2. Ativos municipais de referência
 
@@ -2347,7 +2347,7 @@ O modelo SDLE, referência metodológica adotada, foi igualmente precedido de av
 
 #### 15.1. Instâncias
 
-O Programa Reencontro coordena o projeto e sua articulação institucional, sem papel operacional na Jornada. A SGM/SEPE atua como área requisitante e na governança institucional/contratual; a PRODAM implementa e opera a plataforma; cada Gestor responde por seus dados, regras declaradas, contratos setoriais e decisões administrativas.
+O Programa Reencontro coordena o projeto e sua articulação institucional, sem papel operacional na Jornada. A SGM/SEPE atua como área requisitante e na governança institucional/contratual; a entidade designada implementa e opera a plataforma conforme instrumento aplicável; cada Gestor responde por seus dados, regras declaradas, contratos setoriais e decisões administrativas.
 
 #### 15.2. Versionamento
 
@@ -2467,7 +2467,7 @@ O backend documenta GET/POST /api/workers/supervisor, POST /api/workers/{worker}
 
 #### 16.8. Scheduler corporativo, watchdog e operação do BI
 
-A Solution mantém Jornada.Pipeline.Coordination como biblioteca sem executável coordenador. Agendamento, recorrência e ordem operacional passam a ser explicitamente responsabilidade do scheduler corporativo homologado pela PRODAM, com procedimento versionado em Solution/docs/Runbook_Operacao.md.
+A Solution mantém Jornada.Pipeline.Coordination como biblioteca sem executável coordenador. Agendamento, recorrência e ordem operacional passam a ser explicitamente responsabilidade do scheduler corporativo homologado pela governança responsável pelo ambiente, com procedimento versionado em Solution/docs/Runbook_Operacao.md.
 
 Jornada.Operations.Maintenance.Worker inclui PipelineWatchdogWorker como capacidade de observação, desligada por padrão. O watchdog alerta sobre runner/modelo potencialmente estagnado, lease de lote expirado, backlog, ausência de heartbeat e retenção indevida; não agenda calibração, não cancela RunOnce, não altera vínculo, não limpa lock nem encerra sessão. A operação corporativa deve usar consultas de observabilidade de acesso controlado, sem interpretar modo de carga inicial obsoleto como função vigente.
 
@@ -2722,21 +2722,21 @@ A conferência presencial de evidência cadastral permanece no escopo conforme i
 | 6 | Instrumento formal de compartilhamento | Procuradoria |
 | 7 | Scopes e recursos por Gestor/Tipo | Gestores / Governança / Segurança |
 | 8 | Política de retenção por camada/log/evidência | Governança / Encarregado |
-| 9 | Primeiros Tipos de Benefício e Serviço + contratos JSON Schema | Gestores / SPE / PRODAM |
-| 10 | Convenção final das interfaces QC e IPossibilityEvaluator | PRODAM / Arquitetura |
+| 9 | Primeiros Tipos de Benefício e Serviço + contratos JSON Schema | Gestores / SPE / operação designada |
+| 10 | Convenção final das interfaces QC e IPossibilityEvaluator | Arquitetura / operação designada |
 | 11 | Processo de aprovação de regras_texto, vigência e ativação de versões | Governança / Gestor |
 | 12 | RIPD | Encarregado |
-| 13 | RPO/RTO/SLA definitivos para eventual Produção | PRODAM / Governança |
-| 14 | Catálogo técnico oficial de Distrito/Subprefeitura e política de referenciaMalha a serem fornecidos/validados pelos Gestores, com governança municipal. | PRODAM |
-| 15 | Planejamento operacional da primeira ingestão cadastral de Pessoas por algum Gestor (contrato, volume, lotes, janela e replay), sem corpus privilegiado. | Gestores / PRODAM / SPE |
-| 16 | Mecanismo corporativo de Código + chave, armazenamento/validação, rotação, revogação e rate limiting em HML. | Segurança / Infraestrutura / PRODAM |
+| 13 | RPO/RTO/SLA definitivos para eventual Produção | Operação designada / Governança |
+| 14 | Catálogo técnico oficial de Distrito/Subprefeitura e política de referenciaMalha a serem fornecidos/validados pelos Gestores, com governança municipal. | Gestores / governança territorial |
+| 15 | Planejamento operacional da primeira ingestão cadastral de Pessoas por algum Gestor (contrato, volume, lotes, janela e replay), sem corpus privilegiado. | Gestores / operação designada / SPE |
+| 16 | Mecanismo corporativo de Código + chave, armazenamento/validação, rotação, revogação e rate limiting em HML. | Segurança / Infraestrutura / operação designada |
 | 17 | Versão do Power BI Desktop usada para validar PBIP/PBIR/TMDL em HML | BI / Infraestrutura |
-| 18 | Desenho futuro do módulo de validação independente com IA | SPE / PRODAM / Governança |
-| 19 | Schemas cadastrais iniciais por Gestor e política de projeção de Pessoa para credenciais de Gestor. | Gestores / Governança / PRODAM |
+| 18 | Desenho futuro do módulo de validação independente com IA | SPE / operação designada / Governança |
+| 19 | Schemas cadastrais iniciais por Gestor e política de projeção de Pessoa para credenciais de Gestor. | Gestores / Governança / operação designada |
 | 20 | Tipos de Benefício autorizados a consultar Pessoa e respectivos pessoa.schema.json + chaves de acesso. | Gestores / Governança / Segurança |
-| 21 | SLA real de recebimento por Tipo/versão: monitorar_atraso, prazo_recebimento_dias e marco_atraso_codigo, validado com a semântica do contrato de cada Benefício/Serviço. | Gestores / Governança / PRODAM |
-| 22 | Topologia de gateway/balanceador e lista de proxies confiáveis por ambiente para normalização segura de IP e calibração do rate limiting. | PRODAM / Segurança / Infraestrutura |
-| 23 | Homologar quais Tipos reais de Serviço são casas-abrigo-sigilosas e podem ativar origina_endereco_casa_abrigo_sigilosa. Não existe taxonomia geral de proteção da Pessoa; a classificação pertence ao serviço de origem e ao endereço específico. | SMADS / Gestor responsável / PRODAM |
+| 21 | SLA real de recebimento por Tipo/versão: monitorar_atraso, prazo_recebimento_dias e marco_atraso_codigo, validado com a semântica do contrato de cada Benefício/Serviço. | Gestores / Governança / operação designada |
+| 22 | Topologia de gateway/balanceador e lista de proxies confiáveis por ambiente para normalização segura de IP e calibração do rate limiting. | Operação designada / Segurança / Infraestrutura |
+| 23 | Homologar quais Tipos reais de Serviço são casas-abrigo-sigilosas e podem ativar origina_endereco_casa_abrigo_sigilosa. Não existe taxonomia geral de proteção da Pessoa; a classificação pertence ao serviço de origem e ao endereço específico. | SMADS / Gestor responsável / operação designada |
 | 24 | Política para pendências persistentes de identidade: envelhecimento, busca ativa, critérios de encerramento e tratamento de registros que nunca recebem evidência suficiente. | Governança / Gestores / Encarregado |
 | 25 | Homologação com os Gestores da territorialização fornecida na origem: códigos oficiais de Distrito/Subprefeitura, referenciaMalha, cobertura e motivos de ausência. Não existe enriquecimento online Pessoa-a-Pessoa na Fase 1. | Gestores / Governança |
 | 26 | Avaliação de RNM/CRNM e outros identificadores/evidências necessários para população migrante, refugiada ou apátrida, sem alterar o CPF como rota determinística normal. | SMDHC / Governança / Procuradoria |
@@ -3160,7 +3160,7 @@ Esta triagem não reabre regras técnicas já aprovadas. Marca o que exige compr
 | 12 — BI | Dashboards de cobertura, qualidade, divergência, Pendência e Gold. | Contrato técnico e necessidades de produto | PO define priorização e o uso institucional das métricas; indicadores são auditáveis e não podem omitir denominador/cobertura. |
 | 13–14 — Segurança/LGPD | Finalidade, acesso, retenção, IdP, consentimento/base legal e logs de impressão/consulta. | Dependência institucional | Exigir decisões de controlador/encarregado e aprovação de matriz de acesso/retensão; implementação DEV não equivale a autorização legal. |
 | 15 — Governança | Decisão de ativação de modelos V9 e delegação de competência ao operador. | Decisão arquitetural + designação formal pendente | Operator pode fazer parte da governança, mas o ato de autorização deve ter competência formal, identidade individual, dossiê e auditabilidade. |
-| 16–17 — Operação e RNF | Cronograma, SLA, qualidade de serviço, níveis de disponibilidade e suporte. | Dimensões técnicas; metas institucionais pendentes | PO/PRODAM definem SLAs, janelas de manutenção e capacidade na HML a partir de métricas e custos reais, sem inventar metas numéricas. |
+| 16–17 — Operação e RNF | Cronograma, SLA, qualidade de serviço, níveis de disponibilidade e suporte. | Dimensões técnicas; metas institucionais pendentes | PO e governança da operação designada definem SLAs, janelas de manutenção e capacidade na HML a partir de métricas e custos reais, sem inventar metas numéricas. |
 | 19 — Indicadores | Índice de convergência, elegibilidade e interpretação institucional de volumes. | Métrica técnica; uso administrativo pendente | PO confirma objetivos, faixas de divulgação e transparência; FDR, cobertura e taxas de falso vínculo não se confundem com precisão administrativa. |
 | 20 — Fora de escopo | Atendimento ao munícipe, decisões de benefício, biometria e extensão de serviços. | Escopo aprovado tecnicamente; expansão requer decisão | Qualquer deslocamento para Fase 1 exige ato e contrato explícitos; a Jornada não decide concessões. |
 | 21 — DTs | Aceites DEV e mudanças de responsabilidade institucional. | Trilha técnica de implementação | PO só decide mudança de escopo funcional ou risco institucional; engenharia comprova conclusão por teste e artefato sem inventar homologação. |
