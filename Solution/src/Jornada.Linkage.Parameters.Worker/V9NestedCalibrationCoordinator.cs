@@ -351,7 +351,7 @@ public static class V9NestedCalibrationCoordinator
                 try { return await EvaluateAsync(connection, frame, plan, group, batchIndex,
                     candidateCpMultiplicity, frozenReference, ct); }
                 finally { lock (active) active.Remove(connection); await connection.DisposeAsync(); }
-            }, cancellationToken, resourceScheduler);
+            }, resourceScheduler, cancellationToken);
             evaluations.AddRange(results.SelectMany(x => x).OrderBy(x => x.RequestSha256, StringComparer.Ordinal));
             // Keep diagnostic SHARED surname results in the audit but never
             // admit them to the Pareto frontier/refinements/finalists.
