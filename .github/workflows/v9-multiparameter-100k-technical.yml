@@ -25,7 +25,10 @@ jobs:
   physical-100k:
     if: ${{ inputs.security_preflight_approved == true }}
     name: V9 multiparameter 100k on frozen V2 witness and V3/TF/MU
-    runs-on: ubuntu-24.04
+    # 100k cannot fit standard ubuntu-24.04 (16GB RAM/14GB SSD).
+    # This larger runner MUST be provisioned/enabled by the account owner;
+    # no job starts, nor is any fee incurred, until an authorized manual dispatch.
+    runs-on: ubuntu-24.04-16core
     timeout-minutes: 360
     env:
       EXACT_SHA: ${{ inputs.expected_sha }}
