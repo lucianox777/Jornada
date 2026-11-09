@@ -296,7 +296,7 @@ public static class V9NestedCalibrationCli
             File.AppendAllText(Path.Combine(output, "memory-progress.jsonl"), memory + Environment.NewLine);
             Console.Error.WriteLine(memory);
             diskSampler.ObserveNow(); // diagnosis only; no changes to selection.
-        }, frozenTfReferenceForRuleset: referenceFactory);
+        }, frozenTfReferenceForRuleset: referenceFactory, reportSafeStage: updateSafeStage);
         updateSafeStage("FIT_EVIDENCE_EXPORT");
         var calibrationFinishedMs = elapsed.ElapsedMilliseconds;
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
