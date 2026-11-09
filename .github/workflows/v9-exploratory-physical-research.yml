@@ -1,0 +1,98 @@
+name: V9 exploratory physical SQL research (manual only)
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: v9-exploratory-physical-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  physical-research:
+    if: github.ref == 'refs/heads/research/v9-exploratoria-parametros-ampliados'
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - name: Verify research branch and exact SHA
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "${GITHUB_REF}" = refs/heads/research/v9-exploratoria-parametros-ampliados
+          python3 -m unittest -v Solution/scripts/test_v9_exploratory_statistical_report.py Solution/scripts/test_v9_exploratory_research_grid.py
+      - name: Start masked disposable SQL Server
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Build existing physical calibrator and corpus producer
+        working-directory: Solution
+        run: |
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Recreate known seed42 corpus and pinned reference in disposable SQL
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-research"
+          mkdir -p "$root"
+          bash scripts/v9-tf-prepare-pin.sh "$root" pinned-ibge.json
+          python3 scripts/v9-tf-ref-provenance-gate.py --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" --reference data/reference/v9-synthetic-seed42-30000/manifest.json
+          python3 scripts/v9-nested-calibration-study.py "$root/people-30k/observacoes.csv" "$root/source-nested-plan.json" --tf-search --pinned-ibge "$root/pinned-ibge.json"
+          python3 scripts/v9-mu-historical-plan.py "$root/source-nested-plan.json" "$root/mu-v2-v3-plan.json"
+      - name: Execute existing normal physical calibration without modification
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-research"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- --v9-calibrate "$root/mu-v2-v3-plan.json" "$root/people-30k/observacoes.csv" "$root/results"
+      - name: Produce conditional exploratory analysis from measured normal frames
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-research"
+          python3 - "$root/results/mu-statistical-analysis.json" "$root/research-parameters.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          report=json.loads(Path(sys.argv[1]).read_bytes())
+          rows=report.get("rows",[])
+          measured=sorted({r["OptionId"] for r in rows if r.get("fitSnapshotSha256") and isinstance(r.get("OptionId"),str)})
+          if not measured: raise SystemExit("FAIL: no physically measured normal options")
+          Path(sys.argv[2]).write_text(json.dumps({"ExploratoryParameters":[{"Name":"OptionId","Values":measured}]},sort_keys=True))
+          PY
+          python3 scripts/v9-exploratory-statistical-report.py "$root/results/mu-statistical-analysis.json" "$root/exploratory-mu-statistical-analysis.json" --enabled --parameters "$root/research-parameters.json"
+          python3 - "$root/results/mu-statistical-analysis.json" "$root/exploratory-mu-statistical-analysis.json" <<'PY'
+          import json,sys
+          from pathlib import Path
+          original=json.loads(Path(sys.argv[1]).read_bytes())
+          extended=json.loads(Path(sys.argv[2]).read_bytes())
+          extra=extended.pop("exploratoryAnalysis")
+          assert original == extended, "Normal report was modified"
+          assert extra["AutoApplied"] is False and extra["Certified"] is False
+          assert extra["TestUsed"] is False and extra["SelectionChanged"] is False
+          print(json.dumps({"researchStatus":extra["Status"],"additionalComparisons":len(extra["AdditionalMeasurements"]),"normalReportPreserved":True,"activated":False}))
+          PY
+      - name: Preserve diagnostic-only reports and provenance
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-research-physical-${{ github.run_id }}-${{ github.sha }}
+          retention-days: 90
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-research/results/mu-statistical-analysis.json
+            Solution/.local/v9-research/results/mu-statistical-analysis.md
+            Solution/.local/v9-research/results/interrupted.json
+            Solution/.local/v9-research/exploratory-mu-statistical-analysis.json
+            Solution/.local/v9-research/research-parameters.json
+            Solution/.local/v9-research/mu-v2-v3-plan.json
+      - name: Destroy disposable SQL
+        if: always()
+        run: docker rm -f "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >/dev/null 2>&1 || true
