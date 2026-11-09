@@ -1,3 +1,5 @@
+> **CORTE POSTERIOR (09/11/2026 UTC):** o relatório abaixo mantém deliberadamente a fotografia histórica `afbefd4c`. Para evidências da versão integrada ao código na master `3da5e9327e86b5837f69a4da2236fab385ec930f`, consulte o [aditamento físico com matriz a–m e artifacts](Resultado_V9_Validacao_Integral_SHA_3da5_20261109.md). Ele não retroage PASS, nem é uma nova autorização de Gold/TEST/DT-15. Conclusão permanece **NÃO CONCLUÍDO** até resolver bloqueios e documentar gates no SHA final.
+
 # Relatório final de auditoria — Jornada V9, mandato de fechamento (#1345)
 
 > **CONCLUSÃO: NÃO CONCLUÍDO** no corte auditado, por evidências obrigatórias ausentes. Este documento registra o estado observado, **não** certifica projeto, TEST/Gold ou ativação. A PR documental alterará o SHA quando integrada; a validação deve então ser refeita na nova master.
