@@ -327,7 +327,9 @@ public static class V9NestedCalibrationCli
             throw new InvalidDataException("Schema ou extensão exploratória inválida.");
         var rows = report["rows"]?.AsArray()
             ?? throw new InvalidDataException("Linhas de avaliação ausentes.");
-        var options = rows.Select(x => x?["OptionId"]?.GetValue<string>())
+        var options = rows.Where(x => x is System.Text.Json.Nodes.JsonObject row
+                && row["fitSnapshotSha256"] is not null)
+            .Select(x => x?["OptionId"]?.GetValue<string>())
             .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToArray();
         var summary = new System.Text.Json.Nodes.JsonObject
         {
@@ -339,6 +341,8 @@ public static class V9NestedCalibrationCli
             ["Certified"] = false,
             ["NormalReportSha256"] = Convert.ToHexString(SHA256.HashData(original)).ToLowerInvariant(),
             ["ExistingRowsCount"] = rows.Count,
+            ["ExistingMeasuredOptionsCount"] = options.Length,
+            ["AdditionalPhysicalEvaluations"] = 0,
             ["Status"] = "DESCRIPTIVE_EXISTING_EVALUATIONS_ONLY",
             ["Note"] = "Exploration changes only this final report. No extra fits or statistical certification."
         };
