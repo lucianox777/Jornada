@@ -140,7 +140,7 @@ jobs:
               created=api('POST','/releases',{
                   'tag_name':tag,'target_commitish':target,'name':'Jornada V9 — v9.0.0',
                   'body':body,'draft':False,'prerelease':False,'generate_release_notes':False,
-                  'make_latest':False})
+                  'make_latest':'false'})
               if not created or created.get('tag_name') != tag:
                   raise RuntimeError('V9 release not created')
               print('PASS: release v9.0.0 published with test limitations')
