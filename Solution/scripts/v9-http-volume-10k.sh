@@ -5,7 +5,8 @@ set -euo pipefail
 [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT:-}" == 10000 ]] || { echo 'V9 10k: explicit opt-in required' >&2; exit 50; }
 [[ "${GITHUB_ACTIONS:-}" == true && "${CI:-}" == true &&
    "${GITHUB_REPOSITORY:-}" == lucianox777/Jornada &&
-   "${GITHUB_REF:-}" == refs/heads/test/v9-e2e-http-10k-20261108 &&
+   "${GITHUB_EVENT_NAME:-}" == workflow_dispatch &&
+   "${GITHUB_REF:-}" == refs/heads/master &&
    "${DB:-}" == JornadaE2E ]] || { echo 'V9 10k: non-disposable CI sandbox rejected' >&2; exit 50; }
 [[ "$(git -C "$ROOT" rev-parse HEAD)" == "$GITHUB_SHA" ]] || { echo 'V9 10k: SHA drift' >&2; exit 50; }
 volume_tsv="$OUT/http-volume-10k-batches.tsv"

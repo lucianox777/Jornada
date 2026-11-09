@@ -1,3 +1,5 @@
+> **Resultado V9 10k HTTP→Serving (08/11 BRT):** [relatório físico por SHA/artifact e p95 de 10 remessas](Resultado_V9_E2E_HTTP_10K_20261108.md), Action [42542220115](https://github.com/lucianox777/Jornada/actions/runs/42542220115) **SUCCESS**, scope sintético DEV, 10k pessoas e 10k Serving. 100k HTTP permanece pendente na issue #1348. GOV-DOC-01.
+
 > **Plano de rampa HTTP E2E 10k (08/11/2026):** [GOV-V9-E2E-HTTP-10K](Decisao_V9_E2E_HTTP_10K_20261108.md), sequência após [E2E físico 1k PASS](Resultado_V9_E2E_HTTP_1K_20261108.md); 10 lotes de 1k cada e reconciliação por entrega. Resultado de 10k PENDENTE de artifact. GOV-DOC-01.
 
 > **E2E HTTP→Serving 1k físico PASS (08/11/2026):** [relatório e contagens conferidas](Resultado_V9_E2E_HTTP_1K_20261108.md), [Action 42541173969](https://github.com/lucianox777/Jornada/actions/runs/42541173969), artifact 13641457473, 24,316s e replay sem duplicidade. Ainda NÃO cobre 10k/100k ou p95 de múltiplos envios. GOV-DOC-01.

@@ -1,11 +1,10 @@
 name: v9-http-volume-10k-e2e-technical
 
-# Escalate only after previous 1k SHA-bound proof; stage branch only.
-# Never auto-trigger this optional test on master, never upload ZIP/CPF/JSONL.
+# Physical 10k stage proof SUCCESS 42542220115. Re-run only by explicit human
+# workflow_dispatch from protected master, never by branch or master push.
+# No ZIP/CPF/JSONL artifacts. This does not alter 30k master push policy.
 on:
-  push:
-    branches:
-      - test/v9-e2e-http-10k-20261108
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -33,7 +32,8 @@ jobs:
           set -euo pipefail
           test "$(git -C .. rev-parse HEAD)" = "$GITHUB_SHA"
           test "$GITHUB_REF_TYPE" = branch
-          test "$GITHUB_REF" = refs/heads/test/v9-e2e-http-10k-20261108
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/master
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
         with:
           dotnet-version: '10.0.113'
