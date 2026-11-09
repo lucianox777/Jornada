@@ -1,0 +1,148 @@
+name: jornada-v9-release-once
+
+# Trigger only when THIS file is merged to protected master. No branch PR run.
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/jornada-v9-release-once.yml'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: jornada-v9-release-v900-singleton
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Annotated tag + release v9.0.0 (one-shot, no code push)
+    if: github.repository == 'lucianox777/Jornada' && github.ref == 'refs/heads/master'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      GH_TOKEN_FOR_RELEASE: ${{ github.token }}
+    steps:
+      - name: Preflight anchor, create annotated tag, publish release once
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import datetime
+          import json
+          import os
+          import re
+          import urllib.error
+          import urllib.request
+
+          repo = 'lucianox777/Jornada'
+          target = 'e0e98f99c6290ac76162a8ca1852690b897e954a'
+          tag = 'v9.0.0'
+          report = 'Solution/docs/Relatorio_V9_Teste_Total_SHA_1489585d_20261109.md'
+          api_root = 'https://api.github.com/repos/' + repo
+          token = os.environ.get('GH_TOKEN_FOR_RELEASE')
+          if not token or os.environ.get('GITHUB_REPOSITORY') != repo:
+              raise RuntimeError('Wrong repository or no workflow token')
+          if (os.environ.get('GITHUB_EVENT_NAME') != 'push'
+                  or os.environ.get('GITHUB_REF') != 'refs/heads/master'
+                  or not re.fullmatch('[0-9a-f]{40}', os.environ.get('GITHUB_SHA',''))):
+              raise RuntimeError('Only an exact protected master push may publish v9.0.0')
+
+          def api(method, route, data=None):
+              payload = None if data is None else json.dumps(data).encode('utf-8')
+              req = urllib.request.Request(api_root+route, data=payload, method=method)
+              req.add_header('Accept','application/vnd.github+json')
+              req.add_header('Authorization','Bearer '+token)
+              req.add_header('X-GitHub-Api-Version','2022-11-28')
+              if payload is not None:
+                  req.add_header('Content-Type','application/json')
+              try:
+                  with urllib.request.urlopen(req,timeout=30) as response:
+                      return json.load(response)
+              except urllib.error.HTTPError as exc:
+                  if method == 'GET' and exc.code == 404:
+                      return None
+                  raise RuntimeError('GitHub API failure HTTP '+str(exc.code)) from None
+
+          if api('GET','/git/commits/'+target) is None:
+              raise RuntimeError('Frozen V9 commit missing')
+          anchor_report=api('GET','/contents/'+report+'?ref='+target)
+          if not anchor_report or anchor_report.get('type') != 'file':
+              raise RuntimeError('Report not present at the frozen commit')
+          comparison=api('GET','/compare/'+target+'...master')
+          if not comparison or comparison.get('status') not in ('ahead','identical'):
+              raise RuntimeError('Frozen V9 SHA is not an ancestor of current master')
+
+          existing=api('GET','/git/ref/tags/'+tag)
+          if existing:
+              obj=existing.get('object',{})
+              if obj.get('type') != 'tag':
+                  raise RuntimeError('Existing tag is lightweight, cannot overwrite')
+              annotated=api('GET','/git/tags/'+obj.get('sha',''))
+              if not annotated or annotated.get('tag')!=tag or annotated.get('object',{}).get('sha')!=target:
+                  raise RuntimeError('Existing tag targets different commit; do not overwrite')
+              print('PASS: annotated historical V9 tag already correct')
+          else:
+              record=api('POST','/git/tags',{
+                  'tag':tag, 'object':target, 'type':'commit',
+                  'message':'Jornada V9 frozen technical milestone. Report: '+report+
+                            '. TRAIN synthetic, no scientific certification or activation.',
+                  'tagger':{'name':'Jornada Release Governance','email':'noreply@github.com',
+                            'date':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+              })
+              if not record or not re.fullmatch('[0-9a-f]{40}',record.get('sha','')):
+                  raise RuntimeError('Git annotated-tag object not confirmed')
+              api('POST','/git/refs',{'ref':'refs/tags/'+tag,'sha':record['sha']})
+              print('PASS: annotated tag created, target verified as V9 anchor')
+
+          body = """# Jornada V9 — v9.0.0 (congelamento técnico)
+
+          Congelado exatamente no SHA e0e98f99c6290ac76162a8ca1852690b897e954a. Prova técnica final de código: 
+          1489585dedeebdf5de702a309a856dde534af6d3.
+          Relatório oficial: Solution/docs/Relatorio_V9_Teste_Total_SHA_1489585d_20261109.md.
+
+          ## Resumo da matriz a–m
+          a CI PASS (run 42585345991); b Windows PASS (42590449827);
+          c cluster/NAS NODE1/NODE2 PASS técnico (42590452798);
+          d E2E API/SQL PASS sintético (CI, HTTP 1k e 10k);
+          e ledger/API/Policy PASS documental restrito;
+          f SQL e migrações PASS documental restrito;
+          g validação independente técnica PASS (42590455876), não TEST cego;
+          h 30k PASS pela cadeia de provas (full TRAIN SKIPPED no SHA documental,
+          teste 30k full prévio 42574801409);
+          i V3/MU/TF0/sobrenome PASS técnico (42585345980 e correlatos);
+          j comparação f1bd50fd NÃO COMPARÁVEL, não gate por decisão do PO;
+          k V2 testemunha J/CP8 PASS por equivalência documental (42574801338);
+          l segurança/licença/push-only PASS técnico restrito, ressalva #1253;
+          m documentação/PRODAM PASS restrito, #1344/#378 pendentes.
+
+          SQL 100k sintéticos run 42590459089 foi do ALGORITMO OPERACIONAL V8.
+          Não valida motor multiparâmetro V9 em 100k (#1349).
+          HTTP 1k run 42590462422 e HTTP 10k run 42590465545: PASS técnico.
+          OOM 160/160: run 42337308236, depois regressões na master; margem
+          antiga 0 versus 0,0001 não é paridade numérica do braço histórico.
+
+          ## Limites e pendências
+          NÃO certifica FDR populacional, TEST cego, seleção científica,
+          Gold operacional, ativação DT-15, HML/Produção, PII real ou implantação.
+          Issues abertas: #1253 logs de credenciais, #1349 V9 100k, #1257 TF×TF0,
+          #999 LOCK científico, #1348 HTTP 100k, #1344 PDFs, #378 autenticação
+          institucional, #1362 tempos por etapa e #1363 pico de disco (decididos,
+          não implementados). PRs exploratórias #1352 e #1356 NÃO INTEGRADAS.
+          GOV-DOC-01. Sem anexos ou binários.
+          """
+          release=api('GET','/releases/tags/'+tag)
+          if release:
+              if (release.get('tag_name') != tag or release.get('draft') is not False
+                      or release.get('target_commitish') not in (target,tag)):
+                  raise RuntimeError('Existing release conflicts; do not modify')
+              print('PASS: existing V9 release left unchanged')
+          else:
+              created=api('POST','/releases',{
+                  'tag_name':tag,'target_commitish':target,'name':'Jornada V9 — v9.0.0',
+                  'body':body,'draft':False,'prerelease':False,'generate_release_notes':False,
+                  'make_latest':False})
+              if not created or created.get('tag_name') != tag:
+                  raise RuntimeError('V9 release not created')
+              print('PASS: release v9.0.0 published with test limitations')
+          print('PASS: tag + release workflow reconciled')
+          PY
