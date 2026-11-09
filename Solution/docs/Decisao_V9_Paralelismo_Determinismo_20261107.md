@@ -1,3 +1,5 @@
+> **PRECEDÊNCIA DE EXECUÇÃO (PO 09/11/2026):** a resolução genérica de CPU `MaximumParallelRuleSets=0` continua representando CPUs visíveis ao .NET fora do Calibrador. **Nos modos físicos `--v9-calibrate` / `--v9-adaptive-study`**, o PO aprovou sobrepor ao escalonamento automático o orçamento de RAM/cgroup/disco medido [GOV-V9-CALIBRADOR-RECURSOS-INTERNOS-20261109](Decisao_V9_Orcamento_Adaptativo_Interno_Modo_Calibracao_20261109.md); valores positivos explícitos de paralelismo mantêm semântica anterior, ciência/determinismo e fingerprint não mudam. GOV-DOC-01.
+
 # DC-V9-PAR-DET-20261107 — Paralelismo local e determinismo científico
 
 **Aprovada pelo Product Owner em 07/11/2026, 19h12 (America/Sao_Paulo).** Precedência: decisão superveniente sobre a proposta de comparar fisicamente dois runs serial × paralelo (#1321 e #1322, fechadas sem merge; #1323, diagnóstica e não autorizada a merge). Vinculada à política GOV-DOC-01.
