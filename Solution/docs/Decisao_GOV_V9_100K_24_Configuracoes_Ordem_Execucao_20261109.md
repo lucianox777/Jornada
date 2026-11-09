@@ -26,3 +26,7 @@ O [SCALE medium 100k](https://github.com/lucianox777/Jornada/actions/runs/425346
 **Impacto:** autorização de prioridade para uma prova técnica futura condicionada a controles operacionais, sem mudança de código/algoritmo, orçamento estatístico, segurança, gestão de custos ou modelo. **Precedência:** complementa [decisão 100k multiparâmetro](Decisao_V9_Escala_100k_Multiparametro_Tecnica_20261109.md) e [preferência por GitHub padrão](Decisao_V9_GitHub_Standard_100k_Otimizacao_20261109.md); **não revoga** GOV-DOC-01, #1253, a política de CI por SHA, a separação TRAIN/TEST e o LOCK científico. Encerrar #1349 somente após prova física efetiva, auditoria integral e documentação integrada.
 
 **Estado final desta atualização:** determinação documentada em PR; **nenhuma prova 100k V9 realizada**.
+
+## Incidente de validação documental na PR #1382
+
+O [primeiro run do check rápido #42672501553](https://github.com/lucianox777/Jornada/actions/runs/42672501553) terminou **FAIL**, com **zero jobs reportados** pela API do GitHub. Uma tentativa de `rerun_failed_jobs` foi recusada pelo GitHub (HTTP 403, *workflow run cannot be retried*). Não há execução V9 100k associada. O registro deste incidente é documental e a atualização de HEAD requer novo check; **não fazer merge com gate vermelho nem inferir causa não observada**.
