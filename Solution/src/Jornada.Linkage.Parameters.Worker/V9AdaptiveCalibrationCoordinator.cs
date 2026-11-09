@@ -245,14 +245,17 @@ public static class V9AdaptiveCalibrationCoordinator
         Func<CancellationToken, Task<SqlConnection>> openIndependentConnection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
         V9AdaptiveCalibrationPlan plan, CancellationToken cancellationToken,
-        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset = null) =>
-        RunCoreAsync(openIndependentConnection, true, observations, plan, frozenTfReferenceForRuleset, cancellationToken);
+        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset = null,
+        int? executionMaximumParallelRuleSets = null) =>
+        RunCoreAsync(openIndependentConnection, true, observations, plan, frozenTfReferenceForRuleset, cancellationToken,
+            executionMaximumParallelRuleSets);
 
     private static async Task<V9AdaptiveCalibrationStudyResult> RunCoreAsync(
         Func<CancellationToken, Task<SqlConnection>> openIndependentConnection, bool ownsConnections,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
         V9AdaptiveCalibrationPlan plan,
-        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset, CancellationToken cancellationToken)
+        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset, CancellationToken cancellationToken,
+        int? executionMaximumParallelRuleSets = null)
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
         ArgumentNullException.ThrowIfNull(observations);
@@ -335,7 +338,7 @@ public static class V9AdaptiveCalibrationCoordinator
         // immutable frame/family count is shared; results fold in catalogue order.
         var activeConnections = new HashSet<SqlConnection>(ReferenceEqualityComparer.Instance);
         using var referenceLease = new SemaphoreSlim(1);
-        var runs = await V9ParallelWork.MapAsync(candidates, plan.MaximumParallelRuleSets, async (passes, ct) =>
+        var runs = await V9ParallelWork.MapAsync(candidates, executionMaximumParallelRuleSets ?? plan.MaximumParallelRuleSets, async (passes, ct) =>
         {
             FrozenIbgeNominalTfV9? reference = null;
             if (frozenTfReferenceForRuleset is not null)
