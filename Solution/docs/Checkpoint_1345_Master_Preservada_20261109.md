@@ -59,3 +59,7 @@
 7. **Aprovação/merge futuros**: manter esta branch e respectiva PR DRAFT isoladas. Quando o PO autorizar, reconciliar primeiro a master vigente, revisar o HEAD e então integrar por gates, produzindo o relatório A–G final no **SHA realmente resultante**. Até lá, **nenhuma afirmação de conclusão**.
 
 **Rastreabilidade GOV-DOC-01:** [mandato aprovado](Decisao_V9_Fechamento_Controlado_20261108.md), [matriz histórica](Relatorio_V9_Fechamento_Integracao_20261108.md), [triagem vigente](Triagem_Issues_Fechamento_V9_20261108.md), [PRODAM](Revisao_PRODAM_v5_00_20261108.md), [issue #1345](https://github.com/lucianox777/Jornada/issues/1345). Nenhum resultado científico da V9 foi certificado ou ativado.
+
+## 5. Atualização incremental do mesmo SHA, sem alterar resultado histórico
+
+Consulta posterior em **09/11/2026 UTC**: [M/U seed42 42550726231](https://github.com/lucianox777/Jornada/actions/runs/42550726231) passou a **COMPLETED/SUCCESS** em `f3b33b5011fddc39b2e42effaceeb961fd4e1213`, com job físico `V9 M/U V2 x V3 physical SQL seed42 (non-confirmatory)` **SUCCESS** e artifact **13645062930** (digest ZIP `sha256:500b2c748280ee7a6b04adc326ecce48b98c4de6e991dce4e0cc3465d54fd1df`). Este é **PASS de M/U**, não aprovação automática de todo o item i, que agrega V3, TF0 e sobrenome. A tabela da seção 2 permanece uma fotografia temporal anterior; este adendo a atualiza sem apagar resultados nem inferir aprovação de outros runs. A **conclusão continua NÃO CONCLUÍDO**.
