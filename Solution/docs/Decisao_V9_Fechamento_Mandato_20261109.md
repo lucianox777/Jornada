@@ -38,3 +38,15 @@ Após integração #1343 e provas #1347 (100k operacional V8, não motor multipa
 | Relatório final | Pendente | Resultado baseado em runs do SHA final |
 
 **Referências:** [mandato anterior](Decisao_V9_Mandato_Integracao_Final_Teste_Geral_20261108.md), [pré-auditoria a–m](Teste_Geral_V9_a_m_Preflight_20261108.md), [índice vigente](Indice_Decisoes_Vigentes.md), [GOV-DOC-01](Politica_Registro_Decisoes_Discussoes.md).
+
+## Complemento aprovado pelo PO — amplitude da pesquisa exploratória (09/11/2026)
+
+**Decisão:** a pesquisa exploratória do calibrador **pode utilizar mais parâmetros** do que o espaço de parâmetros da execução de fechamento da V9. A autorização é de **amplitude de investigação**, não de ativação, mudança da referência ou ampliação automática da campanha física obrigatória.
+
+**Contexto e justificativa:** o PO esclareceu que a exploração não deve ser artificialmente limitada pela quantidade de parâmetros da campanha operacional; ampliar hipóteses pode revelar interações e alternativas que mereçam avaliação posterior.
+
+**Limites e impactos:** manter o trabalho exploratório #1352 isolado em draft e fora do caminho crítico; declarar parâmetros, domínios, combinações, orçamento, proveniência, riscos de multiplicidade e critério de comparação em plano/relatório versionado da própria pesquisa; distinguir claramente exploração de confirmação, sem alegar FDR/eficácia confirmatória a partir de buscas ampliadas. Não modificar automaticamente o `plan.json` oficial de fechamento, REF, TEST, Gold, limites aprovados, seleção/ativação, nem disparar 30k/100k sem gates e autorização aplicáveis. Eventual promoção de achados para estudo confirmatório exige plano pré-declarado, avaliação estatística independente e decisão própria do PO.
+
+**Precedência:** complementa o item 3 deste mandato; substitui somente interpretações que imponham à pesquisa exploratória o mesmo número de parâmetros do plano de fechamento. Preserva as restrições de isolamento, draft e não ativação.
+
+**Rastreabilidade:** decisão expressa do PO na conversa de 09/11/2026: “A pesquisa exploratória pode usar mais parâmetros.”
