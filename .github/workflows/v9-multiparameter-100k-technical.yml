@@ -124,6 +124,7 @@ jobs:
             Solution/.local/v9-100k-technical/bound/technical-audit.md
             Solution/.local/v9-100k-technical/results/mu-statistical-analysis.json
             Solution/.local/v9-100k-technical/results/runtime-diagnostics.json
+            Solution/.local/v9-100k-technical/results/calibration-resource-budget.json
             Solution/.local/v9-100k-technical/results/selection-reference.json
       - name: Remove disposable SQL even after failure
         if: always()

@@ -160,10 +160,15 @@ public static class V9NestedCalibrationCli
                 {
                     if (args[0] == "--v9-calibrate")
                     {
+                        // Resource budgeting belongs to --v9-calibrate itself,
+                        // not an optional CI/Docker workflow for 100k alone.
+                        var resources = V9CalibrationResourceGovernor.Capture(
+                            plan.Calibration.MaximumParallelRuleSets, output);
+                        await WriteNewAsync(Path.Combine(output, "calibration-resource-budget.json"), resources);
                         await using var diskSampler = new V9CalibrationDiskSampler(output,
                             TimeSpan.FromMilliseconds(500));
                         await SearchAsync(args[2], output, plan, connectionString, originalPlanBytes,
-                            diskSampler);
+                            diskSampler, resources);
                     }
                     else await ValidateAsync(args[2], args[3], output, plan, connectionString);
                 }
@@ -224,7 +229,8 @@ public static class V9NestedCalibrationCli
     }
 
     private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan,
-        string connectionString, byte[] originalPlanBytes, V9CalibrationDiskSampler diskSampler)
+        string connectionString, byte[] originalPlanBytes, V9CalibrationDiskSampler diskSampler,
+        V9CalibrationExecutionResourceBudget resources)
     {
         var totalWallClock = System.Diagnostics.Stopwatch.StartNew();
         await using var sourceStream = File.OpenRead(source);
@@ -284,7 +290,8 @@ public static class V9NestedCalibrationCli
             File.AppendAllText(Path.Combine(output, "memory-progress.jsonl"), memory + Environment.NewLine);
             Console.Error.WriteLine(memory);
             diskSampler.ObserveNow(); // diagnosis only; no changes to selection.
-        }, frozenTfReferenceForRuleset: referenceFactory);
+        }, frozenTfReferenceForRuleset: referenceFactory,
+            executionMaximumParallelRuleSets: resources.EffectiveParallelism);
         var calibrationFinishedMs = elapsed.ElapsedMilliseconds;
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
             .DistinctBy(x => x.ContentSha256))
@@ -321,7 +328,7 @@ public static class V9NestedCalibrationCli
             stageDurations = await WriteMuStatisticalAnalysisAsync(output, plan, result, originalPlanBytes,
                 sourceSha, Sha(manifestBytes), producer.RootElement.GetProperty("seed").GetUInt64(),
                 inputPreparationMs, calibrationFinishedMs, evidenceExportBeforeAnalysisMs,
-                diskSampler.Snapshot());
+                diskSampler.Snapshot(), resources);
         process.Refresh();
         var searchExportFinishedMs = elapsed.ElapsedMilliseconds;
         await WriteNewAsync(Path.Combine(output, "runtime-diagnostics.json"), new
@@ -332,6 +339,7 @@ public static class V9NestedCalibrationCli
             totalWallClockIncludingInputPreparationMilliseconds = totalWallClock.ElapsedMilliseconds,
             stageDurations,
             diskHighWaterOutputAtRuntime = diskSampler.Snapshot(),
+            calibrationExecutionResourceBudget = resources,
             phasesMilliseconds = new
             {
                 physicalCalibration = calibrationFinishedMs,
@@ -339,7 +347,7 @@ public static class V9NestedCalibrationCli
             },
             visibleLogicalProcessors = Environment.ProcessorCount,
             configuredParallelism = plan.Calibration.MaximumParallelRuleSets,
-            effectiveParallelism = V9ParallelWork.ResolveMaximumParallelism(plan.Calibration.MaximumParallelRuleSets),
+            effectiveParallelism = resources.EffectiveParallelism,
             peakWorkingSetBytes = process.PeakWorkingSet64,
             operatingSystem = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
             dotNetVersion = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
@@ -373,7 +381,7 @@ public static class V9NestedCalibrationCli
         byte[] originalPlanBytes, string sourceObservationsSha256,
         string producerManifestSha256, ulong producerSeed,
         long inputPreparationMs, long physicalCalibrationMs, long evidenceExportBeforeAnalysisMs,
-        V9DiskHighWaterDiagnostic diskHighWater)
+        V9DiskHighWaterDiagnostic diskHighWater, V9CalibrationExecutionResourceBudget resources)
     {
         var reportAssemblyTimer = System.Diagnostics.Stopwatch.StartNew();
         var declared = V9MuEstimationSearchSpace.Enumerate(plan.MuEstimationMethods!);
@@ -568,10 +576,12 @@ public static class V9NestedCalibrationCli
         md.AppendLine("MaximumParallelRuleSets no plano: `" + cpuCapacity.ConfiguredMaximumParallelRuleSets
             + "`; CPUs lógicas visíveis ao .NET: `"
             + (cpuCapacity.DotNetVisibleLogicalProcessors?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "indisponível")
-            + "`; limite efetivo de workers: `" + cpuCapacity.EffectiveMaximumParallelRuleSets + "`.");
+            + "`; teto teórico por CPUs: `" + cpuCapacity.EffectiveMaximumParallelRuleSets
+            + "`; limite real aplicado pelo orçamento de RAM/disco: `" + resources.EffectiveParallelism
+            + "` (modo " + resources.SchedulingMode + ").");
         if (cpuCapacity.ExplicitWorkerCountBelowDetectedProcessors)
             md.AppendLine("> **AVISO:** o paralelismo configurado é inferior à quantidade de CPUs lógicas detectadas pelo C#."
-                + " A execução foi respeitada sem ajuste automático; verifique a configuração se desejar utilizar mais workers.");
+                + " O valor explícito do plano foi respeitado sem alteração automática.");
         else if (cpuCapacity.DotNetVisibleLogicalProcessors is null)
             md.AppendLine("> **AVISO:** a configuração manual foi respeitada, mas a contagem de CPUs visíveis ao .NET não pôde ser informada.");
         md.AppendLine("O número de workers é um teto de tarefas simultâneas, não uma medição de utilização da CPU.");
@@ -596,7 +606,7 @@ public static class V9NestedCalibrationCli
             + " Amostras por lote no arquivo já existente: `memory-progress.jsonl`.");
         if (ramCapacity.GcReportsHighMemoryLoad is true)
             md.AppendLine("> **AVISO RAM:** a API do .NET informou carga de memória no limiar alto do GC."
-                + " Verifique RAM e outros processos/SQL no ambiente físico; a execução não foi limitada nem alterada.");
+                + " Consulte calibration-resource-budget.json: o escalonamento AUTO foi definido na entrada, sem mudar a ciência.");
         else if (ramCapacity.GcReportsHighMemoryLoad is null)
             md.AppendLine("> **AVISO RAM:** a API do .NET não disponibilizou um par comparável de carga/limiar de memória."
                 + " O pico RSS foi registrado, mas não é possível certificar ausência de pressão de RAM.");
@@ -680,6 +690,7 @@ public static class V9NestedCalibrationCli
             schema = "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1",
             // Diagnostic only, never an input to fit, SHA, FDR or selection.
             cpuCapacity,
+            calibrationExecutionResourceBudget = resources,
             ramCapacity,
             stageDurations,
             diskHighWater,
