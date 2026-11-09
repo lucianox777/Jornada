@@ -1,0 +1,21 @@
+# GOV-V9-1345-E — inventário de cobertura ingestão/API/ledger/Policy (09/11/2026)
+
+**Decisão do PO de 09/11 (GOV-DOC-01).** Aceite técnico do item e pelo **inventário verificável** de testes e artefatos já existentes, não pela criação de testes novos. Estado do inventário: **PASS documental no SHA-base de código** `3da5e9327e86b5837f69a4da2236fab385ec930f`; lacunas individuais **NÃO COBERTO**, registradas sem bloquear este critério. Após merge da #1360, os workflows devem comprovar SUCCESS no **novo SHA final**. Não representa homologação HML/PRD, TEST/Gold, validação científica ou autenticação corporativa #378.
+
+**Fonte executada:** [jornada-ci #42574801283](https://github.com/lucianox777/Jornada/actions/runs/42574801283), COMPLETED/SUCCESS no SHA-base. [Artifact local E2E #13654499661](https://github.com/lucianox777/Jornada/actions/runs/42574801283/artifacts/13654499661), digest SHA-256 `f61d1ae86446c19edf9e0682aad617410ac2922df3e05565fd2d5c8595412bce`; [E2E SQL privado #13655335533](https://github.com/lucianox777/Jornada/actions/runs/42574801283/artifacts/13655335533), SHA-256 `8c221ce31c1636b8b0b0f5917e4f6e58cab206f63ce5ae51830df1a6812f9c3e`; [OpenAPI #13655126270](https://github.com/lucianox777/Jornada/actions/runs/42574801283/artifacts/13655126270), SHA-256 `3b4c7823a6b58f1bfba611fec05b82fc49010503c577af7cbc5eac893c0285f8`. Fonte do script: [local-e2e.sh](https://github.com/lucianox777/Jornada/blob/3da5e9327e86b5837f69a4da2236fab385ec930f/Solution/scripts/local-e2e.sh), blob Git SHA-1 `2950e4a01090fc59b2cf9b2b918a24b7b98c157e`. Digest de artifact refere-se ao ZIP armazenado no GitHub; SHA-1 Git refere-se ao conteúdo versionado, não se devem confundir.
+
+| Cenário a inventariar | Teste/asserção existente e origem | Resultado no SHA-base | Lacuna ou limite |
+| --- | --- | --- | --- |
+| HTTP 401 sem credencial | `local-e2e.sh` linhas 169–173, envio negativo, auditoria HTTP | **PASS** — 401 e sem persistência | Abrange o endpoint testado, não todos os endpoints |
+| HTTP 403 credencial sem `ingestao.write` | `local-e2e.sh` linhas 174–179 + auditoria | **PASS** — 403 | Não prova matriz inteira de perfis/Policy |
+| HTTP 400 checksum inválido | `local-e2e.sh` linhas 182–216 | **PASS** — 400, nenhuma entrega/staging residual | Só o contrato negativo exercitado |
+| HTTP 409 chave idempotente e ZIP diferente | `local-e2e.sh` linhas 325–372 + evidência Console | **PASS** — 409, preserva Entrega/Bronze originais | Não cobre todas as variantes 409 |
+| Idempotência positiva API e Console | `local-e2e.sh` linhas 232–265, replay direto e duas remessas Console | **PASS** — mesma Entrega, uma linha persistida | Cobertura delimitada pelo E2E sintético |
+| Autorização Policy: falta de escopo no ingress | `local-e2e.sh` resposta 403 + gates unit/contracts na CI | **PASS** no caso representado | Matriz exaustiva de cada Policy/perfil: **NÃO COBERTO** neste inventário |
+| Estados de ledger de entrega | `local-e2e.sh` linhas 120–128 e 438–468; contratos SMADS/SMDET/SMS | **PASS** para `PROCESSADA` | Cada outra transição e caminho de falha do ledger: **NÃO COBERTO** individualmente |
+| Sem resíduo após pedidos negativos | `local-e2e.sh` linhas 190–216, contagens SQL e auditoria | **PASS** — zero Entrega/staging dos negativos | Não prova todas políticas de retenção |
+| Worker SIGKILL, rollback, lease/recovery, RunOnce e ON/OFF/ON | CI `e2e-private-sql` + artifact #13655335533 | **PASS** no conjunto exercitado | Não é prova de todos estados de ledger/Policy |
+| Contrato OpenAPI runtime | Job de CI e artifact #13655126270 | **PASS — 79/79**, zero skipped | Não é teste funcional isolado para cada cenário |
+| Matrix exaustiva dos erros e estados por rota/Policy | Nenhuma evidência 1×1 demonstrada no artifact atual | **NÃO COBERTO** | Lacuna versionada, **não bloqueante pelo critério específico do PO** |
+
+**Rastreabilidade e precedência:** item e do [relatório a–m](Resultado_V9_Validacao_Integral_SHA_3da5_20261109.md), [mandato #1345](https://github.com/lucianox777/Jornada/issues/1345). A decisão expressa de 09/11 substitui **somente o critério de aceite documental e**; não concede PASS a cenários sem prova nem reinterpreta jobs SKIPPED. Exige nova evidência na master pós-merge.
