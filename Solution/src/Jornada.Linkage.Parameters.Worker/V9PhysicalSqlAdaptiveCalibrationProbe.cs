@@ -215,7 +215,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
     /// Values above the declared incidence ceiling are capped at ceiling + 1.
     /// </summary>
     public sealed record OfflinePairCapacity(
-        int BlockingPasses, int SignatureRows, long PreflightPairIncidencesUpperBound,
+        int BlockingPasses, int SignatureRows, long PreflightPairIncidencesCapped,
         int DeclaredMaximumCandidatePairIncidences, int DeclaredMaximumProjectedSignatures,
         bool WithinDeclaredProjectedSignatureCap, bool WithinDeclaredPairIncidenceCap,
         string EvidenceScope = "TRAIN_INTERNAL_FRAME_NO_SQL_NO_TEST_NO_MODEL_FIT");
