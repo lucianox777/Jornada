@@ -1,12 +1,13 @@
 name: v9-j-official-technical-physical-proof
 
-# Mandatory pre-merge ENGINEERING regression of the frozen seed42 30k TRAIN.
+# Technical ENGINEERING regression of the frozen seed42 30k TRAIN on original J branch or integrated master.
 # NOT a new scientific campaign, independent validation, TEST/Gold or release.
-# This is a branch-push proof, not a change to the master push-only 30k gate.
+# J physical proof now runs on authorized master push for V9 #1345, independently of the unchanged 30k impact gate.
 on:
   push:
-    branches: [feat/v9-multiparameter-v2-permanent-witness-20261107]
+    branches: [feat/v9-multiparameter-v2-permanent-witness-20261107, master]
     paths:
+      - 'Solution/src/Jornada.Processor.Worker/VALIDACAO_INTEGRAL_V9_1345.md'
       - '.github/workflows/v9-j-official-technical-physical-proof.yml'
       - 'Solution/scripts/v9-j-official-physical-audit.py'
       - 'Solution/scripts/v9-multiparameter-official-plan.py'
@@ -45,13 +46,16 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Pin exact PR-branch SHA and run frozen plan tests
+      - name: Pin exact authorized branch SHA and run frozen plan tests
         shell: bash
         run: |
           set -euo pipefail
           [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
           test "$(git rev-parse HEAD)" = "$EXACT_SHA"
-          test "$GITHUB_REF" = "refs/heads/feat/v9-multiparameter-v2-permanent-witness-20261107"
+          case "$GITHUB_REF" in
+            refs/heads/feat/v9-multiparameter-v2-permanent-witness-20261107|refs/heads/master) ;;
+            *) echo 'J physical validation prohibited on this ref' >&2; exit 1 ;;
+          esac
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_official_multiparameter_plan.py -v
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_j_historical_analytic_comparison.py -v
           python3 -m unittest discover -s Solution/tests/scripts -p test_v9_j_download_pinned_artifact.py -v
