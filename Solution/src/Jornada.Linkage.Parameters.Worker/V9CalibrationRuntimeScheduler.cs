@@ -32,6 +32,9 @@ public sealed class V9CalibrationRuntimeScheduler
     private int _maxActive;
     private int _samples;
     private readonly SemaphoreSlim _admission = new(1, 1);
+    private readonly List<V9CalibrationRuntimeSchedulingReceipt> _receipts = [];
+
+    public IReadOnlyList<V9CalibrationRuntimeSchedulingReceipt> Receipts => _receipts.AsReadOnly();
 
     public V9CalibrationRuntimeScheduler(V9CalibrationExecutionResourceBudget budget,
         string outputDirectory, int sqlPoolMaximum,
@@ -84,8 +87,11 @@ public sealed class V9CalibrationRuntimeScheduler
         RequireDisk(sampleBefore);
         var results = new TResult[inputs.Count];
         if (inputs.Count == 0)
-            return (Array.AsReadOnly(results), Receipt(ceiling, sampleBefore.ResidentBytes,
-                sampleBefore.PeakResidentBytes, 0));
+        {
+            var emptyReceipt = Receipt(ceiling, sampleBefore.ResidentBytes, sampleBefore.PeakResidentBytes, 0);
+            _receipts.Add(emptyReceipt);
+            return (Array.AsReadOnly(results), emptyReceipt);
+        }
         // One physical configuration in original declared order. Never a new
         // diagnostic hypothesis, never a pilot on TEST/Gold.
         cancellationToken.ThrowIfCancellationRequested();
@@ -106,17 +112,18 @@ public sealed class V9CalibrationRuntimeScheduler
                 {
                     await EnterAsync(ct);
                     try { results[index] = await operation(inputs[index], ct); }
-                    finally { _admission.Release(); /* released below through Exit, not here */ }
+                    finally { Exit(); }
                 });
-        return (Array.AsReadOnly(results), Receipt(ceiling, sampleBefore.ResidentBytes,
-            sampleAfter.PeakResidentBytes, 1));
+        var receipt = Receipt(ceiling, sampleBefore.ResidentBytes, sampleAfter.PeakResidentBytes, 1);
+        _receipts.Add(receipt);
+        return (Array.AsReadOnly(results), receipt);
     }
 
     public static long EstimateIncrementBytes(long measuredPeakDeltaBytes)
     {
         if (measuredPeakDeltaBytes < 0)
             throw new ArgumentOutOfRangeException(nameof(measuredPeakDeltaBytes));
-        if (measuredPeakDeltaBytes > (long.MaxValue / 3) * 2)
+        if (measuredPeakDeltaBytes > (long.MaxValue - 1) / 3)
             return long.MaxValue;
         return Math.Max(MinimumIncrementBytes, (measuredPeakDeltaBytes * 3 + 1) / 2);
     }
@@ -131,7 +138,7 @@ public sealed class V9CalibrationRuntimeScheduler
         if (measuredAvailableBytes is null) return activeWorkers == 0;
         var required = V9CalibrationResourceGovernor.HostReserveBytes
             + (long)(activeWorkers + 1) * incrementalWorkerBytes;
-        return required <= measuredAvailableBytes;
+        return required >= 0 && required <= measuredAvailableBytes;
     }
 
     private long RequiredFreeBytes(int workers)
