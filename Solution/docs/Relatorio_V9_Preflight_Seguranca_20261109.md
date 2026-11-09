@@ -15,3 +15,7 @@
 Antes de campanha nova, revalidar **sem imprimir valores**: inexistência de segredos persistentes ainda ativos/compartilhados, política de retenção dos logs antigos, procedimentos de descarte do SQL, mascaramento na criação do contêiner e exportação segura de artefatos/diagnósticos. Se risco atual for encontrado, **BLOQUEAR** a campanha até mitigação. Sem essas verificações, registrar **PREFLIGHT PARCIAL — NÃO AUTORIZA INÍCIO DE 100k**. Não apagar logs unilateralmente e não fechar #1253 apenas por CI verde.
 
 Sem alterar parâmetros científicos, TEST, Gold, ativação ou HML/Produção. GOV-DOC-01.
+
+## Adenda de 09/11 — transporte de credencial e log histórico
+
+Foi identificado uso de `docker run --env MSSQL_SA_PASSWORD=<valor>` que expunha o segredo em argumento de processo, em desacordo com mandato do PO. A [correção técnica](Decisao_V9_Seguranca_Credencial_Sem_Argv_20261109.md) troca para `--env-file` `0600` com `trap EXIT`, preserva SQL efêmero e inclui regressão. A leitura controlada do log histórico do job `125584814018` (run `41535062165`) confirmou 8 ocorrências com senha temporária ainda acessível, sem copiar valores. **Estado: bloqueio de preflight para campanha nova até decisão de retenção/reutilização e validação pós-merge.**
