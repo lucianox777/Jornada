@@ -60,7 +60,7 @@ class AppendTests(unittest.TestCase):
             self.run_append(candidate(OptionId='CURRENT'))
     def test_rejects_duplicate_parameters(self):
         with self.assertRaisesRegex(ValueError,'Duplicate option parameters'):
-            self.run_append(candidate(DecisionThreshold=0.95))
+            self.run_append({'Candidates':[{'ModelOption':dict(baseline()['Calibration']['ModelOptions'][0], OptionId='EXP_DUP', EligibleForSelection=False), 'Evidence':candidate()['Candidates'][0]['Evidence']}]})
     def test_rejects_active_tf_without_abstention(self):
         with self.assertRaisesRegex(ValueError,'abstain'):
             self.run_append(candidate(TfWeight=1))
