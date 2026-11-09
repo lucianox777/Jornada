@@ -1,7 +1,12 @@
 FROM mcr.microsoft.com/dotnet/runtime-deps:10.0
 
-RUN apt-get update \
- && apt-get install -y --no-install-recommends samba smbclient \
+# GH #1359: archive.ubuntu.com:80 indisponível durante o bootstrap NAS.
+# Exigir pacotes samba/smbclient normais, via TLS e retries finitos; sem relaxar checks.
+RUN find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -exec sed -i \
+      -e 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+      -e 's|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g' {} + \
+ && apt-get -o Acquire::Retries=3 -o Acquire::https::Timeout=20 update \
+ && apt-get -o Acquire::Retries=3 -o Acquire::https::Timeout=20 install -y --no-install-recommends samba smbclient \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /srv/jornada/bronze \
  && chmod 0777 /srv/jornada/bronze
