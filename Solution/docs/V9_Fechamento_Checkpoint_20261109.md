@@ -50,3 +50,13 @@ Consulta ao conteúdo indexado do repositório identificou:
 - Busca textual indexada `path:plan.json WITNESS` não retornou resultados. **Ausência de resultado na busca não prova inexistência de arquivo**; é necessário localizar o plano por árvore/artefatos e conferir valores e SHA.
 
 **Resultado de k:** **NÃO VERIFICADO**, não PASS. **Ação exigida:** extrair o `plan.json` científico efetivamente executado (arquivo e SHA), comparar campo a campo com builder V2 histórico autenticado, confirmar WITNESS+ANCHOR, frame idêntico e multiplicidade CP apenas de candidatas; publicar diferença e teste reprodutível.
+
+## Auditoria de implementação — artefatos efetivamente localizados
+
+A busca anterior sem resultado por `path:plan.json WITNESS` foi **insuficiente**; a inspeção direta encontrou:
+
+1. **Gerador oficial em master:** `Solution/scripts/v9-multiparameter-official-plan.py` (blob Git `e63e453322e7a33637571123dd73d0d96f407891`). Ele exige nome de saída `plan.json`, cria arquivo exclusivamente novo (`xb`), marca `DEFAULT` como `Role=WITNESS, Anchor=true`, atribui `Role=CANDIDATE` aos outros métodos, explicita defaults históricos nas duas opções, confere métodos/ordem, estabelece 24 configurações físicas, 16 testemunhas/diagnósticos e CP de 8 candidatas elegíveis. O retorno contém `status=OFFICIAL_PLAN_CREATED_NOT_PHYSICALLY_EXECUTED`, `sameFrame=true`, `certified=false`, `activated=false`. **`sameFrame=true` é uma declaração do gerador, não uma medição SQL.**
+2. **Plano histórico versionado:** `Solution/data/calibration/v9/v2-one-mf-frozen/plan.json` (blob Git `03a921c4bcb62d2885daef324c68d115fa369a1c`) contém parâmetros V2 e `ModelOptions` explícitos; **não é, por si, a saída do novo gerador multiparâmetro**. Não usar este plano como prova da presença física de WITNESS/ANCHOR no ensaio J.
+3. **Atenção à contagem:** o gerador atual declara `CANDIDATE_CP_COUNT=24-16=8`. O índice documental anterior menciona **CP candidata 16** na proposta #1337. Essa divergência precisa ser reconciliada contra o plano e protocolo efetivamente aceitos; não escolher um dos números por conveniência nem alterar o bound científico sem decisão e teste.
+
+**Estado do item k:** implementação de **gerador identificada**, mas **prova física e reconciliação da multiplicidade pendentes**. Próximo passo: executar gerador com fonte autenticada, auditar JSON emitido e fingerprint, confirmar 24 braços no mesmo SQL, elegibilidade e CP de cada braço e comparar com decisão vigente. Não classificar PASS até então.
