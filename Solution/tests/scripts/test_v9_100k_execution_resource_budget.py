@@ -112,6 +112,7 @@ class Adaptive100kResourceBudgetTests(unittest.TestCase):
         self.assertIn("--github-env \"$GITHUB_ENV\"", workflow)
         self.assertIn("--previous \"$root/capacity-before-sql.json\"", workflow)
         self.assertIn("--v9-calibrate", workflow)
+        self.assertIn("results/calibration-resource-budget.json", workflow)
 
 
 if __name__ == "__main__":
