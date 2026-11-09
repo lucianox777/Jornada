@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 
 namespace Jornada.Linkage.Parameters.Worker;
 
@@ -93,11 +94,43 @@ public static class V9CalibrationResourceGovernor
         {
             throw new InvalidDataException("V9_RESOURCE_ADMISSION_DISK_UNMEASURED");
         }
-        long? hostAvailable = TryLinuxAvailableMemory();
+        long? hostAvailable = TryHostAvailableMemory();
         long? cgroupAvailable = TryCgroupRemainingMemory();
         return Decide(configuredParallelism, Environment.ProcessorCount,
             hostAvailable, cgroupAvailable, freeDisk);
     }
+
+    // Linux MemAvailable and Windows GlobalMemoryStatusEx report current host
+    // availability; neither is a hard cap. cgroup v2 is applied separately.
+    private static long? TryHostAvailableMemory()
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            var info = new WindowsMemoryStatus { Length = (uint)Marshal.SizeOf<WindowsMemoryStatus>() };
+            if (!GlobalMemoryStatusEx(ref info))
+                return null;
+            return info.AvailablePhysical > long.MaxValue ? null : (long)info.AvailablePhysical;
+        }
+        return TryLinuxAvailableMemory();
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Auto)]
+    private struct WindowsMemoryStatus
+    {
+        public uint Length;
+        public uint MemoryLoad;
+        public ulong TotalPhysical;
+        public ulong AvailablePhysical;
+        public ulong TotalPageFile;
+        public ulong AvailablePageFile;
+        public ulong TotalVirtual;
+        public ulong AvailableVirtual;
+        public ulong AvailableExtendedVirtual;
+    }
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GlobalMemoryStatusEx(ref WindowsMemoryStatus info);
 
     private static long? TryLinuxAvailableMemory()
     {
