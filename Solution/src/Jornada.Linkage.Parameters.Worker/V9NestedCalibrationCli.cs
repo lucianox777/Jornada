@@ -95,10 +95,11 @@ public static class V9NestedCalibrationCli
         bool completed = false;
         try
         {
-            if (args.Length < 1 || (args[0] == "--v9-calibrate" ? args.Length != 4
+            if (args.Length < 1 || (args[0] == "--v9-calibrate" ? !(args.Length == 4 || (args.Length == 5 && args[4] == "--exploration"))
                 : args[0] == "--v9-validate-finalists" ? args.Length != 5 : true))
                 throw new ArgumentException("Uso: --v9-calibrate <plano> <CSV> <diretório novo>; --v9-validate-finalists <plano> <SHA.selection.json> <CSV novo> <diretório novo>");
-            output = Path.GetFullPath(args[^1]);
+            var exploration = args[0] == "--v9-calibrate" && args.Length == 5;
+            output = Path.GetFullPath(args[exploration ? 3 : args.Length - 1]);
             var originalPlanBytes = await File.ReadAllBytesAsync(args[1]);
             V9OptionalCompatibilityParameters.ValidateRawInput(originalPlanBytes);
             var plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(originalPlanBytes, Json)
@@ -120,7 +121,7 @@ public static class V9NestedCalibrationCli
                 try
                 {
                     if (args[0] == "--v9-calibrate")
-                        await SearchAsync(args[2], output, plan, connectionString, originalPlanBytes);
+                        await SearchAsync(args[2], output, plan, connectionString, originalPlanBytes, exploration);
                     else await ValidateAsync(args[2], args[3], output, plan, connectionString);
                 }
                 catch (Exception exception)
@@ -180,7 +181,7 @@ public static class V9NestedCalibrationCli
     }
 
     private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan,
-        string connectionString, byte[] originalPlanBytes)
+        string connectionString, byte[] originalPlanBytes, bool exploration)
     {
         await using var sourceStream = File.OpenRead(source);
         var sourceSha = Convert.ToHexString(await SHA256.HashDataAsync(sourceStream)).ToLowerInvariant();
@@ -270,6 +271,8 @@ public static class V9NestedCalibrationCli
         if (plan.MuEstimationMethods is not null)
             await WriteMuStatisticalAnalysisAsync(output, plan, result, originalPlanBytes,
                 sourceSha, Sha(manifestBytes), producer.RootElement.GetProperty("seed").GetUInt64());
+        if (exploration && plan.MuEstimationMethods is not null)
+            await AppendReportOnlyExplorationAsync(Path.Combine(output, "mu-statistical-analysis.json"));
         process.Refresh();
         var searchExportFinishedMs = elapsed.ElapsedMilliseconds;
         await WriteNewAsync(Path.Combine(output, "runtime-diagnostics.json"), new
@@ -313,6 +316,41 @@ public static class V9NestedCalibrationCli
     /// Full declared-vs-executed M/U audit; TRAIN_SELECTION only, never validation or certification.
     /// Rows include rejected options and the exact policy, not only winning finalists.
     /// </summary>
+    /// <summary>Report-only exploration: no scoring, SQL, selection or plan mutation.</summary>
+    private static async Task AppendReportOnlyExplorationAsync(string path)
+    {
+        var original = await File.ReadAllBytesAsync(path);
+        var report = System.Text.Json.Nodes.JsonNode.Parse(original)?.AsObject()
+            ?? throw new InvalidDataException("Relatório estatístico ausente.");
+        if (report["schema"]?.GetValue<string>() != "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1"
+            || report.ContainsKey("exploratoryAnalysis"))
+            throw new InvalidDataException("Schema ou extensão exploratória inválida.");
+        var rows = report["rows"]?.AsArray()
+            ?? throw new InvalidDataException("Linhas de avaliação ausentes.");
+        var options = rows.Select(x => x?["OptionId"]?.GetValue<string>())
+            .Where(x => !string.IsNullOrWhiteSpace(x)).Distinct().OrderBy(x => x).ToArray();
+        var summary = new System.Text.Json.Nodes.JsonObject
+        {
+            ["ExploratoryOnly"] = true,
+            ["AutoApplied"] = false,
+            ["SelectionChanged"] = false,
+            ["OperationalParametersChanged"] = false,
+            ["TestUsed"] = false,
+            ["Certified"] = false,
+            ["NormalReportSha256"] = Convert.ToHexString(SHA256.HashData(original)).ToLowerInvariant(),
+            ["ExistingRowsCount"] = rows.Count,
+            ["Status"] = "DESCRIPTIVE_EXISTING_EVALUATIONS_ONLY",
+            ["Note"] = "Exploration changes only this final report. No extra fits or statistical certification."
+        };
+        var optionArray = new System.Text.Json.Nodes.JsonArray();
+        foreach (var option in options)
+            optionArray.Add(option);
+        summary["ExistingMeasuredOptionIds"] = optionArray;
+        report["exploratoryAnalysis"] = summary;
+        // Only the final report is changed; all upstream outputs remain untouched.
+        await File.WriteAllTextAsync(path, report.ToJsonString(new JsonSerializerOptions { WriteIndented = true }) + Environment.NewLine);
+    }
+
     private static async Task WriteMuStatisticalAnalysisAsync(string output,
         V9NestedCalibrationPlan plan, V9NestedCalibrationSearchResult result,
         byte[] originalPlanBytes, string sourceObservationsSha256,
