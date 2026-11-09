@@ -40,7 +40,7 @@ jobs:
           dotnet build Jornada.sln -c Release
           # CPU/RAM/disk unit fixtures only; this does not start SQL or a 100k fit.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
-            --filter '(FullyQualifiedName~V9CalibrationExecutionResourceBudgetTests|FullyQualifiedName~V9CalibrationRuntimeSchedulerTests)'
+            --filter '(FullyQualifiedName~V9CalibrationExecutionResourceBudgetTests|FullyQualifiedName~V9CalibrationRuntimeSchedulerTests|FullyQualifiedName~V9OfflineCalibratorCapacityTests)'
   security-guards:
     runs-on: ubuntu-latest
     timeout-minutes: 8
