@@ -12,7 +12,7 @@
 | SHA final após integração documental | **PENDENTE** — não antecipar o novo SHA, exigir gates posteriores e aditamento versionado |
 | Data | 08/11/2026 BRT; GitHub Actions de 09/11/2026 UTC |
 | PRs integradas de referência | [#1343](https://github.com/lucianox777/Jornada/pull/1343), [#1346](https://github.com/lucianox777/Jornada/pull/1346), [#1347](https://github.com/lucianox777/Jornada/pull/1347), [#1350](https://github.com/lucianox777/Jornada/pull/1350) |
-| PRs de evolução NÃO integradas | [#1351](https://github.com/lucianox777/Jornada/pull/1351) HTTP 10k DRAFT; [#1352](https://github.com/lucianox777/Jornada/pull/1352) calibrador exploratório DRAFT, aprovado posteriormente pelo PO |
+| PRs de evolução, conforme estado **superveniente** | **#1351 MERGED externamente** em `5c9a1598` às 01:54:12 UTC de 09/11, apesar da determinação anterior de congelamento; **#1352 DRAFT ABERTA**, autorizada posteriormente pelo PO. Não atribuir o merge ao mandato de fechamento. |
 | Critério de teste | [#1345](https://github.com/lucianox777/Jornada/issues/1345) e [inventário original a–m](Teste_Geral_V9_a_m_Preflight_20261108.md) |
 
 **Definições:** PASS=executado e aprovado no SHA indicado; FAIL=executado e reprovado; NOT RUN=não há execução do requisito no SHA; BLOCKED=evidência parcial, requisito composto não atestado ou aguarda integração/validação. Nem código existente nem checks em SHA diferente autorizam importar um PASS.
@@ -21,7 +21,7 @@
 
 O mandato original inclui integração V9, testes da cadeia, migração, instalador, cluster, 30k, estudos V3/M/U/TF0/sobrenome, comparação histórica, testemunha V2, segurança e documentação. O PO determinou executar apenas o fechamento e fazer triagem das issues. A decisão vigente **restabelece a triagem**, antes dispensada em adenda histórica, e substitui a regra anterior de zero PRs por preservação explícita das duas PRs de evolução #1351/#1352. O exploratório de #1352 foi **expressamente autorizado posteriormente**, não é trabalho indevido. Não foi mudado plan.json aprovado, REF, CI/30k, política científica, modelo ativo ou infraestrutura.
 
-As PRs #1347 e #1350 foram integradas antes deste corte. Sua prova física ocorreu **nos SHAs de estágio**, não neste SHA de master; a #1347 empregou motor operacional **V8**, não o V9 multiparâmetro em 100k. Não iniciar 100k V9 somente para ampliar a campanha; lacuna [#1349](https://github.com/lucianox777/Jornada/issues/1349) permanece. A #1351 não foi editada, e #1352 não foi editada.
+As PRs #1347 e #1350 foram integradas antes deste corte. Sua prova física ocorreu **nos SHAs de estágio**, não neste SHA de master; a #1347 empregou motor operacional **V8**, não o V9 multiparâmetro em 100k. Não iniciar 100k V9 somente para ampliar a campanha; lacuna [#1349](https://github.com/lucianox777/Jornada/issues/1349) permanece. Esta Frente A não editou ou mesclou #1351/#1352; o merge externo da #1351 requer registro e reconciliação de governança.
 
 ## C. Matriz completa dos itens originais a–m — SHA, teste, resultado e defeitos
 
@@ -89,7 +89,7 @@ A implementação já contém: geração determinística do plano oficial em **S
 | [v9-physical-seed42-probe.yml](../../.github/workflows/v9-physical-seed42-probe.yml) | Gate obrigatório de regressão 30k física, corpus seed42 e hashes | **push exclusivo master**, classificador impacto acumulativo, **sem dispatch** | runner SQL descartável, timeout físico 360min, evidence SHA-bound | **Gate obrigatório quando materialmente impactado**, executado 42541800562; política não alterada |
 | [ci.yml](../../.github/workflows/ci.yml) | Unit, SQL integração, E2E, segurança, CodeQL, DDL e gates contratuais | CI do repositório nos eventos aprovados | paralelismo CI, artifacts de relatório; custo não quantificado neste corte | **Obrigatório**, SUCCESS no SHA 42541800549 |
 
-Nenhum workflow opcional de escala foi iniciado, cancelado ou alterado. PR #1351 HTTP 10k continua DRAFT congelada e PR #1352 calibrador exploratório continua DRAFT autorizado; não realizar merges nelas.
+Nenhum workflow opcional de escala foi iniciado, cancelado ou alterado. O mandato do PO exigia #1351 HTTP 10k DRAFT, mas houve **merge superveniente da #1351** por ação independente à Frente A, contrariando o congelamento. A #1352 **permanece DRAFT**, com autorização posterior do PO; não realizar merge nela.
 
 ## F. Pendências, gravidade e impacto
 
@@ -103,6 +103,12 @@ Nenhum workflow opcional de escala foi iniciado, cancelado ou alterado. PR #1351
 
 **NÃO CONCLUÍDO**. O sistema possui provas importantes na master afbefd4c47aa (CI completa, 30k físico real, V3 direto, M/U, TF0, sobrenome, E2E funcional e 162 SQL). Mas o mandato exige todos os itens obrigatórios a–m no SHA final, documentos integrados, riscos impeditivos reconciliados e nenhum resultado desconhecido. Não executar um teste obrigatório equivale a **NOT RUN**, não PASS. Nenhum FAIL atual foi encontrado nos gates executados; lacunas restantes não provam incapacidade, porém impedem aceite.
 
-**Próximo critério verificável, sem ampliar o escopo:** integrar esta frente via PR protegida com checks, identificar SHA pós-merge e verificar CI e impacto/30k; comprovar apenas as superfícies faltantes conforme mandato; aditar o relatório no repositório, preservando PRs #1351/#1352. Se alguma prova necessária continuar ausente, a classificação permanecerá **NÃO CONCLUÍDO**.
+**Próximo critério verificável, sem ampliar o escopo:** integrar esta frente via PR protegida com checks, identificar SHA pós-merge e verificar CI e impacto/30k; comprovar apenas as superfícies faltantes conforme mandato; aditar o relatório no repositório, preservando a #1352 e documentando, sem apagar/reverter automaticamente, o fato do merge da #1351. Se alguma prova necessária continuar ausente, a classificação permanecerá **NÃO CONCLUÍDO**.
 
 **Governança:** [mandato e precedência](Decisao_V9_Fechamento_Controlado_20261108.md), [triagem](Triagem_Issues_Fechamento_V9_20261108.md), [revisão PRODAM](Revisao_PRODAM_v5_00_20261108.md), [índice GOV-DOC-01](Indice_Decisoes_Vigentes.md), [issue #1345](https://github.com/lucianox777/Jornada/issues/1345).
+
+## Incidente temporal após o corte inicial — #1351 integrada contrariando o congelamento
+
+**Fato verificado diretamente no GitHub:** [PR #1353](https://github.com/lucianox777/Jornada/pull/1353), que registra o congelamento superveniente do PO, foi aberta às **2026-11-09 01:53:43 UTC**. A [PR #1351](https://github.com/lucianox777/Jornada/pull/1351) foi **MERGED às 2026-11-09 01:54:12 UTC** (29 segundos depois), gerando o commit master **`5c9a1598812b0cf5433a523f0f8498efa5ecba60`**, com fluxo HTTP 10k e documentação. Não foi feita por esta Frente A, que havia apenas consultado a PR ainda DRAFT e criado branch documental a partir de `afbefd4c`. O merge foi contrário ao requisito temporal de preservação, e **nenhuma aprovação retroativa é presumida**. Não executar `revert`, exclusão ou reescrita da master sem decisão expressa do PO; preservar artefatos, SHA e histórico integral. A [PR #1352](https://github.com/lucianox777/Jornada/pull/1352) **continua DRAFT** e não foi alterada.
+
+**Novo corte adicional de prova:** no SHA `5c9a1598812b0cf5433a523f0f8498efa5ecba60`, [jornada-ci 42547980358](https://github.com/lucianox777/Jornada/actions/runs/42547980358) e [30k físico 42547980370](https://github.com/lucianox777/Jornada/actions/runs/42547980370) concluíram **SUCCESS**, incluindo os jobs full physical 30k e SQL clean; V3 direto 42547980328, M/U 42547980343 e TF0 42547980353 SUCCESS. Na primeira leitura deste aditamento, V3 broad 42547980344 e sobrenome 42547980401 ainda **IN_PROGRESS**. Esses resultados são de outro SHA e não substituem os testes a–m por item nem a verificação **pós-merge** desta PR documental. A classificação geral continua **NÃO CONCLUÍDO**. A [PR #1355](https://github.com/lucianox777/Jornada/pull/1355) propõe triagem em paralelo; não efetuar merge cruzado nem sobrescrever seus registros sem reconciliação.
