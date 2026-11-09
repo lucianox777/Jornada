@@ -126,6 +126,10 @@ public static class V9AdaptiveCalibrationStudyCli
                     multiplicity = compared, outcomesUsed = false, testUsed = false, activated = false }));
                 return;
             }
+            // --v9-adaptive-study is also a physical fit: apply the same local
+            // governor rather than relying on an external CI-only budget.
+            var resources = V9CalibrationResourceGovernor.Capture(plan.MaximumParallelRuleSets, outputPath);
+            await WriteNewJsonAsync(Path.Combine(outputPath, "calibration-resource-budget.json"), resources);
             var preparationFinishedMs = runtimeWatch.ElapsedMilliseconds;
             var result = await V9AdaptiveCalibrationCoordinator.RunParallelAsync(async ct =>
             {
@@ -134,7 +138,8 @@ public static class V9AdaptiveCalibrationStudyCli
                 catch { await connection.DisposeAsync(); throw; }
             },
                 observations, plan, CancellationToken.None,
-                frozenTfReferenceForRuleset: referenceFactory);
+                frozenTfReferenceForRuleset: referenceFactory,
+                executionMaximumParallelRuleSets: resources.EffectiveParallelism);
             var calibrationFinishedMs = runtimeWatch.ElapsedMilliseconds;
             // Reject missing or unpaired physical evidence before exporting fit artifacts.
             var paired = V9TfSharedSurnamePairedDiagnostics.Build(
@@ -185,7 +190,8 @@ public static class V9AdaptiveCalibrationStudyCli
                     },
                     visibleLogicalProcessors = Environment.ProcessorCount,
                     configuredParallelism = plan.MaximumParallelRuleSets,
-                    effectiveParallelism = V9ParallelWork.ResolveMaximumParallelism(plan.MaximumParallelRuleSets),
+                    effectiveParallelism = resources.EffectiveParallelism,
+                    calibrationExecutionResourceBudget = resources,
                     peakWorkingSetBytes = process.PeakWorkingSet64,
                     operatingSystem = RuntimeInformation.OSDescription,
                     dotNetVersion = RuntimeInformation.FrameworkDescription,
