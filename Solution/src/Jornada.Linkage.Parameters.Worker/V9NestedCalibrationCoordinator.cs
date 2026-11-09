@@ -222,7 +222,8 @@ public static class V9NestedCalibrationCoordinator
         IReadOnlyCollection<V9PhysicalCalibrationObservation> originalTrain,
         V9NestedCalibrationPlan plan, CancellationToken cancellationToken,
         Action<V9TrainingBatchProgress>? reportProgress = null,
-        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset = null)
+        Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset = null,
+        int? executionMaximumParallelRuleSets = null)
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
         ValidatePlan(plan);
@@ -326,7 +327,7 @@ public static class V9NestedCalibrationCoordinator
             // Chunk size preserves the model-search 64-option contract.
             var groups = requests.GroupBy(PhysicalFrameKey)
                 .SelectMany(g => g.Chunk(64)).ToArray();
-            var results = await V9ParallelWork.MapAsync(groups, calibration.MaximumParallelRuleSets, async (group, ct) =>
+            var results = await V9ParallelWork.MapAsync(groups, executionMaximumParallelRuleSets ?? calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
                 FrozenIbgeNominalTfV9? frozenReference = null;
                 if (group.Any(x => V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(x.Option)))
