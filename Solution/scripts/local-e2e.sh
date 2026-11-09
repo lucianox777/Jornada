@@ -474,4 +474,90 @@ PY
 done
 cat "$OUT/other-contracts-e2e-evidence.json"
 
+
+# Opt-in: first 1k-person HTTP→Bronze→Processor→Silver→Gold/Serving volume gate.
+# Default remains OFF; no change to the existing small E2E acceptance.
+if [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT:-0}" != 0 ]]; then
+  [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT}" == 1000 ]] || {
+    echo 'E2E HTTP volume: only the predeclared 1000-person phase is allowed.' >&2; exit 40;
+  }
+  volume_dir="$OUT/volume-1k-fixture"
+  python3 "$ROOT/scripts/v9-http-volume-fixture.py" \
+    --fixture "$ROOT/tests/fixtures/ingestao/AA01_v2" \
+    --output-dir "$volume_dir" --count 1000 --seed 355 >/dev/null
+  package="$(python3 "$ROOT/scripts/build-ingestion-fixture.py" \
+    --fixture "$volume_dir" --gestor SEHAB --output-dir "$OUT/packages")"
+  filename="$(basename "$package")"
+  volume_sha="$(sha256sum "$package" | awk '{print $1}')"
+  [[ "$filename" == *"_${volume_sha}.zip" ]] || {
+    echo 'E2E HTTP volume: ZIP hash mismatch' >&2; exit 41;
+  }
+  volume_key="v9-volume-1k-seed355"
+  volume_start="$(date +%s%3N)"
+  post_delivery "$volume_key" "$OUT/volume-1k-receipt.json" "$OUT/volume-1k-post.code"
+  [[ "$(cat "$OUT/volume-1k-post.code")" == 202 ]] || {
+    echo 'E2E HTTP volume: API did not accept 1k ZIP' >&2; exit 42;
+  }
+  volume_id="$(json_get "$OUT/volume-1k-receipt.json" entregaId)"
+  [[ "$volume_id" =~ ^[0-9a-fA-F-]{36}$ ]] || { echo 'E2E HTTP volume: receipt id invalid' >&2; exit 42; }
+  wait_processed "$volume_id" "$OUT/volume-1k-status.json"
+  volume_elapsed="$(( $(date +%s%3N) - volume_start ))"
+  volume_lot_count="$(scalar "SELECT COUNT_BIG(*) FROM ingestao.lote WHERE entrega_id='$volume_id';")"
+  volume_lot_id="$(scalar "SELECT CONVERT(varchar(36),lote_id) FROM ingestao.lote WHERE entrega_id='$volume_id';")"
+  [[ "$volume_lot_count" == 1 && "$volume_lot_id" =~ ^[0-9a-fA-F-]{36}$ ]] || {
+    echo 'E2E HTTP volume: expected one isolated lot' >&2; exit 43;
+  }
+  volume_bronze="$(scalar "SELECT COUNT_BIG(*) FROM bronze.entrega_arquivo WHERE entrega_id='$volume_id';")"
+  volume_silver="$(scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao WHERE lote_id='$volume_lot_id';")"
+  volume_records="$(scalar "SELECT COUNT_BIG(*) FROM silver.registro_observacao WHERE lote_id='$volume_lot_id';")"
+  volume_items="$(scalar "SELECT COUNT_BIG(*) FROM ingestao.item_processado WHERE lote_id='$volume_lot_id';")"
+  volume_gold="$(scalar "SELECT COUNT_BIG(*) FROM gold.pessoa gp WHERE gp.cpf IN (SELECT po.cpf FROM silver.pessoa_observacao po WHERE po.lote_id='$volume_lot_id');")"
+  volume_serving="$(scalar "SELECT COUNT_BIG(*) FROM serving.registro_integrado WHERE entrega_id='$volume_id';")"
+  [[ "$volume_bronze" == 1 && "$volume_silver" == 1000 && "$volume_records" == 1000 &&
+     "$volume_items" == 2000 && "$volume_gold" == 1000 && "$volume_serving" == 1000 ]] || {
+    echo "E2E HTTP volume: cross-layer counts mismatch (bronze=$volume_bronze silver=$volume_silver records=$volume_records processed=$volume_items gold=$volume_gold serving=$volume_serving)" >&2
+    exit 44
+  }
+  post_delivery "$volume_key" "$OUT/volume-1k-replay.json" "$OUT/volume-1k-replay.code"
+  [[ "$(cat "$OUT/volume-1k-replay.code")" == 202 &&
+     "$(json_get "$OUT/volume-1k-replay.json" entregaId)" == "$volume_id" &&
+     "$(scalar "SELECT COUNT_BIG(*) FROM ingestao.entrega WHERE idempotency_key='$volume_key';")" == 1 &&
+     "$(scalar "SELECT COUNT_BIG(*) FROM silver.pessoa_observacao WHERE lote_id='$volume_lot_id';")" == 1000 &&
+     "$(scalar "SELECT COUNT_BIG(*) FROM serving.registro_integrado WHERE entrega_id='$volume_id';")" == 1000 ]] || {
+    echo 'E2E HTTP volume: replay lost idempotency or changed persisted counts' >&2; exit 45;
+  }
+  python3 - "$OUT/http-volume-1k-summary.json" "$volume_elapsed" "$volume_bronze" "$volume_silver" "$volume_records" "$volume_items" "$volume_gold" "$volume_serving" "$volume_sha" <<'PYVOLUME'
+import datetime,json,os,pathlib,sys
+out,elapsed,bronze,silver,records,items,gold,serving,sha=sys.argv[1:]
+duration=int(elapsed)
+result={
+  "status":"PASS",
+  "methodVersion":"JORNADA_E2E_HTTP_VOLUME_1K_REAL_SQL_V1",
+  "scope":"SYNTHETIC_DEV_DISPOSABLE_HTTP_TO_SERVING",
+  "commitSha":os.getenv("GITHUB_SHA") or "",
+  "personCount":1000,
+  "seed":355,
+  "httpAccepted":True,
+  "processed":True,
+  "httpIdempotencyReplaySameDelivery":True,
+  "zipSha256":sha,
+  "bronzeFiles":int(bronze),
+  "silverPersons":int(silver),
+  "silverRecords":int(records),
+  "processedItems":int(items),
+  "goldPersons":int(gold),
+  "servingRecords":int(serving),
+  "e2eElapsedMs":duration,
+  "e2eThroughputPersonsPerSecond":round(1_000_000 / max(duration,1),3),
+  "httpP95Ms":None,
+  "httpP95Status":"NOT_MEASURED_SINGLE_BATCH",
+  "scientificValidation":False,
+  "activated":False,
+  "generatedAtUtc":datetime.datetime.now(datetime.timezone.utc).isoformat()
+}
+pathlib.Path(out).write_text(json.dumps(result,indent=2)+"\n",encoding="utf-8")
+print("HTTP 1k real SQL E2E: PASS, no synthetic identity data in summary.")
+PYVOLUME
+fi
+
 echo 'LOCAL E2E: OK'

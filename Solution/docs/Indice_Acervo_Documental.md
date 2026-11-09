@@ -1,3 +1,7 @@
+> **E2E HTTP→Serving 1k físico PASS (08/11/2026):** [relatório e contagens conferidas](Resultado_V9_E2E_HTTP_1K_20261108.md), [Action 42541173969](https://github.com/lucianox777/Jornada/actions/runs/42541173969), artifact 13641457473, 24,316s e replay sem duplicidade. Ainda NÃO cobre 10k/100k ou p95 de múltiplos envios. GOV-DOC-01.
+
+> **Plano E2E HTTP 1k de 08/11/2026:** [GOV-V9-E2E-HTTP-1K](Decisao_V9_E2E_HTTP_1K_20261108.md); branch de prova contra [issue #1348](https://github.com/lucianox777/Jornada/issues/1348), a executar antes de declarar PASS. Sem payloads de cidadãos, SQL descartável e artifacts agregados. GOV-DOC-01.
+
 > **V9 SCALE medium — resultado auditado (08/11/2026):** [relatório de 100k pessoas sintéticas, 25k pendências e limites de interpretação](Resultado_V9_Scale_Medium_100k_20261108.md), [run #42534643000](https://github.com/lucianox777/Jornada/actions/runs/42534643000), artifact #13639566469, SHA `8d90306c`. **PASS de coerência/QA**, baseline de performance **PENDENTE**, algoritmo V8 e não V9 multiparâmetro. Lacuna HTTP 100k na issue #1348. GOV-DOC-01.
 
 > **V9 E2E medium SQL/Runner (08/11/2026):** [protocolo de execução e métricas esperadas](Decisao_V9_E2E_Medium_20261108.md), issue [#1345](https://github.com/lucianox777/Jornada/issues/1345). Planejado em branch de teste com Action separada, sem modificar CI da master; `PASS` depende de evidência física real e SHA exato. GOV-DOC-01.

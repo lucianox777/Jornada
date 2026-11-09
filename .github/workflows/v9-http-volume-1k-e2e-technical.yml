@@ -1,0 +1,80 @@
+name: v9-http-volume-1k-e2e-technical
+
+# SHA-bound 1k physical proof PASSED on stage (run 42541173969).
+# Keep reproducible and only manually dispatched from master after merge;
+# never auto-run this heavy test on documentation or code pushes.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v9-http-1k-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  http-to-serving-1k:
+    name: "HTTP 1k synthetic: API, Bronze, Processor, Silver, Gold, Serving (DEV only)"
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+          ref: ${{ github.sha }}
+      - name: Bind to exact stage SHA, prohibit tags
+        run: |
+          set -euo pipefail
+          test "$(git -C .. rev-parse HEAD)" = "$GITHUB_SHA"
+          test "$GITHUB_REF_TYPE" = branch
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/master
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Reject invalid generator and enforce deterministic synthetic data
+        run: python3 -m unittest discover -s tests/scripts -p test_v9_http_volume_fixture.py -v
+      - name: Create committed NuGet locks and validate them
+        run: ./scripts/nuget-lock-bootstrap.sh
+      - name: Execute full HTTP→Serving 1k volume and existing small E2Es
+        timeout-minutes: 85
+        env:
+          JORNADA_E2E_LOCKED_RESTORE: 'true'
+          JORNADA_E2E_CONSOLE_ZIP: 'false'
+          JORNADA_E2E_HTTP_VOLUME_COUNT: '1000'
+          JORNADA_E2E_STATUS_POLL_SECONDS: '4'
+        run: python3 scripts/jornada-runner.py --profile e2e --allow-reset e2e
+      - name: Fail unless exact SHA and 1k physical layer reconciliation were recorded
+        run: |
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          p=Path(".local/e2e/http-volume-1k-summary.json")
+          data=json.loads(p.read_text(encoding="utf-8"))
+          assert data["status"]=="PASS" and data["commitSha"]==os.environ["GITHUB_SHA"]
+          assert data["personCount"]==1000 and data["seed"]==355
+          assert data["bronzeFiles"]==1 and data["silverPersons"]==1000
+          assert data["silverRecords"]==1000 and data["processedItems"]==2000
+          assert data["goldPersons"]==1000 and data["servingRecords"]==1000
+          assert data["httpIdempotencyReplaySameDelivery"] and data["e2eElapsedMs"]>0
+          assert data["httpP95Ms"] is None and not data["scientificValidation"]
+          print("PASS: real 1000-person synthetic HTTP→Serving with one idempotent replay.")
+          PY
+      - name: Archive only aggregated summary; forbid ZIP and JSONL artifacts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-http-volume-1k-summary-${{ github.sha }}
+          path: Solution/.local/e2e/http-volume-1k-summary.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Remove disposable SQL and ephemeral database
+        if: always()
+        run: docker compose --env-file .env down -v || true
