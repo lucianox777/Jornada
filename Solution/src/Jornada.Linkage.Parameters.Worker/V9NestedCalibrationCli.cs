@@ -241,7 +241,8 @@ public static class V9NestedCalibrationCli
     {
         ArgumentNullException.ThrowIfNull(updateSafeStage);
         var sqlPoolMaximum = new SqlConnectionStringBuilder(connectionString).MaxPoolSize;
-        var resourceScheduler = new V9CalibrationRuntimeScheduler(resources, output, sqlPoolMaximum);
+        var resourceScheduler = new V9CalibrationRuntimeScheduler(resources, output, sqlPoolMaximum,
+            sourcePath: source);
         updateSafeStage("TRAIN_HASH_AND_MANIFEST");
         var totalWallClock = System.Diagnostics.Stopwatch.StartNew();
         await using var sourceStream = File.OpenRead(source);
