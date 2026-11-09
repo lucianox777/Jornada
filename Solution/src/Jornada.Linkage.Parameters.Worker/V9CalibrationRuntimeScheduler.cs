@@ -136,9 +136,11 @@ public sealed class V9CalibrationRuntimeScheduler
             || freeDiskBytes < V9CalibrationResourceGovernor.MinimumFreeDiskBytes)
             return false;
         if (measuredAvailableBytes is null) return activeWorkers == 0;
+        if (incrementalWorkerBytes > (long.MaxValue - V9CalibrationResourceGovernor.HostReserveBytes)
+                / ((long)activeWorkers + 1)) return false;
         var required = V9CalibrationResourceGovernor.HostReserveBytes
-            + (long)(activeWorkers + 1) * incrementalWorkerBytes;
-        return required >= 0 && required <= measuredAvailableBytes;
+            + ((long)activeWorkers + 1) * incrementalWorkerBytes;
+        return required <= measuredAvailableBytes;
     }
 
     private long RequiredFreeBytes(int workers)
@@ -207,6 +209,6 @@ public sealed class V9CalibrationRuntimeScheduler
     private V9CalibrationRuntimeSchedulingReceipt Receipt(int ceiling, long before, long after, int pilot)
         => new(Schema, _budget.ConfiguredParallelism == 0 ? "AUTO" : "EXPLICIT",
             _budget.ConfiguredParallelism, _sqlPoolMaximum, ceiling, pilot,
-            _workerIncrementBytes, before, after, _maxActive,
+            _workerIncrementBytes, before, after, Math.Max(pilot, _maxActive),
             _samples, true, false, false, false, false);
 }
