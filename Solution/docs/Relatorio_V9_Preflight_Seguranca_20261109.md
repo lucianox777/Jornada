@@ -1,0 +1,17 @@
+# Preflight de segurança V9 — #1253 (09/11/2026)
+
+**Resultado:** **MITIGAÇÃO DO CAMINHO ATUAL VERIFICADA EM CÓDIGO; AUDITORIA HISTÓRICA PENDENTE; issue #1253 PERMANECE ABERTA.** Este relatório não afirma ausência universal de segredos.
+
+## Evidência
+
+- A issue #1253 documenta oito exposições da senha `sa` **temporária** em logs de um run público de 02/11/2026. **Não reproduzir o segredo**, não presumir que `::add-mask::` posterior saneia logs anteriores.
+- A [PR #1262](https://github.com/lucianox777/Jornada/pull/1262) foi integrada em `9d55a520ad6534b4ff3a20103cf860ba8d587eaf`; os runs [41845739456](https://github.com/lucianox777/Jornada/actions/runs/41845739456) e [41846520047](https://github.com/lucianox777/Jornada/actions/runs/41846520047) documentam preflight e campanha pós-mitigação. Início de SQL efêmero depois de senha randômica e máscara, conexão loopback, cleanup.
+- O código atual `V9NestedCalibrationCli.TryWriteLastError` envia **somente `SafeErrorCode`** ao stderr. `V9CalibradorLastErrorLog.WriteLast` escreve também somente esse código no `calibrador.log`, não `Exception.ToString()`; conferir a regressão de canário na próxima mudança desse componente.
+- Sem inspeção adequada da retenção histórica, não declarar logs saneados, revogação de segredos ou ausência comprovada de reutilização de credenciais. O caráter descartável dos contêineres é desenho de mitigação e **não prova de exclusão de todos os riscos**.
+- Não há evidência nova de credencial persistente reutilizada **nesta análise**; isso não equivale a auditá-la.
+
+## Condições para a frente C (100k)
+
+Antes de campanha nova, revalidar **sem imprimir valores**: inexistência de segredos persistentes ainda ativos/compartilhados, política de retenção dos logs antigos, procedimentos de descarte do SQL, mascaramento na criação do contêiner e exportação segura de artefatos/diagnósticos. Se risco atual for encontrado, **BLOQUEAR** a campanha até mitigação. Sem essas verificações, registrar **PREFLIGHT PARCIAL — NÃO AUTORIZA INÍCIO DE 100k**. Não apagar logs unilateralmente e não fechar #1253 apenas por CI verde.
+
+Sem alterar parâmetros científicos, TEST, Gold, ativação ou HML/Produção. GOV-DOC-01.
