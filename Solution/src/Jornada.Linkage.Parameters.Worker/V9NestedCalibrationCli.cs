@@ -53,6 +53,45 @@ public static class V9NestedCalibrationCli
             highLoad, notice, "memory-progress.jsonl");
     }
 
+    /// <summary>
+    /// Descriptive wall-clock stages, never part of scientific model selection.
+    /// SQL/blocking/fits may overlap internally and are deliberately measured as one phase.
+    /// Output persistence after report assembly is reported separately by runtime-diagnostics.json.
+    /// </summary>
+    public sealed record V9TimedStage(string StageId, string Description, string Status,
+        long? ElapsedMilliseconds, string Scope);
+    public sealed record V9StageDurationSummary(string Schema, long TotalMeasuredMilliseconds,
+        string TotalScope, bool SequentialStages, string UnmeasuredScope,
+        IReadOnlyList<V9TimedStage> Stages);
+
+    public static V9StageDurationSummary DescribeStageDurations(long inputPreparationMs,
+        long physicalCalibrationMs, long evidenceExportBeforeReportMs, long? reportAssemblyMs)
+    {
+        if (inputPreparationMs < 0 || physicalCalibrationMs < 0 || evidenceExportBeforeReportMs < 0
+            || reportAssemblyMs is < 0)
+            throw new InvalidDataException("Etapa temporal negativa no relatório V9.");
+        return new("V9_STAGE_DURATION_DIAGNOSTIC_V1",
+            checked(inputPreparationMs + physicalCalibrationMs + evidenceExportBeforeReportMs
+                + (reportAssemblyMs ?? 0)),
+            "ENTRADA_ATE_RELATORIO_EM_MEMORIA; tempo total wall-clock final em runtime-diagnostics.json",
+            true, "Persistência do relatório JSON/Markdown, runtime-diagnostics.json, SQL e temporários externos não desmembrados.",
+            new V9TimedStage[]
+            {
+                new("input_preparation", "Hash e validação do corpus/manifesto; leitura TRAIN sem CPF",
+                    "MEASURED", inputPreparationMs, "IN_MEMORY_AND_FILE_READ"),
+                new("physical_sql_blocking_fit_selection",
+                    "Operação C# composta: SQL/blocking, M/U/TF, avaliação e seleção (subetapas internas não isoláveis)",
+                    "MEASURED_COMPOSITE", physicalCalibrationMs, "TRAIN_SELECTION_NO_TEST"),
+                new("evidence_export_before_analysis",
+                    "Fits, recibos, seleção, split e ganhos gravados antes da análise estatística",
+                    "MEASURED", evidenceExportBeforeReportMs, "LOCAL_NEW_OUTPUT_DIRECTORY"),
+                new("statistical_report_assembly",
+                    "Montagem das estruturas do relatório estatístico, antes da serialização final",
+                    reportAssemblyMs is null ? "NOT_MEASURED" : "MEASURED", reportAssemblyMs,
+                    "IN_MEMORY_JSON_AND_MARKDOWN")
+            });
+    }
+
     private static readonly JsonSerializerOptions Json = new()
     {
         WriteIndented = true, RespectRequiredConstructorParameters = true,
@@ -187,6 +226,7 @@ public static class V9NestedCalibrationCli
     private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan,
         string connectionString, byte[] originalPlanBytes, V9CalibrationDiskSampler diskSampler)
     {
+        var totalWallClock = System.Diagnostics.Stopwatch.StartNew();
         await using var sourceStream = File.OpenRead(source);
         var sourceSha = Convert.ToHexString(await SHA256.HashDataAsync(sourceStream)).ToLowerInvariant();
         var manifestBytes = await File.ReadAllBytesAsync(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(source))!, "generation-manifest.json"));
@@ -199,6 +239,7 @@ public static class V9NestedCalibrationCli
             throw new InvalidDataException("Bootstrap padrão exige clean conservador provisório e produtor fixado.");
         var train = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(source, 4,
             declaration.MaximumObservationsPerBaseIdentity, onlyPartition: "TRAIN");
+        var inputPreparationMs = totalWallClock.ElapsedMilliseconds;
         Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? referenceFactory = null;
         if (plan.Calibration.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf))
             referenceFactory = async (passes, ct) =>
@@ -242,7 +283,7 @@ public static class V9NestedCalibrationCli
             });
             File.AppendAllText(Path.Combine(output, "memory-progress.jsonl"), memory + Environment.NewLine);
             Console.Error.WriteLine(memory);
-            diskSampler.ObserveNow(); // best-effort disk high-water at each batch; no decision impact.
+            diskSampler.ObserveNow(); // diagnosis only; no changes to selection.
         }, frozenTfReferenceForRuleset: referenceFactory);
         var calibrationFinishedMs = elapsed.ElapsedMilliseconds;
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
@@ -273,10 +314,13 @@ public static class V9NestedCalibrationCli
             result.FinalistSnapshotShas, result.StopReason, externalValidationUsed = false, testUsed = false, activated = false });
         await WriteNewAsync(Path.Combine(output, "training-split-manifest.json"), result.Split);
         await WriteNewAsync(Path.Combine(output, "gain-by-batch.json"), result.Progress);
+        V9StageDurationSummary? stageDurations = null;
+        var evidenceExportBeforeAnalysisMs = elapsed.ElapsedMilliseconds - calibrationFinishedMs;
         diskSampler.ObserveNow();
         if (plan.MuEstimationMethods is not null)
-            await WriteMuStatisticalAnalysisAsync(output, plan, result, originalPlanBytes,
+            stageDurations = await WriteMuStatisticalAnalysisAsync(output, plan, result, originalPlanBytes,
                 sourceSha, Sha(manifestBytes), producer.RootElement.GetProperty("seed").GetUInt64(),
+                inputPreparationMs, calibrationFinishedMs, evidenceExportBeforeAnalysisMs,
                 diskSampler.Snapshot());
         process.Refresh();
         var searchExportFinishedMs = elapsed.ElapsedMilliseconds;
@@ -285,6 +329,8 @@ public static class V9NestedCalibrationCli
             schema = "V9_LOCAL_RUNTIME_DIAGNOSTICS_V1",
             operation = "TRAIN_SELECTION",
             totalMilliseconds = searchExportFinishedMs,
+            totalWallClockIncludingInputPreparationMilliseconds = totalWallClock.ElapsedMilliseconds,
+            stageDurations,
             diskHighWaterOutputAtRuntime = diskSampler.Snapshot(),
             phasesMilliseconds = new
             {
@@ -322,12 +368,14 @@ public static class V9NestedCalibrationCli
     /// Full declared-vs-executed M/U audit; TRAIN_SELECTION only, never validation or certification.
     /// Rows include rejected options and the exact policy, not only winning finalists.
     /// </summary>
-    private static async Task WriteMuStatisticalAnalysisAsync(string output,
+    private static async Task<V9StageDurationSummary> WriteMuStatisticalAnalysisAsync(string output,
         V9NestedCalibrationPlan plan, V9NestedCalibrationSearchResult result,
         byte[] originalPlanBytes, string sourceObservationsSha256,
         string producerManifestSha256, ulong producerSeed,
+        long inputPreparationMs, long physicalCalibrationMs, long evidenceExportBeforeAnalysisMs,
         V9DiskHighWaterDiagnostic diskHighWater)
     {
+        var reportAssemblyTimer = System.Diagnostics.Stopwatch.StartNew();
         var declared = V9MuEstimationSearchSpace.Enumerate(plan.MuEstimationMethods!);
         var perOptionParameterOrigins = V9OptionalCompatibilityParameters.Describe(
             originalPlanBytes, plan, result.Evaluations);
@@ -506,41 +554,6 @@ public static class V9NestedCalibrationCli
                         };
                     });
             }).ToArray();
-        var report = new
-        {
-            schema = "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1",
-            // Diagnostic only, never an input to fit, SHA, FDR or selection.
-            cpuCapacity,
-            ramCapacity,
-            diskHighWater,
-            result.PlanSha256,
-            // Hash-only lineage for the mandatory analytic-only V2 comparison.
-            // No identities, source rows, alternative plan or model selection.
-            sourceObservationsSha256, producerManifestSha256, producerSeed,
-            trainOriginalSha256 = result.Split.OriginalTrainSha256,
-            trainSplitSeed = result.Split.Seed,
-            trainSplitAssignmentsSha256 = result.Split.AssignmentSha256,
-            originalMethodsAndParameterArrays = plan.MuEstimationMethods,
-            perOptionParameterOrigins,
-            declaredVariants = declared.Select(x => new { x.Method, x.Key, x.Policy }).ToArray(),
-            declaredVariantCount = declared.Count,
-            evaluations = rows.Length,
-            measured = rows.Count(x => x.fitSnapshotSha256 is not null),
-            rejectedOrIneligible = rows.Count(x => x.outcome != "MEASURED_ELIGIBLE"),
-            completeRequestedSpaceOnlyWhenInitialRequestsExecuted = true,
-            scope = "TRAIN_SELECTION_ONLY_NOT_INDEPENDENT_VALIDATION",
-            conditionalFdrBoundsNotCertified = true,
-            testUsed = false, activated = false,
-            finalistSnapshotShas = result.FinalistSnapshotShas,
-            predeclaredCandidateCpMultiplicity = result.PredeclaredCandidateCpMultiplicity,
-            duplicateCandidatePolicySelections = result.DuplicatePolicySelections,
-            result.StopReason,
-            surnameDependenceComparisons = surnameComparisons,
-            pairedSourceRankAttribution = pairedSourceRank,
-            sharedSurnameAssumptionChosenForOperation = false,
-            rows
-        };
-        await WriteNewAsync(Path.Combine(output, "mu-statistical-analysis.json"), report);
         var md = new System.Text.StringBuilder();
         md.AppendLine("# Análise estatística M/U — TRAIN_SELECTION");
         md.AppendLine();
@@ -640,8 +653,67 @@ public static class V9NestedCalibrationCli
         md.AppendLine("FDR = 0 observada não implica risco estatístico zero. Os limites condicionais, " +
             "multiplicidade, dependência entre identidades e motivos das recusas estão no JSON; " +
             "sem VALIDATION independente não há autorização DT-15.");
+        // The assembly clock ends BEFORE the final JSON/Markdown persistence, which
+        // cannot be measured in its own immutable output without a second rewrite.
+        // This boundary is explicit; the runtime report separately measures the whole job.
+        var stageDurations = DescribeStageDurations(inputPreparationMs, physicalCalibrationMs,
+            evidenceExportBeforeAnalysisMs, reportAssemblyTimer.ElapsedMilliseconds);
+        md.AppendLine();
+        md.AppendLine("## Duração por etapa — medição de relógio monotônico (Stopwatch)");
+        md.AppendLine();
+        md.AppendLine("| Etapa | Duração (ms) | Estado | Escopo |");
+        md.AppendLine("|---|---:|---|---|");
+        foreach (var stage in stageDurations.Stages)
+            md.AppendLine("| " + stage.StageId + " | " +
+                (stage.ElapsedMilliseconds?.ToString(System.Globalization.CultureInfo.InvariantCulture) ?? "NÃO MEDIDO")
+                + " | " + stage.Status + " | " + stage.Scope + " |");
+        md.AppendLine("**Total medido até montagem do relatório:** " +
+            stageDurations.TotalMeasuredMilliseconds.ToString(System.Globalization.CultureInfo.InvariantCulture)
+            + " ms. **Não é a duração final ponta a ponta**: consulte `runtime-diagnostics.json` para total de"
+            + " entrada até persistência; o tempo de gravação do próprio relatório fica fora desta soma.");
+        md.AppendLine("As subetapas SQL/blocking, M/U/TF e seleção são internas à fase composta e"
+            + " não têm tempos independentes: **NÃO MEDIDO** individualmente;"
+            + " execuções paralelas não são somadas duas vezes."
+            + " Tempos não alimentam fitting, FDR, ranking ou ativação.");
+        var report = new
+        {
+            schema = "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1",
+            // Diagnostic only, never an input to fit, SHA, FDR or selection.
+            cpuCapacity,
+            ramCapacity,
+            stageDurations,
+            diskHighWater,
+            result.PlanSha256,
+            // Hash-only lineage for the mandatory analytic-only V2 comparison.
+            // No identities, source rows, alternative plan or model selection.
+            sourceObservationsSha256, producerManifestSha256, producerSeed,
+            trainOriginalSha256 = result.Split.OriginalTrainSha256,
+            trainSplitSeed = result.Split.Seed,
+            trainSplitAssignmentsSha256 = result.Split.AssignmentSha256,
+            originalMethodsAndParameterArrays = plan.MuEstimationMethods,
+            perOptionParameterOrigins,
+            declaredVariants = declared.Select(x => new { x.Method, x.Key, x.Policy }).ToArray(),
+            declaredVariantCount = declared.Count,
+            evaluations = rows.Length,
+            measured = rows.Count(x => x.fitSnapshotSha256 is not null),
+            rejectedOrIneligible = rows.Count(x => x.outcome != "MEASURED_ELIGIBLE"),
+            completeRequestedSpaceOnlyWhenInitialRequestsExecuted = true,
+            scope = "TRAIN_SELECTION_ONLY_NOT_INDEPENDENT_VALIDATION",
+            conditionalFdrBoundsNotCertified = true,
+            testUsed = false, activated = false,
+            finalistSnapshotShas = result.FinalistSnapshotShas,
+            predeclaredCandidateCpMultiplicity = result.PredeclaredCandidateCpMultiplicity,
+            duplicateCandidatePolicySelections = result.DuplicatePolicySelections,
+            result.StopReason,
+            surnameDependenceComparisons = surnameComparisons,
+            pairedSourceRankAttribution = pairedSourceRank,
+            sharedSurnameAssumptionChosenForOperation = false,
+            rows
+        };
+        await WriteNewAsync(Path.Combine(output, "mu-statistical-analysis.json"), report);
         var file = Path.Combine(output, "mu-statistical-analysis.md");
         await File.WriteAllTextAsync(file, md.ToString());
+        return stageDurations;
     }
 
     /// <summary>
