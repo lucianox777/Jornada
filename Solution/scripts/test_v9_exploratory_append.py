@@ -12,7 +12,7 @@ mod = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mod)
 
 def baseline():
-    return {'Calibration':{'ModelOptions':[{'OptionId':'CURRENT','EligibleForSelection':True,
+    return {'MaximumSearchConfigurations':100,'Calibration':{'MaximumComparedConfigurations':100,'ModelOptions':[{'OptionId':'CURRENT','EligibleForSelection':True,
       'SmoothingAlpha':0.5,'DecisionThreshold':0.95,'TfWeight':0}],
       'Budget':{'StudyFingerprintSha256':'0'*64},
       'StudyFingerprintSha256':'0'*64}}
@@ -48,6 +48,15 @@ class AppendTests(unittest.TestCase):
         self.assertEqual(result['Calibration']['ModelOptions'][0],baseline()['Calibration']['ModelOptions'][0])
         self.assertFalse(result['Calibration']['ModelOptions'][1]['EligibleForSelection'])
         self.assertNotEqual(result['Calibration']['StudyFingerprintSha256'],'0'*64)
+    def test_rejects_empty_candidates(self):
+        with self.assertRaisesRegex(ValueError,'No exploratory candidates'):
+            self.run_append({'Candidates':[]})
+    def test_rejects_missing_budget(self):
+        source=baseline()
+        del source['MaximumSearchConfigurations']
+        self.source.write_text(json.dumps(source))
+        with self.assertRaisesRegex(ValueError,'search budgets'):
+            self.run_append(candidate())
     def test_rejects_worse_candidate(self):
         with self.assertRaisesRegex(ValueError,'does not dominate'):
             self.run_append(candidate(Recall=0.96))
