@@ -56,6 +56,14 @@ def append(source_path, candidate_path, output_path):
         raise ValueError('Duplicate or missing existing OptionId')
     signatures = {canonical({k:v for k,v in x.items() if k not in ('OptionId','EligibleForSelection')}) for x in old}
     additions = []
+    if not payload['Candidates']:
+        raise ValueError('No exploratory candidates supplied')
+    # Appending an ineligible option still changes the calibration search space.
+    # Do not silently exceed a predeclared budget or pretend to certify the study.
+    maximum = source.get('MaximumSearchConfigurations')
+    compared = source['Calibration'].get('MaximumComparedConfigurations')
+    if type(maximum) is not int or type(compared) is not int or maximum < 1 or compared < 1:
+        raise ValueError('Source must declare valid search budgets')
     for item in payload['Candidates']:
         if not isinstance(item, dict) or set(item) != {'ModelOption','Evidence'}:
             raise ValueError('Each candidate requires ModelOption and Evidence')
@@ -94,6 +102,9 @@ def append(source_path, candidate_path, output_path):
         additions.append((copy.deepcopy(option), copy.deepcopy(ev)))
     result = copy.deepcopy(source)
     result['Calibration']['ModelOptions'].extend(x for x,_ in additions)
+    # A derived catalog is for inspection; never run it as a calibrated
+    # executable plan until its budget and comparison family are re-declared.
+    result['ExploratoryCatalogOnly'] = True
     # New fingerprint prevents accidentally reusing prior TRAIN results.
     basis = canonical({'source':sha(source_bytes),'candidates':sha(candidates_bytes),
                        'options':[x['OptionId'] for x,_ in additions]})
