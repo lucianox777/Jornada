@@ -17,6 +17,8 @@ public sealed record V9CalibrationRuntimeSchedulingReceipt(
     int WorkersCeiling, int PilotConfigurations, long EstimatedIncrementalWorkerBytes,
     long ProcessResidentBeforePilotBytes, long ProcessPeakAfterPilotBytes,
     int MaximumSimultaneousWorkersObserved, int ResourceSamples,
+    long MinimumOutputFreeDiskBytes, long InputCorpusBytes,
+    string SqlCapacityBasis,
     bool ResourceLimitsAreEstimates, bool ScientificOptionsChanged,
     bool TestUsed, bool GoldUsed, bool Activated);
 
@@ -27,6 +29,8 @@ public sealed class V9CalibrationRuntimeScheduler
     private readonly V9CalibrationExecutionResourceBudget _budget;
     private readonly Func<V9CalibrationRuntimeResourceSample> _sample;
     private readonly int _sqlPoolMaximum;
+    private readonly long _requiredFreeDiskBytes;
+    private readonly long _inputCorpusBytes;
     private long _workerIncrementBytes = MinimumIncrementBytes;
     private int _active;
     private int _maxActive;
@@ -38,12 +42,16 @@ public sealed class V9CalibrationRuntimeScheduler
 
     public V9CalibrationRuntimeScheduler(V9CalibrationExecutionResourceBudget budget,
         string outputDirectory, int sqlPoolMaximum,
-        Func<V9CalibrationRuntimeResourceSample>? sampler = null)
+        Func<V9CalibrationRuntimeResourceSample>? sampler = null,
+        string? sourcePath = null)
     {
         _budget = budget ?? throw new ArgumentNullException(nameof(budget));
         if (sqlPoolMaximum < 1)
             throw new InvalidDataException("V9_RESOURCE_SQL_POOL_INVALID");
         _sqlPoolMaximum = sqlPoolMaximum;
+        _inputCorpusBytes = sourcePath is not null && File.Exists(sourcePath)
+            ? new FileInfo(sourcePath).Length : 0;
+        _requiredFreeDiskBytes = EstimateRequiredDiskBytes(_inputCorpusBytes);
         _sample = sampler ?? (() => Capture(outputDirectory));
     }
 
@@ -119,6 +127,21 @@ public sealed class V9CalibrationRuntimeScheduler
         return (Array.AsReadOnly(results), receipt);
     }
 
+    /// <summary>Baseline output/scratch disk reservation from actual input size.
+    /// SQL Docker overlay may live on a different filesystem and still requires
+    /// the external pre-start bootstrap admission. This is a heuristic, not a
+    /// guarantee that all temporary SQL files will fit.
+    /// </summary>
+    public static long EstimateRequiredDiskBytes(long inputCorpusBytes)
+    {
+        if (inputCorpusBytes < 0)
+            throw new ArgumentOutOfRangeException(nameof(inputCorpusBytes));
+        if (inputCorpusBytes > (long.MaxValue - V9CalibrationResourceGovernor.GiB) / 3)
+            return long.MaxValue;
+        return Math.Max(V9CalibrationResourceGovernor.MinimumFreeDiskBytes,
+            inputCorpusBytes * 3 + V9CalibrationResourceGovernor.GiB);
+    }
+
     public static long EstimateIncrementBytes(long measuredPeakDeltaBytes)
     {
         if (measuredPeakDeltaBytes < 0)
@@ -162,10 +185,10 @@ public sealed class V9CalibrationRuntimeScheduler
         return _sample();
     }
 
-    private static void RequireDisk(V9CalibrationRuntimeResourceSample sample)
+    private void RequireDisk(V9CalibrationRuntimeResourceSample sample)
     {
         if (sample.OutputFreeDiskBytes is null
-            || sample.OutputFreeDiskBytes < V9CalibrationResourceGovernor.MinimumFreeDiskBytes)
+            || sample.OutputFreeDiskBytes < _requiredFreeDiskBytes)
             throw new InvalidDataException("V9_RESOURCE_RUNTIME_DISK_BELOW_RESERVE");
     }
 
@@ -183,8 +206,9 @@ public sealed class V9CalibrationRuntimeScheduler
                     && measured < V9CalibrationResourceGovernor.HostReserveBytes
                         + _workerIncrementBytes)
                     throw new InvalidDataException("V9_RESOURCE_RUNTIME_RAM_BELOW_ONE_WORKER");
-                if (CanAdmit(now.EffectiveAvailableMemoryBytes,
-                    now.OutputFreeDiskBytes, _active, _workerIncrementBytes))
+                if (now.OutputFreeDiskBytes is { } diskFree && diskFree >= _requiredFreeDiskBytes
+                    && CanAdmit(now.EffectiveAvailableMemoryBytes,
+                        now.OutputFreeDiskBytes, _active, _workerIncrementBytes))
                 {
                     _active++;
                     _maxActive = Math.Max(_maxActive, _active);
@@ -210,5 +234,7 @@ public sealed class V9CalibrationRuntimeScheduler
         => new(Schema, _budget.ConfiguredParallelism == 0 ? "AUTO" : "EXPLICIT",
             _budget.ConfiguredParallelism, _sqlPoolMaximum, ceiling, pilot,
             _workerIncrementBytes, before, after, Math.Max(pilot, _maxActive),
-            _samples, true, false, false, false, false);
+            _samples, _requiredFreeDiskBytes, _inputCorpusBytes,
+            "SQL_POOL_UPPER_BOUND__DOCKER_BOOTSTRAP_EXTERNAL_NOT_A_THROUGHPUT_PROOF",
+            true, false, false, false, false);
 }
