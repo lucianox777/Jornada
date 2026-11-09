@@ -9,6 +9,8 @@ on:
       - 'Solution/scripts/test_v9_exploratory_append.py'
       - 'Solution/scripts/v9-exploratory-statistical-report.py'
       - 'Solution/scripts/test_v9_exploratory_statistical_report.py'
+      - 'Solution/scripts/v9-exploratory-research-grid.py'
+      - 'Solution/scripts/test_v9_exploratory_research_grid.py'
       - '.github/workflows/v9-exploratory-append.yml'
   push:
     branches:
@@ -18,6 +20,8 @@ on:
       - 'Solution/scripts/test_v9_exploratory_append.py'
       - 'Solution/scripts/v9-exploratory-statistical-report.py'
       - 'Solution/scripts/test_v9_exploratory_statistical_report.py'
+      - 'Solution/scripts/v9-exploratory-research-grid.py'
+      - 'Solution/scripts/test_v9_exploratory_research_grid.py'
       - '.github/workflows/v9-exploratory-append.yml'
   workflow_dispatch:
 
@@ -34,5 +38,5 @@ jobs:
         with:
           python-version: '3.11'
       - name: Run append-only regression tests
-        run: python3 -m unittest -v scripts/test_v9_exploratory_append.py scripts/test_v9_exploratory_statistical_report.py
+        run: python3 -m unittest -v scripts/test_v9_exploratory_append.py scripts/test_v9_exploratory_statistical_report.py scripts/test_v9_exploratory_research_grid.py
         working-directory: Solution
