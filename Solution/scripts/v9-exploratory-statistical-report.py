@@ -39,9 +39,23 @@ def extend(report_path, output_path, *, enabled=False, parameters_path=None):
         return {"enabled": False, "identical": target.read_bytes() == original,
                 "sha256": digest(original)}
     if parameters_path is None:
-        raise ValueError("Enabled exploration requires parameter declaration")
-    params_raw = Path(parameters_path).read_bytes()
-    params = read_json(params_raw)
+        # Report-only exploration: derive identifiers from existing physical rows.
+        # Never invent an option, fit a model or change calibration inputs.
+        source_report = read_json(original)
+        if not isinstance(source_report, dict) or source_report.get("schema") != "V9_MU_STATISTICAL_ANALYSIS_TRAIN_SELECTION_V1":
+            raise ValueError("Unexpected statistical report schema")
+        rows = source_report.get("rows")
+        if not isinstance(rows, list):
+            raise ValueError("Expected normal report rows array")
+        option_ids = sorted({r["OptionId"] for r in rows if isinstance(r, dict)
+                             and isinstance(r.get("OptionId"), str) and r.get("fitSnapshotSha256")})
+        if not option_ids:
+            raise ValueError("No measured normal options for report-only exploration")
+        params = {"ExploratoryParameters": [{"Name": "OptionId", "Values": option_ids}]}
+        params_raw = json.dumps(params, sort_keys=True, separators=(",", ":")).encode()
+    else:
+        params_raw = Path(parameters_path).read_bytes()
+        params = read_json(params_raw)
     if not isinstance(params, dict) or set(params) != {"ExploratoryParameters"}:
         raise ValueError("Expected ExploratoryParameters only")
     values = params["ExploratoryParameters"]
@@ -134,7 +148,7 @@ if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument("normal_report")
     p.add_argument("output_report")
-    p.add_argument("--enabled", action="store_true")
+    p.add_argument("--enabled", "--exploration", action="store_true", dest="enabled")
     p.add_argument("--parameters")
     a = p.parse_args()
     print(json.dumps(extend(a.normal_report, a.output_report,
