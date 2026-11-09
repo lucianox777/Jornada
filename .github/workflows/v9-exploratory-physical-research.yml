@@ -75,6 +75,10 @@ jobs:
           assert extra["TestUsed"] is False and extra["SelectionChanged"] is False
           assert extra["OperationalParametersChanged"] is False
           assert extra["ExistingRowsCount"] == len(report["rows"])
+          assert extra["AdditionalPhysicalEvaluations"] == 0
+          expected=sorted({r["OptionId"] for r in report["rows"] if r.get("fitSnapshotSha256") and isinstance(r.get("OptionId"),str)})
+          assert extra["ExistingMeasuredOptionIds"] == expected
+          assert extra["ExistingMeasuredOptionsCount"] == len(expected)
           print(json.dumps({"researchStatus":extra["Status"],"normalEvaluations":len(report["rows"]),"activated":False}))
           PY
       - name: Preserve diagnostic-only reports and provenance
