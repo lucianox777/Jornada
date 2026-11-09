@@ -58,8 +58,13 @@ RUN dotnet publish src/Jornada.Api/Jornada.Api.csproj -c Release --no-restore -o
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
 ARG JORNADA_BUILD_REVISION=unknown
 LABEL org.opencontainers.image.revision=$JORNADA_BUILD_REVISION
-RUN apt-get update \
- && apt-get install -y --no-install-recommends jq curl procps \
+# CI #1345: Ubuntu mirror HTTP/80 inacessível também no runtime de NODE1/NODE2/bootstrap.
+# HTTPS + retries finitos, mantendo instalações jq/curl/procps e todas as provas originais.
+RUN find /etc/apt -type f \( -name '*.list' -o -name '*.sources' \) -exec sed -i \
+      -e 's|http://archive.ubuntu.com/ubuntu|https://archive.ubuntu.com/ubuntu|g' \
+      -e 's|http://security.ubuntu.com/ubuntu|https://security.ubuntu.com/ubuntu|g' {} + \
+ && apt-get -o Acquire::Retries=3 -o Acquire::https::Timeout=20 update \
+ && apt-get -o Acquire::Retries=3 -o Acquire::https::Timeout=20 install -y --no-install-recommends jq curl procps \
  && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /opt/jornada
