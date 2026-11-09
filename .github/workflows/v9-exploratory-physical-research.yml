@@ -1,6 +1,11 @@
 name: V9 exploratory physical SQL research (manual only)
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - 'research/v9-exploratoria-parametros-ampliados'
+    paths:
+      - '.github/workflows/v9-exploratory-physical-research.yml'
 permissions:
   contents: read
   actions: read
@@ -9,7 +14,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   physical-research:
-    if: github.ref == 'refs/heads/research/v9-exploratoria-parametros-ampliados'
+    if: github.ref == 'refs/heads/research/v9-exploratoria-parametros-ampliados' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
