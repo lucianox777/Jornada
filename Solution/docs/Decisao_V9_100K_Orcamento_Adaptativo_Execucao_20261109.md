@@ -1,3 +1,5 @@
+> **PRECEDÊNCIA (PO 09/11/2026):** esta decisão continua administrando **somente a fase externa de inicialização de SQL do workflow 100k**, enquanto o orçamento operacional **dentro do C# quando o comando de calibração inicia** é agora o contrato geral [GOV-V9-CALIBRADOR-RECURSOS-INTERNOS-20261109](Decisao_V9_Orcamento_Adaptativo_Interno_Modo_Calibracao_20261109.md). O plano científico e o histórico de 100k permanecem inalterados; aplicação dessa nova decisão à campanha já iniciada no SHA `dc3db33d` não é retroativa. GOV-DOC-01.
+
 # GOV-V9-100K-RECORRECURSOS-20261109 — recursos adaptativos exclusivos da campanha 24×100k
 
 **Autoridade:** Product Owner, 09/11/2026. **Estado inicial:** DECIDIDO / implementação proposta nesta PR; **sem execução física 24×100k**. **Regra:** GOV-DOC-01. **Relações:** [#1349](https://github.com/lucianox777/Jornada/issues/1349), [#1253](https://github.com/lucianox777/Jornada/issues/1253), [ordem de execução já integrada pela #1382](Decisao_GOV_V9_100K_24_Configuracoes_Ordem_Execucao_20261109.md).
