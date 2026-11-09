@@ -13,12 +13,19 @@ sql_name="v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 # Only the proposed standard 100k technical workflow configures this budget.
 # Existing physical 30k workflows remain unchanged when absent.
 sql_memory_args=()
-if [[ -n "${V9_SQL_MEMORY_LIMIT_MB:-}" ]]; then
-  [[ "$V9_SQL_MEMORY_LIMIT_MB" =~ ^[0-9]+$ ]] &&
+if [[ -n "${V9_SQL_MEMORY_LIMIT_MB:-}" || -n "${V9_SQL_CONTAINER_MEMORY_MB:-}" ]]; then
+  [[ "${V9_SQL_MEMORY_LIMIT_MB:-}" =~ ^[0-9]+$ ]] &&
     (( 2048 <= V9_SQL_MEMORY_LIMIT_MB && V9_SQL_MEMORY_LIMIT_MB <= 4096 )) || {
       echo "FAIL: invalid SQL runtime memory budget" >&2; exit 1;
     }
-  sql_memory_args=(--memory 5g)
+  # Only the manual 100k job sets both computed budgets. Preserve the
+  # historical 5GiB Docker cap when older valid callers set SQL-only budget.
+  sql_container_mb="${V9_SQL_CONTAINER_MEMORY_MB:-5120}"
+  [[ "$sql_container_mb" =~ ^[0-9]+$ ]] &&
+    (( sql_container_mb >= V9_SQL_MEMORY_LIMIT_MB + 1024 && sql_container_mb <= 5120 )) || {
+      echo "FAIL: invalid SQL container memory headroom" >&2; exit 1;
+    }
+  sql_memory_args=(--memory "${sql_container_mb}m")
 fi
 sql_password="V9aA1!$(openssl rand -hex 24)"
 # Register masking BEFORE any Docker operation that might print expanded args.
