@@ -60,26 +60,69 @@ def extend(report_path, output_path, *, enabled=False, parameters_path=None):
         raise ValueError("Unexpected statistical report schema")
     if "exploratoryAnalysis" in report:
         raise ValueError("Exploratory analysis already present")
+    # Analyze ONLY already-measured rows from the normal calibration.
+    # A same-frame comparison requires identical SQL candidate-pair fingerprints.
+    # Never infer an unmeasured option's performance from a different option.
+    measured = [row for row in report.get("rows", []) if isinstance(row, dict)
+                and row.get("fitSnapshotSha256") is not None]
+    comparisons = []
+    for declaration in values:
+        if declaration["Name"] != "OptionId":
+            continue
+        for option_id in declaration["Values"]:
+            if not isinstance(option_id, str):
+                raise ValueError("OptionId values must be strings")
+            matches = [row for row in measured if row.get("OptionId") == option_id]
+            for row in matches:
+                frame = row.get("CandidatePairsSha256")
+                if not isinstance(frame, str) or not frame:
+                    continue
+                peers = [other for other in measured if other is not row
+                         and other.get("CandidatePairsSha256") == frame
+                         and other.get("Batch") == row.get("Batch")
+                         and other.get("ConflictMargin") == row.get("ConflictMargin")
+                         and other.get("blockingPasses") == row.get("blockingPasses")]
+                for peer in peers:
+                    comparisons.append({
+                        "OptionId": option_id,
+                        "BaselineOptionId": peer.get("OptionId"),
+                        "CandidatePairsSha256": frame,
+                        "Batch": row.get("Batch"),
+                        "ConflictMargin": row.get("ConflictMargin"),
+                        "MeasuredInNormalCalibration": True,
+                        "ExploratoryOnly": True,
+                        "Recall": row.get("recall"),
+                        "BaselineRecall": peer.get("recall"),
+                        "FdrObserved": row.get("fdrObserved"),
+                        "BaselineFdrObserved": peer.get("fdrObserved"),
+                        "RecallDelta": row["recall"] - peer["recall"]
+                            if all(type(x.get("recall")) in (float, int) for x in (row, peer)) else None,
+                        "FdrDelta": row["fdrObserved"] - peer["fdrObserved"]
+                            if all(type(x.get("fdrObserved")) in (float, int) for x in (row, peer)) else None,
+                        "StatisticalCertification": False
+                    })
+    comparisons.sort(key=lambda x: (x["OptionId"], str(x["BaselineOptionId"]),
+                                     str(x["Batch"]), str(x["ConflictMargin"])))
     # Existing passes/results are referenced, never recomputed or reinterpreted.
     report["exploratoryAnalysis"] = {
         "ExploratoryOnly": True, "AutoApplied": False,
         "SelectionChanged": False, "OperationalParametersChanged": False,
         "RefChanged": False, "TestUsed": False, "Certified": False,
-        "Status": "DECLARED_NOT_PHYSICALLY_EVALUATED",
+        "Status": "REUSED_EXISTING_PHYSICAL_MEASUREMENTS" if comparisons else "NO_COMPARABLE_EXISTING_MEASUREMENTS",
         "Parameters": values,
         "NormalReportSha256": digest(original),
         "ParameterDeclarationSha256": digest(params_raw),
-        "ReusedNormalPasses": "REFERENCE_ONLY_NO_NEW_SQL",
+        "ReusedNormalPasses": "SAME_CANDIDATE_FRAME_EXISTING_ROWS_NO_NEW_SQL",
         "ExistingEvaluationCount": report.get("evaluations"),
         "ExistingRowsCount": len(report["rows"]) if isinstance(report.get("rows"), list) else None,
-        "AdditionalMeasurements": [],
-        "Note": "No exploratory metrics claimed; additional physical evaluation is not implemented."
+        "AdditionalMeasurements": comparisons,
+        "Note": "Comparisons use only already measured normal-calibration rows on identical candidate frames; no new parameter combinations fitted."
     }
     data = (json.dumps(report, ensure_ascii=False, indent=2, allow_nan=False) + "\n").encode()
     with target.open("xb") as stream:
         stream.write(data)
     return {"enabled": True, "sourceSha256": digest(original), "outputSha256": digest(data),
-            "activated": False, "evaluated": False}
+            "activated": False, "evaluated": bool(comparisons)}
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser(description=__doc__)
