@@ -1,6 +1,6 @@
 # GOV-V9-GITHUB-STANDARD-100K-OPT-20261109 — executar no GitHub padrão sem servidor do PO
 
-**Autoridade:** Product Owner, 09/11/2026. **Estado:** implementação em PR; sem campanha física V9 100k executada, sem certificação. **Regra:** GOV-DOC-01.
+**Autoridade:** Product Owner, 09/11/2026. **Estado:** IMPLEMENTADO via PR #1379, master `b4902dbe0f0ee815eafd4aa48fa216be23c9c382`; gerador sintético 100k PASS no runner padrão (run 42664056609), **sem campanha física V9 SQL+24 opções nem certificação**. **Regra:** GOV-DOC-01.
 
 ## Decisão e contexto
 
@@ -28,3 +28,7 @@ A PR #1378 estabeleceu a alternativa self-hosted por considerar bloqueadores os 
 - **Evidência pretendida:** nova PR (código e testes), checks SHA, run pós-merge do perfil 100k *somente gerador*, relatório com PASS/FAIL/PENDENTE por componente. **Não afirmar resultado do motor antes do run técnico real**.
 
 Links de decisão/histórico: [issue #1349](https://github.com/lucianox777/Jornada/issues/1349), [PR #1372](https://github.com/lucianox777/Jornada/pull/1372), [PR #1378](https://github.com/lucianox777/Jornada/pull/1378), [contrato 30k sem exclusividade](DC-V9-CALIBRACAO-SEM-EXCLUSIVIDADE-30K-20261105.md), [protocolo 100k anterior](Decisao_V9_Escala_100k_Multiparametro_Tecnica_20261109.md), [índice](Indice_Decisoes_Vigentes.md). GOV-DOC-01.
+
+## Evidência física da primeira etapa — apenas gerador, não motor V9
+
+A [PR #1379](https://github.com/lucianox777/Jornada/pull/1379) foi integrada após [fast CI 42663701641](https://github.com/lucianox777/Jornada/actions/runs/42663701641) SUCCESS no HEAD `9aeaade523bb8e642e1be3e772bcce1dbb8fd957`. No SHA master `b4902dbe0f0ee815eafd4aa48fa216be23c9c382`, o [run 42664056609](https://github.com/lucianox777/Jornada/actions/runs/42664056609) **SUCCESS** provou geração de 100.000 identidades sintéticas SHA-verificadas em runner padrão, sem SQL. Artifact 13694813389: pico RSS do gerador 514.830.336 B (~491 MiB); quatro arquivos de saída 28.555.263 B (~27,23 MiB); RAM host 16.760.344.576 B (~15,61 GiB), disco livre observado 90.662.481.920 B (~84,44 GiB). **A última métrica é amostra real, não capacidade nominal garantida do GitHub.** Não extrapolar para SQL nem 24 hipóteses físicas; essa etapa **não fecha #1349**. [Relatório com hashes/limites](Relatorio_V9_GitHub_Standard_100k_Perfil_Gerador_20261109.md). Segurança #1253 permanece bloqueadora do disparo físico; não houve TEST/Gold/ativação. GOV-DOC-01.
