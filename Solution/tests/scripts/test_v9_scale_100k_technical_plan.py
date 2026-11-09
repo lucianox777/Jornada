@@ -17,6 +17,17 @@ spec.loader.exec_module(binding)
 
 
 class V9Scale100kPlanTests(unittest.TestCase):
+    def test_100k_workflow_has_feasible_runner_before_any_sql_or_data(self):
+        # Historical 30k / generic calibration remain unchanged.
+        workflow = (ROOT.parent / ".github/workflows/v9-multiparameter-100k-technical.yml").read_text()
+        self.assertIn("runs-on: ubuntu-24.04-16core", workflow)
+        self.assertNotIn("runs-on: ubuntu-24.04\n", workflow)
+        self.assertIn('mem.get("MemTotal",0) >= 24*1024**3', workflow)
+        self.assertIn('free_disk >= 40*1024**3', workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+        self.assertNotIn("  push:", workflow)
+        self.assertIn("security_preflight_approved", workflow)
+
     def test_frozen_provenance_constants_and_defaults_are_untouched(self):
         self.assertEqual(binding.ARTIFACT_ID, 13654549483)
         self.assertEqual(binding.ARTIFACT_SHA,
