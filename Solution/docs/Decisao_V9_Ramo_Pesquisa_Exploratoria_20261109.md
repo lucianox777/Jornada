@@ -44,3 +44,7 @@ O PO reiterou: **a master deve permanecer isolada da pesquisa exploratória**. C
 **Precedência:** detalha o contrato do relatório condicional e a reutilização de infraestrutura da calibração normal; não revoga compatibilidade histórica, V2 WITNESS+ANCHOR, limites científicos, necessidade de validação ou autorização manual de eventual promoção.
 
 **Estado:** decisão registrada; integração do diagnóstico com o produtor real do relatório e testes de não interferência ainda pendentes.
+
+## Incremento técnico — extensão de relatório em cópia, sem SQL (09/11/2026)
+
+Implementado **primeiro incremento isolado**, `Solution/scripts/v9-exploratory-statistical-report.py`: recebe o relatório normal `mu-statistical-analysis.json` e produz **uma cópia com o mesmo schema e campos originais**. Sem `--enabled`, a cópia é **byte a byte idêntica**; com `--enabled --parameters`, acrescenta `exploratoryAnalysis` contendo parâmetros declarados, hashes e contagens do relatório original, com `AutoApplied=false` e `DECLARED_NOT_PHYSICALLY_EVALUATED`. **Não produz métricas exploratórias, não executa SQL, não reaproveita fisicamente passes ainda, não altera seleção ou ativação.** A origem permanece intacta. Testes unitários de regressão e recusas foram adicionados ao workflow exclusivo da pesquisa; PASS em GitHub ainda não verificado. Esta entrega **não equivale à implementação integral** do requisito de avaliação exploratória a partir dos passes normais; a integração ao produtor real do relatório e o cálculo físico ficam pendentes.
