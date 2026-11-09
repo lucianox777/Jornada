@@ -208,6 +208,46 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
     public const string Version = "V9_PHYSICAL_SQL_ADAPTIVE_FS_TRAIN_VALIDATION_V2";
     public const int HardPairIncidenceCap = 1_000_000;
 
+    /// <summary>
+    /// Read-only exact pre-SQL admission used by the physical probe itself:
+    /// the same signature builder and cross-manager incidence counter.
+    /// No database connection, fit, labels, TEST, personal rows, or model choice.
+    /// Values above the declared incidence ceiling are capped at ceiling + 1.
+    /// </summary>
+    public sealed record OfflinePairCapacity(
+        int BlockingPasses, int SignatureRows, long PreflightPairIncidencesUpperBound,
+        int DeclaredMaximumCandidatePairIncidences, int DeclaredMaximumProjectedSignatures,
+        bool WithinDeclaredPairIncidenceCap,
+        string EvidenceScope = "TRAIN_INTERNAL_FRAME_NO_SQL_NO_TEST_NO_MODEL_FIT");
+
+    public static OfflinePairCapacity InspectOfflinePairCapacity(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
+        IReadOnlyCollection<LinkageBlockingPass> passes,
+        V9PhysicalAdaptiveExecution execution)
+    {
+        ArgumentNullException.ThrowIfNull(observations);
+        ArgumentNullException.ThrowIfNull(passes);
+        ArgumentNullException.ThrowIfNull(execution);
+        execution.Validate(evaluateFinalResolve: true, includeFsBlindGrouping: true);
+        var canonical = passes.Select(x => LinkageBlockingPass.Create(x.PassId, x.Fields))
+            .OrderBy(x => x.PassId, StringComparer.Ordinal).ToArray();
+        var allowed = (execution.MaximumPrefixLength == 0
+            ? BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates
+            : V9CalibrationBlockingProjection.SupportedFeatures(execution.MaximumPrefixLength))
+            .ToHashSet(StringComparer.Ordinal);
+        if (canonical.SelectMany(x => x.Fields).Any(x => !allowed.Contains(x)))
+            throw new InvalidDataException("OFFLINE_V9_UNSUPPORTED_BLOCKING_FEATURE");
+        var signatures = BuildSignatures(observations, canonical,
+            execution.MaximumPrefixLength, execution.MaximumProjectedSignatures);
+        var incidences = CountPairIncidences(signatures, observations,
+            execution.MaximumCandidatePairIncidences);
+        return new(canonical.Length, signatures.Count, incidences,
+            execution.MaximumCandidatePairIncidences, execution.MaximumProjectedSignatures,
+            incidences <= execution.MaximumCandidatePairIncidences);
+    }
+
+
+
     private sealed record SignatureRow(
         int ObservationId, string Partition, string PassId, string Signature);
 
