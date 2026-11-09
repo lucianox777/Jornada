@@ -240,6 +240,9 @@ public static class V9NestedCalibrationCli
         V9CalibrationExecutionResourceBudget resources, Action<string> updateSafeStage)
     {
         ArgumentNullException.ThrowIfNull(updateSafeStage);
+        var sqlPoolMaximum = new SqlConnectionStringBuilder(connectionString).MaxPoolSize;
+        var resourceScheduler = new V9CalibrationRuntimeScheduler(resources, output, sqlPoolMaximum,
+            sourcePath: source);
         updateSafeStage("TRAIN_HASH_AND_MANIFEST");
         var totalWallClock = System.Diagnostics.Stopwatch.StartNew();
         await using var sourceStream = File.OpenRead(source);
@@ -303,7 +306,12 @@ public static class V9NestedCalibrationCli
             diskSampler.ObserveNow(); // diagnosis only; no changes to selection.
         }, frozenTfReferenceForRuleset: referenceFactory,
             executionMaximumParallelRuleSets: resources.EffectiveParallelism,
-            reportSafeStage: updateSafeStage);
+            reportSafeStage: updateSafeStage,
+            resourceScheduler: resourceScheduler);
+        // Aggregate-only operations evidence; never includes connection strings,
+        // identities, output rows, or raw SQL diagnostics.
+        await WriteNewAsync(Path.Combine(output, "calibration-runtime-scheduling.json"),
+            resourceScheduler.Receipts);
         updateSafeStage("FIT_EVIDENCE_EXPORT");
         var calibrationFinishedMs = elapsed.ElapsedMilliseconds;
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)

@@ -1,3 +1,5 @@
+> **ACERVO — 09/11, GOVERNADOR CONJUNTO DE RECURSOS DO CALIBRADOR:** [decisão PO aprovada de manter um parâmetro e otimizar conjuntamente CPU, RAM/cgroup, SQL e disco, com piloto/admissão gradual e compatibilidade de planos](Decisao_V9_Governador_Conjunto_Recursos_Calibrador_20261109.md). Não cria os dois campos de recurso propostos; mantém 100k e issue #1253 pendentes; implementação em PR isolada com testes. GOV-DOC-01.
+
 > **ACERVO — RECIBO DO MERGE #1385 (PO 09/11):** [decisão oficial de orçamento interno C# e recibo SHA-bound de integração](Decisao_V9_Orcamento_Adaptativo_Interno_Modo_Calibracao_20261109.md), master `f2b09cf2d9ce8b63b978ff66ba77323e31a40360`; 10/10 checks do HEAD da PR SUCCESS, provas físicas da nova master separadas, 100k histórico FAIL permanece pendente. GOV-DOC-01.
 
 > **ACERVO — V9 100k, diagnóstico seguro de falha no Calibrador:** [decisão de estágio público finito para `INVALID_DATA`, sem expor mensagens/segredos nem alterar ciência](Decisao_V9_100k_Triagem_Segura_Fase_20261109.md). Referências: issue #1386, campanha #42678462930 FAIL, #1349 e #1253. Documento de implementação instrumental PR após #1385, GOV-DOC-01.

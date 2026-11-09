@@ -53,6 +53,22 @@ public static class V9ParallelWork
         return available;
     }
 
+    /// <summary>
+    /// Only the physical calibration entry points supply a measured governor.
+    /// All library/historical callers retain unchanged MapAsync semantics.
+    /// </summary>
+    public static async Task<IReadOnlyList<TResult>> MapCalibrationAsync<TInput, TResult>(
+        IReadOnlyList<TInput> inputs, int configuredParallelism,
+        Func<TInput, CancellationToken, Task<TResult>> operation,
+        V9CalibrationRuntimeScheduler? resourceScheduler,
+        CancellationToken cancellationToken)
+    {
+        if (resourceScheduler is null)
+            return await MapAsync(inputs, configuredParallelism, operation, cancellationToken);
+        var (values, _) = await resourceScheduler.MapAsync(inputs, operation, cancellationToken);
+        return values;
+    }
+
     public static async Task<IReadOnlyList<TResult>> MapAsync<TInput, TResult>(
         IReadOnlyList<TInput> inputs, int maximumParallelism,
         Func<TInput, CancellationToken, Task<TResult>> operation, CancellationToken cancellationToken)

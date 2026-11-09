@@ -224,7 +224,8 @@ public static class V9NestedCalibrationCoordinator
         Action<V9TrainingBatchProgress>? reportProgress = null,
         Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset = null,
         int? executionMaximumParallelRuleSets = null,
-        Action<string>? reportSafeStage = null)
+        Action<string>? reportSafeStage = null,
+        V9CalibrationRuntimeScheduler? resourceScheduler = null)
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
         ValidatePlan(plan);
@@ -333,7 +334,7 @@ public static class V9NestedCalibrationCoordinator
             // Chunk size preserves the model-search 64-option contract.
             var groups = requests.GroupBy(PhysicalFrameKey)
                 .SelectMany(g => g.Chunk(64)).ToArray();
-            var results = await V9ParallelWork.MapAsync(groups, executionMaximumParallelRuleSets ?? calibration.MaximumParallelRuleSets, async (group, ct) =>
+            var results = await V9ParallelWork.MapCalibrationAsync(groups, executionMaximumParallelRuleSets ?? calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
                 FrozenIbgeNominalTfV9? frozenReference = null;
                 if (group.Any(x => V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(x.Option)))
@@ -350,7 +351,7 @@ public static class V9NestedCalibrationCoordinator
                 try { return await EvaluateAsync(connection, frame, plan, group, batchIndex,
                     candidateCpMultiplicity, frozenReference, ct); }
                 finally { lock (active) active.Remove(connection); await connection.DisposeAsync(); }
-            }, cancellationToken);
+            }, resourceScheduler, cancellationToken);
             evaluations.AddRange(results.SelectMany(x => x).OrderBy(x => x.RequestSha256, StringComparer.Ordinal));
             // Keep diagnostic SHARED surname results in the audit but never
             // admit them to the Pareto frontier/refinements/finalists.
