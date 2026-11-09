@@ -52,3 +52,13 @@ Implementado **primeiro incremento isolado**, `Solution/scripts/v9-exploratory-s
 ## Incremento de comparação em passes reutilizados (09/11/2026)
 
 O pós-processador do **mesmo** relatório agora admite `ExploratoryParameters: [{"Name":"OptionId","Values":["..."]}]` e compara **somente opções já fisicamente medidas pela calibração normal**, com `CandidatePairsSha256`, batch, margem e `blockingPasses` idênticos. Registra recall/FDR observados e deltas descritivos; não refaz SQL, não ajusta parâmetros, não recalcula FDR de certificação e não muda a seleção. Se não houver opção comparável, o resultado explícito é `NO_COMPARABLE_EXISTING_MEASUREMENTS`, sem números fabricados. Testes adicionados para frame idêntico e passes divergentes. **Limite importante:** não implementa a medição de combinações novas fora do catálogo executado pela calibração normal, nem integração automática com o produtor C#; o script ainda requer invocação explícita em cópia do relatório. O gate GitHub não foi comprovado verde neste SHA, e a PR permanece draft e isolada da master.
+
+## Aprovação expressa do PO — decisões 1B, 2B e 3B (09/11/2026)
+
+**1B — espaço de pesquisa:** a investigação pode avaliar **novas combinações de parâmetros** sobre os **mesmos pares candidatos produzidos pelos passes normais**, sem alterar blocking, plano normal, seleção ou ativação. Não confundir comparação de opções já medidas com avaliação de combinações novas: esta última exige scorer/fit efetivos e evidência física.
+
+**2B — orçamento:** a pesquisa tem **orçamento próprio, explícito, versionado e configurável** para número de combinações, memória, tempo e paralelismo. Falta ou violação de limites implica falha fechada; o orçamento normal não é modificado.
+
+**3B — análise estatística:** o **mesmo relatório** deve incluir, apenas quando a pesquisa estiver habilitada, recall, FDR, incerteza, comparações, multiplicidade e dependência entre observações. Diagnósticos não certificados devem declarar suas limitações; nunca alegar UCB válida para pares dependentes sem método e evidência por identidade-base. Não há promoção automática, consumo de TEST ou inferência confirmatória.
+
+**Rastreabilidade e precedência:** decisões expressas do PO, complementares às regras de isolamento, compatibilidade e relatório único; não revogam os gates científicos ou GOV-DOC-01. A PR #1356 permanece draft, sem merge na master. A implementação integral somente estará concluída quando a avaliação real das novas combinações, os testes e a integração condicional ao produtor do relatório estiverem verificados.
