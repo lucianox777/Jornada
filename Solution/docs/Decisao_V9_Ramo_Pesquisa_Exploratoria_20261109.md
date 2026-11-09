@@ -98,3 +98,7 @@ No ramo isolado, o comando `--v9-calibrate` aceita opcionalmente `--exploration`
 ## Integração física no mesmo processo e correção de CI
 
 O workflow isolado agora chama o calibrador C# com `--v9-calibrate <plano> <csv> <resultado> --exploration` **na própria sessão física**, em vez de gerar um segundo relatório por script Python. A verificação do workflow exige `exploratoryAnalysis` no `mu-statistical-analysis.json` final e seus marcadores de não ativação, não certificação e invariância operacional. Corrigido também o diretório de trabalho da descoberta de testes Python. O filtro `push` contempla alterações no CLI C# e no workflow, além do acionamento manual existente. Commit `cd4c2f5c`. **Não afirmar PASS físico ou equivalência dos demais artefatos até haver logs e artefatos verificáveis.**
+
+## Refinamento de integridade do relatório C# (09/11/2026)
+
+A lista `ExistingMeasuredOptionIds` agora inclui **somente** linhas com `fitSnapshotSha256` presente; recusas ou propostas sem snapshot não podem aparecer como medições físicas. Acrescentados `ExistingMeasuredOptionsCount` e `AdditionalPhysicalEvaluations = 0`, com assertivas correspondentes no workflow isolado. Commits `f3d0ebc2` e `e7da282a`. **Não foi possível executar o build local nem confirmar run de Actions**: ambiente de execução sem resolução de DNS para GitHub, e conector GitHub disponível sem listagem de runs disparados por push. O resultado permanece sem certificação física; o ramo não foi integrado à master.
