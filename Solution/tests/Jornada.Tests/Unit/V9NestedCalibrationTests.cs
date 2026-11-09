@@ -223,6 +223,63 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public async Task Disk_telemetry_records_temporary_growth_and_removal_without_touching_inputs()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "v9-disk-diagnostic-" + Guid.NewGuid().ToString("N"));
+        var outside = Path.Combine(Path.GetTempPath(), "v9-disk-unscoped-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        Directory.CreateDirectory(outside);
+        try
+        {
+            await using var sampler = new V9CalibrationDiskSampler(root, TimeSpan.FromMilliseconds(50));
+            var nested = Path.Combine(root, "nested");
+            Directory.CreateDirectory(nested);
+            var transient = Path.Combine(nested, "transient.dat");
+            File.WriteAllBytes(transient, new byte[65536]);
+            sampler.ObserveNow();
+            var atPeak = sampler.Snapshot();
+            Assert.That(atPeak.Status, Is.EqualTo("MEASURED_SAMPLED"));
+            Assert.That(atPeak.PeakLogicalBytes, Is.GreaterThanOrEqualTo(65536));
+            File.Delete(transient);
+            File.WriteAllBytes(Path.Combine(outside, "not-calibration.dat"), new byte[65536]);
+            var after = sampler.Snapshot();
+            Assert.That(after.CurrentLogicalBytes, Is.LessThan(after.PeakLogicalBytes));
+            Assert.That(after.PeakLogicalBytes, Is.EqualTo(atPeak.PeakLogicalBytes));
+            Assert.That(after.Exclusions, Does.Contain("SQL_CONTAINER"));
+            Assert.That(after.Exclusions, Does.Contain("PHYSICAL_ALLOCATED_BLOCKS"));
+        }
+        finally
+        {
+            Directory.Delete(root, recursive: true);
+            Directory.Delete(outside, recursive: true);
+        }
+    }
+
+    [Test]
+    public async Task Disk_telemetry_exposes_inaccessible_or_incomplete_samples_as_not_measured()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "v9-disk-fail-safe-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            await using var bad = new V9CalibrationDiskSampler(root, TimeSpan.FromSeconds(5),
+                _ => throw new UnauthorizedAccessException("private path canary"));
+            var missing = bad.Snapshot();
+            Assert.That(missing.Status, Is.EqualTo("NOT_MEASURED"));
+            Assert.That(missing.PeakLogicalBytes, Is.Null);
+            Assert.That(missing.FailedSamples, Is.GreaterThan(0));
+            var reads = 0;
+            await using var partial = new V9CalibrationDiskSampler(root, TimeSpan.FromSeconds(5),
+                _ => ++reads == 1 ? 100 : throw new IOException("private path canary"));
+            var incomplete = partial.Snapshot();
+            Assert.That(incomplete.Status, Is.EqualTo("PARTIAL_SAMPLED"));
+            Assert.That(incomplete.PeakLogicalBytes, Is.EqualTo(100));
+            Assert.That(incomplete.Note, Does.Not.Contain("private path canary"));
+        }
+        finally { Directory.Delete(root, recursive: true); }
+    }
+
+    [Test]
     public void Ram_reporting_uses_runtime_GC_pressure_without_inventing_a_memory_limit()
     {
         const long mib = 1024L * 1024;
