@@ -12,6 +12,7 @@ on:
       - 'Solution/scripts/v9-exploratory-research-grid.py'
       - 'Solution/scripts/test_v9_exploratory_research_grid.py'
       - '.github/workflows/v9-exploratory-append.yml'
+      - '.github/workflows/v9-exploratory-physical-research.yml'
   push:
     branches:
       - 'research/v9-exploratoria-parametros-ampliados'
