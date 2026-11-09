@@ -1,3 +1,5 @@
+> **RECIBO — INTEGRAÇÃO DO GOVERNADOR CONJUNTO V9 (PO 09/11):** [decisão, implementação e provas HEAD #1388 no SHA master `7110979007...`](Decisao_V9_Governador_Conjunto_Recursos_Calibrador_20261109.md). 10/10 checks da PR verdes, 13 NUnit e SQL físico 1/0/8 multi-OS; gates pós-merge são independentes e 24×100k ainda NÃO COBERTO. GOV-DOC-01.
+
 > **ACERVO — 09/11, GOVERNADOR CONJUNTO DE RECURSOS DO CALIBRADOR:** [decisão PO aprovada de manter um parâmetro e otimizar conjuntamente CPU, RAM/cgroup, SQL e disco, com piloto/admissão gradual e compatibilidade de planos](Decisao_V9_Governador_Conjunto_Recursos_Calibrador_20261109.md). Não cria os dois campos de recurso propostos; mantém 100k e issue #1253 pendentes; implementação em PR isolada com testes. GOV-DOC-01.
 
 > **ACERVO — RECIBO DO MERGE #1385 (PO 09/11):** [decisão oficial de orçamento interno C# e recibo SHA-bound de integração](Decisao_V9_Orcamento_Adaptativo_Interno_Modo_Calibracao_20261109.md), master `f2b09cf2d9ce8b63b978ff66ba77323e31a40360`; 10/10 checks do HEAD da PR SUCCESS, provas físicas da nova master separadas, 100k histórico FAIL permanece pendente. GOV-DOC-01.
