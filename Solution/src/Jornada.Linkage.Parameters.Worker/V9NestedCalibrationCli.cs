@@ -132,6 +132,8 @@ public static class V9NestedCalibrationCli
         string? output = null;
         V9CalibradorLastErrorLog? reservedLog = null;
         bool completed = false;
+        // Fixed allowlisted phase names only: never serialize exceptions, SQL or input rows.
+        string safeStage = "CLI_ARGUMENTS_AND_PLAN";
         try
         {
             if (args.Length < 1 || (args[0] == "--v9-calibrate" ? args.Length != 4
@@ -143,6 +145,7 @@ public static class V9NestedCalibrationCli
             var plan = JsonSerializer.Deserialize<V9NestedCalibrationPlan>(originalPlanBytes, Json)
                 ?? throw new InvalidDataException("Plano V9 interno ausente.");
             V9NestedCalibrationCoordinator.ValidatePlan(plan);
+            safeStage = "PLAN_VALIDATED_AND_OUTPUT_ADMISSION";
             if (Directory.Exists(output) || File.Exists(output)) throw new InvalidOperationException("Resultados exigem diretório novo e imutável.");
             var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
                 ?? throw new InvalidOperationException("Conexão do JornadaHarness descartável ausente.");
@@ -163,7 +166,7 @@ public static class V9NestedCalibrationCli
                         await using var diskSampler = new V9CalibrationDiskSampler(output,
                             TimeSpan.FromMilliseconds(500));
                         await SearchAsync(args[2], output, plan, connectionString, originalPlanBytes,
-                            diskSampler);
+                            diskSampler, phase => safeStage = phase);
                     }
                     else await ValidateAsync(args[2], args[3], output, plan, connectionString);
                 }
@@ -172,7 +175,7 @@ public static class V9NestedCalibrationCli
                     try
                     {
                         await WriteNewAsync(Path.Combine(output, "interrupted.json"),
-                            new { exceptionType = exception.GetType().Name,
+                            new { exceptionType = exception.GetType().Name, safeFailureStage = safeStage,
                                 completed = false, testUsed = false, activated = false });
                     }
                     catch (Exception)
@@ -196,6 +199,10 @@ public static class V9NestedCalibrationCli
         catch (Exception exception)
         {
             // Never mutate a pre-existing result directory rejected above.
+            // Safe finite phase code is independent of the exception message,
+            // which may include credentials or private paths and stays sealed.
+            try { Console.Error.WriteLine("V9_CALIBRATOR_SAFE_STAGE:" + safeStage); }
+            catch (Exception) { /* stderr may be unavailable under ENOSPC. */ }
             TryWriteLastError(reservedLog, exception);
             throw;
         }
@@ -224,8 +231,11 @@ public static class V9NestedCalibrationCli
     }
 
     private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan,
-        string connectionString, byte[] originalPlanBytes, V9CalibrationDiskSampler diskSampler)
+        string connectionString, byte[] originalPlanBytes, V9CalibrationDiskSampler diskSampler,
+        Action<string> updateSafeStage)
     {
+        ArgumentNullException.ThrowIfNull(updateSafeStage);
+        updateSafeStage("TRAIN_HASH_AND_MANIFEST");
         var totalWallClock = System.Diagnostics.Stopwatch.StartNew();
         await using var sourceStream = File.OpenRead(source);
         var sourceSha = Convert.ToHexString(await SHA256.HashDataAsync(sourceStream)).ToLowerInvariant();
@@ -237,6 +247,7 @@ public static class V9NestedCalibrationCli
         if (producer.RootElement.GetProperty("error_profile").GetString() != "clean"
             || producer.RootElement.GetProperty("population_profile").GetString() != "DEMOGRAPHIC_PRIMARY_V1")
             throw new InvalidDataException("Bootstrap padrão exige clean conservador provisório e produtor fixado.");
+        updateSafeStage("TRAIN_CSV_LOAD");
         var train = V9PhysicalCalibrationEvidenceCli.ReadNoCpfTrainValidation(source, 4,
             declaration.MaximumObservationsPerBaseIdentity, onlyPartition: "TRAIN");
         var inputPreparationMs = totalWallClock.ElapsedMilliseconds;
@@ -254,6 +265,7 @@ public static class V9NestedCalibrationCli
             };
         using var process = System.Diagnostics.Process.GetCurrentProcess();
         var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        updateSafeStage("TRAIN_SPLIT_AND_PHYSICAL_SQL_FIT");
         var result = await V9NestedCalibrationCoordinator.SearchAsync(async ct =>
         {
             var connection = new SqlConnection(connectionString);
@@ -285,6 +297,7 @@ public static class V9NestedCalibrationCli
             Console.Error.WriteLine(memory);
             diskSampler.ObserveNow(); // diagnosis only; no changes to selection.
         }, frozenTfReferenceForRuleset: referenceFactory);
+        updateSafeStage("FIT_EVIDENCE_EXPORT");
         var calibrationFinishedMs = elapsed.ElapsedMilliseconds;
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
             .DistinctBy(x => x.ContentSha256))
