@@ -26,14 +26,14 @@ class Offline100kPreSqlTests(unittest.TestCase):
         self.assertNotIn("v9-tf-start-disposable-sql.sh", text)
         self.assertNotIn("MSSQL_SA_PASSWORD", text)
         self.assertNotIn("connection-string", text.lower())
-        self.assertNotRegex(text, r"(?m)^\\s+pull_request:\\s*$")
+        self.assertNotRegex(text, r"(?m)^\s+pull_request:\s*$")
 
     def test_original_physical_100k_remains_manual_and_security_preflight(self):
         t = PHYSICAL.read_text()
         self.assertIn("workflow_dispatch:", t)
         self.assertIn("security_preflight_approved == true", t)
         self.assertIn("github.actor == github.repository_owner", t)
-        self.assertNotRegex(t, r"(?m)^\\s+push:\\s*$")
+        self.assertNotRegex(t, r"(?m)^\s+push:\s*$")
         self.assertNotIn("--v9-offline-train-capacity", t)
 
     def test_csharp_reader_is_train_only_and_offline_receipt_cannot_certify(self):
