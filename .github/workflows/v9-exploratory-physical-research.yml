@@ -63,16 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-research"
-          python3 - "$root/results/mu-statistical-analysis.json" "$root/research-parameters.json" <<'PY'
-          import json,sys
-          from pathlib import Path
-          report=json.loads(Path(sys.argv[1]).read_bytes())
-          rows=report.get("rows",[])
-          measured=sorted({r["OptionId"] for r in rows if r.get("fitSnapshotSha256") and isinstance(r.get("OptionId"),str)})
-          if not measured: raise SystemExit("FAIL: no physically measured normal options")
-          Path(sys.argv[2]).write_text(json.dumps({"ExploratoryParameters":[{"Name":"OptionId","Values":measured}]},sort_keys=True))
-          PY
-          python3 scripts/v9-exploratory-statistical-report.py "$root/results/mu-statistical-analysis.json" "$root/exploratory-mu-statistical-analysis.json" --enabled --parameters "$root/research-parameters.json"
+          python3 scripts/v9-exploratory-statistical-report.py "$root/results/mu-statistical-analysis.json" "$root/exploratory-mu-statistical-analysis.json" --exploration
           python3 - "$root/results/mu-statistical-analysis.json" "$root/exploratory-mu-statistical-analysis.json" <<'PY'
           import json,sys
           from pathlib import Path
@@ -96,7 +87,6 @@ jobs:
             Solution/.local/v9-research/results/mu-statistical-analysis.md
             Solution/.local/v9-research/results/interrupted.json
             Solution/.local/v9-research/exploratory-mu-statistical-analysis.json
-            Solution/.local/v9-research/research-parameters.json
             Solution/.local/v9-research/mu-v2-v3-plan.json
       - name: Destroy disposable SQL
         if: always()
