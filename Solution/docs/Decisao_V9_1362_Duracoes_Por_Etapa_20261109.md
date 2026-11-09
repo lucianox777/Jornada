@@ -1,6 +1,6 @@
 # V9 #1362 — duração de etapas no relatório analítico estatístico
 
-**Decisão PO 09/11/2026; estado: IMPLEMENTAÇÃO EM PR, NÃO VALIDADA POR RUN FÍSICO.** GOV-DOC-01.
+**Decisão PO 09/11/2026; estado: IMPLEMENTAÇÃO INTEGRADA via PR #1376 (merge master 06705cc5798e6fe0c46b60abd10249c7e4f0f907), SEM PROVA FÍSICA PÓS-MERGE AINDA.** GOV-DOC-01.
 
 ## Motivo, definição de medição e limites
 Até este PR, o relatório `mu-statistical-analysis.json/.md` tinha CPU/RAM, métricas e decisões, mas a duração só aparecia como `physicalCalibration`, `evidenceExport` e total no sidecar `runtime-diagnostics.json`. O PO decidiu exibir no próprio relatório a duração das etapas **realmente medidas**, não extrapoladas, sem reabrir escolhas científicas nem ativar modelo.

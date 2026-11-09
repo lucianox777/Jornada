@@ -159,7 +159,12 @@ public static class V9NestedCalibrationCli
                 try
                 {
                     if (args[0] == "--v9-calibrate")
-                        await SearchAsync(args[2], output, plan, connectionString, originalPlanBytes);
+                    {
+                        await using var diskSampler = new V9CalibrationDiskSampler(output,
+                            TimeSpan.FromMilliseconds(500));
+                        await SearchAsync(args[2], output, plan, connectionString, originalPlanBytes,
+                            diskSampler);
+                    }
                     else await ValidateAsync(args[2], args[3], output, plan, connectionString);
                 }
                 catch (Exception exception)
@@ -219,7 +224,7 @@ public static class V9NestedCalibrationCli
     }
 
     private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan,
-        string connectionString, byte[] originalPlanBytes)
+        string connectionString, byte[] originalPlanBytes, V9CalibrationDiskSampler diskSampler)
     {
         var totalWallClock = System.Diagnostics.Stopwatch.StartNew();
         await using var sourceStream = File.OpenRead(source);
@@ -278,6 +283,7 @@ public static class V9NestedCalibrationCli
             });
             File.AppendAllText(Path.Combine(output, "memory-progress.jsonl"), memory + Environment.NewLine);
             Console.Error.WriteLine(memory);
+            diskSampler.ObserveNow(); // diagnosis only; no changes to selection.
         }, frozenTfReferenceForRuleset: referenceFactory);
         var calibrationFinishedMs = elapsed.ElapsedMilliseconds;
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
@@ -310,10 +316,12 @@ public static class V9NestedCalibrationCli
         await WriteNewAsync(Path.Combine(output, "gain-by-batch.json"), result.Progress);
         V9StageDurationSummary? stageDurations = null;
         var evidenceExportBeforeAnalysisMs = elapsed.ElapsedMilliseconds - calibrationFinishedMs;
+        diskSampler.ObserveNow();
         if (plan.MuEstimationMethods is not null)
             stageDurations = await WriteMuStatisticalAnalysisAsync(output, plan, result, originalPlanBytes,
                 sourceSha, Sha(manifestBytes), producer.RootElement.GetProperty("seed").GetUInt64(),
-                inputPreparationMs, calibrationFinishedMs, evidenceExportBeforeAnalysisMs);
+                inputPreparationMs, calibrationFinishedMs, evidenceExportBeforeAnalysisMs,
+                diskSampler.Snapshot());
         process.Refresh();
         var searchExportFinishedMs = elapsed.ElapsedMilliseconds;
         await WriteNewAsync(Path.Combine(output, "runtime-diagnostics.json"), new
@@ -323,6 +331,7 @@ public static class V9NestedCalibrationCli
             totalMilliseconds = searchExportFinishedMs,
             totalWallClockIncludingInputPreparationMilliseconds = totalWallClock.ElapsedMilliseconds,
             stageDurations,
+            diskHighWaterOutputAtRuntime = diskSampler.Snapshot(),
             phasesMilliseconds = new
             {
                 physicalCalibration = calibrationFinishedMs,
@@ -363,7 +372,8 @@ public static class V9NestedCalibrationCli
         V9NestedCalibrationPlan plan, V9NestedCalibrationSearchResult result,
         byte[] originalPlanBytes, string sourceObservationsSha256,
         string producerManifestSha256, ulong producerSeed,
-        long inputPreparationMs, long physicalCalibrationMs, long evidenceExportBeforeAnalysisMs)
+        long inputPreparationMs, long physicalCalibrationMs, long evidenceExportBeforeAnalysisMs,
+        V9DiskHighWaterDiagnostic diskHighWater)
     {
         var reportAssemblyTimer = System.Diagnostics.Stopwatch.StartNew();
         var declared = V9MuEstimationSearchSpace.Enumerate(plan.MuEstimationMethods!);
@@ -593,6 +603,30 @@ public static class V9NestedCalibrationCli
         md.AppendLine("Essa amostra não certifica ausência de OOM durante a execução;"
             + " não é limite de RAM, previsão de falha nem resultado estatístico.");
         md.AppendLine();
+        md.AppendLine("## Diagnóstico de disco — pico lógico amostrado (somente saídas do Calibrador)");
+        md.AppendLine();
+        if (diskHighWater.PeakLogicalBytes is { } peak)
+        {
+            md.AppendLine("Pico de tamanho lógico acumulado dos arquivos sob o diretório de saída: `"
+                + (peak / 1048576d).ToString("F2", System.Globalization.CultureInfo.InvariantCulture)
+                + " MiB`; linha de base: `"
+                + (diskHighWater.BaselineLogicalBytes.GetValueOrDefault() / 1048576d)
+                    .ToString("F2", System.Globalization.CultureInfo.InvariantCulture)
+                + " MiB`; amostra atual: `"
+                + (diskHighWater.CurrentLogicalBytes.GetValueOrDefault() / 1048576d)
+                    .ToString("F2", System.Globalization.CultureInfo.InvariantCulture)
+                + " MiB`. Estado: `" + diskHighWater.Status + "`.");
+        }
+        else md.AppendLine("Pico de arquivo de saída: **NÃO MEDIDO**; indisponibilidade de telemetria.");
+        md.AppendLine("Escopo: `" + diskHighWater.MeasurementScope
+            + "`; amostragem a cada `" + diskHighWater.SamplingIntervalMilliseconds
+            + " ms` e ao fim de lotes. Sucessos: `" + diskHighWater.SuccessfulSamples
+            + "`; falhas: `" + diskHighWater.FailedSamples + "`.");
+        md.AppendLine("**NÃO MEDIDO:** espaço físico alocado (blocos), SQL Server/container, temporários externos,"
+            + " input do corpus e ocupação/livre do volume compartilhado. Arquivos efêmeros entre amostras"
+            + " podem escapar do pico. Não atribuir a este número consumo de todo o host;"
+            + " sem interferência em ajuste, FDR, ranking ou ativação.");
+        md.AppendLine();
         md.AppendLine("| Método | Cobertura | Min M | Min U | Cauda retida | Alpha | Threshold | Margem | TP | FP | Recall | FDR observada | Conflitos | Status | Snapshot |");
         md.AppendLine("|---|---:|---:|---:|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|");
         foreach (var e in result.Evaluations)
@@ -648,6 +682,7 @@ public static class V9NestedCalibrationCli
             cpuCapacity,
             ramCapacity,
             stageDurations,
+            diskHighWater,
             result.PlanSha256,
             // Hash-only lineage for the mandatory analytic-only V2 comparison.
             // No identities, source rows, alternative plan or model selection.
