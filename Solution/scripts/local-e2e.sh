@@ -477,7 +477,7 @@ cat "$OUT/other-contracts-e2e-evidence.json"
 
 # Opt-in: first 1k-person HTTP→Bronze→Processor→Silver→Gold/Serving volume gate.
 # Default remains OFF; no change to the existing small E2E acceptance.
-if [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT:-0}" != 0 ]]; then
+if [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT:-0}" == 1000 ]]; then
   [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT}" == 1000 ]] || {
     echo 'E2E HTTP volume: only the predeclared 1000-person phase is allowed.' >&2; exit 40;
   }
@@ -558,6 +558,16 @@ result={
 pathlib.Path(out).write_text(json.dumps(result,indent=2)+"\n",encoding="utf-8")
 print("HTTP 1k real SQL E2E: PASS, no synthetic identity data in summary.")
 PYVOLUME
+fi
+
+# Stage 2: ten distinct 1k ZIP deliveries = 10k people, with per-delivery
+# SQL reconciliation and explicit multi-batch latency observations.
+if [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT:-0}" == 10000 ]]; then
+  source "$ROOT/scripts/v9-http-volume-10k.sh"
+elif [[ "${JORNADA_E2E_HTTP_VOLUME_COUNT:-0}" != 0 &&
+        "${JORNADA_E2E_HTTP_VOLUME_COUNT:-0}" != 1000 ]]; then
+  echo 'E2E HTTP volume: unsupported phase; only 0, 1000, 10000.' >&2
+  exit 46
 fi
 
 echo 'LOCAL E2E: OK'

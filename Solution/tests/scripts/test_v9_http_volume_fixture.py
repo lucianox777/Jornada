@@ -65,6 +65,31 @@ class VolumeFixtureTest(unittest.TestCase):
             with self.assertRaises(FileExistsError):
                 mod.generate(SOURCE,Path(td)/"fixture",1,355)
 
+    def test_nonoverlapping_batches_reconcile_10000(self):
+        with tempfile.TemporaryDirectory() as td:
+            all_ids, all_cpf = set(), set()
+            for batch in range(10):
+                folder=Path(td)/f"batch-{batch}"
+                first=batch*1000+1
+                mod.generate(SOURCE,folder,1000,355,first)
+                persons=[json.loads(row) for row in (folder/"pessoas.jsonl").read_text().splitlines()]
+                records=[json.loads(row) for row in (folder/"registros.jsonl").read_text().splitlines()]
+                self.assertEqual(len(persons),1000)
+                self.assertEqual(len(records),1000)
+                self.assertEqual([p["idPessoaEntrega"] for p in persons],
+                                 [r["idPessoaEntrega"] for r in records])
+                self.assertTrue(all(valid_cpf(p["cpf"]) for p in persons))
+                for person in persons:
+                    self.assertNotIn(person["idPessoaEntrega"],all_ids)
+                    self.assertNotIn(person["cpf"],all_cpf)
+                    all_ids.add(person["idPessoaEntrega"])
+                    all_cpf.add(person["cpf"])
+            self.assertEqual(len(all_ids),10000)
+            self.assertEqual(len(all_cpf),10000)
+            with self.assertRaises(ValueError):
+                mod.generate(SOURCE,Path(td)/"outside",2,355,10000)
+
+
 
 if __name__ == "__main__":
     unittest.main()
