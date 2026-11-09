@@ -109,6 +109,9 @@ public sealed class V9CalibrationRuntimeScheduler
         var peakIncrement = Math.Max(0, sampleAfter.PeakResidentBytes -
             Math.Max(sampleBefore.ResidentBytes, sampleBefore.PeakResidentBytes));
         _workerIncrementBytes = EstimateIncrementBytes(peakIncrement);
+        if (inputs.Count > 1 && _budget.ConfiguredParallelism > 1 && ceiling > 1
+            && sampleAfter.EffectiveAvailableMemoryBytes is null)
+            throw new InvalidDataException("V9_RESOURCE_EXPLICIT_RAM_UNMEASURED");
         if (inputs.Count > 1 && _budget.ConfiguredParallelism > 0
             && sampleAfter.EffectiveAvailableMemoryBytes is { } available
             && available < RequiredFreeBytes(ceiling))
