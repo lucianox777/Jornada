@@ -1,0 +1,51 @@
+# GOV-V9-VALIDACAO-INTEGRAL-1345-20261109 — prova física no SHA master
+
+**Autoridade:** Product Owner, determinação explícita de 08/11/2026 BRT: **“Faça a validação integral da V nove.”** **Política:** GOV-DOC-01. **Status neste arquivo:** INICIADA / **NÃO CONCLUÍDA até prova a–m integral**. A decisão de validar **não** autoriza uso de dados reais, TEST/Gold, DT-15, HML/PROD, mudança de REF, modelo ativo, congelamentos científicos ou campainhas de 100k V9.
+
+## Escopo e hierarquia
+
+Cumprir [#1345](https://github.com/lucianox777/Jornada/issues/1345) e a [decisão de fechamento controlado](Decisao_V9_Fechamento_Controlado_20261108.md) por evidência real nos treze itens **a–m**, inclusive bundle Windows, cluster NODE1/NODE2, ingestão/ledger/API/Policy, upgrade SQL/inventário, validação independente, regressões V3/M/U/TF0/sobrenome, comparação histórica `f1bd50fd` com SHA final, V2 WITNESS+ANCHOR com CP somente sobre candidatas, segurança e acervo. **Não** inferir certificação científica a partir de `TRAIN` sintético.
+
+**Master antes da campanha de complemento:** `8ebbfc0702d6ba3e500ad8d73147612dfc536b1b` (PR #1358 integrada). Código de produto e parâmetros científicos devem permanecer idênticos após a PR de ativação dos testes. O relatório histórico a–m (5 PASS/4 NOT RUN/4 BLOCKED) é preservado no [relatório do fechamento](Relatorio_V9_Fechamento_Integracao_20261108.md) como fotografia `afbefd4c`, não como aceitação final.
+
+## Modalidade de execução por GitHub Actions existente
+
+Três workflows obrigatórios **já possuem** `push` com filtro de caminho e `workflow_dispatch`, mas seus testes não dispararam no último SHA documental por causa desses filtros: [Windows installer](../../.github/workflows/windows-production-installer.yml), [cluster](../../.github/workflows/cluster-topology.yml), [validação independente](../../.github/workflows/linkage-independent-validation.yml). Para que os três sejam efetivamente executados **no SHA pós-merge** sem alterar filtros nem funções, esta PR cria **um registro Markdown não executável** em `Solution/src/Jornada.Processor.Worker/VALIDACAO_INTEGRAL_V9_1345.md`. O diretório já aparece nos filtros **dos três**. É um marcador audível de disparo, **não código**, não altera projeto/compilação/parametrização. O classificador fail-closed do 30k poderá corretamente requerer full TRAIN para path não classificado: **não forçar, não editar nem contornar a decisão automática**.
+
+A prova física preexistente da testemunha V2 [workflow J](../../.github/workflows/v9-j-official-technical-physical-proof.yml) era restrita à antiga branch `feat/v9-multiparameter-v2-permanent-witness-20261107`, logo os sucessos do estágio não valem como prova na master final. **Ajuste limitado do harness de validação (sem alterar o motor):** habilitar a `master` como branch de push também para o workflow J, preservar a branch original e **todo** seu corpo científico (duas margens predeclaradas, 24 avaliações, 16 testemunhas/diagnósticos, CP8, corpus seed42 30k e artifacts históricos fixos). Estender **somente** o guard de ref para aceitar `refs/heads/master` ou a branch anterior; manter teste de SHA, REF, artifacts, preços, locks, nenhum TEST/Gold/ativação. Incluir o único marcador acima no filtro para que o proof tenha um disparo por esta integração. **Esta é validação do contrato já aprovado, não pesquisa nova**. A ampliação controlada de gatilho J é mudança técnica deliberada deste mandato, versionada e precedida pelo PO; NÃO modifica `v9-physical-seed42-probe.yml`, que permanece push-only master e com classificador por impacto.
+
+**Ressalva de risco:** alterar a lista de branches do workflow J também o faz reagir a mudanças futuras nas próprias fontes J já enumeradas; isso amplia cobertura de regressão técnica automática, sem critérios de seleção, sem relaxar segurança ou mudar o 30k. Não cancelar runs existentes, não concorrê-los artificialmente para alegar ganho de tempo, e respeitar gates de PR antes do merge.
+
+## Preflight comprovado no SHA anterior `8ebbfc`
+
+- [GitHub Actions 42552493643](https://github.com/lucianox777/Jornada/actions/runs/42552493643): probe **SUCCESS** com `classify impact SUCCESS`, `SQL físico 30k clean SUCCESS` e `full 30k TRAIN SKIPPED` legitimamente por diff documental; baseline física **real** [42547980370](https://github.com/lucianox777/Jornada/actions/runs/42547980370), SHA `5c9a1598`. Artifact de classificação **13645807098** audita `NOT_REQUIRED_FOR_THIS_DIFF` e baseline SHA.
+- [CI 42552493657](https://github.com/lucianox777/Jornada/actions/runs/42552493657): **SUCCESS** observado depois; [V3 direto 42552493632](https://github.com/lucianox777/Jornada/actions/runs/42552493632), [M/U seed42 42552493650](https://github.com/lucianox777/Jornada/actions/runs/42552493650), [TF0 42552493635](https://github.com/lucianox777/Jornada/actions/runs/42552493635), [sobrenome 42552493696](https://github.com/lucianox777/Jornada/actions/runs/42552493696) **SUCCESS**. [V3 amplo 42552493628](https://github.com/lucianox777/Jornada/actions/runs/42552493628) **IN_PROGRESS** na última consulta, sem veredito antecipado.
+- **E2E real:** CI 42552493657 `e2e-console`, `e2e-private-sql`, `e2e` SUCCESS com prova HTTP 401/403/400, idempotência, ingestão ZIP→Bronze/Silver/Gold/Serving, rollback/leases/replay e auditoria de supervisor. Não converter em validação de todas as transições de Policy sem mapear caso/asserção/arquivo.
+- **SQL:** CI 42552493657 `ddl-upgrade` **SUCCESS**, log **75/75** migrações, snapshot restaurado, `upgrade_to_370_verified=true` e `Jornada.SolutionSchema=3.70`. O manifesto em `Solution/database/migrations/manifest.txt` contém **75 entradas únicas e existentes** no tree deste SHA; CANDIDATE_INFO.json ainda declara `solution_schema=v3.70` e o bundle `3.70-config.1`, consistente com o consolidado e com migrações parciais 3.71 ainda sem rebind. Inventário de versão/efeitos e resultado físico específico pós-merge permanecem por atestar.
+- **Provas históricas não transferíveis:** em SHA `c6451cf2`, [Windows 42532243486](https://github.com/lucianox777/Jornada/actions/runs/42532243486) SUCCESS (artifact 13637966823), [cluster 42532243429](https://github.com/lucianox777/Jornada/actions/runs/42532243429) SUCCESS, [independente 42532243461](https://github.com/lucianox777/Jornada/actions/runs/42532243461) SUCCESS (artifact 13637679539). Seu código de produto permaneceu praticamente inalterado no diff até `8ebbfc`, mas **exige repetição no SHA final**.
+- **J:** ensaio estágio [42529456510](https://github.com/lucianox777/Jornada/actions/runs/42529456510), 2 margens, artifacts com recibos/hashes, `Role=WITNESS, Anchor=true`, 24 avaliações por margem, CP8, sem TEST/ativação; **não** conta como V2 física na master final.
+- **OOM #1302:** [42337308236](https://github.com/lucianox777/Jornada/actions/runs/42337308236) provou **160/160** sem OOM com margem **0,0001** no estágio #1300 (pico RSS **6.224.506.880 B**); não declarar reprodução exata do braço margem 0 nem defeito novo.
+- **Histórico solicitado `f1bd50fd3241f438dd082cd01b1753899a8972ad`:** merge de V3 com cinco margens da PR #1298. O comparador `v9-j-historical-analytic-comparison.py` exige um par real plano+análise no mesmo frame, hash de split e testemunhas; o workflow J existente usa **baseline imutável `db75f3a3`**, não `f1bd50fd`. Essa comparação requerida permanece **NOT RUN/BLOCKED** enquanto não houver inputs comparáveis e prova; não mudar fonte baseline para forçar resultado.
+- **Limites:** [#1344](https://github.com/lucianox777/Jornada/issues/1344) PDFs adiados, [#1349](https://github.com/lucianox777/Jornada/issues/1349) 100k era **V8 operacional** e não V9, #1352 e #1356 pesquisas DRAFT congeladas; nenhuma alteração na ciência nem autorização de produção.
+
+## Matriz de aceite para o novo SHA master a ser gerado
+
+| Item | Prova obrigatória | Ponto de controle |
+| --- | --- | --- |
+| a | CI completa | `jornada-ci` `SUCCESS` no exato SHA; ler jobs inclusive SQL, E2E, CodeQL. |
+| b | Bundle instalador Windows | `jornada-windows-production-installer`, job `windows-production-bundle` e digest artifact no SHA final. |
+| c | Cluster/topologia | `jornada-cluster-topology` com NODE1/NODE2 e suas asserções no SHA final. |
+| d | E2E app/console/SQL privado | `e2e`, `e2e-console`, `e2e-private-sql` + outputs no SHA final. |
+| e | Ingestão, ledger, API e Policy | Evidência separada por superfície/cenário, HTTP negativo, idempotência e audit journal sem residuais. |
+| f | SQL upgrade/inventário | `ddl-upgrade`, `integration-sql`, 75/75 manifests únicos e versionamento 3.70 preservado. |
+| g | Independente | `jornada-linkage-independent-validation` + artifacts, não autoriza FDR real. |
+| h | 30k | `v9-physical-seed42-probe` `SUCCESS`; registrar full TRAIN **SUCCESS ou SKIPPED** conforme classificador; não fingir. |
+| i | V3/M/U/TF0/sobrenome | Cada workflow/role no SHA final com status e artifacts; `TRAIN` não confirmatório. |
+| j | Analítico histórico f1bd50fd×SHA final | Pares reais comparáveis ou **NÃO COMPARÁVEL** com prova; sem seleção de modelo. |
+| k | V2 testemunha J+CP8 | `v9-j-official-technical-physical-proof`, PRIMARY+SENSITIVITY, recibo com hash e paridade. |
+| l | Licença/segurança/push-only | `security-analysis`, `security-codeql`, licença e invariantes de ref. |
+| m | Acervo/PRODAM/triagem/precedência | Auditoria 31 ocorrências, GOV-DOC-01 e limitações, PRs de pesquisa fora de fechamento. |
+
+**Critério de conclusão integral:** todos os a–m obrigatórios com prova verificável e sem falha impeditiva. `NOT RUN`, `BLOCKED` ou `FAIL` impedem `CONCLUÍDO`. A documentação do estado **precisa ser atualizada no repositório por PR com SHA e run IDs** antes de atestar encerramento. Evitar ciclo infinito de retestes gerados por simples aditamento documental: manter SHA físico de engenharia explícito e usar classificador formal para qualquer SHA apenas documental subsequente. Sem afirmar que um job SKIPPED executou.
+
+**Índice:** [Indice_Decisoes_Vigentes.md](Indice_Decisoes_Vigentes.md), [acervo](Indice_Acervo_Documental.md), [#1345](https://github.com/lucianox777/Jornada/issues/1345).
