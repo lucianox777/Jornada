@@ -360,7 +360,7 @@ public static class V9AdaptiveCalibrationCoordinator
                 lock (activeConnections) activeConnections.Remove(worker);
                 if (ownsConnections) await worker.DisposeAsync();
             }
-        }, cancellationToken, resourceScheduler);
+        }, resourceScheduler, cancellationToken);
         foreach (var run in runs)
         {
             measurements.AddRange(run.Measurements); frozen.AddRange(run.Frozen); timings.AddRange(run.Timings);
