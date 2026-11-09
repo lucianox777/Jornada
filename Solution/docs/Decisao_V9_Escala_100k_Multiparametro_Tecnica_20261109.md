@@ -1,6 +1,6 @@
 # V9 100k — implementação diagnóstica multiparâmetro, sem certificação
 
-**Mandato PO 09/11/2026, #1349. ESTADO: PR TÉCNICA, NÃO EXECUTADO, AGUARDA CHECKS E PREFLIGHT.** GOV-DOC-01.
+**Mandato PO 09/11/2026, #1349. ESTADO: IMPLEMENTAÇÃO INTEGRADA via PR #1372, master `1813f2f10d57cce964c9dcfe50974be89ddff5bb`; TESTE FÍSICO 100K NÃO EXECUTADO; segurança #1253 pendente.** GOV-DOC-01.
 
 ## Contexto e justificativa
 O SQL SCALE 100k existente é V8 e não valida V9. O J oficial tem prova física de 24 hipóteses em 30k no [run 42574801338](https://github.com/lucianox777/Jornada/actions/runs/42574801338); manter intactas as evidências, pins e fingerprints históricos. O pin IBGE 30k é uma *referência* fixa: NÃO é sinônimo do tamanho do novo corpus de treinamento. O método C# `V9NestedCalibrationCli.SearchAsync` recebe a proveniência TRAIN do `ObservationCapDeclaration`, independentemente de `PinnedIbgeBootstrap`, que conserva a referência externa IBGE 30k. Assim pode-se testar 100k sintético sem reescrever a referência.
@@ -23,3 +23,10 @@ O workflow é **somente workflow_dispatch**, não executa automaticamente no mer
 ## Enriquecimento de rastreabilidade técnica da PR (sem alterar ciência)
 
 A evidência agregada é vinculada ainda a `codeSha` completo e `workflowRunId` efetivo do workflow (argumentos **não sensíveis**, SHA/run apenas), além de SHA dos planos/corpora. O auditor expõe `conditionalClusterCpFdrUpperNotCertified` somente como diagnóstico **condicional**, não como certificação geral de FDR. Ausência de valores não é inferida como zero. Esses campos não interferem em seleção científica ou motor operacional.
+
+
+## Teto de registros — interpretação vinculante
+
+**Não há teto universal 30k/100k na calibração V9.** A escolha 100k é específica deste workflow e não reduz a liberdade do único Calibrador C# para outros tamanhos declarados e auditados. `PinnedIbgeBootstrap.People=30000` refere-se exclusivamente à origem da referência histórica IBGE; os fingerprints do novo corpus são refeitos, sem adulterar referência nem código científico. Requisitos de capacidade da máquina (24 GiB RAM/40 GiB disco) não são contagem máxima de identidades. [Decisão vigente de 05/11 ratificada em 09/11](DC-V9-CALIBRACAO-SEM-EXCLUSIVIDADE-30K-20261105.md).
+
+A via manual 100k está integrada, mas permanece SEM EXECUÇÃO FÍSICA até gates do SHA, preflight #1253 e infraestrutura. GOV-DOC-01.

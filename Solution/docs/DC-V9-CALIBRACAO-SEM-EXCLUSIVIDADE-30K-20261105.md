@@ -28,3 +28,14 @@ Para novo experimento não-30k, usar um plano/corpus próprios, com proveniênci
 ### Correção do gate físico em 05/11/2026
 
 O primeiro 30k automático da PR #1284 detectou corretamente um erro de contrato: o manifesto histórico de geração **não contém** `people`. A contagem agregada existe em `gabarito.json`, cujo SHA está autenticado pelo `generation-manifest.json` pinado no plano. A leitura agora autentica os bytes do gabarito antes de extrair exclusivamente o inteiro agregado `people`, confrontando versão do gerador e seed; não utiliza dados individuais TEST na seleção nem modifica os manifests históricos. A ausência, adulteração ou número não positivo reprova o estudo.
+
+
+## Ratificação do PO em 09/11/2026 — nenhum teto geral de registros
+
+Continua VIGENTE a decisão de 05/11: **não existe limite universal fixo de 30.000 ou 100.000 pessoas-base/registros para executar o Calibrador V9**. O censo autenticado deve bater com a população declarada no manifesto de cada estudo, e não com constante histórica.
+
+As constantes de 30k em `v9-tf-pin-source.py`, `v9-tf-option-grid.py`, `V9TfPinnedIbgePreflightCli.cs` e `CompositeNominalTermFrequencyContractV9.CanonicalBootstrapPeople` fixam a **referência TF/IBGE sintética histórica** e a regressão 30k seed42, não o total máximo do corpus de um novo estudo. `PinnedIbgeBootstrap.People=30000` descreve a origem da referência; `ObservationCapDeclaration` autentica os SHA/manifesto do corpus de execução, que pode ter mais pessoas-base. Nunca alterar os pins históricos nem reutilizar o plano de um corpus contra outro.
+
+O workflow `v9-multiparameter-100k-technical.yml`, incorporado na PR #1372 (master `1813f2f10d57cce964c9dcfe50974be89ddff5bb`), tem 100k como **escopo de campanha técnica particular**, não teto do produto. RAM >=24 GiB e disco >=40 GiB são requisitos operacionais conservadores do runner para essa prova, não limites do número de registros. O limite sintético por identidade-base (cap 4), isolamento de TEST, qualidade de evidência, risco e segurança permanecem.
+
+**Precedência:** ratifica a decisão preexistente, não inaugura mudança científica. Corrige interpretação ambígua no relatório de preflight #1349 de 09/11. **Status:** motor C# genérico admite contagem variável declarada; 100k V9 físico ainda NÃO EXECUTADO, #1253 continua bloqueadora. GOV-DOC-01.
