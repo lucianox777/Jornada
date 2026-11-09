@@ -1,0 +1,80 @@
+name: v9-github-standard-runner-100k-resource-profile
+
+# The ONLY automatic 100k operation: deterministic SYNTHETIC GENERATION,
+# not V9 SQL, fit, model selection, FDR, Gold, TEST or model activation.
+on:
+  push:
+    branches: [master]
+    paths:
+      - '.github/workflows/v9-github-standard-runner-100k-resource-profile.yml'
+      - 'Solution/scripts/v9-standard-100k-capacity.py'
+      - 'Solution/scripts/v9-standard-100k-corpus-profile.py'
+      - 'Solution/tests/scripts/test_v9_standard_100k_capacity.py'
+      - 'Solution/tests/scripts/test_v9_standard_100k_corpus_profile.py'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: v9-standard-100k-profile-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  synthetic-generator-only:
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Prove exact master SHA; run offline tests and capacity baseline; NO SQL
+        run: |
+          set -euo pipefail
+          test "$(git -C .. rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_standard_100k_capacity.py' -v
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_standard_100k_corpus_profile.py' -v
+          python3 -m unittest discover -s tests/scripts -p 'test_v9_scale_100k_technical_plan.py' -v
+          python3 -m py_compile scripts/v9-standard-100k-capacity.py scripts/v9-standard-100k-corpus-profile.py
+          mkdir -p .local/v9-standard-100k-profile
+          python3 scripts/v9-standard-100k-capacity.py --stage before-sql \
+            --output .local/v9-standard-100k-profile/host-capacity.json
+      - name: Compile deterministic synthetic CSharp generator only
+        working-directory: Solution
+        run: dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+      - name: Reproduce 100000 synthetic identities on free GitHub runner, NO SQL
+        timeout-minutes: 20
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-standard-100k-profile"
+          /usr/bin/time -f '%M' -o "$root/generator-peak-kib.txt" \
+            dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed 42 \
+            --out "$root/people-100k" > /dev/null
+          python3 scripts/v9-standard-100k-corpus-profile.py \
+            --corpus-root "$root/people-100k" \
+            --gnu-time-kib-file "$root/generator-peak-kib.txt" \
+            --output "$root/corpus-resource-profile.json"
+      - name: Export aggregated RAM/disk profile only
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-standard-100k-generator-only-${{ github.sha }}
+          retention-days: 14
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-standard-100k-profile/host-capacity.json
+            Solution/.local/v9-standard-100k-profile/corpus-resource-profile.json
