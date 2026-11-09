@@ -35,7 +35,7 @@ public sealed class V9CalibrationRuntimeScheduler
     private int _active;
     private int _maxActive;
     private int _samples;
-    private readonly SemaphoreSlim _admission = new(1, 1);
+    private readonly object _admissionGate = new();
     private readonly List<V9CalibrationRuntimeSchedulingReceipt> _receipts = [];
 
     public IReadOnlyList<V9CalibrationRuntimeSchedulingReceipt> Receipts => _receipts.AsReadOnly();
@@ -137,8 +137,7 @@ public sealed class V9CalibrationRuntimeScheduler
     /// </summary>
     public static long EstimateRequiredDiskBytes(long inputCorpusBytes)
     {
-        if (inputCorpusBytes < 0)
-            throw new ArgumentOutOfRangeException(nameof(inputCorpusBytes));
+        ArgumentOutOfRangeException.ThrowIfNegative(inputCorpusBytes);
         if (inputCorpusBytes > (long.MaxValue - V9CalibrationResourceGovernor.GiB) / 3)
             return long.MaxValue;
         return Math.Max(V9CalibrationResourceGovernor.MinimumFreeDiskBytes,
@@ -147,8 +146,7 @@ public sealed class V9CalibrationRuntimeScheduler
 
     public static long EstimateIncrementBytes(long measuredPeakDeltaBytes)
     {
-        if (measuredPeakDeltaBytes < 0)
-            throw new ArgumentOutOfRangeException(nameof(measuredPeakDeltaBytes));
+        ArgumentOutOfRangeException.ThrowIfNegative(measuredPeakDeltaBytes);
         if (measuredPeakDeltaBytes > (long.MaxValue - 1) / 3)
             return long.MaxValue;
         return Math.Max(MinimumIncrementBytes, (measuredPeakDeltaBytes * 3 + 1) / 2);
@@ -199,9 +197,9 @@ public sealed class V9CalibrationRuntimeScheduler
     {
         for (;;)
         {
-            await _admission.WaitAsync(token);
-            var keep = false;
-            try
+            token.ThrowIfCancellationRequested();
+            bool admitted = false;
+            lock (_admissionGate)
             {
                 var now = Read();
                 RequireDisk(now);
@@ -215,22 +213,19 @@ public sealed class V9CalibrationRuntimeScheduler
                 {
                     _active++;
                     _maxActive = Math.Max(_maxActive, _active);
-                    keep = true;
+                    admitted = true;
                 }
                 else if (_active == 0)
                     throw new InvalidDataException("V9_RESOURCE_RUNTIME_RAM_NOT_ADMISSIBLE");
             }
-            finally { _admission.Release(); }
-            if (keep) return;
+            if (admitted) return;
             await Task.Delay(150, token); // wait for an already admitted worker
         }
     }
 
     private void Exit()
     {
-        _admission.Wait();
-        try { _active--; }
-        finally { _admission.Release(); }
+        lock (_admissionGate) { _active--; }
     }
 
     private V9CalibrationRuntimeSchedulingReceipt Receipt(int ceiling, long before, long after, int pilot)
