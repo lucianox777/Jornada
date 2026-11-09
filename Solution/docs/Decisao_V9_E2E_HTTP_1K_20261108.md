@@ -1,0 +1,19 @@
+# GOV-V9-E2E-HTTP-1K-20261108 — primeiro ensaio integral de ingestão em escala
+
+**Contexto:** após a integração técnica da V9 e a [CI completa verde no commit `3e5885c2`](https://github.com/lucianox777/Jornada/actions/runs/42536491452), o PO determinou dar continuidade aos testes end-to-end grandes e verificar resultados, não somente confirmar que o Runner calibra em 100k SQL. [Issue de cobertura #1348](https://github.com/lucianox777/Jornada/issues/1348) requer rampas 1k→10k→100k efetivamente via HTTP.
+
+**Decisão operacional de engenharia (GOV-DOC-01):** a etapa inicial 1k usará **SEHAB/AA01 v2**, fixture de origem versionada, **1.000 identidades e 1.000 registros totalmente sintéticos e únicos**, seed355, ZIP determinístico validado pelo script existente, SQL descartável `JornadaE2E`, API HTTP real, Processor, Silver, Gold e Serving. Usará o script E2E operacional já aprovado com extensão por variável **`JORNADA_E2E_HTTP_VOLUME_COUNT=1000`**, normalmente desabilitada; assim não muda o teste obrigatório pequeno da master. CI da branch é exclusivamente técnico e **não** roda na master automaticamente.
+
+## Implementação rastreável
+- `Solution/scripts/v9-http-volume-fixture.py`: replica o esquema AA01 de teste sem tocar a fixture canônica; gera CPF de teste sintético e válido, identificadores de pessoa, registro, transação e atributos transversais exclusivos, por seed e índice. **Limite máximo na primeira etapa: 1000**; 10k e 100k exigem revisão e novo commit/gate, não só variável de ambiente.
+- `Solution/tests/scripts/test_v9_http_volume_fixture.py`: testes offline negativos de contagem, seed e diretório já existente; positivos de determinismo, 1000 registros, unicidade de CPF/IDs e ligações entre arquivos.
+- `Solution/scripts/local-e2e.sh`: pós-aceite funcional padrão, faz ZIP contendo 1k, POST real com autenticação e resposta 202, acompanha a entrega até `PROCESSADA`, reconcilia **1 Bronze, 1.000 Silver pessoas, 1.000 fatos Silver, 2.000 itens processados, 1.000 Gold pessoas e 1.000 Serving fatos**, e repete HTTP com mesma chave para comprovar uma única entrega e contagens idênticas.
+- `.github/workflows/v9-http-volume-1k-e2e-technical.yml`: executa o ensaio apenas por **push da branch `test/v9-e2e-http-1k-20261108`** em runner efêmero, pin de Actions por SHA, restore NuGet lock, checagem de SHA exato, timeout, upload restrito **somente ao summary JSON**, limpeza SQL. Nunca armazenar ZIP, JSONL, dados individuais ou senhas nos artifacts.
+- Relatório sintético de saída: `Solution/.local/e2e/http-volume-1k-summary.json`, SHA exato, 1.000 e contagens reconciliação, tempo/throughput da fase e replay; **p95 HTTP NÃO MEDIDO** com uma única remessa. Não transformar duração de uma remessa em p95 ou TP/FP estatísticos.
+
+## Precedência, impactos e limites
+Este instrumento é **uma prova E2E HTTP volumétrica técnica**, diferente do [SCALE medium 100k SQL/Runner](Resultado_V9_Scale_Medium_100k_20261108.md) e do [calibrador V9 30k seed42](Decisao_V9_Teste_Geral_E2E_Pos_Merge_20261108.md). Preserva `jornada-ci` master, o gate 30k push-only, base técnica seed42 e nenhum ajuste científico em `plan.json`/seleção. Nenhum TEST/Gold científico, HML, produção, DT-15, ativação operacional ou credenciais reais. Todos os dados são artificiais em DEV descartável; nomes e CPFs gerados não são documentação ou informação pessoal de cidadãos.
+
+**Progresso:** código de ensaio proposto em PR de stage; **NÃO declarar PASS antes dos jobs e artifacts do HEAD exato**. Em caso de erro, corrigir na branch, nunca permitir que a falha fique mascarada. Uma etapa 10k só poderá iniciar após critérios da etapa 1k e redefinição de limites de payload, timeouts e evidência por múltiplas remessas.
+
+**Rastreabilidade:** [issue #1348](https://github.com/lucianox777/Jornada/issues/1348), [teste geral #1345](https://github.com/lucianox777/Jornada/issues/1345), índice GOV-DOC-01.
