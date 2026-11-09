@@ -77,10 +77,11 @@ public sealed class V9CalibrationDiskSampler : IAsyncDisposable
                 }
             }
         }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException
-            or InvalidDataException or OverflowException)
+        catch (Exception exception) when (exception is not OutOfMemoryException)
         {
-            // Telemetry MUST NOT alter scientific outcomes or leak private paths/errors.
+            // Best-effort diagnostic: filesystem/permission/scanner problems MUST NOT
+            // replace calibration outcomes or expose private paths in public logs.
+            // Genuine process OOM is not a recoverable telemetry condition.
             lock (_gate) _failed++;
         }
     }
