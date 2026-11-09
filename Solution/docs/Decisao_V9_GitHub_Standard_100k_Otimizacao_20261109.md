@@ -1,3 +1,5 @@
+> **PRECEDÊNCIA OPERACIONAL SUPERVENIENTE (PO 09/11/2026):** [GOV-V9-100K-RECORRECURSOS-20261109](Decisao_V9_100K_Orcamento_Adaptativo_Execucao_20261109.md) substitui, **somente no workflow físico manual 24×100k**, o SQL fixo de 4096 MiB e contêiner 5 GiB por orçamento por run calculado após geração com reserva do Worker. O perfil 100k gerador desta decisão permanece **evidência histórica válida, não orçamento do fitting**. Nenhuma liberação de #1253 ou prova 24×100k decorre disso; confirmação de implementação condicionada a merge e CI. GOV-DOC-01.
+
 # GOV-V9-GITHUB-STANDARD-100K-OPT-20261109 — executar no GitHub padrão sem servidor do PO
 
 **Autoridade:** Product Owner, 09/11/2026. **Estado:** IMPLEMENTADO via PR #1379, master `b4902dbe0f0ee815eafd4aa48fa216be23c9c382`; gerador sintético 100k PASS no runner padrão (run 42664056609), **sem campanha física V9 SQL+24 opções nem certificação**. **Regra:** GOV-DOC-01.
