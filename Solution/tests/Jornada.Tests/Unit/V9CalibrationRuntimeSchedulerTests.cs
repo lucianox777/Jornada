@@ -67,14 +67,13 @@ public sealed class V9CalibrationRuntimeSchedulerTests
         var scheduler = new V9CalibrationRuntimeScheduler(budget, ".", 20,
             () => Sample(5));
         var called = new List<int>();
-        Assert.That(async () => await scheduler.MapAsync(Enumerable.Range(0, 9).ToArray(),
-            (i, _) =>
-            {
-                called.Add(i);
-                return Task.FromResult(i);
-            }, CancellationToken.None),
-            Throws.TypeOf<InvalidDataException>()
-                .With.Message.Contains("EXPLICIT_WORKERS"));
+        var failure = Assert.ThrowsAsync<InvalidDataException>(async () =>
+        {
+            await scheduler.MapAsync(Enumerable.Range(0, 9).ToArray(),
+                (i, _) => { called.Add(i); return Task.FromResult(i); },
+                CancellationToken.None);
+        });
+        Assert.That(failure!.Message, Does.Contain("EXPLICIT_WORKERS"));
         Assert.That(called, Is.EqualTo(new[] { 0 })); // pilot, no second worker
         Assert.That(budget.ConfiguredParallelism, Is.EqualTo(8));
     }
@@ -86,10 +85,13 @@ public sealed class V9CalibrationRuntimeSchedulerTests
         var scheduler = new V9CalibrationRuntimeScheduler(budget, ".", 20,
             () => Sample(null));
         var called = 0;
-        Assert.That(async () => await scheduler.MapAsync(new[] { 0, 1, 2, 3 },
+        var failure = Assert.ThrowsAsync<InvalidDataException>(async () =>
+        {
+            await scheduler.MapAsync(new[] { 0, 1, 2, 3 },
                 (i, _) => { Interlocked.Increment(ref called); return Task.FromResult(i); },
-                CancellationToken.None),
-            Throws.TypeOf<InvalidDataException>().With.Message.Contains("RAM_UNMEASURED"));
+                CancellationToken.None);
+        });
+        Assert.That(failure!.Message, Does.Contain("RAM_UNMEASURED"));
         Assert.That(called, Is.EqualTo(1));
     }
 
@@ -113,9 +115,12 @@ public sealed class V9CalibrationRuntimeSchedulerTests
         Assert.That(receipt.WorkersCeiling, Is.EqualTo(2)); // reserve one SQL session
         var explicitBudget = V9CalibrationResourceGovernor.Decide(4, 8, 18 * GiB, null, 10 * GiB);
         var explicitScheduler = new V9CalibrationRuntimeScheduler(explicitBudget, ".", 3, () => Sample(15));
-        Assert.That(async () => await explicitScheduler.MapAsync(new[] { 0, 1, 2, 3 },
-                (i, _) => Task.FromResult(i), CancellationToken.None),
-            Throws.TypeOf<InvalidDataException>().With.Message.Contains("SQL_CONNECTION"));
+        var failure = Assert.ThrowsAsync<InvalidDataException>(async () =>
+        {
+            await explicitScheduler.MapAsync(new[] { 0, 1, 2, 3 },
+                (i, _) => Task.FromResult(i), CancellationToken.None);
+        });
+        Assert.That(failure!.Message, Does.Contain("SQL_CONNECTION"));
     }
 
     [Test]
@@ -126,10 +131,13 @@ public sealed class V9CalibrationRuntimeSchedulerTests
         var scheduler = new V9CalibrationRuntimeScheduler(budget, ".", 20,
             () => Sample(10, Interlocked.Increment(ref reads) <= 1 ? 9 : 1));
         var called = 0;
-        Assert.That(async () => await scheduler.MapAsync(new[] { 0, 1, 2 },
+        var failure = Assert.ThrowsAsync<InvalidDataException>(async () =>
+        {
+            await scheduler.MapAsync(new[] { 0, 1, 2 },
                 (i, _) => { Interlocked.Increment(ref called); return Task.FromResult(i); },
-                CancellationToken.None),
-            Throws.TypeOf<InvalidDataException>().With.Message.Contains("DISK_BELOW_RESERVE"));
+                CancellationToken.None);
+        });
+        Assert.That(failure!.Message, Does.Contain("DISK_BELOW_RESERVE"));
         Assert.That(called, Is.EqualTo(1));
     }
 }
