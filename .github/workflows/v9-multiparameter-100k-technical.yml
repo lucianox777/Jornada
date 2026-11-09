@@ -25,19 +25,16 @@ jobs:
   physical-100k:
     if: ${{ inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: V9 multiparameter 100k on frozen V2 witness and V3/TF/MU
-    # Personal public repository: GitHub larger runners are NOT available
-    # (GitHub Team/Enterprise organization plans only). Never use standard
-    # ubuntu-24.04: it fails the 24GiB/40GiB fail-closed preflight.
-    # Only the PO may provision/authorize an isolated EPHEMERAL Linux x64
-    # self-hosted VM with custom label, >=24GiB RAM, >=40GiB free disk and
-    # Docker. NEVER register an unisolated persistent developer machine.
-    # This job is manual-only, branch master SHA pinned, owner-only,
-    # and cannot schedule without that exact custom label.
-    runs-on: [self-hosted, linux, x64, jornada-v9-100k-ephemeral]
+    # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
+    # This is an attempted capacity optimization, NOT evidence of a 100k PASS.
+    # Strict manual owner-only dispatch still requires cleared security preflight.
+    runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
       EXACT_SHA: ${{ inputs.expected_sha }}
       GH_TOKEN: ${{ github.token }}
+      # SQL-only runtime limit; scientific plans and hypotheses unchanged.
+      V9_SQL_MEMORY_LIMIT_MB: "4096"
     defaults:
       run:
         working-directory: Solution
@@ -57,18 +54,9 @@ jobs:
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
           python3 -m py_compile scripts/v9-scale-100k-technical-plan.py scripts/v9-scale-100k-technical-audit.py
-          python3 - <<'PY'
-          import os,shutil
-          mem={}
-          for line in open("/proc/meminfo"):
-              if ":" in line:
-                  k,v=line.split(":",1)
-                  mem[k]=int(v.strip().split()[0])*1024
-          free_disk=shutil.disk_usage(os.getcwd()).free
-          assert mem.get("MemTotal",0) >= 24*1024**3, "FAIL: 100k requires >=24 GiB physical RAM; no SQL or corpus started"
-          assert free_disk >= 40*1024**3, "FAIL: 100k requires >=40 GiB free disk; no SQL or corpus started"
-          print("PASS: memory/disk baseline sufficient for authorized 100k attempt; not a guarantee of success")
-          PY
+          mkdir -p "$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-standard-100k-capacity.py --stage before-sql \
+            --output "$PWD/.local/v9-100k-technical/capacity-before-sql.json"
       - name: Start masked disposable SQL Server
         run: bash scripts/v9-tf-start-disposable-sql.sh
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # SHA pinned
@@ -94,6 +82,12 @@ jobs:
           python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
           mkdir -p "$root/bound"
           python3 scripts/v9-scale-100k-technical-plan.py             --artifact-zip "$root/historical-official.zip"             --corpus-root "$root/people-100k"             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
+      - name: Fail closed if standard runner has insufficient remaining resources
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-standard-100k-capacity.py --stage before-calibration \
+            --output "$root/bound/capacity-before-calibration.json"
       - name: Run physical V9 CSharp on all 24 official multiparameter hypotheses
         timeout-minutes: 305
         run: |
@@ -114,6 +108,8 @@ jobs:
           retention-days: 30
           if-no-files-found: warn
           path: |
+            Solution/.local/v9-100k-technical/capacity-before-sql.json
+            Solution/.local/v9-100k-technical/bound/capacity-before-calibration.json
             Solution/.local/v9-100k-technical/bound/plan.json
             Solution/.local/v9-100k-technical/bound/binding-receipt.json
             Solution/.local/v9-100k-technical/bound/technical-audit.json

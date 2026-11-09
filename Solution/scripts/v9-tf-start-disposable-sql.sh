@@ -10,6 +10,16 @@ command -v openssl >/dev/null
 command -v docker >/dev/null
 
 sql_name="v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+# Only the proposed standard 100k technical workflow configures this budget.
+# Existing physical 30k workflows remain unchanged when absent.
+sql_memory_args=()
+if [[ -n "${V9_SQL_MEMORY_LIMIT_MB:-}" ]]; then
+  [[ "$V9_SQL_MEMORY_LIMIT_MB" =~ ^[0-9]+$ ]] &&
+    (( 2048 <= V9_SQL_MEMORY_LIMIT_MB && V9_SQL_MEMORY_LIMIT_MB <= 4096 )) || {
+      echo "FAIL: invalid SQL runtime memory budget" >&2; exit 1;
+    }
+  sql_memory_args=(--memory 5g)
+fi
 sql_password="V9aA1!$(openssl rand -hex 24)"
 # Register masking BEFORE any Docker operation that might print expanded args.
 printf '::add-mask::%s\n' "$sql_password"
@@ -25,7 +35,11 @@ sql_env_file="$(mktemp "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/jornada-v9-sql-env.XXXXX
 chmod 600 "$sql_env_file"
 trap 'rm -f -- "$sql_env_file"' EXIT
 printf 'MSSQL_SA_PASSWORD=%s\n' "$sql_password" > "$sql_env_file"
+if [[ -n "${V9_SQL_MEMORY_LIMIT_MB:-}" ]]; then
+  printf 'MSSQL_MEMORY_LIMIT_MB=%s\n' "$V9_SQL_MEMORY_LIMIT_MB" >> "$sql_env_file"
+fi
 docker run --detach --rm \
+  "${sql_memory_args[@]}" \
   --name "$sql_name" \
   --publish 127.0.0.1:1433:1433 \
   --env ACCEPT_EULA=Y --env MSSQL_PID=Developer \
