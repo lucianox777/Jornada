@@ -39,3 +39,14 @@
 6. Elaborar relatório final somente após as provas. **Estado atual: NÃO CONCLUÍDO.**
 
 **Precedência:** [GOV-V9-FECHAMENTO-20261109](Decisao_V9_Fechamento_Mandato_20261109.md); [mandato a–m](Decisao_V9_Teste_Geral_E2E_Pos_Merge_20261108.md); [índice](Indice_Decisoes_Vigentes.md). GOV-DOC-01.
+
+## Auditoria documental de V2 WITNESS+ANCHOR — segundo checkpoint
+
+Consulta ao conteúdo indexado do repositório identificou:
+
+- `Decisao_V9_Mandato_Operacional_Frentes_07_11_2026.md`: decisão explícita do PO exige V2 com **todos os parâmetros históricos exatos e explícitos** no `plan.json` oficial, papel WITNESS+ANCHOR, mesmo recorte físico, fora da seleção e da multiplicidade CP.
+- `Decisao_V9_Compatibilidade_Opcional_Parametros_20261108.md`: contrato de compatibilidade determina `presente = valor do plan.json`, `ausente = default histórico`, `desconhecido = recusa`; não revoga V2 explícita em estudos J que a declarem. **A permissão de omissão para plano legado não prova conformidade do plano científico J.**
+- `Indice_Decisoes_Vigentes.md`: descreve proposta #1337 com 24 braços e CP candidata 16 e registra expressamente que faltam valores V2 históricos, paridade no mesmo SQL e prova física.
+- Busca textual indexada `path:plan.json WITNESS` não retornou resultados. **Ausência de resultado na busca não prova inexistência de arquivo**; é necessário localizar o plano por árvore/artefatos e conferir valores e SHA.
+
+**Resultado de k:** **NÃO VERIFICADO**, não PASS. **Ação exigida:** extrair o `plan.json` científico efetivamente executado (arquivo e SHA), comparar campo a campo com builder V2 histórico autenticado, confirmar WITNESS+ANCHOR, frame idêntico e multiplicidade CP apenas de candidatas; publicar diferença e teste reprodutível.
