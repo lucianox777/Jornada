@@ -22,3 +22,16 @@
 Ler corpo/comentários das P1, cruzar com SHA master e evidências, classificar P0/P1/P2/resolvida/duplicada definitivamente, registrar links e justificativas, e só então considerar encerramento individual. Esta triagem preliminar **não satisfaz sozinha** o requisito de triagem completa do mandato.
 
 **Referência:** [GOV-V9-FECHAMENTO-20261109](Decisao_V9_Fechamento_Mandato_20261109.md), [matriz a–m](V9_Fechamento_Checkpoint_20261109.md).
+
+## Leitura individual — primeiro lote de P1 (corpos oficiais, 09/11/2026)
+
+| Issue | Evidência documental confirmada | Classificação após leitura | Verificação pendente |
+| --- | --- | --- | --- |
+| #1345 | Exige teste geral E2E a–m no SHA exato da master; histórico após #1343 identificou 2 falhas de reflection em 2.155 testes e falha de source sanity. | **P1 — requisito explícito de fechamento** | Correlacionar remediação, CI, 30k e matriz final no SHA final. |
+| #1302 | Incidente OOM físico run 42283035832 (exit 134); decisão RAM-first sem spill, sem mudar resultados. | **P1 — risco operacional histórico, bloqueio atual NÃO CONFIRMADO** | Conferir prova física após #1300, pico RAM e cardinalidade. |
+| #1257 | Risco estatístico de comparação TF×TF0 sob `AbstainCandidate`; auditoria por slot não equivale a união por par. | **P1 — risco estatístico não certificado** | Confirmar auditoria de pares e sensibilidade, sem inferir FDR/recall. |
+| #1089 | Decisão de Calibrador C# único, engenharia reversa, snapshot ref e bootstrap; nenhuma ativação sem autorização. | **P1 — contrato arquitetural; conclusão não demonstrada** | Mapear componentes C# e snapshot versionado; separar dívida futura. |
+| #999 | Ensaio histórico sem TF reportou 787 FP/8.571 aceitos (9,1821%), 43,1581% recall; resultado não aceito para ativação. | **P1 — alerta histórico científico, não prova do estado atual** | Confrontar ensaio físico V9 posterior no mesmo frame e TEST cego autorizado. |
+| #946 | V9 arquitetura-alvo de novos modelos nominais, níveis compostos e TF da mesma unidade; V8 permanece para replay. | **P1 — contrato estatístico vigente, conclusão não demonstrada** | Inspecionar níveis, m/u, dependência e cobertura do código integrado. |
+
+**Não se concluiu que qualquer P1 esteja resolvida, duplicada ou seja P0 ativo apenas com o corpo da issue.** A leitura é evidência de escopo e risco, não resultado de teste.
