@@ -39,3 +39,7 @@ A via full V9 100k permanece `workflow_dispatch` manual, restrita ao PO, com `ex
 ## Precedência e documentação
 
 Rastreia e confirma a etapa preliminar da [decisão PO GOV-V9-GITHUB-STANDARD-100K-OPT-20261109](Decisao_V9_GitHub_Standard_100k_Otimizacao_20261109.md), substituindo a preferência por self-hosted da #1378. Não altera nem revoga [ausência de teto universal de registros](DC-V9-CALIBRACAO-SEM-EXCLUSIVIDADE-30K-20261105.md), contrato do plano oficial 100k, bloqueio de segurança #1253, release V9.0.0, separação TEST e certificação científica. [Issue de prova completa #1349](https://github.com/lucianox777/Jornada/issues/1349), [índice de decisões](Indice_Decisoes_Vigentes.md). GOV-DOC-01.
+
+## Esclarecimento da nomenclatura de execução: `NO_SQL` não é banco NoSQL
+
+O marcador de auditoria `GENERATOR_ONLY_NO_SQL_NO_V9_FIT_NO_TEST_NO_GOLD` significa literalmente **gerador isolado, sem executar SQL, sem fitting V9, sem TEST e sem Gold**. A expressão `NO_SQL` é uma **negação da execução SQL**, não referência à categoria de bancos de dados **NoSQL** (como MongoDB ou DynamoDB). Neste perfil de 100k, os arquivos CSV/JSON são outputs transitórios do gerador sintético e só os **indicadores agregados** foram enviados como artifact; nenhuma camada adicional de banco NoSQL foi introduzida. O motor operacional e o Calibrador físico continuam usando **SQL Server** onde o workflow do experimento completo exige banco. Esta explicação de terminologia não altera arquitetura, modelo, parâmetros nem autorização de #1253. GOV-DOC-01.
