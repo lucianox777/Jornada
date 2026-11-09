@@ -36,3 +36,11 @@ Essa decisão é **superveniente** à [decisão de otimização do workflow 24×
 5. PR com build, testes do orçamento e guardas; integração GOV-DOC-01 e acompanhamento da campanha anterior por SHA. 
 
 **Status deste registro:** decisão aprovada, implementação em branch, **não implica que o run 24×100k tenha concluído nem que a segurança #1253 foi saneada**.
+
+## Fechamento do run anterior #42678462930 — evidência verificada depois da abertura da PR
+
+O [run 100k #42678462930](https://github.com/lucianox777/Jornada/actions/runs/42678462930) no SHA histórico `dc3db33dffd6ddba6f65a57e1bfc07f4b7dc65b9` **terminou FAILURE**, após passar os dois gates de orçamento externo `V9_100K_LIVE_RESOURCES PASS_ADMISSION_ONLY_NOT_FIT_PROOF`, a geração seed42, SQL descartável e a preparação da referência histórica. Falhou **dentro de** `Run physical V9 CSharp on all 24 official multiparameter hypotheses`, depois de cerca de 33 segundos de execução desse step, com a mensagem pública redigida `V9_CALIBRATOR_FAILED:INVALID_DATA` e exit code 1. A mensagem não contém a causa subjacente, propositalmente protegida pelo contrato de log seguro do Calibrador. **Não há comprovação de OOM ou de falha por falta de disco; não atribuir o erro ao Docker 3GiB nem confundir PASS de admissão com PASS de ajuste.**
+
+Artifact agregado ID `13700734282` (4.355 bytes) existe no run; seus bytes ainda não foram validados individualmente nesta verificação, portanto **24/24 e FDR/P95 permanecem NÃO COBERTOS**, issue #1349 aberta. A falha deve ser triada em issue separada ou no próprio #1349, reproduzida com prova segura (sem senha/CSV/TEST/Gold) e corrigida **sem mudar a ciência**. A nova decisão de orçamento interno é independente do diagnóstico do `INVALID_DATA` e não pode ser anunciada como solução comprovada para essa falha.
+
+A [CI completa #42677735712](https://github.com/lucianox777/Jornada/actions/runs/42677735712) no mesmo SHA da master **SUCCESS**; o [probe 30k #42677735607](https://github.com/lucianox777/Jornada/actions/runs/42677735607) **SUCCESS**. Isso não substitui prova física do 100k. GOV-DOC-01.
