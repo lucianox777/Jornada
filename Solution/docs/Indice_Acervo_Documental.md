@@ -1,3 +1,5 @@
+> **Triagem do item 8 do mandato (09/11 UTC):** [inventário de 55 issues, classes provisórias, impedimentos e incidente de precedência #1353/#1351](Triagem_Item8_Issues_V9_20261109.md); nenhuma issue considerada concluída apenas por CI verde. GOV-DOC-01.
+
 > **Resultado V9 10k HTTP→Serving (08/11 BRT):** [relatório físico por SHA/artifact e p95 de 10 remessas](Resultado_V9_E2E_HTTP_10K_20261108.md), Action [42542220115](https://github.com/lucianox777/Jornada/actions/runs/42542220115) **SUCCESS**, scope sintético DEV, 10k pessoas e 10k Serving. 100k HTTP permanece pendente na issue #1348. GOV-DOC-01.
 
 > **Plano de rampa HTTP E2E 10k (08/11/2026):** [GOV-V9-E2E-HTTP-10K](Decisao_V9_E2E_HTTP_10K_20261108.md), sequência após [E2E físico 1k PASS](Resultado_V9_E2E_HTTP_1K_20261108.md); 10 lotes de 1k cada e reconciliação por entrega. Resultado de 10k PENDENTE de artifact. GOV-DOC-01.
