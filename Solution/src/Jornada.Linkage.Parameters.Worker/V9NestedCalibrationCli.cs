@@ -160,10 +160,15 @@ public static class V9NestedCalibrationCli
                 {
                     if (args[0] == "--v9-calibrate")
                     {
+                        // Resource budgeting belongs to --v9-calibrate itself,
+                        // not an optional CI/Docker workflow for 100k alone.
+                        var resources = V9CalibrationResourceGovernor.Capture(
+                            plan.Calibration.MaximumParallelRuleSets, output);
+                        await WriteNewAsync(Path.Combine(output, "calibration-resource-budget.json"), resources);
                         await using var diskSampler = new V9CalibrationDiskSampler(output,
                             TimeSpan.FromMilliseconds(500));
                         await SearchAsync(args[2], output, plan, connectionString, originalPlanBytes,
-                            diskSampler);
+                            diskSampler, resources);
                     }
                     else await ValidateAsync(args[2], args[3], output, plan, connectionString);
                 }
@@ -224,7 +229,8 @@ public static class V9NestedCalibrationCli
     }
 
     private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan,
-        string connectionString, byte[] originalPlanBytes, V9CalibrationDiskSampler diskSampler)
+        string connectionString, byte[] originalPlanBytes, V9CalibrationDiskSampler diskSampler,
+        V9CalibrationExecutionResourceBudget resources)
     {
         var totalWallClock = System.Diagnostics.Stopwatch.StartNew();
         await using var sourceStream = File.OpenRead(source);
@@ -284,7 +290,8 @@ public static class V9NestedCalibrationCli
             File.AppendAllText(Path.Combine(output, "memory-progress.jsonl"), memory + Environment.NewLine);
             Console.Error.WriteLine(memory);
             diskSampler.ObserveNow(); // diagnosis only; no changes to selection.
-        }, frozenTfReferenceForRuleset: referenceFactory);
+        }, frozenTfReferenceForRuleset: referenceFactory,
+            executionMaximumParallelRuleSets: resources.EffectiveParallelism);
         var calibrationFinishedMs = elapsed.ElapsedMilliseconds;
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
             .DistinctBy(x => x.ContentSha256))
@@ -332,6 +339,7 @@ public static class V9NestedCalibrationCli
             totalWallClockIncludingInputPreparationMilliseconds = totalWallClock.ElapsedMilliseconds,
             stageDurations,
             diskHighWaterOutputAtRuntime = diskSampler.Snapshot(),
+            calibrationExecutionResourceBudget = resources,
             phasesMilliseconds = new
             {
                 physicalCalibration = calibrationFinishedMs,
@@ -339,7 +347,7 @@ public static class V9NestedCalibrationCli
             },
             visibleLogicalProcessors = Environment.ProcessorCount,
             configuredParallelism = plan.Calibration.MaximumParallelRuleSets,
-            effectiveParallelism = V9ParallelWork.ResolveMaximumParallelism(plan.Calibration.MaximumParallelRuleSets),
+            effectiveParallelism = resources.EffectiveParallelism,
             peakWorkingSetBytes = process.PeakWorkingSet64,
             operatingSystem = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
             dotNetVersion = System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription,
