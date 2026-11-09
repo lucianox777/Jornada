@@ -29,11 +29,45 @@ class StatisticalReportTests(unittest.TestCase):
         original = json.loads(self.raw)
         extension = extended.pop("exploratoryAnalysis")
         self.assertEqual(extended, original)
-        self.assertEqual(extension["Status"], "DECLARED_NOT_PHYSICALLY_EVALUATED")
+        self.assertEqual(extension["Status"], "NO_COMPARABLE_EXISTING_MEASUREMENTS")
         self.assertEqual(extension["AdditionalMeasurements"], [])
         self.assertFalse(extension["AutoApplied"])
         self.assertFalse(result["activated"])
         self.assertEqual(self.source.read_bytes(), self.raw)
+    def test_reuses_only_same_frame_and_passes(self):
+        report = json.loads(self.raw)
+        report["rows"] = [
+            {"OptionId":"EXP_1","fitSnapshotSha256":"a","CandidatePairsSha256":"same",
+             "Batch":1,"ConflictMargin":0,"blockingPasses":[{"id":1}],
+             "recall":0.98,"fdrObserved":0.002},
+            {"OptionId":"BASE","fitSnapshotSha256":"b","CandidatePairsSha256":"same",
+             "Batch":1,"ConflictMargin":0,"blockingPasses":[{"id":1}],
+             "recall":0.97,"fdrObserved":0.003},
+            {"OptionId":"DIFFERENT","fitSnapshotSha256":"c","CandidatePairsSha256":"other",
+             "Batch":1,"ConflictMargin":0,"blockingPasses":[{"id":1}],
+             "recall":0.99,"fdrObserved":0.001}
+        ]
+        self.source.write_text(json.dumps(report))
+        self.params.write_text(json.dumps({"ExploratoryParameters":[{"Name":"OptionId","Values":["EXP_1"]}]}))
+        outcome = module.extend(self.source,self.target,enabled=True,parameters_path=self.params)
+        self.assertTrue(outcome["evaluated"])
+        extended = json.loads(self.target.read_text())
+        comparisons = extended.pop("exploratoryAnalysis")["AdditionalMeasurements"]
+        self.assertEqual(len(comparisons),1)
+        self.assertEqual(comparisons[0]["BaselineOptionId"],"BASE")
+        self.assertAlmostEqual(comparisons[0]["RecallDelta"],0.01)
+        self.assertEqual(extended,report)
+    def test_no_comparison_on_different_passes(self):
+        report = json.loads(self.raw)
+        report["rows"] = [
+            {"OptionId":"EXP_1","fitSnapshotSha256":"a","CandidatePairsSha256":"same",
+             "Batch":1,"ConflictMargin":0,"blockingPasses":[1],"recall":0.98},
+            {"OptionId":"BASE","fitSnapshotSha256":"b","CandidatePairsSha256":"same",
+             "Batch":1,"ConflictMargin":0,"blockingPasses":[2],"recall":0.97}]
+        self.source.write_text(json.dumps(report))
+        self.params.write_text(json.dumps({"ExploratoryParameters":[{"Name":"OptionId","Values":["EXP_1"]}]}))
+        module.extend(self.source,self.target,enabled=True,parameters_path=self.params)
+        self.assertEqual(json.loads(self.target.read_text())["exploratoryAnalysis"]["AdditionalMeasurements"],[])
     def test_enabled_requires_declaration(self):
         with self.assertRaisesRegex(ValueError,"requires parameter"):
             module.extend(self.source,self.target,enabled=True)
