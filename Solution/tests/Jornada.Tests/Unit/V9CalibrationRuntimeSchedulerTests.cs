@@ -80,6 +80,29 @@ public sealed class V9CalibrationRuntimeSchedulerTests
     }
 
     [Test]
+    public void Explicit_multiple_workers_with_unmeasured_RAM_rejects_instead_of_serial_fallback()
+    {
+        var budget = V9CalibrationResourceGovernor.Decide(4, 8, null, null, 10 * GiB);
+        var scheduler = new V9CalibrationRuntimeScheduler(budget, ".", 20,
+            () => Sample(null));
+        var called = 0;
+        Assert.That(async () => await scheduler.MapAsync(new[] { 0, 1, 2, 3 },
+                (i, _) => { Interlocked.Increment(ref called); return Task.FromResult(i); },
+                CancellationToken.None),
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("RAM_UNMEASURED"));
+        Assert.That(called, Is.EqualTo(1));
+    }
+
+    [Test]
+    public void Disk_budget_tracks_corresponding_size_of_declared_corpus()
+    {
+        Assert.That(V9CalibrationRuntimeScheduler.EstimateRequiredDiskBytes(0), Is.EqualTo(3 * GiB));
+        Assert.That(V9CalibrationRuntimeScheduler.EstimateRequiredDiskBytes(2 * GiB), Is.EqualTo(7 * GiB));
+        Assert.That(V9CalibrationRuntimeScheduler.EstimateRequiredDiskBytes(long.MaxValue),
+            Is.EqualTo(long.MaxValue));
+    }
+
+    [Test]
     public void Sql_pool_occupancy_caps_auto_and_rejects_explicit_excess()
     {
         var budget = V9CalibrationResourceGovernor.Decide(0, 8, 18 * GiB, null, 10 * GiB);
