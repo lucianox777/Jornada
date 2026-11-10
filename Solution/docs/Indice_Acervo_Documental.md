@@ -1,4 +1,4 @@
-> **ACERVO GOV-SEC-1253-EXPURGO / GOV-V9-100K-PROBE — 10/11/2026:** [autorização de expurgo de logs com credenciais, estado não executado, causa ainda não isolada do probe físico SQL 100k, medições de memória/OOM e subclassificação sanitizada](Decisao_GOV_SEC_1253_Expurgo_Autorizado_E_V9_100k_Probe_20261110.md). Execuções #41535062165 e #42863124223; GOV-DOC-01.
+> **ACERVO GOV-SEC-1253-RETENCAO / GOV-V9-100K-PROBE — 10/11/2026:** [revogação da autorização de expurgo e retenção dos logs históricos por decisão do PO, encerramento #1253 com risco residual aceito e incertezas preservadas, e diagnóstico seguro do probe SQL 100k](Decisao_GOV_SEC_1253_Expurgo_Autorizado_E_V9_100k_Probe_20261110.md). Histórico de decisão e precedência preservados; runs #41535062165 e #42863124223; GOV-DOC-01.
 
 > **ACERVO GOV-SEC-1253-LOGS-DEV-HML-PROD-20261110:** [decisão do PO, implementação de logs integrais DEV/HML em destino privado e códigos reconhecíveis em produção, com precedência e limitações da #1253](Decisao_GOV_SEC_1253_Logs_Completos_DEV_HML_Codigo_Producao_20261110.md). GOV-DOC-01.
 
