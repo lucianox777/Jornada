@@ -1,3 +1,13 @@
+> **ACERVO GOV-V9-100K-FALHA-COBERTURA-TF-20261110:** [evidência da falha real #42897661860, checkpoint seguro TF, métricas de recursos, limites de inferência e triagem focalizada](Decisao_V9_Base_Inicial_Real_100k_Bootstrap_Configuracoes_20261110.md). GOV-DOC-01.
+
+> **ACERVO GOV-V9-NOMES-NOVOS-POS-2022-20261110:** [decisão interpretativa: nomes inéditos após 2022 e limites de inferência da ausência na publicação censitária](Decisao_V9_Base_Inicial_Real_100k_Bootstrap_Configuracoes_20261110.md). GOV-DOC-01.
+
+> **ACERVO GOV-V9-IBGE-NAO-PUBLICACAO-NORMAL-20261110:** [retificação PO: não publicação IBGE como característica normal da fonte censurada, sem equiparar a erro nominal; diretriz de teste e limites de inferência TF](Decisao_V9_Base_Inicial_Real_100k_Bootstrap_Configuracoes_20261110.md). GOV-DOC-01.
+
+> **ACERVO GOV-V9-BASE-REAL-100K-BOOTSTRAP-20261110 — complemento M/U/nomes únicos:** [diretriz de teste para nomes raros válidos sem erro, distinção coorte real versus sintética e avaliação estatística proposta inspirada no Splink, sem alterar parâmetros vigentes](Decisao_V9_Base_Inicial_Real_100k_Bootstrap_Configuracoes_20261110.md). GOV-DOC-01.
+
+> **ACERVO GOV-V9-BASE-REAL-100K-BOOTSTRAP-20261110:** [coorte real inicial, calibração manual e publicação de parâmetros iniciais via snapshot ref aprovado, distinta do corpus sintético](Decisao_V9_Base_Inicial_Real_100k_Bootstrap_Configuracoes_20261110.md). GOV-DOC-01.
+
 > **ACERVO GOV-V9-ARQ-BASE-SINTETICA-ENSAIOS-20261110:** [decisão PO de separar corpora sintéticos 30k/100k da base operacional inicial](Decisao_Arquitetura_Base_Sintetica_Apenas_Ensaios_20261110.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-NOMES-RAROS-CENSURA-IBGE-20261110:** [regra IBGE, nomes raros válidos e interpretação censurada condicionada, sem ativação de estimador](Decisao_V9_Nomes_Raros_Validade_Censura_IBGE_20261110.md). GOV-DOC-01.
