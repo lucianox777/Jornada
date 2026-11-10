@@ -81,7 +81,7 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
                 directory.mkdir()
                 (directory / "stat").write_text(
                     f"{pid} (worker with (brackets)) S {ppid} 1 1 0\n")
-                (directory / "status").write_text(f"VmRSS:\\t{rss} kB\n")
+                (directory / "status").write_text(f"VmRSS:\t{rss} kB\n")
             self.assertEqual(module.parse_proc_stat_ppid(
                 "123 (complex (name)) S 42 2 3"), 42)
             self.assertEqual(module.process_tree_rss_kib(100, root), 600)
