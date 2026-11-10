@@ -63,6 +63,8 @@ public static class V9CalibradorSafeFailureCategory
     public static string PhysicalSqlProbeReason(Exception error)
     {
         ArgumentNullException.ThrowIfNull(error);
+        if (Classify(error) == PublishedTfCoverageInsufficient)
+            return PublishedTfCoverageInsufficient;
         if (Classify(error) != PhysicalSqlProbe || error is not InvalidDataException)
             return "NOT_PHYSICAL_SQL_PROBE";
         return error.Message switch
