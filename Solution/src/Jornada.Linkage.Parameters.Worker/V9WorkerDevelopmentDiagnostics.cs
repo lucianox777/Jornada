@@ -1,9 +1,9 @@
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
-/// Full exception detail is restricted to local Development or to a private,
-/// explicitly authorized Homologation diagnostic sink. GitHub Actions,
-/// Production and public artifacts must always expose stable error codes only.
+/// Full exception detail follows Development or an explicitly authorized private,
+/// Homologation diagnostic sink. Production always exposes stable error codes only.
+/// CI is not an environment classification; diagnostic destinations must be access-controlled.
 /// The 10 KiB reserved calibrador.log remains safe-code-only in every mode.
 /// </summary>
 public static class V9WorkerDevelopmentDiagnostics
@@ -27,8 +27,7 @@ public static class V9WorkerDevelopmentDiagnostics
 
         // Fail closed for any contradictory, explicitly production environment.
         if (IsProduction(dotnet) || IsProduction(aspnet) || IsProduction(mode)
-            || !string.IsNullOrWhiteSpace(get("CI"))
-            || !string.IsNullOrWhiteSpace(get("GITHUB_ACTIONS")))
+)
             return false;
 
         bool development = string.Equals(dotnet, "Development", StringComparison.OrdinalIgnoreCase)
