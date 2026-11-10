@@ -35,12 +35,12 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
         self.assertIn("sql_oom_observed = sql_oom_observed or final_sql_oom", source)
 
     def test_sql_container_cgroup_oom_counts_and_peak(self):
-        sample = "low 2\\nhigh 0\\nmax 3\\noom 4\\noom_kill 1\\nPEAK_KIB:10485760\\n"
+        sample = "low 2\nhigh 0\nmax 3\noom 4\noom_kill 1\nPEAK_KIB:10485760\n"
         self.assertEqual(module.parse_sql_cgroup_snapshot(sample),
                          {"oom": 4, "oom_kill": 1, "peakKiB": 10240})
         self.assertIsNone(module.parse_sql_cgroup_snapshot("cgroup unavailable"))
-        self.assertIsNone(module.parse_sql_cgroup_snapshot("oom 3\\nPEAK_KIB:10"))
-        self.assertIsNone(module.parse_sql_cgroup_snapshot("oom secret\\noom_kill 0\\nPEAK_KIB:10"))
+        self.assertIsNone(module.parse_sql_cgroup_snapshot("oom 3\nPEAK_KIB:10"))
+        self.assertIsNone(module.parse_sql_cgroup_snapshot("oom secret\noom_kill 0\nPEAK_KIB:10"))
         source = PATH.read_text()
         self.assertIn("sqlCgroupV2OomKillDeltaObserved", source)
         self.assertIn("sqlCgroupV2MemoryPeakKiB", source)
@@ -50,26 +50,26 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
 
     def test_cgroup_mount_root_and_process_membership(self):
         mountinfo = (
-            "31 20 0:31 / /sys/fs/cgroup rw - cgroup2 cgroup rw\\n"
+            "31 20 0:31 / /sys/fs/cgroup rw - cgroup2 cgroup rw\n"
         )
         self.assertEqual(
-            module.resolve_runner_cgroup("0::/runner/task\\n", mountinfo),
+            module.resolve_runner_cgroup("0::/runner/task\n", mountinfo),
             Path("/sys/fs/cgroup/runner/task"))
         self.assertIsNone(module.resolve_runner_cgroup(
-            "1:memory:/other\\n", mountinfo))
-        nested = "31 20 0:31 /runner /sys/fs/cgroup rw - cgroup2 cgroup rw\\n"
+            "1:memory:/other\n", mountinfo))
+        nested = "31 20 0:31 /runner /sys/fs/cgroup rw - cgroup2 cgroup rw\n"
         self.assertEqual(module.resolve_runner_cgroup(
-            "0::/runner/task\\n", nested), Path("/sys/fs/cgroup/task"))
+            "0::/runner/task\n", nested), Path("/sys/fs/cgroup/task"))
         self.assertIsNone(module.resolve_runner_cgroup(
-            "0::/other/task\\n", nested))
+            "0::/other/task\n", nested))
 
     def test_oom_events_unknown_and_valid_no_false_zero(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)
             self.assertEqual(module.oom_events(root), {"oom": None, "oom_kill": None})
-            (root / "memory.events").write_text("oom 4\\noom_kill 2\\n")
+            (root / "memory.events").write_text("oom 4\noom_kill 2\n")
             self.assertEqual(module.oom_events(root), {"oom": 4, "oom_kill": 2})
-            (root / "memory.events").write_text("oom bad\\n")
+            (root / "memory.events").write_text("oom bad\n")
             self.assertEqual(module.oom_events(root), {"oom": None, "oom_kill": None})
 
     def test_ppid_tree_includes_descendants_independent_of_thread(self):
@@ -80,8 +80,8 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
                 directory = root / str(pid)
                 directory.mkdir()
                 (directory / "stat").write_text(
-                    f"{pid} (worker with (brackets)) S {ppid} 1 1 0\\n")
-                (directory / "status").write_text(f"VmRSS:\\t{rss} kB\\n")
+                    f"{pid} (worker with (brackets)) S {ppid} 1 1 0\n")
+                (directory / "status").write_text(f"VmRSS:\\t{rss} kB\n")
             self.assertEqual(module.parse_proc_stat_ppid(
                 "123 (complex (name)) S 42 2 3"), 42)
             self.assertEqual(module.process_tree_rss_kib(100, root), 600)
