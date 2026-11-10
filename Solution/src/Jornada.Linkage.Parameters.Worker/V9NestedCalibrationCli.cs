@@ -136,7 +136,7 @@ public static class V9NestedCalibrationCli
         string safeStage = "CLI_ARGUMENTS_AND_PLAN";
         try
         {
-            if (args.Length < 1 || (args[0] == "--v9-calibrate" ? args.Length != 4
+            if (args.Length < 1 || (args[0] is "--v9-calibrate" or "--v9-lite-benchmark" ? args.Length != 4
                 : args[0] == "--v9-validate-finalists" ? args.Length != 5 : true))
                 throw new ArgumentException("Uso: --v9-calibrate <plano> <CSV> <diretório novo>; --v9-validate-finalists <plano> <SHA.selection.json> <CSV novo> <diretório novo>");
             output = Path.GetFullPath(args[^1]);
@@ -161,17 +161,28 @@ public static class V9NestedCalibrationCli
                 await WriteNewAsync(Path.Combine(output, "plan.json"), plan);
                 try
                 {
-                    if (args[0] == "--v9-calibrate")
+                    if (args[0] is "--v9-calibrate" or "--v9-lite-benchmark")
                     {
-                        // Resource budgeting belongs to --v9-calibrate itself,
-                        // not an optional CI/Docker workflow for 100k alone.
-                        var resources = V9CalibrationResourceGovernor.Capture(
-                            plan.Calibration.MaximumParallelRuleSets, output);
+                        // Experimental mode is never an operational alternative or model publisher.
+                        // It deliberately bypasses resource admission and uses one worker; retain
+                        // the same scientific plan, corpus verification, fitting and auditors.
+                        var lite = args[0] == "--v9-lite-benchmark";
+                        if (lite && Environment.GetEnvironmentVariable("JORNADA_V9_LITE_EXPERIMENT")
+                            != "EXPLICIT_SYNTHETIC_TRAIN_ONLY")
+                            throw new InvalidDataException("V9_LITE_EXPERIMENT_NOT_AUTHORIZED");
+                        var resources = lite
+                            ? new V9CalibrationExecutionResourceBudget(
+                                "V9_LITE_SERIAL_BENCHMARK_V1", "EXPERIMENTAL_NO_ADAPTIVE_GOVERNOR",
+                                plan.Calibration.MaximumParallelRuleSets, Environment.ProcessorCount,
+                                1, "FIXED_SINGLE_WORKER", null, null, null, null,
+                                0, 0, 0, false, false, false, false)
+                            : V9CalibrationResourceGovernor.Capture(
+                                plan.Calibration.MaximumParallelRuleSets, output);
                         await WriteNewAsync(Path.Combine(output, "calibration-resource-budget.json"), resources);
                         await using var diskSampler = new V9CalibrationDiskSampler(output,
                             TimeSpan.FromMilliseconds(500));
                         await SearchAsync(args[2], output, plan, connectionString, originalPlanBytes,
-                            diskSampler, resources, phase => safeStage = phase);
+                            diskSampler, resources, phase => safeStage = phase, lite);
                     }
                     else await ValidateAsync(args[2], args[3], output, plan, connectionString);
                 }
@@ -237,12 +248,14 @@ public static class V9NestedCalibrationCli
 
     private static async Task SearchAsync(string source, string output, V9NestedCalibrationPlan plan,
         string connectionString, byte[] originalPlanBytes, V9CalibrationDiskSampler diskSampler,
-        V9CalibrationExecutionResourceBudget resources, Action<string> updateSafeStage)
+        V9CalibrationExecutionResourceBudget resources, Action<string> updateSafeStage,
+        bool lite = false)
     {
         ArgumentNullException.ThrowIfNull(updateSafeStage);
         var sqlPoolMaximum = new SqlConnectionStringBuilder(connectionString).MaxPoolSize;
-        var resourceScheduler = new V9CalibrationRuntimeScheduler(resources, output, sqlPoolMaximum,
-            sourcePath: source);
+        V9CalibrationRuntimeScheduler? resourceScheduler = lite ? null
+            : new V9CalibrationRuntimeScheduler(resources, output, sqlPoolMaximum,
+                sourcePath: source);
         updateSafeStage("TRAIN_HASH_AND_MANIFEST");
         var totalWallClock = System.Diagnostics.Stopwatch.StartNew();
         await using var sourceStream = File.OpenRead(source);
@@ -311,7 +324,7 @@ public static class V9NestedCalibrationCli
         // Aggregate-only operations evidence; never includes connection strings,
         // identities, output rows, or raw SQL diagnostics.
         await WriteNewAsync(Path.Combine(output, "calibration-runtime-scheduling.json"),
-            resourceScheduler.Receipts);
+            resourceScheduler?.Receipts ?? Array.Empty<V9CalibrationRuntimeSchedulingReceipt>());
         updateSafeStage("FIT_EVIDENCE_EXPORT");
         var calibrationFinishedMs = elapsed.ElapsedMilliseconds;
         foreach (var fit in result.Evaluations.Where(x => x.Candidate is not null).Select(x => x.Candidate!.Snapshot)
