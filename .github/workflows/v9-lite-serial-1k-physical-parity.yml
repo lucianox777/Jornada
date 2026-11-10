@@ -1,0 +1,191 @@
+name: v9-lite-1k-v9-auto-vs-lite-serial
+on:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/Program.cs'
+      - 'Solution/tests/scripts/test_v9_lite_experiment_contract.py'
+      - '.github/workflows/v9-lite-serial-1k-physical-parity.yml'
+permissions:
+  contents: read
+concurrency:
+  group: v9-lite-1k-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+jobs:
+  physical-parity:
+    name: SQL 1k V9 governed AUTO vs Lite serial same scientific plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 55
+    env:
+      JORNADA_V9_LITE_EXPERIMENT: EXPLICIT_SYNTHETIC_TRAIN_ONLY
+      V9_SQL_MEMORY_LIMIT_MB: "2048"
+      V9_SQL_CONTAINER_MEMORY_MB: "3072"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: false
+      - name: Verify tested PR HEAD
+        env:
+          EXACT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXACT_SHA"
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_lite_experiment_contract.py' -v
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Compile same CSharp scientific core
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Start disposable SQL Server with masked ephemeral credential
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - name: Initialize disposable SQL schema (no IBGE reload, TF0 only)
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          CID="v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}"
+          docker exec -u 0 "$CID" mkdir -p /var/opt/mssql/data/jornada/database
+          docker cp database/. "$CID":/var/opt/mssql/data/jornada/database/
+          sqlcmd_docker() {
+            SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" \
+              /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b "$@"
+          }
+          sqlcmd_docker -Q "IF DB_ID(N'JornadaHarness') IS NOT NULL THROW 51000, 'Preexisting database', 1; CREATE DATABASE JornadaHarness;"
+          sqlcmd_docker -d JornadaHarness -i database/Jornada_Fase1_v3.70.sql
+          sqlcmd_docker -d JornadaHarness -i database/Jornada_Seed_Dev.sql
+          sqlcmd_docker -d JornadaHarness -i database/migrations/20260907_Cpf_Ancora.sql
+          sqlcmd_docker -d JornadaHarness -i database/migrations/20260910_Schema_Consolidation_370.sql
+          sqlcmd_docker -d JornadaHarness -i database/migrations/20260930_Linkage_Z_Model_Config_Bundle_Fingerprint.sql
+      - name: Generate 1k synthetic TRAIN fixture and SAME nested calibration plan
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/v9-lite-parity"
+          mkdir -p "$root"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 1000 --seed 42 \
+            --out "$root/people-1k" > "$root/generation.log"
+          # Same unmodified science and plan bytes. V9 governed resolves AUTO,
+          # while the experimental Lite CSharp executor always uses 1 worker.
+          python3 scripts/v9-nested-calibration-study.py \
+            "$root/people-1k/observacoes.csv" "$root/plan.json" --plumbing-fixture
+          python3 - <<'PY'
+          import json,os,pathlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'v9-lite-parity'
+          plan=json.loads((root/'plan.json').read_bytes())
+          if plan['Calibration']['MaximumParallelRuleSets']!=0:
+              raise SystemExit('MAIN_BENCHMARK_REQUIRES_V9_AUTO_PLAN')
+          PY
+      - name: Execute V9 GOVERNED AUTO and Lite SERIAL on identical scientific plan and SQL
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$RUNNER_TEMP/v9-lite-parity"
+          corpus="$root/people-1k/observacoes.csv"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-calibrate "$root/plan.json" "$corpus" "$root/governed"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-lite-benchmark "$root/plan.json" "$corpus" "$root/lite"
+      - name: Audit same science, report RAM/time and assert Lite mode is ungoverned
+        env:
+          EXACT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, hashlib
+          root=pathlib.Path(os.environ['RUNNER_TEMP'])/'v9-lite-parity'
+          def load(p): return json.loads(p.read_bytes())
+          def select_envelope(directory):
+              files=sorted(directory.glob('*.selection.json'))
+              if len(files)!=1: raise SystemExit('MISSING_UNIQUE_SELECTION_ENVELOPE')
+              obj=load(files[0])
+              result=obj.get('result',obj.get('Result'))
+              if not isinstance(result,dict): raise SystemExit('MISSING_SELECTION_RESULT')
+              return result
+          a=load(root/'governed/selection-reference.json')
+          b=load(root/'lite/selection-reference.json')
+          # The entire envelope hash includes progress and runtime-sensitive
+          # measurements; do NOT mistake a different envelope for a science drift.
+          for key in ('FinalistSnapshotShas','StopReason'):
+              if a.get(key)!=b.get(key):
+                  raise SystemExit('SCIENTIFIC_SELECTION_MISMATCH:'+key)
+          # Scientific comparison must be a projection over every declared
+          # evaluation, not merely a winner hash. Exclude runtime P95, Batch
+          # timing and non-scientific progress; never ignore actual fit/metrics.
+          def scientific_rows(directory):
+              result=select_envelope(directory)
+              evaluations=result.get('Evaluations')
+              if not isinstance(evaluations,list) or not evaluations:
+                  raise SystemExit('MISSING_PHYSICAL_EVALUATIONS')
+              rows=[]
+              for ev in evaluations:
+                  candidate=ev.get('Candidate')
+                  rows.append({
+                      'request':ev.get('RequestSha256'),
+                      'option':ev.get('OptionId'),
+                      'margin':ev.get('ConflictMargin'),
+                      'method':ev.get('MuEstimationMethod'),
+                      'pairsSha':ev.get('CandidatePairsSha256'),
+                      'eligible':ev.get('EligibleForSelection'),
+                      'rejections':ev.get('Rejections'),
+                      'fitSha':candidate.get('Snapshot',{}).get('ContentSha256') if candidate else None,
+                      'metric':candidate.get('Metric') if candidate else None,
+                      'support':candidate.get('Support') if candidate else None,
+                      'prior':candidate.get('PriorDiagnostic') if candidate else None,
+                  })
+              if any(not row['request'] for row in rows):
+                  raise SystemExit('MISSING_EVALUATION_REQUEST_SHA')
+              return sorted(rows,key=lambda x:x['request'])
+          ga=scientific_rows(root/'governed')
+          lb=scientific_rows(root/'lite')
+          if ga!=lb:
+              raise SystemExit('SCIENTIFIC_EVALUATION_ROWS_DIFFER')
+          # Independently compare all content-addressed snapshot filenames.
+          def fitted(directory):
+              return sorted(p.name for p in directory.glob('*.fitted.json'))
+          if fitted(root/'governed')!=fitted(root/'lite'):
+              raise SystemExit('SCIENTIFIC_FIT_SHA_MISMATCH')
+          ar=load(root/'governed/runtime-diagnostics.json')
+          br=load(root/'lite/runtime-diagnostics.json')
+          budget=load(root/'lite/calibration-resource-budget.json')
+          scheduling=load(root/'lite/calibration-runtime-scheduling.json')
+          if (budget.get('Schema')!='V9_LITE_SERIAL_BENCHMARK_V1' and
+              budget.get('schema')!='V9_LITE_SERIAL_BENCHMARK_V1'):
+              raise SystemExit('LITE_BUDGET_NOT_EXPERIMENTAL')
+          if (ar.get('configuredParallelism')!=0 or
+              not isinstance(ar.get('effectiveParallelism'),int) or ar.get('effectiveParallelism')<1 or
+              br.get('configuredParallelism')!=0 or br.get('effectiveParallelism')!=1 or
+              scheduling!=[] or br.get('testUsed') or br.get('activated')):
+              raise SystemExit('MAIN_ARCHITECTURES_NOT_V9_AUTO_VS_LITE_SERIAL')
+          report={'schema':'V9_LITE_1K_V9_AUTO_VS_LITE_SERIAL_PARITY_V3','headSha':os.environ['EXACT_SHA'],
+                  'scienceIdentical':True,'v9ConfiguredParallelism':0,'liteEffectiveWorkers':1,'fittedShaCount':len(fitted(root/'lite')),
+                  'governed':{'elapsedMs':ar.get('totalMilliseconds'),'peakRssBytes':ar.get('peakWorkingSetBytes')},
+                  'lite':{'elapsedMs':br.get('totalMilliseconds'),'peakRssBytes':br.get('peakWorkingSetBytes')},
+                  'testUsed':False,'activated':False,'certified':False}
+          (root/'parity-receipt.json').write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
+          print('PASS physical 1k governed AUTO versus Lite serial, same scientific results')
+          PY
+      - name: Upload only aggregated comparison without corpus or private rows
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-lite-physical-parity-1k-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            ${{ runner.temp }}/v9-lite-parity/parity-receipt.json
+            ${{ runner.temp }}/v9-lite-parity/governed/runtime-diagnostics.json
+            ${{ runner.temp }}/v9-lite-parity/lite/runtime-diagnostics.json
+            ${{ runner.temp }}/v9-lite-parity/lite/calibration-resource-budget.json
+      - name: Destroy disposable SQL regardless of result
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true

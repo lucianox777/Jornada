@@ -16,6 +16,7 @@ FLAGS = (
     "--v9-tf-export-ibge-pin",
     "--v9-prepare-gold-runner",
     "--v9-calibrate",
+    "--v9-lite-benchmark",
     "--v9-validate-finalists",
     "--v9-compare-calibration-plans",
     "--v9-adaptive-study",

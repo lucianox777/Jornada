@@ -1,0 +1,127 @@
+name: v9-lite-serial-100k-experiment
+
+# STRICTLY MANUAL. Never dispatch on PR or push; all 100k proofs are governed.
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact master commit SHA to run the 100k V9 technical TRAIN
+        required: true
+        type: string
+      security_preflight_approved:
+        description: Confirm one-use SQL, historical credentials not reused, private runner
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v9-lite-serial-100k-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  physical-100k:
+    if: ${{ inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    name: Experimental V9-Lite serial 100k same 24 hypotheses
+    # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
+    # Fixed SQL container cap; never invoke v9-100k-execution-resource-budget.py.
+    # Strict manual owner-only dispatch still requires cleared security preflight.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      GH_TOKEN: ${{ github.token }}
+      JORNADA_V9_LITE_EXPERIMENT: EXPLICIT_SYNTHETIC_TRAIN_ONLY
+      V9_SQL_MEMORY_LIMIT_MB: "2048"
+      V9_SQL_CONTAINER_MEMORY_MB: "3072"
+      # Diagnostic resource settings only. No changes to scientific plan, 24/16/8 or TEST.
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Fail-closed SHA, environment and resources before physics
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_lite_experiment_contract.py -v
+          python3 -m py_compile scripts/v9-scale-100k-technical-plan.py scripts/v9-scale-100k-technical-audit.py
+          mkdir -p "$PWD/.local/v9-100k-technical"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # SHA pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build shared V9 scientific engine and generator
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Generate known-seed 100k clean TRAIN synthetic corpus and bind official V9
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --people 100000 --seed 42 --out "$root/people-100k"             > "$root/generation.log"
+          python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
+          mkdir -p "$root/bound"
+          python3 scripts/v9-scale-100k-technical-plan.py             --artifact-zip "$root/historical-official.zip"             --corpus-root "$root/people-100k"             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
+      - name: Simple fixed-capacity safety preflight (no Python memory governor)
+        run: |
+          set -euo pipefail
+          # Refuse to start SQL if host is clearly unable to hold SQL + serial C#.
+          available_kib="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
+          disk_kib="$(df -Pk . | awk 'END {print $4}')"
+          test "$available_kib" -ge 10485760
+          test "$disk_kib" -ge 6291456
+          printf 'V9_LITE_CAPACITY:PASS_MINIMUM_ADMISSION_ONLY_NOT_FIT_PROOF\\n'
+      - name: Start masked disposable SQL Server
+        run: bash scripts/v9-tf-start-disposable-sql.sh
+      - name: Reconstruct historical 30k TF reference only, not 30k calibration
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          bash scripts/v9-tf-prepare-pin.sh "$root/reference-30k" pinned-ibge.json
+      - name: Run V9-Lite serial CSharp on all 24 official multiparameter hypotheses
+        timeout-minutes: 340
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker --             --v9-lite-benchmark "$root/bound/plan.json" "$root/people-100k/observacoes.csv" "$root/results"
+      - name: Audit all V2 witness, V3/TF/MU fits, TP/FP/FN, FDR and resolution P95
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-scale-100k-technical-audit.py             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"             --analysis "$root/results/mu-statistical-analysis.json"             --runtime "$root/results/runtime-diagnostics.json"             --out "$root/bound/technical-audit.json" \
+            --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Upload aggregated evidence only, never corpus, raw TEST or credentials
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin SHA
+        with:
+          name: v9-lite-serial-100k-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-100k-technical/bound/plan.json
+            Solution/.local/v9-100k-technical/bound/binding-receipt.json
+            Solution/.local/v9-100k-technical/results/interrupted.json
+            Solution/.local/v9-100k-technical/bound/technical-audit.json
+            Solution/.local/v9-100k-technical/bound/technical-audit.md
+            Solution/.local/v9-100k-technical/results/mu-statistical-analysis.json
+            Solution/.local/v9-100k-technical/results/runtime-diagnostics.json
+            Solution/.local/v9-100k-technical/results/calibration-resource-budget.json
+            Solution/.local/v9-100k-technical/results/calibration-runtime-scheduling.json
+            Solution/.local/v9-100k-technical/results/selection-reference.json
+      - name: Remove disposable SQL even after failure
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
