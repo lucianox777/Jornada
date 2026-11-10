@@ -31,33 +31,101 @@ def mem_available_kib():
         pass
     return None
 
-def oom_events():
+def resolve_runner_cgroup(proc_cgroup_text, mountinfo_text):
+    """Return cgroup-v2 directory only when /proc path and mount root reconcile."""
+    memberships = [line.split("::", 1)[1] for line in proc_cgroup_text.splitlines()
+                   if line.startswith("0::")]
+    if len(memberships) != 1:
+        return None
+    member = Path(memberships[0])
+    if not member.is_absolute():
+        return None
+    for line in mountinfo_text.splitlines():
+        left, sep, right = line.partition(" - ")
+        if not sep or not right.startswith("cgroup2 "):
+            continue
+        fields = left.split()
+        if len(fields) < 5:
+            continue
+        root, mountpoint = Path(fields[3]), Path(fields[4])
+        try:
+            relative = member.relative_to(root)
+        except ValueError:
+            continue
+        return mountpoint / relative
+    return None
+
+
+def runner_cgroup_directory():
     try:
-        lines = Path("/sys/fs/cgroup/memory.events").read_text(encoding="ascii").splitlines()
-        values = {k: int(v) for k, v in (line.split() for line in lines)}
-        return {k: values.get(k) for k in ("oom", "oom_kill")}
+        directory = resolve_runner_cgroup(
+            Path("/proc/self/cgroup").read_text(encoding="ascii"),
+            Path("/proc/self/mountinfo").read_text(encoding="ascii"))
+        if directory is not None and (directory / "memory.events").is_file():
+            return directory
+    except (OSError, ValueError):
+        pass
+    return None
+
+
+def oom_events(cgroup_directory=None):
+    try:
+        directory = cgroup_directory if cgroup_directory is not None else runner_cgroup_directory()
+        if directory is None:
+            return {"oom": None, "oom_kill": None}
+        lines = (directory / "memory.events").read_text(encoding="ascii").splitlines()
+        values = {}
+        for line in lines:
+            key, value = line.split()
+            if key in ("oom", "oom_kill") and re.fullmatch(r"[0-9]+", value):
+                values[key] = int(value)
+        return {key: values.get(key) for key in ("oom", "oom_kill")}
     except (OSError, ValueError):
         return {"oom": None, "oom_kill": None}
 
-def process_tree_rss_kib(pid):
-    seen = set()
+
+def parse_proc_stat_ppid(stat):
+    # /proc/PID/stat comm may contain spaces and parentheses; parse after LAST ')'.
+    right = stat.rfind(")")
+    if right < 0:
+        return None
+    fields = stat[right + 1:].split()
+    if len(fields) < 2 or not fields[1].isdecimal():
+        return None
+    return int(fields[1])
+
+
+def process_tree_rss_kib(pid, proc_root=Path("/proc")):
+    # Find ALL descendants by PPID, not the thread-main-only /children file.
+    children = {}
+    rss = {}
+    for directory in proc_root.iterdir():
+        if not directory.name.isdecimal():
+            continue
+        try:
+            child_pid = int(directory.name)
+            parent_pid = parse_proc_stat_ppid((directory / "stat").read_text())
+            if parent_pid is None:
+                continue
+            children.setdefault(parent_pid, []).append(child_pid)
+            for line in (directory / "status").read_text().splitlines():
+                if line.startswith("VmRSS:"):
+                    rss[child_pid] = int(line.split()[1])
+                    break
+        except (OSError, ValueError, IndexError):
+            continue
     pending = [pid]
+    seen = set()
     total = 0
     while pending:
         current = pending.pop()
         if current in seen:
             continue
         seen.add(current)
-        try:
-            for line in Path(f"/proc/{current}/status").read_text().splitlines():
-                if line.startswith("VmRSS:"):
-                    total += int(line.split()[1])
-                    break
-            children = Path(f"/proc/{current}/task/{current}/children").read_text().split()
-            pending.extend(int(x) for x in children)
-        except (OSError, ValueError, IndexError):
-            continue
-    return total or None
+        total += rss.get(current, 0)
+        pending.extend(children.get(current, []))
+    return total if any(x in rss for x in seen) else None
+
 
 def docker_metrics(container):
     try:
@@ -131,7 +199,8 @@ def main():
     if args.output.exists():
         parser.error("evidence output already exists")
     args.output.parent.mkdir(parents=True, exist_ok=True)
-    start_events = oom_events()
+    runner_cgroup = runner_cgroup_directory()
+    start_events = oom_events(runner_cgroup) if runner_cgroup else {"oom": None, "oom_kill": None}
     before = mem_available_kib()
     samples = 0
     sql_max = None
@@ -178,7 +247,7 @@ def main():
         child.terminate()
         child.wait()
     exit_code = child.wait()
-    finish_events = oom_events()
+    finish_events = oom_events(runner_cgroup) if runner_cgroup else {"oom": None, "oom_kill": None}
     final_sql_oom = docker_oom_killed(args.sql_container)
     if final_sql_oom is not None:
         sql_inspect_samples += 1
@@ -196,6 +265,7 @@ def main():
         "peakSqlContainerMemoryKiB": sql_max,
         "peakWorkerProcessTreeRssKiB": worker_max,
         "minHostMemAvailableKiB": host_min,
+        "runnerCgroupV2Resolved": runner_cgroup is not None,
         "cgroupOomEventDelta": deltas["oom"],
         "cgroupOomKillDelta": deltas["oom_kill"],
         "sqlContainerOomKilled": True if sql_oom_observed else (False if sql_inspect_samples else None),
