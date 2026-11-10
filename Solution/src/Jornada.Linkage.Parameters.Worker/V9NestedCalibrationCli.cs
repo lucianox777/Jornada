@@ -737,6 +737,11 @@ public static class V9NestedCalibrationCli
             declaredVariantCount = declared.Count,
             evaluations = rows.Length,
             measured = rows.Count(x => x.fitSnapshotSha256 is not null),
+            publishedTfCoverageInsufficient = rows.Count(x =>
+                x.Rejections.Contains(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient)),
+            scientificallyNonEvaluable = rows.Count(x =>
+                x.fitSnapshotSha256 is null
+                && x.Rejections.Contains(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient)),
             rejectedOrIneligible = rows.Count(x => x.outcome != "MEASURED_ELIGIBLE"),
             completeRequestedSpaceOnlyWhenInitialRequestsExecuted = true,
             scope = "TRAIN_SELECTION_ONLY_NOT_INDEPENDENT_VALIDATION",
