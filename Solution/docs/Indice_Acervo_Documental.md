@@ -1,3 +1,5 @@
+> **ACERVO 10/11 — NOVA FALHA 100K EM SHA VÁLIDO:** [#42804299288, artifact #13758262098, fase PHYSICAL_SQL_BATCHES, safeFailureCategory=PHYSICAL_SQL_FRAME; triagem adicional sanitizada e sem modificação científica](Evidencia_V9_100K_Falha_Fisica_20261110.md). GOV-DOC-01.
+
 > **ACERVO — 10/11, 100K NÃO CONCLUÍDO:** [evidência física agregada de #42753955131 (falha InvalidDataException) e #42754580416 (cancelada), com recibos AUTO e proposta de classificação segura sem vazar exceções](Evidencia_V9_100K_Falha_Fisica_20261110.md). GOV-DOC-01.
 
 > **ACERVO / RETOMADA 10/11/2026:** o PO substituiu a antiga suspensão operacional de 100k por [autorização explícita da campanha V9 AUTO, SQL nativo e custo estrutural estimado primeiro](Decisao_Autorizacao_Ensaio_V9_100K_AUTO_20261110.md); gates de segurança e `workflow_dispatch` continuam obrigatórios. Até apresentar recibo, não há prova 100k. GOV-DOC-01.

@@ -8,12 +8,16 @@ public static class V9CalibradorSafeFailureCategory
 {
     private const string DataKey = "JornadaV9SafeFailureCategory";
     public const string PhysicalSqlFrame = "PHYSICAL_SQL_FRAME";
+    public const string PhysicalSqlProbe = "PHYSICAL_SQL_PROBE";
+    public const string PhysicalFrozenHoldout = "PHYSICAL_FROZEN_HOLDOUT";
+    public const string PhysicalReplayMismatch = "PHYSICAL_REPLAY_MISMATCH";
     public const string PhysicalFrameOrder = "PHYSICAL_FRAME_ORDER";
     public const string FrozenTfReference = "FROZEN_TF_REFERENCE";
     public const string Unclassified = "UNCLASSIFIED";
     private static readonly HashSet<string> Allowed = new(StringComparer.Ordinal)
     {
-        PhysicalSqlFrame, PhysicalFrameOrder, FrozenTfReference
+        PhysicalSqlFrame, PhysicalSqlProbe, PhysicalFrozenHoldout, PhysicalReplayMismatch,
+        PhysicalFrameOrder, FrozenTfReference
     };
 
     public static void Mark(Exception error, string category)
@@ -21,6 +25,10 @@ public static class V9CalibradorSafeFailureCategory
         ArgumentNullException.ThrowIfNull(error);
         if (!Allowed.Contains(category))
             throw new ArgumentException("Unknown safe category.", nameof(category));
+        // Preserve the innermost, most precise known phase when outer
+        // physical-frame boundaries catch and rethrow the same exception.
+        if (error.Data[DataKey] is string previous && Allowed.Contains(previous))
+            return;
         error.Data[DataKey] = category;
     }
 
