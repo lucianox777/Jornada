@@ -110,7 +110,7 @@ public static class V9NestedCalibrationCli
         // stderr sink must NOT prevent writing into already reserved blocks.
         try { Console.Error.WriteLine(V9CalibradorLastErrorLog.SafeErrorCode(exception)); }
         catch (Exception) { /* stderr may itself be on the full volume. */ }
-        // Full exception in local Development console only. Reserved log stays safe.
+        // Full exception only in private DEV/HML diagnostics; reserved log stays safe.
         V9WorkerDevelopmentDiagnostics.WriteException(exception);
         if (reservedLog is null)
         {
