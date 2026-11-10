@@ -21,6 +21,7 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_masked_sql_probe.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_sql_startup_modes.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_scale_100k_technical_plan.py'
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_offline_100k_presql_contract.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_calibrator_safe_failure_stage.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_standard_100k_capacity.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_masked_sql_probe.py'
@@ -42,7 +43,7 @@ jobs:
           dotnet build Jornada.sln -c Release
           # CPU/RAM/disk unit fixtures only; this does not start SQL or a 100k fit.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
-            --filter '(FullyQualifiedName~V9CalibrationExecutionResourceBudgetTests|FullyQualifiedName~V9CalibrationRuntimeSchedulerTests|FullyQualifiedName~V9PhysicalFrameExecutionOrderTests|FullyQualifiedName~V9CalibradorSafeFailureCategoryTests)'
+            --filter '(FullyQualifiedName~V9CalibrationExecutionResourceBudgetTests|FullyQualifiedName~V9CalibrationRuntimeSchedulerTests|FullyQualifiedName~V9PhysicalFrameExecutionOrderTests|FullyQualifiedName~V9CalibradorSafeFailureCategoryTests|FullyQualifiedName~V9OfflineCalibratorCapacityTests)'
   security-guards:
     runs-on: ubuntu-latest
     timeout-minutes: 8

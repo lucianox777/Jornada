@@ -1,7 +1,8 @@
 name: v9-github-standard-runner-100k-resource-profile
 
 # The ONLY automatic 100k operation: deterministic SYNTHETIC GENERATION,
-# not V9 SQL, fit, model selection, FDR, Gold, TEST or model activation.
+# plus read-only pre-SQL resource validation of that generated TRAIN corpus.
+# No V9 SQL, fit, model selection, FDR, Gold, TEST or model activation.
 on:
   push:
     branches: [master]
@@ -14,6 +15,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: v9-standard-100k-profile-${{ github.sha }}
@@ -23,7 +25,9 @@ jobs:
   synthetic-generator-only:
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
+    env:
+      GH_TOKEN: ${{ github.token }}
     defaults:
       run:
         working-directory: Solution
@@ -68,6 +72,27 @@ jobs:
             --corpus-root "$root/people-100k" \
             --gnu-time-kib-file "$root/generator-peak-kib.txt" \
             --output "$root/corpus-resource-profile.json"
+      - name: Reproduce frozen 100k TRAIN pre-SQL candidate capacities OFFLINE — never connect SQL
+        timeout-minutes: 25
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-standard-100k-profile"
+          # Same historical J artifact and byte SHA as owner-only manual campaign.
+          # This is read-only provenance and TRAIN candidate-admission counting.
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+          python3 scripts/v9-j-download-pinned-artifact.py \
+            --artifact-id 13654549483 \
+            --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7 \
+            --output "$root/historical-official.zip"
+          mkdir -p "$root/bound"
+          python3 scripts/v9-scale-100k-technical-plan.py \
+            --artifact-zip "$root/historical-official.zip" \
+            --corpus-root "$root/people-100k" \
+            --plan "$root/bound/plan.json" \
+            --receipt "$root/bound/binding-receipt.json"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-offline-train-capacity "$root/bound/plan.json" \
+            "$root/people-100k/observacoes.csv" "$root/offline-presql-capacity.json"
       - name: Export aggregated RAM/disk profile only
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
@@ -78,3 +103,5 @@ jobs:
           path: |
             Solution/.local/v9-standard-100k-profile/host-capacity.json
             Solution/.local/v9-standard-100k-profile/corpus-resource-profile.json
+            Solution/.local/v9-standard-100k-profile/offline-presql-capacity.json
+            Solution/.local/v9-standard-100k-profile/bound/binding-receipt.json

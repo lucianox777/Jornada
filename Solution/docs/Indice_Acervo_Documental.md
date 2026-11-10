@@ -1,3 +1,5 @@
+> **ACERVO — V9 100k diagnóstico pré-SQL (09/11):** [decisão/protocolo de reprodução do `INVALID_DATA` com mesmo plano e corpus, sem SQL/TEST/Gold, por contagem física idêntica de assinaturas e incidências e recibo agregado](Decisao_V9_100k_Diagnostico_Offline_Limites_PreSQL_20261109.md). Histórico #42678462930 FAIL, evidência 30k J 24/24 PASS, #1349/#1386 abertas, #1253 sem saneamento histórico. GOV-DOC-01.
+
 > **ACERVO 10/11 — NOVA FALHA 100K EM SHA VÁLIDO:** [#42804299288, artifact #13758262098, fase PHYSICAL_SQL_BATCHES, safeFailureCategory=PHYSICAL_SQL_FRAME; triagem adicional sanitizada e sem modificação científica](Evidencia_V9_100K_Falha_Fisica_20261110.md). GOV-DOC-01.
 
 > **ACERVO — 10/11, 100K NÃO CONCLUÍDO:** [evidência física agregada de #42753955131 (falha InvalidDataException) e #42754580416 (cancelada), com recibos AUTO e proposta de classificação segura sem vazar exceções](Evidencia_V9_100K_Falha_Fisica_20261110.md). GOV-DOC-01.
