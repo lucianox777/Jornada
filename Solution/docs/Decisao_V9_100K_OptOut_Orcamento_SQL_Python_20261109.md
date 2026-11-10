@@ -1,3 +1,5 @@
+> **ATUALIZAÇÃO PO — SEM DISPARO 100K:** o cálculo opcional Python `--stage plan-sql` passa a ser invocado **dentro do bootstrap SQL**, não em passo separado do workflow. A fase `before-fit` permanece posterior. A ordem de execução dos frames físicos V9 agora usa estimativa estrutural; resultados científicos permanecem sujeitos aos gates de equivalência. [Decisão superveniente](Decisao_V9_SQL_Bootstrap_Unificado_Consultas_Pesadas_Primeiro_20261109.md). GOV-DOC-01.
+
 # GOV-V9-100K-SQL-PY-OPTOUT-20261109 — opção manual de dispensar dimensionamento Python de memória SQL
 
 **Autoridade:** Product Owner, 09/11/2026. **Estado:** autorizado como opção a implementar em PR; **sem execução 100k comprovada**. **Política:** GOV-DOC-01.

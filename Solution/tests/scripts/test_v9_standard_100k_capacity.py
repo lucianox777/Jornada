@@ -42,7 +42,9 @@ class Standard100kResourceTests(unittest.TestCase):
         self.assertIn('test "$EXACT_SHA" = "$GITHUB_SHA"', workflow)
         self.assertIn("--v9-calibrate", workflow)
         self.assertIn("v9-scale-100k-technical-audit.py", workflow)
-        self.assertIn("v9-100k-execution-resource-budget.py --stage plan-sql", workflow)
+        bootstrap = (SOLUTION / "scripts/v9-tf-start-disposable-sql.sh").read_text()
+        self.assertIn("v9-100k-execution-resource-budget.py", bootstrap)
+        self.assertIn("--stage plan-sql", bootstrap)
 
 
 if __name__ == "__main__":

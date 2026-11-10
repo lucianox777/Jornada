@@ -31,7 +31,7 @@ jobs:
     if: ${{ inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: V9 multiparameter 100k on frozen V2 witness and V3/TF/MU
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
-    # Recalculate live SQL budget per one-use job, not from prior 100k generator RSS.
+    # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
     # Strict manual owner-only dispatch still requires cleared security preflight.
     runs-on: ubuntu-24.04
     timeout-minutes: 360
@@ -39,7 +39,7 @@ jobs:
       EXACT_SHA: ${{ inputs.expected_sha }}
       GH_TOKEN: ${{ github.token }}
       V9_100K_DISABLE_PYTHON_SQL_BUDGET: ${{ inputs.disable_python_sql_budget }}
-      # Default: Python sizes SQL from live RAM. Opt-out only at explicit manual dispatch.
+      # Default: SQL bootstrap uses native memory without Python sizing; false opts in to sizing.
       # NO changes to scientific plan, 24/16/8 hypotheses or TEST.
     defaults:
       run:
@@ -80,20 +80,6 @@ jobs:
           python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
           mkdir -p "$root/bound"
           python3 scripts/v9-scale-100k-technical-plan.py             --artifact-zip "$root/historical-official.zip"             --corpus-root "$root/people-100k"             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json" --parallelism auto
-      - name: Recalculate LIVE resource budget for THIS 100k fit, not generator profile
-        if: ${{ inputs.disable_python_sql_budget != true }}
-        run: |
-          set -euo pipefail
-          root="$PWD/.local/v9-100k-technical"
-          python3 scripts/v9-100k-execution-resource-budget.py --stage plan-sql \
-            --exact-sha "$EXACT_SHA" --resource-root "$PWD" \
-            --output "$root/capacity-before-sql.json" --github-env "$GITHUB_ENV"
-      - name: Guard native SQL defaults when Python SQL budget is disabled
-        if: ${{ inputs.disable_python_sql_budget == true }}
-        run: |
-          set -euo pipefail
-          root="$PWD/.local/v9-100k-technical"
-          bash scripts/v9-100k-sql-budget-optout-guard.sh before-sql "$root/capacity-before-sql.json"
       - name: Start masked disposable SQL Server
         run: bash scripts/v9-tf-start-disposable-sql.sh
       - name: Reconstruct historical 30k TF reference only, not 30k calibration

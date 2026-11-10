@@ -1,0 +1,34 @@
+# GOV-V9-SQL-BOOTSTRAP-COST-FIRST-20261109 — bootstrap SQL consolidado e ordem de consultas físicas por custo estimado
+
+**Autoridade:** Product Owner (09/11/2026). **Política:** GOV-DOC-01. **Estado:** decisão aprovada para implementação isolada e testes em PR; **calibração física 100k suspensa pelo PO** até novas orientações; sem resultado 100k desta revisão.
+
+## Contexto, motivação e precedência
+
+Após a integração da [PR #1395](https://github.com/lucianox777/Jornada/pull/1395), merge `6e9cd7be543354d29ea3af7c1d160c66949882c0`, a V9 completa já permitia **não usar por padrão** o estimador Python de memória SQL (`disable_python_sql_budget=true`), executar 100k com governador C# e paralelismo `MaximumParallelRuleSets=0` AUTO e ter logs integrais só em DEV local. O PO pediu duas alterações antes de qualquer nova calibração: (a) integrar o **dimensionamento opcional Python** ao script que **sobe o SQL** e (b) executar a **consulta física estimada como mais custosa primeiro**, sempre preservando resultados científicos. **Este mandato substitui a intenção anterior de disparar 100k imediatamente**; nenhuma execução 100k é autorizada nesta etapa. A V9-Lite permanece removida.
+
+## 1. Unificar admissão SQL e subida do contêiner
+
+- **Arquivo único orquestrador:** `Solution/scripts/v9-tf-start-disposable-sql.sh`, chamado pelo workflow manual técnico 100k só **depois** de gerar o corpus seed42, autenticar plano, SHA da master, owner e preflight de segurança.
+- Com `V9_100K_DISABLE_PYTHON_SQL_BUDGET=true` (**padrão**), o shell chama o preflight Bash pré-SQL `v9-100k-sql-budget-optout-guard.sh` e sobe SQL **sem** `MSSQL_MEMORY_LIMIT_MB` e **sem** `docker --memory`; observa RAM/cgroup/disco mas não impõe um teto. O preflight antes do fitting permanece separado, porque só pode ser medido **após** SQL subir.
+- Com `V9_100K_DISABLE_PYTHON_SQL_BUDGET=false` (**opt-in**), **dentro desse mesmo bootstrap, antes do `docker run`**, chama o estimador existente `v9-100k-execution-resource-budget.py --stage plan-sql`, grava o recibo SHA-bound, valida os valores admissíveis SQL/Docker, exporta recibos e aplica os tetos **naquela mesma invocação**. A checagem Python `--stage before-fit` permanece posterior no workflow: ela lê o recibo originado na inicialização SQL e não altera contêiner já iniciado.
+- Se a variável estiver **ausente**, preservar literalmente o comportamento dos demais chamadores legados (30k, probes e TF), sem executar qualquer etapa 100k. Valor inválido ou variáveis de memória herdadas indevidamente no 100k fazem a execução falhar antes do Docker. Mantêm-se senha aleatória, `::add-mask::` antes do Docker, `--env-file` 0600, SQL `JornadaHarness` em loopback, imagem pinada, cleanup e nenhum log de credencial.
+
+**Benefício:** o cálculo opcional e sua aplicação deixam de ser duas etapas separadas e não podem divergir entre steps de GitHub Actions; a opção sem Python permanece o padrão e o C# continua controlando paralelismo de forma independente.
+
+## 2. Consulta potencialmente mais pesada primeiro na calibração aninhada V9
+
+**Restrição:** custo real de uma consulta SQL depende de cardinalidade, seletividade, índices, estatísticas, plano de execução, caches e contenção. Sem `SHOWPLAN` ou amostra SQL independente, **não é possível identificar a consulta efetivamente mais custosa com certeza**, e coletar esse dado antecipadamente pode ser uma execução física adicional onerosa. Por isso foi adotada **priorização determinística por amplitude estrutural estimada**, não ordenação alegadamente por custo real ou promessa de redução de tempo.
+
+- Na `V9NestedCalibrationCoordinator.SearchAsync` (caminho real `--v9-calibrate` usado pelo 100k), as hipóteses pré-declaradas continuam agrupadas por *frame SQL* (passes de blocking + margem, até 64 opções M/U/TF compartilhando materialização). Antes do agendamento, ordenar **somente** a lista de *frames físicos* por `V9PhysicalFrameExecutionOrder.StructuralBroadnessScore` **decrescente**, com desempate por SHA estável original. A regra dá prioridade a mais passes OR e menos campos conjuntivos por pass, pois **podem** produzir mais pares candidatos e materializações SQL mais pesadas.
+- O `V9CalibrationRuntimeScheduler` continua fazendo piloto **com um frame físico já declarado**, agora o de maior amplitude estimada, para observar o pico de RAM antes de admitir outros workers no modo AUTO; não introduz hipótese, não abre TEST/Gold, não usa dados de verdade, não altera `MaximumParallelRuleSets` nem o orçamento SQL.
+- **Integridade científica:** conjunto de requests, opções V2/V3, TF, M/U, 81 células, FDR/CP, SHA, seed, blocking/margem, refinamentos, snapshots e seleção continuam iguais. O resultado de cada lote continua normalizado pela chave `RequestSha256` antes do fold. Heurística aplicada **a cada lote**, sem ordenar novamente o plano nem filtrar hipóteses. Resultados podem ser afetados por falha ou recurso insuficiente; por isso exigir testes determinísticos e prova física futura de equivalência (não presumir).
+- **Limites:** a regra é um *proxy* de amplitude da consulta. Mais passes podem compartilhar pares e um pass curto pode ser muito seletivo; por isso a primeira consulta pode não ser a mais lenta. Sem medição real, não afirmar melhoria de throughput; usar relatório de tempo/RSS/SQL e resultados físicos para avaliar. Não alterar a estratégia de programas externos ou do `V9AdaptiveCalibrationStudyCli` nesta PR.
+
+## Gates e rastreabilidade da decisão
+
+1. Testes isolados de bootstrap SQL: parâmetro ausente (30k legado), `true` sem limites SQL e `false` com admissão Python+tetos aplicados antes do Docker; SHA/ref/owner/preflight, máscara e ausência de credenciais.
+2. Testes da ordenação heurística com grupos de campos variados, multiconjunto preservado, desempate estável independente da ordem de entrada, inválidos fail-closed e canários C#. Compilar worker .NET e validar invariantes do relatório.
+3. PR isolada, checks rápidos e revisão de segurança; **não iniciar a campanha física 100k nesta alteração**. A [issue #1253](https://github.com/lucianox777/Jornada/issues/1253) continua pendente e deve ser tratada antes de autorizar disparo da campanha. Logs integrais são permitidos **somente em DEV local privado**, não em CI/prod. Nenhum TEST, Gold, certificação ou ativação.
+4. Após futuras solicitações do PO, ensaio controlado pode comparar ordem antiga/nova com o mesmo corpus e plano e medir tempo/RAM, preservando equivalência de hashes científicos antes de manter qualquer otimização adicional. **Não considerar inferência de custo comprovada nem sucesso do 100k agora.**
+
+**Precedência:** complementa `GOV-V9-100K-SQL-PY-OPTOUT-20261109` e `GOV-V9-RECURSOS-CONJUNTOS-20261109`; revoga apenas a **separação do passo Python pré-SQL do script bootstrap** e modifica apenas a **ordem operacional dos frames**. Os demais contratos GOV-DOC-01 e o acervo de testes antigos permanecem registrados.
