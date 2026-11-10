@@ -348,7 +348,8 @@ public static class V9NestedCalibrationCoordinator
                     // Keep the same physical frame identity, but isolate TF0 from
                     // positive-TF options before batching and coverage accounting.
                     requests.GroupBy(r => (Frame: PhysicalFrameKey(r),
-                        PositiveTf: V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(r.Option)))
+                        PositiveTf: V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(r.Option),
+                        PublishedPolicy: r.Option.UnpublishedTermPolicy))
                         .SelectMany(g => g.Chunk(64)).ToArray(),
                     static group => group[0].Passes,
                     static group => group[0].Sha).ToArray();
