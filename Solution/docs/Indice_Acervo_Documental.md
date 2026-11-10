@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-100K-FS-1407-20261110:** [registro da falha física FS #42878503672, integração #1407, cinco fases sanitizadas, provas e condições da próxima campanha manual](Decisao_V9_100k_Fases_FS_1407_20261110.md). GOV-DOC-01.
+
 > **ACERVO GOV-V9-100K-CONTINUIDADE-EXECUCAO-20261110:** [mandato operacional do PO, gates de PR, limitação de dispatch owner-only e correção da falha C# CS0121 na #1406](Decisao_V9_100k_Probe_Checkpoints_Seguros_20261110.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-100K-PROBE-CHECKPOINTS-20261110:** [falha 100k no SHA #1405, artefato #13789227489 e instrumentação por checkpoints SQL/FS/Resolve com whitelist e teste canário](Decisao_V9_100k_Probe_Checkpoints_Seguros_20261110.md). GOV-DOC-01.
