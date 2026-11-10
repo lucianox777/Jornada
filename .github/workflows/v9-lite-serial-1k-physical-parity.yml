@@ -95,12 +95,52 @@ jobs:
           import json, os, pathlib, hashlib
           root=pathlib.Path(os.environ['RUNNER_TEMP'])/'v9-lite-parity'
           def load(p): return json.loads(p.read_bytes())
+          def select_envelope(directory):
+              files=sorted(directory.glob('*.selection.json'))
+              if len(files)!=1: raise SystemExit('MISSING_UNIQUE_SELECTION_ENVELOPE')
+              obj=load(files[0])
+              result=obj.get('result',obj.get('Result'))
+              if not isinstance(result,dict): raise SystemExit('MISSING_SELECTION_RESULT')
+              return result
           a=load(root/'governed/selection-reference.json')
           b=load(root/'lite/selection-reference.json')
-          for key in ('envelopeSha256','FinalistSnapshotShas','StopReason'):
+          # The entire envelope hash includes progress and runtime-sensitive
+          # measurements; do NOT mistake a different envelope for a science drift.
+          for key in ('FinalistSnapshotShas','StopReason'):
               if a.get(key)!=b.get(key):
-                  raise SystemExit('SCIENTIFIC_PARITY_FAILED:'+key)
-          # Compare content-addressed fitted scientific artifacts independently.
+                  raise SystemExit('SCIENTIFIC_SELECTION_MISMATCH:'+key)
+          # Scientific comparison must be a projection over every declared
+          # evaluation, not merely a winner hash. Exclude runtime P95, Batch
+          # timing and non-scientific progress; never ignore actual fit/metrics.
+          def scientific_rows(directory):
+              result=select_envelope(directory)
+              evaluations=result.get('Evaluations')
+              if not isinstance(evaluations,list) or not evaluations:
+                  raise SystemExit('MISSING_PHYSICAL_EVALUATIONS')
+              rows=[]
+              for ev in evaluations:
+                  candidate=ev.get('Candidate')
+                  rows.append({
+                      'request':ev.get('RequestSha256'),
+                      'option':ev.get('OptionId'),
+                      'margin':ev.get('ConflictMargin'),
+                      'method':ev.get('MuEstimationMethod'),
+                      'pairsSha':ev.get('CandidatePairsSha256'),
+                      'eligible':ev.get('EligibleForSelection'),
+                      'rejections':ev.get('Rejections'),
+                      'fitSha':candidate.get('Snapshot',{}).get('ContentSha256') if candidate else None,
+                      'metric':candidate.get('Metric') if candidate else None,
+                      'support':candidate.get('Support') if candidate else None,
+                      'prior':candidate.get('PriorDiagnostic') if candidate else None,
+                  })
+              if any(not row['request'] for row in rows):
+                  raise SystemExit('MISSING_EVALUATION_REQUEST_SHA')
+              return sorted(rows,key=lambda x:x['request'])
+          ga=scientific_rows(root/'governed')
+          lb=scientific_rows(root/'lite')
+          if ga!=lb:
+              raise SystemExit('SCIENTIFIC_EVALUATION_ROWS_DIFFER')
+          # Independently compare all content-addressed snapshot filenames.
           def fitted(directory):
               return sorted(p.name for p in directory.glob('*.fitted.json'))
           if fitted(root/'governed')!=fitted(root/'lite'):
