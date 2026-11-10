@@ -25,11 +25,12 @@ public static class V9CalibradorSafeFailureCategory
     public const string PhysicalReplayMismatch = "PHYSICAL_REPLAY_MISMATCH";
     public const string PhysicalFrameOrder = "PHYSICAL_FRAME_ORDER";
     public const string FrozenTfReference = "FROZEN_TF_REFERENCE";
+    public const string PublishedTfCoverageInsufficient = "PUBLISHED_TF_COVERAGE_INSUFFICIENT";
     public const string Unclassified = "UNCLASSIFIED";
     private static readonly HashSet<string> Allowed = new(StringComparer.Ordinal)
     {
         PhysicalSqlFrame, PhysicalSqlProbe, PhysicalFrozenHoldout, PhysicalReplayMismatch,
-        PhysicalFrameOrder, FrozenTfReference
+        PhysicalFrameOrder, FrozenTfReference, PublishedTfCoverageInsufficient
     };
 
     public static void Mark(Exception error, string category)
@@ -62,6 +63,8 @@ public static class V9CalibradorSafeFailureCategory
     public static string PhysicalSqlProbeReason(Exception error)
     {
         ArgumentNullException.ThrowIfNull(error);
+        if (Classify(error) == PublishedTfCoverageInsufficient)
+            return PublishedTfCoverageInsufficient;
         if (Classify(error) != PhysicalSqlProbe || error is not InvalidDataException)
             return "NOT_PHYSICAL_SQL_PROBE";
         return error.Message switch
@@ -96,6 +99,8 @@ public static class V9CalibradorSafeFailureCategory
     public static string Classify(Exception error)
     {
         ArgumentNullException.ThrowIfNull(error);
+        if (error is V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException)
+            return PublishedTfCoverageInsufficient;
         if (error.Data[DataKey] is string category && Allowed.Contains(category))
             return category;
         // Exact in-source constant matches only; never print e.Message.

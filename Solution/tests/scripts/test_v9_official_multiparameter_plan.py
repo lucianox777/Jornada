@@ -75,8 +75,13 @@ class OfficialMultiparameterPlanTests(unittest.TestCase):
             "UnitTfOptions": None, "SharedSurnameMode": 0,
             "EligibleForSelection": True, "UnpublishedTermPolicy": 0}
         for old, explicit in zip(originals, plan["Calibration"]["ModelOptions"]):
-            self.assertEqual(explicit, {**defaults, **old},
-                             "All effective historical C# V2 config fields must be explicit")
+            expected = {**defaults, **old}
+            # The historical source stays immutable; the newly declared
+            # physical study opts positive TF into unpublished-name abstention.
+            if old["OptionId"] != control.TF0:
+                expected["UnpublishedTermPolicy"] = 1
+            self.assertEqual(explicit, expected,
+                             "Explicit 100k TF abstention must not alter other historical parameters")
         self.assertFalse(list(self.root.rglob("experiment.json")))
         self.assertEqual(list(self.output.parent.iterdir()), [self.output])
         with self.assertRaises(FileExistsError):

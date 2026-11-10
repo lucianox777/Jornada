@@ -58,9 +58,24 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path, cod
             and runtime.get("testUsed") is False and runtime.get("activated") is False,
             "runtime diagnostics missing or imply activation")
     rows = report.get("rows")
+    # Missing published frequencies for individual names are handled by the
+    # declared AbstainCandidate policy inside the TF evaluation. Such
+    # abstentions are NOT grounds for rejecting the entire 100k campaign.
+    # Reject only an actually unmeasured scientific hypothesis; never call
+    # a missing measurement a completed 24/24 physical experiment.
     require(isinstance(rows, list) and len(rows) == 24
-            and report.get("evaluations") == 24 and report.get("measured") == 24,
-            "all 24 multiparameter configurations must be physically measured")
+            and report.get("evaluations") == 24,
+            "24 declared hypotheses must remain individually accounted for")
+    missing_tf = [row for row in rows
+                  if "PUBLISHED_TF_COVERAGE_INSUFFICIENT" in row.get("Rejections", [])
+                  or "PUBLISHED_TF_COVERAGE_INSUFFICIENT" in row.get("rejections", [])]
+    require(report.get("publishedTfCoverageInsufficient", 0) == len(missing_tf),
+            "published TF non-evaluability count differs from hypothesis rows")
+    require(report.get("scientificallyNonEvaluable", 0) == len(missing_tf),
+            "scientifically non-evaluable TF count differs from hypothesis rows")
+    require(report.get("measured") == 24,
+            "24/24 physical measurements incomplete; check per-hypothesis "
+            "rejections and abstention coverage before claiming technical PASS")
     by_key, requests, frames = {}, set(), {}
     eligible_count, diagnostic_count, observed = 0, 0, []
     for row in rows:

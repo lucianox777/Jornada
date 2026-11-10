@@ -8,6 +8,18 @@ public sealed class V9CalibradorSafeFailureCategoryTests
     private const string Sensitive = "SENHA_CANARY_SQL_PASSWORD_CPF_11122233344";
 
     [Test]
+    public void Published_tf_coverage_has_distinct_safe_reason_without_nominal_leakage()
+    {
+        var error = new V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException(Sensitive);
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(error),
+            Is.EqualTo(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient));
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(error), Does.Not.Contain(Sensitive));
+        V9CalibradorSafeFailureCategory.Mark(error, V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(error),
+            Is.EqualTo(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient));
+    }
+
+    [Test]
     public void Identifies_internal_resource_codes_only()
     {
         Assert.That(V9CalibradorSafeFailureCategory.Classify(
@@ -169,6 +181,21 @@ public sealed class V9CalibradorSafeFailureCategoryTests
         error.Data["JornadaV9SafeProbeCheckpoint"] = Sensitive;
         Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error),
             Is.EqualTo("UNCLASSIFIED_PHYSICAL_SQL_PROBE"));
+    }
+
+    [Test]
+    public void Actual_published_coverage_gate_throws_typed_scientific_failure()
+    {
+        var coverage = new[] {
+            new V9NominalTfPublishedCoverageAudit.SlotCoverage(
+                default, default, 3, 2, 1, 1, 0)
+        };
+        var error = Assert.Throws<V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException>(
+            (Action)(() => V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage)));
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(error!),
+            Is.EqualTo(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient));
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error!),
+            Is.EqualTo(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient));
     }
 
     [Test]

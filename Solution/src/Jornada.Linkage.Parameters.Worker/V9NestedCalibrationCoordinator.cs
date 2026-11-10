@@ -67,7 +67,8 @@ public sealed record V9NestedCalibrationSearchResult(string Version, string Plan
 public sealed record V9DuplicatePolicySelection(string Policy, int EligibleHypotheses,
     IReadOnlyList<string> FrontierSnapshotShas, IReadOnlyList<string> FinalistSnapshotShas,
     bool IndependentlyCertified = false,
-    int PhysicalHypotheses = 0, int DescriptiveMultiplicityHypotheses = 0);
+    int PhysicalHypotheses = 0, int DescriptiveMultiplicityHypotheses = 0,
+    int AttemptedHypotheses = 0, int PublishedTfCoverageInsufficientHypotheses = 0);
 
 /// <summary>Selection stage of the single C# calibrator; external holdouts are absent from this API.</summary>
 public static class V9NestedCalibrationCoordinator
@@ -343,7 +344,14 @@ public static class V9NestedCalibrationCoordinator
             try
             {
                 groups = V9PhysicalFrameExecutionOrder.BroadestLikelyFirst(
-                    requests.GroupBy(PhysicalFrameKey).SelectMany(g => g.Chunk(64)).ToArray(),
+                    // A positive TF coverage failure must never make a TF0 control
+                    // scientifically non-evaluable merely because it shared a SQL frame.
+                    // Keep the same physical frame identity, but isolate TF0 from
+                    // positive-TF options before batching and coverage accounting.
+                    requests.GroupBy(r => (Frame: PhysicalFrameKey(r),
+                        PositiveTf: V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(r.Option),
+                        PublishedPolicy: r.Option.UnpublishedTermPolicy))
+                        .SelectMany(g => g.Chunk(64)).ToArray(),
                     static group => group[0].Passes,
                     static group => group[0].Sha).ToArray();
             }
@@ -471,7 +479,10 @@ public static class V9NestedCalibrationCoordinator
                 finalists.Select(x => x.Snapshot.ContentSha256).ToArray(),
                 PhysicalHypotheses: measuredForAccounting.Length,
                 DescriptiveMultiplicityHypotheses:
-                    policy == "COUNT_ALL" ? measuredForAccounting.Length : selectable.Length))
+                    policy == "COUNT_ALL" ? measuredForAccounting.Length : selectable.Length,
+                AttemptedHypotheses: evaluations.Count,
+                PublishedTfCoverageInsufficientHypotheses: evaluations.Count(x =>
+                    x.Rejections.Contains(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient))))
             .ToArray();
         return new(Version, declaredPlanSha, split.Manifest,
             evaluations.AsReadOnly(), progress.AsReadOnly(), frontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
@@ -617,6 +628,27 @@ public static class V9NestedCalibrationCoordinator
                     CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
             }
             return result.AsReadOnly();
+        }
+        catch (V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException)
+        {
+            // A published IBGE frequency is absent for a positive TF term.
+            // This is scientific non-evaluability, not a physical SQL rejection.
+            // Keep every declared option visible to campaign accounting; never
+            // invent a frequency, silently opt into abstention or admit a
+            // non-evaluable option to the Pareto frontier.
+            return Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(
+                request.Sha, batch, null,
+                [V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient],
+                OptionId: plan.MuEstimationMethods is null ? null : request.Option.OptionId,
+                ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
+                MuEstimationMethod: plan.MuEstimationMethods is null ? null
+                    : request.Option.JointSupportPolicy is null
+                        ? V9MuEstimationSearchSpace.Default
+                        : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
+                            ? V9MuEstimationSearchSpace.Classwise
+                            : V9MuEstimationSearchSpace.ClasswiseMixture,
+                MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
+                EligibleForSelection: false)).ToArray());
         }
         catch (InvalidDataException exception) when (exception.Data[V9PhysicalSqlAdaptiveCalibrationProbe.CandidateRejectionKey] is true)
         { return Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(request.Sha, batch, null,
