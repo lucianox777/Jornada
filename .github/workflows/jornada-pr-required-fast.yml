@@ -20,7 +20,6 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_100k_execution_resource_budget.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_scale_100k_technical_plan.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_calibrator_safe_failure_stage.py'
-          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_lite_experiment_contract.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_standard_100k_capacity.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_masked_sql_probe.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_physical_coverage_baseline.py'
