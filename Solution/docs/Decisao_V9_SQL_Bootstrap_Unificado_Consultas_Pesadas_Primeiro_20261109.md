@@ -1,3 +1,5 @@
+> **ATUALIZAÇÃO POSTERIOR — 10/11/2026, RETOMADA AUTORIZADA:** a referência abaixo à calibração 100k “suspensa pelo PO” permanece apenas como histórico do período anterior. O PO **revogou a suspensão operacional** e solicitou executar o 100k V9 AUTO com os parâmetros desta decisão. O disparo continua manual, com owner-only, SHA master exato, preflight real de segurança e evidência física. [Decisão superior GOV-V9-100K-AUTO-RUN-20261110](Decisao_Autorizacao_Ensaio_V9_100K_AUTO_20261110.md).
+
 # GOV-V9-SQL-BOOTSTRAP-COST-FIRST-20261109 — bootstrap SQL consolidado e ordem de consultas físicas por custo estimado
 
 **Autoridade:** Product Owner (09/11/2026). **Política:** GOV-DOC-01. **Estado:** decisão aprovada para implementação isolada e testes em PR; **calibração física 100k suspensa pelo PO** até novas orientações; sem resultado 100k desta revisão.
