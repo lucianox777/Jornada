@@ -339,10 +339,20 @@ public static class V9NestedCalibrationCoordinator
             // subsequent independent frames up to the governed ceiling.
             // Requests, model options, scientific hashes, CP accounting,
             // refinements and canonical folding remain unchanged.
-            var groups = V9PhysicalFrameExecutionOrder.BroadestLikelyFirst(
-                requests.GroupBy(PhysicalFrameKey).SelectMany(g => g.Chunk(64)).ToArray(),
-                static group => group[0].Passes,
-                static group => group[0].Sha).ToArray();
+            Request[][] groups;
+            try
+            {
+                groups = V9PhysicalFrameExecutionOrder.BroadestLikelyFirst(
+                    requests.GroupBy(PhysicalFrameKey).SelectMany(g => g.Chunk(64)).ToArray(),
+                    static group => group[0].Passes,
+                    static group => group[0].Sha).ToArray();
+            }
+            catch (InvalidDataException exception)
+            {
+                V9CalibradorSafeFailureCategory.Mark(exception,
+                    V9CalibradorSafeFailureCategory.PhysicalFrameOrder);
+                throw;
+            }
             var results = await V9ParallelWork.MapCalibrationAsync(groups, executionMaximumParallelRuleSets ?? calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
                 FrozenIbgeNominalTfV9? frozenReference = null;
@@ -353,12 +363,24 @@ public static class V9NestedCalibrationCoordinator
                     await referenceLease.WaitAsync(ct);
                     try { frozenReference = await frozenTfReferenceForRuleset!(group[0].Passes, ct); }
                     finally { referenceLease.Release(); }
-                    RequirePinnedTfReference(plan, frozenReference);
+                    try { RequirePinnedTfReference(plan, frozenReference); }
+                    catch (InvalidDataException exception)
+                    {
+                        V9CalibradorSafeFailureCategory.Mark(exception,
+                            V9CalibradorSafeFailureCategory.FrozenTfReference);
+                        throw;
+                    }
                 }
                 var connection = await openIndependentConnection(ct);
                 lock (active) if (!active.Add(connection)) throw new InvalidDataException("Workers exigem conexões SQL independentes.");
                 try { return await EvaluateAsync(connection, frame, plan, group, batchIndex,
                     candidateCpMultiplicity, frozenReference, ct); }
+                catch (InvalidDataException exception)
+                {
+                    V9CalibradorSafeFailureCategory.Mark(exception,
+                        V9CalibradorSafeFailureCategory.PhysicalSqlFrame);
+                    throw;
+                }
                 finally { lock (active) active.Remove(connection); await connection.DisposeAsync(); }
             }, resourceScheduler, cancellationToken);
             evaluations.AddRange(results.SelectMany(x => x).OrderBy(x => x.RequestSha256, StringComparer.Ordinal));
