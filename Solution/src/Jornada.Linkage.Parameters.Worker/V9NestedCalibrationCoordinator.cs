@@ -618,6 +618,27 @@ public static class V9NestedCalibrationCoordinator
             }
             return result.AsReadOnly();
         }
+        catch (V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException)
+        {
+            // A published IBGE frequency is absent for a positive TF term.
+            // This is scientific non-evaluability, not a physical SQL rejection.
+            // Keep every declared option visible to campaign accounting; never
+            // invent a frequency, silently opt into abstention or admit a
+            // non-evaluable option to the Pareto frontier.
+            return Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(
+                request.Sha, batch, null,
+                [V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient],
+                OptionId: plan.MuEstimationMethods is null ? null : request.Option.OptionId,
+                ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
+                MuEstimationMethod: plan.MuEstimationMethods is null ? null
+                    : request.Option.JointSupportPolicy is null
+                        ? V9MuEstimationSearchSpace.Default
+                        : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
+                            ? V9MuEstimationSearchSpace.Classwise
+                            : V9MuEstimationSearchSpace.ClasswiseMixture,
+                MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
+                EligibleForSelection: false)).ToArray());
+        }
         catch (InvalidDataException exception) when (exception.Data[V9PhysicalSqlAdaptiveCalibrationProbe.CandidateRejectionKey] is true)
         { return Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(request.Sha, batch, null,
             ["REJEICAO_FISICA: " + V9CalibradorLastErrorLog.SafeErrorCode(exception)],
