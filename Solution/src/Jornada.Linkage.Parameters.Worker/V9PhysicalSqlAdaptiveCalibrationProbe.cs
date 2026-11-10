@@ -464,7 +464,8 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         var optionList = options.Select(x => jointSupportPolicy is null ? x : x with { JointSupportPolicy = jointSupportPolicy }).ToArray();
         reportSafeProbeCheckpoint?.Invoke("PROBE_FS_FRAME");
         var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
-            frame, optionList, frozenTfReference);
+            frame, optionList, frozenTfReference,
+            reportSafeValidationPhase: reportSafeProbeCheckpoint);
         var modelOptions = optionList.Select(x => new AdaptiveCalibrationModelOption(
             V9FellegiSunterAdaptiveCalibrationAdapter.Family,
             V9FellegiSunterAdaptiveCalibrationAdapter.Version,
