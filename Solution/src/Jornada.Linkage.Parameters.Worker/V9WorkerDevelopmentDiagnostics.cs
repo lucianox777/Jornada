@@ -34,9 +34,7 @@ public static class V9WorkerDevelopmentDiagnostics
         bool development = string.Equals(dotnet, "Development", StringComparison.OrdinalIgnoreCase)
             && (string.IsNullOrWhiteSpace(aspnet)
                 || string.Equals(aspnet, "Development", StringComparison.OrdinalIgnoreCase))
-            && (string.IsNullOrWhiteSpace(mode)
-                || string.Equals(mode, "DEV", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(mode, "DEVELOPMENT", StringComparison.OrdinalIgnoreCase));
+;
         if (development) return true;
 
         // HML must be private by deployment configuration, never a CI/stdout
