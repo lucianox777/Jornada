@@ -32,6 +32,43 @@ public static class V9CalibradorSafeFailureCategory
         error.Data[DataKey] = category;
     }
 
+    /// <summary>
+    /// Bounded, non-secret reason for an already-marked physical SQL probe failure.
+    /// Only exact, source-controlled literals are recognized. Never return the
+    /// exception text, SQL command, arbitrary Data entries or stack trace.
+    /// </summary>
+    public static string PhysicalSqlProbeReason(Exception error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+        if (Classify(error) != PhysicalSqlProbe || error is not InvalidDataException)
+            return "NOT_PHYSICAL_SQL_PROBE";
+        return error.Message switch
+        {
+            "Source Rank pareado exige coorte e resultados por identidade." => "SOURCE_RANK_INPUT",
+            "Probe físico aceita exclusivamente TRAIN/VALIDATION; TEST ou linha inválida é proibido." => "FRAME_PARTITION",
+            "ObservationId duplicado no frame físico." => "DUPLICATE_OBSERVATION",
+            "TRAIN e VALIDATION são obrigatórios." => "MISSING_PARTITION",
+            "Vazamento de identidade entre TRAIN e VALIDATION." => "IDENTITY_SPLIT_OVERLAP",
+            "Ruleset contém feature fora do catálogo do Calibrador." => "UNSUPPORTED_BLOCKING_FEATURE",
+            "TF positiva exige referência IBGE publicada/fixada no mesmo frame SQL." => "TF_FRAME_REFERENCE",
+            "Contagem da união SQL diverge da leitura do frame." => "SQL_PAIR_COUNT_MISMATCH",
+            "M recuperado no SQL excede universo elegível pré-blocking: denominador inconsistente." => "RECOVERED_M_UNIVERSE",
+            "Política de suporte da opção diverge da política de execução." => "SUPPORT_POLICY_MISMATCH",
+            "Cobertura de identidades SQL não reconcilia." => "SQL_IDENTITY_COVERAGE",
+            "União física contaminou identidades entre splits." => "SQL_SPLIT_OVERLAP",
+            "Arestas SQL de VALIDATION divergem do censo original." => "VALIDATION_EDGE_MISMATCH",
+            "Replay ponta a ponta divergiu do censo ou Resolve congelado." => "END_TO_END_REPLAY_MISMATCH",
+            "Universo pré-blocking ausente, duplicado ou inválido." => "PREBLOCKING_UNIVERSE",
+            "Candidato SQL fora da partição/universo de identidade-base." => "SQL_CANDIDATE_UNIVERSE",
+            "Partição SQL inesperada no digest de candidatos." => "SQL_DIGEST_PARTITION",
+            "Aresta física sem orientação canônica." => "SQL_EDGE_ORIENTATION",
+            "Digest físico sem arestas de candidatos." => "SQL_EMPTY_EDGE_DIGEST",
+            "Fanout físico fora do domínio do adaptador." => "SQL_FANOUT_DOMAIN",
+            "TP/FP/abstenção FS não reconciliam com o frame SQL físico." => "SQL_FS_COUNTS",
+            _ => "UNCLASSIFIED_PHYSICAL_SQL_PROBE"
+        };
+    }
+
     public static string Classify(Exception error)
     {
         ArgumentNullException.ThrowIfNull(error);

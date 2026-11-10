@@ -78,6 +78,28 @@ public sealed class V9CalibradorSafeFailureCategoryTests
     }
 
     [Test]
+    public void Sql_probe_reasons_are_exact_allowlisted_codes_never_free_text()
+    {
+        var tagged = new InvalidDataException("Contagem da união SQL diverge da leitura do frame.");
+        V9CalibradorSafeFailureCategory.Mark(tagged,
+            V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(tagged),
+            Is.EqualTo("SQL_PAIR_COUNT_MISMATCH"));
+
+        var malicious = new InvalidDataException("Contagem da união SQL diverge da leitura do frame. " + Sensitive);
+        V9CalibradorSafeFailureCategory.Mark(malicious,
+            V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(malicious),
+            Is.EqualTo("UNCLASSIFIED_PHYSICAL_SQL_PROBE"));
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(malicious),
+            Does.Not.Contain(Sensitive));
+
+        var outside = new InvalidDataException("Contagem da união SQL diverge da leitura do frame.");
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(outside),
+            Is.EqualTo("NOT_PHYSICAL_SQL_PROBE"));
+    }
+
+    [Test]
     public void Matches_exact_structural_frame_error_as_safe_category()
     {
         Assert.That(V9CalibradorSafeFailureCategory.Classify(
