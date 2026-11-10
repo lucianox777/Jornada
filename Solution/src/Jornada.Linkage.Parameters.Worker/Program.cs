@@ -22,7 +22,7 @@ if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-prepare-gold-runner")
     return;
 }
 
-if (guardedArgs.Length > 0 && guardedArgs[0] is "--v9-calibrate" or "--v9-lite-benchmark" or "--v9-validate-finalists")
+if (guardedArgs.Length > 0 && guardedArgs[0] is "--v9-calibrate" or "--v9-validate-finalists")
 {
     try
     {
