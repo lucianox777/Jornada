@@ -1,3 +1,5 @@
+> **DECISÃO PO 09/11 — EXECUÇÃO FÍSICA DIRETA V9 24×100K:** [priorização da campanha manual na master sem esperar investigação offline #1390](Decisao_V9_Execucao_Fisica_Direta_100k_20261109.md). Segurança e SHA continuam gates; nenhum novo ensaio é atestado por este registro. GOV-DOC-01.
+
 > **RECIBO — INTEGRAÇÃO DO GOVERNADOR CONJUNTO V9 (PO 09/11):** [decisão, implementação e provas HEAD #1388 no SHA master `7110979007...`](Decisao_V9_Governador_Conjunto_Recursos_Calibrador_20261109.md). 10/10 checks da PR verdes, 13 NUnit e SQL físico 1/0/8 multi-OS; gates pós-merge são independentes e 24×100k ainda NÃO COBERTO. GOV-DOC-01.
 
 > **ACERVO — 09/11, GOVERNADOR CONJUNTO DE RECURSOS DO CALIBRADOR:** [decisão PO aprovada de manter um parâmetro e otimizar conjuntamente CPU, RAM/cgroup, SQL e disco, com piloto/admissão gradual e compatibilidade de planos](Decisao_V9_Governador_Conjunto_Recursos_Calibrador_20261109.md). Não cria os dois campos de recurso propostos; mantém 100k e issue #1253 pendentes; implementação em PR isolada com testes. GOV-DOC-01.
