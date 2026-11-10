@@ -1,3 +1,5 @@
+> **GOV-V9-100K-FS-1407-20261110 — instrumentação de cinco fases fixas do ajuste FS, integrada na #1407 após a falha da campanha #42878503672:** [evidência, justificativa, segurança, limites e precedência](Decisao_V9_100k_Fases_FS_1407_20261110.md). Não altera a ciência nem certifica 24/24; GOV-DOC-01.
+
 > **GOV-V9-100K-CONTINUIDADE-EXECUCAO-20261110 — mandato do PO de prosseguir até a próxima campanha 24×100k, sem consultas intermediárias, preservando checks, preflight e workflow manual owner-only:** [registro de decisão, precedência, correção CS0121 e condições de disparo](Decisao_V9_100k_Probe_Checkpoints_Seguros_20261110.md). GOV-DOC-01.
 
 > **GOV-V9-100K-PROBE-CHECKPOINTS-20261110 — instrumentação sanitizada para falha `UNCLASSIFIED_PHYSICAL_SQL_PROBE` no run #42870110390:** [evidência física, marcos permitidos, testes de sigilo, precedência e restrições](Decisao_V9_100k_Probe_Checkpoints_Seguros_20261110.md). Não altera algoritmo ou ciência e não é prova 24/24; GOV-DOC-01.
