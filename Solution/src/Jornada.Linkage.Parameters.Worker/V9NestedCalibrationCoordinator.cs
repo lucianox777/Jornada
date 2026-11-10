@@ -531,19 +531,31 @@ public static class V9NestedCalibrationCoordinator
         try
         {
             var first = requests[0];
-            var run = await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(connection, frame, first.Passes,
-                requests.Select(x => x.Option).ToArray(), c.Budget, c.StudyFingerprintSha256, cancellationToken,
-                frozenTfReference: frozenTfReference,
-                evaluateFinalResolve: true, finalConflictMargin: first.Margin,
-                predeclaredMaximumAcceptedPerBaseIdentity: c.MaximumAcceptedPerBaseIdentity,
-                includeFsBlindGrouping: true, minimumFsGroupingPosterior: c.MinimumGroupingPosterior,
-                adaptiveExecution: c.Execution with { EndToEndRepetitions = 0, TotalComparedConfigurations = candidateCpMultiplicity },
-                includeIdentityOutcomes: true,
-                includeSourceRankDiagnostics: V9MuEstimationSearchSpace.RequiresPairedSourceRankDiagnostics(
-                    plan.MuEstimationMethods),
-                jointSupportPolicy: plan.MuEstimationMethods is null
-                    ? new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule)
-                    : null);
+            V9PhysicalCalibrationRunResult run;
+            try
+            {
+                run = await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(connection, frame, first.Passes,
+                    requests.Select(x => x.Option).ToArray(), c.Budget, c.StudyFingerprintSha256, cancellationToken,
+                    frozenTfReference: frozenTfReference,
+                    evaluateFinalResolve: true, finalConflictMargin: first.Margin,
+                    predeclaredMaximumAcceptedPerBaseIdentity: c.MaximumAcceptedPerBaseIdentity,
+                    includeFsBlindGrouping: true, minimumFsGroupingPosterior: c.MinimumGroupingPosterior,
+                    adaptiveExecution: c.Execution with { EndToEndRepetitions = 0, TotalComparedConfigurations = candidateCpMultiplicity },
+                    includeIdentityOutcomes: true,
+                    includeSourceRankDiagnostics: V9MuEstimationSearchSpace.RequiresPairedSourceRankDiagnostics(
+                        plan.MuEstimationMethods),
+                    jointSupportPolicy: plan.MuEstimationMethods is null
+                        ? new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule)
+                        : null);
+            }
+            catch (InvalidDataException exception)
+            {
+                // Preserve the rejection marker consumed by the outer catch.
+                // This is only a constant phase tag; the raw error remains private.
+                V9CalibradorSafeFailureCategory.Mark(exception,
+                    V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+                throw;
+            }
             var result = new List<V9NestedCandidateEvaluation>();
             foreach (var request in requests)
             {
@@ -560,15 +572,30 @@ public static class V9NestedCalibrationCoordinator
                 double? p95 = null;
                 if (reasons.Count == 0)
                 {
-                    var measured = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync(connection,
-                        frame.Where(x => x.Partition == "VALIDATION").ToArray(), fit.Snapshot,
-                        c.Execution with { TotalComparedConfigurations = 1 }, c.MaximumAcceptedPerBaseIdentity, 1, cancellationToken);
-                    p95 = measured.P95Milliseconds;
-                    if (!p95.HasValue || p95 > c.SelectionPolicy.MaximumP95Milliseconds) reasons.Add("P95_PONTA_A_PONTA_FORA_DO_ORCAMENTO");
-                    if (measured.Metric.TrueAcceptedSourceObservations != metric.TrueAcceptedSourceObservations
-                        || measured.Metric.FalseAcceptedSourceObservations != metric.FalseAcceptedSourceObservations
-                        || measured.Metric.Conflicts != metric.Conflicts || measured.Metric.Unresolved != metric.Unresolved)
-                        throw new InvalidDataException("Fit e replay congelado divergem no TRAIN_SELECTION.");
+                    try
+                    {
+                        var measured = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync(connection,
+                            frame.Where(x => x.Partition == "VALIDATION").ToArray(), fit.Snapshot,
+                            c.Execution with { TotalComparedConfigurations = 1 }, c.MaximumAcceptedPerBaseIdentity, 1, cancellationToken);
+                        p95 = measured.P95Milliseconds;
+                        if (!p95.HasValue || p95 > c.SelectionPolicy.MaximumP95Milliseconds)
+                            reasons.Add("P95_PONTA_A_PONTA_FORA_DO_ORCAMENTO");
+                        if (measured.Metric.TrueAcceptedSourceObservations != metric.TrueAcceptedSourceObservations
+                            || measured.Metric.FalseAcceptedSourceObservations != metric.FalseAcceptedSourceObservations
+                            || measured.Metric.Conflicts != metric.Conflicts || measured.Metric.Unresolved != metric.Unresolved)
+                        {
+                            var mismatch = new InvalidDataException("Fit e replay congelado divergem no TRAIN_SELECTION.");
+                            V9CalibradorSafeFailureCategory.Mark(mismatch,
+                                V9CalibradorSafeFailureCategory.PhysicalReplayMismatch);
+                            throw mismatch;
+                        }
+                    }
+                    catch (InvalidDataException exception)
+                    {
+                        V9CalibradorSafeFailureCategory.Mark(exception,
+                            V9CalibradorSafeFailureCategory.PhysicalFrozenHoldout);
+                        throw;
+                    }
                 }
                 result.Add(new(request.Sha, batch, new(fit.Snapshot, metric, support, p95, fanout,
                     reasons.AsReadOnly(), run.TrainCandidatePriorDiagnostic),

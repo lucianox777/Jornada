@@ -48,6 +48,36 @@ public sealed class V9CalibradorSafeFailureCategoryTests
     }
 
     [Test]
+    public void Innermost_safe_category_survives_outer_physical_frame_boundaries()
+    {
+        var error = new InvalidDataException(Sensitive);
+        V9CalibradorSafeFailureCategory.Mark(error,
+            V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+        V9CalibradorSafeFailureCategory.Mark(error,
+            V9CalibradorSafeFailureCategory.PhysicalSqlFrame);
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(error),
+            Is.EqualTo(V9CalibradorSafeFailureCategory.PhysicalSqlProbe));
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(error), Does.Not.Contain(Sensitive));
+    }
+
+    [Test]
+    public void Frozen_holdout_and_replay_mismatch_are_fixed_distinct_categories()
+    {
+        var failedHoldout = new InvalidDataException(Sensitive);
+        V9CalibradorSafeFailureCategory.Mark(failedHoldout,
+            V9CalibradorSafeFailureCategory.PhysicalFrozenHoldout);
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(failedHoldout),
+            Is.EqualTo("PHYSICAL_FROZEN_HOLDOUT"));
+        var replay = new InvalidDataException(Sensitive);
+        V9CalibradorSafeFailureCategory.Mark(replay,
+            V9CalibradorSafeFailureCategory.PhysicalReplayMismatch);
+        V9CalibradorSafeFailureCategory.Mark(replay,
+            V9CalibradorSafeFailureCategory.PhysicalFrozenHoldout);
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(replay),
+            Is.EqualTo("PHYSICAL_REPLAY_MISMATCH"));
+    }
+
+    [Test]
     public void Matches_exact_structural_frame_error_as_safe_category()
     {
         Assert.That(V9CalibradorSafeFailureCategory.Classify(
