@@ -532,6 +532,7 @@ public static class V9NestedCalibrationCoordinator
         {
             var first = requests[0];
             V9PhysicalCalibrationRunResult run;
+            var lastSafeProbeCheckpoint = "PROBE_ADMISSION";
             try
             {
                 run = await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(connection, frame, first.Passes,
@@ -546,7 +547,8 @@ public static class V9NestedCalibrationCoordinator
                         plan.MuEstimationMethods),
                     jointSupportPolicy: plan.MuEstimationMethods is null
                         ? new(plan.ClassMassCoverage, plan.MinimumObservedMPerCell, plan.MinimumObservedUPerCell, plan.SupportedTailRule)
-                        : null);
+                        : null,
+                    reportSafeProbeCheckpoint: checkpoint => lastSafeProbeCheckpoint = checkpoint);
             }
             catch (InvalidDataException exception)
             {
@@ -554,6 +556,7 @@ public static class V9NestedCalibrationCoordinator
                 // This is only a constant phase tag; the raw error remains private.
                 V9CalibradorSafeFailureCategory.Mark(exception,
                     V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+                V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(exception, lastSafeProbeCheckpoint);
                 throw;
             }
             var result = new List<V9NestedCandidateEvaluation>();

@@ -7,6 +7,13 @@ namespace Jornada.Linkage.Parameters.Worker;
 public static class V9CalibradorSafeFailureCategory
 {
     private const string DataKey = "JornadaV9SafeFailureCategory";
+    private const string ProbeCheckpointDataKey = "JornadaV9SafeProbeCheckpoint";
+    private static readonly HashSet<string> ProbeCheckpoints = new(StringComparer.Ordinal)
+    {
+        "PROBE_ADMISSION", "PROBE_SIGNATURES", "PROBE_SQL_PREPARE", "PROBE_SQL_MATERIALIZE",
+        "PROBE_SQL_READ", "PROBE_SQL_DIGEST", "PROBE_PAIR_SUPPORT", "PROBE_FS_FRAME",
+        "PROBE_FS_FIT", "PROBE_SOURCE_RESOLVE", "PROBE_SNAPSHOT_EXPORT"
+    };
     public const string PhysicalSqlFrame = "PHYSICAL_SQL_FRAME";
     public const string PhysicalSqlProbe = "PHYSICAL_SQL_PROBE";
     public const string PhysicalFrozenHoldout = "PHYSICAL_FROZEN_HOLDOUT";
@@ -30,6 +37,16 @@ public static class V9CalibradorSafeFailureCategory
         if (error.Data[DataKey] is string previous && Allowed.Contains(previous))
             return;
         error.Data[DataKey] = category;
+    }
+
+    /// <summary>Mark a fixed, allowlisted checkpoint, never an arbitrary error message.</summary>
+    public static void MarkProbeCheckpoint(Exception error, string checkpoint)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+        if (!ProbeCheckpoints.Contains(checkpoint))
+            throw new ArgumentException("Unknown physical probe checkpoint.", nameof(checkpoint));
+        if (Classify(error) == PhysicalSqlProbe)
+            error.Data[ProbeCheckpointDataKey] = checkpoint;
     }
 
     /// <summary>
@@ -65,7 +82,9 @@ public static class V9CalibradorSafeFailureCategory
             "Digest físico sem arestas de candidatos." => "SQL_EMPTY_EDGE_DIGEST",
             "Fanout físico fora do domínio do adaptador." => "SQL_FANOUT_DOMAIN",
             "TP/FP/abstenção FS não reconciliam com o frame SQL físico." => "SQL_FS_COUNTS",
-            _ => "UNCLASSIFIED_PHYSICAL_SQL_PROBE"
+            _ => error.Data[ProbeCheckpointDataKey] is string checkpoint && ProbeCheckpoints.Contains(checkpoint)
+                ? "UNCLASSIFIED_PHYSICAL_SQL_PROBE_AT_" + checkpoint
+                : "UNCLASSIFIED_PHYSICAL_SQL_PROBE"
         };
     }
 
