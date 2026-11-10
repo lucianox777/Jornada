@@ -79,6 +79,43 @@ def docker_oom_killed(container):
     except (OSError, subprocess.TimeoutExpired):
         return None
 
+
+def parse_sql_cgroup_snapshot(raw):
+    # Aggregate-only, cgroup v2. Unknown/missing keys never mean zero OOM.
+    parts = raw.split("PEAK_KIB:", 1)
+    if len(parts) != 2:
+        return None
+    try:
+        counters = {}
+        for line in parts[0].splitlines():
+            name, value = line.split()
+            if name in ("oom", "oom_kill") and re.fullmatch(r"[0-9]+", value):
+                counters[name] = int(value)
+        peak = parts[1].strip()
+        if not re.fullmatch(r"[0-9]+", peak):
+            return None
+        if "oom" not in counters or "oom_kill" not in counters:
+            return None
+        return {"oom": counters["oom"], "oom_kill": counters["oom_kill"],
+                "peakKiB": int(peak) // 1024}
+    except ValueError:
+        return None
+
+def sql_cgroup_snapshot(container):
+    # Read only fixed cgroup files inside SQL. No shell expansions, env or inspect
+    # payloads are printed; unavailable cgroup-v2 capability stays unknown.
+    try:
+        probe = subprocess.run(["docker", "exec", container, "sh", "-c",
+                                "cat /sys/fs/cgroup/memory.events && "
+                                "printf 'PEAK_KIB:' && cat /sys/fs/cgroup/memory.peak"],
+                               text=True, capture_output=True, timeout=5,
+                               check=False)
+        if probe.returncode != 0:
+            return None
+        return parse_sql_cgroup_snapshot(probe.stdout)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sql-container", required=True)
@@ -100,6 +137,12 @@ def main():
     sql_max = None
     sql_oom_observed = False
     sql_inspect_samples = 0
+    sql_cgroup_first = None
+    sql_cgroup_last = None
+    sql_cgroup_samples = 0
+    sql_cgroup_oom_delta_max = None
+    sql_cgroup_oom_kill_delta_max = None
+    sql_cgroup_peak_kib = None
     worker_max = None
     host_min = before
     child = subprocess.Popen(command)
@@ -110,6 +153,19 @@ def main():
             if sql_oom is not None:
                 sql_inspect_samples += 1
                 sql_oom_observed = sql_oom_observed or sql_oom
+            cg = sql_cgroup_snapshot(args.sql_container)
+            if cg is not None:
+                sql_cgroup_samples += 1
+                if sql_cgroup_first is None:
+                    sql_cgroup_first = cg
+                sql_cgroup_last = cg
+                sql_cgroup_peak_kib = max(sql_cgroup_peak_kib or 0, cg["peakKiB"])
+                sql_cgroup_oom_delta_max = max(
+                    sql_cgroup_oom_delta_max or 0,
+                    max(0, cg["oom"] - sql_cgroup_first["oom"]))
+                sql_cgroup_oom_kill_delta_max = max(
+                    sql_cgroup_oom_kill_delta_max or 0,
+                    max(0, cg["oom_kill"] - sql_cgroup_first["oom_kill"]))
             worker = process_tree_rss_kib(child.pid)
             available = mem_available_kib()
             samples += 1
@@ -144,6 +200,10 @@ def main():
         "cgroupOomKillDelta": deltas["oom_kill"],
         "sqlContainerOomKilled": True if sql_oom_observed else (False if sql_inspect_samples else None),
         "sqlContainerOomSamples": sql_inspect_samples,
+        "sqlCgroupV2ValidSamples": sql_cgroup_samples,
+        "sqlCgroupV2MemoryPeakKiB": sql_cgroup_peak_kib,
+        "sqlCgroupV2OomEventDeltaObserved": sql_cgroup_oom_delta_max,
+        "sqlCgroupV2OomKillDeltaObserved": sql_cgroup_oom_kill_delta_max,
         "sqlMemoryLimitChanged": False,
         "scientificPlanChanged": False,
         "testUsed": False, "goldUsed": False, "activated": False
@@ -151,7 +211,7 @@ def main():
     with args.output.open("x", encoding="utf-8") as stream:
         json.dump(receipt, stream, sort_keys=True, indent=2)
         stream.write("\n")
-    marker = ("OOM_SIGNAL_OBSERVED" if (deltas["oom_kill"] or 0) > 0 or
+    marker = ("OOM_SIGNAL_OBSERVED" if (sql_cgroup_oom_kill_delta_max or 0) > 0 or (deltas["oom_kill"] or 0) > 0 or
               receipt["sqlContainerOomKilled"] is True else
               "NO_OOM_SIGNAL_OBSERVED_NOT_PROOF_OF_ABSENCE")
     print("V9_PHYSICAL_MEMORY_EVIDENCE:" + marker + "; worker_exit=" + str(exit_code), flush=True)

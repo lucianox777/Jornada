@@ -33,6 +33,18 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
         self.assertIn("sql_oom_observed = sql_oom_observed or sql_oom", source)
         self.assertIn("sql_oom_observed = sql_oom_observed or final_sql_oom", source)
 
+    def test_sql_container_cgroup_oom_counts_and_peak(self):
+        sample = "low 2\\nhigh 0\\nmax 3\\noom 4\\noom_kill 1\\nPEAK_KIB:10485760\\n"
+        self.assertEqual(module.parse_sql_cgroup_snapshot(sample),
+                         {"oom": 4, "oom_kill": 1, "peakKiB": 10240})
+        self.assertIsNone(module.parse_sql_cgroup_snapshot("cgroup unavailable"))
+        self.assertIsNone(module.parse_sql_cgroup_snapshot("oom 3\\nPEAK_KIB:10"))
+        self.assertIsNone(module.parse_sql_cgroup_snapshot("oom secret\\noom_kill 0\\nPEAK_KIB:10"))
+        source = PATH.read_text()
+        self.assertIn("sqlCgroupV2OomKillDeltaObserved", source)
+        self.assertIn("sqlCgroupV2MemoryPeakKiB", source)
+        self.assertIn("sql_cgroup_oom_kill_delta_max or 0", source)
+
     def test_read_only_and_artifact_only(self):
         text = PATH.read_text()
         workflow = WORKFLOW.read_text()
