@@ -152,7 +152,9 @@ public sealed class V9CalibradorSafeFailureCategoryTests
             V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
         foreach (var phase in new[] {
             "VALIDATION_FIT_CHECK", "VALIDATION_ROWS", "VALIDATION_TF_FROZEN_UNITS",
-            "VALIDATION_TF_PUBLISHED_COVERAGE", "VALIDATION_PAIR_SCORING",
+            "VALIDATION_TF_PUBLISHED_COVERAGE", "VALIDATION_TF_COVERAGE_AUDIT",
+            "VALIDATION_TF_COVERAGE_UNION", "VALIDATION_TF_COVERAGE_REQUIRE",
+            "VALIDATION_TF_COVERAGE_ABSTAIN", "VALIDATION_PAIR_SCORING",
             "VALIDATION_METRICS_AGGREGATE"
         })
         {
