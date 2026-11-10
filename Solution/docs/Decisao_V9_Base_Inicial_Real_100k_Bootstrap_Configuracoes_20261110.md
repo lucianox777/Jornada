@@ -23,3 +23,11 @@ Esta decisão define a **finalidade da coorte real inicial**, não atesta exist�
 A próxima campanha técnica sintética 24×100k continua instrumento de diagnóstico da falha `FS_VALIDATION_EVALUATE`, agora com checkpoints detalhados integrados na PR #1409 e merge `8abb27fef8c41d1eaa83b40323dd680c4cde4186`. Não há certificação de 24/24 até executar e auditar novo run. Workflow manual owner-only com preflight real e SHA exato, sem alterar ciência.
 
 **Impactos:** documentação e desenho de bootstrap real, sem mudança de código, TF, U/M, FDR, 81 células, 24/16/8, SQL ou referência IBGE. Rastrear eventuais implementações em PRs próprios e sincronizar índices GOV-DOC-01.
+
+## Esclarecimento de fonte TF — revisão arquitetural após parecer
+
+O rótulo `PinnedIbgeBootstrap.People=30000` no plano histórico **não significa que a tabela oficial de frequências de nomes seja construída de 30.000 sintéticos**. A preparação `v9-tf-prepare-pin.sh` carrega o snapshot de nomes **publicado pelo IBGE** (esquema SQL `ref`, `LOAD_NAME_FREQUENCY_SNAPSHOT`), depois gera separadamente um corpus sintético de 30k para vinculação de proveniência seed42. O método `FrozenIbgeNominalTfV9.LoadAsync` consulta a versão publicada e materializa as frequências do `NominalTermFrequencyReferenceStore` e de proxies de sobrenome. Não atribuir o erro do 100k ao simples fato de o bootstrap sintético histórico conter 30k: a causa depende da prova física de cobertura, que é distinta do tamanho da amostra.
+
+O ensaio sintético 100k da campanha serve à validação técnica e à busca experimental controlada de parâmetros; seus resultados **não substituem**, por si sós, o bootstrap inicial sobre coorte real autorizada, nem autorizam ativação. Não construir uma tabela intitulada IBGE a partir do gerador para mascarar ausências de nomes raros. Um teste isolado com frequências simuladas poderia existir apenas como cenário metodológico identificado, nunca substituindo a referência oficial do contrato TF.
+
+A PR #1409, integrada na master `8abb27fef8c41d1eaa83b40323dd680c4cde4186`, acrescenta checkpoints no `EvaluateValidation`. Eles devem ser usados na próxima campanha manual, com SHA da master e preflight válidos, para distinguir problemas de cobertura publicada, suporte TRAIN U e pontuação sem alterar a ciência antes do diagnóstico.
