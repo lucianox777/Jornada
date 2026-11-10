@@ -183,6 +183,7 @@ public static class V9NestedCalibrationCli
                     {
                         await WriteNewAsync(Path.Combine(output, "interrupted.json"),
                             new { exceptionType = exception.GetType().Name, safeFailureStage = safeStage,
+                                safeFailureCategory = V9CalibradorSafeFailureCategory.Classify(exception),
                                 completed = false, testUsed = false, activated = false });
                     }
                     catch (Exception)
