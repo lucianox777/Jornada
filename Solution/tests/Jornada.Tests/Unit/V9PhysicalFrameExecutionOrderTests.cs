@@ -53,18 +53,18 @@ public sealed class V9PhysicalFrameExecutionOrderTests
     [Test]
     public void Empty_invalid_and_duplicate_operational_frames_fail_closed()
     {
-        Assert.Throws<InvalidDataException>(() =>
-            V9PhysicalFrameExecutionOrder.StructuralBroadnessScore([]));
-        Assert.Throws<InvalidDataException>(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9PhysicalFrameExecutionOrder.StructuralBroadnessScore([])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9PhysicalFrameExecutionOrder.StructuralBroadnessScore(
-                [new LinkageBlockingPass("X", Array.Empty<string>())]));
+                [new LinkageBlockingPass("X", Array.Empty<string>())])));
         Frame[] duplicates =
         [
             new("same", [Pass("X", "NOME")]),
             new("same", [Pass("Y", "NOME", "NOME_MAE")])
         ];
-        Assert.Throws<InvalidDataException>(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9PhysicalFrameExecutionOrder.BroadestLikelyFirst(duplicates,
-                x => x.Passes, x => x.Key));
+                x => x.Passes, x => x.Key)));
     }
 }

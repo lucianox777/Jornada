@@ -18,6 +18,7 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_plan.py'
           # Offline 100k adaptive-runner checks only: never run SQL or a calibration on PR.
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_100k_execution_resource_budget.py'
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_masked_sql_probe.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_scale_100k_technical_plan.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_calibrator_safe_failure_stage.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_standard_100k_capacity.py'
@@ -40,7 +41,7 @@ jobs:
           dotnet build Jornada.sln -c Release
           # CPU/RAM/disk unit fixtures only; this does not start SQL or a 100k fit.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
-            --filter '(FullyQualifiedName~V9CalibrationExecutionResourceBudgetTests|FullyQualifiedName~V9CalibrationRuntimeSchedulerTests)'
+            --filter '(FullyQualifiedName~V9CalibrationExecutionResourceBudgetTests|FullyQualifiedName~V9CalibrationRuntimeSchedulerTests|FullyQualifiedName~V9PhysicalFrameExecutionOrderTests)'
   security-guards:
     runs-on: ubuntu-latest
     timeout-minutes: 8

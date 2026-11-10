@@ -121,6 +121,10 @@ class Adaptive100kResourceBudgetTests(unittest.TestCase):
         self.assertIn('"activated": false', guard)
         proc = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)
+        sql_start = ROOT / "scripts/v9-tf-start-disposable-sql.sh"
+        sql_syntax = subprocess.run(["bash", "-n", str(sql_start)],
+                                    capture_output=True, text=True)
+        self.assertEqual(sql_syntax.returncode, 0, sql_syntax.stderr)
 
     def test_exact_workflow_separation_and_no_safety_bypass(self):
         workflow = (ROOT.parent / ".github/workflows/v9-multiparameter-100k-technical.yml").read_text()
