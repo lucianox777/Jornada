@@ -165,6 +165,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             throw new InvalidDataException("Censo do catálogo exige TRAIN/VALIDATION sem IDs duplicados ou TEST.");
         if (observations.GroupBy(x => x.BasePersonId, StringComparer.Ordinal).Any(g => g.Select(x => x.Partition).Distinct().Count() > 1))
             throw new InvalidDataException("Vazamento de identidade entre TRAIN e VALIDATION no censo.");
+        reportSafeProbeCheckpoint?.Invoke("PROBE_SQL_PREPARE");
         await RequireHarnessAsync(connection, cancellationToken);
         var passes = space.CanonicalCatalogue();
         var allowed = (execution.MaximumPrefixLength == 0 ? BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates
@@ -282,8 +283,10 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         V9PhysicalAdaptiveExecution? adaptiveExecution = null,
         bool includeIdentityOutcomes = false,
         V9JointSupportPolicy? jointSupportPolicy = null,
-        bool includeSourceRankDiagnostics = false)
+        bool includeSourceRankDiagnostics = false,
+        Action<string>? reportSafeProbeCheckpoint = null)
     {
+        reportSafeProbeCheckpoint?.Invoke("PROBE_ADMISSION");
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(passes);
@@ -352,6 +355,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
                 || frozenTfReference.BlockingFrameFingerprint != blockingFingerprint))
             throw new InvalidDataException(
                 "TF positiva exige referência IBGE publicada/fixada no mesmo frame SQL.");
+        reportSafeProbeCheckpoint?.Invoke("PROBE_SIGNATURES");
         var signatures = BuildSignatures(observations, canonicalPasses, adaptiveExecution.MaximumPrefixLength, adaptiveExecution.MaximumProjectedSignatures);
         var projectionVersion = adaptiveExecution.MaximumPrefixLength == 0
             ? PersonResolutionProjectionContract.SchemaVersion : V9CalibrationBlockingProjection.SchemaVersion;
@@ -380,12 +384,14 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         await BulkSignaturesAsync(connection, signatures, cancellationToken);
         var signaturesMs = timer.Elapsed.TotalMilliseconds;
         timer.Restart();
+        reportSafeProbeCheckpoint?.Invoke("PROBE_SQL_MATERIALIZE");
         var physicalPairs = await MaterializePairsAsync(connection, cancellationToken);
         var materializeMs = timer.Elapsed.TotalMilliseconds;
         if (physicalPairs > adaptiveExecution.MaximumCandidatePairIncidences)
             throw CandidateRejected("União SQL distinta excedeu o limite declarado após materialização.");
 
         timer.Restart();
+        reportSafeProbeCheckpoint?.Invoke("PROBE_SQL_READ");
         var rows = await ReadCandidatePairsAsync(connection, cancellationToken);
         var readMs = timer.Elapsed.TotalMilliseconds;
         var measuredSql = new V9PhysicalSqlMeasuredTimings(
@@ -394,6 +400,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             throw new InvalidDataException("Contagem da união SQL diverge da leitura do frame.");
         // Stable observation IDs from the pinned CSV; hash the actual physical
         // SQL edges (TRAIN and VALIDATION) rather than the blocking rule names.
+        reportSafeProbeCheckpoint?.Invoke("PROBE_SQL_DIGEST");
         var candidatePairsSha = await ReadCandidatePairsSha256Async(connection, cancellationToken);
 
         // Repeat only AFTER verifying the first materialization and BEFORE
@@ -410,6 +417,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             repeatedQuantiles = V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds(samples);
         }
 
+        reportSafeProbeCheckpoint?.Invoke("PROBE_PAIR_SUPPORT");
         var trainRows = rows.Where(x => x.Partition == "TRAIN").ToArray();
         var validationRows = rows.Where(x => x.Partition == "VALIDATION").ToArray();
         if (trainRows.Length == 0 || validationRows.Length == 0
@@ -454,6 +462,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         if (jointSupportPolicy is not null && options.Any(x => x.JointSupportPolicy is not null && x.JointSupportPolicy != jointSupportPolicy))
             throw new InvalidDataException("Política de suporte da opção diverge da política de execução.");
         var optionList = options.Select(x => jointSupportPolicy is null ? x : x with { JointSupportPolicy = jointSupportPolicy }).ToArray();
+        reportSafeProbeCheckpoint?.Invoke("PROBE_FS_FRAME");
         var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
             frame, optionList, frozenTfReference);
         var modelOptions = optionList.Select(x => new AdaptiveCalibrationModelOption(
@@ -485,6 +494,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             ManuallyRequestedCalibration: true,
             budget);
 
+        reportSafeProbeCheckpoint?.Invoke("PROBE_FS_FIT");
         var report = AdaptiveCalibrationModelSearch.Evaluate(request, [adapter]);
         var globalCoverage = CalculateValidationGlobalCoverage(
             validationEligibleM,
@@ -501,6 +511,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         IReadOnlyList<V9PhysicalSourceResolveMetric>? sourceResolve = null;
         if (evaluateFinalResolve)
         {
+            reportSafeProbeCheckpoint?.Invoke("PROBE_SOURCE_RESOLVE");
             physicalReport = physicalReport with
             {
                 SuggestedModelFamily = null,
@@ -525,6 +536,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
                 includeSourceRankDiagnostics: includeSourceRankDiagnostics);
         }
 
+        reportSafeProbeCheckpoint?.Invoke("PROBE_SNAPSHOT_EXPORT");
         var frozen = new List<V9PhysicalFrozenConfiguration>();
         foreach (var result in physicalReport.Options)
         {

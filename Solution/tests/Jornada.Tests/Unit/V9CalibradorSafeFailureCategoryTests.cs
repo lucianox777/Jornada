@@ -100,6 +100,34 @@ public sealed class V9CalibradorSafeFailureCategoryTests
     }
 
     [Test]
+    public void Unknown_sql_probe_exception_reports_only_allowlisted_checkpoint()
+    {
+        var error = new InvalidDataException(Sensitive);
+        V9CalibradorSafeFailureCategory.Mark(error,
+            V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+        V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(error, "PROBE_FS_FIT");
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error),
+            Is.EqualTo("UNCLASSIFIED_PHYSICAL_SQL_PROBE_AT_PROBE_FS_FIT"));
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error),
+            Does.Not.Contain(Sensitive));
+        Assert.Throws<ArgumentException>(() =>
+            V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(error, Sensitive));
+
+        // An untrusted Data value is never echoed.
+        error.Data["JornadaV9SafeProbeCheckpoint"] = Sensitive;
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error),
+            Is.EqualTo("UNCLASSIFIED_PHYSICAL_SQL_PROBE"));
+
+        // Exact known reasons remain more precise than stage information.
+        var known = new InvalidDataException("Contagem da união SQL diverge da leitura do frame.");
+        V9CalibradorSafeFailureCategory.Mark(known,
+            V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+        V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(known, "PROBE_SQL_READ");
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(known),
+            Is.EqualTo("SQL_PAIR_COUNT_MISMATCH"));
+    }
+
+    [Test]
     public void Matches_exact_structural_frame_error_as_safe_category()
     {
         Assert.That(V9CalibradorSafeFailureCategory.Classify(
