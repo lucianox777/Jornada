@@ -165,7 +165,6 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             throw new InvalidDataException("Censo do catálogo exige TRAIN/VALIDATION sem IDs duplicados ou TEST.");
         if (observations.GroupBy(x => x.BasePersonId, StringComparer.Ordinal).Any(g => g.Select(x => x.Partition).Distinct().Count() > 1))
             throw new InvalidDataException("Vazamento de identidade entre TRAIN e VALIDATION no censo.");
-        reportSafeProbeCheckpoint?.Invoke("PROBE_SQL_PREPARE");
         await RequireHarnessAsync(connection, cancellationToken);
         var passes = space.CanonicalCatalogue();
         var allowed = (execution.MaximumPrefixLength == 0 ? BlockingCandidateFeatureCatalog.RequiredCalibratorCandidates
@@ -370,6 +369,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         if (connection.State != ConnectionState.Open)
             throw new InvalidOperationException("Conexão SQL precisa estar aberta.");
 
+        reportSafeProbeCheckpoint?.Invoke("PROBE_SQL_PREPARE");
         await RequireHarnessAsync(connection, cancellationToken);
 
         // Measure actual physical SQL operations; do not present five operation
