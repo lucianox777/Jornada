@@ -120,7 +120,11 @@ jobs:
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker --             --v9-calibrate "$root/bound/plan.json" "$root/people-100k/observacoes.csv" "$root/results"
+          python3 scripts/v9-100k-physical-memory-evidence.py \
+            --sql-container "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --output "$root/results/physical-memory-evidence.json" -- \
+            dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-calibrate "$root/bound/plan.json" "$root/people-100k/observacoes.csv" "$root/results"
       - name: Audit all V2 witness, V3/TF/MU fits, TP/FP/FN, FDR and resolution P95
         run: |
           set -euo pipefail
@@ -139,6 +143,7 @@ jobs:
             Solution/.local/v9-100k-technical/bound/capacity-before-calibration.json
             Solution/.local/v9-100k-technical/bound/plan.json
             Solution/.local/v9-100k-technical/bound/binding-receipt.json
+            Solution/.local/v9-100k-technical/results/physical-memory-evidence.json
             Solution/.local/v9-100k-technical/results/interrupted.json
             Solution/.local/v9-100k-technical/bound/technical-audit.json
             Solution/.local/v9-100k-technical/bound/technical-audit.md
