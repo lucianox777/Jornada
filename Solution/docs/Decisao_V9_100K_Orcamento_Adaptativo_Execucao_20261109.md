@@ -1,3 +1,5 @@
+> **ATUALIZAÇÃO PO — GOV-V9-100K-SQL-PY-OPTOUT-20261109:** o orçamento Python SQL continua o **padrão** deste documento; o PO autorizou opção manual `disable_python_sql_budget=true` para testar o Calibrador 100k com configuração nativa de memória SQL (sem dimensionamento Python). O opt-out conserva governador C#, gates SHA/segurança e preflight Bash de RAM/disco. [Decisão superveniente e ressalvas](Decisao_V9_100K_OptOut_Orcamento_SQL_Python_20261109.md). GOV-DOC-01.
+
 > **PRECEDÊNCIA (PO 09/11/2026):** esta decisão continua administrando **somente a fase externa de inicialização de SQL do workflow 100k**, enquanto o orçamento operacional **dentro do C# quando o comando de calibração inicia** é agora o contrato geral [GOV-V9-CALIBRADOR-RECURSOS-INTERNOS-20261109](Decisao_V9_Orcamento_Adaptativo_Interno_Modo_Calibracao_20261109.md). O plano científico e o histórico de 100k permanecem inalterados; aplicação dessa nova decisão à campanha já iniciada no SHA `dc3db33d` não é retroativa. GOV-DOC-01.
 
 # GOV-V9-100K-RECORRECURSOS-20261109 — recursos adaptativos exclusivos da campanha 24×100k

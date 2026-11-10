@@ -1,5 +1,6 @@
 """Offline regression for resource-only V9 100k dynamic SQL admission (no physics)."""
 import importlib.util
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -86,6 +87,32 @@ class Adaptive100kResourceBudgetTests(unittest.TestCase):
             (cgroup / "memory.current").write_text("not_a_number")
             with self.assertRaisesRegex(ValueError, "unreadable"):
                 mod.read_bytes(cgroup / "memory.current")
+
+    def test_opt_out_of_python_sql_sizing_is_explicit_and_still_guarded(self):
+        workflow = (ROOT.parent / ".github/workflows/v9-multiparameter-100k-technical.yml").read_text()
+        script = ROOT / "scripts/v9-100k-sql-budget-optout-guard.sh"
+        guard = script.read_text()
+        self.assertIn("disable_python_sql_budget:", workflow)
+        self.assertIn("default: false", workflow)
+        self.assertIn("V9_100K_DISABLE_PYTHON_SQL_BUDGET:", workflow)
+        self.assertEqual(workflow.count("if: ${{ inputs.disable_python_sql_budget != true }}"), 2)
+        self.assertEqual(workflow.count("if: ${{ inputs.disable_python_sql_budget == true }}"), 2)
+        self.assertIn("v9-100k-sql-budget-optout-guard.sh before-sql", workflow)
+        self.assertIn("v9-100k-sql-budget-optout-guard.sh before-fit", workflow)
+        self.assertLess(workflow.index("Guard native SQL defaults"), workflow.index("Start masked disposable SQL Server"))
+        self.assertLess(workflow.index("Guard memory and disk in native SQL mode"),
+                        workflow.index("Run physical V9 CSharp on all 24"))
+        self.assertIn('[[ -n "${V9_SQL_MEMORY_LIMIT_MB:-}"', guard)
+        self.assertIn('-n "${V9_SQL_CONTAINER_MEMORY_MB:-}"', guard)
+        self.assertIn("memory.max", guard)
+        self.assertIn("MemAvailable", guard)
+        self.assertIn("df -Pk", guard)
+        self.assertIn("PASS_ADMISSION_ONLY_NOT_FIT_PROOF", guard)
+        self.assertIn("FAIL_CLOSED_INSUFFICIENT_RESOURCES", guard)
+        self.assertIn('"testUsed": false', guard)
+        self.assertIn('"activated": false', guard)
+        proc = subprocess.run(["bash", "-n", str(script)], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
 
     def test_exact_workflow_separation_and_no_safety_bypass(self):
         workflow = (ROOT.parent / ".github/workflows/v9-multiparameter-100k-technical.yml").read_text()
