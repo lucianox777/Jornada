@@ -126,6 +126,17 @@ public static class V9NominalTfPublishedCoverageAudit
         return new(trueTotal, nonmatchTotal, trueMissing, nonmatchMissing);
     }
 
+    /// <summary>
+    /// Expected scientific non-evaluability under RejectOperation, not a SQL,
+    /// resource or infrastructure failure. Retains InvalidDataException
+    /// compatibility while giving the campaign orchestrator a typed signal.
+    /// Only aggregated counts are exposed; never nominal values.
+    /// </summary>
+    public sealed class PublishedCoverageInsufficientException : InvalidDataException
+    {
+        public PublishedCoverageInsufficientException(string message) : base(message) { }
+    }
+
     public static void RequireCompleteCoverage(IReadOnlyList<SlotCoverage> audit)
     {
         ArgumentNullException.ThrowIfNull(audit);
@@ -134,7 +145,7 @@ public static class V9NominalTfPublishedCoverageAudit
             return;
         // No nominal values, plaintext identifiers, observation IDs or hashes
         // of individual names in logs: those can be brute-forced from a dictionary.
-        throw new InvalidDataException(
+        throw new PublishedCoverageInsufficientException(
             "TF positiva sem frequência IBGE publicada (VALIDATION; contagens agregadas, sem dados nominais): "
             + string.Join("; ", gaps.Select(row => $"{row.Side}/{row.Unit}: "
                 + $"aplicaveis={row.ApplicableValidationPairs},"
