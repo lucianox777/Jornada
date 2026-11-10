@@ -184,6 +184,54 @@ def sql_cgroup_snapshot(container):
     except (OSError, subprocess.TimeoutExpired):
         return None
 
+def parse_positive_limit(raw):
+    value = raw.strip()
+    if value == "max":
+        return None
+    return int(value) if re.fullmatch(r"[0-9]+", value) and int(value) > 0 else None
+
+
+def sql_memory_limits(container):
+    """Numeric, allowlisted configuration only. Unknown != unlimited."""
+    values = {"sqlMemoryMemorylimitMb": None, "sqlDockerHardLimitKiB": None,
+              "sqlCgroupMemoryMaxKiB": None}
+    # SQL Server's mssql-conf setting, if explicit. No raw stdout in receipt.
+    try:
+        cmd = subprocess.run(
+            ["docker", "exec", container, "/opt/mssql/bin/mssql-conf",
+             "get", "memory.memorylimitmb"],
+            capture_output=True, text=True, timeout=6, check=False)
+        if cmd.returncode == 0:
+            numeric = re.findall(r"(?<![A-Za-z0-9])([0-9]{3,7})(?![A-Za-z0-9])", cmd.stdout)
+            if len(numeric) == 1:
+                values["sqlMemoryMemorylimitMb"] = int(numeric[0])
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    # Docker's configured hard limit is zero if not explicitly set.
+    try:
+        cmd = subprocess.run(
+            ["docker", "inspect", "--format", "{{.HostConfig.Memory}}", container],
+            capture_output=True, text=True, timeout=5, check=False)
+        if cmd.returncode == 0:
+            bytes_limit = parse_positive_limit(cmd.stdout)
+            if bytes_limit is not None:
+                values["sqlDockerHardLimitKiB"] = bytes_limit // 1024
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    # Actual kernel cgroup-v2 memory.max, independently from Docker metadata.
+    try:
+        cmd = subprocess.run(
+            ["docker", "exec", container, "cat", "/sys/fs/cgroup/memory.max"],
+            capture_output=True, text=True, timeout=5, check=False)
+        if cmd.returncode == 0:
+            bytes_limit = parse_positive_limit(cmd.stdout)
+            if bytes_limit is not None:
+                values["sqlCgroupMemoryMaxKiB"] = bytes_limit // 1024
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    return values
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sql-container", required=True)
@@ -207,6 +255,7 @@ def main():
     sql_oom_observed = False
     sql_inspect_samples = 0
     sql_cgroup_first = None
+    sql_limits = None
     sql_cgroup_last = None
     sql_cgroup_samples = 0
     sql_cgroup_oom_delta_max = None
@@ -222,6 +271,10 @@ def main():
             if sql_oom is not None:
                 sql_inspect_samples += 1
                 sql_oom_observed = sql_oom_observed or sql_oom
+            if sql_limits is None:
+                candidate_limits = sql_memory_limits(args.sql_container)
+                if any(value is not None for value in candidate_limits.values()):
+                    sql_limits = candidate_limits
             cg = sql_cgroup_snapshot(args.sql_container)
             if cg is not None:
                 sql_cgroup_samples += 1
@@ -270,6 +323,10 @@ def main():
         "cgroupOomKillDelta": deltas["oom_kill"],
         "sqlContainerOomKilled": True if sql_oom_observed else (False if sql_inspect_samples else None),
         "sqlContainerOomSamples": sql_inspect_samples,
+        "sqlMemoryMemorylimitMb": (sql_limits or {}).get("sqlMemoryMemorylimitMb"),
+        "sqlDockerHardLimitKiB": (sql_limits or {}).get("sqlDockerHardLimitKiB"),
+        "sqlCgroupMemoryMaxKiB": (sql_limits or {}).get("sqlCgroupMemoryMaxKiB"),
+        "sqlMemoryConfigurationScope": "EXPLICIT_SETTINGS_ONLY_NULL_MEANS_UNKNOWN_OR_NATIVE_DEFAULT",
         "sqlCgroupV2ValidSamples": sql_cgroup_samples,
         "sqlCgroupV2MemoryPeakKiB": sql_cgroup_peak_kib,
         "sqlCgroupV2OomEventDeltaObserved": sql_cgroup_oom_delta_max,
