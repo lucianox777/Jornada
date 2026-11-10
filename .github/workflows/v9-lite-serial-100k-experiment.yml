@@ -55,6 +55,7 @@ jobs:
           test "$GITHUB_REF" = "refs/heads/master"
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_lite_experiment_contract.py -v
           python3 -m py_compile scripts/v9-scale-100k-technical-plan.py scripts/v9-scale-100k-technical-audit.py
           mkdir -p "$PWD/.local/v9-100k-technical"
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # SHA pinned
