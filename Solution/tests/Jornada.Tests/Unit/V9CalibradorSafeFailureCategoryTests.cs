@@ -16,7 +16,7 @@ public sealed class V9CalibradorSafeFailureCategoryTests
         Assert.That(V9CalibradorSafeFailureCategory.Classify(error), Does.Not.Contain(Sensitive));
         V9CalibradorSafeFailureCategory.Mark(error, V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
         Assert.That(V9CalibradorSafeFailureCategory.Classify(error),
-            Is.EqualTo(V9CalibradorSafeFailureCategory.PhysicalSqlProbe));
+            Is.EqualTo(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient));
     }
 
     [Test]
