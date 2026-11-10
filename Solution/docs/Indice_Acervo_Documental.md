@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-100K-VALID-NAME-REPRO-20261110:** [evidência do artifact #13801752020, política TF positiva do plano 100k, teste de nome correto não publicado e limites da inferência causal](Evidencia_V9_100k_20261110_Repro_Cobertura_TF_Nomes_Novos.md). GOV-DOC-01.
+
 > **ACERVO GOV-V9-ARQ-BASE-SINTETICA-ENSAIOS-20261110:** [decisão PO de separar corpora sintéticos 30k/100k da base operacional inicial](Decisao_Arquitetura_Base_Sintetica_Apenas_Ensaios_20261110.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-NOMES-RAROS-CENSURA-IBGE-20261110:** [regra IBGE, nomes raros válidos e interpretação censurada condicionada, sem ativação de estimador](Decisao_V9_Nomes_Raros_Validade_Censura_IBGE_20261110.md). GOV-DOC-01.
