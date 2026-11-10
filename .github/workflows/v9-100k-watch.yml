@@ -1,0 +1,58 @@
+name: V9 100k campaign watch
+
+# Observation only: never dispatch, cancel, retry or modify the 100k campaign.
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v9-100k-watch
+  cancel-in-progress: true
+
+jobs:
+  observe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Inspect most recent 100k campaign and its jobs
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Query only owner-dispatched campaigns, not CI or this observer.
+          response="$(gh api "repos/$GH_REPO/actions/workflows/v9-multiparameter-100k-technical.yml/runs?event=workflow_dispatch&per_page=5")"
+          run="$(jq -c '[.workflow_runs[] | select(.head_branch == "master")] | first // empty' <<<"$response")"
+          if [[ -z "$run" ]]; then
+            echo "No manually dispatched V9 100k campaign found." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          id="$(jq -r '.id' <<<"$run")"
+          status="$(jq -r '.status' <<<"$run")"
+          conclusion="$(jq -r '.conclusion // "pending"' <<<"$run")"
+          sha="$(jq -r '.head_sha' <<<"$run")"
+          url="$(jq -r '.html_url' <<<"$run")"
+          jobs="$(gh api "repos/$GH_REPO/actions/runs/$id/jobs?per_page=100")"
+          {
+            echo "## V9 100k — five-minute observation"
+            echo ""
+            echo "- Run: [$id]($url)"
+            echo "- Commit: \`$sha\`"
+            echo "- State: **$status** / **$conclusion**"
+            echo ""
+            echo "| Job | Status | Conclusion |"
+            echo "| --- | --- | --- |"
+            jq -r '.jobs[] | "| " + (.name | gsub("\\|"; "\\\\|")) + " | " + .status + " | " + (.conclusion // "pending") + " |"' <<<"$jobs"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # A failed campaign must be visible in this observer's checks.
+          # Do not fail on queued/in_progress/cancelled; the observer is read-only.
+          if [[ "$status" == "completed" && "$conclusion" == "failure" ]]; then
+            echo "::error::V9 100k campaign $id failed: $url"
+            exit 1
+          fi
