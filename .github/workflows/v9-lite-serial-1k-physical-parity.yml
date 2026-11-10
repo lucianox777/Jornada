@@ -10,7 +10,7 @@ permissions:
   contents: read
 concurrency:
   group: v9-lite-1k-${{ github.event.pull_request.number }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   physical-parity:
     name: SQL physical shared-core V9 vs Lite (1k TRAIN)
@@ -86,7 +86,7 @@ jobs:
             --v9-calibrate "$root/plan.json" "$corpus" "$root/governed"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-lite-benchmark "$root/plan.json" "$corpus" "$root/lite"
-      - name: Audit same science, report RAM/time and assert Lite mode is ungovened
+      - name: Audit same science, report RAM/time and assert Lite mode is ungoverned
         env:
           EXACT_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
