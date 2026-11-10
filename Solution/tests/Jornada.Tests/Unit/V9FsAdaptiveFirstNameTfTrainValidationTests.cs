@@ -131,17 +131,23 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         var original = Frame();
         var frame = original with
         {
-            Pairs = original.Pairs.Select(x => x.Partition == "VALIDATION"
-                && x.LeftIdentityGroupId == "VAL-A"
-                ? x with
+            Pairs = original.Pairs.Select(x =>
+            {
+                // TRAIN supplies independently labeled nonmatches for mother/U.
+                // Exactly one VALIDATION true pair receives a new valid name.
+                var motherName = x.Partition == "VALIDATION"
+                    && x.LeftIdentityGroupId == "VAL-A"
+                    ? newName : "ANA";
+                return x with
                 {
-                    LeftPersonName = newName + " COSTA",
-                    RightPersonName = newName + " LIMA"
-                }
-                : x).ToArray()
+                    LeftMotherName = motherName + " COSTA",
+                    RightMotherName = motherName + " LIMA"
+                };
+            }).ToArray()
         };
         var policy = new V9FsAdaptiveOptionConfiguration(
             "TF_VALID_NEW_NAME_REJECT_REPRO", .5m, .55m, 1m,
+            TfSide: CompositeNominalTfSideV9.Mother,
             UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.RejectOperation);
         var checkpoints = new List<string>();
         var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
@@ -153,7 +159,8 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
         Assert.Multiple((Action)(() =>
         {
             Assert.That(checkpoints.Last(), Is.EqualTo("VALIDATION_TF_PUBLISHED_COVERAGE"));
-            Assert.That(error!.Message, Does.Contain("ausentes=1"));
+            Assert.That(error!.Message, Does.Contain("Mother/FirstName"));
+            Assert.That(error.Message, Does.Contain("ausentes=1"));
             Assert.That(error.Message, Does.Not.Contain(newName),
                 "The public failure must never disclose a legitimate new name.");
             Assert.That(policy.UnpublishedTermPolicy,
