@@ -22,6 +22,14 @@ if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-prepare-gold-runner")
     return;
 }
 
+// Read-only TRAIN pre-SQL capacity reproduction for the frozen 100k corpus.
+// No SQL credential, worker, TF query, fitting, TEST labels or Gold.
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-offline-train-capacity")
+{
+    await V9OfflineCalibratorCapacityCli.RunAsync(guardedArgs);
+    return;
+}
+
 if (guardedArgs.Length > 0 && guardedArgs[0] is "--v9-calibrate" or "--v9-validate-finalists")
 {
     try
