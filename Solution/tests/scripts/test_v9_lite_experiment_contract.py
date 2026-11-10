@@ -52,6 +52,20 @@ class LiteExperimentContractTests(unittest.TestCase):
         # Preexisting governed 100k workflow remains available for comparison.
         self.assertIn("v9-100k-execution-resource-budget.py", ORIGINAL.read_text())
 
+    def test_1k_pr_regression_uses_primary_v9_auto_vs_lite_serial(self):
+        w = (ROOT.parent / ".github/workflows/v9-lite-serial-1k-physical-parity.yml").read_text()
+        for required in (
+            "MAIN_BENCHMARK_REQUIRES_V9_AUTO_PLAN",
+            "MAIN_ARCHITECTURES_NOT_V9_AUTO_VS_LITE_SERIAL",
+            "V9 GOVERNED AUTO and Lite SERIAL",
+            "SCIENTIFIC_EVALUATION_ROWS_DIFFER",
+            "SCIENTIFIC_FIT_SHA_MISMATCH",
+            "--v9-calibrate", "--v9-lite-benchmark",
+        ):
+            self.assertIn(required, w)
+        self.assertNotIn("plan-auto.json", w)
+        self.assertNotIn('source["Calibration"]["MaximumParallelRuleSets"]=1', w)
+
     def test_30k_workflow_compares_v9_auto_against_lite_serial(self):
         w = (ROOT.parent / ".github/workflows/v9-lite-serial-30k-matched-benchmark.yml").read_text()
         for needle in (
