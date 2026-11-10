@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-BASE-REAL-100K-BOOTSTRAP-20261110 — complemento M/U/nomes únicos:** [diretriz de teste para nomes raros válidos sem erro, distinção coorte real versus sintética e avaliação estatística proposta inspirada no Splink, sem alterar parâmetros vigentes](Decisao_V9_Base_Inicial_Real_100k_Bootstrap_Configuracoes_20261110.md). GOV-DOC-01.
+
 > **ACERVO GOV-V9-BASE-REAL-100K-BOOTSTRAP-20261110:** [coorte real inicial, calibração manual e publicação de parâmetros iniciais via snapshot ref aprovado, distinta do corpus sintético](Decisao_V9_Base_Inicial_Real_100k_Bootstrap_Configuracoes_20261110.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-ARQ-BASE-SINTETICA-ENSAIOS-20261110:** [decisão PO de separar corpora sintéticos 30k/100k da base operacional inicial](Decisao_Arquitetura_Base_Sintetica_Apenas_Ensaios_20261110.md). GOV-DOC-01.
