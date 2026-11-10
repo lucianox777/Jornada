@@ -127,6 +127,23 @@ public sealed class V9CalibradorSafeFailureCategoryTests
             Is.EqualTo("SQL_PAIR_COUNT_MISMATCH"));
     }
 
+    [TestCase("FS_REQUEST_VALIDATE")]
+    [TestCase("FS_TRAIN_FIT")]
+    [TestCase("FS_FIT_VALIDATE")]
+    [TestCase("FS_VALIDATION_EVALUATE")]
+    [TestCase("FS_METRICS_VALIDATE")]
+    public void Fs_fit_phase_checkpoint_is_allowlisted_without_leaking_exception(string checkpoint)
+    {
+        var error = new InvalidDataException(Sensitive);
+        V9CalibradorSafeFailureCategory.Mark(error,
+            V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+        V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(error, checkpoint);
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error),
+            Is.EqualTo("UNCLASSIFIED_PHYSICAL_SQL_PROBE_AT_" + checkpoint));
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error),
+            Does.Not.Contain(Sensitive));
+    }
+
     [Test]
     public void Matches_exact_structural_frame_error_as_safe_category()
     {
