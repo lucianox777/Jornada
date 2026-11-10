@@ -30,3 +30,11 @@ O OOM histórico dos 30k (run 42283035832) foi mitigado pela otimização RAM-fi
 O serialismo pode diminuir pico de RAM e **aumentar o tempo**. SQL fixo com menos cache pode aumentar I/O/P95. Sem governador, recursos podem se esgotar após a admissão; por isso a via é **estritamente experimental**, não substitui a configuração governada e não permite ativação. Os parâmetros científicos e o digest permanecem a fonte comum de verdade, mas a equivalência física ainda precisa ser provada.
 
 **Precedência:** experimento isolado, complementar — não revoga `GOV-V9-RECURSOS-CONJUNTOS-20261109`, `GOV-V9-CALIBRADOR-RECURSOS-INTERNOS-20261109`, `DC-V9-PAR-DET-20261107` ou a decisão do **Calibrador único** de 14/10/2026. Sem merge antes dos gates exigidos; sem decisão de substituir o motor atual. Rastrear PR/HEAD e novos resultados em adenda posterior, sem converter pré-requisitos em provas realizadas.
+
+## Continuidade da implementação e teste de isolamento (09/11 — PR #1391)
+
+- PR em rascunho [#1391](https://github.com/lucianox777/Jornada/pull/1391), sem merge ou autorização para publicar modelos.
+- O primeiro HEAD `d4f2e754...` teve build/.NET e CI rápida verdes, mas o canário de stderr `--v9-calibrate` falhou porque recebeu `V9_CALIBRATOR_SAFE_STAGE` em tentativa de argumento inválido, além do código fixo. Correção faz o diagnóstico de fase ser emitido somente após existir diretório de execução e o novo modo Lite foi incluído no canário. Falha histórica e correção são rastreadas; **não declarar gates do HEAD novo como aprovados até a conclusão das Actions**.
+- O teste estático `test_v9_lite_experiment_contract.py` foi conectado à CI rápida de PR, além do preflight do workflow manual.
+- Adicionado `v9-lite-serial-1k-physical-parity.yml` acionado em PR, somente corpus técnico sintético de **1.000 identidades**, SQL descartável, mesmo plano de calibração e motor científico para a via governada e a via Lite. Compara SHA de envelope científico, snapshots ajustados e finalistas; registra RSS/tempo com recibo agregado. Não executa TEST/Gold, não autoriza 100k nem demonstra performance equivalente em escala.
+- O workflow 100k permanece **manual-only**, proprietário, SHA da master exato, preflight de segurança; até a PR ser integrada validamente, não pode rodar nela como prova da master. O teste 1k tampouco substitui a regressão física 30k pareada.
