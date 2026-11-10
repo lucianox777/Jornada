@@ -109,6 +109,53 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
         self.assertIsNone(module.parse_positive_limit("max"))
         self.assertIsNone(module.parse_positive_limit("not-a-number"))
 
+    def test_monitor_never_precreates_immutable_worker_results_directory(self):
+        # Real subprocess reproduces the C# output admission contract.
+        # The old monitor made results/ before subprocess.Popen, causing
+        # PLAN_VALIDATED_AND_OUTPUT_ADMISSION -> UNEXPECTED before fitting.
+        import json
+        import sys
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            results = root / "results"
+            evidence = results / "physical-memory-evidence.json"
+            worker = (
+                "from pathlib import Path; import sys; "
+                "p=Path(sys.argv[1]); "
+                "assert not p.exists(), 'worker output precreated by monitor'; "
+                "p.mkdir(); (p/'worker-owned.txt').write_text('ok')"
+            )
+            argv = ["monitor", "--sql-container", "v9-probe-sql-123-1",
+                    "--output", str(evidence), "--",
+                    sys.executable, "-c", worker, str(results)]
+            with mock.patch.object(sys, "argv", argv), \
+                 mock.patch.object(module, "sql_memory_limits", return_value={}), \
+                 mock.patch.object(module, "docker_oom_killed", return_value=None), \
+                 mock.patch.object(module, "docker_metrics", return_value=None), \
+                 mock.patch.object(module, "sql_cgroup_snapshot", return_value=None):
+                self.assertEqual(module.main(), 0)
+            self.assertEqual((results / "worker-owned.txt").read_text(), "ok")
+            receipt = json.loads(evidence.read_text())
+            self.assertEqual(receipt["workerExitCode"], 0)
+            self.assertFalse(receipt["activated"])
+
+    def test_early_worker_rejection_still_persists_memory_evidence(self):
+        import json
+        import sys
+        with tempfile.TemporaryDirectory() as folder:
+            evidence = Path(folder) / "results" / "physical-memory-evidence.json"
+            argv = ["monitor", "--sql-container", "v9-probe-sql-123-1",
+                    "--output", str(evidence), "--", sys.executable,
+                    "-c", "import sys; sys.exit(7)"]
+            with mock.patch.object(sys, "argv", argv), \
+                 mock.patch.object(module, "sql_memory_limits", return_value={}), \
+                 mock.patch.object(module, "docker_oom_killed", return_value=None), \
+                 mock.patch.object(module, "docker_metrics", return_value=None), \
+                 mock.patch.object(module, "sql_cgroup_snapshot", return_value=None):
+                self.assertEqual(module.main(), 7)
+            receipt = json.loads(evidence.read_text())
+            self.assertEqual(receipt["workerExitCode"], 7)
+
     def test_read_only_and_artifact_only(self):
         text = PATH.read_text()
         workflow = WORKFLOW.read_text()

@@ -258,7 +258,8 @@ def main():
         parser.error("invalid disposable SQL container name")
     if args.output.exists():
         parser.error("evidence output already exists")
-    args.output.parent.mkdir(parents=True, exist_ok=True)
+    # Do not create the evidence parent before launching the worker. The V9
+    # calibrator requires an entirely NEW results directory for immutability.
     runner_cgroup = runner_cgroup_directory()
     start_events = oom_events(runner_cgroup) if runner_cgroup else {"oom": None, "oom_kill": None}
     before = mem_available_kib()
@@ -346,6 +347,10 @@ def main():
         "scientificPlanChanged": False,
         "testUsed": False, "goldUsed": False, "activated": False
     }
+    # Persist monitoring evidence only AFTER the worker had its chance to
+    # create/own the previously absent results directory. On early rejection,
+    # still publish the read-only evidence without altering the worker exit.
+    args.output.parent.mkdir(parents=True, exist_ok=True)
     with args.output.open("x", encoding="utf-8") as stream:
         json.dump(receipt, stream, sort_keys=True, indent=2)
         stream.write("\n")

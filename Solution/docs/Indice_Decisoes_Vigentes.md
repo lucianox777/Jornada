@@ -1,3 +1,5 @@
+> **GOV-V9-100K-MONITOR-OUTPUT-20261110 — correção comprovada da admissão de saída do 100k:** [o monitor não deve criar `results/` antes do C# que exige diretório novo; evidência #42859834044, reprodução, limites de memória e precedência](Decisao_V9_100k_Monitor_Diretorio_Imutavel_20261110.md). Não altera parâmetros, 24/16/8 ou preflight #1253. GOV-DOC-01.
+
 > **GOV-V9-100K-CGROUP-SQL-20261110 — leitura de OOM/memory.peak do cgroup específico do SQL durante fitting manual:** [decisão, justificativa, precedência e limites](Decisao_V9_100k_Memoria_Cgroup_SQL_20261110.md). Complementa #1400/#1401; sem mudar orçamento SQL, segurança, 24/16/8 ou autorização de campanha 100k. GOV-DOC-01.
 
 > **GOV-V9-100K-RETENCAO-OOM-20261110:** [preservação do sinal de OOM do container SQL efêmero durante o fitting físico, mesmo quando `--rm` elimina o container antes da medição final](Decisao_V9_100k_Retencao_Sinal_OOM_SQL_20261110.md). Complementa #1400, sem alterar parâmetros, preflight ou autorizar campanha 100k. GOV-DOC-01.
