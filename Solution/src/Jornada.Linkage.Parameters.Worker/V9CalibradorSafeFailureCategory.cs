@@ -97,11 +97,11 @@ public static class V9CalibradorSafeFailureCategory
     public static string Classify(Exception error)
     {
         ArgumentNullException.ThrowIfNull(error);
+        if (error is V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException)
+            return PublishedTfCoverageInsufficient;
         if (error.Data[DataKey] is string category && Allowed.Contains(category))
             return category;
         // Exact in-source constant matches only; never print e.Message.
-        if (error is V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException)
-            return PublishedTfCoverageInsufficient;
         if (error is InvalidDataException)
             return error.Message switch
             {
