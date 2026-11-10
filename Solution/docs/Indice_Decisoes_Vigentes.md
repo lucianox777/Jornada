@@ -1,3 +1,7 @@
+> **GOV-V9-ARQ-BASE-SINTETICA-ENSAIOS-20261110 — decisão do PO: corpora sintéticos (30k/100k) apenas para ensaios, regressão e referência técnica; NÃO são a base inicial da Jornada nem cadastro de produção.** [Fundamentos, impactos e precedência](Decisao_Arquitetura_Base_Sintetica_Apenas_Ensaios_20261110.md). GOV-DOC-01.
+
+> **GOV-V9-NOMES-RAROS-CENSURA-IBGE-20261110 — interpretação PO: nomes raros/únicos são válidos, ausência publicada não prova frequência zero; regra nacional IBGE >=20 permite hipótese censurada sob condições, sem alteração científica.** [Estudo e limites](Decisao_V9_Nomes_Raros_Validade_Censura_IBGE_20261110.md). GOV-DOC-01.
+
 > **GOV-V9-100K-VALIDATION-SUBPHASES-20261110 — falha FS_VALIDATION_EVALUATE da campanha #42889542560 e diagnóstico seguro do adaptador em seis subfases:** [evidência, memória/OOM, limites e precedência](Decisao_V9_100k_Subfases_Validation_20261110.md). Sem mudança de ciência ou conclusão 24/24; GOV-DOC-01.
 
 > **GOV-V9-100K-FS-1407-20261110 — instrumentação de cinco fases fixas do ajuste FS, integrada na #1407 após a falha da campanha #42878503672:** [evidência, justificativa, segurança, limites e precedência](Decisao_V9_100k_Fases_FS_1407_20261110.md). Não altera a ciência nem certifica 24/24; GOV-DOC-01.
