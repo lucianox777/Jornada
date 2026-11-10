@@ -343,7 +343,13 @@ public static class V9NestedCalibrationCoordinator
             try
             {
                 groups = V9PhysicalFrameExecutionOrder.BroadestLikelyFirst(
-                    requests.GroupBy(PhysicalFrameKey).SelectMany(g => g.Chunk(64)).ToArray(),
+                    // A positive TF coverage failure must never make a TF0 control
+                    // scientifically non-evaluable merely because it shared a SQL frame.
+                    // Keep the same physical frame identity, but isolate TF0 from
+                    // positive-TF options before batching and coverage accounting.
+                    requests.GroupBy(r => (Frame: PhysicalFrameKey(r),
+                        PositiveTf: V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(r.Option)))
+                        .SelectMany(g => g.Chunk(64)).ToArray(),
                     static group => group[0].Passes,
                     static group => group[0].Sha).ToArray();
             }
