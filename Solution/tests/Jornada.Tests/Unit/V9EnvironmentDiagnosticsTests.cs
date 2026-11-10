@@ -39,8 +39,22 @@ public sealed class V9EnvironmentDiagnosticsTests
             ("JORNADA_PRIVATE_DIAGNOSTICS", "1"))), Is.True);
     }
 
+    [TestCase("Development", "GITHUB_ACTIONS")]
+    [TestCase("Development", "CI")]
+    [TestCase("HML", "GITHUB_ACTIONS")]
+    public void Ci_marker_does_not_override_nonproduction_diagnostics(string environment, string marker)
+    {
+        var env = Env(("DOTNET_ENVIRONMENT", environment), (marker, "true"),
+            ("JORNADA_PRIVATE_DIAGNOSTICS", "1"));
+        using var sink = new StringWriter();
+        Assert.That(V9WorkerDevelopmentDiagnostics.Enabled(env), Is.True);
+        V9WorkerDevelopmentDiagnostics.WriteException(
+            new InvalidDataException("synthetic-development-detail"), sink, env);
+        Assert.That(sink.ToString(), Does.Contain("synthetic-development-detail"));
+    }
+
     [Test]
-    public void Production_ci_and_conflicting_environments_always_fail_closed()
+    public void Production_and_conflicting_environments_always_fail_closed()
     {
         var cases = new[]
         {
@@ -50,9 +64,6 @@ public sealed class V9EnvironmentDiagnosticsTests
                 ("JORNADA_PRIVATE_DIAGNOSTICS", "1")),
             Env(("DOTNET_ENVIRONMENT", "Staging"), ("ASPNETCORE_ENVIRONMENT", "Production"),
                 ("JORNADA_PRIVATE_DIAGNOSTICS", "1")),
-            Env(("DOTNET_ENVIRONMENT", "Staging"), ("CI", "true"),
-                ("JORNADA_PRIVATE_DIAGNOSTICS", "1")),
-            Env(("DOTNET_ENVIRONMENT", "Development"), ("GITHUB_ACTIONS", "true")),
             Env(("DOTNET_ENVIRONMENT", "Staging"), ("JORNADA_PRIVATE_DIAGNOSTICS", "true"))
         };
         foreach (var env in cases)
