@@ -1,3 +1,5 @@
+> **GOV-V9-100K-VALID-NAME-REPRO-20261110 — evidência e regressão de diagnóstico:** run manual #42897661860 falhou no checkpoint TF de VALIDATION; plano TF positivo declara `UnpublishedTermPolicy=0`, e teste de nome válido novo pós-2022 reproduz a rejeição vigente sem alterar scorer. **Causa física exata ainda não comprovada; política futura não decidida.** [Evidência, proveniência e gates](Evidencia_V9_100k_20261110_Repro_Cobertura_TF_Nomes_Novos.md). GOV-DOC-01.
+
 > **GOV-V9-ARQ-BASE-SINTETICA-ENSAIOS-20261110 — decisão do PO: corpora sintéticos (30k/100k) apenas para ensaios, regressão e referência técnica; NÃO são a base inicial da Jornada nem cadastro de produção.** [Fundamentos, impactos e precedência](Decisao_Arquitetura_Base_Sintetica_Apenas_Ensaios_20261110.md). GOV-DOC-01.
 
 > **GOV-V9-NOMES-RAROS-CENSURA-IBGE-20261110 — interpretação PO: nomes raros/únicos são válidos, ausência publicada não prova frequência zero; regra nacional IBGE >=20 permite hipótese censurada sob condições, sem alteração científica.** [Estudo e limites](Decisao_V9_Nomes_Raros_Validade_Censura_IBGE_20261110.md). GOV-DOC-01.
