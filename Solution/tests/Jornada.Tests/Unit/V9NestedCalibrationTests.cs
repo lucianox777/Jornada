@@ -16,6 +16,23 @@ public sealed class V9NestedCalibrationTests
     };
 
     [Test]
+    public void Scientific_non_evaluability_accounting_is_distinct_from_measured_and_cp_counts()
+    {
+        var accounting = new V9DuplicatePolicySelection("COUNT_ALL", 1, [], [],
+            PhysicalHypotheses: 1, DescriptiveMultiplicityHypotheses: 1,
+            AttemptedHypotheses: 24, PublishedTfCoverageInsufficientHypotheses: 23);
+        var json = JsonSerializer.Serialize(accounting);
+        var restored = JsonSerializer.Deserialize<V9DuplicatePolicySelection>(json)!;
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(restored.AttemptedHypotheses, Is.EqualTo(24));
+            Assert.That(restored.PublishedTfCoverageInsufficientHypotheses, Is.EqualTo(23));
+            Assert.That(restored.PhysicalHypotheses, Is.EqualTo(1));
+            Assert.That(restored.EligibleHypotheses, Is.EqualTo(1));
+        }));
+    }
+
+    [Test]
     public void Conditional_finalist_choice_preserves_group_risk_cost_and_family_constraints()
     {
         var c = Candidate(180, 0, .95m);
