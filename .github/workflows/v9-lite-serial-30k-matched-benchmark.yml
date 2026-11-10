@@ -153,11 +153,19 @@ jobs:
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-v3-broad-$V3_FAMILY-$V3_SEED"
+          # /usr/bin/time captures process CPU (user+system), max RSS, I/O and
+          # elapsed independently of the in-process CSharp runtime receipt.
+          # Per-arm timing files are OUTSIDE the immutable calibration outputs.
+          command -v /usr/bin/time >/dev/null
           for mode in governed lite; do
             cli=--v9-calibrate
             if [[ "$mode" == lite ]]; then cli=--v9-lite-benchmark; fi
-            dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-              "$cli" "$root/plan.json" "$root/people-30k/observacoes.csv" "$root/$mode"
+            /usr/bin/time -f 'V9_BENCHMARK_CPU_V1 user_seconds=%U system_seconds=%S elapsed_seconds=%e max_rss_kib=%M filesystem_inputs=%I filesystem_outputs=%O' \
+              -o "$root/$mode.process-time.txt" \
+              dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+                "$cli" "$root/plan.json" "$root/people-30k/observacoes.csv" "$root/$mode"
+            # Measured logical output directory size, NOT SQL physical disk usage.
+            du -sk "$root/$mode" | awk '{print $1}' > "$root/$mode.output-du-kib"
           done
       - name: Audit 30k all scientific rows, 160 declared evaluations, paired resource telemetry
         env:
@@ -236,10 +244,26 @@ jobs:
           if (load(root/'governed/calibration-resource-budget.json').get('Schema') ==
               'V9_LITE_SERIAL_BENCHMARK_V1'):
               raise SystemExit('GOVERNED_CONTROL_IS_LITE')
+          import re
+          def process_metrics(mode):
+              raw=(root/(mode+'.process-time.txt')).read_text().strip()
+              m=re.fullmatch(
+                  r'V9_BENCHMARK_CPU_V1 user_seconds=([0-9.]+) system_seconds=([0-9.]+) '
+                  r'elapsed_seconds=([0-9.]+) max_rss_kib=([0-9]+) '
+                  r'filesystem_inputs=([0-9]+) filesystem_outputs=([0-9]+)',raw)
+              if not m: raise SystemExit('MISSING_CPU_TIME_RECEIPT:'+mode)
+              du=int((root/(mode+'.output-du-kib')).read_text().strip())
+              if du<1: raise SystemExit('MISSING_OUTPUT_DISK_RECEIPT:'+mode)
+              return {'userCpuSeconds':float(m[1]),'systemCpuSeconds':float(m[2]),
+                      'processElapsedSeconds':float(m[3]),'maxRssKiB':int(m[4]),
+                      'filesystemInputs':int(m[5]),'filesystemOutputs':int(m[6]),
+                      'logicalOutputDirectoryKiB':du}
+          governed_process=process_metrics('governed')
+          lite_process=process_metrics('lite')
           report={'schema':'V9_LITE_30K_MATCHED_SERIAL_PARITY_V1','headSha':os.environ['EXACT_SHA'],
                   'scienceIdentical':True,'v9ConfiguredParallelism':0,'liteEffectiveWorkers':1,'fittedShaCount':len(fitted(root/'lite')),
-                  'governed':{'elapsedMs':ar.get('totalMilliseconds'),'peakRssBytes':ar.get('peakWorkingSetBytes')},
-                  'lite':{'elapsedMs':br.get('totalMilliseconds'),'peakRssBytes':br.get('peakWorkingSetBytes')},
+                  'governed':{'elapsedMs':ar.get('totalMilliseconds'),'peakRssBytes':ar.get('peakWorkingSetBytes'),'process':governed_process},
+                  'lite':{'elapsedMs':br.get('totalMilliseconds'),'peakRssBytes':br.get('peakWorkingSetBytes'),'process':lite_process},
                   'testUsed':False,'activated':False,'certified':False}
           (root/'parity-receipt.json').write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
           print('PASS physical 30k V9 governed AUTO vs Lite serial, same plan and fits')
@@ -253,6 +277,10 @@ jobs:
           if-no-files-found: warn
           path: |
             Solution/.local/v9-v3-broad-surname-42/parity-receipt.json
+            Solution/.local/v9-v3-broad-surname-42/governed.process-time.txt
+            Solution/.local/v9-v3-broad-surname-42/lite.process-time.txt
+            Solution/.local/v9-v3-broad-surname-42/governed.output-du-kib
+            Solution/.local/v9-v3-broad-surname-42/lite.output-du-kib
             Solution/.local/v9-v3-broad-surname-42/governed/runtime-diagnostics.json
             Solution/.local/v9-v3-broad-surname-42/lite/runtime-diagnostics.json
             Solution/.local/v9-v3-broad-surname-42/lite/calibration-resource-budget.json
