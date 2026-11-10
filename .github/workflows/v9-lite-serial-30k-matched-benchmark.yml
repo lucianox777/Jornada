@@ -25,7 +25,7 @@ concurrency:
 jobs:
   broad-physical:
     if: ${{ inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
-    name: Paired V9 governed vs Lite 30k surname seed42 160 evaluations
+    name: V9 governed AUTO vs Lite serial 30k surname seed42 160 evaluations
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
@@ -135,19 +135,19 @@ jobs:
           maximum=20
           if [[ "$V3_SEED" == 42 ]]; then maximum=160; fi
           python3 scripts/v9-v3-direct-plan.py \
-            "$root/source-plan.json" "$root/grid.json" "$root/plan-pre-serial.json" \
+            "$root/source-plan.json" "$root/grid.json" "$root/plan.json" \
             --initial-only --maximum-configurations "$maximum" > "$root/plan-receipt.json"
-          # Only operational worker count changes; same plan for both arms.
+          # MAIN QUESTION: V9 gets its usual governed AUTO parallelism.
+          # Lite ALWAYS uses one CSharp worker with the EXACT SAME plan bytes.
+          # The scientific workload, plan SHA and TF/IBGE reference must match.
           python3 - <<'PY'
-          import json,os
-          from pathlib import Path
-          root=Path('.local')/('v9-v3-broad-'+os.environ['V3_FAMILY']+'-'+os.environ['V3_SEED'])
-          plan=json.loads((root/'plan-pre-serial.json').read_bytes())
-          plan['Calibration']['MaximumParallelRuleSets']=1
-          with (root/'plan.json').open('x') as f:
-              json.dump(plan,f,indent=2,allow_nan=False);f.write('\\n')
+          import json,os,pathlib
+          root=pathlib.Path('.local')/('v9-v3-broad-'+os.environ['V3_FAMILY']+'-'+os.environ['V3_SEED'])
+          plan=json.loads((root/'plan.json').read_bytes())
+          if plan['Calibration']['MaximumParallelRuleSets']!=0:
+              raise SystemExit('V9_NORMAL_AUTO_PARALLELISM_REQUIRED')
           PY
-      - name: Execute GOVERNED then Lite serial over same 30k TRAIN
+      - name: Execute V9 governed AUTO then Lite serial on same plan and 30k TRAIN
         working-directory: Solution
         timeout-minutes: 310
         run: |
@@ -227,17 +227,22 @@ jobs:
           if (budget.get('Schema')!='V9_LITE_SERIAL_BENCHMARK_V1' and
               budget.get('schema')!='V9_LITE_SERIAL_BENCHMARK_V1'):
               raise SystemExit('LITE_BUDGET_NOT_EXPERIMENTAL')
-          if (ar.get('configuredParallelism')!=1 or ar.get('effectiveParallelism')!=1 or
-              br.get('configuredParallelism')!=1 or br.get('effectiveParallelism')!=1 or
+          if (ar.get('configuredParallelism')!=0 or
+              not isinstance(ar.get('effectiveParallelism'),int) or
+              ar.get('effectiveParallelism')<1 or
+              br.get('configuredParallelism')!=0 or br.get('effectiveParallelism')!=1 or
               scheduling!=[] or br.get('testUsed') or br.get('activated')):
-              raise SystemExit('LITE_NOT_SERIAL_OR_NOT_ISOLATED')
+              raise SystemExit('WRONG_ARCHITECTURE_OR_NONISOLATED_LITE')
+          if (load(root/'governed/calibration-resource-budget.json').get('Schema') ==
+              'V9_LITE_SERIAL_BENCHMARK_V1'):
+              raise SystemExit('GOVERNED_CONTROL_IS_LITE')
           report={'schema':'V9_LITE_30K_MATCHED_SERIAL_PARITY_V1','headSha':os.environ['EXACT_SHA'],
-                  'scienceIdentical':True,'bothRequestedWorkers':1,'fittedShaCount':len(fitted(root/'lite')),
+                  'scienceIdentical':True,'v9ConfiguredParallelism':0,'liteEffectiveWorkers':1,'fittedShaCount':len(fitted(root/'lite')),
                   'governed':{'elapsedMs':ar.get('totalMilliseconds'),'peakRssBytes':ar.get('peakWorkingSetBytes')},
                   'lite':{'elapsedMs':br.get('totalMilliseconds'),'peakRssBytes':br.get('peakWorkingSetBytes')},
                   'testUsed':False,'activated':False,'certified':False}
           (root/'parity-receipt.json').write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
-          print('PASS V9-Lite physical 30k same plan and fitted scientific hashes')
+          print('PASS physical 30k V9 governed AUTO vs Lite serial, same plan and fits')
           PY
       - name: Upload only bounded SHA-bound aggregate parity receipts
         if: always()
