@@ -132,7 +132,7 @@ public static class V9NominalTfPublishedCoverageAudit
     /// compatibility while giving the campaign orchestrator a typed signal.
     /// Only aggregated counts are exposed; never nominal values.
     /// </summary>
-    public sealed class PublishedCoverageInsufficientException : InvalidDataException
+    public sealed class PublishedCoverageInsufficientException : IOException
     {
         public PublishedCoverageInsufficientException(string message) : base(message) { }
     }
