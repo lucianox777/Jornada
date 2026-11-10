@@ -15,7 +15,7 @@ on:
       disable_python_sql_budget:
         description: "EXPERIMENTAL: skip Python SQL memory sizing; SQL uses its native memory default (no Docker cap)"
         required: true
-        default: false
+        default: true
         type: boolean
 
 permissions:
@@ -79,7 +79,7 @@ jobs:
           dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --people 100000 --seed 42 --out "$root/people-100k"             > "$root/generation.log"
           python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
           mkdir -p "$root/bound"
-          python3 scripts/v9-scale-100k-technical-plan.py             --artifact-zip "$root/historical-official.zip"             --corpus-root "$root/people-100k"             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
+          python3 scripts/v9-scale-100k-technical-plan.py             --artifact-zip "$root/historical-official.zip"             --corpus-root "$root/people-100k"             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json" --parallelism auto
       - name: Recalculate LIVE resource budget for THIS 100k fit, not generator profile
         if: ${{ inputs.disable_python_sql_budget != true }}
         run: |
@@ -116,6 +116,19 @@ jobs:
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
           bash scripts/v9-100k-sql-budget-optout-guard.sh before-fit "$root/bound/capacity-before-calibration.json"
+      - name: Prove operational parallelism AUTO is bound before CSharp fitting
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 - "$root/bound/plan.json" "$root/bound/binding-receipt.json" <<'PY'
+          import json,sys
+          plan=json.load(open(sys.argv[1],encoding="utf-8"))
+          receipt=json.load(open(sys.argv[2],encoding="utf-8"))
+          assert plan["Calibration"]["MaximumParallelRuleSets"]==0, "AUTO_0_REQUIRED"
+          assert receipt["runtimeParallelismMode"]=="AUTO_0", "AUTO_RECEIPT_REQUIRED"
+          assert receipt["physicalEvaluations"]==24, "24_PHYSICAL_EVALUATIONS_REQUIRED"
+          print("V9_100K_PARALLELISM: AUTO_0_BOUND_CSHARP_GOVERNOR_ACTIVE")
+          PY
       - name: Run physical V9 CSharp on all 24 official multiparameter hypotheses
         timeout-minutes: 305
         run: |

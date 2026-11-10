@@ -110,6 +110,8 @@ public static class V9NestedCalibrationCli
         // stderr sink must NOT prevent writing into already reserved blocks.
         try { Console.Error.WriteLine(V9CalibradorLastErrorLog.SafeErrorCode(exception)); }
         catch (Exception) { /* stderr may itself be on the full volume. */ }
+        // Full exception in local Development console only. Reserved log stays safe.
+        V9WorkerDevelopmentDiagnostics.WriteException(exception);
         if (reservedLog is null)
         {
             // The primary safe code is already public. No free-text log notice.
@@ -206,8 +208,13 @@ public static class V9NestedCalibrationCli
             // Never mutate a pre-existing result directory rejected above.
             // Safe finite phase code is independent of the exception message,
             // which may include credentials or private paths and stays sealed.
-            try { Console.Error.WriteLine("V9_CALIBRATOR_SAFE_STAGE:" + safeStage); }
-            catch (Exception) { /* stderr may be unavailable under ENOSPC. */ }
+            // Before the destination directory is established, CLI arity must
+            // emit only a single fixed code (A2 real-process canary).
+            if (output is not null)
+            {
+                try { Console.Error.WriteLine("V9_CALIBRATOR_SAFE_STAGE:" + safeStage); }
+                catch (Exception) { /* stderr may be unavailable under ENOSPC. */ }
+            }
             TryWriteLastError(reservedLog, exception);
             throw;
         }

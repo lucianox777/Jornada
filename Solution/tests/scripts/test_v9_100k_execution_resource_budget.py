@@ -93,7 +93,7 @@ class Adaptive100kResourceBudgetTests(unittest.TestCase):
         script = ROOT / "scripts/v9-100k-sql-budget-optout-guard.sh"
         guard = script.read_text()
         self.assertIn("disable_python_sql_budget:", workflow)
-        self.assertIn("default: false", workflow)
+        self.assertIn("default: true", workflow)
         self.assertIn("V9_100K_DISABLE_PYTHON_SQL_BUDGET:", workflow)
         self.assertEqual(workflow.count("if: ${{ inputs.disable_python_sql_budget != true }}"), 2)
         self.assertEqual(workflow.count("if: ${{ inputs.disable_python_sql_budget == true }}"), 2)
