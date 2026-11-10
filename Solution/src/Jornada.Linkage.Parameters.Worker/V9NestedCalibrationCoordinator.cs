@@ -67,7 +67,8 @@ public sealed record V9NestedCalibrationSearchResult(string Version, string Plan
 public sealed record V9DuplicatePolicySelection(string Policy, int EligibleHypotheses,
     IReadOnlyList<string> FrontierSnapshotShas, IReadOnlyList<string> FinalistSnapshotShas,
     bool IndependentlyCertified = false,
-    int PhysicalHypotheses = 0, int DescriptiveMultiplicityHypotheses = 0);
+    int PhysicalHypotheses = 0, int DescriptiveMultiplicityHypotheses = 0,
+    int AttemptedHypotheses = 0, int PublishedTfCoverageInsufficientHypotheses = 0);
 
 /// <summary>Selection stage of the single C# calibrator; external holdouts are absent from this API.</summary>
 public static class V9NestedCalibrationCoordinator
@@ -478,7 +479,10 @@ public static class V9NestedCalibrationCoordinator
                 finalists.Select(x => x.Snapshot.ContentSha256).ToArray(),
                 PhysicalHypotheses: measuredForAccounting.Length,
                 DescriptiveMultiplicityHypotheses:
-                    policy == "COUNT_ALL" ? measuredForAccounting.Length : selectable.Length))
+                    policy == "COUNT_ALL" ? measuredForAccounting.Length : selectable.Length,
+                AttemptedHypotheses: evaluations.Count,
+                PublishedTfCoverageInsufficientHypotheses: evaluations.Count(x =>
+                    x.Rejections.Contains(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient))))
             .ToArray();
         return new(Version, declaredPlanSha, split.Manifest,
             evaluations.AsReadOnly(), progress.AsReadOnly(), frontier.Select(x => x.Snapshot.ContentSha256).ToArray(),
