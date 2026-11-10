@@ -58,9 +58,20 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path, cod
             and runtime.get("testUsed") is False and runtime.get("activated") is False,
             "runtime diagnostics missing or imply activation")
     rows = report.get("rows")
+    # A scientifically non-evaluable hypothesis is not a successful physical
+    # measurement. Preserve the 24/24 technical PASS as fail-closed.
     require(isinstance(rows, list) and len(rows) == 24
-            and report.get("evaluations") == 24 and report.get("measured") == 24,
-            "all 24 multiparameter configurations must be physically measured")
+            and report.get("evaluations") == 24,
+            "24 declared hypotheses must remain individually accounted for")
+    missing_tf = [row for row in rows
+                  if "PUBLISHED_TF_COVERAGE_INSUFFICIENT" in row.get("Rejections", [])
+                  or "PUBLISHED_TF_COVERAGE_INSUFFICIENT" in row.get("rejections", [])]
+    require(not missing_tf,
+            "SCIENTIFIC_NON_EVALUABLE_PUBLISHED_TF_COVERAGE: "
+            + str(len(missing_tf)) + "/24 hypotheses lack published IBGE frequency; "
+            "technical 24/24 PASS forbidden")
+    require(report.get("measured") == 24,
+            "24/24 physical measurement incomplete; technical PASS forbidden")
     by_key, requests, frames = {}, set(), {}
     eligible_count, diagnostic_count, observed = 0, 0, []
     for row in rows:
