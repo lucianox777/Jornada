@@ -52,7 +52,7 @@ class LiteExperimentContractTests(unittest.TestCase):
         # Preexisting governed 100k workflow remains available for comparison.
         self.assertIn("v9-100k-execution-resource-budget.py", ORIGINAL.read_text())
 
-    def test_30k_workflow_is_manual_and_matched_serial(self):
+    def test_30k_workflow_compares_v9_auto_against_lite_serial(self):
         w = (ROOT.parent / ".github/workflows/v9-lite-serial-30k-matched-benchmark.yml").read_text()
         for needle in (
             "workflow_dispatch:", "security_preflight_approved",
@@ -61,7 +61,9 @@ class LiteExperimentContractTests(unittest.TestCase):
             'test "$GITHUB_REF" = refs/heads/master',
             'V9_SQL_MEMORY_LIMIT_MB: "2048"',
             'V9_SQL_CONTAINER_MEMORY_MB: "3072"',
-            "MaximumParallelRuleSets']=1",
+            "V9_NORMAL_AUTO_PARALLELISM_REQUIRED",
+            "WRONG_ARCHITECTURE_OR_NONISOLATED_LITE",
+            "V9 governed AUTO then Lite serial",
             "--v9-calibrate", "--v9-lite-benchmark",
             "EXPECTED_ALL_160_EVALUATIONS",
             "SCIENTIFIC_EVALUATION_ROWS_DIFFER",
@@ -72,6 +74,9 @@ class LiteExperimentContractTests(unittest.TestCase):
         self.assertNotIn("  push:", w)
         self.assertNotIn("  pull_request:", w)
         self.assertNotIn("python3 scripts/v9-100k-execution-resource-budget.py", w)
+        self.assertNotIn("plan-pre-serial.json", w)
+        self.assertNotIn("plan['Calibration']['MaximumParallelRuleSets']=1", w)
+        self.assertIn('"$cli" "$root/plan.json"', w)
 
     def test_no_scientific_plan_rewrite_or_activation(self):
         w = WORKFLOW.read_text()
