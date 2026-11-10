@@ -206,8 +206,13 @@ public static class V9NestedCalibrationCli
             // Never mutate a pre-existing result directory rejected above.
             // Safe finite phase code is independent of the exception message,
             // which may include credentials or private paths and stays sealed.
-            try { Console.Error.WriteLine("V9_CALIBRATOR_SAFE_STAGE:" + safeStage); }
-            catch (Exception) { /* stderr may be unavailable under ENOSPC. */ }
+            // In an arity/CLI preflight failure there is no output directory.
+            // Do not emit a redundant stage line beside the fixed safe error code.
+            if (output is not null)
+            {
+                try { Console.Error.WriteLine("V9_CALIBRATOR_SAFE_STAGE:" + safeStage); }
+                catch (Exception) { /* stderr may be unavailable under ENOSPC. */ }
+            }
             TryWriteLastError(reservedLog, exception);
             throw;
         }
