@@ -2,6 +2,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[2]
 PATH = ROOT / "scripts/v9-100k-physical-memory-evidence.py"
@@ -15,6 +16,22 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
         self.assertEqual(module.parse_docker_usage("1.5GiB / 15GiB"), 1572864)
         self.assertEqual(module.parse_docker_usage("1024MiB / 4GiB"), 1048576)
         self.assertIsNone(module.parse_docker_usage("unavailable"))
+
+    def test_sql_oom_indicator_is_monotone_across_disappearance(self):
+        samples = [False, True, None]
+        seen = False
+        inspected = 0
+        with mock.patch.object(module, "docker_oom_killed", side_effect=samples):
+            for _ in samples:
+                reading = module.docker_oom_killed("v9-probe-sql-123-1")
+                if reading is not None:
+                    inspected += 1
+                    seen = seen or reading
+        self.assertTrue(seen)
+        self.assertEqual(inspected, 2)
+        source = PATH.read_text()
+        self.assertIn("sql_oom_observed = sql_oom_observed or sql_oom", source)
+        self.assertIn("sql_oom_observed = sql_oom_observed or final_sql_oom", source)
 
     def test_read_only_and_artifact_only(self):
         text = PATH.read_text()

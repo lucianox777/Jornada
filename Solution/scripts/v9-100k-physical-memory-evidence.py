@@ -98,12 +98,18 @@ def main():
     before = mem_available_kib()
     samples = 0
     sql_max = None
+    sql_oom_observed = False
+    sql_inspect_samples = 0
     worker_max = None
     host_min = before
     child = subprocess.Popen(command)
     try:
         while child.poll() is None:
             sql = docker_metrics(args.sql_container)
+            sql_oom = docker_oom_killed(args.sql_container)
+            if sql_oom is not None:
+                sql_inspect_samples += 1
+                sql_oom_observed = sql_oom_observed or sql_oom
             worker = process_tree_rss_kib(child.pid)
             available = mem_available_kib()
             samples += 1
@@ -117,6 +123,10 @@ def main():
         child.wait()
     exit_code = child.wait()
     finish_events = oom_events()
+    final_sql_oom = docker_oom_killed(args.sql_container)
+    if final_sql_oom is not None:
+        sql_inspect_samples += 1
+        sql_oom_observed = sql_oom_observed or final_sql_oom
     deltas = {
         k: max(0, finish_events[k] - start_events[k])
         if finish_events[k] is not None and start_events[k] is not None else None
@@ -132,7 +142,8 @@ def main():
         "minHostMemAvailableKiB": host_min,
         "cgroupOomEventDelta": deltas["oom"],
         "cgroupOomKillDelta": deltas["oom_kill"],
-        "sqlContainerOomKilled": docker_oom_killed(args.sql_container),
+        "sqlContainerOomKilled": True if sql_oom_observed else (False if sql_inspect_samples else None),
+        "sqlContainerOomSamples": sql_inspect_samples,
         "sqlMemoryLimitChanged": False,
         "scientificPlanChanged": False,
         "testUsed": False, "goldUsed": False, "activated": False
