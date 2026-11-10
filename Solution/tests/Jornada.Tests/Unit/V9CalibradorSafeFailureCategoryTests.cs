@@ -110,8 +110,8 @@ public sealed class V9CalibradorSafeFailureCategoryTests
             Is.EqualTo("UNCLASSIFIED_PHYSICAL_SQL_PROBE_AT_PROBE_FS_FIT"));
         Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error),
             Does.Not.Contain(Sensitive));
-        Assert.Throws<ArgumentException>(() =>
-            V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(error, Sensitive));
+        Assert.Throws<ArgumentException>((Action)(() =>
+            V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(error, Sensitive)));
 
         // An untrusted Data value is never echoed.
         error.Data["JornadaV9SafeProbeCheckpoint"] = Sensitive;
