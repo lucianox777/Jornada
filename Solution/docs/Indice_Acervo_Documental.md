@@ -1,3 +1,7 @@
+> **ACERVO GOV-V9-ARQ-BASE-SINTETICA-ENSAIOS-20261110:** [decisão PO de separar corpora sintéticos 30k/100k da base operacional inicial](Decisao_Arquitetura_Base_Sintetica_Apenas_Ensaios_20261110.md). GOV-DOC-01.
+
+> **ACERVO GOV-V9-NOMES-RAROS-CENSURA-IBGE-20261110:** [regra IBGE, nomes raros válidos e interpretação censurada condicionada, sem ativação de estimador](Decisao_V9_Nomes_Raros_Validade_Censura_IBGE_20261110.md). GOV-DOC-01.
+
 > **ACERVO GOV-V9-100K-VALIDATION-SUBPHASES-20261110:** [artefato da campanha #42889542560 e seis checkpoints de avaliação FS VALIDATION, sigilo e testes](Decisao_V9_100k_Subfases_Validation_20261110.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-100K-FS-1407-20261110:** [registro da falha física FS #42878503672, integração #1407, cinco fases sanitizadas, provas e condições da próxima campanha manual](Decisao_V9_100k_Fases_FS_1407_20261110.md). GOV-DOC-01.
