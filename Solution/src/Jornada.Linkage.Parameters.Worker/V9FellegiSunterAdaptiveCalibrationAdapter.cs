@@ -112,13 +112,16 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
     private readonly V9FsAdaptiveCandidateFrame frame;
     private readonly IReadOnlyDictionary<string, V9FsAdaptiveOptionConfiguration> options;
     private readonly FrozenIbgeNominalTfV9? frozenTfReference;
+    private readonly Action<string>? reportSafeValidationPhase;
     private readonly Dictionary<string, FrozenFit> fits = new(StringComparer.Ordinal);
 
     public V9FellegiSunterAdaptiveCalibrationAdapter(
         V9FsAdaptiveCandidateFrame frame,
         IEnumerable<V9FsAdaptiveOptionConfiguration> options,
-        FrozenIbgeNominalTfV9? frozenTfReference = null)
+        FrozenIbgeNominalTfV9? frozenTfReference = null,
+        Action<string>? reportSafeValidationPhase = null)
     {
+        this.reportSafeValidationPhase = reportSafeValidationPhase;
         ArgumentNullException.ThrowIfNull(frame);
         ArgumentNullException.ThrowIfNull(options);
         RequireSha(frame.TrainCorpusFingerprintSha256, "TRAIN corpus");
@@ -600,6 +603,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         AdaptiveCalibrationFitDraft fitted,
         AdaptiveCalibrationSlice validation)
     {
+        reportSafeValidationPhase?.Invoke("VALIDATION_FIT_CHECK");
         ArgumentNullException.ThrowIfNull(fitted);
         ValidateSlice(validation, "VALIDATION", frame.ValidationCorpusFingerprintSha256,
             frame.ValidationIdentityFingerprintSha256);
@@ -613,6 +617,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             || frozen.FingerprintSha256 != fitted.FittedParametersFingerprintSha256)
             throw new InvalidDataException("Fit V9 desconhecido ou não congelado por este adaptador.");
 
+        reportSafeValidationPhase?.Invoke("VALIDATION_ROWS");
         var rows = frame.Pairs.Where(x => x.Partition == "VALIDATION").ToArray();
         var truePairs = rows.Count(x => x.IsTruePair);
         var falsePairs = rows.Length - truePairs;
@@ -629,6 +634,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             ? frozenTfReference ?? throw new InvalidDataException(
                 "TF ativa sem referência IBGE congelada.")
             : null;
+        reportSafeValidationPhase?.Invoke("VALIDATION_TF_FROZEN_UNITS");
         if (activeReference is not null)
         {
             RequireFrozenTrainUnits(frozen.TrainUnitUs);
@@ -652,6 +658,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         // covert option pruning, and no personal names in the diagnostic.
         IReadOnlyDictionary<string, long>? missingPublishedTf = null;
         V9NominalTfPublishedCoverageAudit.UnionAbstentionImpact? unpublishedTfUnionImpact = null;
+        reportSafeValidationPhase?.Invoke("VALIDATION_TF_PUBLISHED_COVERAGE");
         if (activeReference is not null)
         {
             var activeSlots = activeUnits.Keys.ToArray();
@@ -691,6 +698,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             var key = side + "/" + unit;
             unseenCounts[key] = checked(unseenCounts.GetValueOrDefault(key) + 1L);
         }
+        reportSafeValidationPhase?.Invoke("VALIDATION_PAIR_SCORING");
         foreach (var row in rows)
         {
             // Explicit fail-closed abstention: leave this pair UNACCEPTED, not
@@ -724,6 +732,7 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
             else if (accepted) fp++;
         }
 
+        reportSafeValidationPhase?.Invoke("VALIDATION_METRICS_AGGREGATE");
         var falseDegrees = rows.Where(x => !x.IsTruePair)
             .Select(x => (double)x.CandidateDegreeForSource)
             .OrderBy(x => x).ToArray();

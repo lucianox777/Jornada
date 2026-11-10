@@ -145,6 +145,31 @@ public sealed class V9CalibradorSafeFailureCategoryTests
     }
 
     [Test]
+    public void Validation_adapter_phase_is_safe_only_when_allowlisted()
+    {
+        var error = new InvalidDataException(Sensitive);
+        V9CalibradorSafeFailureCategory.Mark(error,
+            V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+        foreach (var phase in new[] {
+            "VALIDATION_FIT_CHECK", "VALIDATION_ROWS", "VALIDATION_TF_FROZEN_UNITS",
+            "VALIDATION_TF_PUBLISHED_COVERAGE", "VALIDATION_PAIR_SCORING",
+            "VALIDATION_METRICS_AGGREGATE"
+        })
+        {
+            V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(error, phase);
+            Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error),
+                Is.EqualTo("UNCLASSIFIED_PHYSICAL_SQL_PROBE_AT_" + phase));
+            Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error),
+                Does.Not.Contain(Sensitive));
+        }
+        Assert.Throws<ArgumentException>((Action)(() =>
+            V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(error, Sensitive)));
+        error.Data["JornadaV9SafeProbeCheckpoint"] = Sensitive;
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error),
+            Is.EqualTo("UNCLASSIFIED_PHYSICAL_SQL_PROBE"));
+    }
+
+    [Test]
     public void Matches_exact_structural_frame_error_as_safe_category()
     {
         Assert.That(V9CalibradorSafeFailureCategory.Classify(
