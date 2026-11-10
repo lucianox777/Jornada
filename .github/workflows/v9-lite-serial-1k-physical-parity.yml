@@ -75,7 +75,20 @@ jobs:
             --error-profile clean --people 1000 --seed 42 \
             --out "$root/people-1k" > "$root/generation.log"
           python3 scripts/v9-nested-calibration-study.py \
-            "$root/people-1k/observacoes.csv" "$root/plan.json" --plumbing-fixture
+            "$root/people-1k/observacoes.csv" "$root/plan-auto.json" --plumbing-fixture
+          # Operational-only control: BOTH arms must request one worker.
+          # Keep every scientific option, threshold, MU/TF parameter and seed unchanged.
+          python3 - <<'PY'
+          import json, os, pathlib
+          root=pathlib.Path(os.environ["RUNNER_TEMP"])/"v9-lite-parity"
+          source=json.loads((root/"plan-auto.json").read_bytes())
+          if source["Calibration"]["MaximumParallelRuleSets"]!=0:
+              raise SystemExit("EXPECTED_AUTO_PARALLELISM_IN_FIXTURE")
+          source["Calibration"]["MaximumParallelRuleSets"]=1
+          with (root/"plan.json").open("x") as out:
+              json.dump(source,out,indent=2,allow_nan=False)
+              out.write("\n")
+          PY
       - name: Execute original GOVERNED CSharp and Lite SERIAL on identical plan and SQL
         working-directory: Solution
         run: |
@@ -152,11 +165,12 @@ jobs:
           if (budget.get('Schema')!='V9_LITE_SERIAL_BENCHMARK_V1' and
               budget.get('schema')!='V9_LITE_SERIAL_BENCHMARK_V1'):
               raise SystemExit('LITE_BUDGET_NOT_EXPERIMENTAL')
-          if (br.get('effectiveParallelism')!=1 or scheduling!=[] or
-              br.get('testUsed') or br.get('activated')):
+          if (ar.get('configuredParallelism')!=1 or ar.get('effectiveParallelism')!=1 or
+              br.get('configuredParallelism')!=1 or br.get('effectiveParallelism')!=1 or
+              scheduling!=[] or br.get('testUsed') or br.get('activated')):
               raise SystemExit('LITE_NOT_SERIAL_OR_NOT_ISOLATED')
-          report={'schema':'V9_LITE_1K_PHYSICAL_PARITY_V1','headSha':os.environ['EXACT_SHA'],
-                  'scienceIdentical':True,'fittedShaCount':len(fitted(root/'lite')),
+          report={'schema':'V9_LITE_1K_MATCHED_SERIAL_PARITY_V2','headSha':os.environ['EXACT_SHA'],
+                  'scienceIdentical':True,'bothRequestedWorkers':1,'fittedShaCount':len(fitted(root/'lite')),
                   'governed':{'elapsedMs':ar.get('totalMilliseconds'),'peakRssBytes':ar.get('peakWorkingSetBytes')},
                   'lite':{'elapsedMs':br.get('totalMilliseconds'),'peakRssBytes':br.get('peakWorkingSetBytes')},
                   'testUsed':False,'activated':False,'certified':False}
