@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-NOMES-RAROS-CENSURA-IBGE-20261110:** [princípio PO sobre nomes raros válidos, nota técnica IBGE 2022, interpretação [1,19] condicionada e investigação FS sem mudança científica](Decisao_V9_Nomes_Raros_Validade_Censura_IBGE_20261110.md). GOV-DOC-01.
+
 > **ACERVO GOV-V9-100K-FS-1407-20261110:** [registro da falha física FS #42878503672, integração #1407, cinco fases sanitizadas, provas e condições da próxima campanha manual](Decisao_V9_100k_Fases_FS_1407_20261110.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-100K-CONTINUIDADE-EXECUCAO-20261110:** [mandato operacional do PO, gates de PR, limitação de dispatch owner-only e correção da falha C# CS0121 na #1406](Decisao_V9_100k_Probe_Checkpoints_Seguros_20261110.md). GOV-DOC-01.
