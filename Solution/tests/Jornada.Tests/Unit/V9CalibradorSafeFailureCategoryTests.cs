@@ -191,7 +191,7 @@ public sealed class V9CalibradorSafeFailureCategoryTests
                 default, default, 3, 2, 1, 1, 0)
         };
         var error = Assert.Throws<V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException>(
-            () => V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage));
+            (TestDelegate)(() => V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage)));
         Assert.That(V9CalibradorSafeFailureCategory.Classify(error!),
             Is.EqualTo(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient));
         Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error!),
