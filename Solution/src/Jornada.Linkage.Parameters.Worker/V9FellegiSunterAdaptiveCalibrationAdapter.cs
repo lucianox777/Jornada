@@ -662,17 +662,25 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapter : IAdaptiveCalibra
         if (activeReference is not null)
         {
             var activeSlots = activeUnits.Keys.ToArray();
+            reportSafeValidationPhase?.Invoke("VALIDATION_TF_COVERAGE_AUDIT");
             var coverage = V9NominalTfPublishedCoverageAudit.Audit(
                 rows, activeReference, activeSlots);
+            reportSafeValidationPhase?.Invoke("VALIDATION_TF_COVERAGE_UNION");
             unpublishedTfUnionImpact = V9NominalTfPublishedCoverageAudit.AuditUnion(
                 rows, activeReference, activeSlots);
             if (config.UnpublishedTermPolicy == V9TfUnpublishedTermPolicyV9.RejectOperation)
+            {
+                reportSafeValidationPhase?.Invoke("VALIDATION_TF_COVERAGE_REQUIRE");
                 V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage);
+            }
             else
+            {
+                reportSafeValidationPhase?.Invoke("VALIDATION_TF_COVERAGE_ABSTAIN");
                 missingPublishedTf = new ReadOnlyDictionary<string, long>(
                     coverage.Where(x => x.MissingPublishedValidationPairs > 0)
                         .ToDictionary(x => x.Side + "/" + x.Unit,
                             x => x.MissingPublishedValidationPairs, StringComparer.Ordinal));
+            }
         }
 
         bool CannotScore(V9FsAdaptiveCandidatePair row)
