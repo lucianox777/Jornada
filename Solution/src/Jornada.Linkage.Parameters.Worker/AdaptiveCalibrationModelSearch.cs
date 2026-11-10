@@ -131,8 +131,10 @@ public static class AdaptiveCalibrationModelSearch
 
     public static AdaptiveCalibrationStudyReport Evaluate(
         AdaptiveCalibrationStudyRequest request,
-        IEnumerable<IAdaptiveCalibrationFamilyAdapter> adapters)
+        IEnumerable<IAdaptiveCalibrationFamilyAdapter> adapters,
+        Action<string>? reportSafeFitPhase = null)
     {
+        reportSafeFitPhase?.Invoke("FS_REQUEST_VALIDATE");
         ArgumentNullException.ThrowIfNull(request);
         ArgumentNullException.ThrowIfNull(adapters);
         if (!request.ManuallyRequestedCalibration)
@@ -205,7 +207,9 @@ public static class AdaptiveCalibrationModelSearch
                 throw new InvalidOperationException(
                     "Modelo desconhecido/versionamento sem adaptador; não usar fallback.");
             // Adapter sees the TRAIN source only during parameter fitting.
+            reportSafeFitPhase?.Invoke("FS_TRAIN_FIT");
             var fit = provider.FitTrain(option, request.Train);
+            reportSafeFitPhase?.Invoke("FS_FIT_VALIDATE");
             if (fit is null || fit.ModelFamily != option.ModelFamily
                 || fit.AdapterVersion != option.AdapterVersion
                 || fit.OptionId != option.OptionId
@@ -214,7 +218,9 @@ public static class AdaptiveCalibrationModelSearch
                 || !fit.TrainOnly)
                 throw new InvalidDataException("Proposta de fit não provém de TRAIN congelado.");
             RequireSha(fit.FittedParametersFingerprintSha256, "fit");
+            reportSafeFitPhase?.Invoke("FS_VALIDATION_EVALUATE");
             var validation = provider.EvaluateValidation(fit, request.Validation);
+            reportSafeFitPhase?.Invoke("FS_METRICS_VALIDATE");
             if (validation is null || validation.TruePairsWithoutCpf <= 0
                 || validation.TrueAcceptedLinks < 0 || validation.FalseAcceptedLinks < 0
                 || validation.TrueAcceptedLinks > validation.TruePairsWithoutCpf

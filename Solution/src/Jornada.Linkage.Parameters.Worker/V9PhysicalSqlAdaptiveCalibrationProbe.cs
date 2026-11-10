@@ -495,7 +495,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             budget);
 
         reportSafeProbeCheckpoint?.Invoke("PROBE_FS_FIT");
-        var report = AdaptiveCalibrationModelSearch.Evaluate(request, [adapter]);
+        var report = AdaptiveCalibrationModelSearch.Evaluate(request, [adapter], reportSafeProbeCheckpoint);
         var globalCoverage = CalculateValidationGlobalCoverage(
             validationEligibleM,
             validationRecoveredM,
