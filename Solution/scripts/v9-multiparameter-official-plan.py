@@ -108,6 +108,7 @@ def freeze(source_plan: Path, official_plan: Path, role: str = "PRIMARY") -> dic
     by_id = {o["OptionId"]: o for o in canonical}
     if [o["OptionId"] for o in opts] != [control.TF0, control.ONE_MF]:
         raise ValueError("Historical V2 TF arm missing/reordered")
+    historical_opts = [canonical_explicit_option(opt) for opt in opts]
     for i, opt in enumerate(opts):
         if opt != by_id[opt["OptionId"]]:
             raise ValueError("Historical V2 TF controls changed")
@@ -134,7 +135,8 @@ def freeze(source_plan: Path, official_plan: Path, role: str = "PRIMARY") -> dic
     provenance = json.dumps({
         "schema": SCHEMA, "marginRole": role, "sourceBytesSha256": hashlib.sha256(
             source_raw).hexdigest(), "historicalBaseIdentity": base_identity,
-        "muMethods": methods, "effectiveHistoricalModelOptions": opts,
+        "muMethods": methods, "effectiveHistoricalModelOptions": historical_opts,
+        "effectiveStudyModelOptions": opts,
         "cpOnlyCandidates": CANDIDATE_CP_COUNT,
     }, sort_keys=True, separators=(",", ":"), allow_nan=False)
     fingerprint = hashlib.sha256(provenance.encode()).hexdigest()
