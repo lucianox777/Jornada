@@ -28,6 +28,8 @@ class V9Scale100kPlanTests(unittest.TestCase):
         self.assertIn("v9-100k-execution-resource-budget.py --stage before-fit", workflow)
         self.assertNotIn('V9_SQL_MEMORY_LIMIT_MB: "4096"', workflow)
         self.assertIn("all 24 official multiparameter hypotheses", workflow)
+        self.assertIn("--parallelism auto", workflow)
+        self.assertIn("AUTO_0_BOUND_CSHARP_GOVERNOR_ACTIVE", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotIn("  push:", workflow)
         self.assertIn("security_preflight_approved", workflow)
@@ -43,6 +45,26 @@ class V9Scale100kPlanTests(unittest.TestCase):
         self.assertIn('"historicalPinnedIbgeBootstrapPeople": 30000', code)
         self.assertIn('"people": 100000', code)
         self.assertNotIn("os.environ.get('TEST'", code)
+
+    def test_100k_auto_parallelism_is_only_operational_override(self):
+        original = {
+            "Calibration": {
+                "MaximumParallelRuleSets": 1,
+                "ModelOptions": [{"OptionId": "TF0", "EligibleForSelection": False}],
+                "Budget": {"StudyFingerprintSha256": "c" * 64}
+            }
+        }
+        patched = copy.deepcopy(original)
+        patched["Calibration"]["MaximumParallelRuleSets"] = 0
+        restored = copy.deepcopy(patched)
+        restored["Calibration"]["MaximumParallelRuleSets"] = original["Calibration"]["MaximumParallelRuleSets"]
+        self.assertEqual(restored, original)
+        code = (SCRIPTS / "v9-scale-100k-technical-plan.py").read_text()
+        self.assertIn('parallelism_mode in ("preserve", "auto")', code)
+        self.assertIn('plan["Calibration"]["MaximumParallelRuleSets"] = 0', code)
+        self.assertIn('restored["Calibration"]["MaximumParallelRuleSets"] = historical_parallelism', code)
+        self.assertIn('historicalMaximumParallelRuleSets=historical_parallelism', code)
+        self.assertIn('cli.add_argument("--parallelism"', code)
 
     def test_rejects_incomplete_manifest_and_wrong_population(self):
         with tempfile.TemporaryDirectory() as tmp:

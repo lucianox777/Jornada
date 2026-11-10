@@ -1,3 +1,7 @@
+> **ACERVO, PRECEDÊNCIA PO 09/11 — V9 100K:** [SQL nativo como padrão (sem script Python de orçamento), logs de erros integrais somente em desenvolvimento local privado e Calibrador C# com paralelismo AUTO no 100k](Decisao_V9_100K_OptOut_Orcamento_SQL_Python_20261109.md). Workflow `workflow_dispatch` manual, preflight de segurança e execução física ainda pendente. GOV-DOC-01.
+
+> **ACERVO — 09/11/2026, OPTOUT PYTHON SQL NO 100K:** [decisão PO de oferecer `disable_python_sql_budget` somente no workflow técnico manual 24×100k, sem mudar o governador C#, o plano científico nem a segurança](Decisao_V9_100K_OptOut_Orcamento_SQL_Python_20261109.md). Padrão `false`, alternativa `true` com preflight Bash e SQL nativo. GOV-DOC-01.
+
 > **RECIBO — INTEGRAÇÃO DO GOVERNADOR CONJUNTO V9 (PO 09/11):** [decisão, implementação e provas HEAD #1388 no SHA master `7110979007...`](Decisao_V9_Governador_Conjunto_Recursos_Calibrador_20261109.md). 10/10 checks da PR verdes, 13 NUnit e SQL físico 1/0/8 multi-OS; gates pós-merge são independentes e 24×100k ainda NÃO COBERTO. GOV-DOC-01.
 
 > **ACERVO — 09/11, GOVERNADOR CONJUNTO DE RECURSOS DO CALIBRADOR:** [decisão PO aprovada de manter um parâmetro e otimizar conjuntamente CPU, RAM/cgroup, SQL e disco, com piloto/admissão gradual e compatibilidade de planos](Decisao_V9_Governador_Conjunto_Recursos_Calibrador_20261109.md). Não cria os dois campos de recurso propostos; mantém 100k e issue #1253 pendentes; implementação em PR isolada com testes. GOV-DOC-01.

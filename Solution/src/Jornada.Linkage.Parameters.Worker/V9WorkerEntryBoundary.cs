@@ -24,6 +24,7 @@ public static class V9WorkerEntryBoundary
             {
                 (publicError ?? Console.Error).WriteLine(
                     V9CalibradorLastErrorLog.SafeErrorCode(error));
+                V9WorkerDevelopmentDiagnostics.WriteException(error, publicError);
             }
             catch
             {

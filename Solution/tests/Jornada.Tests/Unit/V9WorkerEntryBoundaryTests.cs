@@ -64,6 +64,41 @@ public sealed class V9WorkerEntryBoundaryTests
     }
 
     [Test]
+    public void Full_diagnostic_is_development_local_only_and_never_public_CI()
+    {
+        var local = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["DOTNET_ENVIRONMENT"] = "Development",
+            ["ASPNETCORE_ENVIRONMENT"] = "Development",
+        };
+        string? Get(string key) => local.GetValueOrDefault(key);
+        Assert.That(V9WorkerDevelopmentDiagnostics.Enabled(Get), Is.True);
+        using var details = new StringWriter();
+        V9WorkerDevelopmentDiagnostics.WriteException(
+            new InvalidDataException("FULL_LOCAL_DEV_DIAGNOSTIC_" + SecretCanary), details, Get);
+        Assert.That(details.ToString(), Does.Contain("FULL_LOCAL_DEV_DIAGNOSTIC_"));
+        Assert.That(details.ToString(), Does.Contain("InvalidDataException"));
+        Assert.That(details.ToString(), Does.Contain(SecretCanary));
+        foreach (var environment in new[] { "Production", "Staging" })
+        {
+            local["DOTNET_ENVIRONMENT"] = environment;
+            Assert.That(V9WorkerDevelopmentDiagnostics.Enabled(Get), Is.False);
+        }
+        local["DOTNET_ENVIRONMENT"] = "Development";
+        foreach (var gate in new[] { "CI", "GITHUB_ACTIONS" })
+        {
+            local[gate] = "true";
+            using var sink = new StringWriter();
+            V9WorkerDevelopmentDiagnostics.WriteException(
+                new IOException(SecretCanary), sink, Get);
+            Assert.That(sink.ToString(), Is.Empty, gate + " must not leak");
+            local.Remove(gate);
+        }
+        local["JORNADA_RUNTIME_MODE"] = "PROD";
+        Assert.That(V9WorkerDevelopmentDiagnostics.Enabled(Get), Is.False);
+    }
+
+    [Test]
     public async Task Entry_boundary_is_lossless_on_success_and_does_not_set_exit_code()
     {
         var invoked = false;

@@ -141,7 +141,7 @@ def corpus_provenance(root):
     return m, digest(manifest_raw), outputs["observacoes.csv"]
 
 
-def bind(zip_path, corpus_root, output, receipt_path):
+def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve"):
     output, receipt_path = Path(output), Path(receipt_path)
     require(output.name == "plan.json", "only official-format plan.json is executable")
     require(not output.exists() and not receipt_path.exists(),
@@ -149,6 +149,14 @@ def bind(zip_path, corpus_root, output, receipt_path):
     original, official_sha = verified_official_plan(zip_path)
     manifest, manifest_sha, obs_sha = corpus_provenance(corpus_root)
     plan = copy.deepcopy(original)
+    require(parallelism_mode in ("preserve", "auto"), "unsupported runtime parallelism option")
+    historical_parallelism = original["Calibration"].get("MaximumParallelRuleSets")
+    require(type(historical_parallelism) is int and historical_parallelism >= 0,
+            "historical parallelism must be an unsigned integer")
+    # Runtime-only: V9 CSharp governor chooses workers from CPUs and live RAM.
+    # The model candidates, TF/MU, FDR, reference and 24 hypotheses do not change.
+    if parallelism_mode == "auto":
+        plan["Calibration"]["MaximumParallelRuleSets"] = 0
     old = plan["Calibration"]["ObservationCapDeclaration"]
     require(old["MaximumObservationsPerBaseIdentity"] == 4
             and old["GeneratorVersion"] == manifest["generator_version"]
@@ -161,6 +169,9 @@ def bind(zip_path, corpus_root, output, receipt_path):
         "people": 100000, "knownTrainSeed": 42,
         "historicalPinnedIbgeBootstrapPeople": 30000,
     }
+    if parallelism_mode == "auto":
+        proposal.update(runtimeParallelismMode="AUTO_0",
+                        historicalMaximumParallelRuleSets=historical_parallelism)
     fingerprint = digest(json.dumps(proposal, sort_keys=True,
                                     separators=(",", ":"), allow_nan=False).encode())
     cap = plan["Calibration"]["ObservationCapDeclaration"]
@@ -171,6 +182,8 @@ def bind(zip_path, corpus_root, output, receipt_path):
     # Strict diff proof: no scientific parameter, TF reference, witness,
     # CPU setting, SQL rule, selection setting or historical value changed.
     restored = copy.deepcopy(plan)
+    if parallelism_mode == "auto":
+        restored["Calibration"]["MaximumParallelRuleSets"] = historical_parallelism
     restored["Calibration"]["ObservationCapDeclaration"] = copy.deepcopy(
         original["Calibration"]["ObservationCapDeclaration"])
     restored["Calibration"]["StudyFingerprintSha256"] = original["Calibration"]["StudyFingerprintSha256"]
@@ -197,6 +210,8 @@ if __name__ == "__main__":
     cli.add_argument("--corpus-root", type=Path, required=True)
     cli.add_argument("--plan", type=Path, required=True)
     cli.add_argument("--receipt", type=Path, required=True)
+    cli.add_argument("--parallelism", choices=("preserve", "auto"), default="preserve",
+                     help="Only change runtime MaximumParallelRuleSets to 0 for the 100k technical fit")
     args = cli.parse_args()
     print(json.dumps(bind(args.artifact_zip, args.corpus_root,
-                          args.plan, args.receipt), sort_keys=True))
+                          args.plan, args.receipt, args.parallelism), sort_keys=True))

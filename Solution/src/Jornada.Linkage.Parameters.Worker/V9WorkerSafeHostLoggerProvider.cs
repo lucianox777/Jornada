@@ -43,7 +43,20 @@ public sealed class V9WorkerSafeHostLoggerProvider : ILoggerProvider
                 ? logLevel >= LogLevel.Error ? "V9_WORKER_FAILED:HOST_LOG_ERROR"
                     : "V9_WORKER_NOTICE:HOST_WARNING"
                 : V9CalibradorLastErrorLog.SafeErrorCode(exception);
-            try { (publicError ?? Console.Error).WriteLine(code); }
+            try
+            {
+                var destination = publicError ?? Console.Error;
+                destination.WriteLine(code);
+                if (V9WorkerDevelopmentDiagnostics.Enabled())
+                {
+                    // Local Development only: show the formatted event as well as
+                    // the complete exception. Production/CI never invoke formatter.
+                    try { destination.WriteLine(formatter(state, exception)); }
+                    catch { /* Formatter failure must not alter host exit behavior. */ }
+                    if (exception is not null)
+                        V9WorkerDevelopmentDiagnostics.WriteException(exception, destination);
+                }
+            }
             catch { /* Log I/O failure cannot trigger the unhandled .NET dumper. */ }
             if (logLevel >= LogLevel.Error || exception is not null)
             {
