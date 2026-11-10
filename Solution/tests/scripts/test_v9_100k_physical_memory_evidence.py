@@ -93,15 +93,16 @@ class PhysicalMemoryEvidenceTests(unittest.TestCase):
                 self.stdout, self.returncode = stdout, returncode
         with mock.patch.object(module.subprocess, "run",
                 side_effect=[Completed("memory.memorylimitmb : 4096"),
-                             Completed("5368709120"),
+                             Completed("3072"), Completed("5368709120"),
                              Completed("4294967296")]):
             values = module.sql_memory_limits("v9-probe-sql-123-1")
         self.assertEqual(values, {
             "sqlMemoryMemorylimitMb": 4096,
+            "sqlEnvironmentMemoryLimitMb": 3072,
             "sqlDockerHardLimitKiB": 5242880,
             "sqlCgroupMemoryMaxKiB": 4194304})
         with mock.patch.object(module.subprocess, "run",
-                side_effect=[Completed("", 1), Completed("0"),
+                side_effect=[Completed("", 1), Completed("unset"), Completed("0"),
                              Completed("max")]):
             defaults = module.sql_memory_limits("v9-probe-sql-123-1")
         self.assertTrue(all(value is None for value in defaults.values()))
