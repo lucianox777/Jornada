@@ -121,6 +121,56 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void Valid_new_name_absent_from_2022_IBGE_reproduces_positive_TF_RejectOperation_at_coverage()
+    {
+        // A valid 2025 newborn name can be genuinely new, not an OCR/typing
+        // error and not necessarily a censored [1,19] occurrence in 2022.
+        // This is a behavioral reproduction of the current explicit policy,
+        // NOT a claim that such a name should fail in production.
+        const string newName = "NOVALUZ";
+        var original = Frame();
+        var frame = original with
+        {
+            Pairs = original.Pairs.Select(x =>
+            {
+                // TRAIN supplies independently labeled nonmatches for mother/U.
+                // Exactly one VALIDATION true pair receives a new valid name.
+                var motherName = x.Partition == "VALIDATION"
+                    && x.LeftIdentityGroupId == "VAL-A"
+                    ? newName : "ANA";
+                return x with
+                {
+                    LeftMotherName = motherName + " COSTA",
+                    RightMotherName = motherName + " LIMA"
+                };
+            }).ToArray()
+        };
+        var policy = new V9FsAdaptiveOptionConfiguration(
+            "TF_VALID_NEW_NAME_REJECT_REPRO", .5m, .55m, 1m,
+            TfSide: CompositeNominalTfSideV9.Mother,
+            UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.RejectOperation);
+        var checkpoints = new List<string>();
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            frame, [policy], Reference(), checkpoints.Add);
+        var fitted = adapter.FitTrain(Model(policy), Slice("TRAIN"));
+
+        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+            adapter.EvaluateValidation(fitted, Slice("VALIDATION"))));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(checkpoints.Last(), Is.EqualTo("VALIDATION_TF_PUBLISHED_COVERAGE"));
+            Assert.That(error!.Message, Does.Contain("Mother/FirstName"));
+            Assert.That(error.Message, Does.Contain("ausentes=1"));
+            Assert.That(error.Message, Does.Not.Contain(newName),
+                "The public failure must never disclose a legitimate new name.");
+            Assert.That(policy.UnpublishedTermPolicy,
+                Is.EqualTo(V9TfUnpublishedTermPolicyV9.RejectOperation));
+        }));
+        // This test deliberately does not turn missing TF into zero or invent
+        // a marginal; changing the approved scoring policy is separate work.
+    }
+
+    [Test]
     public void TF_unpublished_union_audit_deduplicates_person_and_mother_without_leaking_names()
     {
         var rows = new[]
