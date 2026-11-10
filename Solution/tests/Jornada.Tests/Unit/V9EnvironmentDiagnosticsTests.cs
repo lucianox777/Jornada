@@ -60,7 +60,7 @@ public sealed class V9EnvironmentDiagnosticsTests
             using var sink = new StringWriter();
             Assert.That(V9WorkerDevelopmentDiagnostics.Enabled(env), Is.False);
             V9WorkerDevelopmentDiagnostics.WriteException(
-                new Exception("synthetic-must-remain-private"), sink, env);
+                new InvalidDataException("synthetic-must-remain-private"), sink, env);
             Assert.That(sink.ToString(), Is.Empty);
         }
     }
