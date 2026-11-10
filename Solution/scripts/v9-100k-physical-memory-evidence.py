@@ -193,7 +193,7 @@ def parse_positive_limit(raw):
 
 def sql_memory_limits(container):
     """Numeric, allowlisted configuration only. Unknown != unlimited."""
-    values = {"sqlMemoryMemorylimitMb": None, "sqlDockerHardLimitKiB": None,
+    values = {"sqlMemoryMemorylimitMb": None, "sqlEnvironmentMemoryLimitMb": None, "sqlDockerHardLimitKiB": None,
               "sqlCgroupMemoryMaxKiB": None}
     # SQL Server's mssql-conf setting, if explicit. No raw stdout in receipt.
     try:
@@ -205,6 +205,18 @@ def sql_memory_limits(container):
             numeric = re.findall(r"(?<![A-Za-z0-9])([0-9]{3,7})(?![A-Za-z0-9])", cmd.stdout)
             if len(numeric) == 1:
                 values["sqlMemoryMemorylimitMb"] = int(numeric[0])
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    # Read numeric SQL env override only; do not publish raw environment.
+    try:
+        cmd = subprocess.run(
+            ["docker", "exec", container, "sh", "-c",
+             'printf "%s" "${MSSQL_MEMORY_LIMIT_MB:-unset}"'],
+            capture_output=True, text=True, timeout=5, check=False)
+        if cmd.returncode == 0:
+            value = parse_positive_limit(cmd.stdout)
+            if value is not None:
+                values["sqlEnvironmentMemoryLimitMb"] = value
     except (OSError, subprocess.TimeoutExpired):
         pass
     # Docker's configured hard limit is zero if not explicitly set.
@@ -324,6 +336,7 @@ def main():
         "sqlContainerOomKilled": True if sql_oom_observed else (False if sql_inspect_samples else None),
         "sqlContainerOomSamples": sql_inspect_samples,
         "sqlMemoryMemorylimitMb": (sql_limits or {}).get("sqlMemoryMemorylimitMb"),
+        "sqlEnvironmentMemoryLimitMb": (sql_limits or {}).get("sqlEnvironmentMemoryLimitMb"),
         "sqlDockerHardLimitKiB": (sql_limits or {}).get("sqlDockerHardLimitKiB"),
         "sqlCgroupMemoryMaxKiB": (sql_limits or {}).get("sqlCgroupMemoryMaxKiB"),
         "sqlMemoryConfigurationScope": "EXPLICIT_SETTINGS_ONLY_NULL_MEANS_UNKNOWN_OR_NATIVE_DEFAULT",
