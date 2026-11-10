@@ -276,6 +276,8 @@ def main():
     worker_max = None
     host_min = before
     child = subprocess.Popen(command)
+    # SQL memory configuration is a point-in-time snapshot, not a 10-s query.
+    sql_limits = sql_memory_limits(args.sql_container)
     try:
         while child.poll() is None:
             sql = docker_metrics(args.sql_container)
@@ -283,10 +285,6 @@ def main():
             if sql_oom is not None:
                 sql_inspect_samples += 1
                 sql_oom_observed = sql_oom_observed or sql_oom
-            if sql_limits is None:
-                candidate_limits = sql_memory_limits(args.sql_container)
-                if any(value is not None for value in candidate_limits.values()):
-                    sql_limits = candidate_limits
             cg = sql_cgroup_snapshot(args.sql_container)
             if cg is not None:
                 sql_cgroup_samples += 1
