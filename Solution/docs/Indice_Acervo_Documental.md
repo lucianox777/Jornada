@@ -1,3 +1,5 @@
+> **ACERVO GOV-SEC-1253-EXPURGO / GOV-V9-100K-PROBE — 10/11/2026:** [autorização de expurgo de logs com credenciais, estado não executado, causa ainda não isolada do probe físico SQL 100k, medições de memória/OOM e subclassificação sanitizada](Decisao_GOV_SEC_1253_Expurgo_Autorizado_E_V9_100k_Probe_20261110.md). Execuções #41535062165 e #42863124223; GOV-DOC-01.
+
 > **ACERVO GOV-SEC-1253-LOGS-DEV-HML-PROD-20261110:** [decisão do PO, implementação de logs integrais DEV/HML em destino privado e códigos reconhecíveis em produção, com precedência e limitações da #1253](Decisao_GOV_SEC_1253_Logs_Completos_DEV_HML_Codigo_Producao_20261110.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-100K-MONITOR-OUTPUT-20261110:** [causa da falha `PLAN_VALIDATED_AND_OUTPUT_ADMISSION` no 100k e correção da instrumentação sem antecipar a criação de `results/`](Decisao_V9_100k_Monitor_Diretorio_Imutavel_20261110.md). Dados do run #42859834044 e artefato #13784588732. GOV-DOC-01.
