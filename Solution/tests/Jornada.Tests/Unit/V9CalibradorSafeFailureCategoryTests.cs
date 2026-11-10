@@ -184,6 +184,21 @@ public sealed class V9CalibradorSafeFailureCategoryTests
     }
 
     [Test]
+    public void Actual_published_coverage_gate_throws_typed_scientific_failure()
+    {
+        var coverage = new[] {
+            new V9NominalTfPublishedCoverageAudit.SlotCoverage(
+                default, default, 3, 2, 1, 1, 0)
+        };
+        var error = Assert.Throws<V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException>(
+            () => V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(coverage));
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(error!),
+            Is.EqualTo(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient));
+        Assert.That(V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error!),
+            Is.EqualTo(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient));
+    }
+
+    [Test]
     public void Matches_exact_structural_frame_error_as_safe_category()
     {
         Assert.That(V9CalibradorSafeFailureCategory.Classify(
