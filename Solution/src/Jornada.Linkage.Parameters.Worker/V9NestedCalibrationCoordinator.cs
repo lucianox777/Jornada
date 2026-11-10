@@ -332,8 +332,17 @@ public static class V9NestedCalibrationCoordinator
             // explicit estimator option on the SAME physical SQL candidate set.
             // Never merge distinct passes/margins, or deduplicate model options.
             // Chunk size preserves the model-search 64-option contract.
-            var groups = requests.GroupBy(PhysicalFrameKey)
-                .SelectMany(g => g.Chunk(64)).ToArray();
+            // Schedule likely broader candidate-pair SQL frames first. This
+            // is a cost HEURISTIC from declared blocking predicates (not
+            // SQL SHOWPLAN or observed wall-clock). The scheduler pilots
+            // the heaviest estimated frame for RAM admission and overlaps
+            // subsequent independent frames up to the governed ceiling.
+            // Requests, model options, scientific hashes, CP accounting,
+            // refinements and canonical folding remain unchanged.
+            var groups = V9PhysicalFrameExecutionOrder.BroadestLikelyFirst(
+                requests.GroupBy(PhysicalFrameKey).SelectMany(g => g.Chunk(64)).ToArray(),
+                static group => group[0].Passes,
+                static group => group[0].Sha).ToArray();
             var results = await V9ParallelWork.MapCalibrationAsync(groups, executionMaximumParallelRuleSets ?? calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
                 FrozenIbgeNominalTfV9? frozenReference = null;

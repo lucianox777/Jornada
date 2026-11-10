@@ -1,3 +1,5 @@
+> **ADENDA PO 09/11 — ORDEM OPERACIONAL, NÃO SELEÇÃO:** a calibração aninhada V9 coloca primeiro frames físicos de SQL **potencialmente mais amplos pela heurística de blocking**, permitindo que o piloto do governador avalie um frame provável pesado. Não se trata de custo SQL real nem altera seleção científica, `MaximumParallelRuleSets` ou regras de admissão. [Decisão e testes](Decisao_V9_SQL_Bootstrap_Unificado_Consultas_Pesadas_Primeiro_20261109.md). GOV-DOC-01.
+
 # GOV-V9-RECURSOS-CONJUNTOS-20261109 — governador físico integrado ao Calibrador, sem novos campos científicos
 
 **Autoridade:** Product Owner, 09/11/2026. **Estado:** DECIDIDO e implementação integrada à `master` pela PR [#1388](https://github.com/lucianox777/Jornada/pull/1388), SHA `7110979007d310a1d4342232c2382c9e4e152a6f`; provas físicas pós-merge têm SHA próprio e não são inferidas dos checks da PR. **Escopo:** modos físicos `--v9-calibrate` e `--v9-adaptive-study`. **Política:** GOV-DOC-01.

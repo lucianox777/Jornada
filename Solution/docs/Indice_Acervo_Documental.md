@@ -1,3 +1,7 @@
+> **ACERVO / RETOMADA 10/11/2026:** o PO substituiu a antiga suspensão operacional de 100k por [autorização explícita da campanha V9 AUTO, SQL nativo e custo estrutural estimado primeiro](Decisao_Autorizacao_Ensaio_V9_100K_AUTO_20261110.md); gates de segurança e `workflow_dispatch` continuam obrigatórios. Até apresentar recibo, não há prova 100k. GOV-DOC-01.
+
+> **ACERVO 09/11 — 100K PAUSADO / BOOTSTRAP SQL CONSOLIDADO E CONSULTAS PESADAS PRIMEIRO (ESTIMATIVA):** [decisão de mover dimensionamento opcional Python para o bootstrap SQL e priorizar frames físicos pelo custo estrutural estimado, sem mudanças científicas](Decisao_V9_SQL_Bootstrap_Unificado_Consultas_Pesadas_Primeiro_20261109.md). Nenhum run 100k foi autorizado nesta etapa, GOV-DOC-01.
+
 > **ACERVO, PRECEDÊNCIA PO 09/11 — V9 100K:** [SQL nativo como padrão (sem script Python de orçamento), logs de erros integrais somente em desenvolvimento local privado e Calibrador C# com paralelismo AUTO no 100k](Decisao_V9_100K_OptOut_Orcamento_SQL_Python_20261109.md). Workflow `workflow_dispatch` manual, preflight de segurança e execução física ainda pendente. GOV-DOC-01.
 
 > **ACERVO — 09/11/2026, OPTOUT PYTHON SQL NO 100K:** [decisão PO de oferecer `disable_python_sql_budget` somente no workflow técnico manual 24×100k, sem mudar o governador C#, o plano científico nem a segurança](Decisao_V9_100K_OptOut_Orcamento_SQL_Python_20261109.md). Padrão `false`, alternativa `true` com preflight Bash e SQL nativo. GOV-DOC-01.

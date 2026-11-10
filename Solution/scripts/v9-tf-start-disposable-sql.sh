@@ -9,6 +9,58 @@ fi
 command -v openssl >/dev/null
 command -v docker >/dev/null
 
+# The manual 24x100k workflow supplies an explicit switch. Other 30k/V9
+# callers leave it unset and retain their current SQL bootstrap behavior.
+# In the optional adaptive mode, calculate the Python budget IMMEDIATELY
+# before Docker starts, in the same shell that applies both SQL memory caps.
+if [[ -n "${V9_100K_DISABLE_PYTHON_SQL_BUDGET+x}" ]]; then
+  [[ "${V9_100K_DISABLE_PYTHON_SQL_BUDGET}" == "true" ||
+     "${V9_100K_DISABLE_PYTHON_SQL_BUDGET}" == "false" ]] || {
+    echo "V9_100K_SQL_BOOTSTRAP: invalid budget switch" >&2; exit 2;
+  }
+  if [[ ! "${EXACT_SHA:-}" =~ ^[a-f0-9]{40}$ ||
+        "${EXACT_SHA:-}" != "${GITHUB_SHA:-}" ||
+        "${GITHUB_REF:-}" != "refs/heads/master" ||
+        "${GITHUB_EVENT_NAME:-}" != "workflow_dispatch" ||
+        "${GITHUB_ACTOR:-}" != "${GITHUB_REPOSITORY_OWNER:-}" ]]; then
+    echo "V9_100K_SQL_BOOTSTRAP: unauthorized manual 100k context" >&2
+    exit 2
+  fi
+  if [[ -n "${V9_SQL_MEMORY_LIMIT_MB:-}" || -n "${V9_SQL_CONTAINER_MEMORY_MB:-}" ]]; then
+    echo "V9_100K_SQL_BOOTSTRAP: inherited SQL memory settings not allowed" >&2
+    exit 2
+  fi
+  capacity_receipt="$PWD/.local/v9-100k-technical/capacity-before-sql.json"
+  if [[ "$V9_100K_DISABLE_PYTHON_SQL_BUDGET" == "true" ]]; then
+    # Default: observe capacity but do not set SQL or Docker memory limits.
+    bash "$(dirname "${BASH_SOURCE[0]}")/v9-100k-sql-budget-optout-guard.sh" \
+      before-sql "$capacity_receipt"
+  else
+    # Explicit opt-in: the Python estimator stays a separate tested library,
+    # but its invocation and application are now one atomic SQL-start step.
+    python3 "$(dirname "${BASH_SOURCE[0]}")/v9-100k-execution-resource-budget.py" \
+      --stage plan-sql --exact-sha "$EXACT_SHA" --resource-root "$PWD" \
+      --output "$capacity_receipt" --github-env "$GITHUB_ENV"
+    budget_pair="$(python3 - "$capacity_receipt" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding="utf-8") as stream:
+    receipt = json.load(stream)
+sql = receipt.get("sqlMemoryLimitMb")
+docker = receipt.get("sqlContainerMemoryMb")
+if receipt.get("status") != "PASS_ADMISSION_ONLY_NOT_FIT_PROOF" or \
+        receipt.get("stage") != "plan-sql" or \
+        (sql, docker) not in {(2048, 3072), (3072, 4096), (4096, 5120)}:
+    raise SystemExit("V9_100K_SQL_BOOTSTRAP: invalid SQL admission receipt")
+print(f"{sql} {docker}")
+PY
+)"
+    [[ "$budget_pair" =~ ^(2048|3072|4096)[[:space:]](3072|4096|5120)$ ]] || {
+      echo "V9_100K_SQL_BOOTSTRAP: invalid memory pair" >&2; exit 2;
+    }
+    read -r V9_SQL_MEMORY_LIMIT_MB V9_SQL_CONTAINER_MEMORY_MB <<< "$budget_pair"
+  fi
+fi
+
 sql_name="v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
 # Only the proposed standard 100k technical workflow configures this budget.
 # Existing physical 30k workflows remain unchanged when absent.

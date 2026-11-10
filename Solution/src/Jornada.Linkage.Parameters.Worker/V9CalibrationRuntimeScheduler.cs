@@ -100,8 +100,9 @@ public sealed class V9CalibrationRuntimeScheduler
             _receipts.Add(emptyReceipt);
             return (Array.AsReadOnly(results), emptyReceipt);
         }
-        // One physical configuration in original declared order. Never a new
-        // diagnostic hypothesis, never a pilot on TEST/Gold.
+        // One original, already-declared physical configuration in the caller's
+        // deterministic operational schedule (possibly estimated heavy-first).
+        // Never a new diagnostic hypothesis, never a pilot on TEST/Gold.
         cancellationToken.ThrowIfCancellationRequested();
         results[0] = await operation(inputs[0], cancellationToken);
         var sampleAfter = Read();
