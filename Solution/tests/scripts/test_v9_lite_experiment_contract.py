@@ -52,6 +52,27 @@ class LiteExperimentContractTests(unittest.TestCase):
         # Preexisting governed 100k workflow remains available for comparison.
         self.assertIn("v9-100k-execution-resource-budget.py", ORIGINAL.read_text())
 
+    def test_30k_workflow_is_manual_and_matched_serial(self):
+        w = (ROOT.parent / ".github/workflows/v9-lite-serial-30k-matched-benchmark.yml").read_text()
+        for needle in (
+            "workflow_dispatch:", "security_preflight_approved",
+            "github.actor == github.repository_owner",
+            'test "$EXPECTED_SHA" = "$GITHUB_SHA"',
+            'test "$GITHUB_REF" = refs/heads/master',
+            'V9_SQL_MEMORY_LIMIT_MB: "2048"',
+            'V9_SQL_CONTAINER_MEMORY_MB: "3072"',
+            "MaximumParallelRuleSets']=1",
+            "--v9-calibrate", "--v9-lite-benchmark",
+            "EXPECTED_ALL_160_EVALUATIONS",
+            "SCIENTIFIC_EVALUATION_ROWS_DIFFER",
+            "SCIENTIFIC_FIT_SHA_MISMATCH",
+            "testUsed", "activated",
+        ):
+            self.assertIn(needle, w)
+        self.assertNotIn("  push:", w)
+        self.assertNotIn("  pull_request:", w)
+        self.assertNotIn("python3 scripts/v9-100k-execution-resource-budget.py", w)
+
     def test_no_scientific_plan_rewrite_or_activation(self):
         w = WORKFLOW.read_text()
         self.assertIn("--people 100000 --seed 42", w)
