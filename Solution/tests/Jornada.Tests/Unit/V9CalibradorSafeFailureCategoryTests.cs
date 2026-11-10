@@ -8,6 +8,18 @@ public sealed class V9CalibradorSafeFailureCategoryTests
     private const string Sensitive = "SENHA_CANARY_SQL_PASSWORD_CPF_11122233344";
 
     [Test]
+    public void Published_tf_coverage_has_distinct_safe_reason_without_nominal_leakage()
+    {
+        var error = new V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException(Sensitive);
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(error),
+            Is.EqualTo(V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient));
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(error), Does.Not.Contain(Sensitive));
+        V9CalibradorSafeFailureCategory.Mark(error, V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+        Assert.That(V9CalibradorSafeFailureCategory.Classify(error),
+            Is.EqualTo(V9CalibradorSafeFailureCategory.PhysicalSqlProbe));
+    }
+
+    [Test]
     public void Identifies_internal_resource_codes_only()
     {
         Assert.That(V9CalibradorSafeFailureCategory.Classify(
