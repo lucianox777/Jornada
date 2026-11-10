@@ -26,8 +26,7 @@ public static class V9WorkerDevelopmentDiagnostics
         var mode = get("JORNADA_RUNTIME_MODE");
 
         // Fail closed for any contradictory, explicitly production environment.
-        if (IsProduction(dotnet) || IsProduction(aspnet) || IsProduction(mode)
-)
+        if (IsProduction(dotnet) || IsProduction(aspnet) || IsProduction(mode))
             return false;
 
         bool development = string.Equals(dotnet, "Development", StringComparison.OrdinalIgnoreCase)
