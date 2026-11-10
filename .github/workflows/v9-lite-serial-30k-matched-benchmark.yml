@@ -1,0 +1,258 @@
+name: v9-lite-serial-30k-matched-benchmark
+
+# Experimental physical comparison; manual owner-only master SHA after PR merge.
+# No automatic 30k benchmarking and NO Python RAM budget.
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact master SHA for synthetic 30k paired scientific benchmark
+        required: true
+        type: string
+      security_preflight_approved:
+        description: Confirm disposable SQL and #1253 security preflight
+        required: true
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v9-lite-30k-manual-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  broad-physical:
+    if: ${{ inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    name: Paired V9 governed vs Lite 30k surname seed42 160 evaluations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      V3_FAMILY: surname
+      V3_SEED: "42"
+      V9_TF_TARGET_SEED: "42"
+      EXPECTED_SHA: ${{ inputs.expected_sha }}
+      JORNADA_V9_LITE_EXPERIMENT: EXPLICIT_SYNTHETIC_TRAIN_ONLY
+      V9_SQL_MEMORY_LIMIT_MB: "2048"
+      V9_SQL_CONTAINER_MEMORY_MB: "3072"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ env.EXPECTED_SHA }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Bind source, plans and evidence to exact SHA and run offline tests
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_direct_plan.py' -v
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_broad_train_audit.py' -v
+          python3 -m py_compile Solution/scripts/v9-v3-broad-train-audit.py
+      - name: Fixed-capacity preflight before disposable SQL (no Python resource governor)
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$GITHUB_REF" = refs/heads/master
+          test "$EXPECTED_SHA" = "$GITHUB_SHA"
+          available_kib="$(awk '/^MemAvailable:/ {print $2}' /proc/meminfo)"
+          disk_kib="$(df -Pk . | awk 'END {print $4}')"
+          test "$available_kib" -ge 10485760
+          test "$disk_kib" -ge 6291456
+      - name: Start disposable SQL
+        run: bash Solution/scripts/v9-tf-start-disposable-sql.sh
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9
+        with:
+          dotnet-version: '10.0.113'
+          cache: true
+          cache-dependency-path: 'Solution/**/packages.lock.json'
+      - name: Compile existing CSharp Calibrador and synthetic generator
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Generate pinned 30k TRAIN for fixed synthetic seed
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-broad-$V3_FAMILY-$V3_SEED"
+          bash scripts/v9-tf-prepare-pin.sh "$root" pinned-ibge.json
+          if [[ "$V3_SEED" == 42 ]]; then
+            python3 scripts/v9-tf-ref-provenance-gate.py \
+              --corpus-root "$root/people-30k" --pin "$root/pinned-ibge.json" \
+              --reference data/reference/v9-synthetic-seed42-30000/manifest.json
+          fi
+      - name: Freeze two JSON TF hypotheses, V3 support grid and 1-percent risk
+        working-directory: Solution
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-broad-$V3_FAMILY-$V3_SEED"
+          python3 scripts/v9-nested-calibration-study.py \
+            "$root/people-30k/observacoes.csv" "$root/source-tf-plan.json" \
+            --tf-search --pinned-ibge "$root/pinned-ibge.json"
+          python3 - <<'PY'
+          import copy, json, os
+          from pathlib import Path
+          root=Path('.local')/('v9-v3-broad-'+os.environ['V3_FAMILY']+'-'+os.environ['V3_SEED'])
+          source=json.loads((root/'source-tf-plan.json').read_bytes())
+          catalog={x['OptionId']:x for x in source['Calibration']['ModelOptions']}
+          if os.environ['V3_FAMILY']=='surname':
+              bilateral=copy.deepcopy(catalog['TF_TWO_PL_ML_W1_M0_A0.5_T0.95'])
+              bilateral.update(SharedSurnameMode=0, EligibleForSelection=True)
+              shared=copy.deepcopy(bilateral)
+              shared.update(OptionId='TF_SHARED_PL_ML_W1_M0_A0.5_T0.95',
+                            SharedSurnameMode=1, EligibleForSelection=False)
+              arms=[bilateral, shared]
+          else:
+              arms=[copy.deepcopy(catalog[n]) for n in
+                    ('A0.5_T0.95_TF0', 'TF_ONE_MF_W1_M0_A0.5_T0.95')]
+              for x in arms: x['EligibleForSelection'] = True
+              assert all(x['EligibleForSelection'] is True for x in arms)
+          source['Calibration']['ModelOptions']=arms
+          # The master also supports zero as a measured-only, nonselectable
+          # diagnostic. This RAM-first workload instead keeps the physically
+          # proven positive .0001 arm and all five declared margins (160
+          # comparisons) without introducing a new experimental protocol.
+          # It is not an exact numeric replay of the historical zero arm.
+          source['Calibration']['ConflictMargins']=[0.0001, 0.25, 0.5, 2, 4]
+          assert source['Calibration']['Budget']['MaximumObservedAcceptedFdrPoint']==.01
+          assert source['Calibration']['SelectionPolicy']['MaximumAcceptedFdrUpper']==.01
+          with (root/'source-plan.json').open('x') as f:
+              json.dump(source,f,indent=2);f.write('\n')
+          broad=os.environ['V3_SEED']=='42'
+          grid={'ClassMassCoverage':[.95,.99] if broad else [.99],
+                'MinimumObservedMPerCell':[1,5] if broad else [5],
+                'MinimumObservedUPerCell':[1,5] if broad else [5],
+                'RetainSupportedTail':[True]}
+          with (root/'grid.json').open('x') as f:
+              json.dump(grid,f,indent=2);f.write('\n')
+          PY
+          # Fail closed on full protocol breadth: 8 V3 policies x 2 TF
+          # hypotheses x 5 conflict margins x 2 frozen SQL rulesets = 160.
+          # Replication seeds have one locked V3 policy => 20.
+          maximum=20
+          if [[ "$V3_SEED" == 42 ]]; then maximum=160; fi
+          python3 scripts/v9-v3-direct-plan.py \
+            "$root/source-plan.json" "$root/grid.json" "$root/plan-pre-serial.json" \
+            --initial-only --maximum-configurations "$maximum" > "$root/plan-receipt.json"
+          # Only operational worker count changes; same plan for both arms.
+          python3 - <<'PY'
+          import json,os
+          from pathlib import Path
+          root=Path('.local')/('v9-v3-broad-'+os.environ['V3_FAMILY']+'-'+os.environ['V3_SEED'])
+          plan=json.loads((root/'plan-pre-serial.json').read_bytes())
+          plan['Calibration']['MaximumParallelRuleSets']=1
+          with (root/'plan.json').open('x') as f:
+              json.dump(plan,f,indent=2,allow_nan=False);f.write('\\n')
+          PY
+      - name: Execute GOVERNED then Lite serial over same 30k TRAIN
+        working-directory: Solution
+        timeout-minutes: 310
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-v3-broad-$V3_FAMILY-$V3_SEED"
+          for mode in governed lite; do
+            cli=--v9-calibrate
+            if [[ "$mode" == lite ]]; then cli=--v9-lite-benchmark; fi
+            dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+              "$cli" "$root/plan.json" "$root/people-30k/observacoes.csv" "$root/$mode"
+          done
+      - name: Audit 30k all scientific rows, 160 declared evaluations, paired resource telemetry
+        env:
+          EXACT_SHA: ${{ inputs.expected_sha }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, hashlib
+          root=pathlib.Path('Solution/.local/v9-v3-broad-surname-42')
+          def load(p): return json.loads(p.read_bytes())
+          def select_envelope(directory):
+              files=sorted(directory.glob('*.selection.json'))
+              if len(files)!=1: raise SystemExit('MISSING_UNIQUE_SELECTION_ENVELOPE')
+              obj=load(files[0])
+              result=obj.get('result',obj.get('Result'))
+              if not isinstance(result,dict): raise SystemExit('MISSING_SELECTION_RESULT')
+              return result
+          a=load(root/'governed/selection-reference.json')
+          b=load(root/'lite/selection-reference.json')
+          # The entire envelope hash includes progress and runtime-sensitive
+          # measurements; do NOT mistake a different envelope for a science drift.
+          for key in ('FinalistSnapshotShas','StopReason'):
+              if a.get(key)!=b.get(key):
+                  raise SystemExit('SCIENTIFIC_SELECTION_MISMATCH:'+key)
+          # Scientific comparison must be a projection over every declared
+          # evaluation, not merely a winner hash. Exclude runtime P95, Batch
+          # timing and non-scientific progress; never ignore actual fit/metrics.
+          def scientific_rows(directory):
+              result=select_envelope(directory)
+              evaluations=result.get('Evaluations')
+              if not isinstance(evaluations,list) or not evaluations:
+                  raise SystemExit('MISSING_PHYSICAL_EVALUATIONS')
+              rows=[]
+              for ev in evaluations:
+                  candidate=ev.get('Candidate')
+                  rows.append({
+                      'request':ev.get('RequestSha256'),
+                      'option':ev.get('OptionId'),
+                      'margin':ev.get('ConflictMargin'),
+                      'method':ev.get('MuEstimationMethod'),
+                      'pairsSha':ev.get('CandidatePairsSha256'),
+                      'eligible':ev.get('EligibleForSelection'),
+                      'rejections':ev.get('Rejections'),
+                      'fitSha':candidate.get('Snapshot',{}).get('ContentSha256') if candidate else None,
+                      'metric':candidate.get('Metric') if candidate else None,
+                      'support':candidate.get('Support') if candidate else None,
+                      'prior':candidate.get('PriorDiagnostic') if candidate else None,
+                  })
+              if any(not row['request'] for row in rows):
+                  raise SystemExit('MISSING_EVALUATION_REQUEST_SHA')
+              return sorted(rows,key=lambda x:x['request'])
+          ga=scientific_rows(root/'governed')
+          lb=scientific_rows(root/'lite')
+          if len(ga)!=160 or len(lb)!=160:
+              raise SystemExit('EXPECTED_ALL_160_EVALUATIONS')
+          if ga!=lb:
+              raise SystemExit('SCIENTIFIC_EVALUATION_ROWS_DIFFER')
+          # Independently compare all content-addressed snapshot filenames.
+          def fitted(directory):
+              return sorted(p.name for p in directory.glob('*.fitted.json'))
+          if fitted(root/'governed')!=fitted(root/'lite'):
+              raise SystemExit('SCIENTIFIC_FIT_SHA_MISMATCH')
+          ar=load(root/'governed/runtime-diagnostics.json')
+          br=load(root/'lite/runtime-diagnostics.json')
+          budget=load(root/'lite/calibration-resource-budget.json')
+          scheduling=load(root/'lite/calibration-runtime-scheduling.json')
+          if (budget.get('Schema')!='V9_LITE_SERIAL_BENCHMARK_V1' and
+              budget.get('schema')!='V9_LITE_SERIAL_BENCHMARK_V1'):
+              raise SystemExit('LITE_BUDGET_NOT_EXPERIMENTAL')
+          if (ar.get('configuredParallelism')!=1 or ar.get('effectiveParallelism')!=1 or
+              br.get('configuredParallelism')!=1 or br.get('effectiveParallelism')!=1 or
+              scheduling!=[] or br.get('testUsed') or br.get('activated')):
+              raise SystemExit('LITE_NOT_SERIAL_OR_NOT_ISOLATED')
+          report={'schema':'V9_LITE_30K_MATCHED_SERIAL_PARITY_V1','headSha':os.environ['EXACT_SHA'],
+                  'scienceIdentical':True,'bothRequestedWorkers':1,'fittedShaCount':len(fitted(root/'lite')),
+                  'governed':{'elapsedMs':ar.get('totalMilliseconds'),'peakRssBytes':ar.get('peakWorkingSetBytes')},
+                  'lite':{'elapsedMs':br.get('totalMilliseconds'),'peakRssBytes':br.get('peakWorkingSetBytes')},
+                  'testUsed':False,'activated':False,'certified':False}
+          (root/'parity-receipt.json').write_text(json.dumps(report,sort_keys=True,indent=2)+'\n')
+          print('PASS V9-Lite physical 30k same plan and fitted scientific hashes')
+          PY
+      - name: Upload only bounded SHA-bound aggregate parity receipts
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: v9-lite-30k-paired-${{ github.run_id }}-${{ github.sha }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-v3-broad-surname-42/parity-receipt.json
+            Solution/.local/v9-v3-broad-surname-42/governed/runtime-diagnostics.json
+            Solution/.local/v9-v3-broad-surname-42/lite/runtime-diagnostics.json
+            Solution/.local/v9-v3-broad-surname-42/lite/calibration-resource-budget.json
+            Solution/.local/v9-v3-broad-surname-42/governed/interrupted.json
+            Solution/.local/v9-v3-broad-surname-42/lite/interrupted.json
+      - name: Destroy disposable SQL
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
