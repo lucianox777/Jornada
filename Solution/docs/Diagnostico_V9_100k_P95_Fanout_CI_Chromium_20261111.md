@@ -1,6 +1,6 @@
 # GOV-V9-100K-P95-FANOUT-CHROMIUM-20261111 — diagnóstico e correção de auditor e CI
 
-**Data:** 11/11/2026 (Brasília). **Mandato:** PO solicitou análise da conclusão das Actions, em continuidade ao ciclo de correção V9. **Estado:** causa comprovada nos artefatos e no código; correções técnicas em PR, ainda dependentes de checks e merge. **Governança:** GOV-DOC-01. Sem alteração aprovada de ciência, política TF, FDR, scoring, bloqueios ou ativação.
+**Data:** 11/11/2026 (Brasília). **Mandato:** PO solicitou análise da conclusão das Actions, em continuidade ao ciclo de correção V9. **Estado:** causa comprovada; correção integrada em `master` por squash [PR #1431](https://github.com/lucianox777/Jornada/pull/1431) (SHA `504093b56cff0a66d5e965b29a96938bc443624d`), com CI completa #43027890561 e 30k físico #43027890092 aprovados; campanha subsequente 100k [#43035295017](https://github.com/lucianox777/Jornada/actions/runs/43035295017) concluída com **PASS técnico 24/24 e auditor aprovado**. **Governança:** GOV-DOC-01. Sem alteração aprovada de ciência, política TF, FDR, scoring, bloqueios ou ativação.
 
 ## 1. Campanha real 100k — 24/24 medidas mas P95 de replay condicionado a fanout
 
@@ -23,3 +23,7 @@
 **Critério:** validar novo HEAD na PR com `unit-runtime`, `deterministic-build`, `security-guards`, testes Python do auditor (P95 observado, ausente legítimo por fanout, ausente indevido, NaN e bool) e dos workflows. Integrar por **squash merge** depois de checks; no SHA da master executar CI por impacto, verificar browser E2E/integração, 30k quando exigido. A campanha 100k continua apenas `workflow_dispatch`/owner-only, com preflight e SHA exato; autorização excepcional somente nesta conversa foi documentada pela PR #1427. Não reiniciar campanha cara sem obter CI estável e correção comprovada. Sem substituição do IBGE, TF0, M/U ou FDR.
 
 **Precedência:** complementa [evidência 12/24 anterior](Diagnostico_V9_100k_24_Hipoteses_12_Medidas_20261111.md), [decisão P95 vigente](Decisao_V9_Decisoes_Vigentes_P95_LOCK_Cancelamento_D2_20261108.md) e [protocolo de correção e squash](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md). A falha #43018148317 é de nova categoria; não reescrever os resultados históricos dos runs anteriores.
+
+## 4. Fechamento técnico com evidência posterior, sem certificar a ciência
+
+A execução manual de confirmação na `master`, run [#43035295017](https://github.com/lucianox777/Jornada/actions/runs/43035295017), encerrou `SUCCESS` (11/11/2026), com 24 hipóteses medidas, 8 candidatas estruturais, 16 testemunhas/diagnósticos, 12 replays P95 reais, 12 P95 ausentes unicamente nas opções rejeitadas por fanout P99, 0 lacunas TF publicadas e auditor final aprovado. A correção do problema de P95 e o pin Playwright no Ubuntu 24.04 estão comprovados pós-merge; **esta confirmação técnica não concede certificação FDR independente, uso de TEST/Gold, escolha operacional, publicação ou ativação.** Recibo completo e hashes em [GOV-V9-100K-TRAIN-PASS-43035295017-20261111](Evidencia_V9_100k_TRAIN_Tecnico_PASS_Run_43035295017_20261111.md). As falhas históricas permanecem íntegra e separadamente registradas.
