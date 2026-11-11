@@ -28,6 +28,8 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_masked_sql_probe.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_physical_coverage_baseline.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_physical_impact_classifier.py'
+          # Paired TF abstention audit is offline, TRAIN-only and fail-closed.
+          python3 Solution/scripts/test-v9-tf-abstention-paired-audit.py
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_physical_audit.py'
           python3 -m unittest discover -s Solution/tests/fixtures -p 'test_v9*.py'
   deterministic-build:
