@@ -59,9 +59,15 @@ class PrivateSqlApiBuildDnsRecoveryTests(unittest.TestCase):
         self.assertIn('compose build api > "$OUT/api-image-build.log" 2>&1', script)
         self.assertIn('python3 scripts/e2e-private-sql-api-dns-retry-gate.py "$OUT/api-image-build.log"', script)
         self.assertIn('network: host', script)
-        self.assertIn('build api > "$OUT/api-image-build-host-network.log" 2>&1', script)
+        # BuildKit refuses build.network=host unless Buildx receives an
+        # explicit entitlement. The previous retry failed with exactly that
+        # error even though SQL and the APT DNS classifier passed.
+        self.assertIn('docker buildx bake --allow=network.host --load', script)
+        self.assertIn('-f "$COMPOSE" -f "$override" api', script)
+        self.assertIn('> "$OUT/api-image-build-host-network.log" 2>&1', script)
+        self.assertEqual(script.count('docker buildx bake --allow=network.host'), 1)
+        self.assertNotIn('docker compose --env-file /dev/null -p "$PROJECT" -f "$COMPOSE" -f "$override" \\n      build api', script)
         self.assertIn('rm -f -- "$override"', script)
-        self.assertEqual(script.count('build api > "$OUT/api-image-build-host-network.log"'), 1)
         self.assertIn('compose up -d --no-build --no-deps api resultado-api', script)
         self.assertIn('sql-bootstrap', script)
         self.assertNotIn('network_mode: host', script)
