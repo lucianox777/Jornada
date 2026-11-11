@@ -225,8 +225,11 @@ def test_parallel_e2e_keeps_both_real_suites_and_aggregated_gate():
         assert "needs: [impact, dependency-lock]" in item
         assert "needs.impact.outputs.run_full == 'true'" in item
         assert "needs.dependency-lock.result == 'success'" in item
-        assert "runs-on: ubuntu-latest" in item
         assert "name: nuget-lockfiles" in item
+    # Browser job is pinned to a Playwright-compatible image. The SQL-only
+    # branch remains independent on the latest runner.
+    assert "runs-on: ubuntu-24.04" in console
+    assert "runs-on: ubuntu-latest" in private
     assert "jornada-runner.py --profile e2e --allow-reset e2e" in console
     assert "JORNADA_E2E_LOCKED_RESTORE: 'true'" in console
     assert "name: local-e2e-evidence" in console
