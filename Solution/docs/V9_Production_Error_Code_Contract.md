@@ -1,6 +1,6 @@
 # V9 — contrato de códigos de erro de produção
 
-Em Development, a exceção completa (incluindo exceções internas e stack trace) é emitida no canal de diagnóstico configurado, além do código estável. Em HML, a exceção completa exige autorização explícita `JORNADA_PRIVATE_DIAGNOSTICS=1`. Em Production, apenas códigos sanitizados são emitidos.
+Em Development, a exceção completa (incluindo exceções internas e stack trace) é emitida no canal de diagnóstico configurado, além do código estável. Em HML, a exceção completa segue as mesmas variáveis de ambiente já existentes (`DOTNET_ENVIRONMENT`, `ASPNETCORE_ENVIRONMENT`, `JORNADA_RUNTIME_MODE`), sem variável adicional de opt-in. Em Production, apenas códigos sanitizados são emitidos.
 
 Formato do código: `V9_CALIBRATOR_FAILED:<FAMILIA>:<CATEGORIA>[:<MOTIVO>]`.
 
