@@ -30,6 +30,8 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_physical_impact_classifier.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_u_rare_mixture_physical_audit.py'
           python3 -m unittest discover -s Solution/tests/fixtures -p 'test_v9*.py'
+          # Paired TF0/TF-abstention audit is TRAIN-only and must fail closed.
+          python3 Solution/scripts/test-v9-tf-abstention-paired-audit.py
   deterministic-build:
     runs-on: ubuntu-latest
     timeout-minutes: 15
