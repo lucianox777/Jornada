@@ -30,8 +30,8 @@ permissions:
   contents: read
 
 jobs:
+  # Manual dispatch is allowed only on master; path filters govern push.
   independent-validation:
-    # Manual dispatch remains allowed only for master (path filters still apply to push).
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
