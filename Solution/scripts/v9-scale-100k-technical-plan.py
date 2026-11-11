@@ -184,7 +184,8 @@ def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve
         "technicalCorpusManifestSha256": manifest_sha,
         "technicalCorpusObservationsSha256": obs_sha,
         "people": 100000, "knownTrainSeed": 42,
-        "historicalPinnedIbgeBootstrapPeople": 30000,\n        "tfUnpublishedTermPolicyChanges": policy_changes,
+        "historicalPinnedIbgeBootstrapPeople": 30000,
+        "tfUnpublishedTermPolicyChanges": policy_changes,
     }
     if parallelism_mode == "auto":
         proposal.update(runtimeParallelismMode="AUTO_0",
