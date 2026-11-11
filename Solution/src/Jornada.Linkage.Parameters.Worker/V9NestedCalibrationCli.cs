@@ -108,7 +108,7 @@ public static class V9NestedCalibrationCli
         ArgumentNullException.ThrowIfNull(exception);
         // stderr and the preallocated log are independent channels: a full
         // stderr sink must NOT prevent writing into already reserved blocks.
-        try { Console.Error.WriteLine(V9CalibradorLastErrorLog.SafeErrorCode(exception)); }
+        try { Console.Error.WriteLine(V9CalibradorLastErrorLog.DetailedErrorCode(exception)); }
         catch (Exception) { /* stderr may itself be on the full volume. */ }
         // Full exception only in private DEV/HML diagnostics; reserved log stays safe.
         V9WorkerDevelopmentDiagnostics.WriteException(exception);
