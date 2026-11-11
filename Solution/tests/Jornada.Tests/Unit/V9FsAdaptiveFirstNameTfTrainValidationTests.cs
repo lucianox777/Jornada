@@ -105,7 +105,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             Assert.That(result[0].MissingPublishedTruePairs, Is.EqualTo(1));
             Assert.That(result[0].MissingPublishedNonmatchPairs, Is.Zero);
         }));
-        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+        var error = Assert.Throws<V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException>((Action)(() =>
             V9NominalTfPublishedCoverageAudit.RequireCompleteCoverage(result)));
         Assert.That(error!.Message, Does.Contain("Person/FirstName"));
         Assert.That(error.Message, Does.Contain("ausentes=1"));
@@ -154,7 +154,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             frame, [policy], Reference(), checkpoints.Add);
         var fitted = adapter.FitTrain(Model(policy), Slice("TRAIN"));
 
-        var error = Assert.Throws<InvalidDataException>((Action)(() =>
+        var error = Assert.Throws<V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException>((Action)(() =>
             adapter.EvaluateValidation(fitted, Slice("VALIDATION"))));
         Assert.Multiple((Action)(() =>
         {
@@ -674,7 +674,8 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             missingFrame, [config], Reference());
         var missingFit = missing.FitTrain(Model(config), Slice("TRAIN"));
         Assert.That((Action)(() => missing.EvaluateValidation(missingFit, Slice("VALIDATION"))),
-            Throws.TypeOf<InvalidDataException>().With.Message.Contains("IBGE"));
+            Throws.TypeOf<V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException>()
+                .With.Message.Contains("IBGE"));
     }
 
     private static V9FsAdaptiveCandidateFrame FrameWithMotherTf()
