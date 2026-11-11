@@ -217,8 +217,7 @@ def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve
     restored["Calibration"]["StudyFingerprintSha256"] = original["Calibration"]["StudyFingerprintSha256"]
     restored["Calibration"]["Budget"]["StudyFingerprintSha256"] = original["Calibration"]["Budget"]["StudyFingerprintSha256"]
     require(restored == original, "unexpected parameter beyond corpus provenance changed")
-    raw = (json.dumps(plan, indent=2, allow_nan=False) + "
-").encode()
+    raw = (json.dumps(plan, indent=2, allow_nan=False) + "\n").encode()
     receipt = {**proposal, "studyFingerprintSha256": fingerprint,
                "technicalPlanSha256": digest(raw), "physicalEvaluations": 24,
                "witnessAndDiagnostics": 16, "candidateCpMultiplicity": 8,
@@ -229,8 +228,7 @@ def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve
     with output.open("xb") as f:
         f.write(raw)
     with receipt_path.open("xb") as f:
-        f.write((json.dumps(receipt, indent=2, allow_nan=False) + "
-").encode())
+        f.write((json.dumps(receipt, indent=2, allow_nan=False) + "\n").encode())
     return receipt
 
 
