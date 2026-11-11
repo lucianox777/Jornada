@@ -41,6 +41,14 @@ class V9Scale100kPlanTests(unittest.TestCase):
         self.assertNotIn("  push:", workflow)
         self.assertIn("security_preflight_approved", workflow)
 
+    def test_100k_tf_policy_is_pair_abstention_only_for_tf_plus(self):
+        source = (SCRIPTS / "v9-scale-100k-technical-plan.py").read_text()
+        self.assertIn('option["UnpublishedTermPolicy"] = 1', source)
+        self.assertIn('require(option.get("UnpublishedTermPolicy", 0) == 0', source)
+        self.assertIn('"tfUnpublishedTermPolicyChanges": policy_changes', source)
+        self.assertIn('restored_option.pop("UnpublishedTermPolicy", None)', source)
+        self.assertIn('restored == original', source)
+
     def test_100k_unpublished_tf_incomplete_campaign_fails_with_aggregate_evidence(self):
         # Reproduces run 42939482401 accounting: 24 attempted, only 12
         # physically measured; 12 valid-name TF cases not evaluable.
