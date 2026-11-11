@@ -56,6 +56,12 @@ class PairedAuditTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "inconsistent counts"):
             mod.audit(p, 200)
 
+    def test_tf0_control_cannot_abstain(self):
+        p = sample()
+        p["clusters"][0]["TF0"]["abstained"] = 1
+        with self.assertRaisesRegex(ValueError, "TF0 control must never abstain"):
+            mod.audit(p, 200)
+
     def test_test_scope_is_rejected(self):
         p = sample()
         p["testUsed"] = True
