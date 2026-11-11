@@ -88,6 +88,7 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path):
             and source_receipt.get("certified") is False
             and source_receipt.get("activated") is False
             and c["MaximumParallelRuleSets"] == 0
+            and source_receipt.get("runtimeParallelismMode") == "AUTO_0"
             and base["MaximumBatches"] == 1
             and c["ConflictMargins"] == [0.5]
             and [x["OptionId"] for x in c["ModelOptions"]]
@@ -134,6 +135,7 @@ def prepare(base_plan_path, base_receipt_path, output_path, receipt_path):
         "baseStudyFingerprintSha256": c["StudyFingerprintSha256"],
         "technicalCorpusManifestSha256": source_receipt["technicalCorpusManifestSha256"],
         "technicalCorpusObservationsSha256": source_receipt["technicalCorpusObservationsSha256"],
+        "runtimeParallelismMode": "AUTO_0",
         "configurations": [x["OptionId"] for x in cp["ModelOptions"]],
         "weights": list(STATES), "uMixtureLambdas": list(LAMBDAS),
         "conflictMargins": list(MARGINS), "blockingPasses": three_pass,
