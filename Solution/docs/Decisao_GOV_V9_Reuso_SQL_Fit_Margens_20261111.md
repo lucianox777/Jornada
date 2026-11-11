@@ -1,6 +1,6 @@
 # GOV-V9-MARGIN-REUSE-20261111 — reutilização de frame SQL/fit/ranking entre margens
 
-**Autoridade:** aprovação expressa do Product Owner, 11/11/2026, no contexto da campanha V9 100k/324 em execução: “Acho melhor para a execução agora e fazer esta alteração. Considere o tempo que já foi gasto na execução atual e qual o ganho teriamos no código com esta alteração”. **Estado:** implementação proposta em PR, governança GOV-DOC-01; resultado físico e benefício ainda NÃO medidos.
+**Autoridade:** aprovação expressa do Product Owner, 11/11/2026, no contexto da campanha V9 100k/324 em execução: “Acho melhor para a execução agora e fazer esta alteração. Considere o tempo que já foi gasto na execução atual e qual o ganho teriamos no código com esta alteração”. **Estado:** decisão aprovada; implementação rastreada pela [PR #1437](https://github.com/lucianox777/Jornada/pull/1437), sujeita aos gates obrigatórios; resultado físico e benefício ainda NÃO medidos. GOV-DOC-01.
 
 ## Contexto e precedência
 
