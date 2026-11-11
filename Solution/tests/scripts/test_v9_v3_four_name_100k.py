@@ -58,6 +58,7 @@ class V9FourName100kTests(unittest.TestCase):
     def receipt(self, sha):
         return {"schema": p.BASE_SCHEMA, "technicalPlanSha256": sha,
                 "physicalEvaluations": 24, "people": 100000, "knownTrainSeed": 42,
+                "runtimeParallelismMode": "AUTO_0",
                 "testUsed": False, "certified": False, "activated": False,
                 "technicalCorpusManifestSha256": "b" * 64,
                 "technicalCorpusObservationsSha256": "c" * 64,
