@@ -1,3 +1,5 @@
+> **ACERVO GOV-OPS-CORRECAO-SQUASH-CI-MASTER-20261111:** [protocolo permanente de investigação, correção com regressões, documentação, squash merge e topologia de CI rápida nas PRs versus validação pesada na master](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md). GOV-DOC-01.
+
 > **ACERVO GOV-V9-100K-VALID-NAME-REPRO-20261110:** [evidência do artifact #13801752020, política TF positiva do plano 100k, teste de nome correto não publicado e limites da inferência causal](Evidencia_V9_100k_20261110_Repro_Cobertura_TF_Nomes_Novos.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-100K-FALHA-COBERTURA-TF-20261110:** [evidência da falha real #42897661860, checkpoint seguro TF, métricas de recursos, limites de inferência e triagem focalizada](Decisao_V9_Base_Inicial_Real_100k_Bootstrap_Configuracoes_20261110.md). GOV-DOC-01.
