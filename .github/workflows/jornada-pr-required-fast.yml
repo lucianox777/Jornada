@@ -45,6 +45,10 @@ jobs:
           # CPU/RAM/disk unit fixtures only; this does not start SQL or a 100k fit.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter '(FullyQualifiedName~V9CalibrationExecutionResourceBudgetTests|FullyQualifiedName~V9CalibrationRuntimeSchedulerTests|FullyQualifiedName~V9PhysicalFrameExecutionOrderTests|FullyQualifiedName~V9CalibradorSafeFailureCategoryTests|FullyQualifiedName~V9OfflineCalibratorCapacityTests)'
+          # Small in-memory TF coverage regressions: catches typed exception drift
+          # before squash, without SQL, physical 30k/100k or Windows builds.
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \\
+            --filter 'FullyQualifiedName~V9FsAdaptiveFirstNameTfTrainValidationTests'
   security-guards:
     runs-on: ubuntu-latest
     timeout-minutes: 8
