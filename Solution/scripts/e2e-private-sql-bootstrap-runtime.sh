@@ -131,31 +131,26 @@ phase_advance api-start-readiness
 # The public GitHub runner has intermittently failed to resolve Ubuntu APT
 # inside Docker Build (verified by two CI artifacts, both after SQL PASS).
 # Run the canonical build first. Retry once ONLY for the exact APT/DNS
-# signature, and ONLY with a temporary build.network override; service
-# networks, SQL isolation, worker supervisor and E2E checks stay unchanged.
+# signature, using the same image/context/Dockerfile with BuildKit's explicit
+# one-shot host-network build entitlement. Service networks, SQL isolation,
+# worker supervisor and E2E checks stay unchanged.
 if ! compose build api > "$OUT/api-image-build.log" 2>&1; then
   if ! python3 scripts/e2e-private-sql-api-dns-retry-gate.py "$OUT/api-image-build.log"; then
     die 'isolated API image build failed (not the narrowly allowlisted APT DNS case)'
   fi
-  override="$OUT/api-build-host-network.override.yml"
-  [[ ! -e "$override" ]] || die 'build-only DNS retry override already exists'
-  (
-    umask 077
-    cat > "$override" <<'YAML'
-services:
-  api:
-    build:
-      network: host
-YAML
-  )
-  # Only build uses the override. Neither Compose up nor any other docker
-  # command receives it, so the APIs and SQL retain their private network.
-  if ! docker compose --env-file /dev/null -p "$PROJECT" -f "$COMPOSE" -f "$override" \
-      build api > "$OUT/api-image-build-host-network.log" 2>&1; then
-    rm -f -- "$override"
+  # The Compose build command does not expose BuildKit's --allow grant.
+  # Use the EXACT canonical Compose image, context and Dockerfile with
+  # buildx build. This requires an explicit network.host entitlement, ONLY
+  # in this CI-only one-shot fallback, and --load for the following
+  # Compose up --no-build. No other build args exist in the canonical API
+  # service, so the built artifact is equivalent to the normal Compose image.
+  # The later Compose up uses ONLY the original private runtime network.
+  if ! docker buildx build --allow=network.host --network=host --load \
+      -t "jornada-workers-e2e:${JORNADA_WORKERS_E2E_IMAGE_TAG:-test}" \
+      -f "$ROOT/install/container-test/Dockerfile" "$ROOT" \
+      > "$OUT/api-image-build-host-network.log" 2>&1; then
     die 'isolated API image build retry failed; E2E remains mandatory'
   fi
-  rm -f -- "$override"
   printf '%s\n' 'C3.2d: one host-network BUILD retry after verified APT DNS failure; private runtime unchanged' \
     > "$OUT/api-image-build-dns-retry.txt"
 fi
