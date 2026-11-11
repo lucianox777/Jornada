@@ -1,0 +1,36 @@
+# GOV-OPS-CORRECAO-SQUASH-CI-MASTER-20261111 — protocolo permanente de correção e integração
+
+**Data:** 11/11/2026 (America/Sao_Paulo). **Autoridade:** Product Owner (PO), manifestação expressa na conversa do Projeto Jornada. **Natureza:** decisão de governança/engenharia/CI. **Estado:** DECIDIDO; implementação dos gatilhos CI e testes PROPOSTA EM PR, sem alegar que já estão na `master`. **Regra de registro:** [GOV-DOC-01](Politica_Registro_Decisoes_Discussoes.md).
+
+## Decisão aprovada e motivo
+
+O PO adotou como padrão o procedimento de correção orientada por **evidências → reprodução → identificação de causa → correção mínima → testes → PR → squash merge → validação pós-merge**, com continuidade até o fechamento comprovado. Busca evitar reexecuções caras sem diagnóstico, conflitos entre branches e duplicação de CI. **Squash merge** é o método de integração da PR à `master`: o GitHub consolida os commits da PR em **um commit de integração**; não existe uma obrigação técnica de fazer um merge preliminar na branch e depois outro na master. Não reescrever o histórico de merges anteriores.
+
+**Nova regra explícita de CI:** nas branches de trabalho e nas PRs, **não gerar bundle/instalador Windows** e **não executar a validação independente completa**. Os workflows `.github/workflows/windows-production-installer.yml` e `.github/workflows/linkage-independent-validation.yml` ficam restritos à `master`, via `push` com os filtros de caminho existentes, ou `workflow_dispatch` com **job guardado em `refs/heads/master`**. A CI rápida das PRs permanece obrigatória: `unit-runtime`, `deterministic-build` e `security-guards`. Não suprimi-la para acelerar.
+
+## Protocolo permanente
+
+1. **Ler o estado real:** conferir a `master` exata, PRs/issues e dependências, falhas/artefatos/gates e documentação canônica, sem confiar em mensagem antiga. Identificar quais mudanças e decisões já estão integradas.
+2. **Diagnosticar antes de alterar:** coletar logs seguros, código/categoria/checkpoints, artefatos e SHA exato; distinguir hipótese de causa confirmada. Para erros reproduzíveis, preferir teste unitário/fixture mínima, com casos negativos e regressões relevantes; não rerodar ensaios caros às cegas.
+3. **Corrigir sem burlar:** modificar a causa específica e preservar contratos, arquitetura, segurança, proteção de dados, TF/M/U/FDR, planos científicos, referência IBGE, TEST/Gold, snapshots e gates; alterações científicas/funcionais adicionais exigem aprovação específica do PO.
+4. **Concentrar o trabalho:** preferir a mesma branch/PR da frente. Evitar PRs concorrentes/empilhadas, commits diretos na `master` e branches substitutas sem necessidade. Se conflito/rebase for inevitável, reconciliar com a `master` vigente, provar equivalência e referenciar/fechar a PR substituída **sem fingir merge**.
+5. **Documentar GOV-DOC-01 no mesmo ciclo:** registrar decisão, justificativa, hipóteses, impactos, precedência, evidências, estado e pendências no documento temático; sincronizar `Indice_Decisoes_Vigentes.md` e `Indice_Acervo_Documental.md`. Não usar o chat como acervo oficial.
+6. **Gates de PR no HEAD exato:** antes de squash, checks rápidos `unit-runtime`, `deterministic-build`, `security-guards` verdes; executar regressões específicas da correção e segurança. Verificar ausência de conflitos/alterações não revisadas. Nunca usar status de SHA antigo como prova do HEAD novo.
+7. **Integração:** preferir **uma PR consolidada** quando várias frentes aprovadas compõem um mesmo lote, preservando rastreabilidade das origens. Integrar na `master` por **squash merge** (não merge commit/rebase merge), somente após elegibilidade e checks. Não contornar proteção de branch, não forçar push, não permitir agente/automação commitar diretamente na `master`.
+8. **Gates pós-merge:** no SHA integrado, verificar `jornada-ci` e o workflow `v9-physical-seed42-probe` com classificador acumulativo. O 30k físico completo roda **quando o classificador indica impacto**, não por execução manual arbitrária. O instalador Windows e a validação independente rodam **somente na master**, preservando filtros de caminho; para aceite final que os exija no SHA exato, um run em outro SHA, `skipped` ou não disparado não serve como prova. Workflow manual de verificação deve usar somente `master`. Não anunciar `PASS` antes de executar, conferir artifacts, SHA e sucesso.
+9. **Campanhas especiais e segurança:** 100k físico V9 continua **somente `workflow_dispatch` manual owner-only**, com preflight real, SHA exato e parâmetros aprovados. Não iniciar 100k/TEST/Gold/publicação/ativação automaticamente. Não alterar banco original de DEV e não divulgar credenciais/PII em logs de Actions; preservar ambiência e isolamento de bancos descartáveis.
+10. **Continuar até terminar:** avançar autonomamente pelas etapas permitidas, corrigir conflitos e verificar resultados sem pedir confirmação repetitiva, inclusive após falha de CI. Bloqueios verdadeiros (decisão científica não autorizada, falha de segurança, master vermelha, necessidade de credenciais/ato exclusivo do PO) devem ser registrados e respeitados; outras frentes independentes podem continuar. Não declarar finalização enquanto faltarem gates, integração, documentação ou prova. Não prometer trabalho em segundo plano quando não houver automação efetivamente configurada.
+
+## Implementação e limites de execução
+
+Nesta PR: retirar somente `pull_request` dos dois workflows pesados, exigir `github.ref == 'refs/heads/master'` em cada job, preservar os filtros de `push`, `workflow_dispatch` e passos existentes; adicionar regressão em `test_ci_required_gates.py`. As instruções textuais do projeto podem apontar a este documento e a GOV-DOC-01. **A alteração de CI só existe na master após squash merge validado.**
+
+**Risco institucional:** se o ruleset/proteção da master ainda exigir checks de Windows ou independente como pré-condição *da PR*, a remoção dos gatilhos poderá deixar esses checks em `Expected/Pending`. É necessário o PO revisar os checks obrigatórios no GitHub, substituindo-os pelos gates rápidos. **Não** remover regra de proteção nem contornar exigência silenciosamente; registrar bloqueio até ajuste autorizado.
+
+**Escopo negativo:** não altera conteúdo do instalador, provas independentes, gates de 30k, ciência V9, comparações históricas, regras de autorização de dados, política de produção ou interpretação de nomes/IBGE. Não muda a obrigação de validar bundles e validação independente para a master/finalizações quando aplicáveis.
+
+## Precedência e referências
+
+- Complementa, quanto ao método padrão de integração e especialização das CI, [DC-V9-CI-LOTE-20261108](Decisao_V9_CI_Lote_Merge_Unico_20261108.md), [CI-V9-30K-PUSH-ONLY](Decisao_V9_Gate_Tecnico_30K_Somente_Push_Master_20261107.md) e [GOV-V9-VALIDACAO-INTEGRAL-1345-20261109](Decisao_V9_Validacao_Integral_SHA_20261109.md).
+- **Prevalece** sobre exigências históricas de executar instalador Windows ou validação independente na PR, mas preserva o requisito de prova desses workflows na `master` no SHA final quando mandatória.
+- [GOV-DOC-01](Politica_Registro_Decisoes_Discussoes.md) permanece intocada e obrigatória. O contrato de CI é separado da autorização científica do Calibrador, de campanhas físicas manuais, implantação e dados reais.
