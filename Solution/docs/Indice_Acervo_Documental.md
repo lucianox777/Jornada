@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-100K-12-DE-24-20261111:** [diagnóstico do run #42939482401, 12/24 medidas, ausência de frequência IBGE publicada, três falhas unitárias por classe de exceção, correção observacional e limites científicos](Diagnostico_V9_100k_24_Hipoteses_12_Medidas_20261111.md). GOV-DOC-01.
+
 > **ACERVO GOV-OPS-INSTRUCOES-CHATGPT-20261111:** [aditivo ao protocolo de correção: startup de conversas, `docs-only` na CI, acompanhamento horário e limites de automação do ChatGPT](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md). GOV-DOC-01.
 
 > **ACERVO GOV-OPS-CORRECAO-SQUASH-CI-MASTER-20261111:** [protocolo permanente de investigação, correção com regressões, documentação, squash merge e topologia de CI rápida nas PRs versus validação pesada na master](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md). GOV-DOC-01.
