@@ -49,6 +49,33 @@ class V9Scale100kPlanTests(unittest.TestCase):
         self.assertIn('restored_option.pop("UnpublishedTermPolicy", None)', source)
         self.assertIn('restored == original', source)
 
+
+    def test_100k_p95_is_optional_only_for_explicit_fanout_pre_replay_rejection(self):
+        # Run #43018148317: 24 measured, 12 P95 values, 12 intentionally
+        # unmeasured replay P95 because fanout P99 already rejected the option.
+        replayed = {"outcome": "MEASURED_ELIGIBLE", "Rejections": [],
+                    "p95Milliseconds": 5344.0545}
+        fanout = {"outcome": "MEASURED_DIAGNOSTIC_NOT_ELIGIBLE",
+                  "Rejections": ["FANOUT_P99_ACIMA_DO_ORCAMENTO"],
+                  "p95Milliseconds": None}
+        self.assertTrue(auditor.validate_source_resolution_p95(replayed))
+        self.assertFalse(auditor.validate_source_resolution_p95(fanout))
+        for row in ([{"outcome": "MEASURED_ELIGIBLE", "Rejections": [],
+                      "p95Milliseconds": None},
+                     {"outcome": "MEASURED_DIAGNOSTIC_NOT_ELIGIBLE",
+                      "Rejections": [], "p95Milliseconds": None},
+                     {"outcome": "MEASURED_DIAGNOSTIC_NOT_ELIGIBLE",
+                      "Rejections": ["PUBLISHED_TF_COVERAGE_INSUFFICIENT"],
+                      "p95Milliseconds": None},
+                     {"outcome": "MEASURED_ELIGIBLE", "Rejections": [],
+                      "p95Milliseconds": float("nan")},
+                     {"outcome": "MEASURED_ELIGIBLE", "Rejections": [],
+                      "p95Milliseconds": True}]):
+            with self.subTest(row=row), self.assertRaises(ValueError):
+                auditor.validate_source_resolution_p95(row)
+        self.assertEqual(sum(auditor.validate_source_resolution_p95(row)
+                             for row in [replayed] * 12 + [fanout] * 12), 12)
+
     def test_100k_unpublished_tf_incomplete_campaign_fails_with_aggregate_evidence(self):
         # Reproduces run 42939482401 accounting: 24 attempted, only 12
         # physically measured; 12 valid-name TF cases not evaluable.
