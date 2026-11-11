@@ -1,9 +1,8 @@
 namespace Jornada.Linkage.Parameters.Worker;
 
 /// <summary>
-/// Full exception detail is restricted to local Development or to a private,
-/// explicitly authorized Homologation diagnostic sink. GitHub Actions,
-/// Production and public artifacts must always expose stable error codes only.
+/// Full exception detail follows Development and Homologation runtime modes. Production always exposes stable error codes only.
+/// CI is not an environment classification; diagnostic destinations must be access-controlled.
 /// The 10 KiB reserved calibrador.log remains safe-code-only in every mode.
 /// </summary>
 public static class V9WorkerDevelopmentDiagnostics
@@ -26,25 +25,19 @@ public static class V9WorkerDevelopmentDiagnostics
         var mode = get("JORNADA_RUNTIME_MODE");
 
         // Fail closed for any contradictory, explicitly production environment.
-        if (IsProduction(dotnet) || IsProduction(aspnet) || IsProduction(mode)
-            || !string.IsNullOrWhiteSpace(get("CI"))
-            || !string.IsNullOrWhiteSpace(get("GITHUB_ACTIONS")))
+        if (IsProduction(dotnet) || IsProduction(aspnet) || IsProduction(mode))
             return false;
 
-        bool development = string.Equals(dotnet, "Development", StringComparison.OrdinalIgnoreCase)
-            && (string.IsNullOrWhiteSpace(aspnet)
-                || string.Equals(aspnet, "Development", StringComparison.OrdinalIgnoreCase))
-;
-        if (development) return true;
-
-        // HML must be private by deployment configuration, never a CI/stdout
-        // artifact masquerading as a diagnostic sink. No implicit opt-in.
-        bool homologation = IsHomologation(dotnet)
-            && (string.IsNullOrWhiteSpace(aspnet) || IsHomologation(aspnet))
-            && (string.IsNullOrWhiteSpace(mode) || IsHomologation(mode));
-        return homologation
-            && string.Equals(get("JORNADA_PRIVATE_DIAGNOSTICS"), "1",
-                StringComparison.Ordinal);
+        // Only existing runtime environment variables govern diagnostics.
+        // Missing or contradictory declarations fail closed as Production.
+        var declared = new[] { dotnet, aspnet, mode }
+            .Where(value => !string.IsNullOrWhiteSpace(value)).ToArray();
+        if (declared.Length == 0) return false;
+        bool development = declared.All(value =>
+            string.Equals(value, "Development", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(value, "DEV", StringComparison.OrdinalIgnoreCase));
+        bool homologation = declared.All(IsHomologation);
+        return development || homologation;
     }
 
     public static void WriteException(Exception error, TextWriter? destination = null,

@@ -42,7 +42,7 @@ public sealed class V9WorkerSafeHostLoggerProvider : ILoggerProvider
             var code = exception is null
                 ? logLevel >= LogLevel.Error ? "V9_WORKER_FAILED:HOST_LOG_ERROR"
                     : "V9_WORKER_NOTICE:HOST_WARNING"
-                : V9CalibradorLastErrorLog.SafeErrorCode(exception);
+                : V9CalibradorLastErrorLog.DetailedErrorCode(exception);
             try
             {
                 var destination = publicError ?? Console.Error;
