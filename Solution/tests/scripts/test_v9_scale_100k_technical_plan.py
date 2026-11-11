@@ -15,6 +15,11 @@ spec = importlib.util.spec_from_file_location(
 binding = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(binding)
 
+audit_spec = importlib.util.spec_from_file_location(
+    "v9_scale100k_audit", SCRIPTS / "v9-scale-100k-technical-audit.py")
+auditor = importlib.util.module_from_spec(audit_spec)
+audit_spec.loader.exec_module(auditor)
+
 
 class V9Scale100kPlanTests(unittest.TestCase):
     def test_100k_workflow_has_feasible_runner_before_any_sql_or_data(self):
@@ -35,6 +40,49 @@ class V9Scale100kPlanTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotIn("  push:", workflow)
         self.assertIn("security_preflight_approved", workflow)
+
+    def test_100k_unpublished_tf_incomplete_campaign_fails_with_aggregate_evidence(self):
+        # Reproduces run 42939482401 accounting: 24 attempted, only 12
+        # physically measured; 12 valid-name TF cases not evaluable.
+        sentinel = "PRIVATE_VALID_NAME_NEVER_EMIT"
+        rows = ([{"outcome": "MEASURED_ELIGIBLE"}] * 12
+                + [{"outcome": "REJECTED_NOT_MEASURED",
+                    "privateName": sentinel}] * 12)
+        report = {"measured": 12, "publishedTfCoverageInsufficient": 12,
+                  "scientificallyNonEvaluable": 12}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "technical-audit.json"
+            with self.assertRaisesRegex(ValueError,
+                                        "INCOMPLETE_NOT_CERTIFIED measured=12/24"):
+                auditor.require_complete_physical_measurements(
+                    report, rows, out, {"technicalPlanSha256": "a" * 64},
+                    "b" * 40, 42939482401)
+            summary = json.loads(out.read_text(encoding="utf-8"))
+            self.assertEqual(summary["declaredHypotheses"], 24)
+            self.assertEqual(summary["measuredHypotheses"], 12)
+            self.assertEqual(summary["unmeasuredHypotheses"], 12)
+            self.assertEqual(summary["publishedTfCoverageInsufficientHypotheses"], 12)
+            self.assertFalse(summary["technicalPass"])
+            self.assertFalse(summary["certified"])
+            self.assertFalse(summary["testUsed"])
+            self.assertFalse(summary["activated"])
+            self.assertNotIn(sentinel, out.read_text(encoding="utf-8"))
+            self.assertNotIn(sentinel, out.with_suffix(".md").read_text(encoding="utf-8"))
+
+    def test_100k_audit_never_conflates_attempted_with_measured(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "technical-audit.json"
+            receipt = {"technicalPlanSha256": "c" * 64}
+            rows = [{"outcome": "MEASURED_ELIGIBLE"}] * 24
+            auditor.require_complete_physical_measurements(
+                {"measured": 24}, rows, out, receipt, "b" * 40, 123)
+            self.assertFalse(out.exists(), "Complete runs proceed to full proof, not failure receipt")
+            with self.assertRaisesRegex(ValueError, "count disagrees"):
+                auditor.require_complete_physical_measurements(
+                    {"measured": 24},
+                    [{"outcome": "MEASURED_ELIGIBLE"}] * 12
+                    + [{"outcome": "REJECTED_NOT_MEASURED"}] * 12,
+                    out, receipt, "b" * 40, 123)
 
     def test_frozen_provenance_constants_and_defaults_are_untouched(self):
         self.assertEqual(binding.ARTIFACT_ID, 13654549483)
