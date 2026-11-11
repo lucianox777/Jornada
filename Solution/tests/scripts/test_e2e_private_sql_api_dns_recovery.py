@@ -1,5 +1,9 @@
 """Offline fail-closed guard for CI E2E API image DNS-only recovery."""
 import importlib.util
+import json
+import os
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -53,6 +57,30 @@ class PrivateSqlApiBuildDnsRecoveryTests(unittest.TestCase):
                 out.truncate(gate.MAX_LOG_BYTES + 1)
             self.assertEqual(gate.main([str(large)]), 2)
             self.assertEqual(gate.main([]), 2)
+
+    def test_buildx_bake_compose_override_is_parseable_offline(self):
+        # In GitHub-hosted PR runners Docker CLI is present; --print neither
+        # starts BuildKit builds nor connects to SQL. Catch invalid Bake wiring
+        # before using the real one-shot Docker/SQL acceptance.
+        if not shutil.which("docker"):
+            self.skipTest("Docker CLI unavailable in this local environment")
+        compose = ROOT / "install/console-dev-e2e/docker-compose.workers.yml"
+        with tempfile.TemporaryDirectory() as tmp:
+            override = Path(tmp) / "api-build-host-network.override.yml"
+            override.write_text("services:\\n  api:\\n    build:\\n      network: host\\n", encoding="utf-8")
+            env = dict(os.environ)
+            env.update(JORNADA_WORKERS_E2E_ID="contract123",
+                       JORNADA_WORKERS_E2E_SQL_PASSWORD="FakeOnlyCIConfigAa9!xyz")
+            result = subprocess.run(
+                ["docker", "buildx", "bake", "--print", "--allow=network.host",
+                 "--load", "-f", str(compose), "-f", str(override), "api"],
+                cwd=ROOT, env=env, text=True, capture_output=True,
+                timeout=30, check=False)
+            self.assertEqual(result.returncode, 0, result.stderr[:1000])
+            config = json.loads(result.stdout)
+            target = config["target"]["api"]
+            self.assertEqual(target["network"], "host")
+            self.assertIn("type=docker", str(target.get("output", "")))
 
     def test_host_network_override_is_build_only_and_e2e_remains_mandatory(self):
         script = (SCRIPTS / "e2e-private-sql-bootstrap-runtime.sh").read_text()
