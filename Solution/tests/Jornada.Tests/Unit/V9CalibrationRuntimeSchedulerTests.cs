@@ -23,10 +23,11 @@ public sealed class V9CalibrationRuntimeSchedulerTests
     }
 
     [Test]
-    public void RAM_disk_and_inflight_reservations_are_joint_admission_guards()
+    public void RAM_disk_and_next_worker_reservations_are_joint_admission_guards()
     {
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(4 * GiB, 8 * GiB, 0, GiB), Is.True);
-        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(3 * GiB, 8 * GiB, 1, GiB), Is.False);
+        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(3 * GiB, 8 * GiB, 1, GiB), Is.True); // active allocations already excluded from live available RAM
+        Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(3 * GiB - 1, 8 * GiB, 1, GiB), Is.False);
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(8 * GiB, 2 * GiB, 0, GiB), Is.False);
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(null, 8 * GiB, 0, GiB), Is.True);
         Assert.That(V9CalibrationRuntimeScheduler.CanAdmit(null, 8 * GiB, 1, GiB), Is.False);
