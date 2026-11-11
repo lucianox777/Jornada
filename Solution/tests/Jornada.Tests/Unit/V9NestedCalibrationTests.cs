@@ -531,9 +531,9 @@ public sealed class V9NestedCalibrationTests
     [Test]
     public void Three_estimators_share_exact_SQL_frame_but_keep_independent_model_evaluations()
     {
-        // Same TRAIN, blocking passes and margin must materialize SQL only once
-        // for V2, V3 historical and experimental U, while each option keeps
-        // an independent request SHA and model snapshot.
+        // Same TRAIN and blocking passes share one SQL frame for V2/V3/U
+        // estimators AND across conflict margins. Every estimator+margin
+        // retains an independent request SHA, metric and frozen snapshot.
         var type = typeof(V9NestedCalibrationCoordinator).GetNestedType(
             "Request", System.Reflection.BindingFlags.NonPublic)!;
         var grouping = typeof(V9NestedCalibrationCoordinator).GetMethod(
@@ -565,12 +565,16 @@ public sealed class V9NestedCalibrationTests
         var requests = new[] { v2, v3, mixZero, mixHalf }
             .Select(o => Request(o, .5m)).ToArray();
         Assert.That(requests.Select(r => (string)grouping.Invoke(null, [r])!).Distinct().Count(),
-            Is.EqualTo(1), "one SQL candidate materialization per passes + margin");
+            Is.EqualTo(1), "one SQL candidate frame per blocking passes, independent of margin");
         Assert.That(requests.Select(r => (string)sha.GetValue(r)!).Distinct().Count(),
             Is.EqualTo(4), "all declared estimators must remain separately scored");
-        Assert.That((string)grouping.Invoke(null, [Request(v2, .25m)])!,
-            Is.Not.EqualTo((string)grouping.Invoke(null, [requests[0]])!),
-            "different margins require different frame groups");
+        var differentMargin = Request(v2, .25m);
+        Assert.That((string)grouping.Invoke(null, [differentMargin])!,
+            Is.EqualTo((string)grouping.Invoke(null, [requests[0]])!),
+            "different margins reuse the same physical SQL candidate frame");
+        Assert.That((string)sha.GetValue(differentMargin)!,
+            Is.Not.EqualTo((string)sha.GetValue(requests[0])!),
+            "the request identity must still distinguish each conflict margin");
         Assert.That(standard.UBackoffJointMixtureWeight, Is.Null);
         Assert.That(mixZero.JointSupportPolicy!.UBackoffJointMixtureWeight, Is.Zero);
     }
