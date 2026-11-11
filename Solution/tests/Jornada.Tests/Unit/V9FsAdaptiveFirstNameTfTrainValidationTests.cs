@@ -335,7 +335,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             var combined = jointly.Single(x => x.OptionId == option.OptionId
                 && x.ConflictMargin == margin
                 && x.CandidateGrouping == "BLIND_FS_COMPLETE_LINK_CANDIDATES");
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(combined.TrueAcceptedSourceObservations,
                     Is.EqualTo(single.TrueAcceptedSourceObservations));
@@ -349,7 +349,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
                     Is.EqualTo(single.ClopperPearsonUpperAnyFpByIdentity));
                 Assert.That(combined.BonferroniComparedConfigurations, Is.EqualTo(324));
                 Assert.That(combined.IdentityOutcomes, Is.EqualTo(single.IdentityOutcomes));
-            });
+            }));
         }
     }
 
