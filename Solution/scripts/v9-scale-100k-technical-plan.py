@@ -197,16 +197,28 @@ def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve
     cap["ObservationsSha256"] = obs_sha
     plan["Calibration"]["StudyFingerprintSha256"] = fingerprint
     plan["Calibration"]["Budget"]["StudyFingerprintSha256"] = fingerprint
-    # Strict diff proof: only the declared TF+ pair-abstention correction and\n    # corpus/runtime binding are permitted; all other science is immutable.
+    # Strict diff proof: only the declared TF+ pair-abstention correction and
+    # corpus/runtime binding are permitted; all other science is immutable.
     # CPU setting, SQL rule, selection setting or historical value changed.
     restored = copy.deepcopy(plan)
-    for change in policy_changes:\n        restored_option = next(o for o in restored["Calibration"]["ModelOptions"]\n                               if o["OptionId"] == change["optionId"])\n        original_option = next(o for o in original["Calibration"]["ModelOptions"]\n                               if o["OptionId"] == change["optionId"])\n        if "UnpublishedTermPolicy" in original_option:\n            restored_option["UnpublishedTermPolicy"] = original_option["UnpublishedTermPolicy"]\n        else:\n            restored_option.pop("UnpublishedTermPolicy", None)\n    if parallelism_mode == "auto":\n        restored["Calibration"]["MaximumParallelRuleSets"] = historical_parallelism
+    for change in policy_changes:
+        restored_option = next(o for o in restored["Calibration"]["ModelOptions"]
+                               if o["OptionId"] == change["optionId"])
+        original_option = next(o for o in original["Calibration"]["ModelOptions"]
+                               if o["OptionId"] == change["optionId"])
+        if "UnpublishedTermPolicy" in original_option:
+            restored_option["UnpublishedTermPolicy"] = original_option["UnpublishedTermPolicy"]
+        else:
+            restored_option.pop("UnpublishedTermPolicy", None)
+    if parallelism_mode == "auto":
+        restored["Calibration"]["MaximumParallelRuleSets"] = historical_parallelism
     restored["Calibration"]["ObservationCapDeclaration"] = copy.deepcopy(
         original["Calibration"]["ObservationCapDeclaration"])
     restored["Calibration"]["StudyFingerprintSha256"] = original["Calibration"]["StudyFingerprintSha256"]
     restored["Calibration"]["Budget"]["StudyFingerprintSha256"] = original["Calibration"]["Budget"]["StudyFingerprintSha256"]
     require(restored == original, "unexpected parameter beyond corpus provenance changed")
-    raw = (json.dumps(plan, indent=2, allow_nan=False) + "\n").encode()
+    raw = (json.dumps(plan, indent=2, allow_nan=False) + "
+").encode()
     receipt = {**proposal, "studyFingerprintSha256": fingerprint,
                "technicalPlanSha256": digest(raw), "physicalEvaluations": 24,
                "witnessAndDiagnostics": 16, "candidateCpMultiplicity": 8,
@@ -217,7 +229,8 @@ def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve
     with output.open("xb") as f:
         f.write(raw)
     with receipt_path.open("xb") as f:
-        f.write((json.dumps(receipt, indent=2, allow_nan=False) + "\n").encode())
+        f.write((json.dumps(receipt, indent=2, allow_nan=False) + "
+").encode())
     return receipt
 
 
