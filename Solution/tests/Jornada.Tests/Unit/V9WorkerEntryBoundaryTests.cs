@@ -54,7 +54,7 @@ public sealed class V9WorkerEntryBoundaryTests
             {
                 Assert.That(executed, Is.True, "Dispatch did not execute: " + command);
                 Assert.That(status, Is.EqualTo(1), "Failing command returned zero: " + command);
-                Assert.That(stderr.ToString().Trim(), Is.EqualTo("V9_CALIBRATOR_FAILED:INVALID_DATA"));
+                Assert.That(stderr.ToString().Trim(), Is.EqualTo("V9_CALIBRATOR_FAILED:INVALID_DATA:UNCLASSIFIED"));
                 Assert.That(stderr.ToString(), Does.Not.Contain(SecretCanary));
                 Assert.That(stderr.ToString(), Does.Not.Contain(command));
                 Assert.That(stderr.ToString(), Does.Not.Contain(" at "));
@@ -64,7 +64,7 @@ public sealed class V9WorkerEntryBoundaryTests
     }
 
     [Test]
-    public void Full_diagnostic_is_development_local_only_and_never_public_CI()
+    public void Full_diagnostic_follows_development_environment_even_in_CI()
     {
         var local = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase)
         {
@@ -91,7 +91,7 @@ public sealed class V9WorkerEntryBoundaryTests
             using var sink = new StringWriter();
             V9WorkerDevelopmentDiagnostics.WriteException(
                 new IOException(SecretCanary), sink, Get);
-            Assert.That(sink.ToString(), Is.Empty, gate + " must not leak");
+            Assert.That(sink.ToString(), Does.Contain(SecretCanary), gate + " must preserve DEV diagnostics");
             local.Remove(gate);
         }
         local["JORNADA_RUNTIME_MODE"] = "PROD";
@@ -122,7 +122,7 @@ public sealed class V9WorkerEntryBoundaryTests
         var status = await V9WorkerEntryBoundary.ExecuteAsync(["--v9-tf-export-ibge-pin"],
             _ => throw new IOException("PRIVATE " + SecretCanary), stderr);
         Assert.That(status, Is.EqualTo(1));
-        Assert.That(stderr.ToString().Trim(), Is.EqualTo("V9_CALIBRATOR_FAILED:IO_ERROR"));
+        Assert.That(stderr.ToString().Trim(), Is.EqualTo("V9_CALIBRATOR_FAILED:IO_ERROR:UNCLASSIFIED"));
         using var broken = new FailingWriter();
         var unhandled = await V9WorkerEntryBoundary.ExecuteAsync(["--v9-prepare-gold-runner"],
             _ => throw new InvalidOperationException("PRIVATE " + SecretCanary), broken);
@@ -139,7 +139,7 @@ public sealed class V9WorkerEntryBoundaryTests
         logger.Log(LogLevel.Error, new EventId(15), SecretCanary,
             new IOException(SecretCanary),
             (state, exception) => throw new InvalidOperationException(SecretCanary));
-        Assert.That(stderr.ToString().Trim(), Is.EqualTo("V9_CALIBRATOR_FAILED:IO_ERROR"));
+        Assert.That(stderr.ToString().Trim(), Is.EqualTo("V9_CALIBRATOR_FAILED:IO_ERROR:UNCLASSIFIED"));
         Assert.That(stderr.ToString(), Does.Not.Contain(SecretCanary));
         Assert.That(failures, Is.EqualTo(1));
         Assert.That(V9WorkerSafeHostLoggerProvider.AllowProviderLog(
@@ -166,7 +166,7 @@ public sealed class V9WorkerEntryBoundaryTests
                 null, new IOException(SecretCanary));
         }
         finally { Console.SetError(old); }
-        Assert.That(stderr.ToString().Trim(), Is.EqualTo("V9_CALIBRATOR_FAILED:IO_ERROR"));
+        Assert.That(stderr.ToString().Trim(), Is.EqualTo("V9_CALIBRATOR_FAILED:IO_ERROR:UNCLASSIFIED"));
         Assert.That(stderr.ToString(), Does.Not.Contain(SecretCanary));
         Assert.That(stderr.ToString(), Does.Not.Contain("indisponível"));
     }
