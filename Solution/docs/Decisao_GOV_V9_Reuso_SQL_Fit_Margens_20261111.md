@@ -33,3 +33,9 @@ Pode ocorrer **pico de memória maior** por métricas multi-margin no mesmo prob
 **Precedência:** adição operacional restrita à decisão GOV-V9-V3-TF4-324; não substitui a campanha anterior nem seus resultados. A escolha de particionamento/checkpoints/restart automático é assunto separado, ainda **NÃO aprovado**; nenhum TEST/Gold ou LOCK é modificado.
 
 **Rastreabilidade:** [issue #1349](https://github.com/lucianox777/Jornada/issues/1349), [run #43069538326](https://github.com/lucianox777/Jornada/actions/runs/43069538326), [índice de decisões](Indice_Decisoes_Vigentes.md), [índice documental](Indice_Acervo_Documental.md).
+
+## Correção de regressão pós-merge — 11/11/2026
+
+No SHA `e7250e614332df1b7b820acddd2053c9e5b88a20`, a CI [#43080622411](https://github.com/lucianox777/Jornada/actions/runs/43080622411) revelou uma asserção legada incompatível com a decisão acima: `V9NestedCalibrationTests.Three_estimators_share_exact_SQL_frame_but_keep_independent_model_evaluations` exigia que margens diferentes tivessem `PhysicalFrameKey` distintas. O código aprovado pela PR #1437 removeu precisamente a margem dessa chave para compartilhar SQL/fit, sem eliminar a margem de `Request.Sha`. O job `unit-runtime` reprovou 1 de 2.212 testes; `unit` é o agregador dependente.
+
+**Tratamento autorizado pela decisão existente:** ajustar somente a expectativa obsoleta do teste: a chave física deve ser **igual** para duas margens dos mesmos passes, enquanto os hashes de request permanecem **diferentes**. Preservar verificações de quatro estimadores M/U independentes. Nenhum ajuste no código científico, no SQL, na quantidade de hipóteses ou no workflow. A correção não é certificação física 30k e só será declarada validada após CI verde em SHA exato; o run original #43069538326 permanece inalterado.
