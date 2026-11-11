@@ -28,8 +28,8 @@ permissions:
   contents: read
 
 jobs:
+  # Manual dispatch is allowed only on master; path filters govern push.
   windows-production-bundle:
-    # Manual dispatch remains allowed only for master (path filters still apply to push).
     if: github.ref == 'refs/heads/master'
     runs-on: windows-latest
     timeout-minutes: 30
