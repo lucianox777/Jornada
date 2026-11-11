@@ -23,6 +23,69 @@ def require(ok, msg):
         raise ValueError("V9_100K_AUDIT_FAIL_CLOSED: " + msg)
 
 
+
+def require_complete_physical_measurements(report, rows, output_path, receipt, code_sha, run_id):
+    """Fail closed with a sanitized, durable aggregate when a hypothesis is unmeasured.
+
+    A declared/attempted SQL evaluation is not a measured, validated fit.
+    In particular, RejectOperation with unpublished IBGE TF is scientific
+    non-evaluability, not an infrastructure/OOM failure or a passing TF0 fit.
+    This function never reads or emits nominal values or per-person records.
+    """
+    measured = report.get("measured")
+    require(type(measured) is int and 0 <= measured <= 24,
+            "invalid physical measured count")
+    measured_rows = sum(isinstance(row, dict) and
+                        str(row.get("outcome", "")).startswith("MEASURED_")
+                        for row in rows)
+    require(measured == measured_rows,
+            "measured count disagrees with per-hypothesis outcome accounting")
+    if measured == 24:
+        return
+    missing_tf = report["publishedTfCoverageInsufficient"]
+    not_evaluable = report["scientificallyNonEvaluable"]
+    require(type(missing_tf) is int and 0 <= missing_tf <= 24 - measured
+            and type(not_evaluable) is int and missing_tf <= not_evaluable <= 24 - measured,
+            "invalid non-evaluable physical outcome accounting")
+    evidence = {
+        "schema": "V9_100K_MULTIPARAM_INCOMPLETE_AUDIT_V1",
+        "status": "INCOMPLETE_NOT_CERTIFIED",
+        "scope": "100K_SYNTHETIC_TRAIN_ONLY_NO_TEST_NO_ACTIVATION",
+        "codeSha": code_sha,
+        "workflowRunId": run_id,
+        "technicalPlanSha256": receipt["technicalPlanSha256"],
+        "declaredHypotheses": 24,
+        "measuredHypotheses": measured,
+        "unmeasuredHypotheses": 24 - measured,
+        "publishedTfCoverageInsufficientHypotheses": missing_tf,
+        "scientificallyNonEvaluableHypotheses": not_evaluable,
+        "technicalPass": False,
+        "certified": False,
+        "testUsed": False,
+        "activated": False,
+        "note": "An attempted evaluation is not a measured fit; TF policy remains unchanged."
+    }
+    target = Path(output_path)
+    with target.open("x", encoding="utf-8") as f:
+        json.dump(evidence, f, indent=2, allow_nan=False)
+        f.write("\n")
+    target.with_suffix(".md").write_text(
+        "# V9 100k — prova técnica incompleta; NÃO CERTIFICADA\n\n"
+        f"Hipóteses declaradas: 24; medidas: {measured}; não medidas: {24-measured}.\n"
+        f"Ausência de TF IBGE publicada: {missing_tf}; "
+        f"cientificamente não avaliáveis: {not_evaluable}.\n\n"
+        "Sem PASS 24/24, TEST, certificação FDR ou ativação. "
+        "Não imputar frequência nem confundir ausência IBGE com nome inválido.\n",
+        encoding="utf-8")
+    raise ValueError(
+        "V9_100K_AUDIT_FAIL_CLOSED: INCOMPLETE_NOT_CERTIFIED "
+        f"measured={measured}/24 unmeasured={24-measured} "
+        f"published_tf_unavailable={missing_tf} "
+        f"scientifically_non_evaluable={not_evaluable}; "
+        "no scientific PASS, no automatic TF policy change")
+
+
+
 def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path, code_sha, run_id):
     import re
     require(isinstance(code_sha, str) and re.fullmatch(r"[0-9a-f]{40}", code_sha),
@@ -73,9 +136,8 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path, cod
             "published TF non-evaluability count differs from hypothesis rows")
     require(report.get("scientificallyNonEvaluable", 0) == len(missing_tf),
             "scientifically non-evaluable TF count differs from hypothesis rows")
-    require(report.get("measured") == 24,
-            "24/24 physical measurements incomplete; check per-hypothesis "
-            "rejections and abstention coverage before claiming technical PASS")
+    require_complete_physical_measurements(
+        report, rows, output_path, receipt, code_sha, run_id)
     by_key, requests, frames = {}, set(), {}
     eligible_count, diagnostic_count, observed = 0, 0, []
     for row in rows:
