@@ -131,8 +131,9 @@ phase_advance api-start-readiness
 # The public GitHub runner has intermittently failed to resolve Ubuntu APT
 # inside Docker Build (verified by two CI artifacts, both after SQL PASS).
 # Run the canonical build first. Retry once ONLY for the exact APT/DNS
-# signature, and ONLY with a temporary build.network override; service
-# networks, SQL isolation, worker supervisor and E2E checks stay unchanged.
+# signature, using the same image/context/Dockerfile with BuildKit's explicit
+# one-shot host-network build entitlement. Service networks, SQL isolation,
+# worker supervisor and E2E checks stay unchanged.
 if ! compose build api > "$OUT/api-image-build.log" 2>&1; then
   if ! python3 scripts/e2e-private-sql-api-dns-retry-gate.py "$OUT/api-image-build.log"; then
     die 'isolated API image build failed (not the narrowly allowlisted APT DNS case)'
