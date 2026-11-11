@@ -40,15 +40,14 @@ public sealed class V9EnvironmentDiagnosticsTests
     [TestCase("Homologation")]
     [TestCase("Homologacao")]
     [TestCase("HML")]
-    public void Homologation_requires_explicit_private_sink_opt_in(string environment)
+    public void Homologation_uses_existing_runtime_environment_only(string environment)
     {
         Assert.That(V9WorkerDevelopmentDiagnostics.Enabled(
-            Env(("DOTNET_ENVIRONMENT", environment))), Is.False);
+            Env(("DOTNET_ENVIRONMENT", environment))), Is.True);
         Assert.That(V9WorkerDevelopmentDiagnostics.Enabled(Env(
             ("DOTNET_ENVIRONMENT", environment),
             ("ASPNETCORE_ENVIRONMENT", environment),
-            ("JORNADA_RUNTIME_MODE", environment),
-            ("JORNADA_PRIVATE_DIAGNOSTICS", "1"))), Is.True);
+            ("JORNADA_RUNTIME_MODE", environment))), Is.True);
     }
 
     [TestCase("Development", "GITHUB_ACTIONS")]
@@ -56,8 +55,7 @@ public sealed class V9EnvironmentDiagnosticsTests
     [TestCase("HML", "GITHUB_ACTIONS")]
     public void Ci_marker_does_not_override_nonproduction_diagnostics(string environment, string marker)
     {
-        var env = Env(("DOTNET_ENVIRONMENT", environment), (marker, "true"),
-            ("JORNADA_PRIVATE_DIAGNOSTICS", "1"));
+        var env = Env(("DOTNET_ENVIRONMENT", environment), (marker, "true"));
         using var sink = new StringWriter();
         Assert.That(V9WorkerDevelopmentDiagnostics.Enabled(env), Is.True);
         V9WorkerDevelopmentDiagnostics.WriteException(
@@ -76,7 +74,7 @@ public sealed class V9EnvironmentDiagnosticsTests
                 ("JORNADA_PRIVATE_DIAGNOSTICS", "1")),
             Env(("DOTNET_ENVIRONMENT", "Staging"), ("ASPNETCORE_ENVIRONMENT", "Production"),
                 ("JORNADA_PRIVATE_DIAGNOSTICS", "1")),
-            Env(("DOTNET_ENVIRONMENT", "Staging"), ("JORNADA_PRIVATE_DIAGNOSTICS", "true"))
+            Env(("DOTNET_ENVIRONMENT", "Staging"), ("ASPNETCORE_ENVIRONMENT", "Development"))
         };
         foreach (var env in cases)
         {
