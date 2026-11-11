@@ -36,6 +36,11 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     env:
+      # This workflow runs on GitHub-hosted runners and may expose public logs.
+      # Explicit production policy: classified safe errors only, never raw exceptions.
+      DOTNET_ENVIRONMENT: Production
+      ASPNETCORE_ENVIRONMENT: Production
+      JORNADA_RUNTIME_MODE: Production
       EXACT_SHA: ${{ inputs.expected_sha }}
       GH_TOKEN: ${{ github.token }}
       V9_100K_DISABLE_PYTHON_SQL_BUDGET: ${{ inputs.disable_python_sql_budget }}
@@ -50,6 +55,14 @@ jobs:
           ref: ${{ inputs.expected_sha }}
           fetch-depth: 0
           persist-credentials: false
+      - name: Assert and report safe diagnostic environment
+        run: |
+          set -euo pipefail
+          test "$DOTNET_ENVIRONMENT" = "Production"
+          test "$ASPNETCORE_ENVIRONMENT" = "Production"
+          test "$JORNADA_RUNTIME_MODE" = "Production"
+          echo "V9_RUNTIME_ENVIRONMENT=PRODUCTION"
+          echo "V9_EXCEPTION_DIAGNOSTICS=SANITIZED_CLASSIFIED_CODE"
       - name: Fail-closed SHA, environment and resources before physics
         run: |
           set -euo pipefail
