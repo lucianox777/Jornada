@@ -107,9 +107,14 @@ public sealed class V9CalibrationRuntimeScheduler
         results[0] = await operation(inputs[0], cancellationToken);
         var sampleAfter = Read();
         RequireDisk(sampleAfter);
-        var peakIncrement = Math.Max(0, sampleAfter.PeakResidentBytes -
-            Math.Max(sampleBefore.ResidentBytes, sampleBefore.PeakResidentBytes));
-        _workerIncrementBytes = EstimateIncrementBytes(peakIncrement);
+        // The pilot may populate process-wide caches that remain resident after
+        // it finishes. Live MemAvailable already accounts for those retained
+        // allocations. Only its transient peak above the post-pilot resident
+        // baseline can be charged again to the next worker; otherwise the
+        // same pilot allocation is reserved twice and AUTO cannot start.
+        var transientPeak = Math.Max(0, sampleAfter.PeakResidentBytes -
+            Math.Max(sampleAfter.ResidentBytes, sampleBefore.PeakResidentBytes));
+        _workerIncrementBytes = EstimateIncrementBytes(transientPeak);
         if (inputs.Count > 1 && _budget.ConfiguredParallelism > 1 && ceiling > 1
             && sampleAfter.EffectiveAvailableMemoryBytes is null)
             throw new InvalidDataException("V9_RESOURCE_EXPLICIT_RAM_UNMEASURED");
