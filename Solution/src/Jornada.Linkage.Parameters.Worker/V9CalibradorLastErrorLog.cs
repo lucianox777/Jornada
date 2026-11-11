@@ -59,12 +59,22 @@ public sealed class V9CalibradorLastErrorLog : IDisposable
         _ => "V9_CALIBRATOR_FAILED:UNEXPECTED"
     };
 
+    /// <summary>Finite production-safe error identifier, without raw exception data.</summary>
+    public static string DetailedErrorCode(Exception error)
+    {
+        ArgumentNullException.ThrowIfNull(error);
+        var category = V9CalibradorSafeFailureCategory.Classify(error);
+        var reason = V9CalibradorSafeFailureCategory.PhysicalSqlProbeReason(error);
+        return SafeErrorCode(error) + ":" + category
+            + (reason == "NOT_PHYSICAL_SQL_PROBE" ? "" : ":" + reason);
+    }
+
     /// <summary>Only the latest safe error code; in-place 10 KiB rewrite.</summary>
     public void WriteLast(Exception error)
     {
         ArgumentNullException.ThrowIfNull(error);
         ObjectDisposedException.ThrowIf(disposed, this);
-        var bytes = Encoding.UTF8.GetBytes(SafeErrorCode(error));
+        var bytes = Encoding.UTF8.GetBytes(DetailedErrorCode(error));
         reservedBytes.AsSpan().Fill((byte)' ');
         // A bounded constant diagnostic code always fits the 10 KiB reserve.
         bytes.CopyTo(reservedBytes, 0);
