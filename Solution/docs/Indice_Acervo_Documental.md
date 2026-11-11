@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-100K-TRAIN-PASS-43035295017-20261111:** [evidência primária de sucesso técnico 100k TRAIN no run #43035295017, artefato #13864771198, contabilidade 24/24, M/U/TF, 12 P95 medidos/12 rejeições fanout, recursos físicos, recibos e fronteira de não certificação](Evidencia_V9_100k_TRAIN_Tecnico_PASS_Run_43035295017_20261111.md). GOV-DOC-01.
+
 > **ACERVO GOV-V9-100K-P95-FANOUT-CHROMIUM-20261111:** [relatório técnico: 24/24 fits, 12 P95 não executados por rejeição fanout P99; erro de Chromium no ubuntu-latest, correção de contrato e regressões](Diagnostico_V9_100k_P95_Fanout_CI_Chromium_20261111.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-100K-AUTORIZACAO-CHAT-20261111:** [exceção expressa do PO para dispensar confirmação por disparo 100k apenas nesta conversa, com preflight, limites científicos, rastreabilidade e precedência](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md). GOV-DOC-01.
