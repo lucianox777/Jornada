@@ -269,7 +269,7 @@ jobs:
   unit-runtime:
     needs: [impact, dependency-lock]
     if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     defaults:
       run:
@@ -2158,7 +2158,7 @@ jobs:
   e2e-console:
     needs: [impact, dependency-lock]
     if: needs.impact.outputs.run_full == 'true' && needs.dependency-lock.result == 'success'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     defaults:
       run:
