@@ -62,6 +62,21 @@ public sealed class V9CalibrationRuntimeSchedulerTests
     }
 
     [Test]
+    public async Task Retained_pilot_memory_is_not_reserved_twice_in_auto_mode()
+    {
+        var budget = V9CalibrationResourceGovernor.Decide(0, 4, 8 * GiB, null, 9 * GiB);
+        var reads = 0;
+        var scheduler = new V9CalibrationRuntimeScheduler(budget, ".", 20,
+            () => Interlocked.Increment(ref reads) == 1
+                ? Sample(6, resident: 512L * 1024 * 1024, peak: 512L * 1024 * 1024)
+                : Sample(3, resident: 3 * GiB, peak: 3 * GiB));
+        var (results, receipt) = await scheduler.MapAsync(new[] { 1, 2 },
+            (i, _) => Task.FromResult(i), CancellationToken.None);
+        Assert.That(results, Is.EqualTo(new[] { 1, 2 }));
+        Assert.That(receipt.EstimatedIncrementalWorkerBytes, Is.EqualTo(512L * 1024 * 1024));
+    }
+
+    [Test]
     public void Explicit_workers_are_not_silently_reduced_after_pilot()
     {
         var budget = V9CalibrationResourceGovernor.Decide(8, 4, 8 * GiB, null, 9 * GiB);
