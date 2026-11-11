@@ -29,9 +29,16 @@ def p95_was_measured(row):
     require(isinstance(rejection, list) and all(type(x) is str for x in rejection),
             "invalid rejection list")
     if value is None:
-        require(rejection == ["FANOUT_P99_ACIMA_DO_ORCAMENTO"]
-                and row.get("outcome") == "MEASURED_DIAGNOSTIC_NOT_ELIGIBLE",
-                "missing P95 without verified pre-replay fanout rejection")
+        # The C# evaluator skips the replay for ANY of these three exact
+        # pre-replay exclusions; a 3-pass selectable arm becomes
+        # MEASURED_NOT_ELIGIBLE (not a structurally diagnostic arm).
+        allowed = {"FANOUT_P99_ACIMA_DO_ORCAMENTO",
+                   "SUPORTE_OBSERVADO_NO_NUCLEO_DE_MASSA_INSUFICIENTE",
+                   "FDR_INDEFINIDO_SEM_ACEITOS"}
+        require(len(rejection) > 0 and len(rejection) == len(set(rejection))
+                and set(rejection).issubset(allowed)
+                and row.get("outcome") == "MEASURED_NOT_ELIGIBLE",
+                "missing P95 without verified pre-replay exclusion")
         return False
     require(type(value) in (float, int) and math.isfinite(value) and value >= 0,
             "invalid P95 value")
@@ -159,14 +166,20 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
         conflict, unresolved, total = row.get("conflicts"), row.get("unresolved"), row.get("allSelectionObservations")
         require(all(type(x) is int for x in (tp, fp, eligible, conflict, unresolved, total))
                 and eligible > 0 and 0 <= tp <= eligible and fp >= 0
-                and tp + fp > 0 and total == tp + fp + conflict + unresolved,
+                and total == tp + fp + conflict + unresolved,
                 "TP/FP/FN or Resolve accounting invalid")
         recall, fdr = row.get("recall"), row.get("fdrObserved")
         require(type(recall) in (float, int) and math.isfinite(recall)
-                and abs(recall - tp / eligible) < 1e-10
-                and type(fdr) in (float, int) and math.isfinite(fdr)
-                and abs(fdr - fp / (tp + fp)) < 1e-10,
-                "recall/FDR observed not reconciled")
+                and abs(recall - tp / eligible) < 1e-10,
+                "recall not reconciled")
+        if tp + fp == 0:
+            require(fdr is None
+                    and "FDR_INDEFINIDO_SEM_ACEITOS" in row.get("Rejections", []),
+                    "zero-accepted option incorrectly claims FDR or eligibility")
+        else:
+            require(type(fdr) in (float, int) and math.isfinite(fdr)
+                    and abs(fdr - fp / (tp + fp)) < 1e-10,
+                    "observed FDR not reconciled")
         if p95_was_measured(row):
             replayed += 1
         else:
@@ -191,7 +204,7 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
         "corpusObservationsSha256": receipt["technicalCorpusObservationsSha256"],
         "physicalMeasured": study.EVALUATIONS, "tfOptions": study.OPTIONS,
         "margins": list(study.MARGINS), "v3MixtureLambdas": list(study.LAMBDAS),
-        "replayedP95": replayed, "preReplayFanoutRejected": fanout,
+        "replayedP95": replayed, "preReplayRejectedWithoutP95": fanout,
         "totalMilliseconds": runtime["totalMilliseconds"],
         "peakProcessRssBytes": runtime["peakWorkingSetBytes"],
         "effectiveParallelism": runtime["effectiveParallelism"],
@@ -207,7 +220,7 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
     target.with_suffix(".md").write_text(
         "# V9 four-name 100k — PASS técnico TRAIN, não certificação\n\n"
         "324 hipóteses V3-only medidas; TF=81, λ=2, margens=2. "
-        "P95 reais: " + str(replayed) + "; P95 ausentes por fanout pré-replay: "
+        "P95 reais: " + str(replayed) + "; P95 ausentes por rejeição pré-replay: "
         + str(fanout) + ". TEST, validação independente e ativação: NÃO.\n",
         encoding="utf8")
     return evidence
