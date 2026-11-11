@@ -61,7 +61,7 @@ public sealed class V9CalibrationRuntimeScheduler
     /// </summary>
     public static V9CalibrationRuntimeResourceSample Capture(string outputDirectory)
     {
-        var physical = V9CalibrationResourceGovernor.Capture(0, outputDirectory);
+        var physical = V9CalibrationResourceGovernor.CaptureLiveResources(outputDirectory);
         using var process = Process.GetCurrentProcess();
         process.Refresh();
         return new(physical.EffectiveAvailableMemoryBytes, physical.FreeDiskBytes,
