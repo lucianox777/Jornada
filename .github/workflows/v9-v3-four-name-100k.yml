@@ -1,0 +1,182 @@
+name: v9-v3-four-name-100k
+
+# STRICTLY MANUAL. V3-only TF4 81x2x2 exploratory TRAIN; never TEST.
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: Exact master commit SHA to run the 100k V9 technical TRAIN
+        required: true
+        type: string
+      security_preflight_approved:
+        description: Confirm one-use SQL, historical credentials not reused, private runner
+        required: true
+        type: boolean
+      disable_python_sql_budget:
+        description: "EXPERIMENTAL: skip Python SQL memory sizing; SQL uses its native memory default (no Docker cap)"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: v9-v3-tf4-100k-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  physical-100k:
+    if: ${{ inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    name: "V9 V3-only 100k: 81 TF4 x 2 U mixtures x 2 margins"
+    # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
+    # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
+    # Strict manual owner-only dispatch still requires cleared security preflight.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      # Diagnostic campaign on synthetic 100k data. Full exception traces are enabled.
+      # Do not pass production credentials or real personal data to this workflow.
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      GH_TOKEN: ${{ github.token }}
+      V9_100K_DISABLE_PYTHON_SQL_BUDGET: ${{ inputs.disable_python_sql_budget }}
+      # Default: SQL bootstrap uses native memory without Python sizing; false opts in to sizing.
+      # New standalone TRAIN plan; original 24-arm plan and CSharp algorithm unchanged.
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Assert and report safe diagnostic environment
+        run: |
+          set -euo pipefail
+          test "$DOTNET_ENVIRONMENT" = "DEV"
+          test "$ASPNETCORE_ENVIRONMENT" = "DEV"
+          test "$JORNADA_RUNTIME_MODE" = "DEV"
+          echo "V9_RUNTIME_ENVIRONMENT=DEV"
+          echo "V9_EXCEPTION_DIAGNOSTICS=FULL_EXCEPTION"
+      - name: Fail-closed SHA, environment and resources before physics
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
+          python3 -m py_compile scripts/v9-scale-100k-technical-plan.py scripts/v9-v3-four-name-100k-plan.py scripts/v9-v3-four-name-100k-audit.py scripts/v9-100k-execution-resource-budget.py
+          mkdir -p "$PWD/.local/v9-100k-technical"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # SHA pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build existing CSharp V9 calibrator and generator unchanged
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Generate known-seed 100k clean TRAIN and bind new V3-only TF4 plan
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate             --reference-root "$PWD/data/reference/ibge-nomes-2022"             --population-profile demographic-primary             --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json"             --error-profile clean --people 100000 --seed 42 --out "$root/people-100k"             > "$root/generation.log"
+          python3 scripts/v9-j-download-pinned-artifact.py             --artifact-id 13654549483             --expected-sha256 5bdbce7ffd5fed55fc085fde42faf9793cb39e6e79c3db4c69990a818bf330d7             --output "$root/historical-official.zip"
+          mkdir -p "$root/bound" "$root/base-bound"
+          python3 scripts/v9-scale-100k-technical-plan.py \
+            --artifact-zip "$root/historical-official.zip" \
+            --corpus-root "$root/people-100k" \
+            --plan "$root/base-bound/plan.json" --receipt "$root/base-bound/binding-receipt.json" --parallelism auto
+          python3 scripts/v9-v3-four-name-100k-plan.py \
+            --base-plan "$root/base-bound/plan.json" --base-receipt "$root/base-bound/binding-receipt.json" \
+            --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
+      - name: Start masked disposable SQL Server
+        run: bash scripts/v9-tf-start-disposable-sql.sh
+      - name: Reconstruct historical 30k TF reference only, not 30k calibration
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          bash scripts/v9-tf-prepare-pin.sh "$root/reference-30k" pinned-ibge.json
+      - name: Recheck physical RAM/disk before 324 exploratory fits
+        if: ${{ inputs.disable_python_sql_budget != true }}
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-100k-execution-resource-budget.py --stage before-fit \
+            --exact-sha "$EXACT_SHA" --resource-root "$PWD" \
+            --previous "$root/capacity-before-sql.json" \
+            --output "$root/bound/capacity-before-calibration.json"
+      - name: Guard memory/disk before 324 exploratory fits
+        if: ${{ inputs.disable_python_sql_budget == true }}
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          bash scripts/v9-100k-sql-budget-optout-guard.sh before-fit "$root/bound/capacity-before-calibration.json"
+      - name: Prove operational parallelism AUTO is bound before CSharp fitting
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 - "$root/bound/plan.json" "$root/bound/binding-receipt.json" <<'PY'
+          import json,sys
+          plan=json.load(open(sys.argv[1],encoding="utf-8"))
+          receipt=json.load(open(sys.argv[2],encoding="utf-8"))
+          assert plan["Calibration"]["MaximumParallelRuleSets"]==0, "AUTO_0_REQUIRED"
+          assert receipt["runtimeParallelismMode"]=="AUTO_0", "AUTO_RECEIPT_REQUIRED"
+          assert receipt["physicalHypotheses"]==324 and receipt["tfOptions"]==81, "324_V3_TF4_REQUIRED"
+          print("V9_100K_PARALLELISM: AUTO_0_BOUND_CSHARP_GOVERNOR_ACTIVE")
+          PY
+      - name: Run physical V9 CSharp on 324 V3-only four-name hypotheses
+        timeout-minutes: 305
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-100k-physical-memory-evidence.py \
+            --sql-container "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
+            --output "$root/results/physical-memory-evidence.json" -- \
+            dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-calibrate "$root/bound/plan.json" "$root/people-100k/observacoes.csv" "$root/results"
+      - name: Audit all 324 V3-only TF4 fits, source TP/FP/FN, FDR and replay P95
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-v3-four-name-100k-audit.py \
+            --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json" \
+            --analysis "$root/results/mu-statistical-analysis.json" \
+            --runtime "$root/results/runtime-diagnostics.json" \
+            --selection "$root/results/selection-reference.json" \
+            --out "$root/bound/technical-audit.json" \
+            --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Upload aggregated evidence only, never corpus, raw TEST or credentials
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin SHA
+        with:
+          name: v9-v3-tf4-100k-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-100k-technical/capacity-before-sql.json
+            Solution/.local/v9-100k-technical/bound/capacity-before-calibration.json
+            Solution/.local/v9-100k-technical/bound/plan.json
+            Solution/.local/v9-100k-technical/bound/binding-receipt.json
+            Solution/.local/v9-100k-technical/results/physical-memory-evidence.json
+            Solution/.local/v9-100k-technical/results/interrupted.json
+            Solution/.local/v9-100k-technical/bound/technical-audit.json
+            Solution/.local/v9-100k-technical/bound/technical-audit.md
+            Solution/.local/v9-100k-technical/results/mu-statistical-analysis.json
+            Solution/.local/v9-100k-technical/results/runtime-diagnostics.json
+            Solution/.local/v9-100k-technical/results/calibration-resource-budget.json
+            Solution/.local/v9-100k-technical/results/calibration-runtime-scheduling.json
+            Solution/.local/v9-100k-technical/results/selection-reference.json
+      - name: Remove disposable SQL even after failure
+        if: always()
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
