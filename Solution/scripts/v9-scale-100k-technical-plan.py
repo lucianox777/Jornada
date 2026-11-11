@@ -157,6 +157,23 @@ def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve
     # The model candidates, TF/MU, FDR, reference and 24 hypotheses do not change.
     if parallelism_mode == "auto":
         plan["Calibration"]["MaximumParallelRuleSets"] = 0
+    # Explicit, audited operational policy correction: missing published TF
+    # abstains the affected candidate pair, never the entire TF+ hypothesis.
+    # TF0 is the unchanged paired control; no fabricated IBGE frequencies.
+    policy_changes = []
+    for option in plan["Calibration"]["ModelOptions"]:
+        option_id = option["OptionId"]
+        if option_id == OPTIONS[1]:
+            previous = option.get("UnpublishedTermPolicy", 0)
+            require(previous in (0, 1), "unknown TF+ unpublished term policy")
+            option["UnpublishedTermPolicy"] = 1
+            policy_changes.append({"optionId": option_id, "previous": previous,
+                                   "effective": 1})
+        else:
+            require(option_id == OPTIONS[0], "unexpected TF0 option")
+            require(option.get("UnpublishedTermPolicy", 0) == 0,
+                    "TF0 must remain unchanged")
+    require(len(policy_changes) == 1, "exactly one TF+ model option required")
     old = plan["Calibration"]["ObservationCapDeclaration"]
     require(old["MaximumObservationsPerBaseIdentity"] == 4
             and old["GeneratorVersion"] == manifest["generator_version"]
@@ -167,7 +184,7 @@ def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve
         "technicalCorpusManifestSha256": manifest_sha,
         "technicalCorpusObservationsSha256": obs_sha,
         "people": 100000, "knownTrainSeed": 42,
-        "historicalPinnedIbgeBootstrapPeople": 30000,
+        "historicalPinnedIbgeBootstrapPeople": 30000,\n        "tfUnpublishedTermPolicyChanges": policy_changes,
     }
     if parallelism_mode == "auto":
         proposal.update(runtimeParallelismMode="AUTO_0",
@@ -179,11 +196,10 @@ def bind(zip_path, corpus_root, output, receipt_path, parallelism_mode="preserve
     cap["ObservationsSha256"] = obs_sha
     plan["Calibration"]["StudyFingerprintSha256"] = fingerprint
     plan["Calibration"]["Budget"]["StudyFingerprintSha256"] = fingerprint
-    # Strict diff proof: no scientific parameter, TF reference, witness,
+    # Strict diff proof: only the declared TF+ pair-abstention correction and\n    # corpus/runtime binding are permitted; all other science is immutable.
     # CPU setting, SQL rule, selection setting or historical value changed.
     restored = copy.deepcopy(plan)
-    if parallelism_mode == "auto":
-        restored["Calibration"]["MaximumParallelRuleSets"] = historical_parallelism
+    for change in policy_changes:\n        restored_option = next(o for o in restored["Calibration"]["ModelOptions"]\n                               if o["OptionId"] == change["optionId"])\n        original_option = next(o for o in original["Calibration"]["ModelOptions"]\n                               if o["OptionId"] == change["optionId"])\n        if "UnpublishedTermPolicy" in original_option:\n            restored_option["UnpublishedTermPolicy"] = original_option["UnpublishedTermPolicy"]\n        else:\n            restored_option.pop("UnpublishedTermPolicy", None)\n    if parallelism_mode == "auto":\n        restored["Calibration"]["MaximumParallelRuleSets"] = historical_parallelism
     restored["Calibration"]["ObservationCapDeclaration"] = copy.deepcopy(
         original["Calibration"]["ObservationCapDeclaration"])
     restored["Calibration"]["StudyFingerprintSha256"] = original["Calibration"]["StudyFingerprintSha256"]
