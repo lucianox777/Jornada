@@ -21,24 +21,7 @@ on:
       - 'Solution/database/migrations/**'
       - 'Solution/scripts/schema-manifest.py'
       - '.github/workflows/windows-production-installer.yml'
-  pull_request:
-    paths:
-      - 'Solution/install/windows-production/**'
-      - 'Solution/src/Jornada.Api/**'
-      - 'Solution/src/Jornada.Resultado.Api/**'
-      - 'Solution/src/Jornada.Processor.Worker/**'
-      - 'Solution/src/Jornada.Operations.Maintenance.Worker/**'
-      - 'Solution/src/Jornada.Bronze.Maintenance.Worker/**'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
-      - 'Solution/src/Jornada.Linkage.Runner/**'
-      - 'Solution/src/Jornada.Linkage.Conference/**'
-      - 'Solution/config/linkage/**'
-      - 'Solution/database/Jornada_Fase1.sql'
-      - 'Solution/database/Jornada_Fase1_v3.70.sql'
-      - 'Solution/database/Jornada_Identidade_Progressiva.sql'
-      - 'Solution/database/migrations/**'
-      - 'Solution/scripts/schema-manifest.py'
-      - '.github/workflows/windows-production-installer.yml'
+  # Full verification only on integrated master; no PR/feature-branch jobs.
   workflow_dispatch:
 
 permissions:
@@ -46,6 +29,8 @@ permissions:
 
 jobs:
   windows-production-bundle:
+    # Manual dispatch remains allowed only for master (path filters still apply to push).
+    if: github.ref == 'refs/heads/master'
     runs-on: windows-latest
     timeout-minutes: 30
     defaults:
