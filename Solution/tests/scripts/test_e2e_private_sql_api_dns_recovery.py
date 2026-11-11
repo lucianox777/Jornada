@@ -80,7 +80,10 @@ class PrivateSqlApiBuildDnsRecoveryTests(unittest.TestCase):
             config = json.loads(result.stdout)
             target = config["target"]["api"]
             self.assertEqual(target["network"], "host")
-            self.assertIn("type=docker", str(target.get("output", "")))
+            self.assertTrue(any(
+                output == "type=docker" if isinstance(output, str)
+                else isinstance(output, dict) and output.get("type") == "docker"
+                for output in target.get("output", [])), target.get("output"))
 
     def test_host_network_override_is_build_only_and_e2e_remains_mandatory(self):
         script = (SCRIPTS / "e2e-private-sql-bootstrap-runtime.sh").read_text()
