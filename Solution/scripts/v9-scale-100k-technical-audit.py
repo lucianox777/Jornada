@@ -86,6 +86,31 @@ def require_complete_physical_measurements(report, rows, output_path, receipt, c
 
 
 
+
+def validate_source_resolution_p95(row):
+    """Validate *observed* P95, not a fictitious replay for early fanout rejects.
+
+    The physical C# coordinator measures SQL/source-resolution replay only when
+    pre-replay reasons are empty. Its explicit fanout P99 rejection is already a
+    physical measurement and makes the option non-eligible without a P95 sample.
+    All other missing P95 cases remain fail-closed; TEST and science are untouched.
+    Returns True when P95 has actually been measured.
+    """
+    rejections = row.get("Rejections")
+    require(isinstance(rejections, list)
+            and all(isinstance(r, str) and r for r in rejections),
+            "per-option rejection reasons absent or invalid")
+    p95 = row.get("p95Milliseconds")
+    if p95 is None:
+        require(rejections == ["FANOUT_P99_ACIMA_DO_ORCAMENTO"]
+                and row.get("outcome") == "MEASURED_DIAGNOSTIC_NOT_ELIGIBLE",
+                "P95 missing without recorded pre-replay fanout rejection")
+        return False
+    require(type(p95) in (int, float) and math.isfinite(p95) and p95 >= 0,
+            "per-option source-resolution p95 invalid")
+    return True
+
+
 def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path, code_sha, run_id):
     import re
     require(isinstance(code_sha, str) and re.fullmatch(r"[0-9a-f]{40}", code_sha),
@@ -140,6 +165,7 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path, cod
         report, rows, output_path, receipt, code_sha, run_id)
     by_key, requests, frames = {}, set(), {}
     eligible_count, diagnostic_count, observed = 0, 0, []
+    p95_measured_count, pre_replay_fanout_count = 0, 0
     for row in rows:
         key = j.classify(row)
         passes, option, method, weight = key
@@ -185,8 +211,10 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path, cod
         require(tp+fp > 0 and type(fdr) in (float, int)
                 and math.isfinite(fdr) and abs(fdr-fp/(tp+fp)) < 1e-10,
                 "observed FDR undefined or incorrectly calculated")
-        require(type(p95) in (float, int) and math.isfinite(p95) and p95 >= 0,
-                "per-option source-resolution p95 missing")
+        if validate_source_resolution_p95(row):
+            p95_measured_count += 1
+        else:
+            pre_replay_fanout_count += 1
         require(row.get("clusterIidIndependentlyValidated") is False,
                 "synthetic test must not claim independence certification")
         require(row.get("allSelectionObservations") ==
@@ -204,6 +232,9 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path, cod
             "fitSnapshotSha256": row["fitSnapshotSha256"]})
     require(diagnostic_count == 16 and eligible_count == 8,
             "24 physical /16 diagnostics /8 candidates partition drift")
+    require(p95_measured_count + pre_replay_fanout_count == 24
+            and p95_measured_count >= eligible_count,
+            "P95 replay/fanout accounting does not cover all physical hypotheses")
     expected = {(passes, option, method, weight)
                 for passes in (3, 19) for option in j.OPTIONS
                 for method, weight in [("DEFAULT", None),
@@ -242,12 +273,16 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path, cod
         "technicalCorpusManifestSha256": receipt["technicalCorpusManifestSha256"],
         "technicalCorpusObservationsSha256": receipt["technicalCorpusObservationsSha256"],
         "physicalHypothesesMeasured": 24, "witnessAndDiagnostics": 16,
-        "eligibleCpHypotheses": 8, "totalMilliseconds": duration,
+        "eligibleCpHypotheses": 8,
+        "sourceResolutionP95MeasuredOptions": p95_measured_count,
+        "preReplayFanoutRejectedWithoutP95": pre_replay_fanout_count,
+        "totalMilliseconds": duration,
         "peakProcessRssBytes": peak, "effectiveParallelism": parallel,
         "perOption": observed, "sameFrameV2vsV3": v2_by_frame,
         "metrics": {
             "physical24": "PASS", "corpusAndPlanSha": "PASS",
-            "tpFpFnRecallFdrObserved": "PASS", "sourceResolutionP95": "PASS",
+            "tpFpFnRecallFdrObserved": "PASS",
+            "sourceResolutionP95": "PASS_WHEN_REPLAY_PERFORMED",
             "wallClock": "PASS", "peakProcessRss": "PASS",
             "observedDiskPeak": "NAO_COBERTO",
             "independentPopulationFdr": "NAO_COBERTO",
@@ -263,8 +298,10 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, output_path, cod
         "# V9 100k — prova técnica física, não certificação científica\n\n"
         "Corpus sintético 100000 pessoas; SHA do plano: " +
         receipt["technicalPlanSha256"] + "\n\n"
-        "24/24 hipóteses M/U/TF/SQL; 16 testemunhas/diagnósticos e 8 CP elegíveis. "
-        "TP/FP/FN, recall, FDR observado e P95 de resolução por opção em JSON. "
+        "24/24 hipóteses M/U/TF/SQL; 16 testemunhas/diagnósticos e 8 CP estruturalmente elegíveis. "
+        "TP/FP/FN, recall e FDR observados por opção; P95 de resolução apenas nos "
+        f"{p95_measured_count} replays executados; {pre_replay_fanout_count} opções com rejeição "
+        "pré-replay de fanout P99 têm P95 ausente, sem imputação. "
         "Duração total em ms: " + str(duration) +
         "; pico RSS do processo (bytes): " + str(peak) +
         ". NÃO COBERTO: FDR populacional, HTTP 100k e pico de disco sem coleta.\n",

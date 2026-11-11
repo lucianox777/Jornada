@@ -225,8 +225,11 @@ def test_parallel_e2e_keeps_both_real_suites_and_aggregated_gate():
         assert "needs: [impact, dependency-lock]" in item
         assert "needs.impact.outputs.run_full == 'true'" in item
         assert "needs.dependency-lock.result == 'success'" in item
-        assert "runs-on: ubuntu-latest" in item
         assert "name: nuget-lockfiles" in item
+    # Browser job is pinned to a Playwright-compatible image. The SQL-only
+    # branch remains independent on the latest runner.
+    assert "runs-on: ubuntu-24.04" in console
+    assert "runs-on: ubuntu-latest" in private
     assert "jornada-runner.py --profile e2e --allow-reset e2e" in console
     assert "JORNADA_E2E_LOCKED_RESTORE: 'true'" in console
     assert "name: local-e2e-evidence" in console
@@ -298,6 +301,19 @@ class TestMasterPushPhysicalWorkflowPolicy(__import__("unittest").TestCase):
                 self.assertNotIn("github.event.pull_request.head.repo", data)
                 self.assertNotIn("github.head_ref", data)
                 self.assertIn("github.ref", data)
+
+    def test_chromium_browser_jobs_use_supported_ubuntu_2404(self):
+        """Playwright 1.56 must not silently move to unsupported ubuntu26.04."""
+        workflow = WORKFLOW.read_text(encoding="utf-8")
+        for job in ("unit-runtime", "e2e-console"):
+            with self.subTest(job=job):
+                match = re.search(
+                    rf"(?ms)^  {job}:\s*\n(.*?)(?=^  [a-z][a-z0-9-]*:\s*$|\Z)",
+                    workflow)
+                self.assertIsNotNone(match)
+                self.assertIn("runs-on: ubuntu-24.04", match.group(1))
+                self.assertIn("playwright install --with-deps chromium", match.group(1))
+                self.assertNotIn("runs-on: ubuntu-latest", match.group(1))
 
     def test_windows_and_independent_verification_run_only_on_master(self):
         """Never create Windows bundles or execute the independent SQL suite on PRs."""
