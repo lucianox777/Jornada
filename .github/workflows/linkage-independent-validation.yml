@@ -23,32 +23,16 @@ on:
       - 'Solution/database/migrations/20260913_Pessoa_Identificadores_Multiplos.sql'
       - 'Solution/config/catalog/atributos-transversais.json'
       - '.github/workflows/linkage-independent-validation.yml'
-  pull_request:
-    paths:
-      - 'Solution/database/Jornada_Dev_LinkageValidation.sql'
-      - 'Solution/database/Jornada_Dev_SyntheticScale*.sql'
-      - 'Solution/scripts/local-linkage-validation.*'
-      - 'Solution/scripts/local-linkage-evidence-readiness.ps1'
-      - 'Solution/scripts/local-linkage-triplet-collision-audit.ps1'
-      - 'Solution/scripts/local-cluster.*'
-      - 'Solution/scripts/local-db.*'
-      - 'Solution/docker-compose.yml'
-      - 'Solution/src/Jornada.Linkage.Runner/**'
-      - 'Solution/src/Jornada.Linkage.Core/**'
-      - 'Solution/src/Jornada.Linkage.Parameters.Worker/**'
-      - 'Solution/src/Jornada.Processor.Worker/**'
-      - 'Solution/src/Jornada.Contracts/PersonResolutionContractCatalog.cs'
-      - 'Solution/src/Jornada.Contracts/LinkageParameterCatalog.cs'
-      - 'Solution/database/migrations/20260913_Pessoa_Identificadores_Multiplos.sql'
-      - 'Solution/config/catalog/atributos-transversais.json'
-      - '.github/workflows/linkage-independent-validation.yml'
+  # Full verification only on integrated master; no PR/feature-branch jobs.
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  # Manual dispatch is allowed only on master; path filters govern push.
   independent-validation:
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     defaults:
