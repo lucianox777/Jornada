@@ -1,0 +1,75 @@
+name: V9 100k minute watcher
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: 'Existing Actions run ID to monitor'
+        required: true
+        type: string
+        default: '42933098958'
+      max_minutes:
+        description: 'Maximum minutes to watch (1-300)'
+        required: true
+        type: number
+        default: 300
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: v9-minute-watch-${{ inputs.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 310
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RUN_ID: ${{ inputs.run_id }}
+      MAX_MINUTES: ${{ inputs.max_minutes }}
+    steps:
+      - name: Check run every 60 seconds until completion or deadline
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]] || { echo "::error::run_id must be numeric"; exit 2; }
+          [[ "$MAX_MINUTES" =~ ^[0-9]+$ ]] && (( MAX_MINUTES >= 1 && MAX_MINUTES <= 300 )) || { echo "::error::max_minutes must be 1..300"; exit 2; }
+          echo 'timestamp_utc,run_id,run_status,run_conclusion,job_id,job_status,job_conclusion,active_step' > watch.csv
+          for ((minute=0; minute<MAX_MINUTES; minute++)); do
+            run=$(gh api "repos/$GH_REPO/actions/runs/$RUN_ID" --jq '{status,conclusion,html_url,head_sha}' )
+            status=$(jq -r '.status' <<< "$run")
+            conclusion=$(jq -r '.conclusion // ""' <<< "$run")
+            sha=$(jq -r '.head_sha' <<< "$run")
+            jobs=$(gh api --paginate "repos/$GH_REPO/actions/runs/$RUN_ID/jobs?per_page=100" --jq '.jobs[] | {id,name,status,conclusion,steps}' | jq -s '.')
+            echo "::group::Check $minute: $(date -u +%FT%TZ)"
+            jq -r --arg sha "$sha" '"SHA: "+$sha+" | status: "+.status+" | conclusion: "+(.conclusion // "pending")' <<< "$run"
+            jq -r '.[] | .name as $job | "JOB "+$job+" ["+.status+"/"+(.conclusion // "-")+"]", (.steps[]? | select(.status == "in_progress" or .conclusion == "failure") | "  STEP "+.name+" ["+.status+"/"+(.conclusion // "-")+"]")' <<< "$jobs"
+            echo "::endgroup::"
+            while IFS= read -r row; do
+              echo "$(date -u +%FT%TZ),$RUN_ID,$status,$conclusion,$row" >> watch.csv
+            done < <(jq -r '.[] | [.id,.status,(.conclusion // ""),([.steps[]? | select(.status == "in_progress" or .conclusion == "failure") | .name] | join(" | "))] | @csv' <<< "$jobs")
+            if [[ "$status" == "completed" ]]; then
+              echo "Final conclusion: ${conclusion:-unknown}" | tee result.txt
+              if [[ "$conclusion" != "success" ]]; then
+                echo "::error::Monitored workflow finished with ${conclusion:-unknown}; inspect original run logs."
+                exit 1
+              fi
+              exit 0
+            fi
+            if (( minute + 1 < MAX_MINUTES )); then sleep 60; fi
+          done
+          echo "Monitoring deadline reached; original run may still be active." | tee result.txt
+      - name: Publish monitoring evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: v9-minute-watch-${{ inputs.run_id }}-${{ github.run_id }}
+          path: |
+            watch.csv
+            result.txt
+          if-no-files-found: warn
+          retention-days: 14
