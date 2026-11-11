@@ -29,7 +29,7 @@ concurrency:
 jobs:
   physical-100k:
     if: ${{ inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
-    name: V9 V3-only 100k: 81 TF4 x 2 U mixtures x 2 margins
+    name: "V9 V3-only 100k: 81 TF4 x 2 U mixtures x 2 margins"
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
     # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
     # Strict manual owner-only dispatch still requires cleared security preflight.
