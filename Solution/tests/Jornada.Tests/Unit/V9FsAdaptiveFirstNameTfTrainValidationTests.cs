@@ -158,7 +158,7 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
             adapter.EvaluateValidation(fitted, Slice("VALIDATION"))));
         Assert.Multiple((Action)(() =>
         {
-            Assert.That(checkpoints.Last(), Is.EqualTo("VALIDATION_TF_PUBLISHED_COVERAGE"));
+            Assert.That(checkpoints.Last(), Is.EqualTo("VALIDATION_TF_COVERAGE_REQUIRE"));
             Assert.That(error!.Message, Does.Contain("Mother/FirstName"));
             Assert.That(error.Message, Does.Contain("ausentes=1"));
             Assert.That(error.Message, Does.Not.Contain(newName),
