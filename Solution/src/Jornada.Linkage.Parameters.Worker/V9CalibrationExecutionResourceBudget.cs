@@ -84,6 +84,24 @@ public static class V9CalibrationResourceGovernor
     /// </summary>
     public static V9CalibrationExecutionResourceBudget Capture(int configuredParallelism, string outputDirectory)
     {
+        var sample = CaptureLiveResources(outputDirectory);
+        return Decide(configuredParallelism, Environment.ProcessorCount,
+            sample.HostAvailableMemoryBytes, sample.CgroupRemainingMemoryBytes,
+            sample.FreeDiskBytes);
+    }
+
+    /// <summary>
+    /// Sample live resources without repeating the initial 4 GiB admission gate.
+    /// Once a calibration is running, SQL and the first worker legitimately
+    /// consume the memory admitted at startup. Reapplying the startup reserve
+    /// to every runtime sample incorrectly rejects healthy in-flight work.
+    /// The runtime scheduler still checks disk and incremental worker RAM
+    /// before admitting additional workers; it must not use Decide here.
+    /// </summary>
+    public static (long? HostAvailableMemoryBytes, long? CgroupRemainingMemoryBytes,
+        long? EffectiveAvailableMemoryBytes, long FreeDiskBytes)
+        CaptureLiveResources(string outputDirectory)
+    {
         var full = Path.GetFullPath(outputDirectory);
         var volume = Path.GetPathRoot(full);
         if (string.IsNullOrWhiteSpace(volume))
@@ -96,8 +114,10 @@ public static class V9CalibrationResourceGovernor
         }
         long? hostAvailable = TryHostAvailableMemory();
         long? cgroupAvailable = TryCgroupRemainingMemory();
-        return Decide(configuredParallelism, Environment.ProcessorCount,
-            hostAvailable, cgroupAvailable, freeDisk);
+        long? available = hostAvailable.HasValue && cgroupAvailable.HasValue
+            ? Math.Min(hostAvailable.Value, cgroupAvailable.Value)
+            : hostAvailable ?? cgroupAvailable;
+        return (hostAvailable, cgroupAvailable, available, freeDisk);
     }
 
     // Linux MemAvailable and Windows GlobalMemoryStatusEx report current host
