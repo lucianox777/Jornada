@@ -1,3 +1,5 @@
+> **ACERVO GOV-V9-V3-TF4-324-20261111:** [decisão técnica e científica de exploração da combinação de quatro TFs no V3, 81×2×2=324 células, margens preservadas, SQL 3-pass, riscos, limites de custo, sem V2 pareado no novo estudo, sem TEST nem execução automática](Decisao_GOV_V9_V3_TF4_324_100k_20261111.md). Mantém evidência 24/24 já concluída separadamente e preserva o histórico V2. GOV-DOC-01.
+
 > **ACERVO GOV-V9-100K-TRAIN-PASS-43035295017-20261111:** [evidência primária de sucesso técnico 100k TRAIN no run #43035295017, artefato #13864771198, contabilidade 24/24, M/U/TF, 12 P95 medidos/12 rejeições fanout, recursos físicos, recibos e fronteira de não certificação](Evidencia_V9_100k_TRAIN_Tecnico_PASS_Run_43035295017_20261111.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-100K-P95-FANOUT-CHROMIUM-20261111:** [relatório técnico: 24/24 fits, 12 P95 não executados por rejeição fanout P99; erro de Chromium no ubuntu-latest, correção de contrato e regressões](Diagnostico_V9_100k_P95_Fanout_CI_Chromium_20261111.md). GOV-DOC-01.
