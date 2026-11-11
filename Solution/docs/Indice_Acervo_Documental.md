@@ -1,3 +1,5 @@
+> **ACERVO GOV-OPS-INSTRUCOES-CHATGPT-20261111:** [aditivo ao protocolo de correção: startup de conversas, `docs-only` na CI, acompanhamento horário e limites de automação do ChatGPT](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md). GOV-DOC-01.
+
 > **ACERVO GOV-OPS-CORRECAO-SQUASH-CI-MASTER-20261111:** [protocolo permanente de investigação, correção com regressões, documentação, squash merge e topologia de CI rápida nas PRs versus validação pesada na master](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md). GOV-DOC-01.
 
 > **ACERVO GOV-V9-100K-VALID-NAME-REPRO-20261110:** [evidência do artifact #13801752020, política TF positiva do plano 100k, teste de nome correto não publicado e limites da inferência causal](Evidencia_V9_100k_20261110_Repro_Cobertura_TF_Nomes_Novos.md). GOV-DOC-01.
