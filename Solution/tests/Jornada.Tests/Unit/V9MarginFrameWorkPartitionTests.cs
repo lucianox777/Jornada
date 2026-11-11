@@ -20,7 +20,7 @@ public sealed class V9MarginFrameWorkPartitionTests
             {
                 rows.Add(Row("TF0_L" + lambda, margin, false, 0));
                 for (var tf = 1; tf <= 80; tf++)
-                    rows.Add(Row("TF" + tf.ToString("D2") + "_L" + lambda, margin));
+                    rows.Add(Row("TF" + tf.ToString("D2", System.Globalization.CultureInfo.InvariantCulture) + "_L" + lambda, margin));
             }
         }
 
@@ -90,15 +90,15 @@ public sealed class V9MarginFrameWorkPartitionTests
     [Test]
     public void Rejects_duplicate_and_invalid_work_or_unsafe_batch_limits()
     {
-        Assert.Throws<InvalidDataException>(() =>
-            V9MarginFrameWorkPartition.Group([Row("A", .5m), Row("A", .5m)]));
-        Assert.Throws<InvalidDataException>(() =>
-            V9MarginFrameWorkPartition.Group([Row("A", -1m)]));
-        Assert.Throws<InvalidDataException>(() =>
-            V9MarginFrameWorkPartition.Group([Row("", .5m)]));
-        Assert.Throws<InvalidDataException>(() =>
-            V9MarginFrameWorkPartition.Group([Row("A", .5m)], maximumOptions: 65));
-        Assert.Throws<InvalidDataException>(() =>
-            V9MarginFrameWorkPartition.Group([Row("A", .5m)], maximumMargins: 9));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9MarginFrameWorkPartition.Group([Row("A", .5m), Row("A", .5m)])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9MarginFrameWorkPartition.Group([Row("A", -1m)])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9MarginFrameWorkPartition.Group([Row("", .5m)])));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9MarginFrameWorkPartition.Group([Row("A", .5m)], maximumOptions: 65)));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9MarginFrameWorkPartition.Group([Row("A", .5m)], maximumMargins: 9)));
     }
 }
