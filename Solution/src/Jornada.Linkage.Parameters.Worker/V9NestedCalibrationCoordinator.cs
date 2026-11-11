@@ -122,15 +122,11 @@ public static class V9NestedCalibrationCoordinator
             throw new InvalidDataException("CP candidate budget inválido; testemunhas não podem ocupar tudo.");
         return checked(physicalBudget - initialWitnessRequests);
     }
-    // All estimator variants of the same fixed physical SQL frame reuse one
-    // materialization and one frozen TRAIN classification. Distinct option
-    // fingerprints / snapshot hashes remain separate; this is NOT a result cache.
+    // Physical SQL candidate pairs depend on blocking, not on the post-score
+    // conflict margin. Keep every request SHA margin-dependent, but co-evaluate
+    // distinct margins of the SAME fixed SQL frame from one frozen TRAIN fit.
     private static string PhysicalFrameKey(Request request) =>
-        JsonSerializer.Serialize(new
-        {
-            request.Passes,
-            Margin = request.Margin.ToString("G29", CultureInfo.InvariantCulture)
-        });
+        JsonSerializer.Serialize(new { request.Passes });
     private sealed record Request(IReadOnlyList<LinkageBlockingPass> Passes, V9FsAdaptiveOptionConfiguration Option, decimal Margin, string RootOptionId, bool DiagnosticOnly = false)
     {
         internal string Sha => V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(new
@@ -328,11 +324,13 @@ public static class V9NestedCalibrationCoordinator
                 }
                 else optionTemplates.Add(request.Option.OptionId, request);
             }
-            // Candidate pairs depend on the blocking passes, margin and pinned
-            // TRAIN frame, not on M/U estimation. One RunAsync evaluates every
-            // explicit estimator option on the SAME physical SQL candidate set.
-            // Never merge distinct passes/margins, or deduplicate model options.
-            // Chunk size preserves the model-search 64-option contract.
+            // The physical SQL candidate frame depends on blocking passes and
+            // the frozen TRAIN corpus, not on post-score conflict margin.
+            // Co-evaluate margins only for identical frame/TF coverage/policy
+            // and identical per-option margin subsets. Each declared request
+            // retains its own SHA, snapshot, metric, P95, CP and audit row.
+            // Model-search limits: <=64 distinct options and <=8 margins per
+            // SQL probe. This is NOT a result cache and does not skip a replay.
             // Schedule likely broader candidate-pair SQL frames first. This
             // is a cost HEURISTIC from declared blocking predicates (not
             // SQL SHOWPLAN or observed wall-clock). The scheduler pilots
@@ -348,10 +346,12 @@ public static class V9NestedCalibrationCoordinator
                     // scientifically non-evaluable merely because it shared a SQL frame.
                     // Keep the same physical frame identity, but isolate TF0 from
                     // positive-TF options before batching and coverage accounting.
-                    requests.GroupBy(r => (Frame: PhysicalFrameKey(r),
-                        PositiveTf: V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(r.Option),
-                        PublishedPolicy: r.Option.UnpublishedTermPolicy))
-                        .SelectMany(g => g.Chunk(64)).ToArray(),
+                    V9MarginFrameWorkPartition.Group(requests.Select(r =>
+                        new V9MarginFrameWorkKey(
+                            PhysicalFrameKey(r), r.Option.OptionId, r.Margin,
+                            V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf(r.Option),
+                            (int)r.Option.UnpublishedTermPolicy)).ToArray())
+                        .Select(indices => indices.Select(index => requests[index]).ToArray()).ToArray(),
                     static group => group[0].Passes,
                     static group => group[0].Sha).ToArray();
             }
@@ -542,14 +542,26 @@ public static class V9NestedCalibrationCoordinator
         try
         {
             var first = requests[0];
+            var distinctOptions = requests.Select(x => x.Option)
+                .DistinctBy(x => x.OptionId).ToArray();
+            var margins = requests.Select(x => x.Margin)
+                .Distinct().OrderBy(x => x).ToArray();
+            if (requests.Count != distinctOptions.Length * margins.Length
+                || margins.Length == 0 || margins.Length > 8
+                || distinctOptions.Length == 0 || distinctOptions.Length > 64
+                || distinctOptions.Any(option => margins.Any(margin =>
+                    requests.Count(r => r.Option.OptionId == option.OptionId
+                        && r.Margin == margin) != 1)))
+                throw new InvalidDataException("V9_MARGIN_REUSE_INCOMPLETE_MODEL_MARGIN_FRAME");
             V9PhysicalCalibrationRunResult run;
             var lastSafeProbeCheckpoint = "PROBE_ADMISSION";
             try
             {
                 run = await V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync(connection, frame, first.Passes,
-                    requests.Select(x => x.Option).ToArray(), c.Budget, c.StudyFingerprintSha256, cancellationToken,
+                    distinctOptions, c.Budget, c.StudyFingerprintSha256, cancellationToken,
                     frozenTfReference: frozenTfReference,
-                    evaluateFinalResolve: true, finalConflictMargin: first.Margin,
+                    evaluateFinalResolve: true, finalConflictMargin: margins[0],
+                    finalConflictMargins: margins,
                     predeclaredMaximumAcceptedPerBaseIdentity: c.MaximumAcceptedPerBaseIdentity,
                     includeFsBlindGrouping: true, minimumFsGroupingPosterior: c.MinimumGroupingPosterior,
                     adaptiveExecution: c.Execution with { EndToEndRepetitions = 0, TotalComparedConfigurations = candidateCpMultiplicity },
@@ -573,8 +585,16 @@ public static class V9NestedCalibrationCoordinator
             var result = new List<V9NestedCandidateEvaluation>();
             foreach (var request in requests)
             {
-                var metric = run.SourceResolveValidation!.Single(x => x.OptionId == request.Option.OptionId);
-                var fit = run.FrozenConfigurations!.Single(x => x.OptionId == request.Option.OptionId);
+                // The probe returns one distinct metric/snapshot per margin.
+                // Never accidentally attach a different margin or a diagnostic
+                // grouping to this request's TRAIN result.
+                var metric = run.SourceResolveValidation!.Single(x =>
+                    x.OptionId == request.Option.OptionId
+                    && x.ConflictMargin == request.Margin
+                    && x.CandidateGrouping == "BLIND_FS_COMPLETE_LINK_CANDIDATES");
+                var fit = run.FrozenConfigurations!.Single(x =>
+                    x.OptionId == request.Option.OptionId
+                    && x.ConflictMargin == request.Margin);
                 var support = fit.JointSupport!;
                 var reasons = new List<string>();
                 if (fit.Snapshot.Payload.JointSupport is { } provenance
