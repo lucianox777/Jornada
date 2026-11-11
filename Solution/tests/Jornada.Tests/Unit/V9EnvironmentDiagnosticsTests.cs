@@ -12,6 +12,18 @@ public sealed class V9EnvironmentDiagnosticsTests
     }
 
     [Test]
+    public void Production_error_code_has_stable_category_without_exception_message()
+    {
+        var error = new InvalidDataException("secret-token-canary");
+        V9CalibradorSafeFailureCategory.Mark(error, V9CalibradorSafeFailureCategory.PhysicalSqlProbe);
+        V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(error, "VALIDATION_PAIR_SCORING");
+        var code = V9CalibradorLastErrorLog.DetailedErrorCode(error);
+        Assert.That(code, Does.StartWith("V9_CALIBRATOR_FAILED:INVALID_DATA:PHYSICAL_SQL_PROBE:"));
+        Assert.That(code, Does.Contain("VALIDATION_PAIR_SCORING"));
+        Assert.That(code, Does.Not.Contain("secret-token-canary"));
+    }
+
+    [Test]
     public void Private_development_supports_full_exception_but_public_code_stays_stable()
     {
         var env = Env(("DOTNET_ENVIRONMENT", "Development"));
