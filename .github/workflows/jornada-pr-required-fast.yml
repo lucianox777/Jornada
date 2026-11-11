@@ -23,6 +23,9 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_scale_100k_technical_plan.py'
           # Four nominal TF units, V3-only 324 options, fail-closed audit; offline only.
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_four_name_100k.py'
+          # Offline-only: E2E APT DNS fallback must not bypass private runtime gates.
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_e2e_private_sql_api_dns_recovery.py'
+          python3 Solution/scripts/test-e2e-private-sql-runtime-contract.py
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_offline_100k_presql_contract.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_100k_physical_memory_evidence.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_calibrator_safe_failure_stage.py'
