@@ -47,7 +47,7 @@ class PairedAuditTests(unittest.TestCase):
     def test_abstention_cannot_disappear_from_denominator(self):
         p = sample()
         p["clusters"][0]["TF_ABSTAIN"]["positive"] = 1
-        with self.assertRaisesRegex(ValueError, "frame/gabarito"):
+        with self.assertRaisesRegex(ValueError, "inconsistent counts"):
             mod.audit(p, 200)
 
     def test_impossible_abstention_counts_fail(self):
