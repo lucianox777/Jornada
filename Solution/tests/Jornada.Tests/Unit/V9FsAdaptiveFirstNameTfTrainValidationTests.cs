@@ -292,6 +292,68 @@ public sealed class V9FsAdaptiveFirstNameTfTrainValidationTests
     }
 
     [Test]
+    public void Multi_margin_physical_blind_resolve_reproduces_independent_single_margin_metrics()
+    {
+        // The nested coordinator now asks for both margins in one physical
+        // SQL/FS fit. The same frozen candidate scores must yield exactly the
+        // same post-Resolve outcomes as two independent calls, with global
+        // CP multiplicity fixed at 324 in ALL three evaluations.
+        var option = new V9FsAdaptiveOptionConfiguration(
+            "TF_MARGIN_REUSE_PARITY", .5m, .55m, 1m,
+            UnpublishedTermPolicy: V9TfUnpublishedTermPolicyV9.AbstainCandidate);
+        var adapter = new V9FellegiSunterAdaptiveCalibrationAdapter(
+            Frame(), [option], Reference());
+        _ = adapter.FitTrain(Model(option), Slice("TRAIN"));
+        var observations = new[]
+        {
+            new V9PhysicalCalibrationObservation(901, "VAL-A", "VALIDATION", "G1",
+                "MARIA COSTA", "ANA COSTA", Birth),
+            new V9PhysicalCalibrationObservation(902, "VAL-A", "VALIDATION", "G2",
+                "MARIA LIMA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(903, "VAL-B", "VALIDATION", "G1",
+                "MARIA LIMA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(904, "VAL-C", "VALIDATION", "G2",
+                "MARIA SILVA", "ANA LIMA", Birth),
+            new V9PhysicalCalibrationObservation(905, "VAL-D", "VALIDATION", "G1",
+                "MARIA ROCHA", "ANA LIMA", Birth)
+        };
+        var edges = new (int A, int B)[] { (901, 902), (902, 903) };
+        IReadOnlyList<V9PhysicalSourceResolveMetric> Run(params decimal[] margins) =>
+            adapter.EvaluateSourceUnitResolveValidation(
+                observations, edges, margins, 4,
+                includeFsBlindGrouping: true,
+                minimumFsGroupingPosterior: .60m,
+                fsBlindGroupingOnly: true,
+                totalComparedConfigurations: 324,
+                includeIdentityOutcomes: true);
+
+        var jointly = Run(.5m, 2m);
+        Assert.That(jointly, Has.Count.EqualTo(2));
+        foreach (var margin in new[] { .5m, 2m })
+        {
+            var single = Run(margin).Single();
+            var combined = jointly.Single(x => x.OptionId == option.OptionId
+                && x.ConflictMargin == margin
+                && x.CandidateGrouping == "BLIND_FS_COMPLETE_LINK_CANDIDATES");
+            Assert.Multiple(() =>
+            {
+                Assert.That(combined.TrueAcceptedSourceObservations,
+                    Is.EqualTo(single.TrueAcceptedSourceObservations));
+                Assert.That(combined.FalseAcceptedSourceObservations,
+                    Is.EqualTo(single.FalseAcceptedSourceObservations));
+                Assert.That(combined.Conflicts, Is.EqualTo(single.Conflicts));
+                Assert.That(combined.Unresolved, Is.EqualTo(single.Unresolved));
+                Assert.That(combined.GlobalSourceRecall, Is.EqualTo(single.GlobalSourceRecall));
+                Assert.That(combined.FdrAfterResolve, Is.EqualTo(single.FdrAfterResolve));
+                Assert.That(combined.ClopperPearsonUpperAnyFpByIdentity,
+                    Is.EqualTo(single.ClopperPearsonUpperAnyFpByIdentity));
+                Assert.That(combined.BonferroniComparedConfigurations, Is.EqualTo(324));
+                Assert.That(combined.IdentityOutcomes, Is.EqualTo(single.IdentityOutcomes));
+            });
+        }
+    }
+
+    [Test]
     public void Portable_blind_replay_omits_only_unscoreable_TF_edges_and_keeps_sql_blocking()
     {
         var config = new V9FsAdaptiveOptionConfiguration(
