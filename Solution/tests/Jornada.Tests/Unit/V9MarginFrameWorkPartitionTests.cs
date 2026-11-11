@@ -40,9 +40,9 @@ public sealed class V9MarginFrameWorkPartitionTests
                 Is.LessThanOrEqualTo(64));
             Assert.That(group.Select(x => x.Margin).Distinct().Count(),
                 Is.LessThanOrEqualTo(8));
-            Assert.That(group.Select(x => x.PhysicalSqlFrameKey).Distinct(), Has.Count.EqualTo(1));
-            Assert.That(group.Select(x => x.PositiveTf).Distinct(), Has.Count.EqualTo(1));
-            Assert.That(group.Select(x => x.UnpublishedTermPolicy).Distinct(), Has.Count.EqualTo(1));
+            Assert.That(group.Select(x => x.PhysicalSqlFrameKey).Distinct().Count(), Is.EqualTo(1));
+            Assert.That(group.Select(x => x.PositiveTf).Distinct().Count(), Is.EqualTo(1));
+            Assert.That(group.Select(x => x.UnpublishedTermPolicy).Distinct().Count(), Is.EqualTo(1));
             var expected = group.Select(x => x.OptionId).Distinct().Count()
                 * group.Select(x => x.Margin).Distinct().Count();
             Assert.That(group, Has.Length.EqualTo(expected),
