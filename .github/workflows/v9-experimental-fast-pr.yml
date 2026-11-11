@@ -41,3 +41,5 @@ jobs:
         run: python -m unittest discover -s Solution/tests/scripts -p 'test_v9_v2_frozen_bootstrap.py' -v
       - name: Offline calibration evidence bundle contract regression
         run: python -m unittest discover -s Solution/tests/scripts -p 'test_v9_calibration_evidence_bundle.py' -v
+      - name: V3 four-name 100k plan and audit guards (offline only)
+        run: python -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_four_name_100k.py' -v
