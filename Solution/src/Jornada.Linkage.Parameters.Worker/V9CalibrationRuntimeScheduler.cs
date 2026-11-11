@@ -161,10 +161,13 @@ public sealed class V9CalibrationRuntimeScheduler
             || freeDiskBytes < V9CalibrationResourceGovernor.MinimumFreeDiskBytes)
             return false;
         if (measuredAvailableBytes is null) return activeWorkers == 0;
-        if (incrementalWorkerBytes > (long.MaxValue - V9CalibrationResourceGovernor.HostReserveBytes)
-                / ((long)activeWorkers + 1)) return false;
-        var required = V9CalibrationResourceGovernor.HostReserveBytes
-            + ((long)activeWorkers + 1) * incrementalWorkerBytes;
+        // Available RAM is a LIVE sample: it already excludes memory held by
+        // SQL and by every active worker. Charging activeWorkers again against
+        // this remaining RAM double-counts their consumption and can starve
+        // admission even when the host has adequate free capacity.
+        if (incrementalWorkerBytes > long.MaxValue - V9CalibrationResourceGovernor.HostReserveBytes)
+            return false;
+        var required = V9CalibrationResourceGovernor.HostReserveBytes + incrementalWorkerBytes;
         return required <= measuredAvailableBytes;
     }
 
@@ -204,9 +207,12 @@ public sealed class V9CalibrationRuntimeScheduler
             {
                 var now = Read();
                 RequireDisk(now);
-                if (now.EffectiveAvailableMemoryBytes is { } measured
-                    && measured < V9CalibrationResourceGovernor.HostReserveBytes
-                        + _workerIncrementBytes)
+                // A transient low-memory sample while other workers are active
+                // is backpressure, not a fatal calibration error. Wait for
+                // existing workers to release their allocations and resample.
+                // Only fail closed if no worker can make forward progress.
+                if (_active == 0 && now.EffectiveAvailableMemoryBytes is { } measured
+                    && !CanAdmit(measured, now.OutputFreeDiskBytes, 0, _workerIncrementBytes))
                     throw new InvalidDataException("V9_RESOURCE_RUNTIME_RAM_BELOW_ONE_WORKER");
                 if (now.OutputFreeDiskBytes is { } diskFree && diskFree >= _requiredFreeDiskBytes
                     && CanAdmit(now.EffectiveAvailableMemoryBytes,
