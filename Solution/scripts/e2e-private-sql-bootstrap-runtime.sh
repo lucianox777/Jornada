@@ -128,7 +128,37 @@ phase_advance api-start-readiness
 # C3.2e: build only the app image from the canonical Dockerfile and start
 # the TWO APIs in the SAME private E2E project. The three workers remain OFF.
 # --no-deps is permitted because this script already checked SQL bootstrap.
-compose build api > "$OUT/api-image-build.log" 2>&1 || die 'isolated API image build failed'
+# The public GitHub runner has intermittently failed to resolve Ubuntu APT
+# inside Docker Build (verified by two CI artifacts, both after SQL PASS).
+# Run the canonical build first. Retry once ONLY for the exact APT/DNS
+# signature, and ONLY with a temporary build.network override; service
+# networks, SQL isolation, worker supervisor and E2E checks stay unchanged.
+if ! compose build api > "$OUT/api-image-build.log" 2>&1; then
+  if ! python3 scripts/e2e-private-sql-api-dns-retry-gate.py "$OUT/api-image-build.log"; then
+    die 'isolated API image build failed (not the narrowly allowlisted APT DNS case)'
+  fi
+  override="$OUT/api-build-host-network.override.yml"
+  [[ ! -e "$override" ]] || die 'build-only DNS retry override already exists'
+  (
+    umask 077
+    cat > "$override" <<'YAML'
+services:
+  api:
+    build:
+      network: host
+YAML
+  )
+  # Only build uses the override. Neither Compose up nor any other docker
+  # command receives it, so the APIs and SQL retain their private network.
+  if ! docker compose --env-file /dev/null -p "$PROJECT" -f "$COMPOSE" -f "$override" \
+      build api > "$OUT/api-image-build-host-network.log" 2>&1; then
+    rm -f -- "$override"
+    die 'isolated API image build retry failed; E2E remains mandatory'
+  fi
+  rm -f -- "$override"
+  printf '%s\n' 'C3.2d: one host-network BUILD retry after verified APT DNS failure; private runtime unchanged' \
+    > "$OUT/api-image-build-dns-retry.txt"
+fi
 compose up -d --no-build --no-deps api resultado-api > "$OUT/api-start.log" 2>&1 ||
   die 'independent API services failed to start'
 
