@@ -299,6 +299,27 @@ class TestMasterPushPhysicalWorkflowPolicy(__import__("unittest").TestCase):
                 self.assertNotIn("github.head_ref", data)
                 self.assertIn("github.ref", data)
 
+    def test_windows_and_independent_verification_run_only_on_master(self):
+        """Never create Windows bundles or execute the independent SQL suite on PRs."""
+        for filename, job in (
+            ("windows-production-installer.yml", "windows-production-bundle"),
+            ("linkage-independent-validation.yml", "independent-validation"),
+        ):
+            with self.subTest(workflow=filename):
+                data = (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8")
+                trigger = data.split("\njobs:\n", 1)[0]
+                self.assertIn("\n  push:\n    branches:\n      - master\n", trigger)
+                self.assertIn("\n  workflow_dispatch:\n", trigger)
+                self.assertNotIn("\n  pull_request:", trigger,
+                    "Feature PRs must not execute these expensive full-master proofs")
+                self.assertIn(f"  {job}:\n    if: github.ref == 'refs/heads/master'", data)
+                self.assertIn("    paths:\n", trigger,
+                    "Keep existing master-push path filters; do not fan out every commit")
+        fast = (ROOT / ".github/workflows/jornada-pr-required-fast.yml").read_text(encoding="utf-8")
+        self.assertIn("\n  pull_request:\n", fast)
+        for gate in ("unit-runtime", "deterministic-build", "security-guards"):
+            self.assertIn(f"  {gate}:", fast)
+
     def test_30k_push_diff_and_job_cannot_be_skipped_silently(self):
         data = (ROOT / ".github/workflows/v9-physical-seed42-probe.yml").read_text(encoding="utf-8")
         # Never trust only the immediately previous push: earlier failed
