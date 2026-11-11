@@ -122,8 +122,14 @@ class V9FourName100kTests(unittest.TestCase):
             {"Rejections": [], "p95Milliseconds": 6000}))
         self.assertFalse(a.p95_was_measured({
             "Rejections": ["FANOUT_P99_ACIMA_DO_ORCAMENTO"],
-            "outcome": "MEASURED_DIAGNOSTIC_NOT_ELIGIBLE",
+            "outcome": "MEASURED_NOT_ELIGIBLE",
             "p95Milliseconds": None}))
+        self.assertFalse(a.p95_was_measured({
+            "Rejections": ["SUPORTE_OBSERVADO_NO_NUCLEO_DE_MASSA_INSUFICIENTE"],
+            "outcome": "MEASURED_NOT_ELIGIBLE", "p95Milliseconds": None}))
+        self.assertFalse(a.p95_was_measured({
+            "Rejections": ["FDR_INDEFINIDO_SEM_ACEITOS"],
+            "outcome": "MEASURED_NOT_ELIGIBLE", "p95Milliseconds": None}))
         for row in ({"Rejections": [], "p95Milliseconds": None},
                     {"Rejections": ["FDR_INDEFINIDO_SEM_ACEITOS"],
                      "p95Milliseconds": None},
