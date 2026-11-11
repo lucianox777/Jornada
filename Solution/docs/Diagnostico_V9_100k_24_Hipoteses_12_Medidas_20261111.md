@@ -28,3 +28,7 @@
 **Próximos gates:** regressões unitárias e auditor offline no HEAD da PR; squash merge após checks rápidos; CI e 30k impactado na `master`; 100k manual somente pelo proprietário e somente após desbloqueio científico, SHA e preflight. Sem TEST/Gold/ativação.
 
 **Precedência:** complementa [GOV-V9-BASE-REAL-100K-BOOTSTRAP-20261110](Decisao_V9_Base_Inicial_Real_100k_Bootstrap_Configuracoes_20261110.md), [GOV-V9-100K-VALID-NAME-REPRO-20261110](Evidencia_V9_100k_20261110_Repro_Cobertura_TF_Nomes_Novos.md), [GOV-OPS-CORRECAO-SQUASH-CI-MASTER-20261111](Decisao_GOV_OPS_Correcao_Erros_Squash_CI_Master_20261111.md) e GOV-DOC-01, sem revogar qualquer gate.
+
+## Gate de regressão focal em PR
+
+Esta PR também adiciona ao job rápido `deterministic-build` de `jornada-pr-required-fast` o comando `dotnet test ... --no-build --filter FullyQualifiedName~V9FsAdaptiveFirstNameTfTrainValidationTests`. O teste é **unitário e em memória**, sem SQL físico, bundle Windows ou validação independente em PR; complementa, não substitui, as verificações amplas pós-squash. Motivo: os três testes incompatíveis com a exceção tipada não faziam parte do filtro C# do gate rápido anterior e só eram detectados na CI integral da master. Conferir resultado do job no SHA final da PR antes de integrar.
