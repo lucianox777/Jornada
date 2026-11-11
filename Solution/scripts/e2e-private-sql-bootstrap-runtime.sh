@@ -148,10 +148,14 @@ services:
       network: host
 YAML
   )
-  # Only build uses the override. Neither Compose up nor any other docker
-  # command receives it, so the APIs and SQL retain their private network.
-  if ! docker compose --env-file /dev/null -p "$PROJECT" -f "$COMPOSE" -f "$override" \
-      build api > "$OUT/api-image-build-host-network.log" 2>&1; then
+  # BuildKit requires explicit network.host entitlement for a host-network
+  # build. Compose build does not pass the grant; buildx bake accepts both
+  # Compose files, --allow=network.host, and --load for the same local image.
+  # ONLY this build consumes the override; the subsequent runtime Compose up
+  # still uses the original private network and never receives this grant.
+  if ! docker buildx bake --allow=network.host --load \
+      -f "$COMPOSE" -f "$override" api \
+      > "$OUT/api-image-build-host-network.log" 2>&1; then
     rm -f -- "$override"
     die 'isolated API image build retry failed; E2E remains mandatory'
   fi
