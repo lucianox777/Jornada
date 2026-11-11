@@ -128,8 +128,9 @@ public static class V9NominalTfPublishedCoverageAudit
 
     /// <summary>
     /// Expected scientific non-evaluability under RejectOperation, not a SQL,
-    /// resource or infrastructure failure. Retains InvalidDataException
-    /// compatibility while giving the campaign orchestrator a typed signal.
+    /// resource or infrastructure failure. The typed IOException is NOT an
+    /// InvalidDataException: callers must catch this specific classification.
+    /// This preserves the orchestrator's scientific non-evaluability signal.
     /// Only aggregated counts are exposed; never nominal values.
     /// </summary>
     public sealed class PublishedCoverageInsufficientException : IOException
