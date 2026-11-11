@@ -38,9 +38,9 @@ jobs:
     env:
       # Diagnostic campaign on synthetic 100k data. Full exception traces are enabled.
       # Do not pass production credentials or real personal data to this workflow.
-      DOTNET_ENVIRONMENT: Development
-      ASPNETCORE_ENVIRONMENT: Development
-      JORNADA_RUNTIME_MODE: Development
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
       EXACT_SHA: ${{ inputs.expected_sha }}
       GH_TOKEN: ${{ github.token }}
       V9_100K_DISABLE_PYTHON_SQL_BUDGET: ${{ inputs.disable_python_sql_budget }}
@@ -58,10 +58,10 @@ jobs:
       - name: Assert and report safe diagnostic environment
         run: |
           set -euo pipefail
-          test "$DOTNET_ENVIRONMENT" = "Development"
-          test "$ASPNETCORE_ENVIRONMENT" = "Development"
-          test "$JORNADA_RUNTIME_MODE" = "Development"
-          echo "V9_RUNTIME_ENVIRONMENT=DEVELOPMENT"
+          test "$DOTNET_ENVIRONMENT" = "DEV"
+          test "$ASPNETCORE_ENVIRONMENT" = "DEV"
+          test "$JORNADA_RUNTIME_MODE" = "DEV"
+          echo "V9_RUNTIME_ENVIRONMENT=DEV"
           echo "V9_EXCEPTION_DIAGNOSTICS=FULL_EXCEPTION"
       - name: Fail-closed SHA, environment and resources before physics
         run: |
