@@ -1,5 +1,8 @@
 # V9 — seleção interna no TRAIN e avaliação única de finalistas
 
+> **Decisão superveniente de 11/11/2026:** mantidos o Pareto 2D e os até três finalistas definidos abaixo. A **preferência condicional após a validação externa** passa a ordenar finalistas elegíveis pelo menor FP absoluto observado na mesma coorte, depois maior recall, menor limite superior condicional de FDR e SHA. Gates, multiplicidade, TEST e certificação não mudam. Ver [GOV-V9-FINALISTAS-FP-DT15-20261111](Decisao_V9_Finalistas_Desempate_FP_DT15_20261111.md). O texto histórico abaixo descreve a regra anterior quando divergir.
+
+
 > **Atualização de suporte:** [núcleos de 99% por classe, piso 5 e fallback marginal auditável](V9_Suporte_Massa_Backoff_20261019.md). A rodada abaixo com zero finalistas registra a política histórica da #1159, já substituída.
 
 **Fluxo manual corrente, 19/10/2026.** Substitui a busca automática de grades na VALIDATION. Os experimentos anteriores continuam como histórico; não se reinicia sua multiplicidade em três. A implementação adiciona uma etapa de seleção ao calibrador C# existente, sem outro estimador m/u ou scorer.
