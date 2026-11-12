@@ -283,6 +283,21 @@ public static class V9NestedCalibrationCli
         using var process = System.Diagnostics.Process.GetCurrentProcess();
         var elapsed = System.Diagnostics.Stopwatch.StartNew();
         updateSafeStage("TRAIN_SPLIT_AND_PHYSICAL_SQL_FIT");
+        // A completed-hypothesis line cannot appear until the shared SQL probe
+        // returns. Emit an independent heartbeat so long SQL phases are visible
+        // in GitHub Actions without claiming any hypothesis has completed.
+        Console.Error.WriteLine("V9_CONSOLE_DIAGNOSTIC:CSHARP_STARTED; phase=TRAIN_SPLIT_AND_PHYSICAL_SQL_FIT");
+        Console.Error.Flush();
+        using var consoleHeartbeat = new System.Threading.Timer(_ =>
+        {
+            try
+            {
+                Console.Error.WriteLine(FormattableString.Invariant(
+                    $"V9_HEARTBEAT:CSHARP_RUNNING; elapsed_min={elapsed.Elapsed.TotalMinutes:F1}; hypothesis_count_not_implied"));
+                Console.Error.Flush();
+            }
+            catch (IOException) { /* Diagnostic only; do not interrupt scientific execution. */ }
+        }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
         var hypothesisLogLock = new object();
         var hypothesisLogPath = Path.Combine(output, "hypothesis-progress.jsonl");
         var result = await V9NestedCalibrationCoordinator.SearchAsync(async ct =>
