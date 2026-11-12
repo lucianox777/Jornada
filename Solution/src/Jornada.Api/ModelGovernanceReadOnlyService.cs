@@ -33,6 +33,7 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
         // A consulta restrita ocorre apenas na página DEV de governança, nunca no refresh do Monitor.
         var calibrationHistory = await ReadCalibrationHistoryAsync(connection, ct);
         var dossiers = await ReadDecisionDossiersAsync(connection, draft?.ModelId, ct);
+        var historicalMetrics = await ReadHistoricalMetricsAsync(connection, active?.ModelId, draft?.ModelId, ct);
 
         // Fail closed if another calibration/promotion changes either side while
         // the independent SQL reads above were being executed.
@@ -61,7 +62,7 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
             "As métricas disponíveis comparam apenas passes de blocking sobre o treino rotulado. " +
             "A página expõe o ledger de dossiês e seu estado promocional; evidência sintética " +
             "permanece não promovível e não substitui homologação representativa.")
-        { CalibrationHistory = calibrationHistory, DecisionDossiers = dossiers };
+        { CalibrationHistory = calibrationHistory, DecisionDossiers = dossiers, HistoricalMetrics = historicalMetrics };
     }
 
     private static async Task<List<GovernanceModel>> ReadModelsAsync(
@@ -274,6 +275,39 @@ internal sealed class ModelGovernanceReadOnlyService(IOperationalSqlAdapter sql)
         return output;
     }
 
+    // Valores persistidos, sem recalcular percentuais nem comparar amostras.
+    // Apenas indicadores de qualidade permitidos; thresholds e identificadores sensíveis ficam fora.
+    private static async Task<IReadOnlyList<GovernanceHistoricalMetric>> ReadHistoricalMetricsAsync(
+        SqlConnection connection, Guid? active, Guid? draft, CancellationToken ct)
+    {
+        if (active is null && draft is null) return [];
+        await using var command = new SqlCommand("""
+            SELECT modelo_id,nome,valor
+              FROM identidade.parametro_linkage
+             WHERE (modelo_id=@active OR modelo_id=@draft)
+               AND nome IN (
+                 N'FS_DECISION_CALIBRATION_VALIDATION_FP',
+                 N'FS_DECISION_CALIBRATION_VALIDATION_FN',
+                 N'FS_DECISION_CALIBRATION_VALIDATION_POSITIVE',
+                 N'FS_DECISION_CALIBRATION_TEST_FP',
+                 N'FS_DECISION_CALIBRATION_TEST_FN',
+                 N'FS_DECISION_CALIBRATION_TEST_POSITIVE',
+                 N'FS_DECISION_CALIBRATION_TEST_INCONCLUSIVE',
+                 N'FS_DECISION_CALIBRATION_MAX_FP_VALIDATION_BP',
+                 N'FS_DECISION_CALIBRATION_MAX_FP_TEST_BP',
+                 N'M_SAMPLE_SIZE', N'U_SAMPLE_SIZE')
+             ORDER BY nome,modelo_id;
+            """, connection) { CommandTimeout = 10 };
+        command.Parameters.Add("@active", SqlDbType.UniqueIdentifier).Value = active ?? Guid.Empty;
+        command.Parameters.Add("@draft", SqlDbType.UniqueIdentifier).Value = draft ?? Guid.Empty;
+        var output = new List<GovernanceHistoricalMetric>();
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        while (await reader.ReadAsync(ct))
+            output.Add(new GovernanceHistoricalMetric(
+                reader.GetGuid(0), reader.GetString(1).Trim(), reader.GetDecimal(2)));
+        return output;
+    }
+
     private static async Task<IReadOnlyList<GovernanceDecisionDossier>> ReadDecisionDossiersAsync(
         SqlConnection connection, Guid? draft, CancellationToken ct)
     {
@@ -332,7 +366,10 @@ internal sealed record ModelGovernanceView(
 {
     public IReadOnlyList<GovernanceCalibrationHistoryItem> CalibrationHistory { get; init; } = [];
     public IReadOnlyList<GovernanceDecisionDossier> DecisionDossiers { get; init; } = [];
+    public IReadOnlyList<GovernanceHistoricalMetric> HistoricalMetrics { get; init; } = [];
 }
+
+internal sealed record GovernanceHistoricalMetric(Guid ModelId, string Name, decimal Value);
 
 internal sealed record GovernanceDecisionDossier(
     Guid DossierId, string Status, string EvidenceOrigin, string ContractVersion,
