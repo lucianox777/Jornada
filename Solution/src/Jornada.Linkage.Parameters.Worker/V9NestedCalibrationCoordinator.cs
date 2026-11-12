@@ -616,7 +616,7 @@ public static class V9NestedCalibrationCoordinator
             // not per-snapshot frozen replay or certified physical P95.
             lock (Console.Out)
                 Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 SQL GROUP] batch={batch} | requests={requests.Length} | options={distinctOptions.Length} | margins={margins.Length} | run_async_seconds={physicalGroupClock.Elapsed.TotalSeconds:F1}"));
+                    $"[V9 SQL GROUP] batch={batch} | requests={requests.Count} | options={distinctOptions.Length} | margins={margins.Length} | run_async_seconds={physicalGroupClock.Elapsed.TotalSeconds:F1}"));
             // Reuse immutable replay inputs across eligible hypotheses in this SQL frame.
             var validationFrame = frame.Where(x => x.Partition == "VALIDATION").ToArray();
             var replayExecution = c.Execution with { TotalComparedConfigurations = 1 };
