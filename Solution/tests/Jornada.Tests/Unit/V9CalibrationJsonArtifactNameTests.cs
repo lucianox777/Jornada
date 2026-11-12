@@ -78,11 +78,11 @@ public sealed class V9CalibrationJsonArtifactNameTests
             await File.WriteAllBytesAsync(Path.Combine(dir, name), bytes);
             Assert.That(await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, name), Is.EqualTo(bytes));
             await File.WriteAllBytesAsync(Path.Combine(dir, name), Encoding.UTF8.GetBytes("""{"calibration":false}"""));
-            Assert.ThrowsAsync<InvalidDataException>((NUnit.Framework.AsyncTestDelegate)(async () =>
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             {
                 await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, name);
             }));
-            Assert.ThrowsAsync<InvalidDataException>((NUnit.Framework.AsyncTestDelegate)(async () =>
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             {
                 await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, "../" + name);
             }));
@@ -105,7 +105,7 @@ public sealed class V9CalibrationJsonArtifactNameTests
             await File.WriteAllBytesAsync(Path.Combine(dir, name), bytes);
             var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
             Assert.That(await V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync(dir, name, digest), Is.EqualTo(bytes));
-            Assert.ThrowsAsync<InvalidDataException>((NUnit.Framework.AsyncTestDelegate)(async () =>
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             {
                 await V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync(dir, name, new string('0', 64));
             }));
@@ -136,7 +136,7 @@ public sealed class V9CalibrationJsonArtifactNameTests
                 Assert.Ignore("Ambiente não permite criar links simbólicos: " + ex.GetType().Name);
                 return;
             }
-            Assert.ThrowsAsync<InvalidDataException>((NUnit.Framework.AsyncTestDelegate)(async () =>
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             {
                 await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, name);
             }));
