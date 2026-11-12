@@ -10,6 +10,27 @@ using Jornada.Linkage.Parameters.Worker;
 // own 10 KiB reserved last-error protocol and is not double-logged.
 var entryStatus = await V9WorkerEntryBoundary.ExecuteAsync(args, async guardedArgs =>
 {
+// Offline one-shot proof of C# file persistence and GitHub console forwarding.
+// No SQL, corpus, calibration, Python or heartbeat.
+if (guardedArgs.Length == 2 && guardedArgs[0] == "--v9-startup-log-probe")
+{
+    var directory = Path.GetFullPath(guardedArgs[1]);
+    Directory.CreateDirectory(directory);
+    var path = Path.Combine(directory, "startup-progress.jsonl");
+    if (File.Exists(path)) throw new InvalidOperationException("Startup probe output must be new.");
+    var line = System.Text.Json.JsonSerializer.Serialize(new
+    {
+        schema = "V9_CALIBRATION_STARTUP_V1",
+        status = "STARTED",
+        timestampUtc = DateTimeOffset.UtcNow,
+        artifactScope = "TRAIN_SELECTION_ONLY_NO_TEST_NO_ACTIVATION"
+    });
+    File.AppendAllText(path, line + Environment.NewLine);
+    Console.Out.WriteLine("[V9 START] C# calibrator started; startup-progress.jsonl persisted and closed");
+    Console.Out.Flush();
+    return;
+}
+
 if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-tf-export-ibge-pin")
 {
     await V9TfPinnedIbgePreflightCli.RunAsync(guardedArgs);
