@@ -78,10 +78,10 @@ public sealed class V9CalibrationJsonArtifactNameTests
             await File.WriteAllBytesAsync(Path.Combine(dir, name), bytes);
             Assert.That(await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, name), Is.EqualTo(bytes));
             await File.WriteAllBytesAsync(Path.Combine(dir, name), Encoding.UTF8.GetBytes("""{"calibration":false}"""));
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, name));
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, "../" + name));
+            Assert.ThrowsAsync<InvalidDataException>((NUnit.Framework.AsyncTestDelegate)(async () =>
+                await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, name)));
+            Assert.ThrowsAsync<InvalidDataException>((NUnit.Framework.AsyncTestDelegate)(async () =>
+                await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, "../" + name)));
         }
         finally
         {
@@ -101,8 +101,8 @@ public sealed class V9CalibrationJsonArtifactNameTests
             await File.WriteAllBytesAsync(Path.Combine(dir, name), bytes);
             var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
             Assert.That(await V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync(dir, name, digest), Is.EqualTo(bytes));
-            Assert.ThrowsAsync<InvalidDataException>(async () =>
-                await V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync(dir, name, new string('0', 64)));
+            Assert.ThrowsAsync<InvalidDataException>((NUnit.Framework.AsyncTestDelegate)(async () =>
+                await V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync(dir, name, new string('0', 64))));
         }
         finally
         {
