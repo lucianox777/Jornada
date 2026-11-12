@@ -613,6 +613,13 @@ public static class V9NestedCalibrationCoordinator
             // Reuse immutable replay inputs across eligible hypotheses in this SQL frame.
             var validationFrame = frame.Where(x => x.Partition == "VALIDATION").ToArray();
             var replayExecution = c.Execution with { TotalComparedConfigurations = 1 };
+            // Index physical results once per SQL group. Single() on each bucket
+            // deliberately preserves the previous missing/duplicate failure contract.
+            var metricsByKey = run.SourceResolveValidation!.ToLookup(x =>
+                (x.OptionId, x.ConflictMargin, x.CandidateGrouping));
+            var frozenByKey = run.FrozenConfigurations!.ToLookup(x =>
+                (x.OptionId, x.ConflictMargin));
+            var optionsById = run.CalibrationReport.Options.ToLookup(x => x.OptionId);
             var result = new List<V9NestedCandidateEvaluation>();
             foreach (var request in requests)
             {
@@ -620,19 +627,16 @@ public static class V9NestedCalibrationCoordinator
                 // The probe returns one distinct metric/snapshot per margin.
                 // Never accidentally attach a different margin or a diagnostic
                 // grouping to this request's TRAIN result.
-                var metric = run.SourceResolveValidation!.Single(x =>
-                    x.OptionId == request.Option.OptionId
-                    && x.ConflictMargin == request.Margin
-                    && x.CandidateGrouping == "BLIND_FS_COMPLETE_LINK_CANDIDATES");
-                var fit = run.FrozenConfigurations!.Single(x =>
-                    x.OptionId == request.Option.OptionId
-                    && x.ConflictMargin == request.Margin);
+                var metric = metricsByKey[(request.Option.OptionId, request.Margin,
+                    "BLIND_FS_COMPLETE_LINK_CANDIDATES")].Single();
+                var fit = frozenByKey[(request.Option.OptionId, request.Margin)].Single();
+                var physicalOption = optionsById[request.Option.OptionId].Single();
                 var support = fit.JointSupport!;
                 var reasons = new List<string>();
                 if (fit.Snapshot.Payload.JointSupport is { } provenance
                     && !V9JointSupportEstimation.HasRequiredCoreSupport(provenance))
                     reasons.Add("SUPORTE_OBSERVADO_NO_NUCLEO_DE_MASSA_INSUFICIENTE");
-                var fanout = run.CalibrationReport.Options.Single(x => x.OptionId == request.Option.OptionId).Validation.BlockingFalseDegreeP99;
+                var fanout = physicalOption.Validation.BlockingFalseDegreeP99;
                 if (fanout > c.Budget.MaximumBlockingFalseDegreeP99) reasons.Add("FANOUT_P99_ACIMA_DO_ORCAMENTO");
                 if (metric.FdrAfterResolve is null) reasons.Add("FDR_INDEFINIDO_SEM_ACEITOS");
                 double? p95 = null;
@@ -675,8 +679,7 @@ public static class V9NestedCalibrationCoordinator
                     MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
                     EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m
                         && !request.DiagnosticOnly,
-                    SharedSurnameCandidatePairs: run.CalibrationReport.Options.Single(x =>
-                        x.OptionId == request.Option.OptionId).Validation.SharedSurnameCandidatePairs,
+                    SharedSurnameCandidatePairs: physicalOption.Validation.SharedSurnameCandidatePairs,
                     CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
                 reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1]);
             }
