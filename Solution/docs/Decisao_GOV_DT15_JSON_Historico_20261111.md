@@ -85,3 +85,8 @@ Implementada a função `V9CalibrationJsonArtifactName.ReadVerifiedAsync(directo
 ## Verificação cruzada do recibo SHA
 
 A função `V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync` valida, em conjunto, o sufixo SHA-256 no nome do arquivo, os bytes efetivamente lidos e o SHA-256 explicitamente declarado no recibo de proveniência. Digest inválido ou divergente provoca falha fechada. O teste correspondente cobre recibo correto e recibo adulterado. A verificação não autentica a origem do recibo, não prova associação a `modelo_id` e não autoriza ativação. A persistência transacional do vínculo segue pendente.
+
+
+## Integração da verificação no fluxo real de emissão
+
+O caminho `--v9-validate-finalists` agora invoca `ReadReceiptVerifiedAsync` imediatamente após escrever o JSON endereçado por conteúdo, comparando o digest explícito aos bytes gravados; mantém também a comparação byte a byte com o JSON legado. Isso integra a primitiva de integridade à execução, em vez de deixá-la apenas disponível para consumidores futuros. O recibo continua com `modelId=null` e status de validação externa não certificada; nenhuma promoção ou associação foi introduzida.
