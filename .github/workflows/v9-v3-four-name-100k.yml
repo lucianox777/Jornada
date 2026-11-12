@@ -233,6 +233,7 @@ jobs:
             Solution/.local/v9-100k-technical/bound/binding-receipt.json
             Solution/.local/v9-100k-technical/results/physical-memory-evidence.json
             Solution/.local/v9-100k-technical/results/interrupted.json
+            Solution/.local/v9-100k-technical/results/startup-progress.jsonl
             Solution/.local/v9-100k-technical/results/hypothesis-progress.jsonl
             Solution/.local/v9-100k-technical/results/batch-progress.jsonl
             Solution/.local/v9-100k-technical/results/memory-progress.jsonl
