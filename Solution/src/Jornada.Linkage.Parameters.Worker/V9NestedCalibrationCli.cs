@@ -877,7 +877,7 @@ public static class V9NestedCalibrationCli
             plan.Calibration.Budget.MaximumBlockingFalseDegreeP99);
         var best = SelectConditionalWinner(measured, plan.Calibration.SelectionPolicy,
             plan.Calibration.Budget.MaximumBlockingFalseDegreeP99);
-        var finalValidationResult = new { selectionEnvelopeSha256 = selectionSha;
+        var finalValidationResult = new { selectionEnvelopeSha256 = selectionSha,
             fresh, comparedConfigurations = ids.Length, measured,
             scientificProposedSnapshotSha256 = scientific?.SnapshotSha256,
             bestConditionalSnapshotSha256 = best?.SnapshotSha256, selectedApprovedSnapshotSha256 = (string?)null,
