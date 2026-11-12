@@ -12,6 +12,11 @@ on:
         description: Confirm one-use SQL, historical credentials not reused, private runner
         required: true
         type: boolean
+      test_required:
+        description: "Require TEST in this campaign (not supported by this TRAIN+VALIDATION-only workflow)"
+        required: true
+        default: false
+        type: boolean
       disable_python_sql_budget:
         description: "EXPERIMENTAL: skip Python SQL memory sizing; SQL uses its native memory default (no Docker cap)"
         required: true
@@ -72,6 +77,11 @@ jobs:
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$GITHUB_REF" = "refs/heads/master"
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          # Never promise retention for a later TEST on an ephemeral hosted runner.
+          if [[ "${{ inputs.test_required }}" == "true" ]]; then
+            echo "::error::TEST_REQUIRED_UNSUPPORTED: this workflow has no TEST stage; bases cannot survive the hosted runner without explicit secure persistence."
+            exit 1
+          fi
           python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
@@ -228,6 +238,13 @@ jobs:
             Solution/.local/v9-100k-technical/results/frozen-finalists/*.selection.json
             Solution/.local/v9-100k-technical/results/frozen-finalists/*.fitted.json
             Solution/.local/v9-100k-technical/validation-results/*.json
+      - name: Dispose temporary TRAIN and VALIDATION bases after mandatory stages
+        if: always()
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          # TEST is disabled by the fail-closed admission above. Preserve aggregate evidence.
+          rm -rf -- "$root/people-100k" "$root/validation-people" "$root/reference-30k" "$root/base-bound" "$root/historical-official.zip"
       - name: Remove disposable SQL even after failure
         if: always()
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
