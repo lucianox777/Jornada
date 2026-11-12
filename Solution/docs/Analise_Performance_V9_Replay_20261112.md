@@ -32,3 +32,12 @@ Após a PR #1462, a primeira amostra pós-SQL caiu de 107,8 s para 72,5 s, mas e
 **Governança:** instrumentação diagnóstica submetida para revisão, não é decisão funcional/científica aprovada pelo PO; preserva GOV-DOC-01 e as decisões vigentes, sem mudança no índice de decisões.
 
 **Registro de validação da PR #1469:** a primeira CI `jornada-pr-required-fast` (run #43307543496) aprovou `security-guards` e `unit-runtime`, mas `deterministic-build` falhou com seis diagnósticos CA1829/CA1826 porque três coleções indexáveis foram contadas com `Count()` no log opt-in. Correção de manutenção aplicada no commit `76c1af153caf5566f35be5e868c1bb875dca4b83`, trocando somente essas chamadas por propriedades `Count`. Nova CI e validação da medição física permanecem pendentes; nenhum resultado científico foi produzido nesta correção.
+
+
+## Ativação manual das medições na campanha 100k (12/11/2026)
+
+O workflow manual `.github/workflows/v9-v3-four-name-100k.yml` passa a aceitar `replay_timing_diagnostics` (booleano, `false` por padrão). Quando habilitado, exporta `V9_REPLAY_TIMING_DIAGNOSTICS=1` para o calibrador, emitindo `[V9 PERF DIAG]` no console. Desabilitado, exporta `0` e não gera esses novos logs. A campanha mantém as 324 hipóteses declaradas (81 TF4 x 2 misturas x 2 margens), a ordem e os replays, sem mudar resultado científico, recursos, timeout ou dados.
+
+**Segurança e operação:** continuam obrigatórios `workflow_dispatch` pelo proprietário, `refs/heads/master`, `expected_sha` idêntico ao `GITHUB_SHA`, `security_preflight_approved=true`, dados sintéticos e demais gates existentes. A instrumentação não habilita automaticamente a campanha nem o TEST; a escolha de marcar o checkbox no dispatch é operacional, após verificação de segurança e aprovação aplicável.
+
+**Rastreabilidade:** PR #1469 integrou a instrumentação após CI aprovada. Esta alteração oferece o canal para executar a mesma instrumentação na campanha manual. A avaliação pareada com a versão sem #1463 continua experimento futuro; não há inferência causal autorizada nem mudança no índice de decisões vigentes.
