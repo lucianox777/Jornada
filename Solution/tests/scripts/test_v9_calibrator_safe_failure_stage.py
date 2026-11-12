@@ -59,5 +59,22 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         self.assertNotRegex(self.workflow, r'(?m)^\s+pull_request:\s*$')
 
 
+    def test_optional_replay_performance_diagnostics_preserve_core_contract(self):
+        # Source contract only: the physical A/B experiment remains mandatory.
+        self.assertIn('Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1"', self.coord)
+        self.assertIn('var indexClock = diagnoseReplayTiming ? Stopwatch.StartNew() : null;', self.coord)
+        self.assertIn('var replayClock = diagnoseReplayTiming ? Stopwatch.StartNew() : null;', self.coord)
+        self.assertIn('if (indexClock is not null)', self.coord)
+        self.assertIn('if (replayClock is not null)', self.coord)
+        self.assertIn('[V9 PERF DIAG] phase=index_build', self.coord)
+        self.assertIn('[V9 PERF DIAG] phase=frozen_replay', self.coord)
+        # Diagnostics must not gate or reduce the number of physical frozen replays.
+        self.assertEqual(self.coord.count('await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync('), 1)
+        self.assertIn('reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1]);', self.coord)
+        self.assertIn('var metricsByKey = run.SourceResolveValidation!.ToLookup(', self.coord)
+        self.assertIn('var frozenByKey = run.FrozenConfigurations!.ToLookup(', self.coord)
+        self.assertIn('var optionsById = run.CalibrationReport.Options.ToLookup(', self.coord)
+
+
 if __name__ == "__main__":
     unittest.main()
