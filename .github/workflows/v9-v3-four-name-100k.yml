@@ -48,7 +48,7 @@ jobs:
       JORNADA_RUNTIME_MODE: DEV
       EXACT_SHA: ${{ inputs.expected_sha }}
       GH_TOKEN: ${{ github.token }}
-      V9_PHYSICAL_PROGRESS_LOG: '1'
+      V9_PHYSICAL_PROGRESS_LOG: '0'
       V9_100K_DISABLE_PYTHON_SQL_BUDGET: ${{ inputs.disable_python_sql_budget }}
       # Default: SQL bootstrap uses native memory without Python sizing; false opts in to sizing.
       # New standalone TRAIN plan; original 24-arm plan and CSharp algorithm unchanged.
