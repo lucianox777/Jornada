@@ -177,6 +177,33 @@ jobs:
               shutil.copyfile(src,stage/name)
           print("Verified frozen finalists:",len(ids))
           PY
+      - name: Mandatory fresh independent VALIDATION of frozen finalists
+        if: success()
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          mkdir -p "$root/validation-people" "$root/validation-results"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed 20261112001 \
+            --out "$root/validation-people" > "$root/validation-generation.log"
+          envelope="$(find "$root/results/frozen-finalists" -maxdepth 1 -name '*.selection.json' -type f)"
+          test "$(printf '%s\\n' "$envelope" | wc -l)" -eq 1
+          export JORNADA_V9_HOLDOUT_REGISTRY="$root/validation-holdout-exposures"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-validate-finalists "$root/bound/plan.json" "$envelope" \
+            "$root/validation-people/observacoes.csv" "$root/validation-results"
+          test -s "$root/validation-results/finalist-validation.json"
+          python3 - "$root/validation-results/finalist-validation.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r["refitted"] is False and r["testUsed"] is False and r["activated"] is False
+          assert r["comparedConfigurations"] in (1,2,3)
+          print("V9_MANDATORY_VALIDATION_COMPLETED",r["status"])
+          PY
       - name: Upload aggregated evidence only, never corpus, raw TEST or credentials
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin SHA
@@ -200,6 +227,7 @@ jobs:
             Solution/.local/v9-100k-technical/results/selection-reference.json
             Solution/.local/v9-100k-technical/results/frozen-finalists/*.selection.json
             Solution/.local/v9-100k-technical/results/frozen-finalists/*.fitted.json
+            Solution/.local/v9-100k-technical/validation-results/*.json
       - name: Remove disposable SQL even after failure
         if: always()
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
