@@ -974,7 +974,9 @@ public static class V9NestedCalibrationCli
             && x.Metric.PreBlockingBaseIdentities >= policy.MinimumIndependentIdentityGroups
             && (!requireOperationalLatency || (x.P95Milliseconds.HasValue && x.P95Milliseconds <= policy.MaximumP95Milliseconds))
             && x.FalseDegreeP99 <= maximumFalseDegreeP99)
-            .OrderByDescending(x => x.Metric.GlobalSourceRecall).ThenBy(x => x.Metric.ConditionalClusterCpFdrUpper)
+            .OrderBy(x => x.Metric.FalseAcceptedSourceObservations)
+            .ThenByDescending(x => x.Metric.GlobalSourceRecall)
+            .ThenBy(x => x.Metric.ConditionalClusterCpFdrUpper)
             .ThenBy(x => x.SnapshotSha256, StringComparer.Ordinal).FirstOrDefault();
     }
 
