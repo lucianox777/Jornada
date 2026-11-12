@@ -241,14 +241,14 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
             "fn": measured_row["fn"], "recall": measured_row["recall"],
             "fdrObserved": measured_row["fdrObserved"],
             "p95Milliseconds": measured_row["p95Milliseconds"]})
-    finalist_markdown = "\\n".join(
-        "### " + item["fileName"] + "\\n\\n"
-        + "SHA: " + item["snapshotSha256"] + "\\n\\n"
-        + "**Configuração TF4 (pesos de frequência, não passes de blocking):**\\n\\n"
-        + "\\n".join("- " + field["field"] + ": **" + format(field["weight"], ".1f").replace(".", ",") + "**"
+    finalist_markdown = "\n".join(
+        "### " + item["fileName"] + "\n\n"
+        + "SHA: " + item["snapshotSha256"] + "\n\n"
+        + "**Configuração TF4 (pesos de frequência, não passes de blocking):**\n\n"
+        + "\n".join("- " + field["field"] + ": **" + format(field["weight"], ".1f").replace(".", ",") + "**"
                      for field in item["tf4Fields"])
-        + "\\n\\n**Passes de blocking (fixos e compartilhados):**\\n\\n"
-        + "\\n".join("- **" + str(p["PassId"]) + "**: "
+        + "\n\n**Passes de blocking (fixos e compartilhados):**\n\n"
+        + "\n".join("- **" + str(p["PassId"]) + "**: "
                      + json.dumps(p, ensure_ascii=False, sort_keys=True)
                      for p in item["blockingPasses"])
         for item in finalist_details) or "- Nenhum finalista selecionado."
