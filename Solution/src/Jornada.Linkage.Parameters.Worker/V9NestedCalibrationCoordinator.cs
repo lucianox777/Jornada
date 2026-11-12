@@ -695,7 +695,7 @@ public static class V9NestedCalibrationCoordinator
                 EligibleForSelection: false)).ToArray());
         }
         catch (InvalidDataException exception) when (exception.Data[V9PhysicalSqlAdaptiveCalibrationProbe.CandidateRejectionKey] is true)
-        { foreach (var _ in requests) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, false);
+        { foreach (var request in requests) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, false, request.Sha);
           return Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(request.Sha, batch, null,
             ["REJEICAO_FISICA: " + V9CalibradorLastErrorLog.SafeErrorCode(exception)],
             OptionId: plan.MuEstimationMethods is null ? null : request.Option.OptionId,
