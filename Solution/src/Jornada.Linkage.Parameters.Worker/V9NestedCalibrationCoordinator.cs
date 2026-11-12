@@ -582,6 +582,7 @@ public static class V9NestedCalibrationCoordinator
                         && r.Margin == margin) != 1)))
                 throw new InvalidDataException("V9_MARGIN_REUSE_INCOMPLETE_MODEL_MARGIN_FRAME");
             V9PhysicalCalibrationRunResult run;
+            var physicalGroupClock = Stopwatch.StartNew();
             var lastSafeProbeCheckpoint = "PROBE_ADMISSION";
             try
             {
@@ -610,6 +611,12 @@ public static class V9NestedCalibrationCoordinator
                 V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(exception, lastSafeProbeCheckpoint);
                 throw;
             }
+            physicalGroupClock.Stop();
+            // Operational wall-clock only: includes the entire group RunAsync,
+            // not per-snapshot frozen replay or certified physical P95.
+            lock (Console.Out)
+                Console.WriteLine(FormattableString.Invariant(
+                    $"[V9 SQL GROUP] batch={batch} | requests={requests.Count} | options={distinctOptions.Length} | margins={margins.Length} | run_async_seconds={physicalGroupClock.Elapsed.TotalSeconds:F1}"));
             // Reuse immutable replay inputs across eligible hypotheses in this SQL frame.
             var validationFrame = frame.Where(x => x.Partition == "VALIDATION").ToArray();
             var replayExecution = c.Execution with { TotalComparedConfigurations = 1 };
