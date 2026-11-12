@@ -191,7 +191,7 @@ jobs:
             --error-profile clean --people 100000 --seed 20261112001 \
             --out "$root/validation-people" > "$root/validation-generation.log"
           envelope="$(find "$root/results/frozen-finalists" -maxdepth 1 -name '*.selection.json' -type f)"
-          test "$(printf '%s\\n' "$envelope" | wc -l)" -eq 1
+          test "$(find "$root/results/frozen-finalists" -maxdepth 1 -name '*.selection.json' -type f | wc -l)" -eq 1
           export JORNADA_V9_HOLDOUT_REGISTRY="$root/validation-holdout-exposures"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-validate-finalists "$root/bound/plan.json" "$envelope" \
