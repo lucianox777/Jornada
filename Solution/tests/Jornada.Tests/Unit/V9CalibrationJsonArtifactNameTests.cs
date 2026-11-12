@@ -116,6 +116,37 @@ public sealed class V9CalibrationJsonArtifactNameTests
         }
     }
 
+    [Test]
+    public async Task ReadVerifiedAsync_rejects_symbolic_link_even_when_target_hash_matches()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "jornada-v9-link-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var bytes = Encoding.UTF8.GetBytes("""{"evidence":"original"}""");
+            var target = Path.Combine(dir, "target.json");
+            await File.WriteAllBytesAsync(target, bytes);
+            var name = V9CalibrationJsonArtifactName.Create(bytes, DateTimeOffset.UtcNow);
+            try
+            {
+                File.CreateSymbolicLink(Path.Combine(dir, name), target);
+            }
+            catch (Exception ex) when (ex is UnauthorizedAccessException or PlatformNotSupportedException or IOException)
+            {
+                Assert.Ignore("Ambiente não permite criar links simbólicos: " + ex.GetType().Name);
+                return;
+            }
+            Assert.ThrowsAsync<InvalidDataException>((NUnit.Framework.AsyncTestDelegate)(async () =>
+            {
+                await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, name);
+            }));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     private static string FindRoot()
     {
         var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
