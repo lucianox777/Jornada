@@ -15,3 +15,7 @@ A apresentação legível permite auditoria e comparação pelos leitores não e
 ## Rastreabilidade
 
 Execução TRAIN histórica #43105369099; decisão GOV-V9-PERSISTENCIA-SNAPSHOTS-20261112; implementação `Solution/scripts/v9-v3-four-name-100k-audit.py`; PR #1449; índice `Solution/docs/Indice_Decisoes_Vigentes.md`. A execução histórica concluiu TRAIN, mas não VALIDATION independente, TEST, certificação ou ativação.
+
+## Retificação posterior do PO — 12/11/2026 (prevalece)
+
+O PO esclareceu que **não deseja a tradução por extenso** no relatório: manter os identificadores compactos originais `PF10`, `PF5`, `PL5`, `MF10`, `ML10`, etc., como `TF4_PF10_PL5_MF10_ML10`, **sem tabela adicional de pesos**. Esta instrução substitui a exigência de nomes completos acima. O relatório preserva `OptionId`, SHA, métricas e os passes de blocking em seção distinta. Implementação retificada no mesmo script, antes do merge da PR #1449. Justificativa: preferência explícita do PO pela notação técnica já conhecida, sem redundância visual.
