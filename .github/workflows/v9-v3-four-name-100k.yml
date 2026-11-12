@@ -157,6 +157,26 @@ jobs:
             --selection "$root/results/selection-reference.json" \
             --out "$root/bound/technical-audit.json" \
             --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Stage only frozen finalist models and verified selection envelope
+        if: success()
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib,json,pathlib,shutil
+          root=pathlib.Path("Solution/.local/v9-100k-technical/results")
+          receipt=json.loads((root/"selection-reference.json").read_text())
+          digest=receipt["envelopeSha256"]
+          ids=receipt["FinalistSnapshotShas"]
+          assert 1 <= len(ids) <= 3 and len(set(ids))==len(ids)
+          stage=root/"frozen-finalists"
+          stage.mkdir(exist_ok=False)
+          for name in [digest+".selection.json", *[i+".fitted.json" for i in ids]]:
+              src=root/name
+              assert src.is_file(), "Missing frozen finalist: "+name
+              assert hashlib.sha256(src.read_bytes()).hexdigest()==name.split(".")[0], "SHA mismatch: "+name
+              shutil.copyfile(src,stage/name)
+          print("Verified frozen finalists:",len(ids))
+          PY
       - name: Upload aggregated evidence only, never corpus, raw TEST or credentials
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin SHA
@@ -178,7 +198,8 @@ jobs:
             Solution/.local/v9-100k-technical/results/calibration-resource-budget.json
             Solution/.local/v9-100k-technical/results/calibration-runtime-scheduling.json
             Solution/.local/v9-100k-technical/results/selection-reference.json
-            Solution/.local/v9-100k-technical/results/*.selection.json
+            Solution/.local/v9-100k-technical/results/frozen-finalists/*.selection.json
+            Solution/.local/v9-100k-technical/results/frozen-finalists/*.fitted.json
       - name: Remove disposable SQL even after failure
         if: always()
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
