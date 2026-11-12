@@ -58,6 +58,8 @@ jobs:
     steps:
       # First visible job step, before checkout/build; does not imply calibration has started.
       - name: Announce V9 workflow start
+        # Before checkout, Solution/ does not exist yet.
+        working-directory: ${{ github.workspace }}
         run: |
           echo '[V9 WORKFLOW START] 100k calibration workflow started; preflight and build pending'
           echo "[V9 WORKFLOW START] run=${GITHUB_RUN_ID} sha=${GITHUB_SHA} ref=${GITHUB_REF}"
@@ -254,11 +256,14 @@ jobs:
             Solution/.local/v9-100k-technical/validation-results/*.json
       - name: Dispose temporary TRAIN and VALIDATION bases after mandatory stages
         if: always()
+        # Cleanup must also run when checkout never happened.
+        working-directory: ${{ github.workspace }}
         run: |
           set -euo pipefail
-          root="$PWD/.local/v9-100k-technical"
+          root="$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical"
           # TEST is disabled by the fail-closed admission above. Preserve aggregate evidence.
           rm -rf -- "$root/people-100k" "$root/validation-people" "$root/reference-30k" "$root/base-bound" "$root/historical-official.zip"
       - name: Remove disposable SQL even after failure
         if: always()
+        working-directory: ${{ github.workspace }}
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
