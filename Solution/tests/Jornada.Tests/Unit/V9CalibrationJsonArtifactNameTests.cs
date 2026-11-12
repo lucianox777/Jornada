@@ -51,6 +51,21 @@ public sealed class V9CalibrationJsonArtifactNameTests
         }));
     }
 
+    [Test]
+    public void External_validation_checks_persisted_bytes_and_never_overwrites_artifacts()
+    {
+        var root = FindRoot();
+        var source = File.ReadAllText(Path.Combine(root, "Solution", "src",
+            "Jornada.Linkage.Parameters.Worker", "V9NestedCalibrationCli.cs"));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(source, Does.Contain("FileMode.CreateNew"));
+            Assert.That(source, Does.Contain("V9CalibrationJsonArtifactName.Verify(finalValidationName, storedBytes)"));
+            Assert.That(source, Does.Contain("storedBytes.AsSpan().SequenceEqual(finalValidationBytes)"));
+            Assert.That(source, Does.Contain("divergência entre SHA no nome e bytes persistidos"));
+        }));
+    }
+
     private static string FindRoot()
     {
         var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
