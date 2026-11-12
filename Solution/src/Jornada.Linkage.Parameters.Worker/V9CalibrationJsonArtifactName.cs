@@ -39,6 +39,25 @@ public static class V9CalibrationJsonArtifactName
         return bytes;
     }
 
+    /// <summary>
+    /// Verifies an explicit provenance receipt against the original artifact.
+    /// This is not a model association or certification.
+    /// </summary>
+    public static async Task<byte[]> ReadReceiptVerifiedAsync(
+        string directory, string artifactFileName, string expectedSha256, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(expectedSha256)
+            || expectedSha256.Length != 64
+            || !expectedSha256.All(static c => c is >= '0' and <= '9' or >= 'a' and <= 'f'))
+            throw new InvalidDataException("SHA-256 declarado inválido.");
+        var bytes = await ReadVerifiedAsync(directory, artifactFileName, ct);
+        var actual = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+        if (!CryptographicOperations.FixedTimeEquals(
+            Convert.FromHexString(expectedSha256), Convert.FromHexString(actual)))
+            throw new InvalidDataException("SHA-256 do recibo diverge do artefato original.");
+        return bytes;
+    }
+
     public static bool Verify(string fileName, ReadOnlySpan<byte> originalJsonBytes)
     {
         if (string.IsNullOrEmpty(fileName)) return false;
