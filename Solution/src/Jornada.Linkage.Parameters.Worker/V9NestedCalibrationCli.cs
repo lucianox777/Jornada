@@ -893,7 +893,8 @@ public static class V9NestedCalibrationCli
         await using (var namedFile = new FileStream(Path.Combine(output, finalValidationName),
             FileMode.CreateNew, FileAccess.Write, FileShare.None))
             await namedFile.WriteAsync(finalValidationBytes);
-        var storedBytes = await File.ReadAllBytesAsync(Path.Combine(output, finalValidationName));
+        var storedBytes = await V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync(
+            output, finalValidationName, Sha(finalValidationBytes));
         if (!V9CalibrationJsonArtifactName.Verify(finalValidationName, storedBytes)
             || !storedBytes.AsSpan().SequenceEqual(finalValidationBytes))
             throw new InvalidDataException("Resultado V9: divergência entre SHA no nome e bytes persistidos.");
