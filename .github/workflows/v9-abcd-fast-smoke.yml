@@ -11,6 +11,8 @@ permissions:
   contents: read
 jobs:
   paired-blocking:
+    # Dependabot dependency-update PRs do not need this V9 evaluator smoke.
+    if: github.event_name != 'pull_request' || github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
