@@ -17,3 +17,7 @@ Esta decisão modifica **apenas a ordenação final** descrita em `V9_Selecao_In
 
 ## Rastreabilidade e limites
 Evidência motivadora: campanha V9 100K/T4, run #43105369099, que apresentou alternativas com 7, 4 e 2 FP em TRAIN. Esses valores **não** são validação externa, certificação de risco real nem autorização de TEST ou ativação. A recomendação condicional somente existe após avaliação independente e gates aplicáveis. Implementação V9: `V9NestedCalibrationCli.SelectWinner`; apresentação DT-15: integração pendente de verificação de contratos e fontes de dados da página.
+
+## Deliberação posterior do PO — prioridade de entrega do calibrador (11/11/2026)
+
+O PO autorizou concluir e integrar por **squash merge** primeiro a alteração executável do calibrador V9, para permitir a campanha noturna de **324 hipóteses**, sem aguardar a apresentação visual de finalistas na DT-15. O componente de interface e o vínculo histórico DT-15 continuam requisitos aprovados, mas seguem em PR separada; a ausência de UI não altera os gates, nem implica ativação. A ampliação de pesos lambda foi explicitamente excluída desta entrega. **Após o fechamento e verificação da campanha de 324 hipóteses, congelar** plano, SHA de build/código, referências/corpus, resultados originais e seus SHA-256, métricas, finalistas, logs e evidências; o congelamento não é automático nem equivale a certificação ou ativação. Esta emenda altera a sequência de implementação, não a regra de preferência por FP nem a precedência científica e de governança.
