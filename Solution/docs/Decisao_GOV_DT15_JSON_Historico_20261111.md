@@ -64,3 +64,14 @@ A escrita de `finalist-validation.json` e do JSON com SHA usa `FileMode.CreateNe
 ## Localização do ciclo de vida do RASCUNHO — investigação de implementação
 
 A busca de código identificou `Solution/src/Jornada.Linkage.Parameters.Worker/LinkageParametersWorker.cs` como orquestrador operacional de `GENERATE_DRAFT`, `VALIDATE` e `ACTIVATE`; `LinkageRuleSetWriter.cs` publica o ruleset dentro da transação do modelo. O CLI `V9NestedCalibrationCli.cs` que emite o recibo SHA não constitui, por si só, prova de criação de `modelo_id` ou associação ao RASCUNHO. O ponto transacional exato de persistência e o contrato de armazenamento de artefatos ainda precisam ser verificados antes de conectar ambos os fluxos. Nenhuma associação automática foi ativada. Esta seção documenta achados de investigação, não uma nova autorização para alterar o ciclo de vida.
+
+
+## Ponto transacional comprovado da criação do RASCUNHO
+
+Inspeção direta de `Solution/src/Jornada.Linkage.Parameters.Worker/LinkageParametersWorker.cs`:
+
+1. `CreateGeneratingModelAsync` reserva `modelo_id` e `versao` em `identidade.modelo_linkage`, estado `GERANDO`, sob transação `Serializable` e `sp_getapplock` exclusivo de versionamento.
+2. `PublishDraftModelAsync` abre transação `ReadCommitted`, protege a identidade do ATIVO com `UPDLOCK,HOLDLOCK`, insere parâmetros por `modelo_id`, grava referências de TF e ruleset e somente então executa `UPDATE identidade.modelo_linkage SET status='RASCUNHO' ... WHERE modelo_id=@modelo_id AND status='GERANDO'`, com guarda de exatamente uma linha.
+3. O CLI `V9NestedCalibrationCli` gera um JSON de **validação externa**, não necessariamente o artefato de calibração que originou esse `modelo_id`. Portanto **não** se deve conectar automaticamente esse recibo à transação de publicação.
+
+Próximo passo de implementação: definir um registro de associação imutável que seja escrito apenas com evidência de execução realmente vinculada ao `modelo_id`, preferencialmente na transação de publicação ou em evento auditável pós-commit com idempotência e validação de SHA. Nenhuma vinculação retroativa inferida de timestamps será feita.
