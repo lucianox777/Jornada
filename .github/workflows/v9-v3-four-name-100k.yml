@@ -17,6 +17,11 @@ on:
         required: true
         default: false
         type: boolean
+      replay_timing_diagnostics:
+        description: "Emit per-group index build and per-hypothesis frozen replay timing (console only)"
+        required: true
+        default: false
+        type: boolean
       disable_python_sql_budget:
         description: "EXPERIMENTAL: skip Python SQL memory sizing; SQL uses its native memory default (no Docker cap)"
         required: true
@@ -49,6 +54,7 @@ jobs:
       EXACT_SHA: ${{ inputs.expected_sha }}
       GH_TOKEN: ${{ github.token }}
       V9_PHYSICAL_PROGRESS_LOG: '1'
+      V9_REPLAY_TIMING_DIAGNOSTICS: ${{ inputs.replay_timing_diagnostics && '1' || '0' }}
       V9_100K_DISABLE_PYTHON_SQL_BUDGET: ${{ inputs.disable_python_sql_budget }}
       # Default: SQL bootstrap uses native memory without Python sizing; false opts in to sizing.
       # New standalone TRAIN plan; original 24-arm plan and CSharp algorithm unchanged.
