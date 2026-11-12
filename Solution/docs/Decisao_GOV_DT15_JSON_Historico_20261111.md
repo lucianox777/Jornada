@@ -20,3 +20,11 @@ A camada Gold cresce por ingestões periódicas. O ATIVO e o último RASCUNHO po
 
 ## Rastreabilidade
 Origem: deliberação do PO de 11/11/2026 sobre DT-15; implementação parcial branch `feat/dt15-comparacao-json-historica-20261111`. Referências: `DT15_Governanca_Decisao_Modelo.md`, `V9_Consolidacao_Pareto_Execucao_20261019.md`, `20261009_Ref_Calibracao_Inicial_Sintetica.sql`, `ModelGovernanceReadOnlyService.cs`.
+
+## Emenda aprovada pelo PO — SHA-256 como sufixo do arquivo JSON (11/11/2026)
+
+**Decisão vigente:** novos arquivos JSON de resultado da calibração V9 devem adotar o padrão `calibracao_v9_<data-hora>_<sha256-completo>.json`, com os 64 caracteres hexadecimais do SHA-256 dos **bytes finais originais** do arquivo, calculado antes da nomeação. O conteúdo do JSON não é alterado para inserir seu próprio hash. A identificação do modelo mantém nome original e digest como metadados imutáveis vinculados ao artefato, com conferência do conteúdo na leitura e antes de qualquer ativação. Não basta renomear arquivo adulterado: a referência previamente aprovada deve permanecer protegida.
+
+**Compatibilidade e precedência:** preservar nomes e bytes de arquivos históricos; registrar hash como metadado sem renomeação retroativa. O padrão é aplicado às novas saídas após auditoria de produtores/consumidores. Arquivos que já usam convenção de hash integral, como `<sha>.fitted.json`, não devem ser renomeados automaticamente sem verificar o contrato de consumo. Distinguir hash do arquivo UTF-8 de hash SQL NVARCHAR, hash do corpus, fit e referência. DT-15 e gates existentes permanecem prevalentes.
+
+**Impactos e testes obrigatórios:** verificar todas as rotas de escrita, leitura, upload e publicação; conferir nome, digest e bytes; detectar adulteração e associação obsoleta; assegurar ausência de alteração em parâmetros, métricas, política V9 e seleção. A migração deve ser fail-closed, sem promoção automática. Implementação integral permanece pendente até auditoria de consumidores e CI.
