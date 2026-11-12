@@ -48,16 +48,8 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         {
             cancellationToken.ThrowIfCancellationRequested();
             var timer = Stopwatch.StartNew();
-            var signatures = BuildSignatures(validation, snapshot.Payload.BlockingPasses,
-                execution.MaximumPrefixLength, execution.MaximumProjectedSignatures);
-            if (CountPairIncidences(signatures, validation, execution.MaximumCandidatePairIncidences) > execution.MaximumCandidatePairIncidences)
-                throw new InvalidDataException("Holdout excede recursos pré-declarados; não truncar candidatos.");
-            await CreateTablesAsync(connection, cancellationToken);
-            await BulkObservationsAsync(connection, validation, cancellationToken);
-            await BulkSignaturesAsync(connection, signatures, cancellationToken);
-            var pairCount = await MaterializePairsAsync(connection, cancellationToken);
-            var edges = await ReadValidationPairsAsync(connection, cancellationToken);
-            if (pairCount != edges.Count) throw new InvalidDataException("Censo do holdout não reconciliou.");
+            var edges = await PrepareFrozenValidationPairsAsync(
+                connection, validation, snapshot, execution, cancellationToken);
             var trueSources = edges.Where(e => byId[e.A].BasePersonId == byId[e.B].BasePersonId)
                 .SelectMany(e => new[] { e.A, e.B }).Distinct().LongCount();
             var replay = V9FrozenSourceResolveReplay.Replay(snapshot, validation, edges);
@@ -87,4 +79,26 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             ? V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds(samples).P95Milliseconds : null,
             fanout, "V9_FROZEN_HOLDOUT_FULL_SQL_FS_BLIND_SOURCE_RESOLVE_V1", samples.AsReadOnly());
     }
+    // Extraction only: keep the full physical SQL preparation inside the timed
+    // replay iteration. Do not cache or bypass this path for certified P95.
+    private static async Task<IReadOnlyList<(int A, int B)>> PrepareFrozenValidationPairsAsync(
+        SqlConnection connection, IReadOnlyCollection<V9PhysicalCalibrationObservation> validation,
+        V9FittedSnapshot snapshot, V9PhysicalAdaptiveExecution execution,
+        CancellationToken cancellationToken)
+    {
+        var signatures = BuildSignatures(validation, snapshot.Payload.BlockingPasses,
+            execution.MaximumPrefixLength, execution.MaximumProjectedSignatures);
+        if (CountPairIncidences(signatures, validation, execution.MaximumCandidatePairIncidences)
+            > execution.MaximumCandidatePairIncidences)
+            throw new InvalidDataException("Holdout excede recursos pré-declarados; não truncar candidatos.");
+        await CreateTablesAsync(connection, cancellationToken);
+        await BulkObservationsAsync(connection, validation, cancellationToken);
+        await BulkSignaturesAsync(connection, signatures, cancellationToken);
+        var pairCount = await MaterializePairsAsync(connection, cancellationToken);
+        var edges = await ReadValidationPairsAsync(connection, cancellationToken);
+        if (pairCount != edges.Count)
+            throw new InvalidDataException("Censo do holdout não reconciliou.");
+        return edges;
+    }
+
 }
