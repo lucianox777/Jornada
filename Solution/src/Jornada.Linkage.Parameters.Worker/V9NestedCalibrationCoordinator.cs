@@ -227,7 +227,6 @@ public static class V9NestedCalibrationCoordinator
         Action<V9NestedCandidateEvaluation>? reportHypothesis = null)
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
-        var searchClock = Stopwatch.StartNew();
         ValidatePlan(plan);
         if (plan.Calibration.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf) && frozenTfReferenceForRuleset is null)
             throw new InvalidDataException("TF positivo na busca aninhada exige referência IBGE publicada e congelada por frame SQL.");
@@ -314,8 +313,6 @@ public static class V9NestedCalibrationCoordinator
         var physicalProgressEnabled = Environment.GetEnvironmentVariable("V9_PHYSICAL_PROGRESS_LOG") == "1";
         var physicalProgressClock = Stopwatch.StartNew();
         var physicalCompleted = 0;
-        var physicalProgressLock = new object();
-        var recentCompletions = new Queue<TimeSpan>();
         var physicalTotal = plan.PredeclaredCandidateCpMultiplicity ?? plan.MaximumSearchConfigurations;
         void ReportPhysicalCompletion(TimeSpan individualDuration, V9NestedCandidateEvaluation evaluation)
         {
@@ -325,33 +322,17 @@ public static class V9NestedCalibrationCoordinator
             if (!physicalProgressEnabled) return;
             var requestSha = evaluation.RequestSha256;
             var evaluated = evaluation.Candidate is not null;
-            lock (physicalProgressLock)
-            {
-                var done = ++physicalCompleted;
-                var elapsed = physicalProgressClock.Elapsed;
-                recentCompletions.Enqueue(elapsed);
-                if (recentCompletions.Count > 20) recentCompletions.Dequeue();
-                var remaining = physicalTotal - done;
-                var eta = done > 0 && remaining > 0
-                    ? TimeSpan.FromTicks((long)(elapsed.Ticks / (double)done * remaining))
-                    : TimeSpan.Zero;
-                // Rolling ETA uses up to 20 completion timestamps, not individual
-                // task durations: it therefore reflects effective parallel throughput.
-                TimeSpan? rollingEta = null;
-                if (recentCompletions.Count >= 2 && remaining > 0)
-                {
-                    var window = recentCompletions.ToArray();
-                    var duration = window[^1] - window[0];
-                    if (duration > TimeSpan.Zero)
-                        rollingEta = TimeSpan.FromTicks((long)(duration.Ticks / (double)(window.Length - 1) * remaining));
-                }
-                var remainingBudget = TimeSpan.FromMinutes(305) - searchClock.Elapsed - eta;
-                var status = done < 8 ? "ETA_PRELIMINAR" : remainingBudget < TimeSpan.Zero ? "RISCO_TIMEOUT" : "OK";
-                lock (Console.Out)
-                    Console.WriteLine(FormattableString.Invariant(
-                        $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) | hipotese={requestSha[..Math.Min(12, requestSha.Length)]} | resultado={(evaluated ? "AVALIADA" : "REJEITADA")} | tempo_individual_pos_SQL={individualDuration.TotalSeconds:F1}s | decorrido_min={elapsed.TotalMinutes:F1} | ETA_min={eta.TotalMinutes:F1} | ETA_ultimas20_min={(rollingEta.HasValue ? rollingEta.Value.TotalMinutes.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) : "N/A")} | preparo_interno_min={(searchClock.Elapsed - elapsed).TotalMinutes:F1} | total_busca_min={searchClock.Elapsed.TotalMinutes:F1} | margem_etapa_305min={remainingBudget.TotalMinutes:+0;-0;0}min | {status}"));
-                Console.Out.Flush();
-            }
+            var done = Interlocked.Increment(ref physicalCompleted);
+            var elapsed = physicalProgressClock.Elapsed;
+            var eta = done > 0 && done < physicalTotal
+                ? TimeSpan.FromTicks((long)(elapsed.Ticks / (double)done * (physicalTotal - done)))
+                : TimeSpan.Zero;
+            var remainingBudget = TimeSpan.FromMinutes(305) - elapsed - eta;
+            var status = done < 8 ? "ETA_PRELIMINAR" : remainingBudget < TimeSpan.Zero ? "RISCO_TIMEOUT" : "OK";
+            lock (Console.Out)
+                Console.WriteLine(FormattableString.Invariant(
+                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) | hipotese={requestSha[..Math.Min(12, requestSha.Length)]} | resultado={(evaluated ? "AVALIADA" : "REJEITADA")} | tempo_individual_pos_SQL={individualDuration.TotalSeconds:F1}s | decorrido_min={elapsed.TotalMinutes:F1} | ETA_min={eta.TotalMinutes:F1} | margem_etapa_305min={remainingBudget.TotalMinutes:+0;-0;0}min | {status}"));
+            Console.Out.Flush();
         }
                 reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");
         for (var batch = 1; batch <= plan.MaximumBatches; batch++)
