@@ -887,8 +887,16 @@ public static class V9NestedCalibrationCli
         // content-addressed copy of the exact same final bytes for governance.
         var finalValidationBytes = JsonSerializer.SerializeToUtf8Bytes(finalValidationResult, Json);
         var finalValidationName = V9CalibrationJsonArtifactName.Create(finalValidationBytes, DateTimeOffset.UtcNow);
-        await File.WriteAllBytesAsync(Path.Combine(output, "finalist-validation.json"), finalValidationBytes);
-        await File.WriteAllBytesAsync(Path.Combine(output, finalValidationName), finalValidationBytes);
+        await using (var legacyFile = new FileStream(Path.Combine(output, "finalist-validation.json"),
+            FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            await legacyFile.WriteAsync(finalValidationBytes);
+        await using (var namedFile = new FileStream(Path.Combine(output, finalValidationName),
+            FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            await namedFile.WriteAsync(finalValidationBytes);
+        var storedBytes = await File.ReadAllBytesAsync(Path.Combine(output, finalValidationName));
+        if (!V9CalibrationJsonArtifactName.Verify(finalValidationName, storedBytes)
+            || !storedBytes.AsSpan().SequenceEqual(finalValidationBytes))
+            throw new InvalidDataException("Resultado V9: divergência entre SHA no nome e bytes persistidos.");
         // Provenance receipt, deliberately not a model-binding or promotion authorization.
         // The original content hash is independently verifiable against the named file.
         await WriteNewAsync(Path.Combine(output, "finalist-validation-artifact-reference.json"), new
