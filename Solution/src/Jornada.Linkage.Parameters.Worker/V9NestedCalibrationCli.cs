@@ -889,6 +889,18 @@ public static class V9NestedCalibrationCli
         var finalValidationName = V9CalibrationJsonArtifactName.Create(finalValidationBytes, DateTimeOffset.UtcNow);
         await File.WriteAllBytesAsync(Path.Combine(output, "finalist-validation.json"), finalValidationBytes);
         await File.WriteAllBytesAsync(Path.Combine(output, finalValidationName), finalValidationBytes);
+        // Provenance receipt, deliberately not a model-binding or promotion authorization.
+        // The original content hash is independently verifiable against the named file.
+        await WriteNewAsync(Path.Combine(output, "finalist-validation-artifact-reference.json"), new
+        {
+            schema = "JORNADA_V9_FINALIST_VALIDATION_ARTIFACT_REFERENCE_V1",
+            artifactFileName = finalValidationName,
+            artifactSha256 = Sha(finalValidationBytes),
+            sourceSelectionEnvelopeSha256 = selectionSha,
+            legacyFileName = "finalist-validation.json",
+            modelId = (string?)null,
+            status = "EXTERNAL_VALIDATION_NOT_CERTIFIED_NOT_ACTIVATED"
+        });
         process.Refresh();
         var validationExportFinishedMs = elapsed.ElapsedMilliseconds;
         await WriteNewAsync(Path.Combine(output, "runtime-diagnostics.json"), new
