@@ -11,3 +11,12 @@
 **Riscos e mitigação:** paralelismo exige `Interlocked` e emissão serializada; operações de log devem ser pequenas. As conclusões em blocos podem produzir ETA instável; evitar interpretá-lo como previsão estatística. Não modificar limites de timeout. Validação necessária por build, testes de regressão e execução controlada antes de declarar a melhoria comprovada.
 
 **Rastreabilidade:** branch `feat/v9-tf4-physical-progress-20261111`; PR vinculada a este documento. **Estado:** implementação proposta, aguardando CI/revisão e integração. **Precedência:** complemento operacional a GOV-V9-V3-TF4-324-20261111 e GOV-V9-MARGIN-REUSE-20261111, sem substituí-las. GOV-DOC-01.
+
+
+## Revisão aprovada pelo PO — 12/11/2026: progresso por hipótese somente no console
+
+**Contexto e motivação:** após a campanha #43159426682 falhar na etapa VALIDATION com leitura de arquivo acima de 2 GiB, o PO determinou retirar a persistência em arquivos dos registros individuais de conclusão de hipótese e manter as mensagens visíveis na tela do GitHub Actions. A falha observada foi em `ValidateAsync`/`File.ReadAllBytesAsync` e **não comprova**, isoladamente, que o log por hipótese causou o limite; a retirada da persistência é decisão operacional explícita e independente da correção de leitura de arquivos grandes.
+
+**Decisão vigente:** para cada hipótese finalizada, manter apenas `[V9 PROGRESS]` no console do coordenador (contador, status, tempo e ETA); não gerar `hypothesis-progress.jsonl` nem `hypotheses/hypothesis-*.json` e não incluí-los nos artefatos do workflow. Permanecem os arquivos agregados e os artefatos científicos já existentes, sem alterações em cálculo, seleção, TF, margens, paralelismo ou validação. A visualização e retenção da mensagem passam a depender dos logs do GitHub Actions.
+
+**Precedência:** esta revisão substitui apenas a persistência por hipótese, não a instrumentação de progresso no console prevista acima. **Rastreabilidade:** branch `fix/v9-hypothesis-console-only-20261112`; GOV-DOC-01. **Estado:** pendente de integração e verificação de CI.
