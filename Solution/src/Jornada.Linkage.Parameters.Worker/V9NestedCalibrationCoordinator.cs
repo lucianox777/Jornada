@@ -313,7 +313,7 @@ public static class V9NestedCalibrationCoordinator
         var physicalProgressClock = Stopwatch.StartNew();
         var physicalCompleted = 0;
         var physicalTotal = plan.PredeclaredCandidateCpMultiplicity ?? plan.MaximumSearchConfigurations;
-        void ReportPhysicalCompletion(TimeSpan individualDuration, bool evaluated)
+        void ReportPhysicalCompletion(TimeSpan individualDuration, bool evaluated, string requestSha)
         {
             if (!physicalProgressEnabled) return;
             var done = Interlocked.Increment(ref physicalCompleted);
@@ -325,7 +325,7 @@ public static class V9NestedCalibrationCoordinator
             var status = done < 8 ? "ETA_PRELIMINAR" : remainingBudget < TimeSpan.Zero ? "RISCO_TIMEOUT" : "OK";
             lock (Console.Out)
                 Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) | resultado={(evaluated ? "AVALIADA" : "REJEITADA")} | tempo_individual_pos_SQL={individualDuration.TotalSeconds:F1}s | decorrido_min={elapsed.TotalMinutes:F1} | ETA_min={eta.TotalMinutes:F1} | margem_etapa_305min={remainingBudget.TotalMinutes:+0;-0;0}min | {status}"));
+                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) | hipotese={requestSha[..Math.Min(12, requestSha.Length)]} | resultado={(evaluated ? "AVALIADA" : "REJEITADA")} | tempo_individual_pos_SQL={individualDuration.TotalSeconds:F1}s | decorrido_min={elapsed.TotalMinutes:F1} | ETA_min={eta.TotalMinutes:F1} | margem_etapa_305min={remainingBudget.TotalMinutes:+0;-0;0}min | {status}"));
         }
                 reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");
         for (var batch = 1; batch <= plan.MaximumBatches; batch++)
@@ -557,7 +557,7 @@ public static class V9NestedCalibrationCoordinator
         IReadOnlyList<Request> requests, int batch, int candidateCpMultiplicity,
         FrozenIbgeNominalTfV9? frozenTfReference,
         CancellationToken cancellationToken,
-        Action<TimeSpan, bool>? reportPhysicalCompletion = null)
+        Action<TimeSpan, bool, string>? reportPhysicalCompletion = null)
     {
         var c = plan.Calibration;
         try
@@ -668,7 +668,7 @@ public static class V9NestedCalibrationCoordinator
                     SharedSurnameCandidatePairs: run.CalibrationReport.Options.Single(x =>
                         x.OptionId == request.Option.OptionId).Validation.SharedSurnameCandidatePairs,
                     CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
-                reportPhysicalCompletion?.Invoke(individualClock.Elapsed, true);
+                reportPhysicalCompletion?.Invoke(individualClock.Elapsed, true, request.Sha);
             }
             return result.AsReadOnly();
         }
@@ -679,7 +679,7 @@ public static class V9NestedCalibrationCoordinator
             // Keep every declared option visible to campaign accounting; never
             // invent a frequency, silently opt into abstention or admit a
             // non-evaluable option to the Pareto frontier.
-            foreach (var _ in requests) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, false);
+            foreach (var request in requests) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, false, request.Sha);
             return Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(
                 request.Sha, batch, null,
                 [V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient],
