@@ -28,3 +28,9 @@
 ## Rastreabilidade e governança
 
 PRs #1462, #1463, #1465 e #1466; execução #43295710416; `Solution/docs/Plano_Otimizacao_V9_Holdout_SQL_20261112.md`. Este documento consolida observações e critérios de medição, não aprova alteração funcional, estatística ou de protocolo. Decisões futuras aprovadas pelo PO exigem registro GOV-DOC-01 e atualização do índice de decisões vigentes.
+
+## Achado adicional — custo por grupo físico versus replay individual
+
+Inspeção de `V9NestedCalibrationCoordinator.cs` em `master` (12/11/2026): o coordenador particiona pedidos com `V9MarginFrameWorkPartition.Group`, ordena os frames com `V9PhysicalFrameExecutionOrder.BroadestLikelyFirst` e processa grupos via `V9ParallelWork.MapCalibrationAsync`. Cada grupo executa `V9PhysicalSqlAdaptiveCalibrationProbe.RunAsync` antes de iterar sobre os pedidos e chamar `EvaluateFrozenHoldoutAsync` apenas quando não há razões anteriores de rejeição. Portanto, o tempo decorrido para N hipóteses **não é linear em N**: inclui preparo de grupos com custo variável, execução concorrente e replays condicionais. Os prints isolados não permitem separar essas parcelas.
+
+**Instrumentação proposta (ainda não implementada):** medir por grupo o intervalo de `RunAsync`, contagem de pedidos e de replays efetivamente executados, e por pedido os tempos pós-SQL já disponíveis. Reportar tempos por fase sem modificar relógios existentes, P95, ordenação, paralelismo, hashes ou critérios científicos. A comparação 10/10 permanece o melhor checkpoint observado, mas requer repetição controlada para afirmar regressão ou ganho causal.
