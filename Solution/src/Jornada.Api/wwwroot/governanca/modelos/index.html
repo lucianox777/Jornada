@@ -76,6 +76,7 @@
       <article class="card" id="active"><h2>Modelo ATIVO</h2><p class="empty">Dados ainda não carregados.</p></article>
       <article class="card" id="draft"><h2>Modelo proposto (RASCUNHO)</h2><p class="empty">Dados ainda não carregados.</p></article>
     </section>
+    <section class="card" id="historicalComparison" aria-label="Resultados originais dos modelos"><h2>ATIVO × último RASCUNHO · resultados históricos originais</h2><p class="empty">Aguardando dados.</p></section>
     <section class="card" id="comparison" aria-labelledby="comparison-heading">
       <h2 id="comparison-heading">Comparação pareada · somente blocking no treino</h2>
       <p class="empty">Dados ainda não carregados.</p>
@@ -154,6 +155,46 @@
     append(node, 'p', 'Modelo: ' + model.modelId, 'technical muted');
     append(node, 'p', 'Ruleset: ' + (model.ruleSetFingerprint || 'Não disponível'), 'technical muted');
     append(node, 'p', 'Projeção: ' + (model.projectionFingerprint || 'Não disponível'), 'technical muted');
+  }
+  function showHistoricalComparison(active, draft, rows) {
+    const node = byId('historicalComparison');
+    node.replaceChildren();
+    append(node, 'h2', 'ATIVO × último RASCUNHO · resultados históricos originais');
+    const a = (rows || []).find(x => active && x.modelId === active.modelId);
+    const d = (rows || []).find(x => draft && x.modelId === draft.modelId);
+    if (!a || !d) {
+      append(node, 'p', 'Não há evidência histórica persistida para ambos os modelos. Nenhuma recomendação é inferida.', 'empty');
+      return;
+    }
+    append(node, 'p', 'Valores preservados de cada calibração; amostras e datas podem ser diferentes. Sem refit, normalização ou inferência de superioridade.', 'muted small');
+    const wrap = node.appendChild(document.createElement('div'));
+    wrap.className = 'table-wrap';
+    const table = wrap.appendChild(document.createElement('table'));
+    const header = table.appendChild(document.createElement('tr'));
+    ['Campo', 'ATIVO', 'RASCUNHO'].forEach(v => append(header, 'th', v));
+    const body = table.appendChild(document.createElement('tbody'));
+    const n = x => x === null || x === undefined ? 'Não persistido nesta visão' : String(x);
+    const row = (label, key) => {
+      const tr = body.appendChild(document.createElement('tr'));
+      [label, n(a[key]), n(d[key])].forEach(v => append(tr, 'td', v));
+    };
+    row('Data original da calibração', 'generatedAt');
+    row('Referência associada (não é nome do JSON)', 'referenceCode');
+    row('SHA da referência associada (não é SHA do JSON)', 'referenceSha256');
+    row('Falsos positivos VALIDATION', 'validationFalsePositive');
+    row('Falsos negativos VALIDATION', 'validationFalseNegative');
+    row('Positivos VALIDATION (denominador)', 'validationPositive');
+    row('Falsos positivos TEST', 'testFalsePositive');
+    row('Falsos negativos TEST', 'testFalseNegative');
+    row('Positivos TEST (denominador)', 'testPositive');
+    row('Inconclusivos TEST', 'testInconclusive');
+    row('Amostra m', 'matchedPairSample');
+    row('Amostra u', 'candidateUnionUSample');
+    row('Orçamento FP VALIDATION (basis points)', 'validationFpBasisPoints');
+    row('Orçamento FP TEST (basis points)', 'testFpBasisPoints');
+    row('Estado da evidência', 'evaluatorEvidenceStatus');
+    append(node, 'p', 'Nome do JSON, SHA-256 dos bytes originais do JSON, volume Gold, recall, FDR e P95: ainda não vinculados a esta API. Não substituir por SHA de referência nem fabricar métricas.', 'state small');
+    append(node, 'p', 'Recomendação de ativação: indisponível até que o motor vigente de elegibilidade seja integrado aos artefatos íntegros; decisão Master continua obrigatória.', 'muted small');
   }
   function showComparison(data) {
     const node = byId('comparison');
@@ -251,6 +292,7 @@
       const data = await response.json();
       showModel(byId('active'),data.active,'active');
       showModel(byId('draft'),data.draft,'draft');
+      showHistoricalComparison(data.active, data.draft, data.calibrationHistory);
       showComparison(data.comparison);
       showHistory(data.recentHistory);
       showTimeline(data.calibrationHistory);
