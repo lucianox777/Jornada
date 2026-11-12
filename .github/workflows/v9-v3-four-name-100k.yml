@@ -187,9 +187,9 @@ jobs:
               assert hashlib.sha256(src.read_bytes()).hexdigest()==name.split(".")[0], "SHA mismatch: "+name
               shutil.copyfile(src,stage/name)
           if not ids:
-              (root/"campaign-scientific-status.json").write_text(json.dumps({"status":"COMPLETED_WITHOUT_ELIGIBLE_FINALISTS","validationExecuted":False,"testUsed":False,"reason":"No TRAIN finalists available for independent VALIDATION"},indent=2)+"\\n")
+              (root/"campaign-scientific-status.json").write_text(json.dumps({"status":"COMPLETED_WITHOUT_ELIGIBLE_FINALISTS","validationExecuted":False,"testUsed":False,"reason":"No TRAIN finalists available for independent VALIDATION"},indent=2)+"\n")
           with open(__import__("os").environ["GITHUB_OUTPUT"],"a") as out:
-              out.write("has_finalists="+("true" if ids else "false")+"\\n")
+              out.write("has_finalists="+("true" if ids else "false")+"\n")
           print("Verified frozen finalists:",len(ids))
           PY
       - name: Mandatory fresh independent VALIDATION of frozen finalists
