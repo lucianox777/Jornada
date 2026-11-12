@@ -1,9 +1,17 @@
 name: jornada-pr-required-fast
 on:
   pull_request:
+  push:
+    branches:
+      - master
   workflow_dispatch:
 permissions:
   contents: read
+
+# Serialize this validation per ref without blocking the separate manual 100k campaign.
+concurrency:
+  group: jornada-pr-required-fast-${{ github.ref }}
+  cancel-in-progress: false
 jobs:
   unit-runtime:
     runs-on: ubuntu-latest
