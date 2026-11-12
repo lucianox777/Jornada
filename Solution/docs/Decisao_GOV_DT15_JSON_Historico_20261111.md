@@ -52,3 +52,10 @@ O comando `--v9-validate-finalists` passa a produzir, além do caminho contratua
 A execução de CI `43135235991` concluiu com **success** após correção dos testes NUnit, validando o commit `f6d82445eabe6e907f03ba676f2fc33f64caf027`. Mudanças posteriores exigem nova CI.
 
 O fluxo de validação externa passou a emitir `finalist-validation-artifact-reference.json`, contendo esquema versionado, nome do JSON com SHA integral, SHA dos bytes finais, SHA do envelope de seleção e nome do arquivo legado. O recibo declara explicitamente `modelId=null` e `EXTERNAL_VALIDATION_NOT_CERTIFIED_NOT_ACTIVATED`: **não vincula artificialmente** um resultado de validação a um modelo ATIVO/RASCUNHO. Para vinculação real, ainda é necessário um evento persistido e auditável de registro de artefato associado ao `modelo_id`, seguido de conferência de bytes. Não promover modelos com base apenas no recibo. Testes/CI do recibo pendentes.
+
+
+## Gate de associação modelo–artefato (implementação pendente)
+
+A associação entre um resultado de calibração e um `modelo_id` **não pode ser inferida** de timestamp, ordem de execução, nome do arquivo ou SHA isolado. O registro auditável futuro deverá vincular explicitamente `modelo_id`, identificador da execução, papel do artefato (resultado/validação/seleção), nome original, SHA-256 dos bytes, localizador controlado, data de registro e origem do vínculo. A leitura da governança deve rejeitar registro sem arquivo, arquivo com hash divergente, múltiplos vínculos conflitantes ou proveniência incompleta. O recibo de validação externa atualmente emitido não satisfaz esse gate (`modelId=null`). Não criar migração ou vincular modelos sem antes identificar o evento real de criação de RASCUNHO e o armazenamento autorizado dos artefatos. A comparação e a recomendação permanecem indisponíveis até prova íntegra para ambos os modelos.
+
+A escrita de `finalist-validation.json` e do JSON com SHA usa `FileMode.CreateNew`, seguida de releitura e verificação dos bytes persistidos. O teste de contrato cobre essas proteções. CI do commit mais recente ainda pendente.
