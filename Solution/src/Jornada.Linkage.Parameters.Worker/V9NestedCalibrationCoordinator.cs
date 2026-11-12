@@ -223,7 +223,8 @@ public static class V9NestedCalibrationCoordinator
         Func<IReadOnlyList<LinkageBlockingPass>, CancellationToken, Task<FrozenIbgeNominalTfV9?>>? frozenTfReferenceForRuleset = null,
         int? executionMaximumParallelRuleSets = null,
         Action<string>? reportSafeStage = null,
-        V9CalibrationRuntimeScheduler? resourceScheduler = null)
+        V9CalibrationRuntimeScheduler? resourceScheduler = null,
+        Action<V9NestedCandidateEvaluation>? reportHypothesis = null)
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
         ValidatePlan(plan);
@@ -313,9 +314,14 @@ public static class V9NestedCalibrationCoordinator
         var physicalProgressClock = Stopwatch.StartNew();
         var physicalCompleted = 0;
         var physicalTotal = plan.PredeclaredCandidateCpMultiplicity ?? plan.MaximumSearchConfigurations;
-        void ReportPhysicalCompletion(TimeSpan individualDuration, bool evaluated, string requestSha)
+        void ReportPhysicalCompletion(TimeSpan individualDuration, V9NestedCandidateEvaluation evaluation)
         {
+            // The durable per-hypothesis callback must finish before console output.
+            // Never swallow an I/O failure and silently lose audit evidence.
+            reportHypothesis?.Invoke(evaluation);
             if (!physicalProgressEnabled) return;
+            var requestSha = evaluation.RequestSha256;
+            var evaluated = evaluation.Candidate is not null;
             var done = Interlocked.Increment(ref physicalCompleted);
             var elapsed = physicalProgressClock.Elapsed;
             var eta = done > 0 && done < physicalTotal
@@ -557,7 +563,7 @@ public static class V9NestedCalibrationCoordinator
         IReadOnlyList<Request> requests, int batch, int candidateCpMultiplicity,
         FrozenIbgeNominalTfV9? frozenTfReference,
         CancellationToken cancellationToken,
-        Action<TimeSpan, bool, string>? reportPhysicalCompletion = null)
+        Action<TimeSpan, V9NestedCandidateEvaluation>? reportPhysicalCompletion = null)
     {
         var c = plan.Calibration;
         try
@@ -668,7 +674,7 @@ public static class V9NestedCalibrationCoordinator
                     SharedSurnameCandidatePairs: run.CalibrationReport.Options.Single(x =>
                         x.OptionId == request.Option.OptionId).Validation.SharedSurnameCandidatePairs,
                     CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
-                reportPhysicalCompletion?.Invoke(individualClock.Elapsed, true, request.Sha);
+                reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1]);
             }
             return result.AsReadOnly();
         }
@@ -679,8 +685,7 @@ public static class V9NestedCalibrationCoordinator
             // Keep every declared option visible to campaign accounting; never
             // invent a frequency, silently opt into abstention or admit a
             // non-evaluable option to the Pareto frontier.
-            foreach (var request in requests) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, false, request.Sha);
-            return Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(
+            var rejected = Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(
                 request.Sha, batch, null,
                 [V9CalibradorSafeFailureCategory.PublishedTfCoverageInsufficient],
                 OptionId: plan.MuEstimationMethods is null ? null : request.Option.OptionId,
@@ -693,10 +698,11 @@ public static class V9NestedCalibrationCoordinator
                             : V9MuEstimationSearchSpace.ClasswiseMixture,
                 MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
                 EligibleForSelection: false)).ToArray());
+            foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, evaluation);
+            return rejected;
         }
         catch (InvalidDataException exception) when (exception.Data[V9PhysicalSqlAdaptiveCalibrationProbe.CandidateRejectionKey] is true)
-        { foreach (var request in requests) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, false, request.Sha);
-          return Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(request.Sha, batch, null,
+        { var rejected = Array.AsReadOnly(requests.Select(request => new V9NestedCandidateEvaluation(request.Sha, batch, null,
             ["REJEICAO_FISICA: " + V9CalibradorLastErrorLog.SafeErrorCode(exception)],
             OptionId: plan.MuEstimationMethods is null ? null : request.Option.OptionId,
             ConflictMargin: plan.MuEstimationMethods is null ? null : request.Margin,
@@ -705,6 +711,8 @@ public static class V9NestedCalibrationCoordinator
                     ? V9MuEstimationSearchSpace.Default : request.Option.JointSupportPolicy.UBackoffJointMixtureWeight is null
                                 ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
             MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
-            EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m && !request.DiagnosticOnly)).ToArray()); }
+            EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m && !request.DiagnosticOnly)).ToArray());
+          foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, evaluation);
+          return rejected; }
     }
 }
