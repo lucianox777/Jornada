@@ -89,6 +89,27 @@ public sealed class V9CalibrationJsonArtifactNameTests
         }
     }
 
+    [Test]
+    public async Task Receipt_digest_must_match_original_bytes()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "jornada-v9-receipt-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var bytes = Encoding.UTF8.GetBytes("""{"validation":"external"}""");
+            var name = V9CalibrationJsonArtifactName.Create(bytes, DateTimeOffset.UtcNow);
+            await File.WriteAllBytesAsync(Path.Combine(dir, name), bytes);
+            var digest = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(bytes)).ToLowerInvariant();
+            Assert.That(await V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync(dir, name, digest), Is.EqualTo(bytes));
+            Assert.ThrowsAsync<InvalidDataException>(async () =>
+                await V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync(dir, name, new string('0', 64)));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     private static string FindRoot()
     {
         var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
