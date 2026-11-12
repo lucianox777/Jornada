@@ -880,8 +880,11 @@ public static class V9NestedCalibrationCli
         var finalValidationResult = new { selectionEnvelopeSha256 = selectionSha,
             fresh, comparedConfigurations = ids.Length, measured,
             scientificProposedSnapshotSha256 = scientific?.SnapshotSha256,
-            bestConditionalSnapshotSha256 = best?.SnapshotSha256, selectedApprovedSnapshotSha256 = (string?)null,
-            status = best is null ? "NO_FINALIST_PASSES_DECLARED_CONDITIONAL_GATES" : "CONDITIONAL_ONLY_IID_NOT_INDEPENDENTLY_VALIDATED",
+            bestConditionalSnapshotSha256 = best?.SnapshotSha256,
+            // Selection by independent VALIDATION is distinct from certification and activation.
+            selectedValidationSnapshotSha256 = scientific?.SnapshotSha256,
+            selectedApprovedSnapshotSha256 = (string?)null,
+            status = scientific is null ? "NO_FINALIST_PASSES_DECLARED_SCIENTIFIC_GATES" : "VALIDATION_SCIENTIFIC_WINNER_SELECTED_NOT_CERTIFIED",
             identityClusterIidIndependentlyValidated = false, testUsed = false, refitted = false, certified = false, activated = false };
         // Preserve the existing fixed filename for legacy consumers. Publish a
         // content-addressed copy of the exact same final bytes for governance.
