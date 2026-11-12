@@ -283,6 +283,8 @@ public static class V9NestedCalibrationCli
         using var process = System.Diagnostics.Process.GetCurrentProcess();
         var elapsed = System.Diagnostics.Stopwatch.StartNew();
         updateSafeStage("TRAIN_SPLIT_AND_PHYSICAL_SQL_FIT");
+        var hypothesisLogLock = new object();
+        var hypothesisLogPath = Path.Combine(output, "hypothesis-progress.jsonl");
         var result = await V9NestedCalibrationCoordinator.SearchAsync(async ct =>
         {
             var connection = new SqlConnection(connectionString);
@@ -316,7 +318,23 @@ public static class V9NestedCalibrationCli
         }, frozenTfReferenceForRuleset: referenceFactory,
             executionMaximumParallelRuleSets: resources.EffectiveParallelism,
             reportSafeStage: updateSafeStage,
-            resourceScheduler: resourceScheduler);
+            resourceScheduler: resourceScheduler,
+            reportHypothesis: evaluation =>
+            {
+                // A single serialized append completes before the corresponding
+                // progress line. Do not persist candidate snapshots or personal data.
+                var line = JsonSerializer.Serialize(new
+                {
+                    schema = "V9_CALIBRATION_HYPOTHESIS_PROGRESS_V1",
+                    evaluation.Batch, evaluation.RequestSha256,
+                    status = evaluation.Candidate is null ? "REJEITADA" : "AVALIADA",
+                    evaluation.Rejections,
+                    elapsedMilliseconds = elapsed.ElapsedMilliseconds,
+                    artifactScope = "TRAIN_SELECTION_ONLY_NO_TEST_NO_ACTIVATION"
+                });
+                lock (hypothesisLogLock)
+                    File.AppendAllText(hypothesisLogPath, line + Environment.NewLine);
+            });
         // Aggregate-only operations evidence; never includes connection strings,
         // identities, output rows, or raw SQL diagnostics.
         await WriteNewAsync(Path.Combine(output, "calibration-runtime-scheduling.json"),
