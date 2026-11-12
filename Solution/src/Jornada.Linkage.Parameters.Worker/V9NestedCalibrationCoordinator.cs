@@ -610,6 +610,9 @@ public static class V9NestedCalibrationCoordinator
                 V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(exception, lastSafeProbeCheckpoint);
                 throw;
             }
+            // Reuse immutable replay inputs across eligible hypotheses in this SQL frame.
+            var validationFrame = frame.Where(x => x.Partition == "VALIDATION").ToArray();
+            var replayExecution = c.Execution with { TotalComparedConfigurations = 1 };
             var result = new List<V9NestedCandidateEvaluation>();
             foreach (var request in requests)
             {
@@ -638,8 +641,8 @@ public static class V9NestedCalibrationCoordinator
                     try
                     {
                         var measured = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync(connection,
-                            frame.Where(x => x.Partition == "VALIDATION").ToArray(), fit.Snapshot,
-                            c.Execution with { TotalComparedConfigurations = 1 }, c.MaximumAcceptedPerBaseIdentity, 1, cancellationToken);
+                            validationFrame, fit.Snapshot,
+                            replayExecution, c.MaximumAcceptedPerBaseIdentity, 1, cancellationToken);
                         p95 = measured.P95Milliseconds;
                         if (!p95.HasValue || p95 > c.SelectionPolicy.MaximumP95Milliseconds)
                             reasons.Add("P95_PONTA_A_PONTA_FORA_DO_ORCAMENTO");
