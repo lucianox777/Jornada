@@ -45,7 +45,7 @@ class FrozenHoldoutPhysicalContractTests(unittest.TestCase):
             with self.subTest(step=step):
                 self.assertIn(step, body)
         self.assertEqual(source.count("await PrepareFrozenValidationPairsAsync("), 1)
-        self.assertNotRegex(body, r"(?i)\\b(?:cache|memoiz|GetOrAdd|TryGetValue)\\s*\\(")
+        self.assertNotRegex(body, r"(?i)\b(?:cache|memoiz|GetOrAdd|TryGetValue)\s*\(")
 
     def test_coordinator_keeps_individual_replay_and_parity_checks(self):
         source = COORDINATOR.read_text()
