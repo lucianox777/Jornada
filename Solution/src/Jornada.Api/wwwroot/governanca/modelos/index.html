@@ -156,7 +156,7 @@
     append(node, 'p', 'Ruleset: ' + (model.ruleSetFingerprint || 'Não disponível'), 'technical muted');
     append(node, 'p', 'Projeção: ' + (model.projectionFingerprint || 'Não disponível'), 'technical muted');
   }
-  function showHistoricalComparison(active, draft, rows) {
+  function showHistoricalComparison(active, draft, rows, metrics) {
     const node = byId('historicalComparison');
     node.replaceChildren();
     append(node, 'h2', 'ATIVO × último RASCUNHO · resultados históricos originais');
@@ -192,6 +192,12 @@
     row('Amostra u', 'candidateUnionUSample');
     row('Orçamento FP VALIDATION (basis points)', 'validationFpBasisPoints');
     row('Orçamento FP TEST (basis points)', 'testFpBasisPoints');
+    const byModel = (model, name) => (metrics || []).find(x => model && x.modelId === model.modelId && x.name === name);
+    const original = (model, name) => { const found = byModel(model, name); return found ? String(found.value) : 'Não persistido nesta visão'; };
+    for (const name of ['FS_DECISION_CALIBRATION_VALIDATION_FP', 'FS_DECISION_CALIBRATION_VALIDATION_FN', 'FS_DECISION_CALIBRATION_TEST_FP', 'FS_DECISION_CALIBRATION_TEST_FN']) {
+      const tr = body.appendChild(document.createElement('tr'));
+      [name + ' (valor persistido)', original(active, name), original(draft, name)].forEach(v => append(tr, 'td', v));
+    }
     row('Estado da evidência', 'evaluatorEvidenceStatus');
     append(node, 'p', 'Nome do JSON, SHA-256 dos bytes originais do JSON, volume Gold, recall, FDR e P95: ainda não vinculados a esta API. Não substituir por SHA de referência nem fabricar métricas.', 'state small');
     append(node, 'p', 'Recomendação de ativação: indisponível até que o motor vigente de elegibilidade seja integrado aos artefatos íntegros; decisão Master continua obrigatória.', 'muted small');
@@ -292,7 +298,7 @@
       const data = await response.json();
       showModel(byId('active'),data.active,'active');
       showModel(byId('draft'),data.draft,'draft');
-      showHistoricalComparison(data.active, data.draft, data.calibrationHistory);
+      showHistoricalComparison(data.active, data.draft, data.calibrationHistory, data.historicalMetrics);
       showComparison(data.comparison);
       showHistory(data.recentHistory);
       showTimeline(data.calibrationHistory);
