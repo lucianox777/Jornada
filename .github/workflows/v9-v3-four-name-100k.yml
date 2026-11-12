@@ -12,6 +12,11 @@ on:
         description: Confirm one-use SQL, historical credentials not reused, private runner
         required: true
         type: boolean
+      test_required:
+        description: "Require TEST in this campaign (not supported by this TRAIN+VALIDATION-only workflow)"
+        required: true
+        default: false
+        type: boolean
       disable_python_sql_budget:
         description: "EXPERIMENTAL: skip Python SQL memory sizing; SQL uses its native memory default (no Docker cap)"
         required: true
@@ -72,6 +77,11 @@ jobs:
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$GITHUB_REF" = "refs/heads/master"
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          # Never promise retention for a later TEST on an ephemeral hosted runner.
+          if [[ "${{ inputs.test_required }}" == "true" ]]; then
+            echo "::error::TEST_REQUIRED_UNSUPPORTED: this workflow has no TEST stage; bases cannot survive the hosted runner without explicit secure persistence."
+            exit 1
+          fi
           python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
@@ -158,6 +168,7 @@ jobs:
             --out "$root/bound/technical-audit.json" \
             --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
       - name: Stage only frozen finalist models and verified selection envelope
+        id: finalists
         if: success()
         run: |
           set -euo pipefail
@@ -167,7 +178,7 @@ jobs:
           receipt=json.loads((root/"selection-reference.json").read_text())
           digest=receipt["envelopeSha256"]
           ids=receipt["FinalistSnapshotShas"]
-          assert 1 <= len(ids) <= 3 and len(set(ids))==len(ids)
+          assert 0 <= len(ids) <= 3 and len(set(ids))==len(ids)
           stage=root/"frozen-finalists"
           stage.mkdir(exist_ok=False)
           for name in [digest+".selection.json", *[i+".fitted.json" for i in ids]]:
@@ -175,10 +186,14 @@ jobs:
               assert src.is_file(), "Missing frozen finalist: "+name
               assert hashlib.sha256(src.read_bytes()).hexdigest()==name.split(".")[0], "SHA mismatch: "+name
               shutil.copyfile(src,stage/name)
+          if not ids:
+              (root/"campaign-scientific-status.json").write_text(json.dumps({"status":"COMPLETED_WITHOUT_ELIGIBLE_FINALISTS","validationExecuted":False,"testUsed":False,"reason":"No TRAIN finalists available for independent VALIDATION"},indent=2)+"\n")
+          with open(__import__("os").environ["GITHUB_OUTPUT"],"a") as out:
+              out.write("has_finalists="+("true" if ids else "false")+"\n")
           print("Verified frozen finalists:",len(ids))
           PY
       - name: Mandatory fresh independent VALIDATION of frozen finalists
-        if: success()
+        if: ${{ success() && steps.finalists.outputs.has_finalists == 'true' }}
         timeout-minutes: 40
         run: |
           set -euo pipefail
@@ -191,7 +206,7 @@ jobs:
             --error-profile clean --people 100000 --seed 20261112001 \
             --out "$root/validation-people" > "$root/validation-generation.log"
           envelope="$(find "$root/results/frozen-finalists" -maxdepth 1 -name '*.selection.json' -type f)"
-          test "$(printf '%s\\n' "$envelope" | wc -l)" -eq 1
+          test "$(find "$root/results/frozen-finalists" -maxdepth 1 -name '*.selection.json' -type f | wc -l)" -eq 1
           export JORNADA_V9_HOLDOUT_REGISTRY="$root/validation-holdout-exposures"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-validate-finalists "$root/bound/plan.json" "$envelope" \
@@ -225,9 +240,17 @@ jobs:
             Solution/.local/v9-100k-technical/results/calibration-resource-budget.json
             Solution/.local/v9-100k-technical/results/calibration-runtime-scheduling.json
             Solution/.local/v9-100k-technical/results/selection-reference.json
+            Solution/.local/v9-100k-technical/results/campaign-scientific-status.json
             Solution/.local/v9-100k-technical/results/frozen-finalists/*.selection.json
             Solution/.local/v9-100k-technical/results/frozen-finalists/*.fitted.json
             Solution/.local/v9-100k-technical/validation-results/*.json
+      - name: Dispose temporary TRAIN and VALIDATION bases after mandatory stages
+        if: always()
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          # TEST is disabled by the fail-closed admission above. Preserve aggregate evidence.
+          rm -rf -- "$root/people-100k" "$root/validation-people" "$root/reference-30k" "$root/base-bound" "$root/historical-official.zip"
       - name: Remove disposable SQL even after failure
         if: always()
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
