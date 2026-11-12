@@ -25,13 +25,13 @@ public sealed class V9CalibrationJsonArtifactNameTests
         var compact = Encoding.UTF8.GetBytes("""{"x":1}""");
         var formatted = Encoding.UTF8.GetBytes("""{ "x": 1 }""");
         var name = V9CalibrationJsonArtifactName.Create(compact, at);
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(V9CalibrationJsonArtifactName.Verify(name, compact), Is.True);
             Assert.That(V9CalibrationJsonArtifactName.Verify(name, formatted), Is.False);
             Assert.That(V9CalibrationJsonArtifactName.Create(formatted, at), Is.Not.EqualTo(name));
             Assert.That(V9CalibrationJsonArtifactName.Verify("calibracao_v9_20261111_153000_invalid.json", compact), Is.False);
-        });
+        }));
     }
 
 }
