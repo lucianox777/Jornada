@@ -163,7 +163,7 @@ jobs:
           set -euo pipefail
           python3 - <<'PY'
           import hashlib,json,pathlib,shutil
-          root=pathlib.Path("Solution/.local/v9-100k-technical/results")
+          root=pathlib.Path(".local/v9-100k-technical/results")
           receipt=json.loads((root/"selection-reference.json").read_text())
           digest=receipt["envelopeSha256"]
           ids=receipt["FinalistSnapshotShas"]
