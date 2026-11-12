@@ -877,12 +877,18 @@ public static class V9NestedCalibrationCli
             plan.Calibration.Budget.MaximumBlockingFalseDegreeP99);
         var best = SelectConditionalWinner(measured, plan.Calibration.SelectionPolicy,
             plan.Calibration.Budget.MaximumBlockingFalseDegreeP99);
-        await WriteNewAsync(Path.Combine(output, "finalist-validation.json"), new { selectionEnvelopeSha256 = selectionSha,
+        var finalValidationResult = new { selectionEnvelopeSha256 = selectionSha;
             fresh, comparedConfigurations = ids.Length, measured,
             scientificProposedSnapshotSha256 = scientific?.SnapshotSha256,
             bestConditionalSnapshotSha256 = best?.SnapshotSha256, selectedApprovedSnapshotSha256 = (string?)null,
             status = best is null ? "NO_FINALIST_PASSES_DECLARED_CONDITIONAL_GATES" : "CONDITIONAL_ONLY_IID_NOT_INDEPENDENTLY_VALIDATED",
-            identityClusterIidIndependentlyValidated = false, testUsed = false, refitted = false, certified = false, activated = false });
+            identityClusterIidIndependentlyValidated = false, testUsed = false, refitted = false, certified = false, activated = false };
+        // Preserve the existing fixed filename for legacy consumers. Publish a
+        // content-addressed copy of the exact same final bytes for governance.
+        var finalValidationBytes = JsonSerializer.SerializeToUtf8Bytes(finalValidationResult, Json);
+        var finalValidationName = V9CalibrationJsonArtifactName.Create(finalValidationBytes, DateTimeOffset.UtcNow);
+        await File.WriteAllBytesAsync(Path.Combine(output, "finalist-validation.json"), finalValidationBytes);
+        await File.WriteAllBytesAsync(Path.Combine(output, finalValidationName), finalValidationBytes);
         process.Refresh();
         var validationExportFinishedMs = elapsed.ElapsedMilliseconds;
         await WriteNewAsync(Path.Combine(output, "runtime-diagnostics.json"), new
