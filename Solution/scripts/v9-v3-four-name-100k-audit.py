@@ -197,40 +197,6 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
             and type(runtime.get("effectiveParallelism")) is int
             and runtime["effectiveParallelism"] >= 1,
             "runtime resource measurements missing")
-    blocking_passes = c["BaselineRuleSets"][0]
-    require(all(isinstance(p, dict) and isinstance(p.get("PassId"), str)
-                for p in blocking_passes), "invalid blocking pass definition")
-    finalist_shas = selection.get("FinalistSnapshotShas") or []
-    require(isinstance(finalist_shas, list), "invalid finalist list")
-    # Identify each finalist by its measured snapshot SHA, not by list position.
-    by_snapshot = {}
-    for row in summary:
-        snapshot = row.get("fitSha256")
-        if snapshot:
-            require(snapshot not in by_snapshot, "ambiguous finalist snapshot SHA")
-            by_snapshot[snapshot] = row
-    finalist_details = []
-    for snapshot in finalist_shas:
-        require(snapshot in by_snapshot, "finalist missing from measured TRAIN rows")
-        row = by_snapshot[snapshot]
-        finalist_details.append({
-            "snapshotSha256": snapshot,
-            "fileName": snapshot + ".fitted.json",
-            "optionId": row["optionId"],
-            "blockingPasses": blocking_passes,
-            "tp": row["tp"], "fp": row["fp"], "fn": row["fn"],
-            "recall": row["recall"], "fdrObserved": row["fdrObserved"],
-            "p95Milliseconds": row["p95Milliseconds"]})
-    finalist_markdown = "\n".join(
-        "### " + item["fileName"] + "\n\n"
-        + "SHA: " + item["snapshotSha256"] + "\n\n"
-        + "**Configuração TF4:** `" + item["optionId"].split("_A", 1)[0] + "`\n\n"
-        + "**Passes de blocking (fixos e compartilhados):**\n\n"
-        + "\n".join("- **" + str(p["PassId"]) + "**: "
-                     + json.dumps(p, ensure_ascii=False, sort_keys=True)
-                     for p in item["blockingPasses"])
-        for item in finalist_details) or "- Nenhum finalista selecionado."
-
     evidence = {
         "schema": SCHEMA, "status": "TRAIN_TECHNICAL_PASS_NOT_SCIENTIFIC_CERTIFICATION",
         "codeSha": code_sha, "workflowRunId": run_id,
@@ -244,7 +210,6 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
         "effectiveParallelism": runtime["effectiveParallelism"],
         "stopReason": selection.get("StopReason"),
         "finalistSnapshotShas": selection.get("FinalistSnapshotShas"),
-        "finalistDetails": finalist_details,
         "perHypothesis": summary, "testUsed": False, "certified": False,
         "activated": False, "populationFdrIndependent": "NOT_COVERED",
         "http100k": "NOT_COVERED"}
@@ -256,9 +221,7 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
         "# V9 four-name 100k — PASS técnico TRAIN, não certificação\n\n"
         "324 hipóteses V3-only medidas; TF=81, λ=2, margens=2. "
         "P95 reais: " + str(replayed) + "; P95 ausentes por rejeição pré-replay: "
-        + str(fanout) + ". TEST, validação independente e ativação: NÃO.\n\n"
-        + "## Passes de blocking dos finalistas\n\n"
-        + finalist_markdown + "\n",
+        + str(fanout) + ". TEST, validação independente e ativação: NÃO.\n",
         encoding="utf8")
     return evidence
 
