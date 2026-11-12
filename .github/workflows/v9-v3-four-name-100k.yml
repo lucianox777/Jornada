@@ -168,6 +168,7 @@ jobs:
             --out "$root/bound/technical-audit.json" \
             --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
       - name: Stage only frozen finalist models and verified selection envelope
+        id: finalists
         if: success()
         run: |
           set -euo pipefail
@@ -177,7 +178,7 @@ jobs:
           receipt=json.loads((root/"selection-reference.json").read_text())
           digest=receipt["envelopeSha256"]
           ids=receipt["FinalistSnapshotShas"]
-          assert 1 <= len(ids) <= 3 and len(set(ids))==len(ids)
+          assert 0 <= len(ids) <= 3 and len(set(ids))==len(ids)
           stage=root/"frozen-finalists"
           stage.mkdir(exist_ok=False)
           for name in [digest+".selection.json", *[i+".fitted.json" for i in ids]]:
@@ -185,10 +186,14 @@ jobs:
               assert src.is_file(), "Missing frozen finalist: "+name
               assert hashlib.sha256(src.read_bytes()).hexdigest()==name.split(".")[0], "SHA mismatch: "+name
               shutil.copyfile(src,stage/name)
+          if not ids:
+              (root/"campaign-scientific-status.json").write_text(json.dumps({"status":"COMPLETED_WITHOUT_ELIGIBLE_FINALISTS","validationExecuted":False,"testUsed":False,"reason":"No TRAIN finalists available for independent VALIDATION"},indent=2)+"\\n")
+          with open(__import__("os").environ["GITHUB_OUTPUT"],"a") as out:
+              out.write("has_finalists="+("true" if ids else "false")+"\\n")
           print("Verified frozen finalists:",len(ids))
           PY
       - name: Mandatory fresh independent VALIDATION of frozen finalists
-        if: success()
+        if: ${{ success() && steps.finalists.outputs.has_finalists == 'true' }}
         timeout-minutes: 40
         run: |
           set -euo pipefail
@@ -235,6 +240,7 @@ jobs:
             Solution/.local/v9-100k-technical/results/calibration-resource-budget.json
             Solution/.local/v9-100k-technical/results/calibration-runtime-scheduling.json
             Solution/.local/v9-100k-technical/results/selection-reference.json
+            Solution/.local/v9-100k-technical/results/campaign-scientific-status.json
             Solution/.local/v9-100k-technical/results/frozen-finalists/*.selection.json
             Solution/.local/v9-100k-technical/results/frozen-finalists/*.fitted.json
             Solution/.local/v9-100k-technical/validation-results/*.json
