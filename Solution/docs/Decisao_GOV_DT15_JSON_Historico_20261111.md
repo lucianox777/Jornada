@@ -45,3 +45,10 @@ O PO ressaltou que o produto ainda está em desenvolvimento e que será necessá
 ## Implementação incremental — exportação de validação externa
 
 O comando `--v9-validate-finalists` passa a produzir, além do caminho contratual `finalist-validation.json`, uma cópia de **bytes idênticos** nomeada `calibracao_v9_<UTC>_<sha256-integral>.json`. A serialização ocorre uma única vez, antes das duas gravações, e o digest corresponde exatamente aos bytes emitidos. O arquivo `<sha>.selection.json` e seu validador permanecem inalterados. Esta cópia é um artefato de **resultado da validação externa**, não representa automaticamente o resultado integral do calibrador nem um modelo ativável: o próprio JSON preserva `certified=false` e `activated=false`. Não usar essa cópia como prova de elegibilidade ou recomendação de ativação. Pendente: integração ao catálogo de modelos, verificação em leitura, teste de execução/CI e avaliação de custo de armazenamento da cópia.
+
+
+## Recibo de proveniência e evidência de CI — 11/11/2026
+
+A execução de CI `43135235991` concluiu com **success** após correção dos testes NUnit, validando o commit `f6d82445eabe6e907f03ba676f2fc33f64caf027`. Mudanças posteriores exigem nova CI.
+
+O fluxo de validação externa passou a emitir `finalist-validation-artifact-reference.json`, contendo esquema versionado, nome do JSON com SHA integral, SHA dos bytes finais, SHA do envelope de seleção e nome do arquivo legado. O recibo declara explicitamente `modelId=null` e `EXTERNAL_VALIDATION_NOT_CERTIFIED_NOT_ACTIVATED`: **não vincula artificialmente** um resultado de validação a um modelo ATIVO/RASCUNHO. Para vinculação real, ainda é necessário um evento persistido e auditável de registro de artefato associado ao `modelo_id`, seguido de conferência de bytes. Não promover modelos com base apenas no recibo. Testes/CI do recibo pendentes.
