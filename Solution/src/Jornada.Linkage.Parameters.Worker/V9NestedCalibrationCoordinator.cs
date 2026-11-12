@@ -622,11 +622,20 @@ public static class V9NestedCalibrationCoordinator
             var replayExecution = c.Execution with { TotalComparedConfigurations = 1 };
             // Index physical results once per SQL group. Single() on each bucket
             // deliberately preserves the previous missing/duplicate failure contract.
+            var diagnoseReplayTiming = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";
+            var indexClock = diagnoseReplayTiming ? Stopwatch.StartNew() : null;
             var metricsByKey = run.SourceResolveValidation!.ToLookup(x =>
                 (x.OptionId, x.ConflictMargin, x.CandidateGrouping));
             var frozenByKey = run.FrozenConfigurations!.ToLookup(x =>
                 (x.OptionId, x.ConflictMargin));
             var optionsById = run.CalibrationReport.Options.ToLookup(x => x.OptionId);
+            if (indexClock is not null)
+            {
+                indexClock.Stop();
+                lock (Console.Out)
+                    Console.WriteLine(FormattableString.Invariant(
+                        $"[V9 PERF DIAG] phase=index_build | batch={batch} | requests={requests.Count} | elapsed_ms={indexClock.Elapsed.TotalMilliseconds:F3} | metric_entries={run.SourceResolveValidation!.Count()} | frozen_entries={run.FrozenConfigurations!.Count()} | option_entries={run.CalibrationReport.Options.Count()}"));
+            }
             var result = new List<V9NestedCandidateEvaluation>();
             foreach (var request in requests)
             {
@@ -651,9 +660,17 @@ public static class V9NestedCalibrationCoordinator
                 {
                     try
                     {
+                        var replayClock = diagnoseReplayTiming ? Stopwatch.StartNew() : null;
                         var measured = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync(connection,
                             validationFrame, fit.Snapshot,
                             replayExecution, c.MaximumAcceptedPerBaseIdentity, 1, cancellationToken);
+                        if (replayClock is not null)
+                        {
+                            replayClock.Stop();
+                            lock (Console.Out)
+                                Console.WriteLine(FormattableString.Invariant(
+                                    $"[V9 PERF DIAG] phase=frozen_replay | batch={batch} | request_sha={request.Sha} | elapsed_ms={replayClock.Elapsed.TotalMilliseconds:F3}"));
+                        }
                         p95 = measured.P95Milliseconds;
                         if (!p95.HasValue || p95 > c.SelectionPolicy.MaximumP95Milliseconds)
                             reasons.Add("P95_PONTA_A_PONTA_FORA_DO_ORCAMENTO");
