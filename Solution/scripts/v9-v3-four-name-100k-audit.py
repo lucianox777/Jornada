@@ -197,6 +197,23 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
             and type(runtime.get("effectiveParallelism")) is int
             and runtime["effectiveParallelism"] >= 1,
             "runtime resource measurements missing")
+    blocking_passes = c["BaselineRuleSets"][0]
+    require(all(isinstance(p, dict) and isinstance(p.get("PassId"), str)
+                for p in blocking_passes), "invalid blocking pass definition")
+    finalist_shas = selection.get("FinalistSnapshotShas") or []
+    require(isinstance(finalist_shas, list), "invalid finalist list")
+    finalist_details = [
+        {"snapshotSha256": sha, "fileName": sha + ".fitted.json",
+         "blockingPasses": blocking_passes}
+        for sha in finalist_shas
+    ]
+    pass_markdown = "\n".join(
+        "- **" + str(p["PassId"]) + "**: " +
+        json.dumps(p, ensure_ascii=False, sort_keys=True)
+        for p in blocking_passes)
+    finalist_markdown = "\n".join(
+        "- " + item["fileName"] + " (SHA: " + item["snapshotSha256"] + ")"
+        for item in finalist_details) or "- Nenhum finalista selecionado."
     evidence = {
         "schema": SCHEMA, "status": "TRAIN_TECHNICAL_PASS_NOT_SCIENTIFIC_CERTIFICATION",
         "codeSha": code_sha, "workflowRunId": run_id,
@@ -210,6 +227,8 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
         "effectiveParallelism": runtime["effectiveParallelism"],
         "stopReason": selection.get("StopReason"),
         "finalistSnapshotShas": selection.get("FinalistSnapshotShas"),
+        "blockingPasses": blocking_passes,
+        "finalistDetails": finalist_details,
         "perHypothesis": summary, "testUsed": False, "certified": False,
         "activated": False, "populationFdrIndependent": "NOT_COVERED",
         "http100k": "NOT_COVERED"}
@@ -221,7 +240,12 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
         "# V9 four-name 100k — PASS técnico TRAIN, não certificação\n\n"
         "324 hipóteses V3-only medidas; TF=81, λ=2, margens=2. "
         "P95 reais: " + str(replayed) + "; P95 ausentes por rejeição pré-replay: "
-        + str(fanout) + ". TEST, validação independente e ativação: NÃO.\n",
+        + str(fanout) + ". TEST, validação independente e ativação: NÃO.\\n\\n"
+        + "## Passes de blocking (comuns às hipóteses)\\n\\n"
+        + pass_markdown + "\\n\\n"
+        + "## Arquivos dos finalistas\\n\\n"
+        + finalist_markdown + "\\n\\n"
+        + "Todos os finalistas usam os passes completos declarados acima.\\n",
         encoding="utf8")
     return evidence
 
