@@ -877,12 +877,39 @@ public static class V9NestedCalibrationCli
             plan.Calibration.Budget.MaximumBlockingFalseDegreeP99);
         var best = SelectConditionalWinner(measured, plan.Calibration.SelectionPolicy,
             plan.Calibration.Budget.MaximumBlockingFalseDegreeP99);
-        await WriteNewAsync(Path.Combine(output, "finalist-validation.json"), new { selectionEnvelopeSha256 = selectionSha,
+        var finalValidationResult = new { selectionEnvelopeSha256 = selectionSha,
             fresh, comparedConfigurations = ids.Length, measured,
             scientificProposedSnapshotSha256 = scientific?.SnapshotSha256,
             bestConditionalSnapshotSha256 = best?.SnapshotSha256, selectedApprovedSnapshotSha256 = (string?)null,
             status = best is null ? "NO_FINALIST_PASSES_DECLARED_CONDITIONAL_GATES" : "CONDITIONAL_ONLY_IID_NOT_INDEPENDENTLY_VALIDATED",
-            identityClusterIidIndependentlyValidated = false, testUsed = false, refitted = false, certified = false, activated = false });
+            identityClusterIidIndependentlyValidated = false, testUsed = false, refitted = false, certified = false, activated = false };
+        // Preserve the existing fixed filename for legacy consumers. Publish a
+        // content-addressed copy of the exact same final bytes for governance.
+        var finalValidationBytes = JsonSerializer.SerializeToUtf8Bytes(finalValidationResult, Json);
+        var finalValidationName = V9CalibrationJsonArtifactName.Create(finalValidationBytes, DateTimeOffset.UtcNow);
+        await using (var legacyFile = new FileStream(Path.Combine(output, "finalist-validation.json"),
+            FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            await legacyFile.WriteAsync(finalValidationBytes);
+        await using (var namedFile = new FileStream(Path.Combine(output, finalValidationName),
+            FileMode.CreateNew, FileAccess.Write, FileShare.None))
+            await namedFile.WriteAsync(finalValidationBytes);
+        var storedBytes = await V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync(
+            output, finalValidationName, Sha(finalValidationBytes));
+        if (!V9CalibrationJsonArtifactName.Verify(finalValidationName, storedBytes)
+            || !storedBytes.AsSpan().SequenceEqual(finalValidationBytes))
+            throw new InvalidDataException("Resultado V9: divergência entre SHA no nome e bytes persistidos.");
+        // Provenance receipt, deliberately not a model-binding or promotion authorization.
+        // The original content hash is independently verifiable against the named file.
+        await WriteNewAsync(Path.Combine(output, "finalist-validation-artifact-reference.json"), new
+        {
+            schema = "JORNADA_V9_FINALIST_VALIDATION_ARTIFACT_REFERENCE_V1",
+            artifactFileName = finalValidationName,
+            artifactSha256 = Sha(finalValidationBytes),
+            sourceSelectionEnvelopeSha256 = selectionSha,
+            legacyFileName = "finalist-validation.json",
+            modelId = (string?)null,
+            status = "EXTERNAL_VALIDATION_NOT_CERTIFIED_NOT_ACTIVATED"
+        });
         process.Refresh();
         var validationExportFinishedMs = elapsed.ElapsedMilliseconds;
         await WriteNewAsync(Path.Combine(output, "runtime-diagnostics.json"), new
