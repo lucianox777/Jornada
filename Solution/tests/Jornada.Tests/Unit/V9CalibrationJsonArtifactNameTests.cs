@@ -34,4 +34,33 @@ public sealed class V9CalibrationJsonArtifactNameTests
         }));
     }
 
+    [Test]
+    public void External_validation_emits_explicit_unbound_provenance_receipt()
+    {
+        var root = FindRoot();
+        var source = File.ReadAllText(Path.Combine(root, "Solution", "src",
+            "Jornada.Linkage.Parameters.Worker", "V9NestedCalibrationCli.cs"));
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(source, Does.Contain("finalist-validation-artifact-reference.json"));
+            Assert.That(source, Does.Contain("artifactFileName = finalValidationName"));
+            Assert.That(source, Does.Contain("artifactSha256 = Sha(finalValidationBytes)"));
+            Assert.That(source, Does.Contain("sourceSelectionEnvelopeSha256 = selectionSha"));
+            Assert.That(source, Does.Contain("modelId = (string?)null"));
+            Assert.That(source, Does.Contain("EXTERNAL_VALIDATION_NOT_CERTIFIED_NOT_ACTIVATED"));
+        }));
+    }
+
+    private static string FindRoot()
+    {
+        var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
+        while (dir is not null)
+        {
+            if (File.Exists(Path.Combine(dir.FullName, "RELEASE_INFO.txt")) &&
+                Directory.Exists(Path.Combine(dir.FullName, "Solution"))) return dir.FullName;
+            dir = dir.Parent;
+        }
+        throw new DirectoryNotFoundException("Raiz do Jornada não encontrada.");
+    }
+
 }
