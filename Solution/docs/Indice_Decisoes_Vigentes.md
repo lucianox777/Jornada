@@ -357,3 +357,5 @@ A [DT-15](DT15_Governanca_Decisao_Modelo.md) especifica comparação pareada ATI
 - [GOV-V9-VALIDATION-ENVELOPE-STREAM-20261112](Decisao_GOV_V9_Validation_Envelope_Stream_20261112.md) — correção autorizada pelo PO: ler envelope TRAIN >2 GiB em fluxo, conferir SHA-256 original e desserializar somente metadados de admissão, sem avaliações; preservar fail-closed e critérios científicos. Evidência #43159426682; integração em andamento após PR #1455.
 
 - [GOV-V9-WORKFLOW-PRECHECKOUT-DIRETORIO-20261112](Decisao_GOV_V9_Workflow_Precheckout_Diretorio_20261112.md) — PO aprovou corrigir o diretório do anúncio anterior ao checkout e das limpezas finais do workflow V9 100k, após falha no início da execução #43227021840. Manter passos científicos em `Solution`, execução manual e preflight fail-closed; CI e nova execução necessárias para comprovação.
+
+- **GOV-V9-SMOKE-DEPENDABOT-20261112 (12/11/2026; PO):** não executar o job `paired-blocking` do smoke ABCD para PRs de `dependabot[bot]`, preservando PRs comuns e disparo manual. [Decisão](Decisao_GOV_V9_Smoke_Dependabot_20261112.md).
