@@ -90,3 +90,8 @@ A função `V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync` valida, em c
 ## Integração da verificação no fluxo real de emissão
 
 O caminho `--v9-validate-finalists` agora invoca `ReadReceiptVerifiedAsync` imediatamente após escrever o JSON endereçado por conteúdo, comparando o digest explícito aos bytes gravados; mantém também a comparação byte a byte com o JSON legado. Isso integra a primitiva de integridade à execução, em vez de deixá-la apenas disponível para consumidores futuros. O recibo continua com `modelId=null` e status de validação externa não certificada; nenhuma promoção ou associação foi introduzida.
+
+
+## Proteção adicional do leitor de artefatos
+
+A leitura de JSON endereçado por SHA rejeita também arquivos que sejam links simbólicos/reparse points, para evitar redirecionamento do nome canônico a outro arquivo. A validação ocorre antes da leitura; não constitui defesa contra substituição concorrente por ator com escrita no diretório, portanto o armazenamento de evidências deve permanecer sob controle de acesso e imutabilidade. A CI desta alteração ainda requer confirmação.
