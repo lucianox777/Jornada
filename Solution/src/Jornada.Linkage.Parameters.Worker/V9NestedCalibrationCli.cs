@@ -283,6 +283,19 @@ public static class V9NestedCalibrationCli
         using var process = System.Diagnostics.Process.GetCurrentProcess();
         var elapsed = System.Diagnostics.Stopwatch.StartNew();
         updateSafeStage("TRAIN_SPLIT_AND_PHYSICAL_SQL_FIT");
+        // One-shot startup probe: persist, close the file, then emit and flush
+        // one console line. No Python coupling or periodic heartbeat.
+        var startupLogPath = Path.Combine(output, "startup-progress.jsonl");
+        var startupLine = JsonSerializer.Serialize(new
+        {
+            schema = "V9_CALIBRATION_STARTUP_V1",
+            status = "STARTED",
+            timestampUtc = DateTimeOffset.UtcNow,
+            artifactScope = "TRAIN_SELECTION_ONLY_NO_TEST_NO_ACTIVATION"
+        });
+        File.AppendAllText(startupLogPath, startupLine + Environment.NewLine);
+        Console.Out.WriteLine("[V9 START] C# calibrator started; startup-progress.jsonl persisted and closed");
+        Console.Out.Flush();
         var hypothesisLogLock = new object();
         var hypothesisLogPath = Path.Combine(output, "hypothesis-progress.jsonl");
         var result = await V9NestedCalibrationCoordinator.SearchAsync(async ct =>
