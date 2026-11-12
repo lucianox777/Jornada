@@ -227,7 +227,6 @@ public static class V9NestedCalibrationCoordinator
         Action<V9NestedCandidateEvaluation>? reportHypothesis = null)
     {
         ArgumentNullException.ThrowIfNull(openIndependentConnection);
-        var searchClock = Stopwatch.StartNew();
         ValidatePlan(plan);
         if (plan.Calibration.ModelOptions.Any(V9FellegiSunterAdaptiveCalibrationAdapter.HasPositiveTf) && frozenTfReferenceForRuleset is null)
             throw new InvalidDataException("TF positivo na busca aninhada exige referência IBGE publicada e congelada por frame SQL.");
@@ -312,7 +311,8 @@ public static class V9NestedCalibrationCoordinator
         using var referenceLease = new SemaphoreSlim(1);
         // Opt-in diagnostic only; no changes to scientific results or scheduling.
         var physicalProgressEnabled = Environment.GetEnvironmentVariable("V9_PHYSICAL_PROGRESS_LOG") == "1";
-        var physicalProgressClock = Stopwatch.StartNew();
+        // Start timing at the first actual physical hypothesis-group execution.
+        var physicalProgressClock = new Stopwatch();
         var physicalCompleted = 0;
         var physicalProgressLock = new object();
         var recentCompletions = new Queue<TimeSpan>();
@@ -332,24 +332,24 @@ public static class V9NestedCalibrationCoordinator
                 recentCompletions.Enqueue(elapsed);
                 if (recentCompletions.Count > 20) recentCompletions.Dequeue();
                 var remaining = physicalTotal - done;
-                var eta = done > 0 && remaining > 0
-                    ? TimeSpan.FromTicks((long)(elapsed.Ticks / (double)done * remaining))
-                    : TimeSpan.Zero;
-                // Rolling ETA uses up to 20 completion timestamps, not individual
-                // task durations: it therefore reflects effective parallel throughput.
-                TimeSpan? rollingEta = null;
-                if (recentCompletions.Count >= 2 && remaining > 0)
+                // Use only observed completion intervals: startup latency is not a
+                // per-hypothesis rate. A single ETA is shown after warm-up.
+                TimeSpan? eta = null;
+                if (done >= 8 && recentCompletions.Count >= 2 && remaining > 0)
                 {
                     var window = recentCompletions.ToArray();
                     var duration = window[^1] - window[0];
                     if (duration > TimeSpan.Zero)
-                        rollingEta = TimeSpan.FromTicks((long)(duration.Ticks / (double)(window.Length - 1) * remaining));
+                        eta = TimeSpan.FromTicks((long)(duration.Ticks / (double)(window.Length - 1) * remaining));
                 }
-                var remainingBudget = TimeSpan.FromMinutes(305) - searchClock.Elapsed - eta;
-                var status = done < 8 ? "ETA_PRELIMINAR" : remainingBudget < TimeSpan.Zero ? "RISCO_TIMEOUT" : "OK";
+                var remainingBudget = eta.HasValue
+                    ? TimeSpan.FromMinutes(305) - physicalProgressClock.Elapsed - eta.Value
+                    : (TimeSpan?)null;
+                var status = !eta.HasValue ? "ETA_EM_AQUECIMENTO"
+                    : remainingBudget < TimeSpan.Zero ? "RISCO_TIMEOUT" : "OK";
                 lock (Console.Out)
                     Console.WriteLine(FormattableString.Invariant(
-                        $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) | hipotese={requestSha[..Math.Min(12, requestSha.Length)]} | resultado={(evaluated ? "AVALIADA" : "REJEITADA")} | tempo_individual_pos_SQL={individualDuration.TotalSeconds:F1}s | decorrido_min={elapsed.TotalMinutes:F1} | ETA_min={eta.TotalMinutes:F1} | ETA_ultimas20_min={(rollingEta.HasValue ? rollingEta.Value.TotalMinutes.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) : "N/A")} | preparo_interno_min={(searchClock.Elapsed - elapsed).TotalMinutes:F1} | total_busca_min={searchClock.Elapsed.TotalMinutes:F1} | margem_etapa_305min={remainingBudget.TotalMinutes:+0;-0;0}min | {status}"));
+                        $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) | hipotese={requestSha[..Math.Min(12, requestSha.Length)]} | resultado={(evaluated ? "AVALIADA" : "REJEITADA")} | tempo_individual_pos_SQL={individualDuration.TotalSeconds:F1}s | decorrido_min={elapsed.TotalMinutes:F1} | ETA_min={(eta.HasValue ? eta.Value.TotalMinutes.ToString("F1", CultureInfo.InvariantCulture) : "N/A")} | {status}"));
                 Console.Out.Flush();
             }
         }
@@ -427,6 +427,9 @@ public static class V9NestedCalibrationCoordinator
                 }
                 var connection = await openIndependentConnection(ct);
                 lock (active) if (!active.Add(connection)) throw new InvalidDataException("Workers exigem conexões SQL independentes.");
+                // The clock starts at physical work, not during plan/SQL preparation.
+                lock (physicalProgressLock)
+                    if (!physicalProgressClock.IsRunning) physicalProgressClock.Start();
                 try { return await EvaluateAsync(connection, frame, plan, group, batchIndex,
                     candidateCpMultiplicity, frozenReference, ct, ReportPhysicalCompletion); }
                 catch (InvalidDataException exception)
