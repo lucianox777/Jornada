@@ -152,6 +152,16 @@ class V9FourName100kTests(unittest.TestCase):
         self.assertIn("timeout-minutes:", workflow)
         self.assertIn("Remove disposable SQL even after failure", workflow)
 
+    def test_manual_workflow_exposes_opt_in_replay_timing_without_relaxing_guards(self):
+        workflow = (ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml").read_text()
+        self.assertIn("replay_timing_diagnostics:", workflow)
+        self.assertIn("V9_REPLAY_TIMING_DIAGNOSTICS: ${{ inputs.replay_timing_diagnostics && '1' || '0' }}", workflow)
+        self.assertIn("github.actor == github.repository_owner", workflow)
+        self.assertIn("security_preflight_approved == true", workflow)
+        self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', workflow)
+        self.assertIn('test "$EXACT_SHA" = "$GITHUB_SHA"', workflow)
+        self.assertIn("workflow_dispatch:", workflow)
+
 
 if __name__ == "__main__":
     unittest.main()
