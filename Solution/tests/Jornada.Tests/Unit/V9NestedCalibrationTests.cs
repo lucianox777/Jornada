@@ -49,6 +49,31 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public void Frozen_finalists_prefer_lowest_FP_then_recall_without_changing_eligibility()
+    {
+        var candidate = Candidate(180, 0, .95m);
+        var baseMetric = candidate.Metric with
+        {
+            ConditionalClusterCpFdrUpper = .005,
+            BonferroniComparedConfigurations = 3
+        };
+        var highRecall = new V9FrozenHoldoutEvaluation("high-recall",
+            baseMetric with { FalseAcceptedSourceObservations = 7, GlobalSourceRecall = .97 }, 10, 2, "fixture", []);
+        var lowFp = new V9FrozenHoldoutEvaluation("low-fp",
+            baseMetric with { FalseAcceptedSourceObservations = 2, GlobalSourceRecall = .95 }, 10, 2, "fixture", []);
+        var equalFpHigherRecall = new V9FrozenHoldoutEvaluation("equal-fp-higher-recall",
+            baseMetric with { FalseAcceptedSourceObservations = 2, GlobalSourceRecall = .96 }, 10, 2, "fixture", []);
+        var policy = new V9BootstrapPareto2D.SelectionPolicy(.8, .01, 100, 20);
+        Assert.That(V9NestedCalibrationCli.SelectConditionalWinner(
+            [highRecall, lowFp, equalFpHigherRecall], policy, 2), Is.SameAs(equalFpHigherRecall));
+        Assert.That(V9NestedCalibrationCli.SelectScientificWinner(
+            [highRecall, lowFp, equalFpHigherRecall], policy, 2), Is.SameAs(equalFpHigherRecall));
+        Assert.That(V9NestedCalibrationCli.SelectConditionalWinner(
+            [highRecall, lowFp with { P95Milliseconds = 30 },
+                equalFpHigherRecall with { P95Milliseconds = 30 }], policy, 2), Is.SameAs(highRecall));
+    }
+
+    [Test]
     public void Scientific_finalist_proposal_ignores_runtime_P95_but_conditional_operability_does_not()
     {
         var candidate = Candidate(180, 0, .95m);
