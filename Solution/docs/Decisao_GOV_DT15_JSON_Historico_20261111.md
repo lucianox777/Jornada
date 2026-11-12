@@ -95,3 +95,20 @@ O caminho `--v9-validate-finalists` agora invoca `ReadReceiptVerifiedAsync` imed
 ## Proteção adicional do leitor de artefatos
 
 A leitura de JSON endereçado por SHA rejeita também arquivos que sejam links simbólicos/reparse points, para evitar redirecionamento do nome canônico a outro arquivo. A validação ocorre antes da leitura; não constitui defesa contra substituição concorrente por ator com escrita no diretório, portanto o armazenamento de evidências deve permanecer sob controle de acesso e imutabilidade. A CI desta alteração ainda requer confirmação.
+
+
+## Implementação incremental posterior ao merge #1440 — vínculo explícito
+A migração `20261111_DT15_Original_Calibration_Artifact_Binding.sql` cria
+`auditoria.modelo_linkage_artefato_calibracao_original`, uma linha por `modelo_id`,
+com nome original, SHA-256 dos bytes originais, referência de armazenamento,
+tamanho e responsável/data do registro. O vínculo é explícito, não derivado de
+timestamp, nome do arquivo ou recibo de validação externa. Trigger impede UPDATE
+e DELETE, e procedure impede segundo registro para o mesmo modelo.
+Justificativa: preservar rastreabilidade sem atribuição falsa de evidência.
+Impactos: migração aditiva, sem alterações automáticas de modelos nem ativação.
+Precedência: mantém DT-15, GOV-DOC-01 e os gates humanos existentes.
+Limites: a procedure pressupõe que o chamador verificou SHA e imutabilidade
+do armazenamento; ainda não há integração automática com a publicação do
+RASCUNHO nem recuperação dos bytes históricos. A tabela isolada não certifica
+elegibilidade e não habilita recomendação de ativação.
+Rastreabilidade: PR posterior à #1440; migração SQL citada acima.
