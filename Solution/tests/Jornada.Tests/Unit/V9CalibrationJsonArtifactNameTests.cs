@@ -60,7 +60,7 @@ public sealed class V9CalibrationJsonArtifactNameTests
         Assert.Multiple((Action)(() =>
         {
             Assert.That(source, Does.Contain("FileMode.CreateNew"));
-            Assert.That(source, Does.Contain("V9CalibrationJsonArtifactName.Verify(finalValidationName, storedBytes)"));
+            Assert.That(source, Does.Contain("V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync("));
             Assert.That(source, Does.Contain("storedBytes.AsSpan().SequenceEqual(finalValidationBytes)"));
             Assert.That(source, Does.Contain("divergência entre SHA no nome e bytes persistidos"));
         }));
