@@ -866,31 +866,59 @@ public static class V9NestedCalibrationCli
         }
     }
 
+    // Only the admission metadata is retained; JsonSerializer skips all other
+    // properties (notably the multi-gigabyte result.Evaluations array).
+    private sealed class V9ValidationSelectionEnvelope
+    {
+        public V9ValidationSelectionResult? result { get; set; }
+        public string? originalObservationsSha256 { get; set; }
+        public ulong? producerSeed { get; set; }
+    }
+
+    private sealed class V9ValidationSelectionResult
+    {
+        public string? Version { get; set; }
+        public bool? ExternalValidationUsed { get; set; }
+        public bool? TestUsed { get; set; }
+        public string? PlanSha256 { get; set; }
+        public string[]? FinalistSnapshotShas { get; set; }
+    }
+
     private static async Task ValidateAsync(string selectionFile, string source, string output,
         V9NestedCalibrationPlan plan, string connectionString)
     {
         var elapsed = System.Diagnostics.Stopwatch.StartNew();
         using var process = System.Diagnostics.Process.GetCurrentProcess();
-        var bytes = await File.ReadAllBytesAsync(selectionFile);
-        var selectionSha = Sha(bytes);
+        // The TRAIN selection envelope can exceed 2 GiB because it contains all
+        // hypothesis evaluations. Hash the exact bytes and deserialize only the
+        // small validation admission fields, skipping the large evaluations array.
+        // Never materialize the full envelope as a byte[] or JsonDocument.
+        string selectionSha;
+        await using (var selectionHashStream = File.OpenRead(selectionFile))
+            selectionSha = Convert.ToHexString(await SHA256.HashDataAsync(selectionHashStream))
+                .ToLowerInvariant();
         if (Path.GetFileName(selectionFile) != selectionSha + ".selection.json")
             throw new InvalidDataException("Envelope diverge do SHA fixado no nome do arquivo.");
-        using var envelope = JsonDocument.Parse(bytes);
-        var root = envelope.RootElement;
-        var result = root.GetProperty("result");
-        if (result.GetProperty("Version").GetString() != V9NestedCalibrationCoordinator.Version
-            || result.GetProperty("ExternalValidationUsed").GetBoolean() || result.GetProperty("TestUsed").GetBoolean()
-            || result.GetProperty("PlanSha256").GetString() != V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(plan)))
+        V9ValidationSelectionEnvelope? envelope;
+        await using (var selectionReadStream = File.OpenRead(selectionFile))
+            envelope = await JsonSerializer.DeserializeAsync<V9ValidationSelectionEnvelope>(selectionReadStream);
+        var result = envelope?.result;
+        if (result is null || result.Version != V9NestedCalibrationCoordinator.Version
+            || result.ExternalValidationUsed != false || result.TestUsed != false
+            || result.PlanSha256 != V9InternalTrainingSplit.Hash(JsonSerializer.Serialize(plan)))
             throw new InvalidDataException("Envelope não corresponde à seleção interna e ao plano congelado.");
-        var ids = result.GetProperty("FinalistSnapshotShas").EnumerateArray().Select(x => x.GetString()!).ToArray();
-        if (ids.Length is < 1 or > 3 || ids.Distinct(StringComparer.Ordinal).Count() != ids.Length)
+        var ids = result.FinalistSnapshotShas;
+        if (ids is null || ids.Length is < 1 or > 3
+            || ids.Any(id => string.IsNullOrWhiteSpace(id))
+            || ids.Distinct(StringComparer.Ordinal).Count() != ids.Length)
             throw new InvalidDataException("Sem um a três finalistas distintos: não abrir VALIDATION.");
-        var original = root.GetProperty("originalObservationsSha256").GetString()!;
+        var original = envelope!.originalObservationsSha256
+            ?? throw new InvalidDataException("Envelope sem SHA das observações originais.");
         var manifestBytes = await File.ReadAllBytesAsync(Path.Combine(Path.GetDirectoryName(Path.GetFullPath(source))!, "generation-manifest.json"));
         await using var csv = File.OpenRead(source);
         var sourceSha = Convert.ToHexString(await SHA256.HashDataAsync(csv)).ToLowerInvariant();
         var fresh = V9FreshHoldoutProtocol.Inspect(manifestBytes, sourceSha, original,
-            root.GetProperty("producerSeed").GetUInt64(), plan.Calibration.MaximumAcceptedPerBaseIdentity,
+            envelope.producerSeed ?? throw new InvalidDataException("Envelope sem seed de produção."), plan.Calibration.MaximumAcceptedPerBaseIdentity,
             isPlumbingFixture: plan.Purpose == "PLUMBING_FIXTURE_NOT_CERTIFICATION");
         var snapshots = new List<V9FittedSnapshot>();
         foreach (var id in ids)
