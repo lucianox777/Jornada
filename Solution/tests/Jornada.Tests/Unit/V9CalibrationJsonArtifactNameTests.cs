@@ -22,8 +22,8 @@ public sealed class V9CalibrationJsonArtifactNameTests
     public void Hash_is_based_on_exact_bytes_not_semantically_equivalent_json()
     {
         var at = new DateTimeOffset(2026, 11, 11, 15, 30, 0, TimeSpan.Zero);
-        var compact = Encoding.UTF8.GetBytes("{\\"x\\":1}");
-        var formatted = Encoding.UTF8.GetBytes("{ \\"x\\": 1 }");
+        var compact = Encoding.UTF8.GetBytes("""{"x":1}""");
+        var formatted = Encoding.UTF8.GetBytes("""{ "x": 1 }""");
         var name = V9CalibrationJsonArtifactName.Create(compact, at);
         Assert.Multiple(() =>
         {
