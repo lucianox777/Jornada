@@ -202,52 +202,30 @@ def audit(plan_path, receipt_path, analysis_path, runtime_path, selection_path,
                 for p in blocking_passes), "invalid blocking pass definition")
     finalist_shas = selection.get("FinalistSnapshotShas") or []
     require(isinstance(finalist_shas, list), "invalid finalist list")
-    # Resolve each frozen finalist to its measured TF4 hypothesis, never by list position.
+    # Identify each finalist by its measured snapshot SHA, not by list position.
     by_snapshot = {}
     for row in summary:
         snapshot = row.get("fitSha256")
         if snapshot:
             require(snapshot not in by_snapshot, "ambiguous finalist snapshot SHA")
             by_snapshot[snapshot] = row
-    tf_labels = (("PF", "Prenome da pessoa"),
-                 ("PL", "Sobrenome da pessoa"),
-                 ("MF", "Prenome da mãe"),
-                 ("ML", "Sobrenome da mãe"))
-
-    def tf_description(option_id):
-        root = option_id.split("_A", 1)[0]
-        parts = root.split("_")
-        require(len(parts) == 5 and parts[0] == "TF4",
-                "finalist without four-name TF configuration")
-        values = []
-        for part, (code, label) in zip(parts[1:], tf_labels):
-            require(part.startswith(code) and part[len(code):] in ("0", "5", "10"),
-                    "invalid finalist TF4 weight")
-            weight = int(part[len(code):]) / 10
-            values.append({"code": code, "field": label, "weight": weight})
-        return values
-
     finalist_details = []
     for snapshot in finalist_shas:
         require(snapshot in by_snapshot, "finalist missing from measured TRAIN rows")
-        measured_row = by_snapshot[snapshot]
+        row = by_snapshot[snapshot]
         finalist_details.append({
             "snapshotSha256": snapshot,
             "fileName": snapshot + ".fitted.json",
-            "optionId": measured_row["optionId"],
-            "tf4Fields": tf_description(measured_row["optionId"]),
+            "optionId": row["optionId"],
             "blockingPasses": blocking_passes,
-            "tp": measured_row["tp"], "fp": measured_row["fp"],
-            "fn": measured_row["fn"], "recall": measured_row["recall"],
-            "fdrObserved": measured_row["fdrObserved"],
-            "p95Milliseconds": measured_row["p95Milliseconds"]})
+            "tp": row["tp"], "fp": row["fp"], "fn": row["fn"],
+            "recall": row["recall"], "fdrObserved": row["fdrObserved"],
+            "p95Milliseconds": row["p95Milliseconds"]})
     finalist_markdown = "\n".join(
         "### " + item["fileName"] + "\n\n"
         + "SHA: " + item["snapshotSha256"] + "\n\n"
-        + "**Configuração TF4 (pesos de frequência, não passes de blocking):**\n\n"
-        + "\n".join("- " + field["field"] + ": **" + format(field["weight"], ".1f").replace(".", ",") + "**"
-                     for field in item["tf4Fields"])
-        + "\n\n**Passes de blocking (fixos e compartilhados):**\n\n"
+        + "**Configuração TF4:** `" + item["optionId"].split("_A", 1)[0] + "`\n\n"
+        + "**Passes de blocking (fixos e compartilhados):**\n\n"
         + "\n".join("- **" + str(p["PassId"]) + "**: "
                      + json.dumps(p, ensure_ascii=False, sort_keys=True)
                      for p in item["blockingPasses"])
