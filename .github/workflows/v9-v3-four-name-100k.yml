@@ -56,6 +56,11 @@ jobs:
       run:
         working-directory: Solution
     steps:
+      # First visible job step, before checkout/build; does not imply calibration has started.
+      - name: Announce V9 workflow start
+        run: |
+          echo '[V9 WORKFLOW START] 100k calibration workflow started; preflight and build pending'
+          echo "[V9 WORKFLOW START] run=${GITHUB_RUN_ID} sha=${GITHUB_SHA} ref=${GITHUB_REF}"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned
         with:
           ref: ${{ inputs.expected_sha }}
@@ -235,6 +240,7 @@ jobs:
             Solution/.local/v9-100k-technical/results/interrupted.json
             Solution/.local/v9-100k-technical/results/startup-progress.jsonl
             Solution/.local/v9-100k-technical/results/hypothesis-progress.jsonl
+            Solution/.local/v9-100k-technical/results/hypotheses/hypothesis-*.json
             Solution/.local/v9-100k-technical/results/batch-progress.jsonl
             Solution/.local/v9-100k-technical/results/memory-progress.jsonl
             Solution/.local/v9-100k-technical/bound/technical-audit.json
