@@ -61,7 +61,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p .local/v9-startup-probe
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- --v9-startup-log-probe .local/v9-startup-probe | tee .local/v9-startup-probe/console.log
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- --v9-startup-log-probe "$PWD/.local/v9-startup-probe" | tee .local/v9-startup-probe/console.log
           grep -F '[V9 START] C# calibrator started;' .local/v9-startup-probe/console.log
           python3 - <<'PY'
           import json
