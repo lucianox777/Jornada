@@ -634,7 +634,7 @@ public static class V9NestedCalibrationCoordinator
                 indexClock.Stop();
                 lock (Console.Out)
                     Console.WriteLine(FormattableString.Invariant(
-                        $"[V9 PERF DIAG] phase=index_build | batch={batch} | requests={requests.Count} | elapsed_ms={indexClock.Elapsed.TotalMilliseconds:F3} | metric_entries={run.SourceResolveValidation!.Count()} | frozen_entries={run.FrozenConfigurations!.Count()} | option_entries={run.CalibrationReport.Options.Count()}"));
+                        $"[V9 PERF DIAG] phase=index_build | batch={batch} | requests={requests.Count} | elapsed_ms={indexClock.Elapsed.TotalMilliseconds:F3} | metric_entries={run.SourceResolveValidation!.Count} | frozen_entries={run.FrozenConfigurations!.Count} | option_entries={run.CalibrationReport.Options.Count}"));
             }
             var result = new List<V9NestedCandidateEvaluation>();
             foreach (var request in requests)
