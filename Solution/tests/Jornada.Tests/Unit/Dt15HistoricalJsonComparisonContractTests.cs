@@ -11,7 +11,7 @@ public sealed class Dt15HistoricalJsonComparisonContractTests
         var root = FindRoot();
         var api = File.ReadAllText(Path.Combine(root, "Solution", "src", "Jornada.Api", "ModelGovernanceReadOnlyService.cs"));
         var html = File.ReadAllText(Path.Combine(root, "Solution", "src", "Jornada.Api", "wwwroot", "governanca", "modelos", "index.html"));
-        Assert.Multiple(() =>
+        Assert.Multiple((Action)(() =>
         {
             Assert.That(api, Does.Contain("ReadHistoricalMetricsAsync"));
             Assert.That(api, Does.Contain("HistoricalMetrics = historicalMetrics"));
@@ -21,7 +21,7 @@ public sealed class Dt15HistoricalJsonComparisonContractTests
             Assert.That(html, Does.Contain("não é SHA do JSON"));
             Assert.That(html, Does.Contain("Nome do JSON, SHA-256 dos bytes originais"));
             Assert.That(html, Does.Contain("Recomendação de ativação: indisponível"));
-        });
+        }));
     }
 
     private static string FindRoot()
