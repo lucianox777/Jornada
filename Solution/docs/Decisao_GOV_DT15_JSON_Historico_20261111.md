@@ -112,3 +112,9 @@ do armazenamento; ainda não há integração automática com a publicação do
 RASCUNHO nem recuperação dos bytes históricos. A tabela isolada não certifica
 elegibilidade e não habilita recomendação de ativação.
 Rastreabilidade: PR posterior à #1440; migração SQL citada acima.
+
+## Deliberação do PO — congelamento posterior da campanha V9 324 hipóteses (11/11/2026)
+
+O PO determinou que, **após o fechamento da otimização do calibrador com 324 hipóteses**, o resultado final seja congelado como evidência imutável e rastreável. **O congelamento ainda não ocorreu**: esta decisão não presume campanha encerrada, resultado aprovado ou modelo ativado. A inclusão de novos pesos lambda fica fora das PRs DT-15 e calibrador atualmente em integração.
+
+Antes de declarar o congelamento concluído, preservar o plano e sua configuração exata, SHA do código/build, referências e corpus fixados, parâmetros das 324 hipóteses, métricas e finalistas, arquivos originais de saída com SHA-256 dos bytes, recibos/logs e estado dos gates estatísticos e operacionais. Registrar no dossiê DT-15 a associação inequívoca entre evidência, execução e eventual modelo RASCUNHO, sem recalcular ou sobrescrever resultados históricos. A decisão de ativação permanece humana e separada. Esta deliberação complementa GOV-DT15-JSON-HIST-20261111, sem substituir regras de VALIDATION, TEST, multiplicidade, Pareto ou GOV-DOC-01.
