@@ -183,7 +183,7 @@ jobs:
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
-          mkdir -p "$root/validation-people" "$root/validation-results"
+          mkdir -p "$root/validation-people"
           dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
             --reference-root "$PWD/data/reference/ibge-nomes-2022" \
             --population-profile demographic-primary \
