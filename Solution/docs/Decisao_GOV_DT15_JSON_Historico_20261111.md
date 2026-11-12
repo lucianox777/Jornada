@@ -75,3 +75,8 @@ Inspeção direta de `Solution/src/Jornada.Linkage.Parameters.Worker/LinkagePara
 3. O CLI `V9NestedCalibrationCli` gera um JSON de **validação externa**, não necessariamente o artefato de calibração que originou esse `modelo_id`. Portanto **não** se deve conectar automaticamente esse recibo à transação de publicação.
 
 Próximo passo de implementação: definir um registro de associação imutável que seja escrito apenas com evidência de execução realmente vinculada ao `modelo_id`, preferencialmente na transação de publicação ou em evento auditável pós-commit com idempotência e validação de SHA. Nenhuma vinculação retroativa inferida de timestamps será feita.
+
+
+## Leitura fail-closed do artefato original
+
+Implementada a função `V9CalibrationJsonArtifactName.ReadVerifiedAsync(directory, fileName)`: valida o formato canônico do nome, impede caminhos relativos/absolutos fornecidos como nome, lê os bytes preservados e compara seu SHA-256 ao sufixo integral. Arquivo ausente ou alterado provoca falha; a função não resolve nem presume `modelo_id`. Teste de unidade cobre leitura íntegra, adulteração e tentativa de travessia de diretórios. Esta função é uma primitiva de integridade para a futura associação auditável, **não** uma implementação da associação nem uma autorização de promoção. CI do commit correspondente pendente.
