@@ -80,3 +80,8 @@ Próximo passo de implementação: definir um registro de associação imutável
 ## Leitura fail-closed do artefato original
 
 Implementada a função `V9CalibrationJsonArtifactName.ReadVerifiedAsync(directory, fileName)`: valida o formato canônico do nome, impede caminhos relativos/absolutos fornecidos como nome, lê os bytes preservados e compara seu SHA-256 ao sufixo integral. Arquivo ausente ou alterado provoca falha; a função não resolve nem presume `modelo_id`. Teste de unidade cobre leitura íntegra, adulteração e tentativa de travessia de diretórios. Esta função é uma primitiva de integridade para a futura associação auditável, **não** uma implementação da associação nem uma autorização de promoção. CI do commit correspondente pendente.
+
+
+## Verificação cruzada do recibo SHA
+
+A função `V9CalibrationJsonArtifactName.ReadReceiptVerifiedAsync` valida, em conjunto, o sufixo SHA-256 no nome do arquivo, os bytes efetivamente lidos e o SHA-256 explicitamente declarado no recibo de proveniência. Digest inválido ou divergente provoca falha fechada. O teste correspondente cobre recibo correto e recibo adulterado. A verificação não autentica a origem do recibo, não prova associação a `modelo_id` e não autoriza ativação. A persistência transacional do vínculo segue pendente.
