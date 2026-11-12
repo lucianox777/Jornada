@@ -22,6 +22,23 @@ public static class V9CalibrationJsonArtifactName
         return $"calibracao_v9_{generatedAt.UtcDateTime:yyyyMMdd_HHmmss}_{digest}.json";
     }
 
+    /// <summary>
+    /// Reads the exact stored bytes and rejects a missing or tampered artifact.
+    /// Never infers a model association from a filename.
+    /// </summary>
+    public static async Task<byte[]> ReadVerifiedAsync(string directory, string fileName, CancellationToken ct = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
+        if (string.IsNullOrWhiteSpace(fileName)
+            || !string.Equals(fileName, Path.GetFileName(fileName), StringComparison.Ordinal)
+            || !Pattern.IsMatch(fileName))
+            throw new InvalidDataException("Nome de artefato V9 inválido.");
+        var bytes = await File.ReadAllBytesAsync(Path.Combine(directory, fileName), ct);
+        if (!Verify(fileName, bytes))
+            throw new InvalidDataException("SHA-256 do artefato V9 diverge dos bytes originais.");
+        return bytes;
+    }
+
     public static bool Verify(string fileName, ReadOnlySpan<byte> originalJsonBytes)
     {
         if (string.IsNullOrEmpty(fileName)) return false;
