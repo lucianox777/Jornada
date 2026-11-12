@@ -178,6 +178,8 @@ jobs:
             Solution/.local/v9-100k-technical/results/calibration-resource-budget.json
             Solution/.local/v9-100k-technical/results/calibration-runtime-scheduling.json
             Solution/.local/v9-100k-technical/results/selection-reference.json
+            Solution/.local/v9-100k-technical/results/*.selection.json
+            Solution/.local/v9-100k-technical/results/*.fitted.json
       - name: Remove disposable SQL even after failure
         if: always()
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
