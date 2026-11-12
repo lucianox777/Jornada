@@ -66,6 +66,29 @@ public sealed class V9CalibrationJsonArtifactNameTests
         }));
     }
 
+    [Test]
+    public async Task ReadVerifiedAsync_accepts_exact_bytes_and_rejects_tampering()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), "jornada-v9-sha-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            var bytes = Encoding.UTF8.GetBytes("""{"calibration":true}""");
+            var name = V9CalibrationJsonArtifactName.Create(bytes, DateTimeOffset.UtcNow);
+            await File.WriteAllBytesAsync(Path.Combine(dir, name), bytes);
+            Assert.That(await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, name), Is.EqualTo(bytes));
+            await File.WriteAllBytesAsync(Path.Combine(dir, name), Encoding.UTF8.GetBytes("""{"calibration":false}"""));
+            Assert.ThrowsAsync<InvalidDataException>(async () =>
+                await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, name));
+            Assert.ThrowsAsync<InvalidDataException>(async () =>
+                await V9CalibrationJsonArtifactName.ReadVerifiedAsync(dir, "../" + name));
+        }
+        finally
+        {
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+
     private static string FindRoot()
     {
         var dir = new DirectoryInfo(TestContext.CurrentContext.TestDirectory);
