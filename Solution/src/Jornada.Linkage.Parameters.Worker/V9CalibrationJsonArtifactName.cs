@@ -33,7 +33,13 @@ public static class V9CalibrationJsonArtifactName
             || !string.Equals(fileName, Path.GetFileName(fileName), StringComparison.Ordinal)
             || !Pattern.IsMatch(fileName))
             throw new InvalidDataException("Nome de artefato V9 inválido.");
-        var bytes = await File.ReadAllBytesAsync(Path.Combine(directory, fileName), ct);
+        var fullDirectory = Path.GetFullPath(directory);
+        var fullPath = Path.Combine(fullDirectory, fileName);
+        // Reject symlinks/reparse points: a valid basename must not redirect
+        // the reader outside the configured artifact directory.
+        if ((File.GetAttributes(fullPath) & FileAttributes.ReparsePoint) != 0)
+            throw new InvalidDataException("Artefato V9 não pode ser link simbólico.");
+        var bytes = await File.ReadAllBytesAsync(fullPath, ct);
         if (!Verify(fileName, bytes))
             throw new InvalidDataException("SHA-256 do artefato V9 diverge dos bytes originais.");
         return bytes;
