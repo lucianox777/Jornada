@@ -1,0 +1,29 @@
+# GOV-V9-TF4-VALIDATION-JOB-SEPARADO-20261113 — TRAIN e VALIDATION em jobs distintos
+
+**Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** APROVADA PELO PO; implementação em PR, sujeita à CI e integração na master. **Política:** GOV-DOC-01.
+
+## Contexto, decisão e justificativa
+
+A campanha V9 TF4 de 81 opções × 2 misturas V3 × 2 margens (324 hipóteses, TRAIN sintético 100k) está implementada hoje num único job GitHub Actions de 360 min. O run [#43309643251](https://github.com/lucianox777/Jornada/actions/runs/43309643251) concluiu 324/324, emitiu 3 finalistas e recebeu timeout físico de 305 min, pulando auditoria e VALIDATION. A [PR #1471](https://github.com/lucianox777/Jornada/pull/1471) elevou a etapa física e seu ETA para 315 min, sem mudar o teto de 360 min do job. O run [#43159426682](https://github.com/lucianox777/Jornada/actions/runs/43159426682) concluiu TRAIN e auditoria dentro de aproximadamente 5h11, mas falhou em VALIDATION por leitura integral de envelope >2 GiB; uma correção posterior passou a usar hashing e parsing em fluxo. A execução [#43035295017](https://github.com/lucianox777/Jornada/actions/runs/43035295017) passou 24/24, não 324/324.
+
+**Decisão expressa:** o PO aprovou separar a **VALIDATION independente em segundo job sequencial, no mesmo workflow manual**, após sucesso de TRAIN, auditoria fail-closed e congelamento verificável dos finalistas. Para TF4/324, substitui-se a topologia de único job. O novo job tem runner Ubuntu 24.04 separado, timeout total de 120 min e etapa VALIDATION de 40 min; o primeiro mantém timeout 360 min e etapa física 315 min. Isso não amplia o limite de 360 min por job nem autoriza TEST.
+
+## Contrato de integridade e segurança entre jobs
+
+1. **TRAIN + auditoria:** executar sob SHA master fixado, workflow_dispatch owner-only e preflight de segurança positivo. Preservar 324 hipóteses, SQL descartável com credencial mascarada e os limites científicos. Só após auditor PASS com status TRAIN_TECHNICAL_PASS_NOT_SCIENTIFIC_CERTIFICATION congelar 1 a 3 finalistas com nome SHA-256 e envelope original. Usar hash em fluxo para envelopes >2 GiB.
+2. **Transferência mínima:** enviar apenas plano, binding-receipt, recibo de seleção, auditoria, envelope original e até três snapshots ajustados congelados. Manifesto por arquivo com SHA-256, tamanho, code SHA, run ID e IDs dos finalistas; recusam-se arquivos desconhecidos e links simbólicos. Nunca enviar corpus TRAIN ou VALIDATION, credenciais, estado SQL, dados pessoais reais ou TEST. Usar artifact v4 imutável, nome por execução e retenção de 30 dias. A digest nativa GitHub é apenas adicional: a verificação própria é fail-closed.
+3. **VALIDATION:** segundo job depende de TRAIN SUCCESS e finalistas presentes. Novo checkout do mesmo SHA, novo runner e SQL descartável, reconstrução da referência IBGE pinada, holdout independente com seed e parâmetros já aprovados, sem recalibração. Conferir SHA integral, plano, recibos, auditoria e manifesto antes de inicializar SQL ou gerar novo holdout. Publicar apenas resultados JSON agregados de validação em artifact separado. Cada job limpa suas próprias bases e SQL mesmo em falha.
+4. **Sem finalistas:** quando a busca auditada não encontrar finalistas, VALIDATION é pulada explicitamente e o status de ausência é preservado; não afirmar que VALIDATION passou.
+5. **Reexecução e isolamento do holdout:** o registro de exposição do holdout é local e não persiste automaticamente entre jobs/runs. O job VALIDATION bloqueia tentativa GitHub run_attempt diferente de 1; uma falha operacional **não** autoriza rerun da mesma validação ou novo run com o mesmo holdout sem governança e proteção anti-reexposição. Persistência global de exposições é decisão separada.
+
+## Impactos, riscos, precedência e gates
+
+**Invariantes:** não modificar 324 células, quatro TFs, M/U, FS, Resolve, scorer, ranking, margens, limites FDR CP 1%, P95 60s e fanout, orçamento científico, seleção, seed42 de TRAIN, TEST lacrado, LOCK, ativação ou homologação. A evidência TRAIN é distinta da conclusão científica da VALIDATION: somente quando ambas passam pode o workflow completo ser considerado tecnicamente concluído, sem certificação populacional.
+
+**Riscos residuais:** o envelope >2 GiB consome disco, armazenamento e banda durante cópia e transferência; hashes e leitura devem usar memória limitada. Um novo runner exige novo SQL e referência histórica; instabilidade desse ambiente pode reprovar VALIDATION. O job TRAIN ainda pode esgotar 360 min com auditoria/empacotamento; separar os jobs **não** garante sua conclusão. Retenção de 30 dias do artifact não substitui o congelamento oficial. Não permitir refit no segundo job para contornar falhas.
+
+**Precedência:** substitui somente a topologia VALIDATION no mesmo job da campanha TF4. Preserva [GOV-V9-V3-TF4-324-20261111](Decisao_GOV_V9_V3_TF4_324_100k_20261111.md), [GOV-V9-324-TIMEOUT-FISICO-315-20261113](Decisao_GOV_V9_324_Timeout_Fisico_315_20261113.md), [GOV-V9-VALIDATION-ENVELOPE-STREAM-20261112](Decisao_GOV_V9_Validation_Envelope_Stream_20261112.md), controles de holdout e GOV-DOC-01.
+
+**Gates:** testes isolados do manifesto/negação de corpus, CI obrigatória, revisão e squash merge; verificar SHA final master. A execução real 100k permanece manual owner-only, com preflight real de segurança. CI não é prova de transporte real de envelope >2 GiB nem de execução científica VALIDATION. O run [#43453565012](https://github.com/lucianox777/Jornada/actions/runs/43453565012) já iniciado com SHA anterior **não muda retroativamente**.
+
+**Rastreabilidade:** decisão aprovada pelo PO nesta conversa, runs #43159426682, #43309643251 e #43453565012; workflow .github/workflows/v9-v3-four-name-100k.yml; helper Solution/scripts/v9-v3-four-name-100k-handoff.py; teste Solution/tests/scripts/test_v9_v3_four_name_100k_handoff.py; [índice](Indice_Decisoes_Vigentes.md).
