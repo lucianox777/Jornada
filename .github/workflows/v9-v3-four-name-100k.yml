@@ -540,6 +540,12 @@ jobs:
     name: "V9 independent TEST: one frozen winner, sealed 100k"
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    # Contents write is scoped ONLY to TEST to atomically reserve a unique
+    # one-use tag for this TEST seed before any decrypted data are opened.
+    # TRAIN, VALIDATION and preparation retain read-only credentials.
+    permissions:
+      contents: write
+      actions: read
     env:
       EXACT_SHA: ${{ inputs.expected_sha }}
       DOTNET_ENVIRONMENT: DEV
@@ -605,10 +611,11 @@ jobs:
             --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
             --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
             --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
-      - name: Unseal TEST base only inside TEST-owned runner
+      - name: Reserve single-use TEST seed atomically before opening its own corpus
         env:
           TEST_PUBLIC_CERT_B64: ${{ secrets.V9_TF4_TEST_PUBLIC_CERT_B64 }}
           TEST_PRIVATE_KEY_B64: ${{ secrets.V9_TF4_TEST_PRIVATE_KEY_B64 }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           umask 077
@@ -619,6 +626,32 @@ jobs:
           }
           printf '%s' "$TEST_PUBLIC_CERT_B64" | base64 -d > "$root/recipient.pem"
           printf '%s' "$TEST_PRIVATE_KEY_B64" | base64 -d > "$root/private.pem"
+          # Fail before consuming the one-use TEST exposure if credentials do not
+          # open the exact certificate used by the preparation job.
+          python3 - "$root/recipient.pem" "$root/private.pem" "$root/sealed/test-seal-receipt.json" <<'PY'
+          import hashlib,json,pathlib,subprocess,sys
+          cert,key,receipt=map(pathlib.Path,sys.argv[1:])
+          r=json.loads(receipt.read_text(encoding="utf-8"))
+          assert hashlib.sha256(cert.read_bytes()).hexdigest()==r["certificateSha256"]
+          expected=subprocess.run(["openssl","x509","-in",str(cert),"-pubkey","-noout"],
+                                  check=True,capture_output=True).stdout
+          actual=subprocess.run(["openssl","pkey","-in",str(key),"-pubout"],
+                                check=True,capture_output=True).stdout
+          assert expected==actual, "TEST private key does not match sealed recipient"
+          print("TEST_KEYS_MATCH_ENCRYPTED_CORPUS_RECIPIENT")
+          PY
+          # An immutable seed is a one-use scientific resource across ALL runs.
+          # Reserve a global, deterministic Git tag ATOMICALLY before exposure:
+          # GitHub returns 422 if it already exists; fail closed without opening.
+          # No rerun/re-dispatch gets a second look at the same 100k cohort.
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          exposure_ref="refs/tags/v9-tf4-test-seed-20261113001-exposed"
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" --method POST \
+            -f ref="$exposure_ref" -f sha="$GITHUB_SHA" --silent >/dev/null || {
+              echo "::error::V9_TEST_EXPOSURE_ALREADY_RESERVED_OR_GITHUB_TAG_DENIED"
+              exit 1
+            }
+          echo "V9_TEST_ONE_USE_EXPOSURE_RESERVED=$exposure_ref"
           python3 scripts/v9-tf4-sealed-test-preparation.py unseal \
             --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
             --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
