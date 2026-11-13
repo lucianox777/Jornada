@@ -117,6 +117,46 @@ public sealed class V9BlindIncrementalIdentityGroupingTests
     }
 
     [Test]
+    public void Independent_TEST_uses_same_blind_FS_grouping_without_validation_data()
+    {
+        var test = new[]
+        {
+            Row(1, "G1", baseId: "EXTERNAL_TEST_SHA:P0001", partition: "TEST"),
+            Row(2, "G2", name: "ANA PAULA SILVA",
+                baseId: "EXTERNAL_TEST_SHA:P0001", partition: "TEST"),
+            Row(3, "G3", name: "JOAO SILVA",
+                baseId: "EXTERNAL_TEST_SHA:P0002", partition: "TEST")
+        };
+        var blind = V9BlindIncrementalIdentityGrouping.BuildTest(
+            test, [Edge(1, 2)], minimumPairPosterior: .99m);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(blind.IdentityByObservation[1],
+                Is.EqualTo(blind.IdentityByObservation[2]));
+            Assert.That(blind.IdentityByObservation[3],
+                Is.Not.EqualTo(blind.IdentityByObservation[1]));
+            Assert.That(blind.OperationallyCertified, Is.False);
+        }));
+        // TEST records can NEVER leak into the VALIDATION-only API.
+        Assert.That((Action)(() =>
+            V9BlindIncrementalIdentityGrouping.Build(test, [Edge(1, 2)])),
+            Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
+    public void Independent_TEST_rejects_mixed_or_validation_partition()
+    {
+        var validation = new[] { Row(1, "G1"), Row(2, "G2") };
+        Assert.That((Action)(() =>
+            V9BlindIncrementalIdentityGrouping.BuildTest(validation, [Edge(1, 2)])),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() =>
+            V9BlindIncrementalIdentityGrouping.BuildTest(
+                [Row(1, "G1", partition: "TEST"), Row(2, "G2")],
+                [Edge(1, 2)])), Throws.TypeOf<InvalidDataException>());
+    }
+
+    [Test]
     public void Invalid_test_duplicates_unknown_or_reversed_edges_fail_closed()
     {
         var rows = new[] { Row(1, "G1"), Row(2, "G2") };
