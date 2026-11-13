@@ -297,6 +297,9 @@ jobs:
         timeout-minutes: 315
         run: |
           set -euo pipefail
+          # Approximate the enforced 315-minute step deadline, captured before
+          # launching the wrapper. GitHub owns the authoritative timeout.
+          export V9_PHYSICAL_STEP_START_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           root="$PWD/.local/v9-100k-technical"
           python3 scripts/v9-100k-physical-memory-evidence.py \
             --sql-container "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \
