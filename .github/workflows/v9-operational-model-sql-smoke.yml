@@ -1,0 +1,86 @@
+name: V9 lossless operational SQL model smoke (nonpublishing)
+
+on:
+  pull_request:
+    paths:
+      - 'Solution/src/Jornada.Linkage.Core/V9OperationalSqlModelConverter.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCli.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9OperationalModelConversionCli.cs'
+      - 'Solution/database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql'
+      - 'Solution/tests/Jornada.Tests/Unit/V9FittedSnapshotTests.cs'
+      - '.github/workflows/v9-operational-model-sql-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  one-winner-sql-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: '10.0.113'
+      - name: Build TEST-only physical conversion smoke (no calibration)
+        run: dotnet build -c Release tests/Jornada.Tests/Jornada.Tests.csproj
+      - name: Generate masked ephemeral SQL credential and launch pinned SQL Server
+        run: |
+          set -euo pipefail
+          umask 077
+          sql_password="V9aA1!$(openssl rand -hex 24)"
+          printf '::add-mask::%s\n' "$sql_password"
+          {
+            printf 'JORNADA_V9_SQL_MODEL_SMOKE_CONNECTION=Server=127.0.0.1,1433;Database=JornadaHarness;User Id=sa;Password=%s;TrustServerCertificate=true;Encrypt=false\n' "$sql_password"
+          } >> "$GITHUB_ENV"
+          secret_file="$(mktemp "$RUNNER_TEMP/v9-operational-smoke.XXXXXXXX")"
+          chmod 600 "$secret_file"
+          printf 'MSSQL_SA_PASSWORD=%s\n' "$sql_password" > "$secret_file"
+          docker run --detach --rm \
+            --name v9-operational-converter-smoke \
+            --publish 127.0.0.1:1433:1433 \
+            --env ACCEPT_EULA=Y --env MSSQL_PID=Developer \
+            --env-file "$secret_file" \
+            mcr.microsoft.com/mssql/server:2022-CU26-ubuntu-22.04@sha256:ba4c8329f48fb8f02e1416be6a930ebfd71268caee78aa985f3af4315e457c89 \
+            >/dev/null
+          rm -f -- "$secret_file"
+          for _ in $(seq 1 90); do
+            if docker exec v9-operational-converter-smoke sh -c \
+                'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "SELECT 1"' \
+                >/dev/null 2>&1; then
+              echo "V9_SQL_SMOKE_READY: ephemeral DEV SQL"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::V9 SQL smoke could not start disposable container"
+          exit 1
+      - name: Create isolated TEST database and apply versioned operational V9 schema
+        run: |
+          set -euo pipefail
+          docker exec v9-operational-converter-smoke sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaHarness;"'
+          docker exec -i v9-operational-converter-smoke sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i /dev/stdin' \
+            < database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql
+      - name: Materialize one 4-TF 81-cell model into SQL, read it back and compare actual decisions
+        run: |
+          set -euo pipefail
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+            --filter 'FullyQualifiedName~V9FittedSnapshotTests.Operational_SQL_roundtrip_' \
+            --logger 'console;verbosity=normal'
+      - name: Tear down disposable SQL, even on failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: docker rm -f v9-operational-converter-smoke >/dev/null 2>&1 || true
