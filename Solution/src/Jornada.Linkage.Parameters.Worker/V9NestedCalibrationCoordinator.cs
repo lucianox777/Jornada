@@ -312,19 +312,28 @@ public static class V9NestedCalibrationCoordinator
         // Opt-in diagnostic only; no changes to scientific results or scheduling.
         var physicalProgressEnabled = Environment.GetEnvironmentVariable("V9_PHYSICAL_PROGRESS_LOG") == "1";
         var replayTimingEnabled = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";
-        var physicalProgressClock = Stopwatch.StartNew();
+        // The GitHub Actions step has an enforced 315-minute timeout. Its
+        // exported UTC start is a close operational reference (not an exact
+        // GitHub runner deadline); other callers fall back to coordinator start.
+        var physicalDeadlineUtc = DateTimeOffset.UtcNow.AddMinutes(315);
+        var stepStartRaw = Environment.GetEnvironmentVariable("V9_PHYSICAL_STEP_START_UTC");
+        if (DateTimeOffset.TryParse(stepStartRaw,
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal
+                | System.Globalization.DateTimeStyles.AdjustToUniversal,
+            out var stepStartUtc))
+            physicalDeadlineUtc = stepStartUtc.AddMinutes(315);
         var physicalCompleted = 0;
         var physicalTotal = plan.PredeclaredCandidateCpMultiplicity ?? plan.MaximumSearchConfigurations;
         void ReportPhysicalCompletion(TimeSpan individualDuration, V9NestedCandidateEvaluation evaluation,
             double? replayElapsedMilliseconds)
         {
-            // Persist the audit callback before operational console output.
+            // Preserve the established audit callback before operational output.
             reportHypothesis?.Invoke(evaluation);
             var requestSha = evaluation.RequestSha256;
             if (!physicalProgressEnabled)
             {
-                // Preserve the independent opt-in diagnostic when progress logging is disabled.
-                // When both flags are on, only the combined progress line is emitted.
+                // Explicit optional investigation mode when regular progress is off.
                 if (replayTimingEnabled && replayElapsedMilliseconds is { } ms)
                 {
                     lock (Console.Out)
@@ -333,21 +342,24 @@ public static class V9NestedCalibrationCoordinator
                 }
                 return;
             }
-            var evaluated = evaluation.Candidate is not null;
             var done = Interlocked.Increment(ref physicalCompleted);
-            var elapsed = physicalProgressClock.Elapsed;
-            var eta = done > 0 && done < physicalTotal
-                ? TimeSpan.FromTicks((long)(elapsed.Ticks / (double)done * (physicalTotal - done)))
-                : TimeSpan.Zero;
-            var remainingBudget = TimeSpan.FromMinutes(315) - elapsed - eta;
-            var status = done < 8 ? "ETA_PRELIMINAR" : remainingBudget < TimeSpan.Zero ? "RISCO_TIMEOUT" : "OK";
-            var replaySuffix = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs
-                ? FormattableString.Invariant($" | phase=frozen_replay | request_sha={requestSha} | replay_elapsed_ms={replayMs:F3}")
+            var nowUtc = DateTimeOffset.UtcNow;
+            var remaining = physicalDeadlineUtc - nowUtc;
+            var remainingMinutes = Math.Max(0, (int)Math.Floor(remaining.TotalMinutes));
+            var status = remaining > TimeSpan.Zero ? "DENTRO_DO_PRAZO" : "FORA_DO_PRAZO";
+            // Additional diagnostic remains opt-in and on a separate field line,
+            // never a second per-hypothesis message when normal progress is on.
+            var diagnosticLine = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs
+                ? FormattableString.Invariant($"\nreplay_elapsed_ms={replayMs:F3}")
                 : string.Empty;
+            // One hypothesis = one message/WriteLine/lock/Flush, with each
+            // field on its OWN physical line. There are no pipe delimiters.
             lock (Console.Out)
+            {
                 Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) | hipotese={requestSha[..Math.Min(12, requestSha.Length)]} | resultado={(evaluated ? "AVALIADA" : "REJEITADA")} | tempo_individual_pos_SQL={individualDuration.TotalSeconds:F1}s | decorrido_min={elapsed.TotalMinutes:F1} | ETA_min={eta.TotalMinutes:F1} | margem_etapa_315min={remainingBudget.TotalMinutes:+0;-0;0}min | {status}{replaySuffix}"));
-            Console.Out.Flush();
+                    $"[V9 PROGRESS] {done}/{physicalTotal}\ntimestamp={nowUtc:O}\nhipotese={requestSha[..Math.Min(12, requestSha.Length)]}\nresultado={(evaluation.Candidate is not null ? "AVALIADA" : "REJEITADA")}\nrestante={remainingMinutes}min\nlimite={physicalDeadlineUtc:O}\nstatus={status}{diagnosticLine}"));
+                Console.Out.Flush();
+            }
         }
                 reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");
         for (var batch = 1; batch <= plan.MaximumBatches; batch++)
