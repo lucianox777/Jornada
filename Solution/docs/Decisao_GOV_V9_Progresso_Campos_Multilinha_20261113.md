@@ -35,3 +35,9 @@ A data e o fuso devem estar explícitos para impedir ambiguidades ao cruzar meia
 **Aceite:** inspeção de código e build .NET, testes de contrato dos sete campos separados por newline sem pipes, um `Console.WriteLine` por conclusão (normal), `Flush()` único sob lock, fallback de DIAG, rejeições, 315 minutos da etapa versus 360 minutos do job e CI `unit-runtime`/`security-guards`/`deterministic-build` aprovadas. Validar futuramente desempenho físico com mesma configuração, sem imputar causalidade à instrumentação sem A/B pareado.
 
 **Rastreabilidade:** branch `fix/v9-progress-multiline-fields-20261113`; [índice de decisões vigentes](Indice_Decisoes_Vigentes.md), [análise de baseline](Baseline_Tempo_Decorrido_V9_100k_20261112.md), código `V9NestedCalibrationCoordinator.cs`, workflow `.github/workflows/v9-v3-four-name-100k.yml`, testes estáticos `test_v9_calibrator_safe_failure_stage.py` e `test_v9_v3_four_name_100k.py`. PR e SHA de integração são acrescentados em recibo após CI/merge.
+
+## Recibo de integração (13/11/2026)
+
+A implementação foi integrada à `master` na [PR #1497](https://github.com/lucianox777/Jornada/pull/1497), squash SHA `951b84090d79285fcb41624f275f89aa6c5506ae`. Os checks obrigatórios [#43522292974](https://github.com/lucianox777/Jornada/actions/runs/43522292974) aprovaram **unit-runtime**, **security-guards** e **deterministic-build** (3/3). O [preflight offline #43522292969](https://github.com/lucianox777/Jornada/actions/runs/43522292969) também foi aprovado.
+
+**Estado:** FORMATO IMPLEMENTADO e INTEGRADO; validação física 100k sob a nova instrumentação **não executada** neste recibo, ganho de desempenho **NÃO MEDIDO**. A campanha histórica #43499315560 permanece independente do novo SHA, sem cancelamento nem migração retroativa. Continuidade de documentação GOV-DOC-01 pelo índice atualizado em PR de recibo.
