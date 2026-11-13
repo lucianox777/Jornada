@@ -1069,6 +1069,120 @@ public sealed class V9FittedSnapshotTests
         }));
     }
 
+    private static V9FittedSnapshot CompleteTf4OperationalWinner()
+    {
+        var payload = FourUnitTfPayload() with
+        {
+            CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16)
+        };
+        var levels = Enum.GetValues<CompositeNominalLevelV9>();
+        var observed = levels.SelectMany(person => levels.Select(mother =>
+            new V9JointObservedCell(person, mother, 1, 1))).ToArray();
+        var estimated = V9JointSupportEstimation.Estimate(observed,
+            new V9JointSupportPolicy(.99m, 0, 0), 1m, payload.TrainCorpusSha256);
+        return V9FittedSnapshot.Create(payload with
+        {
+            SchemaVersion = V9FittedSnapshot.SupportSchemaVersion,
+            JointCells = estimated.Probabilities,
+            JointSupport = estimated.Provenance
+        });
+    }
+
+    [Test]
+    public void Operational_SQL_converter_preserves_ALL_four_TF_slots_81_joint_cells_and_original_canonical_bytes()
+    {
+        var winner = CompleteTf4OperationalWinner();
+        var receipt = V9OperationalSqlModelConverter.VerifyConversion(winner);
+        var restored = V9FittedSnapshot.Load(winner.SerializeUtf8(), receipt.SourceSnapshotSha256);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(receipt.ContractVersion,
+                Is.EqualTo(V9OperationalSqlModelConverter.ContractVersion));
+            Assert.That(receipt.ModelId,
+                Is.EqualTo(V9OperationalSqlModelConverter.ModelIdFromWinnerSha(winner.ContentSha256)));
+            Assert.That(receipt.SourceSnapshotSha256, Is.EqualTo(winner.ContentSha256));
+            Assert.That(receipt.JointCellCount, Is.EqualTo(81));
+            Assert.That(receipt.TfSlotCount, Is.EqualTo(4));
+            Assert.That(receipt.BlockingPassCount, Is.EqualTo(winner.Payload.BlockingPasses.Count));
+            Assert.That(receipt.ByteExactRoundTrip, Is.True);
+            Assert.That(receipt.Active, Is.False);
+            Assert.That(receipt.Published, Is.False);
+            Assert.That(restored.SerializeUtf8(), Is.EqualTo(winner.SerializeUtf8()));
+            Assert.That(restored.Payload.UnitTfCalibrations!.Select(s => s.State),
+                Is.EquivalentTo(winner.Payload.UnitTfCalibrations!.Select(s => s.State)));
+            Assert.That(restored.Payload.JointCells, Is.EquivalentTo(winner.Payload.JointCells));
+        }));
+    }
+
+    [Test]
+    public void Operational_SQL_converter_rejects_legacy_or_partial_winners_and_never_fills_in_missing_TF()
+    {
+        var winner = CompleteTf4OperationalWinner();
+        Assert.That((Action)(() => V9OperationalSqlModelConverter.VerifyConversion(
+            V9FittedSnapshot.Create(Payload()))), Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9OperationalSqlModelConverter.VerifyConversion(
+            V9FittedSnapshot.Create(winner.Payload with { UnitTfCalibrations = null }))),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9OperationalSqlModelConverter.VerifyConversion(
+            V9FittedSnapshot.Create(winner.Payload with { UnitTfCalibrations =
+                winner.Payload.UnitTfCalibrations!.Take(3).ToArray() }))),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9OperationalSqlModelConverter.VerifyConversion(
+            winner.CreateGoldHarnessVariant())),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => V9OperationalSqlModelConverter.ModelIdFromWinnerSha(
+            new string('A', 64))), Throws.TypeOf<InvalidDataException>());
+        var alteredThreshold = V9FittedSnapshot.Create(winner.Payload with
+        {
+            Threshold = .8m
+        });
+        Assert.That(V9OperationalSqlModelConverter.ModelIdFromWinnerSha(alteredThreshold.ContentSha256),
+            Is.Not.EqualTo(V9OperationalSqlModelConverter.ModelIdFromWinnerSha(winner.ContentSha256)));
+    }
+
+    [Test, Category("SQLSmoke")]
+    public async Task Operational_SQL_roundtrip_uses_immutable_one_winner_row_and_same_frozen_FS_decisions()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("JORNADA_V9_SQL_MODEL_SMOKE_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connectionString))
+        {
+            Assert.Ignore("SQL físico de smoke somente quando declarado explicitamente.");
+            return;
+        }
+        var sqlConfig = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(connectionString);
+        if (sqlConfig.InitialCatalog != "JornadaHarness")
+            throw new InvalidDataException("SQL smoke exige banco descartável JornadaHarness.");
+        var winner = CompleteTf4OperationalWinner();
+        await using var connection = new Microsoft.Data.SqlClient.SqlConnection(connectionString);
+        await connection.OpenAsync();
+        var receipt = await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, winner);
+        var loaded = await V9OperationalSqlModelConverter.ReadPinnedAsync(
+            connection, receipt.ModelId, receipt.SourceSnapshotSha256);
+        var observation = new IdentityObservation(null, "SEM_CPF", "MARIA SILVA", null, "ANA COSTA");
+        var candidates = new[]
+        {
+            new V9SnapshotCandidate(Guid.Parse("10000000-0000-0000-0000-000000000001"),
+                "MARIA SILVA", null, "ANA COSTA"),
+            new V9SnapshotCandidate(Guid.Parse("10000000-0000-0000-0000-000000000002"),
+                "MARIA SOUZA", null, "ANA LIMA")
+        };
+        var original = winner.RankPreview(observation, candidates).ToArray();
+        var converted = loaded.RankPreview(observation, candidates).ToArray();
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(receipt.Active, Is.False);
+            Assert.That(receipt.Published, Is.False);
+            Assert.That(loaded.ContentSha256, Is.EqualTo(winner.ContentSha256));
+            Assert.That(loaded.SerializeUtf8(), Is.EqualTo(winner.SerializeUtf8()));
+            Assert.That(converted, Is.EqualTo(original));
+        }));
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, winner)));
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9OperationalSqlModelConverter.ReadPinnedAsync(
+                connection, receipt.ModelId, new string('a', 64))));
+    }
+
     private sealed class TemporaryArtifactDirectory : IDisposable
     {
         public string Path { get; } = System.IO.Path.Combine(System.IO.Path.GetTempPath(),

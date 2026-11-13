@@ -106,6 +106,22 @@ public sealed class SqlProbabilisticIdentityLinkage(
         return snapshot.Reference;
     }
 
+    /// <summary>
+    /// Runner-owned V9 operational model loader. The SQL converter writes the
+    /// full canonical winner; both independent TEST and this production-side
+    /// loader use the same versioned representation and SHA verifier.
+    /// An opt-in diagnostic contract only: it NEVER selects an active model,
+    /// updates data, publishes a run or bypasses DT-15.
+    /// </summary>
+    public async Task<V9FittedSnapshotExecutionRuntime> LoadPinnedV9OperationalRuntimeAsync(
+        Guid modelId, string winnerSha256, CancellationToken cancellationToken)
+    {
+        await using var connection = await operationalSql.OpenAsync(cancellationToken);
+        var model = await V9OperationalSqlModelConverter.ReadPinnedAsync(
+            connection, modelId, winnerSha256, cancellationToken);
+        return V9FittedSnapshotExecutionRuntime.Load(model.SerializeUtf8(), model.ContentSha256);
+    }
+
     // The resident database marker, not the process environment, is the final gate.
     // Nonpublishing MODEL_VALIDATION is the sole runner mode permitted to read a DEV draft.
     internal static bool CanUseDraftForModelValidation(LinkageRunOptions? options, int version) =>

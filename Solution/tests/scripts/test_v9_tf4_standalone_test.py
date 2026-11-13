@@ -15,7 +15,8 @@ class StandaloneTestContract(unittest.TestCase):
     def test_only_model_is_explicit_cli_parameter(self):
         source=CLI.read_text()
         self.assertIn('args.Length != 2 || args[0] != "--v9-independent-test"',source)
-        self.assertIn("V9FittedSnapshotArtifact.ReadPinnedAsync(winnerFile, winnerSha)",source)
+        self.assertIn("V9OperationalSqlModelConverter.ReadPinnedAsync(",source)
+        self.assertNotIn("V9FittedSnapshotArtifact.ReadPinnedAsync",source)
         self.assertIn("V9IndependentTestCorpusReader.ReadAsync(fullTestDir)",source)
         self.assertIn("V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync",source)
         self.assertIn("TotalComparedConfigurations: 1",source)

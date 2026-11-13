@@ -51,6 +51,14 @@ if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-offline-train-capacity")
     return;
 }
 
+// Strict one-winner conversion from the frozen calibration fit into the
+// production Runner's versioned V9 operational SQL representation.
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-convert-winner-operational")
+{
+    await V9OperationalModelConversionCli.RunAsync(guardedArgs);
+    return;
+}
+
 // Independent TEST is a separate command: the only CLI argument is the winning
 // fitted snapshot; corpus, scientific protocol and SQL are TEST-owned.
 if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-independent-test")

@@ -226,6 +226,7 @@ jobs:
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_standalone_test.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_test_global_one_use.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_test_production_model_format.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_operational_converter.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
           python3 -m py_compile scripts/v9-scale-100k-technical-plan.py scripts/v9-v3-four-name-100k-plan.py scripts/v9-v3-four-name-100k-audit.py scripts/v9-100k-execution-resource-budget.py
@@ -626,6 +627,29 @@ jobs:
             --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
             --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
             --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Start brand-new disposable SQL database only for TEST
+        run: |
+          set -euo pipefail
+          bash scripts/v9-tf-start-disposable-sql.sh
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker exec "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaHarness;"'
+      - name: Load versioned V9 SQL operational schema (no activation or publication)
+        run: |
+          set -euo pipefail
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker exec -i "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -d JornadaHarness -b -i /dev/stdin' \
+            < database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql
+      - name: Convert the ONLY SHA-pinned VALIDATION winner to SQL before TEST exposure
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.fitted.json')"
+          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.fitted.json' | wc -l)" -eq 1
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-convert-winner-operational "$model"
+          # Any TF4/joint/grouping loss, SHA drift or existing row fails closed.
       - name: Reserve single-use TEST seed atomically before opening its own corpus
         env:
           TEST_PUBLIC_CERT_B64: ${{ secrets.V9_TF4_TEST_PUBLIC_CERT_B64 }}
@@ -673,13 +697,6 @@ jobs:
             --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID" \
             --certificate "$root/recipient.pem" --key "$root/private.pem" --out "$root/corpus"
           rm -f -- "$root/private.pem" "$root/recipient.pem"
-      - name: Start brand-new disposable SQL database only for TEST
-        run: |
-          set -euo pipefail
-          bash scripts/v9-tf-start-disposable-sql.sh
-          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
-          docker exec "$sql_name" sh -c \
-            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaHarness;"'
       - name: Apply one frozen winner to TEST, no refit and no winner selection
         timeout-minutes: 330
         env:
@@ -698,6 +715,10 @@ jobs:
           assert r["configurationsEvaluated"]==1
           assert r["trainPlanRead"] is False and r["validationResultsRead"] is False
           assert r["refitted"] is False and r["testUsed"] is True
+          assert r["operationalModelContract"] == "JORNADA_V9_OPERATIONAL_SQL_MODEL_V1"
+          assert r["operationalModelByteExactRoundTrip"] is True
+          assert r["operationalModelActive"] is False and r["operationalModelPublished"] is False
+          assert r["productionRunnerFullPipelineParityCertified"] is False
           assert r["certified"] is False and r["activated"] is False
           print("TEST_ONE_WINNER_MEASURED_NOT_CERTIFIED",r["winnerSnapshotSha256"])
           PY
