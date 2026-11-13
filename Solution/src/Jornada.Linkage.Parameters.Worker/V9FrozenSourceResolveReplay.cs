@@ -9,8 +9,9 @@ public sealed record V9FrozenSourceReplayResult(string SnapshotSha256,
     IReadOnlyList<V9FrozenSourceDecision> Decisions, IReadOnlyDictionary<int, Guid> IdentityByObservation);
 
 /// <summary>
-/// Executes the portable fit and its embedded grouping on a complete physical VALIDATION
-/// graph. No fitting, selection, TEST, truth-based grouping, persistence or activation.
+/// Executes an immutable fit and grouping on an independent physical evaluation graph.
+/// Replay is VALIDATION-only; ReplayTest is TEST-only. Neither fits, selects,
+/// consults truth for grouping, persists a model, or activates it.
 /// Reuses the same C# scorer, complete-link builder and Resolve decision kernel.
 /// </summary>
 public static class V9FrozenSourceResolveReplay
