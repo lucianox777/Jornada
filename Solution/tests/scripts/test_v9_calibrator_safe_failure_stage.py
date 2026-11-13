@@ -76,28 +76,39 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         self.assertIn('var optionsById = run.CalibrationReport.Options.ToLookup(', self.coord)
 
 
-    def test_one_console_line_per_hypothesis_when_progress_and_replay_timing_enabled(self):
-        # The two independent opt-ins are retained. When both are on, replay
-        # duration and full request SHA are folded into the progress message.
+    def test_one_multiline_message_per_hypothesis_with_single_write_lock_and_flush(self):
+        # Per PO: one completed hypothesis = one Console.WriteLine call, with
+        # each datum on its own physical line; no pipe-delimited fields.
         self.assertIn('var replayTimingEnabled = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";', self.coord)
-        self.assertIn('var replaySuffix = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs', self.coord)
-        self.assertIn('phase=frozen_replay | request_sha={requestSha} | replay_elapsed_ms={replayMs:F3}', self.coord)
+        self.assertIn('var diagnosticLine = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs', self.coord)
+        self.assertIn(r'\nreplay_elapsed_ms={replayMs:F3}', self.coord)
         self.assertIn('if (!physicalProgressEnabled)', self.coord)
         self.assertIn('if (replayTimingEnabled && replayElapsedMilliseconds is { } ms)', self.coord)
         self.assertIn('reportHypothesis?.Invoke(evaluation);', self.coord)
-        self.assertIn('Console.Out.Flush();', self.coord)
-        # Fallback PERF DIAG and combined PROGRESS are mutually exclusive.
         progress = self.coord.split('void ReportPhysicalCompletion(', 1)[1].split(
             'reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");', 1)[0]
         self.assertEqual(progress.count('lock (Console.Out)'), 2)
         self.assertEqual(progress.count('Console.WriteLine('), 2)
+        self.assertEqual(progress.count('Console.Out.Flush();'), 1)
+        self.assertIn(r'[V9 PROGRESS] {done}/{physicalTotal}\ntimestamp=', progress)
+        for field in (r'\nhipotese=', r'\nresultado=', r'\nrestante=',
+                      r'\nlimite=', r'\nstatus='):
+            self.assertIn(field, progress)
+        # The opt-in PERF DIAG branch is disjoint from the normal progress branch.
+        normal = progress.split('lock (Console.Out)\n            {', 1)[1]
+        self.assertNotIn(' | ', normal)
+        self.assertNotIn('ETA_min=', normal)
+        self.assertNotIn('margem_etapa_315min=', normal)
+        self.assertIn('Interlocked.Increment(ref physicalCompleted)', progress)
+        self.assertIn('DateTimeOffset.UtcNow', progress)
+        self.assertIn('physicalDeadlineUtc - nowUtc', progress)
+        self.assertIn('status = remaining > TimeSpan.Zero', progress)
+        self.assertIn('stepStartUtc.AddMinutes(315)', self.coord)
         replay = self.coord.split('var replayClock = diagnoseReplayTiming ?', 1)[1].split(
             'p95 = measured.P95Milliseconds;', 1)[0]
         self.assertIn('replayElapsedMilliseconds = replayClock.Elapsed.TotalMilliseconds;', replay)
         self.assertNotIn('lock (Console.Out)', replay)
         self.assertNotIn('Console.WriteLine', replay)
-        # Every completed evaluation still invokes the callback; rejected
-        # requests explicitly have no replay duration, not invented zero ms.
         self.assertEqual(self.coord.count(
             'reportPhysicalCompletion?.Invoke(TimeSpan.Zero, evaluation, null);'), 2)
         self.assertIn('reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1], replayElapsedMilliseconds);',
