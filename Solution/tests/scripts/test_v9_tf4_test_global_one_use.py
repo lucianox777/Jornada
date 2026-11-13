@@ -33,7 +33,8 @@ class TestGlobalOneUse(unittest.TestCase):
         # TRAIN already uses a read-only GH_TOKEN to retrieve a pinned historical
         # artifact; its presence is not TEST access or repository write permission.
         self.assertIn("GH_TOKEN:", train)
-        self.assertNotIn("GH_TOKEN", validation)
+        # VALIDATION uses GH_TOKEN read-only for the audited TRAIN handoff.
+        self.assertIn("GH_TOKEN:", validation)
         self.assertNotIn("TEST_PRIVATE_KEY_B64", train)
         self.assertNotIn("TEST_PRIVATE_KEY_B64", validation)
         self.assertIn('"testSeed": 20261113001', LOCK.read_text())
