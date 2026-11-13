@@ -55,7 +55,7 @@ class OperationalConverterContract(unittest.TestCase):
         self.assertNotIn("SelectScientificWinner",test)
         self.assertIn('--v9-convert-winner-operational',program)
         self.assertIn('--v9-independent-test',program)
-        self.assertIn("builder.InitialCatalog != \\"JornadaHarness\\"",worker)
+        self.assertIn('builder.InitialCatalog != "JornadaHarness"',worker)
 
     def test_sql_conversion_precedes_test_decryption_and_winner_only_handoff(self):
         wf=WF.read_text()
