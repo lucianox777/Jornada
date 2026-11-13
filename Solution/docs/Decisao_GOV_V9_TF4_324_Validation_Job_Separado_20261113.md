@@ -1,3 +1,5 @@
+> **ATUALIZAÇÃO DE PRECEDÊNCIA (13/11/2026):** os limites originais de 120 min do job VALIDATION e 40 min do step, descritos abaixo como histórico da PR #1472, foram **substituídos** pela decisão [GOV-V9-TF4-3-JOBS-360-TEST-RESERVADO-20261113](Decisao_GOV_V9_TF4_Jobs_360_TEST_Reservado_20261113.md): agora o workflow prevê **360 min para o job VALIDATION, 330 min para sua etapa e um terceiro job TEST reservado/hard-locked**. Demais controles de integridade, gates, SHA e holdout continuam vigentes; o texto histórico original é preservado.
+
 # GOV-V9-TF4-VALIDATION-JOB-SEPARADO-20261113 — TRAIN e VALIDATION em jobs distintos
 
 **Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** APROVADA PELO PO; integrada à master via PR #1472 no SHA 3e0cc9b0280386efba6de2944445dfac645a8cab; CI aprovada; prova física do handoff/VALIDATION ainda pendente. **Política:** GOV-DOC-01.
