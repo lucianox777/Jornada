@@ -169,7 +169,7 @@ class V9FourName100kTests(unittest.TestCase):
         physical = workflow.split("- name: Run physical V9 CSharp on 324 V3-only four-name hypotheses", 1)[1].split("- name: Audit all 324", 1)[0]
         self.assertIn("timeout-minutes: 315", physical)
         self.assertIn("timeout-minutes: 360", workflow)
-        self.assertIn("timeout-minutes: 40", workflow)
+        self.assertIn("timeout-minutes: 330", workflow)
         self.assertIn("TimeSpan.FromMinutes(315) - elapsed - eta", coordinator)
         self.assertIn("margem_etapa_315min=", coordinator)
         self.assertNotIn("margem_etapa_305min=", coordinator)
