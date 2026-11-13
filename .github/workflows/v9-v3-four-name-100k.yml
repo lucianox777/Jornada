@@ -270,3 +270,119 @@ jobs:
         if: always()
         working-directory: ${{ github.workspace }}
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
+
+  validation-100k:
+    needs: physical-100k
+    if: ${{ needs.physical-100k.result == 'success' && needs.physical-100k.outputs.has_finalists == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    name: "V9 VALIDATION independent: frozen TF4 finalists"
+    runs-on: ubuntu-24.04
+    # Separate GitHub-hosted runner, clock and disposable SQL database.
+    timeout-minutes: 120
+    env:
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      GH_TOKEN: ${{ github.token }}
+      V9_100K_DISABLE_PYTHON_SQL_BUDGET: ${{ inputs.disable_python_sql_budget }}
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Fail-closed VALIDATION provenance and one-use admission
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "${{ inputs.security_preflight_approved }}" = "true"
+          test "${{ inputs.test_required }}" = "false"
+          # Never repeat the same sealed holdout by rerunning this job/attempt.
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "${{ needs.physical-100k.result }}" = "success"
+          test "${{ needs.physical-100k.outputs.has_finalists }}" = "true"
+          test "$DOTNET_ENVIRONMENT" = "DEV"
+          test "$JORNADA_RUNTIME_MODE" = "DEV"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # SHA pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build frozen V9 validator and synthetic holdout generator
+        run: |
+          set -euo pipefail
+          dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+          dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Download immutable audit and frozen finalists from successful TRAIN job
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0 pinned
+        with:
+          name: v9-tf4-validation-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/v9-100k-technical/handoff
+      - name: Independently verify all transferred SHA256, audit and plan before SQL or holdout
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          python3 scripts/v9-v3-four-name-100k-handoff.py verify \
+            --handoff "$root/handoff" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Start fresh masked disposable SQL Server for VALIDATION only
+        run: bash scripts/v9-tf-start-disposable-sql.sh
+      - name: Reconstruct required historical pinned 30k reference in fresh SQL, no TRAIN refit
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          bash scripts/v9-tf-prepare-pin.sh "$root/reference-30k" pinned-ibge.json
+      - name: Mandatory fresh independent VALIDATION of frozen finalists
+        timeout-minutes: 40
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          # Download was already checked byte-for-byte against pinned names
+          # and the successful TRAIN audit, before generating new holdout data.
+          mkdir -p "$root/validation-people"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed 20261112001 \
+            --out "$root/validation-people" > "$root/validation-generation.log"
+          envelope="$(find "$root/handoff" -maxdepth 1 -name '*.selection.json' -type f)"
+          test "$(find "$root/handoff" -maxdepth 1 -name '*.selection.json' -type f | wc -l)" -eq 1
+          export JORNADA_V9_HOLDOUT_REGISTRY="$root/validation-holdout-exposures"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-validate-finalists "$root/handoff/plan.json" "$envelope" \
+            "$root/validation-people/observacoes.csv" "$root/validation-results"
+          test -s "$root/validation-results/finalist-validation.json"
+          python3 - "$root/validation-results/finalist-validation.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r["refitted"] is False and r["testUsed"] is False and r["activated"] is False
+          assert r["comparedConfigurations"] in (1,2,3)
+          print("V9_MANDATORY_VALIDATION_COMPLETED",r["status"])
+          PY
+      - name: Upload independent VALIDATION aggregate result, never the holdout corpus
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # SHA pinned
+        with:
+          name: v9-tf4-independent-validation-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: |
+            Solution/.local/v9-100k-technical/validation-results/*.json
+      - name: Dispose all temporary VALIDATION data and transferred finalist copies
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          root="$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical"
+          rm -rf -- "$root/validation-people" "$root/reference-30k" "$root/handoff" "$root/validation-holdout-exposures"
+      - name: Remove VALIDATION disposable SQL even after failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
