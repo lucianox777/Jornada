@@ -327,11 +327,11 @@ public static class V9NestedCalibrationCoordinator
             var eta = done > 0 && done < physicalTotal
                 ? TimeSpan.FromTicks((long)(elapsed.Ticks / (double)done * (physicalTotal - done)))
                 : TimeSpan.Zero;
-            var remainingBudget = TimeSpan.FromMinutes(305) - elapsed - eta;
+            var remainingBudget = TimeSpan.FromMinutes(315) - elapsed - eta;
             var status = done < 8 ? "ETA_PRELIMINAR" : remainingBudget < TimeSpan.Zero ? "RISCO_TIMEOUT" : "OK";
             lock (Console.Out)
                 Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) | hipotese={requestSha[..Math.Min(12, requestSha.Length)]} | resultado={(evaluated ? "AVALIADA" : "REJEITADA")} | tempo_individual_pos_SQL={individualDuration.TotalSeconds:F1}s | decorrido_min={elapsed.TotalMinutes:F1} | ETA_min={eta.TotalMinutes:F1} | margem_etapa_305min={remainingBudget.TotalMinutes:+0;-0;0}min | {status}"));
+                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) | hipotese={requestSha[..Math.Min(12, requestSha.Length)]} | resultado={(evaluated ? "AVALIADA" : "REJEITADA")} | tempo_individual_pos_SQL={individualDuration.TotalSeconds:F1}s | decorrido_min={elapsed.TotalMinutes:F1} | ETA_min={eta.TotalMinutes:F1} | margem_etapa_315min={remainingBudget.TotalMinutes:+0;-0;0}min | {status}"));
             Console.Out.Flush();
         }
                 reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");
