@@ -76,8 +76,11 @@ public static class V9FrozenSourceResolveReplay
             }
             return new V9BlindFsSqlEdge(edge.A, edge.B, forward.LogOdds, backward.LogOdds);
         }).Where(edge => edge is not null).Cast<V9BlindFsSqlEdge>().ToArray();
-        var inferred = V9BlindIncrementalIdentityGrouping.Build(rows, edges,
-            grouping.MinimumPairPosterior, grouping.MaximumObservationsPerIdentity);
+        var inferred = partition == "TEST"
+            ? V9BlindIncrementalIdentityGrouping.BuildTest(rows, edges,
+                grouping.MinimumPairPosterior, grouping.MaximumObservationsPerIdentity)
+            : V9BlindIncrementalIdentityGrouping.Build(rows, edges,
+                grouping.MinimumPairPosterior, grouping.MaximumObservationsPerIdentity);
         var decisions = rows.Select(source =>
         {
             var collapsed = ranked[source.ObservationId]
