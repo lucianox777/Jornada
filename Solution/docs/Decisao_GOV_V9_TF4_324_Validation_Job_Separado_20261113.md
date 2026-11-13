@@ -1,6 +1,6 @@
 # GOV-V9-TF4-VALIDATION-JOB-SEPARADO-20261113 — TRAIN e VALIDATION em jobs distintos
 
-**Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** APROVADA PELO PO; implementação em PR, sujeita à CI e integração na master. **Política:** GOV-DOC-01.
+**Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** APROVADA PELO PO; integrada à master via PR #1472 no SHA 3e0cc9b0280386efba6de2944445dfac645a8cab; CI aprovada; prova física do handoff/VALIDATION ainda pendente. **Política:** GOV-DOC-01.
 
 ## Contexto, decisão e justificativa
 
@@ -27,3 +27,7 @@ A campanha V9 TF4 de 81 opções × 2 misturas V3 × 2 margens (324 hipóteses, 
 **Gates:** testes isolados do manifesto/negação de corpus, CI obrigatória, revisão e squash merge; verificar SHA final master. A execução real 100k permanece manual owner-only, com preflight real de segurança. CI não é prova de transporte real de envelope >2 GiB nem de execução científica VALIDATION. O run [#43453565012](https://github.com/lucianox777/Jornada/actions/runs/43453565012) já iniciado com SHA anterior **não muda retroativamente**.
 
 **Rastreabilidade:** decisão aprovada pelo PO nesta conversa, runs #43159426682, #43309643251 e #43453565012; workflow .github/workflows/v9-v3-four-name-100k.yml; helper Solution/scripts/v9-v3-four-name-100k-handoff.py; teste Solution/tests/scripts/test_v9_v3_four_name_100k_handoff.py; [índice](Indice_Decisoes_Vigentes.md).
+
+## Recebimento técnico de integração (13/11/2026)
+
+PR [#1472](https://github.com/lucianox777/Jornada/pull/1472) integrada via squash no commit 3e0cc9b0280386efba6de2944445dfac645a8cab. CI de HEAD [#43458565722](https://github.com/lucianox777/Jornada/actions/runs/43458565722) teve testes `unit-runtime`, `security-guards`, `deterministic-build` aprovados; teste rápido V9 [#43458565515](https://github.com/lucianox777/Jornada/actions/runs/43458565515) aprovado. Confirma integração do contrato de jobs e checks unitários de transferência, não execução de uma nova campanha 100k; #43453565012 já iniciada permanece no SHA anterior. Não atualizar status científico até prova de auditoria e VALIDATION reais no mesmo run do novo SHA.
