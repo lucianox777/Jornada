@@ -210,6 +210,7 @@ jobs:
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_frozen_ibge_admission.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_three_job_timeouts.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_prepared_sealed_test.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_tf4_standalone_test.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
           python3 -m py_compile scripts/v9-scale-100k-technical-plan.py scripts/v9-v3-four-name-100k-plan.py scripts/v9-v3-four-name-100k-audit.py scripts/v9-100k-execution-resource-budget.py
