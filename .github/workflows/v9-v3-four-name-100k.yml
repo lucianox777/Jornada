@@ -28,7 +28,7 @@ on:
         required: false
         type: string
       replay_timing_diagnostics:
-        description: "Emit per-group index build and per-hypothesis frozen replay timing (console only)"
+        description: "Measure frozen replay timing; merge into V9 PROGRESS when enabled (one line per hypothesis)"
         required: true
         default: false
         type: boolean
