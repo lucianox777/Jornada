@@ -14,7 +14,7 @@ on:
         required: true
         type: boolean
       test_required:
-        description: "Run independent one-model TEST after VALIDATION (requires prepare_sealed_test and TEST decryption secrets)"
+        description: "TEST requires production model-format parity: not yet implemented; request is rejected before 100k execution"
         required: true
         default: false
         type: boolean
@@ -83,6 +83,13 @@ jobs:
           test "${{ inputs.security_preflight_approved }}" = "true"
           test "${{ inputs.prepare_sealed_test }}" = "true"
           test "$JORNADA_RUNTIME_MODE" = "DEV"
+          # PO requires the SAME model serialization and loader as production.
+          # V9_FITTED_SNAPSHOT_V3 is a diagnostic fit, not the SQL model
+          # consumed by SqlProbabilisticIdentityLinkage. Fail before generation.
+          if [[ "${{ inputs.test_required }}" == "true" ]]; then
+            echo "::error::V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED: TEST model JSON is not the format loaded by production. No TEST corpus exposed."
+            exit 1
+          fi
           python3 scripts/v9-tf4-sealed-test-preparation.py verify-lock \
             --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
             --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA"
@@ -200,6 +207,12 @@ jobs:
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$GITHUB_REF" = "refs/heads/master"
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          # Run TRAIN+VALIDATION normally; an operational-parity TEST request
+          # must never waste the 324-configuration calibration or open TEST.
+          if [[ "${{ inputs.test_required }}" == "true" ]]; then
+            echo "::error::V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED: fitted.json is not the format consumed by the production model loader."
+            exit 1
+          fi
           # A mandatory TEST requires its independent cohort to be prepared first.
           if [[ "${{ inputs.test_required }}" == "true" && "${{ inputs.prepare_sealed_test }}" != "true" ]]; then
             echo "::error::TEST_NEEDS_INDEPENDENT_PRESEALED_CORPUS"
