@@ -13,6 +13,8 @@ namespace Jornada.Linkage.Parameters.Worker;
 /// </summary>
 public static class V9IndependentTestCli
 {
+    private static readonly JsonSerializerOptions ReportJsonOptions = new() { WriteIndented = true };
+
     public static async Task RunAsync(string[] args)
     {
         if (args.Length != 2 || args[0] != "--v9-independent-test")
@@ -81,8 +83,7 @@ public static class V9IndependentTestCli
             // Distinct seed by itself is insufficient to certify population IID.
             independentlyCertifiedIid = false,
         };
-        var json = JsonSerializer.SerializeToUtf8Bytes(report,
-            new JsonSerializerOptions { WriteIndented = true });
+        var json = JsonSerializer.SerializeToUtf8Bytes(report, ReportJsonOptions);
         await using var result = new FileStream(Path.Combine(fullOutput, "independent-test.json"),
             FileMode.CreateNew, FileAccess.Write, FileShare.None);
         await result.WriteAsync(json);
