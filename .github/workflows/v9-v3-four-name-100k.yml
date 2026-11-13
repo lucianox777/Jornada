@@ -503,8 +503,8 @@ jobs:
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
 
   # Reserved architecture only: NOT an authorization to open TEST.
-  # This job MUST remain skipped until a separately documented PO decision
-  # approves a pre-registered scientific LOCK, sealed TEST provenance,
+  # PO authorization has been documented (#1479), but this job MUST remain
+  # skipped until a pre-registered scientific LOCK, sealed TEST provenance,
   # one-use exposure controls, independent result transport and activation gates.
   test-100k-locked:
     name: "V9 TEST — RESERVED / HARD-LOCKED (not executed)"
