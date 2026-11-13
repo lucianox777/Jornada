@@ -159,8 +159,11 @@ jobs:
           assert receipt["physicalHypotheses"]==324 and receipt["tfOptions"]==81, "324_V3_TF4_REQUIRED"
           print("V9_100K_PARALLELISM: AUTO_0_BOUND_CSHARP_GOVERNOR_ACTIVE")
           PY
+      # #43309643251 completed 324/324 and generated 3 finalists, then timed out
+      # after the worker exited successfully at the 305-minute step boundary.
+      # Allow 10 minutes for final output and monitor teardown; job remains 360 min.
       - name: Run physical V9 CSharp on 324 V3-only four-name hypotheses
-        timeout-minutes: 305
+        timeout-minutes: 315
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
