@@ -87,7 +87,7 @@ class SealedTestPreparationContract(unittest.TestCase):
         workflow=WF.read_text(encoding="utf-8")
         pre, tail=workflow.split("\n  physical-100k:\n",1)
         train, tail=tail.split("\n  validation-100k:\n",1)
-        validation, test=tail.split("\n  test-100k-locked:\n",1)
+        validation, test=tail.split("\n  test-100k:\n",1)
         self.assertIn("  prepare-test-100k:",pre)
         self.assertIn("timeout-minutes: 60",pre)
         self.assertIn("prepare_sealed_test:",pre)
@@ -104,7 +104,8 @@ class SealedTestPreparationContract(unittest.TestCase):
         self.assertIn("inputs.prepare_sealed_test != true",train)
         self.assertIn("needs.prepare-test-100k.result == 'success'",train)
         self.assertIn("needs: physical-100k",validation)
-        self.assertIn("if: ${{ false }}",test)
+        self.assertIn("inputs.test_required == true",test)
+        self.assertNotIn("if: ${{ false }}",test)
         self.assertIn("needs: [validation-100k, prepare-test-100k]",test)
         for unprivileged in (train,validation):
             self.assertNotIn("TEST_PUBLIC_CERT_B64",unprivileged)
@@ -124,7 +125,7 @@ class SealedTestPreparationContract(unittest.TestCase):
         for file in ("raw/", "gabarito.json", "observacoes.csv", "pessoas_verdade.csv",
                      "public.pem", "generation.log", "private-key.pem"):
             self.assertNotIn(file,upload)
-        self.assertIn('test "${{ inputs.test_required }}" = "false"',prep)
+        self.assertNotIn('test "${{ inputs.test_required }}" = "false"',prep)
 
 
 if __name__ == "__main__":
