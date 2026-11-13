@@ -2,6 +2,8 @@
 
 **Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** APROVADA PELO PO; integrada por squash na master via PR #1476 (SHA 56d44f90eb069a76a7cf98a4398954f64366d54b); CI obrigatória aprovada; teste físico da nova divisão pendente. **Política aplicável:** GOV-DOC-01.
 
+> **EMENDA DE AUTORIZAÇÃO (PO, 13/11/2026):** o PO autorizou expressamente implementar e executar TEST no terceiro job de até 360 min; a necessidade de aprovação de princípio do PO deixou de ser pendência. Permanece o bloqueio **técnico-científico** `if: false` até existir LOCK específico pré-registrado, corpus TEST lacrado independente, executor físico integrado, proteção persistente one-use e gates comprovados. Não confundir autorização com remoção imediata da proteção, certificação ou ativação. [Decisão superveniente GOV-V9-TF4-TEST-AUTORIZACAO-PO-GATES-20261113](Decisao_GOV_V9_TF4_TEST_Autorizacao_PO_Gates_20261113.md); [issue #1478](https://github.com/lucianox777/Jornada/issues/1478).
+
 ## Contexto e justificativa
 
 Na campanha manual de 100 mil registros sintéticos / **324 hipóteses TF4** (81 opções de quatro unidades × 2 misturas U × 2 margens), o teto GitHub Actions de **360 minutos aplica-se ao job, e não ao workflow completo**. O desenho aprovado anteriormente separou TRAIN e VALIDATION: o job TRAIN possui 360 min totais (etapa física 315 min), enquanto VALIDATION dispunha apenas de 120 min no job e 40 min na etapa física. O PO aprovou agora **uma arquitetura de três jobs em sequência, cada um com reserva independente de até 360 min, sem antecipar o acesso a TEST**.
