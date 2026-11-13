@@ -20,7 +20,20 @@ public static class V9FrozenSourceResolveReplay
     public static V9FrozenSourceReplayResult Replay(V9FittedSnapshot snapshot,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> validation,
         IReadOnlyList<(int A, int B)> completePhysicalSqlEdges)
+        => ReplayForPartition(snapshot, validation, completePhysicalSqlEdges, "VALIDATION");
+
+    /// <summary>Independent TEST uses the same immutable scorer/Resolve, never model selection.</summary>
+    public static V9FrozenSourceReplayResult ReplayTest(V9FittedSnapshot snapshot,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> test,
+        IReadOnlyList<(int A, int B)> completePhysicalSqlEdges)
+        => ReplayForPartition(snapshot, test, completePhysicalSqlEdges, "TEST");
+
+    private static V9FrozenSourceReplayResult ReplayForPartition(V9FittedSnapshot snapshot,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> validation,
+        IReadOnlyList<(int A, int B)> completePhysicalSqlEdges, string partition)
     {
+        if (partition is not ("VALIDATION" or "TEST"))
+            throw new InvalidDataException("Apenas coortes de avaliação externas são admitidas.");
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(validation);
         ArgumentNullException.ThrowIfNull(completePhysicalSqlEdges);
@@ -28,9 +41,9 @@ public static class V9FrozenSourceResolveReplay
             ?? throw new InvalidDataException("Replay de coorte exige agrupamento fixado no snapshot.");
         if (grouping.CandidateGrouping != "BLIND_FS_COMPLETE_LINK_CANDIDATES")
             throw new InvalidDataException("Replay BLIND não mede Gold; variante Gold exige entidades do Runner real.");
-        if (validation.Count < 2 || validation.Any(x => x is null || x.ObservationId <= 0 || x.Partition != "VALIDATION")
+        if (validation.Count < 2 || validation.Any(x => x is null || x.ObservationId <= 0 || x.Partition != partition)
             || validation.Select(x => x.ObservationId).Distinct().Count() != validation.Count)
-            throw new InvalidDataException("Replay aceita exclusivamente coorte VALIDATION única, sem TEST.");
+            throw new InvalidDataException("Replay exige coorte única correspondente à finalidade e IDs distintos.");
         var rows = validation.OrderBy(x => x.ObservationId).ToArray();
         var byId = rows.ToDictionary(x => x.ObservationId);
         var byGuid = rows.ToDictionary(x => ObservationGuid(x.ObservationId));
