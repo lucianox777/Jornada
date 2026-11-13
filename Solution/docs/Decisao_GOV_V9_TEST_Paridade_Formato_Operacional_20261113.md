@@ -2,6 +2,8 @@
 
 **Autoridade:** Product Owner (PO), 13/11/2026 (America/Sao_Paulo). **Estado:** requisito funcional/arquitetural **APROVADO**; auditoria do formato **NÃO CONFORME**; **gate fail-closed integrado pela PR #1489**; implementação da paridade operacional e prova física **PENDENTES**. **Política:** GOV-DOC-01. **Acompanhamento:** [issue #1488](https://github.com/lucianox777/Jornada/issues/1488) e [issue física #1478](https://github.com/lucianox777/Jornada/issues/1478).
 
+> **DECISÃO ARQUITETURAL SUPERVENIENTE DO PO (13/11/2026):** foi escolhida expressamente a **via de conversor sem perdas** do snapshot vencedor V9 para o modelo operacional SQL lido pelo Runner. Não adotar a alternativa de execução direta do JSON no Runner como solução principal sem nova decisão; a evolução do esquema/loader continua permitida quando indispensável à representação integral. [GOV-V9-TEST-CONVERSOR-LOSSLESS-MODELO-OPERACIONAL-20261113](Decisao_GOV_V9_TEST_Conversor_Lossless_Para_Modelo_Operacional_20261113.md). O bloqueio `test_required=true` da PR #1489 permanece até conclusão e prova de paridade.
+
 ## Solicitação e objetivo
 
 O PO determinou: **“Verifique se o arquivo que é rodado no teste tem exclusivamente os parâmetros vencedores da validation e o formato do arquivo tem que ser o mesmo formato que é executado na produção.”**
