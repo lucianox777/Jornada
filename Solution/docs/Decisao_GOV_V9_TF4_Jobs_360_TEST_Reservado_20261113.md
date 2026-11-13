@@ -1,6 +1,6 @@
 # GOV-V9-TF4-3-JOBS-360-TEST-RESERVADO-20261113
 
-**Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** APROVADA PELO PO, implementação proposta em PR; CI e integração à master exigidas. **Política aplicável:** GOV-DOC-01.
+**Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** APROVADA PELO PO; integrada por squash na master via PR #1476 (SHA 56d44f90eb069a76a7cf98a4398954f64366d54b); CI obrigatória aprovada; teste físico da nova divisão pendente. **Política aplicável:** GOV-DOC-01.
 
 ## Contexto e justificativa
 
@@ -33,3 +33,7 @@ Permanecem inalterados: as 324 hipóteses, opções TF PF/PL/MF/ML, M/U, FS, ran
 **Precedência explícita:** esta decisão **substitui somente** os limites antigos **120 min do job VALIDATION e 40 min da etapa VALIDATION**, estabelecidos na [GOV-V9-TF4-VALIDATION-JOB-SEPARADO-20261113](Decisao_GOV_V9_TF4_324_Validation_Job_Separado_20261113.md), passando a **360/330 min**, e formaliza a reserva inerte de TEST. Preserva a separação, o limite 360/315 de TRAIN e demais controles dessa decisão; preserva também a [GOV-V9-100K-IBGE-CONGELADO-SEM-REGERAR-30K-20261113](Decisao_GOV_V9_100K_IBGE_Congelado_Sem_Regenerar_30K_20261113.md), a [GOV-V9-V3-TF4-324-20261111](Decisao_GOV_V9_V3_TF4_324_100k_20261111.md) e as políticas LOCK/TEST. Não revoga o histórico de execuções anteriores.
 
 **Gates e rastreabilidade:** branch dedicada, testes automatizados exigindo exatamente os três limites de job, step 315/330, `if: false`, dependências, SHA master e `test_required=true` fail-closed; CI `security-guards`, `unit-runtime`, `deterministic-build` e suíte V9; squash merge; SHA final verificado na master. Teste físico dos novos 360 min de VALIDATION **ainda pendente de campanha manual**, que requer preflight real do proprietário. [Workflow](../../.github/workflows/v9-v3-four-name-100k.yml) · [Índice de decisões vigentes](Indice_Decisoes_Vigentes.md).
+
+## Recibo de integração da decisão (13/11/2026)
+
+A [PR #1476](https://github.com/lucianox777/Jornada/pull/1476) foi integrada por squash no SHA `56d44f90eb069a76a7cf98a4398954f64366d54b`. A [CI required-fast #43465617461](https://github.com/lucianox777/Jornada/actions/runs/43465617461) aprovou os jobs `security-guards`, `unit-runtime` (incluindo teste de contrato dos 3 jobs e hard-lock TEST) e `deterministic-build`. Verificado no HEAD da master: TRAIN 360/315, VALIDATION 360/330, TEST reservado 360 com `if: ${{ false }}`, necessidade `validation-100k` e rejeição de `test_required=true` antes de treino. Não houve execução física sob este SHA; nenhuma evidência de TEST foi criada.
