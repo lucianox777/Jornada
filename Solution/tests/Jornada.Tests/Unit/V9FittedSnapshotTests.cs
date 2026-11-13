@@ -1176,11 +1176,11 @@ public sealed class V9FittedSnapshotTests
             Assert.That(loaded.SerializeUtf8(), Is.EqualTo(winner.SerializeUtf8()));
             Assert.That(converted, Is.EqualTo(original));
         }));
-        Assert.That(async () => await V9OperationalSqlModelConverter.MaterializeOnceAsync(
-            connection, winner), Throws.TypeOf<InvalidDataException>());
-        Assert.That(async () => await V9OperationalSqlModelConverter.ReadPinnedAsync(
-            connection, receipt.ModelId, new string('a', 64)),
-            Throws.TypeOf<InvalidDataException>());
+        Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, winner));
+        Assert.ThrowsAsync<InvalidDataException>(async () =>
+            await V9OperationalSqlModelConverter.ReadPinnedAsync(
+                connection, receipt.ModelId, new string('a', 64)));
     }
 
     private sealed class TemporaryArtifactDirectory : IDisposable
