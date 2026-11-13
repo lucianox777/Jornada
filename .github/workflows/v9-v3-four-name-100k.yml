@@ -1,6 +1,7 @@
 name: v9-v3-four-name-100k
 
-# STRICTLY MANUAL. 324 TF4 hypotheses: TRAIN + VALIDATION; TEST job is reserved and HARD-LOCKED.
+# STRICTLY MANUAL. Optional independent TEST cohort is preregistered and CMS-sealed
+# before TRAIN; the physical TEST evaluator remains fail-closed until scientific gates.
 on:
   workflow_dispatch:
     inputs:
@@ -17,6 +18,15 @@ on:
         required: true
         default: false
         type: boolean
+      prepare_sealed_test:
+        description: "Generate and encrypt independent synthetic TEST before TRAIN (requires configured public recipient certificate; does not run TEST)"
+        required: true
+        type: boolean
+        default: false
+      expected_test_cert_sha256:
+        description: "SHA-256 of the public CMS recipient certificate, required only when preparing TEST; must be pre-committed"
+        required: false
+        type: string
       replay_timing_diagnostics:
         description: "Emit per-group index build and per-hypothesis frozen replay timing (console only)"
         required: true
@@ -37,8 +47,108 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # New isolated runner: TRAIN and VALIDATION never receive TEST plaintext,
+  # the CMS certificate, or a decryption secret. Only ciphertext is uploaded.
+  prepare-test-100k:
+    if: ${{ inputs.prepare_sealed_test == true && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    name: "V9 early TEST data preparation: independent synthetic 100k, sealed only"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+      V9_TEST_DATA_LOCK_SHA: 4d071fe9cb350f26bd6705caf3275a22ba3fc91831c4dab401d81b67c462af6e
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Fail-closed preregistered TEST-data preparation admission, no TEST exposure
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "${{ inputs.security_preflight_approved }}" = "true"
+          test "${{ inputs.prepare_sealed_test }}" = "true"
+          # Actual scientific TEST is still disabled until its separate LOCK
+          # and independent recorded-Runner evaluator have been implemented.
+          test "${{ inputs.test_required }}" = "false"
+          test "$JORNADA_RUNTIME_MODE" = "DEV"
+          python3 scripts/v9-tf4-sealed-test-preparation.py verify-lock \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA"
+          [[ "${{ inputs.expected_test_cert_sha256 }}" =~ ^[a-f0-9]{64}$ ]] || {
+            echo "::error::TEST_SEAL_CERT_SHA_REQUIRED: Public recipient SHA must be supplied before generating TEST."
+            exit 1
+          }
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # SHA pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build existing deterministic synthetic corpus generator
+        run: dotnet build -c Release src/Jornada.Linkage.SyntheticCorpus/Jornada.Linkage.SyntheticCorpus.csproj
+      - name: Generate independent TEST once and seal with public-only AES-GCM CMS recipient
+        env:
+          # The private decryption key is NEVER available to this job.
+          TEST_PUBLIC_CERT_B64: ${{ secrets.V9_TF4_TEST_PUBLIC_CERT_B64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$PWD/.local/v9-test-prep"
+          mkdir -p "$root"
+          test -n "$TEST_PUBLIC_CERT_B64" || { echo "::error::TEST_PUBLIC_RECIPIENT_NOT_CONFIGURED"; exit 1; }
+          printf '%s' "$TEST_PUBLIC_CERT_B64" | base64 -d > "$root/public.pem"
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
+            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
+            --population-profile demographic-primary \
+            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
+            --error-profile clean --people 100000 --seed 20261113001 \
+            --out "$root/raw" > "$root/generation.log"
+          python3 scripts/v9-tf4-sealed-test-preparation.py seal \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
+            --raw "$root/raw" --certificate "$root/public.pem" \
+            --expected-cert-sha "${{ inputs.expected_test_cert_sha256 }}" \
+            --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+          # Remove raw truth and observations BEFORE the upload step.
+          rm -rf -- "$root/raw" "$root/public.pem" "$root/generation.log"
+          python3 scripts/v9-tf4-sealed-test-preparation.py verify \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
+            --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Upload only encrypted TEST and immutable receipt (no raw people/observations/truth)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-test-sealed-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: error
+          path: Solution/.local/v9-test-prep/sealed/
+      - name: Dispose any transient TEST plaintext and public certificate, even on failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-test-prep/raw" \
+            "$GITHUB_WORKSPACE/Solution/.local/v9-test-prep/public.pem" \
+            "$GITHUB_WORKSPACE/Solution/.local/v9-test-prep/generation.log"
   physical-100k:
-    if: ${{ inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    needs: prepare-test-100k
+    # TRAIN can start without TEST preparation, but cannot ignore a failed
+    # requested seal. With TEST sealed, TRAIN still has no decryption key.
+    if: ${{ always() && inputs.security_preflight_approved == true && github.actor == github.repository_owner && (inputs.prepare_sealed_test != true || needs.prepare-test-100k.result == 'success') }}
     name: "V9 TRAIN + audit: 324 V3 TF4 hypotheses"
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
     # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
@@ -397,7 +507,7 @@ jobs:
   # one-use exposure controls, independent result transport and activation gates.
   test-100k-locked:
     name: "V9 TEST — RESERVED / HARD-LOCKED (not executed)"
-    needs: validation-100k
+    needs: [validation-100k, prepare-test-100k]
     # Defense in depth: this expression is deliberately constant false.
     # test_required=true is also rejected fail-closed in the TRAIN admission.
     if: ${{ false }}
