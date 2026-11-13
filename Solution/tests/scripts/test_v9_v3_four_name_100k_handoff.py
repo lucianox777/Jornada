@@ -94,6 +94,9 @@ class V9FourNameHandoffTests(unittest.TestCase):
         self.assertNotIn("--v9-validate-finalists", train)
         self.assertIn("v9-v3-four-name-100k-handoff.py prepare", train)
         self.assertIn("if-no-files-found: error", train)
+        aggregate = train.split("- name: Upload aggregated evidence only, never corpus, raw TEST or credentials", 1)[1]
+        self.assertNotIn("results/frozen-finalists/*.selection.json", aggregate)
+        self.assertNotIn("results/frozen-finalists/*.fitted.json", aggregate)
         self.assertIn("needs: physical-100k", validation)
         self.assertIn("needs.physical-100k.result == 'success'", validation)
         self.assertIn("needs.physical-100k.outputs.has_finalists == 'true'", validation)

@@ -256,8 +256,8 @@ jobs:
             Solution/.local/v9-100k-technical/results/calibration-runtime-scheduling.json
             Solution/.local/v9-100k-technical/results/selection-reference.json
             Solution/.local/v9-100k-technical/results/campaign-scientific-status.json
-            Solution/.local/v9-100k-technical/results/frozen-finalists/*.selection.json
-            Solution/.local/v9-100k-technical/results/frozen-finalists/*.fitted.json
+            # Frozen envelope/snapshots are in the distinct immutable validation-handoff artifact,
+            # not duplicated in aggregate technical evidence (large files can exceed 2 GiB).
       - name: Dispose temporary TRAIN bases after mandatory stages
         if: always()
         # Cleanup must also run when checkout never happened.
