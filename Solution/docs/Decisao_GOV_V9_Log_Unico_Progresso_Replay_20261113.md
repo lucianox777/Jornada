@@ -1,6 +1,6 @@
 # GOV-V9-LOG-UNICO-PROGRESSO-REPLAY-20261113 — uma escrita por hipótese
 
-**Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** DECIDIDO pelo PO; código e testes preparados em branch/PR, **integração e medições de desempenho pendentes**. **Política:** GOV-DOC-01.
+**Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** DECIDIDO pelo PO; **IMPLEMENTADO e INTEGRADO à master pela PR #1493 (squash SHA `4b95d73b8c691894a41468e97f9d3578a39b0e06`) com CI rápida aprovada**; **ganho físico de desempenho ainda não medido**. **Política:** GOV-DOC-01.
 
 ## Contexto, evidência e problema
 
@@ -33,3 +33,9 @@ O callback de conclusão mantém o recibo de auditoria antes da emissão operaci
 - Aceite de desempenho: A/B pareado sob mesmo corpus/plano/runner para avaliar tempo total; sem isso a entrega pode ser classificada como **IMPLEMENTADO** após merge, jamais **GANHO DE PERFORMANCE MEDIDO**.
 
 **Rastreabilidade:** branch `fix/v9-single-console-message-per-hypothesis-20261113`; execução histórica #43309643251; execução atual #43499315560; [índice de decisões vigentes](Indice_Decisoes_Vigentes.md). PR e status de CI devem ser anotados após abertura e execução; não considerar esta decisão integrada antes do merge.
+
+## Recibo de integração (13/11/2026)
+
+A [PR #1493](https://github.com/lucianox777/Jornada/pull/1493) foi integrada à `master` por **squash merge** no commit `4b95d73b8c691894a41468e97f9d3578a39b0e06`. O [workflow obrigatório #43511538731](https://github.com/lucianox777/Jornada/actions/runs/43511538731) aprovou **unit-runtime**, **security-guards** e **deterministic-build** no HEAD `743971f1408e2c332a6e477c32fae0e54c6a186d`; o [preflight de plano #43511538716](https://github.com/lucianox777/Jornada/actions/runs/43511538716) também aprovou o contrato offline. O merge está confirmado no histórico da master.
+
+**Limite da prova:** validação por build, testes de contrato e gate de segurança; ainda não há execução física 100k com a nova instrumentação ou A/B de tempo total. A [campanha #43499315560](https://github.com/lucianox777/Jornada/actions/runs/43499315560) foi disparada no SHA anterior e permanece inalterada. Esta decisão está **IMPLEMENTADA/INTEGRADA**, não é `GANHO_MEDIDO`, nem autorização de TEST ou mudança científica. A janela de até 315 min continua válida para o job TRAIN. GOV-DOC-01.
