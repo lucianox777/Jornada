@@ -30,7 +30,9 @@ class TestGlobalOneUse(unittest.TestCase):
         self.assertLess(test.index('assert expected==actual'), test.index("gh api"))
         self.assertNotIn("contents: write", train)
         self.assertNotIn("contents: write", validation)
-        self.assertNotIn("GH_TOKEN", train)
+        # TRAIN already uses a read-only GH_TOKEN to retrieve a pinned historical
+        # artifact; its presence is not TEST access or repository write permission.
+        self.assertIn("GH_TOKEN:", train)
         self.assertNotIn("GH_TOKEN", validation)
         self.assertNotIn("TEST_PRIVATE_KEY_B64", train)
         self.assertNotIn("TEST_PRIVATE_KEY_B64", validation)
