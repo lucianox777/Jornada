@@ -16,18 +16,35 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         IReadOnlyCollection<V9PhysicalCalibrationObservation> validation, V9FittedSnapshot snapshot,
         V9PhysicalAdaptiveExecution execution, int maximumAcceptedPerIdentity, int comparedConfigurations,
         CancellationToken cancellationToken)
+        => await EvaluateFrozenPartitionAsync(connection, validation, snapshot, execution,
+            maximumAcceptedPerIdentity, comparedConfigurations, "VALIDATION", cancellationToken);
+
+    /// <summary>Independent TEST: one frozen model, one sealed TEST cohort; no fitting or selection.</summary>
+    public static async Task<V9FrozenHoldoutEvaluation> EvaluateFrozenTestAsync(SqlConnection connection,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> test, V9FittedSnapshot winner,
+        V9PhysicalAdaptiveExecution execution, int maximumAcceptedPerIdentity,
+        CancellationToken cancellationToken)
+        => await EvaluateFrozenPartitionAsync(connection, test, winner, execution,
+            maximumAcceptedPerIdentity, 1, "TEST", cancellationToken);
+
+    private static async Task<V9FrozenHoldoutEvaluation> EvaluateFrozenPartitionAsync(SqlConnection connection,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> validation, V9FittedSnapshot snapshot,
+        V9PhysicalAdaptiveExecution execution, int maximumAcceptedPerIdentity,
+        int comparedConfigurations, string purpose, CancellationToken cancellationToken)
     {
+        if (purpose is not ("VALIDATION" or "TEST"))
+            throw new InvalidDataException("Finalidade de avaliação inválida.");
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(validation);
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(execution);
         execution.Validate(true, true);
         if (maximumAcceptedPerIdentity < 1 || comparedConfigurations < 1 || comparedConfigurations > 3
-            || validation.Count < 4 || validation.Any(x => x is null || x.Partition != "VALIDATION"
+            || validation.Count < 4 || validation.Any(x => x is null || x.Partition != purpose
                 || x.ObservationId <= 0 || string.IsNullOrWhiteSpace(x.BasePersonId) || string.IsNullOrWhiteSpace(x.Gestor))
             || validation.Select(x => x.ObservationId).Distinct().Count() != validation.Count
             || validation.GroupBy(x => x.BasePersonId, StringComparer.Ordinal).Any(g => g.Count() > maximumAcceptedPerIdentity))
-            throw new InvalidDataException("Avaliação congelada exige VALIDATION válida, cap e até três finalistas.");
+            throw new InvalidDataException("Avaliação congelada exige coorte da finalidade, cap e 1..3 modelos na VALIDATION/1 no TEST.");
         var expectedProjection = execution.MaximumPrefixLength == 0 ? PersonResolutionProjectionContract.FingerprintSha256
             : V9CalibrationBlockingProjection.ComputeSchemaFingerprint(execution.MaximumPrefixLength);
         // Frozen replay uses the snapshot's embedded TRAIN-fitted U and pinned
@@ -49,10 +66,12 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             cancellationToken.ThrowIfCancellationRequested();
             var timer = Stopwatch.StartNew();
             var edges = await PrepareFrozenValidationPairsAsync(
-                connection, validation, snapshot, execution, cancellationToken);
+                connection, validation, snapshot, execution, purpose, cancellationToken);
             var trueSources = edges.Where(e => byId[e.A].BasePersonId == byId[e.B].BasePersonId)
                 .SelectMany(e => new[] { e.A, e.B }).Distinct().LongCount();
-            var replay = V9FrozenSourceResolveReplay.Replay(snapshot, validation, edges);
+            var replay = purpose == "TEST"
+                ? V9FrozenSourceResolveReplay.ReplayTest(snapshot, validation, edges)
+                : V9FrozenSourceResolveReplay.Replay(snapshot, validation, edges);
             var baseline = new V9PhysicalSourceResolveMetric(snapshot.ContentSha256, snapshot.Payload.Threshold,
                 snapshot.Payload.TfWeight,
                 snapshot.Payload.ConflictMargin, "BLIND_FS_COMPLETE_LINK_CANDIDATES", validation.Count,
@@ -77,14 +96,16 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         }
         return new(snapshot.ContentSha256, metric!, execution.EndToEndRepetitions >= 20
             ? V9PhysicalSqlCostQuantiles.FromMeasuredMilliseconds(samples).P95Milliseconds : null,
-            fanout, "V9_FROZEN_HOLDOUT_FULL_SQL_FS_BLIND_SOURCE_RESOLVE_V1", samples.AsReadOnly());
+            fanout, purpose == "TEST"
+            ? "V9_INDEPENDENT_TEST_ONE_FROZEN_MODEL_FULL_SQL_FS_BLIND_SOURCE_RESOLVE_V1"
+            : "V9_FROZEN_HOLDOUT_FULL_SQL_FS_BLIND_SOURCE_RESOLVE_V1", samples.AsReadOnly());
     }
     // Extraction only: keep the full physical SQL preparation inside the timed
     // replay iteration. Do not cache or bypass this path for certified P95.
     private static async Task<IReadOnlyList<(int A, int B)>> PrepareFrozenValidationPairsAsync(
         SqlConnection connection, IReadOnlyCollection<V9PhysicalCalibrationObservation> validation,
         V9FittedSnapshot snapshot, V9PhysicalAdaptiveExecution execution,
-        CancellationToken cancellationToken)
+        string purpose, CancellationToken cancellationToken)
     {
         var signatures = BuildSignatures(validation, snapshot.Payload.BlockingPasses,
             execution.MaximumPrefixLength, execution.MaximumProjectedSignatures);
@@ -95,7 +116,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         await BulkObservationsAsync(connection, validation, cancellationToken);
         await BulkSignaturesAsync(connection, signatures, cancellationToken);
         var pairCount = await MaterializePairsAsync(connection, cancellationToken);
-        var edges = await ReadValidationPairsAsync(connection, cancellationToken);
+        var edges = await ReadValidationPairsAsync(connection, cancellationToken, purpose);
         if (pairCount != edges.Count)
             throw new InvalidDataException("Censo do holdout não reconciliou.");
         return edges;
