@@ -41,3 +41,12 @@ O workflow manual `.github/workflows/v9-v3-four-name-100k.yml` passa a aceitar `
 **Segurança e operação:** continuam obrigatórios `workflow_dispatch` pelo proprietário, `refs/heads/master`, `expected_sha` idêntico ao `GITHUB_SHA`, `security_preflight_approved=true`, dados sintéticos e demais gates existentes. A instrumentação não habilita automaticamente a campanha nem o TEST; a escolha de marcar o checkbox no dispatch é operacional, após verificação de segurança e aprovação aplicável.
 
 **Rastreabilidade:** PR #1469 integrou a instrumentação após CI aprovada. Esta alteração oferece o canal para executar a mesma instrumentação na campanha manual. A avaliação pareada com a versão sem #1463 continua experimento futuro; não há inferência causal autorizada nem mudança no índice de decisões vigentes.
+
+
+## Medição real e conclusão operacional do run #43309643251 (13/11/2026)
+
+- **Execução:** SHA `ccb3ffe052b3923eb093c921ff8c642505c1f01d`, 324/324 hipóteses concluídas (100%), envelope com três finalistas, `worker_exit=0`, seguida de **timeout da etapa física aos 305 min**; resultado do workflow `FAILURE`. Auditoria técnica posterior e VALIDATION independente **não executadas**. Evidência agregada [#14005260596](https://github.com/lucianox777/Jornada/actions/runs/43309643251/artifacts/14005260596).
+- **Indexação #1463:** quatro medições `index_build` de 3,874; 0,029; 0,222; 0,269 ms, total 4,394 ms para grupos de 64, 4, 128 e 128 solicitações, respectivamente.
+- **Replay:** 324 medições `frozen_replay`, média de 92,286 s por chamada, sem equivalência com duração de parede (concorrência). A etapa concluiu as hipóteses em 303,7 min e encerrou perto do limite de 305 min.
+- **Interpretação:** a construção dos índices é desprezível ante os replays e não sustenta atribuir vários segundos extras por hipótese à construção `ToLookup`. A diferença observada entre #1462 e #1463 segue sem causalidade demonstrada; o diagnóstico não substitui A/B.
+- **Tratamento operacional:** [registro GOV-V9-324-TIMEOUT-FISICO-315-20261113](Decisao_GOV_V9_324_Timeout_Fisico_315_20261113.md) propõe elevar o limite da etapa física e o rótulo ETA a 315 min sem mudar o job 360 min, os critérios científicos, as 324 hipóteses ou a obrigação de VALIDATION.
