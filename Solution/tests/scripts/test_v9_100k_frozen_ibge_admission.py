@@ -1,6 +1,7 @@
 """Guard immutable 100k IBGE rehydration, never regenerate synthetic 30k."""
 import importlib.util
 import json
+import subprocess
 from pathlib import Path
 import tempfile
 import unittest
@@ -117,6 +118,9 @@ class FrozenIbge100kAdmission(unittest.TestCase):
         self.assertIn('timeout-minutes: 40', validation)
         self.assertIn('--v9-validate-finalists', validation)
         self.assertIn('--seed 20261112001', validation)
+
+    def test_sql_bootstrap_shell_syntax(self):
+        subprocess.run(["bash", "-n", str(SCRIPT)], check=True)
 
     def test_other_30k_manual_workflows_still_use_original_provenance(self):
         old = ROOT / "scripts/v9-tf-prepare-pin.sh"
