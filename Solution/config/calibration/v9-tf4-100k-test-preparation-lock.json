@@ -1,0 +1,23 @@
+{
+  "schema": "V9_TF4_100K_TEST_DATA_PREPARATION_LOCK_V1",
+  "status": "LOCKED",
+  "scope": "PRE_GENERATE_SEAL_ONLY_NOT_SCIENTIFIC_TEST_EXECUTION",
+  "people": 100000,
+  "trainSeed": 42,
+  "validationSeed": 20261112001,
+  "testSeed": 20261113001,
+  "errorProfile": "clean",
+  "populationProfile": "demographic-primary",
+  "referenceRoot": "data/reference/ibge-nomes-2022",
+  "birthDailySource": "data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json",
+  "artifactAllowedFiles": [
+    "generation-manifest.json",
+    "pessoas_verdade.csv",
+    "observacoes.csv",
+    "gabarito.json"
+  ],
+  "sealing": "OPENSSL_CMS_AES_256_GCM_X509_RSA",
+  "declaredIndependence": "DISTINCT_RNG_SEEDS_ONLY;IDENTITY_DISJOINTNESS_NOT_ATTESTED",
+  "observationalStatus": "SEALED_DATA_ONLY_NO_RESULTS_NO_CERTIFICATION",
+  "requiredBeforeTest": "WINNER_LOCK;TEST_PROTOCOL_LOCK_SHA;INDIVIDUAL_EXPOSURE_LEDGER;RECORDED_RUNNER_PHYSICAL_EXECUTOR"
+}
