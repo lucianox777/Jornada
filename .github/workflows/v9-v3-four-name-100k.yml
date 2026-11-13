@@ -99,6 +99,7 @@ jobs:
           fi
           python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k_handoff.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_100k_frozen_ibge_admission.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
           python3 -m py_compile scripts/v9-scale-100k-technical-plan.py scripts/v9-v3-four-name-100k-plan.py scripts/v9-v3-four-name-100k-audit.py scripts/v9-100k-execution-resource-budget.py
@@ -129,11 +130,11 @@ jobs:
             --plan "$root/bound/plan.json" --receipt "$root/bound/binding-receipt.json"
       - name: Start masked disposable SQL Server
         run: bash scripts/v9-tf-start-disposable-sql.sh
-      - name: Reconstruct historical 30k TF reference only, not 30k calibration
+      - name: Rehydrate frozen local IBGE in TRAIN SQL, verify canonical hashes, no 30k regeneration
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
-          bash scripts/v9-tf-prepare-pin.sh "$root/reference-30k" pinned-ibge.json
+          bash scripts/v9-100k-load-frozen-ibge.sh "$root/bound/plan.json" "$root/reference-ibge"
       - name: Recheck physical RAM/disk before 324 exploratory fits
         if: ${{ inputs.disable_python_sql_budget != true }}
         run: |
@@ -266,7 +267,7 @@ jobs:
           set -euo pipefail
           root="$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical"
           # TEST is disabled by the fail-closed admission above. Preserve aggregate evidence.
-          rm -rf -- "$root/people-100k" "$root/validation-people" "$root/reference-30k" "$root/base-bound" "$root/historical-official.zip"
+          rm -rf -- "$root/people-100k" "$root/validation-people" "$root/reference-ibge" "$root/base-bound" "$root/historical-official.zip"
       - name: Remove disposable SQL even after failure
         if: always()
         working-directory: ${{ github.workspace }}
@@ -334,11 +335,11 @@ jobs:
             --handoff "$root/handoff" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
       - name: Start fresh masked disposable SQL Server for VALIDATION only
         run: bash scripts/v9-tf-start-disposable-sql.sh
-      - name: Reconstruct required historical pinned 30k reference in fresh SQL, no TRAIN refit
+      - name: Rehydrate frozen local IBGE in independent VALIDATION SQL, no 30k regeneration
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
-          bash scripts/v9-tf-prepare-pin.sh "$root/reference-30k" pinned-ibge.json
+          bash scripts/v9-100k-load-frozen-ibge.sh "$root/handoff/plan.json" "$root/reference-ibge"
       - name: Mandatory fresh independent VALIDATION of frozen finalists
         timeout-minutes: 40
         run: |
@@ -382,7 +383,7 @@ jobs:
         run: |
           set -euo pipefail
           root="$GITHUB_WORKSPACE/Solution/.local/v9-100k-technical"
-          rm -rf -- "$root/validation-people" "$root/reference-30k" "$root/handoff" "$root/validation-holdout-exposures"
+          rm -rf -- "$root/validation-people" "$root/reference-ibge" "$root/handoff" "$root/validation-holdout-exposures"
       - name: Remove VALIDATION disposable SQL even after failure
         if: always()
         working-directory: ${{ github.workspace }}
