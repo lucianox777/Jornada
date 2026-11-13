@@ -1,6 +1,6 @@
 # GOV-V9-100K-IBGE-CONGELADO-SEM-REGERAR-30K-20261113
 
-**Autoridade:** Product Owner (13/11/2026, America/Sao_Paulo). **Estado:** alteração operacional aprovada em conversa e implementada em PR, a validar antes de integrar. **Política:** GOV-DOC-01.
+**Autoridade:** Product Owner (13/11/2026, America/Sao_Paulo). **Estado:** APROVADA PELO PO; integrada à master via PR #1474 (SHA 1a19776fa162253e16a6bb7b9918afb83f8ec622), CI aprovada e teste físico do novo bootstrap SQL ainda pendente. **Política:** GOV-DOC-01.
 
 ## Contexto e evidências do código
 
@@ -31,3 +31,7 @@ Ganho esperado: remover geração desnecessária, varredura/validação de três
 **Precedência:** complemento operacional à decisão [GOV-V9-V3-TF4-324-20261111](Decisao_GOV_V9_V3_TF4_324_100k_20261111.md), à [separação dos jobs](Decisao_GOV_V9_TF4_324_Validation_Job_Separado_20261113.md) e à publicação IBGE congelada [Linkage_V9_Frozen_IBGE_TF_Snapshot_20261013](Linkage_V9_Frozen_IBGE_TF_Snapshot_20261013.md). Não altera 324 hipóteses, governança de TEST, FDR/CP, P95, contratos de segurança, anti-reexposição nem decisão de ativação. O run [#43453565012](https://github.com/lucianox777/Jornada/actions/runs/43453565012) utiliza versão anterior e não muda retroativamente.
 
 **Gates de integração:** teste de contrato em ambos os jobs, rejeição de pin alterado, CI obrigatória no commit final, squash merge e verificação na master. O teste físico da carga e equivalência dos digests ainda é necessário antes de declarar o caminho 100k comprovado. [Índice de decisões](Indice_Decisoes_Vigentes.md).
+
+## Evidência de integração (13/11/2026)
+
+A [PR #1474](https://github.com/lucianox777/Jornada/pull/1474) foi integrada por squash na master no commit `1a19776fa162253e16a6bb7b9918afb83f8ec622`. A CI obrigatória [#43462492703](https://github.com/lucianox777/Jornada/actions/runs/43462492703) aprovou `unit-runtime`, `security-guards` e `deterministic-build`, inclusive testes do registro congelado, recusa de divergência e sintaxe Bash; o fluxo rápido [#43462492615](https://github.com/lucianox777/Jornada/actions/runs/43462492615) também passou. A CI anterior #43461612186 revelou um teste desatualizado que ainda exigia o script 30k; corrigido na mesma PR, sem alteração da ciência. **A equivalência física SQL no novo bootstrap ainda não foi comprovada por uma campanha 100k**. A execução #43453565012 já iniciada antes do merge permanece no SHA antigo.
