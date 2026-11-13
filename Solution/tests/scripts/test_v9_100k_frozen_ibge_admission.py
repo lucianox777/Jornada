@@ -67,18 +67,19 @@ class FrozenIbge100kAdmission(unittest.TestCase):
                                                json.loads(IBGE_MANIFEST.read_text()))
 
     def test_reloaded_sql_pin_must_match_original_pinned_plan_exactly(self):
-        # Never infer a new IBGE pin from SQL: compare with original plan.
         frozen = snapshot()
-        self.assertEqual(admission.canonical(frozen), frozen)
-        actual = {**frozen, "PinnedIbgeMaterializedFrequencySha256": "0" * 64}
-        self.assertNotEqual(actual["PinnedIbgeMaterializedFrequencySha256"],
-                            frozen["PinnedIbgeMaterializedFrequencySha256"])
-        # Shape/metadata verification must reject fabricated bootstrap.
-        actual["PinnedIbgeBootstrap"] = {**frozen["PinnedIbgeBootstrap"],
-                                         "CorpusFingerprint": "0" * 64}
-        with self.assertRaisesRegex(ValueError, "bootstrap"):
-            admission.pinned_from_plan(actual, json.loads(REGISTRY.read_text()),
-                                       json.loads(IBGE_MANIFEST.read_text()))
+        self.assertTrue(admission.verify_physical_pin(frozen, dict(frozen)))
+        for key, wrong in (
+            ("PinnedIbgeReferenceVersionId", 999),
+            ("PinnedIbgePublishedSha256", "0" * 64),
+            ("PinnedIbgeMaterializedFrequencySha256", "1" * 64),
+            ("PinnedIbgeBootstrap", {**frozen["PinnedIbgeBootstrap"],
+                                     "CorpusFingerprint": "0" * 64}),
+        ):
+            with self.subTest(key=key):
+                altered = {**frozen, key: wrong}
+                with self.assertRaisesRegex(ValueError, "physical SQL IBGE"):
+                    admission.verify_physical_pin(frozen, altered)
 
     def test_reject_source_manifest_allowing_mutations_or_remote_runtime_api(self):
         frozen = snapshot()
