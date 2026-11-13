@@ -1,4 +1,4 @@
-"""Fail-closed contract for V9 TF4 3-job/360m architecture: TEST stays sealed."""
+"""Fail-closed contract for three 360m stages, standalone one-model TEST."""
 import re
 from pathlib import Path
 import unittest
@@ -12,7 +12,7 @@ class ThreeJobsV9TimeoutTests(unittest.TestCase):
     def setUpClass(cls):
         cls.source = WORKFLOW.read_text(encoding="utf-8")
         train, tail = cls.source.split("\n  validation-100k:\n", 1)
-        validation, test = tail.split("\n  test-100k-locked:\n", 1)
+        validation, test = tail.split("\n  test-100k:\n", 1)
         cls.train, cls.validation, cls.test = train, validation, test
 
     def test_three_independent_job_clocks_up_to_360_minutes(self):
@@ -33,29 +33,33 @@ class ThreeJobsV9TimeoutTests(unittest.TestCase):
         self.assertIn('test "$GITHUB_RUN_ATTEMPT" = "1"', self.validation)
         self.assertIn('test "$EXACT_SHA" = "$GITHUB_SHA"', self.validation)
         self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', self.validation)
-        self.assertIn('test "${{ inputs.test_required }}" = "false"', self.validation)
+        self.assertIn('test "${{ inputs.test_required }}" != "true" || test "${{ inputs.prepare_sealed_test }}" = "true"', self.validation)
         self.assertIn("v9-v3-four-name-100k-handoff.py verify", self.validation)
         self.assertIn("v9-100k-load-frozen-ibge.sh", self.validation)
         self.assertIn("--v9-validate-finalists", self.validation)
         self.assertIn("Remove VALIDATION disposable SQL even after failure", self.validation)
 
-    def test_test_job_is_structural_only_and_permanently_disabled(self):
+    def test_test_job_is_standalone_and_uses_one_winner_only(self):
         self.assertIn("needs: [validation-100k, prepare-test-100k]", self.test)
-        self.assertRegex(self.test, r"(?m)^    if: \${\{ false \}\}$")
-        self.assertIn('name: "V9 TEST', self.test)
-        self.assertIn("V9_TEST_LOCKED:", self.test)
-        self.assertIn("exit 1", self.test)
-        self.assertNotIn("actions/checkout", self.test)
-        self.assertNotIn("download-artifact", self.test)
-        self.assertNotIn("--v9-test", self.test)
-        self.assertNotIn("--people", self.test)
-        self.assertNotIn("docker run", self.test)
-        self.assertNotIn("TEST_DATA", self.test)
-        self.assertNotIn("TEST_SEED", self.test)
-        self.assertIn('if [[ "${{ inputs.test_required }}" == "true" ]]; then', self.train)
-        self.assertIn("TEST_REQUIRED_UNSUPPORTED", self.train)
-        self.assertIn("exit 1", self.train)
-        # Only the owner can dispatch after an affirmative security preflight.
+        self.assertIn("inputs.test_required == true", self.test)
+        self.assertIn("needs.validation-100k.result == 'success'", self.test)
+        self.assertIn("needs.prepare-test-100k.result == 'success'", self.test)
+        self.assertIn("github.actor == github.repository_owner", self.test)
+        self.assertNotIn("if: ${{ false }}", self.test)
+        self.assertIn('test "$GITHUB_RUN_ATTEMPT" = "1"', self.test)
+        self.assertIn('test "$EXACT_SHA" = "$GITHUB_SHA"', self.test)
+        self.assertIn("--v9-independent-test", self.test)
+        self.assertIn("TEST_PRIVATE_KEY_B64", self.test)
+        self.assertIn("V9_TEST_DATA_LOCK_SHA", self.test)
+        self.assertIn("timeout-minutes: 330", self.test)
+        self.assertIn("test-corpus.cms", (ROOT / "scripts/v9-tf4-sealed-test-preparation.py").read_text())
+        self.assertNotIn("--v9-calibrate", self.test)
+        self.assertNotIn("--v9-validate-finalists", self.test)
+        self.assertNotIn("finalist-validation.json", self.test)
+        self.assertNotIn("selection.json", self.test)
+        self.assertNotIn("plan.json", self.test)
+        self.assertNotIn("--people 100000", self.test)
+        self.assertIn("TEST_NEEDS_INDEPENDENT_PRESEALED_CORPUS", self.train)
         self.assertIn("workflow_dispatch:", self.train)
         self.assertIn("github.actor == github.repository_owner", self.train)
         self.assertIn("inputs.security_preflight_approved == true", self.train)
@@ -68,6 +72,7 @@ class ThreeJobsV9TimeoutTests(unittest.TestCase):
         self.assertIn('v9-100k-load-frozen-ibge.sh "$root/bound/plan.json"', self.train)
         self.assertIn("v9-tf4-validation-handoff-", self.train)
         self.assertIn("testUsed", self.validation)
+        self.assertIn("v9-tf4-test-one-winner-", self.validation)
         self.assertIn("refitted", self.validation)
         self.assertIn("activated", self.validation)
 

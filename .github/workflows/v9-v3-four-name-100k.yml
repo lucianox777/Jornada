@@ -1,7 +1,7 @@
 name: v9-v3-four-name-100k
 
 # STRICTLY MANUAL. Optional independent TEST cohort is preregistered and CMS-sealed
-# before TRAIN; the physical TEST evaluator remains fail-closed until scientific gates.
+# before TRAIN; the physical TEST evaluator takes ONLY the frozen winner model.
 on:
   workflow_dispatch:
     inputs:
@@ -14,12 +14,12 @@ on:
         required: true
         type: boolean
       test_required:
-        description: "Require TEST (UNSUPPORTED: hard-locked TEST job; true always fails admission)"
+        description: "Run independent one-model TEST after VALIDATION (requires prepare_sealed_test and TEST decryption secrets)"
         required: true
         default: false
         type: boolean
       prepare_sealed_test:
-        description: "Generate and encrypt independent synthetic TEST before TRAIN (requires configured public recipient certificate; does not run TEST)"
+        description: "Generate and encrypt independent TEST cohort before TRAIN"
         required: true
         type: boolean
         default: false
@@ -82,9 +82,6 @@ jobs:
           test "$GITHUB_RUN_ATTEMPT" = "1"
           test "${{ inputs.security_preflight_approved }}" = "true"
           test "${{ inputs.prepare_sealed_test }}" = "true"
-          # Actual scientific TEST is still disabled until its separate LOCK
-          # and independent recorded-Runner evaluator have been implemented.
-          test "${{ inputs.test_required }}" = "false"
           test "$JORNADA_RUNTIME_MODE" = "DEV"
           python3 scripts/v9-tf4-sealed-test-preparation.py verify-lock \
             --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
@@ -203,9 +200,9 @@ jobs:
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$GITHUB_REF" = "refs/heads/master"
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
-          # Never promise retention for a later TEST on an ephemeral hosted runner.
-          if [[ "${{ inputs.test_required }}" == "true" ]]; then
-            echo "::error::TEST_REQUIRED_UNSUPPORTED: PO authorization is recorded; TEST remains locked until independent scientific LOCK, recorded-Runner executor, verified exposure ledger and protected test corpus are implemented. This run is TRAIN+VALIDATION only."
+          # A mandatory TEST requires its independent cohort to be prepared first.
+          if [[ "${{ inputs.test_required }}" == "true" && "${{ inputs.prepare_sealed_test }}" != "true" ]]; then
+            echo "::error::TEST_NEEDS_INDEPENDENT_PRESEALED_CORPUS"
             exit 1
           fi
           python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k.py -v
@@ -213,6 +210,7 @@ jobs:
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_frozen_ibge_admission.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_three_job_timeouts.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_prepared_sealed_test.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_tf4_standalone_test.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
           python3 -m py_compile scripts/v9-scale-100k-technical-plan.py scripts/v9-v3-four-name-100k-plan.py scripts/v9-v3-four-name-100k-audit.py scripts/v9-100k-execution-resource-budget.py
@@ -419,7 +417,7 @@ jobs:
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
           test "${{ inputs.security_preflight_approved }}" = "true"
-          test "${{ inputs.test_required }}" = "false"
+          test "${{ inputs.test_required }}" != "true" || test "${{ inputs.prepare_sealed_test }}" = "true"
           # Never repeat the same sealed holdout by rerunning this job/attempt.
           test "$GITHUB_RUN_ATTEMPT" = "1"
           test "${{ needs.physical-100k.result }}" = "success"
@@ -482,6 +480,37 @@ jobs:
           assert r["comparedConfigurations"] in (1,2,3)
           print("V9_MANDATORY_VALIDATION_COMPLETED",r["status"])
           PY
+      - name: Freeze ONLY the scientific winner model for independent TEST
+        if: ${{ success() && inputs.test_required == true }}
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          mkdir "$root/test-winner-only"
+          python3 - "$root/validation-results/finalist-validation.json" \
+            "$root/handoff" "$root/test-winner-only" <<'PY'
+          import hashlib,json,pathlib,shutil,sys,re
+          result=json.loads(pathlib.Path(sys.argv[1]).read_text())
+          winner=result.get("selectedValidationSnapshotSha256")
+          assert result.get("status")=="VALIDATION_SCIENTIFIC_WINNER_SELECTED_NOT_CERTIFIED"
+          assert result.get("testUsed") is False and result.get("refitted") is False
+          assert result.get("certified") is False and result.get("activated") is False
+          assert isinstance(winner,str) and re.fullmatch(r"[0-9a-f]{64}",winner)
+          source=pathlib.Path(sys.argv[2])/(winner+".fitted.json")
+          assert source.is_file() and not source.is_symlink()
+          with source.open("rb") as stream:
+              assert hashlib.file_digest(stream,"sha256").hexdigest()==winner
+          shutil.copyfile(source,pathlib.Path(sys.argv[3])/source.name)
+          print("V9_ONLY_SELECTED_WINNER_SEALED_FOR_TEST",winner)
+          PY
+      - name: Upload ONLY the frozen winner model (no TRAIN/VALIDATION plans or metrics)
+        if: ${{ success() && inputs.test_required == true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-test-one-winner-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: error
+          include-hidden-files: true
+          path: Solution/.local/v9-100k-technical/test-winner-only/*.fitted.json
       - name: Upload independent VALIDATION aggregate result, never the holdout corpus
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # SHA pinned
@@ -503,23 +532,141 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
 
-  # Reserved architecture only: NOT an authorization to open TEST.
-  # PO authorization has been documented (#1479), but this job MUST remain
-  # skipped until a pre-registered scientific LOCK, sealed TEST provenance,
-  # one-use exposure controls, independent result transport and activation gates.
-  test-100k-locked:
-    name: "V9 TEST — RESERVED / HARD-LOCKED (not executed)"
+  # TEST owns the corpus, protocol, SQL and metric computation.
+  # It receives ONLY the frozen model chosen by VALIDATION, no plan or scores.
+  test-100k:
     needs: [validation-100k, prepare-test-100k]
-    # Defense in depth: this expression is deliberately constant false.
-    # test_required=true is also rejected fail-closed in the TRAIN admission.
-    if: ${{ false }}
+    if: ${{ inputs.test_required == true && inputs.prepare_sealed_test == true && needs.validation-100k.result == 'success' && needs.prepare-test-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    name: "V9 independent TEST: one frozen winner, sealed 100k"
     runs-on: ubuntu-24.04
     timeout-minutes: 360
-    permissions:
-      contents: read
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+      V9_TEST_DATA_LOCK_SHA: 4d071fe9cb350f26bd6705caf3275a22ba3fc91831c4dab401d81b67c462af6e
+    defaults:
+      run:
+        working-directory: Solution
     steps:
-      # Extra fail-closed tripwire in case a future edit removes the lock.
-      - name: Reject TEST without new approved scientific governance
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Fail-closed TEST SHA, owner and one-use run attempt
         run: |
-          echo "::error::V9_TEST_LOCKED: No TEST input, no sealed dataset, no LOCK gate, no authorized evaluator in this workflow."
-          exit 1
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "${{ inputs.security_preflight_approved }}" = "true"
+          test "${{ needs.validation-100k.result }}" = "success"
+          test "${{ needs.prepare-test-100k.result }}" = "success"
+          test "$JORNADA_RUNTIME_MODE" = "DEV"
+          python3 scripts/v9-tf4-sealed-test-preparation.py verify-lock \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build independent physical TEST evaluator
+        run: dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Download ONLY the winner model, never the VALIDATION metrics or plan
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-test-one-winner-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/v9-independent-test/winner
+      - name: Download TEST's own corpus sealed before TRAIN
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-test-sealed-${{ github.run_id }}-${{ github.run_attempt }}
+          path: Solution/.local/v9-independent-test/sealed
+      - name: Verify one SHA-pinned winner and authenticated TEST ciphertext
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          python3 - "$root/winner" <<'PY'
+          import hashlib,pathlib,re,sys
+          files=list(pathlib.Path(sys.argv[1]).iterdir())
+          assert len(files)==1 and files[0].is_file() and not files[0].is_symlink()
+          assert re.fullmatch(r"[a-f0-9]{64}\.fitted\.json",files[0].name)
+          with files[0].open("rb") as stream:
+              assert hashlib.file_digest(stream,"sha256").hexdigest()==files[0].name.split(".")[0]
+          print("ONE_SHA_PINNED_WINNER_ONLY")
+          PY
+          python3 scripts/v9-tf4-sealed-test-preparation.py verify \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
+            --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Unseal TEST base only inside TEST-owned runner
+        env:
+          TEST_PUBLIC_CERT_B64: ${{ secrets.V9_TF4_TEST_PUBLIC_CERT_B64 }}
+          TEST_PRIVATE_KEY_B64: ${{ secrets.V9_TF4_TEST_PRIVATE_KEY_B64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          root="$PWD/.local/v9-independent-test"
+          test -n "$TEST_PUBLIC_CERT_B64" && test -n "$TEST_PRIVATE_KEY_B64" || {
+            echo "::error::TEST_ENCRYPTION_KEYS_NOT_CONFIGURED"
+            exit 1
+          }
+          printf '%s' "$TEST_PUBLIC_CERT_B64" | base64 -d > "$root/recipient.pem"
+          printf '%s' "$TEST_PRIVATE_KEY_B64" | base64 -d > "$root/private.pem"
+          python3 scripts/v9-tf4-sealed-test-preparation.py unseal \
+            --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
+            --expected-lock-sha "$V9_TEST_DATA_LOCK_SHA" \
+            --sealed "$root/sealed" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID" \
+            --certificate "$root/recipient.pem" --key "$root/private.pem" --out "$root/corpus"
+          rm -f -- "$root/private.pem" "$root/recipient.pem"
+      - name: Start brand-new disposable SQL database only for TEST
+        run: |
+          set -euo pipefail
+          bash scripts/v9-tf-start-disposable-sql.sh
+          sql_name="v9-probe-sql-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          docker exec "$sql_name" sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -Q "CREATE DATABASE JornadaHarness;"'
+      - name: Apply one frozen winner to TEST, no refit and no winner selection
+        timeout-minutes: 330
+        env:
+          JORNADA_V9_TEST_CORPUS_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-test/corpus
+          JORNADA_V9_TEST_OUTPUT_DIR: ${{ github.workspace }}/Solution/.local/v9-independent-test/results
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-independent-test"
+          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.fitted.json')"
+          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.fitted.json' | wc -l)" -eq 1
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-independent-test "$model"
+          python3 - "$root/results/independent-test.json" <<'PY'
+          import json,sys
+          r=json.load(open(sys.argv[1]))
+          assert r["configurationsEvaluated"]==1
+          assert r["trainPlanRead"] is False and r["validationResultsRead"] is False
+          assert r["refitted"] is False and r["testUsed"] is True
+          assert r["certified"] is False and r["activated"] is False
+          print("TEST_ONE_WINNER_MEASURED_NOT_CERTIFIED",r["winnerSnapshotSha256"])
+          PY
+      - name: Upload only aggregate TEST result, never base, keys or truth
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-independent-test-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          include-hidden-files: true
+          path: Solution/.local/v9-independent-test/results/independent-test.json
+      - name: Dispose entire TEST corpus and keys after run or failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-independent-test"
+      - name: Dispose TEST SQL even on failure
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
