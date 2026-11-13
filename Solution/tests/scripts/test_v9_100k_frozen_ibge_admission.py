@@ -115,7 +115,7 @@ class FrozenIbge100kAdmission(unittest.TestCase):
         self.assertIn('physical-100k:', train)
         self.assertIn('needs: physical-100k', validation)
         self.assertIn('timeout-minutes: 315', train)
-        self.assertIn('timeout-minutes: 40', validation)
+        self.assertIn('timeout-minutes: 330', validation)
         self.assertIn('--v9-validate-finalists', validation)
         self.assertIn('--seed 20261112001', validation)
 

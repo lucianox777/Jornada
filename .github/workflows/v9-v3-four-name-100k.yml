@@ -1,6 +1,6 @@
 name: v9-v3-four-name-100k
 
-# STRICTLY MANUAL. V3-only TF4 81x2x2 exploratory TRAIN; never TEST.
+# STRICTLY MANUAL. 324 TF4 hypotheses: TRAIN + VALIDATION; TEST job is reserved and HARD-LOCKED.
 on:
   workflow_dispatch:
     inputs:
@@ -13,7 +13,7 @@ on:
         required: true
         type: boolean
       test_required:
-        description: "Require TEST in this campaign (not supported by this TRAIN+VALIDATION-only workflow)"
+        description: "Require TEST (UNSUPPORTED: hard-locked TEST job; true always fails admission)"
         required: true
         default: false
         type: boolean
@@ -94,12 +94,13 @@ jobs:
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           # Never promise retention for a later TEST on an ephemeral hosted runner.
           if [[ "${{ inputs.test_required }}" == "true" ]]; then
-            echo "::error::TEST_REQUIRED_UNSUPPORTED: this workflow has no TEST stage; bases cannot survive the hosted runner without explicit secure persistence."
+            echo "::error::TEST_REQUIRED_UNSUPPORTED: TEST job is locked; require pre-registered LOCK, sealed TEST provenance and a separate PO approval. This run is TRAIN+VALIDATION only."
             exit 1
           fi
           python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k_handoff.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_frozen_ibge_admission.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_tf4_three_job_timeouts.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_scale_100k_technical_plan.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
           python3 -m py_compile scripts/v9-scale-100k-technical-plan.py scripts/v9-v3-four-name-100k-plan.py scripts/v9-v3-four-name-100k-audit.py scripts/v9-100k-execution-resource-budget.py
@@ -278,8 +279,9 @@ jobs:
     if: ${{ needs.physical-100k.result == 'success' && needs.physical-100k.outputs.has_finalists == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: "V9 VALIDATION independent: frozen TF4 finalists"
     runs-on: ubuntu-24.04
-    # Separate GitHub-hosted runner, clock and disposable SQL database.
-    timeout-minutes: 120
+    # Own 360-minute job clock, fully independent of TRAIN. Keep 30 minutes
+    # for download/SQL bootstrapping/evidence upload/teardown around VALIDATION.
+    timeout-minutes: 360
     env:
       DOTNET_ENVIRONMENT: DEV
       ASPNETCORE_ENVIRONMENT: DEV
@@ -341,7 +343,7 @@ jobs:
           root="$PWD/.local/v9-100k-technical"
           bash scripts/v9-100k-load-frozen-ibge.sh "$root/handoff/plan.json" "$root/reference-ibge"
       - name: Mandatory fresh independent VALIDATION of frozen finalists
-        timeout-minutes: 40
+        timeout-minutes: 330
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
@@ -388,3 +390,24 @@ jobs:
         if: always()
         working-directory: ${{ github.workspace }}
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
+
+  # Reserved architecture only: NOT an authorization to open TEST.
+  # This job MUST remain skipped until a separately documented PO decision
+  # approves a pre-registered scientific LOCK, sealed TEST provenance,
+  # one-use exposure controls, independent result transport and activation gates.
+  test-100k-locked:
+    name: "V9 TEST — RESERVED / HARD-LOCKED (not executed)"
+    needs: validation-100k
+    # Defense in depth: this expression is deliberately constant false.
+    # test_required=true is also rejected fail-closed in the TRAIN admission.
+    if: ${{ false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    permissions:
+      contents: read
+    steps:
+      # Extra fail-closed tripwire in case a future edit removes the lock.
+      - name: Reject TEST without new approved scientific governance
+        run: |
+          echo "::error::V9_TEST_LOCKED: No TEST input, no sealed dataset, no LOCK gate, no authorized evaluator in this workflow."
+          exit 1

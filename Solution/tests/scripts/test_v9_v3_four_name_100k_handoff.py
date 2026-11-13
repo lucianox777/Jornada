@@ -110,8 +110,8 @@ class V9FourNameHandoffTests(unittest.TestCase):
         self.assertNotIn("v9-tf-prepare-pin.sh", validation)
         self.assertIn("--v9-validate-finalists", validation)
         self.assertIn("--seed 20261112001", validation)
-        self.assertIn("timeout-minutes: 120", validation)
-        self.assertIn("timeout-minutes: 40", validation)
+        self.assertIn("timeout-minutes: 360", validation)
+        self.assertIn("timeout-minutes: 330", validation)
         self.assertIn("Remove VALIDATION disposable SQL even after failure", validation)
         self.assertNotIn("people-100k/observacoes.csv", validation)
 
