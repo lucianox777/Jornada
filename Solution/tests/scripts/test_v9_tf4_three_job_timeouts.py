@@ -40,7 +40,7 @@ class ThreeJobsV9TimeoutTests(unittest.TestCase):
         self.assertIn("Remove VALIDATION disposable SQL even after failure", self.validation)
 
     def test_test_job_is_structural_only_and_permanently_disabled(self):
-        self.assertIn("needs: validation-100k", self.test)
+        self.assertIn("needs: [validation-100k, prepare-test-100k]", self.test)
         self.assertRegex(self.test, r"(?m)^    if: \${\{ false \}\}$")
         self.assertIn('name: "V9 TEST', self.test)
         self.assertIn("V9_TEST_LOCKED:", self.test)
