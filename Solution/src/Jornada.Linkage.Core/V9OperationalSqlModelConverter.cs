@@ -150,7 +150,7 @@ public static class V9OperationalSqlModelConverter
             WHERE modelo_id=@id;
             """);
         Add(command, "@id", DbType.Guid, modelId);
-        await using var reader = await command.ExecuteReaderAsync(CommandBehavior.SequentialAccess, ct);
+        await using var reader = await command.ExecuteReaderAsync(ct);
         if (!await reader.ReadAsync(ct))
             throw new InvalidDataException("Modelo V9 operacional não encontrado; não usar modelo legado.");
         if (reader.GetString(0) != ContractVersion
@@ -165,17 +165,9 @@ public static class V9OperationalSqlModelConverter
         var passes = reader.GetInt32(7);
         if (cells != 81 || tfSlots != 4 || passes < 1)
             throw new InvalidDataException("Contagens operacionais V9 perderam dimensões do modelo.");
-        var length = reader.GetBytes(8, 0, null, 0, 0);
-        if (length <= 0 || length > V9FittedSnapshot.MaximumContentBytes)
+        var buffer = reader.GetFieldValue<byte[]>(8);
+        if (buffer.Length <= 0 || buffer.Length > V9FittedSnapshot.MaximumContentBytes)
             throw new InvalidDataException("Payload operacional V9 excede limite.");
-        var buffer = new byte[checked((int)length)];
-        long offset = 0;
-        while (offset < length)
-        {
-            var read = reader.GetBytes(8, offset, buffer, checked((int)offset), checked((int)(length-offset)));
-            if (read <= 0) throw new EndOfStreamException("SQL V9 terminou antes dos bytes prometidos.");
-            offset += read;
-        }
         if (await reader.ReadAsync(ct))
             throw new InvalidDataException("Um modelo SHA encontrou múltiplas linhas operacionais.");
         var winner = V9FittedSnapshot.Load(buffer, expectedWinnerSha256);
