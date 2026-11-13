@@ -163,5 +163,20 @@ class V9FourName100kTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
 
 
+    def test_324_timeout_matches_progress_margin_and_preserves_validation_budget(self):
+        workflow = (ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml").read_text()
+        coordinator = (ROOT / "src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs").read_text()
+        physical = workflow.split("- name: Run physical V9 CSharp on 324 V3-only four-name hypotheses", 1)[1].split("- name: Audit all 324", 1)[0]
+        self.assertIn("timeout-minutes: 315", physical)
+        self.assertIn("timeout-minutes: 360", workflow)
+        self.assertIn("timeout-minutes: 40", workflow)
+        self.assertIn("TimeSpan.FromMinutes(315) - elapsed - eta", coordinator)
+        self.assertIn("margem_etapa_315min=", coordinator)
+        self.assertNotIn("margem_etapa_305min=", coordinator)
+        self.assertIn("security_preflight_approved == true", workflow)
+        self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', workflow)
+        self.assertIn("V9_REPLAY_TIMING_DIAGNOSTICS:", workflow)
+
+
 if __name__ == "__main__":
     unittest.main()
