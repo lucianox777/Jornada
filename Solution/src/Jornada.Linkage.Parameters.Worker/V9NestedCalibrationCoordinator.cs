@@ -311,16 +311,28 @@ public static class V9NestedCalibrationCoordinator
         using var referenceLease = new SemaphoreSlim(1);
         // Opt-in diagnostic only; no changes to scientific results or scheduling.
         var physicalProgressEnabled = Environment.GetEnvironmentVariable("V9_PHYSICAL_PROGRESS_LOG") == "1";
+        var replayTimingEnabled = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";
         var physicalProgressClock = Stopwatch.StartNew();
         var physicalCompleted = 0;
         var physicalTotal = plan.PredeclaredCandidateCpMultiplicity ?? plan.MaximumSearchConfigurations;
-        void ReportPhysicalCompletion(TimeSpan individualDuration, V9NestedCandidateEvaluation evaluation)
+        void ReportPhysicalCompletion(TimeSpan individualDuration, V9NestedCandidateEvaluation evaluation,
+            double? replayElapsedMilliseconds)
         {
-            // The durable per-hypothesis callback must finish before console output.
-            // Never swallow an I/O failure and silently lose audit evidence.
+            // Persist the audit callback before operational console output.
             reportHypothesis?.Invoke(evaluation);
-            if (!physicalProgressEnabled) return;
             var requestSha = evaluation.RequestSha256;
+            if (!physicalProgressEnabled)
+            {
+                // Preserve the independent opt-in diagnostic when progress logging is disabled.
+                // When both flags are on, only the combined progress line is emitted.
+                if (replayTimingEnabled && replayElapsedMilliseconds is { } ms)
+                {
+                    lock (Console.Out)
+                        Console.WriteLine(FormattableString.Invariant(
+                            $"[V9 PERF DIAG] phase=frozen_replay | batch={evaluation.Batch} | request_sha={requestSha} | elapsed_ms={ms:F3}"));
+                }
+                return;
+            }
             var evaluated = evaluation.Candidate is not null;
             var done = Interlocked.Increment(ref physicalCompleted);
             var elapsed = physicalProgressClock.Elapsed;
@@ -329,9 +341,12 @@ public static class V9NestedCalibrationCoordinator
                 : TimeSpan.Zero;
             var remainingBudget = TimeSpan.FromMinutes(315) - elapsed - eta;
             var status = done < 8 ? "ETA_PRELIMINAR" : remainingBudget < TimeSpan.Zero ? "RISCO_TIMEOUT" : "OK";
+            var replaySuffix = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs
+                ? FormattableString.Invariant($" | phase=frozen_replay | request_sha={requestSha} | replay_elapsed_ms={replayMs:F3}")
+                : string.Empty;
             lock (Console.Out)
                 Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) | hipotese={requestSha[..Math.Min(12, requestSha.Length)]} | resultado={(evaluated ? "AVALIADA" : "REJEITADA")} | tempo_individual_pos_SQL={individualDuration.TotalSeconds:F1}s | decorrido_min={elapsed.TotalMinutes:F1} | ETA_min={eta.TotalMinutes:F1} | margem_etapa_315min={remainingBudget.TotalMinutes:+0;-0;0}min | {status}"));
+                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) | hipotese={requestSha[..Math.Min(12, requestSha.Length)]} | resultado={(evaluated ? "AVALIADA" : "REJEITADA")} | tempo_individual_pos_SQL={individualDuration.TotalSeconds:F1}s | decorrido_min={elapsed.TotalMinutes:F1} | ETA_min={eta.TotalMinutes:F1} | margem_etapa_315min={remainingBudget.TotalMinutes:+0;-0;0}min | {status}{replaySuffix}"));
             Console.Out.Flush();
         }
                 reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");
@@ -564,7 +579,7 @@ public static class V9NestedCalibrationCoordinator
         IReadOnlyList<Request> requests, int batch, int candidateCpMultiplicity,
         FrozenIbgeNominalTfV9? frozenTfReference,
         CancellationToken cancellationToken,
-        Action<TimeSpan, V9NestedCandidateEvaluation>? reportPhysicalCompletion = null)
+        Action<TimeSpan, V9NestedCandidateEvaluation, double?>? reportPhysicalCompletion = null)
     {
         var c = plan.Calibration;
         try
@@ -656,6 +671,7 @@ public static class V9NestedCalibrationCoordinator
                 if (fanout > c.Budget.MaximumBlockingFalseDegreeP99) reasons.Add("FANOUT_P99_ACIMA_DO_ORCAMENTO");
                 if (metric.FdrAfterResolve is null) reasons.Add("FDR_INDEFINIDO_SEM_ACEITOS");
                 double? p95 = null;
+                double? replayElapsedMilliseconds = null;
                 if (reasons.Count == 0)
                 {
                     try
@@ -667,9 +683,9 @@ public static class V9NestedCalibrationCoordinator
                         if (replayClock is not null)
                         {
                             replayClock.Stop();
-                            lock (Console.Out)
-                                Console.WriteLine(FormattableString.Invariant(
-                                    $"[V9 PERF DIAG] phase=frozen_replay | batch={batch} | request_sha={request.Sha} | elapsed_ms={replayClock.Elapsed.TotalMilliseconds:F3}"));
+                            // Carry the measurement to the already-required progress message.
+                            // No second console lock/write per hypothesis when both flags are on.
+                            replayElapsedMilliseconds = replayClock.Elapsed.TotalMilliseconds;
                         }
                         p95 = measured.P95Milliseconds;
                         if (!p95.HasValue || p95 > c.SelectionPolicy.MaximumP95Milliseconds)
@@ -705,7 +721,7 @@ public static class V9NestedCalibrationCoordinator
                         && !request.DiagnosticOnly,
                     SharedSurnameCandidatePairs: physicalOption.Validation.SharedSurnameCandidatePairs,
                     CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
-                reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1]);
+                reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1], replayElapsedMilliseconds);
             }
             return result.AsReadOnly();
         }
@@ -729,7 +745,7 @@ public static class V9NestedCalibrationCoordinator
                             : V9MuEstimationSearchSpace.ClasswiseMixture,
                 MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
                 EligibleForSelection: false)).ToArray());
-            foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, evaluation);
+            foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, evaluation, null);
             return rejected;
         }
         catch (InvalidDataException exception) when (exception.Data[V9PhysicalSqlAdaptiveCalibrationProbe.CandidateRejectionKey] is true)
@@ -743,7 +759,7 @@ public static class V9NestedCalibrationCoordinator
                                 ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
             MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
             EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m && !request.DiagnosticOnly)).ToArray());
-          foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, evaluation);
+          foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, evaluation, null);
           return rejected; }
     }
 }
