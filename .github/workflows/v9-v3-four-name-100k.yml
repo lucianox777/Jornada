@@ -204,7 +204,7 @@ jobs:
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           # Never promise retention for a later TEST on an ephemeral hosted runner.
           if [[ "${{ inputs.test_required }}" == "true" ]]; then
-            echo "::error::TEST_REQUIRED_UNSUPPORTED: TEST job is locked; require pre-registered LOCK, sealed TEST provenance and a separate PO approval. This run is TRAIN+VALIDATION only."
+            echo "::error::TEST_REQUIRED_UNSUPPORTED: PO authorization is recorded; TEST remains locked until independent scientific LOCK, recorded-Runner executor, verified exposure ledger and protected test corpus are implemented. This run is TRAIN+VALIDATION only."
             exit 1
           fi
           python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k.py -v
