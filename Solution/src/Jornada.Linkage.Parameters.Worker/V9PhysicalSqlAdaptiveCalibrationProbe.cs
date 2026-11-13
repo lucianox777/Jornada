@@ -1236,11 +1236,14 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
 
 
     private static async Task<IReadOnlyList<(int A, int B)>> ReadValidationPairsAsync(
-        SqlConnection connection, CancellationToken cancellationToken)
+        SqlConnection connection, CancellationToken cancellationToken, string partition = "VALIDATION")
     {
+        if (partition is not ("VALIDATION" or "TEST"))
+            throw new InvalidDataException("SQL de avaliação aceita apenas VALIDATION ou TEST explícito.");
         await using var command = new SqlCommand(
-            "SELECT a,b FROM #v9_cal_pairs WHERE part='VALIDATION' ORDER BY a,b;", connection)
+            "SELECT a,b FROM #v9_cal_pairs WHERE part=@purpose ORDER BY a,b;", connection)
         { CommandTimeout = 300 };
+        command.Parameters.Add("@purpose", SqlDbType.VarChar, 12).Value = partition;
         var result = new List<(int A, int B)>();
         await using var reader = await command.ExecuteReaderAsync(cancellationToken);
         while (await reader.ReadAsync(cancellationToken))
