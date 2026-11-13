@@ -19,6 +19,8 @@ A base TEST é gerada no começo da campanha pelo job preparatório independente
 
 O executor é independente do CLI `--v9-calibrate` e `--v9-validate-finalists`; usa a avaliação SQL física congelada com **uma** configuração, 20 repetições ponta a ponta para diagnóstico P95, corpus próprio, censo sem truncamento e resultados agregados. A comparação de **coerência** dos resultados TRAIN, VALIDATION e TEST ocorre **após** o TEST, em análise externa; o próprio TEST não consome métricas anteriores.
 
+**Contrato físico de partição na implementação:** o `V9FrozenSourceResolveReplay.ReplayTest` usa exclusivamente `V9BlindIncrementalIdentityGrouping.BuildTest`, que aceita apenas observações externas marcadas `TEST` no leitor da própria camada; o replay `Replay` e o agrupador tradicional `Build` continuam aceitando apenas `VALIDATION` e rejeitam qualquer registro TEST. Ambos usam o mesmo scorer/Resolve congelado, sem usar `BasePersonId` como recurso de agrupamento. Esta correção elimina a dependência técnica residual de rótulo `VALIDATION` na avaliação independente TEST. Ref. [PR #1485](https://github.com/lucianox777/Jornada/pull/1485).
+
 ### Estados e limitações científicas
 
 **O TEST independente mede, não seleciona nem ativa modelos**. `testUsed=true` indica avaliação efetiva somente se o job físico concluiu; `refitted=false`, `certified=false` e `activated=false` são invariantes. Coortes sintéticas com seeds diferentes garantem fontes de geração separadas, mas não demonstram IID, ausência de sobreposição em valores nominais ou validade externa populacional. O relatório explicita `independentlyCertifiedIid=false`; a passagem em testes automatizados não certifica o resultado.
