@@ -42,15 +42,22 @@ public static class V9IndependentTestCli
             ?? throw new InvalidOperationException("SQL próprio da camada TEST não configurado.");
         if (new SqlConnectionStringBuilder(connectionString).InitialCatalog != "JornadaHarness")
             throw new InvalidDataException("TEST físico aceita somente SQL descartável JornadaHarness.");
-        // Read the winner BEFORE opening TEST; one model, selected elsewhere,
-        // no need for plans, finalists or VALIDATION scores.
-        var winner = await V9FittedSnapshotArtifact.ReadPinnedAsync(winnerFile, winnerSha);
-        // The TEST corpus reader verifies all of its own raw data SHA-256 and
-        // the test-seed protocol; it does not use VALIDATION provenance.
-        var corpus = await V9IndependentTestCorpusReader.ReadAsync(fullTestDir);
-        Directory.CreateDirectory(fullOutput);
+        // TEST receives just the pinned winner identity. It does NOT load
+        // calibration JSON for scoring: it reads the already-converted V9
+        // operational model from its own SQL, via the SAME loader as the Runner.
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
+        var operationalModelId = V9OperationalSqlModelConverter.ModelIdFromWinnerSha(winnerSha);
+        var winner = await V9OperationalSqlModelConverter.ReadPinnedAsync(
+            connection, operationalModelId, winnerSha);
+        var conversion = V9OperationalSqlModelConverter.VerifyConversion(winner);
+        if (!conversion.ByteExactRoundTrip || conversion.ModelId != operationalModelId
+            || conversion.SourceSnapshotSha256 != winnerSha)
+            throw new InvalidDataException("TEST exige o mesmo modelo vencedor convertido e lido do SQL operacional.");
+        // The TEST corpus is opened only AFTER the operational winner passes
+        // its SHA/round-trip check. No VALIDATION measurements are read.
+        var corpus = await V9IndependentTestCorpusReader.ReadAsync(fullTestDir);
+        Directory.CreateDirectory(fullOutput);
         var execution = new V9PhysicalAdaptiveExecution(
             EndToEndRepetitions: 20, TotalComparedConfigurations: 1,
             FsBlindGroupingOnly: true);
@@ -65,6 +72,12 @@ public static class V9IndependentTestCli
             schema = "V9_TF4_INDEPENDENT_TEST_ONE_WINNER_PHYSICAL_V1",
             status = "TEST_MEASURED_NOT_CERTIFIED_OR_ACTIVATED",
             winnerSnapshotSha256 = winnerSha,
+            operationalModelContract = V9OperationalSqlModelConverter.ContractVersion,
+            operationalModelId,
+            operationalModelByteExactRoundTrip = conversion.ByteExactRoundTrip,
+            operationalModelActive = false,
+            operationalModelPublished = false,
+            productionRunnerFullPipelineParityCertified = false,
             testCorpusManifestSha256 = corpus.CorpusManifestSha256,
             testObservationsSha256 = corpus.ObservationsSha256,
             testSeed = corpus.Seed,
