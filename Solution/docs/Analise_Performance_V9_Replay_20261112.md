@@ -50,3 +50,10 @@ O workflow manual `.github/workflows/v9-v3-four-name-100k.yml` passa a aceitar `
 - **Replay:** 324 medições `frozen_replay`, média de 92,286 s por chamada, sem equivalência com duração de parede (concorrência). A etapa concluiu as hipóteses em 303,7 min e encerrou perto do limite de 305 min.
 - **Interpretação:** a construção dos índices é desprezível ante os replays e não sustenta atribuir vários segundos extras por hipótese à construção `ToLookup`. A diferença observada entre #1462 e #1463 segue sem causalidade demonstrada; o diagnóstico não substitui A/B.
 - **Tratamento operacional:** [registro GOV-V9-324-TIMEOUT-FISICO-315-20261113](Decisao_GOV_V9_324_Timeout_Fisico_315_20261113.md) propõe elevar o limite da etapa física e o rótulo ETA a 315 min sem mudar o job 360 min, os critérios científicos, as 324 hipóteses ou a obrigação de VALIDATION.
+
+
+## Revisão operacional aprovada pelo PO — log único por hipótese (13/11/2026)
+
+A medição histórica acima descreve o comportamento da PR #1469 e das execuções anteriores, em que `phase=frozen_replay` saía numa linha `[V9 PERF DIAG]` além da linha `[V9 PROGRESS]`. Por decisão expressa do PO em 13/11/2026, a versão seguinte deverá **fundir** os campos de replay com o progresso num só `Console.WriteLine` por hipótese quando ambas as opções estiverem ativas, sem alterar o cálculo científico ou a contabilidade. Quando o progresso estiver desligado e apenas a flag PERF estiver ligada, a linha de diagnóstico original permanece disponível; `phase=index_build` continua por grupo. O registro canônico da decisão é [GOV-V9-LOG-UNICO-PROGRESSO-REPLAY-20261113](Decisao_GOV_V9_Log_Unico_Progresso_Replay_20261113.md).
+
+**Não inferir causalidade:** reduzir `lock (Console.Out)` e escritas é otimização de instrumentação com benefício potencial, **não demonstra** que o console causou o timeout do run #43309643251. Validar o custo físico por comparação A/B pareada; a execução #43499315560 foi iniciada com versão anterior e não muda retroativamente. O ETA linear e o limite de 315 minutos permanecem inalterados.
