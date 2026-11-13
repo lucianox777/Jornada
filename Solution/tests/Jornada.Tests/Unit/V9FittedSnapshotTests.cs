@@ -1128,9 +1128,7 @@ public sealed class V9FittedSnapshotTests
                 winner.Payload.UnitTfCalibrations!.Take(3).ToArray() }))),
             Throws.TypeOf<InvalidDataException>());
         Assert.That((Action)(() => V9OperationalSqlModelConverter.VerifyConversion(
-            V9FittedSnapshot.Create(winner.Payload with {
-                CandidateGrouping = new("GOLD", 0m, 0),
-                GoldParentSnapshotSha256 = winner.ContentSha256 }))),
+            winner.CreateGoldHarnessVariant())),
             Throws.TypeOf<InvalidDataException>());
         Assert.That((Action)(() => V9OperationalSqlModelConverter.ModelIdFromWinnerSha(
             new string('A', 64))), Throws.TypeOf<InvalidDataException>());
