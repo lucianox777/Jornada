@@ -24,7 +24,8 @@ public sealed record V9BlindIncrementalGroupingResult(
 /// Experimental, label-blind, complete-link candidate-identity formation.
 /// Uses ONLY observed fields, manager, physical SQL adjacency and frozen FS
 /// scores. BasePersonId is deliberately never consulted for membership.
-/// No CPF, TEST, Gold publication, model activation or oracle shortcuts.
+/// No CPF, Gold publication, model activation or oracle shortcuts. TEST is
+/// accepted only by the dedicated BuildTest entrypoint, never by Build.
 /// </summary>
 public static class V9BlindIncrementalIdentityGrouping
 {
