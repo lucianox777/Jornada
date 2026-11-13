@@ -2,6 +2,8 @@
 
 **Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** APROVADA PELO PO; implementação integrada por squash PR #1482 SHA b5b77f40bee91a85c7faa5ea98f4a0cb41c0eb6b; CI obrigatória aprovada; prova física end-to-end TEST ainda pendente. **Regra:** GOV-DOC-01.
 
+> **RESTRIÇÃO SUPERVENIENTE DE PRONTIDÃO — PO, 13/11/2026:** a exigência aprovada de usar **o mesmo formato do modelo executado em produção** não é cumprida pelo arquivo experimental `<SHA>.fitted.json`. A camada TEST continua recebendo exclusivamente o vencedor congelado, mas o Runner operacional carrega modelo e regras de tabelas SQL, não este JSON. Portanto, as declarações históricas abaixo de TEST independente implementado não representam **paridade de formato/runtime de produção**; `test_required=true` passa a ser rejeitado no início do workflow até existir contrato único ou conversão sem perdas validada. [Auditoria e aceites GOV-V9-TEST-PARIDADE-FORMATO-OPERACIONAL-20261113](Decisao_GOV_V9_TEST_Paridade_Formato_Operacional_20261113.md) · [issue #1488](https://github.com/lucianox777/Jornada/issues/1488).
+
 ## Correção de conceito aprovada
 
 O Product Owner determinou expressamente: **“a camada teste tem que ser totalmente independente, só deve receber como parâmetro o modelo vencedor.”** Esta decisão corrige interpretações anteriores que exigiam a passagem do plano de calibração, envelope com todos os finalistas, métricas de VALIDATION ou informações de ranking para o avaliador TEST. **Nenhum desses dados pertence à interface de TEST.**

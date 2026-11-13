@@ -1,0 +1,41 @@
+# GOV-V9-TEST-PARIDADE-FORMATO-OPERACIONAL-20261113 — formato e executor equivalentes à produção
+
+**Autoridade:** Product Owner (PO), 13/11/2026 (America/Sao_Paulo). **Estado:** requisito funcional/arquitetural **APROVADO**; auditoria do formato **NÃO CONFORME**; implementação da paridade operacional **PENDENTE**. **Política:** GOV-DOC-01. **Acompanhamento:** [issue #1488](https://github.com/lucianox777/Jornada/issues/1488) e [issue física #1478](https://github.com/lucianox777/Jornada/issues/1478).
+
+## Solicitação e objetivo
+
+O PO determinou: **“Verifique se o arquivo que é rodado no teste tem exclusivamente os parâmetros vencedores da validation e o formato do arquivo tem que ser o mesmo formato que é executado na produção.”**
+
+A primeira condição evita qualquer reestimação, comparação ou importação de finalistas não escolhidos pelo TEST. A segunda exige **representação e semântica de execução equivalentes à consumida pelo Runner operacional**; compartilhar apenas o algoritmo FS ou o mesmo resultado estatístico não comprova o mesmo formato, loader, agrupamento, blocking, publicação desligada e parâmetros completos.
+
+## Verificação concreta dos contratos na master
+
+**A — Exclusividade do modelo vencedor: PASSOU (com metadados de proveniência).**
+- `Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCli.cs`, `ValidateAsync`: compara até três finalistas por VALIDATION externa, registra `selectedValidationSnapshotSha256 = scientific?.SnapshotSha256` e status `VALIDATION_SCIENTIFIC_WINNER_SELECTED_NOT_CERTIFIED`. Não seleciona TEST com base em TRAIN.
+- `.github/workflows/v9-v3-four-name-100k.yml`: com status científico elegível, copia **um arquivo `<winnerSha>.fitted.json`** da área dos finalistas, valida SHA-256 contra o nome e publica artifact exclusivamente deste arquivo. O job `test-100k` rejeita quantidade diferente de um, confere o hash e chama `--v9-independent-test "$model"`. Não transfere plano TRAIN, relatórios de VALIDATION ou perdedores ao TEST.
+- `V9IndependentTestCli.cs` exige **um único argumento de modelo**, `V9FittedSnapshotArtifact.ReadPinnedAsync`; o scorer `V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync` e replay TEST utilizam esse payload imutável, sem fit e sem nova escolha. Os parâmetros incluem `Parameters` M/U, `JointCells`, `UnitTfCalibrations` TF4, `BlockingPasses`, `Threshold`, `ConflictMargin`, `CandidateGrouping`, projeção e fingerprints. O **arquivo completo inclui ainda metadados de proveniência (SHA/seed/corpus/contrato)**; isso não significa que inclua múltiplos modelos vencedores, nem que esses campos sejam utilizados para escolha no TEST. Não alegar que o JSON possui *literalmente apenas* parâmetros numéricos.
+
+**B — Mesmo formato consumido na produção atual: NÃO PASSOU.**
+- `V9FittedSnapshotPayload` e `V9FittedSnapshot`, em `Solution/src/Jornada.Linkage.Core/V9FittedSnapshot.cs`, definem JSON portátil canônico com `SchemaVersion = V9_FITTED_SNAPSHOT_V3`, carregado pelo executor experimental; o comentário oficial o define como portátil e **não credencial de publicação/ativação**.
+- A aplicação `Jornada.Linkage.Runner` atual, `SqlProbabilisticIdentityLinkage.cs`, seleciona o modelo `identidade.modelo_linkage` ATIVO ou uma versão explícita, carrega `identidade.parametro_linkage`, `identidade.frequencia_linkage` e `LinkageRuleSetReader.TryLoadAsync` lê `identidade.linkage_ruleset`, `identidade.linkage_ruleset_passe` e `_campo`, tudo vinculado ao `modelo_id`. O `ProbabilisticLinkageBatchRunner` executa essa estrutura, **não abre nem interpreta um arquivo `*.fitted.json`**.
+- `V9FittedSnapshotExecutionRuntime.cs` fornece um runtime portátil V9 opt-in para testes de scorer/projeção, explicitamente **sem integração DI com produção, publicação ou ativação**. O `V9IndependentTestCli` não chama `ProbabilisticLinkageBatchRunner.RunAsync` nem o loader SQL de modelos operacionais.
+- `V9RefFittedSnapshotAuditCli.cs` documenta que o JSON REF em SQL **não é o snapshot fitted portátil** e que conferir o SHA no metadado não prova vinculação operacional.
+- A tabela SQL de frequências admite quatro slots TF, mas isso **não prova** compatibilidade integral de `JointCells`, `NominalUReference`, política TF4, margens, agrupamento completo, fingerprints ou formato binário/canônico. Não presumir conversão sem perdas com base em nomes de colunas.
+
+**Diagnóstico:** `ONE_WINNER_EXCLUSIVE=PASS`; `FORMAT_PARITY_WITH_CURRENT_PRODUCTION=FAIL`; `PRODUCTION_RUNTIME_PARITY=NOT_PROVEN`; `PHYSICAL_100K_TEST_PARITY=NOT_RUN`.
+
+## Decisão, alcance, implementação e critérios de aceite
+
+1. **Vincular a prontidão do TEST ao contrato operacional verdadeiro**, não a uma semelhança nominal dos dados. O TEST independente continua com **a única entrada de modelo vencedor**, corpus e gabarito próprios e sem acesso aos relatórios TRAIN/VALIDATION. Exigir que esse único modelo seja interpretado na **mesma representação operacional e pelo mesmo executor** da versão V9 que se pretende executar em produção.
+2. Enquanto a conversão para a representação operacional não estiver implementada, aprovada, testada e verificável, **não tratar o TEST feito com `*.fitted.json` como prova de equivalência à produção**. O workflow deve reprovar de maneira explícita a solicitação de TEST **antes de gerar o corpus, abrir o gabarito ou executar TRAIN**, evitando gastar mais de seis horas em uma campanha com artefato já incompatível. TRAIN e VALIDATION independentes podem continuar para fins técnicos/científicos, sem atribuir paridade operacional ao resultado.
+3. A [issue #1488](https://github.com/lucianox777/Jornada/issues/1488) exige contrato único: disponibilizar suporte operacional V9 ao mesmo JSON canônico **ou** um conversor *lossless* e reversível para o modelo SQL que o Runner consome, com hash/identidade de **um único vencedor** e representação completa de M/U, 81 células conjuntas, TF4, regras de blocking, margens, limiares, grouped Resolve e normalização. Sem `fallback`, defaults implícitos, alteração de threshold, publicação ou refit.
+4. Exigir testes físicos de **paridade de execução** com o Runner operacional, por observação e por decisão (incluindo empate/abstenção, candidatos e clusters), com mesma versão do modelo e condições de avaliação; divergências são falha, não tolerâncias estatísticas. A comparação de métricas VALIDATION×TEST é posterior e distinta da prova de **paridade técnica**.
+5. Só habilitar `test_required=true` com evidência de compatibilidade e segurança, sem exigir aprovação repetida de princípio do PO, mas preservando GOV-DOC-01, controles de TEST one-use, DT-15 e proibição de ativação automática.
+
+## Precedência, impactos e rastreabilidade
+
+Esta decisão **complementa e restringe o critério de prontidão** de [GOV-V9-TF4-TEST-INDEPENDENTE-MODELO-UNICO-20261113](Decisao_GOV_V9_TF4_TEST_Independente_Modelo_Unico_20261113.md): a implementação do TEST de 13/11/2026 é correta como auditoria experimental de *um único vencedor*, mas **não é uma execução em formato operacional equivalente à produção atual**. Suspender **apenas a entrada opcional TEST no workflow**, não bloquear a execução de TRAIN+VALIDATION e não alterar parâmetros vencedores. A reserva de uso único da seed TEST, o acesso mínimo a segredos, a integridade dos snapshots e os limites de 360 minutos permanecem exigidos. O histórico de autorização do PO não equivale a certificação.
+
+**Impactos:** exige adaptação ou suporte V9 no Runner de produção, prova de persistência/carga sem perda, testes de paridade e integração específica antes da campanha confirmatória final. Evita publicar resultados de TEST como se validassem uma arquitetura que não existe no caminho operacional. **Não alterar a aplicação produtiva, ativar ou publicar modelo sem os gates DT-15.**
+
+**Rastreabilidade técnica:** workflow V9 TF4/324, `V9IndependentTestCli`, `V9FittedSnapshotArtifact`, `V9FittedSnapshotExecutionRuntime`, `SqlProbabilisticIdentityLinkage`, `LinkageRuleSetReader`, `ProbabilisticLinkageBatchRunner`, [issue #1488](https://github.com/lucianox777/Jornada/issues/1488). Esta documentação não é prova de paridade física ou publicação.
