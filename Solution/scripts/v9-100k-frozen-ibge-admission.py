@@ -120,6 +120,19 @@ def check(plan_path, registry_path, ibge_manifest_path):
                             read_json(ibge_manifest_path))
 
 
+
+def verify_physical_pin(pinned, actual):
+    canonical(pinned)
+    canonical(actual)
+    require(actual["PinnedIbgeReferenceVersionId"] == pinned["PinnedIbgeReferenceVersionId"]
+            and all(actual[k].upper() == pinned[k].upper()
+                    for k in ("PinnedIbgePublishedSha256",
+                              "PinnedIbgeMaterializedFrequencySha256"))
+            and actual["PinnedIbgeBootstrap"] == pinned["PinnedIbgeBootstrap"],
+            "physical SQL IBGE digest/bootstrap differs from frozen 100k plan")
+    return True
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("operation", choices=("bootstrap", "verify"))
@@ -140,13 +153,7 @@ def main():
     else:
         require(args.bootstrap is None and args.actual_pin is not None,
                 "physical SQL pin required for verification")
-        actual = canonical(read_json(args.actual_pin))
-        require(actual["PinnedIbgeReferenceVersionId"] == pinned["PinnedIbgeReferenceVersionId"]
-                and all(actual[k].upper() == pinned[k].upper()
-                        for k in ("PinnedIbgePublishedSha256",
-                                  "PinnedIbgeMaterializedFrequencySha256"))
-                and actual["PinnedIbgeBootstrap"] == pinned["PinnedIbgeBootstrap"],
-                "physical SQL IBGE digest/bootstrap differs from frozen 100k plan")
+        verify_physical_pin(pinned, read_json(args.actual_pin))
         print("V9_100K_FROZEN_IBGE: SQL_PHYSICAL_SHA_VERIFIED_NO_30K_GENERATION")
 
 
