@@ -1176,9 +1176,9 @@ public sealed class V9FittedSnapshotTests
             Assert.That(loaded.SerializeUtf8(), Is.EqualTo(winner.SerializeUtf8()));
             Assert.That(converted, Is.EqualTo(original));
         }));
-        Assert.ThrowsAsync<InvalidDataException>((AsyncTestDelegate)(async () =>
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, winner)));
-        Assert.ThrowsAsync<InvalidDataException>((AsyncTestDelegate)(async () =>
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             await V9OperationalSqlModelConverter.ReadPinnedAsync(
                 connection, receipt.ModelId, new string('a', 64))));
     }
