@@ -70,6 +70,9 @@ jobs:
           # before squash, without SQL, physical 30k/100k or Windows builds.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9FsAdaptiveFirstNameTfTrainValidationTests'
+          # C# execution proof that TEST/VALIDATION FS grouping stay isolated.
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+            --filter 'FullyQualifiedName~V9BlindIncrementalIdentityGroupingTests'
       - name: Verify C# startup console and closed JSONL (no calibration)
         working-directory: Solution
         run: |
