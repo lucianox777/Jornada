@@ -155,8 +155,8 @@ def seal(lock_path, expected_lock_sha, corpus, certificate,
         "sealedFiles": files, "labelsExposed": False, "tested": False,
         "certified": False, "activated": False,
     }
-    (destination / "test-seal-receipt.json").open("x", encoding="utf-8").write(
-        json.dumps(receipt, sort_keys=True, indent=2) + "\n")
+    with (destination / "test-seal-receipt.json").open("x", encoding="utf-8") as out:
+        out.write(json.dumps(receipt, sort_keys=True, indent=2) + "\n")
     verify_sealed(destination, lock_path, expected_lock_sha, code_sha, run_id)
     return receipt
 
