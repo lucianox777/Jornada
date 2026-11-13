@@ -1,6 +1,6 @@
 # GOV-V9-TF4-TEST-INDEPENDENTE-MODELO-UNICO-20261113
 
-**Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** APROVADA PELO PO; implementação em PR, sujeita a CI e prova física. **Regra:** GOV-DOC-01.
+**Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** APROVADA PELO PO; implementação integrada por squash PR #1482 SHA b5b77f40bee91a85c7faa5ea98f4a0cb41c0eb6b; CI obrigatória aprovada; prova física end-to-end TEST ainda pendente. **Regra:** GOV-DOC-01.
 
 ## Correção de conceito aprovada
 
@@ -32,3 +32,7 @@ O TEST tem seu próprio limite de **360 minutos** (até 330 min na etapa física
 **Precedência:** complementa e esclarece a autorização [GOV-V9-TF4-TEST-AUTORIZACAO-PO-GATES-20261113](Decisao_GOV_V9_TF4_TEST_Autorizacao_PO_Gates_20261113.md), substitui o hard-lock exclusivamente estrutural da [GOV-V9-TF4-3-JOBS-360-TEST-RESERVADO-20261113](Decisao_GOV_V9_TF4_Jobs_360_TEST_Reservado_20261113.md) **pela execução independente condicional e sem certificação**, preserva o isolamento cifrado de [GOV-V9-TF4-TEST-GERACAO-ANTECIPADA-ISOLADA-20261113](Decisao_GOV_V9_TF4_Geracao_Antecipada_TEST_Isolada_20261113.md) e os requisitos de LOCK pré-seleção do vencedor. A seleção na VALIDATION continua condição para haver modelo vencedor; não é entrada estatística do TEST.
 
 **Implementação:** `Solution/src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCli.cs`, `V9IndependentTestCorpusReader.cs`, `V9PhysicalSqlFrozenHoldout.cs`, `V9FrozenSourceResolveReplay.cs`, `Program.cs`, workflow `.github/workflows/v9-v3-four-name-100k.yml`; teste de contrato `Solution/tests/scripts/test_v9_tf4_standalone_test.py`. **Gates:** CI obrigatória, compilação dotnet Release, testes V9 de separação, segurança, squash merge, inspeção de SHA master e prova física independente sob owner-only e preflight. Sem execução real, não declarar resultados de TEST.
+
+## Evidência de integração da interface modelo único (13/11/2026)
+
+A [PR #1482](https://github.com/lucianox777/Jornada/pull/1482) foi integrada por squash na master com SHA `b5b77f40bee91a85c7faa5ea98f4a0cb41c0eb6b`. A [CI obrigatória #43476611165](https://github.com/lucianox777/Jornada/actions/runs/43476611165) aprovou `unit-runtime`, `security-guards` e `deterministic-build`; os canários de entrada CLI [#43476611146](https://github.com/lucianox777/Jornada/actions/runs/43476611146) também passaram após a correção do analisador CA1869. O executor TEST é agora acessível por `--v9-independent-test <winnerSha.fitted.json>` e o fluxo condicional entrega somente o snapshot vencedor; exige a base cifrada preparada antes do TRAIN e segredos TEST previamente provisionados. CI, fixtures e compilação **não** comprovam execução TEST com 100k nem certificação estatística. A verificação de uso global exclusivo da seed entre campanhas permanece em aberto na [issue #1478](https://github.com/lucianox777/Jornada/issues/1478).
