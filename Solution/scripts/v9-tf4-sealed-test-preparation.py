@@ -219,6 +219,7 @@ def unseal(destination, lock_path, expected_lock_sha, code_sha, run_id,
                         if not chunk:
                             break
                         dest.write(chunk)
+        archive.unlink()  # No extra plaintext file may survive the extraction check.
         lock = inspect_lock(lock_path, expected_lock_sha)
         hashes = verify_raw_files(output, lock)
         require(hashes == r["sealedFiles"], "decrypted TEST bytes differ from sealed receipt")
