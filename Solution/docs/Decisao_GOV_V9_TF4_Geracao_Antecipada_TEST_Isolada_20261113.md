@@ -2,6 +2,8 @@
 
 **Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo). **Estado:** APROVADA PELO PO; preparação cifrada integrada à master por squash PR #1480 (SHA e230453abda4dcd374cdefa38c8b09ba3476e25a); CI aprovada; executor TEST científico e prova física com 100k ainda pendentes. **Política:** GOV-DOC-01. **Rastreabilidade:** [issue de execução TEST #1478](https://github.com/lucianox777/Jornada/issues/1478), decisão de autorização [GOV-V9-TF4-TEST-AUTORIZACAO-PO-GATES-20261113](Decisao_GOV_V9_TF4_TEST_Autorizacao_PO_Gates_20261113.md).
 
+> **ATUALIZAÇÃO DE EXECUÇÃO (13/11/2026):** conforme esclarecimento do PO, a etapa TEST passa a receber somente o modelo vencedor (`SHA.fitted.json`) e usa a base própria antecipadamente cifrada. [Decisão superveniente](Decisao_GOV_V9_TF4_TEST_Independente_Modelo_Unico_20261113.md). Não confundir resultado de TEST com certificação/ativação.
+
 ## Solicitação, contexto e decisão aprovada
 
 O PO determinou que o conjunto TEST seja **gerado e separado na preparação inicial da campanha**, não recriado depois da seleção do vencedor da VALIDATION: «em vez de um snapshot ... na hora da geração do início da campanha, simplesmente separar a tabela teste, gerar a tabela teste e a execução do teste fica totalmente independente das outras etapas»; confirmou «Pode implementar». Sua intenção é obter os conjuntos TRAIN, VALIDATION e TEST de forma independente, com limite próprio de 360 minutos para cada etapa de execução, sem acoplar o consumo de TEST ao calibrador.
