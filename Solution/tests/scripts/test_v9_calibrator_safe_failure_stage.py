@@ -70,11 +70,38 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         self.assertIn('[V9 PERF DIAG] phase=frozen_replay', self.coord)
         # Diagnostics must not gate or reduce the number of physical frozen replays.
         self.assertEqual(self.coord.count('await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync('), 1)
-        self.assertIn('reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1]);', self.coord)
+        self.assertIn('reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1], replayElapsedMilliseconds);', self.coord)
         self.assertIn('var metricsByKey = run.SourceResolveValidation!.ToLookup(', self.coord)
         self.assertIn('var frozenByKey = run.FrozenConfigurations!.ToLookup(', self.coord)
         self.assertIn('var optionsById = run.CalibrationReport.Options.ToLookup(', self.coord)
 
+
+    def test_one_console_line_per_hypothesis_when_progress_and_replay_timing_enabled(self):
+        # The two independent opt-ins are retained. When both are on, replay
+        # duration and full request SHA are folded into the progress message.
+        self.assertIn('var replayTimingEnabled = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";', self.coord)
+        self.assertIn('var replaySuffix = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs', self.coord)
+        self.assertIn('phase=frozen_replay | request_sha={requestSha} | replay_elapsed_ms={replayMs:F3}', self.coord)
+        self.assertIn('if (!physicalProgressEnabled)', self.coord)
+        self.assertIn('if (replayTimingEnabled && replayElapsedMilliseconds is { } ms)', self.coord)
+        self.assertIn('reportHypothesis?.Invoke(evaluation);', self.coord)
+        self.assertIn('Console.Out.Flush();', self.coord)
+        # Fallback PERF DIAG and combined PROGRESS are mutually exclusive.
+        progress = self.coord.split('void ReportPhysicalCompletion(', 1)[1].split(
+            'reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");', 1)[0]
+        self.assertEqual(progress.count('lock (Console.Out)'), 2)
+        self.assertEqual(progress.count('Console.WriteLine('), 2)
+        replay = self.coord.split('var replayClock = diagnoseReplayTiming ?', 1)[1].split(
+            'p95 = measured.P95Milliseconds;', 1)[0]
+        self.assertIn('replayElapsedMilliseconds = replayClock.Elapsed.TotalMilliseconds;', replay)
+        self.assertNotIn('lock (Console.Out)', replay)
+        self.assertNotIn('Console.WriteLine', replay)
+        # Every completed evaluation still invokes the callback; rejected
+        # requests explicitly have no replay duration, not invented zero ms.
+        self.assertEqual(self.coord.count(
+            'reportPhysicalCompletion?.Invoke(TimeSpan.Zero, evaluation, null);'), 2)
+        self.assertIn('reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1], replayElapsedMilliseconds);',
+                      self.coord)
 
 if __name__ == "__main__":
     unittest.main()
