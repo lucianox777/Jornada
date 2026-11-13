@@ -24,7 +24,8 @@ public sealed record V9BlindIncrementalGroupingResult(
 /// Experimental, label-blind, complete-link candidate-identity formation.
 /// Uses ONLY observed fields, manager, physical SQL adjacency and frozen FS
 /// scores. BasePersonId is deliberately never consulted for membership.
-/// No CPF, TEST, Gold publication, model activation or oracle shortcuts.
+/// No CPF, Gold publication, model activation or oracle shortcuts. TEST is
+/// accepted only by the dedicated BuildTest entrypoint, never by Build.
 /// </summary>
 public static class V9BlindIncrementalIdentityGrouping
 {
@@ -36,7 +37,26 @@ public static class V9BlindIncrementalIdentityGrouping
         IReadOnlyCollection<V9BlindFsSqlEdge> scoredSqlEdges,
         decimal minimumPairPosterior = .99m,
         int maximumObservationsPerIdentity = 16)
+        => BuildForPurpose(observations, scoredSqlEdges, minimumPairPosterior,
+            maximumObservationsPerIdentity, "VALIDATION");
+
+    /// <summary>The one-model TEST scorer groups its own records, never training labels.</summary>
+    public static V9BlindIncrementalGroupingResult BuildTest(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> test,
+        IReadOnlyCollection<V9BlindFsSqlEdge> scoredSqlEdges,
+        decimal minimumPairPosterior = .99m,
+        int maximumObservationsPerIdentity = 16)
+        => BuildForPurpose(test, scoredSqlEdges, minimumPairPosterior,
+            maximumObservationsPerIdentity, "TEST");
+
+    private static V9BlindIncrementalGroupingResult BuildForPurpose(
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> observations,
+        IReadOnlyCollection<V9BlindFsSqlEdge> scoredSqlEdges,
+        decimal minimumPairPosterior, int maximumObservationsPerIdentity,
+        string purpose)
     {
+        if (purpose is not ("VALIDATION" or "TEST"))
+            throw new InvalidDataException("Finalidade FS não reconhecida.");
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(scoredSqlEdges);
         if (minimumPairPosterior is <= .5m or >= 1m
@@ -46,11 +66,11 @@ public static class V9BlindIncrementalIdentityGrouping
 
         var rows = observations.ToArray();
         if (rows.Length < 2 || rows.Any(x => x is null
-            || x.Partition != "VALIDATION" || x.ObservationId <= 0
+            || x.Partition != purpose || x.ObservationId <= 0
             || string.IsNullOrWhiteSpace(x.Gestor))
             || rows.Select(x => x.ObservationId).Distinct().Count() != rows.Length)
             throw new InvalidDataException(
-                "Agrupamento exige observações únicas de VALIDATION, sem TEST.");
+                "Agrupamento exige observações únicas da própria coorte de avaliação.");
         var byId = rows.ToDictionary(x => x.ObservationId);
         var keys = rows.ToDictionary(x => x.ObservationId, x =>
         {
