@@ -1,6 +1,6 @@
 # GOV-V9-TEST-PARIDADE-FORMATO-OPERACIONAL-20261113 — formato e executor equivalentes à produção
 
-**Autoridade:** Product Owner (PO), 13/11/2026 (America/Sao_Paulo). **Estado:** requisito funcional/arquitetural **APROVADO**; auditoria do formato **NÃO CONFORME**; implementação da paridade operacional **PENDENTE**. **Política:** GOV-DOC-01. **Acompanhamento:** [issue #1488](https://github.com/lucianox777/Jornada/issues/1488) e [issue física #1478](https://github.com/lucianox777/Jornada/issues/1478).
+**Autoridade:** Product Owner (PO), 13/11/2026 (America/Sao_Paulo). **Estado:** requisito funcional/arquitetural **APROVADO**; auditoria do formato **NÃO CONFORME**; **gate fail-closed integrado pela PR #1489**; implementação da paridade operacional e prova física **PENDENTES**. **Política:** GOV-DOC-01. **Acompanhamento:** [issue #1488](https://github.com/lucianox777/Jornada/issues/1488) e [issue física #1478](https://github.com/lucianox777/Jornada/issues/1478).
 
 ## Solicitação e objetivo
 
@@ -39,3 +39,7 @@ Esta decisão **complementa e restringe o critério de prontidão** de [GOV-V9-T
 **Impactos:** exige adaptação ou suporte V9 no Runner de produção, prova de persistência/carga sem perda, testes de paridade e integração específica antes da campanha confirmatória final. Evita publicar resultados de TEST como se validassem uma arquitetura que não existe no caminho operacional. **Não alterar a aplicação produtiva, ativar ou publicar modelo sem os gates DT-15.**
 
 **Rastreabilidade técnica:** workflow V9 TF4/324, `V9IndependentTestCli`, `V9FittedSnapshotArtifact`, `V9FittedSnapshotExecutionRuntime`, `SqlProbabilisticIdentityLinkage`, `LinkageRuleSetReader`, `ProbabilisticLinkageBatchRunner`, [issue #1488](https://github.com/lucianox777/Jornada/issues/1488). Esta documentação não é prova de paridade física ou publicação.
+
+## Recibo de integração da guarda de compatibilidade (13/11/2026)
+
+A [PR #1489](https://github.com/lucianox777/Jornada/pull/1489) foi integrada na master, commit `1b0247b336c3d90a80c608e1431b0970bda5cef8`, após [CI obrigatória #43484373359](https://github.com/lucianox777/Jornada/actions/runs/43484373359): `security-guards`, `unit-runtime` e `deterministic-build` com sucesso. Teste novo `Solution/tests/scripts/test_v9_test_production_model_format.py` confere seleção/exclusividade do vencedor, classes reais que carregam o JSON fitted e as tabelas SQL produtivas e os dois pontos de falha fechada antes da preparação dos dados TEST e das 324 avaliações TRAIN. Os três jobs científicos conservam seus limites de 360 minutos, e a execução TRAIN+VALIDATION sem TEST permanece disponível. **Este merge não implementa conversor sem perdas nem altera o modelo operacional existente**. O requisito de formato idêntico continua aberto sob [issue #1488](https://github.com/lucianox777/Jornada/issues/1488), e a evidência experimental de TEST anterior não é equivalente à produção.
