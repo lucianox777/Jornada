@@ -135,8 +135,8 @@ def prepare(source_root, handoff, code_sha, run_id):
         require(not (handoff / name).exists(), "metadata overwrite denied")
         shutil.copyfile(src, handoff / name)
     manifest = verify_contents(handoff, code_sha, run_id, require_manifest=False)
-    (handoff / MANIFEST).open("x", encoding="utf-8").write(
-        json.dumps(manifest, sort_keys=True, indent=2) + "\n")
+    with (handoff / MANIFEST).open("x", encoding="utf-8") as file:
+        file.write(json.dumps(manifest, sort_keys=True, indent=2) + "\n")
     verify_contents(handoff, code_sha, run_id)
     return manifest
 
