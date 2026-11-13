@@ -1,7 +1,7 @@
 name: v9-v3-four-name-100k
 
 # STRICTLY MANUAL. Optional independent TEST cohort is preregistered and CMS-sealed
-# before TRAIN; the physical TEST evaluator remains fail-closed until scientific gates.
+# before TRAIN; the physical TEST evaluator takes ONLY the frozen winner model.
 on:
   workflow_dispatch:
     inputs:
@@ -14,12 +14,12 @@ on:
         required: true
         type: boolean
       test_required:
-        description: "Require TEST (UNSUPPORTED: hard-locked TEST job; true always fails admission)"
+        description: "Run independent one-model TEST after VALIDATION (requires prepare_sealed_test and TEST decryption secrets)"
         required: true
         default: false
         type: boolean
       prepare_sealed_test:
-        description: "Generate and encrypt independent synthetic TEST before TRAIN (requires configured public recipient certificate; does not run TEST)"
+        description: "Generate and encrypt independent TEST cohort before TRAIN"
         required: true
         type: boolean
         default: false
@@ -82,9 +82,6 @@ jobs:
           test "$GITHUB_RUN_ATTEMPT" = "1"
           test "${{ inputs.security_preflight_approved }}" = "true"
           test "${{ inputs.prepare_sealed_test }}" = "true"
-          # Actual scientific TEST is still disabled until its separate LOCK
-          # and independent recorded-Runner evaluator have been implemented.
-          test "${{ inputs.test_required }}" = "false"
           test "$JORNADA_RUNTIME_MODE" = "DEV"
           python3 scripts/v9-tf4-sealed-test-preparation.py verify-lock \
             --lock config/calibration/v9-tf4-100k-test-preparation-lock.json \
@@ -203,9 +200,9 @@ jobs:
           test "$EXACT_SHA" = "$GITHUB_SHA"
           test "$GITHUB_REF" = "refs/heads/master"
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
-          # Never promise retention for a later TEST on an ephemeral hosted runner.
-          if [[ "${{ inputs.test_required }}" == "true" ]]; then
-            echo "::error::TEST_REQUIRED_UNSUPPORTED: PO authorization is recorded; TEST remains locked until independent scientific LOCK, recorded-Runner executor, verified exposure ledger and protected test corpus are implemented. This run is TRAIN+VALIDATION only."
+          # A mandatory TEST requires its independent cohort to be prepared first.
+          if [[ "${{ inputs.test_required }}" == "true" && "${{ inputs.prepare_sealed_test }}" != "true" ]]; then
+            echo "::error::TEST_NEEDS_INDEPENDENT_PRESEALED_CORPUS"
             exit 1
           fi
           python3 -m unittest discover -s tests/scripts -p test_v9_v3_four_name_100k.py -v
@@ -419,7 +416,7 @@ jobs:
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
           test "${{ inputs.security_preflight_approved }}" = "true"
-          test "${{ inputs.test_required }}" = "false"
+          test "${{ inputs.test_required }}" != "true" || test "${{ inputs.prepare_sealed_test }}" = "true"
           # Never repeat the same sealed holdout by rerunning this job/attempt.
           test "$GITHUB_RUN_ATTEMPT" = "1"
           test "${{ needs.physical-100k.result }}" = "success"
@@ -482,6 +479,37 @@ jobs:
           assert r["comparedConfigurations"] in (1,2,3)
           print("V9_MANDATORY_VALIDATION_COMPLETED",r["status"])
           PY
+      - name: Freeze ONLY the scientific winner model for independent TEST
+        if: ${{ success() && inputs.test_required == true }}
+        run: |
+          set -euo pipefail
+          root="$PWD/.local/v9-100k-technical"
+          mkdir "$root/test-winner-only"
+          python3 - "$root/validation-results/finalist-validation.json" \
+            "$root/handoff" "$root/test-winner-only" <<'PY'
+          import hashlib,json,pathlib,shutil,sys,re
+          result=json.loads(pathlib.Path(sys.argv[1]).read_text())
+          winner=result.get("selectedValidationSnapshotSha256")
+          assert result.get("status")=="VALIDATION_SCIENTIFIC_WINNER_SELECTED_NOT_CERTIFIED"
+          assert result.get("testUsed") is False and result.get("refitted") is False
+          assert result.get("certified") is False and result.get("activated") is False
+          assert isinstance(winner,str) and re.fullmatch(r"[0-9a-f]{64}",winner)
+          source=pathlib.Path(sys.argv[2])/(winner+".fitted.json")
+          assert source.is_file() and not source.is_symlink()
+          with source.open("rb") as stream:
+              assert hashlib.file_digest(stream,"sha256").hexdigest()==winner
+          shutil.copyfile(source,pathlib.Path(sys.argv[3])/source.name)
+          print("V9_ONLY_SELECTED_WINNER_SEALED_FOR_TEST",winner)
+          PY
+      - name: Upload ONLY the frozen winner model (no TRAIN/VALIDATION plans or metrics)
+        if: ${{ success() && inputs.test_required == true }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-test-one-winner-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: error
+          include-hidden-files: true
+          path: Solution/.local/v9-100k-technical/test-winner-only/*.fitted.json
       - name: Upload independent VALIDATION aggregate result, never the holdout corpus
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # SHA pinned
