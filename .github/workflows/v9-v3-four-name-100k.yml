@@ -135,6 +135,7 @@ jobs:
           name: v9-tf4-test-sealed-${{ github.run_id }}-${{ github.run_attempt }}
           retention-days: 30
           if-no-files-found: error
+          include-hidden-files: true
           path: Solution/.local/v9-test-prep/sealed/
       - name: Dispose any transient TEST plaintext and public certificate, even on failure
         if: always()
