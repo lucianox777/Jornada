@@ -73,11 +73,11 @@ public static class V9OperationalSqlModelConverter
             throw new InvalidOperationException("SQL operacional V9 deve estar aberto.");
         var receipt = VerifyConversion(winner);
         var bytes = winner.SerializeUtf8();
-        await using var transaction = await connection.BeginTransactionAsync(ct);
+        await using var transaction = await connection.BeginTransactionAsync(IsolationLevel.Serializable, ct);
         try
         {
             await using (var probe = Command(connection, transaction, """
-                SELECT COUNT_BIG(*) FROM identidade.modelo_linkage_v9_operacional
+                SELECT COUNT_BIG(*) FROM identidade.modelo_linkage_v9_operacional WITH (TABLOCKX,HOLDLOCK)
                 WHERE status=N'TEST_ONLY';
                 """))
             {
