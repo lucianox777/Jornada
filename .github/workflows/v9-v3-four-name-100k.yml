@@ -39,12 +39,14 @@ concurrency:
 jobs:
   physical-100k:
     if: ${{ inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
-    name: "V9 V3-only 100k: 81 TF4 x 2 U mixtures x 2 margins"
+    name: "V9 TRAIN + audit: 324 V3 TF4 hypotheses"
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
     # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
     # Strict manual owner-only dispatch still requires cleared security preflight.
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    outputs:
+      has_finalists: ${{ steps.finalists.outputs.has_finalists }}
     env:
       # Diagnostic campaign on synthetic 100k data. Full exception traces are enabled.
       # Do not pass production credentials or real personal data to this workflow.
@@ -199,8 +201,10 @@ jobs:
           stage.mkdir(exist_ok=False)
           for name in [digest+".selection.json", *[i+".fitted.json" for i in ids]]:
               src=root/name
-              assert src.is_file(), "Missing frozen finalist: "+name
-              assert hashlib.sha256(src.read_bytes()).hexdigest()==name.split(".")[0], "SHA mismatch: "+name
+              assert src.is_file() and not src.is_symlink(), "Missing frozen finalist: "+name
+              # The selection envelope may be larger than 2 GiB: stream hashes.
+              with src.open("rb") as stream:
+                  assert hashlib.file_digest(stream,"sha256").hexdigest()==name.split(".")[0], "SHA mismatch: "+name
               shutil.copyfile(src,stage/name)
           if not ids:
               (root/"campaign-scientific-status.json").write_text(json.dumps({"status":"COMPLETED_WITHOUT_ELIGIBLE_FINALISTS","validationExecuted":False,"testUsed":False,"reason":"No TRAIN finalists available for independent VALIDATION"},indent=2)+"\n")
@@ -208,33 +212,24 @@ jobs:
               out.write("has_finalists="+("true" if ids else "false")+"\n")
           print("Verified frozen finalists:",len(ids))
           PY
-      - name: Mandatory fresh independent VALIDATION of frozen finalists
+      - name: Prepare audited immutable finalist handoff
         if: ${{ success() && steps.finalists.outputs.has_finalists == 'true' }}
-        timeout-minutes: 40
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
-          mkdir -p "$root/validation-people"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.SyntheticCorpus -- generate \
-            --reference-root "$PWD/data/reference/ibge-nomes-2022" \
-            --population-profile demographic-primary \
-            --birth-daily-source "$PWD/data/reference/synthetic-birth-sp/birth_daily_sp_projection2024_2026.json" \
-            --error-profile clean --people 100000 --seed 20261112001 \
-            --out "$root/validation-people" > "$root/validation-generation.log"
-          envelope="$(find "$root/results/frozen-finalists" -maxdepth 1 -name '*.selection.json' -type f)"
-          test "$(find "$root/results/frozen-finalists" -maxdepth 1 -name '*.selection.json' -type f | wc -l)" -eq 1
-          export JORNADA_V9_HOLDOUT_REGISTRY="$root/validation-holdout-exposures"
-          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
-            --v9-validate-finalists "$root/bound/plan.json" "$envelope" \
-            "$root/validation-people/observacoes.csv" "$root/validation-results"
-          test -s "$root/validation-results/finalist-validation.json"
-          python3 - "$root/validation-results/finalist-validation.json" <<'PY'
-          import json,sys
-          r=json.load(open(sys.argv[1]))
-          assert r["refitted"] is False and r["testUsed"] is False and r["activated"] is False
-          assert r["comparedConfigurations"] in (1,2,3)
-          print("V9_MANDATORY_VALIDATION_COMPLETED",r["status"])
-          PY
+          python3 scripts/v9-v3-four-name-100k-handoff.py prepare \
+            --source-root "$root" --handoff "$root/results/frozen-finalists" \
+            --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Upload frozen finalist handoff for independent VALIDATION job
+        if: ${{ success() && steps.finalists.outputs.has_finalists == 'true' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # SHA pinned
+        with:
+          name: v9-tf4-validation-handoff-${{ github.run_id }}-${{ github.run_attempt }}
+          retention-days: 30
+          if-no-files-found: error
+          # Strict allowlist in handoff.py; never stage raw TRAIN CSV or secrets.
+          include-hidden-files: true
+          path: Solution/.local/v9-100k-technical/results/frozen-finalists/
       - name: Upload aggregated evidence only, never corpus, raw TEST or credentials
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin SHA
@@ -262,8 +257,7 @@ jobs:
             Solution/.local/v9-100k-technical/results/campaign-scientific-status.json
             Solution/.local/v9-100k-technical/results/frozen-finalists/*.selection.json
             Solution/.local/v9-100k-technical/results/frozen-finalists/*.fitted.json
-            Solution/.local/v9-100k-technical/validation-results/*.json
-      - name: Dispose temporary TRAIN and VALIDATION bases after mandatory stages
+      - name: Dispose temporary TRAIN bases after mandatory stages
         if: always()
         # Cleanup must also run when checkout never happened.
         working-directory: ${{ github.workspace }}
