@@ -312,17 +312,17 @@ public static class V9NestedCalibrationCoordinator
         // Opt-in diagnostic only; no changes to scientific results or scheduling.
         var physicalProgressEnabled = Environment.GetEnvironmentVariable("V9_PHYSICAL_PROGRESS_LOG") == "1";
         var replayTimingEnabled = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";
-        // The GitHub Actions step has an enforced 315-minute timeout. Its
+        // The GitHub Actions physical step has an enforced 340-minute timeout. Its
         // exported UTC start is a close operational reference (not an exact
         // GitHub runner deadline); other callers fall back to coordinator start.
-        var physicalDeadlineUtc = DateTimeOffset.UtcNow.AddMinutes(315);
+        var physicalDeadlineUtc = DateTimeOffset.UtcNow.AddMinutes(340);
         var stepStartRaw = Environment.GetEnvironmentVariable("V9_PHYSICAL_STEP_START_UTC");
         if (DateTimeOffset.TryParse(stepStartRaw,
             System.Globalization.CultureInfo.InvariantCulture,
             System.Globalization.DateTimeStyles.AssumeUniversal
                 | System.Globalization.DateTimeStyles.AdjustToUniversal,
             out var stepStartUtc))
-            physicalDeadlineUtc = stepStartUtc.AddMinutes(315);
+            physicalDeadlineUtc = stepStartUtc.AddMinutes(340);
         var physicalCompleted = 0;
         var physicalTotal = plan.PredeclaredCandidateCpMultiplicity ?? plan.MaximumSearchConfigurations;
         void ReportPhysicalCompletion(TimeSpan individualDuration, V9NestedCandidateEvaluation evaluation,
