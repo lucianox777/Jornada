@@ -914,12 +914,46 @@ public static class V9NestedCalibrationCli
             plan.Calibration.Budget.MaximumBlockingFalseDegreeP99);
         var best = SelectConditionalWinner(measured, plan.Calibration.SelectionPolicy,
             plan.Calibration.Budget.MaximumBlockingFalseDegreeP99);
+        // A successful scientific selection must itself emit the exact FINAL
+        // operational JSON bytes consumed by the versioned V9 production-side
+        // SQL loader, regardless of whether the optional TEST is requested.
+        // The exported payload has *identical bytes* to payload_fitted in SQL;
+        // no model is certified, activated or promoted by this export.
+        V9ValidatedOperationalModelFile.Receipt? operationalFile = null;
+        if (scientific is not null)
+        {
+            var chosen = snapshots.Single(x => x.ContentSha256 == scientific.SnapshotSha256);
+            operationalFile = await V9ValidatedOperationalModelFile.ExportAsync(
+                chosen, Path.Combine(output, "validated-operational-model"));
+            if (operationalFile.WinnerSnapshotSha256 != scientific.SnapshotSha256)
+                throw new InvalidDataException("VALIDATION: arquivo operacional não corresponde ao único vencedor científico.");
+            await WriteNewAsync(Path.Combine(output, "selected-operational-model-reference.json"), new
+            {
+                schema = operationalFile.Schema,
+                fileName = operationalFile.FileName,
+                winnerSnapshotSha256 = operationalFile.WinnerSnapshotSha256,
+                operationalModelContract = operationalFile.OperationalModelContract,
+                snapshotSchemaVersion = operationalFile.SnapshotSchemaVersion,
+                operationalModelId = operationalFile.OperationalModelId,
+                fitFingerprintSha256 = operationalFile.FitFingerprintSha256,
+                projectionFingerprintSha256 = operationalFile.ProjectionFingerprintSha256,
+                jointCells = operationalFile.JointCellCount,
+                tfSlots = operationalFile.TfSlotCount,
+                blockingPasses = operationalFile.BlockingPassCount,
+                byteExactRoundTrip = operationalFile.ByteExactRoundTrip,
+                refitted = false, testUsed = false, certified = false,
+                activated = false, published = false
+            });
+        }
         var finalValidationResult = new { selectionEnvelopeSha256 = selectionSha,
             fresh, comparedConfigurations = ids.Length, measured,
             scientificProposedSnapshotSha256 = scientific?.SnapshotSha256,
             bestConditionalSnapshotSha256 = best?.SnapshotSha256,
             // Selection by independent VALIDATION is distinct from certification and activation.
             selectedValidationSnapshotSha256 = scientific?.SnapshotSha256,
+            selectedValidationOperationalModelFileName = operationalFile?.FileName,
+            selectedValidationOperationalModelContract = operationalFile?.OperationalModelContract,
+            selectedValidationOperationalModelId = operationalFile?.OperationalModelId,
             selectedApprovedSnapshotSha256 = (string?)null,
             status = scientific is null ? "NO_FINALIST_PASSES_DECLARED_SCIENTIFIC_GATES" : "VALIDATION_SCIENTIFIC_WINNER_SELECTED_NOT_CERTIFIED",
             identityClusterIidIndependentlyValidated = false, testUsed = false, refitted = false, certified = false, activated = false };
