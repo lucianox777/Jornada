@@ -98,9 +98,9 @@ class V9TestSyntheticLedgerContract(unittest.TestCase):
         s = CALIBRATOR.read_text()
         self.assertGreaterEqual(s.count("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED"), 2)
         train = s.split("\n  physical-100k:\n", 1)[1].split("\n  validation-100k:\n", 1)[0]
-        self.assertIn("timeout-minutes: 340", train)
-        self.assertIn("timeout-minutes: 360", train)
-        self.assertIn("timeout-minutes: 330", s)
+        self.assertNotIn("timeout-minutes:", train)
+        self.assertIn("v9-v3-four-name-100k-preaudit.py", train)
+        self.assertNotIn("timeout-minutes:", s)
 
 
 if __name__ == "__main__":
