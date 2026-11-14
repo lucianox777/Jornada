@@ -41,8 +41,9 @@ class TestProductionModelFormat(unittest.TestCase):
         workflow = WF.read_text()
         prep = workflow.split("\n  prepare-test-100k:\n",1)[1].split("\n  physical-100k:\n",1)[0]
         train = workflow.split("\n  physical-100k:\n",1)[1].split("\n  validation-100k:\n",1)[0]
+        self.assertIn('if [[ "${{ inputs.test_required }}" == "true" ]]', prep)
+        self.assertIn('if [[ "${{ inputs.test_required }}" == "true" && "$V9_EXTERNAL_DATABASE" == "" ]]', train)
         for part in (prep, train):
-            self.assertIn('if [[ "${{ inputs.test_required }}" == "true" ]]', part)
             self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", part)
         self.assertLess(prep.index("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED"), prep.index("--people 100000"))
         self.assertLess(train.index("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED"), train.index("--v9-calibrate"))

@@ -59,8 +59,20 @@ if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-convert-winner-operational
     return;
 }
 
-// Independent TEST is a separate command: the only CLI argument is the winning
-// fitted snapshot; corpus, scientific protocol and SQL are TEST-owned.
+// The external TEST database is preflighted BEFORE 324 expensive hypotheses.
+// The worker checks the exact database and a SELECT-only login, no source
+// person rows are read by this admission check.
+if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-external-test-preflight")
+{
+    if (guardedArgs.Length != 2)
+        throw new ArgumentException("Uso: --v9-external-test-preflight <database_existente>");
+    await V9ExternalDatabaseReadOnlyTest.PreflightAsync(guardedArgs[1]);
+    return;
+}
+
+// Independent TEST accepts the same winning operational JSON, optionally
+// --test-database for EXISTING read-only records without synthetic generation.
+// No DB argument keeps the sealed synthetic 100K scientific protocol.
 if (guardedArgs.Length > 0 && guardedArgs[0] == "--v9-independent-test")
 {
     await V9IndependentTestCli.RunAsync(guardedArgs);
