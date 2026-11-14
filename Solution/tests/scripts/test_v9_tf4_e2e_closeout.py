@@ -25,8 +25,10 @@ def validation_doc(winner=W):
                    if winner else "NO_FINALIST_PASSES_DECLARED_SCIENTIFIC_GATES"),
         "selectedValidationSnapshotSha256": winner,
         "selectionEnvelopeSha256": E,
+        "validationResultSha256": "d" * 64,
+        "schema": "V9_VALIDATION_E2E_STATUS_V1",
         "comparedConfigurations": 1,
-        "measured": [{"syntheticOnly": True}],
+        "measuredCount": 1,
         "refitted": False, "testUsed": False, "certified": False,
         "activated": False,
     }
@@ -53,7 +55,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        self.val = self.root / "finalist-validation.json"
+        self.val = self.root / "validation-e2e-status.json"
         self.test = self.root / "independent-test.json"
         self.val.write_text(json.dumps(validation_doc()), encoding="utf-8")
 
@@ -68,7 +70,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         self.assertIn("needs: [prepare-test-100k, physical-100k, audit-100k, validation-100k, test-100k]", block)
         self.assertIn("if: ${{ always() }}", block)
         self.assertIn("v9-tf4-e2e-closeout.py", block)
-        self.assertIn("finalist-validation.json", block)
+        self.assertIn("validation-e2e-status.json", block)
         self.assertIn("independent-test.json", block)
         self.assertIn("github.repository_owner", source)
         self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", source)
@@ -113,6 +115,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
             ("activated", True),
             ("comparedConfigurations", 4),
             ("selectionEnvelopeSha256", "bad"),
+            ("validationResultSha256", "bad"),
             ("selectedValidationSnapshotSha256", "bad"),
         ]:
             with self.subTest(field=field):
