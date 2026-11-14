@@ -12,6 +12,7 @@ class TestGlobalOneUse(unittest.TestCase):
         content = WORKFLOW.read_text()
         train = content.split("\n  physical-100k:\n", 1)[1].split("\n  validation-100k:\n", 1)[0]
         validation, test = content.split("\n  validation-100k:\n", 1)[1].split("\n  test-100k:\n", 1)
+        test = test.split("\n  e2e-closeout:\n", 1)[0]
         self.assertIn("test-100k:", content)
         self.assertIn("contents: write", test)
         self.assertIn("actions: read", test)

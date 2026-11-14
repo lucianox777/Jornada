@@ -88,6 +88,7 @@ class SealedTestPreparationContract(unittest.TestCase):
         pre, tail=workflow.split("\n  physical-100k:\n",1)
         train, tail=tail.split("\n  validation-100k:\n",1)
         validation, test=tail.split("\n  test-100k:\n",1)
+        test=test.split("\n  e2e-closeout:\n",1)[0]
         self.assertIn("  prepare-test-100k:",pre)
         self.assertNotIn("timeout-minutes:",pre)
         self.assertNotIn("prepare_sealed_test:",pre)

@@ -18,6 +18,7 @@ class ThreeJobsV9TimeoutTests(unittest.TestCase):
         cls.train, tail = tail.split("\n  audit-100k:\n", 1)
         cls.audit, tail = tail.split("\n  validation-100k:\n", 1)
         cls.validation, cls.test = tail.split("\n  test-100k:\n", 1)
+        cls.test = cls.test.split("\n  e2e-closeout:\n", 1)[0]
 
     def test_native_github_timeouts_only(self):
         self.assertNotIn("timeout-minutes:", self.source)
