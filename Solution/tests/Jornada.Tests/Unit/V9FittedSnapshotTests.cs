@@ -1152,6 +1152,57 @@ public sealed class V9FittedSnapshotTests
     }
 
     [Test]
+    public void Existing_database_test_requires_explicit_safe_name_and_readonly_connection()
+    {
+        var source = "Server=localhost;Initial Catalog=DefaultSynthetic;User Id=reader;Password=reader;";
+        var conn = V9ExternalDatabaseReadOnlyTest.BuildReadOnlyConnection(
+            source, "JornadaReadonlyDev");
+        Assert.That(conn.InitialCatalog, Is.EqualTo("JornadaReadonlyDev"));
+        Assert.That(conn.ApplicationIntent, Is.EqualTo(Microsoft.Data.SqlClient.ApplicationIntent.ReadOnly));
+        Assert.That(conn.Pooling, Is.False);
+        Assert.That(conn.Enlist, Is.False);
+        Assert.That(conn.PersistSecurityInfo, Is.False);
+        foreach (var unsafeName in new[] {
+            "master", "model", "msdb", "tempdb", "JornadaHarness",
+            "", "../Production", "ExistingDb;DROP DATABASE db", " Prod", "database-name"
+        })
+        {
+            Assert.Throws<InvalidDataException>(
+                () => V9ExternalDatabaseReadOnlyTest.ValidateDatabaseName(unsafeName),
+                "Explicit external database names must be safe and cannot target harness/system.");
+        }
+        Assert.Throws<InvalidOperationException>(() =>
+            V9ExternalDatabaseReadOnlyTest.BuildReadOnlyConnection("", "JornadaReadonlyDev"));
+    }
+
+    [Test]
+    public void Existing_database_test_rebuilds_bounded_frozen_pass_graph_without_truth_labels()
+    {
+        var frozen = CompleteTf4OperationalWinner();
+        var rows = new[]
+        {
+            new V9PhysicalCalibrationObservation(1, "UNLABELED_1", "TEST",
+                "GESTOR_A", "MARIA SILVA", "ANA COSTA", new DateOnly(1980, 5, 6)),
+            new V9PhysicalCalibrationObservation(2, "UNLABELED_2", "TEST",
+                "GESTOR_B", "MARIA SILVA", "ANA COSTA", new DateOnly(1980, 5, 6)),
+            new V9PhysicalCalibrationObservation(3, "UNLABELED_3", "TEST",
+                "GESTOR_A", "MARIA SILVA", "ANA COSTA", new DateOnly(1980, 5, 6)),
+        };
+        var edges = V9ExternalDatabaseReadOnlyTest.BuildDiagnosticCandidateGraph(frozen, rows);
+        Assert.That(edges, Is.Not.Null);
+        Assert.That(edges.Count, Is.LessThanOrEqualTo(3));
+        Assert.That(edges.All(edge => rows[edge.A - 1].Gestor != rows[edge.B - 1].Gestor),
+            Is.True, "Never score within the same gestor.");
+        Assert.That(edges.Select(edge => edge).Distinct().Count(), Is.EqualTo(edges.Count),
+            "No silent duplicate candidates are permitted.");
+        Assert.Throws<InvalidDataException>(() =>
+            V9ExternalDatabaseReadOnlyTest.BuildDiagnosticCandidateGraph(
+                frozen, rows.Append(rows[0]).ToArray()));
+        Assert.Throws<InvalidDataException>(() =>
+            V9ExternalDatabaseReadOnlyTest.BuildDiagnosticCandidateGraph(frozen, [rows[0]]));
+    }
+
+    [Test]
     public async Task Validation_final_operational_json_is_exact_sql_payload_and_TEST_reads_same_filename()
     {
         // Synthetic valid 4-TF/81-cell fixture, no external holdout or TEST data.
