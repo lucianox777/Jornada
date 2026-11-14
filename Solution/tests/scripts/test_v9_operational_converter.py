@@ -77,7 +77,7 @@ class OperationalConverterContract(unittest.TestCase):
 
     def test_sql_conversion_precedes_test_decryption_and_winner_only_handoff(self):
         wf=WF.read_text()
-        test=wf.split("\n  test-100k:\n",1)[1]
+        test=wf.split("\n  test-100k:\n",1)[1].split("\n  e2e-closeout:\n",1)[0]
         validation=wf.split("\n  validation-100k:\n",1)[1].split("\n  test-100k:\n",1)[0]
         self.assertIn("test-winner-only/*.fitted.json",validation)
         self.assertIn("v9-tf4-test-one-winner-",test)
