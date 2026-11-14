@@ -50,6 +50,8 @@ class MandatoryChainIntegrationContractTests(unittest.TestCase):
         self.assertIn("v9-tf4-calibration-preaudit-", self.audit)
         self.assertIn("v9-tf4-validation-handoff-", self.audit)
         self.assertIn("v9-tf4-validation-handoff-", self.validation)
+        self.assertIn("V9_MANDATORY_VALIDATION_NO_FINALISTS", self.audit)
+        self.assertIn("steps.finalists.outputs.has_finalists != 'true'", self.audit)
         for job in (self.train, self.audit, self.validation):
             header = job.split("\n    steps:", 1)[0]
             self.assertNotIn("if: ${{ inputs.test_required == true", header)
