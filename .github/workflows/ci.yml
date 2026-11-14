@@ -316,11 +316,14 @@ jobs:
           python3 scripts/synthetic-corpus-equivalence-gate.py \
             --root . \
             --summary .local/test-evidence/unit/synthetic-corpus-equivalence.json
+      # Dedicated SQLSmoke fixture requires the isolated, masked localhost SQL
+      # container in v9-operational-model-sql-smoke.yml. Selecting it in the
+      # general unit suite causes Assert.Ignore and violates --forbid-skipped.
       - name: Unit tests must execute without skips
         run: |
           mkdir -p .local/test-evidence/unit
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --configuration Release --no-build \
-            --filter "TestCategory!=Integration" \
+            --filter "TestCategory!=Integration&TestCategory!=SQLSmoke" \
             --collect:"XPlat Code Coverage" \
             --results-directory "$PWD/.local/test-evidence/unit/results" \
             --logger "trx;LogFileName=$PWD/.local/test-evidence/unit/unit.trx"
