@@ -33,3 +33,7 @@ A [PR #1508](https://github.com/lucianox777/Jornada/pull/1508) foi integrada à 
 ## Etapa subsequente — 14/11/2026: paridade física do grafo SQL de candidatos
 
 Implementação aprovada na mesma orientação do PO: adicionar prova independente sobre o **grafo SQL efetivo** de candidatos, comparando as arestas completas da materialização física do Worker TEST (sem modificar a rotina) com o SQL de projeção `identidade.blocking_chave` consumido pelo Runner. Prova sintética pequena, SHA/identidade do vencedor pinados, simetria obrigatória, falha em divergências/fingerprint adulterado e sem produção, publicação, dados de TEST selado ou habilitação prematura. [Decisão detalhada e critérios](Decisao_GOV_V9_TEST_Paridade_Grafo_Candidatos_SQL_20261114.md). Exigência de paridade full-batch #1488 permanece. GOV-DOC-01.
+
+## Recibo da etapa seguinte — candidatos SQL reais (14/11/2026)
+
+[PR #1510](https://github.com/lucianox777/Jornada/pull/1510), squash `98277c3`: consulta read-only do `BlockingProjectionCandidateQueryBuilder` operacional comparada com as arestas materializadas pelo SQL físico TEST existente. Prova em `JornadaHarness`, 6/6 arestas com passes `UNION`/`INTERSECT`, fingerprint V9 real, negativas de drift. Fast CI #43555587846 3/3 SUCCESS; SQL smoke #43555588097 1/1. Preserva lógicas TRAIN/VALIDATION, mantém `test_required=true` bloqueado e não comprova todo o caminho `ProbabilisticLinkageBatchRunner` produtivo. [Decisão e limites](Decisao_GOV_V9_TEST_Paridade_Grafo_Candidatos_SQL_20261114.md). GOV-DOC-01.
