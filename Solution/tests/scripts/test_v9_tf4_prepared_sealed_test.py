@@ -90,7 +90,8 @@ class SealedTestPreparationContract(unittest.TestCase):
         validation, test=tail.split("\n  test-100k:\n",1)
         self.assertIn("  prepare-test-100k:",pre)
         self.assertNotIn("timeout-minutes:",pre)
-        self.assertIn("prepare_sealed_test:",pre)
+        self.assertNotIn("prepare_sealed_test:",pre)
+        self.assertIn("test_required:",pre)
         self.assertIn("expected_test_cert_sha256:",pre)
         self.assertIn("v9-tf4-sealed-test-preparation.py verify-lock",pre)
         self.assertIn("v9-tf4-sealed-test-preparation.py seal",pre)
@@ -101,7 +102,7 @@ class SealedTestPreparationContract(unittest.TestCase):
         self.assertIn("if-no-files-found: error",pre)
         self.assertIn("rm -rf --",pre)
         self.assertIn("needs: prepare-test-100k",train)
-        self.assertIn("inputs.prepare_sealed_test != true",train)
+        self.assertIn("inputs.test_required != true",train)
         self.assertIn("needs.prepare-test-100k.result == 'success'",train)
         self.assertIn("needs: audit-100k",validation)
         self.assertIn("inputs.test_required == true",test)
@@ -114,7 +115,7 @@ class SealedTestPreparationContract(unittest.TestCase):
             self.assertNotIn("v9-tf4-test-sealed-",unprivileged)
             self.assertNotIn("20261113001",unprivileged)
         self.assertIn("test_required }}",train)
-        self.assertIn("test_required }}",validation)
+        self.assertIn("inputs.test_required == true",validation)
 
     def test_no_plaintext_or_key_in_upload_artifact(self):
         source=WF.read_text()

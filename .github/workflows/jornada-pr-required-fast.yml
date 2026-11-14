@@ -32,6 +32,8 @@ jobs:
           # Four nominal TF units, V3-only 324 options, fail-closed audit; offline only.
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_four_name_100k.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_four_name_100k_handoff.py'
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_chain_integration.py'
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_v3_four_name_100k_preaudit.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_100k_frozen_ibge_admission.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_three_job_timeouts.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_prepared_sealed_test.py'
@@ -73,9 +75,9 @@ jobs:
           # CPU/RAM/disk unit fixtures only; this does not start SQL or a 100k fit.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter '(FullyQualifiedName~V9CalibrationExecutionResourceBudgetTests|FullyQualifiedName~V9CalibrationRuntimeSchedulerTests|FullyQualifiedName~V9PhysicalFrameExecutionOrderTests|FullyQualifiedName~V9MarginFrameWorkPartitionTests|FullyQualifiedName~V9CalibradorSafeFailureCategoryTests|FullyQualifiedName~V9OfflineCalibratorCapacityTests)'
-          # Deterministic ETA/timeout-risk boundaries; no SQL or 100k run.
+          # Deterministic informational ETA without local 340-minute deadline; no SQL/100k.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
-            --filter 'FullyQualifiedName~V9NestedCalibrationTests.Physical_progress_forecast_distinguishes_preliminary_safe_risk_and_timeout'
+            --filter 'FullyQualifiedName~V9NestedCalibrationTests.Physical_progress_forecast_is_informational_without_local_deadline'
           # Small in-memory TF coverage regressions: catches typed exception drift
           # before squash, without SQL, physical 30k/100k or Windows builds.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
