@@ -41,7 +41,14 @@ def sha256(path):
 
 def verify(validation_path, reference_path, directory, expected_contract):
     require(expected_contract == CONTRACT, "unexpected operational contract")
-    result = read_json(validation_path, limit=512 * 1024 * 1024)
+    # Read only the compact receipt already SHA-bound to the large
+    # scientific file. Parsing the 100k outcome report twice could exhaust
+    # RAM or trigger an arbitrary 512 MiB rejection on valid campaigns.
+    result = read_json(validation_path)
+    require(result.get("schema") == "V9_VALIDATION_E2E_STATUS_V1"
+            and isinstance(result.get("validationResultSha256"), str)
+            and SHA.fullmatch(result["validationResultSha256"]),
+            "validation summary must be SHA-bound to full scientific evidence")
     require(result.get("refitted") is False
             and result.get("testUsed") is False
             and result.get("certified") is False
