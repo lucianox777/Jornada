@@ -2,7 +2,7 @@
 
 **Autoridade:** Product Owner, 14/11/2026, diretriz explícita: “Separe a calibração em auditorim jobs independentes e retire esses limites, porque o Git já faz. Se houver problema e não conseguir ser executado, a gente tem que verificar o Git, ver em que sessão deu problema e fazer otimizações. Continue com essa decisão.”
 
-**Estado:** APROVADO pelo PO; implementação proposta na [PR #1526](https://github.com/lucianox777/Jornada/pull/1526), branch `feat/v9-physical-audit-separated-jobs-github-timeout-20261114`; integração, CI final e execução científica física ainda **não atestadas** neste registro. **Política:** GOV-DOC-01.
+**Estado:** APROVADO pelo PO, **IMPLEMENTADO E INTEGRADO** à `master` pela [PR #1526](https://github.com/lucianox777/Jornada/pull/1526), squash SHA `306229cc78753cd46500622986fb9ec305327557`. CI obrigatória [#43616445793](https://github.com/lucianox777/Jornada/actions/runs/43616445793) **3/3 SUCCESS**; [preflight V9 #43616445803](https://github.com/lucianox777/Jornada/actions/runs/43616445803) SUCCESS, [SQL smoke não publicador #43616445736](https://github.com/lucianox777/Jornada/actions/runs/43616445736) SUCCESS. **Execução científica física 100k nos jobs novos ainda NÃO executada nem comprovada.** **Política:** GOV-DOC-01.
 
 ## Contexto, justificativa e problema corrigido
 
@@ -39,4 +39,4 @@ Antes desta decisão, o job TRAIN continha *calibração, auditoria e handoff* e
 
 **Aceite técnico:** (a) nenhuma linha `timeout-minutes` no workflow manual; (b) quarto job audit independente e `needs` correto; (c) teste do manifesto contra alterações/extra files/erro de SHA e fluxo sem finalistas; (d) testes de contrato e compilação C#; (e) PR com CI 3/3 e integração; (f) **execução real física** posterior para observar job AUDIT e VALIDATION; nenhum run de PR substitui essa prova.
 
-**Observação de estado:** nenhuma nova campanha foi iniciada por esta implementação; a execução completa TEST exige gates de produção/one-use independentes. Atualizar o recibo PR/CI/merge nesta decisão e nos índices quando evidenciados.
+**Recibo de integração — 14/11/2026:** o HEAD da PR #1526 `9915eb07a415d61826d6734be44f8f6e14dc936f` passou CI rápida 3/3, preflight V9 e smoke SQL não publicador, e foi integrado via squash `306229cc78753cd46500622986fb9ec305327557`. Evidências provam compilação/contratos e integrações pequenas, **não** o novo percurso físico 324→AUDIT→VALIDATION nem TEST 100k. Nenhuma campanha física foi iniciada nesta implementação; a execução completa TEST continua bloqueada pelos gates de produção/one-use independentes. O usuário orientou diagnosticar falhas futuras pelo job e step efetivos e otimizar antes de novo ciclo.
