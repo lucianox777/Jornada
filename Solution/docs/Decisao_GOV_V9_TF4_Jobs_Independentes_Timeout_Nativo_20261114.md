@@ -2,7 +2,7 @@
 
 **Autoridade:** Product Owner, 14/11/2026, diretriz explícita: “Separe a calibração em auditorim jobs independentes e retire esses limites, porque o Git já faz. Se houver problema e não conseguir ser executado, a gente tem que verificar o Git, ver em que sessão deu problema e fazer otimizações. Continue com essa decisão.”
 
-**Estado:** APROVADO pelo PO; implementação em branch `feat/v9-physical-audit-separated-jobs-github-timeout-20261114`; integração, CI final e execução científica física ainda **não atestadas** neste registro inicial. **Política:** GOV-DOC-01.
+**Estado:** APROVADO pelo PO; implementação proposta na [PR #1526](https://github.com/lucianox777/Jornada/pull/1526), branch `feat/v9-physical-audit-separated-jobs-github-timeout-20261114`; integração, CI final e execução científica física ainda **não atestadas** neste registro. **Política:** GOV-DOC-01.
 
 ## Contexto, justificativa e problema corrigido
 
