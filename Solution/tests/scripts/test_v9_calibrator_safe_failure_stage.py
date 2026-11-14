@@ -103,7 +103,7 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         self.assertIn('DateTimeOffset.UtcNow', progress)
         self.assertIn('physicalDeadlineUtc - nowUtc', progress)
         self.assertIn('status = remaining > TimeSpan.Zero', progress)
-        self.assertIn('stepStartUtc.AddMinutes(315)', self.coord)
+        self.assertIn('stepStartUtc.AddMinutes(340)', self.coord)
         replay = self.coord.split('var replayClock = diagnoseReplayTiming ?', 1)[1].split(
             'p95 = measured.P95Milliseconds;', 1)[0]
         self.assertIn('replayElapsedMilliseconds = replayClock.Elapsed.TotalMilliseconds;', replay)
