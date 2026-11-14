@@ -29,7 +29,7 @@ class V9PreauditTransferTests(unittest.TestCase):
     def fixture(self, location, finalist=True):
         root = Path(location)
         plan = b'{"source":"SYNTHETIC_TRAIN"}'
-        (root / "bound").mkdir()
+        (root / "bound").mkdir(parents=True)
         result = root / "results"
         result.mkdir()
         (root / "bound/plan.json").write_bytes(plan)
