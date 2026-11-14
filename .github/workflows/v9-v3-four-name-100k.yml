@@ -596,7 +596,7 @@ jobs:
           }
           with target.open("x",encoding="utf-8") as output:
               json.dump(summary,output,sort_keys=True,indent=2)
-              output.write("\\n")
+              output.write("\n")
           print("V9_MANDATORY_VALIDATION_COMPLETED",r["status"])
           PY
       - name: Freeze ONLY the scientific winner model for independent TEST
