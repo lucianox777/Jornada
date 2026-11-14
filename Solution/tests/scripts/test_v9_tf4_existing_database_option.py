@@ -84,6 +84,8 @@ class V9ExistingDatabaseOptionTests(unittest.TestCase):
         self.assertIn("ref.gestor", source)
         self.assertIn("MaximumObservations = 100_000", source)
         self.assertIn("MaximumCandidateEdges = 2_000_000", source)
+        self.assertIn("MaximumBucketPairIncidences = 4_000_000", source)
+        self.assertIn("IS_ROLEMEMBER('db_ddladmin') = 1", source)
         self.assertIn("SELECT TOP (@max_plus_one)", source)
         self.assertIn("goldTruthAvailable = false", source)
         self.assertIn("productionRunnerFullPipelineParityCertified = false", source)
