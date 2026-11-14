@@ -43,7 +43,7 @@ class OperationalConverterContract(unittest.TestCase):
         prod=PROD.read_text()
         program=PROGRAM.read_text()
         self.assertIn("V9OperationalSqlModelConverter.MaterializeOnceAsync(",worker)
-        self.assertIn("V9FittedSnapshotArtifact.ReadPinnedAsync(modelPath, sha)",worker)
+        self.assertIn("V9ValidatedOperationalModelFile.ReadPinnedAsync(modelPath)",worker)
         self.assertIn("V9OperationalPinnedCohortRuntime.LoadPinnedAsync(",test)
         self.assertIn("V9OperationalSqlModelConverter.ReadPinnedAsync(",prod)
         self.assertIn("LoadPinnedV9OperationalRuntimeAsync(",prod)
@@ -79,8 +79,8 @@ class OperationalConverterContract(unittest.TestCase):
         wf=WF.read_text()
         test=wf.split("\n  test-100k:\n",1)[1].split("\n  e2e-closeout:\n",1)[0]
         validation=wf.split("\n  validation-100k:\n",1)[1].split("\n  test-100k:\n",1)[0]
-        self.assertIn("test-winner-only/*.fitted.json",validation)
-        self.assertIn("v9-tf4-test-one-winner-",test)
+        self.assertIn("validated-operational-model/*.operational.json",validation)
+        self.assertIn("v9-tf4-validated-operational-model-",test)
         self.assertIn("20261113_V9_Operational_Frozen_Model_Conversion.sql",test)
         self.assertIn("--v9-convert-winner-operational",test)
         self.assertIn("--v9-independent-test",test)
