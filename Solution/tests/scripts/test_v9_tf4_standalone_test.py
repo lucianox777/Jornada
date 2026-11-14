@@ -51,6 +51,7 @@ class StandaloneTestContract(unittest.TestCase):
     def test_test_job_only_gets_winner_model_and_own_data(self):
         source=WF.read_text()
         validation,test=source.split("\n  validation-100k:\n",1)[1].split("\n  test-100k:\n",1)
+        test=test.split("\n  e2e-closeout:\n",1)[0]
         self.assertIn("selectedValidationSnapshotSha256",validation)
         self.assertIn("test-winner-only/*.fitted.json",validation)
         self.assertIn("v9-tf4-test-one-winner-",test)
