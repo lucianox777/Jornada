@@ -15,6 +15,9 @@ namespace Jornada.Linkage.Runner;
 /// </summary>
 public sealed class V9OperationalPinnedCohortRuntime
 {
+    // Hard cap on read-only diagnostic candidate parity; never used in TRAIN/VALIDATION.
+    public const int MaximumAuditObservations = 128;
+
     private readonly V9FittedSnapshot winner;
 
     public Guid ModelId { get; }

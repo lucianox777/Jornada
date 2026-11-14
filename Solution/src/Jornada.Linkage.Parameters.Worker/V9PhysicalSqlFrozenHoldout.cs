@@ -113,6 +113,37 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
             ? "V9_INDEPENDENT_TEST_ONE_FROZEN_MODEL_FULL_SQL_FS_BLIND_SOURCE_RESOLVE_V1"
             : "V9_FROZEN_HOLDOUT_FULL_SQL_FS_BLIND_SOURCE_RESOLVE_V1", samples.AsReadOnly());
     }
+    /// <summary>
+    /// TEST-only, small synthetic SQL parity fixture. This invokes the existing
+    /// physical Worker signature/candidate SQL unchanged, without scoring, refit,
+    /// reading TEST truth, or touching TRAIN/VALIDATION paths. Not a 100k test.
+    /// </summary>
+    public static async Task<IReadOnlyList<(int A, int B)>> ReadFrozenTestCandidateEdgesForParityAsync(
+        SqlConnection connection,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> test,
+        V9FittedSnapshot winner,
+        V9PhysicalAdaptiveExecution execution,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(test);
+        ArgumentNullException.ThrowIfNull(winner);
+        ArgumentNullException.ThrowIfNull(execution);
+        if (test.Count is < 2 or > V9OperationalPinnedCohortRuntime.MaximumAuditObservations
+            || test.Any(row => row.Partition != "TEST" || row.ObservationId <= 0)
+            || test.Select(row => row.ObservationId).Distinct().Count() != test.Count)
+            throw new InvalidDataException("Prova física de candidatos exige coorte TEST sintética pequena.");
+        execution.Validate(true, true);
+        var fingerprint = execution.MaximumPrefixLength == 0
+            ? PersonResolutionProjectionContract.FingerprintSha256
+            : V9CalibrationBlockingProjection.ComputeSchemaFingerprint(execution.MaximumPrefixLength);
+        if (winner.Payload.ProjectionFingerprintSha256 != fingerprint)
+            throw new InvalidDataException("Prova física exige projeção exata do vencedor.");
+        await RequireHarnessAsync(connection, cancellationToken);
+        return await PrepareFrozenValidationPairsAsync(
+            connection, test, winner, execution, "TEST", cancellationToken);
+    }
+
     // Extraction only: keep the full physical SQL preparation inside the timed
     // replay iteration. Do not cache or bypass this path for certified P95.
     private static async Task<IReadOnlyList<(int A, int B)>> PrepareFrozenValidationPairsAsync(
