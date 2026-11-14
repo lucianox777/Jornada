@@ -113,9 +113,9 @@ class FrozenIbge100kAdmission(unittest.TestCase):
         self.assertIn('JORNADA_RUNTIME_MODE', script)
         self.assertIn('ConnectionStrings__Jornada', script)
         self.assertIn('physical-100k:', train)
-        self.assertIn('needs: physical-100k', validation)
-        self.assertIn('timeout-minutes: 340', train)
-        self.assertIn('timeout-minutes: 330', validation)
+        self.assertIn('needs: audit-100k', validation)
+        self.assertNotIn('timeout-minutes:', train)
+        self.assertNotIn('timeout-minutes:', validation)
         self.assertIn('--v9-validate-finalists', validation)
         self.assertIn('--seed 20261112001', validation)
 

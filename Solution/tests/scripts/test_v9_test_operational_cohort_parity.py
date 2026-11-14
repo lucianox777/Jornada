@@ -56,13 +56,13 @@ class V9OperationalCohortParityContract(unittest.TestCase):
         test = workflow.split("\n  test-100k:\n", 1)[1]
         prep = workflow.split("\n  prepare-test-100k:\n", 1)[1].split("\n  physical-100k:\n", 1)[0]
         self.assertIn("Run physical V9 CSharp on 324 V3-only four-name hypotheses", train)
-        self.assertIn("timeout-minutes: 340", train)
-        self.assertIn("timeout-minutes: 360", train)
+        self.assertNotIn("timeout-minutes:", train)
+        self.assertIn("v9-v3-four-name-100k-preaudit.py", train)
         self.assertIn("Mandatory fresh independent VALIDATION of frozen finalists", workflow)
         self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", train)
         self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", prep)
         self.assertIn("inputs.test_required == true", test)
-        self.assertIn("timeout-minutes: 360", test)
+        self.assertNotIn("timeout-minutes:", test)
 
 
 if __name__ == "__main__":

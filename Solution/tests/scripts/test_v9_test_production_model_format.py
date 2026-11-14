@@ -46,7 +46,7 @@ class TestProductionModelFormat(unittest.TestCase):
             self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", part)
         self.assertLess(prep.index("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED"), prep.index("--people 100000"))
         self.assertLess(train.index("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED"), train.index("--v9-calibrate"))
-        self.assertIn("timeout-minutes: 360", workflow)
+        self.assertNotIn("timeout-minutes:", workflow)
 
 if __name__ == "__main__":
     unittest.main()

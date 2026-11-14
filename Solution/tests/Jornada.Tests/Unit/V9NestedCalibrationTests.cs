@@ -16,48 +16,38 @@ public sealed class V9NestedCalibrationTests
     };
 
     [Test]
-    public void Physical_progress_forecast_distinguishes_preliminary_safe_risk_and_timeout()
+    public void Physical_progress_forecast_is_informational_without_local_deadline()
     {
         var start = new DateTimeOffset(2026, 11, 14, 2, 49, 46, TimeSpan.Zero);
-        var deadline = start.AddMinutes(340);
         V9PhysicalProgressForecast Predict(int completed, double elapsedMinutes) =>
             V9NestedCalibrationCoordinator.ForecastPhysicalProgress(
-                completed, 324, start, start.AddMinutes(elapsedMinutes), deadline);
+                completed, 324, start, start.AddMinutes(elapsedMinutes));
 
         var noObservations = Predict(0, 0);
         Assert.That(noObservations.Status, Is.EqualTo("PREVISAO_PRELIMINAR"));
         Assert.That(noObservations.EtaMinutes, Is.Null);
+        Assert.That(noObservations.MarginMinutes, Is.Null);
 
         var early = Predict(1, 3);
         Assert.That(early.Status, Is.EqualTo("PREVISAO_PRELIMINAR"));
         Assert.That(early.EtaMinutes, Is.EqualTo(969d).Within(.00001));
 
-        var safe = Predict(8, 8);
-        Assert.That(safe.EtaMinutes, Is.EqualTo(316d).Within(.00001));
-        Assert.That(safe.MarginMinutes, Is.EqualTo(16d).Within(.00001));
-        Assert.That(safe.Status, Is.EqualTo("DENTRO_DA_PREVISAO"));
+        var observed = Predict(8, 8);
+        Assert.That(observed.EtaMinutes, Is.EqualTo(316d).Within(.00001));
+        Assert.That(observed.MarginMinutes, Is.Null);
+        Assert.That(observed.Status, Is.EqualTo("ETA_INFORMATIVA_GITHUB_CONTROLA_TIMEOUT"));
 
-        // Forecast can be before the hard limit but still have <15 min of headroom.
-        var close = Predict(8, 8.1);
-        Assert.That(close.EtaMinutes, Is.EqualTo(319.95d).Within(.00001));
-        Assert.That(close.MarginMinutes, Is.EqualTo(11.95d).Within(.00001));
-        Assert.That(close.Status, Is.EqualTo("RISCO_TIMEOUT"));
+        var later = Predict(8, 350);
+        Assert.That(later.MarginMinutes, Is.Null);
+        Assert.That(later.Status, Is.EqualTo("ETA_INFORMATIVA_GITHUB_CONTROLA_TIMEOUT"));
 
-        var late = Predict(8, 10);
-        Assert.That(late.Status, Is.EqualTo("RISCO_TIMEOUT"));
-        Assert.That(late.MarginMinutes, Is.LessThan(0d));
-
-        var finished = Predict(324, 330);
+        var finished = Predict(324, 350);
         Assert.That(finished.EtaMinutes, Is.Zero);
-        Assert.That(finished.Status, Is.EqualTo("DENTRO_DA_PREVISAO"));
+        Assert.That(finished.Status, Is.EqualTo("CONCLUIDO"));
 
-        var expired = Predict(100, 340);
-        Assert.That(expired.Status, Is.EqualTo("PRAZO_EXCEDIDO"));
-        Assert.That(Predict(100, 350).Status, Is.EqualTo("PRAZO_EXCEDIDO"));
         Assert.That((Action)(() => Predict(325, 12)), Throws.TypeOf<ArgumentOutOfRangeException>());
         Assert.That((Action)(() => V9NestedCalibrationCoordinator.ForecastPhysicalProgress(
-            8, 324, start, start.AddMinutes(-1), deadline)),
-            Throws.TypeOf<ArgumentOutOfRangeException>());
+            8, 324, start, start.AddMinutes(-1))), Throws.TypeOf<ArgumentOutOfRangeException>());
     }
 
     [Test]

@@ -149,7 +149,7 @@ class V9FourName100kTests(unittest.TestCase):
         self.assertNotIn("  push:", workflow)
         self.assertNotIn("  pull_request:", workflow)
         self.assertNotIn("  schedule:", workflow)
-        self.assertIn("timeout-minutes:", workflow)
+        self.assertNotIn("timeout-minutes:", workflow)
         self.assertIn("Remove disposable SQL even after failure", workflow)
 
     def test_manual_workflow_exposes_opt_in_replay_timing_without_relaxing_guards(self):
@@ -163,21 +163,24 @@ class V9FourName100kTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
 
 
-    def test_324_timeout_matches_progress_margin_and_preserves_validation_budget(self):
+    def test_physical_job_and_audit_are_distinct_without_local_deadlines(self):
         workflow = (ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml").read_text()
         coordinator = (ROOT / "src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs").read_text()
-        physical = workflow.split("- name: Run physical V9 CSharp on 324 V3-only four-name hypotheses", 1)[1].split("- name: Audit all 324", 1)[0]
-        self.assertIn("timeout-minutes: 340", physical)
-        self.assertIn("timeout-minutes: 360", workflow)
-        self.assertIn("timeout-minutes: 330", workflow)
-        self.assertIn("stepStartUtc.AddMinutes(340)", coordinator)
-        self.assertIn("DateTimeOffset.UtcNow.AddMinutes(340)", coordinator)
-        self.assertNotIn("AddMinutes(315)", coordinator)
-        self.assertEqual(physical.count("timeout-minutes: 340"), 1)
-        self.assertNotIn("timeout-minutes: 315", physical)
-        self.assertIn("physicalDeadlineUtc - nowUtc", coordinator)
+        train = workflow.split("\n  physical-100k:\n", 1)[1].split("\n  audit-100k:\n", 1)[0]
+        audit = workflow.split("\n  audit-100k:\n", 1)[1].split("\n  validation-100k:\n", 1)[0]
+        self.assertNotIn("timeout-minutes:", workflow)
+        self.assertIn("Run physical V9 CSharp on 324", train)
+        self.assertIn("v9-v3-four-name-100k-preaudit.py prepare", train)
+        self.assertIn("v9-v3-four-name-100k-preaudit.py verify", audit)
+        self.assertIn("v9-v3-four-name-100k-audit.py", audit)
+        self.assertNotIn("python3 scripts/v9-v3-four-name-100k-audit.py \\", train)
+        self.assertIn("needs: audit-100k", workflow)
         self.assertIn("V9_PHYSICAL_STEP_START_UTC", workflow)
-        self.assertIn("export V9_PHYSICAL_STEP_START_UTC=", physical)
+        self.assertIn("export V9_PHYSICAL_STEP_START_UTC=", train)
+        self.assertNotIn("physicalDeadlineUtc", coordinator)
+        self.assertNotIn("AddMinutes(340)", coordinator)
+        self.assertIn("ETA_INFORMATIVA_GITHUB_CONTROLA_TIMEOUT", coordinator)
+        self.assertIn("elapsedMinutes / completed * (total - completed)", coordinator)
         self.assertNotIn("margem_etapa_305min=", coordinator)
         self.assertNotIn("ETA_min=", coordinator)
         self.assertIn("security_preflight_approved == true", workflow)

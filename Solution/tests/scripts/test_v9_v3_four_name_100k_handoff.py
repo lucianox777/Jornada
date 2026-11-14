@@ -86,20 +86,25 @@ class V9FourNameHandoffTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "audit identity"):
                 handoff.prepare(root, stage, SHA, RUN)
 
-    def test_workflow_has_separate_fresh_runner_and_pinned_provenance(self):
+    def test_workflow_has_independent_audit_and_pinned_provenance(self):
         workflow = (ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml").read_text()
-        train, validation = workflow.split("\n  validation-100k:\n", 1)
-        self.assertIn("  physical-100k:", train)
-        self.assertIn("has_finalists: ${{ steps.finalists.outputs.has_finalists }}", train)
+        train = workflow.split("\n  physical-100k:\n", 1)[1].split("\n  audit-100k:\n", 1)[0]
+        audit = workflow.split("\n  audit-100k:\n", 1)[1].split("\n  validation-100k:\n", 1)[0]
+        validation = workflow.split("\n  validation-100k:\n", 1)[1].split("\n  test-100k:\n", 1)[0]
+        self.assertIn("v9-v3-four-name-100k-preaudit.py prepare", train)
+        self.assertIn("v9-v3-four-name-100k-preaudit.py verify", audit)
+        self.assertIn("has_finalists: ${{ steps.finalists.outputs.has_finalists }}", audit)
         self.assertNotIn("--v9-validate-finalists", train)
-        self.assertIn("v9-v3-four-name-100k-handoff.py prepare", train)
-        self.assertIn("if-no-files-found: error", train)
-        aggregate = train.split("- name: Upload aggregated evidence only, never corpus, raw TEST or credentials", 1)[1]
-        self.assertNotIn("results/frozen-finalists/*.selection.json", aggregate)
-        self.assertNotIn("results/frozen-finalists/*.fitted.json", aggregate)
-        self.assertIn("needs: physical-100k", validation)
-        self.assertIn("needs.physical-100k.result == 'success'", validation)
-        self.assertIn("needs.physical-100k.outputs.has_finalists == 'true'", validation)
+        self.assertNotIn("--v9-calibrate", audit)
+        self.assertIn("v9-v3-four-name-100k-handoff.py prepare", audit)
+        self.assertIn("if-no-files-found: error", audit)
+        diagnostic = train.split("- name: Upload TRAIN diagnostic evidence, explicitly not audited", 1)[1]
+        self.assertNotIn("results/frozen-finalists/*.selection.json", diagnostic)
+        self.assertNotIn("results/frozen-finalists/*.fitted.json", diagnostic)
+        self.assertIn("needs: audit-100k", validation)
+        self.assertIn("needs.audit-100k.result == 'success'", validation)
+        self.assertIn("needs.audit-100k.outputs.has_finalists == 'true'", validation)
+        self.assertIn('test "$GITHUB_RUN_ATTEMPT" = "1"', audit)
         self.assertIn('test "$GITHUB_RUN_ATTEMPT" = "1"', validation)
         self.assertIn('test "$EXACT_SHA" = "$GITHUB_SHA"', validation)
         self.assertIn('test "$GITHUB_REF" = "refs/heads/master"', validation)
@@ -110,8 +115,7 @@ class V9FourNameHandoffTests(unittest.TestCase):
         self.assertNotIn("v9-tf-prepare-pin.sh", validation)
         self.assertIn("--v9-validate-finalists", validation)
         self.assertIn("--seed 20261112001", validation)
-        self.assertIn("timeout-minutes: 360", validation)
-        self.assertIn("timeout-minutes: 330", validation)
+        self.assertNotIn("timeout-minutes:", workflow)
         self.assertIn("Remove VALIDATION disposable SQL even after failure", validation)
         self.assertNotIn("people-100k/observacoes.csv", validation)
 
