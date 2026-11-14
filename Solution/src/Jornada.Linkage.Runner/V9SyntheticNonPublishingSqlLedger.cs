@@ -101,6 +101,9 @@ public static class V9SyntheticNonPublishingSqlLedger
         var replay = pinned.ReplayTest(rows, physicalSqlEdges);
         static string Digest(string text) => Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
+        var edgesDigest = Digest(string.Concat(physicalSqlEdges
+            .OrderBy(x => x.A).ThenBy(x => x.B)
+            .Select(x => FormattableString.Invariant($"{x.A}:{x.B}\n"))));
         var decisionDigest = Digest(JsonSerializer.Serialize(replay.Decisions));
         var groupDigest = Digest(string.Join("\n", replay.IdentityByObservation
             .OrderBy(x => x.Key)
@@ -113,6 +116,7 @@ public static class V9SyntheticNonPublishingSqlLedger
             && ProbabilisticLinkageBatchRunner.IsNoCandidateReason(x.Decision.Motivo));
         if (replay.Decisions.Count != rows.Length
             || replay.IdentityByObservation.Count != rows.Length
+            || edgesDigest != proof.CandidateGraphSha256
             || decisionDigest != proof.DecisionsSha256
             || groupDigest != proof.IdentityGroupsSha256
             || resolved != proof.Resolved || unresolved != proof.Unresolved
