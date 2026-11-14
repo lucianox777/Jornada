@@ -53,8 +53,8 @@ class StandaloneTestContract(unittest.TestCase):
         validation,test=source.split("\n  validation-100k:\n",1)[1].split("\n  test-100k:\n",1)
         test=test.split("\n  e2e-closeout:\n",1)[0]
         self.assertIn("selectedValidationSnapshotSha256",validation)
-        self.assertIn("test-winner-only/*.fitted.json",validation)
-        self.assertIn("v9-tf4-test-one-winner-",test)
+        self.assertIn("validated-operational-model/*.operational.json",validation)
+        self.assertIn("v9-tf4-validated-operational-model-",test)
         self.assertIn("--v9-independent-test",test)
         self.assertIn("JORNADA_V9_TEST_CORPUS_DIR:",test)
         self.assertIn("V9_TF4_TEST_PRIVATE_KEY_B64",test)
@@ -70,11 +70,11 @@ class StandaloneTestContract(unittest.TestCase):
             self.assertNotIn(bad,test)
         self.assertIn('test "$GITHUB_RUN_ATTEMPT" = "1"',test)
 
-    def test_validation_handoff_carries_only_fitted_winner(self):
+    def test_validation_handoff_carries_only_final_operational_winner_json(self):
         validation=WF.read_text().split("\n  validation-100k:\n",1)[1].split("\n  test-100k:\n",1)[0]
-        stage=validation.split("name: Upload ONLY the frozen winner model",1)[1].split(
+        stage=validation.split("name: Upload final VALIDATION operational JSON",1)[1].split(
             "- name: Upload independent VALIDATION aggregate result",1)[0]
-        self.assertIn("path: Solution/.local/v9-100k-technical/test-winner-only/*.fitted.json",stage)
+        self.assertIn("path: Solution/.local/v9-100k-technical/validation-results/validated-operational-model/*.operational.json",stage)
         self.assertNotIn("validation-results/*.json",stage)
         self.assertNotIn("selection.json",stage)
         self.assertNotIn("plan.json",stage)
