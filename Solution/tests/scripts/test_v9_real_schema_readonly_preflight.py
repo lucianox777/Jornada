@@ -68,5 +68,26 @@ class V9RealSchemaPreflightContractTests(unittest.TestCase):
             self.assertIn(token, doc)
 
 
+    def test_real_schema_ci_uses_canonical_ddl_and_rejects_both_negative_cases(self):
+        workflow = (SOLUTION.parent / ".github" / "workflows" /
+                    "v9-real-schema-preflight.yml").read_text(encoding="utf-8")
+        for expected in (
+            "pull_request:", "Jornada_Fase1_v3.70.sql",
+            "20261113_V9_Operational_Frozen_Model_Conversion.sql",
+            "20261114_V9_Operational_Schema_Readonly_Preflight.sql",
+            "v9-tf-start-disposable-sql.sh", "CREATE DATABASE JornadaHarness",
+            "grep -q '52620'", "grep -q '52621'",
+            "SCHEMA_PREFLIGHT_PASS_NOT_RUNTIME_PARITY",
+            "runasync=NOT_EXECUTED", "gold_serving=NOT_MEASURED",
+            "independent_test_100k=BLOCKED",
+            "publication_authorized=false", "docker rm -f",
+            "if: always()", "contents: read"):
+            self.assertIn(expected, workflow)
+        for forbidden in (
+            "v9-v3-four-name-100k", "test_required: true",
+            "prepare_sealed_test", "JornadaLocal"):
+            self.assertNotIn(forbidden, workflow)
+
+
 if __name__ == "__main__":
     unittest.main()
