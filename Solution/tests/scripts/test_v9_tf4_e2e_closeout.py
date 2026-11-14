@@ -24,6 +24,8 @@ def validation_doc(winner=W):
         "status": ("VALIDATION_SCIENTIFIC_WINNER_SELECTED_NOT_CERTIFIED"
                    if winner else "NO_FINALIST_PASSES_DECLARED_SCIENTIFIC_GATES"),
         "selectedValidationSnapshotSha256": winner,
+        "selectedValidationOperationalModelFileName": winner + ".operational.json" if winner else None,
+        "selectedValidationOperationalModelContract": "JORNADA_V9_OPERATIONAL_SQL_MODEL_V1" if winner else None,
         "selectionEnvelopeSha256": E,
         "validationResultSha256": "d" * 64,
         "schema": "V9_VALIDATION_E2E_STATUS_V1",
@@ -38,6 +40,9 @@ def test_doc(full_parity=False):
     return {
         "schema": "V9_TF4_INDEPENDENT_TEST_ONE_WINNER_PHYSICAL_V1",
         "winnerSnapshotSha256": W,
+        "validatedOperationalModelFileName": W + ".operational.json",
+        "validatedOperationalJsonSchema": "V9_FITTED_SNAPSHOT_V3",
+        "sameOperationalJsonBytesAsProductionSideSqlPayload": True,
         "operationalModelContract": "JORNADA_V9_OPERATIONAL_SQL_MODEL_V1",
         "operationalModelByteExactRoundTrip": True,
         "operationalModelActive": False,
@@ -117,6 +122,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
             ("selectionEnvelopeSha256", "bad"),
             ("validationResultSha256", "bad"),
             ("selectedValidationSnapshotSha256", "bad"),
+            ("selectedValidationOperationalModelFileName", "wrong.json"),
         ]:
             with self.subTest(field=field):
                 r = validation_doc()
