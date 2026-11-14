@@ -1309,8 +1309,38 @@ public sealed class V9FittedSnapshotTests
         // differently-sized batches. Every size MUST recover the same complete
         // cross-batch graph and call FS/Resolve once globally; no per-page groups.
         // The legacy production RunAsync is not invoked and not certified here.
+        // The real production Runner class now exposes a distinctly named,
+        // opt-in read-only V9 test rehearsal. All unrelated publishing services
+        // are deliberately unavailable: any accidental legacy RunAsync access
+        // makes this SQL smoke fail rather than publish.
+        var productionRunner = new ProbabilisticLinkageBatchRunner(
+            null!, new Jornada.Operational.Sql.OperationalSqlAdapter(connectionString),
+            null!, null!, null!, null!, null!, null!, null!, null!, null!);
         foreach (var size in new[] { 1, 2, 3, 4 })
         {
+            var summary = await productionRunner.RehearseV9NonPublishingSyntheticTestAsync(
+                receipt.ModelId, receipt.SourceSnapshotSha256,
+                cohort.Reverse().ToArray(), physicalSqlEdges, size, CancellationToken.None);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(summary.PinnedModelId, Is.EqualTo(receipt.ModelId));
+                Assert.That(summary.WinnerSha256, Is.EqualTo(receipt.SourceSnapshotSha256));
+                Assert.That(summary.ExpectedTerminalStatus,
+                    Is.EqualTo(LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO));
+                Assert.That(summary.Eligible, Is.EqualTo(cohort.Length));
+                Assert.That(summary.Evaluated, Is.EqualTo(cohort.Length));
+                Assert.That(summary.Resolved + summary.Unresolved + summary.Conflicts,
+                    Is.EqualTo(cohort.Length));
+                Assert.That(summary.NoCandidateInBlock, Is.LessThanOrEqualTo(summary.Unresolved));
+                Assert.That(summary.BatchSize, Is.EqualTo(size));
+                Assert.That(summary.BatchCount, Is.EqualTo((cohort.Length + size - 1) / size));
+                Assert.That(summary.CandidateGraphSha256, Is.EqualTo(parity.CanonicalEdgesSha256));
+                Assert.That(summary.DecisionsSha256, Is.EqualTo(parity.DecisionsSha256));
+                Assert.That(summary.IdentityGroupsSha256, Is.EqualTo(parity.IdentityGroupsSha256));
+                Assert.That(summary.PersistedRun, Is.False);
+                Assert.That(summary.Published, Is.False);
+                Assert.That(summary.ProductionBatchPipelineCertified, Is.False);
+            }));
             // Exercise the whole read-only Runner-side entry: SQL pinned winner
             // -> operational SQL batches -> global frozen scorer/Resolve.
             var batched = await V9ReadOnlyTestBatchRunner.RunAsync(
@@ -1327,6 +1357,22 @@ public sealed class V9FittedSnapshotTests
                 Assert.That(batched.OperationalSqlEdgeCount, Is.EqualTo(completeEdges.Length));
                 Assert.That(batched.ProductionBatchPipelineCertified, Is.False);
             }));
+        }
+        // Wrong SHA must fail even when invoked from the real Runner class.
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await productionRunner.RehearseV9NonPublishingSyntheticTestAsync(
+                receipt.ModelId, new string('a', 64),
+                cohort, physicalSqlEdges, 2, CancellationToken.None)));
+        // The fixture has only the operational V9 model table. No run/result
+        // schema exists, proving the rehearsal did not depend on it.
+        await using (var noRuns = new Microsoft.Data.SqlClient.SqlCommand(
+            "SELECT OBJECT_ID(N'identidade.linkage_run'), OBJECT_ID(N'identidade.linkage_resultado');",
+            connection))
+        await using (var noRunsReader = await noRuns.ExecuteReaderAsync())
+        {
+            Assert.That(await noRunsReader.ReadAsync(), Is.True);
+            Assert.That(noRunsReader.IsDBNull(0), Is.True);
+            Assert.That(noRunsReader.IsDBNull(1), Is.True);
         }
         Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             await V9ReadOnlyTestBatchRunner.RunAsync(
