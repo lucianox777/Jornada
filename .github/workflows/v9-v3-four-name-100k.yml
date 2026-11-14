@@ -338,8 +338,8 @@ jobs:
             Solution/.local/v9-100k-technical/results/calibration-runtime-scheduling.json
             Solution/.local/v9-100k-technical/results/selection-reference.json
             Solution/.local/v9-100k-technical/results/campaign-scientific-status.json
-            # Frozen envelope/snapshots are in the distinct immutable validation-handoff artifact,
-            # not duplicated in aggregate technical evidence (large files can exceed 2 GiB).
+            # Frozen envelope/snapshots are transferred separately for AUDIT;
+            # never include them in diagnostic-only artifact uploads.
       - name: Dispose temporary TRAIN bases after mandatory stages
         if: always()
         # Cleanup must also run when checkout never happened.
@@ -387,7 +387,7 @@ jobs:
           test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
           test "$GITHUB_RUN_ATTEMPT" = "1"
           test "${{ inputs.security_preflight_approved }}" = "true"
-          test "${{ needs.audit-100k.result }}" = "success"
+          test "${{ needs.physical-100k.result }}" = "success"
           test "$DOTNET_ENVIRONMENT" = "DEV"
           test "$JORNADA_RUNTIME_MODE" = "DEV"
       - name: Download physical evidence and frozen snapshots, not a scientific PASS
