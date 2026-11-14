@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned v4
         with:
           persist-credentials: false
       - name: Verify static guards and immutable source
@@ -110,7 +110,7 @@ jobs:
           echo "PASS: real-schema DDL preflight only; no RunAsync, no Gold/Serving evidence, TEST blocked"
       - name: Store sanitized structural-only receipt
         if: success()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # pinned
         with:
           name: v9-real-schema-preflight-readonly
           path: ${{ runner.temp }}/v9-real-schema-proof/receipt.txt

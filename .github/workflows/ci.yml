@@ -42,7 +42,7 @@ jobs:
       run_full: ${{ steps.classify.outputs.run_full }}
       run_dt10: ${{ steps.classify.outputs.run_dt10 }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -67,7 +67,7 @@ jobs:
       - run: python3 -m unittest Solution/tests/scripts/test_ci_impact_classifier.py Solution/tests/scripts/test_dt12_branch_cleanup.py Solution/tests/scripts/test_dt12_merged_branch_cleanup.py Solution/tests/scripts/test_ci_required_gates.py Solution/tests/scripts/test_ci_watchdog.py Solution/tests/scripts/test_ci_run_profile.py Solution/tests/scripts/test_ci_built_binary_gate.py Solution/tests/scripts/test_ci_failure_checkpoint.py Solution/tests/scripts/test_nuget_product_inventory.py
       - name: Verify lock-hashed NuGet cache cannot bypass required gates
         run: python3 Solution/scripts/test-ci-locked-nuget-cache-contract.py
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-impact
           path: impact.json
@@ -82,10 +82,10 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
@@ -104,7 +104,7 @@ jobs:
           dotnet restore Jornada.sln --locked-mode
           find . -name packages.lock.json -not -path './.local/*' -print0 | sort -z | tar --null -T - -czf .local/nuget-lock/packages-locks.tar.gz
       - name: Upload NuGet lock evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nuget-lockfiles
           path: |
@@ -124,19 +124,19 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
           # Locked restore and the dependency-lock artifact remain mandatory.
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-lockfiles
           path: Solution/.local/nuget-lock-input
@@ -275,19 +275,19 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
           # Locked restore and the dependency-lock artifact remain mandatory.
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-lockfiles
           path: Solution/.local/nuget-lock-input
@@ -340,7 +340,7 @@ jobs:
           python3 scripts/dt05-synthetic-cost-evidence-gate.py .local/test-evidence/unit/dt05-synthetic-cost.json
       - name: Upload unit test evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: unit-test-evidence
           path: Solution/.local/test-evidence/unit
@@ -357,7 +357,7 @@ jobs:
             --forbid-skipped --minimum-tests 19 --summary .local/test-evidence/openapi-runtime/summary.json
       - name: Upload OpenAPI runtime evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: openapi-runtime-evidence
           path: Solution/.local/test-evidence/openapi-runtime
@@ -377,7 +377,7 @@ jobs:
           python3 scripts/generate-sbom.py --input .local/sbom/dotnet-packages.json --output .local/sbom/sbom.cdx.json
           python3 -m json.tool .local/sbom/sbom.cdx.json >/dev/null
       - name: Upload CycloneDX SBOM
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: sbom-cyclonedx
           path: Solution/.local/sbom/sbom.cdx.json
@@ -408,17 +408,17 @@ jobs:
             exit 1
           }
       - name: Download same-run unit/coverage evidence
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: unit-test-evidence
           path: unit-evidence
       - name: Download same-run OpenAPI evidence
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: openapi-runtime-evidence
           path: openapi-evidence
       - name: Download same-run SBOM
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: sbom-cyclonedx
           path: sbom-evidence
@@ -442,17 +442,17 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
           # Locked restore and the dependency-lock artifact remain mandatory.
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-lockfiles
           path: Solution/.local/nuget-lock-input
@@ -463,7 +463,7 @@ jobs:
       - name: Prove deterministic double build
         run: ./scripts/deterministic-build-gate.sh . .local/deterministic-build
       - name: Upload deterministic build evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: deterministic-build-evidence
           path: Solution/.local/deterministic-build
@@ -474,7 +474,7 @@ jobs:
       - name: Package SHA-provenanced Release files for same-run SQL reuse
         run: python3 scripts/ci-built-binary-gate.py produce
       - name: Upload exact-run Release binary evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-deterministic-release-binaries
           path: |
@@ -496,17 +496,17 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
           # Locked restore and the dependency-lock artifact remain mandatory.
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-lockfiles
           path: Solution/.local/nuget-lock-input
@@ -581,7 +581,7 @@ jobs:
           python3 scripts/vulnerability-evidence-gate.py .local/security/nuget-vulnerabilities.json --summary .local/security/vulnerability-summary.json
       - name: Upload security-guards evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-guards-evidence
           path: Solution/.local/security
@@ -602,17 +602,17 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
           # Locked restore and the dependency-lock artifact remain mandatory.
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-lockfiles
           path: Solution/.local/nuget-lock-input
@@ -622,7 +622,7 @@ jobs:
           dotnet restore Jornada.sln --locked-mode
           dotnet restore tests/Jornada.Integration.Tests/Jornada.Integration.Tests.csproj --locked-mode
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           languages: csharp
           build-mode: manual
@@ -630,7 +630,7 @@ jobs:
       - name: Build for CodeQL
         run: dotnet build Jornada.sln --configuration Release --no-restore
       - name: Analyze with CodeQL
-        uses: github/codeql-action/analyze@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
+        uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4.39.3
         with:
           category: /language:csharp
           output: Solution/.local/security/codeql
@@ -641,7 +641,7 @@ jobs:
           python3 scripts/sarif-security-gate.py --self-test
       - name: Upload security-codeql evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-codeql-evidence
           path: Solution/.local/security
@@ -672,12 +672,12 @@ jobs:
             exit 1
           }
       - name: Fetch same-run guards evidence
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: security-guards-evidence
           path: security-evidence/guards
       - name: Fetch same-run CodeQL SARIF evidence
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: security-codeql-evidence
           path: security-evidence/codeql
@@ -710,7 +710,7 @@ jobs:
           cp -a security-evidence/guards/. Solution/.local/security/
           cp -a security-evidence/codeql/. Solution/.local/security/
       - name: Upload combined security-analysis evidence (stable original artifact)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: security-analysis-evidence
           path: Solution/.local/security
@@ -742,17 +742,17 @@ jobs:
       JORNADA_SQL_SA_PASSWORD: 'Jornada_${{ github.run_id }}!Sql'
       JORNADA_TEST_SQL_CONNECTION: 'Server=localhost,1433;Database=JornadaE2E;User Id=sa;Password=Jornada_${{ github.run_id }}!Sql;TrustServerCertificate=true;Encrypt=false'
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
           # Locked restore and the dependency-lock artifact remain mandatory.
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-lockfiles
           path: Solution/.local/nuget-lock-input
@@ -763,7 +763,7 @@ jobs:
       # Built on the SAME checkout SHA by deterministic-build (two builds compared).
       # GitHub artifact belongs to the current workflow run, never another run/cache.
       - name: Download exact-run verified Release binaries
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: ci-deterministic-release-binaries
           path: Solution/.local/compiled-release
@@ -820,7 +820,7 @@ jobs:
             --forbid-skipped --minimum-tests 1 --summary .local/test-evidence/integration/summary.json
       - name: Upload integration test evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: integration-test-evidence
           path: Solution/.local/test-evidence/integration
@@ -837,7 +837,7 @@ jobs:
             --forbid-skipped --minimum-tests 2 --summary .local/fault-injection/summary.json
       - name: Upload fault-injection evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: fault-injection-evidence
           path: Solution/.local/fault-injection
@@ -885,17 +885,17 @@ jobs:
       LinkageParameters__ReadCommandTimeoutSeconds: '300'
       LinkageParameters__BlockingSearch__MinimumTrueMatchRecall: '0.95'
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
           # Locked restore and the dependency-lock artifact remain mandatory.
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-lockfiles
           path: Solution/.local/nuget-lock-input
@@ -935,7 +935,7 @@ jobs:
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_PAIRED=4000 SCALE_PENDING=1000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 SCALE_BIRTH_SHIFT_MODULO=29 -i database/Jornada_Dev_SyntheticScale.sql
           SQLCMDPASSWORD="$JORNADA_SQL_SA_PASSWORD" docker exec -w /var/opt/mssql/data/jornada -e SQLCMDPASSWORD "$CID" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -v SCALE_PEOPLE=5000 SCALE_SEED=355 SCALE_COLLISION_MODULO=37 -i database/Jornada_Dev_SyntheticScale_Diversify.sql
       - name: Upload portable IBGE nominal u artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ibge-nominal-u-portable
           path: Solution/.local/ibge-u-portable/ibge-nominal-u-portable-v1.json
@@ -1031,7 +1031,7 @@ jobs:
           },sort_keys=True))
           PY
       - name: Upload E2 demographic-primary corpus evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2-demographic-primary-corpus
           path: |
@@ -1064,7 +1064,7 @@ jobs:
             --seed-dir 44 .local/v9-synthetic-seed-44 \
             --output .local/v9-synthetic-multiseed-summary.json
       - name: Upload independent-seed V9 FS synthetic evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: v9-synthetic-multiseed-fs-proxy
           path: |
@@ -2042,7 +2042,7 @@ jobs:
       - name: Independently verify all three physical prefix3 SQL passes
         run: python3 scripts/v9-prefix3-pairwise-gate.py
       - name: Upload physical SQL active-ruleset and C1 wrong-link evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: v9-physical-sql-active-candidate-wrong-link-30k
           path: |
@@ -2084,7 +2084,7 @@ jobs:
         run: ./scripts/linkage-evaluation-smoke.sh
       - name: Upload linkage evaluation smoke evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: linkage-evaluation-smoke
           path: Solution/.local/linkage-evaluation-smoke
@@ -2101,10 +2101,10 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
@@ -2145,7 +2145,7 @@ jobs:
             bash scripts/dt06-upgrade-acceptance.sh
       - name: Upload DDL upgrade evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ddl-upgrade-evidence
           path: |
@@ -2167,21 +2167,21 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
           # Locked restore and the dependency-lock artifact remain mandatory.
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-lockfiles
           path: Solution/.local/nuget-lock-input
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.11'
       - name: Run DT-05 Python tool unit tests
@@ -2201,7 +2201,7 @@ jobs:
         run: python3 scripts/jornada-runner.py --profile e2e --allow-reset e2e
       - name: Upload E2E evidence and logs
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: local-e2e-evidence
           path: Solution/.local/e2e
@@ -2221,17 +2221,17 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
           # Locked restore and the dependency-lock artifact remain mandatory.
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-lockfiles
           path: Solution/.local/nuget-lock-input
@@ -2250,7 +2250,7 @@ jobs:
         run: bash scripts/e2e-private-sql-bootstrap-runtime.sh
       - name: Upload private E2E evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: e2e-private-sql-evidence
           path: Solution/.local/e2e
@@ -2274,11 +2274,11 @@ jobs:
         run: |
           test "$ZIP_RESULT" = success
           test "$PRIVATE_RESULT" = success
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: local-e2e-evidence
           path: e2e-console-evidence
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: e2e-private-sql-evidence
           path: e2e-private-evidence
@@ -2297,17 +2297,17 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
           # Locked restore and the dependency-lock artifact remain mandatory.
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-lockfiles
           path: Solution/.local/nuget-lock-input
@@ -2319,7 +2319,7 @@ jobs:
         run: ./scripts/local-backup-restore-drill.sh
       - name: Upload restore evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: bronze-restore-drill
           path: Solution/.local/backup-drill
@@ -2339,17 +2339,17 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           # Packages are cached by the hash of every committed project lockfile.
           # Locked restore and the dependency-lock artifact remain mandatory.
           cache: true
           cache-dependency-path: 'Solution/**/packages.lock.json'
-      - uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: nuget-lockfiles
           path: Solution/.local/nuget-lock-input
@@ -2362,7 +2362,7 @@ jobs:
         run: ./scripts/local-scale.sh "${SCALE_PROFILE:-smoke}"
       - name: Upload scale evidence
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: scale-harness-${{ github.ref_type == 'tag' && 'smoke' || inputs.scale_profile }}
           path: Solution/.local/performance
@@ -2395,7 +2395,7 @@ jobs:
         ports:
           - 1433:1433
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -2472,7 +2472,7 @@ jobs:
           --expected-tag "${JORNADA_RC_TAG}"
           --require-clean
       - name: Download exact-run prerequisite evidence
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: '*'
           path: Solution/.local/rc-evidence-input
@@ -2598,7 +2598,7 @@ jobs:
           Path("Solution/.local/rc-evidence/RC_NOTES.md").write_text(text, encoding="utf-8")
           PY
       - name: Upload RC evidence as Actions backup
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: technical-rc-evidence
           path: |
@@ -2622,7 +2622,7 @@ jobs:
       contents: write
     steps:
       - name: Download attested technical RC evidence
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: technical-rc-evidence
           path: Solution/.local/rc-publish
@@ -2664,13 +2664,13 @@ jobs:
       id-token: write
       attestations: write
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
           fetch-tags: true
       - name: Download all prerequisite release evidence
-        uses: actions/download-artifact@95815c38cf2ff2164869cbab79da8d1f422bc89e # v4.2.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: '*'
           path: Solution/.local/release-evidence-input
@@ -2754,7 +2754,7 @@ jobs:
       - name: Persist Sigstore attestation bundle as release evidence
         run: cp "${{ steps.attest-release.outputs.bundle-path }}" Solution/.local/release-evidence/ATTESTATION.sigstore.json
       - name: Upload consolidated release evidence
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-evidence
           path: Solution/.local/release-evidence
@@ -2762,7 +2762,7 @@ jobs:
           include-hidden-files: true
           retention-days: 365
       - name: Upload release source provenance
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-source-provenance
           path: |
