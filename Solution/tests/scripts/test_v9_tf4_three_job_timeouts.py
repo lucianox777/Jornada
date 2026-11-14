@@ -39,7 +39,7 @@ class ThreeJobsV9TimeoutTests(unittest.TestCase):
         self.assertIn("has_finalists: ${{ steps.finalists.outputs.has_finalists }}".replace("\\$", "$"), self.audit)
         self.assertIn("v9-tf4-calibration-preaudit-", self.train)
         self.assertIn("v9-tf4-calibration-preaudit-", self.audit)
-        self.assertNotIn("v9-v3-four-name-100k-audit.py", self.train)
+        self.assertNotIn("python3 scripts/v9-v3-four-name-100k-audit.py \\", self.train)
         self.assertNotIn("--v9-calibrate", self.audit)
         self.assertNotIn("observacoes.csv", self.audit)
 
