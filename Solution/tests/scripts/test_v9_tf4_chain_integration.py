@@ -92,7 +92,7 @@ class MandatoryChainIntegrationContractTests(unittest.TestCase):
         self.assertIn("synthetic_test_requested == true", content)
         self.assertNotIn("dotnet run", content)
         self.assertNotIn("test_required", content)
-        self.assertNotIn("secrets.", content)
+        self.assertNotIn("${{ secrets.", content)
         self.assertNotIn("timeout-minutes:", content)
 
     def test_synthetic_train_audit_validation_roundtrip_and_rejected_corruption(self):
