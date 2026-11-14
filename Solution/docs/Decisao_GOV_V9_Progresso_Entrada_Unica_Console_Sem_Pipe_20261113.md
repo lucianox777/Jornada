@@ -1,6 +1,6 @@
 # GOV-V9-PROGRESS-ENTRADA-UNICA-SEM-PIPE-20261113 — uma entrada numerada do GitHub por hipótese
 
-**Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo), esclarecimento com captura de tela de log anterior. **Estado:** DECIDIDO pelo PO; IMPLEMENTAÇÃO PROPOSTA em branch/PR, sujeita aos checks e squash merge. **Política:** GOV-DOC-01.
+**Autoridade:** Product Owner, 13/11/2026 (America/Sao_Paulo), esclarecimento com captura de tela de log anterior. **Estado:** DECIDIDO e IMPLEMENTADO/INTEGRADO à master pela [PR #1504](https://github.com/lucianox777/Jornada/pull/1504), squash SHA `ba64560669929be42062b0c383202a2dbd0a9383`; [CI rápida #43546556584](https://github.com/lucianox777/Jornada/actions/runs/43546556584) 3/3 SUCCESS. Validação visual em nova campanha 100k e ganho de desempenho físico NÃO MEDIDOS. **Política:** GOV-DOC-01.
 
 ## Contexto, evidência e interpretação
 
@@ -38,4 +38,8 @@ Exemplo ilustrativo, não evidência de execução. Em um smartphone, a linha ac
 
 **Aceite:** prova estática/compilação de uma linha física por hipótese, sem pipes e sem `\\n` embutidos; campos novos e percentual; replay diagnóstico opt-in inline; um lock/WriteLine/Flush em progresso normal; contador consistente inclusive em rejeições; gate rápido obrigatório (`unit-runtime`, `security-guards`, `deterministic-build`) 3/3 verde; **squash merge**. Prova visual definitiva em GitHub Actions é futura, após campanha explicitamente disparada pelo PO; não alegar já validado em execução física.
 
-**Rastreabilidade:** branch `fix/v9-progress-single-github-row-no-pipe-20261113`; screenshot informado pelo PO na discussão em 13/11/2026; [PR #1497 histórica](https://github.com/lucianox777/Jornada/pull/1497); [campanha #43544864254](https://github.com/lucianox777/Jornada/actions/runs/43544864254). Acrescentar número da nova PR e recibo de integração após checks/merge. GOV-DOC-01.
+**Rastreabilidade:** branch `fix/v9-progress-single-github-row-no-pipe-20261113`; screenshot informado pelo PO na discussão em 13/11/2026; [PR #1497 histórica](https://github.com/lucianox777/Jornada/pull/1497); [campanha #43544864254](https://github.com/lucianox777/Jornada/actions/runs/43544864254). [PR #1504](https://github.com/lucianox777/Jornada/pull/1504) e [CI rápida #43546556584](https://github.com/lucianox777/Jornada/actions/runs/43546556584). GOV-DOC-01.
+
+## Recibo de integração — 13/11/2026
+
+A [PR #1504](https://github.com/lucianox777/Jornada/pull/1504) foi integrada à `master` por **squash merge** no commit `ba64560669929be42062b0c383202a2dbd0a9383`. A [CI obrigatória #43546556584](https://github.com/lucianox777/Jornada/actions/runs/43546556584) concluiu **unit-runtime, security-guards e deterministic-build: 3/3 SUCCESS** no HEAD da PR `b1813c3777b837a795e0e5cc93ab7e9ff12c63c2`; o [preflight offline #43546556605](https://github.com/lucianox777/Jornada/actions/runs/43546556605) também foi aprovado. A integração é de **formato do log**, não medição de desempenho, certificação estatística ou TEST. A campanha #43544864254 usa o SHA original `61030c07` e **não** herda alteração visual; um futuro run só terá o novo formato se explicitamente iniciado pelo PO com SHA atualizado da `master`. GOV-DOC-01.
