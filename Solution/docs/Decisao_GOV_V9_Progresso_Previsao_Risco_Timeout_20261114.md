@@ -1,6 +1,6 @@
 # GOV-V9-PROGRESS-PREVISAO-RISCO-TIMEOUT-20261114 — previsão operacional para 324 hipóteses
 
-**Autoridade:** Product Owner, 14/11/2026 (America/Sao_Paulo), aprovação explícita: “Pode implementar agora isso.” **Estado:** DECIDIDO; implementação em branch/PR, pendente de CI e merge. **Política:** GOV-DOC-01.
+**Autoridade:** Product Owner, 14/11/2026 (America/Sao_Paulo), aprovação explícita: “Pode implementar agora isso.” **Estado:** DECIDIDO / IMPLEMENTADO / INTEGRADO à `master` na [PR #1506](https://github.com/lucianox777/Jornada/pull/1506), squash SHA `fe6b49a6a2e772b1da149ebab16944cca009f0bd`. [CI rápida #43550125833](https://github.com/lucianox777/Jornada/actions/runs/43550125833): 3/3 SUCCESS (`unit-runtime`, `security-guards`, `deterministic-build`) no HEAD `d75dce689d5b011bf51951245e62355e69bdcdb7`. Validação da projeção em execução física 100k e ganho de performance **NÃO medidos**. **Política:** GOV-DOC-01.
 
 ## Contexto, evidência e necessidade
 
@@ -47,4 +47,8 @@ Arquivos: `Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoo
 
 **Aceite de integração:** CI rápida `unit-runtime`, `security-guards` e `deterministic-build` 3/3 verde no SHA HEAD da PR; squash merge para `master`. A implementação somente afetará **novas execuções iniciadas pelo PO com o SHA atualizado**, não o run #43548040615. `IMPLEMENTADO`, `INTEGRADO`, `VALIDADO EM 100K` e `GANHO DE DESEMPENHO` são estados separados; sem nova prova física não alegar os dois últimos.
 
-**Rastreabilidade:** branch `feat/v9-physical-progress-deadline-forecast-20261114`; [run #43548040615](https://github.com/lucianox777/Jornada/actions/runs/43548040615); GOV-DOC-01. Complementar com PR/CI/SHA verificados após integração.
+**Rastreabilidade:** branch `feat/v9-physical-progress-deadline-forecast-20261114`; [run #43548040615](https://github.com/lucianox777/Jornada/actions/runs/43548040615); GOV-DOC-01. [PR #1506](https://github.com/lucianox777/Jornada/pull/1506), [CI rápida #43550125833](https://github.com/lucianox777/Jornada/actions/runs/43550125833), squash `fe6b49a6a2e772b1da149ebab16944cca009f0bd`. GOV-DOC-01.
+
+## Recibo de integração — 14/11/2026
+
+A [PR #1506](https://github.com/lucianox777/Jornada/pull/1506) foi **integrada por squash merge** à `master` em `fe6b49a6a2e772b1da149ebab16944cca009f0bd`. O HEAD de PR `d75dce689d5b011bf51951245e62355e69bdcdb7` passou em **3/3** checks obrigatórios da [CI #43550125833](https://github.com/lucianox777/Jornada/actions/runs/43550125833). O build anterior #43549965920 detectou CA1512 no uso de exceções explícitas; o código foi corrigido via `ThrowIf...` em commit `0324d7dc`, revalidado. A verificação determinística NUnit da própria previsão foi adicionada ao gate rápido, sem executar SQL ou 100k. A integração não altera o run manual [#43548040615](https://github.com/lucianox777/Jornada/actions/runs/43548040615), iniciado no SHA `562e22b`; previsão nova só aparece em **futura execução manual**. CI completa e 30k pós-merge são provas independentes, não substituídas pelos três checks rápidos, e não são declaradas concluídas neste recibo.
