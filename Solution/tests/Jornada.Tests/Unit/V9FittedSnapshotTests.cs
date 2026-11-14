@@ -1073,7 +1073,12 @@ public sealed class V9FittedSnapshotTests
     {
         var payload = FourUnitTfPayload() with
         {
-            CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16)
+            CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16),
+            ProjectionSchemaVersion = V9CalibrationBlockingProjection.SchemaVersion,
+            ProjectionFingerprintSha256 = V9CalibrationBlockingProjection.ComputeSchemaFingerprint(4),
+            BlockingPasses = [new("prefix-first-and-mother",
+                [V9CalibrationBlockingProjection.NamePrefixFeature(3),
+                 V9CalibrationBlockingProjection.MotherNamePrefixFeature(3)])]
         };
         var levels = Enum.GetValues<CompositeNominalLevelV9>();
         var observed = levels.SelectMany(person => levels.Select(mother =>
@@ -1217,6 +1222,83 @@ public sealed class V9FittedSnapshotTests
         Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             await V9OperationalPinnedCohortRuntime.LoadPinnedAsync(
                 connection, receipt.ModelId, new string('a', 64))));
+
+        // Disposable SQL replica of only the actual blocking_chave query columns.
+        await using (var schema = new Microsoft.Data.SqlClient.SqlCommand(
+            """
+            CREATE TABLE identidade.blocking_chave(
+                pessoa_uuid uniqueidentifier NOT NULL,
+                normalizacao_versao nvarchar(80) NOT NULL,
+                projection_schema_version nvarchar(120) NOT NULL,
+                projection_fingerprint_sha256 char(64) NOT NULL,
+                atributo nvarchar(80) NOT NULL,
+                valor_normalizado nvarchar(500) NOT NULL,
+                vigencia_fim datetimeoffset(7) NULL
+            );
+            """, connection))
+            await schema.ExecuteNonQueryAsync();
+
+        var projectionRuntime = V9FittedSnapshotExecutionRuntime.Load(
+            winner.SerializeUtf8(), winner.ContentSha256);
+        var requiredFeatures = winner.Payload.BlockingPasses
+            .SelectMany(pass => pass.Fields).ToHashSet(StringComparer.Ordinal);
+        foreach (var source in cohort)
+        {
+            var row = new IdentityObservation(
+                null, "SEM_CPF", source.PersonName, source.BirthDate, source.MotherName);
+            var uuid = V9FrozenSourceResolveReplay.ObservationGuid(source.ObservationId);
+            foreach (var key in projectionRuntime.Project(row)
+                .Where(key => requiredFeatures.Contains(key.Feature)))
+            {
+                await using var insert = new Microsoft.Data.SqlClient.SqlCommand(
+                    """
+                    INSERT INTO identidade.blocking_chave(
+                        pessoa_uuid,normalizacao_versao,projection_schema_version,
+                        projection_fingerprint_sha256,atributo,valor_normalizado)
+                    VALUES(@id,@norm,@schema,@fingerprint,@feature,@value);
+                    """, connection);
+                insert.Parameters.Add("@id", System.Data.SqlDbType.UniqueIdentifier).Value = uuid;
+                insert.Parameters.Add("@norm", System.Data.SqlDbType.NVarChar, 80).Value =
+                    IdentityComparison.NormalizationVersion;
+                insert.Parameters.Add("@schema", System.Data.SqlDbType.NVarChar, 120).Value =
+                    projectionRuntime.ProjectionSchemaVersion;
+                insert.Parameters.Add("@fingerprint", System.Data.SqlDbType.Char, 64).Value =
+                    projectionRuntime.ProjectionFingerprintSha256;
+                insert.Parameters.Add("@feature", System.Data.SqlDbType.NVarChar, 80).Value = key.Feature;
+                insert.Parameters.Add("@value", System.Data.SqlDbType.NVarChar, 500).Value = key.Value;
+                Assert.That(await insert.ExecuteNonQueryAsync(), Is.EqualTo(1));
+            }
+        }
+        // Worker builds physical SQL graph using its unchanged TEST signature
+        // materialization. Runner independently queries live projection SQL.
+        var execution = new V9PhysicalAdaptiveExecution(MaximumPrefixLength: 4);
+        var physicalSqlEdges =
+            await V9PhysicalSqlAdaptiveCalibrationProbe.ReadFrozenTestCandidateEdgesForParityAsync(
+                connection, cohort, winner, execution, CancellationToken.None);
+        var parity = await V9OperationalCandidateGraphParityAudit.CompareTestAsync(
+            connection, groupedRuntime, cohort, physicalSqlEdges);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(physicalSqlEdges, Is.EquivalentTo(completeEdges));
+            Assert.That(parity.WinnerSha256, Is.EqualTo(winner.ContentSha256));
+            Assert.That(parity.PhysicalSqlEdgeCount, Is.EqualTo(6));
+            Assert.That(parity.OperationalSqlEdgeCount, Is.EqualTo(6));
+            Assert.That(parity.ObservationCount, Is.EqualTo(4));
+            Assert.That(parity.ProductionBatchPipelineCertified, Is.False);
+            Assert.That(parity.CanonicalEdgesSha256, Has.Length.EqualTo(64));
+        }));
+        // A corrupted operational projection must FAIL; never silently return
+        // zero candidates, pass TEST, or fall back to a legacy projection.
+        await using (var poison = new Microsoft.Data.SqlClient.SqlCommand(
+            "UPDATE identidade.blocking_chave SET projection_fingerprint_sha256=@bad;",
+            connection))
+        {
+            poison.Parameters.Add("@bad", System.Data.SqlDbType.Char, 64).Value = new string('f', 64);
+            Assert.That(await poison.ExecuteNonQueryAsync(), Is.GreaterThan(0));
+        }
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9OperationalCandidateGraphParityAudit.CompareTestAsync(
+                connection, groupedRuntime, cohort, physicalSqlEdges)));
 
         Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, winner)));
