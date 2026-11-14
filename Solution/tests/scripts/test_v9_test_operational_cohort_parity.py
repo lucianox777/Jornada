@@ -62,7 +62,7 @@ class V9OperationalCohortParityContract(unittest.TestCase):
         self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", train)
         self.assertIn("V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED", prep)
         self.assertIn("inputs.test_required == true", test)
-        self.assertIn("timeout-minutes: 360", test)
+        self.assertNotIn("timeout-minutes:", test)
 
 
 if __name__ == "__main__":
