@@ -57,13 +57,18 @@ def validate_scientific_validation(path: Path) -> dict:
             and r.get("certified") is False
             and r.get("activated") is False,
             "VALIDATION_SCIENTIFIC_INVARIANTS")
+    require(r.get("schema") == "V9_VALIDATION_E2E_STATUS_V1",
+            "VALIDATION_RECEIPT_SCHEMA")
     require(isinstance(r.get("selectionEnvelopeSha256"), str)
             and HEX64.fullmatch(r["selectionEnvelopeSha256"]) is not None,
             "VALIDATION_ENVELOPE_SHA")
+    require(isinstance(r.get("validationResultSha256"), str)
+            and HEX64.fullmatch(r["validationResultSha256"]) is not None,
+            "VALIDATION_RESULT_SHA")
     n = r.get("comparedConfigurations")
     require(type(n) is int and 1 <= n <= 3
-            and type(r.get("measured")) is list
-            and len(r["measured"]) == n,
+            and type(r.get("measuredCount")) is int
+            and r["measuredCount"] == n,
             "VALIDATION_FINALIST_CARDINALITY")
     status = r.get("status")
     winner = r.get("selectedValidationSnapshotSha256")
