@@ -1,6 +1,6 @@
 # GOV-V9-TEST-REAL-SCHEMA-RUNASYNC-GOLD-SERVING-20261114 — integração operacional sem publicação
 
-**Autoridade:** Product Owner, 14/11/2026 (America/Sao_Paulo). **Estado:** objetivo e restrições DECIDIDOS; preflight estrutural IMPLEMENTADO NA BRANCH (não validado fisicamente); equivalência funcional do RunAsync, efeitos Gold/Serving e TEST independente 100k **NÃO COMPROVADOS**. **Política:** GOV-DOC-01. **Issues:** [#1488](https://github.com/lucianox777/Jornada/issues/1488), [#1478](https://github.com/lucianox777/Jornada/issues/1478).
+**Autoridade:** Product Owner, 14/11/2026 (America/Sao_Paulo). **Estado:** objetivo e restrições DECIDIDOS; preflight estrutural IMPLEMENTADO / INTEGRADO na [PR #1520](https://github.com/lucianox777/Jornada/pull/1520), squash `d41962f7a6bf0ce53974c2de75e639958fe44edc`, CI rápida [#43568511054](https://github.com/lucianox777/Jornada/actions/runs/43568511054) 3/3 SUCCESS e [schema-inventory #43568511028](https://github.com/lucianox777/Jornada/actions/runs/43568511028) SUCCESS; **não executado em SQL físico**; equivalência funcional do RunAsync, efeitos Gold/Serving e TEST independente 100k **NÃO COMPROVADOS**. **Política:** GOV-DOC-01. **Issues:** [#1488](https://github.com/lucianox777/Jornada/issues/1488), [#1478](https://github.com/lucianox777/Jornada/issues/1478).
 
 ## Decisão confirmada e contexto
 
@@ -20,7 +20,7 @@ O histórico é: [PR #1516](https://github.com/lucianox777/Jornada/pull/1516) pr
 | Sem publicação | Com request.Publish=false, o RunAsync escolhe CompleteWithoutPublicationAsync, que grava CONCLUIDO_SEM_PUBLICACAO. Com Publish=true entra em PublishAsync, recomposição de Gold, atualização de Serving e blocking. Deve haver prova física de que a opção false nunca alcança essas operações e de que a publicação não ocorre indiretamente. |
 | Gold/Serving e vínculo corrente | identidade.v_vinculo_corrente filtra runs PUBLICADO; a proteção lógica é necessária, mas não substitui comparação física antes/depois das tabelas Gold, Serving, vínculo e eventos. Ainda **NÃO MEDIDO** no schema real. |
 
-## Primeiro incremento implementado nesta branch — preflight de DDL canônico, estritamente de leitura
+## Primeiro incremento integrado na master — preflight de DDL canônico, estritamente de leitura
 
 Arquivo executável: [20261114_V9_Operational_Schema_Readonly_Preflight.sql](../database/testing/20261114_V9_Operational_Schema_Readonly_Preflight.sql).
 
@@ -46,3 +46,7 @@ Arquivo executável: [20261114_V9_Operational_Schema_Readonly_Preflight.sql](../
 **Alternativas rejeitadas:** usar novamente apenas o ledger sintético como prova de paridade de produção; criar modelo legado parcial que satisfaça FK mas perca TF/81 células; disparar RunAsync Publish=true; usar o TEST one-use para depurar incompatibilidade; habilitar TEST por aproximação de resultados. **Alternativa adotada nesta etapa:** preflight verificável e somente leitura do schema real descartável como primeiro controle, seguido de ponte real controlada e provas antes da certificação.
 
 **Precedência:** complementa [GOV-V9-TEST-EVIDENCIA-DECISAO-POR-OBSERVACAO-20261114](Decisao_GOV_V9_TEST_Evidencias_Decisao_Por_Observacao_20261114.md) e [GOV-V9-TEST-PARIDADE-FORMATO-OPERACIONAL-20261113](Decisao_GOV_V9_TEST_Paridade_Formato_Operacional_20261113.md), não revoga o que foi comprovado e não antecipa aceite das issues #1488/#1478. Registro de integração, CI e prova SQL física deverá ser acrescentado **somente após evidência real**, sem preencher resultados presumidos.
+
+## Recibo de integração — 14/11/2026
+
+[PR #1520](https://github.com/lucianox777/Jornada/pull/1520) integrada por **squash merge** no commit `d41962f7a6bf0ce53974c2de75e639958fe44edc` (HEAD da PR `108c0edcaeea9a6c03f1ea723e92f5dbe67594fc`). A [jornada-pr-required-fast #43568511054](https://github.com/lucianox777/Jornada/actions/runs/43568511054) concluiu **unit-runtime, security-guards e deterministic-build: 3/3 SUCCESS**; [jornada-schema-inventory #43568511028](https://github.com/lucianox777/Jornada/actions/runs/43568511028) SUCCESS. Arquivos: preflight SQL somente leitura, teste Python estático, esta decisão e dois índices GOV-DOC-01. Nenhuma alteração no código C# de produção, ciência TRAIN/VALIDATION, workflow TEST, modelo vencedor ou flags de publicação. **Nenhum SQL Server full-schema foi executado nesta PR; nenhuma prova funcional de RunAsync, Gold ou Serving foi produzida.** Os guards `V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED` continuam exigidos e o TEST 100k permanece bloqueado. Recibo documental sincroniza integração e limitações, sem alegar homologação.
