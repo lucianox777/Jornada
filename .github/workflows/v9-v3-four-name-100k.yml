@@ -213,6 +213,7 @@ jobs:
     runs-on: ubuntu-24.04
 
     env:
+      V9_EXTERNAL_DATABASE: ${{ inputs.test_database }}
       # Diagnostic campaign on synthetic 100k data. Full exception traces are enabled.
       # Do not pass production credentials or real personal data to this workflow.
       DOTNET_ENVIRONMENT: DEV
@@ -259,20 +260,20 @@ jobs:
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           # Run TRAIN+VALIDATION normally; an operational-parity TEST request
           # must never waste the 324-configuration calibration or open TEST.
-          if [[ "${{ inputs.test_required }}" == "true" && "${{ inputs.test_database }}" == "" ]]; then
+          if [[ "${{ inputs.test_required }}" == "true" && "$V9_EXTERNAL_DATABASE" == "" ]]; then
             echo "::error::V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED: sealed scientific TEST awaits full production RunAsync parity."
             exit 1
           fi
-          if [[ "${{ inputs.test_required }}" != "true" && -n "${{ inputs.test_database }}" ]]; then
+          if [[ "${{ inputs.test_required }}" != "true" && -n "$V9_EXTERNAL_DATABASE" ]]; then
             echo "::error::V9_DATABASE_REQUIRES_TEST_CHECKBOX"
             exit 1
           fi
-          if [[ -n "${{ inputs.test_database }}" && "${{ needs.test-database-preflight.result }}" != "success" ]]; then
+          if [[ -n "$V9_EXTERNAL_DATABASE" && "${{ needs.test-database-preflight.result }}" != "success" ]]; then
             echo "::error::V9_EXTERNAL_DATABASE_PREFLIGHT_MUST_PASS_BEFORE_TRAIN"
             exit 1
           fi
           # A mandatory TEST requires its independent cohort to be prepared first.
-          if [[ "${{ inputs.test_required }}" == "true" && "${{ inputs.test_database }}" == "" && "${{ needs.prepare-test-100k.result }}" != "success" ]]; then
+          if [[ "${{ inputs.test_required }}" == "true" && "$V9_EXTERNAL_DATABASE" == "" && "${{ needs.prepare-test-100k.result }}" != "success" ]]; then
             echo "::error::TEST_NEEDS_INDEPENDENT_PRESEALED_CORPUS"
             exit 1
           fi
