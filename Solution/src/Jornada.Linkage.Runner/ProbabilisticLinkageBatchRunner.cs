@@ -104,7 +104,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
             physicalSqlEdges, batchSize, cancellationToken);
         await using var connection = await operationalSql.OpenAsync(cancellationToken);
         return await V9SyntheticNonPublishingSqlLedger.PersistAsync(
-            connection, rehearsalId, proof, syntheticTest, cancellationToken);
+            connection, rehearsalId, proof, syntheticTest, physicalSqlEdges, cancellationToken);
     }
 
     public async Task<ProbabilisticLinkageRunSummary> RunAsync(
