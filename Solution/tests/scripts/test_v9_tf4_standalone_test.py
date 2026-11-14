@@ -58,8 +58,8 @@ class StandaloneTestContract(unittest.TestCase):
         self.assertIn("JORNADA_V9_TEST_CORPUS_DIR:",test)
         self.assertIn("V9_TF4_TEST_PRIVATE_KEY_B64",test)
         self.assertIn("v9-tf4-test-sealed-",test)
-        self.assertIn("timeout-minutes: 360",test)
-        self.assertIn("timeout-minutes: 330",test)
+        self.assertNotIn("timeout-minutes:",test)
+        self.assertIn("needs.validation-100k.result == 'success'",test)
         self.assertIn("inputs.test_required == true",test)
         self.assertNotIn("if: ${{ false }}",test)
         for bad in ("finalist-validation.json", "plan.json", "selection.json",
