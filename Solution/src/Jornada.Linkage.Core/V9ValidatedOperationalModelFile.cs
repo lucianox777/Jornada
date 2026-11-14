@@ -41,8 +41,8 @@ public static class V9ValidatedOperationalModelFile
         var name = FileName(contract.SourceSnapshotSha256);
         var bytes = validatedWinner.SerializeUtf8();
         if (bytes.Length <= 0 || bytes.Length > V9FittedSnapshot.MaximumContentBytes
-            || Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant()
-                != contract.SourceSnapshotSha256)
+            || !string.Equals(Convert.ToHexString(SHA256.HashData(bytes)),
+                    contract.SourceSnapshotSha256, StringComparison.OrdinalIgnoreCase))
             throw new InvalidDataException("V9: bytes operacionais não correspondem ao vencedor.");
 
         // Create-only directory and file; never replace a previous winner or
