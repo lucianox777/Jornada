@@ -30,6 +30,7 @@ class MandatoryChainIntegrationContractTests(unittest.TestCase):
         train, tail = tail.split("\n  audit-100k:\n", 1)
         audit, tail = tail.split("\n  validation-100k:\n", 1)
         validation, test = tail.split("\n  test-100k:\n", 1)
+        test = test.split("\n  e2e-closeout:\n", 1)[0]
         cls.prepare, cls.train, cls.audit, cls.validation, cls.test = (
             first, train, audit, validation, test,
         )
