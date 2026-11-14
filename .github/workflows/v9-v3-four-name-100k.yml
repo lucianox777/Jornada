@@ -439,6 +439,11 @@ jobs:
               out.write("has_finalists="+("true" if ids else "false")+"\n")
           print("Verified frozen finalists:",len(ids))
           PY
+      - name: Fail incomplete campaign when no finalists are eligible for mandatory VALIDATION
+        if: ${{ success() && steps.finalists.outputs.has_finalists != 'true' }}
+        run: |
+          echo "::error::V9_MANDATORY_VALIDATION_NO_FINALISTS: TRAIN/AUDIT complete, but no eligible finalist exists; VALIDATION cannot run. Campaign is INCOMPLETE, not SUCCESS."
+          exit 1
       - name: Prepare audited immutable finalist handoff
         if: ${{ success() && steps.finalists.outputs.has_finalists == 'true' }}
         run: |
