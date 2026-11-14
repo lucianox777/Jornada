@@ -72,7 +72,7 @@ class V9Tf4E2ECloseoutTests(unittest.TestCase):
         source = WF.read_text(encoding="utf-8")
         self.assertIn("\n  e2e-closeout:\n", source)
         block = source.split("\n  e2e-closeout:\n", 1)[1]
-        self.assertIn("needs: [prepare-test-100k, physical-100k, audit-100k, validation-100k, test-100k]", block)
+        self.assertIn("needs: [prepare-test-100k, test-database-preflight, physical-100k, audit-100k, validation-100k, test-100k, test-database-readonly]", block)
         self.assertIn("if: ${{ always() }}", block)
         self.assertIn("v9-tf4-e2e-closeout.py", block)
         self.assertIn("validation-e2e-status.json", block)
