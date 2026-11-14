@@ -119,6 +119,7 @@ class V9ExistingDatabaseOptionTests(unittest.TestCase):
         smoke = (ROOT / "tests/Jornada.Tests/Unit/V9FittedSnapshotTests.cs").read_text()
         self.assertIn("v9_scope_read_probe", smoke)
         self.assertIn("CREATE ROLE [v9_scope_write_role]", smoke)
+        self.assertIn("GRANT UPDATE (id) ON OBJECT::identidade.v9_permission_probe", smoke)
         self.assertIn("GRANT INSERT ON OBJECT::identidade.v9_permission_probe", smoke)
         self.assertIn("Assert.ThrowsAsync<InvalidOperationException>", smoke)
         self.assertIn('"REVERT;"', smoke)
