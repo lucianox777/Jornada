@@ -168,6 +168,18 @@ public static class V9ExternalDatabaseReadOnlyTest
                             QUOTENAME(s.name) + N'.' + QUOTENAME(o.name), 'OBJECT', 'TAKE OWNERSHIP'), 0) = 1
                       )
                 )
+                -- An UPDATE grant can target a single column without an
+                -- object-wide UPDATE grant. Check those effective privileges
+                -- explicitly: table-only checks must never miss them.
+                OR EXISTS (
+                    SELECT 1 FROM sys.columns AS c
+                    JOIN sys.objects AS o ON o.object_id = c.object_id
+                    JOIN sys.schemas AS s ON s.schema_id = o.schema_id
+                    WHERE o.is_ms_shipped = 0
+                      AND COALESCE(HAS_PERMS_BY_NAME(
+                          QUOTENAME(s.name) + N'.' + QUOTENAME(o.name),
+                          'OBJECT', 'UPDATE', c.name, 'COLUMN'), 0) = 1
+                )
             THEN CAST(1 AS int) ELSE CAST(0 AS int) END;
             """, connection) { CommandTimeout = 120 };
         var unsafePermissions = await effectivePermissions.ExecuteScalarAsync(ct);
