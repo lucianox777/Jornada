@@ -1389,13 +1389,27 @@ public sealed class V9FittedSnapshotTests
             GRANT INSERT ON OBJECT::identidade.v9_permission_probe TO [v9_scope_write_role];
             """, connection))
             await unsafeGrant.ExecuteNonQueryAsync();
-        await AsReadOnlyPrincipalAsync(() =>
+        async Task MustRejectUnsafePermissionsAsync()
         {
-            Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
-                await V9ExternalDatabaseReadOnlyTest.VerifyReadOnlyPrincipalAsync(
-                    connection, "JornadaHarness")));
-            return Task.CompletedTask;
-        });
+            await AsReadOnlyPrincipalAsync(() =>
+            {
+                Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                    await V9ExternalDatabaseReadOnlyTest.VerifyReadOnlyPrincipalAsync(
+                        connection, "JornadaHarness")));
+                return Task.CompletedTask;
+            });
+        }
+        await MustRejectUnsafePermissionsAsync();
+
+        // Also reject an effective column-only UPDATE via the same custom
+        // role, after revoking its unrelated table INSERT grant.
+        await using (var columnGrant = new Microsoft.Data.SqlClient.SqlCommand(
+            """
+            REVOKE INSERT ON OBJECT::identidade.v9_permission_probe FROM [v9_scope_write_role];
+            GRANT UPDATE (id) ON OBJECT::identidade.v9_permission_probe TO [v9_scope_write_role];
+            """, connection))
+            await columnGrant.ExecuteNonQueryAsync();
+        await MustRejectUnsafePermissionsAsync();
 
         var projectionRuntime = V9FittedSnapshotExecutionRuntime.Load(
             winner.SerializeUtf8(), winner.ContentSha256);
