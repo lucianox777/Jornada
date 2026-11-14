@@ -97,7 +97,10 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         self.assertIn('[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) timestamp=', normal)
         for field in (' hipotese=', ' resultado=', ' restante=', ' limite=', ' status='):
             self.assertIn(field, normal)
-        self.assertIn('status={status}{diagnosticSuffix}', normal)
+        self.assertIn('eta_min={forecast.EtaMinutes:F1}', normal)
+        self.assertIn('margem_prevista_min={forecast.MarginMinutes:+0.0;-0.0;0.0}', normal)
+        self.assertIn('status={forecast.Status}{diagnosticSuffix}', normal)
+        self.assertIn('var forecast = ForecastPhysicalProgress(', progress)
         self.assertNotIn(r'\n', normal)
         self.assertNotIn(' | ', normal)
         self.assertNotIn('ETA_min=', normal)
@@ -105,7 +108,15 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         self.assertIn('Interlocked.Increment(ref physicalCompleted)', progress)
         self.assertIn('DateTimeOffset.UtcNow', progress)
         self.assertIn('physicalDeadlineUtc - nowUtc', progress)
-        self.assertIn('status = remaining > TimeSpan.Zero', progress)
+        self.assertIn('ForecastPhysicalProgress(', self.coord)
+        self.assertIn('const int MinimumSample = 8;', self.coord)
+        self.assertIn('const double RiskReserveMinutes = 15d;', self.coord)
+        self.assertIn('"PREVISAO_PRELIMINAR"', self.coord)
+        self.assertIn('"DENTRO_DA_PREVISAO"', self.coord)
+        self.assertIn('"RISCO_TIMEOUT"', self.coord)
+        self.assertIn('"PRAZO_EXCEDIDO"', self.coord)
+        self.assertIn('elapsedMinutes / completed * (total - completed)', self.coord)
+        self.assertIn('physicalStepStartUtc = stepStartUtc;', self.coord)
         self.assertIn('stepStartUtc.AddMinutes(340)', self.coord)
         replay = self.coord.split('var replayClock = diagnoseReplayTiming ?', 1)[1].split(
             'p95 = measured.P95Milliseconds;', 1)[0]
