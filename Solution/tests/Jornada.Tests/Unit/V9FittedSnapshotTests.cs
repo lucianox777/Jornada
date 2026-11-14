@@ -1468,22 +1468,22 @@ public sealed class V9FittedSnapshotTests
         {
             savedDecisions.Parameters.Add("@id", System.Data.SqlDbType.UniqueIdentifier).Value = persistedId;
             await using var result = await savedDecisions.ExecuteReaderAsync();
-            foreach (var original in referenceReplay.Decisions.OrderBy(x => x.ObservationId))
+            foreach (var frozenDecision in referenceReplay.Decisions.OrderBy(x => x.ObservationId))
             {
                 Assert.That(await result.ReadAsync(), Is.True);
-                var actualGroup = referenceReplay.IdentityByObservation[original.ObservationId];
+                var actualGroup = referenceReplay.IdentityByObservation[frozenDecision.ObservationId];
                 var originalBytes = System.Text.Encoding.UTF8.GetBytes(
-                    System.Text.Json.JsonSerializer.Serialize(original) + "\n" +
+                    System.Text.Json.JsonSerializer.Serialize(frozenDecision) + "\n" +
                     actualGroup.ToString("D"));
                 var expectedDigest = Convert.ToHexString(
                     System.Security.Cryptography.SHA256.HashData(originalBytes)).ToLowerInvariant();
                 Assert.Multiple((Action)(() =>
                 {
-                    Assert.That(result.GetInt32(0), Is.EqualTo(original.ObservationId));
+                    Assert.That(result.GetInt32(0), Is.EqualTo(frozenDecision.ObservationId));
                     Assert.That(result.GetInt32(1),
-                        Is.EqualTo((original.ObservationId - 1) / 2 + 1));
+                        Is.EqualTo((frozenDecision.ObservationId - 1) / 2 + 1));
                     Assert.That(result.GetGuid(2), Is.EqualTo(actualGroup));
-                    Assert.That(result.GetString(3), Is.EqualTo(original.Decision.Status.ToString()));
+                    Assert.That(result.GetString(3), Is.EqualTo(frozenDecision.Decision.Status.ToString()));
                     Assert.That(result.GetString(4).Trim(), Is.EqualTo(expectedDigest));
                 }));
             }
