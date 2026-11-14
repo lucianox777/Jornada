@@ -407,7 +407,11 @@ jobs:
 
   validation-100k:
     needs: physical-100k
-    if: ${{ needs.physical-100k.result == 'success' && needs.physical-100k.outputs.has_finalists == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    # TEST preparation is optional and normally skipped. GitHub's implicit
+    # success() may propagate that ancestor skip even after TRAIN succeeds.
+    # Evaluate the dependency explicitly, but never bypass TRAIN success,
+    # audited finalists, owner/preflight checks or workflow cancellation.
+    if: ${{ always() && !cancelled() && needs.physical-100k.result == 'success' && needs.physical-100k.outputs.has_finalists == 'true' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: "V9 VALIDATION independent: frozen TF4 finalists"
     runs-on: ubuntu-24.04
     # Own 360-minute job clock, fully independent of TRAIN. Keep 30 minutes
