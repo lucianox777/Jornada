@@ -55,7 +55,8 @@ public static class V9ExternalDatabaseReadOnlyTest
             Enlist = false,
             PersistSecurityInfo = false
         };
-        if (string.IsNullOrWhiteSpace(builder.DataSource) || builder.AttachDBFilename.Length != 0)
+        if (string.IsNullOrWhiteSpace(builder.DataSource)
+            || !string.IsNullOrEmpty(builder.AttachDBFilename))
             throw new InvalidDataException("TEST externo exige servidor SQL configurado sem attach local.");
         return builder;
     }
@@ -207,6 +208,27 @@ public static class V9ExternalDatabaseReadOnlyTest
             }
         }
         return edges.OrderBy(x => x.Item1).ThenBy(x => x.Item2).ToArray();
+    }
+
+    /// <summary>
+    /// Fast connection/schema/permissions admission: must run before any
+    /// expensive 324-hypothesis physical TRAIN if a database TEST was selected.
+    /// No SELECT of citizen data or model, and no database mutation.
+    /// </summary>
+    public static async Task PreflightAsync(string databaseName, CancellationToken ct = default)
+    {
+        var source = Environment.GetEnvironmentVariable("JORNADA_V9_EXTERNAL_TEST_SQL_CONNECTION")
+            ?? throw new InvalidOperationException("TEST externo exige segredo SQL SELECT-only.");
+        var builder = BuildReadOnlyConnection(source, databaseName);
+        await using var connection = new SqlConnection(builder.ConnectionString);
+        await connection.OpenAsync(ct);
+        await VerifyReadOnlyPrincipalAsync(connection, databaseName, ct);
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            status = "V9_EXTERNAL_DB_READONLY_PREFLIGHT_PASS_NO_PERSONAL_ROWS",
+            databaseName, generatedSyntheticData = false, readOnly = true,
+            certified = false
+        }));
     }
 
     public static async Task RunAsync(
