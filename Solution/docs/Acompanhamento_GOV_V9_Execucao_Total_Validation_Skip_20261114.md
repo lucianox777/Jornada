@@ -1,6 +1,6 @@
 # GOV-V9-EXECUCAO-TOTAL-VALIDATION-SKIP-20261114 — prontidão da campanha integral
 
-**Origem:** pedido do Product Owner em 14/11/2026: “Agora eu quero criar... quero fazer a execução total.” **Estado:** pedido de execução integral registrado; correção de encadeamento VALIDATION proposta em PR; **nova campanha TRAIN/VALIDATION/TEST NÃO executada**, TEST 100k continua bloqueado por paridade operacional não demonstrada. **Governança:** GOV-DOC-01.
+**Origem:** pedido do Product Owner em 14/11/2026: “Agora eu quero criar... quero fazer a execução total.” **Estado:** pedido de execução integral registrado; correção da condição VALIDATION integrada na PR #1525 (squash `398f820945cc81730bee74030af5f68636bf43cd`), posteriormente encadeada ao novo job AUDIT na PR #1526; **nova campanha TRAIN/VALIDATION/TEST NÃO executada**, TEST 100k continua bloqueado por paridade operacional não demonstrada. **Governança:** GOV-DOC-01.
 
 ## Diagnóstico da execução anterior e objetivo
 
@@ -8,11 +8,11 @@ A execução manual [#43551194008](https://github.com/lucianox777/Jornada/action
 
 Na configuração daquela execução, a preparação TEST era opcional (`prepare_sealed_test=false`) e o TRAIN permitia explicitamente prosseguir quando `prepare-test-100k` estivesse SKIPPED. A VALIDATION dependia do TRAIN com condição positiva de sucesso e 3 finalistas, mas foi SKIPPED. **Causa técnica provável, a ser confirmada em novo run:** o `success()` implícito do GitHub Actions na avaliação de `jobs.<id>.if` propaga o salto do ancestral opcional; o fato de o TRAIN ter sucedido não fez a expressão condicional da VALIDATION ser avaliada de modo independente.
 
-## Alteração operacional proposta, sem mudar ciência
+## Correção operacional integrada e evolução posterior
 
 No `.github/workflows/v9-v3-four-name-100k.yml`, explicitar `always() && !cancelled()` na condição do job VALIDATION, conservando **todos** os gates positivos: `needs.physical-100k.result == 'success'`, `needs.physical-100k.outputs.has_finalists == 'true'`, `security_preflight_approved=true`, `github.actor==github.repository_owner`, SHA/ref/attempt e verificação do handoff dentro do job. Essa expressão permite avaliar o job quando a preparação TEST opcional foi SKIPPED, **sem executar VALIDATION quando o TRAIN falhar, for cancelado, não tiver finalistas ou não atender à proveniência**. Teste estático adicional fixa esses invariantes e preserva os gates do TEST.
 
-**Não há alteração** em 324 hipóteses/81 TF4, SQL, fitting, FDR/CP/P95, seleção, TEST one-use, corpus, gabarito, snapshots, job TRAIN 360min/passo físico 340min, VALIDATION 360min/passo 330min e TEST 360min/passo 330min. Correção de condição não prova por si só a execução física da VALIDATION.
+**Evolução posterior:** a [PR #1526](https://github.com/lucianox777/Jornada/pull/1526), integrada em SHA `306229cc78753cd46500622986fb9ec305327557`, separou `physical-100k` e `audit-100k`, retirou timeouts locais e preservou ciência 324/81 e gates. A VALIDATION agora verifica sucesso e finalistas do **audit-100k**, que depende do TRAIN físico. A descrição anterior dos 340/330/360 min documenta a configuração histórica anterior e foi **substituída** pela política de timeouts nativos. Correção de condição ou PR não prova por si só a execução física da VALIDATION.
 
 ## Por que ainda não é possível disparar TRAIN + VALIDATION + TEST integral
 
@@ -22,6 +22,6 @@ Sequência segura: (1) corrigir condição VALIDATION, obter os três checks obr
 
 ## Precedência e rastreabilidade
 
-Respeita [GOV-V9-TF4-324-TIMEOUT-FISICO-340-20261113](Decisao_GOV_V9_TF4_324_Timeout_Fisico_340_20261113.md), [GOV-V9-TEST-RUNNER-COORTE-COMPARTILHADA-20261114](Decisao_GOV_V9_TEST_Execucao_Compartilhada_Runner_Coorte_20261114.md), isolamento TEST, pré-registro e bloqueio de publicação DT-15. Este registro não declara autorização para contornar controles, nem certificação de TEST, nem execução efetuada. **Branch:** `fix/v9-validation-optional-test-skip-20261114`. [PR #1525](https://github.com/lucianox777/Jornada/pull/1525) aberta para correção do gate. CI e merge ainda não foram comprovados.
+Respeita [GOV-V9-TF4-324-TIMEOUT-FISICO-340-20261113](Decisao_GOV_V9_TF4_324_Timeout_Fisico_340_20261113.md), [GOV-V9-TEST-RUNNER-COORTE-COMPARTILHADA-20261114](Decisao_GOV_V9_TEST_Execucao_Compartilhada_Runner_Coorte_20261114.md), isolamento TEST, pré-registro e bloqueio de publicação DT-15. Este registro não declara autorização para contornar controles, nem certificação de TEST, nem execução efetuada. **Branch:** `fix/v9-validation-optional-test-skip-20261114`. [PR #1525](https://github.com/lucianox777/Jornada/pull/1525) integrada em squash `398f820945cc81730bee74030af5f68636bf43cd`, com CI obrigatória [#43613590000](https://github.com/lucianox777/Jornada/actions/runs/43613590000) **3/3 SUCCESS**. Evolução subsequente: [PR #1526](https://github.com/lucianox777/Jornada/pull/1526), audit em job independente. **Prova física de agendamento ainda pendente.**
 
 **Critérios de aceite da correção:** revisão de condição e testes de contrato, CI rápida 3/3 no HEAD, merge via squash e teste real de agendamento da VALIDATION após TRAIN PASS + finalistas, com preparação TEST intencionalmente SKIPPED. Nenhum run científico iniciado automaticamente por este registro. GOV-DOC-01.
