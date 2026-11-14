@@ -1162,7 +1162,7 @@ public sealed class V9FittedSnapshotTests
         {
             var receipt = await V9ValidatedOperationalModelFile.ExportAsync(winner, destination);
             var exactFile = Path.Combine(destination, receipt.FileName);
-            Assert.Multiple(() =>
+            Assert.Multiple((Action)(() =>
             {
                 Assert.That(receipt.Schema, Is.EqualTo(V9ValidatedOperationalModelFile.ArtifactSchema));
                 Assert.That(receipt.OperationalModelContract,
@@ -1176,7 +1176,7 @@ public sealed class V9FittedSnapshotTests
                 Assert.That(receipt.Published, Is.False);
                 Assert.That(receipt.Certified, Is.False);
                 Assert.That(Directory.GetFiles(destination), Has.Length.EqualTo(1));
-            });
+            }));
             var bytes = await File.ReadAllBytesAsync(exactFile);
             Assert.That(bytes, Is.EqualTo(winner.SerializeUtf8()),
                 "V9 production-side SQL payload_fitted and validated JSON must be byte-identical");
