@@ -22,6 +22,6 @@ Sequência segura: (1) corrigir condição VALIDATION, obter os três checks obr
 
 ## Precedência e rastreabilidade
 
-Respeita [GOV-V9-TF4-324-TIMEOUT-FISICO-340-20261113](Decisao_GOV_V9_TF4_324_Timeout_Fisico_340_20261113.md), [GOV-V9-TEST-RUNNER-COORTE-COMPARTILHADA-20261114](Decisao_GOV_V9_TEST_Execucao_Compartilhada_Runner_Coorte_20261114.md), isolamento TEST, pré-registro e bloqueio de publicação DT-15. Este registro não declara autorização para contornar controles, nem certificação de TEST, nem execução efetuada. **Branch:** `fix/v9-validation-optional-test-skip-20261114`. GitHub PR/CI deverão ser acrescentados quando disponíveis.
+Respeita [GOV-V9-TF4-324-TIMEOUT-FISICO-340-20261113](Decisao_GOV_V9_TF4_324_Timeout_Fisico_340_20261113.md), [GOV-V9-TEST-RUNNER-COORTE-COMPARTILHADA-20261114](Decisao_GOV_V9_TEST_Execucao_Compartilhada_Runner_Coorte_20261114.md), isolamento TEST, pré-registro e bloqueio de publicação DT-15. Este registro não declara autorização para contornar controles, nem certificação de TEST, nem execução efetuada. **Branch:** `fix/v9-validation-optional-test-skip-20261114`. [PR #1525](https://github.com/lucianox777/Jornada/pull/1525) aberta para correção do gate. CI e merge ainda não foram comprovados.
 
 **Critérios de aceite da correção:** revisão de condição e testes de contrato, CI rápida 3/3 no HEAD, merge via squash e teste real de agendamento da VALIDATION após TRAIN PASS + finalistas, com preparação TEST intencionalmente SKIPPED. Nenhum run científico iniciado automaticamente por este registro. GOV-DOC-01.
