@@ -113,39 +113,28 @@ public static class V9NestedCalibrationCoordinator
     public const string Version = "V9_INTERNAL_TRAIN_BATCH_PARETO_FINALISTS_V1";
 
     /// <summary>
-    /// Estimate remaining wall-clock time using observed throughput from the start
-    /// of the physical step, counting ALL completed hypotheses (including rejections).
-    /// Includes SQL/group overhead observed so far; does not predict heterogeneous
-    /// future frames, concurrency changes, VALIDATION or the TRAIN job's audit tail.
-    /// Only operational console output; this must never gate or change evaluation.
+    /// Estimate remaining wall-clock time from observed hypothesis throughput.
+    /// GitHub Actions owns the job's native deadline. No local step/job
+    /// deadline is inferred, enforced or used in scientific decision-making.
+    /// Startup/SQL-group overhead is included in the estimate.
     /// </summary>
     public static V9PhysicalProgressForecast ForecastPhysicalProgress(
-        int completed, int total, DateTimeOffset stepStartUtc,
-        DateTimeOffset nowUtc, DateTimeOffset deadlineUtc)
+        int completed, int total, DateTimeOffset stepStartUtc, DateTimeOffset nowUtc)
     {
         const int MinimumSample = 8;
-        const double RiskReserveMinutes = 15d;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(total);
         ArgumentOutOfRangeException.ThrowIfNegative(completed);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(completed, total);
         ArgumentOutOfRangeException.ThrowIfLessThan(nowUtc, stepStartUtc);
 
-        // At least one observation is required to estimate speed; 1..7 are
-        // explicitly marked PRELIMINAR because startup/group overhead dominates.
         var elapsedMinutes = (nowUtc - stepStartUtc).TotalMinutes;
         double? eta = completed == 0 ? null
             : Math.Max(0d, elapsedMinutes / completed * (total - completed));
-        double? margin = eta is { } predicted
-            ? (deadlineUtc - nowUtc).TotalMinutes - predicted
-            : null;
-        var remaining = deadlineUtc - nowUtc;
-        var status = remaining <= TimeSpan.Zero ? "PRAZO_EXCEDIDO"
-            : completed < MinimumSample && completed < total ? "PREVISAO_PRELIMINAR"
-            : completed < total && margin is { } m && m <= RiskReserveMinutes
-                ? "RISCO_TIMEOUT" : "DENTRO_DA_PREVISAO";
-        return new(eta, margin, status);
+        var status = completed == total ? "CONCLUIDO"
+            : completed < MinimumSample ? "PREVISAO_PRELIMINAR"
+            : "ETA_INFORMATIVA_GITHUB_CONTROLA_TIMEOUT";
+        return new(eta, MarginMinutes: null, status);
     }
-
     /// <summary>
     /// A conservative, predeclared upper bound on the number of SELECTABLE
     /// hypotheses across every adaptive batch. Physical witnesses are run but
@@ -350,11 +339,9 @@ public static class V9NestedCalibrationCoordinator
         // Opt-in diagnostic only; no changes to scientific results or scheduling.
         var physicalProgressEnabled = Environment.GetEnvironmentVariable("V9_PHYSICAL_PROGRESS_LOG") == "1";
         var replayTimingEnabled = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";
-        // The GitHub Actions physical step has an enforced 340-minute timeout. Its
-        // exported UTC start is a close operational reference (not an exact
-        // GitHub runner deadline); other callers fall back to coordinator start.
+        // The timestamp is informational only: GitHub manages the native job timeout.
+        // The application never aborts the 324 hypotheses due to a local deadline.
         var physicalStepStartUtc = DateTimeOffset.UtcNow;
-        var physicalDeadlineUtc = DateTimeOffset.UtcNow.AddMinutes(340);
         var stepStartRaw = Environment.GetEnvironmentVariable("V9_PHYSICAL_STEP_START_UTC");
         if (DateTimeOffset.TryParse(stepStartRaw,
             System.Globalization.CultureInfo.InvariantCulture,
@@ -363,7 +350,6 @@ public static class V9NestedCalibrationCoordinator
             out var stepStartUtc))
         {
             physicalStepStartUtc = stepStartUtc;
-            physicalDeadlineUtc = stepStartUtc.AddMinutes(340);
         }
         var physicalCompleted = 0;
         var physicalTotal = plan.PredeclaredCandidateCpMultiplicity ?? plan.MaximumSearchConfigurations;
@@ -386,10 +372,9 @@ public static class V9NestedCalibrationCoordinator
             }
             var done = Interlocked.Increment(ref physicalCompleted);
             var nowUtc = DateTimeOffset.UtcNow;
-            var remaining = physicalDeadlineUtc - nowUtc;
-            var remainingMinutes = Math.Max(0, (int)Math.Floor(remaining.TotalMinutes));
+            var elapsedPhysicalMinutes = (nowUtc - physicalStepStartUtc).TotalMinutes;
             var forecast = ForecastPhysicalProgress(
-                done, physicalTotal, physicalStepStartUtc, nowUtc, physicalDeadlineUtc);
+                done, physicalTotal, physicalStepStartUtc, nowUtc);
             // Optional replay diagnostic stays in the same numbered GitHub log row.
             // A real newline would produce a separate GitHub line number; the UI
             // wraps this single row visually on narrow screens (not per field).
@@ -401,7 +386,7 @@ public static class V9NestedCalibrationCoordinator
             lock (Console.Out)
             {
                 Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) timestamp={nowUtc:O} hipotese={requestSha[..Math.Min(12, requestSha.Length)]} resultado={(evaluation.Candidate is not null ? "AVALIADA" : "REJEITADA")} restante={remainingMinutes}min limite={physicalDeadlineUtc:O} eta_min={forecast.EtaMinutes:F1} margem_prevista_min={forecast.MarginMinutes:+0.0;-0.0;0.0} status={forecast.Status}{diagnosticSuffix}"));
+                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) timestamp={nowUtc:O} hipotese={requestSha[..Math.Min(12, requestSha.Length)]} resultado={(evaluation.Candidate is not null ? "AVALIADA" : "REJEITADA")} decorrido_fisico_min={elapsedPhysicalMinutes:F1} restante=GITHUB_CONTROLA limite=GITHUB_JOB_NATIVO eta_min={forecast.EtaMinutes:F1} margem_prevista_min=NAO_APLICAVEL status={forecast.Status}{diagnosticSuffix}"));
                 Console.Out.Flush();
             }
         }
