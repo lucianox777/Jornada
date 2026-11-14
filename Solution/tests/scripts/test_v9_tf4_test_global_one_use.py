@@ -39,7 +39,7 @@ class TestGlobalOneUse(unittest.TestCase):
         self.assertNotIn("TEST_PRIVATE_KEY_B64", train)
         self.assertNotIn("TEST_PRIVATE_KEY_B64", validation)
         self.assertIn('"testSeed": 20261113001', LOCK.read_text())
-        self.assertIn("v9-tf4-test-one-winner-", validation)
+        self.assertIn("v9-tf4-validated-operational-model-", validation)
         self.assertNotIn("finalist-validation.json", test)
         self.assertNotIn("selection.json", test)
         self.assertNotIn("plan.json", test)
