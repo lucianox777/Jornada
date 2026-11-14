@@ -22,6 +22,7 @@ public static class V9ExternalDatabaseReadOnlyTest
     public const int MaximumObservations = 100_000;
     public const int MaximumCandidateEdges = 2_000_000;
     public const int MaximumBlockingKeys = 2_000_000;
+    public const long MaximumBucketPairIncidences = 4_000_000;
     public const string ReportSchema = "V9_EXTERNAL_DATABASE_READONLY_OPERATIONAL_DIAGNOSTIC_V1";
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
@@ -77,6 +78,12 @@ public static class V9ExternalDatabaseReadOnlyTest
                 CASE WHEN IS_SRVROLEMEMBER('sysadmin') = 1
                     OR IS_ROLEMEMBER('db_owner') = 1
                     OR IS_ROLEMEMBER('db_datawriter') = 1
+                    OR IS_ROLEMEMBER('db_ddladmin') = 1
+                    OR IS_ROLEMEMBER('db_securityadmin') = 1
+                    OR COALESCE(HAS_PERMS_BY_NAME(DB_NAME(), 'DATABASE', 'ALTER'), 0) = 1
+                    OR COALESCE(HAS_PERMS_BY_NAME(DB_NAME(), 'DATABASE', 'INSERT'), 0) = 1
+                    OR COALESCE(HAS_PERMS_BY_NAME(DB_NAME(), 'DATABASE', 'UPDATE'), 0) = 1
+                    OR COALESCE(HAS_PERMS_BY_NAME(DB_NAME(), 'DATABASE', 'DELETE'), 0) = 1
                     OR COALESCE(HAS_PERMS_BY_NAME(DB_NAME(), 'DATABASE', 'CONTROL'), 0) = 1
                     OR COALESCE(HAS_PERMS_BY_NAME(N'silver.pessoa_observacao', 'OBJECT', 'INSERT'), 0) = 1
                     OR COALESCE(HAS_PERMS_BY_NAME(N'silver.pessoa_observacao', 'OBJECT', 'UPDATE'), 0) = 1
@@ -192,6 +199,7 @@ public static class V9ExternalDatabaseReadOnlyTest
             StringComparer.Ordinal);
         var edges = new HashSet<(int A, int B)>();
         long expandedKeys = 0;
+        long bucketPairIncidences = 0;
         foreach (var row in rows.OrderBy(x => x.ObservationId))
         {
             var observation = new IdentityObservation(null, "SEM_CPF",
@@ -235,6 +243,10 @@ public static class V9ExternalDatabaseReadOnlyTest
                         index.Add(key, [row]);
                         continue;
                     }
+                    bucketPairIncidences += peers.Count;
+                    if (bucketPairIncidences > MaximumBucketPairIncidences)
+                        throw new InvalidDataException(
+                            "Bucket externo excedeu cap de incidências, inclusive intragestor; não percorrer fanout quadrático.");
                     foreach (var peer in peers)
                     {
                         if (string.Equals(peer.Gestor, row.Gestor, StringComparison.Ordinal))
