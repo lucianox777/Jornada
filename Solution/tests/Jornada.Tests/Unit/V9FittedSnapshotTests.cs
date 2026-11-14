@@ -1363,6 +1363,18 @@ public sealed class V9FittedSnapshotTests
             await productionRunner.RehearseV9NonPublishingSyntheticTestAsync(
                 receipt.ModelId, new string('a', 64),
                 cohort, physicalSqlEdges, 2, CancellationToken.None)));
+        // An explicitly non-harness SQL database must reject the opt-in
+        // rehearsal BEFORE reading the TEST_ONLY model table or any Gold data.
+        var nonHarnessString = new Microsoft.Data.SqlClient.SqlConnectionStringBuilder(
+            connectionString) { InitialCatalog = "master" }.ConnectionString;
+        var wrongDatabaseRunner = new ProbabilisticLinkageBatchRunner(
+            null!, new Jornada.Operational.Sql.OperationalSqlAdapter(nonHarnessString),
+            null!, null!, null!, null!, null!, null!, null!, null!, null!);
+        Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+            await wrongDatabaseRunner.RehearseV9NonPublishingSyntheticTestAsync(
+                receipt.ModelId, receipt.SourceSnapshotSha256,
+                cohort, physicalSqlEdges, 2, CancellationToken.None)));
+
         // The fixture has only the operational V9 model table. No run/result
         // schema exists, proving the rehearsal did not depend on it.
         await using (var noRuns = new Microsoft.Data.SqlClient.SqlCommand(
