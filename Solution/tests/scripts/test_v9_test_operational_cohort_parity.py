@@ -53,7 +53,7 @@ class V9OperationalCohortParityContract(unittest.TestCase):
     def test_no_change_to_train_validation_or_premature_test_enablement(self):
         workflow = WF.read_text()
         train = workflow.split("\n  physical-100k:\n", 1)[1].split("\n  validation-100k:\n", 1)[0]
-        test = workflow.split("\n  test-100k:\n", 1)[1]
+        test = workflow.split("\n  test-100k:\n", 1)[1].split("\n  e2e-closeout:\n", 1)[0]
         prep = workflow.split("\n  prepare-test-100k:\n", 1)[1].split("\n  physical-100k:\n", 1)[0]
         self.assertIn("Run physical V9 CSharp on 324 V3-only four-name hypotheses", train)
         self.assertNotIn("timeout-minutes:", train)
