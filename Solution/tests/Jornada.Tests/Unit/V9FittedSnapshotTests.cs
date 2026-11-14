@@ -1305,6 +1305,51 @@ public sealed class V9FittedSnapshotTests
             Assert.That(parity.ProductionBatchPipelineCertified, Is.False);
             Assert.That(parity.CanonicalEdgesSha256, Has.Length.EqualTo(64));
         }));
+        // Read-only rehearsal of the operational SQL retrieval loop in
+        // differently-sized batches. Every size MUST recover the same complete
+        // cross-batch graph and call FS/Resolve once globally; no per-page groups.
+        // The legacy production RunAsync is not invoked and not certified here.
+        foreach (var size in new[] { 1, 2, 3, 4 })
+        {
+            // Exercise the whole read-only Runner-side entry: SQL pinned winner
+            // -> operational SQL batches -> global frozen scorer/Resolve.
+            var batched = await V9ReadOnlyTestBatchRunner.RunAsync(
+                connection, receipt.ModelId, receipt.SourceSnapshotSha256,
+                cohort.Reverse().ToArray(), physicalSqlEdges, batchSize: size);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(batched.BatchSize, Is.EqualTo(size));
+                Assert.That(batched.BatchCount, Is.EqualTo((cohort.Length + size - 1) / size));
+                Assert.That(batched.CanonicalEdgesSha256, Is.EqualTo(parity.CanonicalEdgesSha256));
+                Assert.That(batched.DecisionsSha256, Is.EqualTo(parity.DecisionsSha256));
+                Assert.That(batched.IdentityGroupsSha256, Is.EqualTo(parity.IdentityGroupsSha256));
+                Assert.That(batched.PhysicalSqlEdgeCount, Is.EqualTo(completeEdges.Length));
+                Assert.That(batched.OperationalSqlEdgeCount, Is.EqualTo(completeEdges.Length));
+                Assert.That(batched.ProductionBatchPipelineCertified, Is.False);
+            }));
+        }
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9ReadOnlyTestBatchRunner.RunAsync(
+                connection, receipt.ModelId, new string('a', 64),
+                cohort, physicalSqlEdges, batchSize: 2)));
+        Assert.ThrowsAsync<ArgumentOutOfRangeException>((Func<Task>)(async () =>
+            await V9ReadOnlyTestBatchRunner.RunAsync(
+                connection, receipt.ModelId, receipt.SourceSnapshotSha256,
+                cohort, physicalSqlEdges, batchSize: 0)));
+        Assert.ThrowsAsync<ArgumentOutOfRangeException>((Func<Task>)(async () =>
+            await V9ReadOnlyTestBatchRunner.RunAsync(
+                connection, receipt.ModelId, receipt.SourceSnapshotSha256,
+                cohort, physicalSqlEdges, batchSize: 129)));
+
+        Assert.That(parity.DecisionsSha256, Has.Length.EqualTo(64));
+        Assert.That(parity.IdentityGroupsSha256, Has.Length.EqualTo(64));
+        Assert.ThrowsAsync<ArgumentOutOfRangeException>((Func<Task>)(async () =>
+            await V9OperationalCandidateGraphParityAudit.CompareTestAsync(
+                connection, groupedRuntime, cohort, physicalSqlEdges, batchSize: 0)));
+        Assert.ThrowsAsync<ArgumentOutOfRangeException>((Func<Task>)(async () =>
+            await V9OperationalCandidateGraphParityAudit.CompareTestAsync(
+                connection, groupedRuntime, cohort, physicalSqlEdges, batchSize: 129)));
+
         // A corrupted operational projection must FAIL; never silently return
         // zero candidates, pass TEST, or fall back to a legacy projection.
         await using (var poison = new Microsoft.Data.SqlClient.SqlCommand(
