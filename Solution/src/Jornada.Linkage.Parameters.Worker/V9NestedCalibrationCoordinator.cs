@@ -113,27 +113,42 @@ public static class V9NestedCalibrationCoordinator
     public const string Version = "V9_INTERNAL_TRAIN_BATCH_PARETO_FINALISTS_V1";
 
     /// <summary>
-    /// Estimate remaining wall-clock time from observed hypothesis throughput.
-    /// GitHub Actions owns the job's native deadline. No local step/job
-    /// deadline is inferred, enforced or used in scientific decision-making.
-    /// Startup/SQL-group overhead is included in the estimate.
+    /// Informational global-throughput ETA: all completed hypotheses since the
+    /// first physical SQL group. Native GitHub job budget is observational
+    /// only and never aborts execution or influences scientific selection.
     /// </summary>
     public static V9PhysicalProgressForecast ForecastPhysicalProgress(
-        int completed, int total, DateTimeOffset stepStartUtc, DateTimeOffset nowUtc)
+        int completed, int total, DateTimeOffset physicalStartUtc, DateTimeOffset nowUtc,
+        double? remainingJobMinutes = null)
     {
         const int MinimumSample = 8;
+        const double RiskReserveMinutes = 15d;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(total);
         ArgumentOutOfRangeException.ThrowIfNegative(completed);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(completed, total);
-        ArgumentOutOfRangeException.ThrowIfLessThan(nowUtc, stepStartUtc);
+        ArgumentOutOfRangeException.ThrowIfLessThan(nowUtc, physicalStartUtc);
 
-        var elapsedMinutes = (nowUtc - stepStartUtc).TotalMinutes;
+        var elapsedMinutes = (nowUtc - physicalStartUtc).TotalMinutes;
         double? eta = completed == 0 ? null
             : Math.Max(0d, elapsedMinutes / completed * (total - completed));
+        if (remainingJobMinutes is not { } remaining)
+        {
+            var informationalStatus = completed == total ? "CONCLUIDO"
+                : completed < MinimumSample ? "PREVISAO_PRELIMINAR"
+                : "ETA_INFORMATIVA_GITHUB_CONTROLA_TIMEOUT";
+            return new(eta, null, informationalStatus);
+        }
+
+        if (!double.IsFinite(remaining) || remaining < 0d)
+            throw new ArgumentOutOfRangeException(nameof(remainingJobMinutes));
+
+        double? margin = eta is { } estimate ? remaining - estimate : null;
         var status = completed == total ? "CONCLUIDO"
             : completed < MinimumSample ? "PREVISAO_PRELIMINAR"
-            : "ETA_INFORMATIVA_GITHUB_CONTROLA_TIMEOUT";
-        return new(eta, null, status);
+            : remaining <= 0d || margin is < 0d ? "PRAZO_INSUFICIENTE"
+            : margin is <= RiskReserveMinutes ? "RISCO_TIMEOUT"
+            : "DENTRO_DA_PREVISAO";
+        return new(eta, margin, status);
     }
     /// <summary>
     /// A conservative, predeclared upper bound on the number of SELECTABLE
@@ -339,17 +354,27 @@ public static class V9NestedCalibrationCoordinator
         // Opt-in diagnostic only; no changes to scientific results or scheduling.
         var physicalProgressEnabled = Environment.GetEnvironmentVariable("V9_PHYSICAL_PROGRESS_LOG") == "1";
         var replayTimingEnabled = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";
-        // The timestamp is informational only: GitHub manages the native job timeout.
-        // The application never aborts the 324 hypotheses due to a local deadline.
-        var physicalStepStartUtc = DateTimeOffset.UtcNow;
-        var stepStartRaw = Environment.GetEnvironmentVariable("V9_PHYSICAL_STEP_START_UTC");
-        if (DateTimeOffset.TryParse(stepStartRaw,
-            System.Globalization.CultureInfo.InvariantCulture,
-            System.Globalization.DateTimeStyles.AssumeUniversal
-                | System.Globalization.DateTimeStyles.AdjustToUniversal,
-            out var stepStartUtc))
+        // Set at the first physical group, AFTER prep and BEFORE physical SQL work.
+        // The native GitHub job budget is configured only for informational ETA.
+        DateTimeOffset? physicalStartUtc = null;
+        DateTimeOffset? jobStartUtc = null;
+        int? jobTimeoutMinutes = null;
+        var timeoutRaw = Environment.GetEnvironmentVariable("V9_JOB_TIMEOUT_MINUTES");
+        if (timeoutRaw is not null)
         {
-            physicalStepStartUtc = stepStartUtc;
+            if (!int.TryParse(timeoutRaw, System.Globalization.NumberStyles.None,
+                    System.Globalization.CultureInfo.InvariantCulture, out var minutes)
+                || minutes <= 0)
+                throw new InvalidDataException("V9_JOB_TIMEOUT_MINUTES_INVALID");
+            var startRaw = Environment.GetEnvironmentVariable("V9_JOB_START_UTC");
+            if (!DateTimeOffset.TryParse(startRaw,
+                    System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.AssumeUniversal
+                        | System.Globalization.DateTimeStyles.AdjustToUniversal,
+                    out var parsedJobStartUtc) || parsedJobStartUtc > DateTimeOffset.UtcNow)
+                throw new InvalidDataException("V9_JOB_START_UTC_INVALID");
+            jobTimeoutMinutes = minutes;
+            jobStartUtc = parsedJobStartUtc;
         }
         var physicalCompleted = 0;
         var physicalTotal = plan.PredeclaredCandidateCpMultiplicity ?? plan.MaximumSearchConfigurations;
@@ -370,23 +395,44 @@ public static class V9NestedCalibrationCoordinator
                 }
                 return;
             }
-            var done = Interlocked.Increment(ref physicalCompleted);
-            var nowUtc = DateTimeOffset.UtcNow;
-            var elapsedPhysicalMinutes = (nowUtc - physicalStepStartUtc).TotalMinutes;
-            var forecast = ForecastPhysicalProgress(
-                done, physicalTotal, physicalStepStartUtc, nowUtc);
             // Optional replay diagnostic stays in the same numbered GitHub log row.
-            // A real newline would produce a separate GitHub line number; the UI
-            // wraps this single row visually on narrow screens (not per field).
             var diagnosticSuffix = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs
                 ? FormattableString.Invariant($" replay_elapsed_ms={replayMs:F3}")
                 : string.Empty;
-            // One hypothesis = one physical console line/WriteLine/lock/Flush.
-            // Space-separated new fields; no pipe and no embedded newline.
+            // Serialize number, timestamp and print atomically so the observed
+            // i/324 completion array is ordered even with concurrent SQL groups.
+            // One numbered physical GitHub row, one console lock/write/flush.
             lock (Console.Out)
             {
+                var done = Interlocked.Increment(ref physicalCompleted);
+                var nowUtc = DateTimeOffset.UtcNow;
+                var firstPhysicalUtc = physicalStartUtc ?? nowUtc;
+                var elapsedPhysicalMinutes = (nowUtc - firstPhysicalUtc).TotalMinutes;
+                double? elapsedJobMinutes = jobStartUtc is { } jobStart
+                    ? Math.Max(0d, (nowUtc - jobStart).TotalMinutes) : null;
+                double? remainingJobMinutes = elapsedJobMinutes is { } jobElapsed
+                    && jobTimeoutMinutes is { } jobBudget
+                    ? Math.Max(0d, jobBudget - jobElapsed) : null;
+                var forecast = ForecastPhysicalProgress(
+                    done, physicalTotal, firstPhysicalUtc, nowUtc, remainingJobMinutes);
+                var averageMinutes = elapsedPhysicalMinutes / done;
+                var predictedFinishUtc = forecast.EtaMinutes is { } predicted
+                    ? nowUtc.AddMinutes(predicted).ToString("O", System.Globalization.CultureInfo.InvariantCulture)
+                    : "NAO_APLICAVEL";
+                var jobStartText = jobStartUtc?.ToString("O", System.Globalization.CultureInfo.InvariantCulture)
+                    ?? "NAO_APLICAVEL";
+                var jobElapsedText = elapsedJobMinutes?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+                    ?? "NAO_APLICAVEL";
+                var jobLimitText = jobTimeoutMinutes?.ToString(System.Globalization.CultureInfo.InvariantCulture)
+                    ?? "NAO_APLICAVEL";
+                var remainingJobText = remainingJobMinutes?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+                    ?? "NAO_APLICAVEL";
+                var etaText = forecast.EtaMinutes?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
+                    ?? "NAO_APLICAVEL";
+                var marginText = forecast.MarginMinutes?.ToString("+0.0;-0.0;0.0", System.Globalization.CultureInfo.InvariantCulture)
+                    ?? "NAO_APLICAVEL";
                 Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) timestamp={nowUtc:O} hipotese={requestSha[..Math.Min(12, requestSha.Length)]} resultado={(evaluation.Candidate is not null ? "AVALIADA" : "REJEITADA")} decorrido_fisico_min={elapsedPhysicalMinutes:F1} restante=GITHUB_CONTROLA limite=GITHUB_JOB_NATIVO eta_min={forecast.EtaMinutes:F1} margem_prevista_min=NAO_APLICAVEL status={forecast.Status}{diagnosticSuffix}"));
+                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) timestamp={nowUtc:O} hipotese={requestSha[..Math.Min(12, requestSha.Length)]} resultado={(evaluation.Candidate is not null ? "AVALIADA" : "REJEITADA")} inicio_job={jobStartText} inicio_fisico={firstPhysicalUtc:O} decorrido_job_min={jobElapsedText} decorrido_fisico_min={elapsedPhysicalMinutes:F1} media_global_min={averageMinutes:F2} hipoteses_restantes={physicalTotal - done} eta_min={etaText} previsao_fim={predictedFinishUtc} limite_job_min={jobLimitText} restante_job_min={remainingJobText} margem_prevista_min={marginText} status={forecast.Status}{diagnosticSuffix}"));
                 Console.Out.Flush();
             }
         }
@@ -444,6 +490,7 @@ public static class V9NestedCalibrationCoordinator
                     V9CalibradorSafeFailureCategory.PhysicalFrameOrder);
                 throw;
             }
+            physicalStartUtc ??= DateTimeOffset.UtcNow;
             var results = await V9ParallelWork.MapCalibrationAsync(groups, executionMaximumParallelRuleSets ?? calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
                 FrozenIbgeNominalTfV9? frozenReference = null;

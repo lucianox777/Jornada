@@ -95,10 +95,13 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         self.assertEqual(progress.count('Console.Out.Flush();'), 1)
         normal = progress.split('lock (Console.Out)\n            {', 1)[1]
         self.assertIn('[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) timestamp=', normal)
-        for field in (' hipotese=', ' resultado=', ' restante=', ' limite=', ' status='):
+        for field in (' hipotese=', ' resultado=', ' inicio_job=', ' inicio_fisico=',
+                      ' decorrido_job_min=', ' decorrido_fisico_min=',
+                      ' media_global_min=', ' hipoteses_restantes=', ' previsao_fim=',
+                      ' limite_job_min=', ' restante_job_min=', ' status='):
             self.assertIn(field, normal)
-        self.assertIn('eta_min={forecast.EtaMinutes:F1}', normal)
-        self.assertIn('margem_prevista_min=NAO_APLICAVEL', normal)
+        self.assertIn('eta_min={etaText}', normal)
+        self.assertIn('margem_prevista_min={marginText}', normal)
         self.assertIn('status={forecast.Status}{diagnosticSuffix}', normal)
         self.assertIn('var forecast = ForecastPhysicalProgress(', progress)
         self.assertNotIn(r'\n', normal)
@@ -110,13 +113,19 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         self.assertNotIn('physicalDeadlineUtc', progress)
         self.assertIn('ForecastPhysicalProgress(', self.coord)
         self.assertIn('const int MinimumSample = 8;', self.coord)
-        self.assertNotIn('RiskReserveMinutes', self.coord)
         self.assertIn('"PREVISAO_PRELIMINAR"', self.coord)
         self.assertIn('"CONCLUIDO"', self.coord)
         self.assertIn('"ETA_INFORMATIVA_GITHUB_CONTROLA_TIMEOUT"', self.coord)
         self.assertNotIn('"PRAZO_EXCEDIDO"', self.coord)
         self.assertIn('elapsedMinutes / completed * (total - completed)', self.coord)
-        self.assertIn('physicalStepStartUtc = stepStartUtc;', self.coord)
+        self.assertIn('physicalStartUtc ??= DateTimeOffset.UtcNow;', self.coord)
+        self.assertIn('V9_JOB_START_UTC', self.coord)
+        self.assertIn('V9_JOB_TIMEOUT_MINUTES', self.coord)
+        self.assertNotIn('V9_PHYSICAL_STEP_START_UTC', self.coord)
+        self.assertIn('RiskReserveMinutes = 15d;', self.coord)
+        self.assertIn('"DENTRO_DA_PREVISAO"', self.coord)
+        self.assertIn('"RISCO_TIMEOUT"', self.coord)
+        self.assertIn('"PRAZO_INSUFICIENTE"', self.coord)
         self.assertNotIn('AddMinutes(340)', self.coord)
         replay = self.coord.split('var replayClock = diagnoseReplayTiming ?', 1)[1].split(
             'p95 = measured.P95Milliseconds;', 1)[0]

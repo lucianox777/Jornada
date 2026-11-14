@@ -221,6 +221,8 @@ jobs:
       JORNADA_RUNTIME_MODE: DEV
       EXACT_SHA: ${{ inputs.expected_sha }}
       GH_TOKEN: ${{ github.token }}
+      # Native hosted-runner job budget, observation only; NOT a local timeout.
+      V9_JOB_TIMEOUT_MINUTES: '360'
       V9_PHYSICAL_PROGRESS_LOG: '1'
       V9_REPLAY_TIMING_DIAGNOSTICS: ${{ inputs.replay_timing_diagnostics && '1' || '0' }}
       V9_100K_DISABLE_PYTHON_SQL_BUDGET: ${{ inputs.disable_python_sql_budget }}
@@ -235,6 +237,8 @@ jobs:
         # Before checkout, Solution/ does not exist yet.
         working-directory: ${{ github.workspace }}
         run: |
+          # Earliest in-job UTC sample; GitHub runner's exact timer can start earlier.
+          echo "V9_JOB_START_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
           echo '[V9 WORKFLOW START] 100k calibration workflow started; preflight and build pending'
           echo "[V9 WORKFLOW START] run=${GITHUB_RUN_ID} sha=${GITHUB_SHA} ref=${GITHUB_REF}"
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned
@@ -358,7 +362,6 @@ jobs:
       - name: Run physical V9 CSharp on 324 V3-only four-name hypotheses
         run: |
           set -euo pipefail
-          export V9_PHYSICAL_STEP_START_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           root="$PWD/.local/v9-100k-technical"
           python3 scripts/v9-100k-physical-memory-evidence.py \
             --sql-container "v9-probe-sql-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" \

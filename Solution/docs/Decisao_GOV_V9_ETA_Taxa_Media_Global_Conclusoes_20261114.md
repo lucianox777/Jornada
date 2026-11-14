@@ -35,3 +35,7 @@ Em `master` SHA `814238795abccf5c8c64f61a83c871bd0374cc7b`, `V9NestedCalibration
 - A campanha [#43631379628](https://github.com/lucianox777/Jornada/actions/runs/43631379628) é imutável em seu SHA; esta clarificação não altera sua execução. Sem A/B de runner e carga, não atribuir lentidão a timestamps, `Stopwatch` ou console. Sem nova autorização, não cancelar/reiniciar, nem consumir TEST.
 
 **Rastreabilidade:** `Solution/src/Jornada.Linkage.Parameters.Worker/V9NestedCalibrationCoordinator.cs`; `.github/workflows/v9-v3-four-name-100k.yml`; GOV-V9-PROGRESS-324-20261111; GOV-V9-PROGRESS-PREVISAO-RISCO-TIMEOUT-20261114; GOV-V9-TF4-JOBS-INDEPENDENTES-TIMEOUT-NATIVO-20261114; `Solution/docs/Indice_Decisoes_Vigentes.md`; PR deste registro. GOV-DOC-01.
+
+## Decisão posterior do PO — timestamps distintos e orçamento nativo informativo (14/11/2026)
+
+O PO **aprovou implementar** a separação entre início aproximado do job GitHub (T0), início efetivo dos grupos SQL (T1) e conclusão por hipótese (Ti), mantendo a média global desde T1, os 360 minutos como variável informativa no workflow, a previsão de término e a margem do job, tudo em uma única linha por hipótese. Não criar job PREPARE separado (o ganho observado seria ~4min). A decisão específica, com implementação/aceite e precedência, está em [GOV-V9-TIMESTAMPS-JOB-360-20261114](Decisao_GOV_V9_Timestamps_Job_360_20261114.md). As observações de implementação pendente neste registro referem-se ao estado anterior à autorização; GOV-DOC-01.

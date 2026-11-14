@@ -51,6 +51,44 @@ public sealed class V9NestedCalibrationTests
     }
 
     [Test]
+    public void Physical_progress_forecast_reports_global_324_completion_rate_and_informational_job_margin()
+    {
+        var physicalStart = new DateTimeOffset(2026, 11, 14, 19, 4, 0, TimeSpan.Zero);
+        var current = physicalStart.AddMinutes(100);
+        var observed = V9NestedCalibrationCoordinator.ForecastPhysicalProgress(
+            100, 324, physicalStart, current, remainingJobMinutes: 256d);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(observed.EtaMinutes, Is.EqualTo(224d).Within(.00001));
+            Assert.That(observed.MarginMinutes, Is.EqualTo(32d).Within(.00001));
+            Assert.That(observed.Status, Is.EqualTo("DENTRO_DA_PREVISAO"));
+        }));
+
+        var risk = V9NestedCalibrationCoordinator.ForecastPhysicalProgress(
+            100, 324, physicalStart, current, remainingJobMinutes: 230d);
+        Assert.That(risk.MarginMinutes, Is.EqualTo(6d).Within(.00001));
+        Assert.That(risk.Status, Is.EqualTo("RISCO_TIMEOUT"));
+
+        var insufficient = V9NestedCalibrationCoordinator.ForecastPhysicalProgress(
+            100, 324, physicalStart, current, remainingJobMinutes: 220d);
+        Assert.That(insufficient.MarginMinutes, Is.EqualTo(-4d).Within(.00001));
+        Assert.That(insufficient.Status, Is.EqualTo("PRAZO_INSUFICIENTE"));
+
+        var preliminary = V9NestedCalibrationCoordinator.ForecastPhysicalProgress(
+            1, 324, physicalStart, physicalStart.AddMinutes(1), remainingJobMinutes: 359d);
+        Assert.That(preliminary.Status, Is.EqualTo("PREVISAO_PRELIMINAR"));
+
+        var finished = V9NestedCalibrationCoordinator.ForecastPhysicalProgress(
+            324, 324, physicalStart, current, remainingJobMinutes: 256d);
+        Assert.That(finished.EtaMinutes, Is.Zero);
+        Assert.That(finished.Status, Is.EqualTo("CONCLUIDO"));
+
+        Assert.That((Action)(() => V9NestedCalibrationCoordinator.ForecastPhysicalProgress(
+            100, 324, physicalStart, current, remainingJobMinutes: -1d)),
+            Throws.TypeOf<ArgumentOutOfRangeException>());
+    }
+
+    [Test]
     public void Scientific_non_evaluability_accounting_is_distinct_from_measured_and_cp_counts()
     {
         var accounting = new V9DuplicatePolicySelection("COUNT_ALL", 1, [], [],
