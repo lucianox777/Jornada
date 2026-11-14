@@ -22,15 +22,17 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
     /// <summary>Independent TEST: one frozen model, one sealed TEST cohort; no fitting or selection.</summary>
     public static async Task<V9FrozenHoldoutEvaluation> EvaluateFrozenTestAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> test, V9FittedSnapshot winner,
+        V9OperationalPinnedCohortRuntime operationalRuntime,
         V9PhysicalAdaptiveExecution execution, int maximumAcceptedPerIdentity,
         CancellationToken cancellationToken)
         => await EvaluateFrozenPartitionAsync(connection, test, winner, execution,
-            maximumAcceptedPerIdentity, 1, "TEST", cancellationToken);
+            maximumAcceptedPerIdentity, 1, "TEST", cancellationToken, operationalRuntime);
 
     private static async Task<V9FrozenHoldoutEvaluation> EvaluateFrozenPartitionAsync(SqlConnection connection,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> validation, V9FittedSnapshot snapshot,
         V9PhysicalAdaptiveExecution execution, int maximumAcceptedPerIdentity,
-        int comparedConfigurations, string purpose, CancellationToken cancellationToken)
+        int comparedConfigurations, string purpose, CancellationToken cancellationToken,
+        V9OperationalPinnedCohortRuntime? operationalRuntime = null)
     {
         if (purpose is not ("VALIDATION" or "TEST"))
             throw new InvalidDataException("Finalidade de avaliação inválida.");
@@ -38,6 +40,15 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         ArgumentNullException.ThrowIfNull(validation);
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(execution);
+        // TEST always executes the SQL-pinned operational Runner cohort kernel.
+        // VALIDATION keeps the original replay path without any runtime change.
+        if (purpose == "TEST" && (operationalRuntime is null
+            || operationalRuntime.WinnerSha256 != snapshot.ContentSha256
+            || operationalRuntime.ModelId != V9OperationalSqlModelConverter.ModelIdFromWinnerSha(snapshot.ContentSha256)
+            || !operationalRuntime.FrozenWinner.SerializeUtf8().AsSpan().SequenceEqual(snapshot.SerializeUtf8())))
+            throw new InvalidDataException("TEST exige runtime operacional SQL do vencedor único sem divergência.");
+        if (purpose == "VALIDATION" && operationalRuntime is not null)
+            throw new InvalidDataException("Runtime de TEST nunca é injetado na VALIDATION.");
         execution.Validate(true, true);
         if (maximumAcceptedPerIdentity < 1 || comparedConfigurations < 1 || comparedConfigurations > 3
             || validation.Count < 4 || validation.Any(x => x is null || x.Partition != purpose
@@ -69,8 +80,10 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
                 connection, validation, snapshot, execution, purpose, cancellationToken);
             var trueSources = edges.Where(e => byId[e.A].BasePersonId == byId[e.B].BasePersonId)
                 .SelectMany(e => new[] { e.A, e.B }).Distinct().LongCount();
+            // Physical SQL pairCount == edges.Count has already been checked
+            // inside PrepareFrozenValidationPairsAsync in the same iteration.
             var replay = purpose == "TEST"
-                ? V9FrozenSourceResolveReplay.ReplayTest(snapshot, validation, edges)
+                ? operationalRuntime!.ReplayTest(validation, edges)
                 : V9FrozenSourceResolveReplay.Replay(snapshot, validation, edges);
             var baseline = new V9PhysicalSourceResolveMetric(snapshot.ContentSha256, snapshot.Payload.Threshold,
                 snapshot.Payload.TfWeight,
