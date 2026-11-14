@@ -23,7 +23,8 @@
     ".github/workflows/identity-publication-eligibility.yml",
     ".github/workflows/identity-atomic-publication.yml",
     ".github/workflows/v9-physical-seed42-probe.yml",
-    "Solution/scripts/v9-tf-start-disposable-sql.sh"
+    "Solution/scripts/v9-tf-start-disposable-sql.sh",
+    ".github/workflows/v9-operational-model-sql-smoke.yml"
   ],
   "allowedPasswordLiteralGlobs": [
     ".github/workflows/ci.yml",
@@ -49,5 +50,5 @@
     "AKIA",
     "ASIA"
   ],
-  "note": "Exceções só para Development/CI sintético. .github/workflows/dt10-evidence.yml é reusable workflow chamado exclusivamente pelo job CI impact-gated, usa JornadaSyntheticDev efêmero e senha derivada de github.run_id, igual ao job original ci.yml; não habilita TLS SQL enfraquecido em produção. Produção não distribui credencial, chave privada ou TLS SQL enfraquecido. As exceções exatas .github/workflows/v9-physical-seed42-probe.yml e Solution/scripts/v9-tf-start-disposable-sql.sh são restritas ao SQL Server 2022 descartável JornadaHarness no workflow manual, ligado somente a 127.0.0.1; a credencial aleatória por execução é mascarada antes do Docker. Esta exceção aceita TLS sem certificado validado somente nesse ambiente de CI sintético, sem tocar HML/PROD e sem permitir TLS SQL enfraquecido em outros caminhos."
+  "note": "Exceções só para Development/CI sintético. .github/workflows/dt10-evidence.yml é reusable workflow chamado exclusivamente pelo job CI impact-gated, usa JornadaSyntheticDev efêmero e senha derivada de github.run_id, igual ao job original ci.yml; não habilita TLS SQL enfraquecido em produção. Produção não distribui credencial, chave privada ou TLS SQL enfraquecido. As exceções exatas .github/workflows/v9-physical-seed42-probe.yml e Solution/scripts/v9-tf-start-disposable-sql.sh são restritas ao SQL Server 2022 descartável JornadaHarness no workflow manual, ligado somente a 127.0.0.1; a credencial aleatória por execução é mascarada antes do Docker. Esta exceção aceita TLS sem certificado validado somente nesse ambiente de CI sintético, sem tocar HML/PROD e sem permitir TLS SQL enfraquecido em outros caminhos. A exceção exata v9-operational-model-sql-smoke.yml vale apenas ao SQL 2022 descartável em CI DEV com porta ligada a 127.0.0.1, senha aleatória mascarada, imagem pinada e sem publicação. O source-sanity-gate valida fail-closed essas condições no próprio workflow antes de aceitar qualquer TLS sem confiança de CA; alteração da topologia/ambiente retira a exceção automaticamente."
 }
