@@ -77,6 +77,36 @@ public sealed class ProbabilisticLinkageBatchRunner(
             proof.IdentityGroupsSha256);
     }
 
+    /// <summary>
+    /// Optional, strictly disposable-SQL persistence proof for the V9 synthetic
+    /// TEST rehearsal. The real RunAsync and production linkage tables are
+    /// never accessed; the target synthetic ledger has a distinct schema.
+    /// All batches/status transitions commit atomically, or none do.
+    /// </summary>
+    public async Task<V9SyntheticNonPublishingLedgerReceipt> PersistV9SyntheticRehearsalLedgerAsync(
+        Guid rehearsalId,
+        Guid pinnedModelId,
+        string pinnedWinnerSha256,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> syntheticTest,
+        IReadOnlyList<(int A, int B)> physicalSqlEdges,
+        int batchSize,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(syntheticTest);
+        ArgumentNullException.ThrowIfNull(physicalSqlEdges);
+        if (rehearsalId == Guid.Empty)
+            throw new InvalidDataException("Ledger de ensaio exige ID próprio não vazio.");
+
+        // This already fails on any non-JornadaHarness database before
+        // reading a model, fitting, scoring or touching a production table.
+        var proof = await RehearseV9NonPublishingSyntheticTestAsync(
+            pinnedModelId, pinnedWinnerSha256, syntheticTest,
+            physicalSqlEdges, batchSize, cancellationToken);
+        await using var connection = await operationalSql.OpenAsync(cancellationToken);
+        return await V9SyntheticNonPublishingSqlLedger.PersistAsync(
+            connection, rehearsalId, proof, syntheticTest, cancellationToken);
+    }
+
     public async Task<ProbabilisticLinkageRunSummary> RunAsync(
         ProbabilisticLinkageRunRequest request,
         CancellationToken ct)
