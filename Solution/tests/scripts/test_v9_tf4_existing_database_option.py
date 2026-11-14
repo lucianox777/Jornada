@@ -101,6 +101,8 @@ class V9ExistingDatabaseOptionTests(unittest.TestCase):
         self.assertIn("sys.fn_my_permissions(NULL, 'DATABASE')", verify)
         self.assertIn("FROM sys.schemas AS s", verify)
         self.assertIn("FROM sys.objects AS o", verify)
+        self.assertIn("FROM sys.columns AS c", verify)
+        self.assertIn("'OBJECT', 'UPDATE', c.name, 'COLUMN'", verify)
         for permission in ("INSERT", "UPDATE", "DELETE", "EXECUTE",
                            "ALTER", "CONTROL", "TAKE OWNERSHIP"):
             self.assertIn(" 'OBJECT', '" + permission + "'", verify)
