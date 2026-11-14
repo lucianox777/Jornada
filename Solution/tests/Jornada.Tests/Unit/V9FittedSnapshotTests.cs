@@ -1076,9 +1076,15 @@ public sealed class V9FittedSnapshotTests
             CandidateGrouping = new("BLIND_FS_COMPLETE_LINK_CANDIDATES", .99m, 16),
             ProjectionSchemaVersion = V9CalibrationBlockingProjection.SchemaVersion,
             ProjectionFingerprintSha256 = V9CalibrationBlockingProjection.ComputeSchemaFingerprint(4),
-            BlockingPasses = [new("prefix-first-and-mother",
-                [V9CalibrationBlockingProjection.NamePrefixFeature(3),
-                 V9CalibrationBlockingProjection.MotherNamePrefixFeature(3)])]
+            BlockingPasses =
+            [
+                new("prefix-first-and-mother",
+                    [V9CalibrationBlockingProjection.NamePrefixFeature(3),
+                     V9CalibrationBlockingProjection.MotherNamePrefixFeature(3)]),
+                new("prefix-four-and-mother",
+                    [V9CalibrationBlockingProjection.NamePrefixFeature(4),
+                     V9CalibrationBlockingProjection.MotherNamePrefixFeature(4)])
+            ]
         };
         var levels = Enum.GetValues<CompositeNominalLevelV9>();
         var observed = levels.SelectMany(person => levels.Select(mother =>
@@ -1240,6 +1246,18 @@ public sealed class V9FittedSnapshotTests
 
         var projectionRuntime = V9FittedSnapshotExecutionRuntime.Load(
             winner.SerializeUtf8(), winner.ContentSha256);
+        using (var queryCommand = new Microsoft.Data.SqlClient.SqlCommand())
+        {
+            var query = projectionRuntime.BuildCandidateUuidQuery(queryCommand,
+                observation, projectionRuntime.ProjectionSchemaVersion,
+                projectionRuntime.ProjectionFingerprintSha256);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(query, Does.Contain(" UNION ").And.Contain(" INTERSECT "));
+                Assert.That(query, Does.Contain("projection_schema_version=@blocking_projection_schema"));
+                Assert.That(query, Does.Contain("projection_fingerprint_sha256=@blocking_projection_fingerprint"));
+            }));
+        }
         var requiredFeatures = winner.Payload.BlockingPasses
             .SelectMany(pass => pass.Fields).ToHashSet(StringComparer.Ordinal);
         foreach (var source in cohort)
