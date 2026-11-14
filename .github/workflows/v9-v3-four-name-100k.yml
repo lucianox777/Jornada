@@ -28,7 +28,7 @@ on:
         required: false
         type: string
       replay_timing_diagnostics:
-        description: "Measure frozen replay timing; merge into V9 PROGRESS when enabled (one line per hypothesis)"
+        description: "Optional replay timing in V9 PROGRESS (one numbered GitHub log row per hypothesis, without pipes)"
         required: true
         default: false
         type: boolean

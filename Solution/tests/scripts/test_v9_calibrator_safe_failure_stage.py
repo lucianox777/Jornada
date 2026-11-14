@@ -76,26 +76,29 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         self.assertIn('var optionsById = run.CalibrationReport.Options.ToLookup(', self.coord)
 
 
-    def test_one_multiline_message_per_hypothesis_with_single_write_lock_and_flush(self):
-        # Per PO: one completed hypothesis = one Console.WriteLine call, with
-        # each datum on its own physical line; no pipe-delimited fields.
+    def test_one_numbered_github_log_row_per_hypothesis_without_pipes(self):
+        # PO clarified with a screenshot: one GitHub-numbered physical row per
+        # hypothesis, mobile auto-wrap, with new fields and without pipe delimiters.
+        # Explicit newlines would create SEVEN separately numbered GitHub rows.
         self.assertIn('var replayTimingEnabled = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";', self.coord)
-        self.assertIn('var diagnosticLine = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs', self.coord)
-        self.assertIn(r'\nreplay_elapsed_ms={replayMs:F3}', self.coord)
+        self.assertIn('var diagnosticSuffix = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs', self.coord)
+        self.assertIn(' replay_elapsed_ms={replayMs:F3}', self.coord)
         self.assertIn('if (!physicalProgressEnabled)', self.coord)
         self.assertIn('if (replayTimingEnabled && replayElapsedMilliseconds is { } ms)', self.coord)
         self.assertIn('reportHypothesis?.Invoke(evaluation);', self.coord)
         progress = self.coord.split('void ReportPhysicalCompletion(', 1)[1].split(
             'reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");', 1)[0]
+        # Exactly one WriteLine, one lock and one Flush for NORMAL progress.
+        # The separate diagnostic-only branch is disabled by default.
         self.assertEqual(progress.count('lock (Console.Out)'), 2)
         self.assertEqual(progress.count('Console.WriteLine('), 2)
         self.assertEqual(progress.count('Console.Out.Flush();'), 1)
-        self.assertIn(r'[V9 PROGRESS] {done}/{physicalTotal}\ntimestamp=', progress)
-        for field in (r'\nhipotese=', r'\nresultado=', r'\nrestante=',
-                      r'\nlimite=', r'\nstatus='):
-            self.assertIn(field, progress)
-        # The opt-in PERF DIAG branch is disjoint from the normal progress branch.
         normal = progress.split('lock (Console.Out)\n            {', 1)[1]
+        self.assertIn('[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) timestamp=', normal)
+        for field in (' hipotese=', ' resultado=', ' restante=', ' limite=', ' status='):
+            self.assertIn(field, normal)
+        self.assertIn('status={status}{diagnosticSuffix}', normal)
+        self.assertNotIn(r'\n', normal)
         self.assertNotIn(' | ', normal)
         self.assertNotIn('ETA_min=', normal)
         self.assertNotIn('margem_etapa_315min=', normal)
