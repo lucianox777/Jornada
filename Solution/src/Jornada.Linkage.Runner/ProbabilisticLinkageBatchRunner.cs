@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Data;
 using System.Text.Json;
 using Jornada.Contracts;
+using Jornada.Linkage.Parameters.Worker;
 using Jornada.Pipeline.Coordination;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
