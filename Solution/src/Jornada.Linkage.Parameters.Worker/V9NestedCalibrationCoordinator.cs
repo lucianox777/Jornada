@@ -133,7 +133,7 @@ public static class V9NestedCalibrationCoordinator
         var status = completed == total ? "CONCLUIDO"
             : completed < MinimumSample ? "PREVISAO_PRELIMINAR"
             : "ETA_INFORMATIVA_GITHUB_CONTROLA_TIMEOUT";
-        return new(eta, MarginMinutes: null, status);
+        return new(eta, null, status);
     }
     /// <summary>
     /// A conservative, predeclared upper bound on the number of SELECTABLE
