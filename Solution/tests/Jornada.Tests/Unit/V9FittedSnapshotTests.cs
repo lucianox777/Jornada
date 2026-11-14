@@ -1168,11 +1168,11 @@ public sealed class V9FittedSnapshotTests
         })
         {
             Assert.Throws<InvalidDataException>(
-                () => V9ExternalDatabaseReadOnlyTest.ValidateDatabaseName(unsafeName),
+                (Action)(() => V9ExternalDatabaseReadOnlyTest.ValidateDatabaseName(unsafeName)),
                 "Explicit external database names must be safe and cannot target harness/system.");
         }
-        Assert.Throws<InvalidOperationException>(() =>
-            V9ExternalDatabaseReadOnlyTest.BuildReadOnlyConnection("", "JornadaReadonlyDev"));
+        Assert.Throws<InvalidOperationException>((Action)(() =>
+            V9ExternalDatabaseReadOnlyTest.BuildReadOnlyConnection("", "JornadaReadonlyDev")));
     }
 
     [Test]
@@ -1195,11 +1195,11 @@ public sealed class V9FittedSnapshotTests
             Is.True, "Never score within the same gestor.");
         Assert.That(edges.Select(edge => edge).Distinct().Count(), Is.EqualTo(edges.Count),
             "No silent duplicate candidates are permitted.");
-        Assert.Throws<InvalidDataException>(() =>
+        Assert.Throws<InvalidDataException>((Action)(() =>
             V9ExternalDatabaseReadOnlyTest.BuildDiagnosticCandidateGraph(
-                frozen, rows.Append(rows[0]).ToArray()));
-        Assert.Throws<InvalidDataException>(() =>
-            V9ExternalDatabaseReadOnlyTest.BuildDiagnosticCandidateGraph(frozen, [rows[0]]));
+                frozen, rows.Append(rows[0]).ToArray())));
+        Assert.Throws<InvalidDataException>((Action)(() =>
+            V9ExternalDatabaseReadOnlyTest.BuildDiagnosticCandidateGraph(frozen, [rows[0]])));
     }
 
     [Test]
