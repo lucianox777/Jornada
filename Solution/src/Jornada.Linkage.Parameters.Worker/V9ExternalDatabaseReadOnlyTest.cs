@@ -162,8 +162,32 @@ public static class V9ExternalDatabaseReadOnlyTest
                 || string.IsNullOrWhiteSpace(x.Gestor))
             || rows.Select(x => x.ObservationId).Distinct().Count() != rows.Count)
             throw new InvalidDataException("Coorte TEST externa inválida.");
-        var runtime = V9FittedSnapshotExecutionRuntime.Load(
-            winner.SerializeUtf8(), winner.ContentSha256);
+        // The Runner is a separate hosted project and cannot be referenced
+        // from the Worker. Use the same public frozen Core projections instead.
+        var version = winner.Payload.ProjectionSchemaVersion;
+        int? prefix = null;
+        HashSet<string>? supported = null;
+        if (version == V9CalibrationBlockingProjection.SchemaVersion)
+        {
+            var matches = Enumerable.Range(1,
+                V9CalibrationBlockingProjection.MaximumSupportedPrefixLength)
+                .Where(n => V9CalibrationBlockingProjection.ComputeSchemaFingerprint(n)
+                    .Equals(winner.Payload.ProjectionFingerprintSha256,
+                        StringComparison.OrdinalIgnoreCase)).ToArray();
+            if (matches.Length != 1)
+                throw new InvalidDataException("Database TEST exige projeção V9 fixada válida.");
+            prefix = matches[0];
+            supported = V9CalibrationBlockingProjection.SupportedFeatures(prefix.Value)
+                .ToHashSet(StringComparer.Ordinal);
+        }
+        else
+        {
+            PersonResolutionProjectionContract.ValidateSupported(
+                version, winner.Payload.ProjectionFingerprintSha256);
+        }
+        foreach (var feature in winner.Payload.BlockingPasses.SelectMany(p => p.Fields))
+            if (supported is not null && !supported.Contains(feature))
+                throw new InvalidDataException("Feature fora do blocking V9 congelado.");
         var index = new Dictionary<string, List<V9PhysicalCalibrationObservation>>(
             StringComparer.Ordinal);
         var edges = new HashSet<(int A, int B)>();
@@ -172,15 +196,33 @@ public static class V9ExternalDatabaseReadOnlyTest
         {
             var observation = new IdentityObservation(null, "SEM_CPF",
                 row.PersonName, row.BirthDate, row.MotherName);
-            foreach (var pass in runtime.Plan(observation))
+            var projection = prefix is int selectedPrefix
+                ? V9CalibrationBlockingProjection.Project(
+                    observation.NomeCompleto, observation.NomeMae,
+                    observation.DataNascimento, selectedPrefix)
+                : BlockingProjectionKeyProjector.Project(
+                    observation.NomeCompleto, observation.NomeMae,
+                    observation.DataNascimento)
+                    .Concat(PersonResolutionBlockingProjector.Project(
+                        observation.ResolutionAttributes))
+                    .Distinct().ToArray();
+            var values = projection.GroupBy(k => k.Feature, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key,
+                    g => g.Select(k => k.Value).Distinct(StringComparer.Ordinal)
+                        .OrderBy(v => v, StringComparer.Ordinal).ToArray(),
+                    StringComparer.Ordinal);
+            foreach (var pass in winner.Payload.BlockingPasses)
             {
+                if (!pass.Fields.All(values.ContainsKey))
+                    continue;
                 IEnumerable<string> combinations = [pass.PassId];
-                foreach (var clause in pass.Clauses)
+                foreach (var feature in pass.Fields)
                 {
-                    combinations = combinations.SelectMany(key =>
-                        clause.Values.Select(value =>
-                            key + "\u001f" + clause.Feature.Length + ":" + clause.Feature
-                                + "=" + value.Length + ":" + value));
+                    var featureName = feature;
+                    combinations = combinations.SelectMany(
+                        (string key) => values[featureName].Select(
+                            (string value) => key + "\u001f" + featureName.Length
+                                + ":" + featureName + "=" + value.Length + ":" + value));
                 }
                 foreach (var key in combinations)
                 {
