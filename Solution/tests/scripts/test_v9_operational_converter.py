@@ -57,6 +57,22 @@ class OperationalConverterContract(unittest.TestCase):
         self.assertIn('--v9-independent-test',program)
         self.assertIn('builder.InitialCatalog != "JornadaHarness"',worker)
 
+    def test_dedicated_sql_smoke_is_not_skipped_by_general_unit_suite(self):
+        # The physical SQL fixture intentionally ignores the test without an
+        # ephemeral private SQL connection. It cannot count as an executed
+        # unit test under jornada-ci's --forbid-skipped evidence gate.
+        ci = (ROOT.parent / ".github/workflows/ci.yml").read_text()
+        smoke = (ROOT.parent / ".github/workflows/v9-operational-model-sql-smoke.yml").read_text()
+        fixture = (ROOT / "tests/Jornada.Tests/Unit/V9FittedSnapshotTests.cs").read_text()
+        self.assertIn('TestCategory!=Integration&TestCategory!=SQLSmoke', ci)
+        self.assertIn('[Test, Category("SQLSmoke")]', fixture)
+        self.assertIn('JORNADA_V9_SQL_MODEL_SMOKE_CONNECTION', fixture)
+        self.assertIn('Operational_SQL_roundtrip_uses_immutable_one_winner_row_and_same_frozen_FS_decisions', fixture)
+        self.assertIn('FullyQualifiedName~V9FittedSnapshotTests.Operational_SQL_roundtrip_', smoke)
+        self.assertIn('JORNADA_V9_SQL_MODEL_SMOKE_CONNECTION=', smoke)
+        self.assertIn('v9-operational-converter-smoke', smoke)
+        self.assertIn('dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release', smoke)
+
     def test_sql_conversion_precedes_test_decryption_and_winner_only_handoff(self):
         wf=WF.read_text()
         test=wf.split("\n  test-100k:\n",1)[1]
