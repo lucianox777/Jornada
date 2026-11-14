@@ -588,6 +588,8 @@ jobs:
               "schema":"V9_VALIDATION_E2E_STATUS_V1",
               "status":r["status"],
               "selectedValidationSnapshotSha256":r.get("selectedValidationSnapshotSha256"),
+              "selectedValidationOperationalModelFileName":r.get("selectedValidationOperationalModelFileName"),
+              "selectedValidationOperationalModelContract":r.get("selectedValidationOperationalModelContract"),
               "selectionEnvelopeSha256":r["selectionEnvelopeSha256"],
               "comparedConfigurations":r["comparedConfigurations"],
               "measuredCount":len(r["measured"]),
@@ -821,6 +823,9 @@ jobs:
           assert r["refitted"] is False and r["testUsed"] is True
           assert r["operationalModelContract"] == "JORNADA_V9_OPERATIONAL_SQL_MODEL_V1"
           assert r["operationalModelByteExactRoundTrip"] is True
+          assert r["validatedOperationalJsonSchema"] == "V9_FITTED_SNAPSHOT_V3"
+          assert r["sameOperationalJsonBytesAsProductionSideSqlPayload"] is True
+          assert r["validatedOperationalModelFileName"] == r["winnerSnapshotSha256"] + ".operational.json"
           assert r["operationalModelActive"] is False and r["operationalModelPublished"] is False
           assert r["productionRunnerFullPipelineParityCertified"] is False
           assert r["certified"] is False and r["activated"] is False
