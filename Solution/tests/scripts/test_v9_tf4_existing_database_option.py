@@ -92,6 +92,35 @@ class V9ExistingDatabaseOptionTests(unittest.TestCase):
         for forbidden in ("INSERT INTO ", "DELETE FROM ", "UPDATE silver.", "CREATE TABLE ", "MERGE INTO "):
             self.assertNotIn(forbidden, source)
 
+    def test_effective_permissions_fail_closed_on_unrelated_writes_and_execute(self):
+        source = DB.read_text(encoding="utf-8")
+        verify = source.split("public static async Task VerifyReadOnlyPrincipalAsync(", 1)[1]
+        verify = verify.split("public static async Task<V9PhysicalCalibrationObservation[]> ReadExistingObservationsAsync(", 1)[0]
+        # A named-table/db_owner check alone does not reject write grants in
+        # custom roles or through an unrelated table / stored procedure.
+        self.assertIn("sys.fn_my_permissions(NULL, 'DATABASE')", verify)
+        self.assertIn("FROM sys.schemas AS s", verify)
+        self.assertIn("FROM sys.objects AS o", verify)
+        for permission in ("INSERT", "UPDATE", "DELETE", "EXECUTE",
+                           "ALTER", "CONTROL", "TAKE OWNERSHIP"):
+            self.assertIn(" 'OBJECT', '" + permission + "'", verify)
+        self.assertIn("COALESCE(HAS_PERMS_BY_NAME(NULL, 'SERVER', 'CONTROL SERVER')", verify)
+        self.assertIn("await using (var reader = await command.ExecuteReaderAsync(ct))", verify)
+        self.assertIn("effectivePermissions.ExecuteScalarAsync(ct)", verify)
+        self.assertIn("value != 0", verify)
+        self.assertNotIn("INSERT INTO ", verify)
+        self.assertNotIn("UPDATE silver.", verify)
+        # Every live source read must be admitted by effective permission audit.
+        run = source.split("public static async Task RunAsync(", 1)[1]
+        self.assertLess(run.index("VerifyReadOnlyPrincipalAsync(connection, database, ct)"),
+                        run.index("ReadExistingObservationsAsync(connection, ct)"))
+        smoke = (ROOT / "tests/Jornada.Tests/Unit/V9FittedSnapshotTests.cs").read_text()
+        self.assertIn("v9_scope_read_probe", smoke)
+        self.assertIn("CREATE ROLE [v9_scope_write_role]", smoke)
+        self.assertIn("GRANT INSERT ON OBJECT::identidade.v9_permission_probe", smoke)
+        self.assertIn("Assert.ThrowsAsync<InvalidOperationException>", smoke)
+        self.assertIn('"REVERT;"', smoke)
+
     def test_cli_is_explicit_parameter_no_synthetic_when_present(self):
         src = TEST.read_text()
         self.assertIn('args[2] != "--test-database"', src)
