@@ -72,6 +72,9 @@ jobs:
           # before squash, without SQL, physical 30k/100k or Windows builds.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9FsAdaptiveFirstNameTfTrainValidationTests'
+          # Protect the exact jornada-ci regression from TEST cohort API changes.
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+            --filter 'FullyQualifiedName~V9FellegiSunterAdaptiveCalibrationAdapterTests.Source_recall_uses_eligible_observations_and_oracle_gold_collapses_duplicate_identity'
           # C# execution proof that TEST/VALIDATION FS grouping stay isolated.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9BlindIncrementalIdentityGroupingTests'
