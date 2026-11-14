@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Data;
 using System.Text.Json;
 using Jornada.Contracts;
+using Jornada.Linkage.Parameters.Worker;
 using Jornada.Pipeline.Coordination;
 using Jornada.Operational.Sql;
 using Microsoft.Data.SqlClient;
@@ -29,6 +30,53 @@ public sealed class ProbabilisticLinkageBatchRunner(
     Dt05HistoricalBlockingProjectionVerifier historicalBlockingProjectionVerifier,
     ILogger<ProbabilisticLinkageBatchRunner> logger) : IProbabilisticLinkageBatchRunner
 {
+    /// <summary>
+    /// Explicit V9 opt-in integration on the actual operational Runner class:
+    /// read-only, synthetic, disposable SQL TEST_ONLY model, never the legacy
+    /// RunAsync flow. Uses the Runner's SQL adapter but DOES NOT acquire
+    /// pipeline lock, create linkage_run/results, or publish Gold/Serving.
+    /// Does not certify legacy production batch equivalence.
+    /// </summary>
+    public async Task<V9NonPublishingBatchExecutionReceipt> RehearseV9NonPublishingSyntheticTestAsync(
+        Guid pinnedModelId,
+        string pinnedWinnerSha256,
+        IReadOnlyCollection<V9PhysicalCalibrationObservation> syntheticTest,
+        IReadOnlyList<(int A, int B)> physicalSqlEdges,
+        int batchSize,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(syntheticTest);
+        ArgumentNullException.ThrowIfNull(physicalSqlEdges);
+        if (pinnedModelId == Guid.Empty || string.IsNullOrWhiteSpace(pinnedWinnerSha256))
+            throw new InvalidDataException("Ensaio V9 exige vencedor SQL pinado, sem fallback.");
+        cancellationToken.ThrowIfCancellationRequested();
+
+        await using var connection = await operationalSql.OpenAsync(cancellationToken);
+        var proof = await V9ReadOnlyTestBatchRunner.RunAsync(connection,
+            pinnedModelId, pinnedWinnerSha256, syntheticTest, physicalSqlEdges,
+            batchSize, cancellationToken);
+        if (proof.ObservationCount != syntheticTest.Count ||
+            proof.ObservationCount != proof.Resolved + proof.Unresolved + proof.Conflicts
+            || proof.NoCandidateInBlock > proof.Unresolved
+            || proof.WinnerSha256 != pinnedWinnerSha256
+            || proof.ProductionBatchPipelineCertified ||
+            proof.CanonicalEdgesSha256.Length != 64 ||
+            proof.DecisionsSha256 is not { Length: 64 } ||
+            proof.IdentityGroupsSha256 is not { Length: 64 })
+            throw new InvalidDataException(
+                "Recibo V9 não reconcilia contadores e hashes do lote inteiro.");
+
+        // Project the production nonpublication accounting contract, but never
+        // invent a linkage_run_id or claim that an actual SQL transition ran.
+        return new(pinnedModelId, proof.WinnerSha256,
+            LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO,
+            proof.ObservationCount, proof.ObservationCount,
+            proof.Resolved, proof.Unresolved, proof.Conflicts,
+            proof.NoCandidateInBlock, proof.BatchSize, proof.BatchCount,
+            proof.CanonicalEdgesSha256, proof.DecisionsSha256,
+            proof.IdentityGroupsSha256);
+    }
+
     public async Task<ProbabilisticLinkageRunSummary> RunAsync(
         ProbabilisticLinkageRunRequest request,
         CancellationToken ct)
