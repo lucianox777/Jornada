@@ -125,10 +125,10 @@ public static class V9NestedCalibrationCoordinator
     {
         const int MinimumSample = 8;
         const double RiskReserveMinutes = 15d;
-        if (total <= 0 || completed < 0 || completed > total)
-            throw new ArgumentOutOfRangeException(nameof(completed));
-        if (nowUtc < stepStartUtc)
-            throw new ArgumentOutOfRangeException(nameof(nowUtc));
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(total);
+        ArgumentOutOfRangeException.ThrowIfNegative(completed);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(completed, total);
+        ArgumentOutOfRangeException.ThrowIfLessThan(nowUtc, stepStartUtc);
 
         // At least one observation is required to estimate speed; 1..7 are
         // explicitly marked PRELIMINAR because startup/group overhead dominates.
