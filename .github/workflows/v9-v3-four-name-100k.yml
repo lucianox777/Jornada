@@ -53,7 +53,8 @@ jobs:
   test-database-preflight:
     if: ${{ inputs.test_required == true && inputs.test_database != '' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: "V9 external database preflight: SELECT-only, schema and connectivity"
-    runs-on: ubuntu-24.04
+    # Existing citizen records never leave a PO-controlled private runner.
+    runs-on: [self-hosted, v9-private-readonly]
     permissions:
       contents: read
     env:
@@ -923,7 +924,8 @@ jobs:
     needs: [validation-100k, test-database-preflight]
     if: ${{ always() && !cancelled() && inputs.test_required == true && inputs.test_database != '' && needs.validation-100k.result == 'success' && needs.test-database-preflight.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: "V9 TEST existing database: read-only operational diagnostic"
-    runs-on: ubuntu-24.04
+    # Existing citizen records never leave a PO-controlled private runner.
+    runs-on: [self-hosted, v9-private-readonly]
     permissions:
       contents: read
       actions: read
