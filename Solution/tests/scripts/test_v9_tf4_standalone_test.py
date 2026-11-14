@@ -6,7 +6,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CLI = ROOT / "src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCli.cs"
 CORPUS = ROOT / "src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCorpusReader.cs"
 PROBE = ROOT / "src/Jornada.Linkage.Parameters.Worker/V9PhysicalSqlFrozenHoldout.cs"
-REPLAY = ROOT / "src/Jornada.Linkage.Parameters.Worker/V9FrozenSourceResolveReplay.cs"
+REPLAY = ROOT / "src/Jornada.Linkage.Core/V9FrozenSourceResolveReplay.cs"
 PROGRAM = ROOT / "src/Jornada.Linkage.Parameters.Worker/Program.cs"
 WF = ROOT.parent / ".github/workflows/v9-v3-four-name-100k.yml"
 
@@ -15,7 +15,7 @@ class StandaloneTestContract(unittest.TestCase):
     def test_only_model_is_explicit_cli_parameter(self):
         source=CLI.read_text()
         self.assertIn('args.Length != 2 || args[0] != "--v9-independent-test"',source)
-        self.assertIn("V9OperationalSqlModelConverter.ReadPinnedAsync(",source)
+        self.assertIn("V9OperationalPinnedCohortRuntime.LoadPinnedAsync(",source)
         self.assertNotIn("V9FittedSnapshotArtifact.ReadPinnedAsync",source)
         self.assertIn("V9IndependentTestCorpusReader.ReadAsync(fullTestDir)",source)
         self.assertIn("V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync",source)
@@ -45,6 +45,7 @@ class StandaloneTestContract(unittest.TestCase):
         self.assertIn("SHA256.HashDataAsync(stream, cancellationToken)",source)
         self.assertIn("EvaluateFrozenTestAsync",PROBE.read_text())
         self.assertIn("ReplayTest",REPLAY.read_text())
+        self.assertIn("operationalRuntime!.ReplayTest(validation, edges)",PROBE.read_text())
         self.assertNotIn("finalist-validation.json",source)
 
     def test_test_job_only_gets_winner_model_and_own_data(self):

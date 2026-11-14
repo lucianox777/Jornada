@@ -1176,6 +1176,48 @@ public sealed class V9FittedSnapshotTests
             Assert.That(loaded.SerializeUtf8(), Is.EqualTo(winner.SerializeUtf8()));
             Assert.That(converted, Is.EqualTo(original));
         }));
+        // PRODUCTION-side and physical TEST paths now invoke the *same*
+        // SQL-pinned grouped cohort FS/Resolve implementation. This SQL smoke
+        // checks decisions and group identities (not only byte identity).
+        var groupedRuntime = await V9OperationalPinnedCohortRuntime.LoadPinnedAsync(
+            connection, receipt.ModelId, receipt.SourceSnapshotSha256);
+        var cohort = new[]
+        {
+            new V9PhysicalCalibrationObservation(1, "TRUTH-1", "TEST", "G1",
+                "MARIA SILVA", "ANA COSTA", new DateOnly(1980, 5, 6)),
+            new V9PhysicalCalibrationObservation(2, "TRUTH-1", "TEST", "G2",
+                "MARIA SILVA", "ANA COSTA", new DateOnly(1980, 5, 6)),
+            new V9PhysicalCalibrationObservation(3, "TRUTH-2", "TEST", "G3",
+                "MARIA SILVA", "ANA COSTA", new DateOnly(1980, 5, 6)),
+            new V9PhysicalCalibrationObservation(4, "TRUTH-2", "TEST", "G4",
+                "MARIA SILVA", "ANA COSTA", new DateOnly(1980, 5, 6))
+        };
+        var completeEdges = new (int A, int B)[]
+        {
+            (1, 2), (1, 3), (1, 4), (2, 3), (2, 4), (3, 4)
+        };
+        var referenceReplay = V9FrozenSourceResolveReplay.ReplayTest(
+            winner, cohort, completeEdges);
+        var sqlRunnerReplay = groupedRuntime.ReplayTest(cohort, completeEdges);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(groupedRuntime.ModelId, Is.EqualTo(receipt.ModelId));
+            Assert.That(groupedRuntime.WinnerSha256, Is.EqualTo(winner.ContentSha256));
+            Assert.That(sqlRunnerReplay.SnapshotSha256, Is.EqualTo(winner.ContentSha256));
+            Assert.That(sqlRunnerReplay.Decisions, Is.EqualTo(referenceReplay.Decisions));
+            Assert.That(sqlRunnerReplay.IdentityByObservation,
+                Is.EquivalentTo(referenceReplay.IdentityByObservation));
+        }));
+        Assert.That((Action)(() => groupedRuntime.ReplayTest(
+            cohort.Select(r => r with { Partition = "VALIDATION" }).ToArray(), completeEdges)),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.That((Action)(() => groupedRuntime.ReplayTest(
+            cohort, [completeEdges[0], completeEdges[0]])),
+            Throws.TypeOf<InvalidDataException>());
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9OperationalPinnedCohortRuntime.LoadPinnedAsync(
+                connection, receipt.ModelId, new string('a', 64))));
+
         Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             await V9OperationalSqlModelConverter.MaterializeOnceAsync(connection, winner)));
         Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>

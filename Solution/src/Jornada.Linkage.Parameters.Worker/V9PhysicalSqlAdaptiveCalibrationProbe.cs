@@ -10,15 +10,6 @@ using Microsoft.Data.SqlClient;
 
 namespace Jornada.Linkage.Parameters.Worker;
 
-public sealed record V9PhysicalCalibrationObservation(
-    int ObservationId,
-    string BasePersonId,
-    string Partition,
-    string Gestor,
-    string? PersonName,
-    string? MotherName,
-    DateOnly? BirthDate);
-
 public sealed record V9PhysicalCatalogueCensus(long DistinctPhysicalEdges, string PhysicalEdgesSha256,
     string ProjectionContract, string ProjectionFingerprintSha256, int MaximumPrefixLength,
     [property: System.Text.Json.Serialization.JsonIgnore] IReadOnlyList<System.Numerics.BigInteger> EdgeMasks);

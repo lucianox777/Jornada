@@ -23,7 +23,7 @@ class TestProductionModelFormat(unittest.TestCase):
         self.assertIn('assert hashlib.file_digest(stream,"sha256").hexdigest()==winner', workflow)
         self.assertIn("test-winner-only/*.fitted.json", workflow)
         self.assertIn("args.Length != 2", test)
-        self.assertIn("V9OperationalSqlModelConverter.ReadPinnedAsync(", test)
+        self.assertIn("V9OperationalPinnedCohortRuntime.LoadPinnedAsync(", test)
         self.assertNotIn("V9FittedSnapshotArtifact.ReadPinnedAsync", test)
         self.assertIn("EvaluateFrozenTestAsync", test)
         self.assertNotIn("SelectScientificWinner", test)

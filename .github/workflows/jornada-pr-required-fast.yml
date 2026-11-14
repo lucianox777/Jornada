@@ -39,6 +39,7 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_test_global_one_use.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_test_production_model_format.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_operational_converter.py'
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_test_operational_cohort_parity.py'
           # Offline-only: E2E APT DNS fallback must not bypass private runtime gates.
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_e2e_private_sql_api_dns_recovery.py'
           python3 Solution/scripts/test-e2e-private-sql-runtime-contract.py

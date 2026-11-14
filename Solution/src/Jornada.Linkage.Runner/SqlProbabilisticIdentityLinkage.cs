@@ -122,6 +122,20 @@ public sealed class SqlProbabilisticIdentityLinkage(
         return V9FittedSnapshotExecutionRuntime.Load(model.SerializeUtf8(), model.ContentSha256);
     }
 
+    /// <summary>
+    /// Production-side opt-in loader for the SAME SQL-pinned V9 grouped
+    /// FS/Resolve runtime used by the TEST Worker. Read-only TEST_ONLY mode;
+    /// not wired into GetActiveModelAsync, ResolveWithoutCpfAsync or the
+    /// publishing ProbabilisticLinkageBatchRunner. Full batch parity remains gated.
+    /// </summary>
+    public async Task<V9OperationalPinnedCohortRuntime> LoadPinnedV9GroupedCohortRuntimeAsync(
+        Guid modelId, string winnerSha256, CancellationToken cancellationToken)
+    {
+        await using var connection = await operationalSql.OpenAsync(cancellationToken);
+        return await V9OperationalPinnedCohortRuntime.LoadPinnedAsync(
+            connection, modelId, winnerSha256, cancellationToken);
+    }
+
     // The resident database marker, not the process environment, is the final gate.
     // Nonpublishing MODEL_VALIDATION is the sole runner mode permitted to read a DEV draft.
     internal static bool CanUseDraftForModelValidation(LinkageRunOptions? options, int version) =>

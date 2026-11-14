@@ -1,3 +1,4 @@
+// Shared V9 frozen, nonpublishing execution contract: compiled once in Jornada.Linkage.Core.
 using System.Collections.ObjectModel;
 using Jornada.Contracts;
 using Jornada.Linkage.Runner;

@@ -4,6 +4,12 @@ on:
   pull_request:
     paths:
       - 'Solution/src/Jornada.Linkage.Core/V9OperationalSqlModelConverter.cs'
+      - 'Solution/src/Jornada.Linkage.Core/V9OperationalPinnedCohortRuntime.cs'
+      - 'Solution/src/Jornada.Linkage.Core/V9FrozenSourceResolveReplay.cs'
+      - 'Solution/src/Jornada.Linkage.Core/V9BlindIncrementalIdentityGrouping.cs'
+      - 'Solution/src/Jornada.Linkage.Core/V9PhysicalCalibrationObservation.cs'
+      - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9PhysicalSqlFrozenHoldout.cs'
+      - 'Solution/tests/scripts/test_v9_test_operational_cohort_parity.py'
       - 'Solution/src/Jornada.Linkage.Runner/SqlProbabilisticIdentityLinkage.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9IndependentTestCli.cs'
       - 'Solution/src/Jornada.Linkage.Parameters.Worker/V9OperationalModelConversionCli.cs'
