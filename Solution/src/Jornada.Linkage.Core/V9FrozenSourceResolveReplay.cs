@@ -18,7 +18,7 @@ public sealed record V9FrozenSourceReplayResult(string SnapshotSha256,
 public static class V9FrozenSourceResolveReplay
 {
     // Single identity mapping shared with operational SQL candidate verification.
-    internal static Guid ObservationGuid(int id) => new(id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
+    public static Guid ObservationGuid(int id) => new(id, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1);
 
     public static V9FrozenSourceReplayResult Replay(V9FittedSnapshot snapshot,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> validation,
