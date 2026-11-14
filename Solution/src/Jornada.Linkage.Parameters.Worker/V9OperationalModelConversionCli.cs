@@ -14,21 +14,20 @@ public static class V9OperationalModelConversionCli
     {
         if (args.Length != 2 || args[0] != "--v9-convert-winner-operational")
             throw new ArgumentException(
-                "Uso: --v9-convert-winner-operational <winnerSha.fitted.json>");
+                "Uso: --v9-convert-winner-operational <winnerSha.operational.json> (emitido pela VALIDATION)");
         var modelPath = Path.GetFullPath(args[1]);
-        var name = Path.GetFileName(modelPath);
-        if (!name.EndsWith(".fitted.json", StringComparison.Ordinal)
-            || name.Length != 64 + ".fitted.json".Length)
-            throw new InvalidDataException("Conversão exige UM vencedor com nome SHA-256.fitted.json.");
-        var sha = name[..64];
-        _ = V9OperationalSqlModelConverter.ModelIdFromWinnerSha(sha);
+        // Explicit file name supplied by VALIDATION; never infer a model from
+        // a training selection envelope or silently load a legacy model.
+        var sha = Path.GetFileName(modelPath)[..Math.Min(64, Path.GetFileName(modelPath).Length)];
         var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__Jornada")
             ?? throw new InvalidOperationException("SQL próprio do TEST não configurado.");
         var builder = new SqlConnectionStringBuilder(connectionString);
         if (builder.InitialCatalog != "JornadaHarness")
             throw new InvalidDataException("Conversor de TEST exige SQL descartável JornadaHarness.");
         // Only the original selected-by-VALIDATION bytes are permitted here.
-        var fitted = await V9FittedSnapshotArtifact.ReadPinnedAsync(modelPath, sha);
+        var fitted = await V9ValidatedOperationalModelFile.ReadPinnedAsync(modelPath);
+        if (fitted.ContentSha256 != sha)
+            throw new InvalidDataException("Conversão SQL exige mesmo SHA do arquivo final VALIDATION.");
         var contract = V9OperationalSqlModelConverter.VerifyConversion(fitted);
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
