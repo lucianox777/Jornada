@@ -2,6 +2,7 @@ using System.Data;
 using System.Globalization;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 using Microsoft.Data.SqlClient;
@@ -21,6 +22,7 @@ public sealed record V9SyntheticNonPublishingLedgerReceipt(
     int Eligible,
     int Evaluated,
     int BatchCount,
+    int DecisionRows,
     string CandidateGraphSha256,
     string DecisionsSha256,
     string IdentityGroupsSha256,
@@ -41,11 +43,13 @@ public static class V9SyntheticNonPublishingSqlLedger
         Guid rehearsalId,
         V9NonPublishingBatchExecutionReceipt proof,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> syntheticTest,
+        IReadOnlyList<(int A, int B)> physicalSqlEdges,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(proof);
         ArgumentNullException.ThrowIfNull(syntheticTest);
+        ArgumentNullException.ThrowIfNull(physicalSqlEdges);
         if (rehearsalId == Guid.Empty)
             throw new InvalidDataException("Ensaio SQL exige ID único não vazio.");
         if (connection.State != ConnectionState.Open)
@@ -90,6 +94,34 @@ public static class V9SyntheticNonPublishingSqlLedger
             connection, proof.PinnedModelId, proof.WinnerSha256, cancellationToken);
         if (pinned.WinnerSha256 != proof.WinnerSha256)
             throw new InvalidDataException("Vencedor do ledger não corresponde ao SHA SQL pinado.");
+
+        // Recompute the SAME scientific decisions/groups from the original
+        // frozen TEST SQL graph. This prevents accepting forged count/hash-only
+        // receipts or silently persisting a different winner's observations.
+        var replay = pinned.ReplayTest(rows, physicalSqlEdges);
+        static string Digest(string text) => Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
+        var decisionDigest = Digest(JsonSerializer.Serialize(replay.Decisions));
+        var groupDigest = Digest(string.Join("\n", replay.IdentityByObservation
+            .OrderBy(x => x.Key)
+            .Select(x => FormattableString.Invariant($"{x.Key}:{x.Value:D}"))));
+        var resolved = replay.Decisions.Count(x => x.Decision.Status == ResolutionStatus.RESOLVIDO);
+        var conflicts = replay.Decisions.Count(x => x.Decision.Status == ResolutionStatus.CONFLITO);
+        var unresolved = replay.Decisions.Count - resolved - conflicts;
+        var noCandidate = replay.Decisions.Count(x =>
+            x.Decision.Status == ResolutionStatus.NAO_RESOLVIDO
+            && ProbabilisticLinkageBatchRunner.IsNoCandidateReason(x.Decision.Motivo));
+        if (replay.Decisions.Count != rows.Length
+            || replay.IdentityByObservation.Count != rows.Length
+            || decisionDigest != proof.DecisionsSha256
+            || groupDigest != proof.IdentityGroupsSha256
+            || resolved != proof.Resolved || unresolved != proof.Unresolved
+            || conflicts != proof.Conflicts || noCandidate != proof.NoCandidateInBlock)
+            throw new InvalidDataException(
+                "Decisões/agrupamentos congelados divergem do recibo SQL: persistência recusada.");
+        var decisionsById = replay.Decisions.ToDictionary(x => x.ObservationId);
+        if (decisionsById.Count != rows.Length)
+            throw new InvalidDataException("Decisões TEST não cobrem cada observação exatamente uma vez.");
 
         await using var transaction = (SqlTransaction)await connection.BeginTransactionAsync(
             IsolationLevel.Serializable, cancellationToken);
@@ -160,6 +192,50 @@ public static class V9SyntheticNonPublishingSqlLedger
                 Add(store, "@previous_batch", SqlDbType.Int, batchNumber - 1);
                 Add(store, "@previous_count", SqlDbType.Int, offset);
                 await store.ExecuteNonQueryAsync(cancellationToken);
+
+                // Evidence is inserted under the SAME transaction as the run
+                // and batch receipt. No decision is silently skipped, duplicated
+                // or summarized without its original frozen group identity.
+                foreach (var row in batch)
+                {
+                    var decision = decisionsById[row.ObservationId];
+                    var d = decision.Decision;
+                    var groupId = replay.IdentityByObservation[row.ObservationId];
+                    var evidenceSha = Digest(JsonSerializer.Serialize(decision) + "\n" +
+                        groupId.ToString("D"));
+                    await using var insertDecision = new SqlCommand(
+                        """
+                        INSERT identidade.v9_synthetic_rehearsal_decision
+                           (rehearsal_run_id,observation_id,batch_number,identity_uuid,
+                            status,motivo,pessoa_uuid_resolvido,melhor_candidato_uuid,
+                            score_melhor,segundo_candidato_uuid,score_segundo,margem,
+                            evidence_sha256)
+                        VALUES (@run_id,@observation_id,@batch_number,@identity_uuid,
+                            @status,@motivo,@resolved_uuid,@best_uuid,@best_score,
+                            @second_uuid,@second_score,@margin,@evidence_sha);
+                        """, connection, transaction);
+                    Add(insertDecision, "@run_id", SqlDbType.UniqueIdentifier, rehearsalId);
+                    Add(insertDecision, "@observation_id", SqlDbType.Int, row.ObservationId);
+                    Add(insertDecision, "@batch_number", SqlDbType.Int, batchNumber);
+                    Add(insertDecision, "@identity_uuid", SqlDbType.UniqueIdentifier, groupId);
+                    Add(insertDecision, "@status", SqlDbType.NVarChar, d.Status.ToString(), 30);
+                    Add(insertDecision, "@motivo", SqlDbType.NVarChar,
+                        (object?)d.Motivo ?? DBNull.Value, 120);
+                    Add(insertDecision, "@resolved_uuid", SqlDbType.UniqueIdentifier,
+                        (object?)d.PessoaUuidResolvido ?? DBNull.Value);
+                    Add(insertDecision, "@best_uuid", SqlDbType.UniqueIdentifier,
+                        (object?)d.MelhorCandidatoUuid ?? DBNull.Value);
+                    Add(insertDecision, "@best_score", SqlDbType.Decimal, d.MelhorScore);
+                    Add(insertDecision, "@second_uuid", SqlDbType.UniqueIdentifier,
+                        (object?)d.SegundoCandidatoUuid ?? DBNull.Value);
+                    Add(insertDecision, "@second_score", SqlDbType.Decimal,
+                        (object?)d.SegundoScore ?? DBNull.Value);
+                    Add(insertDecision, "@margin", SqlDbType.Decimal,
+                        (object?)d.Margem ?? DBNull.Value);
+                    Add(insertDecision, "@evidence_sha", SqlDbType.Char, evidenceSha, 64);
+                    if (await insertDecision.ExecuteNonQueryAsync(cancellationToken) != 1)
+                        throw new InvalidDataException("Evidência de decisão SQL não foi inserida.");
+                }
             }
 
             await using (var complete = new SqlCommand(
@@ -173,7 +249,15 @@ public static class V9SyntheticNonPublishingSqlLedger
                   AND (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_batch b
                        WHERE b.rehearsal_run_id=r.rehearsal_run_id)=r.expected_batches
                   AND (SELECT SUM(b.observation_count) FROM identidade.v9_synthetic_rehearsal_batch b
-                       WHERE b.rehearsal_run_id=r.rehearsal_run_id)=r.elegiveis;
+                       WHERE b.rehearsal_run_id=r.rehearsal_run_id)=r.elegiveis
+                  AND (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_decision d
+                       WHERE d.rehearsal_run_id=r.rehearsal_run_id)=r.elegiveis
+                  AND (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_decision d
+                       WHERE d.rehearsal_run_id=r.rehearsal_run_id AND d.status=N'RESOLVIDO')=r.resolvidos
+                  AND (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_decision d
+                       WHERE d.rehearsal_run_id=r.rehearsal_run_id AND d.status=N'NAO_RESOLVIDO')=r.nao_resolvidos
+                  AND (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_decision d
+                       WHERE d.rehearsal_run_id=r.rehearsal_run_id AND d.status=N'CONFLITO')=r.conflitos;
                 IF @@ROWCOUNT <> 1 THROW 52543, 'Fechamento V9 incompleto: rollback obrigatório.', 1;
                 """, connection, transaction))
             {
@@ -190,7 +274,7 @@ public static class V9SyntheticNonPublishingSqlLedger
 
         return new(rehearsalId, proof.PinnedModelId, proof.WinnerSha256,
             LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO, rows.Length, rows.Length,
-            proof.BatchCount, proof.CandidateGraphSha256, proof.DecisionsSha256,
+            proof.BatchCount, rows.Length, proof.CandidateGraphSha256, proof.DecisionsSha256,
             proof.IdentityGroupsSha256);
     }
 
@@ -198,6 +282,11 @@ public static class V9SyntheticNonPublishingSqlLedger
     {
         var parameter = command.Parameters.Add(name, type);
         if (size > 0) parameter.Size = size;
+        if (type == SqlDbType.Decimal)
+        {
+            parameter.Precision = 9;
+            parameter.Scale = 8;
+        }
         parameter.Value = value;
     }
 }
