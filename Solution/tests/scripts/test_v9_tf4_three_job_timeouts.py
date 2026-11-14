@@ -105,7 +105,7 @@ class ThreeJobsV9TimeoutTests(unittest.TestCase):
         self.assertIn('v9-100k-load-frozen-ibge.sh "$root/bound/plan.json"', self.train)
         self.assertIn("v9-tf4-validation-handoff-", self.audit)
         self.assertIn("testUsed", self.validation)
-        self.assertIn("v9-tf4-test-one-winner-", self.validation)
+        self.assertIn("v9-tf4-validated-operational-model-", self.validation)
         self.assertIn("refitted", self.validation)
         self.assertIn("activated", self.validation)
 
