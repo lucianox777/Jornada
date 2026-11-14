@@ -38,8 +38,8 @@ public static class V9OperationalCandidateGraphParityAudit
         V9OperationalPinnedCohortRuntime operationalRuntime,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> test,
         IReadOnlyList<(int A, int B)> physicalSqlEdges,
-        CancellationToken ct = default,
-        int batchSize = MaximumAuditObservations)
+        int batchSize = MaximumAuditObservations,
+        CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(operationalRuntime);
