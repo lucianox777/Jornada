@@ -1386,6 +1386,136 @@ public sealed class V9FittedSnapshotTests
             Assert.That(noRunsReader.IsDBNull(0), Is.True);
             Assert.That(noRunsReader.IsDBNull(1), Is.True);
         }
+        // New physical evidence: the SAME production Runner instance persists
+        // synthetic-only batch counters and REAL SQL status transitions, while
+        // the legacy linkage_run/linkage_resultado tables do not exist.
+        var persistedId = Guid.NewGuid();
+        var persisted = await productionRunner.PersistV9SyntheticRehearsalLedgerAsync(
+            persistedId, receipt.ModelId, receipt.SourceSnapshotSha256,
+            cohort.Reverse().ToArray(), physicalSqlEdges, 2, CancellationToken.None);
+        Assert.Multiple((Action)(() =>
+        {
+            Assert.That(persisted.RehearsalId, Is.EqualTo(persistedId));
+            Assert.That(persisted.TerminalStatusInSyntheticLedger,
+                Is.EqualTo(LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO));
+            Assert.That(persisted.BatchCount, Is.EqualTo(2));
+            Assert.That(persisted.Eligible, Is.EqualTo(4));
+            Assert.That(persisted.Evaluated, Is.EqualTo(4));
+            Assert.That(persisted.CandidateGraphSha256, Is.EqualTo(parity.CanonicalEdgesSha256));
+            Assert.That(persisted.DecisionsSha256, Is.EqualTo(parity.DecisionsSha256));
+            Assert.That(persisted.IdentityGroupsSha256, Is.EqualTo(parity.IdentityGroupsSha256));
+            Assert.That(persisted.SyntheticLedgerPersisted, Is.True);
+            Assert.That(persisted.ProductionLinkageRunPersisted, Is.False);
+            Assert.That(persisted.Published, Is.False);
+            Assert.That(persisted.ProductionBatchPipelineCertified, Is.False);
+        }));
+        await using (var saved = new Microsoft.Data.SqlClient.SqlCommand(
+            """
+            SELECT status, elegiveis, avaliados, completed_batches, expected_batches,
+                   winner_sha256, candidate_graph_sha256, decisions_sha256, identity_groups_sha256
+              FROM identidade.v9_synthetic_rehearsal_run WHERE rehearsal_run_id=@id;
+            """, connection))
+        {
+            saved.Parameters.Add("@id", System.Data.SqlDbType.UniqueIdentifier).Value = persistedId;
+            await using var result = await saved.ExecuteReaderAsync();
+            Assert.That(await result.ReadAsync(), Is.True);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(result.GetString(0), Is.EqualTo("CONCLUIDO_SEM_PUBLICACAO"));
+                Assert.That(result.GetInt32(1), Is.EqualTo(4));
+                Assert.That(result.GetInt32(2), Is.EqualTo(4));
+                Assert.That(result.GetInt32(3), Is.EqualTo(2));
+                Assert.That(result.GetInt32(4), Is.EqualTo(2));
+                Assert.That(result.GetString(5).Trim(), Is.EqualTo(receipt.SourceSnapshotSha256));
+                Assert.That(result.GetString(6).Trim(), Is.EqualTo(parity.CanonicalEdgesSha256));
+                Assert.That(result.GetString(7).Trim(), Is.EqualTo(parity.DecisionsSha256));
+                Assert.That(result.GetString(8).Trim(), Is.EqualTo(parity.IdentityGroupsSha256));
+            }));
+            Assert.That(await result.ReadAsync(), Is.False);
+        }
+        await using (var savedBatches = new Microsoft.Data.SqlClient.SqlCommand(
+            """
+            SELECT batch_number,observation_count,first_observation_id,last_observation_id
+              FROM identidade.v9_synthetic_rehearsal_batch
+             WHERE rehearsal_run_id=@id ORDER BY batch_number;
+            """, connection))
+        {
+            savedBatches.Parameters.Add("@id", System.Data.SqlDbType.UniqueIdentifier).Value = persistedId;
+            await using var result = await savedBatches.ExecuteReaderAsync();
+            Assert.That(await result.ReadAsync(), Is.True);
+            Assert.That(result.GetInt32(0), Is.EqualTo(1));
+            Assert.That(result.GetInt32(1), Is.EqualTo(2));
+            Assert.That(result.GetInt32(2), Is.EqualTo(1));
+            Assert.That(result.GetInt32(3), Is.EqualTo(2));
+            Assert.That(await result.ReadAsync(), Is.True);
+            Assert.That(result.GetInt32(0), Is.EqualTo(2));
+            Assert.That(result.GetInt32(1), Is.EqualTo(2));
+            Assert.That(result.GetInt32(2), Is.EqualTo(3));
+            Assert.That(result.GetInt32(3), Is.EqualTo(4));
+            Assert.That(await result.ReadAsync(), Is.False);
+        }
+
+        // Idempotence fail closed: same rehearsal ID must NOT insert a second
+        // run or silently replace immutable historical proof.
+        Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>((Func<Task>)(async () =>
+            await productionRunner.PersistV9SyntheticRehearsalLedgerAsync(
+                persistedId, receipt.ModelId, receipt.SourceSnapshotSha256,
+                cohort, physicalSqlEdges, 2, CancellationToken.None)));
+
+        // Inject a REAL SQL failure on the second batch. A single transaction
+        // must roll back the run row AND the first batch (no partial success).
+        var rollbackId = Guid.NewGuid();
+        await using (var trigger = new Microsoft.Data.SqlClient.SqlCommand(
+            """
+            CREATE TRIGGER identidade.tr_v9_synthetic_rehearsal_batch_fail_test
+            ON identidade.v9_synthetic_rehearsal_batch AFTER INSERT AS
+            BEGIN
+              IF EXISTS(SELECT 1 FROM inserted WHERE batch_number=2)
+                THROW 52544, 'Injected synthetic batch failure', 1;
+            END
+            """, connection))
+            await trigger.ExecuteNonQueryAsync();
+        try
+        {
+            Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>((Func<Task>)(async () =>
+                await productionRunner.PersistV9SyntheticRehearsalLedgerAsync(
+                    rollbackId, receipt.ModelId, receipt.SourceSnapshotSha256,
+                    cohort, physicalSqlEdges, 2, CancellationToken.None)));
+        }
+        finally
+        {
+            await using var drop = new Microsoft.Data.SqlClient.SqlCommand(
+                "DROP TRIGGER identidade.tr_v9_synthetic_rehearsal_batch_fail_test;", connection);
+            await drop.ExecuteNonQueryAsync();
+        }
+        await using (var countFailed = new Microsoft.Data.SqlClient.SqlCommand(
+            """
+            SELECT
+              (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_run WHERE rehearsal_run_id=@id),
+              (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_batch WHERE rehearsal_run_id=@id),
+              (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_run WHERE rehearsal_run_id=@successful);
+            """, connection))
+        {
+            countFailed.Parameters.Add("@id", System.Data.SqlDbType.UniqueIdentifier).Value = rollbackId;
+            countFailed.Parameters.Add("@successful", System.Data.SqlDbType.UniqueIdentifier).Value = persistedId;
+            await using var result = await countFailed.ExecuteReaderAsync();
+            Assert.That(await result.ReadAsync(), Is.True);
+            Assert.That(result.GetInt64(0), Is.EqualTo(0L));
+            Assert.That(result.GetInt64(1), Is.EqualTo(0L));
+            Assert.That(result.GetInt64(2), Is.EqualTo(1L));
+        }
+        // Still no real operational run nor publication, even after success
+        // and induced transaction failure in the isolated synthetic ledger.
+        await using (var noProduction = new Microsoft.Data.SqlClient.SqlCommand(
+            "SELECT OBJECT_ID(N'identidade.linkage_run'), OBJECT_ID(N'identidade.linkage_resultado');",
+            connection))
+        await using (var result = await noProduction.ExecuteReaderAsync())
+        {
+            Assert.That(await result.ReadAsync(), Is.True);
+            Assert.That(result.IsDBNull(0), Is.True);
+            Assert.That(result.IsDBNull(1), Is.True);
+        }
+
         Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
             await V9ReadOnlyTestBatchRunner.RunAsync(
                 connection, receipt.ModelId, new string('a', 64),
