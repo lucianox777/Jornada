@@ -49,8 +49,11 @@ public static class V9IndependentTestCli
         await using var connection = new SqlConnection(connectionString);
         await connection.OpenAsync();
         var operationalModelId = V9OperationalSqlModelConverter.ModelIdFromWinnerSha(winnerSha);
-        var winner = await V9OperationalSqlModelConverter.ReadPinnedAsync(
+        // TEST and the production-side Runner use the very same pinned
+        // cohort runtime; the legacy operational model is never a fallback.
+        var runtime = await V9OperationalPinnedCohortRuntime.LoadPinnedAsync(
             connection, operationalModelId, winnerSha);
+        var winner = runtime.FrozenWinner;
         var conversion = V9OperationalSqlModelConverter.VerifyConversion(winner);
         if (!conversion.ByteExactRoundTrip || conversion.ModelId != operationalModelId
             || conversion.SourceSnapshotSha256 != winnerSha)
@@ -63,7 +66,7 @@ public static class V9IndependentTestCli
             EndToEndRepetitions: 20, TotalComparedConfigurations: 1,
             FsBlindGroupingOnly: true);
         var evaluated = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenTestAsync(
-            connection, corpus.Observations, winner, execution,
+            connection, corpus.Observations, winner, runtime, execution,
             maximumAcceptedPerIdentity: 4, CancellationToken.None);
         if (evaluated.Refitted || evaluated.SnapshotSha256 != winnerSha
             || evaluated.Metric.BonferroniComparedConfigurations != 1)
