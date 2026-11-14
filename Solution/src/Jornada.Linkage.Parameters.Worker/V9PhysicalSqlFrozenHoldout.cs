@@ -129,7 +129,7 @@ public static partial class V9PhysicalSqlAdaptiveCalibrationProbe
         ArgumentNullException.ThrowIfNull(test);
         ArgumentNullException.ThrowIfNull(winner);
         ArgumentNullException.ThrowIfNull(execution);
-        if (test.Count is < 2 or > V9OperationalCandidateGraphParityAudit.MaximumAuditObservations
+        if (test.Count is < 2 or > V9OperationalPinnedCohortRuntime.MaximumAuditObservations
             || test.Any(row => row.Partition != "TEST" || row.ObservationId <= 0)
             || test.Select(row => row.ObservationId).Distinct().Count() != test.Count)
             throw new InvalidDataException("Prova física de candidatos exige coorte TEST sintética pequena.");
