@@ -18,11 +18,6 @@ on:
         required: true
         default: false
         type: boolean
-      prepare_sealed_test:
-        description: "Generate and encrypt independent TEST cohort before TRAIN"
-        required: true
-        type: boolean
-        default: false
       expected_test_cert_sha256:
         description: "SHA-256 of the public CMS recipient certificate, required only when preparing TEST; must be pre-committed"
         required: false
@@ -50,7 +45,7 @@ jobs:
   # New isolated runner: TRAIN and VALIDATION never receive TEST plaintext,
   # the CMS certificate, or a decryption secret. Only ciphertext is uploaded.
   prepare-test-100k:
-    if: ${{ inputs.prepare_sealed_test == true && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    if: ${{ inputs.test_required == true && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: "V9 early TEST data preparation: independent synthetic 100k, sealed only"
     runs-on: ubuntu-24.04
 
@@ -81,7 +76,7 @@ jobs:
           test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
           test "$GITHUB_RUN_ATTEMPT" = "1"
           test "${{ inputs.security_preflight_approved }}" = "true"
-          test "${{ inputs.prepare_sealed_test }}" = "true"
+          test "${{ inputs.test_required }}" = "true"
           test "$JORNADA_RUNTIME_MODE" = "DEV"
           # PO requires the SAME model serialization and loader as production.
           # V9_FITTED_SNAPSHOT_V3 is a diagnostic fit, not the SQL model
@@ -153,7 +148,7 @@ jobs:
     needs: prepare-test-100k
     # TRAIN can start without TEST preparation, but cannot ignore a failed
     # requested seal. With TEST sealed, TRAIN still has no decryption key.
-    if: ${{ always() && inputs.security_preflight_approved == true && github.actor == github.repository_owner && (inputs.prepare_sealed_test != true || needs.prepare-test-100k.result == 'success') }}
+    if: ${{ always() && inputs.security_preflight_approved == true && github.actor == github.repository_owner && (inputs.test_required != true || needs.prepare-test-100k.result == 'success') }}
     name: "V9 TRAIN physical: 324 V3 TF4 hypotheses"
     # PO 09/11: prioritize public GitHub-hosted standard runner; no PO-owned machine.
     # SQL bootstrap owns optional live SQL memory sizing and pre-start resource admission.
@@ -212,7 +207,7 @@ jobs:
             exit 1
           fi
           # A mandatory TEST requires its independent cohort to be prepared first.
-          if [[ "${{ inputs.test_required }}" == "true" && "${{ inputs.prepare_sealed_test }}" != "true" ]]; then
+          if [[ "${{ inputs.test_required }}" == "true" && "${{ needs.prepare-test-100k.result }}" != "success" ]]; then
             echo "::error::TEST_NEEDS_INDEPENDENT_PRESEALED_CORPUS"
             exit 1
           fi
@@ -516,7 +511,6 @@ jobs:
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
           test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
           test "${{ inputs.security_preflight_approved }}" = "true"
-          test "${{ inputs.test_required }}" != "true" || test "${{ inputs.prepare_sealed_test }}" = "true"
           # Never repeat the same sealed holdout by rerunning this job/attempt.
           test "$GITHUB_RUN_ATTEMPT" = "1"
           test "${{ needs.audit-100k.result }}" = "success"
@@ -635,7 +629,7 @@ jobs:
   # It receives ONLY the frozen model chosen by VALIDATION, no plan or scores.
   test-100k:
     needs: [validation-100k, prepare-test-100k]
-    if: ${{ inputs.test_required == true && inputs.prepare_sealed_test == true && needs.validation-100k.result == 'success' && needs.prepare-test-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    if: ${{ always() && !cancelled() && inputs.test_required == true && needs.validation-100k.result == 'success' && needs.prepare-test-100k.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
     name: "V9 independent TEST: one frozen winner, sealed 100k"
     runs-on: ubuntu-24.04
 

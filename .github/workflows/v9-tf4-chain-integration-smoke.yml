@@ -1,0 +1,125 @@
+name: V9 TF4 mandatory TRAIN-AUDIT-VALIDATION cross-job integration (synthetic only)
+
+# Fast real GitHub-hosted job/artifact integration. This workflow NEVER runs
+# --v9-calibrate, scientific AUDIT, VALIDATION holdout, or physical TEST.
+# TEST toggle here is a MOCK of the optional DAG branch without any secrets.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/v9-v3-four-name-100k.yml'
+      - '.github/workflows/v9-tf4-chain-integration-smoke.yml'
+      - 'Solution/scripts/v9-v3-four-name-100k-preaudit.py'
+      - 'Solution/scripts/v9-tf4-chain-integration-smoke.py'
+      - 'Solution/tests/scripts/test_v9_tf4_chain_integration.py'
+  workflow_dispatch:
+    inputs:
+      synthetic_test_requested:
+        description: "Run a mock optional TEST DAG job (NO actual TEST corpus)"
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  prepare-test-optional:
+    if: ${{ inputs.synthetic_test_requested == true }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Announce synthetic TEST preparation only
+        run: echo "V9_MOCK_TEST_PREPARATION_NO_SECRET_NO_CORPUS"
+
+  train-fixture:
+    needs: prepare-test-optional
+    # Same skip-safe DAG semantics as the actual 100k manual campaign.
+    if: ${{ always() && !cancelled() && (inputs.synthetic_test_requested != true || needs.prepare-test-optional.result == 'success') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned v4
+        with:
+          persist-credentials: false
+      - name: Verify mandatory-chain and tamper-fail contracts
+        run: |
+          set -euo pipefail
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_tf4_chain_integration.py -v
+          python3 -m unittest discover -s Solution/tests/scripts -p test_v9_v3_four_name_100k_preaudit.py -v
+      - name: Produce fake TRAIN metadata and real hash-checked preaudit bundle
+        run: |
+          set -euo pipefail
+          python3 Solution/scripts/v9-tf4-chain-integration-smoke.py train \
+            --source "$RUNNER_TEMP/v9-train-synthetic" \
+            --handoff "$GITHUB_WORKSPACE/.local/v9-tf4-cross-job/preaudit" \
+            --code-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Transfer the same pinned preaudit artifact format as the physical TRAIN
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-synthetic-preaudit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local/v9-tf4-cross-job/preaudit/
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 2
+
+  audit-fixture:
+    needs: train-fixture
+    if: ${{ always() && !cancelled() && needs.train-fixture.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          persist-credentials: false
+      - name: Download and verify TRAIN's real immutable artifact structure
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-synthetic-preaudit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local/v9-tf4-cross-job/preaudit/
+      - name: Check origin SHA, run ID and byte hashes; create non-scientific audit bridge
+        run: |
+          set -euo pipefail
+          python3 Solution/scripts/v9-tf4-chain-integration-smoke.py audit \
+            --handoff "$GITHUB_WORKSPACE/.local/v9-tf4-cross-job/preaudit" \
+            --audit "$GITHUB_WORKSPACE/.local/v9-tf4-cross-job/audit" \
+            --code-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"
+      - name: Transfer synthetic audit receipt (not scientific PASS)
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-synthetic-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local/v9-tf4-cross-job/audit/
+          if-no-files-found: error
+          retention-days: 2
+
+  validation-fixture:
+    needs: audit-fixture
+    # Must run after TRAIN/AUDIT SUCCESS even when optional TEST preparation was SKIPPED.
+    if: ${{ always() && !cancelled() && needs.audit-fixture.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          persist-credentials: false
+      - name: Download independently transferred TRAIN evidence
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-synthetic-preaudit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local/v9-tf4-cross-job/preaudit/
+      - name: Download independently transferred AUDIT receipt
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-synthetic-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .local/v9-tf4-cross-job/audit/
+      - name: Verify cross-job SHA consistency, simulated status and strict file lists
+        run: |
+          set -euo pipefail
+          python3 Solution/scripts/v9-tf4-chain-integration-smoke.py validation \
+            --handoff "$GITHUB_WORKSPACE/.local/v9-tf4-cross-job/preaudit" \
+            --audit "$GITHUB_WORKSPACE/.local/v9-tf4-cross-job/audit" \
+            --code-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"
+          echo "V9_TRAIN_AUDIT_VALIDATION_CHAIN_INTEGRATION_SUCCESS"
+
+  test-fixture-optional:
+    needs: [validation-fixture, prepare-test-optional]
+    if: ${{ always() && !cancelled() && inputs.synthetic_test_requested == true && needs.validation-fixture.result == 'success' && needs.prepare-test-optional.result == 'success' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Verify simulated optional TEST only after the mandatory chain
+        run: echo "V9_OPTIONAL_TEST_MOCK_ONLY_NOT_REAL_TEST_NO_CORPUS_NO_KEYS"
