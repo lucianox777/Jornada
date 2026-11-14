@@ -2,6 +2,7 @@ using System.Data;
 using System.Data.Common;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.Json;
 using Jornada.Contracts;
 using Jornada.Linkage.Parameters.Worker;
 
@@ -15,7 +16,11 @@ public sealed record V9OperationalCandidateGraphParityReceipt(
     int PhysicalSqlEdgeCount,
     int OperationalSqlEdgeCount,
     string CanonicalEdgesSha256,
-    bool ProductionBatchPipelineCertified = false);
+    bool ProductionBatchPipelineCertified = false,
+    int BatchSize = 0,
+    int BatchCount = 0,
+    string? DecisionsSha256 = null,
+    string? IdentityGroupsSha256 = null);
 
 /// <summary>
 /// Read-only, small-cohort evidence for the actual production projection
@@ -33,12 +38,18 @@ public static class V9OperationalCandidateGraphParityAudit
         V9OperationalPinnedCohortRuntime operationalRuntime,
         IReadOnlyCollection<V9PhysicalCalibrationObservation> test,
         IReadOnlyList<(int A, int B)> physicalSqlEdges,
-        CancellationToken ct = default)
+        CancellationToken ct = default,
+        int batchSize = MaximumAuditObservations)
     {
         ArgumentNullException.ThrowIfNull(connection);
         ArgumentNullException.ThrowIfNull(operationalRuntime);
         ArgumentNullException.ThrowIfNull(test);
         ArgumentNullException.ThrowIfNull(physicalSqlEdges);
+        // Batching is ONLY the operational candidate retrieval envelope.
+        // The complete graph is reconstructed before a SINGLE global FS/group
+        // replay, so identities cannot be artificially split at page boundaries.
+        ArgumentOutOfRangeException.ThrowIfLessThan(batchSize, 1);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(batchSize, MaximumAuditObservations);
         if (connection.State != ConnectionState.Open)
             throw new InvalidOperationException("Prova SQL exige conexão aberta.");
         // The production blocking_chave table may contain real citizens and is
@@ -84,9 +95,16 @@ public static class V9OperationalCandidateGraphParityAudit
         // A bitset distinguishes a->b from b->a. Both directions must come
         // from actual SQL; never repair, infer, sample or truncate missing edges.
         var actualDirections = new Dictionary<(int A, int B), byte>();
-        foreach (var row in test.OrderBy(x => x.ObservationId))
+        var ordered = test.OrderBy(x => x.ObservationId).ToArray();
+        var batches = 0;
+        var observationsRead = 0;
+        for (var offset = 0; offset < ordered.Length; offset += batchSize)
         {
-            ct.ThrowIfCancellationRequested();
+            batches++;
+            foreach (var row in ordered.Skip(offset).Take(batchSize))
+            {
+                observationsRead++;
+                ct.ThrowIfCancellationRequested();
             var observation = new IdentityObservation(
                 null, "SEM_CPF", row.PersonName, row.BirthDate, row.MotherName);
             await using var command = connection.CreateCommand();
@@ -118,7 +136,11 @@ public static class V9OperationalCandidateGraphParityAudit
                     throw new InvalidDataException("SQL operacional repetiu a mesma direção.");
                 actualDirections[key] = (byte)(prior | direction);
             }
+            }
         }
+        if (observationsRead != ordered.Length ||
+            batches != (ordered.Length + batchSize - 1) / batchSize)
+            throw new InvalidDataException("Paginação SQL operacional incompleta.");
         if (actualDirections.Values.Any(v => v != 3))
             throw new InvalidDataException(
                 "Grafo SQL operacional não é simétrico; aresta unilateral não pode ser aceita.");
@@ -131,8 +153,29 @@ public static class V9OperationalCandidateGraphParityAudit
             .Select(e => FormattableString.Invariant($"{e.A}:{e.B}\n")));
         var digest = Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(canonical))).ToLowerInvariant();
+
+        // ONE global replay of the fully reassembled graph. Never run grouping
+        // separately inside retrieval batches: edges may cross every boundary.
+        // Compare both decisions AND identity partitions, not only counts.
+        var reference = operationalRuntime.ReplayTest(test,
+            expected.OrderBy(x => x.A).ThenBy(x => x.B).ToArray());
+        var operational = operationalRuntime.ReplayTest(test,
+            actual.OrderBy(x => x.A).ThenBy(x => x.B).ToArray());
+        if (!reference.Decisions.SequenceEqual(operational.Decisions)
+            || reference.IdentityByObservation.Count != operational.IdentityByObservation.Count
+            || reference.IdentityByObservation.Any(x =>
+                !operational.IdentityByObservation.TryGetValue(x.Key, out var id) || id != x.Value))
+            throw new InvalidDataException("Batch SQL V9 divergiu no Resolve ou no agrupamento global.");
+
+        static string Sha(string value) => Convert.ToHexString(
+            SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+        var decisionsSha = Sha(JsonSerializer.Serialize(operational.Decisions));
+        var groupsSha = Sha(string.Join("\n", operational.IdentityByObservation
+            .OrderBy(x => x.Key).Select(x => FormattableString.Invariant($"{x.Key}:{x.Value:D}"))));
         return new(operationalRuntime.WinnerSha256, planner.ProjectionSchemaVersion,
             planner.ProjectionFingerprintSha256, test.Count, expected.Count, actual.Count,
-            digest, ProductionBatchPipelineCertified: false);
+            digest, ProductionBatchPipelineCertified: false,
+            BatchSize: batchSize, BatchCount: batches,
+            DecisionsSha256: decisionsSha, IdentityGroupsSha256: groupsSha);
     }
 }
