@@ -7,6 +7,9 @@ on:
       - 'Solution/src/Jornada.Linkage.Core/V9OperationalPinnedCohortRuntime.cs'
       - 'Solution/src/Jornada.Linkage.Runner/V9OperationalCandidateGraphParityAudit.cs'
       - 'Solution/src/Jornada.Linkage.Runner/V9ReadOnlyTestBatchRunner.cs'
+      - 'Solution/src/Jornada.Linkage.Runner/V9SyntheticNonPublishingSqlLedger.cs'
+      - 'Solution/database/testing/20261114_V9_Synthetic_Nonpublishing_Batch_Ledger.sql'
+      - 'Solution/tests/scripts/test_v9_synthetic_sql_batch_ledger.py'
       - 'Solution/src/Jornada.Linkage.Runner/V9NonPublishingBatchExecutionReceipt.cs'
       - 'Solution/src/Jornada.Linkage.Runner/ProbabilisticLinkageBatchRunner.cs'
       - 'Solution/tests/scripts/test_v9_production_runner_test_only_bridge.py'
@@ -86,6 +89,10 @@ jobs:
           docker exec -i v9-operational-converter-smoke sh -c \
             'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i /dev/stdin' \
             < database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql
+          # Disposable-only ledger schema: NEVER apply in production migrations.
+          docker exec -i v9-operational-converter-smoke sh -c \
+            'SQLCMDPASSWORD="$MSSQL_SA_PASSWORD" /opt/mssql-tools18/bin/sqlcmd -I -S localhost -U sa -C -b -d JornadaHarness -i /dev/stdin' \
+            < database/testing/20261114_V9_Synthetic_Nonpublishing_Batch_Ledger.sql
       - name: Materialize one 4-TF 81-cell model into SQL, read it back and compare actual decisions
         run: |
           set -euo pipefail
