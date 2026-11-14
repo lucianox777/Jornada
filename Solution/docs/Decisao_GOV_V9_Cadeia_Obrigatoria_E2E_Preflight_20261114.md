@@ -4,7 +4,7 @@
 
 **Decisão funcional aprovada:** a campanha V9 TF4/324 deve ter **TRAIN → AUDIT → VALIDATION como cadeia obrigatória e indivisível de dependências positivas**. O usuário pode selecionar **somente a opção booleana TEST**. Quando TEST estiver desmarcado, a preparação do TEST e o TEST são SKIPPED sem impedir TRAIN/AUDIT/VALIDATION; quando marcado, a preparação da coorte TEST lacrada é uma dependência necessária e o TEST só sucede uma VALIDATION aprovada, *desde que todos os gates de segurança e paridade estejam satisfeitos*. Nenhum job científico pode ser considerado aprovado porque seu dependente está SKIPPED ou falhou. **GOV-DOC-01.**
 
-**Estado de integração:** decisão aprovada; implementação e testes de integração sintéticos propostos na branch `test/v9-mandatory-chain-integration-preflight-20261114`. PR, CI, merge e prova E2E física devem ser registrados a partir de recibos verificáveis; não presumir sucesso. **TEST 100K e execução física 324 ainda não autorizados como cientificamente prontos.**
+**Estado de integração:** **APROVADO/IMPLEMENTADO/INTEGRADO na master** pela [PR #1528](https://github.com/lucianox777/Jornada/pull/1528), squash SHA `47edf65beea0c1bc2732d606a5c0a914eff3acd3` (HEAD PR `d4d85b7b765e7fadd7b1e7c11f35095bad2ac40f`). CI obrigatória [#43618989184](https://github.com/lucianox777/Jornada/actions/runs/43618989184) **3/3 SUCCESS**; smoke de integração entre runners [#43618989137](https://github.com/lucianox777/Jornada/actions/runs/43618989137) **SUCCESS**; [preflight V9 #43618989189](https://github.com/lucianox777/Jornada/actions/runs/43618989189) **SUCCESS**. **TEST 100K e execução física de 324 hipóteses ainda não autorizados como cientificamente prontos/comprovados por esses testes.**
 
 ## Como funciona a cadeia e o controle de TEST
 
@@ -34,3 +34,20 @@ Testes Python offline adicionam **positivos e negativos**: origem divergente, ru
 **Precedência:** complementa `GOV-V9-TF4-JOBS-INDEPENDENTES-TIMEOUT-NATIVO-20261114` (PR #1526), corrige a UX de duas checkboxes da `GOV-V9-TF4-GERACAO-ANTECIPADA-TEST-ISOLADA-20261113` sem relaxar lacre/LOCK, respeita paridade de JSON exigida em [issue #1488](https://github.com/lucianox777/Jornada/issues/1488), e mantém a segregação do TEST e resultados científicos históricos. É impossível garantir 100% a conclusão física de 100k apenas por smoke pequeno; erros de runner/tempo/SQL devem ser diagnosticados com nomes de job, steps e artefatos reais, e corrigidos antes de tratar E2E como aprovado.
 
 **Critérios de aceite:** CI obrigatória `unit-runtime/security-guards/deterministic-build` 3/3 no HEAD, smoke GitHub com `prepare-test-optional=SKIPPED` e `train-fixture/audit-fixture/validation-fixture=SUCCESS`, nenhuma fuga de arquivos/corpus, testes negativos positivos, PR merge, decisão e índices GOV-DOC-01 sincronizados. Somente depois disso considerar nova campanha **TRAIN/AUDIT/VALIDATION** manual com SHA fixado, TEST OFF enquanto os blockers persistirem.
+
+
+## Recibo factual da prova de integração — 14/11/2026
+
+No workflow [#43618989137](https://github.com/lucianox777/Jornada/actions/runs/43618989137), HEAD da PR `d4d85b7b765e7fadd7b1e7c11f35095bad2ac40f`, foram comprovados no **GitHub Actions real, em jobs independentes**:
+
+- `prepare-test-optional`: **SKIPPED** deliberadamente com TEST desmarcado.
+- `train-fixture`: **SUCCESS**, gerou e publicou artefato sintético usando `v9-v3-four-name-100k-preaudit.py prepare`; o script recusaria arquivo extra e SHA divergente.
+- `audit-fixture`: **SUCCESS**, fez download independente e `preaudit.verify`, emitiu somente `SIMULATED_CHAIN_ONLY_NOT_SCIENTIFIC_AUDIT`, sem executar auditor científico.
+- `validation-fixture`: **SUCCESS**, fez download independente de ambos os artefatos, reconciliação SHA/identidade/status e exibiu `V9_TRAIN_AUDIT_VALIDATION_CHAIN_INTEGRATION_SUCCESS`.
+- `test-fixture-optional`: **SKIPPED**, sem nenhum gabarito, corpus ou chave TEST.
+
+Os testes offline incluíram alteração de SHA, run ID, bytes, inclusão de `observacoes.csv` não permitida, status AUDIT forjado e invariantes do workflow real; CI de compilação/segurança [#43618989184](https://github.com/lucianox777/Jornada/actions/runs/43618989184) aprovou **unit-runtime, deterministic-build e security-guards (3/3)**. O filtro NUnit de ETA do GitHub CI foi atualizado para o método real atual, evitando uma seleção vazia do teste.
+
+**Risco residual material:** o handoff imutável na execução física anterior [#43551194008](https://github.com/lucianox777/Jornada/actions/runs/43551194008) tinha ZIP de aproximadamente **737 MB**; a nova separação transfere snapshots grandes em pré-auditoria e novamente após auditoria. O smoke prova orquestração e integridade com artefatos **pequenos**, não demonstra throughput/limite de armazenamento, duração de upload de centenas de MB nem margem restante no job TRAIN de seis horas. Observar isso na primeira campanha física e otimizar se atingir limite nativo. Nenhum `SUCCESS` do smoke comprova execução de 324 cálculos, auditoria científica, VALIDATION física 100k, TEST real, JSON produtivo ou paridade `RunAsync`.
+
+**Estado de prontidão:** o encadeamento operacional e os gates estáticos de **TRAIN → AUDIT → VALIDATION** passaram smoke e CI. Uma próxima campanha **sem TEST** poderá comprovar a integração física, desde que seu preflight de credenciais/SQL one-use, recursos e SHA seja aprovado pelo dono. A campanha **com TEST** continua bloqueada por paridade de contrato JSON/produção e `RunAsync`, ausência de prova de invariância Gold/Serving e demais gates LOCK/one-use/certificado listados acima. Não iniciar 100k automaticamente pelo merge ou por esse recibo.
