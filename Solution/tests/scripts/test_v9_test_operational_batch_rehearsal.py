@@ -66,9 +66,9 @@ class V9NonpublishingBatchRehearsalContract(unittest.TestCase):
         assert_gate = "V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED"
         self.assertIn(assert_gate, prep)
         self.assertIn(assert_gate, train)
-        self.assertIn("timeout-minutes: 340", train)
-        self.assertIn("timeout-minutes: 360", train)
-        self.assertIn("timeout-minutes: 330", workflow)
+        self.assertNotIn("timeout-minutes:", train)
+        self.assertIn("v9-v3-four-name-100k-preaudit.py", train)
+        self.assertNotIn("timeout-minutes:", workflow)
         self.assertIn("V9FrozenSourceResolveReplay.Replay(snapshot, validation, edges)",
                       (WORKER / "V9PhysicalSqlFrozenHoldout.cs").read_text())
         self.assertIn('public V9FrozenSourceReplayResult ReplayTest(',
