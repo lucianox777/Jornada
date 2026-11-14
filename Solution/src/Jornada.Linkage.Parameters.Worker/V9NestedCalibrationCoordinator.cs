@@ -347,17 +347,18 @@ public static class V9NestedCalibrationCoordinator
             var remaining = physicalDeadlineUtc - nowUtc;
             var remainingMinutes = Math.Max(0, (int)Math.Floor(remaining.TotalMinutes));
             var status = remaining > TimeSpan.Zero ? "DENTRO_DO_PRAZO" : "FORA_DO_PRAZO";
-            // Additional diagnostic remains opt-in and on a separate field line,
-            // never a second per-hypothesis message when normal progress is on.
-            var diagnosticLine = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs
-                ? FormattableString.Invariant($"\nreplay_elapsed_ms={replayMs:F3}")
+            // Optional replay diagnostic stays in the same numbered GitHub log row.
+            // A real newline would produce a separate GitHub line number; the UI
+            // wraps this single row visually on narrow screens (not per field).
+            var diagnosticSuffix = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs
+                ? FormattableString.Invariant($" replay_elapsed_ms={replayMs:F3}")
                 : string.Empty;
-            // One hypothesis = one message/WriteLine/lock/Flush, with each
-            // field on its OWN physical line. There are no pipe delimiters.
+            // One hypothesis = one physical console line/WriteLine/lock/Flush.
+            // Space-separated new fields; no pipe and no embedded newline.
             lock (Console.Out)
             {
                 Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 PROGRESS] {done}/{physicalTotal}\ntimestamp={nowUtc:O}\nhipotese={requestSha[..Math.Min(12, requestSha.Length)]}\nresultado={(evaluation.Candidate is not null ? "AVALIADA" : "REJEITADA")}\nrestante={remainingMinutes}min\nlimite={physicalDeadlineUtc:O}\nstatus={status}{diagnosticLine}"));
+                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) timestamp={nowUtc:O} hipotese={requestSha[..Math.Min(12, requestSha.Length)]} resultado={(evaluation.Candidate is not null ? "AVALIADA" : "REJEITADA")} restante={remainingMinutes}min limite={physicalDeadlineUtc:O} status={status}{diagnosticSuffix}"));
                 Console.Out.Flush();
             }
         }
