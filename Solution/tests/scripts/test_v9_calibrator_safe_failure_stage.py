@@ -98,7 +98,7 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         for field in (' hipotese=', ' resultado=', ' restante=', ' limite=', ' status='):
             self.assertIn(field, normal)
         self.assertIn('eta_min={forecast.EtaMinutes:F1}', normal)
-        self.assertIn('margem_prevista_min={forecast.MarginMinutes:+0.0;-0.0;0.0}', normal)
+        self.assertIn('margem_prevista_min=NAO_APLICAVEL', normal)
         self.assertIn('status={forecast.Status}{diagnosticSuffix}', normal)
         self.assertIn('var forecast = ForecastPhysicalProgress(', progress)
         self.assertNotIn(r'\n', normal)
@@ -107,7 +107,7 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         self.assertNotIn('margem_etapa_315min=', normal)
         self.assertIn('Interlocked.Increment(ref physicalCompleted)', progress)
         self.assertIn('DateTimeOffset.UtcNow', progress)
-        self.assertIn('physicalDeadlineUtc - nowUtc', progress)
+        self.assertNotIn('physicalDeadlineUtc', progress)
         self.assertIn('ForecastPhysicalProgress(', self.coord)
         self.assertIn('const int MinimumSample = 8;', self.coord)
         self.assertNotIn('RiskReserveMinutes', self.coord)
