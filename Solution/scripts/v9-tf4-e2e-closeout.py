@@ -129,11 +129,94 @@ def validate_optional_test(path: Path, winner_sha: str | None) -> None:
             "PRODUCTION_RUNASYNC_PARITY_UNPROVEN")
 
 
+def validate_existing_database_diagnostic(
+    path: Path, database_name: str, winner_sha: str | None,
+) -> dict:
+    """This is operational-only: never turn unlabelled rows into scientific TEST."""
+    require(isinstance(winner_sha, str) and HEX64.fullmatch(winner_sha),
+            "EXTERNAL_DB_REQUIRES_VALIDATION_WINNER")
+    require(bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,127}", database_name))
+            and database_name.lower()
+                not in {"master", "tempdb", "model", "msdb", "jornadaharness"},
+            "EXTERNAL_DB_INVALID")
+    r = limited_json(path)
+    require(r.get("schema") == "V9_EXTERNAL_DATABASE_READONLY_OPERATIONAL_DIAGNOSTIC_V1"
+            and r.get("status")
+                == "EXTERNAL_DATABASE_NONPUBLISHING_DIAGNOSTIC_NOT_SCIENTIFIC_TEST"
+            and r.get("databaseName") == database_name
+            and r.get("databaseOrigin")
+                == "EXISTING_DATABASE_NO_SYNTHETIC_GENERATION"
+            and r.get("winnerSnapshotSha256") == winner_sha
+            and r.get("operationalModelFileName")
+                == winner_sha + ".operational.json"
+            and r.get("operationalModelContract")
+                == "JORNADA_V9_OPERATIONAL_SQL_MODEL_V1",
+            "EXTERNAL_DB_MODEL_OR_DATA_ORIGIN_MISMATCH")
+    n = r.get("observationCount")
+    require(type(n) is int and 2 <= n <= 100000
+            and type(r.get("candidateEdgeCount")) is int
+            and 0 <= r["candidateEdgeCount"] <= 2000000
+            and type(r.get("resolved")) is int
+            and type(r.get("unresolved")) is int
+            and type(r.get("conflicts")) is int
+            and r["resolved"] + r["unresolved"] + r["conflicts"] == n
+            and isinstance(r.get("aggregateSha256"), str)
+            and HEX64.fullmatch(r["aggregateSha256"]),
+            "EXTERNAL_DB_AGGREGATES_INVALID")
+    require(all(r.get(field) is value for field, value in {
+        "inputReadOnly": True,
+        "generatedSyntheticData": False,
+        "independentScientificTest": False,
+        "goldTruthAvailable": False,
+        "tpFpFnFdrRecallEvaluated": False,
+        "candidateGraphParityWithProductionCertified": False,
+        "productionRunnerFullPipelineParityCertified": False,
+        "operationallyCertified": False,
+        "testUsed": False,
+        "refitted": False,
+        "published": False,
+        "activated": False,
+    }.items()), "EXTERNAL_DB_FALSE_CERTIFICATION_OR_WRITE")
+    return {"existingDatabaseName": database_name,
+            "externalDiagnosticObservationCount": n,
+            "externalDiagnosticResult": "success",
+            "scientificTestExecuted": False}
+
+
 def closeout(
     physical: str, audit: str, validation: str,
     preparation: str, test: str, test_requested: bool,
     validation_file: Path, test_file: Path | None,
+    external_database: str | None = None,
+    external_preflight: str = "skipped",
+    external_test: str = "skipped",
+    external_file: Path | None = None,
 ) -> dict:
+    if external_database:
+        require(test_requested, "EXTERNAL_DB_REQUIRES_TEST_TOGGLE")
+        require(preparation == "skipped" and test == "skipped",
+                "EXTERNAL_DB_MUST_NOT_EXPOSE_SYNTHETIC_TEST")
+        require(external_preflight == "success" and external_test == "success",
+                "EXTERNAL_DB_JOB_NOT_SUCCESS")
+        require(physical == "success" and audit == "success"
+                and validation == "success", "MANDATORY_SCIENTIFIC_STAGE_NOT_SUCCESS")
+        require(test_file is None and external_file is not None,
+                "EXTERNAL_DB_RECEIPT_NOT_GIVEN")
+        info = validate_scientific_validation(validation_file)
+        detail = validate_existing_database_diagnostic(
+            external_file, external_database, info["winnerSha256"])
+        return {"schema": "V9_TF4_E2E_CLOSEOUT_V1",
+                "status": "E2E_CORE_WITH_EXISTING_DB_READONLY_DIAGNOSTIC_NOT_SCIENTIFIC_TEST",
+                "testRequested": True, "testMode": "EXISTING_DATABASE_READONLY",
+                "trainResult": physical, "auditResult": audit,
+                "validationResult": validation, "testPreparationResult": preparation,
+                "testResult": test, "externalPreflightResult": external_preflight,
+                "externalTestResult": external_test,
+                **info, **detail, "certified": False, "activated": False,
+                "productionPublication": False}
+    require(external_preflight == "skipped" and external_test == "skipped"
+            and external_file is None,
+            "UNREQUESTED_EXTERNAL_DATABASE_ACCESS")
     validate_jobs(physical, audit, validation, preparation, test,
                   test_requested)
     info = validate_scientific_validation(validation_file)
@@ -162,6 +245,12 @@ def main() -> int:
                         required=True)
     parser.add_argument("--validation-file", type=Path, required=True)
     parser.add_argument("--test-file", type=Path)
+    parser.add_argument("--external-database")
+    parser.add_argument("--external-preflight", choices=sorted(RESULTS),
+                        default="skipped")
+    parser.add_argument("--external-test", choices=sorted(RESULTS),
+                        default="skipped")
+    parser.add_argument("--external-file", type=Path)
     parser.add_argument("--code-sha", required=True)
     parser.add_argument("--run-id", type=int, required=True)
     parser.add_argument("--out", required=True, type=Path)
@@ -181,6 +270,8 @@ def main() -> int:
             args.physical, args.audit, args.validation, args.preparation,
             args.test, args.test_requested == "true",
             args.validation_file, args.test_file,
+            args.external_database, args.external_preflight,
+            args.external_test, args.external_file,
         )
         info.update(result)
     except (ValueError, json.JSONDecodeError, OSError) as exc:
