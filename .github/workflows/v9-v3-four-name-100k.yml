@@ -914,10 +914,115 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
 
+  # External TEST uses EXISTING rows in the named database, NEVER the
+  # independent synthetic scientific TEST cohort. The SQL login must be
+  # SELECT-only and is exposed only to preflight and this opt-in runner.
+  # No TEST truth, gabarito, Gold, Serving, SQL model conversion or DB writes.
+  test-database-readonly:
+    needs: [validation-100k, test-database-preflight]
+    if: ${{ always() && !cancelled() && inputs.test_required == true && inputs.test_database != '' && needs.validation-100k.result == 'success' && needs.test-database-preflight.result == 'success' && inputs.security_preflight_approved == true && github.actor == github.repository_owner }}
+    name: "V9 TEST existing database: read-only operational diagnostic"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      V9_EXTERNAL_DATABASE: ${{ inputs.test_database }}
+      DOTNET_ENVIRONMENT: DEV
+      ASPNETCORE_ENVIRONMENT: DEV
+      JORNADA_RUNTIME_MODE: DEV
+    defaults:
+      run:
+        working-directory: Solution
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Fail-closed existing database TEST provenance and no synthetic preparation
+        run: |
+          set -euo pipefail
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]]
+          test "$EXACT_SHA" = "$GITHUB_SHA"
+          test "$(git -C .. rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "${{ inputs.security_preflight_approved }}" = "true"
+          test "${{ needs.test-database-preflight.result }}" = "success"
+          test "${{ needs.validation-100k.result }}" = "success"
+          test -n "$V9_EXTERNAL_DATABASE"
+      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # pinned
+        with:
+          dotnet-version: "10.0.113"
+          cache: true
+          cache-dependency-path: "Solution/**/packages.lock.json"
+      - name: Build readonly external database TEST evaluator
+        run: dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
+      - name: Download ONLY final VALIDATION model JSON, never synthetic corpus or validation metrics
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-validated-operational-model-${{ github.sha }}-${{ github.run_id }}
+          path: Solution/.local/v9-external-database/winner
+      - name: Verify unique SHA-256-pinned operational JSON filename
+        run: |
+          set -euo pipefail
+          python3 - "$PWD/.local/v9-external-database/winner" <<'PY'
+          import hashlib,pathlib,re,sys
+          files=list(pathlib.Path(sys.argv[1]).iterdir())
+          assert len(files)==1 and files[0].is_file() and not files[0].is_symlink()
+          assert re.fullmatch(r"[a-f0-9]{64}\.operational\.json",files[0].name)
+          with files[0].open("rb") as stream:
+              assert hashlib.file_digest(stream,"sha256").hexdigest()==files[0].name[:64]
+          print("V9_READONLY_EXTERNAL_JSON_ONE_WINNER_SHA_PASS")
+          PY
+      - name: Run existing DB SELECT-only diagnostic with same frozen V9 model
+        env:
+          JORNADA_V9_EXTERNAL_TEST_SQL_CONNECTION: ${{ secrets.V9_EXTERNAL_TEST_READONLY_CONNECTION }}
+          JORNADA_V9_TEST_OUTPUT_DIR: ${{ github.workspace }}/Solution/.local/v9-external-database/results
+        run: |
+          set -euo pipefail
+          test -n "$JORNADA_V9_EXTERNAL_TEST_SQL_CONNECTION" || {
+            echo "::error::V9_EXTERNAL_READONLY_SQL_SECRET_REQUIRED"
+            exit 1
+          }
+          root="$PWD/.local/v9-external-database"
+          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
+          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
+          dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
+            --v9-independent-test "$model" --test-database "$V9_EXTERNAL_DATABASE"
+          python3 - "$root/results/external-database-test.json" "$V9_EXTERNAL_DATABASE" <<'PY'
+          import json,sys
+          report=json.load(open(sys.argv[1],encoding="utf-8"))
+          assert report["databaseName"]==sys.argv[2]
+          assert report["status"]=="EXTERNAL_DATABASE_NONPUBLISHING_DIAGNOSTIC_NOT_SCIENTIFIC_TEST"
+          assert report["inputReadOnly"] is True
+          assert report["generatedSyntheticData"] is False
+          assert report["independentScientificTest"] is False
+          assert report["tpFpFnFdrRecallEvaluated"] is False
+          assert report["productionRunnerFullPipelineParityCertified"] is False
+          assert report["published"] is False and report["activated"] is False
+          print("V9_EXISTING_DATABASE_OPERATIONAL_DIAGNOSTIC_NOT_SCIENTIFIC_TEST")
+          PY
+      - name: Upload only sanitized existing DB TEST diagnostic (never source rows)
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-external-database-diagnostic-${{ github.sha }}-${{ github.run_id }}
+          retention-days: 30
+          if-no-files-found: warn
+          path: Solution/.local/v9-external-database/results/external-database-test.json
+      - name: Dispose downloaded model and all local external TEST artifacts
+        if: always()
+        working-directory: ${{ github.workspace }}
+        run: rm -rf -- "$GITHUB_WORKSPACE/Solution/.local/v9-external-database"
+
   # No optional phase is permitted to make an incomplete scientific campaign
   # look like SUCCESS. This is a receipt/checker, NEVER model certification.
   e2e-closeout:
-    needs: [prepare-test-100k, physical-100k, audit-100k, validation-100k, test-100k]
+    needs: [prepare-test-100k, test-database-preflight, physical-100k, audit-100k, validation-100k, test-100k, test-database-readonly]
     if: ${{ always() }}
     name: "V9 E2E closeout: require mandatory scientific chain + optional TEST"
     runs-on: ubuntu-24.04
@@ -931,6 +1036,9 @@ jobs:
       VALIDATION_RESULT: ${{ needs.validation-100k.result }}
       PREPARATION_RESULT: ${{ needs.prepare-test-100k.result }}
       TEST_RESULT: ${{ needs.test-100k.result }}
+      EXTERNAL_PREFLIGHT_RESULT: ${{ needs.test-database-preflight.result }}
+      EXTERNAL_TEST_RESULT: ${{ needs.test-database-readonly.result }}
+      V9_EXTERNAL_DATABASE: ${{ inputs.test_database }}
       V9_TEST_REQUESTED: ${{ inputs.test_required && 'true' || 'false' }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # SHA pinned
@@ -959,14 +1067,29 @@ jobs:
         with:
           name: v9-tf4-independent-test-${{ github.sha }}-${{ github.run_id }}
           path: ${{ runner.temp }}/v9-e2e-closeout/test
+      - name: Download read-only external database result only on explicit selection and success
+        if: ${{ always() && inputs.test_required == true && inputs.test_database != '' && needs.test-database-readonly.result == 'success' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-external-database-diagnostic-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/v9-e2e-closeout/external
       - name: Fail closed on missing physical job, incomplete audit/validation or unproven TEST parity
         if: ${{ always() }}
         shell: bash
         run: |
           set -euo pipefail
           extra=()
-          if [[ "$V9_TEST_REQUESTED" == "true" ]]; then
+          if [[ "$V9_TEST_REQUESTED" == "true" && -z "$V9_EXTERNAL_DATABASE" ]]; then
             extra+=(--test-file "$RUNNER_TEMP/v9-e2e-closeout/test/independent-test.json")
+          fi
+          if [[ -n "$V9_EXTERNAL_DATABASE" ]]; then
+            extra+=(--external-database "$V9_EXTERNAL_DATABASE"
+                    --external-preflight "$EXTERNAL_PREFLIGHT_RESULT"
+                    --external-test "$EXTERNAL_TEST_RESULT"
+                    --external-file "$RUNNER_TEMP/v9-e2e-closeout/external/external-database-test.json")
+          else
+            extra+=(--external-preflight "$EXTERNAL_PREFLIGHT_RESULT"
+                    --external-test "$EXTERNAL_TEST_RESULT")
           fi
           python3 Solution/scripts/v9-tf4-e2e-closeout.py \
             --physical "$PHYSICAL_RESULT" --audit "$AUDIT_RESULT" \
