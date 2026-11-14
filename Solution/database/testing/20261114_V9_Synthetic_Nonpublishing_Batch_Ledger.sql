@@ -50,8 +50,10 @@ CREATE TABLE identidade.v9_synthetic_rehearsal_batch
     batch_number INT NOT NULL CHECK (batch_number BETWEEN 1 AND 128),
     observation_count INT NOT NULL CHECK (observation_count BETWEEN 1 AND 128),
     first_observation_id INT NOT NULL CHECK (first_observation_id > 0),
-    last_observation_id INT NOT NULL CHECK (last_observation_id >= first_observation_id),
+    last_observation_id INT NOT NULL,
     observation_ids_sha256 CHAR(64) NOT NULL,
+    CONSTRAINT ck_v9_synthetic_batch_range
+        CHECK (last_observation_id >= first_observation_id),
     CONSTRAINT pk_v9_synthetic_rehearsal_batch PRIMARY KEY (rehearsal_run_id, batch_number)
 );
 GO
