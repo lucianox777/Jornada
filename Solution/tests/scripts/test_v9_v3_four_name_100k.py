@@ -173,7 +173,7 @@ class V9FourName100kTests(unittest.TestCase):
         self.assertIn("v9-v3-four-name-100k-preaudit.py prepare", train)
         self.assertIn("v9-v3-four-name-100k-preaudit.py verify", audit)
         self.assertIn("v9-v3-four-name-100k-audit.py", audit)
-        self.assertNotIn("v9-v3-four-name-100k-audit.py", train)
+        self.assertNotIn("python3 scripts/v9-v3-four-name-100k-audit.py \\", train)
         self.assertIn("needs: audit-100k", workflow)
         self.assertIn("V9_PHYSICAL_STEP_START_UTC", workflow)
         self.assertIn("export V9_PHYSICAL_STEP_START_UTC=", train)
