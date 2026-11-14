@@ -1399,6 +1399,7 @@ public sealed class V9FittedSnapshotTests
             Assert.That(persisted.TerminalStatusInSyntheticLedger,
                 Is.EqualTo(LinkageRunStatus.CONCLUIDO_SEM_PUBLICACAO));
             Assert.That(persisted.BatchCount, Is.EqualTo(2));
+            Assert.That(persisted.DecisionRows, Is.EqualTo(cohort.Length));
             Assert.That(persisted.Eligible, Is.EqualTo(4));
             Assert.That(persisted.Evaluated, Is.EqualTo(4));
             Assert.That(persisted.CandidateGraphSha256, Is.EqualTo(parity.CanonicalEdgesSha256));
@@ -1455,6 +1456,59 @@ public sealed class V9FittedSnapshotTests
             Assert.That(await result.ReadAsync(), Is.False);
         }
 
+        // The synthetic SQL fixture now carries ONE exact frozen FS/Resolve
+        // decision per observation, including identity group and digest of the
+        // original full-precision decision. No name/CPF/truth is persisted.
+        await using (var savedDecisions = new Microsoft.Data.SqlClient.SqlCommand(
+            """
+            SELECT observation_id,batch_number,identity_uuid,status,evidence_sha256
+            FROM identidade.v9_synthetic_rehearsal_decision
+            WHERE rehearsal_run_id=@id ORDER BY observation_id;
+            """, connection))
+        {
+            savedDecisions.Parameters.Add("@id", System.Data.SqlDbType.UniqueIdentifier).Value = persistedId;
+            await using var result = await savedDecisions.ExecuteReaderAsync();
+            foreach (var original in referenceReplay.Decisions.OrderBy(x => x.ObservationId))
+            {
+                Assert.That(await result.ReadAsync(), Is.True);
+                var actualGroup = referenceReplay.IdentityByObservation[original.ObservationId];
+                var originalBytes = System.Text.Encoding.UTF8.GetBytes(
+                    System.Text.Json.JsonSerializer.Serialize(original) + "\n" +
+                    actualGroup.ToString("D"));
+                var expectedDigest = Convert.ToHexString(
+                    System.Security.Cryptography.SHA256.HashData(originalBytes)).ToLowerInvariant();
+                Assert.Multiple((Action)(() =>
+                {
+                    Assert.That(result.GetInt32(0), Is.EqualTo(original.ObservationId));
+                    Assert.That(result.GetInt32(1),
+                        Is.EqualTo((original.ObservationId - 1) / 2 + 1));
+                    Assert.That(result.GetGuid(2), Is.EqualTo(actualGroup));
+                    Assert.That(result.GetString(3), Is.EqualTo(original.Decision.Status.ToString()));
+                    Assert.That(result.GetString(4).Trim(), Is.EqualTo(expectedDigest));
+                }));
+            }
+            Assert.That(await result.ReadAsync(), Is.False);
+        }
+
+        // Even a plausible 64-character SHA cannot be substituted: a forged
+        // full-cohort decisions hash must fail BEFORE any SQL write.
+        var validProof = await productionRunner.RehearseV9NonPublishingSyntheticTestAsync(
+            receipt.ModelId, receipt.SourceSnapshotSha256,
+            cohort, physicalSqlEdges, 2, CancellationToken.None);
+        var refusedId = Guid.NewGuid();
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9SyntheticNonPublishingSqlLedger.PersistAsync(
+                connection, refusedId,
+                validProof with { DecisionsSha256 = new string('a', 64) },
+                cohort, physicalSqlEdges, CancellationToken.None)));
+        await using (var refused = new Microsoft.Data.SqlClient.SqlCommand(
+            "SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_run WHERE rehearsal_run_id=@id;",
+            connection))
+        {
+            refused.Parameters.Add("@id", System.Data.SqlDbType.UniqueIdentifier).Value = refusedId;
+            Assert.That((long)(await refused.ExecuteScalarAsync())!, Is.Zero);
+        }
+
         // Idempotence fail closed: same rehearsal ID must NOT insert a second
         // run or silently replace immutable historical proof.
         Assert.ThrowsAsync<Microsoft.Data.SqlClient.SqlException>((Func<Task>)(async () =>
@@ -1493,7 +1547,9 @@ public sealed class V9FittedSnapshotTests
             SELECT
               (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_run WHERE rehearsal_run_id=@id),
               (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_batch WHERE rehearsal_run_id=@id),
-              (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_run WHERE rehearsal_run_id=@successful);
+              (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_decision WHERE rehearsal_run_id=@id),
+              (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_run WHERE rehearsal_run_id=@successful),
+              (SELECT COUNT_BIG(*) FROM identidade.v9_synthetic_rehearsal_decision WHERE rehearsal_run_id=@successful);
             """, connection))
         {
             countFailed.Parameters.Add("@id", System.Data.SqlDbType.UniqueIdentifier).Value = rollbackId;
@@ -1502,7 +1558,9 @@ public sealed class V9FittedSnapshotTests
             Assert.That(await result.ReadAsync(), Is.True);
             Assert.That(result.GetInt64(0), Is.EqualTo(0L));
             Assert.That(result.GetInt64(1), Is.EqualTo(0L));
-            Assert.That(result.GetInt64(2), Is.EqualTo(1L));
+            Assert.That(result.GetInt64(2), Is.EqualTo(0L));
+            Assert.That(result.GetInt64(3), Is.EqualTo(1L));
+            Assert.That(result.GetInt64(4), Is.EqualTo(4L));
         }
         // Still no real operational run nor publication, even after success
         // and induced transaction failure in the isolated synthetic ledger.
