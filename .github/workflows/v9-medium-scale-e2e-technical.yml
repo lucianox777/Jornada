@@ -23,7 +23,7 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -35,7 +35,7 @@ jobs:
           test "$GITHUB_REF_TYPE" = branch
           test "$GITHUB_REF" = "refs/heads/master"
           test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
         with:
           dotnet-version: '10.0.113'
           cache: true
@@ -70,7 +70,7 @@ jobs:
           PY
       - name: Upload synthetic summary only, never corpus or database credentials
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: v9-medium-scale-summary-${{ github.sha }}
           path: |

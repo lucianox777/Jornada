@@ -50,7 +50,7 @@ jobs:
       run:
         working-directory: Solution
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2 pinned
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v4.2.2 pinned
         with:
           ref: ${{ inputs.expected_sha }}
           fetch-depth: 0
@@ -75,7 +75,7 @@ jobs:
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_execution_resource_budget.py -v
           python3 -m py_compile scripts/v9-scale-100k-technical-plan.py scripts/v9-scale-100k-technical-audit.py scripts/v9-100k-execution-resource-budget.py
           mkdir -p "$PWD/.local/v9-100k-technical"
-      - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # SHA pinned
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # SHA pinned
         with:
           dotnet-version: "10.0.113"
           cache: true
@@ -146,7 +146,7 @@ jobs:
             --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID"
       - name: Upload aggregated evidence only, never corpus, raw TEST or credentials
         if: always()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pin SHA
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # pin SHA
         with:
           name: v9-multiparam-100k-${{ github.sha }}-${{ github.run_id }}
           retention-days: 30

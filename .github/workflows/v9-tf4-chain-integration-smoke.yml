@@ -36,7 +36,7 @@ jobs:
     if: ${{ always() && !cancelled() && (inputs.synthetic_test_requested != true || needs.prepare-test-optional.result == 'success') }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned v4
         with:
           persist-credentials: false
       - name: Verify mandatory-chain and tamper-fail contracts
@@ -52,7 +52,7 @@ jobs:
             --handoff "$GITHUB_WORKSPACE/.local/v9-tf4-cross-job/preaudit" \
             --code-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"
       - name: Transfer the same pinned preaudit artifact format as the physical TRAIN
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # pinned
         with:
           name: v9-synthetic-preaudit-${{ github.run_id }}-${{ github.run_attempt }}
           path: .local/v9-tf4-cross-job/preaudit/
@@ -65,11 +65,11 @@ jobs:
     if: ${{ always() && !cancelled() && needs.train-fixture.result == 'success' }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned
         with:
           persist-credentials: false
       - name: Download and verify TRAIN's real immutable artifact structure
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # pinned
         with:
           name: v9-synthetic-preaudit-${{ github.run_id }}-${{ github.run_attempt }}
           path: .local/v9-tf4-cross-job/preaudit/
@@ -81,7 +81,7 @@ jobs:
             --audit "$GITHUB_WORKSPACE/.local/v9-tf4-cross-job/audit" \
             --code-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID"
       - name: Transfer synthetic audit receipt (not scientific PASS)
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # pinned
         with:
           name: v9-synthetic-audit-${{ github.run_id }}-${{ github.run_attempt }}
           path: .local/v9-tf4-cross-job/audit/
@@ -94,16 +94,16 @@ jobs:
     if: ${{ always() && !cancelled() && needs.audit-fixture.result == 'success' }}
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned
         with:
           persist-credentials: false
       - name: Download independently transferred TRAIN evidence
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # pinned
         with:
           name: v9-synthetic-preaudit-${{ github.run_id }}-${{ github.run_attempt }}
           path: .local/v9-tf4-cross-job/preaudit/
       - name: Download independently transferred AUDIT receipt
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # pinned
         with:
           name: v9-synthetic-audit-${{ github.run_id }}-${{ github.run_attempt }}
           path: .local/v9-tf4-cross-job/audit/
@@ -137,7 +137,7 @@ jobs:
       VALIDATION_RESULT: ${{ needs.validation-fixture.result }}
       TEST_RESULT: ${{ needs.test-fixture-optional.result }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # pinned
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # pinned
         with:
           persist-credentials: false
       - name: Verify native E2E closeout on real GitHub job conclusions and fake science receipt
