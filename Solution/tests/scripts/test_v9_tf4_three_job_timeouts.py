@@ -39,6 +39,24 @@ class ThreeJobsV9TimeoutTests(unittest.TestCase):
         self.assertIn("--v9-validate-finalists", self.validation)
         self.assertIn("Remove VALIDATION disposable SQL even after failure", self.validation)
 
+    def test_validation_can_start_when_optional_test_preparation_is_skipped(self):
+        # A successful TRAIN with audited finalists must start VALIDATION even
+        # though prepare-test-100k was skipped when TEST was not requested.
+        header = self.validation.split("\n    steps:", 1)[0]
+        match = re.search(r"(?m)^    if: (.*)$", header)
+        self.assertIsNotNone(match)
+        condition = match.group(1)
+        self.assertIn("always()", condition)
+        self.assertIn("!cancelled()", condition)
+        self.assertIn("needs.physical-100k.result == 'success'", condition)
+        self.assertIn("needs.physical-100k.outputs.has_finalists == 'true'", condition)
+        self.assertIn("inputs.security_preflight_approved == true", condition)
+        self.assertIn("github.actor == github.repository_owner", condition)
+        self.assertNotIn("needs.prepare-test-100k", condition)
+        # The actual TEST still requires successful sealed preparation.
+        self.assertIn("needs.prepare-test-100k.result == 'success'", self.test)
+        self.assertIn("inputs.test_required == true", self.test)
+
     def test_test_job_is_standalone_and_uses_one_winner_only(self):
         self.assertIn("needs: [validation-100k, prepare-test-100k]", self.test)
         self.assertIn("inputs.test_required == true", self.test)
