@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-PARITY = ROOT / "src/Jornada.Linkage.Core/V9OperationalCandidateGraphParityAudit.cs"
+PARITY = ROOT / "src/Jornada.Linkage.Runner/V9OperationalCandidateGraphParityAudit.cs"
 CORE_REPLAY = ROOT / "src/Jornada.Linkage.Core/V9FrozenSourceResolveReplay.cs"
 HOLDOUT = ROOT / "src/Jornada.Linkage.Parameters.Worker/V9PhysicalSqlFrozenHoldout.cs"
 TESTS = ROOT / "tests/Jornada.Tests/Unit/V9FittedSnapshotTests.cs"
@@ -22,7 +22,7 @@ class OperationalCandidateParity(unittest.TestCase):
         self.assertIn("command.ExecuteReaderAsync(ct)", code)
         self.assertIn('DB_NAME()', code)
         self.assertIn('"JornadaHarness"', code)
-        self.assertIn("MaximumAuditObservations = 128", code)
+        self.assertIn("MaximumAuditObservations = V9OperationalPinnedCohortRuntime.MaximumAuditObservations", code)
         self.assertIn("row.Partition != \"TEST\"", code)
         self.assertIn("expected.SetEquals(actual)", code)
         self.assertIn("actualDirections.Values.Any(v => v != 3)", code)
@@ -31,7 +31,7 @@ class OperationalCandidateParity(unittest.TestCase):
         self.assertNotIn("INSERT INTO ", code)
         self.assertNotIn("UPDATE ", code)
         self.assertNotIn("DELETE FROM ", code)
-        self.assertIn("internal static Guid ObservationGuid(", CORE_REPLAY.read_text())
+        self.assertIn("public static Guid ObservationGuid(", CORE_REPLAY.read_text())
 
     def test_reference_graph_is_existing_worker_sql_not_synthetic_faked_edges(self):
         holdout = HOLDOUT.read_text()
