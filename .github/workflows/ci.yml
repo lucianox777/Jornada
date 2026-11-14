@@ -519,7 +519,7 @@ jobs:
       - name: Gate source sanity and workflow action pins
         run: |
           mkdir -p .local/security
-          python3 scripts/source-sanity-gate.py | tee .local/security/source-sanity.txt
+          python3 scripts/source-sanity-gate.py --self-test | tee .local/security/source-sanity.txt
           python3 scripts/workflow-action-pin-gate.py | tee .local/security/action-pins.txt
       - name: Test secure local SQL credential bootstrap
         run: python3 scripts/test_local_env_bootstrap.py -v

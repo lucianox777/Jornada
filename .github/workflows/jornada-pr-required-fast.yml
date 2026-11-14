@@ -72,6 +72,9 @@ jobs:
           # before squash, without SQL, physical 30k/100k or Windows builds.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9FsAdaptiveFirstNameTfTrainValidationTests'
+          # Protect the exact jornada-ci regression from TEST cohort API changes.
+          dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
+            --filter 'FullyQualifiedName~V9FellegiSunterAdaptiveCalibrationAdapterTests.Source_recall_uses_eligible_observations_and_oracle_gold_collapses_duplicate_identity'
           # C# execution proof that TEST/VALIDATION FS grouping stay isolated.
           dotnet test tests/Jornada.Tests/Jornada.Tests.csproj --no-build -c Release \
             --filter 'FullyQualifiedName~V9BlindIncrementalIdentityGroupingTests'
@@ -113,5 +116,6 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Repository safety and CI contract gates
         run: |
+          python3 Solution/scripts/source-sanity-gate.py --self-test
           python3 Solution/scripts/v9-csharp-comment-escaped-newline-gate.py
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_ci_required_gates.py'
