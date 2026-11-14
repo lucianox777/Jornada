@@ -821,3 +821,73 @@ jobs:
         if: always()
         working-directory: ${{ github.workspace }}
         run: docker rm -f "v9-probe-sql-${{ github.run_id }}-${{ github.run_attempt }}" >/dev/null 2>&1 || true
+
+  # No optional phase is permitted to make an incomplete scientific campaign
+  # look like SUCCESS. This is a receipt/checker, NEVER model certification.
+  e2e-closeout:
+    needs: [prepare-test-100k, physical-100k, audit-100k, validation-100k, test-100k]
+    if: ${{ always() }}
+    name: "V9 E2E closeout: require mandatory scientific chain + optional TEST"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      PHYSICAL_RESULT: ${{ needs.physical-100k.result }}
+      AUDIT_RESULT: ${{ needs.audit-100k.result }}
+      VALIDATION_RESULT: ${{ needs.validation-100k.result }}
+      PREPARATION_RESULT: ${{ needs.prepare-test-100k.result }}
+      TEST_RESULT: ${{ needs.test-100k.result }}
+      V9_TEST_REQUESTED: ${{ inputs.test_required && 'true' || 'false' }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # SHA pinned
+        with:
+          ref: ${{ inputs.expected_sha }}
+          persist-credentials: false
+      - name: Check immutable manual provenance for E2E reporting
+        run: |
+          set -euo pipefail
+          test "$GITHUB_SHA" = "$EXACT_SHA"
+          test "$(git rev-parse HEAD)" = "$EXACT_SHA"
+          test "$GITHUB_REF" = "refs/heads/master"
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER"
+          test "$GITHUB_RUN_ATTEMPT" = "1"
+          test "${{ inputs.security_preflight_approved }}" = "true"
+      - name: Download independent VALIDATION result only after VALIDATION SUCCESS
+        if: ${{ always() && needs.validation-100k.result == 'success' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-independent-validation-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/v9-e2e-closeout/validation
+      - name: Download independent TEST result only when TEST was explicitly requested and successful
+        if: ${{ always() && inputs.test_required == true && needs.test-100k.result == 'success' }}
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
+        with:
+          name: v9-tf4-independent-test-${{ github.sha }}-${{ github.run_id }}
+          path: ${{ runner.temp }}/v9-e2e-closeout/test
+      - name: Fail closed on missing physical job, incomplete audit/validation or unproven TEST parity
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          extra=()
+          if [[ "$V9_TEST_REQUESTED" == "true" ]]; then
+            extra+=(--test-file "$RUNNER_TEMP/v9-e2e-closeout/test/independent-test.json")
+          fi
+          python3 Solution/scripts/v9-tf4-e2e-closeout.py \
+            --physical "$PHYSICAL_RESULT" --audit "$AUDIT_RESULT" \
+            --validation "$VALIDATION_RESULT" --preparation "$PREPARATION_RESULT" \
+            --test "$TEST_RESULT" --test-requested "$V9_TEST_REQUESTED" \
+            --validation-file "$RUNNER_TEMP/v9-e2e-closeout/validation/finalist-validation.json" \
+            "${extra[@]}" --code-sha "$EXACT_SHA" --run-id "$GITHUB_RUN_ID" \
+            --out "$RUNNER_TEMP/v9-e2e-closeout/e2e-status.json"
+      - name: Upload sanitized E2E completion or failure receipt
+        if: ${{ always() }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
+        with:
+          name: v9-tf4-e2e-closeout-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/v9-e2e-closeout/e2e-status.json
+          if-no-files-found: warn
+          retention-days: 30
