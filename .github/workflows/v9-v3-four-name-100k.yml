@@ -608,7 +608,7 @@ jobs:
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
           python3 scripts/v9-tf4-validated-operational-handoff.py verify \
-            --validation "$root/validation-results/finalist-validation.json" \
+            --validation "$root/validation-results/validation-e2e-status.json" \
             --reference "$root/validation-results/selected-operational-model-reference.json" \
             --directory "$root/validation-results/validated-operational-model" \
             --expected-contract JORNADA_V9_OPERATIONAL_SQL_MODEL_V1
