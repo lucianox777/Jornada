@@ -1154,7 +1154,7 @@ public sealed class V9FittedSnapshotTests
     [Test]
     public void Existing_database_test_requires_explicit_safe_name_and_readonly_connection()
     {
-        var source = "Server=localhost;Initial Catalog=DefaultSynthetic;User Id=reader;Password=reader;";
+        var source = "Server=localhost;Initial Catalog=DefaultSynthetic;Integrated Security=true;";
         var conn = V9ExternalDatabaseReadOnlyTest.BuildReadOnlyConnection(
             source, "JornadaReadonlyDev");
         Assert.That(conn.InitialCatalog, Is.EqualTo("JornadaReadonlyDev"));
