@@ -113,5 +113,6 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       - name: Repository safety and CI contract gates
         run: |
+          python3 Solution/scripts/source-sanity-gate.py --self-test
           python3 Solution/scripts/v9-csharp-comment-escaped-newline-gate.py
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_ci_required_gates.py'
