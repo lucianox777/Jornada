@@ -48,7 +48,7 @@ public static class V9ReadOnlyTestBatchRunner
             connection, pinnedModelId, pinnedWinnerSha256, cancellationToken);
         var receipt = await V9OperationalCandidateGraphParityAudit.CompareTestAsync(
             connection, runtime, syntheticTest, physicalSqlEdges,
-            cancellationToken, batchSize);
+            batchSize, cancellationToken);
         if (receipt.WinnerSha256 != pinnedWinnerSha256
             || receipt.PhysicalSqlEdgeCount != receipt.OperationalSqlEdgeCount
             || receipt.ProductionBatchPipelineCertified
