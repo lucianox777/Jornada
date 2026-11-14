@@ -57,3 +57,36 @@ CREATE TABLE identidade.v9_synthetic_rehearsal_batch
     CONSTRAINT pk_v9_synthetic_rehearsal_batch PRIMARY KEY (rehearsal_run_id, batch_number)
 );
 GO
+-- Per-observation V9 TEST decision evidence (synthetic ID and frozen UUIDs only).
+-- No CPF, names, mother names, birth dates, truth labels or Gold references.
+CREATE TABLE identidade.v9_synthetic_rehearsal_decision
+(
+    rehearsal_run_id UNIQUEIDENTIFIER NOT NULL,
+    observation_id INT NOT NULL CHECK (observation_id > 0),
+    batch_number INT NOT NULL,
+    identity_uuid UNIQUEIDENTIFIER NOT NULL,
+    status NVARCHAR(30) NOT NULL
+        CONSTRAINT ck_v9_synthetic_decision_status
+        CHECK (status IN (N'RESOLVIDO',N'NAO_RESOLVIDO',N'CONFLITO')),
+    motivo NVARCHAR(120) NULL,
+    pessoa_uuid_resolvido UNIQUEIDENTIFIER NULL,
+    melhor_candidato_uuid UNIQUEIDENTIFIER NULL,
+    score_melhor DECIMAL(9,8) NOT NULL,
+    segundo_candidato_uuid UNIQUEIDENTIFIER NULL,
+    score_segundo DECIMAL(9,8) NULL,
+    margem DECIMAL(9,8) NULL,
+    evidence_sha256 CHAR(64) NOT NULL,
+    CONSTRAINT pk_v9_synthetic_rehearsal_decision
+        PRIMARY KEY (rehearsal_run_id,observation_id),
+    CONSTRAINT fk_v9_synthetic_decision_batch
+        FOREIGN KEY (rehearsal_run_id,batch_number)
+        REFERENCES identidade.v9_synthetic_rehearsal_batch(rehearsal_run_id,batch_number),
+    CONSTRAINT ck_v9_synthetic_decision_resolved
+        CHECK ((status=N'RESOLVIDO' AND pessoa_uuid_resolvido IS NOT NULL)
+            OR (status<>N'RESOLVIDO' AND pessoa_uuid_resolvido IS NULL)),
+    CONSTRAINT ck_v9_synthetic_decision_score
+        CHECK (score_melhor BETWEEN 0 AND 1
+           AND (score_segundo IS NULL OR score_segundo BETWEEN 0 AND 1)
+           AND (margem IS NULL OR margem BETWEEN 0 AND 1))
+);
+GO
