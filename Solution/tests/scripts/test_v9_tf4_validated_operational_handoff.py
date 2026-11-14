@@ -52,6 +52,8 @@ class V9ValidatedOperationalHandoffTests(unittest.TestCase):
         self.filename = self.sha + ".operational.json"
         (self.directory / self.filename).write_bytes(self.bytes)
         self.validation.write_text(json.dumps({
+            "schema": "V9_VALIDATION_E2E_STATUS_V1",
+            "validationResultSha256": "f" * 64,
             "status": "VALIDATION_SCIENTIFIC_WINNER_SELECTED_NOT_CERTIFIED",
             "selectedValidationSnapshotSha256": self.sha,
             "selectedValidationOperationalModelFileName": self.filename,
@@ -82,6 +84,8 @@ class V9ValidatedOperationalHandoffTests(unittest.TestCase):
         (self.directory / self.filename).unlink()
         self.reference.unlink()
         self.validation.write_text(json.dumps({
+            "schema": "V9_VALIDATION_E2E_STATUS_V1",
+            "validationResultSha256": "f" * 64,
             "status": "NO_FINALIST_PASSES_DECLARED_SCIENTIFIC_GATES",
             "selectedValidationSnapshotSha256": None,
             "selectedValidationOperationalModelFileName": None,
