@@ -1383,8 +1383,11 @@ public sealed class V9FittedSnapshotTests
             V9ExternalDatabaseReadOnlyTest.VerifyReadOnlyPrincipalAsync(
                 connection, "JornadaHarness"));
         await using (var unsafeGrant = new Microsoft.Data.SqlClient.SqlCommand(
-            "GRANT INSERT ON OBJECT::identidade.v9_permission_probe TO [v9_scope_read_probe];",
-            connection))
+            """
+            CREATE ROLE [v9_scope_write_role];
+            ALTER ROLE [v9_scope_write_role] ADD MEMBER [v9_scope_read_probe];
+            GRANT INSERT ON OBJECT::identidade.v9_permission_probe TO [v9_scope_write_role];
+            """, connection))
             await unsafeGrant.ExecuteNonQueryAsync();
         await AsReadOnlyPrincipalAsync(() =>
         {
