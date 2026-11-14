@@ -20,7 +20,11 @@ public sealed record V9OperationalCandidateGraphParityReceipt(
     int BatchSize = 0,
     int BatchCount = 0,
     string? DecisionsSha256 = null,
-    string? IdentityGroupsSha256 = null);
+    string? IdentityGroupsSha256 = null,
+    int Resolved = 0,
+    int Unresolved = 0,
+    int Conflicts = 0,
+    int NoCandidateInBlock = 0);
 
 /// <summary>
 /// Read-only, small-cohort evidence for the actual production projection
@@ -169,6 +173,18 @@ public static class V9OperationalCandidateGraphParityAudit
 
         static string Sha(string value) => Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(value))).ToLowerInvariant();
+        var resolved = operational.Decisions.Count(x =>
+            x.Decision.Status == ResolutionStatus.RESOLVIDO);
+        var conflicts = operational.Decisions.Count(x =>
+            x.Decision.Status == ResolutionStatus.CONFLITO);
+        var unresolved = operational.Decisions.Count - resolved - conflicts;
+        var noCandidate = operational.Decisions.Count(x =>
+            x.Decision.Status == ResolutionStatus.NAO_RESOLVIDO
+            && ProbabilisticLinkageBatchRunner.IsNoCandidateReason(x.Decision.Motivo));
+        if (unresolved < 0 || resolved + conflicts + unresolved != test.Count
+            || noCandidate > unresolved
+            || operational.Decisions.Select(x => x.ObservationId).Distinct().Count() != test.Count)
+            throw new InvalidDataException("Contadores de lote V9 não fecham com o universo congelado.");
         var decisionsSha = Sha(JsonSerializer.Serialize(operational.Decisions));
         var groupsSha = Sha(string.Join("\n", operational.IdentityByObservation
             .OrderBy(x => x.Key).Select(x => FormattableString.Invariant($"{x.Key}:{x.Value:D}"))));
@@ -176,6 +192,8 @@ public static class V9OperationalCandidateGraphParityAudit
             planner.ProjectionFingerprintSha256, test.Count, expected.Count, actual.Count,
             digest, ProductionBatchPipelineCertified: false,
             BatchSize: batchSize, BatchCount: batches,
-            DecisionsSha256: decisionsSha, IdentityGroupsSha256: groupsSha);
+            DecisionsSha256: decisionsSha, IdentityGroupsSha256: groupsSha,
+            Resolved: resolved, Unresolved: unresolved,
+            Conflicts: conflicts, NoCandidateInBlock: noCandidate);
     }
 }
