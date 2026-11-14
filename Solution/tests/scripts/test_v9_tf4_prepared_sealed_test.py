@@ -115,7 +115,7 @@ class SealedTestPreparationContract(unittest.TestCase):
             self.assertNotIn("v9-tf4-test-sealed-",unprivileged)
             self.assertNotIn("20261113001",unprivileged)
         self.assertIn("test_required }}",train)
-        self.assertIn("test_required }}",validation)
+        self.assertIn("inputs.test_required == true",validation)
 
     def test_no_plaintext_or_key_in_upload_artifact(self):
         source=WF.read_text()
