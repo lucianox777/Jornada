@@ -102,7 +102,7 @@ class SealedTestPreparationContract(unittest.TestCase):
         self.assertIn("v9-tf4-test-sealed-",pre)
         self.assertIn("if-no-files-found: error",pre)
         self.assertIn("rm -rf --",pre)
-        self.assertIn("needs: prepare-test-100k",train)
+        self.assertIn("needs: [prepare-test-100k, test-database-preflight]",train)
         self.assertIn("inputs.test_required != true",train)
         self.assertIn("needs.prepare-test-100k.result == 'success'",train)
         self.assertIn("needs: audit-100k",validation)
@@ -115,7 +115,7 @@ class SealedTestPreparationContract(unittest.TestCase):
             self.assertNotIn("test-corpus.cms",unprivileged)
             self.assertNotIn("v9-tf4-test-sealed-",unprivileged)
             self.assertNotIn("20261113001",unprivileged)
-        self.assertIn("test_required }}",train)
+        self.assertIn("inputs.test_required != true",train)
         self.assertNotIn("inputs.test_required == true",validation)
         self.assertIn("needs.audit-100k.result == 'success'",validation)
 
