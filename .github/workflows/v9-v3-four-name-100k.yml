@@ -290,14 +290,16 @@ jobs:
           assert receipt["physicalHypotheses"]==324 and receipt["tfOptions"]==81, "324_V3_TF4_REQUIRED"
           print("V9_100K_PARALLELISM: AUTO_0_BOUND_CSHARP_GOVERNOR_ACTIVE")
           PY
-      # #43309643251 completed 324/324 and generated 3 finalists, then timed out
-      # after the worker exited successfully at the 305-minute step boundary.
-      # Allow 10 minutes for final output and monitor teardown; job remains 360 min.
+      # #43499315560 timed out at the enforced 315-minute physical-step ceiling
+      # after 308/324 completions; the operational estimate projected ~331 min.
+      # Allow up to 340 min for the physical step, leaving up to 20 min of the
+      # 360-minute TRAIN job for admission, audit, handoff and teardown.
+      # These are independent enforced GitHub Actions step/job timeouts.
       - name: Run physical V9 CSharp on 324 V3-only four-name hypotheses
-        timeout-minutes: 315
+        timeout-minutes: 340
         run: |
           set -euo pipefail
-          # Approximate the enforced 315-minute step deadline, captured before
+          # Approximate the enforced 340-minute step deadline, captured before
           # launching the wrapper. GitHub owns the authoritative timeout.
           export V9_PHYSICAL_STEP_START_UTC="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
           root="$PWD/.local/v9-100k-technical"
