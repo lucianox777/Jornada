@@ -1311,9 +1311,11 @@ public sealed class V9FittedSnapshotTests
         // The legacy production RunAsync is not invoked and not certified here.
         foreach (var size in new[] { 1, 2, 3, 4 })
         {
-            var batched = await V9OperationalCandidateGraphParityAudit.CompareTestAsync(
-                connection, groupedRuntime, cohort.Reverse().ToArray(),
-                physicalSqlEdges, batchSize: size);
+            // Exercise the whole read-only Runner-side entry: SQL pinned winner
+            // -> operational SQL batches -> global frozen scorer/Resolve.
+            var batched = await V9ReadOnlyTestBatchRunner.RunAsync(
+                connection, receipt.ModelId, receipt.SourceSnapshotSha256,
+                cohort.Reverse().ToArray(), physicalSqlEdges, batchSize: size);
             Assert.Multiple((Action)(() =>
             {
                 Assert.That(batched.BatchSize, Is.EqualTo(size));
@@ -1326,6 +1328,19 @@ public sealed class V9FittedSnapshotTests
                 Assert.That(batched.ProductionBatchPipelineCertified, Is.False);
             }));
         }
+        Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+            await V9ReadOnlyTestBatchRunner.RunAsync(
+                connection, receipt.ModelId, new string('a', 64),
+                cohort, physicalSqlEdges, batchSize: 2)));
+        Assert.ThrowsAsync<ArgumentOutOfRangeException>((Func<Task>)(async () =>
+            await V9ReadOnlyTestBatchRunner.RunAsync(
+                connection, receipt.ModelId, receipt.SourceSnapshotSha256,
+                cohort, physicalSqlEdges, batchSize: 0)));
+        Assert.ThrowsAsync<ArgumentOutOfRangeException>((Func<Task>)(async () =>
+            await V9ReadOnlyTestBatchRunner.RunAsync(
+                connection, receipt.ModelId, receipt.SourceSnapshotSha256,
+                cohort, physicalSqlEdges, batchSize: 129)));
+
         Assert.That(parity.DecisionsSha256, Has.Length.EqualTo(64));
         Assert.That(parity.IdentityGroupsSha256, Has.Length.EqualTo(64));
         Assert.ThrowsAsync<ArgumentOutOfRangeException>((Func<Task>)(async () =>
