@@ -100,13 +100,92 @@ public static class V9ExternalDatabaseReadOnlyTest
                 CASE WHEN OBJECT_ID(N'silver.pessoa_observacao', 'U') IS NOT NULL
                           AND OBJECT_ID(N'ref.gestor', 'U') IS NOT NULL THEN 1 ELSE 0 END;
             """, connection) { CommandTimeout = 90 };
-        await using var reader = await command.ExecuteReaderAsync(ct);
-        if (!await reader.ReadAsync(ct)
-            || !string.Equals(reader.GetString(0), expectedDatabase, StringComparison.Ordinal)
-            || reader.GetInt32(1) != 0 || reader.GetInt32(2) != 1
-            || reader.GetInt32(3) != 1 || reader.GetInt32(4) != 1)
+        // Dispose the first result before issuing another command on a
+        // non-MARS, dedicated readonly SQL session.
+        await using (var reader = await command.ExecuteReaderAsync(ct))
+        {
+            if (!await reader.ReadAsync(ct)
+                || !string.Equals(reader.GetString(0), expectedDatabase, StringComparison.Ordinal)
+                || reader.GetInt32(1) != 0 || reader.GetInt32(2) != 1
+                || reader.GetInt32(3) != 1 || reader.GetInt32(4) != 1)
+                throw new InvalidOperationException(
+                    "TEST externo exige banco exato, schema Silver/gestor compatível e login exclusivamente SELECT.");
+        }
+
+        // A user can be SELECT-only on Silver/Gold yet have INSERT/UPDATE on
+        // another table, EXECUTE on a write-capable procedure, or privileges
+        // inherited through a custom role. Checking just named tables/standard
+        // roles would incorrectly admit such a principal. Inspect effective
+        // permissions across the database without reading any citizen rows.
+        await using var effectivePermissions = new SqlCommand(
+            """
+            SELECT CASE WHEN
+                EXISTS (
+                    SELECT 1
+                    FROM sys.fn_my_permissions(NULL, 'DATABASE') AS p
+                    WHERE p.permission_name NOT IN (
+                        N'CONNECT', N'SELECT', N'REFERENCES', N'VIEW DEFINITION',
+                        N'VIEW DATABASE STATE', N'VIEW SECURITY DEFINITION',
+                        N'VIEW PERFORMANCE DEFINITION',
+                        N'VIEW ANY COLUMN MASTER KEY DEFINITION',
+                        N'VIEW ANY COLUMN ENCRYPTION KEY DEFINITION')
+                )
+                OR COALESCE(HAS_PERMS_BY_NAME(NULL, 'SERVER', 'CONTROL SERVER'), 0) = 1
+                OR COALESCE(HAS_PERMS_BY_NAME(NULL, 'SERVER', 'ALTER ANY DATABASE'), 0) = 1
+                OR COALESCE(HAS_PERMS_BY_NAME(NULL, 'SERVER', 'ALTER ANY LOGIN'), 0) = 1
+                OR COALESCE(HAS_PERMS_BY_NAME(NULL, 'SERVER', 'IMPERSONATE ANY LOGIN'), 0) = 1
+                OR EXISTS (
+                    SELECT 1 FROM sys.schemas AS s
+                    WHERE s.name NOT IN (N'sys', N'INFORMATION_SCHEMA')
+                      AND (
+                        COALESCE(HAS_PERMS_BY_NAME(QUOTENAME(s.name), 'SCHEMA', 'INSERT'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(QUOTENAME(s.name), 'SCHEMA', 'UPDATE'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(QUOTENAME(s.name), 'SCHEMA', 'DELETE'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(QUOTENAME(s.name), 'SCHEMA', 'EXECUTE'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(QUOTENAME(s.name), 'SCHEMA', 'ALTER'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(QUOTENAME(s.name), 'SCHEMA', 'CONTROL'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(QUOTENAME(s.name), 'SCHEMA', 'TAKE OWNERSHIP'), 0) = 1
+                      )
+                )
+                OR EXISTS (
+                    SELECT 1 FROM sys.objects AS o
+                    JOIN sys.schemas AS s ON s.schema_id = o.schema_id
+                    WHERE o.is_ms_shipped = 0
+                      AND (
+                        COALESCE(HAS_PERMS_BY_NAME(
+                            QUOTENAME(s.name) + N'.' + QUOTENAME(o.name), 'OBJECT', 'INSERT'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(
+                            QUOTENAME(s.name) + N'.' + QUOTENAME(o.name), 'OBJECT', 'UPDATE'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(
+                            QUOTENAME(s.name) + N'.' + QUOTENAME(o.name), 'OBJECT', 'DELETE'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(
+                            QUOTENAME(s.name) + N'.' + QUOTENAME(o.name), 'OBJECT', 'EXECUTE'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(
+                            QUOTENAME(s.name) + N'.' + QUOTENAME(o.name), 'OBJECT', 'ALTER'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(
+                            QUOTENAME(s.name) + N'.' + QUOTENAME(o.name), 'OBJECT', 'CONTROL'), 0) = 1
+                        OR COALESCE(HAS_PERMS_BY_NAME(
+                            QUOTENAME(s.name) + N'.' + QUOTENAME(o.name), 'OBJECT', 'TAKE OWNERSHIP'), 0) = 1
+                      )
+                )
+                -- An UPDATE grant can target a single column without an
+                -- object-wide UPDATE grant. Check those effective privileges
+                -- explicitly: table-only checks must never miss them.
+                OR EXISTS (
+                    SELECT 1 FROM sys.columns AS c
+                    JOIN sys.objects AS o ON o.object_id = c.object_id
+                    JOIN sys.schemas AS s ON s.schema_id = o.schema_id
+                    WHERE o.is_ms_shipped = 0
+                      AND COALESCE(HAS_PERMS_BY_NAME(
+                          QUOTENAME(s.name) + N'.' + QUOTENAME(o.name),
+                          'OBJECT', 'UPDATE', c.name, 'COLUMN'), 0) = 1
+                )
+            THEN CAST(1 AS int) ELSE CAST(0 AS int) END;
+            """, connection) { CommandTimeout = 120 };
+        var unsafePermissions = await effectivePermissions.ExecuteScalarAsync(ct);
+        if (unsafePermissions is not int value || value != 0)
             throw new InvalidOperationException(
-                "TEST externo exige banco exato, schema Silver/gestor compatível e login exclusivamente SELECT.");
+                "TEST externo exige permissões efetivas exclusivamente de leitura em todo o database, sem EXECUTE ou escrita.");
     }
 
     public static async Task<V9PhysicalCalibrationObservation[]> ReadExistingObservationsAsync(

@@ -1345,6 +1345,72 @@ public sealed class V9FittedSnapshotTests
             """, connection))
             await schema.ExecuteNonQueryAsync();
 
+        // Verify that a principal with ONLY the two required SELECT grants
+        // passes, but an unrelated INSERT grant (including a custom role)
+        // is rejected. This runs solely against the disposable SQL harness,
+        // before any citizen-row query or production persistence.
+        await using (var permissionSetup = new Microsoft.Data.SqlClient.SqlCommand(
+            """
+            IF SCHEMA_ID(N'silver') IS NULL EXEC(N'CREATE SCHEMA silver');
+            IF SCHEMA_ID(N'ref') IS NULL EXEC(N'CREATE SCHEMA ref');
+            CREATE TABLE silver.pessoa_observacao (id bigint NOT NULL);
+            CREATE TABLE ref.gestor (id bigint NOT NULL);
+            CREATE TABLE identidade.v9_permission_probe (id bigint NOT NULL);
+            CREATE USER [v9_scope_read_probe] WITHOUT LOGIN;
+            GRANT SELECT ON OBJECT::silver.pessoa_observacao TO [v9_scope_read_probe];
+            GRANT SELECT ON OBJECT::ref.gestor TO [v9_scope_read_probe];
+            """, connection))
+            await permissionSetup.ExecuteNonQueryAsync();
+
+        async Task AsReadOnlyPrincipalAsync(Func<Task> assertAsync)
+        {
+            await using (var impersonate = new Microsoft.Data.SqlClient.SqlCommand(
+                "EXECUTE AS USER = N'v9_scope_read_probe';", connection))
+                await impersonate.ExecuteNonQueryAsync();
+            try
+            {
+                await assertAsync();
+            }
+            finally
+            {
+                await using var revert = new Microsoft.Data.SqlClient.SqlCommand(
+                    "REVERT;", connection);
+                await revert.ExecuteNonQueryAsync();
+            }
+        }
+
+        await AsReadOnlyPrincipalAsync(() =>
+            V9ExternalDatabaseReadOnlyTest.VerifyReadOnlyPrincipalAsync(
+                connection, "JornadaHarness"));
+        await using (var unsafeGrant = new Microsoft.Data.SqlClient.SqlCommand(
+            """
+            CREATE ROLE [v9_scope_write_role];
+            ALTER ROLE [v9_scope_write_role] ADD MEMBER [v9_scope_read_probe];
+            GRANT INSERT ON OBJECT::identidade.v9_permission_probe TO [v9_scope_write_role];
+            """, connection))
+            await unsafeGrant.ExecuteNonQueryAsync();
+        async Task MustRejectUnsafePermissionsAsync()
+        {
+            await AsReadOnlyPrincipalAsync(() =>
+            {
+                Assert.ThrowsAsync<InvalidOperationException>((Func<Task>)(async () =>
+                    await V9ExternalDatabaseReadOnlyTest.VerifyReadOnlyPrincipalAsync(
+                        connection, "JornadaHarness")));
+                return Task.CompletedTask;
+            });
+        }
+        await MustRejectUnsafePermissionsAsync();
+
+        // Also reject an effective column-only UPDATE via the same custom
+        // role, after revoking its unrelated table INSERT grant.
+        await using (var columnGrant = new Microsoft.Data.SqlClient.SqlCommand(
+            """
+            REVOKE INSERT ON OBJECT::identidade.v9_permission_probe FROM [v9_scope_write_role];
+            GRANT UPDATE (id) ON OBJECT::identidade.v9_permission_probe TO [v9_scope_write_role];
+            """, connection))
+            await columnGrant.ExecuteNonQueryAsync();
+        await MustRejectUnsafePermissionsAsync();
+
         var projectionRuntime = V9FittedSnapshotExecutionRuntime.Load(
             winner.SerializeUtf8(), winner.ContentSha256);
         using (var queryCommand = new Microsoft.Data.SqlClient.SqlCommand())
