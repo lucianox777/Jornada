@@ -20,7 +20,7 @@ class ThreeJobsV9TimeoutTests(unittest.TestCase):
         self.assertRegex(self.train, r"(?m)^    timeout-minutes: 360$")
         self.assertRegex(self.validation, r"(?m)^    timeout-minutes: 360$")
         self.assertRegex(self.test, r"(?m)^    timeout-minutes: 360$")
-        self.assertRegex(self.train, r"(?m)^        timeout-minutes: 315$")
+        self.assertRegex(self.train, r"(?m)^        timeout-minutes: 340$")
         # Preserve 30m admission/download/cleanup margin in the VALIDATION job.
         self.assertRegex(self.validation, r"(?m)^        timeout-minutes: 330$")
         self.assertEqual(len(re.findall(r"(?m)^    timeout-minutes: 360$", self.source)), 3)
