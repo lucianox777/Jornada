@@ -1,0 +1,27 @@
+# GOV-V9-EXECUCAO-TOTAL-VALIDATION-SKIP-20261114 — prontidão da campanha integral
+
+**Origem:** pedido do Product Owner em 14/11/2026: “Agora eu quero criar... quero fazer a execução total.” **Estado:** pedido de execução integral registrado; correção de encadeamento VALIDATION proposta em PR; **nova campanha TRAIN/VALIDATION/TEST NÃO executada**, TEST 100k continua bloqueado por paridade operacional não demonstrada. **Governança:** GOV-DOC-01.
+
+## Diagnóstico da execução anterior e objetivo
+
+A execução manual [#43551194008](https://github.com/lucianox777/Jornada/actions/runs/43551194008) (SHA fixado `8ce35420fbb015fb281d8edcbc99213252aac183`) terminou **SUCCESS do workflow**, mas **não da campanha científica integral**: o job TRAIN concluiu a etapa física **324/324**, a auditoria `V9_V3_TF4_100K_TRAIN_PASS`, encontrou **3 finalistas** e publicou handoff `v9-tf4-validation-handoff-43551194008-1`; os jobs `prepare-test-100k`, `validation-100k` e `test-100k` terminaram **SKIPPED**. A evidência da conclusão do TRAIN vem de seus logs e do artefato; não é evidência de VALIDATION nem de TEST.
+
+Na configuração daquela execução, a preparação TEST era opcional (`prepare_sealed_test=false`) e o TRAIN permitia explicitamente prosseguir quando `prepare-test-100k` estivesse SKIPPED. A VALIDATION dependia do TRAIN com condição positiva de sucesso e 3 finalistas, mas foi SKIPPED. **Causa técnica provável, a ser confirmada em novo run:** o `success()` implícito do GitHub Actions na avaliação de `jobs.<id>.if` propaga o salto do ancestral opcional; o fato de o TRAIN ter sucedido não fez a expressão condicional da VALIDATION ser avaliada de modo independente.
+
+## Alteração operacional proposta, sem mudar ciência
+
+No `.github/workflows/v9-v3-four-name-100k.yml`, explicitar `always() && !cancelled()` na condição do job VALIDATION, conservando **todos** os gates positivos: `needs.physical-100k.result == 'success'`, `needs.physical-100k.outputs.has_finalists == 'true'`, `security_preflight_approved=true`, `github.actor==github.repository_owner`, SHA/ref/attempt e verificação do handoff dentro do job. Essa expressão permite avaliar o job quando a preparação TEST opcional foi SKIPPED, **sem executar VALIDATION quando o TRAIN falhar, for cancelado, não tiver finalistas ou não atender à proveniência**. Teste estático adicional fixa esses invariantes e preserva os gates do TEST.
+
+**Não há alteração** em 324 hipóteses/81 TF4, SQL, fitting, FDR/CP/P95, seleção, TEST one-use, corpus, gabarito, snapshots, job TRAIN 360min/passo físico 340min, VALIDATION 360min/passo 330min e TEST 360min/passo 330min. Correção de condição não prova por si só a execução física da VALIDATION.
+
+## Por que ainda não é possível disparar TRAIN + VALIDATION + TEST integral
+
+A configuração atual contém guard explícito `V9_TEST_PRODUCTION_FORMAT_PARITY_NOT_IMPLEMENTED`, que rejeita `test_required=true` antes de consumir o TEST. Os incrementos do conversor e do Runner TEST_ONLY não comprovaram ainda a paridade da execução produtiva completa `ProbabilisticLinkageBatchRunner.RunAsync`, ligações reais Gold/Serving e os gates one-use. O bloqueio está rastreado nas [issues #1488](https://github.com/lucianox777/Jornada/issues/1488) e [#1478](https://github.com/lucianox777/Jornada/issues/1478). **Não remover/desligar os guards nem expor TEST para atender ao pedido de execução total.**
+
+Sequência segura: (1) corrigir condição VALIDATION, obter os três checks obrigatórios da PR e integrar à master; (2) comprovar VALIDATION em nova execução manual vinculada ao SHA exato, ou com um percurso isolado de handoff se aprovado e auditável; (3) concluir/validar paridade operacional integral e preparação TEST lacrada, com aprovação de gates; (4) só então permitir nova campanha integral manual pelo proprietário, com TRAIN → VALIDATION → TEST e evidência de cada job. Evitar repetir TRAIN caro só para testar a semântica YAML, sempre que houver prova isolada equivalente sem comprometer proveniência.
+
+## Precedência e rastreabilidade
+
+Respeita [GOV-V9-TF4-324-TIMEOUT-FISICO-340-20261113](Decisao_GOV_V9_TF4_324_Timeout_Fisico_340_20261113.md), [GOV-V9-TEST-RUNNER-COORTE-COMPARTILHADA-20261114](Decisao_GOV_V9_TEST_Execucao_Compartilhada_Runner_Coorte_20261114.md), isolamento TEST, pré-registro e bloqueio de publicação DT-15. Este registro não declara autorização para contornar controles, nem certificação de TEST, nem execução efetuada. **Branch:** `fix/v9-validation-optional-test-skip-20261114`. GitHub PR/CI deverão ser acrescentados quando disponíveis.
+
+**Critérios de aceite da correção:** revisão de condição e testes de contrato, CI rápida 3/3 no HEAD, merge via squash e teste real de agendamento da VALIDATION após TRAIN PASS + finalistas, com preparação TEST intencionalmente SKIPPED. Nenhum run científico iniciado automaticamente por este registro. GOV-DOC-01.
