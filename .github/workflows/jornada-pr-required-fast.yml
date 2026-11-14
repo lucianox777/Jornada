@@ -42,6 +42,7 @@ jobs:
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_test_global_one_use.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_test_production_model_format.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_operational_converter.py'
+          python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_tf4_validated_operational_handoff.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_test_operational_cohort_parity.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_test_operational_candidate_parity.py'
           python3 -m unittest discover -s Solution/tests/scripts -p 'test_v9_test_operational_batch_rehearsal.py'
