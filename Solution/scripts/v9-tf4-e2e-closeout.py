@@ -80,10 +80,18 @@ def validate_scientific_validation(path: Path) -> dict:
         require(isinstance(winner, str)
                 and HEX64.fullmatch(winner) is not None,
                 "VALIDATION_WINNER_SHA")
+        require(r.get("selectedValidationOperationalModelFileName")
+                == winner + ".operational.json"
+                and r.get("selectedValidationOperationalModelContract")
+                == "JORNADA_V9_OPERATIONAL_SQL_MODEL_V1",
+                "VALIDATION_OPERATIONAL_MODEL_MISSING_OR_MISMATCHED")
     else:
-        require(winner is None, "VALIDATION_WINNER_STATUS_CONFLICT")
+        require(winner is None
+                and r.get("selectedValidationOperationalModelFileName") is None,
+                "VALIDATION_WINNER_STATUS_CONFLICT")
     return {
         "validationStatus": status, "winnerSha256": winner,
+        "operationalModelFileName": r.get("selectedValidationOperationalModelFileName"),
         "validationFinalists": n,
     }
 
@@ -100,7 +108,12 @@ def validate_optional_test(path: Path, winner_sha: str | None) -> None:
             == "JORNADA_V9_OPERATIONAL_SQL_MODEL_V1"
             and r.get("operationalModelByteExactRoundTrip") is True
             and r.get("operationalModelActive") is False
-            and r.get("operationalModelPublished") is False,
+            and r.get("operationalModelPublished") is False
+            and r.get("validatedOperationalModelFileName")
+                == winner_sha + ".operational.json"
+            and r.get("validatedOperationalJsonSchema")
+                == "V9_FITTED_SNAPSHOT_V3"
+            and r.get("sameOperationalJsonBytesAsProductionSideSqlPayload") is True,
             "TEST_MODEL_NOT_BYTE_IDENTICAL_OR_NONPUBLISHING")
     require(r.get("trainPlanRead") is False
             and r.get("validationResultsRead") is False

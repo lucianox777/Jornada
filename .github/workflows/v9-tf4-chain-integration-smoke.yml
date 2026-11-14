@@ -153,6 +153,8 @@ jobs:
           doc={"schema":"V9_VALIDATION_E2E_STATUS_V1",
                "status":"VALIDATION_SCIENTIFIC_WINNER_SELECTED_NOT_CERTIFIED",
                "selectedValidationSnapshotSha256":"a"*64,
+               "selectedValidationOperationalModelFileName":"a"*64+".operational.json",
+               "selectedValidationOperationalModelContract":"JORNADA_V9_OPERATIONAL_SQL_MODEL_V1",
                "selectionEnvelopeSha256":"b"*64,
                "validationResultSha256":"c"*64,
                "comparedConfigurations":1,"measuredCount":1,

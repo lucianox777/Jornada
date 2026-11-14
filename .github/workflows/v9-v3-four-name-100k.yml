@@ -217,6 +217,7 @@ jobs:
           python3 -m unittest discover -s tests/scripts -p test_v9_100k_frozen_ibge_admission.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_three_job_timeouts.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_e2e_closeout.py -v
+          python3 -m unittest discover -s tests/scripts -p test_v9_tf4_validated_operational_handoff.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_prepared_sealed_test.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_standalone_test.py -v
           python3 -m unittest discover -s tests/scripts -p test_v9_tf4_test_global_one_use.py -v
@@ -588,6 +589,8 @@ jobs:
               "schema":"V9_VALIDATION_E2E_STATUS_V1",
               "status":r["status"],
               "selectedValidationSnapshotSha256":r.get("selectedValidationSnapshotSha256"),
+              "selectedValidationOperationalModelFileName":r.get("selectedValidationOperationalModelFileName"),
+              "selectedValidationOperationalModelContract":r.get("selectedValidationOperationalModelContract"),
               "selectionEnvelopeSha256":r["selectionEnvelopeSha256"],
               "comparedConfigurations":r["comparedConfigurations"],
               "measuredCount":len(r["measured"]),
@@ -599,37 +602,30 @@ jobs:
               output.write("\n")
           print("V9_MANDATORY_VALIDATION_COMPLETED",r["status"])
           PY
-      - name: Freeze ONLY the scientific winner model for independent TEST
-        if: ${{ success() && inputs.test_required == true }}
+      - name: Verify FINAL production-side V9 JSON emitted by VALIDATION, independently of TEST
+        id: operational_file
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-100k-technical"
-          mkdir "$root/test-winner-only"
-          python3 - "$root/validation-results/finalist-validation.json" \
-            "$root/handoff" "$root/test-winner-only" <<'PY'
-          import hashlib,json,pathlib,shutil,sys,re
-          result=json.loads(pathlib.Path(sys.argv[1]).read_text())
-          winner=result.get("selectedValidationSnapshotSha256")
-          assert result.get("status")=="VALIDATION_SCIENTIFIC_WINNER_SELECTED_NOT_CERTIFIED"
-          assert result.get("testUsed") is False and result.get("refitted") is False
-          assert result.get("certified") is False and result.get("activated") is False
-          assert isinstance(winner,str) and re.fullmatch(r"[0-9a-f]{64}",winner)
-          source=pathlib.Path(sys.argv[2])/(winner+".fitted.json")
-          assert source.is_file() and not source.is_symlink()
-          with source.open("rb") as stream:
-              assert hashlib.file_digest(stream,"sha256").hexdigest()==winner
-          shutil.copyfile(source,pathlib.Path(sys.argv[3])/source.name)
-          print("V9_ONLY_SELECTED_WINNER_SEALED_FOR_TEST",winner)
-          PY
-      - name: Upload ONLY the frozen winner model (no TRAIN/VALIDATION plans or metrics)
-        if: ${{ success() && inputs.test_required == true }}
+          python3 scripts/v9-tf4-validated-operational-handoff.py verify \
+            --validation "$root/validation-results/finalist-validation.json" \
+            --reference "$root/validation-results/selected-operational-model-reference.json" \
+            --directory "$root/validation-results/validated-operational-model" \
+            --expected-contract JORNADA_V9_OPERATIONAL_SQL_MODEL_V1
+          if test -s "$root/validation-results/selected-operational-model-reference.json"; then
+            echo "has_model=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_model=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Upload final VALIDATION operational JSON even when TEST is not requested
+        if: ${{ success() && steps.operational_file.outputs.has_model == 'true' }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
         with:
-          name: v9-tf4-test-one-winner-${{ github.run_id }}-${{ github.run_attempt }}
+          name: v9-tf4-validated-operational-model-${{ github.sha }}-${{ github.run_id }}
           retention-days: 30
           if-no-files-found: error
           include-hidden-files: true
-          path: Solution/.local/v9-100k-technical/test-winner-only/*.fitted.json
+          path: Solution/.local/v9-100k-technical/validation-results/validated-operational-model/*.operational.json
       - name: Upload compact E2E validation status separately from large scientific metrics
         if: success()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # pinned
@@ -711,10 +707,10 @@ jobs:
           cache-dependency-path: "Solution/**/packages.lock.json"
       - name: Build independent physical TEST evaluator
         run: dotnet build -c Release src/Jornada.Linkage.Parameters.Worker/Jornada.Linkage.Parameters.Worker.csproj
-      - name: Download ONLY the winner model, never the VALIDATION metrics or plan
+      - name: Download ONLY the final JSON produced by VALIDATION, never metrics or plan
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
         with:
-          name: v9-tf4-test-one-winner-${{ github.run_id }}-${{ github.run_attempt }}
+          name: v9-tf4-validated-operational-model-${{ github.sha }}-${{ github.run_id }}
           path: Solution/.local/v9-independent-test/winner
       - name: Download TEST's own corpus sealed before TRAIN
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # pinned
@@ -729,7 +725,7 @@ jobs:
           import hashlib,pathlib,re,sys
           files=list(pathlib.Path(sys.argv[1]).iterdir())
           assert len(files)==1 and files[0].is_file() and not files[0].is_symlink()
-          assert re.fullmatch(r"[a-f0-9]{64}\.fitted\.json",files[0].name)
+          assert re.fullmatch(r"[a-f0-9]{64}\.operational\.json",files[0].name)
           with files[0].open("rb") as stream:
               assert hashlib.file_digest(stream,"sha256").hexdigest()==files[0].name.split(".")[0]
           print("ONE_SHA_PINNED_WINNER_ONLY")
@@ -756,8 +752,8 @@ jobs:
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-independent-test"
-          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.fitted.json')"
-          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.fitted.json' | wc -l)" -eq 1
+          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
+          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-convert-winner-operational "$model"
           # Any TF4/joint/grouping loss, SHA drift or existing row fails closed.
@@ -816,8 +812,8 @@ jobs:
         run: |
           set -euo pipefail
           root="$PWD/.local/v9-independent-test"
-          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.fitted.json')"
-          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.fitted.json' | wc -l)" -eq 1
+          model="$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json')"
+          test "$(find "$root/winner" -maxdepth 1 -type f -name '*.operational.json' | wc -l)" -eq 1
           dotnet run --no-build -c Release --project src/Jornada.Linkage.Parameters.Worker -- \
             --v9-independent-test "$model"
           python3 - "$root/results/independent-test.json" <<'PY'
@@ -828,6 +824,9 @@ jobs:
           assert r["refitted"] is False and r["testUsed"] is True
           assert r["operationalModelContract"] == "JORNADA_V9_OPERATIONAL_SQL_MODEL_V1"
           assert r["operationalModelByteExactRoundTrip"] is True
+          assert r["validatedOperationalJsonSchema"] == "V9_FITTED_SNAPSHOT_V3"
+          assert r["sameOperationalJsonBytesAsProductionSideSqlPayload"] is True
+          assert r["validatedOperationalModelFileName"] == r["winnerSnapshotSha256"] + ".operational.json"
           assert r["operationalModelActive"] is False and r["operationalModelPublished"] is False
           assert r["productionRunnerFullPipelineParityCertified"] is False
           assert r["certified"] is False and r["activated"] is False

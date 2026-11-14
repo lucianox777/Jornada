@@ -4,6 +4,9 @@ on:
   pull_request:
     paths:
       - 'Solution/src/Jornada.Linkage.Core/V9OperationalSqlModelConverter.cs'
+      - 'Solution/src/Jornada.Linkage.Core/V9ValidatedOperationalModelFile.cs'
+      - 'Solution/scripts/v9-tf4-validated-operational-handoff.py'
+      - 'Solution/tests/scripts/test_v9_tf4_validated_operational_handoff.py'
       - 'Solution/src/Jornada.Linkage.Core/V9OperationalPinnedCohortRuntime.cs'
       - 'Solution/src/Jornada.Linkage.Runner/V9OperationalCandidateGraphParityAudit.cs'
       - 'Solution/src/Jornada.Linkage.Runner/V9ReadOnlyTestBatchRunner.cs'

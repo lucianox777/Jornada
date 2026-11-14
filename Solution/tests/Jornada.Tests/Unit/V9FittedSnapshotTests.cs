@@ -1151,6 +1151,56 @@ public sealed class V9FittedSnapshotTests
             Is.Not.EqualTo(V9OperationalSqlModelConverter.ModelIdFromWinnerSha(winner.ContentSha256)));
     }
 
+    [Test]
+    public async Task Validation_final_operational_json_is_exact_sql_payload_and_TEST_reads_same_filename()
+    {
+        // Synthetic valid 4-TF/81-cell fixture, no external holdout or TEST data.
+        var winner = CompleteTf4OperationalWinner();
+        var destination = Path.Combine(Path.GetTempPath(),
+            "jornada-v9-validated-operational-" + Guid.NewGuid().ToString("N"));
+        try
+        {
+            var receipt = await V9ValidatedOperationalModelFile.ExportAsync(winner, destination);
+            var exactFile = Path.Combine(destination, receipt.FileName);
+            Assert.Multiple((Action)(() =>
+            {
+                Assert.That(receipt.Schema, Is.EqualTo(V9ValidatedOperationalModelFile.ArtifactSchema));
+                Assert.That(receipt.OperationalModelContract,
+                    Is.EqualTo(V9OperationalSqlModelConverter.ContractVersion));
+                Assert.That(receipt.WinnerSnapshotSha256, Is.EqualTo(winner.ContentSha256));
+                Assert.That(receipt.JointCellCount, Is.EqualTo(81));
+                Assert.That(receipt.TfSlotCount, Is.EqualTo(4));
+                Assert.That(receipt.BlockingPassCount, Is.GreaterThan(0));
+                Assert.That(receipt.ByteExactRoundTrip, Is.True);
+                Assert.That(receipt.Activated, Is.False);
+                Assert.That(receipt.Published, Is.False);
+                Assert.That(receipt.Certified, Is.False);
+                Assert.That(Directory.GetFiles(destination), Has.Length.EqualTo(1));
+            }));
+            var bytes = await File.ReadAllBytesAsync(exactFile);
+            Assert.That(bytes, Is.EqualTo(winner.SerializeUtf8()),
+                "V9 production-side SQL payload_fitted and validated JSON must be byte-identical");
+            var consumedByTest = await V9ValidatedOperationalModelFile.ReadPinnedAsync(exactFile);
+            Assert.That(consumedByTest.SerializeUtf8(), Is.EqualTo(bytes));
+
+            Assert.ThrowsAsync<IOException>((Func<Task>)(async () =>
+                await V9ValidatedOperationalModelFile.ExportAsync(winner, destination)),
+                "The same validated winner must never overwrite its final file");
+            await File.WriteAllTextAsync(exactFile, "{\"tampered\":true}");
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await V9ValidatedOperationalModelFile.ReadPinnedAsync(exactFile)),
+                "Corrupted bytes must fail closed before independent TEST");
+            Assert.ThrowsAsync<InvalidDataException>((Func<Task>)(async () =>
+                await V9ValidatedOperationalModelFile.ReadPinnedAsync(
+                    Path.Combine(destination, "unversioned.json"))));
+        }
+        finally
+        {
+            if (Directory.Exists(destination))
+                Directory.Delete(destination, recursive: true);
+        }
+    }
+
     [Test, Category("SQLSmoke")]
     public async Task Operational_SQL_roundtrip_uses_immutable_one_winner_row_and_same_frozen_FS_decisions()
     {

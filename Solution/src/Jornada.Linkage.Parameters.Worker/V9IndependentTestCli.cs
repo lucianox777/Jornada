@@ -19,15 +19,21 @@ public static class V9IndependentTestCli
     public static async Task RunAsync(string[] args)
     {
         if (args.Length != 2 || args[0] != "--v9-independent-test")
-            throw new ArgumentException("Uso: --v9-independent-test <sha256.fitted.json> (modelo vencedor único).");
+            throw new ArgumentException("Uso: --v9-independent-test <sha256.operational.json> (arquivo operacional final da VALIDATION).");
         var winnerFile = Path.GetFullPath(args[1]);
         var name = Path.GetFileName(winnerFile);
-        if (!name.EndsWith(".fitted.json", StringComparison.Ordinal)
-            || name.Length != 64 + ".fitted.json".Length)
-            throw new InvalidDataException("TEST exige nome do modelo vencedor endereçado por SHA-256.");
+        if (!name.EndsWith(V9ValidatedOperationalModelFile.Suffix, StringComparison.Ordinal)
+            || name.Length != 64 + V9ValidatedOperationalModelFile.Suffix.Length)
+            throw new InvalidDataException("TEST exige arquivo operacional final da VALIDATION, endereçado por SHA-256.");
         var winnerSha = name[..64];
         if (!winnerSha.All(c => c is >= '0' and <= '9' or >= 'a' and <= 'f'))
             throw new InvalidDataException("Identidade SHA-256 do vencedor inválida.");
+        // TEST's ONLY model input is the exact file name emitted by
+        // independent VALIDATION. Validate its full TF4/81 operational JSON
+        // schema and SHA before requesting its own sealed corpus.
+        var validatedFileWinner = await V9ValidatedOperationalModelFile.ReadPinnedAsync(winnerFile);
+        if (validatedFileWinner.ContentSha256 != winnerSha)
+            throw new InvalidDataException("TEST recebeu arquivo diferente do vencedor VALIDATION.");
         var testDir = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_CORPUS_DIR");
         var output = Environment.GetEnvironmentVariable("JORNADA_V9_TEST_OUTPUT_DIR");
         if (string.IsNullOrWhiteSpace(testDir) || string.IsNullOrWhiteSpace(output))
@@ -56,8 +62,9 @@ public static class V9IndependentTestCli
         var winner = runtime.FrozenWinner;
         var conversion = V9OperationalSqlModelConverter.VerifyConversion(winner);
         if (!conversion.ByteExactRoundTrip || conversion.ModelId != operationalModelId
-            || conversion.SourceSnapshotSha256 != winnerSha)
-            throw new InvalidDataException("TEST exige o mesmo modelo vencedor convertido e lido do SQL operacional.");
+            || conversion.SourceSnapshotSha256 != winnerSha
+            || !winner.SerializeUtf8().AsSpan().SequenceEqual(validatedFileWinner.SerializeUtf8()))
+            throw new InvalidDataException("TEST exige JSON byte-exato: arquivo VALIDATION, SQL operacional e runtime não coincidem.");
         // The TEST corpus is opened only AFTER the operational winner passes
         // its SHA/round-trip check. No VALIDATION measurements are read.
         var corpus = await V9IndependentTestCorpusReader.ReadAsync(fullTestDir);
@@ -76,6 +83,9 @@ public static class V9IndependentTestCli
             schema = "V9_TF4_INDEPENDENT_TEST_ONE_WINNER_PHYSICAL_V1",
             status = "TEST_MEASURED_NOT_CERTIFIED_OR_ACTIVATED",
             winnerSnapshotSha256 = winnerSha,
+            validatedOperationalModelFileName = name,
+            validatedOperationalJsonSchema = V9FittedSnapshot.SupportSchemaVersion,
+            sameOperationalJsonBytesAsProductionSideSqlPayload = true,
             operationalModelContract = V9OperationalSqlModelConverter.ContractVersion,
             operationalModelId,
             operationalModelByteExactRoundTrip = conversion.ByteExactRoundTrip,
