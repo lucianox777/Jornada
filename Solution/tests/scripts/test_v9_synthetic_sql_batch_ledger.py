@@ -84,7 +84,7 @@ class V9TestSyntheticLedgerContract(unittest.TestCase):
         self.assertIn("rollbackId", test)
         self.assertIn("GetInt64(0), Is.EqualTo(0L)", test)
         self.assertIn("GetInt64(1), Is.EqualTo(0L)", test)
-        self.assertIn("GetInt64(2), Is.EqualTo(1L)", test)
+        self.assertIn("GetInt64(3), Is.EqualTo(1L)", test)
         self.assertIn("OBJECT_ID(N'identidade.linkage_run')", test)
         self.assertIn("v9_synthetic_rehearsal_decision", test)
         self.assertIn("validProof with { DecisionsSha256 = new string('a', 64) }", test)
