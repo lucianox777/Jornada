@@ -423,9 +423,15 @@ public sealed class V9FellegiSunterAdaptiveCalibrationAdapterTests
             Assert.That(portable.Decisions, Is.EqualTo(V9FrozenSourceResolveReplay.Replay(loaded,
                 observations.Select(x => x with { BasePersonId = "RELABELED-" + x.ObservationId }).ToArray(), sqlEdges).Decisions));
         }));
+        // Replay() is strictly VALIDATION: an all-TEST or mixed TEST/VALIDATION
+        // cohort must be rejected before scoring, even after independent TEST
+        // gained its own ReplayTest() entry point.
         Assert.That((Action)(() => V9FrozenSourceResolveReplay.Replay(loaded,
             observations.Select(x => x with { Partition = "TEST" }).ToArray(), sqlEdges)),
-            Throws.TypeOf<InvalidDataException>().With.Message.Contains("sem TEST"));
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("coorte única"));
+        Assert.That((Action)(() => V9FrozenSourceResolveReplay.Replay(loaded,
+            observations.Select((x, index) => index == 0 ? x with { Partition = "TEST" } : x).ToArray(), sqlEdges)),
+            Throws.TypeOf<InvalidDataException>().With.Message.Contains("coorte única"));
         Assert.That((Action)(() => V9FrozenSourceResolveReplay.Replay(loaded, observations,
             sqlEdges.Append(sqlEdges[0]).ToArray())), Throws.TypeOf<InvalidDataException>().With.Message.Contains("duplicada"));
         var raw = result.Single(x => x.CandidateGrouping == "RAW_SQL_OBSERVATION_CANDIDATES");
