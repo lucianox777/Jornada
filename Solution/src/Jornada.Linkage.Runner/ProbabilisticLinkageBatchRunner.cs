@@ -112,6 +112,25 @@ public sealed class ProbabilisticLinkageBatchRunner(
         CancellationToken ct)
     {
         ValidateRequest(request);
+        if (linkage is IV9NonPublishingFrozenCohortScorer)
+        {
+            // This is an opt-in, bounded TEST fixture, never the productive
+            // dispatch or a substitute for full SQL candidate/Gold parity.
+            // Refuse publication and every non-test mode BEFORE pipeline lock
+            // acquisition, run creation, model read or any SQL write.
+            if (request.Publish || request.Mode != LinkageRunType.MODEL_VALIDATION
+                || request.ReplaySourceRunId is not null
+                || request.MaxRecords is not null || request.ModelVersion != 1)
+                throw new InvalidOperationException(
+                    "V9 agrupado só admite MODEL_VALIDATION integral, modelo v1 e Publish=false em JornadaHarness.");
+            await using var v9GuardConnection = await operationalSql.OpenAsync(ct);
+            await using var v9GuardCommand = v9GuardConnection.CreateCommand();
+            v9GuardCommand.CommandText = "SELECT DB_NAME();";
+            if (!string.Equals((string?)await v9GuardCommand.ExecuteScalarAsync(ct),
+                    "JornadaHarness", StringComparison.Ordinal))
+                throw new InvalidOperationException(
+                    "V9 agrupado TEST não pode processar banco operacional.");
+        }
         // A publicação exige a migration SQL de lote. Falhar antes de adquirir a janela
         // exclusiva do corpus evita avaliar milhares de observações sem poder publicar.
         if (request.Publish)
@@ -240,6 +259,34 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 throw new InvalidOperationException(
                     $"Métricas do universo incremental inconsistentes: elegíveis={universe.Eligible}, fresh={universe.FreshPending}, reavaliados={universe.Reevaluated}.");
 
+            if (linkage is IV9NonPublishingFrozenCohortScorer v9Grouped)
+            {
+                if (eligible is < 2 or > V9PinnedSyntheticGraphCohortRunScorer.MaximumSyntheticObservations)
+                    throw new InvalidDataException("Universo V9 sintético fora do limite 2..512; nenhuma decisão será avaliada.");
+                var frozen = new List<V9FrozenRunObservation>((int)eligible);
+                long frozenAfterId = 0;
+                while (frozen.Count < eligible)
+                {
+                    workCt.ThrowIfCancellationRequested();
+                    var take = (int)Math.Min(request.BatchSize, eligible - frozen.Count);
+                    var batch = await ReadBatchAsync(runId, frozenAfterId, take, workCt);
+                    if (batch.Count == 0 || batch.Count > take)
+                        throw new InvalidDataException("Materialização antecipada de coorte V9 incompleta.");
+                    foreach (var row in batch)
+                    {
+                        if (row.PessoaObservacaoId <= frozenAfterId)
+                            throw new InvalidDataException("Coorte V9 contém página repetida ou fora de ordem.");
+                        frozen.Add(new(row.PessoaObservacaoId, row.Observation));
+                        frozenAfterId = row.PessoaObservacaoId;
+                    }
+                }
+                if (frozen.Count != eligible)
+                    throw new InvalidDataException("Coorte V9 não reconciliou o universo congelado.");
+                // Prepare ALL global FS/complete-link groups once. Only then may
+                // RunAsync persist the first SQL batch. Never group by page.
+                await v9Grouped.PrepareAsync(runId, model, frozen, workCt);
+            }
+
             while (evaluated < eligible)
             {
                 workCt.ThrowIfCancellationRequested();
@@ -251,7 +298,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
                 if (batch.Count == 0)
                     break;
 
-                var decisions = await ScoreBatchAsync(batch, model, request.MaxParallelism, workCt);
+                var decisions = await ScoreBatchAsync(runId, batch, model, request.MaxParallelism, workCt);
                 var batchResolved = decisions.LongCount(x => x.Decision.Status == ResolutionStatus.RESOLVIDO);
                 var batchConflicts = decisions.LongCount(x => x.Decision.Status == ResolutionStatus.CONFLITO);
                 var batchUnresolved = decisions.Count - batchResolved - batchConflicts;
@@ -353,6 +400,7 @@ public sealed class ProbabilisticLinkageBatchRunner(
     }
 
     private async Task<IReadOnlyList<ScoredRow>> ScoreBatchAsync(
+        Guid runId,
         IReadOnlyList<PendingRow> batch,
         ProbabilisticLinkageModelRef model,
         int maxParallelism,
@@ -364,7 +412,9 @@ public sealed class ProbabilisticLinkageBatchRunner(
             new ParallelOptions { MaxDegreeOfParallelism = maxParallelism, CancellationToken = ct },
             async (row, token) =>
             {
-                var decision = await linkage.ResolveWithoutCpfAsync(row.Observation, model.ModelId, token);
+                var decision = linkage is IV9NonPublishingFrozenCohortScorer v9
+                    ? await v9.ResolvePreparedAsync(runId, row.PessoaObservacaoId, row.Observation, model.ModelId, token)
+                    : await linkage.ResolveWithoutCpfAsync(row.Observation, model.ModelId, token);
                 if (decision.ModeloId != model.ModelId)
                     throw new InvalidOperationException("Uma execução de linkage não pode misturar versões de modelo.");
                 bag.Add(new ScoredRow(row.PessoaObservacaoId, decision));
