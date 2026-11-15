@@ -482,7 +482,11 @@ public static class V9NestedCalibrationCoordinator
                             (int)r.Option.UnpublishedTermPolicy)).ToArray())
                         .Select(indices => indices.Select(index => requests[index]).ToArray()).ToArray(),
                     static group => group[0].Passes,
-                    static group => group[0].Sha).ToArray();
+                    static group => group[0].Sha)
+                // Equal three-pass blocking breadth in TF4/324. The 128-request
+                // groups include more serial replays, so prioritize them.
+                // Preserve members, per-group order and SHA scientific identity.
+                .OrderByDescending(group => group.Length).ToArray();
             }
             catch (InvalidDataException exception)
             {
