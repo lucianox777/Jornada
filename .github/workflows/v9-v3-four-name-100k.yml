@@ -357,6 +357,29 @@ jobs:
           assert receipt["physicalHypotheses"]==324 and receipt["tfOptions"]==81, "324_V3_TF4_REQUIRED"
           print("V9_100K_PARALLELISM: AUTO_0_BOUND_CSHARP_GOVERNOR_ACTIVE")
           PY
+          # One aggregate, sanitized snapshot of the actual hosted-runner
+          # capacity. This is informational only, no resource admission change.
+          # A native runner can have different effective CPU/cgroup limits
+          # even with the same SHA and AUTO_0 scientific plan.
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          import re
+
+          def safe_cgroup(path):
+              try:
+                  value = Path(path).read_text(encoding="ascii").strip()
+              except (OSError, UnicodeError):
+                  return "UNKNOWN"
+              return value.replace(" ", "_") if re.fullmatch(r"[0-9a-zA-Z _-]{1,64}", value) else "UNKNOWN"
+
+          print("V9_TRAIN_RUNNER_CAPACITY "
+                f"os_cpu_count={os.cpu_count() or 0} "
+                f"affinity_cpu_count={len(os.sched_getaffinity(0)) if hasattr(os, 'sched_getaffinity') else 0} "
+                f"cgroup_cpu_max={safe_cgroup('/sys/fs/cgroup/cpu.max')} "
+                f"cgroup_memory_max={safe_cgroup('/sys/fs/cgroup/memory.max')} "
+                f"cgroup_memory_current={safe_cgroup('/sys/fs/cgroup/memory.current')}")
+          PY
       # No local step deadline: GitHub-hosted job's native time budget governs.
       # Independent audit must never share this job clock.
       - name: Run physical V9 CSharp on 324 V3-only four-name hypotheses
