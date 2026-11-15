@@ -1,0 +1,116 @@
+name: "V9 TF4 100k - Execucao com opcao de TEST"
+
+# Owner-only entry point for the already-governed V9 TF4 physical pipeline.
+# This selector does not implement or unblock synthetic scientific TEST.
+on:
+  workflow_dispatch:
+    inputs:
+      expected_sha:
+        description: "SHA exato (40 caracteres) da master selecionada para TRAIN 100k"
+        required: true
+        type: string
+      security_preflight_approved:
+        description: "Confirmar runner/segredos seguros, SQL descartavel e preflight autorizado"
+        required: true
+        type: boolean
+        default: false
+      test_mode:
+        description: "TEST: sem TEST ou diagnostico SELECT-only em banco EXISTENTE. TEST cientifico 100k permanece bloqueado."
+        required: true
+        type: choice
+        default: sem_test
+        options:
+          - sem_test
+          - banco_existente_readonly
+      test_database:
+        description: "Obrigatorio apenas para banco_existente_readonly (ex.: JornadaDevReadonly); nenhum dado sintetico sera criado nele"
+        required: false
+        default: ""
+        type: string
+      disable_python_sql_budget:
+        description: "Manter default do calibrador: SQL com orcamento nativo, sem dimensionamento Python"
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  admission:
+    name: "V9 - validar SHA, autorizacao e escolha de TEST antes de gastar 100k"
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    env:
+      EXACT_SHA: ${{ inputs.expected_sha }}
+      APPROVED: ${{ inputs.security_preflight_approved }}
+      TEST_MODE: ${{ inputs.test_mode }}
+      TEST_DATABASE: ${{ inputs.test_database }}
+    steps:
+      - name: Fail-closed owner-only, one-use, exact master SHA and TEST mode
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$GITHUB_EVENT_NAME" = "workflow_dispatch"
+          test "$GITHUB_ACTOR" = "$GITHUB_REPOSITORY_OWNER" || {
+            echo "::error::V9_OWNER_ONLY_DISPATCH"
+            exit 1
+          }
+          test "$GITHUB_RUN_ATTEMPT" = "1" || {
+            echo "::error::V9_ONE_USE_ATTEMPT_REQUIRED"
+            exit 1
+          }
+          test "$GITHUB_REF" = "refs/heads/master"
+          [[ "$EXACT_SHA" =~ ^[a-f0-9]{40}$ ]] && test "$EXACT_SHA" = "$GITHUB_SHA" || {
+            echo "::error::V9_EXPECTED_MASTER_SHA_MISMATCH"
+            exit 1
+          }
+          test "$APPROVED" = "true" || {
+            echo "::error::V9_SECURITY_PREFLIGHT_REQUIRED"
+            exit 1
+          }
+          case "$TEST_MODE" in
+            sem_test)
+              if [[ -n "$TEST_DATABASE" ]]; then
+                echo "::error::V9_DATABASE_REQUIRES_TEST_MODE"
+                exit 1
+              fi
+              echo "V9_TEST_MODE=OFF; physical TRAIN, independent AUDIT and VALIDATION remain mandatory"
+              ;;
+            banco_existente_readonly)
+              if [[ ! "$TEST_DATABASE" =~ ^[A-Za-z][A-Za-z0-9_]{0,127}$ ]]; then
+                echo "::error::V9_READONLY_EXISTING_TEST_DATABASE_REQUIRED"
+                exit 1
+              fi
+              echo "V9_TEST_MODE=EXISTING_DATABASE_READONLY; private runner/SELECT-only secret required"
+              ;;
+            *)
+              echo "::error::V9_UNSUPPORTED_TEST_MODE; scientific synthetic TEST remains blocked pending RunAsync parity"
+              exit 1
+              ;;
+          esac
+
+  calibrate-audit-validate:
+    name: "V9 - cadeia fisica unica com TEST opcional"
+    needs: admission
+    if: ${{ needs.admission.result == 'success' }}
+    # The canonical workflow keeps the native runner timeouts, immutable SHA,
+    # TRAIN -> AUDIT -> VALIDATION -> optional TEST -> E2E closeout and all
+    # read-only/one-use boundaries. Do not copy or fork its 324-fit logic.
+    uses: ./.github/workflows/v9-v3-four-name-100k.yml
+    # The called workflow requires this as an upper bound for its existing
+    # one-use scientific TEST tag job; it narrows all other jobs to read-only.
+    # This launcher never enables that still-blocked scientific TEST path.
+    permissions:
+      contents: write
+      actions: read
+    with:
+      expected_sha: ${{ inputs.expected_sha }}
+      security_preflight_approved: ${{ inputs.security_preflight_approved }}
+      test_required: ${{ inputs.test_mode == 'banco_existente_readonly' }}
+      test_database: ${{ inputs.test_mode == 'banco_existente_readonly' && inputs.test_database || '' }}
+      expected_test_cert_sha256: ""
+      disable_python_sql_budget: ${{ inputs.disable_python_sql_budget }}
+    secrets: inherit
