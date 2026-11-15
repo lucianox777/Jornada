@@ -116,30 +116,23 @@ class V9Tf4PerformanceComparisonTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "V9_TIMING_PHASE_GROUP_INCONSISTENT"):
             mod.read_log(self.save("bad-phase.log", invalid))
 
-    def test_phase_instrumentation_preserves_scientific_call_and_progress_frequency(self):
+    def test_minimal_hot_path_preserves_scientific_call(self):
+        # Comparator fixtures intentionally describe *historical* verbose logs.
         source = (ROOT / "src/Jornada.Linkage.Parameters.Worker/"
                   "V9NestedCalibrationCoordinator.cs").read_text(encoding="utf-8")
-        self.assertIn("[V9 PERF GROUP] batch=", source)
-        self.assertIn("group_sha={groupSha}", source)
-        self.assertIn("post_sql_seconds={postSqlSeconds:F1}", source)
-        self.assertIn("replay_calls={replayCalls}", source)
-        self.assertIn("var sqlSeconds = physicalGroupClock.Elapsed.TotalSeconds;", source)
-        self.assertIn("physicalGroupClock.Start();", source)
-        self.assertEqual(source.count("[V9 PERF GROUP]"), 1)
+        for marker in ("[V9 PERF GROUP]", "[V9 SQL GROUP]", "Stopwatch"):
+            self.assertNotIn(marker, source)
         self.assertEqual(source.count(
             "await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync("), 1)
-        self.assertIn("reportPhysicalCompletion?.Invoke(individualClock.Elapsed,"
-                      " result[^1], replayElapsedMilliseconds);", source)
+        self.assertIn("reportPhysicalCompletion?.Invoke(result[^1]);", source)
+        self.assertIn("{done}/{physicalTotal} - {sha[..Math.Min(12, sha.Length)]}", source)
         workflow = (ROOT.parent / ".github/workflows/"
                     "v9-v3-four-name-100k.yml").read_text(encoding="utf-8")
         self.assertIn("V9_TRAIN_RUNNER_CAPACITY", workflow)
-        self.assertIn("affinity_cpu_count=", workflow)
-        self.assertIn("cgroup_cpu_max=", workflow)
-        self.assertIn("cgroup_memory_current=", workflow)
         self.assertIn("workflow_dispatch:", workflow)
         self.assertNotIn("  schedule:", workflow)
-        self.assertIn("V9_REPLAY_TIMING_DIAGNOSTICS: "
-                      "${{ inputs.replay_timing_diagnostics && '1' || '0' }}", workflow)
+        self.assertIn("V9_PHYSICAL_PROGRESS_LOG: '1'", workflow)
+        self.assertNotIn("V9_REPLAY_TIMING_DIAGNOSTICS", workflow)
 
     def test_cli_emits_aggregate_json_and_refuses_overwrite(self):
         shas = ["a" * 12, "b" * 12, "c" * 12]
