@@ -28,6 +28,9 @@ on:
       - 'Solution/database/migrations/20261113_V9_Operational_Frozen_Model_Conversion.sql'
       - 'Solution/tests/Jornada.Tests/Unit/V9FittedSnapshotTests.cs'
       - '.github/workflows/v9-operational-model-sql-smoke.yml'
+      - '.github/workflows/v9-test-fullschema-runasync-smoke.yml'
+      - 'Solution/tests/Jornada.Tests/Unit/V9FullSchemaNonPublishingRunnerTests.cs'
+      - 'Solution/tests/scripts/test_v9_fullschema_runasync_smoke.py'
   workflow_dispatch:
 
 permissions:
@@ -106,3 +109,6 @@ jobs:
         if: always()
         working-directory: ${{ github.workspace }}
         run: docker rm -f v9-operational-converter-smoke >/dev/null 2>&1 || true
+
+  full-schema-runasync-nonpublish:
+    uses: ./.github/workflows/v9-test-fullschema-runasync-smoke.yml
