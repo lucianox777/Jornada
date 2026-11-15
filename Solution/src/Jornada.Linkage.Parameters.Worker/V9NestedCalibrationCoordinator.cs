@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Globalization;
 using System.Text.Json;
 using Jornada.Contracts;
@@ -351,92 +350,24 @@ public static class V9NestedCalibrationCoordinator
         var stop = "BATCH_BUDGET_EXHAUSTED_NOT_OPTIMALITY";
         var active = new HashSet<SqlConnection>(ReferenceEqualityComparer.Instance);
         using var referenceLease = new SemaphoreSlim(1);
-        // Opt-in diagnostic only; no changes to scientific results or scheduling.
+        // Minimal console progress; scientific audit precedes any output.
         var physicalProgressEnabled = Environment.GetEnvironmentVariable("V9_PHYSICAL_PROGRESS_LOG") == "1";
-        var replayTimingEnabled = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";
-        // Set at the first physical group, AFTER prep and BEFORE physical SQL work.
-        // The native GitHub job budget is configured only for informational ETA.
-        DateTimeOffset? physicalStartUtc = null;
-        DateTimeOffset? jobStartUtc = null;
-        int? jobTimeoutMinutes = null;
-        var timeoutRaw = Environment.GetEnvironmentVariable("V9_JOB_TIMEOUT_MINUTES");
-        if (timeoutRaw is not null)
-        {
-            if (!int.TryParse(timeoutRaw, System.Globalization.NumberStyles.None,
-                    System.Globalization.CultureInfo.InvariantCulture, out var minutes)
-                || minutes <= 0)
-                throw new InvalidDataException("V9_JOB_TIMEOUT_MINUTES_INVALID");
-            var startRaw = Environment.GetEnvironmentVariable("V9_JOB_START_UTC");
-            if (!DateTimeOffset.TryParse(startRaw,
-                    System.Globalization.CultureInfo.InvariantCulture,
-                    System.Globalization.DateTimeStyles.AssumeUniversal
-                        | System.Globalization.DateTimeStyles.AdjustToUniversal,
-                    out var parsedJobStartUtc) || parsedJobStartUtc > DateTimeOffset.UtcNow)
-                throw new InvalidDataException("V9_JOB_START_UTC_INVALID");
-            jobTimeoutMinutes = minutes;
-            jobStartUtc = parsedJobStartUtc;
-        }
         var physicalCompleted = 0;
         var physicalTotal = plan.PredeclaredCandidateCpMultiplicity ?? plan.MaximumSearchConfigurations;
-        void ReportPhysicalCompletion(TimeSpan individualDuration, V9NestedCandidateEvaluation evaluation,
-            double? replayElapsedMilliseconds)
+        void ReportPhysicalCompletion(V9NestedCandidateEvaluation evaluation)
         {
-            // Preserve the established audit callback before operational output.
             reportHypothesis?.Invoke(evaluation);
-            var requestSha = evaluation.RequestSha256;
-            if (!physicalProgressEnabled)
-            {
-                // Explicit optional investigation mode when regular progress is off.
-                if (replayTimingEnabled && replayElapsedMilliseconds is { } ms)
-                {
-                    lock (Console.Out)
-                        Console.WriteLine(FormattableString.Invariant(
-                            $"[V9 PERF DIAG] phase=frozen_replay | batch={evaluation.Batch} | request_sha={requestSha} | elapsed_ms={ms:F3}"));
-                }
-                return;
-            }
-            // Optional replay diagnostic stays in the same numbered GitHub log row.
-            var diagnosticSuffix = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs
-                ? FormattableString.Invariant($" replay_elapsed_ms={replayMs:F3}")
-                : string.Empty;
-            // Serialize number, timestamp and print atomically so the observed
-            // i/324 completion array is ordered even with concurrent SQL groups.
-            // One numbered physical GitHub row, one console lock/write/flush.
+            if (!physicalProgressEnabled) return;
             lock (Console.Out)
             {
                 var done = Interlocked.Increment(ref physicalCompleted);
-                var nowUtc = DateTimeOffset.UtcNow;
-                var firstPhysicalUtc = physicalStartUtc ?? nowUtc;
-                var elapsedPhysicalMinutes = (nowUtc - firstPhysicalUtc).TotalMinutes;
-                double? elapsedJobMinutes = jobStartUtc is { } jobStart
-                    ? Math.Max(0d, (nowUtc - jobStart).TotalMinutes) : null;
-                double? remainingJobMinutes = elapsedJobMinutes is { } jobElapsed
-                    && jobTimeoutMinutes is { } jobBudget
-                    ? Math.Max(0d, jobBudget - jobElapsed) : null;
-                var forecast = ForecastPhysicalProgress(
-                    done, physicalTotal, firstPhysicalUtc, nowUtc, remainingJobMinutes);
-                var averageMinutes = elapsedPhysicalMinutes / done;
-                var predictedFinishUtc = forecast.EtaMinutes is { } predicted
-                    ? nowUtc.AddMinutes(predicted).ToString("O", System.Globalization.CultureInfo.InvariantCulture)
-                    : "NAO_APLICAVEL";
-                var jobStartText = jobStartUtc?.ToString("O", System.Globalization.CultureInfo.InvariantCulture)
-                    ?? "NAO_APLICAVEL";
-                var jobElapsedText = elapsedJobMinutes?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
-                    ?? "NAO_APLICAVEL";
-                var jobLimitText = jobTimeoutMinutes?.ToString(System.Globalization.CultureInfo.InvariantCulture)
-                    ?? "NAO_APLICAVEL";
-                var remainingJobText = remainingJobMinutes?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
-                    ?? "NAO_APLICAVEL";
-                var etaText = forecast.EtaMinutes?.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
-                    ?? "NAO_APLICAVEL";
-                var marginText = forecast.MarginMinutes?.ToString("+0.0;-0.0;0.0", System.Globalization.CultureInfo.InvariantCulture)
-                    ?? "NAO_APLICAVEL";
+                var sha = evaluation.RequestSha256;
                 Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) timestamp={nowUtc:O} hipotese={requestSha[..Math.Min(12, requestSha.Length)]} resultado={(evaluation.Candidate is not null ? "AVALIADA" : "REJEITADA")} inicio_job={jobStartText} inicio_fisico={firstPhysicalUtc:O} decorrido_job_min={jobElapsedText} decorrido_fisico_min={elapsedPhysicalMinutes:F1} media_global_min={averageMinutes:F2} hipoteses_restantes={physicalTotal - done} eta_min={etaText} previsao_fim={predictedFinishUtc} limite_job_min={jobLimitText} restante_job_min={remainingJobText} margem_prevista_min={marginText} status={forecast.Status}{diagnosticSuffix}"));
+                    $"{done}/{physicalTotal} - {sha[..Math.Min(12, sha.Length)]}"));
                 Console.Out.Flush();
             }
         }
-                reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");
+        reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");
         for (var batch = 1; batch <= plan.MaximumBatches; batch++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -494,7 +425,6 @@ public static class V9NestedCalibrationCoordinator
                     V9CalibradorSafeFailureCategory.PhysicalFrameOrder);
                 throw;
             }
-            physicalStartUtc ??= DateTimeOffset.UtcNow;
             var results = await V9ParallelWork.MapCalibrationAsync(groups, executionMaximumParallelRuleSets ?? calibration.MaximumParallelRuleSets, async (group, ct) =>
             {
                 FrozenIbgeNominalTfV9? frozenReference = null;
@@ -671,7 +601,7 @@ public static class V9NestedCalibrationCoordinator
         IReadOnlyList<Request> requests, int batch, int candidateCpMultiplicity,
         FrozenIbgeNominalTfV9? frozenTfReference,
         CancellationToken cancellationToken,
-        Action<TimeSpan, V9NestedCandidateEvaluation, double?>? reportPhysicalCompletion = null)
+        Action<V9NestedCandidateEvaluation>? reportPhysicalCompletion = null)
     {
         var c = plan.Calibration;
         try
@@ -689,7 +619,6 @@ public static class V9NestedCalibrationCoordinator
                         && r.Margin == margin) != 1)))
                 throw new InvalidDataException("V9_MARGIN_REUSE_INCOMPLETE_MODEL_MARGIN_FRAME");
             V9PhysicalCalibrationRunResult run;
-            var physicalGroupClock = Stopwatch.StartNew();
             var lastSafeProbeCheckpoint = "PROBE_ADMISSION";
             try
             {
@@ -718,41 +647,18 @@ public static class V9NestedCalibrationCoordinator
                 V9CalibradorSafeFailureCategory.MarkProbeCheckpoint(exception, lastSafeProbeCheckpoint);
                 throw;
             }
-            physicalGroupClock.Stop();
-            // Preserve the original SQL probe wall time exactly. Restarting
-            // the SAME stopwatch measures the post-SQL section independently
-            // without a timer or per-hypothesis log added to the hot path.
-            var sqlSeconds = physicalGroupClock.Elapsed.TotalSeconds;
-            var groupSha = first.Sha[..Math.Min(12, first.Sha.Length)];
-            // Operational wall-clock only: probe RunAsync, not certified P95.
-            lock (Console.Out)
-                Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 SQL GROUP] batch={batch} | requests={requests.Count} | options={distinctOptions.Length} | margins={margins.Length} | run_async_seconds={sqlSeconds:F1} | group_sha={groupSha}"));
-            physicalGroupClock.Start();
-            // Reuse immutable replay inputs across eligible hypotheses in this SQL frame.
             var validationFrame = frame.Where(x => x.Partition == "VALIDATION").ToArray();
             var replayExecution = c.Execution with { TotalComparedConfigurations = 1 };
             // Index physical results once per SQL group. Single() on each bucket
             // deliberately preserves the previous missing/duplicate failure contract.
-            var diagnoseReplayTiming = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";
-            var indexClock = diagnoseReplayTiming ? Stopwatch.StartNew() : null;
             var metricsByKey = run.SourceResolveValidation!.ToLookup(x =>
                 (x.OptionId, x.ConflictMargin, x.CandidateGrouping));
             var frozenByKey = run.FrozenConfigurations!.ToLookup(x =>
                 (x.OptionId, x.ConflictMargin));
             var optionsById = run.CalibrationReport.Options.ToLookup(x => x.OptionId);
-            if (indexClock is not null)
-            {
-                indexClock.Stop();
-                lock (Console.Out)
-                    Console.WriteLine(FormattableString.Invariant(
-                        $"[V9 PERF DIAG] phase=index_build | batch={batch} | requests={requests.Count} | elapsed_ms={indexClock.Elapsed.TotalMilliseconds:F3} | metric_entries={run.SourceResolveValidation!.Count} | frozen_entries={run.FrozenConfigurations!.Count} | option_entries={run.CalibrationReport.Options.Count}"));
-            }
             var result = new List<V9NestedCandidateEvaluation>();
-            var replayCalls = 0; // count actual calls, not inferred P95/successes
             foreach (var request in requests)
             {
-                var individualClock = Stopwatch.StartNew();
                 // The probe returns one distinct metric/snapshot per margin.
                 // Never accidentally attach a different margin or a diagnostic
                 // grouping to this request's TRAIN result.
@@ -769,23 +675,13 @@ public static class V9NestedCalibrationCoordinator
                 if (fanout > c.Budget.MaximumBlockingFalseDegreeP99) reasons.Add("FANOUT_P99_ACIMA_DO_ORCAMENTO");
                 if (metric.FdrAfterResolve is null) reasons.Add("FDR_INDEFINIDO_SEM_ACEITOS");
                 double? p95 = null;
-                double? replayElapsedMilliseconds = null;
                 if (reasons.Count == 0)
                 {
                     try
                     {
-                        var replayClock = diagnoseReplayTiming ? Stopwatch.StartNew() : null;
-                        replayCalls++;
                         var measured = await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync(connection,
                             validationFrame, fit.Snapshot,
                             replayExecution, c.MaximumAcceptedPerBaseIdentity, 1, cancellationToken);
-                        if (replayClock is not null)
-                        {
-                            replayClock.Stop();
-                            // Carry the measurement to the already-required progress message.
-                            // No second console lock/write per hypothesis when both flags are on.
-                            replayElapsedMilliseconds = replayClock.Elapsed.TotalMilliseconds;
-                        }
                         p95 = measured.P95Milliseconds;
                         if (!p95.HasValue || p95 > c.SelectionPolicy.MaximumP95Milliseconds)
                             reasons.Add("P95_PONTA_A_PONTA_FORA_DO_ORCAMENTO");
@@ -820,17 +716,8 @@ public static class V9NestedCalibrationCoordinator
                         && !request.DiagnosticOnly,
                     SharedSurnameCandidatePairs: physicalOption.Validation.SharedSurnameCandidatePairs,
                     CandidatePairsSha256: run.PhysicalCandidatePairsSha256));
-                reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1], replayElapsedMilliseconds);
+                reportPhysicalCompletion?.Invoke(result[^1]);
             }
-            physicalGroupClock.Stop();
-            var totalSeconds = physicalGroupClock.Elapsed.TotalSeconds;
-            var postSqlSeconds = Math.Max(0d, totalSeconds - sqlSeconds);
-            // One aggregate group event, never a second progress message for
-            // any hypothesis. Other groups can overlap this wall time.
-            // The post-SQL span includes replay, indexing and progress I/O.
-            lock (Console.Out)
-                Console.WriteLine(FormattableString.Invariant(
-                    $"[V9 PERF GROUP] batch={batch} | group_sha={groupSha} | requests={requests.Count} | replay_calls={replayCalls} | sql_seconds={sqlSeconds:F1} | post_sql_seconds={postSqlSeconds:F1} | total_seconds={totalSeconds:F1}"));
             return result.AsReadOnly();
         }
         catch (V9NominalTfPublishedCoverageAudit.PublishedCoverageInsufficientException)
@@ -853,7 +740,7 @@ public static class V9NestedCalibrationCoordinator
                             : V9MuEstimationSearchSpace.ClasswiseMixture,
                 MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
                 EligibleForSelection: false)).ToArray());
-            foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, evaluation, null);
+            foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(evaluation);
             return rejected;
         }
         catch (InvalidDataException exception) when (exception.Data[V9PhysicalSqlAdaptiveCalibrationProbe.CandidateRejectionKey] is true)
@@ -867,7 +754,7 @@ public static class V9NestedCalibrationCoordinator
                                 ? V9MuEstimationSearchSpace.Classwise : V9MuEstimationSearchSpace.ClasswiseMixture,
             MuPolicy: plan.MuEstimationMethods is null ? null : request.Option.JointSupportPolicy,
             EligibleForSelection: request.Option.EligibleForSelection && request.Margin > 0m && !request.DiagnosticOnly)).ToArray());
-          foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(TimeSpan.Zero, evaluation, null);
+          foreach (var evaluation in rejected) reportPhysicalCompletion?.Invoke(evaluation);
           return rejected; }
     }
 }

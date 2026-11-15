@@ -59,83 +59,35 @@ class V9CalibratorSafeStageTests(unittest.TestCase):
         self.assertNotRegex(self.workflow, r'(?m)^\s+pull_request:\s*$')
 
 
-    def test_optional_replay_performance_diagnostics_preserve_core_contract(self):
-        # Source contract only: the physical A/B experiment remains mandatory.
-        self.assertIn('Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1"', self.coord)
-        self.assertIn('var indexClock = diagnoseReplayTiming ? Stopwatch.StartNew() : null;', self.coord)
-        self.assertIn('var replayClock = diagnoseReplayTiming ? Stopwatch.StartNew() : null;', self.coord)
-        self.assertIn('if (indexClock is not null)', self.coord)
-        self.assertIn('if (replayClock is not null)', self.coord)
-        self.assertIn('[V9 PERF DIAG] phase=index_build', self.coord)
-        self.assertIn('[V9 PERF DIAG] phase=frozen_replay', self.coord)
-        # Diagnostics must not gate or reduce the number of physical frozen replays.
-        self.assertEqual(self.coord.count('await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync('), 1)
-        self.assertIn('reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1], replayElapsedMilliseconds);', self.coord)
-        self.assertIn('var metricsByKey = run.SourceResolveValidation!.ToLookup(', self.coord)
-        self.assertIn('var frozenByKey = run.FrozenConfigurations!.ToLookup(', self.coord)
-        self.assertIn('var optionsById = run.CalibrationReport.Options.ToLookup(', self.coord)
-
-
-    def test_one_numbered_github_log_row_per_hypothesis_without_pipes(self):
-        # PO clarified with a screenshot: one GitHub-numbered physical row per
-        # hypothesis, mobile auto-wrap, with new fields and without pipe delimiters.
-        # Explicit newlines would create SEVEN separately numbered GitHub rows.
-        self.assertIn('var replayTimingEnabled = Environment.GetEnvironmentVariable("V9_REPLAY_TIMING_DIAGNOSTICS") == "1";', self.coord)
-        self.assertIn('var diagnosticSuffix = replayTimingEnabled && replayElapsedMilliseconds is { } replayMs', self.coord)
-        self.assertIn(' replay_elapsed_ms={replayMs:F3}', self.coord)
-        self.assertIn('if (!physicalProgressEnabled)', self.coord)
-        self.assertIn('if (replayTimingEnabled && replayElapsedMilliseconds is { } ms)', self.coord)
-        self.assertIn('reportHypothesis?.Invoke(evaluation);', self.coord)
-        progress = self.coord.split('void ReportPhysicalCompletion(', 1)[1].split(
-            'reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");', 1)[0]
-        # Exactly one WriteLine, one lock and one Flush for NORMAL progress.
-        # The separate diagnostic-only branch is disabled by default.
-        self.assertEqual(progress.count('lock (Console.Out)'), 2)
-        self.assertEqual(progress.count('Console.WriteLine('), 2)
-        self.assertEqual(progress.count('Console.Out.Flush();'), 1)
-        normal = progress.split('lock (Console.Out)\n            {', 1)[1]
-        self.assertIn('[V9 PROGRESS] {done}/{physicalTotal} ({100d * done / physicalTotal:F1}%) timestamp=', normal)
-        for field in (' hipotese=', ' resultado=', ' inicio_job=', ' inicio_fisico=',
-                      ' decorrido_job_min=', ' decorrido_fisico_min=',
-                      ' media_global_min=', ' hipoteses_restantes=', ' previsao_fim=',
-                      ' limite_job_min=', ' restante_job_min=', ' status='):
-            self.assertIn(field, normal)
-        self.assertIn('eta_min={etaText}', normal)
-        self.assertIn('margem_prevista_min={marginText}', normal)
-        self.assertIn('status={forecast.Status}{diagnosticSuffix}', normal)
-        self.assertIn('var forecast = ForecastPhysicalProgress(', progress)
-        self.assertNotIn(r'\n', normal)
-        self.assertNotIn(' | ', normal)
-        self.assertNotIn('ETA_min=', normal)
-        self.assertNotIn('margem_etapa_315min=', normal)
-        self.assertIn('Interlocked.Increment(ref physicalCompleted)', progress)
-        self.assertIn('DateTimeOffset.UtcNow', progress)
-        self.assertNotIn('physicalDeadlineUtc', progress)
-        self.assertIn('ForecastPhysicalProgress(', self.coord)
-        self.assertIn('const int MinimumSample = 8;', self.coord)
-        self.assertIn('"PREVISAO_PRELIMINAR"', self.coord)
-        self.assertIn('"CONCLUIDO"', self.coord)
-        self.assertIn('"ETA_INFORMATIVA_GITHUB_CONTROLA_TIMEOUT"', self.coord)
-        self.assertNotIn('"PRAZO_EXCEDIDO"', self.coord)
-        self.assertIn('elapsedMinutes / completed * (total - completed)', self.coord)
-        self.assertIn('physicalStartUtc ??= DateTimeOffset.UtcNow;', self.coord)
-        self.assertIn('V9_JOB_START_UTC', self.coord)
-        self.assertIn('V9_JOB_TIMEOUT_MINUTES', self.coord)
-        self.assertNotIn('V9_PHYSICAL_STEP_START_UTC', self.coord)
-        self.assertIn('RiskReserveMinutes = 15d;', self.coord)
-        self.assertIn('"DENTRO_DA_PREVISAO"', self.coord)
-        self.assertIn('"RISCO_TIMEOUT"', self.coord)
-        self.assertIn('"PRAZO_INSUFICIENTE"', self.coord)
-        self.assertNotIn('AddMinutes(340)', self.coord)
-        replay = self.coord.split('var replayClock = diagnoseReplayTiming ?', 1)[1].split(
-            'p95 = measured.P95Milliseconds;', 1)[0]
-        self.assertIn('replayElapsedMilliseconds = replayClock.Elapsed.TotalMilliseconds;', replay)
-        self.assertNotIn('lock (Console.Out)', replay)
-        self.assertNotIn('Console.WriteLine', replay)
+    def test_no_hot_path_diagnostic_or_extra_replay(self):
+        self.assertNotIn("Stopwatch", self.coord)
+        for marker in ("[V9 PERF DIAG]", "[V9 PERF GROUP]", "[V9 SQL GROUP]",
+                       "V9_REPLAY_TIMING_DIAGNOSTICS"):
+            self.assertNotIn(marker, self.coord)
         self.assertEqual(self.coord.count(
-            'reportPhysicalCompletion?.Invoke(TimeSpan.Zero, evaluation, null);'), 2)
-        self.assertIn('reportPhysicalCompletion?.Invoke(individualClock.Elapsed, result[^1], replayElapsedMilliseconds);',
-                      self.coord)
+            "await V9PhysicalSqlAdaptiveCalibrationProbe.EvaluateFrozenHoldoutAsync("), 1)
+        self.assertIn("reportHypothesis?.Invoke(evaluation);", self.coord)
+        self.assertIn("reportPhysicalCompletion?.Invoke(result[^1]);", self.coord)
+        self.assertEqual(self.coord.count("reportPhysicalCompletion?.Invoke(evaluation);"), 2)
+        for marker in ("var metricsByKey = run.SourceResolveValidation!.ToLookup(",
+                       "var frozenByKey = run.FrozenConfigurations!.ToLookup(",
+                       "var optionsById = run.CalibrationReport.Options.ToLookup("):
+            self.assertIn(marker, self.coord)
+
+    def test_one_minimal_numbered_row_per_hypothesis(self):
+        progress = self.coord.split("void ReportPhysicalCompletion(", 1)[1].split(
+            'reportSafeStage?.Invoke("PHYSICAL_SQL_BATCHES");', 1)[0]
+        self.assertEqual(progress.count("lock (Console.Out)"), 1)
+        self.assertEqual(progress.count("Console.WriteLine("), 1)
+        self.assertEqual(progress.count("Console.Out.Flush();"), 1)
+        self.assertIn("Interlocked.Increment(ref physicalCompleted)", progress)
+        self.assertIn("{done}/{physicalTotal} - {sha[..Math.Min(12, sha.Length)]}", progress)
+        self.assertIn("reportHypothesis?.Invoke(evaluation);", progress)
+        for marker in ("timestamp=", "resultado=", "eta_min=", "status=", "DateTimeOffset.UtcNow"):
+            self.assertNotIn(marker, progress)
+        self.assertIn('Environment.GetEnvironmentVariable("V9_PHYSICAL_PROGRESS_LOG") == "1"', self.coord)
+        self.assertNotIn('V9_JOB_START_UTC', self.coord)
+        self.assertNotIn('V9_JOB_TIMEOUT_MINUTES', self.coord)
 
 if __name__ == "__main__":
     unittest.main()
