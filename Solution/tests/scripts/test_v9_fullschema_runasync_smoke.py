@@ -179,6 +179,33 @@ class V9FullSchemaNonPublishingContract(unittest.TestCase):
         caller = (REPO / ".github/workflows/v9-operational-model-sql-smoke.yml").read_text()
         self.assertIn("V9DisposableGoldBlockingProjectionMaterializer.cs", caller)
 
+    def test_native_processor_snapshot_can_project_frozen_v9_without_changing_legacy(self):
+        persistence = (ROOT / "src/Jornada.Operational.Sql/BlockingProjectionPersistence.cs").read_text()
+        native = (ROOT / "src/Jornada.Operational.Sql/BlockingProjectionPersistence.V9.cs").read_text()
+        fixture = TEST.read_text()
+        self.assertIn("public static partial class BlockingProjectionPersistence", persistence)
+        self.assertIn("LoadSqlServerSnapshotAsync(connection, tx, pessoaUuid, ct)", persistence)
+        self.assertIn("v9MaximumPrefixLength = null", persistence)
+        self.assertIn("V9CalibrationBlockingProjection.Project(name, mother, birth, prefix)", persistence)
+        self.assertIn("ProjectNames(observation.Name, observation.MotherName", persistence)
+        self.assertIn("v9MaximumPrefixLength is null", persistence)
+        self.assertIn("MaterializeNewPinnedV9SqlServerAsync(", native)
+        self.assertIn("await LoadSqlServerSnapshotAsync(", native)
+        self.assertIn("connection, transaction, pessoaUuid, ct, maximumPrefixLength", native)
+        self.assertIn("V9CalibrationBlockingProjection.ComputeSchemaFingerprint(", native)
+        self.assertIn("projection_schema_version,projection_fingerprint_sha256)", native)
+        self.assertIn("WITH(UPDLOCK,HOLDLOCK)", native)
+        self.assertIn('"JornadaHarness"', native)
+        self.assertNotIn("PublishAsync(", native)
+        self.assertNotIn("GetActiveModel", native)
+        self.assertIn("BlockingProjectionPersistence.MaterializeNewPinnedV9SqlServerAsync(", fixture)
+        self.assertIn("BlockingProjectionPersistence.RefreshSqlServerAsync(", fixture)
+        self.assertIn("await shadow.RollbackAsync()", fixture)
+        self.assertIn("V9_PROCESSOR_NATIVE_V9_PROJECTION_SHADOW_PASS", fixture)
+        caller = (REPO / ".github/workflows/v9-operational-model-sql-smoke.yml").read_text()
+        self.assertIn("BlockingProjectionPersistence.V9.cs", caller)
+        self.assertIn("BlockingProjectionPersistence.cs", caller)
+
     def test_scientific_test_stays_blocked(self):
         wf = TF4.read_text(encoding="utf-8")
         prep = wf.split("\n  prepare-test-100k:\n", 1)[1].split("\n  physical-100k:\n", 1)[0]
