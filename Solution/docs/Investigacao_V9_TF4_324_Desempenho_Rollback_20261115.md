@@ -79,3 +79,7 @@ A [PR #1544](https://github.com/lucianox777/Jornada/pull/1544) foi integrada à 
 - [Contrato offline V2/V3 #43690333615](https://github.com/lucianox777/Jornada/actions/runs/43690333615): **SUCCESS**.
 
 **Significado restrito:** a instrumentação e os novos testes offline estão integrados. Não houve, nesta PR, nova execução física de 100K, nova evidência de throughput, causalidade da lentidão nem prova de que um rollback recuperaria a performance. A próxima campanha permanece manual e gated; TEST científico e produção continuam bloqueados conforme #1488/#1478. GOV-DOC-01.
+
+## Correção de observabilidade autorizada em 15/11/2026
+
+O PO determinou “Corrija” após o encerramento da execução #43631379628. A lacuna concreta identificada é a ausência de checkpoints de recursos após o cancelamento: o wrapper só persistia o recibo ao terminar. Uma mudança **sem alterar ciência/SQL/paralelismo**, documentada em [GOV-V9-OBSERVABILIDADE-TIMEOUT-PARCIAL-20261115](Decisao_GOV_V9_Observabilidade_Timeout_Parcial_20261115.md), acrescenta checkpoint atômico aproximadamente por minuto de CPU/IO/pressão/RAM, com indisponibilidade representada por null e publicação apenas como diagnóstico TRAIN mesmo após timeout. O replay por hipótese permanece opcional (OFF por padrão). **Não é correção comprovada de desempenho**; requer nova evidência física e autorização separada para repetir 100K. GOV-DOC-01.

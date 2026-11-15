@@ -244,6 +244,104 @@ def sql_memory_limits(container):
     return values
 
 
+
+# Read-only kernel counters. Values are aggregate and cannot prove the cause
+# of slowdown in the V9 worker; absence/reset must remain unknown (null).
+def read_kernel_counters(cgroup_directory=None, pressure_root=Path("/proc/pressure"),
+                         host_stat=Path("/proc/stat")):
+    data = {key: None for key in (
+        "cpuCgroupUsageUsec", "cpuCgroupThrottleEvents", "cpuCgroupThrottledUsec",
+        "cpuPressureSomeUsec", "memoryPressureSomeUsec", "ioPressureSomeUsec",
+        "hostCpuTotalTicks", "hostCpuStealTicks")}
+    if cgroup_directory is not None:
+        try:
+            values = {}
+            for line in (cgroup_directory / "cpu.stat").read_text(encoding="ascii").splitlines():
+                parts = line.split()
+                if len(parts) == 2 and parts[0] in ("usage_usec", "nr_throttled", "throttled_usec") and parts[1].isdecimal():
+                    values[parts[0]] = int(parts[1])
+            for field, name in (("usage_usec", "cpuCgroupUsageUsec"),
+                                ("nr_throttled", "cpuCgroupThrottleEvents"),
+                                ("throttled_usec", "cpuCgroupThrottledUsec")):
+                data[name] = values.get(field)
+        except (OSError, ValueError):
+            pass
+    for name in ("cpu", "memory", "io"):
+        try:
+            for line in (pressure_root / name).read_text(encoding="ascii").splitlines():
+                if line.startswith("some "):
+                    raw = next((item[6:] for item in line.split()[1:]
+                                if item.startswith("total=")), None)
+                    if raw is not None and raw.isdecimal():
+                        data[name + "PressureSomeUsec"] = int(raw)
+                    break
+        except (OSError, ValueError):
+            pass
+    try:
+        parts = host_stat.read_text(encoding="ascii").splitlines()[0].split()
+        if len(parts) >= 9 and parts[0] == "cpu" and all(s.isdecimal() for s in parts[1:9]):
+            fields = [int(s) for s in parts[1:9]]
+            data["hostCpuTotalTicks"] = sum(fields)
+            data["hostCpuStealTicks"] = fields[7]
+    except (OSError, ValueError, IndexError):
+        pass
+    return data
+
+
+def numeric_counter_deltas(baseline, latest):
+    result = {}
+    for key, old in baseline.items():
+        now = latest.get(key)
+        result[key + "Delta"] = now - old if old is not None and now is not None and now >= old else None
+    total = result["hostCpuTotalTicksDelta"]
+    steal = result["hostCpuStealTicksDelta"]
+    result["hostCpuStealFraction"] = (round(steal / total, 6)
+                                      if total and steal is not None else None)
+    return result
+
+
+def save_atomic_partial(path, receipt):
+    # CRITICAL: never create results/ before C# validates its fresh directory.
+    # On SIGTERM, only last fully renamed JSON is eligible for upload.
+    if not path.parent.is_dir() or path.parent.is_symlink() or path.is_symlink():
+        return False
+    scratch = path.with_name(path.name + ".writing")
+    try:
+        with scratch.open("x", encoding="utf-8") as stream:
+            json.dump(receipt, stream, sort_keys=True, indent=2)
+            stream.write("\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(scratch, path)
+        return True
+    except (OSError, ValueError, TypeError):
+        try: scratch.unlink(missing_ok=True)
+        except OSError: pass
+        return False
+
+
+def partial_receipt(samples, elapsed_seconds, peak_sql_kib, peak_worker_kib,
+                    min_available_kib, baseline, latest, start_oom, last_oom,
+                    worker_exit=None):
+    oom0 = start_oom.get("oom_kill")
+    oom1 = last_oom.get("oom_kill")
+    return {
+        "schema": "V9_100K_PHYSICAL_RESOURCE_CHECKPOINT_V1",
+        "status": "PARTIAL_RUNNING" if worker_exit is None else "FINAL_MONITOR",
+        "scope": "READ_ONLY_AGGREGATE_NOT_CAUSAL_PERFORMANCE_PROOF",
+        "workerExitCode": worker_exit,
+        "samples": samples,
+        "elapsedSeconds": round(elapsed_seconds, 1),
+        "peakSqlContainerMemoryKiB": peak_sql_kib,
+        "peakWorkerProcessTreeRssKiB": peak_worker_kib,
+        "minHostMemAvailableKiB": min_available_kib,
+        "runnerOomKillEventDelta": oom1 - oom0 if oom0 is not None and oom1 is not None and oom1 >= oom0 else None,
+        "kernelCounterDeltas": numeric_counter_deltas(baseline, latest),
+        "scientificPlanChanged": False, "testUsed": False,
+        "goldUsed": False, "activated": False, "certified": False
+    }
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--sql-container", required=True)
@@ -262,6 +360,12 @@ def main():
     # calibrator requires an entirely NEW results directory for immutability.
     runner_cgroup = runner_cgroup_directory()
     start_events = oom_events(runner_cgroup) if runner_cgroup else {"oom": None, "oom_kill": None}
+    kernel_baseline = read_kernel_counters(runner_cgroup)
+    checkpoint_path = args.output.with_name("physical-resource-checkpoint.json")
+    if checkpoint_path.exists() or checkpoint_path.is_symlink():
+        parser.error("checkpoint output already exists")
+    started_monotonic = time.monotonic()
+    checkpoint_period_samples = max(1, round(60 / args.interval_seconds))
     before = mem_available_kib()
     samples = 0
     sql_max = None
@@ -305,6 +409,13 @@ def main():
             if sql is not None: sql_max = max(sql_max or 0, sql)
             if worker is not None: worker_max = max(worker_max or 0, worker)
             if available is not None: host_min = min(host_min if host_min is not None else available, available)
+            if samples % checkpoint_period_samples == 0 and child.poll() is None:
+                # Keep one atomic partial receipt per ~minute; no extra SQL work.
+                save_atomic_partial(checkpoint_path, partial_receipt(
+                    samples, time.monotonic() - started_monotonic,
+                    sql_max, worker_max, host_min,
+                    kernel_baseline, read_kernel_counters(runner_cgroup),
+                    start_events, oom_events(runner_cgroup)))
             if child.poll() is None:
                 time.sleep(args.interval_seconds)
     except KeyboardInterrupt:
@@ -321,11 +432,21 @@ def main():
         if finish_events[k] is not None and start_events[k] is not None else None
         for k in ("oom", "oom_kill")
     }
+    # Sample once for BOTH final receipts, so repeated host counters cannot
+    # create a false discrepancy between the normal and partial files.
+    final_kernel = read_kernel_counters(runner_cgroup)
+    final_kernel_deltas = numeric_counter_deltas(kernel_baseline, final_kernel)
+    save_atomic_partial(checkpoint_path, partial_receipt(
+        samples, time.monotonic() - started_monotonic,
+        sql_max, worker_max, host_min, kernel_baseline,
+        final_kernel, start_events,
+        finish_events, worker_exit=exit_code))
     receipt = {
         "schema": SCHEMA,
         "scope": "READ_ONLY_RUNTIME_RESOURCE_EVIDENCE_NOT_CAUSAL_PROOF",
         "workerExitCode": exit_code,
         "samples": samples,
+        "kernelCounterDeltas": final_kernel_deltas,
         "peakSqlContainerMemoryKiB": sql_max,
         "peakWorkerProcessTreeRssKiB": worker_max,
         "minHostMemAvailableKiB": host_min,
