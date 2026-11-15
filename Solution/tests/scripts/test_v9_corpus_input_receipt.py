@@ -28,6 +28,35 @@ class InputReceiptTests(unittest.TestCase):
             (root/"family"/"x").write_text("v2")
             self.assertNotEqual(initial, receipt.make(args))
 
+    def test_maternal_degradation_input_is_optional_and_fingerprint_separately(self):
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            for name in ("src", "ibge"):
+                (root / name).mkdir()
+                (root / name / "main").write_text("frozen", encoding="utf-8")
+            birth = root / "birth.json"
+            birth.write_text("{}", encoding="utf-8")
+            args = types.SimpleNamespace(
+                generator_source=root / "src", ibge_names=root / "ibge",
+                birth_daily=birth, family_ref=None, people=100000,
+                seed=42, population_profile="demographic-primary", error_profile="clean")
+            historical = receipt.make(args)
+            self.assertNotIn("mother_corruption_rate_override", historical)
+            args.mother_corruption_rate = .10
+            ten = receipt.make(args)
+            self.assertEqual(ten["mother_corruption_rate_override"], .10)
+            self.assertNotEqual(ten, historical, "Explicit override must be traceable")
+            args.mother_corruption_rate = .134
+            exploratory = receipt.make(args)
+            self.assertEqual(exploratory["mother_corruption_rate_override"], .134)
+            self.assertEqual(exploratory["mother_corruption_rate_provenance"],
+                             "EXPLORATORY_NOT_OBSERVED_IBGE")
+            self.assertNotEqual(ten, exploratory)
+            for invalid in (-.1, 1.01, float("nan"), float("inf"), -float("inf")):
+                args.mother_corruption_rate = invalid
+                with self.assertRaises(ValueError):
+                    receipt.make(args)
+
     def test_birth_reference_missing_or_symlink_rejected(self):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
