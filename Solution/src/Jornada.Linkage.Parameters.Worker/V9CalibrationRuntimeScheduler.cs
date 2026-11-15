@@ -24,14 +24,18 @@ public sealed record V9CalibrationRuntimeSchedulingReceipt(
 
 public sealed class V9CalibrationRuntimeScheduler
 {
-    public const string Schema = "V9_CALIBRATION_COUPLED_RESOURCE_SCHEDULER_V1";
-    private const long MinimumIncrementBytes = 512L * 1024 * 1024;
+    public const string Schema = "V9_CALIBRATION_COUPLED_RESOURCE_SCHEDULER_V2";
+    private static readonly TimeSpan AdmissionSpacing = TimeSpan.FromSeconds(1);
     private readonly V9CalibrationExecutionResourceBudget _budget;
     private readonly Func<V9CalibrationRuntimeResourceSample> _sample;
     private readonly int _sqlPoolMaximum;
     private readonly long _requiredFreeDiskBytes;
     private readonly long _inputCorpusBytes;
-    private long _workerIncrementBytes = MinimumIncrementBytes;
+    // Observed live drop since a prior admission; NOT a fixed RAM reserve.
+    private long _workerIncrementBytes;
+    private long? _availableAtLastAdmission;
+    private long _peakAtLastAdmission;
+    private DateTimeOffset _lastAdmissionUtc = DateTimeOffset.MinValue;
     private int _active;
     private int _maxActive;
     private int _samples;
@@ -69,10 +73,10 @@ public sealed class V9CalibrationRuntimeScheduler
     }
 
     /// <summary>
-    /// Pilot one already-declared physical frame without trimming its hypotheses.
-    /// The pilot measures a process-wide peak increment; it cannot prove
-    /// independent-worker consumption and is only a conservative estimate.
-    /// After the pilot each new worker must pass live RAM/disk admission.
+    /// Admit physical groups just-in-time using measured MemAvailable/cgroup and
+    /// disk. No complete SQL+replay group is a serial pilot. A short stagger
+    /// between worker starts reveals memory pressure without waiting for the
+    /// preceding 64/128-hypothesis group to finish.
     /// </summary>
     public async Task<(IReadOnlyList<TResult> Results, V9CalibrationRuntimeSchedulingReceipt Receipt)>
         MapAsync<TInput, TResult>(IReadOnlyList<TInput> inputs,
@@ -84,8 +88,7 @@ public sealed class V9CalibrationRuntimeScheduler
         var ceiling = _budget.ConfiguredParallelism > 0
             ? _budget.ConfiguredParallelism
             : _budget.EffectiveParallelism;
-        // Reserve one pooled SQL connection for IBGE TF/diagnostics if needed.
-        // MaxPoolSize is an upper bound, not a measurement of SQL throughput.
+        // Spare one pooled SQL connection for TF/diagnostics, NOT a spare CPU.
         var sqlCeiling = Math.Max(1, _sqlPoolMaximum - 1);
         if (_budget.ConfiguredParallelism > sqlCeiling && inputs.Count > sqlCeiling)
             throw new InvalidDataException("V9_RESOURCE_SQL_CONNECTION_CAPACITY");
@@ -93,37 +96,13 @@ public sealed class V9CalibrationRuntimeScheduler
         ceiling = Math.Max(1, Math.Min(ceiling, inputs.Count == 0 ? 1 : inputs.Count));
         var sampleBefore = Read();
         RequireDisk(sampleBefore);
-        var results = new TResult[inputs.Count];
-        if (inputs.Count == 0)
-        {
-            var emptyReceipt = Receipt(ceiling, sampleBefore.ResidentBytes, sampleBefore.PeakResidentBytes, 0);
-            _receipts.Add(emptyReceipt);
-            return (Array.AsReadOnly(results), emptyReceipt);
-        }
-        // One original, already-declared physical configuration in the caller's
-        // deterministic operational schedule (possibly estimated heavy-first).
-        // Never a new diagnostic hypothesis, never a pilot on TEST/Gold.
-        cancellationToken.ThrowIfCancellationRequested();
-        results[0] = await operation(inputs[0], cancellationToken);
-        var sampleAfter = Read();
-        RequireDisk(sampleAfter);
-        // The pilot may populate process-wide caches that remain resident after
-        // it finishes. Live MemAvailable already accounts for those retained
-        // allocations. Only its transient peak above the post-pilot resident
-        // baseline can be charged again to the next worker; otherwise the
-        // same pilot allocation is reserved twice and AUTO cannot start.
-        var transientPeak = Math.Max(0, sampleAfter.PeakResidentBytes -
-            Math.Max(sampleAfter.ResidentBytes, sampleBefore.PeakResidentBytes));
-        _workerIncrementBytes = EstimateIncrementBytes(transientPeak);
         if (inputs.Count > 1 && _budget.ConfiguredParallelism > 1 && ceiling > 1
-            && sampleAfter.EffectiveAvailableMemoryBytes is null)
+            && sampleBefore.EffectiveAvailableMemoryBytes is null)
             throw new InvalidDataException("V9_RESOURCE_EXPLICIT_RAM_UNMEASURED");
-        if (inputs.Count > 1 && _budget.ConfiguredParallelism > 0
-            && sampleAfter.EffectiveAvailableMemoryBytes is { } available
-            && available < RequiredFreeBytes(ceiling))
-            throw new InvalidDataException("V9_RESOURCE_EXPLICIT_WORKERS_EXCEED_MEASURED_RAM");
-        if (inputs.Count > 1)
-            await Parallel.ForEachAsync(Enumerable.Range(1, inputs.Count - 1),
+        var results = new TResult[inputs.Count];
+        if (inputs.Count > 0)
+        {
+            await Parallel.ForEachAsync(Enumerable.Range(0, inputs.Count),
                 new ParallelOptions { CancellationToken = cancellationToken,
                     MaxDegreeOfParallelism = ceiling }, async (index, ct) =>
                 {
@@ -131,7 +110,13 @@ public sealed class V9CalibrationRuntimeScheduler
                     try { results[index] = await operation(inputs[index], ct); }
                     finally { Exit(); }
                 });
-        var receipt = Receipt(ceiling, sampleBefore.ResidentBytes, sampleAfter.PeakResidentBytes, 1);
+        }
+        var sampleAfter = Read();
+        RequireDisk(sampleAfter);
+        // Backward-compatible receipt field names: PilotConfigurations=0 means
+        // no blocking pilot. Peak is measured after scheduling, not a pilot.
+        var receipt = Receipt(ceiling, sampleBefore.ResidentBytes,
+            sampleAfter.PeakResidentBytes, 0);
         _receipts.Add(receipt);
         return (Array.AsReadOnly(results), receipt);
     }
@@ -150,43 +135,33 @@ public sealed class V9CalibrationRuntimeScheduler
             inputCorpusBytes * 3 + V9CalibrationResourceGovernor.GiB);
     }
 
+    // Apply a 1.5x cushion only to POSITIVE observed memory growth.
     public static long EstimateIncrementBytes(long measuredPeakDeltaBytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(measuredPeakDeltaBytes);
         if (measuredPeakDeltaBytes > (long.MaxValue - 1) / 3)
             return long.MaxValue;
-        return Math.Max(MinimumIncrementBytes, (measuredPeakDeltaBytes * 3 + 1) / 2);
+        return (measuredPeakDeltaBytes * 3 + 1) / 2;
     }
 
     public static bool CanAdmit(long? measuredAvailableBytes, long? freeDiskBytes,
         int activeWorkers, long incrementalWorkerBytes)
     {
-        if (activeWorkers < 0 || incrementalWorkerBytes < 1
+        if (activeWorkers < 0 || incrementalWorkerBytes < 0
             || freeDiskBytes is null
             || freeDiskBytes < V9CalibrationResourceGovernor.MinimumFreeDiskBytes)
             return false;
         if (measuredAvailableBytes is null) return activeWorkers == 0;
-        // Available RAM is a LIVE sample: it already excludes memory held by
-        // SQL and by every active worker. Charging activeWorkers again against
-        // this remaining RAM double-counts their consumption and can starve
-        // admission even when the host has adequate free capacity.
-        if (incrementalWorkerBytes > long.MaxValue - V9CalibrationResourceGovernor.HostReserveBytes)
+        // 2 GiB is the preventive admission floor; 1 GiB the critical floor.
+        // The OS controls actual allocation; no per-worker RAM is pre-reserved.
+        if (measuredAvailableBytes < V9CalibrationResourceGovernor.PreventiveAvailableMemoryBytes)
             return false;
-        var required = V9CalibrationResourceGovernor.HostReserveBytes + incrementalWorkerBytes;
-        return required <= measuredAvailableBytes;
-    }
-
-    private long RequiredFreeBytes(int workers)
-    {
-        try
-        {
-            return checked(V9CalibrationResourceGovernor.HostReserveBytes
-                + _workerIncrementBytes * workers);
-        }
-        catch (OverflowException)
-        {
-            return long.MaxValue;
-        }
+        if (incrementalWorkerBytes >
+            long.MaxValue - V9CalibrationResourceGovernor.CriticalAvailableMemoryBytes)
+            return false;
+        var required = Math.Max(V9CalibrationResourceGovernor.PreventiveAvailableMemoryBytes,
+            V9CalibrationResourceGovernor.CriticalAvailableMemoryBytes + incrementalWorkerBytes);
+        return measuredAvailableBytes >= required;
     }
 
     private V9CalibrationRuntimeResourceSample Read()
@@ -212,32 +187,61 @@ public sealed class V9CalibrationRuntimeScheduler
             {
                 var now = Read();
                 RequireDisk(now);
-                // A transient low-memory sample while other workers are active
-                // is backpressure, not a fatal calibration error. Wait for
-                // existing workers to release their allocations and resample.
-                // Only fail closed if no worker can make forward progress.
-                if (_active == 0 && now.EffectiveAvailableMemoryBytes is { } measured
-                    && !CanAdmit(measured, now.OutputFreeDiskBytes, 0, _workerIncrementBytes))
-                    throw new InvalidDataException("V9_RESOURCE_RUNTIME_RAM_BELOW_ONE_WORKER");
-                if (now.OutputFreeDiskBytes is { } diskFree && diskFree >= _requiredFreeDiskBytes
-                    && CanAdmit(now.EffectiveAvailableMemoryBytes,
-                        now.OutputFreeDiskBytes, _active, _workerIncrementBytes))
+                var utc = DateTimeOffset.UtcNow;
+                // Stagger worker starts by one second, not by an entire
+                // SQL+replay group. No extra hypotheses or physical probes.
+                if (_active > 0 && utc - _lastAdmissionUtc < AdmissionSpacing)
                 {
-                    _active++;
-                    _maxActive = Math.Max(_maxActive, _active);
-                    admitted = true;
+                    // Wait briefly to observe current RAM pressure.
                 }
-                else if (_active == 0)
-                    throw new InvalidDataException("V9_RESOURCE_RUNTIME_RAM_NOT_ADMISSIBLE");
+                else
+                {
+                    if (_active > 0 && now.EffectiveAvailableMemoryBytes is { } available
+                        && _availableAtLastAdmission is { } previousAvailable)
+                    {
+                        var drop = Math.Max(0L, previousAvailable - available);
+                        var processPeakChange = Math.Max(0L,
+                            now.PeakResidentBytes - _peakAtLastAdmission);
+                        _workerIncrementBytes = Math.Max(_workerIncrementBytes,
+                            EstimateIncrementBytes(Math.Max(drop, processPeakChange)));
+                    }
+                    if (CanAdmit(now.EffectiveAvailableMemoryBytes,
+                        now.OutputFreeDiskBytes, _active, _workerIncrementBytes))
+                    {
+                        _active++;
+                        _maxActive = Math.Max(_maxActive, _active);
+                        _availableAtLastAdmission = now.EffectiveAvailableMemoryBytes;
+                        _peakAtLastAdmission = now.PeakResidentBytes;
+                        _lastAdmissionUtc = utc;
+                        admitted = true;
+                    }
+                    else if (_active == 0)
+                        throw new InvalidDataException(
+                            now.EffectiveAvailableMemoryBytes is { } ram
+                                && ram < V9CalibrationResourceGovernor.CriticalAvailableMemoryBytes
+                            ? "V9_RESOURCE_RUNTIME_RAM_CRITICAL"
+                            : "V9_RESOURCE_RUNTIME_RAM_NOT_ADMISSIBLE");
+                }
             }
             if (admitted) return;
-            await Task.Delay(150, token); // wait for an already admitted worker
+            await Task.Delay(250, token);
         }
     }
 
     private void Exit()
     {
-        lock (_admissionGate) { _active--; }
+        lock (_admissionGate)
+        {
+            _active--;
+            if (_active == 0)
+            {
+                // Do not carry this transient estimate into another batch.
+                _workerIncrementBytes = 0;
+                _availableAtLastAdmission = null;
+                _peakAtLastAdmission = 0;
+                _lastAdmissionUtc = DateTimeOffset.MinValue;
+            }
+        }
     }
 
     private V9CalibrationRuntimeSchedulingReceipt Receipt(int ceiling, long before, long after, int pilot)
