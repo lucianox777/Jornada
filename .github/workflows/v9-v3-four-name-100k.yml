@@ -33,6 +33,40 @@ on:
         default: true
         type: boolean
 
+
+  # Reusable entry point for the separate owner-only TEST mode selector.
+  # The caller has workflow_dispatch context; all original fail-closed
+  # checks (owner, exact master SHA, preflight, one-use) remain in force.
+  workflow_call:
+    inputs:
+      expected_sha:
+        required: true
+        type: string
+      security_preflight_approved:
+        required: true
+        type: boolean
+      test_required:
+        required: true
+        type: boolean
+      test_database:
+        required: false
+        default: ""
+        type: string
+      expected_test_cert_sha256:
+        required: false
+        default: ""
+        type: string
+      disable_python_sql_budget:
+        required: true
+        type: boolean
+    secrets:
+      V9_EXTERNAL_TEST_READONLY_CONNECTION:
+        required: false
+      V9_TF4_TEST_PUBLIC_CERT_B64:
+        required: false
+      V9_TF4_TEST_PRIVATE_KEY_B64:
+        required: false
+
 permissions:
   contents: read
   actions: read
