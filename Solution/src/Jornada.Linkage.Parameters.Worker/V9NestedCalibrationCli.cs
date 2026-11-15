@@ -171,7 +171,7 @@ public static class V9NestedCalibrationCli
                             plan.Calibration.MaximumParallelRuleSets, output);
                         await WriteNewAsync(Path.Combine(output, "calibration-resource-budget.json"), resources);
                         await using var diskSampler = new V9CalibrationDiskSampler(output,
-                            TimeSpan.FromMilliseconds(500));
+                            TimeSpan.FromSeconds(30));
                         await SearchAsync(args[2], output, plan, connectionString, originalPlanBytes,
                             diskSampler, resources, phase => safeStage = phase);
                     }
@@ -294,8 +294,6 @@ public static class V9NestedCalibrationCli
             artifactScope = "TRAIN_SELECTION_ONLY_NO_TEST_NO_ACTIVATION"
         });
         File.AppendAllText(startupLogPath, startupLine + Environment.NewLine);
-        Console.Out.WriteLine("[V9 START] C# calibrator started; startup-progress.jsonl persisted and closed");
-        Console.Out.Flush();
         var result = await V9NestedCalibrationCoordinator.SearchAsync(async ct =>
         {
             var connection = new SqlConnection(connectionString);
@@ -305,7 +303,6 @@ public static class V9NestedCalibrationCli
         {
             var line = JsonSerializer.Serialize(progress);
             File.AppendAllText(Path.Combine(output, "batch-progress.jsonl"), line + Environment.NewLine);
-            Console.Error.WriteLine(line);
             // Memory is measured AFTER each completed batch; no manual GC and
             // no influence on search decisions, snapshots, or inferential counts.
             process.Refresh();
@@ -324,7 +321,6 @@ public static class V9NestedCalibrationCli
                 artifactScope = "TRAIN_SELECTION_ONLY_NO_TEST_NO_ACTIVATION"
             });
             File.AppendAllText(Path.Combine(output, "memory-progress.jsonl"), memory + Environment.NewLine);
-            Console.Error.WriteLine(memory);
             diskSampler.ObserveNow(); // diagnosis only; no changes to selection.
         }, frozenTfReferenceForRuleset: referenceFactory,
             executionMaximumParallelRuleSets: resources.EffectiveParallelism,
@@ -401,8 +397,6 @@ public static class V9NestedCalibrationCli
             scientificSelectionUsesElapsedTime = false,
             testUsed = false, activated = false
         });
-        Console.WriteLine(JsonSerializer.Serialize(new { envelopeSha256 = envelopeSha, evaluations = result.Evaluations.Count,
-            finalists = result.FinalistSnapshotShas.Count, result.StopReason, externalValidationUsed = false, testUsed = false, activated = false }));
     }
 
 
