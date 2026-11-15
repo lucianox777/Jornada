@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import json
+import math
 from pathlib import Path
 
 def sha(path):
@@ -28,7 +29,11 @@ def tree(root):
 def make(args):
     if args.birth_daily.is_symlink() or not args.birth_daily.is_file():
         raise ValueError("Birth daily reference missing or unsafe: " + str(args.birth_daily))
-    return {
+    maternal_rate = getattr(args, "mother_corruption_rate", None)
+    if maternal_rate is not None and (
+            not math.isfinite(maternal_rate) or not 0 <= maternal_rate <= 1):
+        raise ValueError("Mother corruption rate must be finite and in [0,1]")
+    result = {
         "schema": "v9-corpus-inputs-v2",
         "generator_command": "Jornada.Linkage.SyntheticCorpus generate",
         "generator_source_sha256": tree(args.generator_source),
@@ -44,6 +49,13 @@ def make(args):
             "birth_daily_source": "synthetic-birth-sp"
         }
     }
+    # An omitted override remains omitted, preserving the legacy clean
+    # 10% generation contract. An explicit override is fingerprinted and
+    # must match the generator CLI exactly.
+    if maternal_rate is not None:
+        result["mother_corruption_rate_override"] = maternal_rate
+        result["mother_corruption_rate_provenance"] = "EXPLORATORY_NOT_OBSERVED_IBGE"
+    return result
 
 def main():
     p = argparse.ArgumentParser()
@@ -55,6 +67,7 @@ def main():
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--population-profile", default="demographic-primary")
     p.add_argument("--error-profile", default="clean")
+    p.add_argument("--mother-corruption-rate", type=float)
     p.add_argument("--output", type=Path, required=True)
     a = p.parse_args()
     if a.people < 1 or a.seed < 0:
